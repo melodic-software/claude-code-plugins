@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/confirm-verdict.sh: a /verification:confirm or /verification:measure verdict is
-# stored for the head it judged, and the ready report reads it for that head only, without ever
-# refusing.
-#
-# Expected values come from the verdict words and plan-item statuses /verification:confirm
-# defines (CONFIRMED, NEEDS WORK, NOT VERIFIED; MISSING, PARTIAL) and the verdict words
-# /verification:measure defines, not from the script.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -116,8 +109,6 @@ assert_exit "a short sha is a usage error" 1 "$?"
 bash "$SCRIPT" bogus >/dev/null 2>&1
 assert_exit "an unknown subcommand is a usage error" 1 "$?"
 
-# /verification:measure verdicts (CONFIRMED, MIXED, INCONCLUSIVE, NOT CONFIRMED, DEGRADED, and
-# CANNOT QUANTIFY when no baseline was captured before the change) share the store, per head.
 HEAD_D=$(printf 'd%.0s' $(seq 40))
 out=$(bash "$SCRIPT" show --of measure --head "$HEAD_D" 2>&1)
 assert_exit "measure show with nothing recorded exits 0" 0 "$?"
@@ -167,8 +158,6 @@ assert_exit "a claim on a confirm record is a usage error" 1 "$?"
 bash "$SCRIPT" show --of other --head "$HEAD_D" >/dev/null 2>&1
 assert_exit "an unknown --of is a usage error" 1 "$?"
 
-# Without CONFIRM_VERDICT_DIR, a record made from a linked worktree reaches a show from the main
-# checkout of the same repository.
 unset CONFIRM_VERDICT_DIR
 REPO="$TMP/main" WT="$TMP/linked"
 git init -q "$REPO" && git -C "$REPO" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -q --allow-empty -m init
@@ -192,8 +181,6 @@ assert_eq "measure show outside a repository prints nothing" "" \
 (cd "$TMP/norepo" && bash "$SCRIPT" record --head "$HEAD_A" --verdict CONFIRMED >/dev/null 2>&1)
 assert_exit "record outside a repository cannot write state" 2 "$?"
 
-# --dir names the checkout, so a shell outside every checkout records and shows where a show from
-# the checkout itself reads.
 (cd "$TMP/norepo" && bash "$SCRIPT" record --head "$HEAD_W2" --verdict CONFIRMED --dir "$WT")
 assert_exit "a record with --dir from outside the checkout succeeds" 0 "$?"
 out=$(cd "$REPO" && bash "$SCRIPT" show --head "$HEAD_W2" 2>&1)

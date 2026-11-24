@@ -330,8 +330,10 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`, with the App token or,
    in the read file, the `GITHUB_TOKEN`, which has no `issues` grant: in a private repository a PR
    that closes an issue may fail the step red.
-8. `collect-base-activity` copies what the activity runs from the base out of `.base`: a script's whole
-   directory to `$RUNNER_TEMP/base-script`, or for a skill the base `plugins/` and
+8. `collect-base-activity` copies what the activity runs from the base out of `.base`: the files in
+   a script's own directory and every file it loads, transitively, each on its own, to
+   `$RUNNER_TEMP/base-script` at their repository paths, where the runner runs it as `$RUNNER_TEMP/base-script/<script>`, or
+   for a skill the base `plugins/` and
    `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`. For
    [`prepare: merge-base`](#prepare-merge-base) the read file, and the write file under the
    `merge-base` patch row, also copy the base's `.github/scripts/merge-base/` scripts and
@@ -349,7 +351,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `sudo -n true` still succeeds or the socket is still open to the runner user.
 11. For a skill (the read file only), copies the base's [`scripts/setup-env.sh`](../../../scripts/setup-env.sh) and the
     files it installs from (`.python-version`, `.github/requirements-ci.txt`, the root and
-    `.github/standards/runner-policy` `package.json` and `package-lock.json`) to
+    `scripts/ci-deps` `package.json` and `package-lock.json`) to
     `$RUNNER_TEMP/setup-env`; a base without the script skips this and step 12's install with a
     notice. Then checks out the trigger gate's `head-sha` with `persist-credentials: false` (full
     history for a merge, else depth 1), then fails red unless `git rev-parse HEAD`

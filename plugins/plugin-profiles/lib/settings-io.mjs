@@ -26,13 +26,15 @@ const KEYS = ["enabledPlugins", "skillOverrides", "env"];
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 export const hashOf = (text) => (text === null ? ABSENT : createHash("sha256").update(text).digest("hex"));
 
-/** local is the folder file lib/folder-file.mjs resolves; earlier is the folder's own file when that differs, which Claude Code still reads below local. */
+/** local is the folder file lib/folder-file.mjs resolves; earlier is the folder's own file when that differs, which Claude Code still reads below local; project is null when it is the user file, as in the home folder. */
 export function settingsPaths({ configDir, projectDir, home }) {
   const local = folderLevel(projectDir, home ? { home } : {}).file;
   const own = join(projectDir, ".claude", "settings.local.json");
+  const user = join(configDir, "settings.json");
+  const project = join(projectDir, ".claude", "settings.json");
   return {
-    user: join(configDir, "settings.json"),
-    project: join(projectDir, ".claude", "settings.json"),
+    user,
+    project: realPath(project) === realPath(user) ? null : project,
     local,
     earlier: realPath(own) === realPath(local) ? null : own,
   };
@@ -75,7 +77,7 @@ export function readLayers({ paths, managedFiles }) {
     Object.assign(managed.enabledPlugins, layer.enabledPlugins);
     Object.assign(managed.skillOverrides, layer.skillOverrides);
   }
-  const level = (path) => layerOf(readSettings(path).doc);
+  const level = (path) => layerOf(path ? readSettings(path).doc : {});
   const local = level(paths.local);
   if (paths.earlier) {
     const earlier = level(paths.earlier);

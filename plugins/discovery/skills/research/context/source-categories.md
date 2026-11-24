@@ -9,7 +9,8 @@ Research tools vary by session: MCP servers connect and disconnect, CLIs come an
 launching, take stock of what is actually available this session: the active and deferred tool list,
 the MCP server-instruction blocks already injected into context, and the project's MCP registry. Map
 the categories below onto whatever is there, and never hard-depend on one server: a docs-MCP server
-absent means WebFetch the docs site directly, not a category skipped.
+absent means reading the docs site directly through `<plugin-root>/scripts/fetch-docs.sh --cache`
+per `<plugin-root>/reference/docs-lookup-procedure.md`, not a category skipped.
 
 ## The categories
 

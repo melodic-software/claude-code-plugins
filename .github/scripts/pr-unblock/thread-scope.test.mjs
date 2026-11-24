@@ -24,7 +24,6 @@ test("any file in the same plugins/<p>/ directory as a kept thread's path is in 
   assert.equal(inThreadScope("plugins/planning/README.md", new Set(["plugins/planning/surface/round.py"])), true);
 });
 
-// Each refused path and the kept thread paths of the four recorded trips.
 test("the four recorded trips are in scope", () => {
   const trips = [
     // #8043, run 39100052790: an eval sample beside the thread's case.
@@ -178,7 +177,6 @@ test("a named path in another plugin, under .github/, or on an instruction path 
   ]) {
     assert.equal(inThreadScope(path, new Set([WRITE]), [{ path: WRITE, named_paths: [path] }]), false, path);
   }
-  // A name does not reach past its thread's plugin.
   const other = [{ path: "plugins/other/a.md", named_paths: ["plugins/third/x.js"] }];
   assert.equal(inThreadScope("plugins/third/x.js", new Set([WRITE, "plugins/other/a.md"]), other), false);
 });
@@ -220,8 +218,6 @@ test("a path with a non-ASCII letter is refused, even as a kept thread's own pat
   }
 });
 
-// A finding on a doc whose fix lives in a script the pull request also
-// changes: thread on A, fix in B.
 const DOC = "plugins/p/skills/s/converge.md";
 const SCRIPT = "plugins/p/skills/s/scripts/converge-plan.sh";
 
@@ -270,8 +266,6 @@ test("a protected, instruction, HIGH floor or control-plane path outside plugins
   ];
   const listed = refused.map((filename) => ({ filename }));
   assert.deepEqual(prPathsOf(listed), []);
-  // Even when a thread file lists them, inThreadScope refuses each beside a
-  // thread outside their plugin.
   for (const path of refused) {
     assert.equal(inThreadScope(path, new Set(["docs/x.md"]), [], { prPaths: new Set(refused), copyPaths: new Set(refused) }), false, path);
   }

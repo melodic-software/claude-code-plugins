@@ -93,7 +93,7 @@ for (const job of JOBS) {
     const schema = /printf '%s\\n' '(\{.*\})' >"\$SCHEMA_FILE"/.exec(prompt)?.[1];
     assert.deepEqual(JSON.parse(schema), JUDGE.schema);
     const resolve = step(job, "Resolve the verifier's model");
-    assert.deepEqual(withKeys(resolve).sort(), ["model-route", "output-path"]);
+    assert.deepEqual(withKeys(resolve).sort(), ["model-route", "output-path", "standards-path"]);
     assert.equal(input(resolve, "model-route"), JUDGE.modelRoute);
   });
 

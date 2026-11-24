@@ -6,7 +6,7 @@
           "tool": "Agent",
           "input": {
             "subagent_type": "multi-agent:board-reader",
-            "prompt": "Read /tmp/b/pages/www-tbench-ai/leaderboard.md"
+            "prompt": "Read /tmp/b/pages/www-tbench-ai.md"
           }
         }
       ],

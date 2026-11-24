@@ -40,7 +40,6 @@ import { fileURLToPath } from "node:url";
 
 const LEGS = { key: "api-key", subscription: "subscription", fallback: "fallback" };
 const AUTH_FAILED_STATUS = 401;
-// The classes a run's trace can show that say the credential stopped, not the case.
 const STOP_CLASSES = ["credit-stop", "auth", "rate-limit", "overloaded"];
 
 // Every errored run's trace path, resolved as run-validity.py resolves it.
@@ -89,7 +88,6 @@ export function judgeLegStreams(streams, options, launcher) {
   return { handoff: false, reason: "", laneClass };
 }
 
-// A suite the credential stopped before its runs finished.
 function authFailed(result) {
   return result?.partial === true && result.partialReason === "auth_failed";
 }

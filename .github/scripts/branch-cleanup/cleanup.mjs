@@ -326,7 +326,7 @@ async function main(env = process.env) {
     pathToFileURL(`${env.BASE_PATH}/.github/actions/resolve-config/resolve-config.mjs`).href
   );
   const dryRun = isDryRun(env);
-  const loadConfig = () => branchCleanupFromBase({ BASE_PATH: env.BASE_PATH });
+  const loadConfig = () => branchCleanupFromBase({ BASE_PATH: env.BASE_PATH, STANDARDS_DIR: env.STANDARDS_DIR });
   const summarize = (text) => {
     if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${text}\n`);
     else console.log(text);

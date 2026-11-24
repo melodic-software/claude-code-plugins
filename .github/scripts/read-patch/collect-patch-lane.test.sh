@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests that collect-patch.sh leaves .lane/, where pr-run-activity-read.yml
-# stages the skill's plugin, CI context, scratch directory and prompt, out of
-# the patch.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

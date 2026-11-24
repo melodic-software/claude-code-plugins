@@ -1,9 +1,3 @@
-// Seal named payload files to an X25519 public key as one bundle, cut into
-// fixed-size base64 chunks that each fit one environment variable. Each
-// payload gets its own ephemeral key and random nonce; the key comes from
-// HKDF-SHA256 over the shared secret, and AES-256-GCM binds the header, the
-// payload name, the run id and the producing job id, so a record moved to
-// another name, job or run does not open. README.md states the format.
 import crypto from "node:crypto";
 import { appendFileSync, lstatSync, readFileSync } from "node:fs";
 import path from "node:path";

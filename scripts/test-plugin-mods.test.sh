@@ -147,6 +147,48 @@ else
   bad "each mod's output prints under its own header, in order" "output: $LAST_OUTPUT"
 fi
 
+stub_slow_claude() {
+  cat >"$f/bin/claude" <<EOF
+#!$BASH_BIN
+if [[ "\$1" == --version ]]; then echo "2.1.300 (Claude Code)"; exit 0; fi
+echo S >>"$f/spans.log"
+$(command -v sleep) 0.3
+echo E >>"$f/spans.log"
+EOF
+  chmod +x "$f/bin/claude"
+}
+
+max_concurrent() {
+  local open=0 max=0 span
+  while IFS= read -r span; do
+    if [[ $span == S ]]; then ((++open > max)) && max=$open; else ((open--)); fi
+  done <"$f/spans.log"
+  echo "$max"
+}
+
+new_case
+for p in a b c d e; do hooks_json "$p" "$MOD"; done
+stub_slow_claude
+run 0 "five mods under the default cap"
+got="$(max_concurrent)"
+if [[ $got == 2 ]]; then
+  pass "at most 2 mods test at once by default"
+else
+  bad "at most 2 mods test at once by default" "max concurrent: $got"
+fi
+assert_output_contains "the last mod still prints under its header" "=== claude plugin test plugins/e ==="
+
+new_case
+for p in a b c; do hooks_json "$p" "$MOD"; done
+stub_slow_claude
+MOD_TEST_JOBS=1 run 0 "MOD_TEST_JOBS=1 runs the mods one at a time"
+got="$(max_concurrent)"
+if [[ $got == 1 ]]; then
+  pass "MOD_TEST_JOBS=1 caps concurrency at 1"
+else
+  bad "MOD_TEST_JOBS=1 caps concurrency at 1" "max concurrent: $got"
+fi
+
 register_file() { # <plugin> <file>
   mkdir -p "$f/plugins/$1/hooks"
   : >"$f/plugins/$1/hooks/$2"

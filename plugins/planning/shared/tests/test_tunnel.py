@@ -190,7 +190,7 @@ class TestExit(TunnelCase):
     def test_a_pid_the_os_gave_to_another_program_is_not_alive(self):
         rec = tunnel.ensure(self.d, 4321)
         self.addCleanup(detached.stop, rec["pid"], rec["marker"])
-        rec["pid"] = os.getpid()  # this test runner: alive, but not cloudflared
+        rec["pid"] = os.getpid()
         (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")
         self.assertIsNone(tunnel.alive(self.d))
         self.assertTrue(detached._running(os.getpid()))
@@ -203,7 +203,7 @@ class TestExit(TunnelCase):
         time.sleep(1.1)  # macOS ps reports a start to the second; a pid the OS reuses comes from a later start
         other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", rec["marker"]])
         self.addCleanup(lambda: (other.kill(), other.wait()))
-        self.assertTrue(detached.alive(other.pid, rec["marker"]))  # the name alone would pass it
+        self.assertTrue(detached.alive(other.pid, rec["marker"]))
         rec["pid"] = other.pid
         (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")
         self.assertIsNone(tunnel.alive(self.d))
@@ -246,7 +246,7 @@ class TestExit(TunnelCase):
         rec = tunnel.ensure(self.d, 4321)
         self.addCleanup(detached.stop, rec["pid"], rec["marker"])
         other, _ = self.fake_process("http://127.0.0.1:9", named=False)
-        self.assertTrue(detached.alive(other.pid, rec["marker"]))  # the name alone would pass it
+        self.assertTrue(detached.alive(other.pid, rec["marker"]))
         self.legacy(pid=other.pid)
         self.assertIsNone(tunnel.alive(self.d))
         self.assertNotIn("processStart", tunnel.read(self.d))
@@ -262,7 +262,7 @@ class TestExit(TunnelCase):
             # On Windows too: the image path alone never stands in for the command line.
             with mock.patch.object(detached, "WINDOWS", True), mock.patch.object(detached, "alive", return_value=True), mock.patch.object(detached, "started", return_value="1"):
                 self.assertIsNone(tunnel._legacy_start(rec))
-        self.assertIsNotNone(tunnel.alive(self.d))  # readable again, the same record is the tunnel
+        self.assertIsNotNone(tunnel.alive(self.d))
 
     def test_a_record_from_before_process_start_naming_this_process_is_never_ours(self):
         rec = tunnel.ensure(self.d, 4321)
@@ -382,7 +382,7 @@ class TestAdopt(TunnelCase):
 
 
 HOST = "interview.example.com"
-TOKEN_TEXT = "fake-tunnel-token-for-tests"  # what the token file holds; no output may carry it
+TOKEN_TEXT = "fake-tunnel-token-for-tests"
 
 
 def token_file(case, text=TOKEN_TEXT, mode=0o600):
@@ -426,7 +426,7 @@ class TestNamed(TunnelCase):
         self.assertNotIn("retired", second)
 
     def test_a_token_cloudflared_cannot_read_is_down_and_leaves_nothing_running(self):
-        with mock.patch.object(tunnel, "token_file_problem", return_value=None):  # past the check, so cloudflared itself refuses it
+        with mock.patch.object(tunnel, "token_file_problem", return_value=None):
             with self.assertRaisesRegex(tunnel.TunnelDown, f"no connection for {HOST}"):
                 tunnel.ensure(self.d, 4321, HOST, str(self.d / "missing.token"))
         self.assertIsNone(tunnel.read(self.d))
@@ -506,7 +506,7 @@ class TestSwitch(TunnelCase):
         self.assertEqual(named["retired"]["url"], quick["url"])
         self.assertEqual(tunnel.retired(self.d)["pid"], quick["pid"])
         self.assertTrue(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
-        self.assertFalse(tunnel.sweep(self.d))  # its grace time runs
+        self.assertFalse(tunnel.sweep(self.d))
         self.assertTrue(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
 
     def test_a_restart_at_the_same_address_keeps_the_retired_tunnel_and_its_grace_time(self):
@@ -625,7 +625,7 @@ class TestLiveRecords(TunnelCase):
         self.assertEqual(self.runs(), ["tunnel --no-autoupdate --url http://127.0.0.1:4400"])
         self.assertEqual(tunnel.read_live(self.path), rec)
         self.assertEqual((rec["id"], rec["port"]), ("L1", 4400))
-        self.assertIsNone(tunnel.read(self.d))  # the session's own record stays as it was: absent
+        self.assertIsNone(tunnel.read(self.d))
         self.assertTrue((self.d / tunnel.LIVE_DIR / "L1.cloudflared.log").is_file())
 
     @unittest.skipIf(WINDOWS, "file modes are advisory on Windows")
@@ -653,7 +653,7 @@ class TestLiveRecords(TunnelCase):
         self.assertFalse(tunnel.tunnel_running(rec) or tunnel.server_running(rec))
         kept = tunnel.read_live(self.path)
         self.assertEqual((kept["pid"], kept["url"], kept["reason"]), (rec["pid"], rec["url"], "stopped"))
-        self.assertEqual(tunnel.end_live(self.path, "failed")["reason"], "stopped")  # ended once
+        self.assertEqual(tunnel.end_live(self.path, "failed")["reason"], "stopped")
         self.assertIsNone(tunnel.end_live(tunnel.live_path(self.d, "L9"), "stopped"))
 
     def test_a_restart_of_a_record_ended_as_stopped_is_refused_and_a_fresh_start_is_not(self):
@@ -692,7 +692,7 @@ class TestLiveRecords(TunnelCase):
         ended = tunnel.sweep_live(self.d, every=True, reason="session-ended")
         self.assertEqual([(r["id"], r["stopped"]) for r in ended], [("L1", ["tunnel"])])
         self.assertFalse(tunnel.tunnel_running(rec))
-        self.assertEqual(tunnel.sweep_live(self.d, every=True), [])  # an ended record is left alone
+        self.assertEqual(tunnel.sweep_live(self.d, every=True), [])
 
     def test_the_session_tunnel_record_keeps_its_fields(self):
         rec = tunnel.ensure(self.d, 4321)

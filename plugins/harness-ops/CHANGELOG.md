@@ -3,6 +3,29 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.7.0] - 2026-11-24
+
+### Added
+
+- add the Claude Code 2.1.331 span attributes to the `cc_spans` view and the `cc_spans_cold()`
+  stub: `gen_ai_operation_name`, `gen_ai_response_model`, `gen_ai_usage_input_tokens`,
+  `gen_ai_usage_output_tokens`, `gen_ai_usage_cache_read_input_tokens` and
+  `gen_ai_usage_cache_write_input_tokens`
+
+  `gen_ai_usage_input_tokens` counts cache read and write tokens, unlike `input_tokens`. Spans
+  from an older Claude Code read these columns as NULL.
+
+## [10.6.8] - 2026-11-24
+
+### Changed
+
+- `changelog` and `audit-plugin-landscape` read pages through the shared docs cache
+
+  `/harness-ops:changelog` research subagents read a changelog entry through
+  `scripts/fetch-docs.sh --cache --profile generic` instead of `curl`; a GitHub issue is still
+  read with `curl`. `/harness-ops:audit-plugin-landscape` reads a docs page through the same
+  script, not WebFetch, when the `discovery` plugin is not enabled.
+
 ## [10.6.7] - 2026-11-24
 
 ### Changed

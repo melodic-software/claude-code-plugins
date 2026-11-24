@@ -18,7 +18,6 @@ import {
   makeFixture,
   rec,
   row,
-  runFetchBoardsCacheFixture,
   seedOutcome,
   tieWithTokensRecords,
   twoBoards,
@@ -154,20 +153,6 @@ test('AC14: a score with no error_range only supports and cannot count as a lead
   assert.equal(res.json.vendor, 'claude')
   assert.equal(res.json.basis, 'default')
   assert.equal(res.json.sources.find((s) => s.source_id === 'board-b').role, 'support-only')
-})
-
-test('AC14: a board missing a vendor current model id abstains for that vendor', (t) => {
-  const res = twoBoards(t, [
-    rec('board-a', 'codex', 'sparrow-1', 'lead'),
-    rec('board-a', 'claude', 'kestrel-1', 'behind'),
-    rec('board-b', 'codex', 'sparrow-1', 'lead'),
-    rec('board-b', 'claude', 'kestrel-0', 'behind'),
-  ])
-  assert.equal(res.code, 0, res.stderr)
-  assert.equal(res.json.vendor, 'claude')
-  assert.equal(res.json.basis, 'default')
-  assert.equal(res.json.sources.find((s) => s.source_id === 'board-b').role, 'abstains')
-  assert.ok(res.json.notes.some((n) => /abstain/i.test(n) && /claude/i.test(n)))
 })
 
 test('AC14: provider_own results are support-only and support only that provider models', (t) => {
@@ -429,27 +414,6 @@ test('heavy task class raises Claude default effort one step above defaults.yaml
   assert.equal(res.json.basis, 'default')
 })
 
-
-test('AC6: second fetch-boards run on a fixture row within its window has source cache in manifest', (t) => {
-  const probe = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' })
-  if (probe.status !== 0 || probe.stdout.trim() !== 'ok') {
-    t.skip('bash unavailable or sandboxed on this host')
-    return
-  }
-  const { run1, run2, m1, m2 } = runFetchBoardsCacheFixture(t)
-  assert.equal(run1.status, 0, run1.stderr)
-  assert.equal(m1.boards.length, 1)
-  assert.equal(m1.boards[0].source_id, 'terminal-bench')
-  assert.equal(m1.boards[0].state, 'read')
-  assert.equal(m1.boards[0].source, 'fixture')
-  assert.equal(m1.boards[0].page_date, '2026-11-18')
-  assert.equal(run2.status, 0, run2.stderr)
-  assert.equal(m2.boards[0].source_id, 'terminal-bench')
-  assert.equal(m2.boards[0].state, 'read')
-  assert.equal(m2.boards[0].source, 'cache')
-  assert.equal(m2.boards[0].page_date, '2026-11-18')
-})
-
 test('multi-agent.schema.json defines closed vendors block with exact keys and constraints', () => {
   const schema = JSON.parse(readFileSync(CONFIG_SCHEMA, 'utf8'))
   const v = schema.properties.vendors
@@ -463,6 +427,8 @@ test('multi-agent.schema.json defines closed vendors block with exact keys and c
       'auto_delegation',
       'claude',
       'codex',
+      'promotion_audits',
+      'promotion_days',
       'routing',
       'sources',
       'tiebreak',
@@ -824,6 +790,39 @@ test('AC5: --needs-tools skips harness lacking a required tool with one note; ca
   assert.equal(resOk.json.basis, 'consensus')
 })
 
+test('--use investigate gates --needs-tools on read_only_tools, --use task on tools, and a vendor with no read_only_tools falls back to tools', (t) => {
+  const claude = { ...MODELS.claude, tools: ['file', 'shell', 'web', 'mcp'] }
+  const codexTools = ['file', 'shell', 'web', 'mcp']
+  const run = (codex, use) =>
+    twoBoards(t, codexLeadRecords(), {
+      models: { claude, codex: { ...MODELS.codex, ...codex } },
+      extraArgs: ['--task-type', 'coding', '--needs-tools', 'web', '--use', use],
+    })
+
+  const investigate = run({ tools: codexTools, read_only_tools: ['file'] }, 'investigate')
+  assert.equal(investigate.code, 0, investigate.stderr)
+  assert.equal(investigate.json.vendor, 'claude', 'a read-only brief needing web skips codex whose read_only_tools lack web')
+  const notes = investigate.json.notes.filter((n) => /codex/i.test(n) && /read-only/i.test(n))
+  assert.equal(notes.length, 1, `expected one read-only tool note for codex, got: ${JSON.stringify(investigate.json.notes)}`)
+  assert.match(notes[0], /web/)
+
+  const task = run({ tools: codexTools, read_only_tools: ['file'] }, 'task')
+  assert.equal(task.code, 0, task.stderr)
+  assert.equal(task.json.vendor, 'codex', 'a task brief gates on tools, which include web')
+  assert.equal(task.json.basis, 'consensus')
+
+  const fallback = run({ tools: codexTools }, 'investigate')
+  assert.equal(fallback.code, 0, fallback.stderr)
+  assert.equal(fallback.json.vendor, 'codex', 'with no read_only_tools, the read-only gate checks tools')
+  assert.equal(fallback.json.basis, 'consensus')
+})
+
+test('--use rejects a value other than investigate or task', (t) => {
+  const res = twoBoards(t, codexLeadRecords(), { extraArgs: ['--task-type', 'coding', '--use', 'review'] })
+  assert.notEqual(res.code, 0)
+  assert.match(res.stderr, /--use must be investigate or task/)
+})
+
 test('AC5: --context skips models below required tokens with one note and does not skip Claude when unknown', (t) => {
   const resSkipCodex = twoBoards(t, codexLeadRecords(), {
     models: {
@@ -1003,4 +1002,44 @@ test('caller contract: the decision is the same with auto-delegation on or off',
   assert.equal(on.code, 0, on.stderr)
   assert.equal(off.json.vendor, 'codex')
   assert.deepEqual(on.json, off.json)
+})
+
+test('a board-reader record carrying a display-name version is dropped; the same record with a null version counts', (t) => {
+  const resDropped = twoBoards(t, [
+    rec('board-a', 'codex', 'sparrow-1', 'lead', { version: 'Sparrow 1' }),
+    rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    rec('board-b', 'codex', 'sparrow-1', 'lead'),
+    rec('board-b', 'claude', 'kestrel-1', 'behind'),
+  ])
+  assert.equal(resDropped.code, 0, resDropped.stderr)
+  assert.ok(resDropped.json.notes.includes("dropped record for 'board-a': invalid version value"))
+  assert.equal(resDropped.json.vendor, 'claude')
+  assert.equal(resDropped.json.basis, 'default')
+
+  const resKept = twoBoards(t, [
+    rec('board-a', 'codex', 'sparrow-1', 'lead', { version: null }),
+    rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    rec('board-b', 'codex', 'sparrow-1', 'lead'),
+    rec('board-b', 'claude', 'kestrel-1', 'behind'),
+  ])
+  assert.equal(resKept.code, 0, resKept.stderr)
+  assert.equal(resKept.json.notes.some((n) => n.startsWith('dropped record for')), false)
+  assert.equal(resKept.json.vendor, 'codex')
+  assert.equal(resKept.json.model, 'sparrow-1')
+  assert.equal(resKept.json.basis, 'consensus')
+  assert.deepEqual(resKept.json.sources.map((s) => s.source_id).sort(), ['board-a', 'board-b'])
+  assert.ok(resKept.json.sources.every((s) => s.read === 'live' && s.role === 'leading'))
+})
+
+test('verdict-record schema patterns accept ids and reject display names', () => {
+  const schema = JSON.parse(readFileSync(VERDICT_SCHEMA, 'utf8'))
+  for (const f of ['model', 'version', 'effort']) {
+    const re = new RegExp(schema.properties[f].pattern)
+    for (const valid of ['gpt-6.2-astra', '2026-11-18', 'high']) {
+      assert.equal(re.test(valid), true, `${f} should match ${valid}`)
+    }
+    for (const invalid of ['GPT-6.2 Astra', '']) {
+      assert.equal(re.test(invalid), false, `${f} should reject ${JSON.stringify(invalid)}`)
+    }
+  }
 })

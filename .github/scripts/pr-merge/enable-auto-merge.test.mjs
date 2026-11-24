@@ -109,10 +109,6 @@ const pull = (number, overrides = {}) => ({
   autoMergeRequest: null,
   ...overrides,
 });
-// One pull request's comments, reviews, inline comments and newest
-// auto-merge event, as DETAIL_QUERY returns them: `autoMerge` is the whole
-// timeline, oldest first, cut as GitHub cuts it to the item types the query
-// names and its `last: 1`.
 const page = (nodes = []) => ({ totalCount: nodes.length, nodes });
 const AUTO_MERGE_TYPES = DETAIL_QUERY.match(/timelineItems\(itemTypes: \[([^\]]*)\], last: 1\)/)[1]
   .split(", ")
@@ -124,7 +120,6 @@ function detail({ comments = [], reviews = [], inline = [], disabledBy = null, a
     reviews: page(reviews),
     reviewThreads: page(inline.length ? [{ comments: page(inline) }] : []),
     timelineItems: { nodes: autoMerge.filter(({ __typename }) => AUTO_MERGE_TYPES.includes(__typename)).slice(-1) },
-    // The head's pr-unblock stops (merge-holds.unblockStops): none.
     unblockStops: [],
   };
 }
@@ -134,7 +129,6 @@ const said = (login, body, at, association = "OWNER", typename = "User") => ({
   createdAt: at,
   authorAssociation: association,
 });
-// `evidence --lane-queue`: a head the merge queue has not removed for failed checks.
 const UNEJECTED = { failedEjections: 0, limit: 2, refusal: null, comment: null };
 const PASSED = { refusal: null, head: HEAD, ineligible: null, reviews: null, queue: UNEJECTED };
 const COST_LINK = `https://github.com/${REPO}/issues/1040#issuecomment-7`;
@@ -146,16 +140,10 @@ const COST_COMMENT = {
   node_id: "IC_7",
   created_at: "2026-10-22T12:00:00Z",
 };
-// lane-room's answer for a lane with room: nothing in flight of five.
 const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], rung: "C2" };
 const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
-// armErrors and disarmErrors: per pull request id, the errors its arm or
-// disarm sends throw, in order.
-// filesError: what every changed-files GET throws.
-// A pull request's `after` is its auto-merge state as the read-back sees it
-// (AUTO_MERGE_STATE_QUERY), else its listed state; `after: "error"` fails the read.
 function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], closeErrors = [], disarmError = null, pinError = null, dequeueError = null, mergeQueue = false } = {}) {
   const pins = [];
   const noteThrows = [...noteErrors];
@@ -167,16 +155,10 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
   const merges = [];
   const github = async (method, path, body, headers) => {
     calls.push({ method, path, body, headers });
-    // A pull request's own REST answers (`rest`, by path), such as the
-    // reads of a lift carried over base merges (merge-holds.liftersOf).
     const own = method === "GET" ? pulls.find((candidate) => candidate.rest && path in candidate.rest) : undefined;
     if (own) {
       return own.rest[path];
     }
-    // A lift's reads (liftBlocked): the issue timeline (`timeline`; with none
-    // the read fails), review comments (`threadComments`), reviews
-    // (`restReviews`), and the head read again before the delete (`freshHead`,
-    // else the head).
     const lift = /^\/repos\/melodic-software\/claude-code-plugins\/(?:issues\/([0-9]+)\/timeline\?|pulls\/([0-9]+)\/comments\?since=[^&]+&|pulls\/([0-9]+)\/reviews\?|pulls\/([0-9]+)$)/.exec(path);
     if (method === "GET" && lift) {
       const found = pulls.find((candidate) => [lift[1], lift[2], lift[3], lift[4]].includes(String(candidate.number)));
@@ -193,8 +175,6 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       const files = pulls.find((candidate) => candidate.number === Number(listing[1]))?.files ?? [{ filename: "plugins/work-items/README.md" }];
       return files.slice((Number(listing[2]) - 1) * 100, Number(listing[2]) * 100);
     }
-    // The head's commit statuses: a pull request's `statuses`, none by
-    // default; `statuses: "error"` fails the read.
     const statusPage = /^\/repos\/melodic-software\/claude-code-plugins\/commits\/([0-9a-f]{40})\/statuses\?per_page=100&page=1$/.exec(path);
     if (method === "GET" && statusPage) {
       const statuses = pulls.find((candidate) => candidate.headRefOid === statusPage[1])?.statuses ?? [];
@@ -203,23 +183,16 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       }
       return statuses;
     }
-    // The cost decision reads (merge-holds.costDecision): the owner's comment
-    // 7 on pull request 40's closing issue, and each pull request closes its own
-    // number plus 1000.
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
       return COST_COMMENT;
     }
-    // Its decided head: the code review lane's status job noticed a cost
-    // hold at the head before it; the security lane has no run.
     const runs = /^\/repos\/melodic-software\/claude-code-plugins\/actions\/workflows\/([a-z-]+)\.yml\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
     if (method === "GET" && runs) {
       return { workflow_runs: runs[1] === "pr-review-hosted" ? [{ id: 9, head_sha: HEAD, head_repository: { full_name: REPO }, created_at: "2026-10-22T10:50:00Z" }] : [] };
     }
-    // The head branch's push history: the head, pushed before its run.
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
       return [{ after: HEAD, timestamp: "2026-10-22T10:45:00Z", activity_type: "push", ref: "refs/heads/fix/cost" }];
     }
-    // main resolves to its tip commit, which the lane-change vet compares.
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/git/ref/heads/main") {
       return { ref: "refs/heads/main", object: { type: "commit", sha: "3".repeat(40) } };
     }
@@ -232,17 +205,14 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/check-runs/90/annotations?per_page=100&page=1") {
       return [{ annotation_level: "notice", message: `claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost label=needs-human` }];
     }
-    // A pull request's whole label list, when its listing cut it.
     const labelPage = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/([0-9]+)\/labels\?per_page=100&page=([0-9]+)$/.exec(path);
     if (method === "GET" && labelPage) {
-      // With no `allLabels`, the read fails, so the list stays cut.
       const all = pulls.find((candidate) => candidate.number === Number(labelPage[1]))?.allLabels;
       if (all === undefined) {
         throw new Error("GET labels failed with status 502");
       }
       return all.slice((Number(labelPage[2]) - 1) * 100, Number(labelPage[2]) * 100).map((name) => ({ name }));
     }
-    // The read-back pin, posted before an arm.
     if (method === "POST" && String(body?.body ?? "").startsWith("<!-- babysit-merge-pin ")) {
       pins.push({ path, body: body.body });
       if (pinError) {
@@ -250,7 +220,6 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       }
       return {};
     }
-    // The refusal note: a comment posted or edited, and the label.
     const note = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/(?:([0-9]+)\/(comments|labels)|comments\/([0-9]+))$/.exec(path);
     if (note && (method === "POST" || method === "PATCH")) {
       notes.push({ method, path, body });
@@ -277,7 +246,6 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       const results = pulls.find((candidate) => candidate.number === Number(mergeResult[1])).mergeResults;
       return results.length > 1 ? results.shift() : results[0];
     }
-    // The lane lifting the human-gated label (approvalLift).
     if (method === "DELETE" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/labels\/[^/]+$/.test(path)) {
       notes.push({ method, path });
       return [];
@@ -301,8 +269,6 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: pulls } } } };
     }
-    // The skip key's state read (SKIP_STATE_QUERY): each pull request's
-    // listed head and update time, and its `rollup` (none by default).
     if (String(body.query).startsWith(SKIP_STATE_PREFIX)) {
       const repository = Object.fromEntries(
         [...body.query.matchAll(/p([0-9]+): pullRequest/g)].map(([, n]) => {
@@ -332,26 +298,21 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
     }
     if (body.query === DETAIL_QUERY) {
       const found = pulls.find((candidate) => candidate.number === body.variables.number);
-      // `graphFiles`: the changed files the query lists, absent by default.
       const read = found?.cutDiscussion ?? detail(found?.discussion);
       return { data: { repository: { pullRequest: found?.graphFiles === undefined ? read : { ...read, files: found.graphFiles } } } };
     }
-    // The rest of a cut comment list, two to a page.
     if (body.query === DISCUSSION_PAGE_QUERIES.comments) {
       const all = pulls.find((candidate) => candidate.number === body.variables.number)?.discussion?.comments ?? [];
       const start = body.variables.after === null ? 0 : Number(body.variables.after);
       const nodes = all.slice(start, start + 2);
       return { data: { repository: { pullRequest: { comments: { totalCount: all.length, pageInfo: { hasNextPage: start + 2 < all.length, endCursor: String(start + 2) }, nodes } } } } };
     }
-    // The rest of a cut review thread's comments, by the thread's id, two to
-    // a page.
     if (body.query === THREAD_PAGE_QUERY) {
       const all = pulls.flatMap((candidate) => Object.entries(candidate.threads ?? {})).find(([id]) => id === body.variables.id)?.[1] ?? [];
       const start = body.variables.after === null ? 0 : Number(body.variables.after);
       const nodes = all.slice(start, start + 2);
       return { data: { node: { comments: { totalCount: all.length, pageInfo: { hasNextPage: start + 2 < all.length, endCursor: String(start + 2) }, nodes } } } };
     }
-    // A pull request's merge-queue entry: `queued` puts it in the queue.
     if (body.query === QUEUE_ENTRY_QUERY) {
       const found = pulls.find((candidate) => candidate.number === body.variables.pr);
       return { data: { repository: { pullRequest: { id: found?.id, mergeQueueEntry: found?.queued ? { id: `MQE_${found.number}` } : null } } } };
@@ -383,9 +344,6 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
     }
     return { data: {} };
   };
-  // The gate's verifier evidence: a pull request's `verdict` (a report, an
-  // Error to throw, or a function of the read's options), else a pass at its
-  // head.
   const verified = [];
   const verify = async ({ number, headRefOid: head }, _rung, options) => {
     verified.push(number);
@@ -405,9 +363,6 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
   return { github, writes, verify, verified, calls, notes, pins, merges };
 }
 
-// babysit_whole_review.py stood in for: each call in order, as
-// [kind, argument], with `request` answering options.request (default a skip
-// at the sweep limit), `toggle` options.toggle and `recover` its drafts ready.
 function wholeReview(options, notes) {
   const asked = [];
   return {
@@ -447,10 +402,8 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
       return options.closeAnswer ? options.closeAnswer(pull) : { closed: true, restarted: [], parked: [] };
     };
     const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), close, whole, sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)), mainInputs: options.mainInputs, mergeRisk: options.mergeRisk });
-    // The `pr-merge/unarmed` statuses the run hands the status job.
     const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
-    // A PR-scoped run's outcome line (WAKE_OUTPUT), if any.
     const outcome = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${WAKE_OUTPUT}=`))?.slice(WAKE_OUTPUT.length + 1);
     return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses, closed, asked: whole.asked, outcome, merges };
   } finally {
@@ -458,9 +411,6 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   }
 }
 
-// The refusal note's two bodies, written out by hand: the gate's reasons
-// marker on its own line, the head named on the next, the reason fenced.
-// The run's clock, and so the time a lane comment first noted its head.
 const NOW = "2026-10-23T10:00:00.000Z";
 const laneNote = (reason, since = NOW) =>
   [
@@ -472,8 +422,6 @@ const laneNote = (reason, since = NOW) =>
     "```",
       `<!-- pr-merge-unarmed-since head=${HEAD} at=${since} -->`,
   ].join("\n");
-// `partial`: written without the verifier's answer, so its last line marks it
-// for the one read that widens it.
 const personNote = (reason, partial = false) =>
   [
     "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
@@ -495,7 +443,6 @@ const lanesSaid = (body, updatedAt = "2026-10-23T10:00:00Z") => ({
   authorAssociation: "NONE",
 });
 const HOLD_PATH_REASON = "it changes docs/held.md, a hold path";
-// A real charge, a cause a person must clear (owner direction 2026-10-24).
 const COST_REASON = "it changes infra/main.tf, a cost path";
 const COST_FILES = [{ filename: "infra/main.tf" }];
 const MISSING = { refusal: "verify:missing", needsHuman: false, head: HEAD, ineligible: null, reviews: null };
@@ -522,19 +469,14 @@ test("the discussion read's file list stands in for the files page, unless a ren
   const folded = await run([pull(1, { graphFiles: listed({ path: "infra/main.tf", changeType: "MODIFIED" }), files: [] })]);
   assert.equal(filesPages(folded.calls), 0);
   assert.deepEqual(folded.notes.slice(0, 1), [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(COST_REASON) } }]);
-  // A rename away from a cost path: only the REST page names the old path.
   const renamed = await run([pull(1, { graphFiles: listed({ path: "docs/main.md", changeType: "RENAMED" }), files: [{ filename: "docs/main.md", previous_filename: "infra/main.tf" }] })]);
   assert.equal(filesPages(renamed.calls), 1);
   assert.deepEqual(renamed.notes.slice(0, 1), [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(COST_REASON) } }]);
-  // A list longer than the query read.
   const cut = await run([pull(1, { graphFiles: { totalCount: 101, nodes: [{ path: "docs/a.md", changeType: "MODIFIED" }] }, files: COST_FILES })]);
   assert.equal(filesPages(cut.calls), 1);
   assert.deepEqual(cut.notes.slice(0, 1), [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(COST_REASON) } }]);
 });
 
-// Owner decision Q26 option B: the gate holds an enforcement floor path as
-// `review-path:` until the security review binds clean to the head; the lanes
-// run that review, so the refusal gets the comment and no label.
 test("an enforcement floor path the gate holds for its security review is a lane's refusal", async () => {
   const reviews = "review-path:.github/scripts/work-resolve-issue/limits.mjs: .github/scripts/work-resolve-issue/limits.mjs; a clean claude-security-review bound to this head clears it";
   const verdict = { refusal: null, needsHuman: false, reviewsPerson: false, head: HEAD, ineligible: null, reviews };
@@ -557,14 +499,12 @@ test("an enforcement floor path the gate holds for its security review is a lane
 // comment first, then the draft toggle starts the whole review.
 const PATH_HOLD = "review-path:.github/scripts/pr-unblock/gate-source.mjs: .github/scripts/pr-unblock/gate-source.mjs; a clean claude-security-review bound to this head clears it";
 const PATH_REASON = `pr-merge's gate holds it on its risk score (${PATH_HOLD})`;
-// PATH_REASON as the comment wraps it at 100 columns.
 const PATH_NOTE = [
   "pr-merge's gate holds it on its risk score (review-path:.github/scripts/pr-unblock/gate-source.mjs:",
   "  .github/scripts/pr-unblock/gate-source.mjs; a clean claude-security-review bound to this head",
   "  clears it)",
 ].join("\n");
 const PATH_HELD = { refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews: PATH_HOLD, reviewsPerson: false, wholeReviewWanted: true, queue: UNEJECTED };
-// babysit_whole_review.record_line's shape, checked against it below.
 const recordAt = (head, at) => `Whole review requested at head \`${head}\` at ${at}: a whole review of this head can clear the reasons below.`;
 const RECORD = recordAt(HEAD, "2026-10-23T10:00:00Z");
 const withRecords = (body, records) => body.replace(/\n(<!-- pr-merge-unarmed-since [^\n]*)$/, `\n\n${records.join("\n")}\n$1`);
@@ -573,7 +513,6 @@ test("a lane's risk hold a whole review clears gets the gate's request: the reco
   const { code, notes, asked } = await run([pull(1, { verdict: PATH_HELD })], {}, { request: { line: RECORD } });
   assert.equal(code, 0);
   assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: withRecords(laneNote(PATH_NOTE), [RECORD]) } }]);
-  // The prior comment (none) goes to `request`; the toggle follows the write.
   assert.deepEqual(asked, [
     ["request", 1, "", 0],
     ["toggle", 1, 1, "needs-human"],
@@ -606,7 +545,6 @@ test("the lane's comment keeps its record lines on every rewrite, and a head alr
   const { notes, asked } = await run([pull(1, { verdict: PATH_HELD, discussion: { comments: [lanesSaid(prior)] } })], {}, { request: null });
   assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: withRecords(laneNote(PATH_NOTE), [older, RECORD]) } }]);
   assert.deepEqual(asked, [["request", 1, prior, 0]]);
-  // Unchanged since, the comment is not written again.
   const again = await run([pull(1, { verdict: PATH_HELD, discussion: { comments: [lanesSaid(withRecords(laneNote(PATH_REASON), [older, RECORD]))] } })], {}, { request: null });
   assert.deepEqual(again.notes, []);
   assert.deepEqual(again.asked.map(([kind]) => kind), ["request"]);
@@ -707,16 +645,9 @@ test("pythonWholeReview runs the gate's script with the prior comment and drafts
     ["python3", ["w.py", "recover", "--repo", REPO, "--identity", "lanes[bot]", "--drafts", "/dev/stdin"], '[{"number":1}]'],
   ]);
   assert.throws(() => pythonWholeReview({}, () => ({ status: 2, stdout: "", stderr: "boom" })).toggle({ id: "PR_1" }), /exited 2: boom/);
-  // babysit_gh's rate guard exit (READER_RATE_LIMIT_EXIT), as the verifier's.
   assert.throws(() => pythonWholeReview({}, () => ({ status: 75, stdout: "", stderr: "" })).toggle({ id: "PR_1" }), ReaderRateLimited);
 });
 
-// Owner decisions Q-FLOOR (B) and Q-ENFORCE (A): a floor path, the files
-// that enforce the floor included, holds with no configured glob naming it,
-// as a cause a person must clear, so it gets the label; a trusted path off
-// the floor arms. Owner decision Q26 option B: an `enforcement` floor path is
-// left to the gate's verifier read, whose risk score holds it until a clean
-// security review binds to the head, so it arms on a passing read.
 test("a floor path no configured glob names is commented on and labeled human-gated; a trusted path off it arms", async () => {
   const floor = [
     ".github/actions/resolve-config/resolve.mjs",
@@ -735,9 +666,7 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/who.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
     "docs/conventions/pr-pipeline.yaml",
-    // A workflow that mints a lane token is a gate path.
     ".github/workflows/pr-merge.yml",
-    // So is ci-status, which posts the required status and runs the hold step.
     ".github/workflows/pr-require-checks.yml",
   ];
   const { code, writes, notes } = await run([
@@ -759,13 +688,6 @@ test("a floor path no configured glob names is commented on and labeled human-ga
   );
 });
 
-// Owner rules 2026-10-26 and 2026-10-27: a person only for intent, design or
-// a CRITICAL security issue, trust holds kept. The gate's `needsHuman`
-// (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec) decides, so a
-// changed spec is the lanes'. Owner decision 2026-10-29: the repeated-FAIL
-// cap, which never clears for it, closes it for a fresh attempt at its
-// issue, with no note and no person's label. Owner decision 2026-11-01
-//: an old pull request waits for a fresh pass at its head.
 test("only a verifier refusal the gate marks needsHuman is a person's; the cap closes for a fresh attempt and an old pull request waits", async () => {
   const refused = (refusal, needsHuman, detail = null) => ({ refusal, needsHuman, detail, head: HEAD, ineligible: null, reviews: null });
   const failed = `fails at 3 heads (${"1".repeat(40)}, ${"2".repeat(40)}, ${"3".repeat(40)}), the cap is 3`;
@@ -788,10 +710,6 @@ test("only a verifier refusal the gate marks needsHuman is a person's; the cap c
   assert.ok(lines.some((line) => line.includes(`#3 closed for a fresh attempt (${refusing(`verify:repeated-fail: ${failed}`)})`)));
 });
 
-// A close the reader left undone (a hold label, a head that moved) or that
-// failed writes no note and no label: the next run judges it again.
-// Left open, it keeps the lane's refusal note (and its pr-merge/unarmed
-// status), as before the close existed; never a person's label.
 test("a capped pull request the close leaves open or fails on gets the lane's note and no label", async () => {
   const capped = { refusal: "verify:repeated-fail", needsHuman: false, detail: null, head: HEAD, ineligible: null, reviews: null };
   const laneOnly = (notes) => {
@@ -807,11 +725,8 @@ test("a capped pull request the close leaves open or fails on gets the lane's no
   const failing = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => { throw new Error("close: HTTP 500"); } });
   laneOnly(failing.notes);
   assert.notEqual(failing.code, 0);
-  // A close that went through notes nothing.
   const closed = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => ({ closed: true, restarted: [7], parked: [] }) });
   assert.deepEqual(closed.notes, []);
-  // Its lane refusal, standing merge.risk-escalation-minutes at the head,
-  // gets the failing pr-merge/unarmed status either way.
   const reason = verifyHold(capped, HEAD);
   const standing = pull(3, { verdict: capped, discussion: { comments: [lanesSaid(laneNote(reason, "2026-10-23T10:00:00.000Z"))] } });
   const now = () => Date.parse("2026-10-23T11:00:00Z");
@@ -835,7 +750,6 @@ test("verifyClears reads the gate's needsHuman and reviewsPerson, not the refusa
   assert.equal(at({ refusal: "verify:untrusted-spec", needsHuman: false }), "lane");
   assert.equal(at({ reviews: "security-finding: 1 open", reviewsPerson: false }), "lane");
   assert.equal(at({ reviews: "evidence-unbound:claude-review: not bound", reviewsPerson: true }), "person");
-  // An answer without the flag holds for a person, as an unknown does.
   assert.equal(at({ refusal: "verify:fail" }), "person");
   assert.equal(at({ reviews: "evidence-unbound:claude-review: not bound" }), "person");
 });
@@ -846,13 +760,7 @@ test("a refusal a lane clears is commented on, with no label", async () => {
   assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
 });
 
-// Owner rule 2026-10-26: a read that failed is never a person's; the next
-// run reads it again, and nothing that failed to read arms.
-// A listing past the page cap never reads whole, so its hold and cost paths
-// are never checked: a person's. A page that did not read is read again.
 test("a listing past the page cap is a person's refusal; one that did not read is a lane's; neither arms", async () => {
-  // Exactly 300 files is not past the cap: one more page reads empty, and
-  // it arms.
   const exactly = Array.from({ length: 300 }, (_, index) => ({ filename: `docs/${index}.md` }));
   const full = await run([pull(1, { files: exactly })]);
   assert.deepEqual(full.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
@@ -934,8 +842,6 @@ test("a changed-files list that is unread or capped never reads as an empty diff
 });
 
 test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has stood merge.risk-escalation-minutes at the head, and an arm or a person's refusal a passing one", async () => {
-  // Timed from the first lane refusal at the head, so a reason whose detail
-  // changes every run does not restart it.
   const standing = (since, said = MISSING_REASON) => pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(said, since))] } });
   const now = () => Date.parse("2026-10-23T11:00:00Z");
   const failing = [{ sha: HEAD, state: "failure", description: MISSING_REASON }];
@@ -943,33 +849,25 @@ test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has
   assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z", "unreadable: RuntimeError: a detail that moves")], {}, { now })).statuses, failing);
   assert.deepEqual((await run([standing("2026-10-23T10:01:00.000Z")], {}, { now })).statuses, []);
   assert.deepEqual((await run([standing("2026-10-23T10:31:00.000Z")], { RISK_ESCALATION_MINUTES: "29" }, { now })).statuses, failing);
-  // A since line for another head starts the time again.
   const moved = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z").replace(`head=${HEAD}`, `head=${"c".repeat(40)}`))] } });
   assert.deepEqual((await run([moved], {}, { now })).statuses, []);
-  // A lane's refusal that becomes a person's withdraws the failing status.
   const escalated = pull(2, { files: COST_FILES, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z"))] } });
   assert.deepEqual((await run([escalated], {}, { now })).statuses, [{ sha: HEAD, state: "success", description: "a person clears this hold: needs-human" }]);
   const armed = await run([pull(3)], {}, { now });
   assert.deepEqual(armed.writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
   assert.deepEqual(armed.statuses, [{ sha: HEAD, state: "success", description: "armed for native auto-merge" }]);
-  // A lane's refusal that cleared while something else leaves it unarmed
-  // (here a member's veto) withdraws its failing status too.
   const vetoed = pull(4, {
     discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z")), said("kyle-sexton", "do not merge", "2026-10-23T10:30:00Z")] },
   });
   const held = await run([vetoed], {}, { now });
   assert.deepEqual(held.writes, []);
   assert.deepEqual(held.statuses, [{ sha: HEAD, state: "success", description: "its lanes refusal no longer stands" }]);
-  // Report-only hands the status job nothing.
   assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z")], { REPORT_ONLY: "true" }, { now })).statuses, []);
 });
 
-// A run that read nothing new about a standing lane refusal leaves its
-// failing status alone: no success that the next reading run turns back.
 test("an unread outcome withdraws no failing pr-merge/unarmed status", async () => {
   const stood = (overrides = {}) => pull(1, { discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z"))] }, ...overrides });
   const at = Date.parse("2026-10-23T11:00:00Z");
-  // No time left: the clock passes the verify budget after the room read.
   let calls = 0;
   const late = () => (calls++ === 0 ? at : at + VERIFY_BUDGET_MS + 1);
   const cases = [
@@ -999,8 +897,6 @@ test("an unchanged refusal writes nothing, and a label a person removed stays of
 });
 
 test("a person's refusal comment standing without its label gets the label back", async () => {
-  // An earlier run's label write failed: no removal at all, a bot's, a
-  // person's before the comment last changed, or another label's.
   for (const removals of [[], [unlabeled("2026-10-23T10:30:00Z", "Bot")], [unlabeled("2026-10-23T09:59:00Z")], [unlabeled("2026-10-23T10:30:00Z", "User", "do-not-merge")]]) {
     const person = pull(2, { files: COST_FILES, discussion: { comments: [lanesSaid(personNote(COST_REASON))] }, unlabeled: removals });
     const { code, notes } = await run([person]);
@@ -1038,8 +934,6 @@ test("a held hold path and a person's risk hold are one refusal naming both", as
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(BOTH) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
-  // A hold path and a cost path with a lane's verifier refusal: the two
-  // person reasons, and not the lane's.
   const files = [{ filename: "infra/main.tf" }, { filename: "docs/held.md" }];
   const mixed = await run([pull(2, { files, verdict: MISSING })]);
   assert.deepEqual(mixed.notes, [
@@ -1057,13 +951,11 @@ test("an approval that lifts only the hold path re-holds once for what remains, 
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(RISK_REASON) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
-  // The person removes the label again with the set unchanged: it stays off.
   const stays = await run(
     [approved({ verdict: RISK_HELD, discussion: { reviews, comments: [lanesSaid(personNote(RISK_REASON))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })],
     trustedKyle(),
   );
   assert.deepEqual(stays.notes, []);
-  // Nothing remains: it arms, and no label goes on.
   const clear = await run([approved({ verdict: PASSED, discussion: { reviews, comments: [lanesSaid(personNote(BOTH))] } })], trustedKyle());
   assert.deepEqual(clear.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
   assert.deepEqual(clear.notes, []);
@@ -1091,24 +983,16 @@ test("a person's hold whose verifier read did not come is noted with what it has
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON, true) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
-  // A standing comment that already names the hold path, with more, stands;
-  // a person's removal of its label still holds.
   calls = 0;
   const kept = await run([pull(1, { files, verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })], {}, { now: late });
   assert.deepEqual(kept.notes, []);
-  // A verifier read that failed is the same.
   const failed = await run([pull(1, { files, verdict: new Error("boom"), discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
   assert.deepEqual(failed.verified, [1]);
   assert.deepEqual(failed.notes, []);
-  // A verdict the lanes clear, which the gate never scores past: the risk
-  // score is not in it, so the standing comment stands too.
   const unscored = await run([pull(1, { files, verdict: MISSING, discussion: { comments: [lanesSaid(personNote(BOTH))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
   assert.deepEqual(unscored.notes, []);
-  // A verifier answer puts the label back on a path hold's standing
-  // comment that no person lifted, as a path hold always has.
   const kept2 = await run([pull(1, { files, verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(BOTH))] } })]);
   assert.deepEqual(kept2.notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
-  // An armed one is disarmed at once, with no verifier read.
   const armed = await run([pull(2, { files, verdict: RISK_HELD, autoMergeRequest: {} })]);
   assert.deepEqual(armed.verified, []);
   assert.deepEqual(armed.writes, [{ mutation: "disarm", id: "PR_2" }]);
@@ -1121,38 +1005,28 @@ test("a person's hold whose verifier read did not come is noted with what it has
 test("a labeled pull request whose standing refusal lacks the verifier's answer gets one read that widens it, then none", async () => {
   const files = [{ filename: "docs/held.md" }];
   const held = (overrides) => pull(2, { files, labels: labels("needs-human"), ...overrides });
-  // The next reader run, label on: one verifier read, and the comment names both.
   const widened = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })]);
   assert.deepEqual(widened.verified, [2]);
   assert.deepEqual(widened.writes, []);
   assert.deepEqual(widened.notes, [{ method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(BOTH) } }]);
-  // A verdict the lanes clear adds no reason, but the read came: the comment
-  // loses its mark in place, so no later run reads again.
   const unscored = await run([held({ verdict: MISSING, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })]);
   assert.deepEqual(unscored.verified, [2]);
   assert.deepEqual(unscored.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
-  // A read that failed keeps the mark for the next run.
   const failed = await run([held({ verdict: new Error("boom"), discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })]);
   assert.deepEqual(failed.verified, [2]);
   assert.deepEqual(failed.notes, []);
-  // Widened: no read, no write.
   const after = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(BOTH))] } })]);
   assert.deepEqual(after.verified, []);
   assert.deepEqual(after.notes, []);
-  // A hold-path-only refusal a trusted person's approval of the head lifts:
-  // the lane takes the label off and judges it unlabeled, so a passing
-  // verdict arms it (approvalLift; the label tests below cover each refusal).
   const lifted = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] }, timeline: liftTimeline(personNote(HOLD_PATH_REASON, true)) })], trustedKyle());
   assert.deepEqual(lifted.verified, [2]);
   assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
   assert.equal(lifted.writes.at(-1)?.mutation, "arm");
-  // With no partial comment and no approval, only the discussion is read: no file listing.
   const next = await run([held({ verdict: PASSED, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } })], trustedKyle());
   assert.deepEqual(next.verified, []);
   assert.deepEqual(next.notes, []);
   const listed = (calls) => calls.filter(({ path }) => /\/pulls\/2\/files\?/.test(path)).length;
   assert.equal(listed(next.calls), 0);
-  // A held lane spends no read on it, partial or not.
   const laneOff = { ...ROOM, refusal: "the gate holds the lane off" };
   const heldLane = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], {}, {}, laneOff);
   assert.deepEqual(heldLane.verified, []);
@@ -1183,14 +1057,11 @@ test("a risk hold is a person's only for a security finding, a trusted-actor wid
     "high-path:docs/**: docs/a.md",
   ];
   const person = ["security-finding: 1 CRITICAL", "files-incomplete: x; trust-gate:trusted-actors: entries added", "cost-review-required: infra/main.tf"];
-  // A new comment wraps a reason line past 100 columns at a space.
   const wrapped = {
     [lane[1]]: "pr-merge's gate holds it on its risk score (manifest-review-required:\n  plugins/a/.claude-plugin/plugin.json: hooks)",
     [person[1]]: "pr-merge's gate holds it on its risk score (files-incomplete: x; trust-gate:trusted-actors: entries\n  added)",
   };
   for (const reviews of lane) {
-    // A lane's stays a lane's however long its comment has stood: past
-    // merge.risk-escalation-minutes it gets a failing status, never a label.
     const stood = pull(1, { verdict: risk(reviews), discussion: { comments: [lanesSaid(laneNote(holding(reviews), "2026-01-01T00:00:00.000Z"))] } });
     const late = await run([stood]);
     assert.deepEqual(late.notes, [], reviews);
@@ -1211,8 +1082,6 @@ test("a risk hold is a person's only for a security finding, a trusted-actor wid
   }
 });
 
-// An edit notifies no one and keeps the comment's old date, so an escalation
-// edited into a lane's comment would show only a bare label event.
 test("an escalation to a person posts a new comment, never an edit of the lane's", async () => {
   const held = pull(1, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } });
   const { notes } = await run([held]);
@@ -1267,7 +1136,6 @@ const LONG_RISK_WRAPPED = [`pr-merge's gate holds it on its risk score (evidence
 const LONG_PATH = `docs/${"p".repeat(115)}.md`;
 const LONG_PATH_REASON = `it changes ${LONG_PATH}, a hold path`;
 const MANY_PATHS = personReason(Array.from({ length: 21 }, (_, i) => `it changes docs/held-${String(i).padStart(2, "0")}.md, a hold path`));
-// A fence line past 100 columns is one unbreakable token after its indent.
 const fenceLines = (body) => {
   const lines = body.split("\n");
   const open = lines.indexOf("```text");
@@ -1297,8 +1165,6 @@ test("a refusal's reasons wrap to 100 columns and come back whole, in each reaso
   assert.ok(holdPathOnly(refusalBody(true, personReason([LONG_PATH_REASON, HOLD_PATH_REASON]), HEAD, "needs-human"), HEAD, "needs-human"));
 });
 
-// A refusal comment posted before reasons wrapped: one fence line per reason,
-// however long, and a person's still parses at its head.
 test("a person's refusal posted before reasons wrapped still parses, at its head only", () => {
   const old = personNote(personReason([LONG_PATH_REASON, HOLD_PATH_REASON]));
   assert.deepEqual(refusalReasons(old, true, HEAD, "needs-human"), [HOLD_PATH_REASON, LONG_PATH_REASON]);
@@ -1312,15 +1178,12 @@ test("an unchanged long refusal writes nothing new, in the old format and the wr
   const wrappedPerson = [...personNote("x").split("\n").slice(0, 4), "```text", ...LONG_RISK_WRAPPED, "```"].join("\n");
   const wrappedLane = [...laneNote("x").split("\n").slice(0, 3), "```text", ...LONG_RISK_WRAPPED, "```", `<!-- pr-merge-unarmed-since head=${HEAD} at=${NOW} -->`].join("\n");
   for (const prior of [personNote(LONG_RISK), wrappedPerson]) {
-    // A person took the label off: it goes back only if they removed it
-    // before the comment last changed, never with a second comment.
     const writes = refusalWrites({ headRefOid: HEAD }, [lanesSaid(prior)], { clears: "person", reason: LONG_RISK }, { bot: LANES.login, label: "needs-human" });
     assert.deepEqual(writes, { body: null, commentId: 77, label: "needs-human", liftedSince: "2026-10-23T10:00:00Z" });
   }
   for (const prior of [laneNote(LONG_RISK), wrappedLane]) {
     assert.equal(refusalWrites({ headRefOid: HEAD }, [lanesSaid(prior)], { clears: "lane", reason: LONG_RISK }, { bot: LANES.login, label: "needs-human", now: Date.parse(NOW) }), null);
   }
-  // A changed reason over an old comment is written in the wrapped format.
   const moved = refusalWrites({ headRefOid: HEAD }, [lanesSaid(laneNote(LONG_RISK))], { clears: "lane", reason: MISSING_REASON + LONG_RISK }, { bot: LANES.login, label: "needs-human", now: Date.parse(NOW) });
   assert.ok(fits(moved.body));
   assert.equal(moved.commentId, 77);
@@ -1367,9 +1230,6 @@ test("a lanes App pull request with no hold is armed, squash, at the head it rea
   assert.match(ARM_MUTATION, /mergeMethod: SQUASH, expectedHeadOid: \$head/);
 });
 
-// babysit_postmerge.PIN_RE, written out: the read-back takes the head from the
-// first line of the lanes App's newest unedited pin comment, and the
-// promotion-evidence publisher the rung (babysit_postmerge.pin_comment).
 const PIN_LINE = `<!-- babysit-merge-pin sha=${HEAD} -->`;
 const pinLine = (rung) => `<!-- babysit-merge-pin sha=${HEAD} rung=${rung} -->`;
 
@@ -1402,8 +1262,6 @@ test("an unedited pin naming the room's rung for the same head is not posted aga
   }
 });
 
-// The publisher credits the rung the newest pin names, so a pin from an earlier
-// arm at another rung, or of the older shape with no rung, is replaced.
 test("a pin for the same head naming another rung or none is posted again with the room's rung", async () => {
   for (const [line, rung] of [[pinLine("C3"), "C2"], [pinLine("C2"), "C3"], [PIN_LINE, "C2"]]) {
     const pin = { ...lanesSaid(`${line}\nArmed.`), lastEditedAt: null };
@@ -1586,7 +1444,6 @@ test("an arm that fails on the network is sent again after a capped wait and arm
   const { code, writes, lines, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [reset(), closed()] } });
   assert.equal(code, 0);
   assert.deepEqual(writes, Array(3).fill({ mutation: "arm", id: "PR_1", head: HEAD }));
-  // Two resends, each waiting no longer than the 8 s cap.
   assert.equal(slept.length, 2);
   assert.ok(slept.every((ms) => ms >= 0 && ms <= 8000));
   assert.ok(lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
@@ -1792,8 +1649,6 @@ test("an arm answered 401, 403, 429 or 5xx is not a refusal of that pull request
   }
 });
 
-// main's own client over a stubbed fetch, so the arm's answer carries real
-// headers and body: `arm` is the Response every arm gets.
 async function served(pulls, arm) {
   const { github, verify } = world(pulls);
   const saved = globalThis.fetch;
@@ -1809,8 +1664,6 @@ async function served(pulls, arm) {
   };
   console.log = (line) => lines.push(line);
   try {
-    // Its own latch: one case's rate limit neither refuses the next case's
-    // calls nor fails this process.
     const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
     return { code: await main({ env: { ...ENV, GH_TOKEN: "t" }, verify, room: room(), sleep: async () => {}, latch }), lines };
   } finally {
@@ -1916,9 +1769,6 @@ test("TRUST_REFUSALS are the reasons the gate's trust_refusal returns, and each 
   assert.equal(verifyClears({ head: "a".repeat(40), ineligible: "refs-issues:2" }, "a".repeat(40)), "lane");
 });
 
-// The body the issue lane opens its pull request with (report-outcome.mjs
-// decide), so a change to either side that stops a clean lane pull request
-// from arming, or arms a held one, fails here.
 test("report-outcome's own Closes and Refs pull request bodies arm, and its hold bodies do not", () => {
   const plan = (overrides) =>
     decideOutcome({
@@ -1934,7 +1784,6 @@ test("report-outcome's own Closes and Refs pull request bodies arm, and its hold
   const verdict = (overrides) => {
     const opened = plan(overrides);
     assert.equal(opened.action, "open-pr");
-    // Files outside the hold paths, so only the body decides.
     return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human", holdPaths: [".github/**"] }, { ...detail(), files: ["docs/a.md"], verify: PASSED });
   };
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
@@ -1945,10 +1794,6 @@ test("report-outcome's own Closes and Refs pull request bodies arm, and its hold
   assert.deepEqual(verdict(refs), { action: "arm", reason: "no hold" });
 });
 
-// The gate's human veto (babysit_merge.human_veto_logins): each member's
-// newest comment, review or inline comment with text decides, so a later
-// comment lifts the hold; a non-member's, a bot's or an empty one counts for
-// nothing. Native auto-merge skips that gate, so the arm rule applies it.
 test("a member's newest comment saying not to merge holds, and a later one lifts it", async () => {
   const veto = said("kyle-sexton", "Please don't merge this yet.", "2026-10-23T10:00:00Z");
   const { code, writes } = await run([
@@ -1983,7 +1828,6 @@ test("a pull request whose discussion cannot all be read is not armed", async ()
   assert.equal(held({ reviews: cut }).action, "none");
   assert.equal(held({ reviewThreads: cut }).action, "none");
   assert.equal(held({ reviewThreads: page([{ comments: cut }]) }).action, "none");
-  // A read that failed leaves it as it is, armed or not, until the next run.
   assert.equal(decide(pull(1), options, null).action, "none");
   assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, null).action, "none");
 });
@@ -2025,9 +1869,6 @@ test("the comment veto agrees with the gate's HUMAN_MERGE_VETO_RE", () => {
   assert.ok(expected.includes(true) && expected.includes(false));
 });
 
-// The merge lane's denied paths (report-outcome.readHoldPaths), on the head's
-// files now: report-outcome's Hold: line covers only the files at opening, and
-// a later push can add a held path to a pull request that is already armed.
 test("a pull request whose head now changes a hold path is not armed, or is disarmed", async () => {
   const { writes } = await run([
     pull(1, { files: [{ filename: "docs/conventions/pr-pipeline.yaml" }] }),
@@ -2038,7 +1879,6 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
     pull(3, { files: Array.from({ length: 301 }, (_, index) => ({ filename: `docs/${index}.md` })) }),
     pull(4, { files: [{ filename: "docs/held.md" }] }),
     pull(5),
-    // The rest of .github merges on the review lanes.
     pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-unblock/other.mjs" }] }),
   ]);
   assert.deepEqual(writes, [
@@ -2048,9 +1888,6 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
   ]);
 });
 
-// ci-status lifts a hold path on a trusted person's approving review of the
-// head (merge-holds.pathLifters); arming reads the same rule. Kyle (id 5) is
-// on the trusted-actor list, id 9 is not.
 const reviewed = (state, { id = 5, login = "kyle-sexton", oid = HEAD, at = "2026-10-26T16:41:00Z" } = {}) => ({
   author: { __typename: "User", login, databaseId: id },
   state,
@@ -2059,9 +1896,6 @@ const reviewed = (state, { id = 5, login = "kyle-sexton", oid = HEAD, at = "2026
   submittedAt: at,
   authorAssociation: "OWNER",
 });
-// The REST issue timeline of a hold-path escalation the lane may lift: the
-// App's person refusal, the App's label a second later (refusalWrites posts
-// the comment first), then Kyle's approval of the head.
 const APP_USER = { login: "melodic-automation-lanes[bot]", type: "Bot" };
 const KYLE = { login: "kyle-sexton", id: 5, type: "User" };
 const restSaid = (user, body, at) => ({ event: "commented", user, body, created_at: at, updated_at: at });
@@ -2107,7 +1941,6 @@ test("an approval before a base merge, or its stale dismissal, lifts the hold pa
   const P = "/repos/melodic-software/claude-code-plugins";
   const held = { filename: "docs/held.md", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
   const approval = { id: 41, user: { login: "kyle-sexton", id: 5, type: "User" }, state: "APPROVED", commit_id: OLD, submitted_at: "2026-10-27T23:26:14Z" };
-  // main resolves to TIP, its tip commit, which every compare names.
   const TIP = "3".repeat(40);
   const rest = (number, headFiles, reviews = [approval]) => ({
     [`${P}/pulls/${number}`]: { head: { sha: HEAD, ref: `fix/held-${number}`, repo: { full_name: "melodic-software/claude-code-plugins" } }, base: { ref: "main" }, changed_files: headFiles.length },
@@ -2121,7 +1954,6 @@ test("an approval before a base merge, or its stale dismissal, lifts the hold pa
   const lifted = await run([pull(60, { files: HELD, rest: rest(60, [held]) })], trustedKyle());
   assert.deepEqual(lifted.writes, [{ mutation: "arm", id: "PR_60", head: HEAD }]);
   assert.deepEqual(lifted.notes, []);
-  // main's tip the job resolved (MAIN_TIP_SHA) stands in for the ref read.
   const tipReads = (calls) => calls.filter(({ path }) => path === `${P}/git/ref/heads/main`).length;
   assert.equal(tipReads(lifted.calls), 1, "with no MAIN_TIP_SHA the carry reads main's tip");
   const given = await run([pull(65, { files: HELD, rest: rest(65, [held]) })], { ...trustedKyle(), MAIN_TIP_SHA: TIP });
@@ -2130,7 +1962,6 @@ test("an approval before a base merge, or its stale dismissal, lifts the hold pa
   const evil = await run([pull(61, { files: HELD, rest: rest(61, [{ ...held, patch: "@@ -1 +1 @@\n-a\n+evil" }]) })], trustedKyle());
   assert.deepEqual(evil.writes, []);
   assert.deepEqual(evil.notes.map(({ path }) => path), [`${ISSUES}/61/comments`, `${ISSUES}/61/labels`]);
-  // The label history the earlier reader bound a removal by.
   const removal = {
     ...rest(62, [held], []),
     [`${P}/issues/62/events?per_page=100&page=1`]: [
@@ -2175,7 +2006,6 @@ test("an approval lifts no unread hold-path check and no capped file listing", (
 test("a manifest change arms only when the gate's risk score allows it", () => {
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
   const files = ["docs/a.md", ".claude-plugin/marketplace.json", "plugins/a/.claude-plugin/plugin.json"];
-  // Owner Q-FLOOR (B): the security lane, not a person, reviews a manifest.
   const review = { ...PASSED, reviews: "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", reviewsPerson: false };
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: review }), {
     action: "none",
@@ -2205,19 +2035,13 @@ test("a cost path holds until the body links the owner's cost decision", async (
     [pull(40, { files: cost, body: decided }), pull(41, { files: cost }), pull(42, { files: cost, body: decided })],
     { TRUSTED_ACTORS: join(dir, "actors.json") },
   );
-  // Pull request 41 links no decision; 42 closes a different issue, so pull
-  // request 40's decision does not cover it.
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_40", head: HEAD }]);
-  // A changed file's name cannot start a workflow command on its own line.
   const { lines } = await run([pull(43, { files: [{ filename: "x\n::warning::forged/main.tf" }] })]);
   assert.ok(lines.some((line) => line.includes("x ::warning::forged/main.tf, a cost path")));
   assert.ok(!lines.some((line) => /(^|\n)::warning::/.test(line)));
-  // Not on the trusted-actor list, the commenter decides nothing.
   assert.deepEqual((await run([pull(40, { files: cost, body: decided })], { TRUSTED_ACTORS: "/nonexistent/actors.json" })).writes, []);
 });
 
-// ci-status runs merge-holds.mjs on the live files with the base config's
-// denied paths, by the same pathHold that decides arming above.
 test("merge-holds.mjs holds a changed or renamed-from hold path from the command line", () => {
   const dir = tempDir("merge-holds-");
   const head = "0123456789abcdef0123456789abcdef01234567";
@@ -2231,8 +2055,6 @@ test("merge-holds.mjs holds a changed or renamed-from hold path from the command
     return spawnSync(process.execPath, [fileURLToPath(new URL("./merge-holds.mjs", import.meta.url)), ...args], { encoding: "utf8" });
   };
   assert.equal(cli([["docs/a.md"]], ["docs/held.md"]).status, 0);
-  // A floor path holds with no configured glob (owner decision Q-FLOOR (B));
-  // no other trusted path or manifest holds unless the config lists it.
   assert.match(cli([[".github/actions/resolve-config/.x.mjs"]], []).stdout, /it changes \.github\/actions\/resolve-config\/\.x\.mjs, a hold path/);
   assert.equal(cli([[".github/actions/check-wip-cap/x.mjs"]], []).status, 0);
   assert.match(cli([[".github/actions/check-wip-cap/x.mjs"]], [".github/actions/**"]).stdout, /it changes \.github\/actions\/check-wip-cap\/x\.mjs, a hold path/);
@@ -2259,7 +2081,6 @@ test("hold paths that cannot be read arm nothing and label nothing", async () =>
   assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::the resolved config's hold paths did not read")));
 });
 
-// More than 100 labels is read whole, not refused.
 test("a label list the listing cut is read whole", async () => {
   const many = Array.from({ length: 150 }, (_, index) => `area-${index}`);
   const cut = (all) => ({ totalCount: all.length, nodes: all.slice(0, 100).map((name) => ({ name })) });
@@ -2270,8 +2091,6 @@ test("a label list the listing cut is read whole", async () => {
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
 });
 
-// More than 100 comments is read whole, so a veto past the first page
-// still holds and none there arms.
 test("a comment list the detail cut is read whole", async () => {
   const chatter = Array.from({ length: 3 }, (_, index) => said("kyle-sexton", `note ${index}`, `2026-10-23T0${index}:00:00Z`));
   const veto = said("kyle-sexton", "do not merge", "2026-10-23T09:00:00Z");
@@ -2284,11 +2103,8 @@ test("a comment list the detail cut is read whole", async () => {
   assert.ok(lines.includes("enable-auto-merge: #2 left: kyle-sexton asked not to merge it"), lines.join("\n"));
 });
 
-// A review thread whose comments the detail cut is read whole by its id, so
-// a veto in its first comments still holds.
 test("a review thread's comment list the detail cut is read whole, page by page", async () => {
   const chatter = Array.from({ length: 3 }, (_, index) => said("kyle-sexton", `note ${index}`, `2026-10-23T0${index}:00:00Z`));
-  // Another member's only comment, the oldest, so only a whole read sees it.
   const veto = said("other-member", "do not merge", "2026-10-22T09:00:00Z", "MEMBER");
   const cut = (id, comments) => ({ ...detail(), reviewThreads: page([{ id, comments: { totalCount: comments.length, nodes: comments.slice(-1) } }]) });
   const { writes, lines, calls } = await run([
@@ -2306,19 +2122,14 @@ test("a review thread's comment list the detail cut is read whole, page by page"
   ]);
 });
 
-// A list longer than the read caps (30 discussion pages, 10 label pages, by
-// enable-auto-merge.mjs's MAX_DISCUSSION_PAGES and MAX_LABEL_PAGES) stops the
-// read, and a pull request it stopped on is not armed.
 test("a discussion or label list past its page cap arms nothing", async () => {
   const comments = (count) => Array.from({ length: count }, (_, index) => said("kyle-sexton", `note ${index}`, "2026-10-23T01:00:00Z"));
   const cutOf = (all) => ({ ...detail({ comments: all }), comments: { totalCount: all.length, nodes: all.slice(-1) } });
   const names = (count) => Array.from({ length: count }, (_, index) => `area-${index}`);
   const cutLabels = (all) => ({ totalCount: all.length, nodes: all.slice(0, 100).map((name) => ({ name })) });
   const { writes, lines } = await run([
-    // 60 comments are 30 pages of two; 62 need a 31st.
     pull(1, { discussion: { comments: comments(60) }, cutDiscussion: cutOf(comments(60)) }),
     pull(2, { discussion: { comments: comments(62) }, cutDiscussion: cutOf(comments(62)) }),
-    // 999 labels end on a short 10th page; 1000 fill it, so an 11th is unread.
     pull(3, { labels: cutLabels(names(999)), allLabels: names(999) }),
     pull(4, { labels: cutLabels(names(1000)), allLabels: names(1000) }),
   ]);
@@ -2330,8 +2141,6 @@ test("a discussion or label list past its page cap arms nothing", async () => {
   assert.ok(lines.some((line) => line.startsWith("enable-auto-merge: #4 labels did not read whole: ") && line.includes("more than 1000 labels")), lines.join("\n"));
 });
 
-// A deleted account reads as a null author or editor, which counts as a
-// person (merge-holds.personWrote), so a hold it wrote still holds.
 test("a deleted author or editor counts as a person who wrote the body", () => {
   const edits = (...editors) => ({ totalCount: editors.length, nodes: editors.map((editor) => ({ editor })) });
   const bot = { __typename: "Bot" };
@@ -2342,7 +2151,6 @@ test("a deleted author or editor counts as a person who wrote the body", () => {
   assert.equal(personWrote(null), true);
 });
 
-// The lanes App's own body text holds nothing; a person's edit does.
 test("a body hold counts only when a person wrote some of the body", async () => {
   const body = "Closes #5\n\nHold: wait for the release.";
   const edits = (...typenames) => ({ totalCount: typenames.length, nodes: typenames.map((__typename) => ({ editor: { __typename } })) });
@@ -2359,8 +2167,6 @@ test("a body hold counts only when a person wrote some of the body", async () =>
   ]);
 });
 
-// report-outcome's own hold line (untrusted-provenance work, a person's
-// `merge: human`, a denied path) holds whoever wrote the body.
 test("the lane's own hold line holds a lanes App body", async () => {
   assert.equal(`\n${HOLD_LINE}\n`.match(LANE_HOLD)?.[0].trim(), HOLD_LINE);
   const appOnly = { totalCount: 0, nodes: [] };
@@ -2372,16 +2178,11 @@ test("the lane's own hold line holds a lanes App body", async () => {
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
 });
 
-// report-outcome labels a held PR do-not-merge, so a lanes App edit of
-// the body (the hold line deleted, or the Refs line rewritten to a closing
-// line) leaves it unarmed while the label is on.
 test("a do-not-merge label holds a lanes App PR whose body lost its hold line or its Refs line", async () => {
   const appOnly = { totalCount: 0, nodes: [] };
   const held = labels("do-not-merge");
   const { writes } = await run([
-    // The hold line deleted from a Refs PR's body.
     pull(1, { body: "Refs: #5\n\n## Summary", labels: held, userContentEdits: appOnly }),
-    // The Refs line rewritten to a closing line, the hold line gone with it.
     pull(2, { body: "Closes #5\n\n## Summary", labels: held, userContentEdits: appOnly }),
     pull(3, { body: "Closes #5\n\n## Summary", userContentEdits: appOnly }),
   ]);
@@ -2390,12 +2191,7 @@ test("a do-not-merge label holds a lanes App PR whose body lost its hold line or
   assert.equal(holdReason({ labels: labels("Human-Merge-Hold"), body: "Closes #5" }, "needs-human"), null);
 });
 
-// Owner decision Q-HOLDLINE: report-outcome's own hold line is a cause a
-// person must clear, so a reader run comments once and adds the human-gated
-// label, as for a configured denied path; it puts the label back unless a
-// person removed it. A person's own hold text gets neither: they set it.
 const LANE_HOLD_REASON = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or removes that line";
-// LANE_HOLD_REASON as a new comment wraps it at 100 columns.
 const LANE_HOLD_NOTE = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or\n  removes that line";
 const APP_ONLY = { totalCount: 0, nodes: [] };
 const laneHeld = (number, overrides = {}) => pull(number, { body: `Closes #5\n\n${HOLD_LINE}`, userContentEdits: APP_ONLY, ...overrides });
@@ -2407,21 +2203,15 @@ test("the lane's own hold line is commented on once and labeled human-gated", as
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_NOTE) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
-  // The next run: labeled, it reads the discussion for a partial refusal to
-  // widen, finds none, and writes nothing and reads no verdict.
   const labeled = await run([laneHeld(1, { labels: labels("needs-human"), discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] } })]);
   assert.deepEqual(labeled.notes, []);
   assert.deepEqual(labeled.verified, []);
-  // A person removed the label after the comment: it stays off.
   const lifted = await run([laneHeld(1, { discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
   assert.deepEqual(lifted.notes, []);
-  // The label write failed earlier: it goes back on.
   const unlabeledOnce = await run([laneHeld(1, { discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] } })]);
   assert.deepEqual(unlabeledOnce.notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
 });
 
-// An escalation posts a second comment beside the lane's earlier one, so later
-// runs must read the newer one and never post it again.
 test("the lane's hold line over a lane's comment posts once, then reads the posted one", async () => {
   const laneComment = lanesSaid(laneNote(MISSING_REASON));
   const first = await run([laneHeld(1, { discussion: { comments: [laneComment] } })]);
@@ -2446,15 +2236,11 @@ test("a person's own hold text and an event run write no note, and an event run 
   assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_2" }]);
   assert.deepEqual(event.notes, []);
   assert.ok(!event.calls.some(({ body }) => body?.query === DETAIL_QUERY));
-  // A reader run disarms an armed one at once too, and notes it on its next run.
   const reader = await run([laneHeld(4, { autoMergeRequest: {} })]);
   assert.deepEqual(reader.writes, [{ mutation: "disarm", id: "PR_4" }]);
   assert.deepEqual(reader.notes, []);
 });
 
-// GitHub Support's audit item 5: a pull_request_target run handles only the
-// pull request its event names (EVENT_PR), as the listing holds it; the
-// scheduled run keeps the whole sweep.
 test("an event run handles only its own pull request", async () => {
   const pulls = [laneHeld(2, { autoMergeRequest: {} }), laneHeld(3, { autoMergeRequest: {} })];
   const event = await run(pulls, { EVENT_NAME: "pull_request_target", EVENT_PR: "3" });
@@ -2466,8 +2252,6 @@ test("an event run handles only its own pull request", async () => {
   ]);
 });
 
-// pr-verify's wake (pr-merge.yml inputs.pr, EVENT_PR): a workflow_dispatch
-// that reads, and arms as the schedule would, its one pull request only.
 const WAKE = { EVENT_NAME: "workflow_dispatch", EVENT_PR: "2" };
 test("a PR-scoped dispatch reads and arms only its pull request, and hands on its outcome", async () => {
   const { code, writes, verified, outcome, calls } = await run([pull(1), pull(2), pull(3)], WAKE);
@@ -2476,7 +2260,6 @@ test("a PR-scoped dispatch reads and arms only its pull request, and hands on it
   assert.deepEqual(verified, [2]);
   assert.deepEqual(calls.filter(({ body }) => body?.query === DETAIL_QUERY).map(({ body }) => body.variables.number), [2]);
   assert.equal(outcome, "armed");
-  // A hand-started sweep, with no pull request named, arms every one and hands on no outcome.
   const sweep = await run([pull(1), pull(2)], { EVENT_NAME: "workflow_dispatch", EVENT_PR: "" });
   assert.deepEqual(sweep.writes.map(({ id }) => id), ["PR_1", "PR_2"]);
   assert.equal(sweep.outcome, undefined);
@@ -2517,8 +2300,6 @@ test("a PR-scoped dispatch for no lanes App pull request reads no room and arms 
   }
 });
 
-// The start moves with the run number, so the pull requests past the
-// verify budget differ from run to run.
 test("the run starts at an offset that moves with the run number", async () => {
   assert.deepEqual(rotated([1, 2, 3], 0), [1, 2, 3]);
   assert.deepEqual(rotated([1, 2, 3], 4), [2, 3, 1]);
@@ -2529,8 +2310,6 @@ test("the run starts at an offset that moves with the run number", async () => {
   assert.deepEqual(verified, [2, 3, 1]);
 });
 
-// Fewer free merge slots than unarmed lanes App pull requests: the slots go
-// to the oldest (lowest number), whatever the rotation's start.
 test("with merge slots scarce, the oldest unarmed lanes App pull request is armed first", async () => {
   const { writes, verified, lines } = await run([pull(1), pull(2), pull(3)], { GITHUB_RUN_NUMBER: "4" }, {}, { ...ROOM, count: 4, cap: 5 });
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }], "the one free slot goes to #1, not to #2 where rotation starts");
@@ -2551,8 +2330,6 @@ test("with merge slots plentiful, the run keeps the rotation's order", async () 
   assert.deepEqual(writes.map(({ id }) => id), ["PR_2", "PR_3", "PR_1"]);
 });
 
-// Armed and held pull requests keep their rotated places, so their verdict
-// reads keep the rotation; only the unarmed candidates trade places.
 test("oldestFirst reorders only the candidates, each in a candidate's place", () => {
   const pulls = [7, 3, 9, 1, 5].map((number) => ({ number }));
   const odd = ({ number }) => number !== 9 && number !== 3;
@@ -2566,7 +2343,6 @@ test("a PR-scoped dispatch leaves its pull request when as many older CLEAN ones
   assert.deepEqual(writes, []);
   assert.deepEqual(verified, []);
   assert.equal(outcome, "refused: 1 older ready lanes App pull requests wait for the 1 free merge slots; the next scheduled run gives them out oldest first");
-  // One free slot per waiting older pull request and one more: the wake arms its own.
   const roomy = await run([pull(1, clean), pull(2), pull(3)], WAKE, {}, { ...ROOM, count: 3, cap: 5 });
   assert.deepEqual(roomy.writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
   assert.equal(roomy.outcome, "armed");
@@ -2580,9 +2356,6 @@ test("older pull requests still in CI or of unknown merge state do not defer a P
   }
 });
 
-// pr-merge's gate merges only on a pr-verify pass at the head, FAILs at fewer
-// than merge.max-verify-fails heads (babysit_verify_evidence.py), and native
-// auto-merge must not merge what the gate would refuse.
 test("no pass at the head, a FAIL or the repeated-FAIL cap arms nothing", async () => {
   const { code, writes, verified } = await run([
     pull(1, { verdict: { refusal: "verify:missing", head: HEAD } }),
@@ -2602,7 +2375,6 @@ test("no pass at the head, a FAIL or the repeated-FAIL cap arms nothing", async 
 test("an armed pull request whose head lost its pass, or passed the cap, is disarmed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const { writes, lines, closed } = await run([
-    // Armed on a passing head, then pushed: the gate finds no verdict at the new head.
     pull(1, { autoMergeRequest: armed, verdict: { refusal: "verify:missing", head: HEAD } }),
     pull(2, { autoMergeRequest: armed, verdict: { refusal: "verify:repeated-fail", head: HEAD } }),
     pull(3, { autoMergeRequest: armed, verdict: new Error("listing failed") }),
@@ -2613,7 +2385,7 @@ test("an armed pull request whose head lost its pass, or passed the cap, is disa
     { mutation: "disarm", id: "PR_2" },
     { mutation: "disarm", id: "PR_3" },
   ]);
-  assert.ok(lines.some((line) => /#2 disarmed: pr-merge's gate refuses its verifier verdict \(verify:repeated-fail\)/.test(line)));  // Past the cap it is also closed for a fresh attempt, after the disarm.
+  assert.ok(lines.some((line) => /#2 disarmed: pr-merge's gate refuses its verifier verdict \(verify:repeated-fail\)/.test(line)));
   assert.deepEqual(closed.map((c) => c.number), [2]);
 });
 
@@ -2635,11 +2407,9 @@ test("verifyHold allows only the reader's null refusal at the head read", () => 
   assert.match(verifyHold(null, HEAD), /could not be read/);
   assert.match(verifyHold({ head: HEAD }, HEAD), /could not be read/);
   assert.match(verifyHold({ refusal: "verify:too-old", head: HEAD, ineligible: null }, HEAD), /verify:too-old/);
-  // The link's answer: a refusal names it, and a line without one allows nothing.
   assert.match(verifyHold({ refusal: "verify:ineligible", head: HEAD, ineligible: "refs-issues:2" }, HEAD), /does not take its issue link \(refs-issues:2\)/);
   assert.match(verifyHold({ refusal: null, head: HEAD }, HEAD), /issue link could not be read/);
   assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: false }, HEAD), /issue link could not be read/);
-  // The review lanes' answer: a hold names it, and a line without one allows nothing.
   assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null, reviews: "security-finding: 1 open" }, HEAD), /holds it on its risk score \(security-finding: 1 open\)/);
   assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null }, HEAD), /risk score could not be read/);
 });
@@ -2693,8 +2463,6 @@ test("an ejection count that cannot be read arms nothing and writes no note", as
   }
 });
 
-// A GraphQL read that keeps failing holds every clean lane pull request, so
-// the run names why on each one.
 test("an unreadable ejection count is warned with the read's error", async () => {
   const unreadable = { failedEjections: null, limit: 2, refusal: "the merge queue's removals of this head are unreadable", comment: null, readError: "could not read the merge queue: gh: HTTP 502" };
   const { writes, lines } = await run([pull(1, { verdict: { ...PASSED, queue: unreadable } }), pull(2)]);
@@ -2730,8 +2498,6 @@ test("an armed pull request over the ejection cap is not disarmed", async () => 
   assert.deepEqual(notes, []);
 });
 
-// The merge queue's check (merge-holds.mjs verdictHold): a pass counts only
-// from pr-verify.yml's completed, successful workflow_run run on main here.
 test("verdictHold counts a pass only from a successful pr-verify run on main", () => {
   const run = (overrides = {}) => ({
     id: 11,
@@ -2760,7 +2526,6 @@ test("verdictHold counts a pass only from a successful pr-verify run on main", (
     assert.match(hold([{ verdict: "pass", run: run(bad) }]), /has not passed this head/, JSON.stringify(bad));
   }
   assert.match(hold([{ verdict: "fail", run: run() }]), /has not passed this head/);
-  // A record of another run than the one its artifact names counts nothing.
   assert.match(hold([{ verdict: "pass", runId: 12, run: run() }]), /has not passed this head/);
   assert.match(hold([{ verdict: "pass", runId: "11", run: run() }]), /has not passed this head/);
   assert.match(hold([]), /has not passed this head/);
@@ -2768,13 +2533,10 @@ test("verdictHold counts a pass only from a successful pr-verify run on main", (
   assert.match(verdictHold([], "not a repo"), /could not be read/);
 });
 
-// test_verify_rules_sync.py ties the resolver's path to the gate's WORKFLOW_PATH.
 test("verdictHold names the verifier workflow the resolver and the gate name", () => {
   assert.equal(VERIFY_PATH, RESOLVER_VERIFY_PATH);
 });
 
-// Only the gate's full reader arms, so native merge refuses what the gate
-// refuses; an event run disarms on a hold and reads no verdict.
 test("only the scheduled run and a hand-started one read the verdict and arm", () => {
   assert.deepEqual([...READER_EVENTS], ["schedule", "workflow_dispatch"]);
 });
@@ -2834,13 +2596,6 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
   }
 });
 
-// The issue link through the gate's own CLI (`evidence --lane-link`) and rule
-// (babysit_merge_policy._linked_issue), GitHub's answers stubbed at gh and the
-// verdict a pass at the head, so only the link decides. Expected values are
-// docs/conventions/pr-pipeline/README.md "Eligibility": one closing issue, or
-// one plain `Refs: #<n>` issue; two `Refs:` issues refuse; a failed read refuses;
-// and an issue carrying a label naming untrusted work, in any spelling, refuses
-// for a person, a label added after admission included.
 test("the gate's link rule arms a Closes or one plain Refs pull request, not two Refs, a failed read or an untrusted issue", async () => {
   const dir = tempDir("enable-auto-merge-link-");
   const wrapper = join(dir, "lane_link.py");
@@ -2896,7 +2651,6 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
     7: { body: body("Closes #17"), closing: [17] },
     8: { body: body("Refs: #18"), closing: [] },
   };
-  // Labeled after admission: 16 with the label, 17 (armed) and 18 with variants.
   const issueLabels = { 11: ["agent-ready"], 16: ["agent-ready", "provenance: untrusted"], 17: ["Work-Class: Untrusted_Provenance"], 18: ["untrusted"] };
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const { github, writes, notes } = world(
@@ -2929,11 +2683,6 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
   assert.ok(lines.some((line) => /#4 left: pr-merge's lane does not take its issue link \(unreadable: /.test(line)), lines.join("\n"));
 });
 
-// The reader's own listing rules (babysit_verify_evidence.py main and
-// Reader._current_listing), each listing from the API stubbed to one call
-// (`_complete_listing`, with no base to build on) and its judgment to a pass
-// that reads the listing: every candidate is allowed, so a run that lists again before an
-// allow on the saved listing would page once per candidate.
 test("a reader run pages the artifact listing once for all its candidates", async () => {
   const dir = tempDir("enable-auto-merge-listing-");
   const wrapper = join(dir, "shared_listing.py");
@@ -3001,8 +2750,6 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
   }
 });
 
-// An event run reads no link and no verdict, so it never disarms an armed
-// Refs pull request on its link; the scheduled run judges it.
 test("an event run leaves an armed Refs pull request armed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const { writes, verified } = await run([pull(1, { autoMergeRequest: armed, body: "Refs: #12\n\n## Summary" })], { EVENT_NAME: "pull_request_target", EVENT_PR: "1" });
@@ -3010,9 +2757,6 @@ test("an event run leaves an armed Refs pull request armed", async () => {
   assert.deepEqual(verified, []);
 });
 
-// The gate's run-level refusals, which native auto-merge would skip
-// (babysit_merge_policy.lane_room): a demotion record or a rung held off
-// stops the lane, and merge.max-in-flight caps what is in flight.
 test("while the gate holds its lane off, nothing is armed and armed lane pull requests are disarmed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   for (const refusal of ["rung-off:demotion", "rung-off:rungCap", "post-merge:failure:red-main#40"]) {
@@ -3030,15 +2774,12 @@ test("while the gate holds its lane off, nothing is armed and armed lane pull re
 
 test("at merge.max-in-flight nothing more is armed, counting armed pull requests the queue has not taken", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  // Four in flight by the gate's count, one armed and not queued: the cap of five is reached.
   let result = await run([pull(1), pull(2, { autoMergeRequest: armed })], {}, {}, { ...ROOM, count: 4, cap: 5 });
   assert.deepEqual(result.writes, []);
   assert.deepEqual(result.verified, [2]);
   assert.ok(result.lines.some((line) => /#1 left: merge\.max-in-flight is 5 and 5 merges are in flight/.test(line)));
-  // An armed pull request already in the queue is in the gate's count, not counted twice.
   result = await run([pull(1), pull(2, { autoMergeRequest: armed })], {}, {}, { ...ROOM, count: 4, cap: 5, queued: [2] });
   assert.deepEqual(result.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-  // Each arm in the run counts: three in flight of five arms two of three.
   result = await run([pull(1), pull(2), pull(3)], {}, {}, { ...ROOM, count: 3, cap: 5 });
   assert.deepEqual(
     result.writes.map(({ id }) => id),
@@ -3046,9 +2787,6 @@ test("at merge.max-in-flight nothing more is armed, counting armed pull requests
   );
 });
 
-// Unknown holds: a room that cannot be read (no post-merge report, a failed
-// read) holds as the gate's refusal does, so an armed lane pull request is
-// disarmed rather than left to merge while the gate refuses.
 test("a room that cannot be read arms nothing and disarms every armed lane pull request", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const pulls = [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" }, autoMergeRequest: armed })];
@@ -3076,9 +2814,6 @@ test("a room that cannot be read arms nothing and disarms every armed lane pull 
   assert.deepEqual(writes(), [{ mutation: "disarm", id: "PR_2" }]);
 });
 
-// A held room that logs only to the console leaves nothing on the run
-// saying why nothing armed. One annotation and one summary
-// line per run, naming the reason and every lane pull request left unarmed.
 test("a held room raises one warning and one step-summary line naming why and each pull request left unarmed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const pulls = [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" } }), pull(4, { isDraft: true })];
@@ -3096,7 +2831,6 @@ test("a held room raises one warning and one step-summary line naming why and ea
     );
     assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${expected}\n`);
   }
-  // A lane with room raises neither.
   const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
   writeFileSync(summary, "");
   const { lines, writes } = await run(pulls, { GITHUB_STEP_SUMMARY: summary });
@@ -3108,9 +2842,6 @@ test("a held room raises one warning and one step-summary line naming why and ea
   assert.equal(readFileSync(summary, "utf8"), "");
 });
 
-// A pull request whose disarm failed, or that report-only left armed, is
-// still armed: naming it "left unarmed" would say the hold was enforced when
-// it was not.
 test("a held room names a pull request whose disarm failed as still armed, at error level", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const summary = join(tempDir("enable-auto-merge-summary-"), "summary.md");
@@ -3141,7 +2872,6 @@ test("a held room in report-only names the armed pull request a disarm would hav
   assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${expected}\n`);
 });
 
-// An event run reads no room, so it never disarms on one.
 test("an event run leaves an armed lane pull request armed whatever the room", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const { writes } = await run([pull(2, { autoMergeRequest: armed })], { EVENT_NAME: "pull_request_target", EVENT_PR: "2" }, {}, null);
@@ -3186,21 +2916,16 @@ print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "bu
   );
   const sha = "d".repeat(40);
   const env = { PATH: process.env.PATH, GITHUB_REPOSITORY: REPO, VERIFY_EVIDENCE_SCRIPT: script, POSTMERGE_RESULT: "/tmp/post-merge.json", POSTMERGE_CODE_SHA: sha, GH_TOKEN: "lane", BABYSIT_VERIFY_GH_TOKEN: "job" };
-  // An empty cap is no cap, so it is passed; an unset one is not, which the gate reads as off.
   assert.deepEqual(await pythonRoom({ ...env, RUNG_CAP: "" })(), {
     argv: ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--code-sha", sha, "--rung-cap", ""],
     token: "job",
     budget: "github-token",
   });
   assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--code-sha", sha]);
-  // No commit kept is an empty one, which reads the report again.
   const { POSTMERGE_CODE_SHA: _, ...unset } = env;
   assert.deepEqual((await pythonRoom(unset)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--code-sha", ""]);
 });
 
-// The calls line as babysit_gh.py itself prints it, for three Actions-token
-// reads (the paginated artifact listing and two run records) and one
-// lane-token GraphQL read: 4 in all, 3 under GITHUB_TOKEN, 1 paginated.
 const BABYSIT_SCRIPTS = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
 function producedCallsLine() {
   const done = spawnSync(
@@ -3240,8 +2965,6 @@ test("ghCalls reads babysit_gh.py's calls line: in all, under GITHUB_TOKEN, and 
   assert.equal(costLine({ number: 7, calls: null, ms: 20 }), "#7 calls=unknown ms=20");
 });
 
-// Two artifact reads that missed the live count, as
-// babysit_verify_evidence.py prints them before falling back to the full listing.
 const MISSES = [
   'babysit-listing-miss {"base_age_seconds": 40, "fresh": 3, "kept": 95, "listed": 98, "pages": 1, "stage": "incremental", "total_count": 100}',
   'babysit-listing-miss {"base_age_seconds": 52, "fresh": 104, "kept": 0, "listed": 104, "pages": 2, "stage": "top-up", "total_count": 101}',
@@ -3266,8 +2989,6 @@ test("pythonVerify logs each read's calls and time, keeps them, and names the er
   } finally {
     console.log = log;
   }
-  // The reader's per-endpoint calls line reaches the log after each cost
-  // line, in the shape the merge job's tee logs, as one line of JSON.
   const logged = `babysit-gh-calls ${JSON.stringify(JSON.parse(line.slice("babysit-gh-calls ".length)))}`;
   assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=250", logged, "enable-auto-merge: #2 calls=4 github-token=3 paginated=1 ms=250", logged, MISSES[0]]);
   assert.deepEqual(JSON.parse(logged.slice("babysit-gh-calls ".length)).calls, JSON.parse(line.slice("babysit-gh-calls ".length)).calls);
@@ -3320,8 +3041,6 @@ test("the step summary carries each verifier read's cost even when the run raise
   assert.equal(readFileSync(summary, "utf8"), "enable-auto-merge: #1 calls=9 github-token=7 paginated=1 ms=46800\n");
 });
 
-// Outage posture element 2: a listing that is not whole holds the run green
-// with a notice, where it used to throw and end red.
 test("more than 1000 open pull requests holds green with a notice: nothing armed, disarmed or noted", async () => {
   const summary = join(tempDir("enable-auto-merge-full-"), "summary.md");
   writeFileSync(summary, "");
@@ -3362,11 +3081,6 @@ test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a k
   assert.equal(VERIFY_TIMEOUT_MS, 4 * 60_000);
 });
 
-// A reader child that exits 75 stopped on a GitHub rate limit
-// (babysit_gh.RATE_LIMIT_EXIT); a later child would call GitHub again before
-// the reset, so the run sends nothing more and fails red naming the pool.
-
-// The gate's real exhausted-pool exit: the guard's ::error, then its call count.
 function stoppedReader(dir) {
   const script = join(dir, "stopped.py");
   writeFileSync(
@@ -3403,7 +3117,6 @@ test("a gate reader stopped on a rate limit ends the run: no later pull request 
   }
   assert.equal(code, 1);
   assert.deepEqual(spawned, ["1"]);
-  // Nothing after the stopped child: no detail read, verify or arm for #2.
   assert.equal(calls.length, callsAtSpawn);
   assert.deepEqual(writes(), []);
   assert.deepEqual(notes, []);
@@ -3414,9 +3127,6 @@ test("a gate reader stopped on a rate limit ends the run: no later pull request 
   assert.match(errors[0], /2100-01-01T00:00:00Z/);
 });
 
-// babysit_gh.py exits 75 on a server error hold too (a 5xx whose only signal
-// was Retry-After), titling its line "GitHub server error": the stop names
-// that line and keeps its cause, as it names a rate limit's.
 test("a reader stopped on a server error hold names its guard's line and cause", () => {
   const line = "GitHub answered HTTP 503 with a Retry-After; no GitHub call is sent before 2100-01-01T00:00:00Z";
   const held = new ReaderRateLimited("the lane-room read", `::error title=GitHub server error::${line}\nbabysit-gh-calls {"total": 1}`);
@@ -3455,8 +3165,6 @@ test("a lane-room reader stopped on a server error hold disarms as on a rate lim
   assert.match(errors[0], /stopped on a GitHub server error hold: GitHub answered HTTP 503 with a Retry-After; no GitHub call is sent before 2100-01-01T00:00:00Z/);
 });
 
-// A lane-room reader stopped on a rate limit: its child wrote `pool` to the
-// job's stop file before exiting 75.
 async function roomStoppedOn(pool, pulls) {
   const dir = tempDir("enable-auto-merge-room-stop-");
   const stopFile = join(dir, "stop");
@@ -3486,7 +3194,6 @@ test("a lane-room reader stopped on the REST pool disarms each armed lanes pull 
   const armed = pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } });
   const { code, writes, notes, verified, lines } = await roomStoppedOn("core", [armed, pull(2)]);
   assert.equal(code, 1);
-  // An unread room holds as a refusal does: #1 is disarmed, #2 not armed.
   assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
   assert.deepEqual(notes, []);
   assert.deepEqual(verified, []);
@@ -3501,7 +3208,6 @@ test("a lane-room reader stopped on the GraphQL pool sends no disarm and fails n
   const { code, writes, calls, notes, lines } = await roomStoppedOn("graphql", [armed, pull(2)]);
   assert.equal(code, 1);
   assert.deepEqual(writes, []);
-  // Only the listing was sent.
   assert.deepEqual(
     calls.map(({ body }) => body?.query === PULLS_QUERY),
     [true],
@@ -3546,9 +3252,6 @@ test("a verifier read stopped on a rate limit disarms the armed lanes pull reque
   assert.ok(lines.some((line) => String(line).startsWith("::error title=GitHub rate limit::")), lines.join("\n"));
 });
 
-// The gate holds on the security lane's open CRITICAL findings
-// (diff_risk LANES, security-finding) and on a review not bound to the
-// head, whether or not the lane applied its hold label.
 test("a review-lane hold the gate reads arms nothing and disarms an armed pull request", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const held = { refusal: null, head: HEAD, ineligible: null, reviews: "security-finding: 1 open" };
@@ -3566,10 +3269,6 @@ test("a review-lane hold the gate reads arms nothing and disarms an armed pull r
   assert.ok(lines.some((line) => line.includes("#3 left: its risk score could not be read")));
 });
 
-// The gate's whole risk score through its own CLI and scorer
-// (diff_risk.score, holding), the reads stubbed: only a regular file that
-// stays regular may rate below HIGH, so a symlink or a submodule pointer a
-// lane pull request adds holds, and a plain documentation change arms.
 test("a lane pull request adding a symlink or a submodule pointer is not armed, or is disarmed; a doc change arms", async () => {
   const dir = tempDir("enable-auto-merge-risk-");
   const wrapper = join(dir, "risk.py");
@@ -3629,10 +3328,6 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
   assert.ok(lines.some((line) => /#3 disarmed: pr-merge's gate holds it on its risk score \(.*vendor\/lib/.test(line)), lines.join("\n"));
 });
 
-// The cap through the gate's own CLI: the count from the queue's timeline
-// (babysit_merge._failed_ejections, stubbed at read_merge_queue) and the limit
-// from the config (merge.max-queue-ejections, default 2), so only Python
-// holds either. One removal arms; two, or an unread count, do not.
 test("the gate's CLI holds a head the merge queue removed merge.max-queue-ejections times, and an unread count", async () => {
   const dir = tempDir("enable-auto-merge-queue-");
   const wrapper = join(dir, "queue.py");
@@ -3685,8 +3380,6 @@ test("costLine names a read's calls and time", () => {
   assert.equal(costLine({ number: 7, calls: null, ms: 20 }), "#7 calls=unknown ms=20");
 });
 
-// A stand-in for the reader process: the same answer for each pull request,
-// whatever its flags.
 function fixedReader(answers) {
   const spawned = [];
   const spawn = (_cmd, args) => {
@@ -3711,11 +3404,8 @@ test("each verifier read is one full read, told the limit it is killed at, and i
     console.log = log;
   }
   assert.deepEqual(timeouts, [VERIFY_TIMEOUT_MS, VERIFY_TIMEOUT_MS]);
-  // babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV.
   assert.deepEqual(deadlines, [["240", "enable-auto-merge.mjs"], ["240", "enable-auto-merge.mjs"]]);
   assert.ok(reader.spawned.every((args) => !args.some((arg) => arg.startsWith("--answers"))));
-  // The same arms, disarms and notes as before the verifier-answers cache
-  // was retired, its shadow mode included.
   const armed = { autoMergeRequest: { enabledAt: "2026-10-23T09:00:00Z" } };
   const answers = { 1: PASSED, 2: MISSING, 3: MISSING, 4: PASSED, 5: { ...PASSED, reviews: "MED: a review not bound to the head", reviewsPerson: false } };
   const { github, writes, notes } = world([pull(1), pull(2), pull(3, armed), pull(4, armed), pull(5, { discussion: { comments: [lanesSaid(laneNote("an earlier reason"))] } })]);
@@ -3734,8 +3424,6 @@ test("each verifier read is one full read, told the limit it is killed at, and i
   assert.ok(notes.some(({ method, path }) => method === "PATCH" && path === `${ISSUES}/comments/77`), JSON.stringify(notes));
 });
 
-// enable-auto-merge never queues a head whose newest pr-unblock/* status by
-// github-actions[bot] is failure or error; ci-status does not read the stop.
 const BOT = { login: "github-actions[bot]" };
 const unblock = (context, state, creator = BOT, description = "stopped") => ({ context, state, creator, description });
 
@@ -3773,9 +3461,6 @@ test("a head a pr-unblock lane stopped is not queued and is named in the summary
   assert.equal((await run([pull(1, { verdict: PASSED })])).writes[0]?.mutation, "arm");
 });
 
-// The lanes App's address-feedback lane-stopped comment (report-escalation.sh)
-// naming feedback-not-converging at the head closes the pull request for a
-// fresh attempt at its issue, as the verify cap does.
 const stoppedNote = (reason = "feedback-not-converging", head = HEAD) =>
   ["<!-- pr-unblock:lane-stopped activity=address-feedback -->", "The pr-unblock lane stopped `address-feedback` on this pull request.", "", `- Reason: \`${reason}\``, `- Head: \`${head}\``].join("\n");
 
@@ -3792,7 +3477,6 @@ test("review rounds stopped as not converging at the head close the pull request
     "another account's comment": { statuses: stopped, comments: [someone] },
     "no failing address-feedback status": { statuses: [unblock("pr-unblock/fix-ci", "failure")], comments: [lanesSaid(stoppedNote())] },
     "a status alone": { statuses: [unblock("pr-unblock/address-feedback", "failure", BOT, "Lane stopped: feedback-not-converging")], comments: [] },
-    // The stop closes only past the holds the verify cap's close waits behind.
     "a member's veto comment": { statuses: stopped, comments: [lanesSaid(stoppedNote()), said("kyle-sexton", "do not merge", "2026-10-23T10:30:00Z")] },
     "a hold path": { statuses: stopped, comments: [lanesSaid(stoppedNote())], files: [{ filename: "docs/held.md" }] },
   };
@@ -3810,7 +3494,6 @@ test("review rounds stopped as not converging at the head close the pull request
 // 11:50:40Z).
 test("review rounds stopped as stood-open at the head refuse for the owning session, with no label, and close nothing", async () => {
   const stopped = [unblock("pr-unblock/address-feedback", "failure")];
-  // The fence wraps the reason at 100 columns.
   const reason = [
     "a pr-unblock lane stopped its head (pr-unblock/address-feedback is failure): a review finding stood",
     "  at adjudication and the lane left it open again (feedback-stood-open), so the pull request's",
@@ -3834,9 +3517,6 @@ test("review rounds stopped as stood-open at the head refuse for the owning sess
   }
 });
 
-// The lanes App holds no commit-statuses permission, so the head's statuses
-// are read on the job token (statuses: read): a lanes token that cannot read
-// them stops nothing when the job token can.
 test("the head's statuses are read on the job token, not the lanes App token", async () => {
   const jobToken = (github) => async (method, path, ...rest) => (path.includes("/statuses?") ? [] : github(method, path, ...rest));
   const { writes } = await run([pull(1, { verdict: PASSED, statuses: "error" })], {}, { jobToken });
@@ -3851,9 +3531,6 @@ test("a head whose statuses do not read is not queued, and an armed one is disar
   assert.equal(unblockHold([]), null);
 });
 
-// The owner's approval of the head is the documented release of a hold-path
-// escalation, so the lane takes its needs-human label off itself; nothing
-// else does, and the approval control is the one ci-status applies.
 test("a hold-path escalation lifts its label only on a trusted person's approval of the head", async () => {
   const LIFT = { method: "DELETE", path: `${ISSUES}/2/labels/needs-human` };
   const held = (discussion, files = HELD, overrides = {}) => pull(2, { files, labels: labels("needs-human"), verdict: PASSED, discussion, timeline: liftTimeline(), ...overrides });
@@ -3882,11 +3559,6 @@ test("a hold-path escalation lifts its label only on a trusted person's approval
   assert.ok(reportOnly.lines.some((line) => String(line).includes("would lift (report-only) needs-human")), reportOnly.lines.join("\n"));
 });
 
-// The same label carries holds that live only in the label: a pr-unblock
-// escalation adds no labeled event when the label is already on, a review
-// lane's or check-signed-commits' hold, a label a person added. Each case is
-// the liftable timeline with one thing changed, and keeps the label for its
-// own named reason.
 test("an approved hold-path escalation keeps its label while anything else stands behind it", async () => {
   const held = (overrides) => pull(2, { files: HELD, labels: labels("needs-human"), verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON))] }, timeline: liftTimeline(), ...overrides });
   const [note, label, approval] = liftTimeline();
@@ -3908,14 +3580,11 @@ test("an approved hold-path escalation keeps its label while anything else stand
     "a pr-unblock escalation since the label": [{ timeline: [note, label, restSaid(APP_USER, escalation, after), approval] }, "carries another marker: <!-- work-items:escalation lane=pr-unblock"],
     "a review lane's hold on an earlier head": [{ timeline: [note, label, restSaid(claude, `<!-- claude-lane-hold lane=claude-security-review sha=${OLD} criteria=security -->`, after), approval] }, "a review lane holds it"],
     "a review lane's hold the approval came after": [{ timeline: [restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=intent -->`, "2026-10-22T09:00:00Z"), note, label, approval] }, "a review lane holds it"],
-    // The second security review's probe: a hold on this head, a bot's
-    // unlabel, the lane putting the label back, then the approval.
     "a hold on the head under a bot's unlabel and the lane's relabel": [
       { timeline: [note, label, restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=security -->`, after), labelEvent(actions, "2026-10-24T09:01:00Z", { event: "unlabeled" }), labelEvent(APP_USER, "2026-10-24T09:02:00Z"), approval] },
       `a review lane holds head ${HEAD}`,
     ],
     "a hold whose marker does not parse": [{ timeline: [note, label, restSaid(claude, "<!-- claude-lane-hold lane=claude-review sha=short -->", after), approval] }, "or its hold does not parse"],
-    // A bot's unlabel lifts no earlier hold, even under a newly paired label.
     "an earlier head's hold under a bot's unlabel": [
       { timeline: [restSaid(APP_USER, personNote(HOLD_PATH_REASON), "2026-10-22T08:00:00Z"), labelEvent(APP_USER, "2026-10-22T08:00:01Z"), restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=security -->`, "2026-10-22T09:00:00Z"), labelEvent(actions, "2026-10-22T09:30:00Z", { event: "unlabeled" }), note, label, approval] },
       "a review lane holds it",
@@ -3936,9 +3605,6 @@ test("an approved hold-path escalation keeps its label while anything else stand
     assert.ok(!result.writes.some(({ mutation }) => mutation === "arm"), `${why} arms nothing`);
     assert.ok(result.lines.some((line) => String(line).startsWith("enable-auto-merge: #2 keeps needs-human: ") && String(line).includes(reason)), `${why}: ${result.lines.join("\n")}`);
   }
-  // The approval itself, the refusal edited after the label and a bot's
-  // comment are not a reason to keep it.
-  // A person who removed the label lifted an earlier head's hold under it.
   const personLifted = await run([held({ timeline: [restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=security -->`, "2026-10-22T09:00:00Z"), labelEvent(KYLE, "2026-10-22T09:30:00Z", { event: "unlabeled" }), note, label, approval] })], trustedKyle());
   assert.deepEqual(personLifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
   const edited = { ...note, updated_at: after };
@@ -3960,18 +3626,13 @@ test("pythonClose runs the reader's capped-close at the base with the hold label
   assert.deepEqual(seen[0].args.slice(1), ["capped-close", "--repo", "o/r", "--base-sha", base, "--reason", "verify", "--hold-label", "do-not-merge", "--hold-label", "needs-human", "5", HEAD]);
   pythonClose(env, spawn)({ number: 5, headRefOid: HEAD, baseRefOid: base }, [], "feedback-not-converging");
   assert.deepEqual(seen[1].args.slice(1), ["capped-close", "--repo", "o/r", "--base-sha", base, "--reason", "feedback-not-converging", "5", HEAD]);
-  // Its writes keep the lanes App token.
   assert.equal(seen[0].token, "app");
-  // Its reader is told the 240 s limit it is killed at (DEADLINE_ENV).
   assert.deepEqual([seen[0].timeout, seen[0].deadline, seen[0].caller], [VERIFY_TIMEOUT_MS, "240", "enable-auto-merge.mjs"]);
   const failing = () => ({ status: 1, stdout: '{"closed": false, "error": "close: HTTP 403"}\n', stderr: "" });
   assert.throws(() => pythonClose(env, failing)({ number: 5, headRefOid: HEAD, baseRefOid: base }, []), /capped-close exited 1: close: HTTP 403/);
   assert.throws(() => pythonClose(env, spawn)({ number: 5, headRefOid: HEAD, baseRefOid: "main" }, []), /not a commit SHA/);
 });
 
-// merge.diff-check.path-holds (owner decision Q15): off, a gate script or a
-// workflow on the floor arms, and a refusal naming only hold paths comes off
-// with no approval; a cost path and the do-not-merge label still hold.
 function pathHoldsOff() {
   const dir = tempDir("enable-auto-merge-");
   writeFileSync(join(dir, "resolved.json"), JSON.stringify({ merge: { "diff-check": { "denied-paths": ["docs/held.md"], "path-holds": false } } }));
@@ -4012,15 +3673,12 @@ test("with path holds off, a standing hold-path refusal comes off with no approv
   assert.deepEqual(lifted.notes, [LIFT]);
   assert.equal(lifted.writes.at(-1)?.mutation, "arm");
   assert.ok(lifted.lines.some((line) => String(line).includes("lifted needs-human: path holds are off")), lifted.lines.join("\n"));
-  // On, the same refusal waits for a person's approval.
   const kept = await run([held([lanesSaid(personNote(reason))])], trustedKyle());
   assert.ok(!kept.notes.some(({ method }) => method === "DELETE"));
-  // A refusal that also names a cost path stays.
   const cost = await run([held([lanesSaid(personNote(`${reason}\n${COST_REASON}`))], [...GATE_SCRIPT, ...COST_FILES])], { ...trustedKyle(), ...pathHoldsOff() });
   assert.ok(!cost.notes.some(({ method }) => method === "DELETE"));
 });
 
-// ci-status passes the base's merge.diff-check.path-holds as PATH_HOLDS.
 test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS false, and still holds a cost path but no body hold", () => {
   const dir = tempDir("merge-holds-");
   const head = "0123456789abcdef0123456789abcdef01234567";
@@ -4046,12 +3704,9 @@ test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS f
     assert.match(held.stdout, /it changes \.github\/scripts\/pr-merge\/clear-escalations\.mjs, a hold path/);
   }
   assert.equal(cli([["infra/main.tf"]], "false").status, 1);
-  // The do-not-merge label is the veto; ci-status reads no body hold text.
   assert.equal(cli([gate], "false", "Closes #1\n\nHold: wait for the owner").status, 0);
 });
 
-// The babysit gate's own path holds, recorded in a risk refusal before the
-// switch went off, come off the same way; an unsafe path or any other code stays.
 test("with path holds off, a standing risk refusal naming only path holds comes off", async () => {
   const LIFT = { method: "DELETE", path: `${ISSUES}/2/labels/needs-human` };
   const gate = ".github/scripts/pr-merge/clear-escalations.mjs";
@@ -4087,7 +3742,6 @@ const check = (conclusion) => ({ contexts: { totalCount: 2, nodes: [
 const riskHeld = (overrides = {}) =>
   pull(1, { updatedAt: "2026-10-23T09:30:00Z", verdict: LANE_RISK_HELD, discussion: { comments: [lanesSaid(laneNote(LANE_RISK_REASON))] }, rollup: check("SUCCESS"), ...overrides });
 const at = (minutes) => () => Date.parse(NOW) + minutes * 60_000;
-// One reader run that keeps its skip records at `out`, from `from` when given.
 async function skipRun(pulls, { from, minutes = 0, main: inputs = "main-1", env = {}, lane = ROOM } = {}) {
   const dir = tempDir("enable-auto-merge-skip-");
   const out = join(dir, "eam-skip.json");
@@ -4124,8 +3778,6 @@ test("a changed check rollup alone, with the same updatedAt, is read again", asy
   assert.ok(second.lines.some((line) => line.startsWith("enable-auto-merge: skip-unchanged skipped=0 ")));
 });
 
-// As babysit_merge_skip.py keys them: a thread resolved, a review or a
-// comment edited need not move `updatedAt`.
 test("a resolved review thread, a review or an edited comment alone, with the same updatedAt, is read again", async () => {
   const threads = (isResolved) => ({ stateThreads: { totalCount: 1, nodes: [{ isResolved, isOutdated: false }] } });
   const first = await skipRun([riskHeld(threads(false))]);
@@ -4147,7 +3799,6 @@ test("a changed head, update time, label set or main is read again, and an armed
     updatedAt: [riskHeld({ updatedAt: "2026-10-23T10:05:00Z" }), {}],
     labels: [riskHeld({ labels: labels("ci") }), {}],
     main: [riskHeld(), { main: "main-2" }],
-    // The rung the gate scores the risk at (pythonVerify's `rung`).
     rung: [riskHeld(), { lane: { ...ROOM, rung: "C3" } }],
     armed: [riskHeld({ autoMergeRequest: { enabledAt: "2026-10-23T10:01:00Z" } }), {}],
   };
@@ -4159,7 +3810,6 @@ test("a changed head, update time, label set or main is read again, and an armed
 
 test("a skip record is read again past max-minutes, after max-skips, and never when either is 0", async () => {
   const first = await skipRun([riskHeld()]);
-  // The lane comment escalates at 60 minutes, so 50 stays inside both bounds.
   assert.equal((await skipRun([riskHeld()], { from: first.from, minutes: 50, env: { SKIP_MAX_MINUTES: "45" } })).details, 1);
   let from = first.from;
   for (const minutes of [15, 30]) {
@@ -4170,7 +3820,6 @@ test("a skip record is read again past max-minutes, after max-skips, and never w
 });
 
 test("a lane hold due to escalate to a failing status is read again at its escalation", async () => {
-  // max-minutes past the escalation, so only the escalation bounds the skip.
   const env = { SKIP_MAX_MINUTES: "120" };
   const first = await skipRun([riskHeld()], { env });
   assert.equal((await skipRun([riskHeld()], { from: first.from, minutes: 59, env })).details, 0);
@@ -4180,23 +3829,17 @@ test("a lane hold due to escalate to a failing status is read again at its escal
 });
 
 test("a refusal that wrote, a verdict refusal and an event run keep no skip record", async () => {
-  // The first lane comment is written, or a changed reason edited in, so the
-  // next run reads again.
   for (const comments of [[], [lanesSaid(laneNote("pr-merge's gate holds it on its risk score (lines-over: 850 changed lines)"))]]) {
     const wrote = await skipRun([riskHeld({ discussion: { comments } })]);
     assert.equal(wrote.notes.length, 1);
     assert.deepEqual(wrote.kept.entries, {});
   }
-  // A verdict a later artifact may answer differently, with no change to the key.
   const missing = await skipRun([riskHeld({ verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } })]);
   assert.deepEqual(missing.kept.entries, {});
   const event = await skipRun([riskHeld()], { env: { EVENT_NAME: "pull_request_target", EVENT_PR: "1" } });
   assert.equal(event.kept, null);
 });
 
-// The next run reads back the newest run that uploaded a file, so a reader
-// run that skips nothing still keeps one: an older run's records never
-// stand in for it.
 test("a reader run that keeps no records still keeps an empty file, and the run after it reads again", async () => {
   const first = await skipRun([riskHeld()]);
   assert.equal(first.kept.entries["1"]?.reason, LANE_RISK_REASON);
@@ -4226,7 +3869,6 @@ test("a reader run that stops early keeps an empty file: the kill switch, a held
     }
     assert.deepEqual(JSON.parse(readFileSync(out, "utf8")), EMPTY, name);
   }
-  // An event run keeps none, early exit or not.
   assert.equal((await skipRun([riskHeld()], { env: { EVENT_NAME: "pull_request_target", EVENT_PR: "1", KILL_SWITCH: "" } })).kept, null);
 });
 
@@ -4299,10 +3941,6 @@ test("a queue-ejection hold due to escalate is read again at its escalation, tim
   assert.deepEqual(late.statuses, [{ sha: HEAD, state: "failure", description: Array.from(EJECTED_REASON).slice(0, 140).join("") }]);
 });
 
-// The lanes App adding the human-gated label to a queued pull request takes it
-// out of the merge queue, so its merge group does not run only for ci-status
-// to fail it on the label: one queue read per label add, and the dequeue only
-// when it is queued. A refused dequeue warns; the label still holds it.
 const queueReads = (calls) => calls.filter(({ body }) => body?.query === QUEUE_ENTRY_QUERY).map(({ body }) => body.variables.pr);
 const holdNotice = (outcome) => `::notice title=hold-label-dequeue::pr=1 label=needs-human outcome=${outcome}`;
 
@@ -4357,8 +3995,6 @@ const vetoed = (login = "kyle-sexton", association = "OWNER") => said(login, "Pl
 const vetoLabel = { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["do-not-merge"] } };
 const vetoComment = (vetoes) => ({ method: "POST", path: `${ISSUES}/1/comments`, body: { body: vetoNote(vetoes) } });
 const vetoDelete = { method: "DELETE", path: `${ISSUES}/1/labels/do-not-merge` };
-// The lane's own veto label: its comment in the discussion, and the label
-// followed by the comment on the REST timeline.
 const vetoNoteComment = { ...lanesSaid(vetoNote(["kyle-sexton"])), createdAt: NOTED_AT };
 const ownedTimeline = [labelEvent(APP_USER, LABELED_AT, { name: "do-not-merge" }), restSaid(APP_USER, vetoNote(["kyle-sexton"]), NOTED_AT)];
 
@@ -4369,7 +4005,6 @@ test("a member's veto comment adds do-not-merge, then the lane's veto comment, a
   assert.ok(notes[1].body.body.startsWith(`${VETO_MARKER}\n`));
   assert.deepEqual(writes, [{ mutation: "dequeue", id: "PR_1" }]);
   assert.ok(lines.includes("enable-auto-merge: #1 labeled do-not-merge: kyle-sexton asked not to merge it"), lines.join("\n"));
-  // A review and an inline comment veto too, as ci-status reads them.
   const review = { ...vetoed("other-member", "MEMBER"), createdAt: undefined, submittedAt: VETO_AT };
   assert.deepEqual((await run([pull(1, { discussion: { reviews: [review] } })])).notes, [vetoLabel, vetoComment(["other-member"])]);
   const inline = await run([pull(1, { discussion: { inline: [vetoed("collab", "COLLABORATOR")] } })]);
@@ -4384,10 +4019,8 @@ test("a veto label is not added while report-only, on an event run, or when a pe
   assert.deepEqual(event.notes, []);
   const removed = await run([pull(1, { discussion: { comments: [vetoed()] }, unlabeled: [unlabeled("2026-10-23T09:45:00Z", "User", "do-not-merge")] })]);
   assert.deepEqual(removed.notes, []);
-  // A removal before the newest veto does not stop it.
   const earlier = await run([pull(1, { discussion: { comments: [vetoed()] }, unlabeled: [unlabeled("2026-10-23T08:00:00Z", "User", "do-not-merge")] })]);
   assert.deepEqual(earlier.notes, [vetoLabel, vetoComment(["kyle-sexton"])]);
-  // A label already on gets no second label and no comment.
   const held = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed()] } })]);
   assert.deepEqual(held.notes, []);
 });
@@ -4409,7 +4042,6 @@ test("the member's lifting comment takes the lane's own veto label off, and the 
   assert.deepEqual(notes, [vetoDelete]);
   assert.ok(lines.includes("enable-auto-merge: #1 lifted do-not-merge: no member veto stands"), lines.join("\n"));
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-  // Report-only names the lift and writes nothing.
   const report = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), vetoNoteComment, lift] }, timeline: ownedTimeline })], { REPORT_ONLY: "true" });
   assert.deepEqual(report.notes, []);
   assert.ok(report.lines.includes("enable-auto-merge: #1 would lift do-not-merge (report-only): no member veto stands"), report.lines.join("\n"));
@@ -4427,19 +4059,15 @@ test("the veto label stays while another member's veto stands", async () => {
 test("a do-not-merge the lane did not add for a veto never comes off here", async () => {
   const lift = said("kyle-sexton", "Fine now, go ahead.", "2026-10-23T09:50:00Z");
   const discussion = { comments: [vetoed(), vetoNoteComment, lift] };
-  // report-outcome's body hold: the same App's label, with no veto comment.
   const bodyHold = await run([pull(1, { labels: labels("do-not-merge"), discussion: { comments: [vetoed(), lift] }, timeline: [labelEvent(APP_USER, LABELED_AT, { name: "do-not-merge" })] })]);
   assert.deepEqual(bodyHold.notes, []);
   assert.ok(!bodyHold.calls.some(({ path }) => /\/timeline\?/.test(path)));
-  // A body-hold label that a later veto comment followed is still not the lane's veto label.
   const late = [labelEvent(APP_USER, "2026-10-22T09:00:00Z", { name: "do-not-merge" }), restSaid(APP_USER, vetoNote(["kyle-sexton"]), NOTED_AT)];
   assert.deepEqual((await run([pull(1, { labels: labels("do-not-merge"), discussion, timeline: late })])).notes, []);
-  // A session or a person adding the label again after the lane's.
   const relabeled = [...ownedTimeline, labelEvent({ login: "kyle-sexton", type: "User" }, "2026-10-23T09:40:00Z", { name: "do-not-merge" })];
   const session = await run([pull(1, { labels: labels("do-not-merge"), discussion, timeline: relabeled })]);
   assert.deepEqual(session.notes, []);
   assert.ok(session.lines.includes("enable-auto-merge: #1 keeps do-not-merge: the lanes App did not add it for a member veto"), session.lines.join("\n"));
-  // A timeline that does not read keeps it.
   const unread = await run([pull(1, { labels: labels("do-not-merge"), discussion })]);
   assert.deepEqual(unread.notes, []);
   assert.equal(unread.code, 0);
@@ -4449,33 +4077,22 @@ test("a do-not-merge the lane did not add for a veto never comes off here", asyn
 test("vetoLabelOwned pairs the lanes App's label with its veto comment", () => {
   const login = "melodic-automation-lanes[bot]";
   assert.equal(vetoLabelOwned(ownedTimeline, login), true);
-  // The comment more than PAIRED_MS after the label, or before it, does not pair.
   assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(APP_USER, vetoNote(["kyle-sexton"]), "2026-10-23T09:32:00Z")], login), false);
   assert.equal(vetoLabelOwned([restSaid(APP_USER, vetoNote(["kyle-sexton"]), "2026-10-23T09:29:59Z"), ownedTimeline[0]], login), false);
-  // Another account's comment with the marker, or the App's without it, does not pair.
   assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(KYLE, vetoNote(["kyle-sexton"]), NOTED_AT)], login), false);
   assert.equal(vetoLabelOwned([ownedTimeline[0], restSaid(APP_USER, "a note", NOTED_AT)], login), false);
   assert.equal(vetoLabelOwned([], login), false);
-  // A second hold placed while the label is on records no labeled event, so
-  // a session's explanation naming the label, or a body hold, keeps it.
   assert.equal(vetoLabelOwned([...ownedTimeline, restSaid(KYLE, "Holding: applied the `do-not-merge` label for a regression.", "2026-10-23T09:45:00Z")], login), false);
   assert.equal(vetoLabelOwned([...ownedTimeline, restSaid(KYLE, "Fine now, go ahead.", "2026-10-23T09:45:00Z")], login), true);
   assert.equal(vetoLabelOwned(ownedTimeline, login, "## Summary\nHold: waiting on #1\n"), false);
   assert.equal(vetoLabelOwned(ownedTimeline, login, "x\nHold: a human merges this\n"), false);
   assert.equal(vetoLabelOwned(ownedTimeline, login, "## Summary\nno hold here\n"), true);
-  // A member's re-veto, or a second member's veto, after the label is judged
-  // by memberVetoes, not read as a session's hold: once lifted, the label comes off.
   const member = (user, body, at) => ({ ...restSaid(user, body, at), author_association: "OWNER" });
   const reveto = [...ownedTimeline, member(KYLE, "Still do not merge, waiting on #5.", "2026-10-23T09:40:00Z"), member({ login: "b", id: 6, type: "User" }, "Please do not merge this yet.", "2026-10-23T09:41:00Z")];
   assert.equal(vetoLabelOwned(reveto, login), true);
-  // A non-member's do-not-merge text after the label still keeps it.
   assert.equal(vetoLabelOwned([...ownedTimeline, { ...restSaid(KYLE, "do not merge", "2026-10-23T09:40:00Z"), author_association: "CONTRIBUTOR" }], login), false);
 });
 
-// The Merge-Risk record is report-only, so a rating that
-// fails, a read that hangs and a comment write that fails each leave the arm
-// as it was. recordMergeRisk runs on fakes of its own; the world's GitHub
-// sees only the arm. The record never edits the pull request body.
 import { recordMergeRisk, unratedLine } from "./merge-risk-line.mjs";
 
 const riskWriter = ({ failPost = false } = {}) => {
@@ -4524,7 +4141,6 @@ test("the Merge-Risk record reads the comments the arm already read, lists none 
   assert.equal(code, 0);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
   assert.deepEqual(handed, [[record]]);
-  // The head's record already holds this line: nothing is written.
   assert.deepEqual(writer.sent, []);
   assert.ok(lines.some((line) => line.startsWith(`::notice title=merge-risk::pr=1 head=${HEAD} merge-risk=unrated:unreadable read-ms=`) && !line.includes("write=")), lines.join("\n"));
   assert.equal(calls.filter(({ body }) => body?.query === DETAIL_QUERY).length, 1);

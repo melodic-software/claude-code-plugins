@@ -1,6 +1,3 @@
-// `applies-when` over the facts of one run: every listed key must match, and
-// within a key any listed value matches, except `labels-absent`, which matches
-// only when none of its labels is on the PR or issue. No key reads a work class.
 import { posix } from "node:path";
 
 export class MissingFact extends Error {
@@ -28,9 +25,6 @@ export function matchedPaths(predicate, changedPaths) {
   );
 }
 
-// Predicate key, the fact it reads, and whether the listed values match the
-// fact. Most keys match when any listed value does. `paths` and
-// `paths-ignore` decide together: one changed path must pass both.
 const any = (test) => (listed, fact) =>
   listed.some((value) => test(value, fact));
 const somePathMatches = (_listed, paths, predicate) =>
@@ -50,8 +44,6 @@ const KEYS = [
   ["draft", "draft", any((draft, current) => draft === current)],
 ];
 
-// A miss's skip reason when the predicate decides more than one key: a held PR
-// first, since only a human resumes it, then a decided miss over an unknown.
 const MISS_ORDER = ["awaiting-human", "not-applicable", "prerequisite-missing"];
 const missReason = (key, fact) => {
   if (key === "labels-absent") {

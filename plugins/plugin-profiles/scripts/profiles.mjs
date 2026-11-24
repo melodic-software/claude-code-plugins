@@ -1180,12 +1180,15 @@ function sessionStartRecord(where, env, input) {
   return rec ? `This session ran in profile ${rec.profile}; it is now running without it. Resume it in that profile with: claude --resume ${input.session_id} (the plugin-profiles claude shell function restores the profile; without it, run node "${join(OWN_ROOT, "scripts", "profiles.mjs")}" start --resume ${input.session_id}).` : null;
 }
 
-/** Points the dotfiles claude function at this installed copy when the pointer differs; never a worktree or --plugin-dir copy, and never throws. */
+/** Points the dotfiles claude function at this copy when it is the user-scope install installed_plugins.json records and the pointer differs; never an older cached version, a worktree or a --plugin-dir copy, and never throws. */
 function writeRootPointer(where) {
-  if (doesNotApply(where.surface) || !resolveInstall(OWN_ROOT).pluginId) return;
+  const { pluginId } = resolveInstall(OWN_ROOT);
+  if (doesNotApply(where.surface) || !pluginId) return;
   const file = join(where.configDir, "plugin-profiles-state", "root");
   const text = `${OWN_ROOT}\n`;
   try {
+    const installPath = recordsFromDisk(where.configDir).find((r) => r.id === pluginId && r.scope === "user")?.installPath;
+    if (typeof installPath !== "string" || realpathSync(installPath) !== OWN_ROOT) return;
     if (!existsSync(file) || readFileSync(file, "utf8") !== text) replaceFile(file, text);
   } catch {
     return;

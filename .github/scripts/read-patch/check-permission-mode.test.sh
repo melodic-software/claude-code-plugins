@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for check-permission-mode.sh: the requested mode against the mode a
-# leg's init message reports.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,7 +22,6 @@ init() {
   printf '[{"type":"system","subtype":"init","permissionMode":"%s"},{"type":"result","subtype":"success"}]' "$1" >"$path"
   printf '%s' "$path"
 }
-# run REQUESTED EXECUTION_FILE: sets RC and OUT.
 run() {
   RC=0
   OUT=$(MODE="$1" EXECUTION_FILE="$2" bash "$CHECK" 2>&1) || RC=$?

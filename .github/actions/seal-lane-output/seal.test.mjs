@@ -12,7 +12,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ACTION = readFileSync(path.join(HERE, "action.yml"), "utf8");
 
-// The seal step's env, from action.yml: each `NAME: ${{ inputs.x }}` takes input x.
 function stepEnv(inputs) {
   const env = {};
   for (const [, name, input] of ACTION.matchAll(/^ {8}([A-Z_0-9]+): \$\{\{ inputs\.([\w-]+) \}\}$/gm)) {
@@ -79,7 +78,6 @@ test("a present payload seals into chunks one environment variable holds; absent
   const length = Number(result.outputs["sealed-length"]);
   assert.equal(Object.keys(result.outputs).length, 1 + Math.ceil(length / CHUNK));
   for (const [name, value] of Object.entries(result.outputs)) assert.ok(`${name}=${value}`.length < 131072, name);
-  // Only the patch: one record, its name, then its ciphertext, which is not the plaintext.
   const bundle = Buffer.from(Object.keys(result.outputs).filter((k) => k !== "sealed-length").map((k) => result.outputs[k]).join(""), "base64");
   assert.equal(bundle.subarray(1, 1 + bundle[0]).toString(), "patch.diff");
   assert.equal(bundle.length, 1 + 10 + 4 + 53 + 262144 + 16);
@@ -117,12 +115,6 @@ test("each seal takes a fresh ephemeral key and a fresh nonce", () => {
   assert.equal(header(one).subarray(1, 9).toString("hex"), recipient.keyId);
 });
 
-// The read runner's run job carries each payload at most at its cap and seals
-// them all into the chunks its outputs map (pr-run-activity-read.yml's carry
-// and seal steps). A review-threads skill's replies, a dependency-review
-// skill's verdict and an issue run's outcome files are never carried
-// together, so each run's payloads at their caps, with incompressible bytes,
-// still fit: the real sealer, at the caps and chunk count read from that file.
 test("the read runner's payloads, each at its cap, seal into the chunks its run job carries", (t) => {
   const workflow = readFileSync(path.join(HERE, "../../workflows/pr-run-activity-read.yml"), "utf8");
   const caps = Object.fromEntries([...workflow.matchAll(/^ +carry [a-z-]+ "\$[A-Z_]+(?:\/[a-z.-]+)?" ([a-z.-]+) ([0-9]+)$/gm)].map((m) => [m[1], Number(m[2])]));
@@ -135,7 +127,6 @@ test("the read runner's payloads, each at its cap, seal into the chunks its run 
     "work-outcome.json": 49152,
     "lane.json": 4096,
   });
-  // One of the two, never both: an if/elif in the carry step.
   assert.match(workflow, /\n +if \[ -n "\$REPLIES_FILE" \]; then\n +carry replies [^\n]+\n +elif \[ -n "\$VERDICT_FILE" \]; then\n +carry dependency-verdict [^\n]+\n +fi\n/);
   const seal = /- name: Seal the reply, run fields and patch for the scan job\n[\s\S]*?payloads: \|\n((?: {12}.*\n)+) {10}job-id: run\n {10}max-chunks: ([0-9]+)\n/.exec(workflow);
   assert.ok(seal, "the seal step");
@@ -158,6 +149,5 @@ test("the read runner's payloads, each at its cap, seal into the chunks its run 
     assert.ok(Number(result.outputs["sealed-length"]) <= Number(seal[2]) * CHUNK, exclusive);
     assert.equal(Object.keys(result.outputs).length, 1 + Math.ceil(Number(result.outputs["sealed-length"]) / CHUNK), exclusive);
   }
-  // The caps sit near the seal's limit: both exclusive payloads together do not fit.
   assert.equal(sealOf(names).status, 1, "replies and a verdict together would not fit");
 });

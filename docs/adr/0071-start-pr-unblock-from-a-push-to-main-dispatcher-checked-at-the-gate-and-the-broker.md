@@ -4,6 +4,8 @@
 - Date: 2026-10-12
 - Amends: [ADR 0058](0058-mint-lane-app-tokens-through-an-oidc-broker.md), point 3: the broker's
   trusted-actor check gains the dispatcher path below
+- Superseded in part by `.github/workflows/pr-run-activity-write.yml`, which runs no skill, and no
+  workflow sets `allowed_bots`: Decision 5. The dispatcher and broker checks stand.
 
 ## Context
 
@@ -38,8 +40,8 @@ from any workflow in the repository holding `actions: write`.
    `pr-number` and `dispatcher-run-id`. It filters no labels or authors; the lane decides those
    once, from its own config and gate. Basis:
    [`pr-unblock-dispatch.yml:14-113`](../../.github/workflows/pr-unblock-dispatch.yml);
-   [`dispatch.mjs:1-110`](../../.github/scripts/pr-unblock/dispatch.mjs). The retry count and
-   delay and the cap of 3 are judgment, as `dispatch.mjs:23-28` says.
+   [`dispatch.mjs:1-43,69-85,143-331`](../../.github/scripts/pr-unblock/dispatch.mjs). The retry count and
+   delay and the cap of 3 are judgment, as `dispatch.mjs:78-83` says.
 2. **The lane runs on `workflow_dispatch` only**, from the dispatcher or a listed human. Basis:
    [`pr-unblock.yml:14-25`](../../.github/workflows/pr-unblock.yml).
 3. **The gate checks the dispatcher run.** A `workflow_dispatch` sent by `github-actions[bot]`
@@ -98,10 +100,10 @@ from any workflow in the repository holding `actions: write`.
   after the reconciler waits for the one after. Each tick costs one dispatcher run and its listing
   queries even when nothing is red; a head in the dispatch record is not read again, while a red
   lanes App PR, an `UNKNOWN` PR and a fix-docs candidate are still read per tick. Basis:
-  `dispatch.mjs:118-130,449-509`; `fix-ci-dispatch.mjs:262-264`;
-  `fix-docs-dispatch.mjs:207`.
+  `dispatch.mjs:194-230,838-839`; `fix-ci-dispatch.mjs:403-413,497-530`;
+  `fix-docs-dispatch.mjs:284-319`.
 - One runner per conflicting PR per push, capped at 3 per dispatcher run. The cap is judgment
-  until the lane's per-run cost is measured. Basis: `dispatch.mjs:23-24`.
+  until the lane's per-run cost is measured. Basis: `dispatch.mjs:78-79`.
 - A merge-queue merge raises one push for a batch, so the dispatcher lists PRs against `main` as
   it is when it runs, not against the pushed commit. Basis: `pr-unblock-dispatch.yml:6-7,45-54`.
 - The lane went live with the dispatcher. Basis: dispatcher run 38201493950 dispatched pr-unblock

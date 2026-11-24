@@ -151,7 +151,6 @@ test("openPulls opens only branches at their head with no pull request", async (
   assert.deepEqual(posted, [a.branch]);
 });
 
-// The spec issue the team config names (docs/conventions/code-tidying.yaml upkeep_spec_issue).
 const SPEC = "12894";
 const pullReader = (posted) => async (path, options = {}) => {
   if (options.method === "POST") return posted.push(options.body.body);
@@ -163,7 +162,6 @@ test("each pull request's body opens with Refs: to the configured spec issue, th
   await openPulls(pullReader(posted), "o/r", [prSweep()], { [prSweep().branch]: HEAD }, SPEC);
   assert.equal(posted.length, 1);
   assert.equal(posted[0].split("\n")[0], "Refs: #12894");
-  // refsIssue is the reader pr-verify (resolve-pr.mjs linkedIssues) and pr-merge share.
   assert.equal(refsIssue(posted[0]), 12894);
   assert.match(posted[0], /## Summary\n\nNamed the lane reader\.$/);
 });

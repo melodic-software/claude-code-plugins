@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "With `CLAUDE_PROJECT_DIR` unset, the hook scopes to git working-tree membership: a script outside any repository is skipped, and on a host with no `git` it fails closed and skips every file."
+    },
+    {
+      "answer": "5. **No `CLAUDE_PROJECT_DIR`:** not everything gets processed. The code falls back to whether the file sits in a git working tree, so a file outside a repo is left alone; without the git binary nothing is formatted.",
+      "why": "names the git fallback and the no-git case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "With `CLAUDE_PROJECT_DIR` unset the guard is skipped and any existing edited file is processed.",
+      "why": "the stale reading the hook code no longer does"
+    },
+    {
+      "answer": "When `CLAUDE_PROJECT_DIR` is unset, the behavior differs.",
+      "why": "near miss: does not say how"
+    },
+    {
+      "answer": "Whether the hook falls back to cwd or git root when `CLAUDE_PROJECT_DIR` is unset, I can't tell without reading it.",
+      "why": "speculates instead of stating the fallback"
+    }
+  ]
+}

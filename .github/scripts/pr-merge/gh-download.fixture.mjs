@@ -5,8 +5,6 @@ import { join } from "node:path";
 // `request` does).
 const request = (url) => `echo '* Request at 2026-11-03 15:00:00 +0000 UTC'; echo "* Request to ${url}"; echo '* Request took 1ms'`;
 
-// Writes <dir>/bin/gh: it appends its arguments to <dir>/gh-calls, then runs
-// `body`. Returns the bin directory to put on PATH.
 function fakeGh(dir, body) {
   const bin = join(dir, "bin");
   mkdirSync(bin, { recursive: true });

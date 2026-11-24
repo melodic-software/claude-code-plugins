@@ -3,7 +3,10 @@
 - Status: accepted; Decision 1 partly superseded by
   [ADR 0044](0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
   for structured surfaces; its expression criterion amended by
-  [ADR 0064](0064-home-plugin-customization-in-docs-conventions-yaml.md)
+  [ADR 0064](0064-home-plugin-customization-in-docs-conventions-yaml.md); Decision 4's
+  "canonical in `harness-config`" superseded in part by
+  [ADR 0019's 2026-10-02 amendment](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md#amendment-2026-10-02-one-canonical-source-every-copy-generated):
+  the canonical is the repository's `lib/check-retirements.sh`
 - Date: 2026-09-01
 
 ## Context

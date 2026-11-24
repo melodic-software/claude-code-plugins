@@ -2,6 +2,11 @@
 
 - Status: accepted
 - Date: 2026-10-02
+- Superseded in part by
+  [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md):
+  Decision 2's override layers. The team layer is `<home>/multi-agent.yaml`, not an ADR 0044 block
+  or `.claude/`, and the user layer is the `role_map_file` option
+  (`plugins/multi-agent/reference/config.md`, "Layers").
 
 ## Context
 

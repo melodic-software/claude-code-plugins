@@ -92,6 +92,16 @@ test("a dispatched run writes the validity bash ran and verdict lines and the no
   assert.doesNotMatch(summarize, /\$validity"? >/);
 });
 
+test("both legs of a dispatched suite run keep each run's final reply beside its results.json for the upload", () => {
+  const capture =
+    /if \[ "\$DISPATCHED" = true \]; then\n(?: +[^\n]*\n){5}\s+node \.base\/\.github\/scripts\/plugin-eval\/last-messages\.mjs "\$results" "\$OUT\/\$name\/last-messages\.jsonl" \|\|\n\s+echo "::warning::[^"\n]+"\n/g;
+  assert.equal(text.match(capture)?.length, 2);
+  const job = (name) => text.slice(text.indexOf(`\n  ${name}:\n`)).split("\n    steps:\n")[0];
+  assert.match(job("check-key-credit"), /inputs\.mode != 'compare'/);
+  assert.match(job("run-eval"), /needs: check-key-credit\n[\s\S]*needs\.check-key-credit\.result == 'success'/);
+  assert.match(job("run-eval-subscription"), /inputs\.mode != 'compare'/);
+});
+
 test("a pull request run redacts its summary and uploads no results", () => {
   assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'workflow_run' && '--redact' \|\| '' \}\}/);
   assert.match(step("Summarize the results"), /summarize\.mjs "\$results" --plugin "\$name" "\$\{redact\[@\]\}"/);
@@ -287,7 +297,7 @@ test("a subscription compare refuses a pull request whose author is not a truste
   const stop = workflowText(text).stepNamed("compare-prepare", "Stop on an untrusted pull request author");
   assert.match(gate.text, /uses: \.\/\.base\/\.github\/actions\/check-trusted-trigger /);
   assert.equal(gate.inputs["pr-number"], "${{ inputs.pr }}");
-  assert.equal(gate.inputs["trusted-actors-path"], ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(gate.inputs["standards-path"], "${{ steps.standards.outputs.path }}");
   assert.match(stop.text, /\n {10}exit 1\n/);
   const names = steps("compare-prepare").map((s) => s.name);
   assert.ok(names.indexOf("Stop on an untrusted pull request author") < names.indexOf("Build the arm patches"), "the refusal comes before any arm is built");
