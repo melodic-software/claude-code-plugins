@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-changed-skills.sh. Each scenario builds a throwaway git
-# repo, commits a base tree of skills, applies working-tree changes, and runs
-# the script with the base commit as <base-ref>. The skill checker is stubbed
-# (CHECK_SKILL_BIN) so the tests exercise the orchestrator — changed-skill
-# detection, vendor-subtree mapping, dedupe, deletion filtering, env
-# passthrough, and pass/fail aggregation — not check-skill.sh itself.
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -25,8 +19,6 @@ SCRIPT="$SELF_DIR/check-changed-skills.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 r=""
 
-# A stub checker shared by every scenario: records each invocation (skill name +
-# forwarded env) to $CHECK_LOG, and FAILs iff the skill is named "broken".
 STUB="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 cat >"$STUB" <<'EOF'
 #!/usr/bin/env bash
@@ -42,14 +34,10 @@ exit 0
 EOF
 chmod +x "$STUB"
 
-# mk_repo <out-var>. A fixture runs a COPY of the gate, so the builder stages
-# scripts/lib/ with it: without those, the copy dies on a missing source at
-# line 1 and every assertion below turns into the same opaque failure.
 mk_repo() {
   fixture_tree::build "$1" --sut "$SCRIPT" --git
 }
 
-# add_skill <repo> <plugin> <skill> [relpath]  — write a file in a skill dir.
 add_skill() {
   local repo="$1" plugin="$2" skill="$3" rel="${4:-SKILL.md}"
   local path="$repo/plugins/$plugin/skills/$skill/$rel"
@@ -60,14 +48,11 @@ add_skill() {
 commit_all() { git_test_config "$1" add -A && git_test_config "$1" commit -qm "$2"; }
 base_sha() { git -C "$1" rev-parse HEAD; }
 
-# run <repo> <base>  — invoke the script from the repo root, stub as checker.
 run() (
   cd "$1" && CHECK_SKILL_BIN="$STUB" CHECK_LOG="$1/checklog" \
     bash scripts/check-changed-skills.sh "$2"
 )
 
-# stage_checker <repo> — copy the REAL skill-quality checker into a fixture,
-# for the integration cases that run it instead of the stub.
 stage_checker() {
   mkdir -p "$1/plugins/skill-quality/scripts"
   cp "$SELF_DIR/../plugins/skill-quality/scripts/check-skill.sh" \
@@ -76,7 +61,6 @@ stage_checker() {
   chmod +x "$1/plugins/skill-quality/scripts/"*.sh
 }
 
-# --- no changed skills passes (nothing to gate) ----------------------------
 mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
@@ -93,7 +77,6 @@ else
 fi
 rm -rf "$r"
 
-# --- every run scans the view lanes, with or without a changed skill --------
 fixture_tree::build r --sut "$SCRIPT" --sut "$SELF_DIR/check-view-medium-lists.mjs" --git
 mkdir -p "$r/lib" "$r/plugins/p1/skills/view"
 printf '%s\n' 'export const MEDIUMS = Object.freeze({' '  terminal: entry("terminal"),' '  file: entry("file"),' '});' \
@@ -118,7 +101,6 @@ else
 fi
 rm -rf "$r"
 
-# --- one changed skill, checker passes -------------------------------------
 mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
@@ -135,7 +117,6 @@ else
 fi
 rm -rf "$r"
 
-# --- a failing checker fails the gate --------------------------------------
 mk_repo r
 add_skill "$r" p1 broken
 commit_all "$r" base >/dev/null
@@ -148,7 +129,6 @@ else
 fi
 rm -rf "$r"
 
-# --- a skill that left script tests past the deadline is no pass -----------
 mk_repo r
 add_skill "$r" p1 leftover
 add_skill "$r" p1 broken
@@ -177,7 +157,6 @@ else
 fi
 rm -rf "$r"
 
-# --- vendor-subtree change maps to the owning skill, deduped ---------------
 mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
@@ -193,7 +172,6 @@ else
 fi
 rm -rf "$r"
 
-# --- env passthrough: skills root and base ref reach the checker -----------
 mk_repo r
 add_skill "$r" p2 beta
 commit_all "$r" base >/dev/null
@@ -207,7 +185,6 @@ else
 fi
 rm -rf "$r"
 
-# --- a deleted skill is filtered, not gated --------------------------------
 mk_repo r
 add_skill "$r" p1 alpha
 add_skill "$r" p1 gone
@@ -256,9 +233,6 @@ else
 fi
 rm -rf "$r"
 
-# --- no merge base: the ref is used as given, with a warning ----------------
-# Unrelated history (an orphan branch) has no merge base with the ref; the gate
-# warns and diffs against the ref itself rather than skipping the check.
 mk_repo r
 printf 'base\n' >"$r/README.md"
 commit_all "$r" base >/dev/null
@@ -275,7 +249,6 @@ else
 fi
 rm -rf "$r"
 
-# --- an invalid base ref fails closed (env error) --------------------------
 mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
@@ -288,7 +261,6 @@ else
 fi
 rm -rf "$r"
 
-# --- a missing checker fails closed ----------------------------------------
 mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
@@ -304,7 +276,6 @@ else
 fi
 rm -rf "$r"
 
-# --- SKILL.md change forwards --require-evals to the checker ----------------
 mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
@@ -318,7 +289,6 @@ else
 fi
 rm -rf "$r"
 
-# --- a non-SKILL.md touch does not forward --require-evals ------------------
 mk_repo r
 add_skill "$r" p1 alpha
 add_skill "$r" p1 alpha context/note.md
@@ -335,7 +305,6 @@ else
 fi
 rm -rf "$r"
 
-# --- integration: a new skill without evals fails the gate ------------------
 mk_repo r
 stage_checker "$r"
 printf 'base\n' >"$r/README.md"
@@ -365,7 +334,6 @@ else
 fi
 rm -rf "$r"
 
-# --- integration: a touched legacy skill without evals fails the gate --------
 mk_repo r
 stage_checker "$r"
 mkdir -p "$r/plugins/p1/skills/legacy"
@@ -394,7 +362,6 @@ else
 fi
 rm -rf "$r"
 
-# --- integration: a touched legacy skill with evals passes the gate --------
 mk_repo r
 stage_checker "$r"
 mkdir -p "$r/plugins/p1/skills/legacy/evals"
@@ -453,7 +420,6 @@ else
 fi
 rm -rf "$r"
 
-# --- stale exemption (skill now ships evals) fails -------------------------
 mk_repo r
 add_skill "$r" p1 skipme
 mkdir -p "$r/plugins/p1/skills/skipme/evals"
@@ -494,11 +460,7 @@ else
 fi
 rm -rf "$r"
 
-# --- integration: an over-cap description fails the gate --------------------
-# End to end through the real checker, because the acceptance this covers is
-# that a breach fails in the repository's NORMAL validation path, not that a
-# constant somewhere reads 1024.
-mk_over_cap_repo() { # <out-var>
+mk_over_cap_repo() {
   local repo desc
   mk_repo "$1" || return 1
   repo="${!1}"
@@ -553,8 +515,6 @@ printf "self=%s args=%s skip=%s md=%s st=%s base=%s\n" "$0" "$*" "${CHECK_SKILL_
 for arg in "$@"; do [[ "$arg" == broken ]] && exit 1; done
 exit 0'
 
-# mk_lane_pair <tool-var> <data-var>: a tool tree with the stub checker, and a
-# data repo with a committed skill, a decoy checker and a settings baseline.
 mk_lane_pair() {
   mk_repo "$1" || return 1
   mk_repo "$2" || return 1
@@ -567,7 +527,6 @@ mk_lane_pair() {
   commit_all "$data" base >/dev/null
 }
 
-# run_lane <tool> <data> [args...]: run the tool tree's gate from outside both.
 run_lane() (
   local tool="$1" data="$2"
   shift 2
@@ -579,8 +538,8 @@ t="" d=""
 mk_lane_pair t d
 b="$(base_sha "$d")"
 git_test_config "$d" update-ref refs/remotes/origin/main "$b"
-add_skill "$d" p1 alpha SKILL.md # tracked change
-add_skill "$d" p2 fresh          # untracked new skill
+add_skill "$d" p1 alpha SKILL.md
+add_skill "$d" p2 fresh
 if out="$(run_lane "$t" "$d" --merge-base 2>&1)" && grep -q "2 skill(s) checked, 0 failed" <<<"$out"; then
   ok "--merge-base checks the data tree's tracked and untracked changed skills"
 else
@@ -601,8 +560,6 @@ else
 fi
 rm -rf "$t" "$d"
 
-# The gate's temp files go under TMPDIR and none outlives the run: on success,
-# and when the untracked listing fails and the gate exits early.
 mk_lane_pair t d
 b="$(base_sha "$d")"
 git_test_config "$d" update-ref refs/remotes/origin/main "$b"
@@ -627,7 +584,7 @@ fi
 rm -rf "$t" "$d" "$TMP_ROOT/bin-git"
 
 mk_lane_pair t d
-git_test_config "$d" branch -q -m lanework # no origin/main, origin/master, main or master
+git_test_config "$d" branch -q -m lanework
 add_skill "$d" p1 alpha SKILL.md
 out="$(run_lane "$t" "$d" --merge-base 2>&1)"
 rc=$?
@@ -637,7 +594,7 @@ else
   fail "expected exit 2 with no check run, rc=$rc, got: $out / $(cat "$d/checklog" 2>/dev/null)"
 fi
 s="$TMP_ROOT/shallow-lane"
-git clone -q --depth 1 "file://$d" "$s" # holds only origin/lanework
+git clone -q --depth 1 "file://$d" "$s"
 add_skill "$s" p1 alpha SKILL.md
 out="$(run_lane "$t" "$s" --merge-base 2>&1)"
 rc=$?
@@ -659,8 +616,6 @@ else
 fi
 rm -rf "$t" "$d"
 
-# The positional form keeps checking its own tree and honoring CHECK_SKILL_BIN,
-# whatever CHECK_DATA_ROOT says, and leaves script tests to the checker.
 mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
@@ -677,8 +632,6 @@ else
 fi
 rm -rf "$r" "$lane_stub"
 
-# End to end through the real checker: a new, untracked skill with no evals
-# fails the lane form, as it fails CI once committed.
 mk_lane_pair t d
 stage_checker "$t"
 git_test_config "$d" update-ref refs/remotes/origin/main "$(base_sha "$d")"
@@ -694,10 +647,7 @@ else
 fi
 rm -rf "$t" "$d"
 
-# The real checker over a tracked skill whose test script and the checkout's
-# markdownlint would each leave a marker: the lane form runs neither, and the
-# positional form, as the control, does run the test.
-add_evil() { # <repo>
+add_evil() {
   mkdir -p "$1/plugins/p1/skills/alpha/scripts" "$1/node_modules/.bin"
   printf '#!/usr/bin/env bash\ntouch "%s/test-ran"\n' "$1" >"$1/plugins/p1/skills/alpha/scripts/evil.test.sh"
   printf '#!/usr/bin/env bash\ntouch "%s/lint-ran"\n' "$1" >"$1/node_modules/.bin/markdownlint-cli2"

@@ -23,7 +23,6 @@ else
   pass "apply without gh exits non-zero"
 fi
 
-# A stub gh lets check and apply reach the empty repo_args expansion instead of dying at require_gh.
 STUB_BIN="$(mktemp -d)"
 trap 'rm -rf "$STUB_BIN"' EXIT
 cat >"$STUB_BIN/gh" <<'EOF'

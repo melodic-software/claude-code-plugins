@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
-# common.sh is a sourceable contract lib — assert it sources cleanly and exposes its
-# public helpers (no --help contract; it is sourced, never invoked).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +12,6 @@ for fn in wit_require_jira_id wit_need_jira_config wit_jira_project_in_scope wit
   assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
-# Foreign-provider id is well-formed by the shared grammar but must be rejected here.
 assert_fails "rejects foreign-provider id" "reject" "accepted" \
   wit_require_jira_id "github:o/r#1"
 if wit_require_jira_id "jira:acme.atlassian.net/SW2#12"; then

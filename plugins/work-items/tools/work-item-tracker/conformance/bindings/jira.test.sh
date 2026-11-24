@@ -10,7 +10,6 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# jira is a seed, which the dispatcher never resolves from the plugin; point it there.
 export WIT_ADAPTERS_DIR="$SCRIPT_DIR/../../seeds"
 RUNNER="$SCRIPT_DIR/../run-conformance.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"

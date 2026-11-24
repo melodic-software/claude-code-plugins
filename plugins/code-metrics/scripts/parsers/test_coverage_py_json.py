@@ -88,8 +88,6 @@ class ShapeTests(unittest.TestCase):
         self.assertIn("files", result.stderr)
 
     def test_the_internal_database_is_never_read(self) -> None:
-        # The token is assembled rather than spelled, so the phase gate's
-        # `grep -rc` over this directory stays at zero for every file in it.
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertNotIn("import " + "sql" + "ite3", source)
         self.assertIn("json.load", source)

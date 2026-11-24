@@ -53,7 +53,6 @@ if [[ "$step" == *"BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && f
 else
   fail "step does not read the tracker config from the base_config checkout"
 fi
-# Inside ci-status, before the aggregate, so a red here is the job's answer.
 order="$(grep -nE "^  ci-status:$|^      - name: ($NAME|Aggregate lane results)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
 read -r job_line hold_line agg_line <<<"$order"
 if [[ -n "${agg_line:-}" && "$job_line" -lt "$hold_line" && "$hold_line" -lt "$agg_line" ]]; then
@@ -62,18 +61,7 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 
-# The base commit's config is a fixture directory: STUB_TRACKER is the
-# `tracker` value of its docs/conventions/work-items.yaml (no file when
-# unset), and STUB_CHECKOUT_FAILED leaves
-# BASE_CONFIG empty, as a failed checkout does. The gh stub logs its
-# arguments.
 mkdir -p "$TMP_ROOT/bin"
-# The one GraphQL read fails its first STUB_FAILS calls, or every call with
-# STUB_LINK_FAIL, then answers STUB_LINK (default: a person's pull request)
-# with the pull request's labels set to STUB_LABELS (comma-separated) unless
-# STUB_LINK names its own; a timeline read prints STUB_TIMELINE, one
-# unlabeled event per line, or fails with STUB_TIMELINE_FAIL; the Refs
-# issue's labels read prints STUB_ISSUE_LABELS.
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
@@ -118,8 +106,6 @@ if [[ "$pins" =~ ^[0-9]+:"      LANES_APP_ID: \${{ vars.AUTOMATION_LANES_APP_SEN
 else
   fail "LANES_APP_ID is not set once, at ci-status's job level, from vars.AUTOMATION_LANES_APP_SENDER_ID: '$pins'"
 fi
-# The lanes App's bot account the variable names, merge.agent-identity's
-# trusted-actor id, and another automation's.
 identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
 LANES="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json")" DEPENDABOT=49699333
 [[ "$LANES" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES'"
@@ -128,7 +114,6 @@ SHA=0123456789abcdef0123456789abcdef01234567
 BASE=89abcdef0123456789abcdef0123456789abcdef
 QUEUE="refs/heads/gh-readonly-queue/main/pr-6419-$SHA"
 CUSTOM='{"config":{"role_labels":{"human-gated":" owner-call "}}}'
-# The base's trusted-actor list: person 100, and the lanes App 200.
 ACTORS='{"version":1,"actors":[{"id":100,"login":"maintainer","kind":"human"},{"id":200,"login":"agent-lanes[bot]","kind":"bot"}]}'
 
 # expect <label> <want-rc> <want-label-calls> <want-pr|-> <GITHUB_REF> <STUB_LABELS> <STUB_FAILS> [want-out]
@@ -150,8 +135,6 @@ expect() {
   fi
   mkdir -p "$config/.github/scripts/pr-merge"
   printf '%s\n' "${STUB_ACTORS:-$ACTORS}" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
-  # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
-  # none with STUB_NO_MODULE.
   if [[ -n "${STUB_MODULE_TEXT:-}" ]]; then
     printf '%s\n' "$STUB_MODULE_TEXT" >"$config/.github/scripts/pr-merge/merge-holds.mjs"
   elif [[ -z "${STUB_NO_MODULE:-}" ]]; then
@@ -222,7 +205,6 @@ expect "an empty tracker config falls back to needs-human" 1 1 6419 "$QUEUE" "ne
 export STUB_TRACKER='{"config":{"role_labels":{"human-gated":[1]}}}'
 expect "a non-string tracker label falls back to needs-human" 1 1 6419 "$QUEUE" "needs-human" 0 "::error::#6419 carries 'needs-human'"
 unset STUB_TRACKER
-# Several hold labels each name their hold.
 expect "every hold label is named" 1 1 6419 "$QUEUE" "pr-verify-failed,needs-human,do-not-merge" 0 \
   "::error::#6419 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.
 ::error::#6419 carries 'needs-human'; the merge queue removes it."
@@ -246,9 +228,6 @@ export BASE_SHA=main
 expect "a base that is not a commit SHA fails closed without a call" 1 0 - "$QUEUE" "" 0 "::error::the base commit 'main' is not a commit SHA"
 unset BASE_SHA
 
-# The trust hold. link <author type> <closing issue JSON nodes> [body]
-# [author id, default another automation's]: the link read's answer for the
-# queued pull request.
 link() {
   jq -nc --arg author "$1" --argjson nodes "$2" --arg body "${3:-}" --argjson id "${4:-$DEPENDABOT}" \
     '{data: {repository: {pullRequest: {author: {__typename: $author, databaseId: $id}, body: $body,
@@ -262,9 +241,6 @@ unlabeled() {
   jq -nc --arg type "$2" --argjson id "$3" --argjson app "${4:-null}" --arg name "$1" \
     '{event: "unlabeled", label: {name: $name}, actor: {type: $type, id: $id}, performed_via_github_app: $app}'
 }
-# trust <label> <want-rc> <want-trust-calls> [want-out] [refs]: one case over
-# the STUB_* the caller set; a clean pull request label list. With `refs`, the
-# Refs issue's labels read is a second labels call.
 trust() {
   if [[ -n "${5:-}" ]]; then
     expect "$1" "$2" 2 - "$QUEUE" "enhancement" 0 "${4:-}"

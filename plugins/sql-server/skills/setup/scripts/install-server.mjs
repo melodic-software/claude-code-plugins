@@ -39,8 +39,6 @@ function main(argv) {
     return 0;
   }
 
-  // Build the new copy beside the live one and swap it in only once it is
-  // complete, so a failed install leaves the copy registrations use untouched.
   const stagingDir = `${serverDir}.next`;
   const previousDir = `${serverDir}.previous`;
   rmSync(stagingDir, { recursive: true, force: true });

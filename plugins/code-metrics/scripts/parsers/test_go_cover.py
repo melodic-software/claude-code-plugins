@@ -46,9 +46,6 @@ DENSE_PROFILE = (
     "example.com/m/r.go:7.2,7.54 5 0\n"
 )
 
-# Two shards of one suite over the same file, each entering the block the
-# other missed. Each reports 2 statements with 1 hit; between them both
-# statements ran, so the union is 2 of 2.
 SHARD_A = (
     "mode: set\nexample.com/m/r.go:3.19,4.11 1 1\nexample.com/m/r.go:7.2,7.54 1 0\n"
 )
@@ -80,7 +77,6 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(document[MODULE_PATH]["lines"], {})
 
     def test_the_profiles_own_statement_weights_survive(self) -> None:
-        # Five one-statement blocks, one of them never entered.
         self.assertEqual(
             totals(parsed(str(FIXTURE)), MODULE_PATH), {"total": 5, "hit": 4}
         )
@@ -127,8 +123,6 @@ class StatementWeightTests(unittest.TestCase):
         )
 
     def test_a_repeated_block_is_weighed_once(self) -> None:
-        # Two profiles concatenated list the same block twice. Its statements
-        # count once, and the larger of the two counts wins.
         body = "mode: count\nm/a.go:1.1,3.2 2 0\nm/a.go:1.1,3.2 2 4\n"
         with tempfile.TemporaryDirectory() as tmp:
             document = parsed(write(tmp, "repeat.out", body))
@@ -202,10 +196,6 @@ class JoinTests(unittest.TestCase):
         self.assertEqual(row["cov_source"], "statement-ratio")
 
     def test_two_shard_profiles_union_their_blocks(self) -> None:
-        # Two test shards, each entering the block the other missed. Both
-        # profiles report 2 statements with 1 hit, and both statements ran
-        # between them, so the merged answer is 2 of 2. Any rule over the two
-        # aggregates reports 1 of 2, because a maximum cannot union.
         self.assertEqual(self.file_row(SHARD_A)["values"]["coverage_pct"], 50.0)
         self.assertEqual(self.file_row(SHARD_B)["values"]["coverage_pct"], 50.0)
         self.assertEqual(
@@ -213,8 +203,6 @@ class JoinTests(unittest.TestCase):
         )
 
     def test_a_block_both_shards_list_is_weighed_once(self) -> None:
-        # The union is over block identity, so the same file measured twice
-        # is not twice the statements.
         self.assertEqual(
             self.file_row(DENSE_PROFILE, DENSE_PROFILE)["values"]["coverage_pct"], 28.57
         )

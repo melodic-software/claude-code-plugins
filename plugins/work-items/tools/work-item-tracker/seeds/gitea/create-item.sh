@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     --type) TYPE="$2" ;;
     --parent) PARENT="$2" ;;
     --blocked-by) BLOCKED_BY="$2" ;;
-    *) REPO="$2" ;; # --repo, the only flag left
+    *) REPO="$2" ;;
     esac
     shift 2
     ;;
@@ -61,9 +61,6 @@ wit_gitea_scope_in_scope "$REPO" ||
   wit_usage_error "$REPO is not in config.gitea.scopes (the declared write scope)"
 wit_gitea_scope_parts "$REPO"
 
-# Every --blocked-by id is validated before the item is created. The edges are written
-# in a second request, so a malformed id discovered afterwards would leave a created
-# item whose declared blockers were never linked — an item that then looks ready.
 BLOCKERS=()
 if [[ -n "$BLOCKED_BY" ]]; then
   IFS=',' read -r -a BLOCKERS <<<"$BLOCKED_BY"
@@ -105,12 +102,6 @@ if [[ -n "$LABELS" ]]; then
     else
       ((LABEL_GOT < WIT_GITEA_PAGE_SIZE)) && break
     fi
-    # Bounded like every other paginated loop in this adapter: a server that keeps answering
-    # a full page would otherwise spin forever with ALL_LABELS growing without limit. Measured
-    # against labels ACTUALLY FETCHED rather than `PAGE * page_size`, which diverge under the
-    # clamp: with page_size 100 against a cap of 50 the requested arithmetic declares
-    # truncation after 500 labels, and here that is not merely a short answer — it makes every
-    # label in rows 501-1000 read as nonexistent and refused.
     if ((LABEL_SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
       LABELS_TRUNCATED=1
       break
@@ -127,8 +118,6 @@ if [[ -n "$LABELS" ]]; then
     }
     LABEL_GOT="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || LABEL_GOT=0
     LABEL_SEEN=$((LABEL_SEEN + LABEL_GOT))
-    # An empty page ends the walk whatever the header claimed — a count that never gets
-    # satisfied must not turn into an unbounded loop.
     ((LABEL_GOT == 0)) && break
     PAGE=$((PAGE + 1))
   done
@@ -179,10 +168,6 @@ if [[ -n "$LABELS" ]]; then
   MISSING="$(jq -rcn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
     '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]')"
   if [[ "$MISSING" != "[]" ]]; then
-    # The ceiling changes what "not found" is allowed to mean. Unlike list-items, where
-    # truncation just returns fewer items, stopping early here makes an unseen label
-    # indistinguishable from a nonexistent one — and telling someone to create a label
-    # that already exists sends them to do the wrong thing. Say which case this is.
     if ((LABELS_TRUNCATED)); then
       printf 'create-item.sh: label(s) not found in the first %s labels of %s: %s — the label list was truncated at the declared ceiling, so these may exist beyond it; narrow --labels or raise the ceiling rather than re-creating them\n' \
         "$WIT_GITEA_LIST_ITEMS_MAX" "$REPO" "$MISSING" >&2

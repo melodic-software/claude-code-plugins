@@ -79,11 +79,6 @@ hook_configs::sources check-killswitch-hoist
 
 HOOK_UTILS="lib/hook-utils.sh"
 
-# --- the semantic pin --------------------------------------------------------
-# hook::is_enabled is two lines; both are asserted, because both are what the
-# inlined copies reproduce: the env-var NAME it builds, and the unset-default it
-# compares. A guard whose plugin.json default is false inlines `:-false`
-# instead, which is a deliberate divergence the rule below admits by shape.
 pin_ok=0
 if [[ -f "$HOOK_UTILS" ]]; then
   is_enabled_body="$(awk '/^hook::is_enabled\(\) \{/{f=1} f{print} f&&/^\}/{exit}' "$HOOK_UTILS")"
@@ -105,29 +100,6 @@ if ((pin_ok == 0)); then
   exit 1
 fi
 
-# --- discover the PreToolUse and PostToolUse hooks ---------------------------
-# Every token ending in `.sh` inside a PreToolUse or PostToolUse command names a
-# guard (the word is kept for every scanned script; a formatter is held to the
-# same rule as a guard and the rule does not care what the script does), except
-# a LAUNCHER (below) and a `--lib` value (a bundled classifier, not a guard).
-# Bare names are launcher arguments and resolve under the same plugin's hooks/
-# directory.
-#
-# A launcher takes the real guard as an argument and owns no `<name>_enabled`
-# switch of its own, so it has nothing to hoist. The distinction is by name
-# rather than by inspection because "does this script dispatch to another" is not
-# decidable from the file, and a wrong guess in either direction is worse than a
-# short list: admitting a launcher fails the gate forever, and excluding a real
-# guard clears one that was never checked.
-#   run-guards.sh      — guardrails' PreToolUse/PostToolUse dispatcher; sources
-#                        each named guard, and each of those carries its own switch
-#   run-python-hook.sh — disk-hygiene's interpreter resolver; execs the
-#                        Python guard, whose switch is disk_hygiene_enabled and
-#                        lives in destructive_guard.py
-#   prerequisites.sh   - the shared SessionStart node notice; reads a plugin's switch
-#                        from its argument and guards nothing
-#   node-or-skip.sh    - the shared SessionStart node launcher; runs node with the
-#                        row's arguments, or exits 0 when node is missing
 LAUNCHERS=("run-guards.sh" "run-python-hook.sh" "prerequisites.sh" "node-or-skip.sh")
 
 is_launcher() {
@@ -138,15 +110,11 @@ is_launcher() {
   return 1
 }
 
-# hooks_dir_of <config>: the declaring plugin's hooks/ directory, where a
-# script token's base name resolves.
 hooks_dir_of() {
   local rest="${1#plugins/}"
   printf 'plugins/%s/hooks' "${rest%%/*}"
 }
 
-# scripts_in <hooks_dir> <command>: sets `found` to the guard script each
-# `.sh` token of the command names, resolved under <hooks_dir>.
 scripts_in() {
   local hooks_dir="$1" command="$2" token base skip_next=0
   found=()
@@ -183,9 +151,6 @@ for source in ${HOOK_CONFIG_SOURCES[@]+"${HOOK_CONFIG_SOURCES[@]}"}; do
   while IFS= read -r command; do
     [[ -n "$command" ]] || continue
     scripts_in "$hooks_dir" "$command"
-    # A scanned row that named no shell script is a hook this gate's rule does
-    # not reach — a Python or node handler behind a launcher, or a bare
-    # interpreter. Reported, never silently passed.
     if ((${#found[@]} == 0)); then
       unscanned+=("$hooks_json")
       continue
@@ -249,7 +214,6 @@ if ((${#guards[@]} == 0 && ${#blocking[@]} == 0)); then
   exit 1
 fi
 
-# De-duplicate: one guard may be registered on several matchers.
 if ((${#guards[@]} > 0)); then
   mapfile -t guards < <(printf '%s\n' "${guards[@]}" | sort -u)
 fi
@@ -257,22 +221,14 @@ if ((${#blocking[@]} > 0)); then
   mapfile -t blocking < <(printf '%s\n' "${blocking[@]}" | LC_ALL=C sort -u)
 fi
 
-# --- the rule ----------------------------------------------------------------
-# Three accepted inlined shapes. The first two are the ordinary default-on and
-# opt-in guards; the third is a strict-and-loud guard hoisting only its DISABLED
-# arm, because its "neither true nor false" arm must speak through a library
-# function and cannot run before the library exists.
 SWITCH_RE='^\[\[ "\$\{CLAUDE_PLUGIN_OPTION_[A-Z0-9_]+_ENABLED:-(true|false)\}" == "(true|false)" \]\] (\|\| exit 0|&& exit 0)$'
 SOURCE_RE='^[[:space:]]*(source|\.)[[:space:]]+'
 
-# The remedy template every "fix it this way" finding prints, so the two that
-# quote it cannot drift apart.
 # shellcheck disable=SC2016  # a template for the reader to paste, meant literally
 HOIST_TEMPLATE='    [[ "${CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED:-true}" == "true" ]] || exit 0'
 
 violations=0
 
-# violation <line>...: one finding on stderr, counted.
 violation() {
   printf '%s\n' "$@" >&2
   violations=$((violations + 1))
@@ -301,10 +257,6 @@ for guard in "${guards[@]}"; do
     fi
   done <"$guard"
 
-  # The legacy call is reported FIRST when both apply. A guard mid-migration has
-  # the call and not yet the inlined line, and "you are still using the helper"
-  # names the fix; "no kill switch found" would read as though the guard had none
-  # at all and send the reader looking for the wrong thing.
   if ((legacy_line > 0)); then
     violation "VIOLATION: $guard:$legacy_line — calls hook::check_enabled." \
       "  That helper only exists after the library is sourced, which is the cost" \

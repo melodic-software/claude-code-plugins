@@ -46,15 +46,12 @@ escape_property() {
   printf '%s' "$s"
 }
 
-# tail_lines: HYGIENE_TAIL_LINES when it is a positive integer, else 10.
 tail_lines() {
   local n=${HYGIENE_TAIL_LINES:-10}
   [[ "$n" =~ ^[1-9][0-9]*$ ]] || n=10
   printf '%s\n' "$n"
 }
 
-# tail_of <file>: the last N non-empty lines, color codes stripped and each
-# line cut at 500 characters so one minified line cannot swamp the annotation.
 tail_of() {
   sed -e $'s/\x1b\\[[0-9;]*[A-Za-z]//g' -e 's/\r$//' "$1" |
     grep -v '^[[:space:]]*$' | tail -n "$(tail_lines)" | cut -c1-500
@@ -150,7 +147,6 @@ aggregate_results() {
   local GATE_ANNOTATIONS
   unset GATE_ANNOTATIONS
 
-  # The failed composite gates, so each one's text can name the others.
   while IFS='=' read -r check result; do
     [[ -n "$check" && "$result" != success ]] && is_step_log_check "$check" && composites+="${composites:+ }$check"
   done <<< "$input"
@@ -217,12 +213,10 @@ self_test() {
   } >"$tmp/out/plugin-options-docs.log"
   : >"$tmp/out/silent.log"
 
-  # All success: no annotation, no summary.
   out=$(HYGIENE_OUTPUT_DIR=$tmp/out GITHUB_STEP_SUMMARY=$summary STEP_LOG_CHECKS='' \
     aggregate_results $'markdown=success\nplugin-options-docs=success\n')
   [[ -z "$out" && ! -s "$summary" ]] || fail 'all-success records must emit no annotation and no summary'
 
-  # A failed gate with captured output: its last non-empty lines, escaped.
   out=$(HYGIENE_OUTPUT_DIR=$tmp/out GITHUB_STEP_SUMMARY=$summary STEP_LOG_CHECKS='markdown' \
     aggregate_results $'plugin-options-docs=failure\n')
   [[ "$out" == '::error title=plugin-options-docs failed::Hygiene check plugin-options-docs finished with outcome: failure. Last lines of its output:%0A'* ]] ||
@@ -240,19 +234,16 @@ self_test() {
     fail 'the job summary must list a failed gate with its output tail'
   fi
 
-  # A failed gate with no output file: today's text plus the fallback.
   out=$(HYGIENE_OUTPUT_DIR=$tmp/out GITHUB_STEP_SUMMARY='' STEP_LOG_CHECKS='' \
     aggregate_results $'adr-numbers=failure\n')
   [[ "$out" == '::error title=adr-numbers failed::Hygiene check adr-numbers finished with outcome: failure (no captured output).' ]] ||
     fail "a failure with no output file must fall back, got: $out"
 
-  # A failed gate whose captured output is empty says so.
   out=$(HYGIENE_OUTPUT_DIR=$tmp/out GITHUB_STEP_SUMMARY='' STEP_LOG_CHECKS='' \
     aggregate_results $'silent=failure\n')
   [[ "$out" == '::error title=silent failed::Hygiene check silent finished with outcome: failure (the gate printed nothing).' ]] ||
     fail "a failure with empty captured output must say so, got: $out"
 
-  # A composite gate points at the step log, even if a stray file exists.
   : >"$summary"
   out=$(HYGIENE_OUTPUT_DIR=$tmp/out GITHUB_STEP_SUMMARY=$summary STEP_LOG_CHECKS=' typos  markdown ' \
     aggregate_results $'markdown=failure\n')
@@ -325,8 +316,6 @@ JSON
   [[ "$(grep -c 'source-bookmarks.sh has a shebang' <<<"$out")" -eq 2 ]] ||
     fail "each failed composite gate must quote the shared annotations, got: $out"
 
-  # Fail-safe: an API failure, no matching annotation, or no check run id
-  # gives today's step-log pointer.
   local pointer='Hygiene check markdown finished with outcome: failure. This gate runs as a composite action, so its output is not captured here; see the step log.'
   out=$(env "${api[@]}" GH_EXIT=1 STEP_LOG_CHECKS=markdown GITHUB_REPOSITORY=o/r CHECK_RUN_ID=1 GH_TOKEN=t \
     CHECK_RESULTS=$'markdown=failure\n' bash "$self" 2>/dev/null)
@@ -341,7 +330,6 @@ JSON
   [[ "$out" == "::error title=markdown failed::$pointer" && ! -s "$tmp/gh-calls" ]] ||
     fail "no check run id must fall back without calling the API, got: $out"
 
-  # With no output directory configured there is no capture to read.
   out=$(HYGIENE_OUTPUT_DIR='' RUNNER_TEMP='' GITHUB_STEP_SUMMARY='' STEP_LOG_CHECKS='' \
     aggregate_results $'adr-numbers=failure\n')
   [[ "$out" == *'(no captured output).' ]] ||

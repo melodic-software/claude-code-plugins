@@ -130,7 +130,8 @@ Benchmark sources live as pointers only in [`benchmarks.json`](benchmarks.json) 
 [`../schemas/benchmark-registry.schema.json`](../schemas/benchmark-registry.schema.json)).
 `fetch-boards` fetches only rows that can lead (`status` not `support-only`, `provider_own`
 false); a row it skips is listed as `not-read`. A trial runs the first model each vendor's
-`external-agents models` lists, at that model's default effort, so no board record picks it. Each fetched
+`external-agents models` lists, at that model's default effort (for a heavy task, the level the vendor's own guidance gives, else
+one step above the default, as rule 2 says), so no board record picks it. Each fetched
 page goes through `fetch-boards` (wrapping the shared docs cache; default freshness window
 one day, overridable per row via `freshness_seconds`; a page without the row's `expect` marker is
 unread, and when the docs-cache `renderer` is `firecrawl` a blocked page or one drawn by script is

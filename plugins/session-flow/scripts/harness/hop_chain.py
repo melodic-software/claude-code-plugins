@@ -66,20 +66,8 @@ RAIL_RE = re.compile("^─{10,}$")
 COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
 FILL_RE = re.compile(r"<!-- FILL: ([a-z0-9-]+) .*?-->")
 HANDOFF_GLOB = "*-handoff-*.md"
-# What counts as touching the save-point surface before the skill was invoked.
-# `save_point.py new` is in scope because the skill's own file-creating call
-# carries no literal `handoffs/`. `save_point.py validate` on a predecessor
-# names the predecessor's path, so it matches here too; it is a legitimate
-# read, and `is_write_indicator` is what keeps it out of the touch branch.
 HANDOFF_TOUCH_RE = re.compile(r"handoffs[/\\]|save_point\.py\S*\s+new\b")
-# Reading the predecessor is what a resume hop does FIRST: the rails text opens
-# `Read @<...>/handoffs/<file>.md`. Only a tool that could CREATE the file is
-# evidence of a free-hand bypass, so the read-only tools are excluded here.
-# Deleting this set restores the spec's literal "ANY tool_use" wording, at the
-# cost of failing every hop after the first.
 READ_ONLY_TOOLS = frozenset({"Read", "Glob", "Grep"})
-# A shell can read or write, so for these two tools a `handoffs/` mention is a
-# touch only when the command could WRITE; otherwise it is a note and the hop passes.
 SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 CREATION_MARKER_RE = re.compile(r"save_point\.py\S*\s+new\b")
 WRITE_INDICATOR_RE = re.compile(
@@ -95,15 +83,9 @@ WRITE_CMDLET_RE = re.compile(
     r"|Copy-Item|Move-Item|Remove-Item|Rename-Item)\b",
     re.IGNORECASE,
 )
-# An interpreter actually invoked, which can write anything. Anchored at a
-# command position so a bare `save_point.py ...` does not match on its `.py`
-# suffix. `python3 .../save_point.py validate` DOES match the leading
-# interpreter, though, which is why the read-only forms are exempted below.
 INTERPRETER_RE = re.compile(
     r"(?:^|[\s;|&(])(?:python3?|py|node|pwsh|powershell)(?:\.exe)?\s"
 )
-# The three read-only save_point.py subcommands. A resuming hop legitimately runs
-# `validate` over its predecessor before invoking the skill.
 READ_ONLY_SAVE_POINT_RE = re.compile(
     r"save_point\.py\S*\s+(?:validate|emit|memory-root)\b"
 )
@@ -125,9 +107,6 @@ def shell_command_text(tool_input: dict, serialized: str) -> str:
 def is_write_indicator(command: str) -> bool:
     if WRITE_INDICATOR_RE.search(command) or WRITE_CMDLET_RE.search(command):
         return True
-    # A read-only save_point.py segment with no redirect and no write verb writes
-    # nothing, whatever interpreter launched it, so it falls to the note branch.
-    # Judged per segment so a chained second interpreter call is still seen.
     return any(
         INTERPRETER_RE.search(segment) and not READ_ONLY_SAVE_POINT_RE.search(segment)
         for segment in COMMAND_SEPARATOR_RE.split(command)
@@ -136,24 +115,15 @@ def is_write_indicator(command: str) -> bool:
 
 SKILL_NAME = "session-flow:handoff"
 
-# Phase 0 baseline: the shape-1 corpus (96 files) had a median of 154 lines and
-# 3.2k tokens (chars/4). `--budget` sizes its filler so the generated hop 1
-# lands on those medians; see size_filler().
 SHAPE1_MEDIAN_LINES = 154
 SHAPE1_MEDIAN_TOKENS = 3200
 BUDGET_HOPS = 20
 BUDGET_REPORT_HOPS = (1, 5, 20)
-# The longest audited chain has 56 hops; the shape-3 projection checks the hot
-# file against its cap that far.
 SHAPE3_BUDGET_HOPS = 56
 SHAPE3_REPORT_HOPS = (1, 5, 20, 56)
 ATTESTATION_CHECK_HOPS = 9
 ATTESTATION_MARK = "Re-scan"
 CUMULATIVE_ENTRIES_PER_HOP = 2
-# The audited lane chains grow a median 6.2 to 7.0 KB per hop, 6.4 KB across the
-# five longest (.work/handoff-efficiency/audit/AUDIT.md Q1, "Growth by chain").
-# Each cumulative entry is sized so a generated hop adds that much; the band
-# check in cmd_budget holds the projection there.
 AUDITED_GROWTH_BYTES = 6400
 GROWTH_BAND = 0.10
 CUMULATIVE_ENTRY_WIDTH = 600
@@ -209,9 +179,6 @@ TSV_HEADER = (
     "reason",
 )
 
-# A file's creation stamp and a transcript record's timestamp come from two
-# different clocks; the ordering claim is "the Skill call came first", not a
-# sub-second race, so the disk comparison carries this slack.
 DISK_ORDER_GRACE_SECONDS = 2.0
 
 
@@ -319,13 +286,6 @@ def parse_iso(stamp: str) -> float | None:
         return None
 
 
-# --- the skeleton filler ----------------------------------------------------
-#
-# `save_point.py new` leaves one `<!-- FILL: <name> ... -->` slot per model-written
-# section. Filling them deterministically is what lets `--budget` measure a
-# 20-hop chain and what lets `--dry-run` hand `emit` and `validate` a real file.
-
-
 DELETED_SLOTS = (
     "goal-first",
     "goal-after",
@@ -334,10 +294,6 @@ DELETED_SLOTS = (
     "rules-new",
     "preferences-new",
 )
-# Shape 3: hop 1 writes the chain's current rules, sized like a shape-2 hop 1's
-# Constraints, and later hops rewrite rules in place rather than add them (an
-# assumption: no audit measures how many rules stay current; AUDIT.md Q3 finds
-# the problem is supersession, not volume). Every hop adds one trail line.
 SHAPE3_RULES = CUMULATIVE_ENTRIES_PER_HOP
 CUMULATIVE_SLOTS = ("constraints", "side-effects", "decisions", "abandoned", "findings")
 PADDED_SLOTS = (
@@ -495,7 +451,7 @@ def size_filler(skeleton_lines: int, skeleton_chars: int, slots: int) -> FillerS
     stays readable prose rather than a wall or a stub.
     """
     cumulative_lines = len(CUMULATIVE_SLOTS) * CUMULATIVE_ENTRIES_PER_HOP
-    fixed_lines = cumulative_lines + 2  # +2 = the Next: headlines
+    fixed_lines = cumulative_lines + 2
     budget = max(SHAPE1_MEDIAN_LINES - skeleton_lines - fixed_lines, slots)
     pad_lines = max(1, budget // max(slots, 1))
     filler_lines = pad_lines * slots + 2
@@ -537,8 +493,6 @@ class HopRow:
 
     @property
     def passed(self) -> bool:
-        # A non-success subtype is a miss even when the hop still wrote a file
-        # and printed rails: an `error_max_turns` chain is not a passing chain.
         return self.subtype == "success" and all(
             self.checks.get(name) == "PASS" for name in CHECKS
         )
@@ -624,16 +578,11 @@ def final_assistant_text(records: list[dict]) -> str:
 
 @dataclass
 class SkillEvidence:
-    # Every *_index is the (record index, block ordinal) key `_tool_uses`
-    # yields, so two blocks in one assistant message still order against each
-    # other. `_record_of` renders one for a report line.
     skill_index: tuple[int, int] | None = None
     skill_timestamp: float | None = None
     touch_index: tuple[int, int] | None = None
     touch_name: str = ""
     touch_command: str = ""
-    # A shell command that named handoffs/ but could not write: evidence worth
-    # keeping in the report, not a failure.
     note_index: tuple[int, int] | None = None
     usage: dict = field(default_factory=dict)
 
@@ -727,10 +676,6 @@ def assess_hop(
             + int(usage.get("cache_read_input_tokens") or 0)
         )
 
-    # Skill ordering, on EVERY hop. A handoff file with no preceding Skill call
-    # is a FAIL row, never a vacuous pass. The comparison is on the
-    # (record, block ordinal) key, so a same-message Write-then-Skill pair is
-    # ordered rather than treated as simultaneous.
     if evidence.skill_index is None:
         row.reasons.append("no Skill tool_use naming " + SKILL_NAME)
     elif (
@@ -749,9 +694,6 @@ def assess_hop(
     else:
         row.checks["skill_order"] = "PASS"
 
-    # A read-only shell mention of handoffs/ before the Skill call is not a
-    # failure, but it is the evidence that made this classifier necessary, so
-    # it stays visible in the report.
     if evidence.note_index is not None and (
         evidence.skill_index is None or evidence.note_index < evidence.skill_index
     ):
@@ -890,8 +832,6 @@ Four-step task. Each step appends one line to `notes.md` and commits it:
 def make_fixture(work_dir: Path, run: int, pad_tokens: int) -> Path:
     fixture = Path(tempfile.mkdtemp(prefix=f"ccp-hop-{run}-", dir=str(work_dir)))
     (fixture / ".work" / "handoffs").mkdir(parents=True, exist_ok=True)
-    # Pre-created so the hop under test is the handoff itself, not the
-    # self-ignore guard's first write.
     (fixture / ".work" / ".gitignore").write_text("*\n", encoding="utf-8", newline="\n")
     (fixture / "README.md").write_text(TASK_README, encoding="utf-8", newline="\n")
     if pad_tokens > 0:
@@ -1407,15 +1347,6 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
                 rmtree(work_dir)
 
 
-# --- --dry-run --------------------------------------------------------------
-#
-# A fake runner replaces the `claude` subprocess: it writes a synthetic
-# transcript and result JSON while calling the real save_point.py, so the
-# assertion, TSV, and cleanup paths under test are the live ones.
-
-
-# Shell tool_use blocks injected before the Skill call. A shell command naming
-# handoffs/ is a touch only when it could WRITE.
 SHELL_PROBES = {
     "shell_read_before_skill": (
         "Bash",
@@ -1444,8 +1375,6 @@ SHELL_PROBES = {
             "command": 'Set-Content -Path "{handoffs}/free-hand.md" -Value "written by hand"'
         },
     ),
-    # A resuming hop validating its predecessor before invoking the skill: it names
-    # handoffs/ AND runs an interpreter, but writes nothing, so the hop must pass.
     "save_point_validate_before_skill": (
         "Bash",
         {
@@ -1453,8 +1382,6 @@ SHELL_PROBES = {
             "description": "validate the predecessor",
         },
     ),
-    # The negative control for the exemption above: `new` creates a file, so it
-    # stays a touch.
     "save_point_new_before_skill": (
         "Bash",
         {
@@ -1547,8 +1474,6 @@ def make_fake_runner(defects: dict[int, set[str]]):
 
         step({"type": "text", "text": "doing step 1"})
         if previous:
-            # What a real resume hop does first: the rails text opens
-            # `Read @<...>/handoffs/<file>.md`, before any Skill call.
             step(
                 _tool_use(
                     "toolu_read_pred", "Read", {"file_path": previous[-1].as_posix()}
@@ -1562,16 +1487,11 @@ def make_fake_runner(defects: dict[int, set[str]]):
         if "write_before_skill" in flags:
             step(write_block("toolu_early", "early.md"))
         if "write_and_skill_in_one_record" in flags:
-            # Both blocks in ONE assistant message, the Write first. The disk fallback
-            # cannot catch this: the file is created after this record is logged.
             step(
                 write_block("toolu_same_record_write", "same-record.md"),
                 skill_block("toolu_same_record_skill"),
             )
         if "foreign_skill_naming_ours_in_args" in flags:
-            # A Skill call to some OTHER skill whose args merely mention this
-            # one. Structurally it is not our skill, so it must not satisfy
-            # skill_order; only the `skill` key decides.
             step(
                 _tool_use(
                     "toolu_foreign_skill",
@@ -1581,9 +1501,6 @@ def make_fake_runner(defects: dict[int, set[str]]):
             )
         elif "no_skill" not in flags:
             step(skill_block("toolu_skill"))
-        # The transcript must exist before `new` runs: `new` resolves it by glob
-        # and bakes the path into frontmatter, and --strict-transcript then holds
-        # the file to it.
         _write_jsonl(transcript, prelude)
 
         args = [
@@ -1598,8 +1515,6 @@ def make_fake_runner(defects: dict[int, set[str]]):
             str(call.projects_root),
             "--session-id",
             call.session_id,
-            # Filename stamps resolve to the second, so a chain generated in one
-            # second would collide; space the hops a minute apart.
             "--now",
             (now + timedelta(minutes=call.hop)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         ]
@@ -1770,10 +1685,6 @@ DRY_RUN_CASES = (
         expect_check="one_new_file",
     ),
     Case(
-        # Reaches the _skipped_rows path: hop 2 yields no rails, so hops 3 and 4
-        # have no prompt and are recorded as unrun failures rather than dropped.
-        # A row-aggregation defect there (appending the list instead of
-        # extending) crashes the TSV write, which this case would surface.
         "a_mid_chain_hop_without_rails_stops_the_run_and_records_the_rest",
         {2: {"budget_exhausted"}},
         hops=3,
@@ -1884,7 +1795,6 @@ def _run_case(base: argparse.Namespace, case: Case) -> tuple[bool, str]:
             if not all(r.passed for r in outcome.rows):
                 bad = next(r for r in outcome.rows if not r.passed)
                 return False, f"hop {bad.hop} failed: {'; '.join(bad.reasons)}"
-            # The produced files outlive the fixtures cleanup removes.
             kept = sorted(outcome.kept_dir.glob(HANDOFF_GLOB))
             if len(kept) != expected_rows:
                 return (
@@ -1910,8 +1820,6 @@ def _run_case(base: argparse.Namespace, case: Case) -> tuple[bool, str]:
                 case.expect_reason in r for r in row.reasons
             ):
                 return False, f"reason {case.expect_reason!r} absent from {row.reasons}"
-        # A failing hop keeps its transcript for inspection; a passing one does
-        # not (cleanup removes it from ~/.claude/projects either way).
         want_copies = sum(1 for r in outcome.rows if not r.passed and r.session_id)
         copies = outcome.kept_transcripts
         if len(copies) != want_copies:
@@ -1919,7 +1827,6 @@ def _run_case(base: argparse.Namespace, case: Case) -> tuple[bool, str]:
                 False,
                 f"{len(copies)} transcript copies kept, expected {want_copies}",
             )
-        # Cleanup deleted exactly the harness's own session ids.
         problem = _cleanup_problem(outcome.session_ids, projects_root, decoys)
         if problem:
             return False, problem

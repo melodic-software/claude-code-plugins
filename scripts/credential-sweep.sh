@@ -170,7 +170,6 @@ space() {
   LAST_START="$now"
 }
 
-# header_value <name>: the value of the lowercase header <name> in $STATE/headers.
 header_value() {
   awk -F ': *' -v k="$1" 'tolower($1) == k { sub(/\r$/, "", $2); print $2 }' "$STATE/headers"
 }
@@ -243,7 +242,6 @@ fetch_pages() {
       TOTAL="$(jq -r 'if type == "object" then .total_count // "" else "" end' "$tmp")"
       [[ -z "$MAX_TOTAL" || -z "$TOTAL" ]] || ((TOTAL <= MAX_TOTAL)) || return 4
     fi
-    # The page's own length, before any select in $items, decides paging.
     n="$(jq 'if type == "array" then length else ([.[] | arrays][0] // [] | length) end' "$tmp")"
     ((n == PER_PAGE)) || return 0
     if [[ -n "$field" ]] &&
@@ -362,7 +360,6 @@ list_runs() {
   window="$(utc "$from")..$(utc "$to")"
   MAX_TOTAL=$LIST_CAP
   ((to - from >= 1)) || MAX_TOTAL=""
-  # Only the fields the sweep reads are kept: a full run object is several KB.
   fetch_pages "$STATE/window.jsonl" "$base/actions/runs?exclude_pull_requests=true&created=$window" \
     '.workflow_runs[] | {id, run_attempt, check_suite_id, conclusion}'
   rc=$?
@@ -745,7 +742,6 @@ main() {
     command -v "$tool" >/dev/null 2>&1 || die "$tool is not on PATH"
   done
   [[ -n "$SINCE" ]] || SINCE="$(jq -rn 'now - 90 * 86400 | strftime("%Y-%m-%d")')"
-  # A real calendar day survives the parse-and-format round trip unchanged.
   [[ "$(jq -rn --arg d "$SINCE" '$d | strptime("%Y-%m-%d") | mktime | strftime("%Y-%m-%d")' 2>/dev/null)" == "$SINCE" ]] ||
     die "--since must be a YYYY-MM-DD date, got '$SINCE'"
   [[ "$(gitleaks version 2>/dev/null)" == "$GITLEAKS_PIN" ]] ||

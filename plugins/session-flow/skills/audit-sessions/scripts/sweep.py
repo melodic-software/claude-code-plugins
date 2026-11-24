@@ -188,7 +188,6 @@ def _denial_kinds(records: list[dict], sessions: set[str]) -> dict:
     return {"by_kind": by_kind, "dominant_kind": next(iter(by_kind), None)}
 
 
-# Fields a metric's finding adds, read from the records of the sessions over its threshold.
 FINDING_DETAIL = {"tools.denials": _denial_kinds}
 NOT_APPLICABLE = "not applicable with --session: this metric describes the machine or a linked PR, not one session"
 
@@ -492,7 +491,6 @@ def render_md(data: dict) -> str:
 
 def write_report(data_dir: Path, key: str, envelope: dict) -> None:
     reports = data_dir / "audit-sessions" / "reports" / Path(*key.split("/"))
-    # Microseconds keep two runs in one second from sharing, and overwriting, one report pair.
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     data = envelope["data"]
     if not (census.write_atomic(reports / f"{stamp}.json", envelope) and census.write_atomic(reports / f"{stamp}.md", render_md(data))):
@@ -831,7 +829,6 @@ def main(argv: list[str] | None = None) -> int:
     if named:
         scoped = [r for r in scoped if r.get("session_id") in named]
     if args.excerpts or args.correction_candidates:
-        # Typed turns come from people: an automated session's turns are a script's.
         keys = CANDIDATE_KEYS if args.correction_candidates else EXCERPT_KEYS
         return print_turns([r for r in scoped if census.session_class(r) != "automated"], keys)
     window = {"since": args.since and args.since.isoformat(), "until": args.until and args.until.isoformat()}
@@ -860,7 +857,6 @@ def main(argv: list[str] | None = None) -> int:
     records = scoped
     classes = Counter(census.session_class(r) for r in records)
     if named:
-        # A session named on purpose is measured whatever its class.
         classes["automated"] = 0
     else:
         records = [r for r in records if census.session_class(r) != "automated"]

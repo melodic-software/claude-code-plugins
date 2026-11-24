@@ -142,7 +142,6 @@ chmod +x "$TMP_ROOT/git-bin/git"
 REF_BASE=1111111111111111111111111111111111111111
 REF_TIP=2222222222222222222222222222222222222222
 REF_DECOY=3333333333333333333333333333333333333333
-# hold_ref_case LABEL EVENT BASE_REF WANT_RC WANT_SHA WANT_GIT_CALLS WANT_WARNING
 hold_ref_case() {
   local label="$1" out rc sha calls
   : >"$TMP_ROOT/hold-ref.out"
@@ -188,14 +187,6 @@ else
   fail "ci-status gained a gate that could skip the hold: '$gate'"
 fi
 
-# The base commit's config is a fixture directory: STUB_TRACKER is the
-# `tracker` value of its docs/conventions/work-items.yaml (no file when
-# unset), and STUB_CHECKOUT_FAILED leaves
-# BASE_CONFIG empty, as a failed checkout does. The gh stub logs its
-# arguments. A labels read fails its first STUB_FAILS calls, then
-# answers STUB_LABELS (comma separated) as the API's label list. A comments
-# read fails when STUB_COMMENTS_FAIL is set, else answers the STUB_COMMENTS
-# array.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -212,7 +203,6 @@ case "$*" in
 *) exit 1 ;;
 esac
 EOF
-# sleep logs its seconds; date +%s answers STUB_NOW plus the seconds slept.
 cat >"$TMP_ROOT/bin/sleep" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_SLEEPS"
@@ -234,8 +224,6 @@ SPOOF="$(hold '{"login":"someone","type":"User"}' $'<!-- claude-lane-hold lane=x
 NO_FOOTER="$(hold "$LANE" $'<!-- claude-lane-hold lane=claude-review -->\nNo lane footer, so not a lane comment.')"
 OTHER_BOT="$(hold "$LANE" $'A comment with no hold marker.\nclaude-lane: claude-review')"
 
-# expect <label> <want-rc> <want-label-calls> <STUB_LABELS> <STUB_FAILS> [want-out] [refuse-out]
-# The tracker and comment stubs are set by the caller's environment.
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
@@ -245,8 +233,6 @@ expect() {
   rm -rf "$TMP_ROOT/base-config"
   mkdir -p "$TMP_ROOT/base-config"
   [[ -z "${STUB_TRACKER+set}" ]] || { mkdir -p "$TMP_ROOT/base-config/docs/conventions" && printf 'tracker: %s\n' "$STUB_TRACKER" >"$TMP_ROOT/base-config/docs/conventions/work-items.yaml"; }
-  # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
-  # none with STUB_NO_MODULE.
   if [[ -z "${STUB_NO_MODULE:-}" ]]; then
     mkdir -p "$TMP_ROOT/base-config/.github/scripts/pr-merge"
     if [[ -n "${STUB_MODULE_TEXT:-}" ]]; then
@@ -255,9 +241,6 @@ expect() {
       cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$TMP_ROOT/base-config/.github/scripts/pr-merge/"
     fi
   fi
-  # The base's clear-escalations.mjs with STUB_FILTER: its filterLaneHolds
-  # strips every github-actions[bot] comment's footer (`unfoot`, as for a hold
-  # its lane's run did not record) or fails (`fail`, a run that did not read).
   if [[ -n "${STUB_FILTER:-}" ]]; then
     mkdir -p "$TMP_ROOT/base-config/.github/scripts/pr-merge"
     cat >"$TMP_ROOT/base-config/.github/scripts/pr-merge/clear-escalations.mjs" <<'JS'
@@ -346,9 +329,6 @@ REFUSAL="$(hold "$APP" "$REFUSAL_BODY")"
 export STUB_COMMENTS="[$NEW,$REFUSAL]" STUB_PIPELINE=$'merge:\n  agent-identity: melodic-automation-lanes[bot]'
 expect "a newer pr-merge refusal beats an older security hold, naming its fenced reasons" 1 1 "needs-human" 0 \
   "(it changes docs/held.md, a hold path pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)). $APPROVE" "Changes a trust gate"
-# A reason line past 100 columns wraps at a space, its continuation indented
-# two spaces, and more than 20 lines fold into <details>: the reason reads
-# back as one line either way.
 WRAPPED_BODY=$'<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `bbbb`. A person must clear this reason, so the pr-merge lane added the `needs-human` label: fix the reason, then remove the label, and the next scheduled run judges it again.\n\n```text\npr-merge\'s gate holds it on its risk score (manifest-review-required:\n  plugins/a/.claude-plugin/plugin.json: hooks)\n```'
 WRAPPED="$(hold "$APP" "$WRAPPED_BODY")"
 export STUB_COMMENTS="[$NEW,$WRAPPED]" STUB_PIPELINE=$'merge:\n  agent-identity: melodic-automation-lanes[bot]'
@@ -361,8 +341,6 @@ expect "a folded pr-merge refusal names its reason too" 1 1 "needs-human" 0 \
   "(pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)). $APPROVE" "Its reasons"
 export STUB_COMMENTS="[$REFUSAL,$NEW]"
 expect "a newer security hold beats an older pr-merge refusal" 1 1 "needs-human" 0 "(Changes a trust gate:" "risk score"
-# A lane's refusal (no attend-queue marker) set no label, so a newer one
-# never names the hold that did.
 LANE_REFUSAL="$(hold "$APP" $'<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `bbbb`. The lanes clear this reason on their own; the next scheduled run judges it again.\n\n```text\nits verifier verdict is missing\n```\n<!-- pr-merge-unarmed-since head=bbbb at=2026-10-23T10:00:00Z -->')"
 export STUB_COMMENTS="[$NEW,$LANE_REFUSAL]"
 expect "a newer pr-merge lane refusal does not name the label's hold" 1 1 "needs-human" 0 "(Changes a trust gate:" "verdict is missing"

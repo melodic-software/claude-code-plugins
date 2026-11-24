@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     --type) TYPE="$2" ;;
     --parent) PARENT="$2" ;;
     --blocked-by) BLOCKED_BY="$2" ;;
-    *) REPO="$2" ;; # --repo, the one option left
+    *) REPO="$2" ;;
     esac
     shift 2
     ;;
@@ -44,8 +44,6 @@ done
 wit_need_linear_config
 
 if [[ -z "$REPO" ]]; then
-  # With exactly one declared team the target is unambiguous. With several, picking one
-  # would quietly file into the wrong team, so it is a usage error naming the fix.
   if [[ "$(jq 'length' <<<"$WIT_LINEAR_SCOPES")" != "1" ]]; then
     wit_usage_error "--repo is required when config.linear.scopes declares more than one team"
   fi
@@ -58,10 +56,6 @@ wit_linear_scope_in_scope "$REPO" ||
 wit_linear_scope_parts "$REPO"
 TARGET_TEAM="$WIT_LINEAR_TEAM"
 
-# Everything referenced by id is validated and RESOLVED before the item is created.
-# Parent and blocker links are separate operations, so a bad id discovered afterwards
-# would leave a created item whose declared relationships were never written — an item
-# that then looks ready.
 PARENT_UUID=""
 if [[ -n "$PARENT" ]]; then
   wit_linear_require_scoped_id "$PARENT"
@@ -112,9 +106,6 @@ if [[ -n "$PARENT_UUID" ]]; then
     }
     CHILD_SEEN=$((CHILD_SEEN + $(jq '(.nodes // []) | length' <<<"$CHILD_PAGE" 2>/dev/null || echo 0)))
     CHILD_PAGES=$((CHILD_PAGES + 1))
-    # Bounded by the label walk's ceiling. A truncated child list would read as "no
-    # duplicate" and file one, so passing the ceiling is an error, never a partial check.
-    # Pages are counted too, so a server sending empty pages forever also stops.
     if ((CHILD_SEEN > WIT_LINEAR_LIST_ITEMS_MAX || CHILD_PAGES > WIT_LINEAR_LIST_ITEMS_MAX)); then
       printf 'create-item.sh: the children of %s passed the declared ceiling of %s items; created nothing rather than check a partial list for a duplicate\n' \
         "$PARENT" "$WIT_LINEAR_LIST_ITEMS_MAX" >&2
@@ -199,9 +190,6 @@ if [[ -n "$LABELS" ]]; then
     # endCursor is nullable in the schema; without a cursor the next request would restart
     # from the beginning and loop forever, so stop rather than spin.
     [[ -n "$LABEL_CURSOR" ]] || break
-    # Bounded like every other paginated loop in this seam. hasNextPage plus a fresh cursor is
-    # the server's word, and a server that keeps saying "there is more" would otherwise hang
-    # create-item indefinitely with ALL_LABELS growing without limit.
     if ((LABEL_SEEN > WIT_LINEAR_LIST_ITEMS_MAX)); then
       LABEL_TRUNCATED=1
       break
@@ -210,10 +198,6 @@ if [[ -n "$LABELS" ]]; then
   MISSING="$(jq -rcn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
     '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]')"
   if [[ "$MISSING" != "[]" ]]; then
-    # The ceiling changes what "not found" is allowed to mean. Stopping early makes an unseen
-    # label indistinguishable from a nonexistent one, and telling someone to create a label
-    # that already exists sends them to do the wrong thing — so say which case this is. Same
-    # distinction the gitea adapter draws for the same reason.
     if ((LABEL_TRUNCATED)); then
       printf 'create-item.sh: label(s) not found in the first %s labels visible to team %s: %s — the label list was truncated at the declared ceiling, so these may exist beyond it; narrow --labels or raise the ceiling rather than re-creating them\n' \
         "$WIT_LINEAR_LIST_ITEMS_MAX" "$TARGET_TEAM" "$MISSING" >&2
@@ -223,7 +207,6 @@ if [[ -n "$LABELS" ]]; then
     fi
     exit "$EX_NOT_FOUND"
   fi
-  # first(...) — a name present both team-scoped and workspace-level resolves to one id, not two.
   LABEL_IDS="$(jq -cn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
     '[($names | split(",") | .[] | select(length > 0)) as $n | (first($all[] | select(.name == $n)) | .id)]')"
 fi
@@ -235,8 +218,6 @@ fi
 [[ -z "$TYPE" ]] ||
   printf 'create-item.sh: --type is ignored: linear has no native issue-type axis (normalized type is always null)\n' >&2
 
-# The parent link rides in the CREATE input rather than a follow-up update — one fewer
-# window in which a created item exists without its container.
 INPUT="$(jq -cn --arg t "$TITLE" --arg d "$BODY" --arg team "$TEAM_UUID" \
   --argjson labels "$LABEL_IDS" --arg parent "$PARENT_UUID" \
   '{title: $t, teamId: $team}
@@ -266,8 +247,5 @@ for buuid in ${BLOCKER_UUIDS[@]+"${BLOCKER_UUIDS[@]}"}; do
     "linking the new issue as blocked by $buuid"
 done
 
-# Re-read rather than normalizing the mutation payload: the created item's labels,
-# relations, and state all come from the server, and the create response deliberately
-# selects only what is needed to address it.
 wit_linear_fetch_issue "$(jq -r '.team.key' <<<"$CREATED")" "$NEW_NUMBER"
 wit_linear_normalize "$WIT_LINEAR_ISSUE"

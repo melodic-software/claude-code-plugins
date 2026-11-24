@@ -29,8 +29,6 @@ const stop = (msg) => {
 
 const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 
-// The PNG files directly in <dir>, sorted. Any other entry is ignored; a PNG
-// that is not a regular file, or whose name holds a control character, stops.
 function pngNames(dir) {
   const names = [];
   for (const name of readdirSync(dir)) {
@@ -79,8 +77,6 @@ function manifest(v) {
   return 0;
 }
 
-// Read <dir>'s manifest and check that its images are exactly the ones on disk,
-// byte for byte.
 function checked(dir) {
   const file = join(dir, MANIFEST);
   let doc;

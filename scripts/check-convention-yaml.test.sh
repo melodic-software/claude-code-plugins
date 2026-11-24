@@ -34,7 +34,6 @@ OUT=""
 ERR=""
 LOG=""
 
-# new_repo: a fresh fixture repo with the SUT and the stub validator.
 new_repo() {
   fixture_tree::build repo --sut "$SUT_SRC" --git --label convention-yaml || return 1
   mkdir -p "$repo/.stub" "$repo/docs/conventions" "$repo/lib"
@@ -44,7 +43,6 @@ new_repo() {
   : >"$repo/.stub/log"
 }
 
-# put <relative-path> <content>: write a file and commit it.
 put() {
   mkdir -p "$repo/$(dirname "$1")"
   printf '%s\n' "$2" >"$repo/$1"
@@ -52,8 +50,6 @@ put() {
   git_test_config "$repo" commit -qm "add $1" >/dev/null
 }
 
-# run_sut [VAR=value...]: run the copied script with the stub, leaving RC, OUT,
-# ERR and LOG.
 run_sut() {
   local errf
   errf="$repo/.stub/stderr"

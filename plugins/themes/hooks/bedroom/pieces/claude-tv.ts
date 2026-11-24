@@ -27,7 +27,6 @@ export function zoneOf(percent: number, was: number): number {
 }
 
 let working = false
-/** The main turn running, from its turn.start to its turn.complete. */
 let turn: string | undefined
 let hold: Timer | undefined
 let zone = 0

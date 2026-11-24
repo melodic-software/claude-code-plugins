@@ -156,7 +156,6 @@ const refuse = (reason) => ({ ok: false, reason });
 const isSemicolon = (t) => t?.kind === 'punct' && t.value === ';';
 const BATCH_REFUSAL = 'only one statement is allowed; the text holds a batch of several';
 
-// Returns { tokens } or { refusal } when the text does not tokenize.
 function tokenizeOrRefuse(sql) {
   try {
     return { tokens: tokenize(String(sql)) };
@@ -213,12 +212,8 @@ export function checkStatement(sql) {
 
 const DML_WORDS = new Set(['INSERT', 'UPDATE', 'DELETE', 'MERGE']);
 
-// The write tool wraps the statement in its own transaction and row-count
-// check, so a word that could end that transaction or start another statement
-// is refused. SET is counted below, since UPDATE needs it.
 const WRITE_STATEMENT_WORDS = new Set([
   ...[...STATEMENT_WORDS].filter((word) => !DML_WORDS.has(word) && word !== 'SET'),
-  // Unreserved, so the read list lets them pass; a write has no use for them.
   'DISABLE',
   'ENABLE',
   'RECEIVE',
@@ -238,7 +233,6 @@ const WRITE_REFUSALS = new Map([
 export function checkWriteStatement(sql) {
   const { tokens, refusal } = tokenizeOrRefuse(sql);
   if (refusal) return refusal;
-  // One trailing semicolon is allowed; a second counts as another statement.
   const terminated = isSemicolon(tokens.at(-1));
   if (terminated) tokens.pop();
   if (tokens.length === 0) return refuse('the statement is empty');
@@ -253,7 +247,6 @@ export function checkWriteStatement(sql) {
   let updates = 0;
   let sets = 0;
   let selects = 0;
-  // Set once an INSERT has its VALUES or DEFAULT VALUES source.
   let sourced = false;
   for (let k = 0; k < tokens.length; k += 1) {
     const t = tokens[k];

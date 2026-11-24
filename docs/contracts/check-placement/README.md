@@ -68,6 +68,12 @@ and what reaches the model.
 - A format and lint plugin keeps the two concerns apart: a `format` entry that rewrites and a `lint`
   entry that reports, each resolved on its own ([Hooks run the shipped adapter](#hooks-run-the-shipped-adapter)). Formatting includes
   import ordering; no lint autofix runs in the batch row or at `pre-commit`.
+- The two entries may share one tool start at `pre-commit` (owner decision, 2026-11-24, to keep the
+  hook within its [duration budget](#duration-budgets)): the `format` entry may lint the files it
+  just formatted and leave that result for the `lint` entry, keyed by the files' bytes and the
+  tool's config. Each entry stays separately resolvable, declinable and skippable under its own
+  name: a declined or skipped `lint` makes the `format` entry lint nothing, and a `lint` entry
+  that finds no matching result runs the tool itself, with the same exit codes and messages.
 
 Pointer: for `PostToolBatch` (no matcher, no `if`, one firing per batch of parallel tool calls),
 see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-15, Claude Code
@@ -444,9 +450,13 @@ Caveats:
 
 ## Duration budgets
 
-Each row is measured on the host named in its row. Other hosts re-measure; CI does not enforce
-durations ([hook-budget](../hook-budget/README.md) enforces counts). Placement shipped by this
-marketplace comes from these rows.
+Each row is measured on the host named in its row. Other hosts re-measure. When a change touches
+a git-hook config or a script a hook entry calls, CI times every shipped `pre-commit` and
+`pre-push` entry on a fixed fixture and fails a hook over its budget
+(`scripts/check-git-hook-time-budget.sh`, ADR 0072 addendum 2026-11-24); Claude Code hooks keep
+count budgets ([hook-budget](../hook-budget/README.md)). Placement shipped by this marketplace
+comes from these rows. A hook over or near its budget follows the "Over or near budget" order in
+[ADR 0072](../../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md#addendum-2026-11-24-ci-times-the-git-hooks).
 
 | Budget | Value | Basis |
 |---|---|---|

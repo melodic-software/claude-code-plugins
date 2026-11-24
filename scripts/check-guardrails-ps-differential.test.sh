@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Tests for check-guardrails-ps-differential.sh. Each case builds a throwaway
-# repository holding a copy of plugins/guardrails, commits it as the base, and
-# plants one change in the working tree: a guard that allows what the base
-# refuses must fail the check wherever it was planted (a consumer, the shared
-# classifier library, the Bash row's argv, or a token-only path), and a
-# branch-only refusal must not.
 # test-scope: plugins/guardrails/*
 # shellcheck disable=SC2016  # planted source lines are literal shell
 set -uo pipefail
@@ -23,8 +17,6 @@ REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 
 f=""
 
-# A literal git reset, one behind a `{` (special-construct), one through a
-# launcher, a --no-verify commit, and two git-free controls.
 CORPUS_LINES=(
   '"git reset --hard"'
   '"Write-Host {a}; git reset --hard"'
@@ -34,7 +26,7 @@ CORPUS_LINES=(
   '"Write-Output ok"'
 )
 
-new_fixture() { # <out-var>
+new_fixture() {
   fixture_tree::build "$1" --sut check-guardrails-ps-differential.sh --git --plugins --label ps-diff || return 1
   local root=${!1}
   cp -R "$REPO_ROOT/plugins/guardrails" "$root/plugins/" || return 1
@@ -46,14 +38,13 @@ new_fixture() { # <out-var>
     git_test_config "$root" commit -q -m base >/dev/null
 }
 
-# prepend <file> <line>: insert <line> right after the shebang.
 prepend() {
   local file=$1 line=$2
   { head -n 1 "$file" && printf '%s\n' "$line" && tail -n +2 "$file"; } >"$file.new" && mv "$file.new" "$file"
 }
 
 LAST_OUT="" LAST_ERR="" LAST_RC=0
-run_check() { # <root> [env VAR=value ...] -- <args...>
+run_check() {
   local root=$1
   shift
   local -a envs=()
@@ -67,7 +58,6 @@ run_check() { # <root> [env VAR=value ...] -- <args...>
   LAST_ERR=$(<"$root/.err")
 }
 
-# expect <label> <want-rc> [<needle in stdout+stderr>]...
 expect() {
   local label=$1 want=$2 needle
   shift 2
@@ -84,7 +74,6 @@ expect() {
   ok "$label"
 }
 
-# refute <label> <needle>: <needle> must not appear in stdout+stderr.
 refute() {
   if [[ "$LAST_OUT$LAST_ERR" == *"$2"* ]]; then
     fail "$1: unexpected '$2': stdout: $LAST_OUT stderr: $LAST_ERR"
@@ -100,18 +89,12 @@ run_check "$f" -- --corpus corpus.jsonl --jobs 4 HEAD
 expect "identical trees: clean" 0 "6 commands against HEAD" "| block-dangerous-git, 31 token subsets |"
 refute "identical trees: no regression line" "base exits 2, branch exits"
 
-# --- a consumer that stops refusing --------------------------------------
-# The inherited opt-out would make both arms allow everything and hide the
-# regression; the check clears it.
 new_fixture f || exit 1
 prepend "$f/plugins/guardrails/hooks/block-dangerous-git.sh" 'exit 0'
 run_check "$f" CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED=false -- --corpus corpus.jsonl --jobs 4 HEAD
 expect "consumer allows: fails" 1 "$P: block-dangerous-git: base exits 2, branch exits 0: git\\ reset\\ --hard" \
   "cell(s) where HEAD refuses"
 
-# --- the shared library, with an inherited CLAUDE_PLUGIN_ROOT --------------
-# Every consumer sources the classifier from ${CLAUDE_PLUGIN_ROOT:-...}; an
-# inherited root naming an unmodified copy would give both arms that copy.
 new_fixture f || exit 1
 cp -R "$f/plugins/guardrails" "$f/pristine"
 printf '\nps::classify_git_command() { PS_SAFE_COMMAND=""; PS_SINK_TRIGGER=""; return 0; }\n' \
@@ -139,9 +122,6 @@ prepend "$f/plugins/guardrails/hooks/block-no-verify.sh" 'exit 2'
 run_check "$f" -- --corpus corpus.jsonl --jobs 4 HEAD
 expect "branch-only refusal: reported, not failed" 0 "new refusal: block-no-verify: base exits 0, branch exits 2: git\\ status"
 
-# --- --harvest -----------------------------------------------------------
-# Stub suites stand in for the real ones: one sends a PowerShell payload and a
-# Bash payload through a guard, the rest are absent.
 new_fixture f || exit 1
 find "$f/plugins/guardrails/hooks" -name '*.test.sh' -delete
 cat >"$f/plugins/guardrails/hooks/block-dangerous-git.test.sh" <<'EOF'

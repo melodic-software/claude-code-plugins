@@ -115,8 +115,6 @@ ROOT="$(pwd)"
 ALLOWLIST="${EM_DASH_PURGED_PATHS:-scripts/em-dash-purged-paths.txt}"
 SLOP_CONFIG="${EM_DASH_SLOP_CONFIG:-docs/conventions/ai-slop.yaml}"
 DETECT="${EM_DASH_DETECT:-plugins/ai-slop/skills/audit/scripts/detect.sh}"
-# The detector's own YAML reader, so the gate refuses a tracked config the
-# detector would skip whole.
 PARSE_YAML="$(dirname "$DETECT")/../../../lib/parse-concern-value.sh"
 
 MODE=check
@@ -128,11 +126,6 @@ case "${1-}" in
   exit 2
   ;;
 esac
-
-# --- Prerequisites ----------------------------------------------------------
-# Each is fail-closed at exit 2: this gate cannot report a trustworthy "clean"
-# without all of them, and reporting an untrustworthy one is the failure mode the
-# whole design is arranged against.
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-purged-em-dashes: jq not found; cannot build the detector config layer" >&2
@@ -215,13 +208,6 @@ FILES="$TMP/files.txt"
 if ((${#UNION[@]})); then
   printf '%s\n' "${UNION[@]}" >"$FILES"
 fi
-# Index the union once so each glob is tested only against paths that can
-# match it. A match needs an equal component count and, for each leading
-# component with no pattern character, an equal string, so a glob's candidates
-# are the bucket keyed by its component count and its literal leading
-# components. glob_matches_path still decides every candidate; the index only
-# skips pairs that cannot match. Testing every glob against every path was
-# about 528,000 calls on this tree.
 declare -A BUCKET=()
 for idx in "${!UNION[@]}"; do
   IFS=/ read -ra pparts <<<"${UNION[idx]}"
@@ -237,9 +223,6 @@ done
 pattern_char='[][*?+@!(\]'
 
 stale=0
-# Initialized here rather than only where it is computed: the verdict section
-# reads it, this script runs under `set -u`, and a future early return between
-# the two would turn a clean run into an unbound-variable crash.
 excluded=0
 for glob in "${GLOBS[@]}"; do
   IFS=/ read -ra gparts <<<"$glob"
@@ -273,48 +256,10 @@ if ((EXPECTED == 0)); then
   exit 2
 fi
 
-# --list stops here, and stopping here is the point. The allowlist header tells
-# a reader to audit the declaration by expanding it with --list and grepping the
-# named files, WITHOUT running the detector. Falling through to the detector run
-# would make that audit cost the same minutes as a full check and would report a
-# check verdict under a listing flag.
 if [[ "$MODE" == list ]]; then
   printf 'check-purged-em-dashes: %s declared paths, %s files.\n' "${#GLOBS[@]}" "$EXPECTED"
   exit 0
 fi
-
-# --- Throwaway detector config ----------------------------------------------
-# The tracked config with every switch that can quiet rule-em-dash removed, and
-# with every other detector rule disabled. An empty HOME keeps the user-global
-# layer out: detect.sh cascades $HOME/.claude/ai-slop.json under the repo layers,
-# and a contributor who happens to carry one must not be able to change this
-# gate's verdict.
-#
-# Three keys can silence this rule and all three are stripped, because a path on
-# the allowlist declares the surface purged and a per-rule exemption claims it
-# need not be. `disabled_rules` turns the rule off outright.
-# `em_dash_allowed_paths` and `rule_allowed_paths["rule-em-dash"]` turn it off
-# per file, and those two are the quieter hazard: detect.sh still OPENS such a
-# file, so it lands in the scanned count, the coverage assertion below still
-# balances, and the rule summary still reports `disabled=0`. Nothing in the run
-# says why no finding was possible, and the gate would call the surface checked
-# and clean.
-#
-# `excluded_paths` is deliberately NOT stripped. Those files are never opened,
-# so they surface as excluded-glob declines that the verdict below names and
-# fails on, which is the report this gate wants rather than a silent override.
-#
-# `disabled_rules` is REPLACED, not merged, with every detector slug except
-# rule-em-dash. Merging with the tracked list would keep the rest of the roster
-# enabled (this repo only disables three rules corpus-wide) and the one-rule
-# claim would be a comment, not a property of the run.
-#
-# The tracked YAML is copied unchanged as the team layer, and the overrides are
-# a personal layer (ai-slop.local.yaml) above it. In detect.sh's cascade a later
-# layer's list replaces an earlier one, `key: []` clears it, and a slug entry
-# replaces that slug alone, so `em_dash_allowed_paths: []` and
-# `rule-em-dash: []` clear those switches and every other rule_allowed_paths
-# slug stays as tracked.
 
 mkdir -p "$TMP/root/docs/conventions" "$TMP/home" || exit 2
 # The detector reads a team layer only under a git working tree. GIT_DIR and its
@@ -337,15 +282,12 @@ if ((have_em_dash == 0)); then
   echo "check-purged-em-dashes: detector roster from $DETECT does not include rule-em-dash" >&2
   exit 2
 fi
-# One `  - "<slug>"` YAML sequence item per rule; jq quotes each slug.
 other_rules="$(printf '%s\n' "${DETECT_SLUGS[@]}" | grep -vx 'rule-em-dash' | jq -rR '"  - " + tojson')"
 if [[ -z "$other_rules" ]]; then
   echo "check-purged-em-dashes: detector roster from $DETECT has no rules to disable besides rule-em-dash" >&2
   exit 2
 fi
 
-# The detector skips a layer its parser refuses, which would drop the tracked
-# excluded_paths and thresholds without a word, so a refused file stops here.
 if ! bash "$PARSE_YAML" --strict "$SLOP_CONFIG" disabled_rules >/dev/null ||
   ! cp "$SLOP_CONFIG" "$TMP/root/docs/conventions/ai-slop.yaml" ||
   ! printf '%s\n' 'disabled_rules:' "$other_rules" 'em_dash_allowed_paths: []' \
@@ -363,8 +305,6 @@ if ! HOME="$TMP/home" CLAUDE_PROJECT_DIR="$TMP/root" \
   exit 2
 fi
 
-# --- Believe the run only if it proves it happened --------------------------
-
 summary="$(grep -m1 '^Summary rule=ai-slop/audit/rule-em-dash ' "$OUT")"
 if [[ -z "$summary" ]]; then
   echo "check-purged-em-dashes: detector emitted no rule-em-dash summary; cannot confirm the rule ran" >&2
@@ -375,11 +315,6 @@ if [[ "$summary" != *" disabled=0"* ]]; then
   exit 2
 fi
 
-# Narrow-rule liveness. The coverage arithmetic below is only the one-rule run
-# this gate claims if every other Summary line reports disabled=1. A throwaway
-# layer that re-enabled the rest of the roster would still look live
-# (rule-em-dash disabled=0, file counts balance) and would silently put the
-# backfill cost back.
 enabled_rules="$(grep -c '^Summary rule=.* disabled=0$' "$OUT" || true)"
 if ((enabled_rules != 1)); then
   echo "check-purged-em-dashes: expected only rule-em-dash enabled, found $enabled_rules enabled rule(s)" >&2
@@ -406,14 +341,6 @@ if ((handled != EXPECTED)); then
   exit 2
 fi
 
-# --- Verdict ----------------------------------------------------------------
-
-# A declared path that the tracked config excludes FAILS the gate rather than
-# folding into the clean count. Such a path is inside the allowlist and outside
-# enforcement at the same time, which is the one way this gate can be green over
-# a surface it is checking nothing on. Reporting it is not enough: an unenforced
-# declaration reads as coverage to every consumer of this exit code, so only a
-# nonzero verdict keeps it from shipping as one.
 verdict=0
 if ((excluded > 0)); then
   echo "check-purged-em-dashes: $excluded declared file(s) are excluded by $SLOP_CONFIG and were NOT checked:" >&2

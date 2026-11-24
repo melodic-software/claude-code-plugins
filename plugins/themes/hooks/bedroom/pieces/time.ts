@@ -1,10 +1,6 @@
 import type { Ctx, Piece } from '../core/piece.js'
 import { PHASES, SEASONS, SEASON_DATES, accepts, minutesOf } from '../core/settings.js'
 
-/**
- * The time of day: the sun field from the local time, the sunrise and sunset settings and a stored /bedroom time, and
- * the command that holds a phase. The VCR clock always shows the real time.
- */
 const DAY = 24 * 60
 const ALIASES: Record<string, (typeof PHASES)[number]> = { late: 'night', midday: 'noon', afternoon: 'noon' }
 
@@ -102,7 +98,6 @@ async function time(ctx: Ctx, args: readonly string[]): Promise<string> {
 
 const DATE_USAGE = `say auto, a day as MM-DD or a season (${SEASONS.map(season => `${season} ${SEASON_DATES[season]}`).join(', ')}), as in /bedroom date 06-21`
 
-/** /bedroom date: holds the room on a day of the year, or follows the real date; alone, says which. */
 async function date(ctx: Ctx, args: readonly string[]): Promise<string> {
   const word = (args[0] ?? '').toLowerCase()
   const told = (): string => {

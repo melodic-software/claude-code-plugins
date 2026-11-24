@@ -89,25 +89,18 @@ HOLD="$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-review sha=bbbb crit
 OLD_HOLD="$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-security-review sha=aaaa criteria=cost -->\nHeld.\nclaude-lane: claude-security-review' 2026-10-22T10:00:00Z)"
 SPOOF="$(comment '{"login":"someone","type":"User"}' $'<!-- claude-lane-hold lane=x -->\nclaude-lane: claude-review' 2026-10-23T12:00:00Z)"
 NO_FOOTER="$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-review -->\nNo footer.' 2026-10-23T12:00:00Z)"
-# unlabeled <label> <at> <actor-id> <login>
 unlabeled() { jq -cn --arg l "$1" --arg at "$2" --argjson id "$3" --arg login "$4" '{event: "unlabeled", created_at: $at, label: {name: $l}, actor: {id: $id, login: $login}}'; }
 labeled() { jq -cn --arg l "$1" --arg at "$2" --arg login "${3:-melodic-automation-lanes[bot]}" '{event: "labeled", created_at: $at, label: {name: $l}, actor: {id: 1, login: $login}}'; }
 OWNER_LIFT="$(unlabeled needs-human 2026-10-23T11:00:00Z 153232337 kyle-sexton)"
 BOT_LIFT="$(unlabeled needs-human 2026-10-23T11:30:00Z 337595936 'melodic-automation-lanes[bot]')"
 EARLY_LIFT="$(unlabeled needs-human 2026-10-23T09:00:00Z 153232337 kyle-sexton)"
 
-# expect <label> <want-rc> [want-out] [refuse-out]; stubs come from the environment.
 expect() {
   local label="$1" want_rc="$2" out rc config="$TMP_ROOT/base-config" standards="$TMP_ROOT/stub-standards"
   : >"$TMP_ROOT/log"
   rm -rf "$config" "$standards" "$TMP_ROOT/pr-reads"
   mkdir -p "$config" "$standards/components/trusted-actors"
   printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$standards/components/trusted-actors/trusted-actors.json"
-  # The base commit's clear-escalations.mjs, stubbed: its recheckStaleHold
-  # records what it was given and answers STUB_PREDICATE (pass, else the hold
-  # stands); a run of the module as a script is recorded too. Absent when
-  # STUB_NO_PREDICATE is set. clear-escalations-recheck.test.mjs tests the
-  # real one.
   if [[ -z "${STUB_NO_PREDICATE:-}" ]]; then
     mkdir -p "$config/.github/scripts/pr-merge"
     cat >"$config/.github/scripts/pr-merge/clear-escalations.mjs" <<'JS'
@@ -263,7 +256,6 @@ expect "a trusted lift of a claude[bot] label passes with no comment" 0 "lifted 
 STUB_COMMENTS="[$HOLD]"
 STUB_EVENTS="[$OWNER_LIFT,$(labeled needs-human 2026-10-23T11:10:00Z 'github-actions[bot]'),$BOT_LIFT]"
 expect "a review re-run that labels the same head again needs its own trusted lift" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
-# Recovery: a trusted person adds the label back and removes it.
 TRUSTED_RELABEL="$(jq -cn '{event: "labeled", created_at: "2026-10-23T12:00:00Z", label: {name: "needs-human"}, actor: {id: 153232337, login: "kyle-sexton"}}')"
 STUB_EVENTS="[$BOT_LIFT,$TRUSTED_RELABEL,$(unlabeled needs-human 2026-10-23T12:05:00Z 153232337 kyle-sexton)]"
 expect "a trusted person re-adding and removing the label recovers a hold a bot lifted" 0 "lifted the review-lane hold"
@@ -316,8 +308,6 @@ expect "a hold naming this head, written before the App's marker, keeps it whate
 OTHER_SHA=$(printf 'e%.0s' {1..40})
 STUB_COMMENTS="[$STALE_HOLD,$(held_at "$NEW_SHA" 2026-10-23T11:20:00Z),$(cleared_for "$OTHER_SHA")]"
 expect "a hold naming this head keeps it beside a marker for an unheld head" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
-# A later clean push: the marker names the head the App judged, this head is
-# a newer one no hold names, so its own reviews decide (not strict equality).
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 HEAD_SHA="$OTHER_SHA" expect "a later head no hold names passes after the App's clear of an earlier one" 0 \
   "melodic-automation-lanes[bot] cleared the review-lane hold on #6419 as stale"
@@ -326,7 +316,6 @@ if grep -qxF "predicate pr=6419 head=$OTHER_SHA cleared=$NEW_SHA label=needs-hum
 else
   fail "at a later head the predicate was not given the marker's head: '$(cat "$TMP_ROOT/log")'"
 fi
-# Only the newest marker before the removal names the cleared head.
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$OTHER_SHA" "" 2026-10-23T11:10:00Z),$(cleared_for "$NEW_SHA")]"
 expect "the newest marker before the removal is the one judged" 0 "its marker names $NEW_SHA,"
 # A hold a person already lifted counts for nothing (thread PRRT_kwDOTCGFQM6xmJXy):

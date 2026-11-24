@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for scripts/check-pipefail-grep-q.sh: one fixture file per shape, fed
-# as a file argument, so each verdict is on that shape alone. Every fixture is
-# written from a quoted heredoc, which is what keeps this suite's own source
-# clean under the gate it tests.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,7 +17,6 @@ OUT=""
 ERR=""
 n=0
 
-# run_gate <args...>: run the gate with stdout and stderr kept apart.
 run_gate() {
   RC=0
   bash "$SCRIPT" "$@" >"$WORK/out" 2>"$WORK/err" || RC=$?
@@ -29,14 +24,12 @@ run_gate() {
   ERR="$(cat "$WORK/err")"
 }
 
-# new_case: write stdin to a fresh fixture file and name it in CASE_FILE.
 new_case() {
   n=$((n + 1))
   CASE_FILE="$WORK/case-$n.sh"
   cat >"$CASE_FILE"
 }
 
-# expect_flag <label> <line> < fixture: exit 1 with a finding at <line>.
 expect_flag() {
   local label="$1" line="$2"
   new_case
@@ -48,7 +41,6 @@ expect_flag() {
   fi
 }
 
-# expect_clean <label> < fixture: exit 0 with a clean statement and no finding.
 expect_clean() {
   local label="$1"
   new_case
@@ -137,7 +129,6 @@ expect_flag "a negated pipeline" 1 <<'EOF'
 if ! echo "$x" | grep -q foo; then :; fi
 EOF
 
-# --- pipes that span lines report the grep's own line ------------------------
 expect_flag "a continuation before the pipe" 2 <<'EOF'
 echo "$x" \
   | grep -q foo
@@ -161,7 +152,6 @@ expect_flag "a pipe after a bare arithmetic left shift" 2 <<'EOF'
 echo "$mask" | grep -q 8
 EOF
 
-# --- quoting that must not hide a real pipe ----------------------------------
 expect_flag "a quoted -q option" 1 <<'EOF'
 echo x | grep "-q" foo
 EOF
@@ -169,9 +159,6 @@ expect_flag "a single-quoted --quiet option" 1 <<'EOF'
 echo x | grep '--quiet' foo
 EOF
 
-# --- expansions are neutral in the option scan --------------------------------
-# A variable name never contributes option letters: `-${flags}q` is still -q,
-# and "-$lvl" is not -l.
 expect_flag "-q after a \${flags} expansion" 1 <<'EOF'
 echo a | grep -${flags}q a
 EOF
@@ -223,9 +210,6 @@ EOF
 expect_flag "a grep inside quoted backticks keeps its own options" 1 <<'EOF'
 v="`echo a | grep -q a`"
 EOF
-# KNOWN GAP, pinned at current behavior: the lexer does not model `case`, so the
-# pattern `)` closes the double-quoted `$( )` early and the pipe after it is
-# masked. A fix that flags this should flip this case to expect_flag on purpose.
 new_case <<'EOF'
 v="$(case $y in a) echo a;; esac | grep -q x)"
 EOF
@@ -273,7 +257,6 @@ expect_flag "a pipe inside a command substitution inside double quotes" 1 <<'EOF
 v="$(echo "$x" | grep -q foo && echo y)"
 EOF
 
-# --- shapes that are not a pipe into an early-exit grep ----------------------
 expect_clean "an || list" <<'EOF'
 test -f x || grep -q foo file
 EOF
@@ -342,8 +325,6 @@ else
   fail "a missing file argument: wanted exit 2 on stderr only (rc=$RC, stdout='$OUT', stderr='$ERR')"
 fi
 
-# --- the default scan: every *.sh git lists, less the baseline ---------------
-# A default run outside a git work tree could not list files, so it is not clean.
 mkdir -p "$WORK/nogit/scripts"
 cp "$SCRIPT" "$WORK/nogit/scripts/gate.sh"
 RC=0
@@ -354,10 +335,6 @@ else
   fail "a default run outside a git work tree: wanted exit 2 (rc=$RC, stdout='$(cat "$WORK/out")')"
 fi
 
-# default_case <label> <expected-rc> <baseline lines> [<needle>...]: a git
-# fixture holding a clean file, plugins/p/bad.sh (an offender), and
-# plugins/p/fixed.sh (clean), with the given baseline; every needle must appear
-# in the combined output.
 default_case() {
   local label="$1" want="$2" base="$3" repo out rc needle
   shift 3

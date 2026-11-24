@@ -34,8 +34,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 EM_DASH=$'\xe2\x80\x94'
 
-# mkfixture — a git repository with one commit on `main` and a `work` branch
-# checked out. Echoes its path.
 mkfixture() {
   local repo
   repo="$(mktemp -d "$TEST_TMPDIR/repoXXXXXX")"
@@ -48,7 +46,6 @@ mkfixture() {
   printf '%s' "$repo"
 }
 
-# run <repo> <base> [VAR=value ...] — the reporter, from inside the fixture.
 RUN_OUT=""
 RUN_CODE=0
 run() {

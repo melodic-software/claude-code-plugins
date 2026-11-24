@@ -69,10 +69,6 @@ if ! command -v "$validator" >/dev/null 2>&1; then
   exit 2
 fi
 
-# The convention home is the one the repository binds in its pointer region
-# (lib/resolve-convention-home.sh, ADR 0075 fix 3). With no region, a declined
-# home, or a root that binds none, it is docs/conventions, except in the
-# marketplace repository's working tree (on_unbound below).
 resolver=lib/resolve-convention-home.sh
 if [[ ! -f "$resolver" ]]; then
   printf 'check-convention-yaml: %s is required to find the convention home\n' "$resolver" >&2
@@ -102,8 +98,6 @@ if [[ -z "$merge_base" && ("${GITHUB_ACTIONS:-}" == true || -n "${GITHUB_BASE_RE
   exit 2
 fi
 
-# The marketplace repository runs this gate on itself, so its working tree must
-# bind a home; a root with no marketplace manifest (a fixture) may bind none.
 on_unbound=default
 [[ -f .claude-plugin/marketplace.json ]] && on_unbound=fail
 
@@ -125,7 +119,6 @@ resolve_home() {
     printf 'docs/conventions\n'
     ;;
   3)
-    # The resolver's own message says which region is broken.
     bash "$resolver" --root . "$@" 2>&1 >/dev/null | sed "s/^/check-convention-yaml: $label: /" >&2 || true
     return 3
     ;;
@@ -146,8 +139,6 @@ if [[ -n "$merge_base" ]]; then
   rc=0
   # shellcheck disable=SC2310  # resolve_home returns its codes itself; set -e has nothing to catch
   base_home="$(resolve_home "merge base $merge_base" default --ref "$merge_base")" || rc=$?
-  # A broken pointer at the base is a warning: failing on it would fail every
-  # later change, the one that repairs it included.
   ((rc == 0 || rc == 3)) || exit 2
   [[ $rc -eq 0 && "$base_home" != "$head_home" ]] && homes+=("$base_home")
 fi
@@ -158,8 +149,6 @@ for home in "${homes[@]}"; do
     files+=("$path")
   done < <(git ls-files -z -- ":(glob)$home/*.yaml")
 done
-# The unattended merge policy reads docs/conventions/pr-pipeline.yaml at that
-# fixed path whatever home is bound, so the file is checked under any home.
 fixed=docs/conventions/pr-pipeline.yaml
 if [[ " ${homes[*]} " != *" docs/conventions "* ]]; then
   while IFS= read -r -d '' path; do

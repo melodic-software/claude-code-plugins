@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Local-markdown lease/assignee-integrity behaviors that the abstract conformance
-# suite cannot assert (it runs against every adapter, and these two behaviors are
-# local-markdown-specific — the GitHub adapter has reclaim and a real assignee
-# field). Covers: (1) an expired lease returns the item to the frontier even though
-# this adapter has no reclaim, and (2) a failed assignee write fails the claim and
-# rolls the just-appended lease marker back, leaving no orphaned marker.
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
@@ -16,8 +10,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../../work-item-tracker.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 
-# --- An expired lease reappears in the frontier (end-to-end, core CLI) ---
-
 STORAGE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 BINDING="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 jq -cn --arg dir "$STORAGE" \
@@ -28,25 +20,19 @@ export WORK_ITEM_TRACKER_BINDING="$BINDING"
 A_ID="$(bash "$TRACKER" create-item --title "expired-lease item" | jq -r '.id')"
 B_ID="$(bash "$TRACKER" create-item --title "live-lease item" | jq -r '.id')"
 
-# A: ttl 0 → the lease is expired the instant it is written.
 bash "$TRACKER" claim "$A_ID" --ttl-hours 0 >/dev/null
-# B: a live lease is the control — it must stay out of the frontier.
 bash "$TRACKER" claim "$B_ID" --ttl-hours 24 >/dev/null
 
 FRONTIER_IDS="$(bash "$TRACKER" list-frontier | jq -c '[.items[].id]')"
 assert_contains "expired-lease A returns to the frontier" "$FRONTIER_IDS" "$A_ID"
 assert_not_contains "live-lease B stays out of the frontier" "$FRONTIER_IDS" "$B_ID"
 
-# get-item keeps the stored assignee raw (parity with the GitHub adapter) — the
-# projection is scoped to list/frontier derivation, not a stored mutation.
 A_ASSIGNEES="$(bash "$TRACKER" get-item "$A_ID" | jq -r '.assignees | length')"
 assert_eq "get-item leaves the expired-lease assignee stored" "1" "$A_ASSIGNEES"
 
 rm -rf "$STORAGE"
 rm -f "$BINDING"
 unset WORK_ITEM_TRACKER_BINDING
-
-# --- A failed assignee write fails the claim and rolls the marker back ---
 
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
@@ -80,8 +66,6 @@ assert_succeeds "successful claim write keeps the lease marker" "marker present"
 assert_eq "successful claim write records the assignee" '["tester"]' "$(wit_fm_field "$OK_FILE" assignees)"
 rm -f "$OK_FILE"
 
-# Failure path: simulate a failed assignee write. The helper must fail AND roll the
-# just-appended marker back, leaving the store as if the claim never happened.
 FAIL_FILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 write_item "$FAIL_FILE"
 wit_fm_set() { return 1; }
@@ -92,9 +76,6 @@ assert_fails "failed assignee write rolls the lease marker back" "no marker" "or
 assert_eq "failed claim leaves assignees empty" "[]" "$(wit_fm_field "$FAIL_FILE" assignees)"
 rm -f "$FAIL_FILE"
 
-# Failure path where the rollback itself cannot run (mktemp fails — the same class
-# of store condition). The claim still fails, and the helper WARNS that the marker
-# may be orphaned instead of silently claiming a clean rollback.
 FAIL2_FILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 write_item "$FAIL2_FILE"
 # Invoked indirectly by the sourced wit_claim_write, which shellcheck cannot see

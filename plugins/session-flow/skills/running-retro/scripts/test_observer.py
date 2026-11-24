@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json
-"""Unit + integration tests for the detached observer (stdlib unittest, no deps).
-
-Mirrors retro's `test_parse_transcript.py` convention. Covers the pieces the
-observer's correctness rests on: distillation, the two-hop redaction sweep, the
-`-p` result parsing, the atomic one-observer-per-session lock (including the race
-and stale reclaim), ledger discovery/append with redaction, and the retention
-rule (collect-only keeps observations, a consumed analysis deletes them).
-"""
 
 from __future__ import annotations
 
@@ -36,7 +28,6 @@ import claude_cli  # noqa: E402  (observer.py put the plugin scripts dir on sys.
 
 
 def make_observer(tmp: Path, **overrides):
-    """Build an Observer via the real parser so defaults always match production."""
     (tmp / "work").mkdir(exist_ok=True)
     (tmp / "ledger").mkdir(exist_ok=True)
     transcript = tmp / "sess.jsonl"
@@ -92,10 +83,6 @@ class Distillation(unittest.TestCase):
         self.assertEqual(out["tools"], ["Bash"])
         self.assertEqual(out["stop_reason"], "tool_use")
         self.assertLessEqual(len(out["say"]), 160)
-        # Grouping key + bounded per-call preview -- see summarize_record()'s
-        # docstring. Both ids go through _short_id(), so compare against it
-        # rather than the raw value ("call_1" is <= _ID_TAIL_LEN so it happens
-        # to pass through unchanged; "msg_01ABC" does not).
         self.assertEqual(out["mid"], observer._short_id("msg_01ABC"))
         self.assertEqual(
             out["calls"],
@@ -237,7 +224,7 @@ class Distillation(unittest.TestCase):
         )
         self.assertNotIn(
             "tool_results", u
-        )  # superseded by len(results) -- see docstring
+        )
         self.assertEqual(
             u["results"],
             [
@@ -406,11 +393,7 @@ class Distillation(unittest.TestCase):
             }
         )
 
-        # (a) Sequential, not batched: different `mid`s.
         self.assertNotEqual(write_call["mid"], read_call["mid"])
-        # (b) Dependency is findable purely from the bounded previews: the later
-        # call's input preview and the earlier result's output preview share the
-        # dependent path, without ever reading the raw transcript.
         later_in = read_call["calls"][0]["in"]
         earlier_out = write_result["results"][0]["out"]
         self.assertIn("/tmp/out/report.md", later_in)
@@ -706,13 +689,6 @@ class AnalysisPrompt(unittest.TestCase):
         self.assertNotIn("mid", rec)
 
     def test_dependency_check_before_batching_finding_present(self):
-        # A correctly computed sequencing fact doesn't by itself prove a missed
-        # batching opportunity -- genuinely dependent calls are correctly
-        # sequential, not a miss. The compute-don't-assert rule must cover the
-        # Efficiency judgment built on top of a computed structural fact, not
-        # only the fact itself, and "dependent" must not be narrowed to data
-        # flow alone -- control, resource, and side-effect dependencies are
-        # just as real a reason two calls had to run in order.
         self.assertIn("missed batching opportunity", self.prompt)
         self.assertIn("dependency", self.prompt)
         self.assertIn("control", self.prompt)
@@ -777,8 +753,6 @@ class AnalysisPrompt(unittest.TestCase):
         # no shared resource and repeats no argument, so requiring either would
         # swing the rule too far the other way (#1485 review).
         self.assertIn("CORRECTION", self.prompt)
-        # Neither over-suppress nor over-report: an illegible pair around a
-        # failure is unknown, and unknown means drop.
         self.assertIn("UNKNOWN, not independent", self.prompt)
 
     def test_state_wide_consumer_after_a_mutation_is_dependent(self):
@@ -789,9 +763,7 @@ class AnalysisPrompt(unittest.TestCase):
         (#1485 review)."""
         self.assertIn("STATE-WIDE CONSUMER", self.prompt)
         self.assertIn("MUTATED state", self.prompt)
-        # Undecidable mutation drops rather than routing, like every other guard.
         self.assertIn("whether the earlier call mutated anything", self.prompt)
-        # The clause count in the lead-in must move with the clause list.
         self.assertIn("all five of these places", self.prompt)
 
     def test_resource_dependency_compares_call_inputs(self):
@@ -868,7 +840,6 @@ class Redaction(unittest.TestCase):
         self.assertEqual(observer._redact("no secrets here"), "no secrets here")
 
     def test_github_token_pattern_finishes_promptly_on_adversarial_text(self):
-        # Shapes that made the pattern backtrack for seconds to minutes.
         github = [
             p
             for p, marker in observer._REDACTIONS
@@ -889,7 +860,6 @@ class Redaction(unittest.TestCase):
                 self.assertLess(time.monotonic() - start, 1.0)
 
     def test_jwt_url_and_email_patterns_finish_promptly_on_adversarial_text(self):
-        # Shapes that made these patterns backtrack for seconds to minutes.
         patterns = [
             p
             for p, marker in observer._REDACTIONS
@@ -919,7 +889,6 @@ class Redaction(unittest.TestCase):
                 self.assertLess(time.monotonic() - start, 1.0)
 
     def test_private_key_pattern_finishes_promptly_on_adversarial_text(self):
-        # A repeated header made the unbounded body scan take about 38 seconds.
         (key,) = (
             p
             for p, marker in observer._REDACTIONS
@@ -943,8 +912,6 @@ class Redaction(unittest.TestCase):
         self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {jwt} x"))
         long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
         self.assertEqual("<REDACTED: JWT>", r(long_header))
-        # A header past the bound, as with an embedded x5c chain, is redacted
-        # whole, payload and signature included.
         for size in (513, 4000):
             with self.subTest(header=size):
                 token = (
@@ -985,7 +952,6 @@ class ResultParsing(unittest.TestCase):
     def test_extract(self):
         self.assertEqual(observer._extract_result('{"result":"BLOCK"}'), "BLOCK")
         self.assertEqual(observer._extract_result('{"is_error":true,"result":"x"}'), "")
-        # Non-JSON output is a failed run, never findings.
         self.assertEqual(observer._extract_result("plain"), "")
 
     def test_error(self):
@@ -1024,9 +990,6 @@ class Locking(unittest.TestCase):
             ob.release_lock()
 
     def test_partial_write_lock_treated_live(self):
-        # A just-created lock the winner has not finished writing (empty/partial,
-        # fresh mtime) must be treated as LIVE, never reclaimed -- otherwise a
-        # racing loser could unlink it and both proceed.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp)
@@ -1037,9 +1000,6 @@ class Locking(unittest.TestCase):
             )
 
     def test_live_lock_not_reclaimed_by_age(self):
-        # A lock held by a LIVE pid must never be reclaimed, even if its recorded
-        # start is far past the tailing cap -- an idle-ended observer can hold its
-        # lock for the whole analysis run (its own timeout).
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp)
@@ -1088,7 +1048,6 @@ def fake_tasklist(stdout: bytes, captured: dict | None = None):
     `os.name` is patched process-wide until the `finally` restores it. Pass
     `captured` to record the kwargs `_pid_alive` handed `subprocess.run`.
     """
-
     class FakeProc:
         pass
 
@@ -1167,7 +1126,6 @@ def fake_analysis_run(
     `claude --version` reports to the flag gate (None: unparsable). `stdout`
     replaces the completed run's JSON body.
     """
-
     class FakeProc:
         returncode = 0
         stderr = ""
@@ -1184,7 +1142,6 @@ def fake_analysis_run(
     observer._find_claude = lambda: "claude"
     observer.subprocess.run = fake_run
     claude_cli._CLAUDE_VERSION_CACHE = version
-    # The ledger stamp's own run would replace the recorded analysis call.
     with mock.patch.object(observer.Observer, "_stamp_plugin_usage"):
         try:
             yield
@@ -1206,7 +1163,6 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertIn("session_id: s-1", text)
             self.assertIn("<REDACTED: GitHub token>", text)
             self.assertNotIn("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345", text)
-            # Second append reuses the same file (one ledger per session).
             ob._append_ledger("second block")
             self.assertEqual(
                 len(list((tmp / "ledger").glob("*-running-retro-*.md"))), 1
@@ -1337,8 +1293,6 @@ class LedgerAndRetention(unittest.TestCase):
                 self.assertNotIn("creationflags", captured)
 
     def test_analysis_unavailable_retains(self):
-        # claude CLI absent -> _run_analysis must report "not consumed" so run()
-        # keeps the observations as the collect fallback rather than deleting them.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp, analysis=True)
@@ -1425,16 +1379,8 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertTrue(ob.obs_path.exists())
 
     def test_tail_no_duplicate_events_on_growth(self):
-        # The offset must advance by bytes read, not the stat size, or a session
-        # that grows across polls re-emits its tail. Run the tailer while the file
-        # grows in batches and assert exactly one observation per record.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            # Growth ends about 1.8 s in; the 2 s idle window then opens and
-            # the 1 s idle confirmation closes the tail near 5 s. The idle
-            # confirmation is set explicitly because the harness default is
-            # the production 30 s, under which this case could only ever end
-            # at the lifetime deadline (a 30 s wait, measured in CI).
             ob = make_observer(
                 tmp,
                 analysis=False,
@@ -1448,7 +1394,7 @@ class LedgerAndRetention(unittest.TestCase):
 
             tailer = threading.Thread(target=ob._tail_until_idle)
             tailer.start()
-            time.sleep(0.3)  # let the tailer begin polling before growth starts
+            time.sleep(0.3)
             for _ in range(3):
                 with ob.transcript.open("a", encoding="utf-8") as f:
                     for _ in range(3):
@@ -1562,7 +1508,6 @@ class LedgerAndRetention(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(ob._resume_offset(), 4096)
-            # A status file for a DIFFERENT session must not be resumed from.
             ob.status_path.write_text(
                 json.dumps({"target_session": "other", "byte_offset": 999}),
                 encoding="utf-8",
@@ -1572,14 +1517,12 @@ class LedgerAndRetention(unittest.TestCase):
     def test_continuity_pointers_in_frontmatter(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            # Without pointers: only session_id + observer marker.
             a = make_observer(tmp, session_id="c1")
             a._append_ledger("f")
             self.assertNotIn(
                 "previous_running_retro",
                 a._find_session_ledger().read_text(encoding="utf-8"),
             )
-            # With pointers (as the in-session arm entry would pass): carried through.
             b = make_observer(tmp, session_id="c2")
             b.prev_running_retro = (
                 "/mem/running-retros/20260101T000000Z-running-retro-x.md"
@@ -1593,7 +1536,7 @@ class LedgerAndRetention(unittest.TestCase):
     def test_memory_root_self_ignore_guard(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            ob = make_observer(tmp, session_id="gi")  # ledger_dir = tmp/ledger
+            ob = make_observer(tmp, session_id="gi")
             ob._append_ledger("finding")
             gi = ob.ledger_dir.parent / ".gitignore"
             self.assertTrue(
@@ -1604,9 +1547,6 @@ class LedgerAndRetention(unittest.TestCase):
     def test_guard_refuses_repo_root_and_aborts_write(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            # memory root == a repo root (has .git): the guard must NOT create a
-            # .gitignore there, AND the ledger write must be refused (not left as
-            # an untracked committable file under the repo).
             (tmp / "ledger").mkdir()
             (tmp / ".git").mkdir()
             ob = make_observer(tmp, session_id="rr")
@@ -1627,7 +1567,7 @@ class LedgerAndRetention(unittest.TestCase):
             tmp = Path(d)
             ob = make_observer(
                 tmp, session_id="ex"
-            )  # memory root = tmp/ledger's parent = tmp
+            )
             root = ob.ledger_dir.parent
             (root / ".gitignore").write_text("# notes\n!keep.txt\n", encoding="utf-8")
             self.assertTrue(ob._ensure_memory_root_ignored())
@@ -1638,8 +1578,6 @@ class LedgerAndRetention(unittest.TestCase):
     def test_retention_rule(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            # Collect-only (analysis off): run() never consumes, so it never
-            # calls _cleanup_observations and the observations stay.
             ob = make_observer(tmp, analysis=False)
             ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
             self.assertTrue(
@@ -1766,15 +1704,6 @@ class ArmLauncher(unittest.TestCase):
                 str(tmp),
                 "--model",
                 "test-model",
-                # Analysis-free (no `claude -p` call) keeps this fast and
-                # hermetic; the spawn call itself -- the site of the bug --
-                # is still real. --idle-seconds is set well above the time
-                # this test needs to parse output, reload arm_observer.py,
-                # and probe liveness after spawn_detached returns, so the
-                # child cannot legitimately self-exit mid-assertion (that
-                # raced intermittently at 0.05s under load); --max-seconds
-                # is the leak backstop, short enough that a missed
-                # _terminate_and_wait still dies fast on its own.
                 "--idle-seconds",
                 "30",
                 "--max-seconds",

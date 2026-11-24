@@ -122,7 +122,7 @@
         {"path": "docs/conventions/enforcement-ladder/**", "reason": "enforcement-ladder tiers are the enforcement ladder's own"},
         {"path": "**/enforcement-ladder.md", "reason": "enforcement-ladder tiers are the enforcement ladder's own"},
         {"phrase": "\\bmemory[- ]tiers?\\b", "reason": "the memory tier is where a skill writes its working files"},
-        {"phrase": "\\b(model|strong|frontier|capability|cheap|fast)(:`)?[- ]tiers?\\b|\\bmodel:<tier>", "reason": "model tiers rank models by capability"},
+        {"phrase": "\\b(model|strong|frontier|capability|cheap|fast)(:`)?[- ]tiers?\\b|\\bmodel:<tier>", "reason": "capability tiers (frontier, strong, fast) rank models by capability"},
         {"path": "**/evals/**/samples/**", "reason": "recorded model output; an edit changes what the eval measures"},
         {"path": "**/evals/**/graders/**", "reason": "grader patterns matched against recorded samples; an edit changes what the eval measures"},
         {"phrase": "^\\s*(?:-\\s*)?pattern:\\s*['\"]", "reason": "a case.yaml grader pattern matched against recorded samples; an edit changes what the eval measures"},

@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
     --ttl-hours) TTL_HOURS="$2" ;;
     --ttl-minutes) TTL_MINUTES="$2" ;;
-    *) SESSION_ID="$2" ;; # --session-id, the one option left
+    *) SESSION_ID="$2" ;;
     esac
     shift 2
     ;;
@@ -128,8 +128,6 @@ wit_linear_set_assignee "$ISSUE_UUID" "$WIT_LINEAR_VIEWER_ID"
 # rollback that quietly cleans nothing.
 COMMENT_UUID=""
 
-# _wit_linear_other_live_lease <lease-comments-json>: 0 when a lease other than our own
-# comment (COMMENT_UUID) is live.
 _wit_linear_other_live_lease() {
   local entry
   while IFS= read -r entry; do
@@ -142,10 +140,6 @@ _wit_linear_other_live_lease() {
 
 _wit_linear_claim_rollback() {
   (
-    # BOTH guards must hold before clearing, because each one alone lets a different
-    # assignment through. The live-lease test alone would clear a foreign assignee whose
-    # lease has lapsed; the name test alone cannot tell our own write from another session
-    # of the same login. Their conjunction is strictly safer than either.
     _rb="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit 0
     _wit_linear_other_live_lease "$_rb" && exit 0
     wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
@@ -167,9 +161,6 @@ POSTED="$(wit_linear_post_comment "$ISSUE_UUID" "$(wit_linear_lease_marker "$PRO
 COMMENT_UUID="$(jq -r '.id' <<<"$POSTED")"
 HANDLE="$(wit_linear_handle "$(jq -r '.createdAt' <<<"$POSTED")")"
 
-# Write the minted handle back into the marker so later readers arbitrate on the same
-# number this claim reports, rather than re-deriving it from a timestamp they might
-# parse differently.
 LEASE="$(jq -c --argjson h "$HANDLE" '. + {lease_comment_id: $h}' <<<"$PROVISIONAL")"
 wit_linear_update_comment "$COMMENT_UUID" "$(wit_linear_lease_marker "$LEASE")"
 
@@ -185,8 +176,6 @@ while IFS= read -r entry; do
   lease="$(jq -c '.lease' <<<"$entry")"
   wit_linear_lease_live "$lease" || continue
   ehandle="$(jq -r '.handle' <<<"$entry")"
-  # Strictly earlier by handle, or equal handle and lexically smaller comment id — the
-  # same total order both racers compute.
   if ((ehandle < HANDLE)) || { ((ehandle == HANDLE)) && [[ "$cid" < "$COMMENT_UUID" ]]; }; then
     LOSER="$(jq -r '.holder // "another session"' <<<"$lease")"
     break
@@ -194,28 +183,9 @@ while IFS= read -r entry; do
 done < <(jq -c '.[]' <<<"$AFTER")
 
 if [[ -n "$LOSER" ]]; then
-  # Disarm before the branch's own unassign decision. From here the claim is SETTLED —
-  # we lost — and this block already decides the assignee correctly by re-fetching and
-  # comparing the holder. Leaving the trap armed would run a second, unconditional
-  # unassign after that guarded one, stripping the winner's live claim: exactly the
-  # failure the guarded check below exists to prevent.
   trap - EXIT
   SUPERSEDED="$(jq -c --arg t "$(wit_linear_now_iso)" '. + {superseded_at: $t}' <<<"$LEASE")"
   wit_linear_update_comment "$COMMENT_UUID" "$(wit_linear_lease_marker "$SUPERSEDED")"
-  # Unassign only if NOBODY ELSE holds a live lease. Same reasoning as the rollback trap
-  # above: HOLDER is a display name, so comparing it against the assignee cannot tell our
-  # own write from another session of the same login — and losing to a same-login rival is
-  # the ordinary case here, not an exotic one. We know a live lease exists (that is why we
-  # are in this branch), so this normally leaves the assignee for the winner rather than
-  # clearing it. A stale name in the slot is cosmetic; a cleared slot puts an actively
-  # worked item back on the frontier, which `lib/frontier.sh` selects purely on assignee
-  # emptiness with no lease check.
-  # A FAILED re-read means "lease state unknown", never "no live leases". Defaulting it
-  # to an empty list would fail OPEN: the name compare below normally still matches
-  # HOLDER at this point, so an unreadable lease set would clear the winner's live
-  # assignment — reintroducing, on the error path, the very bug this branch guards
-  # against. The rollback trap above fails safe on the identical read (`|| exit 0`), and
-  # these two sites must not disagree about what "cannot tell" means.
   LOSER_LIVE=""
   wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
   if AFTER2="$(wit_linear_lease_comments "$ISSUE_UUID")"; then
@@ -232,8 +202,6 @@ if [[ -n "$LOSER" ]]; then
   exit "$EX_CONFLICT"
 fi
 
-# Arbitration confirms our lease is the winner — the claim is complete and the
-# assignment is the one we intend to leave behind.
 trap - EXIT
 
 jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$ID" --argjson lease "$LEASE" \

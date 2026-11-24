@@ -338,7 +338,6 @@ parsed="$(
   exit 2
 }
 
-# records <kind>: every parsed record of that kind, one per line, or nothing.
 records() { grep "^$1 " <<<"$parsed" || true; }
 
 shape_errors="$(records ERR)"
@@ -381,8 +380,8 @@ fi
 optout_entries=()
 read_list::into optout_entries "$STEP_OPT_OUTS" --comments leading || exit 2
 
-step_optouts=""        # "<job>/<id>" per line
-step_optout_reasons="" # "<job>/<id><TAB><reason>" per line
+step_optouts=""
+step_optout_reasons=""
 TAB=$'\t'
 for optout_line in ${optout_entries[@]+"${optout_entries[@]}"}; do
   entry="${optout_line%%[[:blank:]]*}"
@@ -396,7 +395,6 @@ for optout_line in ${optout_entries[@]+"${optout_entries[@]}"}; do
   step_optout_reasons+="${entry}${TAB}${entry_reason}"$'\n'
 done
 
-# Newline-delimited membership test without forking.
 has_line() { case $'\n'"$1" in *$'\n'"$2"$'\n'*) return 0 ;; *) return 1 ;; esac }
 
 errors=0
@@ -404,8 +402,6 @@ report() {
   echo "$1" >&2
   errors=$((errors + 1))
 }
-
-# --- job level --------------------------------------------------------------
 
 annotated_jobs=""
 while read -r _ job flag reason; do
@@ -436,16 +432,11 @@ while IFS= read -r need; do
     report "DANGLING NEED: ${AGGREGATE}.needs names '$need', which is not a job defined in $WORKFLOW."
 done <<<"$needs_all"
 
-# --- step level -------------------------------------------------------------
-
 rec_stepid="$(records STEPID)"
 rec_coe="$(records COE)"
 rec_feed="$(records FEED)"
 rec_stepname="$(records STEPNAME)"
 
-# step_field_of <records> <job> <ordinal>: the trailing field of the matching
-# record, or empty. STEPID records carry the id a step declares; STEPNAME
-# records carry the display name, for a step with no id.
 step_field_of() {
   local _ j o value
   while read -r _ j o value; do
@@ -455,8 +446,6 @@ step_field_of() {
   done <<<"$1"
 }
 
-# Every gate step as "<job>/<id>"; every feed read the same way; every id
-# declared anywhere, so a dangling feed row can say WHICH half is missing.
 gate_steps=""
 all_step_ids=""
 while read -r _ j o id; do
@@ -519,11 +508,6 @@ while IFS="$TAB" read -r entry oreason; do
   fi
 done <<<"$step_optout_reasons"
 
-# --- across workflows -------------------------------------------------------
-
-# check_names <workflow>: one check name per job, the literal 4-space `name:`
-# when the job has one, else the job id. A reusable-workflow job and a name
-# built from an expression print nothing: neither is a plain check name.
 check_names() {
   awk -v q="'" '
     function flush() {

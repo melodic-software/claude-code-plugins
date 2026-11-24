@@ -71,6 +71,7 @@ import {
   SKIP_STATE_PREFIX,
   pinBody,
   pinMoved,
+  supersededBody,
   VETO_MARKER,
   vetoLabelOwned,
   vetoNote,
@@ -434,6 +435,7 @@ const personNote = (reason, partial = false) =>
     ...(partial ? [`<!-- pr-merge-partial head=${HEAD} -->`] : []),
   ].join("\n");
 const ISSUES = "/repos/melodic-software/claude-code-plugins/issues";
+const SUPERSEDED = { method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: supersededBody(HEAD) } };
 const lanesSaid = (body, updatedAt = "2026-10-23T10:00:00Z") => ({
   databaseId: 77,
   author: { __typename: "Bot", login: LANES.login },
@@ -958,7 +960,7 @@ test("an approval that lifts only the hold path re-holds once for what remains, 
   assert.deepEqual(stays.notes, []);
   const clear = await run([approved({ verdict: PASSED, discussion: { reviews, comments: [lanesSaid(personNote(BOTH))] } })], trustedKyle());
   assert.deepEqual(clear.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-  assert.deepEqual(clear.notes, []);
+  assert.deepEqual(clear.notes, [SUPERSEDED]);
 });
 
 test("the same reason set in another order is no change", async () => {
@@ -1020,7 +1022,7 @@ test("a labeled pull request whose standing refusal lacks the verifier's answer 
   assert.deepEqual(after.notes, []);
   const lifted = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] }, timeline: liftTimeline(personNote(HOLD_PATH_REASON, true)) })], trustedKyle());
   assert.deepEqual(lifted.verified, [2]);
-  assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
+  assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }, SUPERSEDED]);
   assert.equal(lifted.writes.at(-1)?.mutation, "arm");
   const next = await run([held({ verdict: PASSED, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } })], trustedKyle());
   assert.deepEqual(next.verified, []);
@@ -1298,6 +1300,38 @@ test("a pin that fails to post leaves it unarmed and fails the run", async () =>
 test("report-only posts no pin", async () => {
   const { pins } = await run([pull(7)], { REPORT_ONLY: "true" });
   assert.deepEqual(pins, []);
+});
+
+const refusalEdits = (notes) => notes.filter(({ method, path }) => method === "PATCH" && path.startsWith(`${ISSUES}/comments/`));
+
+test("an arm rewrites the lanes App's unarmed note as superseded at the armed head, with no marker left", async () => {
+  const { code, writes, notes, lines } = await run([pull(7, { discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } })]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+  const edits = refusalEdits(notes);
+  assert.deepEqual(edits.map(({ path }) => path), [`${ISSUES}/comments/77`], "the refusal comment is edited in place, not deleted or posted anew");
+  assert.match(edits[0].body.body, /superseded/i, "the rewrite says the note is superseded");
+  assert.ok(edits[0].body.body.includes(HEAD), "the rewrite names the armed head");
+  assert.doesNotMatch(edits[0].body.body, /<!--|unarmed at head/, "no refusal marker or unarmed claim is left for a reader to take as standing");
+  assert.ok(lines.some((line) => line.includes("#7 refusal comment 77 marked superseded")));
+});
+
+test("no unarmed note is rewritten when the arm fails, the run is report-only, or the note is not the lanes App's", async () => {
+  const note = { discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } };
+  const moved = new Error("POST /graphql (GraphQL errors) failed with status 200: Head sha didn't match expected head oid");
+  assert.deepEqual(refusalEdits((await run([pull(7, note)], {}, { armErrors: { PR_7: [moved] } })).notes), [], "a failed arm");
+  assert.deepEqual(refusalEdits((await run([pull(7, note)], { REPORT_ONLY: "true" })).notes), [], "report-only");
+  const quoted = { ...said("kyle-sexton", laneNote(MISSING_REASON), "2026-10-23T10:00:00Z"), databaseId: 78 };
+  const { writes, notes } = await run([pull(7, { discussion: { comments: [quoted] } })]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+  assert.deepEqual(refusalEdits(notes), [], "a person's comment");
+});
+
+test("an unarmed note that fails to rewrite leaves the arm standing and warns", async () => {
+  const { code, writes, lines } = await run([pull(7, { discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } })], {}, { noteErrors: [new Error("PATCH comment failed with status 502")] });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#7 refusal comment 77 not marked superseded")));
 });
 
 test("a Hold: line, do-not-merge or the human-gated label leaves it unarmed", async () => {
@@ -3536,7 +3570,7 @@ test("a hold-path escalation lifts its label only on a trusted person's approval
   const held = (discussion, files = HELD, overrides = {}) => pull(2, { files, labels: labels("needs-human"), verdict: PASSED, discussion, timeline: liftTimeline(), ...overrides });
   const escalated = [lanesSaid(personNote(HOLD_PATH_REASON))];
   const lifted = await run([held({ reviews: [reviewed("APPROVED")], comments: escalated })], trustedKyle());
-  assert.deepEqual(lifted.notes, [LIFT]);
+  assert.deepEqual(lifted.notes, [LIFT, SUPERSEDED]);
   assert.equal(lifted.writes.at(-1)?.mutation, "arm");
 
   const refused = {
@@ -3606,10 +3640,10 @@ test("an approved hold-path escalation keeps its label while anything else stand
     assert.ok(result.lines.some((line) => String(line).startsWith("enable-auto-merge: #2 keeps needs-human: ") && String(line).includes(reason)), `${why}: ${result.lines.join("\n")}`);
   }
   const personLifted = await run([held({ timeline: [restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=security -->`, "2026-10-22T09:00:00Z"), labelEvent(KYLE, "2026-10-22T09:30:00Z", { event: "unlabeled" }), note, label, approval] })], trustedKyle());
-  assert.deepEqual(personLifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
+  assert.deepEqual(personLifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }, SUPERSEDED]);
   const edited = { ...note, updated_at: after };
   const lifted = await run([held({ timeline: [edited, label, approval, restSaid(claude, "Review done, no findings.", after)], restReviews: [{ user: KYLE, state: "APPROVED", submitted_at: after }] })], trustedKyle());
-  assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
+  assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }, SUPERSEDED]);
 });
 
 test("pythonClose runs the reader's capped-close at the base with the hold labels, and throws on a failed exit", () => {
@@ -3670,7 +3704,7 @@ test("with path holds off, a standing hold-path refusal comes off with no approv
   const held = (comments, files = GATE_SCRIPT) =>
     pull(2, { files, labels: labels("needs-human"), verdict: PASSED, discussion: { comments }, timeline: liftTimeline(personNote(reason)).slice(0, 2) });
   const lifted = await run([held([lanesSaid(personNote(reason))])], { ...trustedKyle(), ...pathHoldsOff() });
-  assert.deepEqual(lifted.notes, [LIFT]);
+  assert.deepEqual(lifted.notes, [LIFT, SUPERSEDED]);
   assert.equal(lifted.writes.at(-1)?.mutation, "arm");
   assert.ok(lifted.lines.some((line) => String(line).includes("lifted needs-human: path holds are off")), lifted.lines.join("\n"));
   const kept = await run([held([lanesSaid(personNote(reason))])], trustedKyle());
@@ -3715,7 +3749,7 @@ test("with path holds off, a standing risk refusal naming only path holds comes 
     pull(2, { files: GATE_SCRIPT, labels: labels("needs-human"), verdict: PASSED, discussion: { comments: [lanesSaid(personNote(reason))] }, timeline: liftTimeline(personNote(reason)).slice(0, 2) });
   const off = { ...trustedKyle(), ...pathHoldsOff() };
   const lifted = await run([held(risk(`high-path:${gate}: ${gate}`))], off);
-  assert.deepEqual(lifted.notes, [LIFT], lifted.lines.join("\n"));
+  assert.deepEqual(lifted.notes, [LIFT, SUPERSEDED], lifted.lines.join("\n"));
   for (const [why, reason, env] of [
     ["path holds on", risk(`high-path:${gate}: ${gate}`), trustedKyle()],
     ["an unsafe path", risk("high-path:**: 'a' mode '120000' (symlink)"), off],
@@ -4296,6 +4330,24 @@ test("an accepted async merge whose result ends failed leaves the layer with a p
   const waiting = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, mergeResults: [pending] })]);
   assert.deepEqual(waiting.slept, [5000, 5000, 5000, 5000, 5000, 5000]);
   assert.deepEqual(waiting.notes, []);
+});
+
+test("a stack bottom layer's accepted or already-pending async merge rewrites its unarmed note as superseded; a refused one does not", async () => {
+  const discussion = { comments: [lanesSaid(laneNote(MISSING_REASON))] };
+  const pending = new GitHubError(409, "PUT /repos/melodic-software/claude-code-plugins/pulls/7/merge-async");
+  for (const [label, extra] of [["accepted", {}], ["already pending", { mergeError: pending }]]) {
+    const { code, writes, notes, lines } = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, discussion, ...extra })]);
+    assert.equal(code, 0, label);
+    assert.deepEqual(writes, [], `${label}: a bottom layer is never armed`);
+    const edits = refusalEdits(notes);
+    assert.deepEqual(edits.map(({ path }) => path), [`${ISSUES}/comments/77`], label);
+    assert.equal(edits[0].body.body, supersededBody(HEAD, true), label);
+    assert.doesNotMatch(edits[0].body.body, /<!--|unarmed at head|armed native auto-merge/, label);
+    assert.ok(lines.some((line) => line.includes("#7 refusal comment 77 marked superseded by the async merge request")), label);
+  }
+  const refused = new GitHubError(403, "PUT /repos/melodic-software/claude-code-plugins/pulls/7/merge-async");
+  const { notes } = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, discussion, mergeError: refused })]);
+  assert.ok(!notes.some(({ method, body }) => method === "PATCH" && body?.body === supersededBody(HEAD, true)), "a refused async merge supersedes nothing");
 });
 
 test("an async merge already pending is neither a refusal nor sent again", async () => {

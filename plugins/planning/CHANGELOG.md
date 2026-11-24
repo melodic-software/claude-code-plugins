@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.15.5] - 2026-11-24
+
+### Changed
+
+- `/planning:interview` session config calls its model knob the capability tier, the glossary
+  word, in place of model tier.
+
 ## [5.15.4] - 2026-11-24
 
 ### Changed

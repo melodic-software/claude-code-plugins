@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-hook-exec-form.sh. Builds a tiny synthetic plugins/ tree
-# per scenario in a temp dir and invokes the script against it directly -- the
-# script's own `cd "$(dirname "$0")/.."` makes this work unmodified: copy it to
-# <fixture>/scripts/ and it scans <fixture>/plugins/.
 # shellcheck disable=SC2016  # fixture bodies are literal JSON/YAML carrying ${CLAUDE_PLUGIN_ROOT}; expansion is never wanted
 set -uo pipefail
 
@@ -20,15 +16,12 @@ REQUIREMENTS="$SELF_DIR/../.github/requirements-ci.txt"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-new_fixture() { # <out-var>
+new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --sut "$READER" --plugins || return 1
-  # The gate reads the pyyaml pin from here for its uv fallback; copy the real
-  # file so a fixture run resolves the same version CI installs.
   mkdir -p "${!1}/.github"
   cp "$REQUIREMENTS" "${!1}/.github/requirements-ci.txt"
 }
 
-# plugin_file <fixture> <plugin> <relpath> <content>
 plugin_file() {
   local fixture="$1" plugin="$2" rel="$3" content="$4"
   mkdir -p "$fixture/plugins/$plugin/$(dirname "$rel")"
@@ -85,7 +78,6 @@ SHELL_FORM_HOOKS='{
   }
 }'
 
-# Exec form done right: the interpreter is a rooted path, not a PATH lookup.
 ROOTED_EXEC_HOOKS='{
   "hooks": [
     {
@@ -164,9 +156,6 @@ for name in bash sh python python3 py pwsh deno; do
   rm -rf "$f"
 done
 
-# --- allowlist contents are pinned ------------------------------------------
-# Growing the allowlist must be a visible, reviewed diff that also edits this
-# assertion -- never a quiet one-word change.
 if [[ "$(grep -c '^EXEC_NAME_ALLOWLIST=' "$SELF_DIR/lib/hook-configs.sh")" == 1 ]] &&
   grep -q '^EXEC_NAME_ALLOWLIST=(node)$' "$SELF_DIR/lib/hook-configs.sh"; then
   ok "allowlist is pinned to exactly (node)"
@@ -283,7 +272,6 @@ else
 fi
 rm -rf "$f"
 
-# skill_md <fixture> <plugin> <relpath> <content>
 skill_md() { plugin_file "$@"; }
 
 # The #2568 shape: exec form on a bare python3 in a SKILL.md frontmatter hook.
@@ -478,10 +466,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: braces inside an ordinary scalar are not structure --------
-# A block-sequence `args` entry may legitimately be a JSON-ish string. Reading
-# YAML as text made that look like a flow mapping and red-lined a valid file;
-# a real parser cannot make that mistake.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -597,9 +581,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a duplicate arriving through a merge key is still caught --
-# A merged mapping contributes its keys to the hook object, so checking only
-# the keys written at the hook object itself would leave `<<` as the way in.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 base: &base
@@ -623,9 +604,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: unparsable YAML fails closed ------------------------------
-# The one thing a real parser still cannot clear. A file the gate cannot read
-# is a file it must not pass.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -701,10 +679,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a YAML alias under the key is resolved, not skipped -------
-# `hooks:` whose value is `*shared` expands to the anchored mapping. The old
-# text walk matched neither a sequence nor a mapping key on that line and
-# skipped it, so an anchored exec-form hook cleared the gate.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 shared: &shared
@@ -748,9 +722,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a merge key is expanded ----------------------------------
-# `<<: *base` makes the merged mapping's keys the hook object's keys, so the
-# exec-form pair arrives through the merge and must still be seen.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 base: &base
@@ -815,10 +786,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter outside the hooks key is never judged ----------------------
-# Every markdown file under plugins/ reaches the reader, so shapes elsewhere in
-# the frontmatter must stay inert -- otherwise the gate would red-line ordinary
-# skills for YAML that has nothing to do with hooks.
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 description: |
@@ -840,9 +807,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an unparsable hook config fails closed ---------------------------------
-# A file the gate cannot read is a file the gate cannot clear; skipping it
-# silently would recreate the no-op-that-looks-green failure it exists to stop.
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks": [ this is not json'
 if out="$(run_check "$f" 2>&1)"; then
@@ -937,9 +901,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a newline in a command stays on its row --------------------------------
-# A raw newline used to split the row: `"node\n"` cleared as `node`, and
-# `"/opt/x\nbash"` came back as a finding naming the file `bash`.
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"node\n","args":["x.mjs"]}]}]}}'
 if out="$(run_check "$f" 2>&1)"; then

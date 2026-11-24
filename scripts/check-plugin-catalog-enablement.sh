@@ -103,8 +103,6 @@ if [[ -z "$catalog" ]]; then
   exit 2
 fi
 
-# Keys in declaration order (for the sort check) and the plugin names they
-# carry for this marketplace (for the set comparisons).
 declared_keys="$(jq -r '.enabledPlugins // {} | keys_unsorted[]' "$SETTINGS" | tr -d '\r')"
 
 # Suffix stripping is a LITERAL parameter expansion, never a `sed` expression

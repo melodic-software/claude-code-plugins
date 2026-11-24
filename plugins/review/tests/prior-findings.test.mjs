@@ -194,7 +194,6 @@ describe("earlier reviews and blocking only", () => {
     const reviewed = (comments, head = edited) => collect({ threads: [], reviews: [], comments, lane: LANE, head, diff }).reviewed;
     assert.equal(reviewed([summary(v1, 1), summary(shifted, 2)]), 2);
     assert.equal(reviewed([summary(v1, 0)]), 1);
-    // A partial read is not a whole review: files no review saw stay unreviewed.
     assert.equal(reviewed([summary(v1, 0, BOT, "3 of 18")]), 0);
     assert.equal(reviewed([summary(v1, 0, BOT, "0 of 18")]), 0);
     assert.equal(reviewed([skip]), 0);
@@ -217,7 +216,6 @@ describe("earlier reviews and blocking only", () => {
     const result = (comments) => collect({ threads: [thread(BOT)], reviews: [review], comments, lane: LANE, head: edited, diff }).reviewed;
     assert.equal(result([partialSummary]), 0);
     assert.equal(result([]), 1);
-    // A skip's comment on v1 reports no read, so it does not mark v1 partial.
     const skip = { ...partialSummary, body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${v1} -->\n**${LANE}** needs no new review of \`${v1}\`: no file in scope changed.` };
     assert.equal(result([skip]), 1);
   });

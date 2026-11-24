@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$blocker" ]] || wit_usage_error "--blocked-by is required"
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id"
-number="$WIT_ID_NUMBER" # capture before the blocker parse overwrites WIT_ID_NUMBER
+number="$WIT_ID_NUMBER"
 wit_require_local_id "$blocker" || wit_usage_error "malformed or non-local-markdown --blocked-by id: $blocker"
 blocker_number="$WIT_ID_NUMBER"
 

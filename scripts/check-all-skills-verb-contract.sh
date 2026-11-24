@@ -38,7 +38,6 @@ done
 work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
-# One checker run per root: <n>.out holds its output, <n>.rc its exit code.
 jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
 # shellcheck disable=SC2016  # the inner script expands its own positionals
 for i in "${!roots[@]}"; do

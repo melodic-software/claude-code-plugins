@@ -17,18 +17,11 @@ cd "$REPO_ROOT" || exit 1
 # Captured output is matched in-shell, never piped into an early-exit reader.
 has_line() { [[ $'\n'$1$'\n' == *$'\n'"$2"$'\n'* ]]; }
 
-# Runs the selector on its arguments: stdout lands in out, the exit status in RC.
 select_for() {
   out="$(bash scripts/affected-tests.sh "$@" 2>/dev/null)"
   RC=$?
 }
 
-# --- LIVE repo: the derived copy set equals the published manifest today ---
-# The synthetic cases above prove the mechanism; this one proves it is still
-# wired to THIS repository, which is what rots. The oracle is each script's
-# --print-manifest surface (not a transcription of src=/copies=( scraping), so
-# renaming those variables cannot make this assertion go green for the wrong
-# reason.
 standards_src=docs/contracts/standards/README.md
 [[ -f "$standards_src" ]] || standards_src=docs/conventions/standards/README.md
 manifest=scripts/sync-shared-copies.sh
@@ -71,7 +64,6 @@ if [[ "$live_missing" -eq 0 ]]; then
   ok "every live scripts/sync-*.sh implements --print-manifest"
 fi
 
-# --- LIVE repo: a real shared-lib change reaches a real carrying plugin ----
 select_for lib/hook-utils.sh
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" lib/hook-utils.test.sh &&
@@ -82,13 +74,6 @@ else
   fail "live hook-utils fan-out (rc=$RC): $out"
 fi
 
-# --- LIVE repo: a STRUCTURAL basename that is also a sync src -------------
-# The standards contract (docs/contracts/standards/README.md) is both. R3/R4 must ignore the basename
-# (every plugin has a README.md, so the match carries no signal) while R5 must
-# still fan the change out to the differently-named copies the manifest
-# declares — plugins/*/reference/standards-contract.md — and on to the suites
-# that bind against them. Neither the synthetic fixture nor the copy-set
-# assertions above isolate that interaction.
 select_for "$standards_src"
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" plugins/planning/tests/standards-binding.test.sh &&
@@ -98,34 +83,8 @@ else
   fail "standards-contract fan-out (rc=$RC): $out"
 fi
 
-# ... while YAML under .github/, which actionlint/zizmor/check-jsonschema DO
-# read, stays covered by the .github/* entry. Without this, the cases above
-# would pass just as well if someone deleted .github/* too — and since the
-# probe here is itself a *.yaml, it is the direct evidence that dropping the
-# bare *.yaml entry did not orphan the one YAML that had a real lane.
-#
-# Asserted as a SILENT no-suite exit (rc 0 AND an empty selection), not merely
-# rc 0: a path that some suite happens to name is selected by R3 long before the
-# no-suite list is consulted, which would pass a bare rc-0 check while proving
-# nothing about .github/*. That is not hypothetical — .github/workflows/pr-require-checks.yml
-# is named by two suites and reaches exit 0 through R3, so it cannot serve as
-# this probe. Discovered by glob, never spelled: a path spelled here would make
-# this script name it, and R3 would select through it the same way.
-#
-# The candidate is additionally FILTERED to one that no grepped-language file
-# names at all, rather than assuming the sole `.github/*.yaml` qualifies: a
-# file some suite reaches through R3 reaches exit 0 the way
-# pr-require-checks.yml does, so it cannot serve as this probe either.
-#
-# The filter is an INDEPENDENT oracle (a direct git grep for the basename), not
-# a call to affected-tests.sh: picking the probe with the tool under test would
-# make the assertion below tautological. One incoming reference anywhere is
-# enough to disqualify a candidate, because R3's first level would then have
-# somewhere to go.
 wf_yaml=""
 while IFS= read -r c; do
-  # scripts/workflow-self-paths.test.sh declares `.github/workflows/*` (R8), so
-  # a workflow file selects that suite and cannot be the probe.
   [[ "$c" == .github/workflows/* ]] && continue
   if ! git grep -q -F -- "${c##*/}" \
     -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' 2>/dev/null; then
@@ -145,15 +104,6 @@ else
   fail ".github YAML should exit 0 with no suites (rc=$RC): $out"
 fi
 
-# --- LIVE repo: the false coverage that masked a real suite ----------------
-# babysit_lease.py's suite is scripts/tests/test_babysit_lease.py, and nothing
-# in the corpus spells that filename: every consumer says `import
-# babysit_lease`. Under the old substring lookup the file still came back
-# MAPPED, at exit 0, with five suites — none of them its own — purely because
-# `babysit_lease.py` is a substring of `manage_babysit_lease.py`. That is the
-# masked-zero-coverage shape the boundary rule exists to expose, and exposing it
-# is only half the fix: the co-located rule then has to find the real suite by
-# path, or a covered file reports UNMAPPED.
 select_for plugins/source-control/skills/babysit-prs/scripts/babysit_lease.py
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_lease.py; then
@@ -162,7 +112,6 @@ else
   fail "live tests/ subdirectory suite (rc=$RC): $out"
 fi
 
-# --- LIVE repo: a co-located change stays narrow ---------------------------
 select_for plugins/eol-normalizer/hooks/eol-normalizer.sh
 count="$(printf '%s\n' "$out" | grep -c '.')"
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/eol-normalizer/hooks/eol-normalizer.test.sh && [[ "$count" -lt 10 ]]; then
@@ -171,10 +120,6 @@ else
   fail "live co-located selection too wide or wrong (rc=$RC, count=$count): $out"
 fi
 
-# --- LIVE repo: the false-UNMAPPED regression this all exists to fix -------
-# hook_telemetry.py sits directly beside test_hook_telemetry.py and was still
-# reported UNMAPPED. Asserted against the LIVE repo, not a fixture: the point is
-# that the tool tracks THIS corpus's real conventions.
 select_for plugins/disk-hygiene/lib/hook_telemetry.py
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/disk-hygiene/lib/test_hook_telemetry.py; then
   ok "live: a .py beside its test_<stem>.py is no longer UNMAPPED"
@@ -204,12 +149,6 @@ else
   fi
 fi
 
-# --- LIVE repo: the two suite breaks only a full main run caught --------------
-# Both were a skill body edit breaking a suite that never spells the body's
-# path the plain way: one scans its plugin's markdown (R8 declares it), the
-# other spells the body relative to its plugin (AMBIGUOUS NAMES resolves it).
-# The probe bodies are discovered by glob, so renaming or deleting either fails
-# this case.
 for probe in 'plugins/github/skills/advise/S*.md|plugins/github/github.test.sh' \
   'plugins/planning/skills/interview/S*.md|plugins/planning/tests/interview-defenses.test.sh'; do
   body="$(git ls-files "${probe%%|*}")"
@@ -248,7 +187,6 @@ read_pairs=(
   "plugins/javascript-format/hooks/javascript-format-end-of-turn.test.sh|plugins/javascript-format/hooks/exec-bash.mjs"
   "plugins/code-metrics/skills/audit/scripts/audit-complexity.test.sh|plugins/code-metrics/scripts/yaml_subset.py"
   "plugins/instruction-placement/git-hooks/index-check.test.sh|plugins/instruction-placement/.claude-plugin/plugin.json"
-  # Suites that read every plugin's manifest through a path built from parts.
   "lib/view-settings.test.sh|plugins/architecture/.claude-plugin/plugin.json"
   "scripts/check-data-root.test.sh|plugins/architecture/.claude-plugin/plugin.json"
 )

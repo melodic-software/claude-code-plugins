@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.15.1] - 2026-11-24
+
+### Changed
+
+- `/work-items:attend-queue` and the README call the loop-lane queue the attended queue, the
+  glossary word, and `/work-items:work` reports an escalation as
+  `Status: escalated to the attended queue`. The `clear the human queue` trigger phrase stays.
+
 ## [15.15.0] - 2026-11-24
 
 ### Added

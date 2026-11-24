@@ -277,7 +277,7 @@ plugins/guardrails/hooks/block-root-delete-target-d.test.sh 62
 plugins/guardrails/hooks/block-root-delete-target-e.test.sh 46
 plugins/guardrails/hooks/block-root-delete-target-f.test.sh 103
 plugins/guardrails/hooks/block-root-delete-target.test.sh 130
-plugins/guardrails/hooks/block-unresolved-pr-merge.test.sh 28
+plugins/guardrails/hooks/merge-guard.test.sh 28
 plugins/guardrails/hooks/block-windows-drive-tmp.test.sh 10
 plugins/guardrails/hooks/cli-flag-verify.test.sh 5
 plugins/guardrails/hooks/coverage-manifest.test.sh 1

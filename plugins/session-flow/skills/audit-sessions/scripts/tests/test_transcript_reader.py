@@ -53,7 +53,6 @@ def test_other_record_types_classify_as_unknown_and_are_counted():
 
     kinds = Counter(transcript_reader.record_kind(r) for r in records)
 
-    # Fixture tail: future-record-kind twice, another-new-kind once, one record with no type.
     assert kinds["unknown"] == 4
     assert stats["unknown"] == 4
     assert stats["records"] == 17
@@ -100,7 +99,6 @@ def test_ignored_types_are_exactly_the_unread_ones():
 def test_malformed_lines_are_counted_and_skipped():
     records, stats = read(READER / "malformed.jsonl")
 
-    # Truncated object, plain text, a JSON array and a JSON string are bad; the blank line is not.
     assert [r["uuid"] for r in records] == ["m-01", "m-07"]
     assert stats["bad_lines"] == 4
     assert stats["incomplete"] == 0
@@ -204,7 +202,6 @@ def test_usage_dedup_keeps_the_last_record_per_message_id():
         assistant("a-4", "msg_B", input_tokens=3, output_tokens=7, cache_read_input_tokens=50),
     )
 
-    # Per-record sums would be input 33, output 72, cache_read 350.
     assert (totals["input"], totals["output"], totals["cache_read"]) == (13, 47, 150)
     assert totals["unique_messages"] == 2
 
@@ -251,7 +248,6 @@ def test_usage_ledger_ignores_drifted_shapes_without_raising():
         assistant("d-5", "msg_F", output_tokens=8),
     )
 
-    # d-3's list id is unusable as a key, so its uuid keys it; msg_E's string and null are not counts.
     assert totals["output"] == 5 + 8
     assert totals["unique_messages"] == 3
 
@@ -398,9 +394,7 @@ def test_reminder_strip_and_sdk_source_need_a_human_origin(record):
         ({"type": "user", "message": "a string, not an object"}, False),
         ({"type": "user", "message": {"content": ["text", 7, None]}}, False),
         ({"type": "user", "message": {"content": [{"type": "text", "text": 42}]}}, False),
-        # A non-object origin carries no kind, so the rule reads it as absent.
         ({"type": "user", "origin": "human", "message": {"content": "hello"}}, True),
-        # A promptSource that is present but not typed/queued fails the rule, whatever its shape.
         ({"type": "user", "promptSource": ["typed"], "message": {"content": "hello"}}, False),
     ],
     ids=["message-string", "content-scalars", "text-not-string", "origin-string", "prompt-source-list"],
@@ -430,8 +424,6 @@ def test_subagents_stream_with_their_meta(copy_fixture):
 
     subagents = list(transcript_reader.iter_subagents(root / "sess-0001.jsonl"))
 
-    # notes.jsonl is not an agent file and agent-d4 has meta but no transcript; neither is yielded.
-    # agent-b2 has no meta file and agent-c3's is malformed: both yield meta None.
     assert [s.path.name for s in subagents] == ["agent-a1.jsonl", "agent-b2.jsonl", "agent-c3.jsonl"]
     assert [s.meta for s in subagents] == [
         {"agentType": "general-purpose", "model": "model-y", "spawnDepth": 1},
@@ -449,7 +441,6 @@ def test_subagent_records_stream_through_the_reader(copy_fixture):
         for record in transcript_reader.iter_records(subagent.path, stats):
             ledger.add(record)
 
-    # msg_a1 streams 3 then 9 (last wins), msg_b2 4, msg_c3 2; agent-b2 carries one bad line.
     assert ledger.totals()["output"] == 9 + 4 + 2
     assert stats["records"] == 5
     assert stats["bad_lines"] == 1

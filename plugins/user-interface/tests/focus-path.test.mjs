@@ -11,10 +11,6 @@ const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "../scripts/focus-p
 const run = (args) => spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf8" });
 const box = (x, y, width, height) => ({ x, y, width, height });
 
-// The onboarding card from the focus-order lesson: Name and Email stacked, then a footer row with
-// Back on the left and Continue on the right. The DOM puts Continue before Back, so focus runs
-// 1 Name, 2 Email, 3 Continue, 4 Back, and the lesson flags only 3 -> 4: focus jumps backward from
-// the right-hand Continue to the left-hand Back.
 const lessonCard = [
   { name: "Name", tabIndex: 0, domIndex: 0, rect: box(24, 100, 320, 36) },
   { name: "Email", tabIndex: 0, domIndex: 1, rect: box(24, 150, 320, 36) },
@@ -22,8 +18,6 @@ const lessonCard = [
   { name: "Back", tabIndex: 0, domIndex: 3, rect: box(24, 210, 60, 36) },
 ];
 
-// The same card with the markup reordered so Back comes before Continue: the path reads left to
-// right and top to bottom, so nothing is flagged.
 const fixedCard = [
   { name: "Name", tabIndex: 0, domIndex: 0, rect: box(24, 100, 320, 36) },
   { name: "Email", tabIndex: 0, domIndex: 1, rect: box(24, 150, 320, 36) },
@@ -52,16 +46,12 @@ test("positive tabindex values come first by number, then zero in document order
   assert.deepEqual(order, ["c", "b", "e", "a", "f"]);
 });
 
-// The same stops as above handed over in reverse document order: the order comes from tabIndex and
-// domIndex, never from where a stop sits in the input, so the expected order is unchanged.
 test("stops listed out of document order are still put in tabindex, then document, order", () => {
   const row = (name, tabIndex, domIndex) => ({ name, tabIndex, domIndex, rect: box(domIndex * 100, 0, 80, 36) });
   const { order } = focusPath([row("f", 0, 5), row("e", 2, 4), row("d", -1, 3), row("c", 1, 2), row("b", 2, 1), row("a", 0, 0)]);
   assert.deepEqual(order, ["c", "b", "e", "a", "f"]);
 });
 
-// One row, laid out left to right in document order, so no stop moves backward: the only issues are
-// the two positive values, in the order focus reaches them.
 test("every positive tabindex is flagged", () => {
   const row = (name, tabIndex, domIndex) => ({ name, tabIndex, domIndex, rect: box(domIndex * 100, 0, 80, 36) });
   assert.deepEqual(focusPath([row("a", 1, 0), row("b", 2, 1), row("c", 0, 2)]), {
@@ -73,8 +63,6 @@ test("every positive tabindex is flagged", () => {
   });
 });
 
-// Two stacked fields, then a button placed above them by the layout: from the lower field focus
-// moves up a row, which is backward whatever the horizontal position.
 test("a jump to a row above is backward", () => {
   const result = focusPath([
     { name: "First", tabIndex: 0, domIndex: 0, rect: box(24, 100, 320, 36) },
@@ -84,9 +72,6 @@ test("a jump to a row above is backward", () => {
   assert.deepEqual(result.issues, [{ kind: "backward", step: 3, from: "Second", to: "Help" }]);
 });
 
-// Right to left the footer reads from the right edge: Continue on the left and Back on the right,
-// Continue first in the DOM. Under rtl the move from Continue to Back goes toward the start of the
-// line, so it is backward; under the default ltr the same geometry reads forward.
 test("rtl reverses the horizontal direction within a row", () => {
   const footer = [
     { name: "Continue", tabIndex: 0, domIndex: 0, rect: box(24, 210, 84, 36) },
@@ -96,10 +81,6 @@ test("rtl reverses the horizontal direction within a row", () => {
   assert.deepEqual(focusPath(footer).issues, []);
 });
 
-// Two stops on one row whose left edges and right edges disagree: one box sits inside the other's
-// horizontal extent. ltr compares left edges and rtl compares right edges (the script's header), so
-// the wide box after the narrow one is backward in both directions (its left edge is further left,
-// its right edge further right), and the narrow one after the wide one is backward in neither.
 test("ltr compares left edges and rtl compares right edges", () => {
   const narrowThenWide = [
     { name: "Narrow", tabIndex: 0, domIndex: 0, rect: box(100, 0, 100, 36) },
@@ -116,9 +97,6 @@ test("ltr compares left edges and rtl compares right edges", () => {
   assert.deepEqual(focusPath(wideThenNarrow, { direction: "rtl" }).issues, []);
 });
 
-// Rows that only touch are two rows (the script's header): the second starts at y 36, where the
-// first ends, so it is the row below and reads forward even though it sits further left. A stop
-// overlapping the first row by one pixel shares its row, so the same move is backward.
 test("rows that exactly touch are separate rows; overlapping ones are one row", () => {
   const top = { name: "Right", tabIndex: 0, domIndex: 0, rect: box(200, 0, 60, 36) };
   assert.deepEqual(focusPath([top, { name: "Left", tabIndex: 0, domIndex: 1, rect: box(0, 36, 60, 36) }]).issues, []);
@@ -127,8 +105,6 @@ test("rows that exactly touch are separate rows; overlapping ones are one row", 
   ]);
 });
 
-// Zero-height stops with level tops share a row (the script's header), so a move left along that
-// line is backward and a move right is not.
 test("zero-height stops on one line share a row", () => {
   const right = { name: "Right", tabIndex: 0, domIndex: 0, rect: box(200, 50, 60, 0) };
   const left = { name: "Left", tabIndex: 0, domIndex: 1, rect: box(0, 50, 60, 0) };

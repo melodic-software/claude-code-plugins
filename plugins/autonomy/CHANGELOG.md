@@ -3,6 +3,13 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.16] - 2026-11-24
+
+### Changed
+
+- The README describes the trigger-dispatch contract's stamping as work-class stamping from the
+  security surface's classification rules, matching `reference/trigger-dispatch.md`.
+
 ## [5.2.15] - 2026-11-23
 
 ### Changed

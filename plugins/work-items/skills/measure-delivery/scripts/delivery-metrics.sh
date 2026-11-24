@@ -106,7 +106,6 @@ done
   exit 2
 }
 
-# day_epoch <YYYY-MM-DD>: the UTC midnight that starts the day, as epoch seconds.
 day_epoch() {
   [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || return 1
   jq -n --arg d "$1" '$d + "T00:00:00Z" | fromdateiso8601' 2>/dev/null

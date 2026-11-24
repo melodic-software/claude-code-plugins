@@ -25,9 +25,6 @@ if [[ ! -f "$MANIFEST" ]]; then
   exit 3
 fi
 
-# Re-serialize through jq rather than cat: a hand-edited manifest that is no longer
-# valid JSON must fail HERE with a clear message, not downstream as a shape error in
-# whatever consumed the malformed stdout.
 jq -c . "$MANIFEST" || {
   echo "capabilities.sh: manifest is not valid JSON: $MANIFEST" >&2
   exit 3

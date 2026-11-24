@@ -226,7 +226,6 @@ write_settings "$case_dir/settings.json" '{
     "unreachable-market": {"source": {"source": "github", "repo": "owner/unreachable"}}
   }
 }'
-# Intentionally do NOT write a fixture for unreachable-market
 
 exit_code=0
 out=$(run_check "$case_dir") || exit_code=$?
@@ -406,7 +405,6 @@ write_settings "$project_dir/.claude/settings.json" '{
     "local-market": {"source": {"source": "directory", "path": "./missing"}}
   }
 }'
-# Intentionally do NOT write a catalog under project/missing
 
 exit_code=0
 out=$(run_check_dir "$project_dir") || exit_code=$?

@@ -94,16 +94,16 @@
       "description": "Denies a Bash or PowerShell global git identity write (git config --global user.email and kin, a ~/.gitconfig write). In an identity domain (identity-domains.json) also denies naming another domain's path, using its marker, or gh/az without the domain's config dir. On by default.",
       "default": true
     },
-    "block_unresolved_pr_merge_enabled": {
+    "merge_guard_enabled": {
       "type": "boolean",
-      "title": "Block-unresolved-PR-merge guard",
-      "description": "Blocks a pull-request merge while the PR has unresolved review threads, a changes-requested review, failing checks or, where pr-verify judges it, no PASS at its head; also blocks removing the pr-verify-failed label. Fails open, visibly, when the PR state cannot be read. On by default.",
+      "title": "Merge guard",
+      "description": "Blocks a PR merge, auto-merge or merge-queue request while the PR has a hold label, an unresolved review thread, a changes-requested review, a failed check, a pending check (immediate merge only) or no pr-verify PASS where one is due. Fails open, visibly, on an unreadable PR. On by default.",
       "default": true
     },
     "merge_guard_ignored_checks": {
       "type": "string",
-      "title": "Block-unresolved-PR-merge ignored checks",
-      "description": "Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default names the pr-merge lane's merge job, which runs as the merger, not a gate, by display name and by job id. Empty judges every check.",
+      "title": "Merge guard ignored checks",
+      "description": "Comma-separated <app slug>:<check name> pairs the merge guard never judges as pending or failing, the only way a failed check is cleared. The default names the pr-merge lane's merge job, which runs as the merger, not a gate, by display name and by job id. Empty judges every check.",
       "default": "github-actions:Merge,github-actions:merge"
     },
     "block_lane_pr_disable_auto_enabled": {
@@ -133,7 +133,7 @@
     "block_body_format_violation_enabled": {
       "type": "boolean",
       "title": "Block-body-format-violation guard",
-      "description": "Blocks gh pr create, gh pr edit with a body, or a GitHub MCP pull request write whose body breaks the format the target repository declares in docs/conventions/source-control.yaml; a repository that declares none is not judged. pr_body_format_gate: false turns it off there. On by default.",
+      "description": "Blocks gh pr create, gh pr edit with a body, gh issue create, or a GitHub MCP pull request write or issue create whose body breaks the format the target repository declares in docs/conventions/source-control.yaml; a repository that declares none is not judged. On by default.",
       "default": true
     },
     "block_windows_drive_tmp_enabled": {
@@ -252,5 +252,5 @@
       "default": ""
     }
   },
-  "version": "4.3.0"
+  "version": "5.0.0"
 }

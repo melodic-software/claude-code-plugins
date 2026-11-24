@@ -39,7 +39,6 @@ action_dir="$tmp/raw/$pin_a/.github/actions/check-comment-markers"
 mkdir -p "$action_dir"
 export CHECK_COMMENT_HYGIENE_RAW_BASE="file://$tmp/raw"
 
-# workflow <sha> <exclude token>: the fixture's pr-require-checks.yml.
 workflow() {
   printf '%s\n' \
     'jobs:' \
@@ -92,7 +91,6 @@ git_test_config "$repo" add -A
 git_test_config "$repo" commit -q -m base
 git_test_config "$repo" branch -q base
 
-# run <env...> -- <args...>: runs the script in the fixture; sets RC, OUT, ERR.
 run() {
   local -a envs=()
   while [[ "$1" != -- ]]; do
@@ -147,8 +145,6 @@ ERR="$(cat "$tmp/err")"
 check "CHECK_DATA_ROOT names the tree whose files are read" \
   '[[ $RC == 1 && $ERR == *"src/bad.sh:2:marker:BANNED"* ]]'
 
-# A branch that moves the pin: the pin is read from <pin-rev>, the exclusions
-# from HEAD.
 workflow "$pin_b" ':(exclude)src/bad.sh'
 git_test_config "$repo" commit -q -am "move the pin"
 run -- base src/bad.sh src/bad.py
@@ -165,8 +161,6 @@ run -- base src/bad.py
 check "an exclusion naming a directory removes what lies under it" \
   '[[ $RC == 0 && $OUT == *"none of the 1 files"* ]]'
 
-# The exclude input written before the uses line, and a comment naming the
-# action above the step, still find the step's own exclusions.
 printf '%s\n' \
   'jobs:' \
   '  lint-repo:' \

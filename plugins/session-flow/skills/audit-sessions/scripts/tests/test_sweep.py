@@ -1,10 +1,3 @@
-"""Contract tests for sweep.py: metrics, findings, drift degradation, rendering and reports.
-
-Runs sweep.py by subprocess over stores the tests write (seam 2). Records carry only the fields
-sweep reads; `census` rows are added where a test needs the drift guard. Reads
-`reference/sweep-rules.json` and `reference/canaries.json`.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -23,7 +16,6 @@ UNITS = {"tokens", "s", "ms", "count", "ratio", "usd"}
 
 
 def record(session_id: str, **values) -> dict:
-    """A store record whose per-session metrics default to zero; keyword args set metric ids."""
     v = {metric: 0 for metric in RULE}
     v.update(values)
     return {
@@ -74,7 +66,6 @@ def test_rules_are_well_formed():
         assert rule["lens"] in LENSES and rule["unit"] in UNITS, metric
         assert rule["confidence"] in {"measured", "heuristic"} and rule["basis"], metric
         if rule["threshold"] is None:
-            # A report-only rule may keep its intended route, but names both or neither.
             assert (rule["route"] is None) == (rule["suggested_skill"] is None), metric
         else:
             assert rule["route"] in ROUTES and rule["suggested_skill"].startswith("/"), metric
@@ -146,8 +137,6 @@ def test_p90_uses_collects_percentile_rule():
 
 
 def test_store_p90_over_half_again_a_threshold_marks_the_row_and_keeps_the_exit_code(data_dir):
-    # Ten sessions: the p90 is the ninth value. human.turns's p90 of 22 exceeds
-    # 1.5 x 14 = 21; tools.denials's p90 of 40 does not exceed 1.5 x 27 = 40.5.
     turns, denials = RULE["human.turns"]["threshold"], RULE["tools.denials"]["threshold"]
     assert (turns, denials) == (14, 27)
     write_store(
@@ -418,7 +407,6 @@ def test_drift_markdown_keeps_a_hostile_key_inside_one_bullet():
     assert "\n" not in lines[0]
     assert lines[0].startswith("- unknown-record-type: ")
     assert "![a](https://evil.example/beacon)" in lines[0]
-    # The fence is longer than the backtick inside the key, so the span stays closed.
     assert lines[0].split("unknown-record-type: ", 1)[1].startswith("``")
 
 
@@ -475,7 +463,7 @@ def test_write_report_writes_a_pair_and_keeps_20(data_dir):
     reports.mkdir(parents=True)
     for n in range(21):
         (reports / f"20000101T0000{n:02d}Z.json").write_text("{}", encoding="utf-8")
-        if n != 0:  # the oldest pair, which a concurrent run already half-removed
+        if n != 0:
             (reports / f"20000101T0000{n:02d}Z.md").write_text("", encoding="utf-8")
     result = sweep(data_dir, "--write-report")
     assert result.returncode == 0, result.stdout + result.stderr
@@ -529,7 +517,6 @@ def test_session_limits_metrics_and_findings_to_the_named_session(data_dir):
     assert (data["metrics"]["tokens.main"]["value"], data["metrics"]["tokens.main"]["n"]) == (10, 1)
     found = findings_by_metric({"data": data})
     assert set(found) == {"tools.interrupts"} and found["tools.interrupts"]["evidence"] == [{"session_id": "now"}]
-    # The p90 stays the store's, over all three in-scope sessions (0, 2, 9), so it still marks a stale baseline.
     assert (data["metrics"]["tools.interrupts"]["p90"], data["metrics"]["tools.interrupts"]["baseline_stale"]) == (9, True)
     unchecked = {(u["what"], u["reason"]) for u in data["unchecked"]}
     for metric in ("cache.write_5m_share", "edits.churn_per_pr"):
@@ -579,7 +566,6 @@ def test_session_drift_check_still_reads_every_record(data_dir, tmp_path):
         ),
         encoding="utf-8",
     )
-    # The named session alone carries the key, so only the unnamed newer record loses the canary.
     old = record("old", **{"census": {"2.0.1|*": {"record_type:user": 5, "key_path:user:message.content": 5}}, "tools.interrupts": 3})
     new = record("new", **{"census": {"2.0.2|*": {"record_type:user": 5}}, "cc_versions": ["2.0.2"]})
     new["unknown"] = {"record_types": {"relocated": 1}}
@@ -624,7 +610,6 @@ def test_since_until_window_filters_on_session_start(data_dir):
 
 
 def typed(session_id: str, start: str, identity: str, *excerpts: str | None, suppressed: bool = False) -> dict:
-    """A store record holding typed-turn excerpts, shaped as collect.py writes `human.flagged`."""
     rec = record(session_id, start=start, identity=identity)
     rec["human"]["flagged"] = [{"idx": i, "words": 3, "flags": ["short-after-assistant"], "excerpt": e} for i, e in enumerate(excerpts)]
     rec["redaction"] = {"excerpts_suppressed": suppressed}
@@ -823,7 +808,6 @@ def test_judged_refuses_write_report_and_the_turn_modes(data_dir, tmp_path):
 
 
 def edited(session_id: str, prs: list[tuple[str, int]] | None, paths: dict | None) -> dict:
-    """A store record carrying `prs` and `edits.by_relpath` as collect.py writes them; None drops the field."""
     rec = record(session_id)
     if prs is not None:
         rec["prs"] = [{"repo": repo, "number": number} for repo, number in prs]
@@ -833,9 +817,6 @@ def edited(session_id: str, prs: list[tuple[str, int]] | None, paths: dict | Non
 
 
 def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
-    # The rule's threshold is 5: a.py is edited 4 + 3 = 7 times within PR 12, so it is over;
-    # b.py's 2 + 3 = 5 is not, and PR 13's a.py (6) is its own ticket. The placeholders collect.py
-    # stores in place of a path name no file, so PR 14 has no pair. Ties order by repo, then PR number.
     write_store(
         data_dir,
         edited("s1", [("o/r", 12)], {"a.py": 4, "b.py": 2}),
@@ -871,8 +852,6 @@ def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
 
 
 def test_churn_joins_each_path_onto_its_sessions_working_directory(data_dir):
-    # One file edited from the checkout root and from a subdirectory is one path (3 + 3 = 6, over 5);
-    # same-named files in two subdirectories stay two paths (3 each, not over).
     def at(session_id, cwd, paths):
         rec = edited(session_id, [("o/r", 12)], paths)
         rec["cwd"] = cwd
@@ -983,7 +962,6 @@ def test_pr_finds_sessions_by_link_or_head_branch_on_either_side(data_dir):
     linked["entrypoints"] = ["cli"]
     orchestrator = keyed("orch", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["main"], output=7)
     orchestrator["branches_sub"] = ["feat/x"]
-    # Matched on both sides: the main transcript's match wins, so no `-sub` entry repeats it.
     on_branch = keyed("on-branch", "2026-09-03T10:00:00Z", "2026-09-03T11:00:00Z", branches=["feat/x"], prs=[("o/r", 12)])
     on_branch["branches_sub"] = ["feat/x"]
     on_branch["prs_sub"] = [{"repo": "o/r", "number": 12}]

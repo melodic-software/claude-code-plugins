@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/frontier.sh — core-side frontier derivation over fixture JSON.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,14 +6,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/frontier.sh"
 source "$SCRIPT_DIR/../tests/lib.sh"
 
-# frontier_ids <wit_filter_frontier args…>: stdin is an envelope, stdout the
-# surviving item ids comma-joined (the shape nearly every case asserts).
 frontier_ids() {
   wit_filter_frontier "$@" | jq -r '[.items[].id] | join(",")'
 }
 
-# frontier_count <wit_filter_frontier args…>: stdin is an envelope, stdout how
-# many items survived.
 frontier_count() {
   wit_filter_frontier "$@" | jq '.items | length'
 }
@@ -38,8 +33,6 @@ assert_eq "schema_version passthrough" "1.0" "$SCHEMA"
 IDS="$(frontier_ids true <<<"$FIXTURE")"
 assert_eq "autonomous frontier drops needs-human (default label)" "github:o/r#1" "$IDS"
 
-# A repo that remaps config.role_labels["human-gated"] away from the default
-# must have its remapped label honored, not the literal string "needs-human".
 REMAPPED='{
   "schema_version": "1.0",
   "items": [
@@ -67,13 +60,10 @@ assert_eq "a complete listing reports truncated:false" "false" \
 assert_eq "a listing without the flag yields a frontier without it" "false" \
   "$(wit_filter_frontier false <<<"$EMPTY" | jq -c 'has("truncated")')"
 
-# Missing optional arrays tolerated (labels/assignees absent).
 SPARSE='{"schema_version":"1.0","items":[{"id":"github:o/r#9","state":"open","blocked_by_count":0}]}'
 COUNT="$(frontier_count true <<<"$SPARSE")"
 assert_eq "sparse item survives filters" "1" "$COUNT"
 
-# An open, unassigned, unblocked container item never surfaces as its own frontier
-# item, unconditionally, not only under --autonomous.
 CONTAINERS='{
   "schema_version": "1.0",
   "items": [
@@ -88,8 +78,6 @@ assert_eq "autonomous frontier also excludes the container" "github:o/r#1" "$IDS
 IDS="$(frontier_ids false <<<'{"schema_version":"1.0","items":[{"id":"github:o/r#11","state":"open","assignees":[],"labels":["work-map"],"blocked_by_count":0}]}')"
 assert_eq "the retired work-map label is not the default container label" "github:o/r#11" "$IDS"
 
-# A wayfind map item (any `wayfind:` label) belongs to /planning:wayfind, so neither
-# frontier surfaces it; a label that only contains the text elsewhere still does.
 WAYFIND='{
   "schema_version": "1.0",
   "items": [
@@ -104,7 +92,6 @@ assert_eq "default frontier excludes wayfind: items" "github:o/r#1,github:o/r#14
 IDS="$(frontier_ids true <<<"$WAYFIND")"
 assert_eq "autonomous frontier excludes wayfind: items even when agent-ready" \
   "github:o/r#1,github:o/r#14" "$IDS"
-# A hand-edited local-markdown item can carry a non-string label; the prefix check skips it.
 COUNT="$(frontier_count false <<<'{"schema_version":"1.0","items":[{"id":"local:a#1","state":"open","labels":[1],"blocked_by_count":0}]}')"
 assert_eq "a non-string label does not fail the wayfind check" "1" "$COUNT"
 
@@ -126,8 +113,6 @@ IDS="$(WIT_SESSION_OWNED_LABEL=mine frontier_ids true <<<"$SESSION_OWNED")"
 assert_eq "autonomous frontier drops the remapped session-owned label, not the stale default" \
   "github:o/r#1,github:o/r#15" "$IDS"
 
-# A non-default container label passed explicitly is honored (parity with the
-# human-gated remap path); the shipped default must not exclude once remapped.
 REMAP_CONTAINER='{
   "schema_version": "1.0",
   "items": [
@@ -140,8 +125,6 @@ IDS="$(frontier_ids false "needs-human" "decision-map" <<<"$REMAP_CONTAINER")"
 assert_eq "explicit container label excludes the remap, not the stale default" \
   "github:o/r#1,github:o/r#10" "$IDS"
 
-# A structural item and an item with no class stay on the autonomous frontier: work
-# class is not an admission gate.
 WORK_CLASS='{
   "schema_version": "1.0",
   "items": [
@@ -156,9 +139,6 @@ IDS="$(frontier_ids true <<<"$WORK_CLASS")"
 assert_eq "autonomous frontier lists structural and unclassified agent-ready items" \
   "github:o/r#1,github:o/r#2,github:o/r#4,github:o/r#5,github:o/r#12" "$IDS"
 
-# provenance: untrusted floors an item EVEN WHEN it carries the autonomous-eligible
-# role label. The floor is autonomous-only: the attended lane still sees the item, so
-# a human-gated item stays reachable.
 UNTRUSTED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
   {"id":"github:o/r#13","state":"open","assignees":[],"labels":["agent-ready","provenance: untrusted"],"blocked_by_count":0}]}'
@@ -169,8 +149,6 @@ IDS="$(frontier_ids false <<<"$UNTRUSTED")"
 assert_eq "default frontier still surfaces a provenance: untrusted item" \
   "github:o/r#1,github:o/r#13" "$IDS"
 
-# A signal-filed item is C5 by rule: the provenance label floors it whatever its
-# work-class label says, and the attended lane still sees it.
 SIGNAL='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
   {"id":"github:o/r#6","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped","provenance: signal"],"blocked_by_count":0}]}'
@@ -181,8 +159,6 @@ IDS="$(frontier_ids false <<<"$SIGNAL")"
 assert_eq "default frontier still surfaces a provenance: signal item" \
   "github:o/r#1,github:o/r#6" "$IDS"
 
-# A status label that waits on a person floors the item too, and the attended lane
-# still sees it.
 STATUS='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
   {"id":"github:o/r#9","state":"open","assignees":[],"labels":["agent-ready","needs-owner-decision"],"blocked_by_count":0},
@@ -195,20 +171,16 @@ IDS="$(frontier_ids false <<<"$STATUS")"
 assert_eq "default frontier still surfaces needs-owner-decision, needs-info and needs-spec items" \
   "github:o/r#1,github:o/r#9,github:o/r#10,github:o/r#11" "$IDS"
 
-# C3 scoped is not in the floor, so it must survive this filter.
 SCOPED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#7","state":"open","assignees":[],"labels":["work-class: scoped"],"blocked_by_count":0}]}'
 COUNT="$(frontier_count true <<<"$SCOPED")"
 assert_eq "C3 scoped is not floored by the frontier" "1" "$COUNT"
 
-# Exact-match, not substring: a label that merely CONTAINS a floor member's text
-# is a different label and must not be floored.
 NEARMISS='{"schema_version":"1.0","items":[
   {"id":"github:o/r#8","state":"open","assignees":[],"labels":["provenance: untrusted-lite"],"blocked_by_count":0}]}'
 COUNT="$(frontier_count true <<<"$NEARMISS")"
 assert_eq "floor matching is exact, not substring" "1" "$COUNT"
 
-# --- the Work status field (`status`) only adds a hold the labels lack ---
 STATUSED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":["needs-human"],"blocked_by_count":0,"status":"agent-ready"},
   {"id":"github:o/r#2","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"needs-owner-decision"},
@@ -220,7 +192,6 @@ assert_eq "a field hold holds; a field ready state never frees a label-held item
   "github:o/r#5" "$(frontier_ids true <<<"$STATUSED")"
 assert_eq "the default frontier ignores status" "6" "$(frontier_count false <<<"$STATUSED")"
 
-# A field that holds what the labels collapse to answers as the labels alone.
 MIRRORED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"needs-triage"},
   {"id":"github:o/r#2","state":"open","assignees":[],"labels":["agent-ready","needs-spec"],"blocked_by_count":0,"status":"needs-spec"},
@@ -230,7 +201,6 @@ MIRRORED='{"schema_version":"1.0","items":[
 assert_eq "a mirroring field changes no frontier answer" \
   "$(jq -c '.items |= map(del(.status))' <<<"$MIRRORED" | frontier_ids true)" "$(frontier_ids true <<<"$MIRRORED")"
 
-# --- the binding's hold lists and wayfind prefix replace the defaults ---
 CONFIGURED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":["needs-owner-decision"],"blocked_by_count":0},
   {"id":"github:o/r#2","state":"open","assignees":[],"labels":["on hold"],"blocked_by_count":0},
@@ -244,7 +214,6 @@ assert_eq "configured hold lists and wayfind prefix decide the autonomous fronti
   "$(WIT_HOLD_LABELS_JSON='["on hold"]' WIT_HOLD_STATES_JSON='["parked"]' \
     WIT_HOLD_STATE_LABELS_JSON='["parked"]' WIT_WAYFIND_PREFIX='map:' frontier_ids true <<<"$CONFIGURED")"
 
-# --- wit_filter_label: exact label match, envelope keys untouched ---
 LABELED='{"schema_version":"1.0","truncated":true,"items":[
   {"id":"github:o/r#1","labels":["area: ci"]},
   {"id":"github:o/r#2","labels":["Area: CI"]},

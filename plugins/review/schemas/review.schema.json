@@ -22,7 +22,7 @@
       "default": "run"
     },
     "fanout_diversity": {
-      "description": "How /review:fanout run-everything spreads its leaf reviews. lens: one reviewer agent per concern (security, architecture, code, docs, each project criteria slice). model: the same review prompt sent once to each distinct fan-out model tier the role map resolves. codex: the lens roster, with the Codex reviewer as the model-diversity panel in place of the model tiers. Skipped for a change set that edits this file.",
+      "description": "How /review:fanout run-everything spreads its leaf reviews. lens: one reviewer agent per concern (security, architecture, code, docs, each project criteria slice). model: the same review prompt sent once to each distinct fan-out model the role map resolves. codex: the lens roster, with the Codex reviewer as the model-diversity panel in place of the fan-out models. Skipped for a change set that edits this file.",
       "enum": ["lens", "model", "codex"],
       "default": "lens"
     },

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for report.py at its command line."""
 
 from __future__ import annotations
 
@@ -286,12 +285,6 @@ class AssembleTests(unittest.TestCase):
         self.assertEqual(doc["summary"]["files"], 2)
 
     def test_two_same_named_methods_count_as_two_functions(self) -> None:
-        # One file, two `render` methods in two classes, which a collector that
-        # reports unqualified names gives the same name. Folding on the name
-        # alone counts them once, so the summary undercounts a file the
-        # coverage join deliberately keeps apart by source position. The
-        # Halstead row for the first carries no start line and must still fold
-        # into it rather than becoming a third function.
         doc = self.assemble(
             [
                 {
@@ -373,10 +366,6 @@ class AssembleTests(unittest.TestCase):
     def test_a_run_whose_only_producing_row_is_partial_is_partial_not_empty(
         self,
     ) -> None:
-        # `partial` says a row measured some of what it implied. It withholds
-        # `complete`, but it did produce rows, so a run carrying nothing else
-        # must not read as having measured nothing: `empty` prints the headline
-        # "Measured nothing" over a table that names the files it did measure.
         run_rows = [
             {
                 "lane": "python",
@@ -630,8 +619,6 @@ class RenderTests(unittest.TestCase):
             line for line in measures_section.splitlines() if line.startswith("| ")
         ]
         files = [line.split(" | ")[0].lstrip("| ") for line in table[1:]]
-        # Largest first, a null value after every number, the over-reference
-        # row leading because it is the extreme rather than by a separate sort.
         self.assertEqual(files, ["b.md", "d.sh", "a.py", "c.py"])
 
     def test_a_below_reference_orders_smallest_first(self) -> None:
@@ -881,7 +868,6 @@ class RenderTests(unittest.TestCase):
                 "over_reference": [],
             }
 
-        # 250 alphabetically-early filler functions would fill the cap on their own.
         filler = [
             function_row(f"a/{i:03d}.py", f"f{i}", crap=3.0 + (i % 7), cov=50.0)
             for i in range(250)
@@ -936,14 +922,10 @@ class RenderTests(unittest.TestCase):
         self.assertIn(
             "| 55 more rows; re-run with --json for the full document |", result.stdout
         )
-        # The filler outranks nothing above it: its rows follow the top function by
-        # CRAP descending, so the second row is the highest filler CRAP (3 + 6).
         self.assertIn("| 9 |", measure_rows[1])
         self.assertNotIn("| zzz/join.py | empty |", result.stdout)
         self.assertNotIn("| zzz/c.py |", result.stdout)
 
-        # With the cap lifted, the null-CRAP function precedes every file row and the
-        # file rows read least covered first with the null percentage last.
         doc["measures"] = files + [null_crap, top]
         result = run("render", stdin=json.dumps(doc))
         rows = [
@@ -1324,8 +1306,6 @@ class DuplicationRollupTests(unittest.TestCase):
         by_directory = resummarized(duplication_doc(self.ROWS))["summary"][
             "by_directory"
         ]
-        # Every group's first instance sits under `a`, so `a` carries all three
-        # while its children split them; the second instances count nowhere.
         self.assertEqual(by_directory["a"], {"groups": 3, "duplicated_lines": 32})
         self.assertEqual(by_directory["a/x"], {"groups": 2, "duplicated_lines": 25})
         self.assertEqual(by_directory["a/y"], {"groups": 1, "duplicated_lines": 7})
@@ -1788,7 +1768,6 @@ class JoinedRenderTests(unittest.TestCase):
 
 
 def cwd_relative_doc() -> dict:
-    """A document as a run from `<root>/sub` leaves it: paths relative to `sub`."""
     return {
         "schema": "code-metrics/v2",
         "skill": "audit-coverage",

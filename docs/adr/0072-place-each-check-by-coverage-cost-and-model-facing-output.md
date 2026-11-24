@@ -147,18 +147,51 @@ Owner decision
 ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L412)).
 This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
 
-- **Second entry.** This repository's `lefthook.yml` adds `changelog-fragments`
-  (`scripts/pre-push-changelog-fragments.sh`): `check-changelog-fragments.sh --check` and
+- **Second entry.** This repository's `lefthook.yml` adds `branch-checks`
+  (`scripts/pre-push-branch-checks.sh`): `check-changelog-fragments.sh --check` and
   `--check-required` against the remote's default branch, for a pushed branch whose tip is HEAD.
   On 2026-11-24 missing or malformed fragments caused 406 of the 962 PR-minutes that Check Plugins
   and Check Catalog spent red, all on causes these two gates catch.
-- **Budget unchanged.** The entry stays under the 3 s `pre-push` budget; its test fails above it.
+- **Budget unchanged.** The entry stays under the 3 s `pre-push` budget; its suite
+  (`scripts/pre-push-branch-checks.test.sh`) times all seven checks on the repository's own tree
+  and fails over 3 s.
   The rest of the affected-files check (about 7.6 s plus 0.25 s per changed file, measured on 29
   red heads) stays in the pre-PR check and CI. A further gate joins `pre-push` only when it runs
   in 3 s.
 - **Over budget: optimize first, then move**
   ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L413)).
-  When the timing test trips, the first response is an optimization item for the slow check. The
-  check leaves the hook for CI only when it cannot be brought under 3 s. One over-run on an
+  When the hook budget gate trips, the first response is an optimization item for the slow check.
+  The check leaves the hook for CI only when it cannot be brought under 3 s. One over-run on an
   unusually large change is a signal to look at, not by itself a removal. The check that grows
   with the repository is `validate-plugin-contracts.mjs`.
+- **Seven whole-branch checks**
+  ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L413)).
+  After the fragment checks the same job runs, in parallel against the same base, the four
+  changelog-parity modes, `sync-plugin-options-docs.py --check`, `validate-plugin-contracts.mjs`
+  (a warning fails), and the marketplace, catalog and cheat-sheet generators in `--check` mode.
+  They read the working tree, so a dirty tree leaves them to CI. On native Windows (MINGW, MSYS,
+  Cygwin) only the fragment checks run until the job is timed there.
+
+## Addendum (2026-11-24): CI times the git hooks
+
+Owner decision. For git hooks only, this amends Decision item 3's "CI enforces counts, not
+durations": CI installs every hook tool and times every shipped `pre-commit` entry on a
+10-file staged fixture and every `pre-push` entry on the real checkout, HEAD pushed as a new
+branch, since pre-push cost grows with the repository (`scripts/check-git-hook-time-budget.sh`).
+A piped group counts as one unit. It runs when a change touches a hook config or a script an
+entry calls, or adds or removes a plugin, and on the scheduled full run of main, so growth
+alone can trip it. Each run times a reference workload that runs no hook code and does not
+grow with the repository: starts of the interpreters the entries use (pwsh compiling a
+one-line type with Add-Type, bare python3, node, bash, git) plus a fixed git and node part.
+The budget is 3 s x that reference / its value on the desk that set the budget (815 ms,
+Linux on WSL2, 2026-11-24), so a slower runner
+does not flake; each run also prints the hooks' own ratio to that desk, and CI warns when the two
+ratios differ by more than 30%. It fails a
+hook over that budget, an entry whose tool is missing, and a pre-push entry that skips a check
+or exits non-zero. A local run skips a missing tool (item 4's skip). Nothing kills a hook at
+run time.
+
+**Over or near budget** (near: within 10% of it, a judgment threshold). In order: measure it on
+the fixture; confirm every entry reads only the staged files (`pre-commit`) or the pushed range
+(`pre-push`), never the whole tree; optimize it (fewer process starts, one tool run instead of
+two); only if it still risks the budget, move the check to CI and remove it from the hook.

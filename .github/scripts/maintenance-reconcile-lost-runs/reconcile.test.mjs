@@ -2874,6 +2874,25 @@ const statusNoted = (notes) =>
     ],
   });
 const otherLaneFailed = () => run(301, sha(1), { path: SECURITY_REVIEW, conclusion: "failure", jobs: [] });
+const HELD_SHA = "40b01591554b44f26576ccf3ce96fc56ebde5537";
+const heldLaneUrl = (id) => `https://github.com/melodic-software/claude-code-plugins/actions/runs/${id}`;
+const HELD_STOP_LINES = [
+  `'PR Review Security / Status' did not run on ${HELD_SHA} (${heldLaneUrl(45476481081)}): an API budget defer or a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of ${heldLaneUrl(45476481081)}; ci-status re-runs when it finishes.`,
+  `'PR Review / Status' did not run on ${HELD_SHA} (${heldLaneUrl(45476481346)}): an API budget defer or a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of ${heldLaneUrl(45476481346)}; ci-status re-runs when it finishes.`,
+];
+const NEEDS_HUMAN_LINE =
+  "#18878 carries 'needs-human' (**claude-security-review** holds this pull request for a person (critical-security) at `b5c987c9c37f89d578c50815a99654094e0e9d88`. CRITICAL command injection in plugins/guardrails/hooks/block-body-format-violation.sh:365. A quoted issue-kind key in a checkout's tracked docs/conventions/source-contro). Removing the label approves this pull request; ci-status re-runs on the unlabel.";
+const DO_NOT_MERGE_LINE = "check-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
+const CONTRACT_FAILED_LINE = "ci-status: the pull-request contract or the draft policy failed; see the step above.";
+const heldStatusNotes = () => [
+  { annotation_level: "notice", title: "api-routes", message: "github-token repos/{repo}/actions/runs/{n}/jobs=2 repos/{repo}/actions/runs=1 repos/{repo}/issues/{n}/comments=1 repos/{repo}/issues/{n}/events=1 repos/{repo}/issues/{n}/labels=1 repos/{repo}/pulls/{n}=1 repos/{repo}/pulls/{n}/files=1 rest=0" },
+  { annotation_level: "notice", title: "api-calls", message: "github-token=8 not-modified=0 graphql=0 core-by-reset=1795551730:1,1795554280:3 core-unread=4" },
+  EXIT_LINE,
+  ...HELD_STOP_LINES.map(laneNote),
+  { annotation_level: "notice", title: "api-calls", message: "github-token=5 not-modified=0 graphql=1" },
+  EXIT_LINE,
+  laneNote(NEEDS_HUMAN_LINE),
+];
 
 test("a follow-up tick re-runs a deferred review only when every ci-status failure is a review stop, past GitHub's exit-code note", async (t) => {
   t.mock.method(console, "log", () => {});
@@ -2916,6 +2935,8 @@ test("the full pass re-runs a head's stopped reviews only when every other ci-st
     ["a push history naming another branch than the floor note's call is a real failure", [laneNote("could not read the push history of feat/floor; re-run this run."), laneNote(floorCall(PUSH_HISTORY_CALL)), stop, EXIT_LINE], []],
     ["the other lane still running beside the review stop re-runs the stopped review", [stop, laneNote(LANE_PENDING_LINE), EXIT_LINE], [201], pr(1), runningLane()],
     ["the other lane with no run yet beside the review stop re-runs the stopped review", [stop, laneNote(LANE_MISSING_LINE), EXIT_LINE], [201], pr(1), null],
+    ["a needs-human hold beside the review stop keeps ci-status red by itself, so the stopped review re-runs", [stop, EXIT_LINE, laneNote(NEEDS_HUMAN_LINE), EXIT_LINE], [201]],
+    ["a needs-human hold beside the review stop and an outage note re-runs nothing", [stop, laneNote(UPSTREAM_LINE), EXIT_LINE, laneNote(NEEDS_HUMAN_LINE), EXIT_LINE], []],
   ];
   await withLaneList(async (lanes) => {
     for (const [name, notes, reruns, pull = pr(1), other = otherLaneFailed()] of cases) {
@@ -2936,6 +2957,18 @@ test("the gate-note rule needs a review stop: a kill-switch, floor, pending or m
   assert.equal(reviewStopsAmidGateNotes(notes(LANE_MISSING_LINE)), false, "a missing review alone");
   assert.equal(reviewStopsAmidGateNotes(notes(STOPPED_LINE, FLOOR_COMPANION_LINE, FLOOR_LINE)), true, "the same floor notes beside a review stop");
   assert.equal(reviewStopsAmidGateNotes(notes(STOPPED_LINE, FLOOR_COMPANION_LINE)), false, "a 'could not' error with no floor note to name its call");
+});
+
+test("a label hold beside a review stop is neutral: the stopped review re-runs, and a hold alone or an unrelated failure beside it re-runs nothing", () => {
+  assert.equal(reviewStopsAmidGateNotes(heldStatusNotes()), true, "ci-status run 45476480140's real notes: two review stops and a needs-human hold");
+  assert.equal(reviewStopsAmidGateNotes([laneNote(NEEDS_HUMAN_LINE), EXIT_LINE]), false, "a needs-human hold alone");
+  assert.equal(reviewStopsAmidGateNotes([...heldStatusNotes(), laneNote(UPSTREAM_LINE)]), false, "an outage note beside the hold and the stops");
+  assert.equal(reviewStopsAmidGateNotes([...heldStatusNotes(), laneNote("Error: 3 tests failed.")]), false, "an unknown failure beside the hold and the stops");
+  const stops = HELD_STOP_LINES.map(laneNote);
+  assert.equal(reviewStopsAmidGateNotes([...stops, laneNote(CONTRACT_FAILED_LINE), laneNote(DO_NOT_MERGE_LINE), EXIT_LINE]), true, "a do-not-merge hold and its contract companion beside the stops");
+  assert.equal(reviewStopsAmidGateNotes([laneNote(CONTRACT_FAILED_LINE), laneNote(DO_NOT_MERGE_LINE), EXIT_LINE]), false, "a do-not-merge hold alone");
+  assert.equal(reviewStopsAmidGateNotes([...stops, laneNote(CONTRACT_FAILED_LINE), EXIT_LINE]), false, "a contract failure with no label hold beside the stops");
+  assert.equal(reviewStopsAmidGateNotes([...stops, laneNote(NEEDS_HUMAN_LINE.replace("Removing the label", "Removing it")), EXIT_LINE]), false, "a hold note of another shape");
 });
 
 test("a follow-up tick names itself in a notice with its queued and planned counts", async (t) => {

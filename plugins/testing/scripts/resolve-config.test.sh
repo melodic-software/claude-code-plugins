@@ -20,12 +20,10 @@ REPO="$T/repo"
 mkdir -p "$HOME/.claude" "$REPO/.claude"
 git -C "$REPO" init -q
 
-# run [args...]: resolve against $REPO, output in $out, exit code in $rc.
 run() {
   rc=0
   out="$(bash "$RESOLVE" --root "$REPO" "$@" 2>&1)" || rc=$?
 }
-# records <key>: the values of <key>, space-joined, in output order.
 records() { awk -F'\t' -v k="$1" '$1 == k { printf "%s%s", s, $2; s = " " }' <<<"$out"; }
 reset() {
   rm -rf "$HOME/.claude/testing.yaml" "$REPO/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml" "$REPO/docs"
@@ -184,7 +182,6 @@ match 0 'src/*.ts' './src/a.ts'
 match 0 'src/[x].ts' 'src/[x].ts'
 match 1 'src/[x].ts' 'src/x.ts'
 
-# --- a repository layer that is a symlink is refused ----------------------------
 reset
 printf 'paths:\n  exclude: [secret]\n' >"$T/foreign.yaml"
 ln -s ../../foreign.yaml "$REPO/.claude/testing.yaml"
@@ -201,7 +198,6 @@ assert_eq "a layer under a symlinked .claude exits 2" 2 "$rc"
 rm "$REPO/.claude" "$T/real-claude/testing.local.yaml"
 mv "$T/real-claude" "$REPO/.claude"
 
-# --- the team layer as a docs convention file's config block ---------------------
 DOCS="$REPO/docs/conventions/testing.md"
 mkdir -p "$REPO/docs/conventions"
 errs() { { bash "$RESOLVE" --root "$REPO" >/dev/null; } 2>&1; }
@@ -271,7 +267,6 @@ assert_eq "an empty block is a block: the docs file wins" "$DOCS" "$(records lay
 assert_eq "so the .claude file's keys do not load" "" "$(records adapters.disable)"
 rm -f "$REPO/.claude/testing.yaml"
 
-# an error in the block names the .md file and the .md file's own line
 cat >"$DOCS" <<'EOF'
 # Testing
 
@@ -325,7 +320,6 @@ printf '\357\273\277```yaml config\r\npaths:\r\n  exclude: [bom/**]\r\n```\r\n' 
 run
 assert_eq "a block opening on line 1 after a byte-order mark loads" "0:bom/**" "$rc:$(records paths.exclude)"
 
-# the symlink refusal covers the docs file and its parents
 printf '```yaml config\npaths:\n  exclude: [secret]\n```\n' >"$T/foreign.md"
 rm -f "$DOCS"
 ln -s ../../../foreign.md "$DOCS"
@@ -342,7 +336,6 @@ assert_eq "a docs file under a symlinked directory exits 2" 2 "$rc"
 rm -f "$REPO/docs/conventions"
 reset
 
-# --- the team layer as docs/conventions/testing.yaml ----------------------------
 TY="$REPO/docs/conventions/testing.yaml"
 printf '# yaml-language-server: $schema=x.json\npaths:\n  exclude: [yaml-team/**]\n' >"$TY"
 run
@@ -369,28 +362,22 @@ assert_eq "an unknown adapter in testing.yaml exits 2" 2 "$rc"
 assert_contains "naming testing.yaml and its line" "$out" "$TY:2: unknown adapter: js-vitset"
 rm -f "$DOCS"
 
-# The two run-e2e keys share the file; the scan config ignores them whatever
-# their value, so a run-e2e setting never stops a scan.
 printf 'e2e_driver: run\nreuse_running_instance: sideways\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
 run
 assert_eq "run-e2e keys in testing.yaml do not stop the scan config" "0:e2e-file/**" "$rc:$(records paths.exclude)"
 assert_eq "and print no scan record" "" "$(records e2e_driver)$(records reuse_running_instance)"
 run --quick
 assert_eq "nor under --quick" "0:e2e-file/**" "$rc:$(records paths.exclude)"
-# A nested value skips with its indented lines, so later keys still load.
 printf 'e2e_driver:\n  mode: run\n  - chrome\nreuse_running_instance:\n- true\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
 run
 assert_eq "a nested run-e2e value does not stop the scan config" "0:e2e-file/**" "$rc:$(records paths.exclude)"
 assert_contains "and is named on stderr with its file and line" "$(errs)" "$TY:2: warning: e2e_driver holds a nested value"
 assert_contains "for each key" "$(errs)" "$TY:5: warning: reuse_running_instance holds a nested value"
-# lib/read-verification.sh reads the verification keys from this file; the scan skips them.
 printf 'verification: light\nverification_skills:\n  cleanup: off\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
 run
 assert_eq "the verification keys in testing.yaml do not stop the scan config" "0:e2e-file/**" "$rc:$(records paths.exclude)"
 assert_eq "and print no scan record or warning" "::" "$(records verification):$(records verification_skills.cleanup):$(errs)"
 
-# --- e2e: the run-e2e keys, one line each: key, value, supplying layer ----------
-# erun [args...]: resolve the run-e2e keys; stdout in $out, stderr in $err.
 erun() {
   rc=0
   err="$(mktemp "$T/err.XXXXXX")"
@@ -445,8 +432,6 @@ assert_contains "with a warning naming where to move it" "$err" \
   "$REPO/.claude/testing.local.yaml is an old location, still read for now; move it to docs/conventions/testing.local.yaml"
 rm -f "$REPO/.claude/testing.local.yaml"
 
-# An invalid value never stops the run: the file, key and value are named, and
-# the key takes its default, never a lower layer's value.
 printf 'e2e_driver: cdp\n' >"$TY"
 erun --user e2e_driver=playwright
 assert_eq "an unknown value in testing.yaml exits 0" 0 "$rc"
@@ -464,8 +449,6 @@ printf 'e2e_driver: "$(touch %s/pwned)"\n' "$T" >"$TY"
 erun
 assert_eq "a command substitution in a value is text, never run" "0:no" "$rc:$([[ -e "$T/pwned" ]] && echo yes || echo no)"
 assert_contains "and is named as an unknown value" "$err" "unknown value '\$(touch $T/pwned)'"
-# A value that is not a scalar, or does not parse, is invalid too: the layer
-# drops and the key takes its default, never the lower layer's valid value.
 printf 'e2e_driver: run\n' >"$HOME/.claude/testing.yaml"
 printf 'e2e_driver: [run, chrome]\n' >"$TY"
 erun --user e2e_driver=playwright
@@ -482,8 +465,6 @@ assert_eq "an unclosed quote in the personal override resolves the default" "0:e
 assert_contains "naming the personal override" "$err" "$REPO/.claude/testing.local.yaml: e2e_driver: unknown value ''run'"
 rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
 
-# The keys are read only where no older release reads them: never from the
-# docs block or .claude/testing.yaml, which an older release refuses whole.
 rm -f "$TY"
 printf '# Testing\n\n```yaml config\ne2e_driver: run\n```\n' >"$DOCS"
 printf 'e2e_driver: run\n' >"$REPO/.claude/testing.yaml"
@@ -491,7 +472,6 @@ erun
 assert_eq "the docs block and .claude/testing.yaml are not read for the keys" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
 rm -f "$DOCS" "$REPO/.claude/testing.yaml"
 
-# A scan config that does not resolve never stops the run-e2e keys.
 printf 'e2e_driver: playwright\nadapters:\n  enable: [js-vitset]\nrules:\n  testing/audit/rule-weak-oracle: off\n' >"$TY"
 erun
 assert_eq "an invalid scan config still resolves the run-e2e keys" "0:e2e_driver	playwright	$TY" "$rc:$(head -1 <<<"$out")"
@@ -503,8 +483,6 @@ assert_eq "a symlinked personal override is skipped, not followed" "0:e2e_driver
 assert_contains "with a warning naming it" "$err" "skipping a layer that is a symlink or under a symlinked directory: $REPO/.claude/testing.local.yaml"
 rm -f "$REPO/.claude/testing.local.yaml"
 
-# feature_map_dir is retired: a line left in a layer resolves nothing, warns
-# nothing and stops neither mode.
 printf 'feature_map_dir: docs/map\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
 printf 'feature_map_dir: .claude/skills/feature-map\n' >"$PY"
 erun
@@ -518,7 +496,6 @@ assert_eq "nor stops the scan config" "0:e2e-file/**" "$rc:$(records paths.exclu
 assert_eq "which prints no record for it" "" "$(records feature_map_dir)"
 rm -f "$PY" "$TY"
 
-# browser_driver: one command name, same layer order as e2e_driver.
 bd() { grep '^browser_driver	' <<<"$out"; }
 reset
 erun
@@ -539,7 +516,6 @@ for bad in 'a/b' 'x@y' '..//z'; do
 done
 rm -f "$TY"
 
-# check-browser-driver.sh: stops when the resolved command is not on PATH.
 CHECK="$SCRIPT_DIR/check-browser-driver.sh"
 bcheck() {
   rc=0
@@ -563,7 +539,6 @@ bcheck --user browser_driver=another-missing-tool-zz
 assert_eq "a userConfig command not on PATH exits 1" 1 "$rc"
 assert_contains "naming userConfig as the source" "$out" "source: userConfig"
 
-# --- write: /testing:write's keys, repository settings with no userConfig -------
 wrun() {
   rc=0
   err="$(mktemp "$T/err.XXXXXX")"
@@ -639,7 +614,6 @@ erun
 assert_eq "and the e2e mode does not print them" "" "$(grep -E '^(tdd_refactor_step|first_test)	' <<<"$out")"
 rm -f "$TY"
 
-# --- map: the run-e2e map keys, same layer order as the e2e keys --------------
 mrun() {
   rc=0
   err="$(mktemp "$T/err.XXXXXX")"

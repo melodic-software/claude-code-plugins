@@ -125,12 +125,10 @@ STRING_LISTS = {"suppressions.correctness_rules"}
 
 
 def _reserved(key: str) -> bool:
-    """A key no layer may supply: the resolver's own `_` outputs, and `thresholds`."""
     return key.startswith("_") or key == "thresholds"
 
 
 def _load_layer(path: str, warnings: list[str]) -> dict[str, Any] | None:
-    """The layer's mapping, or None (with a warning) when it cannot be read."""
     try:
         value = yaml_subset.load(path)
         if value is not None and not isinstance(value, dict):
@@ -159,7 +157,6 @@ def _is_number(value: Any) -> bool:
 def _invalid(
     key: str, value: Any, defaults: dict[str, Any], threshold_keys: set[str]
 ) -> str | None:
-    """Why a layer's value for `key` cannot be used, or None when it can."""
     parts = key.split(".")
     scalars = value if isinstance(value, list) else [value]
     if CONTROL.search(key) or any(
@@ -210,7 +207,6 @@ def _reset(
     parts: list[str],
     layers: dict[str, str],
 ) -> None:
-    """Put `parts` back to its bundled default, discarding lower layers' values."""
     default = _lookup(defaults, parts)
     parent: Any = config
     for part in parts[:-1]:
@@ -333,7 +329,6 @@ def _dual_read(
     where: str,
     warnings: list[str],
 ) -> list[tuple[str, str]]:
-    """One layer's files: the new one, or the old one while the new one is unusable."""
     has_new = new is not None and os.path.isfile(new)
     has_old = os.path.isfile(old) and not (has_new and _same_file(old, str(new)))
     layer_word = "personal layer" if layer == "local" else f"{layer} layer"

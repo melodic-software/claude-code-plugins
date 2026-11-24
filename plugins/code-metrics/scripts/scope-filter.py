@@ -40,9 +40,6 @@ def is_text_file(path: str) -> bool:
         with open(path, "rb") as handle:
             return b"\0" not in handle.read(SNIFF_BYTES)
     except OSError as exc:
-        # A file that exists but cannot be read is dropped so one locked file
-        # does not turn a whole lane unavailable, and named on stderr so it
-        # does not vanish from the scope with nothing said.
         print(
             f"scope-filter.py: dropped, cannot read: {path} ({exc.strerror})",
             file=sys.stderr,

@@ -26,16 +26,12 @@ fail() {
   exit 2
 }
 
-# seed_files <dir>: the seed's copied files, relative and sorted. The offline tests and
-# the linear schema check need this plugin's test helpers and conformance bindings, so
-# they stay in the plugin.
 seed_files() {
   (cd "$1" && find . -type f \
     ! -name '*.test.sh' ! -name 'mock.sh' ! -name "$HASH_FILE" \
     ! -path './schema-check/*' -print | LC_ALL=C sort)
 }
 
-# copy_files <dir>: every file in a copy except its hash record, relative and sorted.
 copy_files() {
   (cd "$1" && find . -type f ! -path "./$HASH_FILE" -print | LC_ALL=C sort)
 }
@@ -48,7 +44,6 @@ sha256_stdin() {
   fi
 }
 
-# tree_hash <dir>: one hash over each path read from stdin (relative to <dir>) and its content.
 tree_hash() {
   local dir="$1" rel
   while IFS= read -r rel; do
@@ -56,7 +51,6 @@ tree_hash() {
   done | sha256_stdin
 }
 
-# stage_seed <seed-dir> <stage-dir>: the copied file set, modes kept, plus its hash record.
 stage_seed() {
   local seed="$1" stage="$2" rel
   while IFS= read -r rel; do
@@ -119,8 +113,6 @@ fi
 recorded=""
 [[ -f "$dest/$HASH_FILE" ]] && recorded="$(<"$dest/$HASH_FILE")"
 if [[ -z "$recorded" || "$(copy_files "$dest" | tree_hash "$dest")" != "$recorded" ]]; then
-  # No record means the directory was not copied from a seed; either way it is the
-  # consumer's, so show how it differs from the current seed and write nothing.
   printf 'edited\n'
   diff -ru -x "$HASH_FILE" "$stage" "$dest"
   exit 1
@@ -131,7 +123,6 @@ if [[ "$recorded" == "$seed_hash" ]]; then
   exit 0
 fi
 
-# Swap through a backup so a failed move leaves the old copy in place.
 backup="$stage.old"
 mv "$dest" "$backup" || fail "cannot move $dest aside"
 if ! mv "$stage" "$dest"; then

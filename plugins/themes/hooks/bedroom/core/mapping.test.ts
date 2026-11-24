@@ -4,7 +4,6 @@ import { HITS } from '../scene/lib.ts'
 import { hitAt, toViewBox } from './clicks.js'
 import { encodeScreen, encodeWorld } from './values.js'
 
-/** A viewBox point as fractions of a window of this shape (the inverse of toViewBox). */
 function inWindow(x: number, y: number, aspect: number): { x: number; y: number } {
   const width = Math.min(1600, 1000 * aspect)
   const height = Math.min(1000, 1600 / aspect)

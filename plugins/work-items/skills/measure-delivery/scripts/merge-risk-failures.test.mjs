@@ -62,8 +62,6 @@ test("readRecord reads a demotion record's marker, its pull request line and its
   assert.equal(readRecord(`<!-- babysit-merge-demotion sha=${sha("e")} signal=nonsense -->`), null);
 });
 
-// Six rated merges, three per group: each failure signal hits one merge
-// alone, and one demotion record names a range.
 const commit = (c, ct, pr, subject = `feat: change ${pr} (#${pr})`, extra = {}) => ({ sha: sha(c), ct, pr, subject, demote: null, reverts: null, ...extra });
 const SNAPSHOT = {
   since: 100,

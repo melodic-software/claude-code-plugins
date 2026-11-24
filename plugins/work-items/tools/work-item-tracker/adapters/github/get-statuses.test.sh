@@ -28,8 +28,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not on PATH"
 STUB="$TMP_ROOT/bin"
 LOG="$TMP_ROOT/gh.log"
 mkdir -p "$STUB"
-# The stub answers a contents read from GH_STUB_ACTORS or GH_STUB_MODEL (a file path, or
-# `404` for a missing file) and a graphql read from GH_STUB_ANSWER.
 cat >"$STUB/gh" <<'EOF'
 #!/usr/bin/env bash
 args="$*"
@@ -57,7 +55,6 @@ chmod +x "$STUB/gh"
 
 PLAIN_BINDING="$TMP_ROOT/plain.json"
 printf '%s\n' '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}' >"$PLAIN_BINDING"
-# trust_binding <status_trust JSON>: a binding file with that config.github.status_trust.
 trust_binding() {
   local path="$TMP_ROOT/trust-$RANDOM.json"
   jq -n --argjson t "$1" '{schema_version:"1.0",provider:"github",config:{lease_ttl_hours:24,github:{status_trust:$t}}}' >"$path"
@@ -98,15 +95,12 @@ models:
       "4": needs-owner-decision
 YAML
 
-# ev <type: add|change|remove> <actor id> [<option>] [<field id>]: one field timeline event.
 ev() {
   jq -nc --arg t "$1" --argjson a "$2" --arg v "${3:-}" --arg f "${4:-777}" '
     {__typename: ({add: "IssueFieldAddedEvent", change: "IssueFieldChangedEvent", remove: "IssueFieldRemovedEvent"}[$t]),
      actor: {__typename: "User", login: "someone", databaseId: $a}, issueField: {fullDatabaseId: $f}}
     + ({add: {value: $v}, change: {newValue: $v}, remove: {}}[$t])'
 }
-# issue <value or ""> <event>...: one issue node holding that Work status value and those
-# events, oldest first, beside an unrelated Size value.
 issue() {
   local value="$1"
   shift
@@ -115,7 +109,6 @@ issue() {
        + (if $v == "" then [] else [{name: $v, field: {fullDatabaseId: "777"}}] end))},
      timelineItems: {nodes: $events}}'
 }
-# answer <file> <alias=issue JSON>...: a graphql answer file.
 answer() {
   local file="$1"
   shift
@@ -132,7 +125,6 @@ run() {
   ERR="$(<"$TMP_ROOT/err")"
 }
 
-# --- the plain read: no config.github.status_trust ---
 run --field "Work status" "github:o/r#1" "github:o/r#2" "github:o/r#3"
 assert_eq "statuses → exit 0" "0" "$RC"
 assert_eq "each item's field value, null when unset or unanswered" \
@@ -154,7 +146,6 @@ assert_contains "failed read → gh error reaches stderr" "$ERR" "HTTP 403"
 CLAUDE_CODE_REMOTE=true run --field "Work status" "github:o/r#1"
 assert_eq "a GraphQL-refusing session → exit 3" "3" "$RC"
 
-# --- the trusted read: the newest counted Work status event decides ---
 TRUSTED="$TMP_ROOT/trusted.json"
 answer "$TRUSTED" \
   "i1=$(issue ready "$(ev add 100 needs-human)" "$(ev change 999 ready)")" \
@@ -200,7 +191,6 @@ assert_contains "the model is read from the item repository" "$(cat "$LOG")" "re
 BINDING="$TRUST_BINDING" ANSWER="$TRUSTED" run --field "Work status"
 assert_eq "trusted, no ids → no call" '{}|0' "$(jq -c '.statuses' <<<"$OUT")|$(wc -l <"$LOG" | tr -d ' ')"
 
-# The model's ready-state names the one state a bot-setter's value never counts for.
 READY_MODEL="$TMP_ROOT/ready-model.yaml"
 awk '{ print } /^    field-id: 777$/ { print "    ready-state: ready" }' "$MODEL" >"$READY_MODEL"
 BINDING="$TRUST_BINDING" ANSWER="$TRUSTED" MODEL_FILE="$READY_MODEL" run --field "Work status" "${ids[@]}"
@@ -208,8 +198,6 @@ assert_eq "a configured ready-state → exit 0" "0" "$RC"
 assert_eq "under ready-state ready, a bot-setter's agent-ready counts" "agent-ready" "$(st 2)"
 assert_eq "under ready-state ready, a bot-setter's ready does not count" "needs-human" "$(st 3)"
 
-# trust_fails <exit> <name> [run args via env]: the read fails with <exit>, one stderr line
-# and nothing on stdout.
 trust_fails() {
   BINDING="${BINDING:-$TRUST_BINDING}" ANSWER="${ANSWER:-$TRUSTED}" run --field "Work status" "github:o/r#1"
   assert_eq "$2 → exit $1" "$1" "$RC"
@@ -253,7 +241,6 @@ values="$(jq -nc '[range(25) | {name: "x", field: {fullDatabaseId: "\(1000 + .)"
 answer "$full" "i1=$(issue "" | jq -c --argjson v "$values" '.issueFieldValues.nodes = $v')"
 ANSWER="$full" trust_fails 1 "25 field values fill the page"
 
-# window <n>: an answer whose issue holds needs-human and <n> events, none counted.
 window() {
   local file="$TMP_ROOT/window-$1.json" events
   events="$(jq -nc --argjson n "$1" '[range($n) | {__typename: "IssueFieldAddedEvent", value: "needs-human",
@@ -301,7 +288,6 @@ for bad in "standards:$STD_PATH" "standards:not a repo:$STD_PATH" "standards:acm
     trust_fails 3 "a standards source with no valid <owner>/<repo>:<path> ($bad)"
 done
 
-# --- status_trust governs Work status alone: another field reads plain ---
 PRIORITY="$TMP_ROOT/priority.json"
 answer "$PRIORITY" \
   'i1={"issueFieldValues":{"nodes":[{"name":"high","field":{"name":"Priority"}},{"name":"ready","field":{"name":"Work status"}}]}}' \

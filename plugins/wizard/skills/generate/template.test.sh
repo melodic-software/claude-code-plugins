@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for template.sh, the wizard that /wizard:generate stamps out
-# for a human to run.
-#
-# Self-contained: no external test lib, fixtures built inline in a mktemp dir,
-# nothing outside that dir is written. The assertion primitives are duplicated
-# per plugin on purpose, see docs/contracts/shell-test-helpers/README.md.
-#
-# HOW THE TEMPLATE IS EXERCISED. template.sh is a runnable wizard, not a library:
-# sourcing it whole would execute its example stage and block on prompts, and it
-# refuses to start at all without a controlling terminal. So each case extracts
-# the LIBRARY half, everything above the STAGES marker, into a temp file and
-# rewrites its single `exec 3</dev/tty` to read a fixture file instead. That one
-# rewrite is the entire seam: every function under test then runs verbatim,
-# prompts included. Case group 1 pins that the shipped file still carries exactly
-# one `exec 3</dev/tty` and one STAGES marker, so the seam cannot drift into
-# exercising a path the shipped file no longer takes, and group 2 proves the
-# fail-closed guard itself on the unmodified file.
-#
 # shellcheck disable=SC2016  # single-quoted `$` here is literal by design: the sed replacement, the case-script prelude and the invalid-key fixtures are all bytes handed to another shell, never expansions in this one
 set -uo pipefail
 
@@ -62,9 +44,6 @@ assert_not_contains() {
   *) pass "$1" ;;
   esac
 }
-# skip_case <reason>. Skip one optional case without exiting. Named to match the
-# house helper so scripts/check-discriminating-test-skips.sh can see the branch.
-# Only ever used where another case already carries the discriminating proof.
 skip_case() {
   SKIPPED_N=$((SKIPPED_N + 1))
   printf 'SKIP: %s\n' "$1" >&2
@@ -75,8 +54,6 @@ if [[ ! -f "$TEMPLATE" ]]; then
   exit 1
 fi
 
-# --- The library extraction and its fd-3 seam -------------------------------
-
 LIB="$TEST_TMPDIR/wizard-lib.sh"
 awk '/^# STAGES/ { exit } { print }' "$TEMPLATE" |
   sed 's|exec 3</dev/tty|exec 3<"$WIZARD_TEST_TTY"|' >"$LIB"
@@ -85,8 +62,6 @@ STUB_BIN="$TEST_TMPDIR/bin"
 mkdir -p "$STUB_BIN"
 export STUB_BIN
 
-# gh stub. Records every invocation's argv and, for a write, its stdin, so a case
-# can prove a secret value traveled over stdin and never over the command line.
 cat >"$STUB_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$GH_CAPTURE/argv"
@@ -128,19 +103,12 @@ esac
 STUB
 chmod +x "$STUB_BIN/gh"
 
-# Browser-opener stub. open_url tries wslview first, so stubbing that name makes
-# the dispatch deterministic on any host, and the capture file records exactly
-# what was handed to it (nothing, for a refused URL).
 cat >"$STUB_BIN/wslview" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$1" >>"$OPEN_CAPTURE"
 STUB
 chmod +x "$STUB_BIN/wslview"
 
-# case_build [strict|relaxed [ARG...]]. Read a case body from stdin, prepend the
-# library (sourced with each ARG as a wizard argument), and print the path of
-# the runnable case script. `strict` keeps the library's
-# `set -e` in force; the default relaxes it so a case can inspect a return code.
 case_build() {
   local mode="${1:-relaxed}" script arg
   shift || true
@@ -155,17 +123,12 @@ case_build() {
   printf '%s' "$script"
 }
 
-# case_exec <script> <tty-fixture>. Run a case script in a fresh working
-# directory with fd 3 bound to <tty-fixture>. Merged output on stdout; the
-# case script's exit status is the function's.
 case_exec() {
   local script="$1" tty="$2" dir
   dir="$(mktemp -d "$TEST_TMPDIR/dir.XXXXXX")"
   (cd "$dir" && CASE_DIR="$dir" WIZARD_TEST_TTY="$tty" bash "$script" 2>&1)
 }
 
-# case_run <tty-fixture> [strict|relaxed [ARG...]]. Build and run a one-off
-# case from stdin; each ARG reaches the library as a wizard argument.
 case_run() {
   local tty="$1" mode="${2:-relaxed}" script
   shift
@@ -174,7 +137,6 @@ case_run() {
   case_exec "$script" "$tty"
 }
 
-# fd-3 fixtures. /dev/null is EOF, the fail-closed input.
 TTY_EOF=/dev/null
 tty_fixture() {
   local name="$1"
@@ -189,8 +151,6 @@ TTY_VALUE="$(tty_fixture value typed-value)"
 TTY_BLANK="$(tty_fixture blank '')"
 TTY_SECRET="$(tty_fixture secret 'sp3cial s3cret')"
 TTY_PASTE="$(tty_fixture paste pasted-value y)"
-
-# --- 1. Shipped-file contract -----------------------------------------------
 
 if bash -n "$TEMPLATE" 2>/dev/null; then
   pass "template.sh parses (bash -n)"
@@ -207,8 +167,6 @@ assert_eq "STAGES marker appears exactly once (the authoring boundary)" 1 \
 assert_eq "fd 3 is opened from /dev/tty exactly once (the seam this suite rewrites)" 1 \
   "$(grep -c 'exec 3</dev/tty' "$TEMPLATE")"
 
-# The extraction must have cut above the example stage, or every library case
-# below would be running the wizard's demo content too.
 assert_not_contains "extracted library stops above the example stage" \
   "$(cat "$LIB")" "MAIL_API_TOKEN"
 
@@ -220,18 +178,12 @@ for fn in fatal banner stage say step note warn open_url pause confirm gate on_e
 done
 assert_eq "library defines the full helper API a generated wizard calls" "" "$missing_fns"
 
-# The shipped example must stay self-consistent: TOTAL_STAGES is the denominator
-# every `stage` line prints, so a drifted count ships a wizard that lies about
-# its own length.
 STAGES_SECTION="$TEST_TMPDIR/stages.sh"
 awk 'found { print } /^# STAGES/ { found = 1 }' "$TEMPLATE" >"$STAGES_SECTION"
 assert_eq "example TOTAL_STAGES matches the stage() calls below the marker" \
   "$(grep -E '^[[:space:]]*TOTAL_STAGES=' "$STAGES_SECTION" | tail -n1 | cut -d= -f2)" \
   "$(grep -cE '^[[:space:]]*stage "' "$STAGES_SECTION")"
 
-# --- 2. Fail-closed without a terminal --------------------------------------
-
-# On the unmodified shipped file, with the controlling terminal taken away.
 if setsid --wait true >/dev/null 2>&1; then
   out="$(setsid --wait bash "$TEMPLATE" </dev/null 2>&1)"
   rc=$?
@@ -243,12 +195,9 @@ elif ! (exec 3</dev/tty) 2>/dev/null; then
   assert_exit "shipped template refuses to start with no controlling TTY" 1 "$rc"
   assert_contains "... and names the reason" "$out" "no interactive terminal"
 else
-  # Not discriminating: the next case proves the same guard through the seam.
   skip_case "no setsid --wait and this host has a controlling TTY, cannot force the no-TTY path on the shipped file"
 fi
 
-# Same guard through the seam, with an unopenable fd-3 source. Deterministic
-# everywhere, so the fail-closed contract is never left unproven.
 out="$(
   case_run "$TEST_TMPDIR/no-such-tty" <<'BODY'
 echo "reached-body"
@@ -257,8 +206,6 @@ BODY
 rc=$?
 assert_exit "library aborts when its terminal source cannot be opened" 1 "$rc"
 assert_not_contains "... before running any stage" "$out" "reached-body"
-
-# --- 3. Key-name validation -------------------------------------------------
 
 out="$(
   case_run "$TTY_EOF" <<'BODY'
@@ -278,8 +225,6 @@ done
 for k in 'bad-key' '1leading' 'has space' 'K=V' 'K;rm -rf /' 'K$(id)' 'K.V'; do
   assert_contains "_valid_key rejects '$k'" "$out" "reject:$k"
 done
-# Counted, not just spot-checked: this is what covers the empty-name fixture,
-# whose reject line has nothing after the colon to match on.
 assert_eq "_valid_key rejects all 8 invalid names, the empty one included" 8 \
   "$(printf '%s\n' "$out" | grep -c '^reject:')"
 assert_eq "_valid_key accepts all 5 valid names and nothing else" 5 \
@@ -296,12 +241,6 @@ assert_contains "write_env fails on an invalid key" "$out" "rc=1"
 assert_contains "... with a diagnosable message" "$out" "invalid key name: 'bad-key'"
 assert_contains "... before the env file is created" "$out" "env:ABSENT"
 
-# A key that names the library's own state would be overwritten by the helper's
-# printf -v: `write_env ENV_FILE x` would send every later write to a file
-# named x. Every global the library sets must be refused, so a new global added
-# without extending _assignable_key fails here. The list is every variable that
-# sourcing the library adds to a clean shell, which covers globals assigned in
-# an indented branch (the color globals) that a line grep would miss.
 lib_globals="$(
   env -i PATH="$PATH" WIZARD_TEST_TTY=/dev/null bash -c '
     compgen -v | sort >"$1"
@@ -311,8 +250,6 @@ lib_globals="$(
 )"
 assert_contains "the global list includes globals assigned in an indented branch" \
   "$(tr '\n' ' ' <<<"$lib_globals")" "BOLD"
-# A refusal counts only with its message: a missing _assignable_key also exits
-# nonzero, so an exit code alone would pass on code without the gate.
 SHELL_SPECIALS="PATH IFS HOME SHELL CDPATH ENV PS1 PS4 PROMPT_COMMAND BASH_ENV BASHOPTS LC_ALL LANG TMOUT LD_PRELOAD DYLD_INSERT_LIBRARIES"
 out="$(
   case_run "$TTY_EOF" <<BODY
@@ -393,8 +330,6 @@ assert_contains "ask refuses an exported key too" "$out" "exported key name: 'WI
 assert_not_contains "... before prompting" "$out" "Type it:"
 assert_contains "... exiting nonzero" "$out" "rc=1"
 
-# --- 4. write_env and _existing --------------------------------------------
-
 # The fixture starts from a world-readable hand-written env file, which is the
 # state a wizard actually walks into. The assertion is on the END state, which is
 # the property that matters to a human whose secrets land there. Two mechanisms
@@ -414,7 +349,6 @@ assert_contains "write_env tightens a world-readable env file to owner-only" "$o
 assert_contains "write_env adopts a hand-written env file instead of clobbering it" "$out" "PRE=already here"
 assert_contains "write_env reports the key it wrote" "$out" "wrote"
 
-# The confirmation line is the only thing a human sees; a value must never be in it.
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 write_env API_KEY 'hunter2-never-echo'
@@ -442,8 +376,6 @@ assert_contains "... keeping the newest value" "$out" "k=[three]"
 assert_contains "... and leaving other keys alone" "$out" "other=[keep]"
 assert_contains "write_env leaves no staging temp file behind" "$out" "leftovers=0"
 
-# A stage that writes a value and later reads it back (`write_env K "$x"` then
-# `set_secret K "$K"`) must see what it wrote, the same as after ask.
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 write_env WRITTEN_ONLY 'from-write-env' >/dev/null
@@ -452,8 +384,6 @@ BODY
 )"
 assert_contains "write_env also sets the shell variable it names" "$out" "shell=[from-write-env]"
 
-# A symlinked env file (a shared secret store) must receive the write: the link
-# survives, the target gets the key and keeps its other lines and its mode.
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 mkdir store
@@ -475,12 +405,6 @@ assert_contains "... keeps the target's existing lines" "$out" "STORED='kept'"
 assert_contains "... leaves the target's mode alone" "$out" "target_mode=[-rw-r-----]"
 assert_contains "... and leaves no staging temp file behind" "$out" "leftovers=0"
 
-# A symlinked env file whose target sits OUTSIDE the project (a hostile repo
-# shipping `.env -> ~/.bashrc`) must name the real destination and get an
-# explicit yes before anything lands there. The outside target is a sibling of
-# the case directory, reached through a two-hop relative chain so the resolver's
-# loop is exercised. The fixture's confirm answer is the only input: a declined
-# or unanswerable gate must leave the target byte-identical and exit nonzero.
 OUTSIDE_LINK_SETUP='outside="$(mktemp -d "${CASE_DIR%/*}/outside.XXXXXX")"
 printf "export PATH=/usr/bin\n" >"$outside/bashrc"
 cp "$outside/bashrc" "$outside/before"
@@ -513,8 +437,6 @@ BODY
 assert_contains "an outside symlink target with no answer available writes nothing" "$out" "target:UNCHANGED"
 assert_contains "... and exits nonzero" "$out" "rc=1"
 
-# The gate must come BEFORE the secret is typed, not after: a declined
-# ask_secret never shows its prompt.
 out="$(
   case_run "$TTY_N" <<BODY
 $OUTSIDE_LINK_SETUP
@@ -541,9 +463,6 @@ assert_contains "... keeping its existing lines" "$out" "export PATH=/usr/bin"
 assert_contains "... asking once per env file (one y answers both writes)" "$out" "FIRST='one'"
 assert_contains "... and the link survives" "$out" "link:kept"
 
-# The yes covers one resolved target, not the ENV_FILE name: a link repointed
-# to a different outside file after the first confirmed write must ask again,
-# and a decline there leaves the new target untouched.
 TTY_Y_N="$(tty_fixture y-n y n)"
 out="$(
   case_run "$TTY_Y_N" <<BODY
@@ -563,8 +482,6 @@ assert_contains "a link repointed after a confirmed write asks again" "$out" "ou
 assert_contains "... and a decline leaves the new target untouched" "$out" "second:UNCHANGED"
 assert_contains "... exiting nonzero" "$out" "rc=1"
 
-# Inside the project the write-through stays silent: the EOF fixture would make
-# any confirmation prompt abort.
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 mkdir store
@@ -580,10 +497,6 @@ assert_contains "a symlink target inside the project is written without a prompt
 assert_not_contains "... and draws no outside-the-project disclosure" "$out" "outside this project"
 assert_contains "... exiting 0" "$out" "rc=0"
 
-# The env file itself need not be a link: ENV_FILE=sub/.env with `sub` linked to
-# a directory outside the project resolves outside just the same, and gets the
-# same gate. Declined, the outside directory stays empty; confirmed, the value
-# lands there.
 OUTSIDE_DIR_SETUP='outside="$(mktemp -d "${CASE_DIR%/*}/outside.XXXXXX")"
 ln -s "$outside" sub
 ENV_FILE=sub/.env
@@ -614,7 +527,6 @@ BODY
 assert_contains "a confirmed symlinked outside directory receives the write" "$out" "CONFIRMED='yes'"
 assert_contains "... exiting 0" "$out" "rc=0"
 
-# A directory link that stays inside the project is written without a prompt.
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 mkdir real
@@ -629,8 +541,6 @@ assert_contains "an env file under a symlinked directory inside the project is w
 assert_not_contains "... and draws no outside-the-project disclosure" "$out" "outside this project"
 assert_contains "... exiting 0" "$out" "rc=0"
 
-# A sibling directory whose name merely starts with the project's path
-# (/proj-evil next to /proj) is outside the project, not inside it.
 out="$(
   case_run "$TTY_N" <<'BODY'
 evil="$(pwd -P)-evil"
@@ -646,11 +556,6 @@ assert_contains "a sibling directory sharing the project path as a prefix is out
 assert_contains "... and a decline writes nothing there" "$out" "evil_files=0"
 assert_contains "... exiting nonzero" "$out" "rc=1"
 
-# A link into git metadata stays inside the project but is not a dotenv file: a
-# hostile repo shipping `.env -> .git/config` would get secrets appended to a
-# world-readable file and a key name of its choosing read as git configuration.
-# It gets the same warn-and-confirm gate as an outside target, named for what
-# it is.
 GIT_LINK_SETUP='git init -q . >/dev/null 2>&1
 cp .git/config config.before
 ln -s .git/config .env
@@ -705,7 +610,6 @@ assert_contains "a confirmed env file linked into .git is written through" "$out
 assert_contains "... after the git metadata gate asked" "$out" "resolves into git metadata"
 assert_contains "... exiting 0" "$out" "rc=0"
 
-# A nested repository's metadata (a vendored checkout or submodule) is gated too.
 out="$(
   case_run "$TTY_N" <<'BODY'
 mkdir -p vendor/lib/.git
@@ -743,8 +647,6 @@ BODY
   assert_contains "... exiting nonzero" "$out" "rc=1"
 done
 
-# The escaping contract: what write_env stores must read back byte-identical
-# through _existing AND through a plain dotenv-style shell read.
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 val="it's got 'quotes', \"doubles\" and a \$dollar"
@@ -791,8 +693,6 @@ assert_contains "_existing offers no double-quoted value holding a dollar sign" 
 assert_contains "_existing offers no double-quoted value holding a backslash" "$out" 'SLASH_rc=1 value=[]'
 assert_contains "_existing offers no double-quoted value holding a backtick" "$out" 'BACKTICK_rc=1 value=[]'
 
-# --- 5. The gitignore pre-flight -------------------------------------------
-
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 git init -q . >/dev/null 2>&1
@@ -819,8 +719,6 @@ finish
 BODY
 )"
 assert_not_contains "a gitignored env file draws no warning" "$out" "NOT gitignored"
-
-# --- 6. open_url ------------------------------------------------------------
 
 out="$(
   case_run "$TTY_EOF" <<'BODY'
@@ -864,10 +762,6 @@ BODY
 )"
 assert_contains "open_url warns when no browser opener exists" "$out" "open this address yourself: https://dashboard.example.com/keys"
 
-# --- 7. Prompt gates over fd 3 ---------------------------------------------
-
-# confirm's own drain is neutralized here so a scripted answer survives to the
-# read; the drain has its own dedicated cases below.
 confirm_case="$(
   case_build <<'BODY'
 _drain_tty() { :; }
@@ -900,8 +794,6 @@ BODY
 assert_contains "pause aborts rather than falling through at EOF" "$out" "terminal closed at a pause gate"
 assert_contains "... with a failing status" "$out" "rc=1"
 
-# The paste bypass this library exists to close: a multi-line paste answered an
-# earlier prompt AND left the next gate's answer buffered.
 out="$(
   case_run "$TTY_PASTE" <<'BODY'
 ask PASTED "Paste a value:"
@@ -915,8 +807,6 @@ assert_not_contains "a buffered paste can never answer the NEXT confirmation gat
 assert_contains "... the gate aborts instead" "$out" "terminal closed at a confirmation gate"
 assert_exit "... and the wizard exits nonzero" 1 "$rc"
 
-# Control for the case above: the same fixture DOES carry a working bypass
-# payload, so the assertion there is the drain doing its job, not an empty file.
 out="$(
   case_run "$TTY_PASTE" <<'BODY'
 _drain_tty() { :; }
@@ -1100,8 +990,6 @@ BODY
   done
 done
 
-# --- 8. GitHub Actions helpers ---------------------------------------------
-
 GH_PRELUDE='export PATH="$STUB_BIN:$PATH"
 export GH_CAPTURE="$CASE_DIR/gh"
 mkdir -p "$GH_CAPTURE"
@@ -1173,8 +1061,6 @@ assert_contains "set_var pins the confirmed repo with --repo" "$out" "variable s
 assert_not_contains "set_var never puts the value on the command line" \
   "$(printf '%s\n' "$out" | grep '^argv=')" "us-east-1"
 
-# The fixture holds exactly ONE `y`. A second confirmation prompt would read EOF
-# and abort, so a green run here IS the proof that the repo is resolved once.
 out="$(
   case_run "$TTY_Y" <<BODY
 $GH_PRELUDE
@@ -1237,8 +1123,6 @@ assert_contains "a failing gh write surfaces its stderr in the summary" "$out" "
 assert_contains "... is not counted as written" "$out" "written=[]"
 assert_contains "... and does not abort the wizard" "$out" "rc=0"
 
-# --- 9. Stage framing and the closing summary -------------------------------
-
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 TOTAL_STAGES=3
@@ -1300,7 +1184,6 @@ BODY
 )"
 assert_contains "finish prints a caller-supplied title" "$out" "Cutover finished"
 
-# The stage count is hand-set, so finish compares it with the stages that ran.
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 TOTAL_STAGES=2
@@ -1318,7 +1201,6 @@ BODY
 )"
 assert_not_contains "finish stays quiet when the stage count matches" "$out" "stage count mismatch"
 
-# banner: kind-neutral default intro, caller-supplied lines, singular count.
 out="$(
   case_run "$TTY_BLANK" <<'BODY'
 _drain_tty() { :; }
@@ -1342,7 +1224,6 @@ assert_not_contains "... in place of the default intro" "$out" "walks you throug
 assert_contains "banner pluralizes one stage" "$out" "1 stage"
 assert_not_contains "... as singular" "$out" "1 stages"
 
-# gate: a yes goes on, anything else ends the wizard with the stated message.
 out="$(
   case_run "$TTY_Y" <<'BODY'
 _drain_tty() { :; }
@@ -1363,16 +1244,9 @@ assert_exit "gate ends the wizard on a no" 1 "$rc"
 assert_contains "... saying what is unchanged" "$out" "stopped: nothing changed"
 assert_not_contains "... before the next step" "$out" "after-gate"
 
-# --- 9b. No em dash in anything the library prints --------------------------
-
-# Comment-only lines may carry one; any other line holds a string a person reads.
 assert_eq "no U+2014 in a non-comment line of template.sh" "" \
   "$(grep -n '—' "$TEMPLATE" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
 
-# --- 9c. on_exit: handlers run on every way the wizard can end ---------------
-
-# Each case registers its handler inside run_wizard, as a generated wizard does,
-# and leaves a stand-in write_env temp file that _cleanup must still remove.
 exit_case() {
   local how="$1" leak="$2"
   case_run "$TTY_EOF" strict <<BODY
@@ -1427,8 +1301,6 @@ rc=$?
 assert_exit "a failing handler does not change a clean exit" 0 "$rc"
 assert_contains "... and the run still reached its end" "$out" "reached-end"
 
-# --- 10. The EXIT trap must not turn a clean run into a failure -------------
-
 # Run with the library's own `set -e` left in force. _cleanup's if-form exists
 # precisely so a false condition does not hand the EXIT trap a nonzero status;
 # the `[[ ... ]] && rm` form this replaced exits 1 from a wizard that did
@@ -1442,8 +1314,6 @@ BODY
 rc=$?
 assert_exit "a successful wizard exits 0 under set -e (EXIT trap keeps its status)" 0 "$rc"
 assert_contains "... having run to completion" "$out" "reached-end"
-
-# --- 11. A terminal without the clear capability -----------------------------
 
 # _clear only acts on a terminal, so this case needs a pty: util-linux `script`
 # provides one. TERM=dumb has no `clear` entry, so `tput clear` exits nonzero;
@@ -1466,8 +1336,6 @@ BODY
 else
   skip_case "TERM=dumb case: util-linux script (pty) unavailable"
 fi
-
-# --- 12. Editing the script while it runs -----------------------------------
 
 # bash reads a script as it runs it, from a file offset. An in-place edit that
 # lengthens the file shifts earlier bytes under that offset, so an unwrapped
@@ -1511,8 +1379,6 @@ assert_exit "... exiting 0, reading nothing past the run_wizard call" 0 "$rc"
 out="$(edit_case unwrapped)"
 assert_eq "control: the same edit re-runs step-1 when the stages are not wrapped" 2 \
   "$(grep -c '^ran:step-1$' <<<"$out")"
-
-# --- 13. --dry-run: every stage shown, nothing written ----------------------
 
 out="$(
   case_run "$TTY_EOF" relaxed --dry-run <<'BODY'
@@ -1601,8 +1467,6 @@ assert_exit "the shipped template runs to its end under --dry-run" 0 "$rc"
 assert_contains "... saying nothing was written" "$out" "Dry run of Mail provider setup complete: nothing was written"
 assert_eq "... leaving the directory empty (no .env, no gh call, no page opened)" "" "$(ls -A "$whole_dir")"
 
-# --- 14. Read-back after each write -----------------------------------------
-
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 write_env API_KEY 's3cr3t-value'
@@ -1613,8 +1477,6 @@ assert_contains "write_env reads the key back after writing" "$out" "read back A
 assert_not_contains "... never printing the value" "$out" "s3cr3t-value"
 assert_contains "... and succeeds" "$out" "rc=0"
 
-# A .env symlinked to /dev/null accepts the write and keeps nothing, so only the
-# read-back can notice. The first `y` answers the outside-the-project gate.
 TTY_YY="$(tty_fixture yy y y)"
 TTY_YN="$(tty_fixture yn y n)"
 out="$(
@@ -1676,8 +1538,6 @@ assert_contains "a CI secret that does not read back is reported" "$out" "GitHub
 assert_contains "... and listed with the command that finishes it" "$out" "GitHub secret DEPLOY_TOKEN (read-back failed: gh secret set DEPLOY_TOKEN --repo acme/widgets)"
 assert_contains "... for a variable too" "$out" "GitHub variable REGION (read-back failed: gh variable set REGION --repo acme/widgets)"
 assert_contains "... without failing the wizard" "$out" "rc=0"
-
-# --- 15. Credential proof and the one-step manual fix -----------------------
 
 out="$(
   case_run "$TTY_EOF" <<'BODY'
@@ -1753,8 +1613,6 @@ assert_exit "declining the manual step after a failed attempt stops the wizard" 
 assert_contains "... saying what failed" "$out" "stopped: false failed (exit 1)"
 assert_not_contains "... before the next step" "$out" "after-attempt"
 
-# --- 16. Record-only values and temporary credentials -----------------------
-
 out="$(
   case_run "$TTY_EOF" <<'BODY'
 record MAIL_REGION eu-west-1
@@ -1791,8 +1649,6 @@ BODY
 assert_contains "record validates the key name" "$out" "invalid key name: 'bad-key'"
 assert_contains "temporary lists the credential for deletion" "$out" "temporary credentials to delete when done"
 assert_contains "... with where to delete it" "$out" "MAIL_API_TOKEN: Mail console: API, Revoke"
-
-# --- Tally ------------------------------------------------------------------
 
 printf '\n%d case(s), %d failure(s), %d skip(s)\n' "$CASE_NUM" "$FAILED" "$SKIPPED_N"
 [[ $FAILED -eq 0 ]] || exit 1

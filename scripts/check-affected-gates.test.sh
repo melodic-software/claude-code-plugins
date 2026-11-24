@@ -20,7 +20,6 @@ WORKFLOW="$SELF_DIR/../.github/workflows/pr-require-checks.yml"
 GATES="$SELF_DIR/check-affected-gates.txt"
 RUNNER="$SELF_DIR/check-affected.sh"
 
-# workflow_gates <workflow>: the gate names the four hygiene jobs feed.
 workflow_gates() {
   awk -v jobs='lint-repo lint-shell check-plugins check-skills' '
     BEGIN { n = split(jobs, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
@@ -30,17 +29,14 @@ workflow_gates() {
   ' "$1" | LC_ALL=C sort -u
 }
 
-# listed_gates <gates file>: the first column of every row.
 listed_gates() {
   awk '!/^[ \t]*(#|$)/ { print $1 }' "$1" | LC_ALL=C sort -u
 }
 
-# unlisted <workflow> <gates file>: gates in the workflow with no row.
 unlisted() {
   LC_ALL=C comm -23 <(workflow_gates "$1") <(listed_gates "$2")
 }
 
-# stale <workflow> <gates file>: rows for a gate the workflow no longer feeds.
 stale() {
   LC_ALL=C comm -13 <(workflow_gates "$1") <(listed_gates "$2")
 }
@@ -94,8 +90,6 @@ while read -r gate kind rest; do
 done < <(grep -v '^[[:space:]]*\(#\|$\)' "$GATES")
 ((rows_ok)) && ok "every row is a runner check or a CI-only gate with a reason"
 
-# A fixture workflow: a gate added to a hygiene job without a row is found, a
-# gate in another job is not, and a row for a removed gate is stale.
 cat >"$tmp/workflow.yml" <<'YAML'
 name: fixture
 on:

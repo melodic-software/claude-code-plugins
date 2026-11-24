@@ -752,7 +752,6 @@ class MypyReportCollisionTests(unittest.TestCase):
                 )
             finally:
                 os.chdir(cwd)
-        # A repeated path is the same file, not a collision.
         self.assertEqual(scope, ["b-dir/mod.py", "pkg/mod.py", "b-dir/mod.py"])
         self.assertEqual(held_out, [("a-dir/mod.py", "mod"), ("c-dir/mod.py", "mod")])
 

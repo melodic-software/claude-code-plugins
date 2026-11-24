@@ -124,7 +124,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | speech | `scripts/narrate.py:428` | OpenAI speech API | kept | Authenticated API call, not a page |
 | user-interface | `skills/write-css/SKILL.md:60` | WebFetch on official docs when context7 and discovery are absent | kept | Fallback for when `/context7:lookup` and `/discovery:research` are not enabled; the plugin carries no cache copy |
 | user-interface | `skills/write-animation/SKILL.md:65` | WebFetch on official docs as the fourth route | kept | Used when `/context7:lookup` and `/discovery:research` give no answer; the plugin carries no cache copy |
-| wizard | `skills/generate/template.sh:778` | curl in an example stage | kept | Example text the author deletes; an API call, not a page |
+| wizard | `skills/generate/template.sh:761` | curl in an example stage | kept | Example text the author deletes; an API call, not a page |
 | work-items | `skills/onboard-adapter/scripts/templates/common.sh.tmpl:286` | Tracker REST call in the generated adapter template | kept | Authenticated tracker API, not a page |
 | work-items | `tools/work-item-tracker/seeds/gitea/common.sh:321` | Gitea REST API | kept | Authenticated tracker API, not a page |
 | work-items | `tools/work-item-tracker/seeds/jira/common.sh:297` | Jira REST API | kept | Authenticated tracker API, not a page |

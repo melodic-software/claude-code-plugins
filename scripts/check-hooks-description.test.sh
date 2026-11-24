@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for scripts/check-hooks-description.sh: a fixture tree per case so the
-# verdict is on the shape under test and nothing else. The live tree is the
-# gate's own CI step (pr-require-checks.yml, step id hooks_description).
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,11 +13,11 @@ SCRIPT="$SELF_DIR/check-hooks-description.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-new_fixture() { # <out-var>
+new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --plugins
 }
 
-hooks_file() { # <fixture> <plugin> <content>
+hooks_file() {
   mkdir -p "$1/plugins/$2/hooks"
   printf '%s\n' "$3" >"$1/plugins/$2/hooks/hooks.json"
 }

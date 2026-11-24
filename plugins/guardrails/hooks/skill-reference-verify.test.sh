@@ -223,16 +223,6 @@ RC=$?
 assert_exit "prose hunk sharing a word token → exit 0" 0 "$RC"
 assert_silent "hunk sharing only a token does not drag in an untouched broken reference" "$OUT"
 
-# The DEGENERATE shape of the same defect: the hunk IS the shared word, so its
-# anchor is no longer than the token and matches BOTH the edited prose line and
-# the untouched reference. Anchoring on lines cannot separate them here — only
-# requiring the anchor to locate exactly ONE line does. An anchor matching several
-# cannot say which the edit landed in, so it is dropped rather than unioned;
-# unioning fired `  /alpha:ghost-legacy` from an edit that never
-# touched it, since `legacy` is also a substring of that skill segment and so
-# clears the token filter. Trading this for a missed advisory when an edit lands
-# in a verbatim-duplicated line is deliberate — an advisory guard is degraded
-# worse by speaking wrongly than by staying quiet.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SEGSHARE" 'legacy')" 2>&1)
 RC=$?
 assert_exit "bare-token hunk matching several lines → exit 0" 0 "$RC"
@@ -354,12 +344,6 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SUBST" 'host')" 
 assert_contains "substring Edit inside a segment → recovered" "$OUT" \
   "  /alpha:sethost"
 
-# A hunk carrying BOTH a complete reference and a substring change to another must
-# report both — gating reconstruction on an empty scan would miss the partial half.
-# The two live on separate lines of the SAME hunk: a single Edit's new_string can
-# span several lines of a replaced passage, and each line lands on disk verbatim,
-# so line-anchoring finds the bare-word line while the complete reference on the
-# other line is already caught by the direct scan of the whole hunk.
 MIXED="$REPO/mixed.md"
 printf 'First `/alpha:ghost-mixed` here.\nSecond `/alpha:audit` is fine.\n' >"$MIXED"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
@@ -376,11 +360,6 @@ mixed_ctx=$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$OUT" 2>/
 assert_eq "reference reachable both ways → listed once" 1 \
   "$(grep -c '/alpha:ghost-mixed (' <<<"$mixed_ctx")"
 
-# Sharing a physical LINE with the hunk is not evidence the edit wrote a
-# reference. Here the anchor is unique — so the uniqueness gate is satisfied and
-# cannot help — and it sits on the same line as an untouched broken reference,
-# which a shared word (`legacy`) then readmitted through the token filter. Only
-# keeping the part of the line the anchor OVERLAPS separates them.
 ONELINE="$REPO/oneline.md"
 printf 'Stale `/alpha:ghost-legacy` here. The legacy naming convention was updated today.\n' \
   >"$ONELINE"
@@ -397,9 +376,6 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$ONELINE2" 'ghost
 assert_contains "an anchor inside the reference still reports it" "$OUT" \
   "  /alpha:ghost-legacy"
 
-# A SHORT substring edit. Replacing `up` with `xx` inside `/alpha:setup` leaves
-# `/alpha:setxx` on disk and a two-character hunk; a minimum token length left
-# every such edit uncovered, while overlap has no length to clear.
 SHORT="$REPO/short.md"
 printf 'Run `/alpha:setxx` to begin.\n' >"$SHORT"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORT" 'xx')" 2>&1)
@@ -547,24 +523,6 @@ tail with `/alpha:ghost-pair`.')" 2>&1)
 assert_contains "a unique whole hunk resolves lines that individually repeat" "$OUT" \
   "  /alpha:ghost-pair"
 
-# SCALE meets the FALLBACK. The two cases above force the fallback but on three
-# lines, and the timing case above is large but takes the whole-hunk fast path, so
-# neither measures what the original defect actually cost: one scan PER ANCHOR over
-# a big file. This case combines them — a file near RECONSTRUCT_MAX_CHARS and a
-# many-line hunk that a reformat has made non-contiguous — and it is the case the
-# fallback's anchor cap exists for.
-#
-# What the cap DOES is asserted, not how long it takes. A wall-clock bound here
-# measures the host: the same fixture read 21 s loaded and the smaller one below
-# read 23 s, while the isolated scan it is supposed to be bounding is ~1 s at this
-# size. A timing assertion that noisy is worse than none — it fails on load and
-# passes on a regression that happens to run on a quiet box. The scan cost itself
-# is measured directly (see the constants' docblock); what a test can pin
-# deterministically is the cap's BEHAVIOR, so this case pins it from both sides.
-#
-# Both references are reached only through reconstruction: each hunk line carrying
-# one is a bare SUBSTRING, never the reference itself, so the direct hunk scan
-# cannot see either and an assertion cannot pass on the direct scan alone.
 FBIG="$REPO/fallback-big.md"
 FBIGHUNK="$TEST_TMPDIR/fallback-hunk.txt"
 {
@@ -729,10 +687,6 @@ else
   bad "lazy index: index was never built for a reference-bearing write"
 fi
 
-# Built at most once even with several references to several plugins, and in
-# ONE process: every manifest in the fixture is handed to a single jq. The
-# pre-batch shape logged two invocations per manifest (12 here); this case
-# fails against it.
 rm -f "$REPO/.git/guardrails-skill-index"
 : >"$JQ_LOG"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
@@ -936,8 +890,6 @@ idx_finds "index cache: a file cut after its header is a miss"
 assert_eq "index cache: the cut file is rebuilt through jq" 1 "$IDX_JQ"
 assert_idx_whole "index cache: the cut file is rebuilt whole"
 
-# Cut in the middle of the last row: the row parses, under the name `be`, and
-# the plugin it belongs to is silently not adjudicated.
 {
   printf '%s\n' "${IDX_GOOD[@]:0:5}"
   printf '%s' "${IDX_GOOD[5]%???}"

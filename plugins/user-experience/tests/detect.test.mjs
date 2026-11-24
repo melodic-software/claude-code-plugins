@@ -20,24 +20,19 @@ after(() => rmSync(scratch, { recursive: true, force: true }));
 const HOME = join(scratch, "home");
 mkdirSync(HOME, { recursive: true });
 
-/** The convention-home resolver applies a home only inside a git work tree, so a scratch project that binds one is one. */
 function gitInit(dir) {
   const r = spawnSync("git", ["init", "-q", dir], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
 }
 
-/** Runs detect.mjs as a CLI; `env` replaces the child's environment when given. */
 function detect(args, env) {
   const r = spawnSync(process.execPath, [DETECT, ...args], { encoding: "utf8", env });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
-/** A `claude plugin list --json` record, enabled at user scope unless `fields` says otherwise. */
 const record = (id, fields) => ({ id, scope: "user", enabled: true, projectEnabled: false, ...fields });
-/** This plugin's own record: its installPath is this checkout's plugin root. */
 const self = () => record("user-experience@fixture-market", { installPath: PLUGIN });
 let lists = 0;
-/** Writes `records` as a plugin list file and returns its path. */
 function pluginList(records) {
   const file = join(scratch, `plugin-list-${++lists}.json`);
   writeFileSync(file, JSON.stringify(records));
@@ -100,7 +95,6 @@ describe("installed and routes", () => {
   });
 
   test("routes are the bundled rows, each marked present when installed", () => {
-    // Enabled in plugin-list.json (user-interface, product-management) or listed in mcp-list.txt (dovetail, mixpanel).
     const expected = new Set(["/user-interface:design", "/product-management:synthesize-research", "/product-management:metrics-review", "dovetail", "mixpanel"]);
     const { routes } = detect(["--project", join(FIX, "idea"), ...seams]);
     assert.deepEqual(routes, ROWS.map((r) => ({ ...r, present: expected.has(r.id) })));
@@ -148,7 +142,6 @@ describe("team file", () => {
   const SKIPPED = /Built-in routes used; team overrides and the deny floor were not applied\. Run \/user-experience:setup/;
   const withTeam = (file, project = EXISTING) => detect(["--project", project, ...seams, "--team", file]);
   const fixture = (name) => withTeam(join(TEAM, name));
-  /** Writes `text` as a scratch team file and returns its path. */
   const scratchTeam = (name, text) => {
     const file = join(scratch, name);
     writeFileSync(file, text);
@@ -397,7 +390,6 @@ describe("team surface", () => {
     mkdirSync(join(project, "docs/conventions"), { recursive: true });
     gitInit(project);
     writeFileSync(join(project, "docs/conventions/user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\noutput_home: docs/ux\n");
-    // Only the cascade reads a .local file beside the team file; it wins per key.
     writeFileSync(join(project, "docs/conventions/user-experience.local.yaml"), "jtbd_school: jobs-to-be-done-theory\n");
     const home = detect(["--project", project, ...seams]).team;
     assert.equal(home.path, "docs/conventions/user-experience.yaml");
@@ -425,7 +417,6 @@ describe("team surface", () => {
     assert.ok(!team.warnings.some((w) => w.startsWith("user (")), team.warnings.join("\n"));
   });
 
-  /** detect's team result for a scratch git project holding `files` under docs/conventions. */
   const withLayers = (name, files) => {
     const project = join(scratch, name);
     mkdirSync(join(project, "docs/conventions"), { recursive: true });

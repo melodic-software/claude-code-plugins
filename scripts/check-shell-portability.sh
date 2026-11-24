@@ -202,8 +202,6 @@ cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 # shellcheck source=lib/awk-probe.sh
 . "$SCRIPT_DIR/lib/awk-probe.sh" || exit 2
 
-# The probe needs no token list or baseline, so it is dispatched before either
-# is loaded. Suite paths are repo-relative, as for --paths.
 if [[ "${1:-}" == "--awk-probe" ]]; then
   shift
   if (($# == 0)); then
@@ -226,9 +224,6 @@ if [[ ! -f "$SCAN_AWK" ]]; then
   exit 2
 fi
 
-# Active patterns are resolved HERE, before any scan, so a missing list or one
-# with no active patterns fails the gate closed with the path in the diagnostic.
-# The awk-side `np == 0 && ncls == 0` check stays as defense in depth.
 TOKENS_SRC="${SHELL_PORTABILITY_TOKENS:-scripts/shell-portability-tokens.txt}"
 # shellcheck disable=SC2034 # TOKENS_ACTIVE is set by load_active and read by its EXIT trap
 TOKENS_ACTIVE='' TOKENS=''
@@ -289,7 +284,6 @@ is_scannable() {
   return 0
 }
 
-# Active baseline entries: exact repo-relative paths, full-string equality.
 baseline_entries=()
 if [[ -f "$BASELINE" ]]; then
   # `inline`: baseline entries are repo-relative paths, never regexes, so a `#`
@@ -326,7 +320,6 @@ all)
   )
   ;;
 paths)
-  # --paths is the audit tool: scan exactly what was asked, no baseline skip.
   files=("${GE_PATHS[@]}")
   ;;
 base)
@@ -342,7 +335,7 @@ base)
   gate_entry::collect_changed changed "$base" -- '*.sh' 'plugins/'
   for f in ${changed[@]+"${changed[@]}"}; do
     is_scannable "$f" || continue
-    [[ -f "$f" ]] || continue # a rename-away/deletion leaves nothing to scan
+    [[ -f "$f" ]] || continue
     files+=("$f")
   done
   ;;
@@ -379,14 +372,7 @@ scan_file() {
 }
 
 violations=0
-# Whether any reported hit belongs to the bash-version class, so its remediation
-# paragraph is printed to the developer who actually hit it and to nobody else.
-# Printed unconditionally it followed every `grep -P` and `sed -i` failure with
-# advice about an ampersand the developer never wrote.
 amp_violation=0
-# Baselined skill-md paths that still produced at least one hit this run — used
-# by the stale-baseline guard below so a cleaned-up file cannot linger on the
-# backlog list.
 declare -A baseline_still_hot=()
 declare -A files_in_scope=()
 for file in "${files[@]}"; do
@@ -419,16 +405,6 @@ for file in "${files[@]}"; do
   fi
 done
 
-# Stale-baseline guard (CI-facing modes only): every entry must name a skill-md
-# file that still carries at least one unexcused hit when scanned. A missing
-# file or a cleaned-up file must leave the list — same shrink-only contract as
-# scripts/orphaned-fixtures-baseline.txt.
-#
-# All three stale branches share changed-file scoping: --all re-proves the
-# whole list; diff mode only re-proves entries in this run's file set. Missing
-# targets are never in that set (diff excludes deletions), so a deleted
-# baseline path is caught on the next `--all` rather than red-lining unrelated
-# PRs — same blast-radius contract as the cleaned-up / out-of-set branches.
 if ((apply_baseline)) && ((${#baseline_entries[@]} > 0)); then
   for entry in "${baseline_entries[@]}"; do
     if [[ "$GE_MODE" == "all" || -n "${files_in_scope[$entry]:-}" ]]; then
@@ -438,9 +414,6 @@ if ((apply_baseline)) && ((${#baseline_entries[@]} > 0)); then
         continue
       fi
       if [[ -z "${baseline_still_hot[$entry]:-}" ]]; then
-        # Confirm scannable rather than trusting set membership alone: a
-        # baseline entry that is_scannable rejected (vendor/evals) must still
-        # be shed.
         if is_scannable "$entry"; then
           echo "STALE BASELINE: $BASELINE: '$entry' no longer has unexcused hits — remove it" >&2
         else

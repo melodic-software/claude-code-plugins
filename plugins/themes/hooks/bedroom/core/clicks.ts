@@ -10,7 +10,6 @@ import { switched } from './switched.js'
 import { note } from './telemetry.js'
 import { ask, clickScreen } from './values.js'
 
-/** The front bottom-left corner of the dresser, in viewBox units: the one point /bedroom calibrate asks for. */
 const CALIBRATION_POINT = { x: 1110, y: 906 }
 let isCalibrating = false
 

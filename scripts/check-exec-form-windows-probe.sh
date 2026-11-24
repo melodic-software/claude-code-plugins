@@ -73,7 +73,6 @@ flag() {
   errors=$((errors + 1))
 }
 
-# lower <string>
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 # image_name <path>
@@ -87,7 +86,6 @@ image_name() {
   lower "$base"
 }
 
-# is_shell_image <image>: a shell process image is the args-drop signature.
 is_shell_image() {
   case "$1" in
   bash | bash.exe | sh | sh.exe) return 0 ;;
@@ -97,7 +95,6 @@ is_shell_image() {
 
 NOT_EXE_HINT='is not a real Windows executable (no shell and no shebang). Use "command": "node" with the script in args; a bash script goes through hooks/exec-bash.mjs.'
 
-# consider <file> <where> <command>
 consider() {
   local file="$1" where="$2" cmd="$3" base low
   case "$cmd" in
@@ -128,7 +125,6 @@ consider() {
   esac
 }
 
-# on_hook <file> <where> <form> <args> <command> <argv>: exec form only.
 on_hook() {
   [[ "$3" == exec ]] || return 0
   if [[ "$4" == other ]]; then
@@ -138,8 +134,6 @@ on_hook() {
   consider "$1" "$2" "$5"
 }
 
-# on_unreadable <surface> <file> <where> <detail>: an unparsable hook config or
-# frontmatter is a finding; an unparsable manifest is left to its own gate.
 on_unreadable() {
   case "$1" in
   json)
@@ -155,8 +149,6 @@ on_unreadable() {
 }
 
 hook_configs::scan check-exec-form-windows-probe on_hook on_unreadable
-
-# --- spawn half -------------------------------------------------------------
 
 resolve_node() {
   local candidate resolved base magic
@@ -335,8 +327,6 @@ if ((windows)) || [[ "${EXEC_FORM_WINDOWS_PROBE_FORCE:-}" == 1 ]]; then
 else
   note "SKIP: Windows exec-form spawn probe not exercised (OSTYPE=${OSTYPE:-unset}). A skip does not show that anthropics/claude-code#90495 is absent and does not authorize converting .sh rows to exec form."
 fi
-
-# --- live Claude Code half --------------------------------------------------
 
 live_signature() {
   local text="$1"

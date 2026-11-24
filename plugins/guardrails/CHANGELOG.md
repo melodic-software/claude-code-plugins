@@ -3,6 +3,34 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.0] - 2026-11-24
+
+### Added
+
+- `block-body-format-violation` now refuses a `gh issue create`, or a GitHub MCP `create_issue` or `issue_write` create, whose body completes no issue kind the target repository declares in `issue_body_required_sections`: a required `##` or `###` heading missing, empty, or answered `_No response_`. It names the closest kind and each heading to add. A repository that declares no issue format is not judged; `issue_body_format_gate: false` turns the check off.
+
+### Changed
+
+- The merge guard is now `hooks/merge-guard.sh`, switched by `merge_guard_enabled` beside `merge_guard_ignored_checks`.
+- What makes a pull request ready to merge is decided in one script, `hooks/merge-readiness.sh`, a copy of the same script the source-control pull-request skill runs before it merges. A refusal now points at `/source-control:pull-request merge`.
+- Every page of review threads is read: an unresolved thread past the first 100 blocks, where the guard used to let the merge run unchecked.
+- A pull request pr-verify judges and has not judged is no longer held for good: 30 minutes after the head's last check finished, with no check still running, the merge runs with a notice that no verdict was read.
+
+### Removed
+
+- The `block_unresolved_pr_merge_enabled` setting is gone ([#18822](https://github.com/melodic-software/claude-code-plugins/issues/18822)). A saved value there is no longer read, so a saved `false` turns the guard back on; set `merge_guard_enabled` instead.
+
+## [4.4.0] - 2026-11-24
+
+### Added
+
+- New guard `block-body-format-violation`: refuses a `gh pr create`, a `gh pr edit` with a body, or a GitHub MCP pull request create or update whose body breaks the format the target repository declares in `docs/conventions/source-control.yaml` (`pr_body_required_sections`, and the opener line where `linkage_gate_uses_pattern` matches a workflow), naming each missing or empty section and the line to add. A repository that declares neither key is not judged. Switches: `block_body_format_violation_enabled` (userConfig) and `pr_body_format_gate: false` in the repository's team file or git-ignored personal override.
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts.
+- The pre-commit and pre-push content scans judge machine-specific paths with `--skip-reindent`, so a reindented line holding a pre-existing path passes, and still block one the change adds. Secret patterns, and every other guardrails check, still judge every added line, so a reindented line holding a secret blocks.
+
 ## [4.3.0] - 2026-11-24
 
 ### Added
