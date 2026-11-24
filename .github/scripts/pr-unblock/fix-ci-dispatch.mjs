@@ -73,45 +73,25 @@ export const DEFAULTS = Object.freeze({
   workflow: "pr-unblock.yml",
   activity: "fix-ci",
   checkName: "pr-unblock / fix-ci",
-  // The push job's check: a lane-stopped skip there (a stop routed to a
-  // failing status after the model turn) counts the fix-ci run before it as
-  // a failed one, which the per-head cap and the restarts retry.
   stopCheckName: "pr-unblock / apply-patch",
-  // The run whose failure counts: pr-require-checks when its lanes failed,
-  // else the advisory pr-test-platforms, which ci-status does not aggregate but
-  // the merge gate holds on.
   requiredWorkflow: ".github/workflows/pr-require-checks.yml",
   advisoryWorkflow: ".github/workflows/pr-test-platforms.yml",
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   holdLabels: DISPATCH_HOLDS,
-  // No owner is adopted unless the config lists one.
   adoption: Object.freeze({ ownerIds: Object.freeze([]), idleHours: 24 }),
-  // Failed or nothing-to-fix fix-ci runs one head gets across base moves:
-  // limits.limit-stops-per-head's default, which dispatch.mjs passes resolved.
   maxRunsPerHead: 3,
 });
 
-// The neutral checks fix-ci-not-run posts when fix-ci-context found no failing
-// check to fix (report-check-run's `Skipped: <reason>` title).
 const NOTHING_TO_FIX = new Set(["Skipped: not-applicable", STOP_RESOLVED]);
-// The neutral check a run skipped on a held PR posts.
 const HELD_SKIP = "Skipped: awaiting-human";
 
 const MAX_PAGES = 20;
 
-// The trusted accounts whose idle PRs fix-ci adopts: every one but the authors
-// fix-docs also leaves alone (Dependabot, whose red PRs review-dependency owns;
-// the release and standards-sync Apps, whose PRs carry generated or synced
-// files that a lane commit breaks: check-managed-files refuses a sync PR
-// commit by any other author).
 export function adoptableOwnerIds(trustedIds, excludedAuthorIds = DOCS_FIX_DEFAULTS.excludedAuthorIds) {
   return [...trustedIds].filter((id) => !excludedAuthorIds.includes(id));
 }
 
-// The tracker's human-gated label from the binding's JSON text, as
-// pr-merge.yml resolves it: config.role_labels["human-gated"] trimmed, or
-// needs-human when the file is absent (null) or maps none. Invalid JSON throws.
 export function humanGatedLabel(text) {
   if (text === null) {
     return "needs-human";
@@ -120,10 +100,8 @@ export function humanGatedLabel(text) {
   return typeof label === "string" && label.trim() !== "" ? label.trim() : "needs-human";
 }
 
-// The check runs the GitHub Actions app posted on the PR's head.
 function headChecks(node, actionsAppId) {
   const commit = node.commits?.nodes?.[0]?.commit;
-  // A cut-off list could hide ci-lanes or an earlier fix-ci run.
   if (!commit || commit.oid !== node.headRefOid || commit.statusCheckRollup?.contexts?.pageInfo?.hasNextPage) {
     return null;
   }
@@ -132,7 +110,6 @@ function headChecks(node, actionsAppId) {
   );
 }
 
-// A REST check run in the rollup's shape, as skipReason reads it.
 const fromRest = (run) => ({
   name: run.name,
   status: String(run.status ?? "").toUpperCase(),
@@ -141,13 +118,9 @@ const fromRest = (run) => ({
   completedAt: run.completed_at ?? null,
 });
 
-// A push job check that failed because the broker refused its lane token:
-// report-check-run's summary of the run job's failure-reason, which
-// request-lane-token starts with lane-token-denied.
 const tokenRefused = (run) =>
   run?.status === "completed" && run.conclusion === "failure" && String(run.output?.summary ?? "").startsWith("The run job did not succeed: lane-token-denied:");
 
-// A rollup check run in the REST shape limit-stop.mjs reads.
 const asRest = (run) => ({
   status: String(run.status ?? "").toLowerCase(),
   conclusion: run.conclusion ? String(run.conclusion).toLowerCase() : null,
@@ -197,29 +170,17 @@ export function withStops(runs, stopRuns) {
   return [...attempts.values()].map(({ last, stopped, killed, spent }) => ({ ...fromRest(last), ...as(stopped, killed), spent }));
 }
 
-// The fix-ci runs that count: an untrusted-trigger skip ran nothing.
 const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")));
 
-// A run that failed, found no failing check to fix, skipped on a PR held
-// then, that the kill switch stopped, or that the gate stopped head-lag on
-// this head, the PR's current one (paused), may be retried; any other run
-// (going, pushed a fix, escalated) handles the head.
 const paused = (run) => run.conclusion === "NEUTRAL" && (run.title === HELD_SKIP || run.title === KILL_SWITCH_STOP || run.title === HEAD_LAG_STOP);
 const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || paused(run) || (run.conclusion === "NEUTRAL" && NOTHING_TO_FIX.has(run.title)));
 
-// The number of counted fix-ci model runs when every attempt may be retried
-// and they reach maxRunsPerHead, the head's hard end; else 0. An attempt
-// spends one place for each fix-ci check it posted, so a rung-up pair spends
-// two.
 export function capCount(runs, maxRunsPerHead = DEFAULTS.maxRunsPerHead) {
   const kept = counted(runs);
   const spent = kept.reduce((sum, run) => sum + (run.spent ?? 1), 0);
   return spent >= maxRunsPerHead && kept.every(retryable) ? spent : 0;
 }
 
-// An owner PR is idle when neither it nor its head commit changed in the last
-// idleHours; an unreadable date is not idle. An App's PR never waits: only a
-// person may still be working on it.
 function ownerIdle(node, idleHours, now) {
   if (node.author?.__typename === "Bot") {
     return true;
@@ -229,27 +190,16 @@ function ownerIdle(node, idleHours, now) {
   return commit?.oid === node.headRefOid && Date.parse(node.updatedAt) <= since && Date.parse(commit.committedDate) <= since;
 }
 
-// The head's `ci-lanes` commit status, whoever set it.
 function lanesStatus(node) {
   const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
   return contexts.find((context) => context?.__typename === "StatusContext" && context.context === "ci-lanes");
 }
 
-// The ci-lanes state when the GitHub Actions bot set it, else null: the
-// lanes' verdict alone. ci-status itself also fails on a hold label, a
-// pending or missing review and the PR contract, none of which a CI fix mends.
 function lanesState(node) {
   const status = lanesStatus(node);
   return status?.creator?.__typename === "Bot" && status.creator.databaseId === ACTIONS_BOT_ID ? status.state : null;
 }
 
-// The pr-unblock/fix-ci status that still fails on a head with nothing left to
-// fix, else null: a lanes App PR, not a draft, held by no label, whose ci-lanes
-// passed and whose whole rollup lists every check run completed and none
-// failing but ci-status, which that status itself fails. A flaky check re-run
-// green past ci-fix-escalated or ci-fix-round-cap leaves such a status; a
-// fix-ci run there finds nothing failing (fix-ci-context.mjs `resolved`) and
-// report-stop-status clears it.
 const PASSING = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
 export function staleStop(node, { base, appSenderId, holdLabels, gateLabel }) {
   const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts;
@@ -282,7 +232,6 @@ const failedState = (state) => ["FAILURE", "ERROR"].includes(state);
 const lanesFailed = (node) => failedState(lanesState(node));
 const cancelled = (required) => required?.run?.status === "completed" && required.run.conclusion === "cancelled";
 
-// The lanes passed and another check failed: an advisory lane's, if any.
 const advisoryFailed = (node, checks, checkName) =>
   lanesState(node) === "SUCCESS" &&
   checks.some((run) => run.name !== checkName && !AGGREGATE_JOBS.has(run.name) && run.status === "COMPLETED" && run.conclusion === "FAILURE");
@@ -292,8 +241,6 @@ const advisoryFailed = (node, checks, checkName) =>
 // the log of a job that holds actions: write.
 const logName = (name) => String(name ?? "").replace(/[\x00-\x1f\x7f]+/g, " ").slice(0, 80);
 
-// What failed on the tested run, for the dispatch log: a real failure's job and
-// first failed step, an infra failure's attempt, or what could not be read.
 export function failureCause(required, now = Date.now()) {
   if (required === undefined) {
     return "required run unreadable";
@@ -334,7 +281,6 @@ export function failureCause(required, now = Date.now()) {
   return `code failure in ${real.map((job) => [job.name, step(job)].filter(Boolean).map(logName).join(" / ")).join(", ")}`;
 }
 
-// Why a listed PR is not dispatched, or "" when it is a candidate.
 export function skipReason(
   node,
   {
@@ -356,8 +302,6 @@ export function skipReason(
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
-  // A branch a workflow owns and rebuilds (merge.refire-skip-branches): its
-  // rebuild is its fix, and moves the branch under any fix-ci push.
   if (ownedBranches.includes(node.headRefName)) {
     return `head branch ${node.headRefName} is rebuilt by its own workflow`;
   }
@@ -365,13 +309,9 @@ export function skipReason(
   if (owner && !adoption.ownerIds.includes(node.author?.databaseId)) {
     return "not opened by the lanes App or an adoptable owner";
   }
-  // adoption.held, when set, is why no owner PR is adopted this run.
   if (owner && adoption.held) {
     return adoption.held;
   }
-  // The human-gated gateLabel holds only as node.laneGate says (gate-source.mjs
-  // prHold, attached by dispatchCiFixes just before it would dispatch); every
-  // other hold label holds.
   const labels = (node.labels?.nodes ?? []).map((label) => label?.name);
   if (labels.some((name) => holdLabels.includes(name) && name !== gateLabel)) {
     return "held";
@@ -379,8 +319,6 @@ export function skipReason(
   if (gateLabel !== null && labels.includes(gateLabel) && node.laneGate !== undefined && node.laneGate !== "") {
     return node.laneGate;
   }
-  // The lanes App's own PRs carry `Hold: a human merges this`, which holds the
-  // merge, not a CI fix; an owner's Hold: line holds the lane off entirely.
   if (owner && HOLD_LINE.test(String(node.body ?? ""))) {
     return "held by a Hold: line";
   }
@@ -395,10 +333,6 @@ export function skipReason(
   if (!lanesFailed(node) && !advisory) {
     return failedState(lanesStatus(node)?.state) ? "ci-lanes failed but the GitHub Actions bot did not set it" : "ci-lanes has not failed";
   }
-  // node.requiredRun, the head's tested pr-require-checks run (pr-test-platforms
-  // when only an advisory check failed) and its latest jobs, and, when that run
-  // ended cancelled, node.headCheckRuns, every REST check run on the head, are
-  // attached by dispatchCiFixes just before it would dispatch.
   const required = node.requiredRun;
   if (required !== undefined) {
     if (advisory && required.run?.conclusion !== "failure") {
@@ -408,15 +342,10 @@ export function skipReason(
     if (owned !== "") {
       return owned;
     }
-    // node.headFailing, fix-ci-context's failingChecks over the head's check
-    // runs, and node.timeLimited, the cancelled ones past their time limit,
-    // are attached by dispatchCiFixes with node.requiredRun.
     if (cancelled(required) && node.headFailing !== undefined && node.headFailing.every((run) => run.conclusion === "cancelled") && !(node.timeLimited?.length > 0)) {
       return `tested run ${required.run.id} attempt ${required.run.run_attempt} ended cancelled and no check failed for fix-ci to fix`;
     }
   }
-  // node.fixCiRuns, every fix-ci run on the head (the rollup holds only the
-  // newest), is attached by dispatchCiFixes just before it would dispatch.
   const runs = counted(node.fixCiRuns ?? checks.filter((run) => run.name === checkName));
   if (runs.length === 0) {
     return "";
@@ -428,20 +357,13 @@ export function skipReason(
   if (node.fixCiRuns === undefined && runs.every((run) => run.status === "COMPLETED") && checks.some((run) => run.name === stopCheckName && (run.conclusion === "FAILURE" || releasesHead(asRest(run))))) {
     return "";
   }
-  // A held skip (a held PR stopped above) or a kill-switch stop counts toward
-  // the per-head cap with the rest, so a hold the run reads and this
-  // dispatcher does not, or a switch that keeps flipping mid-run, stops there.
   if (!runs.every(retryable)) {
     return `head already has a ${checkName} check run`;
   }
-  // The cap counts the REST runs alone, so the dispatcher that read them warns
-  // and records the head.
   const capped = node.fixCiRuns === undefined ? 0 : capCount(runs, maxRunsPerHead);
   if (capped > 0) {
     return `head's ${checkName} ran ${capped} time(s), the most one head gets`;
   }
-  // Only a run on the current base tip counts: one that ended before the tip
-  // was committed ran against an older base (an unreadable time counts).
   const current = runs.filter((run) => !paused(run) && !(Date.parse(run.completedAt ?? "") < baseAt));
   if (current.some((run) => run.conclusion !== "FAILURE")) {
     return `head's ${checkName} found no failing check on this base`;
@@ -466,11 +388,9 @@ export async function dispatchCiFixes({
   holdLabels = DEFAULTS.holdLabels,
   gateLabel = null,
   adoption = DEFAULTS.adoption,
-  // merge.refire-skip-branches: head branches a workflow owns and rebuilds.
   ownedBranches = [],
   record = emptyRecord(),
   now = Date.now(),
-  // verify-cap.mjs verifyCapReader: the cap refusal, or null.
   verifyCapped = () => null,
 }) {
   if (!Number.isSafeInteger(appSenderId) || appSenderId < 1) {
@@ -479,15 +399,12 @@ export async function dispatchCiFixes({
   const candidates = [];
   const stale = [];
   let after;
-  // When the base tip was committed, from the first page: a fix-ci run that
-  // ended before it ran against an older base.
   let baseAt;
   for (let page = 1; ; page += 1) {
     const { rateLimit, pullRequests, baseCommittedAt } = await api.listCiFixCandidates({ base, after });
     log(`fix-ci listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     baseAt ??= Date.parse(baseCommittedAt ?? "");
     for (const node of pullRequests.nodes) {
-      // A recorded head reached the per-head cap and was warned about once.
       if (isHandled(record, checkName, node.headRefOid)) {
         if (failedState(lanesStatus(node)?.state)) {
           log(`skip fix-ci #${node.number}: head ${node.headRefOid} reached the per-head cap (recorded)`);
@@ -500,8 +417,6 @@ export async function dispatchCiFixes({
       } else if (staleStop(node, { base, appSenderId, holdLabels, gateLabel })) {
         stale.push(node);
       } else if (failedState(lanesStatus(node)?.state)) {
-        // A head whose lanes failed, whoever set the status, is the one a
-        // silent skip would hide.
         log(`skip fix-ci #${node.number}: ${reason}`);
       }
     }
@@ -531,8 +446,6 @@ export async function dispatchCiFixes({
     log(`::warning::${workflow} run listing ${error.rateLimited ? "is rate limited" : "could not be read"} (${error.message}); no fix-ci dispatched, a later run retries`);
     return { dispatched, failed };
   }
-  // Every dispatch call counts against the cap: one that failed or returned no
-  // usable id may still have started a run. cause() names why, for the log.
   let sent = 0;
   const send = async (node, cause) => {
     sent += 1;
@@ -560,7 +473,6 @@ export async function dispatchCiFixes({
       log(`defer fix-ci #${node.number}: ${maxDispatch} fix-ci dispatches this run; left for a later run`);
       continue;
     }
-    // The human-gated label holds unless another lane's escalation put it on.
     let laneGate;
     try {
       const labels = (node.labels?.nodes ?? []).map((label) => label?.name);
@@ -576,7 +488,6 @@ export async function dispatchCiFixes({
       });
       laneGate = hold.held ? hold.why : "";
     } catch (error) {
-      // A read that fails, whatever GitHub answered, holds the PR for a later run.
       log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from: ${error.message}; skipped, a later run retries`);
       continue;
     }
@@ -603,8 +514,6 @@ export async function dispatchCiFixes({
       log(`skip fix-ci #${node.number}: ${early}`);
       continue;
     }
-    // The per-head cap is the loop's hard end, so a head whose runs cannot be
-    // read is not dispatched.
     let fixCiRuns;
     try {
       fixCiRuns = withStops(
@@ -619,8 +528,6 @@ export async function dispatchCiFixes({
       }
       continue;
     }
-    // A capped head stops here for good: one warning, then the record keeps
-    // later runs from reading it again.
     const capped = capCount(fixCiRuns, maxRunsPerHead);
     if (capped > 0) {
       log(`::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} ran ${capped} time(s), the most one head gets; no fix-ci until a new push`);
@@ -672,9 +579,6 @@ export async function dispatchCiFixes({
       log(`skip fix-ci #${node.number}: ${reason}`);
       continue;
     }
-    // Last, as it costs a full verifier read: a push past the FAIL cap could
-    // never merge, so pr-merge closes the pull request for a fresh attempt.
-    // It closes only the lanes App's: an adopted owner's is never skipped.
     const verifyCap = node.author?.databaseId === appSenderId ? await verifyCapped({ number: node.number, head: node.headRefOid, base: node.baseRefOid }) : null;
     if (verifyCap) {
       const warning = deadlineWarning(node.number, verifyCap);
@@ -690,8 +594,6 @@ export async function dispatchCiFixes({
     const limit = timeLimited.length > 0 ? `, time limit in ${timeLimited.join(", ")}` : "";
     await send(node, () => `${failureCause(requiredRun, now)}${limit}`);
   }
-  // Once per stop: a fix-ci run for the PR created after the failing status
-  // holds the head.
   for (const node of stale) {
     const stoppedAt = Date.parse(staleStop(node, { base, appSenderId, holdLabels, gateLabel }).createdAt ?? "");
     const since = runs.find((run) => isPrUnblockTitle(run.display_title, activity, node.number) && !(Date.parse(run.created_at ?? "") < stoppedAt));
