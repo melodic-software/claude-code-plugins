@@ -32,6 +32,21 @@
       "default": true,
       "description": "Whether the guardrails plugin's block-body-format-violation hook refuses a pull request body that breaks the format this repository declares (pr_body_required_sections, and the opener rule where linkage_gate_uses_pattern matches a workflow). false turns that refusal off; a repository that declares no format is never judged."
     },
+    "pr_body_loosened_checks_heading": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The ## heading of the pull request body section that lists checks the change loosens. When it is set with pr_body_loosened_checks_record_pattern and pr_body_loosened_checks_verbatim_marker, the guardrails plugin's block-body-format-violation hook refuses a body whose section is not empty unless an issue it links (a closing keyword or Refs:) has a body holding a match for the record pattern and the owner's words after the marker in double quotes. pr_body_format_gate: false turns it off."
+    },
+    "pr_body_loosened_checks_record_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "description": "POSIX extended regular expression a linked issue's body must match: the line link to the owner-decisions record that authorizes a loosened check. Read with pr_body_loosened_checks_heading."
+    },
+    "pr_body_loosened_checks_verbatim_marker": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The text, matched without regard to case, that a linked issue's body must hold before the owner's words in double quotes. Read with pr_body_loosened_checks_heading."
+    },
     "issue_body_required_sections": {
       "description": "The issue-body format: each issue kind this repository accepts, named by a lowercase id, mapped to the headings that kind requires. The guardrails plugin's block-body-format-violation hook refuses a gh issue create or GitHub MCP issue create whose body completes no declared kind: a required heading (## or ###) missing, empty, or answered _No response_. none declares no format; unset declares none either. A closed value: the winning layer's mapping is taken whole.",
       "oneOf": [

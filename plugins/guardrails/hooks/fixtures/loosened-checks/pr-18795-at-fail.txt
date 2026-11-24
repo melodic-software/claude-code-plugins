@@ -1,0 +1,32 @@
+Spec: owner decision https://github.com/melodic-software/architecture/pull/233 (docs/owner-decisions.md row 407; Q285 option (a); owner verbatim "Go with recommendations." at 2026-11-24T15:14:38Z, approving this PR as built).
+
+No related issue: a CI gate fix found while unblocking the standards sync in #18775.
+
+## Summary
+
+A standards sync that changes a managed copy under a fragment-mode plugin fails `changelog-fragments-required`, so every such sync needs a hand-added `none` fragment before it can merge. This PR exempts a verified standards-sync pull request from that gate, the same way a verified Dependabot pull request is exempt.
+
+## Fix
+
+- `scripts/lib/changelog-fragments.sh`: the Dependabot check becomes `bot_only <base> <login> <email>`. `dependabot_only` and the new `standards_sync_only` call it with their bot's login and noreply address.
+- `scripts/check-changelog-fragments.sh`: `--check-required` passes a fragment-mode plugin with no fragment when the pull request author is `melodic-standards-sync[bot]` and every commit is that bot's, committed by GitHub, with a signature GitHub verified. A commit anyone else pushes onto the branch still requires a fragment. The blocker variable is renamed `CF_BOT_BLOCKER`, since either bot can now set it.
+- `check-vendor-version-bump.sh` still exempts Dependabot only: no post-merge fragment is written for a sync.
+
+## Loosened checks
+
+- `changelog-fragments-required` (`scripts/check-changelog-fragments.sh --check-required`) now accepts a change set with no fragment when it is the standards-sync bot's alone. Why: the files it changes are managed copies of `melodic-software/standards`, byte-exact with their source, so they carry no plugin release of their own and ride the plugin's next release. Without the exemption each sync needs a manufactured `none` fragment, a manual step that stops the sync for something other than intent or security. The exemption keeps the Dependabot check's proof: PR author, per-commit author and committer, and GitHub's signature verification, so a hand-pushed commit cannot use it.
+
+## Verification
+
+- `bash scripts/check-changelog-fragments.test.sh`: `PASS=85 FAIL=0`. It adds five cases: one exempts verified standards-sync commits; the other four refuse another PR author, an unverified signature, Dependabot's login on sync commits, and a pull request carrying another author's commit.
+- The same suite with only the script changes stashed: `PASS=84 FAIL=1`. The failure is the new exemption case (`MISSING FRAGMENT`).
+- `bash scripts/check-vendor-version-bump.test.sh`: `PASS=34 FAIL=0`. `shellcheck` on the three changed files reports nothing.
+- Left out: a live run against a real sync pull request. The exemption reads GitHub's signature verification, which only CI's next sync run exercises.
+
+## Related
+
+- #18775: the standards sync that hit this gate. A hand-added `none` fragment unblocked it.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+

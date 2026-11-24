@@ -458,7 +458,150 @@ if _bfv_key linkage_gate_uses_pattern; then
   fi
 fi
 
-[[ -n "$_BFV_SECTIONS_SRC$_BFV_OPENER_SRC" ]] || exit 0
+_BFV_LOOSE_SRC=""
+if _bfv_key pr_body_loosened_checks_heading; then
+  _bfv_lh="${_BFV_VAL[0]}"
+  _bfv_llayer="$_BFV_LAYER"
+  _bfv_lp=""
+  _bfv_lm=""
+  _bfv_key pr_body_loosened_checks_record_pattern && _bfv_lp="${_BFV_VAL[0]}"
+  _bfv_key pr_body_loosened_checks_verbatim_marker && _bfv_lm="${_BFV_VAL[0]}"
+  if [[ -z "$_bfv_lp" || -z "$_bfv_lm" ]]; then
+    _bfv_note "$_bfv_llayer sets pr_body_loosened_checks_heading without both pr_body_loosened_checks_record_pattern and pr_body_loosened_checks_verbatim_marker; the Loosened checks rule is not applied."
+  else
+    [[ "" =~ $_bfv_lp ]]
+    _bfv_rc=$?
+    if ((_bfv_rc > 1)); then
+      _bfv_note "pr_body_loosened_checks_record_pattern does not compile as an extended regular expression; the Loosened checks rule is not applied."
+    else
+      _BFV_LOOSE_SRC="pr_body_loosened_checks_heading in $_bfv_llayer"
+    fi
+  fi
+fi
+
+[[ -n "$_BFV_SECTIONS_SRC$_BFV_OPENER_SRC$_BFV_LOOSE_SRC" ]] || exit 0
+
+_bfv_has_verbatim() {
+  local t="${1,,}" m="${2,,}" rest
+  while [[ "$t" == *"$m"* ]]; do
+    rest="${t#*"$m"}"
+    rest="${rest#"${rest%%[![:space:]]*}"}"
+    [[ "$rest" == \"[!\"]*\"* ]] && return 0
+    t="$rest"
+  done
+  return 1
+}
+
+_bfv_add_ref() {
+  local repo="${1:-$_BFV_SELF}" ref
+  [[ "$repo" =~ ^[a-z0-9_-][a-z0-9_.-]*/[a-z0-9_-][a-z0-9_.-]*$ ]] || return 0
+  ref="$repo#$2"
+  [[ "$_bfv_lseen" == *$'\n'"$ref"$'\n'* ]] && return 0
+  _bfv_lseen+="$ref"$'\n'
+  _BFV_LREFS+=("$ref")
+}
+
+_bfv_collect_refs() {
+  local l t m
+  local kw='(close[sd]?|fix(es|ed)?|resolve[sd]?)'
+  local repo='([a-z0-9_.-]+/[a-z0-9_.-]+)'
+  local re_close="(^|[^a-z0-9_])$kw:?[[:space:]]+$repo?#([0-9]+)"
+  local re_refs="(^|[^a-z0-9_])(refs|relates to):[[:space:]]*$repo?#([0-9]+)"
+  local re_url="(^|[^a-z0-9_])($kw|refs|relates to):?[[:space:]]+https?://github\\.com/$repo/issues/([0-9]+)"
+  _BFV_LREFS=()
+  _bfv_lseen=$'\n'
+  for l in "${_BFV_LINES[@]}"; do
+    t="${l,,}"
+    while [[ "$t" =~ $re_url ]]; do
+      m="${BASH_REMATCH[0]}"
+      _bfv_add_ref "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
+      t="${t#*"$m"}"
+    done
+    t="${l,,}"
+    while [[ "$t" =~ $re_close ]]; do
+      m="${BASH_REMATCH[0]}"
+      _bfv_add_ref "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
+      t="${t#*"$m"}"
+    done
+    t="${l,,}"
+    while [[ "$t" =~ $re_refs ]]; do
+      m="${BASH_REMATCH[0]}"
+      _bfv_add_ref "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}"
+      t="${t#*"$m"}"
+    done
+  done
+}
+
+_bfv_issue_body_to() {
+  local -n __bfv_ib="$1"
+  local repo="${2%#*}" num="${2##*#}" out rc=0
+  if command -v timeout >/dev/null 2>&1; then
+    out=$(GH_PROMPT_DISABLED=1 timeout 10 gh api "repos/$repo/issues/$num" --jq '.body // ""' 2>/dev/null) || rc=$?
+  else
+    out=$(GH_PROMPT_DISABLED=1 gh api "repos/$repo/issues/$num" --jq '.body // ""' 2>/dev/null) || rc=$?
+  fi
+  __bfv_ib="$out"
+  return "$rc"
+}
+
+_bfv_loosened_check() {
+  local saved=(${_BFV_PROBLEMS[@]+"${_BFV_PROBLEMS[@]}"}) ref body n=0 missing link verb
+  local h="## $_bfv_lh"
+  _BFV_PROBLEMS=()
+  _bfv_check_heads pr "$_bfv_lh"
+  if ((${#_BFV_PROBLEMS[@]})); then
+    _BFV_PROBLEMS=(${saved[@]+"${saved[@]}"})
+    return 0
+  fi
+  _BFV_PROBLEMS=(${saved[@]+"${saved[@]}"})
+  _bfv_collect_refs
+  if ((${#_BFV_LREFS[@]} == 0)); then
+    _BFV_PROBLEMS+=("The \"$h\" section is not empty, but the body links no issue. Link the issue that records the owner's decision with \`Closes #<issue>\` (or Fixes, Resolves) or \`Refs: #<issue>\`; its body, not this PR body, must hold a line link to the decision record and the owner's words after \`$_bfv_lm\` in double quotes ($_BFV_LOOSE_SRC).")
+    return 0
+  fi
+  local -a found=() refs=("${_BFV_LREFS[@]:0:3}") pids=()
+  local dir
+  dir=$(mktemp -d 2>/dev/null) || {
+    _bfv_note "could not make a temporary directory, so the \"$h\" authorization is not checked here; pr-verify still checks it."
+    return 0
+  }
+  for ref in "${refs[@]}"; do
+    (
+      if _bfv_issue_body_to body "$ref"; then
+        printf '%s' "$body" >"$dir/$n"
+      else
+        : >"$dir/$n.err"
+      fi
+    ) &
+    pids+=("$!")
+    n=$((n + 1))
+  done
+  wait "${pids[@]}"
+  n=0
+  for ref in "${refs[@]}"; do
+    if [[ ! -f "$dir/$n" ]]; then
+      rm -rf "${dir:?}"
+      _bfv_note "could not read issue $ref, so the \"$h\" authorization is not checked here; pr-verify still checks it."
+      return 0
+    fi
+    body=$(<"$dir/$n")
+    n=$((n + 1))
+    link=0
+    verb=0
+    [[ "$body" =~ $_bfv_lp ]] && link=1
+    _bfv_has_verbatim "$body" "$_bfv_lm" && verb=1
+    if ((link && verb)); then
+      rm -rf "${dir:?}"
+      return 0
+    fi
+    missing=""
+    ((link)) || missing="a line link to the owner-decisions record (matching pr_body_loosened_checks_record_pattern)"
+    ((verb)) || missing+="${missing:+ and }the owner's words after \`$_bfv_lm\` in double quotes"
+    found+=("Issue $ref does not authorize the \"$h\" section: its body lacks $missing. Add it to the issue's body, not the PR body.")
+  done
+  rm -rf "${dir:?}"
+  _BFV_PROBLEMS+=("${found[@]}")
+}
 
 _bfv_prepare_lines
 
@@ -476,6 +619,7 @@ if [[ -n "$_BFV_OPENER_SRC" ]]; then
 fi
 
 _bfv_check_heads pr ${_BFV_SECTIONS[@]+"${_BFV_SECTIONS[@]}"}
+[[ -n "$_BFV_LOOSE_SRC" ]] && _bfv_loosened_check
 
 if ((${#_BFV_PROBLEMS[@]} == 0)); then
   emit_tel ok
