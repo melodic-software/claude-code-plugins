@@ -42,9 +42,10 @@ When it does, this doc points at the upstream setting and the per-hook key becom
 - **Who reads it.** The hook's own script, before it does any work. It resolves every layer before
   deciding, so an early exit on the user layer alone does not conform: a repository value of `true`
   turns the hook back on for that repository.
-- **Security controls.** A guard whose off state loosens a security control may put its key in the
+- **Security controls.** A guard whose off state loosens a security control must put its key in the
   [policy-floor class](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion),
-  under that class's rules.
+  under that class's rules: a repository value can only turn the guard on, and only the user's own
+  layer can turn it off.
 - **Cost.** Reading the repository file on every fire counts against the
   [hook budget](../hook-budget/README.md).
 
