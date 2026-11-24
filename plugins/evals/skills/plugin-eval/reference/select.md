@@ -4,9 +4,12 @@
 run. It makes no model call. The change classes below are what it applies: a removed or changed
 instruction word is a cut that runs the affected cases, and so is a meaning-flipping word
 (`MEANING_FLIP_WORDS` in `scripts/select_mapping.py`) inserted into an existing line; other added
-text, and any edit inside a SKILL.md `## Next` section, runs nothing, and a case,
+text runs nothing, and a case,
 grader, prompt, fixture or scaffold change runs its own case and the cases that call it. Where the
 repository records its own eval run policy, that policy decides what each line obliges.
+
+An edit inside a SKILL.md `## Next` section runs nothing: that section names successors for the
+person and changes no tool call.
 
 ## Run it
 
