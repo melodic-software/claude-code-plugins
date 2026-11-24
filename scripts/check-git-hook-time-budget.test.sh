@@ -132,7 +132,7 @@ fi
 WHOLE_TREE='git ls-files | while read -r f; do git hash-object "$f" >/dev/null; done'
 r="$TMP/small"
 make_root "$r" ':' "$WHOLE_TREE"
-small="$(bash "$SCRIPT" --root "$r" --force --runs 1 --budget-ms 600 2>&1)"
+small="$(bash "$SCRIPT" --root "$r" --force --runs 1 --budget-ms 300 2>&1)"
 small_rc=$?
 r="$TMP/big"
 make_root "$r" ':' "$WHOLE_TREE"
@@ -140,7 +140,7 @@ mkdir -p "$r/plugins/bulk"
 for i in $(seq 1 1500); do printf 'file %d\n' "$i" >"$r/plugins/bulk/f$i.txt"; done
 g "$r" add -A
 g "$r" commit -q -m "a bigger repository"
-big="$(bash "$SCRIPT" --root "$r" --force --runs 1 --budget-ms 600 2>&1)"
+big="$(bash "$SCRIPT" --root "$r" --force --runs 1 --budget-ms 300 2>&1)"
 big_rc=$?
 ref_small="$(sed -n 's/^reference workload: \([0-9]*\) ms.*/\1/p' <<<"$small")"
 ref_big="$(sed -n 's/^reference workload: \([0-9]*\) ms.*/\1/p' <<<"$big")"
