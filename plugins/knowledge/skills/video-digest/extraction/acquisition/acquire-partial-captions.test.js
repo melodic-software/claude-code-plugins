@@ -151,7 +151,6 @@ describe("acquireYouTubeMedia keeps a caption already on disk when another track
           const value = args[args.indexOf("--extractor-args") + 1];
           captionExtractorArgs.push(value);
           if (!value.includes("skip=translated_subs")) {
-            // Only a video's non-English manual track exists; its English translation is the rung left.
             await writeFixture({ [`${VIDEO_ID}.en-de.vtt`]: EN_VTT });
           }
           return succeeded;

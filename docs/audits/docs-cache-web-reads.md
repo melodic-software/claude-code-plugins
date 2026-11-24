@@ -83,10 +83,10 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | implementation | `agents/implementer.md:7` | WebFetch grant | kept | General worker grant for whatever page an item names; no fixed docs page |
 | implementation | `agents/scoped-implementer.md:7` | WebFetch grant | kept | Same as the implementer row |
 | kindle-dedrm | `skills/manage/reference/workflow.md:30` | curl downloads, also at lines 49 and 71 | kept | Binary downloads (installer and zips) |
-| kindle-dedrm | `skills/manage/scripts/check-drift.sh:59` | curl HEAD request to pinned URLs | kept | Reachability probe; reads no body |
+| kindle-dedrm | `skills/manage/scripts/check-drift.sh:56` | curl HEAD request to pinned URLs | kept | Reachability probe; reads no body |
 | knowledge | `agents/digest-worker.md:4` | WebFetch grant | kept | Rendered reads for presence claims only; absence reads already go through `fetch-docs.sh --cache --max-age 0` (`skills/docpage-digest/context/anthropic-docs-profile.md:116`) |
 | knowledge | `skills/video-digest/context/watch-pipeline.md:139` | WebFetch previews of harvested links, also at line 320 | kept | Previews that rank arbitrary links by WebFetch's prompt; not docs reads |
-| knowledge | `skills/course-digest/extraction/lib/players/hotmart.js:102` | fetch of subtitle segments, also at line 327 | kept | Runs inside the course player's frame for its session and CORS; not a page |
+| knowledge | `skills/course-digest/extraction/lib/players/hotmart.js:101` | fetch of subtitle segments, also at line 326 | kept | Runs inside the course player's frame for its session and CORS; not a page |
 | knowledge | `skills/course-digest/extraction/download-resources.js:47` | `node:https` download of course resources | kept | File downloads such as PDFs, not pages |
 | knowledge | `skills/video-digest/extraction/harvesting/fetch-deck-attachments.js:256` | `node:https` download of deck attachments from harvested links | kept | File downloads, not pages |
 | knowledge | `skills/map-corpus/discovery/link-map-format.md:31` | WebFetch or curl of discovery snapshots | kept | Sitemaps and forge tree listings that a deterministic parser reads byte for byte; the pages themselves are read by the fetch route (line 35) |

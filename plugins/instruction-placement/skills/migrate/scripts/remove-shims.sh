@@ -228,8 +228,6 @@ echo
 
 echo "Running the cutover check against $REPO:"
 echo
-# With no nested AGENTS.md the write probe has nothing to price, so it is
-# skipped rather than paying a metered turn whose answer nobody reads.
 PROBE_ARGS=()
 ((NESTED_AGENTS > 0)) || PROBE_ARGS=(--skip-write-probe)
 CHECK_OUT="$(mktemp)"

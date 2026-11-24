@@ -1,8 +1,4 @@
 /**
- * Domain models for the harvesting capability slice.
- */
-
-/**
  * @typedef {'description'|'chapter'|'pinned-comment'|'on-screen'|'heatmap'} HarvestSource
  */
 

@@ -1,14 +1,3 @@
-/**
- * Contract-fixture adapter: a complete minimal source adapter on a reserved
- * example host, proving two properties of the conformance surface:
- *
- * 1. Capability declarations skew CLOSED — an adapter omitting EVERY optional
- *    capability passes the full shared suite (absence is a declaration, not a
- *    failure).
- * 2. The suite bites (mutation probes): deleting a required method, mutating
- *    an arity, or claiming an owned host all fail the corresponding gate.
- */
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -38,11 +27,6 @@ function parseClipId(url) {
   }
 }
 
-/**
- * A fully contract-conforming spec whose `capabilities` object omits EVERY
- * optional capability. Returned fresh per call so mutation probes can delete
- * from it without cross-test bleed.
- */
 function fixtureSpec() {
   return {
     id: "fixture",
@@ -104,8 +88,6 @@ describe("capability skew (closed by default)", () => {
     const adapter = createSourceAdapter(fixtureSpec());
     expect(validateAdapter(adapter)).toEqual([]);
     expect(adapter.capabilities).toEqual({});
-    // Shared machinery treats absence as false — the === true reads it uses
-    // resolve to false for every omitted capability.
     expect(adapter.capabilities.comments === true).toBe(false);
     expect(adapter.capabilities.browserCookieFallback === true).toBe(false);
     expect(adapter.capabilities.mediaOptional === true).toBe(false);
@@ -122,8 +104,6 @@ describe("mutation probes: the suite and the collision test bite", () => {
         violations.some((violation) => violation.includes(`"${method}"`)),
         method,
       ).toBe(true);
-      // The suite's first assertion is validateAdapter(adapter) === [] — and
-      // the factory refuses to even construct the mutant.
       expect(() => createSourceAdapter(mutated), method).toThrow(method);
     }
   });

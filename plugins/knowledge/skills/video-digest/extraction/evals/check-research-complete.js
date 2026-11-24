@@ -47,8 +47,6 @@ export function researchGateFailure(sliceDir, { warn = writeStderr } = {}) {
     return `missing ${inventoryPath}`;
   }
 
-  // The agenda is required, not optional: without it, success would carry no
-  // auditable claim-resolution plan.
   if (!fs.existsSync(agendaPath)) {
     return `missing ${agendaPath}`;
   }

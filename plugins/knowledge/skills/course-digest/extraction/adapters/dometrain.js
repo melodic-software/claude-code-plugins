@@ -29,7 +29,6 @@ const NO_TRANSCRIPT_SUFFIX = /No transcript available for this lesson\.\s*$/m;
 const TRANSCRIPT_TIMESTAMP_LINE = /^\d+:\d{2}$/;
 const TRAILING_LESSON_SLUG = /\/[^/]+\/$/;
 const TRAILING_COURSE_ID_SUFFIX = /-\d+\/$/;
-// Most specific first: "last updated" must win over the bare "updated" pattern.
 const VISIBLE_DATE_PATTERNS = [
   /last\s+updated[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
   /updated[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
@@ -56,10 +55,6 @@ export const defaults = {
   },
 };
 
-/**
- * The configured video-player selector, falling back to the adapter default.
- * Reads the config directly: a nullish `platformCfg` is a caller error here.
- */
 function resolveVideoPlayerSelector(platformCfg) {
   return resolvePlayerSelector(platformCfg, defaults.videoPlayerSelector, {
     optionalConfig: false,

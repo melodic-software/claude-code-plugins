@@ -47,8 +47,6 @@ describe("resolveSourceAdapter", () => {
   });
 
   it("evaluates URL patterns only after owned-host selection", () => {
-    // A YouTube-shaped ?v= query on an unowned host must never reach the
-    // YouTube adapter's URL grammar.
     expect(() => resolveSourceAdapter("https://vimeo.com/watch?v=7zZy1QTvokM")).toThrow(
       UnsupportedSourceError,
     );
@@ -86,8 +84,6 @@ describe("resolveSourceAdapter", () => {
 
 describe("acquireMedia dispatch", () => {
   it("fails closed when the owning adapter declines the URL (null claim)", async () => {
-    // youtube.com owns the host, but a channel URL carries no video claim —
-    // acquire must never be reached with an unclaimed URL.
     await expect(
       acquireMedia("https://www.youtube.com/@somechannel", { workDir: "/w", mode: "transcript" }),
     ).rejects.toThrow(UnsupportedSourceError);
