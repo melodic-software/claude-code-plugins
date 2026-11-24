@@ -37,7 +37,7 @@ lane in two jobs. Its contract is
 2. **The `report` job** holds `checks: write` plus the two reads and has no model step. It posts one
    check run named `<lane> / <activity>` through the Checks API and refuses either name part
    `ci-status`
-   ([`decide.mjs:47-56`](../../.github/actions/report-check-run/decide.mjs)).
+   ([`decide.mjs:44-53`](../../.github/actions/report-check-run/decide.mjs)).
 3. **The report job trusts only what the runner computed.** Lane and activity come from its own
    `workflow_call` inputs. From the run job it trusts `needs.run.result` and the outputs `base-sha`,
    `head-sha`, `pr-number`, `gate-reason`, `can-commit` and `act-outcome`. Each is a step outcome or
