@@ -2270,7 +2270,7 @@ export function pullFromFile(path, pr, headSha) {
   }
 }
 
-export async function main(argv, env, { api, actions, plan, log = (line) => console.log(line) } = {}) {
+export async function main(argv, env, { api, actions, plan, readSpec: specReader, log = (line) => console.log(line) } = {}) {
   const command = argv[0];
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
@@ -2292,6 +2292,8 @@ export async function main(argv, env, { api, actions, plan, log = (line) => cons
   );
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
   const earlierFailHeads = earlierFailHeadsFrom(env);
+  let spec;
+  const readSpec = () => (spec ??= specReader ? specReader() : linkedSpec({ ...env, TRUSTED_ACTORS_PATH: env.TRUSTED_ACTORS }, log));
   const selectThreads = async () => {
     need(env, ["TRUSTED_ACTORS"]);
     return select({
@@ -2314,7 +2316,7 @@ export async function main(argv, env, { api, actions, plan, log = (line) => cons
         return earlierFailNotes({ actions: { read: client.readPath, download: client.downloadArtifact }, repository: env.GITHUB_REPOSITORY, pr, heads, files });
       },
       pull: pullFromFile(env.PULL_FILE, pr, env.HEAD_SHA),
-      readSpec: () => linkedSpec({ ...env, TRUSTED_ACTORS_PATH: env.TRUSTED_ACTORS }, log),
+      readSpec,
       log,
     });
   };
@@ -2367,7 +2369,9 @@ export async function main(argv, env, { api, actions, plan, log = (line) => cons
     if (result.file && env.BODY_REFRESH !== "false") {
       const names = await bodySectionNames({ listed: env.BODY_SECTIONS, root: ".base", readPath: client.readPath, owner: env.GITHUB_REPOSITORY.split("/")[0], log });
       const sections = names === null ? [] : refreshableSections(result.body, names);
-      if (sections.length > 0) {
+      if (sections.length > 0 && (await readSpec()).length === 0) {
+        log("body refresh skipped: no linked issue read, so pr-verify may read the PR body as its spec");
+      } else if (sections.length > 0) {
         result.file.body_sections = sections;
       }
     }
