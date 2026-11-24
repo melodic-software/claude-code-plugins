@@ -1,16 +1,4 @@
 # test-scope: plugins/session-flow/scripts/tests/fixtures/*
-"""Contract tests for save_point.py (new / fill / validate / emit).
-
-Runs the script as a subprocess to test the CLI interface, not internals,
-following the retro skill's test_parse_transcript.py precedent.
-
-Fixtures live under ``fixtures/<case>/handoffs/`` with neutral ``/work/...``
-roots so nothing tracked carries a machine path. ``validate`` compares the
-``Read @`` directive against the file's own absolute path, so every fixture
-chain is materialized under ``tmp_path`` and the neutral root rewritten to the
-materialized directory before the script sees it; tracked fixtures are never
-validated in place.
-"""
 
 from __future__ import annotations
 
@@ -45,9 +33,6 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 NEUTRAL_HANDOFFS = "/work/repo/.work/handoffs"
 NEUTRAL_PROJECTS = "/work/projects"
 
-# Every fixture basename, so a fixture edit selects this suite under the
-# affected-tests reference rule (fixture .md files otherwise fall in the *.md
-# no-suite class, and no *.jsonl no-suite class exists).
 FIXTURE_MANIFEST = (
     ".markdownlint-cli2.jsonc",
     "projects/-work-repo/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jsonl",
@@ -91,7 +76,6 @@ NEXT_CLOSED = "Next: none (closed)"
 
 
 def rail_lines(text: str) -> int:
-    """Lines consisting solely of ten or more U+2500 characters."""
     return sum(1 for line in text.split("\n") if RAIL_RE.match(line.strip()))
 
 
@@ -103,16 +87,11 @@ def test_fixture_manifest_is_complete():
 
 
 def _base_env() -> dict[str, str]:
-    """The launching session's env minus every CLAUDE_* variable, so a test
-    never inherits this session's id, effort, or plugin-data dir."""
     return {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE_")}
 
 
 @functools.lru_cache(maxsize=1)
 def _save_point_module():
-    """Import the script as a module. The suite tests the CLI; this is for
-    assertions the CLI cannot express, such as whether the parser reads an
-    entry as superseded, or a size verdict on a file other checks would fail."""
     spec = importlib.util.spec_from_file_location("save_point_under_test", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -151,9 +130,6 @@ def real_posix(path: Path) -> str:
 
 
 def materialize(tmp_path: Path, case: str) -> Path:
-    """Copy one fixture case (plus the shared projects root) under tmp_path and
-    rewrite the neutral roots to the materialized directory. Returns the
-    materialized handoffs directory."""
     root = real_posix(tmp_path)
     dst = tmp_path / case
     shutil.copytree(FIXTURES / case, dst)
@@ -337,8 +313,6 @@ def test_validate_shape2_failures_exit_one(tmp_path, case, name, needle):
     ],
 )
 def test_validate_promoted_pointer_replaces_a_dropped_entry(tmp_path, pointer, passes):
-    """A resolved entry may leave the handoff for a committed doc, but only behind a
-    pointer that keeps its tag and quotes enough of it to name which entry left."""
     handoffs = materialize(tmp_path, "dropped-entry")
     hop2 = handoffs / HOP2
     text = hop2.read_text(encoding="utf-8")
@@ -351,7 +325,6 @@ def test_validate_promoted_pointer_replaces_a_dropped_entry(tmp_path, pointer, p
 
 @pytest.mark.parametrize(("pointers", "passes"), [(1, False), (2, True)])
 def test_validate_promoted_pointer_stands_in_for_one_entry(tmp_path, pointers, passes):
-    """Two dropped same-tag entries sharing a prefix need two pointers, not one."""
     handoffs = materialize(tmp_path, "dropped-entry")
     hop1, hop2 = handoffs / HOP1, handoffs / HOP2
     kept = "- [h1] Migrations run forward-only; a down-migration corrupts the tenant partition key.\n"
@@ -373,8 +346,6 @@ def test_validate_promoted_pointer_stands_in_for_one_entry(tmp_path, pointers, p
 
 
 def test_validate_relocated_file_warns_and_exits_zero(tmp_path):
-    """The moved-file fixture stores a 'Read @' path under another root with
-    this file's own basename: a relocated save-point, not a wrong one."""
     handoffs = materialize(tmp_path, "moved-file")
     result = run("validate", str(handoffs / HOP1), "--strict-transcript")
     assert result.returncode == 0, out(result) + err(result)
@@ -385,8 +356,6 @@ def test_validate_relocated_file_warns_and_exits_zero(tmp_path):
 
 
 def test_validate_survives_a_copy_out_of_its_handoffs_dir(tmp_path):
-    """The reported case: a chain copied out of a worktree before the worktree
-    is removed still validates where it landed."""
     handoffs = materialize(tmp_path, "good-chain")
     in_place = run("validate", str(handoffs / HOP1), "--strict-transcript")
     assert in_place.returncode == 0, out(in_place)
@@ -402,8 +371,6 @@ def test_validate_survives_a_copy_out_of_its_handoffs_dir(tmp_path):
 
 
 def test_validate_rejects_a_read_at_naming_a_different_basename(tmp_path):
-    """Relaxing relocation must not relax misidentification: a stored path
-    naming some other save-point is still a hard failure."""
     handoffs = materialize(tmp_path, "good-chain")
     target = handoffs / HOP1
     text = target.read_text(encoding="utf-8")
@@ -621,7 +588,6 @@ def test_validate_refuses_a_bulleted_next_headline(tmp_path, marker):
 
 
 def _blank_section(path: Path, title: str) -> None:
-    """Leave the heading in place with a body of blank lines only."""
     lines = path.read_text(encoding="utf-8").split("\n")
     start = lines.index(f"## {title}")
     end = next(
@@ -1047,9 +1013,6 @@ def test_new_hop2_from_shape2_carries_chain_rows_and_tags(tmp_path):
 
 
 def test_new_hop2_carries_amendments_below_the_opening_ask(tmp_path):
-    """An amendment bullet sitting BELOW the predecessor's 'Opening ask:' line
-    is still part of the goal and must survive the carry: the skip that drops
-    the ask runs to the next structural marker, and a bullet is one."""
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
     run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
@@ -1136,7 +1099,6 @@ LEGACY_ROOT = "20260831T100000Z-handoff-legacy.md"
 
 
 def _two_hop_legacy_chain(handoffs: Path) -> Path:
-    """LEGACY_ROOT <- LEGACY, both shape-1 (no chain:), linked by a pointer."""
     handoffs.mkdir()
     source = (FIXTURES / "legacy-14" / "handoffs" / LEGACY).read_text(encoding="utf-8")
     (handoffs / LEGACY_ROOT).write_text(source, encoding="utf-8", newline="\n")
@@ -1153,8 +1115,6 @@ def _two_hop_legacy_chain(handoffs: Path) -> Path:
 
 
 def test_new_after_a_shape1_chain_records_every_hop_its_pointers_reach(tmp_path):
-    """A shape-1 predecessor has no chain: list, so its previous_handoff
-    pointers are walked; the successor's chain is not capped at two."""
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
     legacy = _two_hop_legacy_chain(handoffs)
@@ -1180,8 +1140,6 @@ def test_new_after_a_shape1_chain_records_every_hop_its_pointers_reach(tmp_path)
 def test_validate_still_accepts_the_two_entry_chain_after_a_shape1_predecessor(
     tmp_path,
 ):
-    """Files written before the walk carry [predecessor, self]; they stay valid,
-    and any other chain is refused with the walked chain named."""
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
     legacy = _two_hop_legacy_chain(handoffs)
@@ -1283,8 +1241,6 @@ def test_new_hop2_from_malformed_shape2_marks_carried_rows_unverified(tmp_path):
 
 
 def test_new_hop2_from_relocated_predecessor_carries_rows_verified(tmp_path):
-    """A predecessor whose only defect is relocation must not taint the
-    entries carried into its successor."""
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
     run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
@@ -1292,8 +1248,6 @@ def test_new_hop2_from_relocated_predecessor_carries_rows_verified(tmp_path):
     text = model_fill(hop1.read_text(encoding="utf-8"))
     stored = f"Read @{real_posix(hop1)},"
     assert stored in text
-    # Same basename under a root that no longer exists: what copying a chain
-    # out of a removed worktree leaves behind.
     text = text.replace(
         stored, f"Read @/work/elsewhere/removed-worktree/.work/handoffs/{HOP1},"
     )
@@ -1741,16 +1695,10 @@ FILL_VALUES = {
 
 
 def slot_instructions(text: str) -> dict[str, str]:
-    """Every slot a skeleton carries, name to instruction."""
     return {m.group(1): m.group(2) for m in FILL_RE.finditer(text)}
 
 
 def required_slots(text: str) -> dict[str, str]:
-    """A slots payload keying every REQUIRED slot this skeleton carries, valued
-    the way a well-behaved model would. Optional slots (instruction opening
-    `optional:`) are omitted, so `fill` deletes their lines; a caller that wants
-    one filled adds the key itself. Read off the file rather than a name list,
-    because the slot set is branch-dependent."""
     return {
         name: FILL_VALUES.get(name, f"Filled {name}.")
         for name, instruction in slot_instructions(text).items()
@@ -1771,15 +1719,12 @@ def raw_slots_file(tmp_path: Path, body: str, name: str = "slots.json") -> str:
 
 
 def new_skeleton(tmp_path: Path) -> Path:
-    """A fresh first-hop skeleton, ready to fill."""
     repo = make_repo(tmp_path)
     run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
     return repo / ".work" / "handoffs" / HOP1
 
 
 def new_hop2_skeleton(tmp_path: Path) -> Path:
-    """A continuation skeleton: the only branch carrying the `<section>-new`
-    optional slots, so the deletion cases need it."""
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
     run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
@@ -1890,8 +1835,6 @@ def test_this_session_carries_one_rescan_line_and_refuses_a_second_or_a_stray(tm
 
 
 def test_a_predecessor_constraint_attestation_entry_carries_forward(tmp_path):
-    """An attestation an earlier chain wrote into Constraints is an ordinary
-    entry: it stays, so the successor still validates."""
     target = new_hop2_skeleton(tmp_path)
     text = target.read_text(encoding="utf-8")
     assert "Re-scanned" not in text
@@ -1929,9 +1872,6 @@ def test_a_predecessor_constraint_attestation_entry_carries_forward(tmp_path):
 
 
 def test_carrying_a_rule_already_in_the_predecessor_adds_no_second_copy(tmp_path):
-    """A new entry whose text matches a carried one (tag, UNVERIFIED prefix and
-    its settle clause, spacing and case aside) is a duplicate: validate warns and
-    the oldest tag stays the only copy once the writer drops it."""
     target = new_hop2_skeleton(tmp_path)
     carried = "- [h1] The thing must stay green."
     text = target.read_text(encoding="utf-8")
@@ -2065,15 +2005,12 @@ def directive_line(text: str) -> str:
 
 
 def goal_slot_value(skeleton: str, slot: str, condition: str = CONDITION) -> str:
-    """The whole goal region as the `goal-first` / `goal-after` slot takes it:
-    the value carries its own blank-line separator."""
     directive = directive_line(skeleton)
     region = "\n".join([GOAL_COPY_LINE, "", RAIL, condition, directive, RAIL])
     return region + "\n" if slot == "goal-first" else "\n" + region
 
 
 def goal_target(tmp_path: Path, *slots: str, condition: str = CONDITION) -> Path:
-    """A filled first-hop handoff with the goal region in each named slot."""
     target = new_skeleton(tmp_path)
     skeleton = target.read_text(encoding="utf-8")
     payload = required_slots(skeleton)
@@ -2123,7 +2060,6 @@ def test_no_goal_output_is_the_single_resume_region(tmp_path):
 
 
 def test_goal_condition_at_the_limit_passes_and_over_it_fails(tmp_path):
-    # Equal-length directory names keep the stored directive line the same length.
     probe = goal_target(tmp_path / "p1", "goal-first")
     directive = directive_line(probe.read_text(encoding="utf-8"))
     fits = "x" * (4000 - len(directive) - 1)
@@ -2262,8 +2198,6 @@ def test_fill_refusals_leave_the_target_byte_identical(
         payload["brief"] = 7
         slots = slots_file(tmp_path, payload)
     elif case == "both-defects":
-        # The exit-1 defect is keyed FIRST and the exit-2 defect LAST, so a
-        # single interleaved loop would exit 1; the split loops exit 2.
         payload["brief"] = "carries <!-- FILL: next — headlines --> verbatim"
         del payload["did"]
         payload["did"] = 7
@@ -2319,8 +2253,6 @@ def test_fill_refuses_a_missing_target(tmp_path):
 
 
 def test_fill_refuses_an_undecodable_target(tmp_path):
-    """A directory here would only re-run the missing-target branch; invalid
-    UTF-8 is what exercises the decode refusal."""
     target = tmp_path / "not-utf8.md"
     target.write_bytes(b"---\ntype: handoff\n---\n\xff\xfe not utf-8\n")
     before = target.read_bytes()
@@ -2356,9 +2288,6 @@ def test_fill_refuses_a_file_that_is_not_a_handoff(tmp_path):
     ],
 )
 def test_fill_refuses_a_shape_that_is_not_two(tmp_path, line, expected, needle):
-    """A newer shape is read and never rewritten, as `validate` says; every
-    other shape that is not 2 is refused beside the `type: handoff` guard. Both
-    refusals land before the write, so the target stays byte-identical."""
     target = new_skeleton(tmp_path)
     text = target.read_text(encoding="utf-8")
     payload = required_slots(text)
@@ -2472,14 +2401,6 @@ def test_fill_an_ordinary_next_value_leaves_next_bare(tmp_path):
 
 
 def test_fill_slot_pattern_round_trips_through_the_fill_helper(tmp_path):
-    """The pattern and `_fill()` are one grammar: every slot the skeleton
-    carries re-renders to the exact span the pattern matched. Comparing whole
-    lines would be false for the prefixed lines and for the two-slot line.
-
-    The line that pins non-greediness is `len(matches) > len(carrying)`. The
-    round trip alone does not: a greedy instruction group swallows the rest of
-    the two-slot line INTO the group, so `_fill()` re-renders it identically and
-    every assertion in the loop still passes on one match instead of two."""
     module = _save_point_module()
     target = new_skeleton(tmp_path)
     text = target.read_text(encoding="utf-8")
@@ -2494,8 +2415,6 @@ def test_fill_slot_pattern_round_trips_through_the_fill_helper(tmp_path):
 
 
 def test_fill_empty_string_value_substitutes_and_validate_judges(tmp_path):
-    """Substitution only: an empty value leaves a bare prefix and `validate`
-    rules on it, rather than `fill` inventing a deletion rule."""
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["did"] = ""
@@ -2522,8 +2441,6 @@ def test_fill_preserves_a_file_with_no_trailing_newline(tmp_path):
 
 
 def test_fill_leaves_no_other_file_beside_the_target(tmp_path):
-    """The write goes through a temporary file in the handoffs dir; a run that
-    leaves one behind would put a stray file where handoffs are swept for."""
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
     run(
@@ -2551,12 +2468,6 @@ def test_help_exits_zero():
         assert command in out(result), out(result)
 
 
-# --- shape 3: hot file plus one immutable archive file per hop ----------------------
-#
-# Expected values come from PLAN.md `## Design` Contracts: the frontmatter keys, the
-# hop-file name `archive/<chain-root-stem>/h<N>-<session8>.md`, the FAIL list and the
-# cap of 10,000 tokens at the 2.46 bytes per token AUDIT.md measured on handoff files.
-
 SID_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 SID_D = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
 SID_E = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
@@ -2566,8 +2477,6 @@ HOT_CAP = 24_600
 # The Read tool's 25,000-token page cap at 2.34 bytes per token (#9238 asks for a
 # FAIL above it).
 READ_CAP = 58_500
-# The Brief's hot-file content list in its written order, `Original goal` first and
-# `## Resume prompt` last (PLAN.md "Hot file and archive"): an external contract.
 SHAPE3_SECTIONS = [
     "Original goal",
     "Review before you continue",
@@ -2688,7 +2597,6 @@ def edit(path: Path, old: str, new: str) -> None:
 
 
 def _sections_by_hand(text: str) -> dict[str, str]:
-    """Each `## ` section body of a file, trimmed of blank edge lines."""
     found: dict[str, str] = {}
     for chunk in text.split("\n## ")[1:]:
         title, _, body = chunk.partition("\n")
@@ -3069,7 +2977,6 @@ def test_shape3_fork_writes_a_sibling_hop_file(tmp_path):
 
 
 def _good_chain_memory(tmp_path: Path) -> Path:
-    """The good-chain fixture as a memory root `new` accepts (outside any git repo)."""
     handoffs = materialize(tmp_path, "good-chain")
     (handoffs.parent / ".gitignore").write_text("*\n", encoding="utf-8")
     return handoffs
@@ -3293,14 +3200,6 @@ def test_shape3_a_retired_rule_id_is_never_offered_again(tmp_path):
     assert "new ids from R3" in slot_instructions(skeleton)["rules-new"]
 
 
-# --- shape 3: retiring goal amendments and trail lines ------------------------------
-#
-# Expected values come from PLAN.md AC1/AC2: an amendment unit is a line starting
-# `**Amended` or `- **Amended` (any text up to `:**`) plus the non-marker lines after
-# it; a unit or trail line leaves the hot file only when this hop's file lists it
-# verbatim under `## Retired goal amendments` / `## Retired direction changes`
-# followed by `Retired: <reason>`.
-
 UNIT_NONE = "**Amended:** None."
 UNIT_PAREN = (
     '**Amended (2026-09-01 ~10:1xZ, owner verbatim):** "Ship the widget first."'
@@ -3319,8 +3218,6 @@ TRAIL_HEADING = "Retired direction changes"
 
 
 def retire_chain(repo: Path, tmp_path: Path, hop1_edit=None) -> tuple[Path, Path]:
-    """A two-hop shape-3 chain whose hop 1 holds four amendment units and three
-    trail lines; returns hop 2's hot file and hop 2's own hop file."""
     hop1 = s3_hop(repo, tmp_path, values=RETIRE_VALUES)
     if hop1_edit:
         edit(hop1, *hop1_edit)
@@ -3477,15 +3374,6 @@ def test_retire_a_rule_a_retired_entry_points_at_needs_its_new_home(
     assert ("[R1] is retired in" in out(result)) is warned, out(result)
 
 
-# --- shape 3: question and decision ids, retire by reference, Review pointers --------
-#
-# Expected values come from PLAN.md AC3-AC5: `[Q<n>]` / `[D<n>]` ids with
-# `next_question_id` / `next_decision_id` floors seeded above the highest
-# `Q<n>` / `D<n>` in the predecessor; a predecessor id leaves only when listed with a
-# reason; `retire` refs name `[R|Q|D<n>]`, `[h<k>]` plus ordinal, or an amendment
-# ordinal; a hop that retired entries points at its file and heading under Review
-# before you continue, and those pointers carry forward.
-
 QUESTION = (
     "- [Q1] Which color? Options blue or red; recommend blue; unblocks the paint."
 )
@@ -3509,9 +3397,6 @@ def id_chain(repo: Path, tmp_path: Path) -> tuple[Path, Path]:
 
 
 def fill_hop2(repo: Path, tmp_path: Path, retire: list[dict[str, str]], **values: str):
-    """Hop 2's skeleton over an id-carrying hop 1, filled through `fill` with a
-    `retire` key and any optional slot `values` names; returns the fill result,
-    the hot file and its hop file."""
     hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
     made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
     target = Path(out(made).strip())
@@ -3990,8 +3875,6 @@ def test_carry_a_changed_entry_passes_through_retire(tmp_path, ref, slot, replac
 def fill_chain(
     repo: Path, tmp_path: Path, hops: int, observations: str | None = None
 ) -> tuple[list[Path], list[subprocess.CompletedProcess[bytes]]]:
-    """`hops` shape-3 hops, each through `new` and one `fill`, each adding one
-    trail line; returns the hot files and each one's first `validate` result."""
     paths: list[Path] = []
     results: list[subprocess.CompletedProcess[bytes]] = []
     for hop in range(1, hops + 1):
@@ -4045,8 +3928,6 @@ def test_fold_moves_trail_lines_older_than_three_hops_behind_one_pointer(tmp_pat
 
 
 def test_fold_pointer_carries_forward_when_nothing_new_folds(tmp_path):
-    """Only hop 1 writes a trail line: hop 4 folds it, and hop 5, folding
-    nothing, keeps hop 4's pointer verbatim."""
     module = _save_point_module()
     paths = s3_chain(make_repo(tmp_path), tmp_path, [SID_A, SID_B, SID_C, SID_D, SID_E])
     hop4, hop5 = (path.read_text(encoding="utf-8").split("\n") for path in paths[3:])
@@ -4075,8 +3956,6 @@ def test_fold_keeps_the_fixed_part_of_a_hop8_chain_within_hop4s(tmp_path):
 
 
 def test_fold_a_hop8_chain_within_a_hop4_budget_validates_on_the_first_fill(tmp_path):
-    """Hop 4's written sections are padded to 40 bytes under the cap; hops 5 to 8
-    write the same sections and pass `validate` after one `fill` each."""
     probe, _ = fill_chain(make_repo(tmp_path / "a"), tmp_path / "a", 4)
     pad = HOT_CAP - len(probe[3].read_bytes()) - 40
     observations = SHAPE3_VALUES["observations"] + "\n- " + "x" * (pad - 3)
@@ -4087,15 +3966,6 @@ def test_fold_a_hop8_chain_within_a_hop4_budget_validates_on_the_first_fill(tmp_
         assert len(path.read_bytes()) <= HOT_CAP
     assert len(paths[7].read_bytes()) <= len(paths[3].read_bytes())
 
-
-# --- shape 3: amend ---------------------------------------------------------------
-#
-# Expected values come from PLAN.md AC6 and AC7 and the design resolution: `amend`
-# takes `sections`, `append`, `retire`, `next` and `floors`; a replaced body goes to
-# this hop's file under `## Amended <UTC> <title>`; `append` archives nothing; every
-# refusal leaves both files byte-identical; only a FAIL the amend introduces blocks
-# the write, never a size FAIL; `new` refuses to rewrite a hop file holding amend or
-# retire output.
 
 AMEND_NOW = "2026-09-01T12:00:00Z"
 LATE_TRAIL = "- [h1] late: the owner added the gadget (owner-directed)."
@@ -4115,7 +3985,6 @@ def amend(
 
 
 def amend_hop1(repo: Path, tmp_path: Path, values=ID_VALUES) -> tuple[Path, Path]:
-    """A filled first hop holding [Q1], [D1], [R1], [R2], and its hop file."""
     hop1 = s3_hop(repo, tmp_path, values=values)
     return hop1, hop_file(repo / ".work" / "handoffs", HOP1, 1, SID_A)
 

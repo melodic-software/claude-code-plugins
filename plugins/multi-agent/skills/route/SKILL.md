@@ -78,8 +78,7 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
 
    When any call reports new ids, relay one `registry recheck due` line in the reply. If
    `vendor-state seen` exits 2 because no plugin data folder is resolved, note it and continue.
-4. Fetch enabled benchmark pages for `<work_type>` (only rows that can lead, plus support-only
-   and provider-own rows while trials are active) in one call into a temporary directory
+4. Fetch enabled benchmark pages for `<work_type>` (only rows that can lead) in one call into a temporary directory
    (appending `<repo>/docs/conventions/multi-agent/benchmarks.json` when present, and honoring
    `vendors.sources.<id>.enabled`). Each row is checked for its `expect` marker and, when the
    docs-cache `renderer` is `firecrawl`, a blocked or script-drawn page is rendered:

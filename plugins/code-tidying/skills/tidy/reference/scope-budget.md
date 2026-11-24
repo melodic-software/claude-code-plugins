@@ -13,8 +13,8 @@ When the hunt phase produces more candidates than fit in the budget:
 1. **Sort candidates by priority.** Default priority order, highest first:
    - Tidyings that resolve a build warning, lint warning, or analyzer hit
    - Tidyings that fix a stale cross-reference (P-2) or dead link (P-1), with high reader-experience impact
-   - Tidyings that improve reading order (Beck #5, P-4) in files reviewers visit often
-   - Tidyings that delete dead code (Beck #2) or redundant comments (Beck #15)
+   - Tidyings that improve reading order (Beck 5, P-4) in files reviewers visit often
+   - Tidyings that delete dead code (Beck 2) or redundant comments (Beck 15)
    - Other Beck/Fowler/prose tidyings, all roughly equal priority
 
 2. **Take the top-priority subset that fits.** Greedy selection: take the highest-priority candidate; if adding it would exceed the cap, skip and try the next; stop when the cap is reached or no remaining candidate fits.
@@ -50,7 +50,7 @@ Deferred from tidy run on `<branch-name>` (anchor: `<anchor-sha>`). The hunt fou
 
 ## Proposed work
 
-- Tidying: <one of the named tidyings from reference/tidyings.md, e.g., "Beck #5: Reading Order">
+- Tidying: <one of the named tidyings from reference/tidyings.md, e.g., "Beck 5: Reading Order">
 - Files: `<path/to/file1.ext>` (<estimated LOC delta>), `<path/to/file2.ext>` (<estimated LOC delta>)
 - Estimated scope: ~<N> LOC across <M> files; should fit the scope budget's target as a future tidy run.
 - Lane: `<lane-name>`

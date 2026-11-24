@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/review/.claude-plugin/plugin.json plugins/review/lib/yaml-subset.awk
-# Tests for setup-apply.mjs: the narrow write of docs/conventions/review.yaml.
-# Each case builds its own repository root in a temp directory; expected values
-# come from the schema's allowed values (run, report; lens, model, codex; a whole number of at
-# least 1 for fanout_act_on_cap; the council keys' shapes) and the script's stated
-# exit codes, not from the script's output.
 # test-scope: plugins/review/lib/parse-concern-value.sh plugins/review/lib/resolve-convention-home.sh
 set -uo pipefail
 
@@ -62,7 +57,6 @@ leftover_temps() {
   printf '%d' "$n"
 }
 
-# --- Case 1: an absent file is created with the value -----------------------
 R1="$(new_root c1)"
 out="$(run --root "$R1" downstream_probe=report)"
 assert_eq "case 1: writing to an absent file exits 0" "0" "$?"
@@ -76,12 +70,10 @@ run --root "$R1B" downstream_probe=run >/dev/null
 assert_eq "case 1: missing docs/conventions directories are created" "0" "$?"
 assert_contains "case 1: the created file holds the value" "$(settings "$(yaml_of "$R1B")")" "downstream_probe: run"
 
-# --- Case 2: the same value again writes nothing ---------------------------
 out="$(run --root "$R1" downstream_probe=report)"
 assert_eq "case 2: a value already in place exits 0" "0" "$?"
 assert_contains "case 2: it says already configured" "$out" "already configured"
 
-# --- Case 3: a change to an existing file needs --yes ------------------------
 before="$(cat "$(yaml_of "$R1")")"
 out="$(run --root "$R1" downstream_probe=run)"
 assert_eq "case 3: a change without --yes exits 3" "3" "$?"
@@ -92,7 +84,6 @@ assert_eq "case 3: the change with --yes exits 0" "0" "$?"
 assert_eq "case 3: the file holds the new value on its own line" "1" "$(grep -cx 'downstream_probe: run' "$(yaml_of "$R1")")"
 assert_eq "case 3: no temp file is left behind" "0" "$(leftover_temps "$R1")"
 
-# --- Case 4: values and keys outside the schema are refused ------------------
 R4="$(new_root c4)"
 for bad in maybe on yes Run '' '""'; do
   run --root "$R4" "downstream_probe=$bad" >/dev/null
@@ -102,7 +93,6 @@ run --root "$R4" digest_policy=off >/dev/null
 assert_eq "case 4: a key outside the schema exits 1" "1" "$?"
 assert_eq "case 4: no refused value created the file" "0" "$([[ -e "$(yaml_of "$R4")" ]] && echo 1 || echo 0)"
 
-# --- Case 5: --check on absent, valid and invalid files ----------------------
 R5="$(new_root c5)"
 out="$(run --root "$R5" --check)"
 assert_eq "case 5: --check on an absent file exits 0" "0" "$?"
@@ -144,7 +134,6 @@ check_warns "a duplicate key" $'downstream_probe: run\ndownstream_probe: report\
 check_warns "a duplicate key after trimming" $'downstream_probe: run\n"downstream_probe ": report\n'
 check_warns "an unknown key" $'downstream_probe: run\ndownstream_probes: report\n'
 
-# --- Case 7: apply refuses a result that would not validate ------------------
 R7="$(new_root c7)"
 printf 'downstream_probe: run\ndownstream_probe: run\n' >"$(yaml_of "$R7")"
 before="$(cat "$(yaml_of "$R7")")"
@@ -189,7 +178,6 @@ HOME="$R8D/sub" node "$APPLY" --root "$R8D" downstream_probe=report >/dev/null 2
 assert_eq "case 8: a root that is an ancestor of \$HOME exits 1" "1" "$?"
 assert_eq "case 8: neither \$HOME refusal wrote the file" "0" "$([[ -e "$(yaml_of "$R8D")" ]] && echo 1 || echo 0)"
 
-# --- Case 9: a failed write is one refusal line and leaves no temp -----------
 R9="$(new_root c9)"
 chmod 555 "$R9/docs/conventions"
 if [[ -w "$R9/docs/conventions" ]]; then
@@ -211,7 +199,6 @@ run --root "$R10" downstream_probe=report >/dev/null
 assert_eq "case 10: a substitution-shaped root still writes" "0" "$?"
 assert_eq "case 10: the substitution never ran" "0" "$([[ -e "$PWNED" ]] && echo 1 || echo 0)"
 
-# --- Case 11: usage errors ----------------------------------------------------
 run --root "$R5" >/dev/null
 assert_eq "case 11: no key=value exits 2" "2" "$?"
 run --root "$R5" --check downstream_probe=run >/dev/null
@@ -225,9 +212,6 @@ one_line() {
 }
 exists() { [[ -e "$1" ]] && echo 1 || echo 0; }
 
-# --- Case 12: apply validates the existing file and refuses what it cannot overwrite
-# apply_refuses <label> <file body>: apply --yes exits 1 with one line and
-# leaves the file byte for byte as it was.
 apply_refuses() {
   local r f before out
   r="$(new_root "ar-$1")"
@@ -274,9 +258,6 @@ apply_refuses "a parse error on another line" $'downstream_probe: run\nother: "o
 apply_refuses "a parse error on the key's own line" $'downstream_probe: "open\n'
 apply_refuses "an unclosed flow list on the key's own line" $'downstream_probe: [run\n'
 
-# --- Case 13: apply overwrites an out-of-list, empty or null value -----------
-# apply_replaces <label> <file body>: apply --yes exits 0 and the file is the
-# single line the operator asked for.
 apply_replaces() {
   local r f
   r="$(new_root "rp-$1")"
@@ -292,8 +273,6 @@ apply_replaces "an empty value" $'downstream_probe:\n'
 apply_replaces "a null value" $'downstream_probe: null\n'
 apply_replaces "a tilde null" $'downstream_probe: ~\n'
 
-# --- Case 14: a key given twice on the command line is refused -----------------
-# pair_twice <label> <pair> <pair>: exits 1 with one line, file absent or present.
 pair_twice() {
   local r f out before
   r="$(new_root "pt-$1")"
@@ -313,7 +292,6 @@ pair_twice "the same pair twice" downstream_probe=report downstream_probe=report
 pair_twice "two values for one key" downstream_probe=report downstream_probe=run
 pair_twice "a key repeated after trimming" downstream_probe=report ' downstream_probe =report'
 
-# --- Case 15: every other refusal is one line ---------------------------------
 R15="$(new_root c15)"
 for bad in maybe '' '""'; do
   out="$(run --root "$R15" "downstream_probe=$bad")"
@@ -348,7 +326,6 @@ assert_eq "case 15: a write over the file-size limit exits 1" "1" "$?"
 one_line "case 15: a failed write" "$out"
 assert_eq "case 15: a failed write leaves no temp file" "0" "$(leftover_temps "$R15W")"
 
-# --- Case 16: an unreadable target is one line, apply and --check alike --------
 R16="$(new_root c16)"
 printf 'downstream_probe: run\n' >"$(yaml_of "$R16")"
 chmod 000 "$(yaml_of "$R16")"
@@ -401,7 +378,6 @@ assert_eq "case 18: a docs/ swapped for a symlink after mkdir exits 1" "1" "$?"
 one_line "case 18: a swapped docs/" "$out"
 assert_eq "case 18: nothing was created outside the root" "0" "$(exists "$OUT18/conventions")"
 
-# --- Case 19: rename and close failures, and a temp this run did not create ----
 P19R="$(preload rename-fails \
   'fs.renameSync = () => { throw Object.assign(new Error("EXDEV: cross-device link, rename"), { code: "EXDEV" }); };')"
 R19="$(new_root c19)"
@@ -431,7 +407,6 @@ one_line "case 19: a temp name already taken" "$out"
 assert_eq "case 19: a temp file this run did not create is kept" "someone else" \
   "$(settings "$R19P/docs/conventions/.review.yaml.4242.tmp")"
 
-# --- Case 20: downstream_probe takes run or report (the schema's enum) ---------
 R20="$(new_root c20)"
 run --root "$R20" downstream_probe=report >/dev/null
 assert_eq "case 20: downstream_probe=report exits 0" "0" "$?"
@@ -449,10 +424,6 @@ out="$(run --root "$R20W" --check)"
 assert_eq "case 20: --check on downstream_probe: maybe exits 1" "1" "$?"
 assert_contains "case 20: the WARN names the key and the value" "$out" "downstream_probe=maybe"
 
-# --- Case 21: --check --ref reads the file as committed at a ref --------------
-# The fixture's origin/main commits downstream_probe: report; the working tree
-# (standing in for a pull request's head) says run. The ref read must report
-# the committed value and the commit it read.
 g() { git -C "$1" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "${@:2}"; }
 R21="$TEST_TMPDIR/c21"
 mkdir -p "$R21/docs/conventions"
@@ -618,7 +589,6 @@ out="$(run --root "$R24" --check --ref origin/main)"
 assert_eq "case 24: a committed bad value exits 1" "1" "$?"
 assert_contains "case 24: a committed bad value keeps the valid key" "$out" "PASS downstream_probe: report"
 
-# --- Case 26: fanout_diversity takes lens, model or codex (the schema's enum) --
 R26="$(new_root c26)"
 run --root "$R26" fanout_diversity=model >/dev/null
 assert_eq "case 26: fanout_diversity=model exits 0" "0" "$?"
@@ -639,7 +609,6 @@ assert_eq "case 26: the refusal is one line" "1" "$(printf '%s\n' "$out" | grep 
 assert_contains "case 26: the refusal names the key and value" "$out" "fanout_diversity"
 assert_eq "case 26: a refused value leaves the file untouched" "$before" "$(cat "$(yaml_of "$R26B")")"
 
-# --- Case 27: fanout_act_on_cap takes a whole number of at least 1 -----------
 R27="$(new_root c27)"
 run --root "$R27" fanout_act_on_cap=3 >/dev/null
 assert_eq "case 27: fanout_act_on_cap=3 exits 0" "0" "$?"
@@ -653,7 +622,6 @@ for bad in 0 1.5 two; do
   assert_contains "case 27: the refusal of $bad names the key" "$out" "fanout_act_on_cap"
 done
 
-# --- Case 28: the council keys, checked in full (lists included) -------------
 R28="$(new_root c28)"
 cat >"$(yaml_of "$R28")" <<'YAML'
 council_lanes: off
@@ -703,7 +671,6 @@ assert_eq "case 28: council_lanes=on on the command line exits 0" "0" "$?"
 out="$(run --root "$(new_root c28-cli-list)" council_panel=a)"
 assert_eq "case 28: a list key on the command line exits 1" "1" "$?"
 
-# --- Case 29: smell_baseline takes default, off or a repository-relative .md path
 for good in default off docs/standards/design-smells.md; do
   R29="$(new_root "c29-${good//\//-}")"
   run --root "$R29" "smell_baseline=$good" >/dev/null

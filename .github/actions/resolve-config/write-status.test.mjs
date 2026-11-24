@@ -9,6 +9,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { postOptionNames, RESTART_GAP_MS, StatusWriteError, statusWriter, writeState } from "./write-status.mjs";
 
 const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8")).models[
@@ -108,7 +109,7 @@ function fieldWorld(option, setter, labels = []) {
   };
   return { github, posts, put, steps, labels: () => labels };
 }
-const writerOver = (github, env = { BASE_PATH: ROOT }, sleep = async () => {}) => statusWriter({ env, github, repository: "o/r", sleep });
+const writerOver = (github, env = { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, sleep = async () => {}) => statusWriter({ env, github, repository: "o/r", sleep });
 
 test("statusWriter set writes a state once per issue in a process, and skips one `fields` shows", async () => {
   const w = fieldWorld(null);
@@ -320,7 +321,7 @@ test("statusWriter set answers the field write when the agent-ready label remova
       return w.github(method, path, body);
     };
     const logs = [];
-    const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r", log: (line) => logs.push(line) });
+    const { set } = await statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github, repository: "o/r", log: (line) => logs.push(line) });
     assert.equal((await set(7, "confirmed")).outcome, "written", String(status));
     assert.equal(logs.some((line) => line.includes("`agent-ready` label was not removed")), warned, logs.join("\n"));
   }
@@ -466,9 +467,9 @@ test("statusWriter set with keepHold throws and writes nothing when the field ca
   assert.ok(!calls.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")));
 });
 
-test("statusWriter with an unreadable trusted-actor list still writes a plain set, and throws on every field read", async () => {
+test("statusWriter with no standards checkout reads no trusted-actor list, the base's copy included: a plain set still writes, and every field read throws", async () => {
   const w = fieldWorld(null);
-  const { set, leaveAgentReady } = await writerOver(w.github, { BASE_PATH: ROOT, TRUSTED_ACTORS_PATH: "/nonexistent-trusted-actors.json" });
+  const { set, leaveAgentReady } = await writerOver(w.github, { BASE_PATH: ROOT });
   assert.equal((await set(7, "needs-human")).outcome, "written", "a plain set needs only the config");
   await assert.rejects(() => set(8, "needs-triage", { keepHold: true }), (error) => error instanceof StatusWriteError && /could not be read/.test(error.message));
   await assert.rejects(() => leaveAgentReady(9, "needs-triage"), StatusWriteError);

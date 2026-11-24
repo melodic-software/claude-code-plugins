@@ -99,9 +99,6 @@ has_fleet_indicator() {
   esac
 }
 
-# Destructive fresh-pull / reset intent. A fleet phrase that names the `all` tier
-# is the DESTRUCTIVE tree-batch only when it also reads as a reset; a plain
-# "clean all repos" is a selective all-batch sweep, not a reset-hard preview.
 has_reset_intent() {
   case "$1" in
   *reset* | *fresh\ pull* | *fresh-pull* | *fresh\ clone* | *pristine* | *wipe*) return 0 ;;
@@ -113,12 +110,6 @@ fleet_tier() {
   if has_reset_intent "$1"; then printf 'tree-batch'; else printf 'all-batch'; fi
 }
 
-# Selective tier + fleet intent => the selective batch form, decided BEFORE the
-# bare fleet/all -> tree-batch upgrade below. A selective sweep across a fleet
-# ("clean caches across all repos", "caches fleet", "prune git across the fleet")
-# must route to the non-destructive `<tier>-batch`, never the destructive tree
-# reset. Only fires for a single unambiguous selective tier; a mix (caches + build)
-# falls through to the normal conflict path.
 sel=""
 for token in "$@"; do
   t="$(resolve_token "$token")"
@@ -154,12 +145,6 @@ fi
 if [[ -z "$canonical" ]]; then
   for token in "$@"; do
     hit="$(resolve_token "$token")"
-    # A bare "all" token is the single-repo `all` tier, but inside a fleet phrase it
-    # names a multi-repo sweep. Reset/fresh-pull phrasing ("reset all my repos") is
-    # the DESTRUCTIVE tree-batch; a plain fleet cleanup ("clean all repos", "sweep
-    # across all repos") is the SELECTIVE all-batch — never preview a reset-hard for
-    # an innocuous all-tier request. A genuine conflict with another explicit token
-    # (e.g. "scan all repos") still falls to the menu via the mismatch check below.
     if [[ "$hit" == "all" ]] && is_fleet_phrase "$joined"; then
       hit="$(fleet_tier "$joined")"
     fi

@@ -163,7 +163,6 @@ if ! LC_ALL=C sed $'s/\r$//' "${INPUTS[@]}" | LC_ALL=C grep -E "$ROW_ERE" >/dev/
   exit 3
 fi
 
-# Non-overwrite naming: never clobber an unconsumed findings file.
 if [[ -e "$OUT" ]]; then
   n=2
   while [[ -e "${OUT%.md}-$n.md" ]]; do n=$((n + 1)); done

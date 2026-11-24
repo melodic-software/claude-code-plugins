@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { parse, stringify } from "yaml";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main } from "./resolve-config.mjs";
 import { modelArgs, modelSettings, neededFacts, Rejection, resolve, resolveRoute } from "./resolve.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -842,6 +843,7 @@ function routeEnv(extra = {}) {
   writeFileSync(output, "");
   return {
     BASE_PATH: base,
+    STANDARDS_DIR: standardsCheckout(),
     MODEL_ROUTE: "verify-pr",
     OUTPUT_PATH: join(base, "resolved.json"),
     GITHUB_OUTPUT: output,
@@ -957,7 +959,7 @@ const fieldEvent = (type, field, actor) => ({
   issueField: { fullDatabaseId: String(field) },
 });
 const FIELD_ROWS = [fieldRow(15462270, 27053567), fieldRow(48625720, 85127653), fieldRow(48625721, 85127654)];
-async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROWS, labels = ["agent-ready"]) {
+async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROWS, labels = ["agent-ready"], extra = {}) {
   const env = routeEnv({
     MODEL_ROUTE: "",
     LANE: "work-resolve-issue",
@@ -965,6 +967,7 @@ async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROW
     EVENT_NAME: "issues",
     REPOSITORY: "o/r",
     APPLIED_BY_SUPPORTED: "patch work-outcome",
+    ...extra,
   });
   writeFileSync(join(env.BASE_PATH, CONFIG_PATH), TUNED.config);
   const issue = { number: 7, updated_at: "2026-10-18T00:00:00Z", labels: [] };
@@ -1021,6 +1024,14 @@ test("main on an issue reads its trusted Work status as its status label", async
   const held = await mainOnIssue([...DIMS_SET, status("needs-human", LISTED)], "false", rows(86380005), ["agent-ready"]);
   assert.equal(held.outputs.applies, "false");
   assert.equal(held.outputs["skip-reason"], "awaiting-human");
+});
+
+test("main with no standards checkout trusts no Work status setter: the base's trusted-actor copy is never read", async () => {
+  assert.ok(json(TRUSTED_ACTORS_PATH).actors.some((actor) => actor.id === LISTED), "the base's copy lists the setter");
+  const status = { ...fieldEvent("IssueFieldAddedEvent", 48484079, LISTED), value: "agent-ready" };
+  const { code, outputs } = await mainOnIssue([status], "false", [...FIELD_ROWS, fieldRow(48484079, 84879220)], [], { STANDARDS_DIR: "" });
+  assert.equal(code, 0);
+  assert.deepEqual([outputs.applies, outputs["skip-reason"]], ["false", "not-applicable"]);
 });
 
 // The field's REST value and its newest event disagreeing is usually a read

@@ -27,6 +27,7 @@ import { checkRun, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { main as checkBlockers } from "../work-resolve-issue/check-blockers.mjs";
 import { selectCandidates } from "../maintenance-audit-lane-runs/triage-sweep.mjs";
 import { rmSync } from "node:fs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -2023,7 +2024,7 @@ describe("admit", () => {
       }
       return fake.github(method, path, body, ...rest);
     };
-    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname }, github, repository: "o/r" });
+    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname, STANDARDS_DIR: standardsCheckout() }, github, repository: "o/r" });
     const result = await admit({ ...goArgs(fake), github, setStatus: set });
     assert.deepEqual(result, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
     const posts = fake.calls.filter(({ method, path }) => method === "POST" && path !== "/graphql").map(({ path, body }) => `${path} ${JSON.stringify(body)}`);

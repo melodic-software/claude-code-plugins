@@ -283,12 +283,13 @@ expect() {
   local label="$1" out rc cleared deleted posted config="$TMP_ROOT/base-config"
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/output"
-  rm -rf "$config" "$TMP_ROOT/pr-reads"
+  rm -rf "$config" "$TMP_ROOT/standards" "$TMP_ROOT/pr-reads"
   # STALE_EVENTS stands for an events answer an earlier step kept (pr_read).
   [[ -z "${STALE_EVENTS:-}" ]] || RUNNER_TEMP="$TMP_ROOT" bash -c '. "$RUNNER_TEMP/gh-read.sh"; pr_read_put "$1" "repos/o/r/issues/6419/events?per_page=100" --paginate' _ "$STALE_EVENTS"
-  mkdir -p "$config/.github/standards/trusted-actors"
+  mkdir -p "$TMP_ROOT/standards/components/trusted-actors" "$config/.github/standards/trusted-actors"
+  printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
   [[ -z "${STUB_TRACKER+set}" ]] || { mkdir -p "$config/docs/conventions" && printf 'tracker: %s\n' "$STUB_TRACKER" >"$config/docs/conventions/work-items.yaml"; }
-  [[ " $STUB_FAIL " == *" actors "* ]] || printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  [[ " $STUB_FAIL " == *" actors "* ]] || printf '%s\n' "$STUB_ACTORS" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
   mkdir -p "$config/docs/conventions"
   [[ " $STUB_FAIL " == *" identity "* ]] || printf 'merge:\n  agent-identity: melodic-automation-lanes[bot]\n' >"$config/docs/conventions/pr-pipeline.yaml"
   mkdir -p "$config/.github/scripts/pr-merge"
@@ -296,7 +297,7 @@ expect() {
   [[ " $STUB_FAIL " != *" tracker "* ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" PR_NUMBER=6419 GITHUB_REPOSITORY=o/r \
     RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/output" BASE_SHA="$BASE" HEAD_SHA="$HEAD" \
-    BASE_CONFIG="$config" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="$config" STANDARDS_DIR="${STUB_STANDARDS-$TMP_ROOT/standards}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   cleared=no deleted=no posted=no
   grep -qxF 'cleared=true' "$TMP_ROOT/output" && cleared=yes
   grep -q -- '-X DELETE repos/o/r/issues/6419/labels/needs-human' "$TMP_ROOT/log" && deleted=yes
@@ -906,6 +907,8 @@ STUB_COMMENTS="[$(comment "$APP" 2026-10-23T13:22:00Z '<!-- work-items:escalatio
 export LANES_APP_ID=5
 expect "a lanes App id other than merge.agent-identity's clears nothing" no no no "is not melodic-automation-lanes[bot]'s trusted-actor id"
 
+reset
+STUB_STANDARDS='' expect "with no standards checkout the trusted-actor list is not read, so nothing clears" no no no "is unreadable"
 for read in tracker actors identity events pull runs compare jobs notes comments deleted closing decision edited; do
   reset
   export STUB_FAIL="$read"

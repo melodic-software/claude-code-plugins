@@ -176,9 +176,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
                 "unrestarted": [],
             },
         )
-        # The records first, then agent-ready off and back on, all before the
-        # close, so a failed write leaves the pull request open for the next
-        # run and a closed one never leaves its issue without agent-ready.
         self.assertEqual(
             world.calls(),
             [
@@ -206,7 +203,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         self.assertIn("a.py:3 '''rm -rf'''", issue)
         self.assertIn("unreadable: artifact x of run 12", issue)
         self.assertEqual(issue.count("```"), 2)
-        # No person's label anywhere on this path.
         self.assertFalse(
             any(
                 "needs-human" in " ".join(w) or "needs-decision" in " ".join(w)
@@ -255,8 +251,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         self.assertEqual(world.run()["restarted"], [ISSUE])
 
     def test_only_records_that_started_an_attempt_spend_one(self) -> None:
-        # The records `capped_closed` excuses nothing for spend nothing: one
-        # written while a person had taken agent-ready off, and a parked one.
         world = World()
         world.comments[ISSUE] = [
             comment(f"<!-- verify-capped-close pr=40 heads={FAILED[2]} -->"),
@@ -271,15 +265,12 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         world.fail_once.add(f"PATCH repos/{REPO}/pulls/{PR}")
         with self.assertRaises(RuntimeError):
             world.run()
-        # The next run finds both records (the reads return what was posted).
         world.comments[PR] = [comment(world.body(0))]
         world.comments[ISSUE] = [comment(world.body(1))]
         # Its removal landed in the record's second (1 s resolution).
         world.events[ISSUE] = [event("unlabeled", BOT, RECORDED)]
         world.writes.clear()
         result = world.run()
-        # The issue still carries the agent-ready the first run put back, so
-        # the rerun only closes: no second toggle starts a second work run.
         self.assertEqual(result["restarted"], [])
         self.assertEqual(world.calls(), [f"PATCH repos/{REPO}/pulls/{PR}"])
 
@@ -314,7 +305,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
                 )
 
     def test_a_rerun_after_a_record_with_no_attempt_writes_no_label(self) -> None:
-        # A person may have added agent-ready since: that started its run.
         world = World()
         world.comments[PR] = [comment(f"<!-- verify-capped-close pr={PR} heads= -->")]
         world.comments[ISSUE] = [
@@ -390,9 +380,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         )
 
     def test_a_re_add_that_fails_twice_leaves_the_pull_request_open(self) -> None:
-        # Closed with agent-ready off, the issue would be stranded: the closed
-        # pull request is never revisited, and label-unblocked.mjs skips the
-        # hand-off for a pull request its capped-close record names.
         world = World()
 
         def gh(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
@@ -421,8 +408,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         self.assertTrue(world.run()["closed"])
 
     def test_an_issue_without_agent_ready_is_not_restarted(self) -> None:
-        # A person may have taken agent-ready off: the App's re-add would
-        # override them and admit the issue afresh, so it starts nothing.
         world = World()
         result = world.run(StubReader(issue_labels=()))
         self.assertEqual(result["restarted"], [])
@@ -445,8 +430,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         self.assertIn("no fresh attempt starts", world.body(0))
 
     def test_a_rerun_after_a_failed_re_add_still_restarts(self) -> None:
-        # The first run took agent-ready off and could not put it back; its
-        # record names the attempt, so the rerun restarts the issue.
         world = World()
 
         def gh(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
@@ -460,7 +443,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
             world.run()
         world.comments[PR] = [comment(world.body(0))]
         world.comments[ISSUE] = [comment(world.body(1))]
-        # Its own removal, in its record's second, is the one the rerun undoes.
         world.events[ISSUE] = [event("unlabeled", BOT, RECORDED)]
         del world.gh
         world.writes.clear()
@@ -475,15 +457,12 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         )
 
     def test_too_old_closes_nothing(self) -> None:
-        # Owner decision 2026-11-01: a fresh pass at the head
-        # clears it, so the pull request stays open for that judgment.
         self.assertFalse(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
 
     def test_review_rounds_not_converging_close_for_a_fresh_attempt(self) -> None:
         world = World()
         url = f"https://github.com/{REPO}/pull/{PR}#issuecomment-1"
         world.comments[PR] = [{**comment(stopped_note()), "html_url": url}]
-        # The verifier's answer plays no part.
         result = world.run(StubReader(refusal=None), reason=ve.NOT_CONVERGING)
         self.assertEqual(result["closed"], True)
         self.assertEqual(result["refusal"], ve.NOT_CONVERGING)
@@ -492,8 +471,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         self.assertIn("review rounds as `feedback-not-converging`", world.body(0))
         issue_body = world.body(1)
         self.assertTrue(issue_body.startswith(f"<!-- verify-capped-close pr={PR} "))
-        # The fresh attempt starts from the open threads the stop lists,
-        # not from pr-verify FAIL findings it was not closed for.
         self.assertIn(f"lane-stopped comment lists ({url})", issue_body)
         self.assertNotIn("starts from these findings", issue_body)
         self.assertNotIn("No FAIL findings", issue_body)
@@ -624,8 +601,6 @@ class ARemappedAdmissionLabel(unittest.TestCase):
         self.assertIn(f"did not carry `{GO}`", world.body(1))
 
     def test_a_rerun_reads_removals_of_the_remapped_label(self) -> None:
-        # Carried: only the App's removal of the remapped label since the
-        # record means the toggle already happened.
         for label, writes in (
             (
                 "agent-ready",

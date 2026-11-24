@@ -6,7 +6,15 @@ export const trustedActorsPath = (base) => `${base || ".base"}/${TRUSTED_ACTORS_
 export const SAME_TREE_LIST = new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url);
 export const STANDARDS_REPOSITORY = "melodic-software/standards";
 export const STANDARDS_LIST_PATH = "components/trusted-actors/trusted-actors.json";
-export const trustedListPath = (env, fallback) => (env.STANDARDS_DIR ? `${env.STANDARDS_DIR}/${STANDARDS_LIST_PATH}` : fallback);
+export function trustedListPath(env, given) {
+  if (env.STANDARDS_DIR) {
+    return `${env.STANDARDS_DIR}/${STANDARDS_LIST_PATH}`;
+  }
+  if (given) {
+    return given;
+  }
+  throw new Error("no standards checkout (STANDARDS_DIR is unset), so the trusted-actor list cannot be read");
+}
 
 export const listBlob = (bytes) => createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
 

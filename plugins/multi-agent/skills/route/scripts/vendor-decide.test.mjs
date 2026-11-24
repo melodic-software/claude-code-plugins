@@ -708,7 +708,7 @@ test('settings roles.worker.single supplies Claude base model and effort before 
   assert.equal(resHeavy.json.effort, 'high')
 })
 
-test('coding effort floor raises consensus and trial recommendations below model default with one note', (t) => {
+test('coding effort floor raises a consensus pick below model default with one note; a trial takes the vendor default and ignores board records', (t) => {
   const res = twoBoards(t, codexLeadRecords({ effort: 'low' }))
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'codex')
@@ -726,7 +726,34 @@ test('coding effort floor raises consensus and trial recommendations below model
   assert.equal(resTrial.code, 0, resTrial.stderr)
   assert.equal(resTrial.json.basis, 'trial')
   assert.equal(resTrial.json.effort, 'medium')
-  assert.equal(resTrial.json.notes.filter((n) => /raised to default/i.test(n)).length, 1)
+  assert.equal(resTrial.json.notes.some((n) => /raised to default/i.test(n)), false)
+})
+
+test('a trial runs the first listed model at its default effort, not the model a board record leads with', (t) => {
+  const models = {
+    ...MODELS,
+    codex: {
+      status: 'ok',
+      unset_model: 'cli-default',
+      models: [
+        { id: 'sparrow-1', efforts: ['low', 'medium', 'high'], default_effort: 'medium' },
+        { id: 'sparrow-2', efforts: ['low', 'medium', 'high'], default_effort: 'medium' },
+      ],
+    },
+  }
+  const res = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a')] },
+    manifest: { boards: [boardEntry('board-a')] },
+    records: [rec('board-a', 'codex', 'sparrow-2', 'lead', { effort: 'high' })],
+    models,
+    settings: { routing: true, trials: true, trials_prove: 3, trials_fail: 2 },
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(res.code, 0, res.stderr)
+  assert.equal(res.json.basis, 'trial')
+  assert.equal(res.json.vendor, 'codex')
+  assert.equal(res.json.model, 'sparrow-1')
+  assert.equal(res.json.effort, 'medium')
 })
 
 test('security: board-reader findings text is never copied to stdout; fixed note emitted per source', (t) => {

@@ -1,5 +1,3 @@
-"""Contract tests for resume_eval.py. No test reaches the API or a CLI."""
-
 import json
 import os
 import time
@@ -503,8 +501,6 @@ def test_history_can_continue_an_existing_chain():
 
 
 def test_exclusion_ignores_limit_words_in_conversation_text():
-    """A seeded lane history or a case prompt may mention usage limits; only the CLI's
-    own error result or stderr marks a run as limit-hit."""
     talk = [
         {
             "type": "user",
@@ -694,8 +690,6 @@ def test_project_key_matches_the_cli_directory_naming():
 
 
 def _job_runner(errors, ran):
-    """A run_once stand-in: records each job and writes its graded.json as run_once does."""
-
     def run(case, arm, readers, index, out_dir):
         ran.append(index)
         results = [
@@ -821,7 +815,6 @@ def test_report_keeps_the_last_row_per_run_and_counts_runs_whose_last_row_is_exc
     graded.write_text(
         "".join(
             json.dumps(r) + "\n"
-            # index 0 re-ran because its other reader errored; index 1 re-ran after an error
             for r in (
                 row(0, None),
                 row(0, None),
@@ -841,7 +834,6 @@ def test_report_keeps_the_last_row_per_run_and_counts_runs_whose_last_row_is_exc
 
 
 def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
-    """Real git and real seeding; every `claude` call is faked."""
     import subprocess
     import sys
     from pathlib import Path
@@ -1163,7 +1155,6 @@ def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_pat
         p.read_text(encoding="utf-8") for p in run["keydir"].glob("*.jsonl")
     )
     assert scripted and all(text in transcripts for text in scripted)
-    # A scripted hop sends none of its turns live: only the interrupt and the arm prompt run.
     for hop in hops:
         if hop.get("scripted"):
             for turn in hop["scripted_turns"]:
@@ -1966,7 +1957,6 @@ def test_a_pair_fails_on_a_case_with_no_probe_both_sides_graded(tmp_path, capsys
 
 
 def _nondelivery_rows(arm, undelivered, whole):
-    """Two runs per case on re-a..re-c; `undelivered` maps case to how many did not deliver."""
     rows = []
     for case in ("re-a", "re-b", "re-c"):
         for i in range(2):
@@ -2071,8 +2061,6 @@ def test_a_seeded_script_with_a_shebang_is_executable(tmp_path):
 
 
 def _seed_with_refs(tmp_path, remote_refs):
-    """Seed re-late-event over a base repo that also carries a `stale` branch; returns
-    (run repo, its origin.git, a git runner)."""
     import subprocess
     import sys
     from pathlib import Path
@@ -2236,7 +2224,6 @@ CD_PREFIX_HOOK = "guardrails@melodic-software PreToolUse:Bash: BLOCKED: Run `git
 
 
 def _refused(*denied):
-    """A reader whose call `t1` the hook refused, then denials of (tool, tool use id)."""
     refusal = {
         "type": "tool_result",
         "tool_use_id": "t1",

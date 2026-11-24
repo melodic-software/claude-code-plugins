@@ -194,7 +194,6 @@ class LaneRunCarryTests(unittest.TestCase):
             with self.subTest(label):
                 run = {**self.run, **change}
                 reads: list[str] = []
-                # A re-run's attempt 1 has no answer here, so its read raises.
                 with contextlib.suppress(RuntimeError):
                     self.collect(carried, run, reads)
                 self.assertIn(f"repos/{REPO}/actions/runs/{run['id']}", reads)
