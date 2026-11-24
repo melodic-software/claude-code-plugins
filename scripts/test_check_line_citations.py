@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Self-test for the line-citation gate.
-
-Each case builds a throwaway git repository holding a copy of the gate, a
-ten-line cited file and one citing markdown file, so the suite proves the
-detector rather than the current state of this checkout.
-"""
 
 from __future__ import annotations
 
@@ -139,7 +133,6 @@ class StaysQuiet(unittest.TestCase):
         )
 
     def test_line_inside_the_longer_of_two_candidates(self):
-        # `ten.py` resolves at the root (2 lines) and beside the citing file (10).
         code, out = run_gate(
             "See `ten.py:9`.\n", extra={"ten.py": "a\nb\n", "docs/ten.py": TEN_LINES}
         )

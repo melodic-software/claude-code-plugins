@@ -21,8 +21,6 @@ printf '#!/bin/sh\nprintf "%%s\\n" "$*" >"%s/pip-args"\n' "$T" >"$T/pyok/python3
 printf '#!/bin/sh\nexit 1\n' >"$T/pyfail/python3"
 chmod +x "$T/stub204/curl" "$T/stub401/curl" "$T/pyok/python3" "$T/pyfail/python3"
 
-# The install script resolves requirements-ci.txt from its own directory, so it
-# runs from a copied tree laid out as .base is.
 cp "$ROOT/.github/scripts/lib/install-pinned-pyyaml.sh" "$T/tree/.github/scripts/lib/"
 cp "$ROOT/.github/requirements-ci.txt" "$T/tree/.github/"
 revoke="$ROOT/.github/scripts/lib/revoke-lane-token.sh"

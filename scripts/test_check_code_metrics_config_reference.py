@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for the code-metrics config reference gate.
-
-Every case runs the gate at its command line against a mutated COPY of the
-shipped pair, so what is asserted is the exit code and the message an author
-would actually see. The point of the gate is that drift is impossible, so the
-suite is written as drift injections: each one must FAIL, and the message must
-name the key, or the gate is decorative.
-"""
 
 from __future__ import annotations
 
@@ -81,8 +73,6 @@ class ShippedPairTests(GateHarness):
         self.assertIn("documents all", result.stdout)
 
     def test_the_unmutated_copy_agrees(self) -> None:
-        # The harness itself must clear the gate, or every "this fails" case
-        # below would pass for the wrong reason.
         self.assert_clean(self.write())
 
 
@@ -202,16 +192,11 @@ class ToleratedTests(GateHarness):
     """What the gate deliberately does NOT fail on."""
 
     def test_reordering_the_defaults_file_is_not_drift(self) -> None:
-        # The document orders keys for a reader and the defaults file orders
-        # them for the resolver. Pinning the two orders together would fail a
-        # harmless reformat while preventing no disagreement.
         self.defaults = dict(reversed(list(self.defaults.items())))
         self.defaults["size"] = dict(reversed(list(self.defaults["size"].items())))
         self.assert_clean(self.write())
 
     def test_reserved_members_need_no_row(self) -> None:
-        # `thresholds` and any `_`-prefixed member belong to the bundled
-        # defaults and the resolver's output, not to the consumer surface.
         self.defaults["_generated_at"] = "2026-01-01"
         self.defaults["thresholds"] = copy.deepcopy(self.defaults["thresholds"])
         self.defaults["thresholds"].append(

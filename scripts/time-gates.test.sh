@@ -61,7 +61,6 @@ else
   fail "parity row: [$(<"$out")]"
 fi
 
-# expect_eq <label> <want> <got>
 expect_eq() {
   if [[ "$3" == "$2" ]]; then
     ok "$1"
@@ -78,7 +77,6 @@ expect_eq "the skill gate reads its plugin's skills root" "$stub_root/plugins/sk
 ledger_args="$(args_of check-open-questions.sh)"
 expect_eq "the register gate gets a ledger" "--ledger interview-checklist.md" "${ledger_args%% *} ${ledger_args##*/}"
 
-# run_timer <label> <want-rc> <args...>
 run_timer() {
   local label="$1" want="$2" rc=0
   shift 2

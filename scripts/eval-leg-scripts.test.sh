@@ -21,7 +21,6 @@ chmod +x "$T/stub/curl"
 S="$ROOT/.github/scripts"
 P="PATH=$PATH"
 
-# expect <name> <exit> <last output line> <env...> -- <script> [args...]
 expect() {
   local name=$1 want_rc=$2 want=$3 envs=()
   shift 3

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for gen-hook-event-registry.sh. Builds a fixture tree per case (a
-# plugins/session-telemetry/hooks with a copy of the real hooks.json seeded with
-# stale event-log rows, the real session-log-lib.sh, and a register.ts whose
-# generated block is stale) and runs the generator against a saved copy of the
-# Hooks reference lifecycle table, so nothing here touches the network.
 # test-scope: plugins/session-telemetry/hooks/hooks.json
 set -uo pipefail
 
@@ -65,17 +60,11 @@ MOD_TAIL="  // END GENERATED: observed events
 }
 // sentinel: text after the block survives"
 
-# A register.ts whose block is stale: an event the table does not carry, and
-# one real event where 28 belong.
 STALE_MOD="$MOD_HEAD
   on('classic.Bogus', record).catch(passThrough)
   on('classic.Stop', record).catch(passThrough)
 $MOD_TAIL"
 
-# new_fixture <out-var> [--no-mod] -> a repo root carrying the real hooks.json
-# plus two event-log rows the generator must strip (an exec-form producer row
-# on Stop, beside its own handler, and a bare-command retention row on a
-# SessionEnd key that holds nothing else), the lib, and the stale register.ts.
 new_fixture() {
   local dir
   fixture_tree::build "$1" --plugins || return 1
@@ -129,8 +118,6 @@ for ev in WorktreeCreate MessageDisplay FileChanged PreToolUse PostToolUse; do
   if [[ "$p" == exclude:* ]]; then ok "$ev is excluded in the registry"; else fail "$ev should be excluded, got: $p"; fi
 done
 
-# The module: the block between the markers is exactly the hand-written one,
-# and every line outside the markers is untouched.
 block=$(block_of "$H/register.ts")
 if [[ "$block" == "$EXPECTED_BLOCK" ]]; then
   ok "register.ts carries one classic hook per observable event, sorted"
@@ -156,7 +143,6 @@ else
   fail "hooks.json keys: $(keys_of "$H/hooks.json")"
 fi
 
-# Idempotent: a second run leaves all three files byte-identical.
 mkdir -p "$f/run1"
 cp "$REG" "$H/register.ts" "$H/hooks.json" "$f/run1/"
 out=$(run_from "$TABLE" "$f")
@@ -168,8 +154,6 @@ for file in hook-events.registry.json register.ts hooks.json; do
 done
 ((rc == 0 && same == 3)) && ok "a second run is byte-identical on the registry, register.ts and hooks.json"
 
-# --check: clean on a generated tree; fails on a stale block, an event-log row,
-# or a lost marker, each for its own reason.
 out=$(bash "$SCRIPT" --check --root "$f" 2>&1)
 rc=$?
 if ((rc == 0)); then ok "--check is clean on a generated tree"; else fail "--check on a clean tree (rc=$rc): $out"; fi
@@ -194,7 +178,6 @@ out=$(bash "$SCRIPT" --check --root "$f" 2>&1)
 rc=$?
 if ((rc == 1)) && [[ "$out" == *"lacks the BEGIN/END"* ]]; then ok "--check fails on a lost marker"; else fail "--check on a lost marker (rc=$rc): $out"; fi
 
-# --- the category table agrees with session-log-lib.sh -------------------------
 # shellcheck source=../plugins/session-telemetry/hooks/session-log-lib.sh
 source "$LIB"
 disagree=0 seen=0

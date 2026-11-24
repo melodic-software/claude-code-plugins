@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Self-test for the contract-clause coverage gate.
-
-Every case builds a throwaway git repo with its own registry, so the suite
-proves the DETECTOR rather than the current state of this checkout — a gate
-whose only evidence is "the repo is green" cannot distinguish a clean corpus
-from a broken detector, which is the exact failure this repo's self-test-first
-CI convention exists to prevent.
-
-The failure cases carry the weight. A gate that only proves it passes on
-clean input is a gate that would stay green after someone deleted its
-qualifier list.
-"""
 
 from __future__ import annotations
 

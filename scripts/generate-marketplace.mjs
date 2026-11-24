@@ -13,8 +13,6 @@ import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import process from "node:process";
 
-// The compare / report-drift-or-write flow shared with the catalog and
-// cheat-sheet generators; here the whole file is the generated block.
 import { syncMarkerBlock } from "./lib/marker-block.mjs";
 
 // CHECK_DATA_ROOT: the tree to check, when it is not the one holding this script.
@@ -36,7 +34,6 @@ function buildEntry(entry) {
   if (!Array.isArray(keywords) || keywords.length === 0) {
     throw new Error(`${entry.name}: plugin.json has no keywords`);
   }
-  // Spread first so every key keeps its place in the entry.
   return { ...entry, category, tags: keywords };
 }
 
