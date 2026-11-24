@@ -377,6 +377,15 @@ test("a vocabulary symlink that leaves standards-path fails red", async (t) => {
   await assertFailsRed(t, { ...env, STANDARDS_DIR: dir }, /outside standards-path/);
 });
 
+test("with standards-path set, the trusted-actor list is read from it: a symlink there that leaves standards-path fails red", async (t) => {
+  const { root, env } = workspace({ vocabulary: false });
+  const dir = standardsCheckout(root);
+  const actors = join(dir, "components/trusted-actors/trusted-actors.json");
+  mkdirSync(dirname(actors), { recursive: true });
+  symlinkSync(join(FIXTURES, "vocabulary.json"), actors);
+  await assertFailsRed(t, { ...env, STANDARDS_DIR: dir }, /trusted-actors\.json resolves outside standards-path/);
+});
+
 const REJECTIONS = [
   [
     "rejection 1: a schema-invalid config",

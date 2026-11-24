@@ -539,6 +539,30 @@ test("main writes the outputs, the context file and the run fields, with the sec
   );
 });
 
+test("main with STANDARDS_DIR set needs no TRUSTED_ACTORS or DEPENDABOT_POLICY and reads the standards checkout's list", async () => {
+  const dir = tempDir("review-dependency-");
+  const standards = join(dir, "standards");
+  mkdirSync(join(standards, "components/trusted-actors"), { recursive: true });
+  writeFileSync(
+    join(standards, "components/trusted-actors/trusted-actors.json"),
+    JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }),
+  );
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, "out"),
+    PR_NUMBER: "7",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    STANDARDS_DIR: standards,
+    DEPENDENCY_FILE: join(dir, "dependency.json"),
+    CONTEXT_RUN_FILE: join(dir, "context.json"),
+    DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
+  };
+  await main(["select"], env, { api: fakeApi({}), log: () => {} });
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "proceed=true\nskip-reason=\nescalation-reason=\n");
+});
+
 test("main writes no context or run file when the select skips", async () => {
   const dir = tempDir("review-dependency-");
   const actors = join(dir, "actors.json");
