@@ -1,10 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/Format-ShortReport.ps1 -- the at most 12-line run
-summary built from state/latest.json.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1"
@@ -23,9 +18,6 @@ BeforeAll {
             path = $Path; logical_bytes = $Bytes }
     }
 
-    # A full run: one CRIT, three WARN (only the first two by catalog order fit the worst three
-    # after the CRIT), the three intruder checks, a storage list whose largest folder is muted, and
-    # two cadence-deferred checks.
     function Get-SnapshotFixture([string] $HostName = 'TESTHOST', [string] $Summary = 'C: at 97% used', [string] $FolderPath = 'X:\Profile\Videos') {
         [ordered]@{
             run_id = $script:RunId; hostname = $HostName; os = 'windows'; os_version = '10.0'
@@ -48,9 +40,6 @@ BeforeAll {
         }
     }
 
-    # Writes the snapshot, a history whose prior run had WARN 2 (an older run had none; this run's
-    # own line, appended after latest.json, has WARN 3), the report and the page. The report and
-    # page names are arbitrary: the script prints the paths latest.json records, never rebuilt ones.
     function Initialize-RunFolder($Snapshot, [switch] $NoArtifacts) {
         $base = Join-Path $TestDrive ([guid]::NewGuid().ToString('n'))
         $state = New-Item -ItemType Directory -Path (Join-Path $base 'state')

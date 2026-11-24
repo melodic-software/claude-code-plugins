@@ -101,13 +101,6 @@ function Invoke-TrendAnalysis {
     foreach ($r in $CheckResults) {
         $relevantKey = Get-TrendRelevantKey -CheckId $r.id
 
-        # Only runs where this check succeeded (checks_ran) give a baseline: a failed run's
-        # partial top_metrics is a lower bound that would upgrade a WARN to CRIT on nothing.
-        #
-        # Only the most recent qualifying value is ever compared against, so the
-        # walk overwrites rather than accumulating: the tail is in file order
-        # (oldest -> newest), so the last assignment is the newest baseline.
-        # Reading [0] would compare today against the stalest entry instead.
         $lastMetric = $null
         if ($relevantKey) {
             $fullKey = "$($r.id).$relevantKey"
@@ -121,9 +114,6 @@ function Invoke-TrendAnalysis {
             }
         }
 
-        # last_run is the run in which this check actually ran (per-check, from
-        # checks_ran) -- NOT "the most recent run overall", which diverges once
-        # cadence lets a monthly check skip a run.
         $lastRun = Get-CheckLastRun -CheckId $r.id -HistoryTail $HistoryTail
 
         $deltaText = $null
@@ -140,11 +130,6 @@ function Invoke-TrendAnalysis {
             $deltaText = "$($relevantKey): $sign$delta vs prior"
         }
 
-        # Severity adjustment: upgrade WARN -> CRIT when metric worsens
-        # (positive delta for used_pct, negative delta for fullCapacityPct).
-        # First-crossing INFO/WARN intentionally not downgraded -- first crossing
-        # is exactly what those severities are meant to surface. adjusted_from
-        # records the pre-adjustment severity when an upgrade fires.
         $adjustedFrom = $null
         $kevProp = $r.detail ? $r.detail.PSObject.Properties['kev_match_count'] : $null
         $nameOnlyKev = $r.id -eq 'winget-upgrades' -and $kevProp -and $kevProp.Value -gt 0
@@ -267,9 +252,6 @@ function Test-WorseningTrend {
         return $false
     }
 
-    # Direction of "worsening" depends on the metric. Most metrics worsen
-    # when the number goes UP (disk used_pct, event count, upgrade count,
-    # signature age days, etc.). Battery capacity worsens when DOWN.
     $upwardWorsens = @(
         'disk-space', 'defender', 'event-log-errors',
         'winget-upgrades', 'windows-update', 'services', 'drivers',

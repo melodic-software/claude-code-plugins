@@ -83,7 +83,6 @@ Describe 'Test-EventLogErrors -- benign noise allowlist' -Tag 'check' {
         Mock Get-WinEvent { $events }.GetNewClosure()
 
         $result = Invoke-EventLogAsObject
-        # The allowlist must not mask real findings.
         $result.severity | Should -Be 'CRIT'
         $result.detail.bugcheck_event_count | Should -Be 1
     }

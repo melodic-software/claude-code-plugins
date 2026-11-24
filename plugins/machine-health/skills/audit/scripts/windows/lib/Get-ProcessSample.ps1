@@ -28,8 +28,6 @@ Returns:
   ReadState        'ok' when every counter read, else 'error'
 #>
 
-# The counter set and its per-sample interval; the check's commands entry and the
-# catalog both point here rather than list the counters again.
 $script:ProcessSampleCounter = [pscustomobject]@{
     Paths          = [ordered]@{
         CpuTotalPct          = '\Processor(_Total)\% Processor Time'
