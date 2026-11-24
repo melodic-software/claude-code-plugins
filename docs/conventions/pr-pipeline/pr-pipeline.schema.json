@@ -591,7 +591,7 @@
         "defer-run-minutes-review": {
           "type": "integer",
           "minimum": 1,
-          "description": "github-token only. The horizon in whole minutes of a hosted review run (its callers' gates' defer-job review), the p90 of that run's measured time; replaces defer-run-minutes for it."
+          "description": "github-token only. The horizon in whole minutes of a hosted review run (its callers' gates' defer-job review), set under that run's p90 time by a replay of the busiest windows; replaces defer-run-minutes for it."
         },
         "read-floor": {
           "type": "number",

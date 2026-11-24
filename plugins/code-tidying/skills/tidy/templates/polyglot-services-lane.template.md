@@ -13,8 +13,8 @@ Services written outside the primary language: MCP servers, sidecars, workers. T
 
 ## Watch-for patterns
 
-- **Beck #2, Dead Code**: linters surface candidates
-- **Beck #9, Explaining Constants**: inline port numbers, retry counts, endpoint paths
+- **Beck 2, Dead Code**: linters surface candidates
+- **Beck 9, Explaining Constants**: inline port numbers, retry counts, endpoint paths
 - **Formatter drift**: `<formatter-check-command>` per ecosystem; tidy in passing
 - **Idiom modernization**: `<ecosystem-a-pattern>`, `<ecosystem-b-pattern>`. Verify each ecosystem's version floor first
 - **F-3, Rename**: internal symbols whose names drifted from behavior

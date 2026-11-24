@@ -3,6 +3,17 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.0] - 2026-11-24
+
+### Added
+
+- New guard `block-body-format-violation`: refuses a `gh pr create`, a `gh pr edit` with a body, or a GitHub MCP pull request create or update whose body breaks the format the target repository declares in `docs/conventions/source-control.yaml` (`pr_body_required_sections`, and the opener line where `linkage_gate_uses_pattern` matches a workflow), naming each missing or empty section and the line to add. A repository that declares neither key is not judged. Switches: `block_body_format_violation_enabled` (userConfig) and `pr_body_format_gate: false` in the repository's team file or git-ignored personal override.
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts.
+- The pre-commit and pre-push content scans judge machine-specific paths with `--skip-reindent`, so a reindented line holding a pre-existing path passes, and still block one the change adds. Secret patterns, and every other guardrails check, still judge every added line, so a reindented line holding a secret blocks.
+
 ## [4.3.0] - 2026-11-24
 
 ### Added

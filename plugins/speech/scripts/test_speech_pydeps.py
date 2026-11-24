@@ -33,7 +33,6 @@ MODULES = {'numpy/__init__.py': 'VALUE = 42\n', 'onnxruntime/__init__.py': 'VALU
 
 
 def make_wheel(folder):
-    """A pure-python wheel providing the numpy and onnxruntime modules; returns (wheel path, sha256 hex)."""
     dist = f'{NAME}-{VERSION}.dist-info'
     files = {
         **MODULES,
@@ -276,8 +275,6 @@ class ReadyStamp(unittest.TestCase):
         self.assertFalse(self.stamp.exists())
 
     def test_an_interpreter_named_outside_the_hooks_candidates_writes_no_stamp(self):
-        # A plugin allowing 3.14 chooses python3.14, which the hook never checks, so a change to it could not
-        # invalidate a stamp.
         config_path = self.root / 'scripts' / 'pydeps.json'
         config = json.loads(config_path.read_text(encoding='utf-8'))
         config.pop('python_min', None)
@@ -305,8 +302,6 @@ class ReadyStamp(unittest.TestCase):
         self.assertFalse(self.stamp.exists())
 
     def test_a_failed_run_with_a_stamp_prints_the_repair_line(self):
-        # A stamped set that stops importing fails the skill's script; the hook skipped the probe, so the run says
-        # how to repair it. Without a stamp a failing script is the script's own business.
         script = self.tmp / 'fail.py'
         script.write_text('import sys\nsys.exit(1)\n', encoding='utf-8')
         self.install_here()

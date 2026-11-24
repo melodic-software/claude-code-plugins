@@ -104,7 +104,6 @@ Exit 2 is a usage error. Exit 4 is the guard's verdict that the record violates
 EOF
 }
 
-# Callers run require_sha256 first, so one of the two is present.
 sha256_stdin() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum | cut -d' ' -f1
@@ -135,9 +134,6 @@ normalize_v1() {
   local text="$1" in_fence="$2"
 
   if [[ "$in_fence" -eq 0 ]]; then
-    # Non-greedy removal of every <!-- ... --> span, including one spanning
-    # newlines. Done before whitespace collapsing so a comment's own spacing
-    # cannot survive as a gap.
     while [[ "$text" == *"<!--"*"-->"* ]]; do
       local head tail
       head="${text%%<!--*}"
@@ -156,9 +152,6 @@ normalize_v1() {
   text="${text#"${text%%[![:space:]]*}"}"
   text="${text%"${text##*[![:space:]]}"}"
 
-  # Strip SURROUNDING emphasis markers only, longest first, repeatedly: `***x***`
-  # reduces through `**x**` to `x`. An emphasis marker in the middle of the
-  # excerpt is content and stays.
   local changed=1
   while [[ "$changed" -eq 1 ]]; do
     changed=0
@@ -229,8 +222,6 @@ cmd_anchor() {
 
   if [[ "$whole" -eq 1 ]]; then
     [[ "$have" -eq 0 ]] || die "--whole takes no --excerpt: a whole-surface anchor is content-free"
-    # Bare `s:`, no digest. A finding about a file AS A WHOLE must not be
-    # retired by editing a line inside it.
     printf 's:\n'
     return 0
   fi
@@ -328,8 +319,6 @@ cmd_group_id() {
   printf 'g:%s\n' "${full:0:16}"
 }
 
-# The emitter guard. Refusals print one line naming the violated rule, so the
-# lane that produced the record can be fixed rather than the record patched.
 cmd_validate_record() {
   local record="" have=0
   while [[ $# -gt 0 ]]; do

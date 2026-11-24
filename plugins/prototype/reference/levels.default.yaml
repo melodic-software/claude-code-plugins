@@ -1,6 +1,3 @@
-# The shipped levels of the prototype plugin, read by lib/prototype-settings.mjs as the cascade's
-# default layer and validated against schemas/prototype.schema.json. reference/config.md says
-# what each dimension means. standard is the run the skill text describes with no level set.
 levels:
   sketch:
     variants: 2

@@ -18,9 +18,6 @@ bridge=$(cd "$skill/../../notes-bridge" && pwd)
 source "$here/../../../lib/browser-test-helpers.sh"
 browser_setup ed-notes-kinds edk playwright-cli node python3 curl
 
-# The mockup: variant A lists the records in a table, one row per record, built from the data as it
-# stands; record 12's row is magenta and record 57's green, their text the same color, so a shot
-# of either is one color. The data bar marks each control with data-data-control.
 cat >"$d/explore-directions.html" <<'HTML'
 <!doctype html>
 <html lang="en">
@@ -129,8 +126,6 @@ relocate() {
     printf 'no result: %s\n' "$(printf '%s' "$raw" | head -c 600)" >&2
   fi
 }
-# Share of the shot's pixels near one color, measured in the browser in a page of its own, so the
-# host page stays open for the offline step. $2 is r,g,b.
 share() {
   python3 -c '
 import base64, json, sys

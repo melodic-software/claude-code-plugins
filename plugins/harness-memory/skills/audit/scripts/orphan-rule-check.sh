@@ -2,7 +2,6 @@
 
 set -uo pipefail
 
-# Resolved before the `cd` below so the sibling scripts stay locatable.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/rule-scope.sh
 source "$SCRIPT_DIR/lib/rule-scope.sh"

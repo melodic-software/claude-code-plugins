@@ -26,9 +26,6 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 OWNER_REL="skills/worktree/reference/nesting-invariant.md"
 SELF_REL="skills/worktree/nesting-invariant-ssot.test.sh"
 
-# How long the owner's dated "expired, pending re-probe" marker is honored. Past
-# this the suite fails until the re-probe refreshes the stamp or the marker is
-# re-dated on purpose.
 MARKER_MAX_AGE_DAYS=30
 
 FAILED=0
@@ -40,29 +37,15 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 
 owner_text="$(<"$PLUGIN_ROOT/$OWNER_REL")"
 
-# Lists the plugin files containing a fixed string, with the exclusion set every
-# case needs: CHANGELOG.md (see above) and this test, which necessarily quotes
-# every phrase it polices.
 grep_sites() {
   git -C "$PLUGIN_ROOT" grep -lIF "$1" -- \
     ":(exclude)CHANGELOG.md" ":(exclude)$SELF_REL" 2>/dev/null || true
 }
 
-# 1. The undated absolute is gone everywhere.
-#
-# This exact sentence is the drift shape: it states a causal mechanism with no
-# date, no basis and no expiry. The owner does not use it either — the owner
-# states what was actually observed (`path_glob_match` naming a file) rather
-# than a generalized consequence.
 mapfile -t ABSOLUTES < <(grep_sites "a read matching a path-scoped rule's glob also loads")
 assert_eq "the undated absolute form of the claim appears nowhere" "0" "${#ABSOLUTES[@]}"
 ((${#ABSOLUTES[@]} == 0)) || printf '      sites: %s\n' "${ABSOLUTES[*]}" >&2
 
-# 2. The measured statement lives at exactly one site, and it is the owner.
-#
-# Keyed on the instrument's own event name: anything restating what the trace
-# observed has to name it, and a paraphrase that avoids the word is no longer
-# stating the measurement.
 mapfile -t MEASURED < <(grep_sites "path_glob_match")
 assert_eq "the measurement is stated at exactly one site" "1" "${#MEASURED[@]}"
 ((${#MEASURED[@]} == 1)) || printf '      sites: %s\n' "${MEASURED[*]}" >&2
@@ -70,18 +53,13 @@ if ((${#MEASURED[@]} == 1)); then
   assert_eq "that site is the owner" "$OWNER_REL" "${MEASURED[0]}"
 fi
 
-# 3. The owner carries what a pointer promises the reader will be there.
 assert_contains "the owner carries the anchor every pointer cites" \
   "$owner_text" "# The nesting invariant, dated measurement"
 assert_contains "the owner carries an as-of date" "$owner_text" "as-of **2026-09-30**"
 assert_contains "the owner carries an unconditional expiry, not only event triggers" \
   "$owner_text" "Unconditional expiry"
-# Keep the reasoning attached to the expiry, or a later reader deletes it as
-# redundant with the event triggers.
 assert_contains "the expiry states why the event triggers cannot carry this alone" \
   "$owner_text" "incapable of firing on their own"
-# The dispute is the reason the fixture exists; an owner that reads as settled
-# would re-license the absolutes this test just removed.
 assert_contains "the owner names the arm as disputed rather than settled" \
   "$owner_text" "disputed, not refuted"
 assert_contains "the owner points at the fixture that would adjudicate it" \
@@ -103,8 +81,6 @@ nesting_invariant_expiry_date_passed() {
   [[ "$today" > "$expiry" || "$today" == "$expiry" ]]
 }
 
-# Parse: as-of **YYYY-MM-DD** — require the stamp delimiters so a nearby date
-# cannot satisfy the check as a substring.
 if [[ "$owner_text" =~ as-of[[:space:]]+\*\*([0-9]{4}-[0-9]{2}-[0-9]{2})\*\* ]]; then
   as_of_date="${BASH_REMATCH[1]}"
   pass "as-of date is parseable ($as_of_date)"
@@ -136,8 +112,6 @@ else
   fail "unconditional expiry carries a parseable date arm (YYYY-MM-DD)" "matched" "no match"
 fi
 
-# Version arm: present and shaped — do not evaluate against a live Claude Code
-# version (CI does not have one). The shape guard stops the arm vanishing.
 if [[ -n "$expiry_version" && "$expiry_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   pass "expiry version arm matches N.N.N shape ($expiry_version)"
 else
@@ -164,10 +138,6 @@ nesting_invariant_marker_honored() {
   ((age >= -1 && age <= $3))
 }
 
-# An expired stamp is acceptable only while the owner's dated marker is fresh. The
-# marker is the honest state between an arm firing and an authenticated re-probe
-# landing; undated, it would turn both arms from fail to pass forever, so it
-# carries its date and stops being honored MARKER_MAX_AGE_DAYS later.
 today="$(date -u +%Y-%m-%d)"
 marker_pattern='\*\*Stamp status: expired, pending re-probe, marked ([0-9]{4}-[0-9]{2}-[0-9]{2})\.\*\*'
 stamp_marked_expired=false
@@ -186,10 +156,6 @@ elif [[ "$owner_text" == *"Stamp status: expired"* ]]; then
     "**Stamp status: expired, pending re-probe, marked YYYY-MM-DD.**" "undated or malformed marker"
 fi
 
-# Red path: a synthetic today past the marker's age must not be honored, nor a
-# marker dated far ahead of today, and the boundary must be exact across a month,
-# a leap day and a year end. A check nobody has exercised is the same class of
-# defect as the static marker this replaced.
 if nesting_invariant_marker_honored "2026-09-27" "2099-01-01" "$MARKER_MAX_AGE_DAYS"; then
   fail "marker age check rejects a synthetic today past the marker's age" "not honored" "honored"
 else
@@ -226,8 +192,6 @@ nesting_invariant_version_passed() {
   return 0
 }
 
-# Version arm: enforce against the version the caller supplies. The host CLI is
-# never probed, so the result does not depend on which Claude Code is installed.
 installed_version="${NESTING_INVARIANT_INSTALLED_VERSION:-}"
 if [[ -z "$installed_version" ]]; then
   skip_case "nesting-invariant version arm: NESTING_INVARIANT_INSTALLED_VERSION is unset"
@@ -252,7 +216,6 @@ else
   fail "expiry version comparison orders releases numerically" "numeric order" "lexical or broken"
 fi
 
-# Date arm: enforce. Inject today so the red path is exercised in-suite.
 if [[ -n "$expiry_date" ]]; then
   if ! nesting_invariant_expiry_date_passed "$expiry_date" "$today"; then
     pass "nesting-invariant stamp date arm is still fresh (today=$today < $expiry_date)"
@@ -263,8 +226,6 @@ if [[ -n "$expiry_date" ]]; then
       "fresh (today before $expiry_date)" "EXPIRED (today=$today) — run fixtures/nesting-invariant-probe.sh and refresh reference/nesting-invariant.md"
   fi
 
-  # Red path: a synthetic post-expiry "today" must be detected. A comparison
-  # nobody has exercised is the same class of defect as the one being fixed.
   if nesting_invariant_expiry_date_passed "$expiry_date" "2099-01-01"; then
     pass "expiry date comparison detects a synthetic post-expiry today"
   else
@@ -279,7 +240,6 @@ if [[ -n "$expiry_date" ]]; then
     pass "expiry date comparison stays fresh for a synthetic pre-expiry today"
   fi
 
-  # as-of should not sit after the expiry (stamp would be born stale).
   if [[ -n "$as_of_date" ]]; then
     if [[ "$as_of_date" > "$expiry_date" ]]; then
       fail "as-of date is not after the unconditional expiry date" \
@@ -290,7 +250,6 @@ if [[ -n "$expiry_date" ]]; then
   fi
 fi
 
-# 4. The restatements became pointers rather than being deleted outright.
 mapfile -t POINTERS < <(grep_sites "The nesting invariant, dated measurement")
 if ((${#POINTERS[@]} >= 5)); then
   pass "the former restatement sites cite the owner by name (${#POINTERS[@]} files)"

@@ -403,9 +403,9 @@ test("the resolved config overrides the shipped share and horizon", async () => 
   assert.equal((await runMain(DEFER, reading(2000, 1800), { resolved: config({ "defer-project": 0.25, "defer-run-minutes": 5 }) })).outputs.cause, "ok", why);
 });
 
-test("the shipped horizon for defer-job review is 11 minutes, the hosted reviews' measured p90", async () => {
+test("the shipped horizon for defer-job review is 8 minutes", async () => {
   const gate = await deferGate({ rateLimits: SHIPPED_LIMITS, job: "review", log: () => {} });
-  assert.deepEqual([gate.minutes, gate.labels.minutes], [11, "defer-run-minutes-review"]);
+  assert.deepEqual([gate.minutes, gate.labels.minutes], [8, "defer-run-minutes-review"]);
 });
 
 test("the shipped horizon for defer-job pr-merge is 6 minutes, and an unset job key reads defer-run-minutes", async () => {

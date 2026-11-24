@@ -116,12 +116,6 @@ EXCEPTION_ERE='[^a-z](unless|except|only when|only if|other than)[^a-z]'
 # prompts" describes the subject and must still be classified as a prohibition.
 GATED_ERE='(user_config|user config|[^a-z]opt-?in[^a-z]|[^a-z]opted in[^a-z])'
 CONDITIONAL_ERE='[^a-z](only when|only if|unless|requires?|gated|enabled|is on|when set)[^a-z]'
-# Clause boundary — where a polarity window stops. See the window construction
-# below for why contrastive conjunctions are listed rather than any comma.
-# The comma is OPTIONAL for the unambiguous contrastives ("always use X but
-# never use Y" reads the same as ", but") and REQUIRED for `while`, which is a
-# temporal conjunction as often as a contrastive one ("use X while the flag is
-# set" must not split).
 BOUNDARY_ERE='([.;!?] |[^a-z],? *(but|whereas|though|although|yet)[^a-z]|, while[^a-z])'
 # Coordinated second directive — `and` joining a directive that carries its OWN
 # polarity token ("always use `Read` and never use `Bash`"). Opposite polarities
@@ -136,16 +130,8 @@ BOUNDARY_ERE='([.;!?] |[^a-z],? *(but|whereas|though|although|yet)[^a-z]|, while
 # retyped: a token missing here means `Never use X and use Y` finds no boundary
 # and Y inherits the leading `never`.
 COORD_ERE="[^a-z],? *and +(${PROHIBIT_ALT}|${MANDATE_ALT})[^a-z]"
-# The coordinator alone. A LEADING window resumes after this much of a COORD
-# match rather than after the whole of it, so the second directive's polarity
-# token stays on the entity's side of the cut and still classifies it.
 COORD_HEAD_ERE='[^a-z],? *and +'
 
-# Polarity is read from a window around each entity mention, not from the whole
-# line. A prose line often carries a prohibition about one object and names an
-# unrelated entity elsewhere ("never offer them for `git branch -d` … via
-# `AskUserQuestion`"); whole-line classification reads that as a conflict. The
-# window keeps the polarity token in the same clause as the entity it governs.
 WINDOW_CHARS="${CONFLICT_SCAN_WINDOW:-60}"
 
 mapfile -t rows < <(

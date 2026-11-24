@@ -18,9 +18,6 @@ FAIL=0
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
-# Builds a fresh repo under $WORKDIR/$1 with a `main` branch, then adds each
-# remaining arg as a bare remote (name=url pairs, url reused as a throwaway
-# local path — never fetched).
 make_repo() {
   local name="$1"
   shift
@@ -36,7 +33,6 @@ make_repo() {
   echo "$repo"
 }
 
-# run_test <desc> <repo> <branch> <expected_out> <expected_exit> [resolver flags...]
 run_test() {
   local desc="$1" repo="$2" branch="$3" expected_out="$4" expected_exit="$5"
   shift 5
@@ -54,7 +50,6 @@ run_test() {
   fi
 }
 
-# Same as run_test, but exercises the --push path (Git's push precedence).
 run_push_test() {
   run_test "$1" "$2" "$3" "$4" "$5" --push
 }
@@ -77,8 +72,6 @@ run_test "branch.<name>.remote=. falls through to origin" "$repo" "main" "origin
 repo=$(make_repo "vendor-clone" vendor=/dev/null)
 run_test "sole non-origin remote resolves (vendor clone)" "$repo" "main" "vendor" 0
 
-# No origin, 2+ other remotes, no branch.<name>.remote -> fail loudly, not head -1
-# (fork + upstream, no origin).
 repo=$(make_repo "fork-upstream-no-origin" fork=/dev/null upstream=/dev/null)
 run_test "multiple non-origin remotes with no origin fails loudly" "$repo" "main" "" 1
 
@@ -125,8 +118,6 @@ run_push_test "push resolves remote.pushDefault with no branch.<name>.remote" "$
 repo=$(make_repo "push-ambiguous" fork=/dev/null upstream=/dev/null)
 run_push_test "push mode fails loudly on ambiguous fallback" "$repo" "main" "" 1
 
-# --- --dir: run from a directory outside every checkout -----------------------
-# run_dir_test <desc> <expected_out> <expected_exit> <resolver args...>: runs from $OUTSIDE.
 OUTSIDE="$WORKDIR/outside"
 mkdir -p "$OUTSIDE"
 export GIT_CEILING_DIRECTORIES="$WORKDIR"
