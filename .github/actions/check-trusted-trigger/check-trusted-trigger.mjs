@@ -31,9 +31,8 @@ const ACTIONS_BOT_ID = 41898282;
 const DISPATCHER_EVENTS = new Set(["push", "schedule", "workflow_dispatch"]);
 // The one event a run-dispatcher-relay upstream runs on.
 const RELAY_EVENT = "pull_request_review_comment";
-// The dispatcher dispatches within seconds of starting; a longer run must not
-// keep its window open.
 const WINDOW_MS = 10 * 60 * 1000;
+const DISPATCH_JOB = "Dispatch";
 // The artifact the dispatcher run uploads after its dispatch loop, named with
 // every run id it dispatched.
 const RECORD_NAME = /^pr-unblock-dispatched(-[1-9][0-9]{0,14})+$/;
@@ -458,28 +457,6 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, kin
   }
 }
 
-// A dispatch sent by github-actions[bot] names no human, so it is trusted only
-// through the dispatcher run it names: that workflow, on the default branch,
-// started by a push, a schedule or a listed human, its head SHA an ancestor
-// of the branch tip, a re-run attempt started by a listed human, its record listing this
-// run, and this run, the dispatched workflow on the default branch, created
-// between the dispatcher run's start and the earlier of its last update and
-// WINDOW_MS after its start. A dispatcher started by workflow_run must be
-// runDispatcherWorkflow instead, and no actor of it is checked: the upstream
-// run its record names must be one of runDispatcherUpstreams, run on
-// pull_request in this repository, started (and any re-run) by the lanes App
-// or a listed human, at the PR's current head or at expectedUpstreamHead
-// with the PR at it or at pushedCommit (upstreamHeadHolds). An upstream of
-// runDispatcherRelay instead must have run on pull_request_review_comment,
-// name the PR among its pull_requests, and be started (and any re-run) by a
-// listed human, never the lanes App: a review comment relayed by path, event
-// and actor (ADR 0088). A dispatcher started by pull_request_target vouches
-// for a pr-refine.yml run only: its head repository is this one, one
-// pull_requests entry names this PR on the default branch with base and head
-// in this repository and the run's head_branch as head ref, its actor and
-// triggering actor are the lanes App or a listed human, and the ancestry
-// check reads the commit its record names in place of head_sha (ADR 0090).
-// Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,
@@ -520,6 +497,7 @@ async function verifyDispatcher({
   // and head_sha, so the branch and ancestry checks below hold for it too.
   const viaRun = dispatcher.event === "workflow_run";
   const viaTarget = dispatcher.event === TARGET_EVENT;
+  const windowStart = viaRun ? await dispatchJobStart(github, repository, dispatcherRunId, attempt) : started;
   const expectedPath = viaRun ? runDispatcherWorkflow : dispatcherWorkflow;
   // The lanes App or a listed human.
   const vouches = (user) =>
@@ -563,7 +541,7 @@ async function verifyDispatcher({
     attempt >= 1 &&
     (attempt === 1 || isListedHuman(dispatcher.triggering_actor)) &&
     started <= created &&
-    created <= Math.min(timeOf(dispatcher.updated_at), started + WINDOW_MS);
+    created <= Math.min(timeOf(dispatcher.updated_at), windowStart + WINDOW_MS);
   if (!trusted) {
     throw new Stop("untrusted-actor");
   }
@@ -610,6 +588,24 @@ async function verifyDispatcher({
     }
   }
   return own;
+}
+
+async function dispatchJobStart(github, repository, dispatcherRunId, attempt) {
+  const body = await readOrRefuse(github, `/repos/${repository}/actions/runs/${dispatcherRunId}/jobs?per_page=100`);
+  const jobs = Array.isArray(body.jobs)
+    ? body.jobs.filter(
+        (job) =>
+          job?.name === DISPATCH_JOB &&
+          String(job.run_id) === dispatcherRunId &&
+          job.run_attempt === attempt &&
+          job.status !== "queued" &&
+          !Number.isNaN(timeOf(job.started_at)),
+      )
+    : [];
+  if (jobs.length !== 1) {
+    throw new Stop("untrusted-actor");
+  }
+  return timeOf(jobs[0].started_at);
 }
 
 // A job after pr-unblock's model job passes the head that job was gated on,

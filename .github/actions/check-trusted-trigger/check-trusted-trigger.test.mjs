@@ -2646,10 +2646,23 @@ const RUN_DISPATCHER = {
 const runRecord = (name = `pr-feedback-dispatched-${UPSTREAM_RUN_ID}-${SELF_RUN_ID}`) =>
   listing(record({ name }));
 
-function runDispatcherRoutes({ dispatcher = {}, upstream = {}, artifacts = runRecord(), ...rest } = {}) {
+const dispatcherJobsRoute = `${dispatcherRoute}/jobs?per_page=100`;
+const dispatchJob = (overrides = {}) => ({
+  id: 113000000001,
+  run_id: Number(DISPATCHER_RUN_ID),
+  run_attempt: 1,
+  name: "Dispatch",
+  status: "in_progress",
+  started_at: "2026-10-11T12:00:10Z",
+  ...overrides,
+});
+const jobsListing = (...jobs) => ({ total_count: jobs.length, jobs });
+
+function runDispatcherRoutes({ dispatcher = {}, upstream = {}, artifacts = runRecord(), jobs = jobsListing(dispatchJob()), ...rest } = {}) {
   return {
     ...dispatcherRoutes({ dispatcher: { ...RUN_DISPATCHER, ...dispatcher }, artifacts, ...rest }),
     [upstreamRoute]: upstream instanceof GitHubError ? upstream : { ...UPSTREAM, ...upstream },
+    [dispatcherJobsRoute]: jobs,
   };
 }
 
@@ -2666,6 +2679,51 @@ test("workflow_run dispatcher: a review run at the PR head proceeds and reads th
   assert.deepEqual(await runDispatched({ github }), PROCEED);
   assert.ok(github.calls.includes(upstreamRoute));
   assert.ok(github.calls.includes(compareRoute));
+});
+
+const QUEUED_JOB = jobsListing(
+  dispatchJob({ name: "Post verify notes", started_at: "2026-10-11T12:00:06Z" }),
+  dispatchJob({ started_at: "2026-10-11T12:10:26Z" }),
+);
+const queuedRoutes = ({ created, updated = "2026-10-11T12:30:00Z", jobs = QUEUED_JOB }) =>
+  runDispatcherRoutes({ dispatcher: { status: "completed", updated_at: updated }, self: { created_at: created }, jobs });
+
+test("workflow_run dispatcher: the window runs from the Dispatch job's start, so a runner wait does not count", async () => {
+  const github = fakeGitHub(queuedRoutes({ created: "2026-10-11T12:11:08Z" }));
+  assert.deepEqual(await runDispatched({ github }), PROCEED);
+  assert.ok(github.calls.includes(dispatcherJobsRoute));
+});
+
+for (const [label, routes] of [
+  ["the dispatch came 10m01s after the Dispatch job started", { created: "2026-10-11T12:20:27Z" }],
+  ["the jobs read fails", { created: "2026-10-11T12:11:08Z", jobs: new GitHubError(500, "jobs") }],
+  ["the dispatcher run lists no Dispatch job", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ name: "Post verify notes", started_at: "2026-10-11T12:00:06Z" })),
+  }],
+  ["the Dispatch job is still queued", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ status: "queued", started_at: "2026-10-11T12:10:26Z" })),
+  }],
+  ["the Dispatch job listed is of another attempt", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ run_attempt: 2, started_at: "2026-10-11T12:10:26Z" })),
+  }],
+  ["the dispatch came after the dispatcher run's last update", { created: "2026-10-11T12:11:08Z", updated: "2026-10-11T12:11:07Z" }],
+]) {
+  test(`workflow_run dispatcher: refused with untrusted-actor when ${label}`, async () => {
+    const github = fakeGitHub(queuedRoutes(routes));
+    assert.deepEqual(await runDispatched({ github }), STOPPED("untrusted-actor"));
+  });
+}
+
+test("dispatcher: a push dispatcher's window still runs from its run's start and reads no jobs", async () => {
+  const github = fakeGitHub({
+    ...dispatcherRoutes({ dispatcher: { updated_at: "2026-10-11T12:30:00Z" }, self: { created_at: "2026-10-11T12:10:06Z" } }),
+    [dispatcherJobsRoute]: jobsListing(dispatchJob({ started_at: "2026-10-11T12:09:00Z" })),
+  });
+  assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
+  assert.ok(!github.calls.includes(dispatcherJobsRoute));
 });
 
 test("workflow_run dispatcher: a security review run at the PR head proceeds", async () => {
