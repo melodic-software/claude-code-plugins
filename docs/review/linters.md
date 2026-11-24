@@ -9,6 +9,6 @@
   keeps no list.
 - A baselined rule's violations are fixed by any PR, in any file, and each fix lowers the baseline
   to match. At zero, clear the baseline.
-- The PR that baselines the first rule also builds `/toolchain:fix-baseline`, a loop that fixes a
-  baselined rule's violations one PR at a time. It never edits a file an open pull request changes,
+- The PR that baselines the first rule also builds the `toolchain` plugin's `fix-baseline` skill, a
+  loop that fixes a baselined rule's violations one PR at a time. It never edits a file an open pull request changes,
   labels each PR it opens so the next run sees it, and stops while 5 of its PRs are open.
