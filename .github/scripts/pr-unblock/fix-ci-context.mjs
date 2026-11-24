@@ -23,7 +23,6 @@
 // feedback lines are data: they are copied into the file, capped, and never
 // logged or run. After a weaken retry stop on the head (WEAKEN_RETRY) the file
 // also carries the runner's fixed `retry` brief.
-
 import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -38,12 +37,8 @@ import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 import { ACTIONS_APP_ID, retryRung, stopSkip } from "./escalation-routes.mjs";
 import { FIX_TRAILER as FEEDBACK_TRAILER } from "./publish-feedback.mjs";
 
-// clear-escalations reads the head the same way, so the reader lives on the
-// merge path floor in gate-source.mjs.
 export { failingChecks };
 
-// The trailer apply-patch.mjs writes on every fix commit, from the ci-context
-// row of patch-rules.json; a round is one.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/fix-ci";
 const WORKFLOW_PATH = /^\.github\/workflows\/[A-Za-z0-9._-]+\.ya?ml$/;
 const MAX_CHECKS = 10;
@@ -60,12 +55,7 @@ export const CONTEXT_MAX_BYTES = 1048576;
 export const MAX_SPEC_BYTES = 196608;
 export const MAX_FEEDBACK_BYTES = 65536;
 
-// The fail-routed stop apply-patch.mjs gives a head's first weaken-required
-// escalation, as report-escalation.sh status describes it on the head's
-// pr-unblock/fix-ci status, and the runner's brief for the fresh fixer round
-// that follows: fixed text, never anything a head or a model wrote.
 export const WEAKEN_RETRY = "ci-fix-weaken-retry";
-// The skip on a head branch a workflow owns and rebuilds.
 export const OWNED_BRANCH = "owned-branch";
 const WEAKEN_STOPPED = `Lane stopped: ${WEAKEN_RETRY};`;
 export const WEAKEN_BRIEF =
@@ -93,20 +83,12 @@ export function countFixRounds(commits, appId) {
   return commits.filter((commit) => laneCommit(commit, appId, FIX_TRAILER)).length;
 }
 
-// The pull request's last address-feedback commit, or undefined.
 export const lastFeedbackCommit = (commits, appId) => commits.findLast((commit) => laneCommit(commit, appId, FEEDBACK_TRAILER));
 
-// The context file's text, as main writes it.
 export const contextText = (file) => `${JSON.stringify(file, null, 2)}\n`;
 
-// A field's value when the bytes it adds to the file, pretty-printed at its
-// depth, fit max; otherwise null. A cut list would read as whole, so a field
-// that does not fit is unknown, never partial.
 const withinBytes = (value, max) => (Buffer.byteLength(JSON.stringify({ value }, null, 2)) <= max ? value : null);
 
-// The linked issues' spec text, as linkedIssues returns it: each issue's
-// number, how it is linked (`refs`: the pull request is one slice of it),
-// any Scope line's targets, its body and its counted comments.
 export function specField(specText, max = MAX_SPEC_BYTES) {
   const spec = specText.map((issue) => ({
     number: issue.number,
@@ -188,9 +170,7 @@ async function contextOf(api, run, notes) {
   return { name: String(run.name), workflow, annotations, log_excerpt: excerpt };
 }
 
-// Each kept thread's opening comment: where it points and what it says.
 async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull }) {
-  // Serial reads: the outage posture's element 6 (docs/conventions/pr-pipeline/README.md#outage-posture).
   const issueComments = await api.listIssueComments(pr);
   const reviews = await api.listReviews(pr);
   const reviewComments = await api.listReviewComments(pr);
@@ -201,8 +181,6 @@ async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trusted
     .map((thread) => ({ path: String(thread.path ?? ""), line: thread.line, body: String(thread.comments[0].body).slice(0, MAX_FINDING) }));
 }
 
-// readSpec returns linkedIssues' specText for the pull request; ownedBranches
-// is merge.refire-skip-branches.
 export async function select({ api, pr, repository, appId, reviewerId, reviewerIds = [], trustedHumans = new Set(), maxRounds, humanGatedLabel = "needs-human", ownedBranches = [], readSpec = async () => [], log = (line) => console.log(line) }) {
   const pull = await api.getPull(pr);
   const headSha = pull.head?.sha;
@@ -218,8 +196,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   if (ownedBranches.includes(pull.head?.ref)) {
     return { decision: "skip", skipReason: OWNED_BRANCH, headSha };
   }
-  // The human-gated label holds fix-ci unless another lane's escalation put
-  // it on; the label stays on, and laneEscalated lets the push past it.
   const { held, laneEscalated } = await prHold({
     labels: (pull.labels ?? []).map((label) => label?.name),
     holdLabels: [],
@@ -233,10 +209,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   if (held) {
     return { decision: "skip", skipReason: "awaiting-human", headSha };
   }
-  // A whole listing of settled checks with none failing: every fix-ci stop
-  // is gone on this head, round cap included, and `resolved` lets
-  // report-stop-status clear its status. A cut-short or unsettled listing
-  // decides nothing.
   const runs = await api.listCommitCheckRuns(headSha);
   const failing = failingChecks(runs);
   if (failing.length === 0) {
@@ -276,8 +248,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   } catch (error) {
     log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
   }
-  // A failed read leaves null: ci-ci.md then escalates any fix that passes
-  // only by removing prose.
   let spec = null;
   try {
     spec = specField(await readSpec());
@@ -294,11 +264,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
       log(`::warning::the last address-feedback commit could not be read (${error.message}); the context holds null`);
     }
   }
-  // A retry after the push job stopped on this head runs one rung up. A
-  // weaken-required stop takes its fresh fixer round only on the head's first
-  // fix-ci attempt: the dispatcher retries a stopped head once per base tip
-  // (fix-ci-restarts), so a stop after an earlier attempt could leave the head
-  // red with no retry and no person.
   const modelRung = retryRung(await api.listCheckRuns(headSha, "pr-unblock / apply-patch"));
   const file = { pr, head_sha: headSha, checks, review_findings, spec, feedback_lines };
   if (modelRung === "1" && weakenStopped(await api.listCommitStatuses(headSha))) {
@@ -317,16 +282,11 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
 
 const basePath = (env) => env.BASE_PATH || ".base";
 
-// One of the base checkout's resolve-config readers, run on the base config.
-// A config the resolver refuses throws, so the job fails before any context
-// is written.
 async function fromBase(reader, env) {
   const resolveConfig = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
   return resolveConfig[reader]({ BASE_PATH: basePath(env), STANDARDS_DIR: env.STANDARDS_DIR });
 }
 
-// merge.refire-skip-branches: OWNED_BRANCHES (a JSON list) when set, else the
-// base config's.
 async function ownedBranchesOf(env) {
   if (env.OWNED_BRANCHES === undefined) {
     return fromBase("ownedBranchesFromBase", env);
@@ -338,8 +298,6 @@ async function ownedBranchesOf(env) {
   return list;
 }
 
-// The issue lane's web hosts, which pr-verify.yml hands linkedIssues as
-// ISSUE_LANE_WEB_HOSTS: that value when set, else the base config's.
 async function webHostsOf(env) {
   return env.ISSUE_LANE_WEB_HOSTS === undefined ? fromBase("issueLaneWebHostsFromBase", env) : webHostsFrom(env.ISSUE_LANE_WEB_HOSTS);
 }
@@ -348,16 +306,12 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "APP_SENDER_ID", "CONTEXT_FILE"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const appId = positive(env.APP_SENDER_ID, "APP_SENDER_ID");
-  // The base config's resolved loop caps, as dispatch.mjs reads its limits.
   const maxRounds = positive(env.FIX_CI_ROUNDS ?? (await fromBase("loopFromBase", env))["fix-ci-rounds"], "FIX_CI_ROUNDS");
   const ownedBranches = await ownedBranchesOf(env);
-  // The base checkout's list, the one address-feedback reads.
   const trustedActors = trustedListPath(env, env.TRUSTED_ACTORS || trustedActorsPath(basePath(env)));
   const reviewerId = reviewerIdFrom(trustedActors);
   const reviewerIds = reviewerIdsFrom(env.REVIEWER_IDS);
   const trustedHumans = trustedHumansFrom(trustedActors);
-  // The review lanes' findings and hold comments count only when bound to
-  // their runs, read with ARTIFACT_READ_TOKEN (address-feedback.mjs withLaneBinding).
   const fetch = api ? undefined : await guardedFetch();
   const client = withLaneBinding(
     api ??
@@ -371,9 +325,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
     actions ?? laneReader(env, { fetch }),
   );
   const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${basePath(env)}/docs/conventions/work-items.yaml`);
-  // linkedIssues takes check-trusted-trigger's github(method, path, body)
-  // client: one that throws on GraphQL errors, and one that keeps them for
-  // its Refs read.
   const graphql = (keepErrors) => async (_method, _path, body) => {
     const answer = await client.graphqlAnswer(body);
     if (!keepErrors && Array.isArray(answer?.errors) && answer.errors.length > 0) {
@@ -381,8 +332,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
     }
     return answer;
   };
-  // linkedIssues' inputs as pr-verify's resolve-pr.mjs main builds them, the
-  // lanes App's bot id as laneAppId. Read here, so a failure leaves null.
   const readSpec = async () => {
     const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
     const webHosts = await webHostsOf(env);
@@ -400,9 +349,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   output("head-sha", result.headSha);
   output("escalation-reason", result.escalationReason ?? "");
   output("context-sha256", sha256);
-  // fix-ci-not-run's check (a stop's own skip, so the head's fix-ci runs
-  // record it), and whether apply-patch may push past the human-gated label
-  // a lane escalation put on.
   output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? stopSkip(result.escalationReason) : "");
   output("lane-escalated", String(result.laneEscalated === true));
   output("model-rung", result.modelRung ?? "");
