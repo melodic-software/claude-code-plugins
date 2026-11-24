@@ -6,8 +6,8 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/gate-entry.sh" || exit 2
-base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=916
-ref_rounds=2 ref_files=400 desk_commit_ms=2269 desk_push_ms=276 zero=0000000000000000000000000000000000000000
+base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=815
+ref_rounds=2 ref_files=400 desk_commit_ms=1688 desk_push_ms=1470 zero=0000000000000000000000000000000000000000
 
 usage() {
   cat >&2 <<'EOF'
@@ -24,10 +24,10 @@ run: git status over a generated 400-file tree, one node process reading and par
 then two rounds of one start of each interpreter the shipped entries use (pwsh compiling
 a one-line type with Add-Type, since a bare start misses the assembly load and JIT the
 hooks pay, without timing a tool the hooks run; bare python3, node, bash, git); median of 3.
-Its value on the host that set the budget is 916 ms (Linux on WSL2, 24 CPUs, 2026-11-24,
-median of five runs: 892, 1011, 947, 916, 912 ms); the same runs put pre-commit at 2269 ms
-and pre-push at 276 ms. The scaled budget
-is 3 s x this run's reference / 916 ms. Every run prints the hooks' own ratio (total / desk
+Its value on the host that set the budget is 815 ms (Linux on WSL2, 24 CPUs, 2026-11-24,
+median of five runs: 820, 815, 763, 764, 829 ms); the same runs put pre-commit at 1688 ms
+and pre-push at 1470 ms. The scaled budget
+is 3 s x this run's reference / 815 ms. Every run prints the hooks' own ratio (total / desk
 total) beside the reference ratio; in CI it warns when they differ by over 30%. Raw
 seconds, the ratio and the scaled budget all print; pass/fail is on the scaled budget.
 Under a tracer (TracerPid not 0) the times print and nothing is judged.
@@ -51,7 +51,7 @@ the gate with the tool's name, since CI installs every hook tool first.
   --runs <n>       runs per entry; an entry's time is the median (default 3)
   --budget-ms <ms> the budget of each hook on the reference host (default 3000)
   --ref-ms <ms>    use this as the run's reference instead of timing it
-  --ref-host-ms <ms> the reference host's value (default 916)
+  --ref-host-ms <ms> the reference host's value (default 815)
   --scope-only     time nothing: print applies=true or applies=false on stdout (the
                    form GITHUB_OUTPUT takes), every other line on stderr
 

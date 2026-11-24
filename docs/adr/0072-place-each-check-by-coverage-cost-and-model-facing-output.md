@@ -183,7 +183,7 @@ entry calls, or adds or removes a plugin, and on the scheduled full run of main,
 alone can trip it. Each run times a reference workload that runs no hook code and does not
 grow with the repository: starts of the interpreters the entries use (pwsh compiling a
 one-line type with Add-Type, bare python3, node, bash, git) plus a fixed git and node part.
-The budget is 3 s x that reference / its value on the desk that set the budget (916 ms,
+The budget is 3 s x that reference / its value on the desk that set the budget (815 ms,
 Linux on WSL2, 2026-11-24), so a slower runner
 does not flake; each run also prints the hooks' own ratio to that desk, and CI warns when the two
 ratios differ by more than 30%. It fails a
