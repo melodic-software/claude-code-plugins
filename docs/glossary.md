@@ -335,6 +335,33 @@ Avoid: merge risk, babysit risk (merge risk is the merge-risk rating)
 A note a pull request adds for each plugin it changes, declaring the version bump (or none) and the
 release notes. A release turns a plugin's pending fragments into one version and changelog entry.
 
+### Lint rules
+
+**ratchet**
+
+A gate that lets a measure move one way only. Every use names its mechanism: a whole-tree fix
+before the rule is enforced, a count ceiling (the `/toolchain:ratchet` sense), or a
+changed-files scope.
+
+**baseline**
+
+The recorded count of a rule's existing violations, kept as a ceiling entry by
+`/toolchain:ratchet`.
+
+**baselined rule**
+
+A lint rule that has a baseline. A rule without one has no name of its own.
+
+Avoid: lenient rule, paying-down rule, strict rule (for a rule without one)
+
+Actions: clear the baseline (not graduate, promote)
+
+**clearing the baseline**
+
+Deleting a baselined rule's ceiling entry once its count reaches zero.
+
+Avoid: graduating, promoting
+
 ### Models
 
 **capability tier**

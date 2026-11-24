@@ -51,7 +51,7 @@ are paid and not linked.
 | The git host holds branches, reviews and merges | Lists self-hosted alternatives for code that cannot leave a network | Inference: some teams cannot use a public host | GitHub is fixed for us | **already have**: GitHub, plus a `gitea` tracker provider | none |
 | A runner is a disposable sandbox | Keeps no state on the machine, so every result returns to the tracker or git host | Inference: a throwaway machine limits what a bad run can damage | Same | **adapt**, names only: a fresh runner per job is already ADR 0049; our course notes map his run to one GitHub job | none |
 | The orchestrator starts runners on events and schedules | Compares CI, an own server and a hosted agent platform for that job | Inference: something must turn events into runs and handle their errors | Same | **already have**: Actions triggers lanes, with the org kill switch of ADR 0049. A hosted agent platform is rejected because public repositories stay on Actions, which already does this job at no charge; a private-repository runner is [deferred](#deferred) for its cost. Account rotation is not the reason: ADR 0062 already funds Managed Agents from linked Console orgs | none |
-| Factory-wide observability | Collects cost and success rates across all runs | Inference: per-run logs cannot show how the whole factory is doing | Same: nothing joined our remote runs into one view | **adapt**: the [transcript sink](../../scripts/lane-transcripts/README.md) rows gain cost, cache tokens, failure class and trace id; no paid store; the CI artifact stays a 7-day transfer buffer. The launcher can join a leg's traces to its run and keep them through a sealed receiver that is off by default. This repository's lanes still pin the release before that change and none turns the receiver on, so no lane produces telemetry yet; the re-pin and a first lane's opt-in are tracked in [#17261](https://github.com/melodic-software/claude-code-plugins/issues/17261) | [#17046](https://github.com/melodic-software/claude-code-plugins/pull/17046), [#17075](https://github.com/melodic-software/claude-code-plugins/pull/17075), [provisioning#1052](https://github.com/melodic-software/provisioning/pull/1052), [ci-workflows#1136](https://github.com/melodic-software/ci-workflows/pull/1136) |
+| Factory-wide observability | Collects cost and success rates across all runs | Inference: per-run logs cannot show how the whole factory is doing | Same: nothing joined our remote runs into one view | **adapt**: the [transcript sink](../../scripts/lane-transcripts/README.md) rows gain cost, cache tokens, failure class and trace id; no paid store; the CI artifact stays a 7-day transfer buffer. The launcher can join a leg's traces to its run and keep them through a sealed receiver that is off by default; this repository's lanes call the launcher at `@main`, and the lane-run audit turns the receiver on (`maintenance-audit-lane-runs.yml`, [#17261](https://github.com/melodic-software/claude-code-plugins/issues/17261)) | [#17046](https://github.com/melodic-software/claude-code-plugins/pull/17046), [#17075](https://github.com/melodic-software/claude-code-plugins/pull/17075), [provisioning#1052](https://github.com/melodic-software/provisioning/pull/1052), [ci-workflows#1136](https://github.com/melodic-software/ci-workflows/pull/1136) |
 | Decide the slots in order | Fixes tracker and git host first, then prices the rest against real usage | Inference: the early choices constrain the later ones | Same | **already have**: numbered interview rounds, and skill bodies that point at live vendor pages | none |
 
 ### Lesson 2: Choosing Your Infrastructure
@@ -201,7 +201,7 @@ are paid and not linked.
 | Lesson 2: research every runner, storage and hosting vendor raised, with modern alternatives | n/a (raised while absorbing) | n/a | Nothing is being bought, and public repositories stay on Actions | **deferred**: to the infrastructure design run as a [`/planning:wayfind`](../../plugins/planning/skills/wayfind/SKILL.md) effort, carried in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) | none |
 | Lesson 2: compare and take from the author's newest `software-factory` skill | n/a (raised while absorbing) | n/a | Whether the newest copy holds anything to take | **no change**: the newest copy differs from the audited pin by two one-line edits, and the `software-factory` row of [mattpocock-skills.md](mattpocock-skills.md) takes nothing | none |
 | Lesson 2: vendor-agnostic providers | n/a (raised while absorbing) | n/a | The owner's direction needs a design | **deferred**: carried into the map of factory tasks in [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) as direction to design there | none |
-| Lesson 3: agent-built templates and palette | n/a (raised while absorbing) | n/a | Diagram templates and a palette an agent could build with a person have no home | **deferred**: a separate item after the Excalidraw file target, tracked in [#17128](https://github.com/melodic-software/claude-code-plugins/issues/17128) | none |
+| Lesson 3: agent-built templates and palette | n/a (raised while absorbing) | n/a | Diagram templates and a palette an agent could build with a person have no home | **take**: a shape palette ships as `plugins/visualization/templates/shape-palette.excalidraw` ([#17128](https://github.com/melodic-software/claude-code-plugins/issues/17128)) | none |
 
 ### Deferred
 
@@ -227,8 +227,15 @@ These were decided to wait, each for the condition or in the issue named:
 - vendor-agnostic providers, carried into the map of factory tasks in
   [#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133) as direction to
   design there;
-- agent-built templates and palette, a separate item after the Excalidraw file target, tracked in
-  [#17128](https://github.com/melodic-software/claude-code-plugins/issues/17128).
+- a slow-query monitor in the lesson 7 shape, until the first repository with a database; this
+  repository's version would be a CI-duration signal in the hourly monitor;
+- a nightly rebase of open pull requests, as an option in the shared ci-workflows lanes for a
+  repository without a merge queue; here a push to the default branch dispatches the conflict
+  fixer and the merge queue tests each pull request against the latest default branch;
+- a switch that turns off sealing of lane transcripts for a private repository, added to the
+  shared launcher when the first private repository runs a factory lane;
+- the fix-one loop for a baselined rule (a `toolchain` skill named `fix-baseline`, at most 5
+  open pull requests), until a rule is first baselined ([linters review rule](../review/linters.md)).
 
 ## License notice
 
