@@ -20,7 +20,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2963,24 +2963,88 @@ test("a follow-up tick leaves the head to the full pass when its queued checks r
   assert.deepEqual((await followUpTick(queued(1), { pulls: [pr(1)], runs: bothDeferred(1) })).reruns, [201, 301], "the same head with none of these goes");
 });
 
+const laneUrl = (id) => `https://github.com/${REPO}/actions/runs/${id}`;
+const REVIEW_CHECK = "PR Review / Status";
+const SECURITY_CHECK = "PR Review Security / Status";
+const STOPPED_LINE = `'${REVIEW_CHECK}' did not run on ${sha(1)} (${laneUrl(201)}): an API budget defer or a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of ${laneUrl(201)}; ci-status re-runs when it finishes.`;
+const UPSTREAM_LINE = `'${SECURITY_CHECK}' did not run on ${sha(1)} (${laneUrl(301)}): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, its dispatch re-runs this ci-status job under the reconciler's record, so pr-verify accepts it; if that re-run does not come, a person re-runs this ci-status job, not the review run; after 24 hours, push to the head.`;
+const LANE_PENDING_LINE = `'${SECURITY_CHECK}' has not finished on ${sha(1)} (${laneUrl(301)}). ci-status waited 0s for it; pr-dispatch-feedback re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.`;
+const LANE_MISSING_LINE = `'${SECURITY_CHECK}' is missing: no pr-review-security-hosted.yml run on ${sha(1)} yet. ci-status does not wait for a lane with no run; pr-dispatch-feedback re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.`;
+const FLOOR_LINE = `'gh api repos/${REPO}/pulls/1/files?per_page=100 --paginate' was not sent: GitHub's core API rate limit holds until 2026-10-19T19:00:00Z`;
+const FLOOR_COMPANION_LINE = "could not read the files of #1; re-run this run.";
+const HOLD_CONFIG_LINE = "could not read docs/conventions/pr-pipeline.yaml in the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run.";
+const laneNote = (message) => ({ annotation_level: "failure", title: "", message });
+const EXIT_LINE = laneNote("Process completed with exit code 1.");
+const statusNoted = (notes) =>
+  failed(101, sha(1), {
+    jobs: [
+      { id: 501, name: "Lint Repo", status: "completed", conclusion: "success", steps: [] },
+      { id: 502, name: "ci-status", status: "completed", conclusion: "failure", steps: [], notes },
+    ],
+  });
+const otherLaneFailed = () => run(301, sha(1), { path: SECURITY_REVIEW, conclusion: "failure", jobs: [] });
+
 test("a follow-up tick re-runs a deferred review only when every ci-status failure is a review stop, past GitHub's exit-code note", async (t) => {
   t.mock.method(console, "log", () => {});
-  const url = (id) => `https://github.com/${REPO}/actions/runs/${id}`;
-  const stoppedLine = `'pr-review / claude-review-status' did not run on ${sha(1)} (${url(201)}): an API budget defer or ${REVIEW_STOP_NOTE}. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of ${url(201)}; ci-status re-runs when it finishes.`;
-  const upstreamLine = `'pr-review-security / claude-security-review-status' did not run on ${sha(1)} (${url(301)}): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, its dispatch re-runs this ci-status job under the reconciler's record, so pr-verify accepts it; if that re-run does not come, a person re-runs this ci-status job, not the review run; after 24 hours, push to the head.`;
-  const note = (message) => ({ annotation_level: "failure", title: "", message });
-  const checks = (notes) =>
-    failed(101, sha(1), {
-      jobs: [
-        { id: 501, name: "Lint Repo", status: "completed", conclusion: "success", steps: [] },
-        { id: 502, name: "ci-status", status: "completed", conclusion: "failure", steps: [], notes },
-      ],
-    });
-  const otherLane = run(301, sha(1), { path: SECURITY_REVIEW, conclusion: "failure", jobs: [] });
-  const tick = (notes) => followUpTick(queued(1).slice(0, 1), { pulls: [pr(1)], runs: [checks(notes), deferredRun(201, sha(1)), otherLane] });
-  const exit = note("Process completed with exit code 1.");
-  assert.deepEqual((await tick([note(stoppedLine), note(upstreamLine), exit])).reruns, [], "an outage note for the other lane leaves the head to the full pass");
-  assert.deepEqual((await tick([note(stoppedLine), exit])).reruns, [201], "the review stop alone, beside the exit-code note, re-runs the deferred review");
+  const tick = (notes) => followUpTick(queued(1).slice(0, 1), { pulls: [pr(1)], runs: [statusNoted(notes), deferredRun(201, sha(1)), otherLaneFailed()] });
+  assert.deepEqual((await tick([laneNote(STOPPED_LINE), laneNote(UPSTREAM_LINE), EXIT_LINE])).reruns, [], "an outage note for the other lane leaves the head to the full pass");
+  assert.deepEqual((await tick([laneNote(STOPPED_LINE), EXIT_LINE])).reruns, [201], "the review stop alone, beside the exit-code note, re-runs the deferred review");
+});
+
+test("the full pass re-runs a head's stopped reviews only when every other ci-status failure is a gate note, past GitHub's exit-code note", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const runningLane = () => run(301, sha(1), { path: SECURITY_REVIEW, status: "in_progress", conclusion: null, jobs: [] });
+  const stop = laneNote(STOPPED_LINE);
+  const switchLine = (pull) => laneNote(switchHold(pull, { appId: String(LANE_ID), disabled: "true", repoDisabled: "false" }));
+  const floor = [laneNote(FLOOR_COMPANION_LINE), laneNote(FLOOR_LINE)];
+  const PUSH_HISTORY_CALL = "repos/REPO/activity?ref=refs%2Fheads%2Ffeat%2Ffloor-tie&direction=desc&per_page=100 -i";
+  const floorCall = (call) => `'gh api ${call.replace("REPO", REPO)}' was not sent: GitHub's core API rate limit holds until 2026-10-19T19:00:00Z`;
+  const cases = [
+    ["an outage note for the other lane is a real failure, so no stopped review is re-run", [stop, laneNote(UPSTREAM_LINE), EXIT_LINE], []],
+    ["the review stop alone, beside the exit-code note, re-runs the deferred review", [stop, EXIT_LINE], [201]],
+    ["the real failure alone re-runs nothing", [laneNote(UPSTREAM_LINE), EXIT_LINE], []],
+    ["a lanes App PR's kill-switch note beside the review stop is a gate: the stopped review re-runs, and ci-status waits for it", [switchLine(lanePr(1)), stop, EXIT_LINE], [201], lanePr(1)],
+    ["a rate-limit floor note and its companion beside the review stop are gates, so the stopped review still re-runs", [...floor, stop, EXIT_LINE], [201]],
+    ["a local 'could not read' failure beside a floor note is a real failure, so no stopped review is re-run", [laneNote(HOLD_CONFIG_LINE), ...floor, stop, EXIT_LINE], []],
+    ...[
+      ["the jobs of run 301", "repos/REPO/actions/runs/301/jobs?filter=latest&per_page=100"],
+      ["run 301", "repos/REPO/actions/runs/301"],
+      ["the annotations of job 9001", "repos/REPO/check-runs/9001/annotations?per_page=100"],
+      [`the pull_request runs on ${sha(1)}`, `repos/REPO/actions/runs?head_sha=${sha(1)}&event=pull_request&per_page=100`],
+      [`the pr-review-security-hosted.yml runs on ${sha(1)}`, `repos/REPO/actions/workflows/pr-review-security-hosted.yml/runs?head_sha=${sha(1)}&event=pull_request&per_page=100`],
+      ["#1", "repos/REPO/pulls/1"],
+      ["the reviews of #1", "repos/REPO/pulls/1/reviews?per_page=100 --paginate"],
+      ["the comments of #1", "repos/REPO/issues/1/comments?per_page=100 --paginate"],
+      ["the push history of feat/floor-tie", PUSH_HISTORY_CALL],
+    ].map(([what, call]) => [
+      `read_api's 'could not read ${what}' beside the floor note for its call is a gate, so the stopped review still re-runs`,
+      [laneNote(`could not read ${what}; re-run this run.`), laneNote(floorCall(call)), stop, EXIT_LINE],
+      [201],
+    ]),
+    ["a 'could not read' naming another run than the floor note's call is a real failure", [laneNote("could not read the jobs of run 302; re-run this run."), laneNote(floorCall("repos/REPO/actions/runs/301/jobs?filter=latest&per_page=100")), stop, EXIT_LINE], []],
+    ["a push history naming another branch than the floor note's call is a real failure", [laneNote("could not read the push history of feat/floor; re-run this run."), laneNote(floorCall(PUSH_HISTORY_CALL)), stop, EXIT_LINE], []],
+    ["the other lane still running beside the review stop re-runs the stopped review", [stop, laneNote(LANE_PENDING_LINE), EXIT_LINE], [201], pr(1), runningLane()],
+    ["the other lane with no run yet beside the review stop re-runs the stopped review", [stop, laneNote(LANE_MISSING_LINE), EXIT_LINE], [201], pr(1), null],
+  ];
+  await withLaneList(async (lanes) => {
+    for (const [name, notes, reruns, pull = pr(1), other = otherLaneFailed()] of cases) {
+      await t.test(name, async () => {
+        const runs = [statusNoted(notes), deferredRun(201, sha(1)), ...(other ? [other] : [])];
+        const result = await reconcile({ pulls: [pull], runs, carry: null, env: { ...SWITCHES_OFF, ...lanes }, now: AFTER_GRACE });
+        assert.deepEqual({ reruns: result.reruns, failedJobReruns: result.failedJobReruns }, { reruns, failedJobReruns: [] });
+      });
+    }
+  });
+});
+
+test("the gate-note rule needs a review stop: a kill-switch, floor, pending or missing note alone is not one", () => {
+  const notes = (...messages) => [...messages.map(laneNote), EXIT_LINE];
+  assert.equal(reviewStopsAmidGateNotes(notes(switchHold(lanePr(1), { appId: String(LANE_ID), disabled: "true", repoDisabled: "false" }))), false, "a kill-switch note alone");
+  assert.equal(reviewStopsAmidGateNotes(notes(FLOOR_COMPANION_LINE, FLOOR_LINE)), false, "a floor note and its companion alone");
+  assert.equal(reviewStopsAmidGateNotes(notes(LANE_PENDING_LINE)), false, "a pending review alone");
+  assert.equal(reviewStopsAmidGateNotes(notes(LANE_MISSING_LINE)), false, "a missing review alone");
+  assert.equal(reviewStopsAmidGateNotes(notes(STOPPED_LINE, FLOOR_COMPANION_LINE, FLOOR_LINE)), true, "the same floor notes beside a review stop");
+  assert.equal(reviewStopsAmidGateNotes(notes(STOPPED_LINE, FLOOR_COMPANION_LINE)), false, "a 'could not' error with no floor note to name its call");
 });
 
 test("a follow-up tick names itself in a notice with its queued and planned counts", async (t) => {
