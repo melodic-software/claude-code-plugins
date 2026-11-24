@@ -410,6 +410,16 @@ would refuse that mint; the sweep covers it. Two other events start the same swe
 
 After an outage or a kill switch, the next of these sweeps is the probe: nothing re-arms it.
 
+Basis for the two sweep limits. A full sweep spends about 800 lanes App calls, and on 2026-11-10
+seven sweeps in one hour reached the App's 5,200 calls an hour (run 42898100951).
+`limits.sweep-gap-minutes` (15) skips a sweep a finished issue run starts within that many minutes
+of a full sweep; it was set when the schedule ran hourly, to hold those extra sweeps to about three
+an hour. `limits.restarts-per-run` (10) was sized, also on an hourly schedule, to cover about two
+hours of slot capacity, since the `SLOTS` queues in `work-resolve-issue.yml` run three issue runs at
+once: lower leaves slots idle between sweeps, far higher lets queued runs go stale on a lane
+workflow change. Both were sized before the 15-minute schedule and are due for re-deriving from
+run data.
+
 Each sweep also does the following, with at most `limits.restarts-per-run` restarts, re-fires and
 relabels a run in all:
 
