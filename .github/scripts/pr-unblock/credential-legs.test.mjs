@@ -9,8 +9,11 @@
 // state to the shell steps and conditions the job used before the action
 // (quoted from 1d1e10bc50): the same slots stage, the same legs judge, and
 // each leg records the same fallback-ready and fallback-reason.
+// test-scope: .github/scripts/pr-unblock/fixtures/*
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { launcherOutcomes, loadSelect, runs, selectPin, value } from "../lib/model-credential.mjs";
@@ -29,7 +32,18 @@ const memo = (read) => {
 };
 const parsed = workflowText(TEXT);
 const wf = { ...parsed, step: memo(parsed.step), outputs: memo(parsed.outputs), job: memo(parsed.job) };
-const S = await loadSelect(selectPin(TEXT));
+const CONTRACT_FILES = JSON.parse(readFileSync(new URL("./fixtures/ci-workflows-394af27bda4bda2e02e0ef0691eacd120389108f.json", import.meta.url), "utf8"));
+const CI_WORKFLOWS = mkdtempSync(join(tmpdir(), "credential-legs-"));
+let S;
+try {
+  for (const [path, content] of Object.entries(CONTRACT_FILES.files)) {
+    mkdirSync(dirname(join(CI_WORKFLOWS, path)), { recursive: true });
+    writeFileSync(join(CI_WORKFLOWS, path), Buffer.from(content, CONTRACT_FILES.utf8.includes(path) ? "utf8" : "base64"));
+  }
+  S = await loadSelect(selectPin(TEXT), CI_WORKFLOWS);
+} finally {
+  rmSync(CI_WORKFLOWS, { recursive: true, force: true });
+}
 
 const GATE = "check-adjudicator-key-credit";
 const JOB = "adjudicate-feedback";
