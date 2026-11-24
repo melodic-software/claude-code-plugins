@@ -25,3 +25,28 @@ trusted_actors_source: standards
 standards_repository: melodic-software/standards
 org_settings_repo: melodic-software/github-iac
 review_lane_producer_repo: melodic-software/ci-workflows
+issue_body_required_sections:
+  bug:
+    - Steps to reproduce
+    - Expected behavior
+    - Actual behavior
+    - Severity
+    - Severity justification
+  feature:
+    - User story
+    - Acceptance criteria
+  task:
+    - Context
+    - Proposed work
+    - Acceptance criteria
+  agent-ready:
+    - Summary
+    - Current behavior
+    - Desired behavior
+    - Acceptance criteria
+    - Out of scope
+  decomposed-item:
+    - Outcome
+    - Key interfaces
+    - Done when
+    - Out of scope

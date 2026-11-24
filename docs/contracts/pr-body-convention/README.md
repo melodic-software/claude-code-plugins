@@ -40,9 +40,17 @@ the per-key (whole-list) override semantics. This doc never restates them. It ow
   and `none` requires no section. `pr_body_format_gate: false` turns it off
   ([config-resolution](../../../plugins/source-control/reference/config-resolution.md)). The
   plugin's README row lists the command shapes it reads and the ones it passes.
+- **`guardrails` enforcement of the issue format.** The same hook reads the sibling key
+  `issue_body_required_sections`, which maps each issue kind a repository accepts to the headings
+  that kind requires (the shape of the standards `components/issue-body-contract/contract.json`,
+  vendored here as [`docs/contracts/issue-body/contract.json`](../issue-body/contract.json)). It
+  refuses a `gh issue create` or GitHub MCP issue create whose body completes no declared kind: a
+  required `##` or `###` heading missing, empty, or answered `_No response_`. It names the closest
+  kind and each heading to add. A repository that sets no mapping, or `none`, is not judged, and
+  `issue_body_format_gate: false` turns it off.
 - **CI / enforcement (deferred).** A gate validating an *already-opened* PR body against the same
   team-tracked value, the enforcement half of the two-reads pattern the
-  [commit-convention seam](../commit-convention/README.md) already establishes for the
+  [commit convention](../commit-convention/README.md) already establishes for the
   commit-subject / PR-title convention. No such consumer exists yet in this fleet; this doc reserves
   the concern so a CI adopter reads the same key instead of inventing a parallel one.
 
