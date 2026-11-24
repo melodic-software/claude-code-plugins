@@ -107,7 +107,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | playbooks | `skills/fable-5/SKILL.md:142` | WebFetch when the manifest records the page unread | kept | Fallback; the primary read is already on the cache |
 | playbooks | `skills/boris/scripts/update.sh:75` | curl of the upstream version JSON | kept | API, not a page |
 | playbooks | `skills/boris/scripts/update.sh:84` | curl of the upstream skill file | kept | Drift check that vendors the bytes verbatim; a skill source file, not a docs page |
-| playbooks | `skills/boris/vendor/upstream-skill.md:45` | Upstream text telling a session to WebFetch a version URL | kept | Vendored third-party text treated as data; the skill never runs it (`skills/boris/scripts/update.sh:192`) |
+| playbooks | `skills/boris/vendor/upstream-skill.md:45` | Upstream text telling a session to WebFetch a version URL | kept | Vendored third-party text treated as data; the skill never runs it (`skills/boris/scripts/update.sh:190`) |
 | playbooks | `skills/skill-authoring/scripts/update.sh:74` | curl of the upstream skill file | kept | Drift check that vendors the bytes verbatim; a skill source file, not a docs page |
 | playwright | `lib/cli-version-check.mjs:104` | fetch of the npm registry's latest-version JSON | kept | Registry API, not a page |
 | plugin-quality | `agents/auditor.md:6` | WebFetch grant | kept | Fallback for when `fetch-docs.sh` records a page unread or writes no manifest |
