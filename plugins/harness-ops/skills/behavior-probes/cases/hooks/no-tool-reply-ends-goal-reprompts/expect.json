@@ -1,0 +1,24 @@
+{
+  "claim": "Under an unmeetable goal, a fixed reply with no tool call to each evaluator re-prompt ends the re-prompts at the Stop-hook block cap, and the goal stays set and paused.",
+  "tags": ["/goal", "goal evaluator", "Stop hook", "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP"],
+  "permission_mode": "default",
+  "model": "claude-haiku-5-5",
+  "max_turns": 20,
+  "max_budget_usd": 1.0,
+  "timeout": 400,
+  "target": {
+    "patterns": [
+      "^(?!\\{\"type\":\"api-request)(?=.*\"role\":\\s*\"assistant\")(?=.*Handoff written; waiting for /clear\\.)",
+      "blocked the turn from ending \\d+ consecutive times",
+      "Goal paused"
+    ],
+    "absent": ["\"type\":\\s*\"tool_use\""],
+    "example": [
+      "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Handoff written; waiting for /clear.\"}]}}",
+      "{\"type\":\"system\",\"subtype\":\"informational\",\"content\":\"A hook blocked the turn from ending 9 consecutive times\"}",
+      "{\"type\":\"system\",\"subtype\":\"informational\",\"content\":\"Goal paused\"}"
+    ]
+  },
+  "outcome": "transcript-grep",
+  "control": "hooks/handoff-goal-reaches-prompt-hook"
+}

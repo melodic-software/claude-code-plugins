@@ -1,0 +1,27 @@
+{
+  "claim": "A fixed-interval `/loop` task made with CronCreate appears in the CronList scheduled-task listing, before and after a compaction.",
+  "tags": ["/loop", "CronCreate", "CronList", "scheduled tasks", "PostCompact"],
+  "permission_mode": "auto",
+  "model": "claude-haiku-5-5",
+  "max_turns": 12,
+  "max_budget_usd": 1.0,
+  "timeout": 400,
+  "cli_args": ["--input-format", "stream-json"],
+  "target": {
+    "compaction": true,
+    "patterns": [
+      "\"name\":\\s*\"CronCreate\"",
+      "\"toolUseResult\":\\s*\\{\"jobs\":\\s*\\[\\{[^\\]]*date command",
+      "\"subtype\":\\s*\"compact_boundary\"",
+      "\"toolUseResult\":\\s*\\{\"jobs\":\\s*\\[\\{[^\\]]*date command"
+    ],
+    "example": [
+      "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"CronCreate\",\"input\":{}}]}}",
+      "{\"type\":\"user\",\"toolUseResult\":{\"jobs\":[{\"prompt\":\"run the date command\"}]}}",
+      "{\"type\":\"system\",\"subtype\":\"compact_boundary\"}",
+      "{\"type\":\"user\",\"toolUseResult\":{\"jobs\":[{\"prompt\":\"run the date command\"}]}}",
+      "{\"session_id\":\"s\",\"hook_event_name\":\"PostCompact\",\"trigger\":\"manual\"}"
+    ]
+  },
+  "outcome": "transcript-grep"
+}

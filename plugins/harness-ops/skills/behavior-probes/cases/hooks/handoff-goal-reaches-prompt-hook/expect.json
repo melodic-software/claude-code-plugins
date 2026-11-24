@@ -1,0 +1,20 @@
+{
+  "claim": "A typed `/goal <condition>` reaches UserPromptSubmit with the prompt as typed, and under `claude -p` the goal it sets is evaluated and met.",
+  "tags": ["/goal", "UserPromptSubmit", "goal evaluator", "hook"],
+  "permission_mode": "default",
+  "model": "claude-haiku-5-5",
+  "max_turns": 4,
+  "max_budget_usd": 0.5,
+  "target": {
+    "patterns": [
+      "\"type\":\\s*\"goal_status\",\\s*\"met\":\\s*true",
+      "^(?=.*\"hook_event_name\":\\s*\"UserPromptSubmit\")(?=.*\"prompt\":\\s*\"/goal you have replied with the exact word PINEAPPLE)"
+    ],
+    "example": [
+      "{\"type\":\"attachment\",\"attachment\":{\"type\":\"goal_status\",\"met\":true,\"condition\":\"you have replied with the exact word PINEAPPLE\"}}",
+      "{\"session_id\":\"s\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"/goal you have replied with the exact word PINEAPPLE\"}"
+    ]
+  },
+  "outcome": "transcript-grep",
+  "control": "hooks/prompt-hook-context-reaches-plain-turn"
+}

@@ -419,6 +419,145 @@ class PrintsVerdictTests(unittest.TestCase):
         self.assertEqual(row["verdict"], "error")
 
 
+BOUNDARY = {
+    "type": "system",
+    "subtype": "compact_boundary",
+    "content": "Conversation compacted",
+    "compactMetadata": {"trigger": "auto", "preTokens": 210537, "postTokens": 3849},
+}
+
+
+def summary(text):
+    return {
+        "type": "user",
+        "isCompactSummary": True,
+        "message": {
+            "role": "user",
+            "content": f"This session is being continued. {text}",
+        },
+    }
+
+
+def post_compact(text, trigger="auto"):
+    return {
+        "session_id": "s",
+        "hook_event_name": "PostCompact",
+        "trigger": trigger,
+        "compact_summary": f"<analysis>{text}</analysis>",
+    }
+
+
+def grep_case(**target):
+    return {
+        "id": "hooks/g",
+        "area": "hooks",
+        "claim": "c",
+        "outcome": "transcript-grep",
+        "target": {"patterns": ["ZEBRA-7731"], "example": []} | target,
+    }
+
+
+def grep_judge(c, *transcript):
+    obs = probe.parse_stream(stream(INIT, final()))
+    obs["transcript"] = stream(*transcript)
+    return probe.verdict(c, obs)
+
+
+class TranscriptGrepTests(unittest.TestCase):
+    def test_transcript_grep_compaction_case_needs_a_postcompact_record(self):
+        c = grep_case(compaction=True)
+        steered = grep_judge(
+            c, BOUNDARY, summary("ZEBRA-7731"), post_compact("ZEBRA-7731")
+        )
+        self.assertEqual(steered["verdict"], "pass")
+        unproven = grep_judge(c, BOUNDARY, summary("ZEBRA-7731"))
+        self.assertEqual(unproven["verdict"], "inconclusive")
+        self.assertIn("PostCompact", unproven["note"])
+
+    def test_transcript_grep_patterns_match_in_order(self):
+        c = grep_case(patterns=["LISTED-BEFORE", "compact_boundary", "LISTED-AFTER"])
+        before, after = summary("LISTED-BEFORE"), summary("LISTED-AFTER")
+        self.assertEqual(grep_judge(c, before, BOUNDARY, after)["verdict"], "pass")
+        reordered = grep_judge(c, before, after, BOUNDARY)
+        self.assertEqual(reordered["verdict"], "fail")
+        self.assertEqual(reordered["observed"], "unmatched")
+
+    def test_transcript_grep_absent_pattern_fails_the_case(self):
+        c = grep_case(patterns=["compact_boundary"], absent=["ZEBRA-7731"])
+        self.assertEqual(grep_judge(c, BOUNDARY, summary("plain"))["verdict"], "pass")
+        leaked = grep_judge(c, BOUNDARY, summary("ZEBRA-7731"))
+        self.assertEqual(leaked["verdict"], "fail")
+        self.assertIn("line 2", leaked["note"])
+
+    def test_transcript_grep_without_a_transcript_is_inconclusive(self):
+        self.assertEqual(grep_judge(grep_case())["verdict"], "inconclusive")
+
+    def test_transcript_grep_example_must_pass_its_own_target(self):
+        good = stream(summary("ZEBRA-7731"))
+        self.assertEqual(
+            probe.grep_problems("g", {"patterns": ["ZEBRA"], "example": good}), []
+        )
+        for target in (
+            {"patterns": [], "example": good},
+            {"patterns": ["("], "example": good},
+            {"patterns": ["ZEBRA"], "example": good, "compaction": True},
+            {"patterns": ["ZEBRA"], "example": good, "absent": ["7731"]},
+            {"patterns": ["ZEBRA"], "example": {"not": "lines"}},
+        ):
+            self.assertEqual(len(probe.grep_problems("g", target)), 1, target)
+
+    def test_transcript_grep_live_run_keeps_its_session_by_id(self):
+        argv = probe.build_argv("claude", grep_case(), Path("s.json"), "m", "sid-1")
+        self.assertIn("sid-1", argv)
+        self.assertEqual(argv[argv.index("sid-1") - 1], "--session-id")
+        self.assertNotIn("--no-session-persistence", argv)
+        plain = probe.build_argv("claude", case(), Path("s.json"), "m")
+        self.assertIn("--no-session-persistence", plain)
+
+    def test_transcript_grep_collects_session_then_hook_log(self):
+        tmp = Path(tempfile.mkdtemp(prefix="probe-grep-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        project = tmp / "config" / "projects" / "-tmp-cc-probe-x"
+        project.mkdir(parents=True)
+        (project / "sid-2.jsonl").write_text(json.dumps(BOUNDARY) + "\n")
+        workdir = tmp / "work"
+        workdir.mkdir()
+        (workdir / probe.HOOK_LOG).write_text(json.dumps(post_compact("x")) + "\n")
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(tmp / "config")}):
+            text = probe.collect_transcript("sid-2", workdir)
+        lines = text.splitlines()
+        self.assertEqual(
+            [json.loads(x).get("subtype") for x in lines], ["compact_boundary", None]
+        )
+        self.assertTrue(probe.is_post_compact(lines[1]))
+        self.assertEqual((workdir / probe.TRANSCRIPT_FILE).read_text(), text)
+        self.assertFalse(project.exists())
+
+    def test_transcript_grep_rejudge_reads_the_saved_transcript(self):
+        tmp = Path(tempfile.mkdtemp(prefix="probe-grep-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        c = grep_case(compaction=True)
+        (tmp / probe.raw_name(c["id"])).write_text("\n".join(stream(INIT, final())))
+        saved = tmp / probe.transcript_name(c["id"])
+        saved.write_text("\n".join(stream(BOUNDARY, post_compact("ZEBRA-7731"))))
+        self.assertEqual(probe.rejudge([c], tmp)[0]["verdict"], "pass")
+        saved.write_text("\n".join(stream(BOUNDARY, post_compact("other"))))
+        self.assertEqual(probe.rejudge([c], tmp)[0]["verdict"], "fail")
+
+    def test_transcript_grep_dry_run_judges_the_example(self):
+        tmp = Path(tempfile.mkdtemp(prefix="probe-grep-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        example = stream(BOUNDARY, post_compact("ZEBRA-7731"))
+        c = grep_case(compaction=True, example=example) | {"dir": tmp, "tags": ["x"]}
+        (tmp / "settings.json").write_text("{}")
+        (tmp / "prompt.md").write_text("p")
+        row = probe.run_case(c, probe.fake_runner, keep=False, live=False)
+        self.assertEqual(
+            (row["verdict"], row["version"]), ("pass", probe.DRY_RUN_VERSION)
+        )
+        self.assertIn("ZEBRA-7731", row["text"])
+
+
 class AutocompactCaseTests(unittest.TestCase):
     def setUp(self):
         self.cases = [

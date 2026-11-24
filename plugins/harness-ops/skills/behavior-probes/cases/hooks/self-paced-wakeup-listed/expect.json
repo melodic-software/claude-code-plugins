@@ -1,0 +1,28 @@
+{
+  "claim": "A self-paced `/loop` wake-up scheduled with ScheduleWakeup appears in the CronList scheduled-task listing, before and after a compaction.",
+  "tags": ["/loop", "ScheduleWakeup", "CronList", "scheduled tasks", "PostCompact"],
+  "permission_mode": "auto",
+  "model": "claude-haiku-5-5",
+  "max_turns": 12,
+  "max_budget_usd": 1.0,
+  "timeout": 400,
+  "cli_args": ["--input-format", "stream-json"],
+  "target": {
+    "compaction": true,
+    "patterns": [
+      "\"name\":\\s*\"ScheduleWakeup\"",
+      "\"toolUseResult\":\\s*\\{\"jobs\":\\s*\\[\\{[^\\]]*date command",
+      "\"subtype\":\\s*\"compact_boundary\"",
+      "\"toolUseResult\":\\s*\\{\"jobs\":\\s*\\[\\{[^\\]]*date command"
+    ],
+    "example": [
+      "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"ScheduleWakeup\",\"input\":{}}]}}",
+      "{\"type\":\"user\",\"toolUseResult\":{\"jobs\":[{\"prompt\":\"/loop run the date command\"}]}}",
+      "{\"type\":\"system\",\"subtype\":\"compact_boundary\"}",
+      "{\"type\":\"user\",\"toolUseResult\":{\"jobs\":[{\"prompt\":\"/loop run the date command\"}]}}",
+      "{\"session_id\":\"s\",\"hook_event_name\":\"PostCompact\",\"trigger\":\"manual\"}"
+    ]
+  },
+  "outcome": "transcript-grep",
+  "control": "hooks/fixed-loop-listed-across-compact"
+}
