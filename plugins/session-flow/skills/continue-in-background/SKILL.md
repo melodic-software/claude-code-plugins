@@ -69,6 +69,10 @@ the shape `new` writes: `save_point.py validate <file>` must exit 0 before anyth
 unfinished skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched
 from).
 
+When the request asks to carry what an earlier handoff in the handoffs directory says, read that
+section by name with `save_point.py read <file> --section "<name>"`, which follows a section moved
+to the hop file, and put what it holds into the save-point.
+
 The launched session has its own session id, so hand it this session's worktree claims exactly as
 the sibling `handoff` skill's "Hand worktree claims to the resuming session" does. On the full
 path the payload ends at the `Read @` directive, so the file carries the handover: the Environment

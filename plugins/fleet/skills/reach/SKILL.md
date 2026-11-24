@@ -160,7 +160,9 @@ our probe found and how to re-measure it). When a script can do the job, run the
   headless recipes.
 - Session names belong to the target lane, and a listing shows only its own lane. List first, then
   message a name from the listing that shows it. When a request names a machine and not a lane,
-  list each of that machine's lanes (on another machine, one R2 and one R3 turn).
+  list each of that machine's lanes (on another machine, one R2 and one R3 turn). That holds for
+  this machine too: a session "in the same repo" here can sit in either lane, so until the lane is
+  known, name both routes, R0 for this lane and R1 (from WSL) or R4 (from Windows) for the other.
 - **Pointer**: the receiver, `--bare` and Remote Control bullets rest on our probes and the flag
   behavior in [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior); when
   one stops holding, fetch
