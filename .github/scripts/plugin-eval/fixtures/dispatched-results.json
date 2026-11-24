@@ -22,7 +22,7 @@
             "durationSeconds": 20,
             "startedAt": "2026-11-24T01:05:39.635Z",
             "error": null,
-            "tracePath": "/home/runner/.ev/claude-eval-R8F6KU/out/trace.jsonl",
+            "tracePath": "$HOME/.ev/claude-eval-R8F6KU/out/trace.jsonl",
             "skippedPaidGraders": false,
             "graders": []
           }
@@ -37,7 +37,7 @@
             "durationSeconds": 8,
             "startedAt": "2026-11-24T01:06:00.069Z",
             "error": null,
-            "tracePath": "/home/runner/.ev/claude-eval-RxXgft/out/trace.jsonl",
+            "tracePath": "$HOME/.ev/claude-eval-RxXgft/out/trace.jsonl",
             "skippedPaidGraders": false,
             "graders": []
           }

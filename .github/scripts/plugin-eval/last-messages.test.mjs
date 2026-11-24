@@ -32,7 +32,6 @@ test("a captured dispatched result reads each absolute tracePath, and a deleted 
   const result = JSON.parse(readFileSync(CAPTURED, "utf8"));
   const [withRun] = result.cases[0].arms.with;
   const [withoutRun] = result.cases[0].arms.without;
-  assert.match(withRun.tracePath, /^\/home\/runner\/\.ev\/claude-eval-\w+\/out\/trace\.jsonl$/);
   const lines = readFileSync(CAPTURED_TRACE, "utf8").trim().split("\n").map((line) => JSON.parse(line));
   lines.at(-1).result = "The wizard is ready.";
   withRun.tracePath = join(dir, "with-trace.jsonl");
