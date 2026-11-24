@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.36] - 2026-11-24
+
+### Changed
+
+- The build pipeline reference lists `validate.js`'s gates itself, since the script no longer carries them in a header comment, and says which gates block (exit 1) and which only warn.
+
 ## [1.0.35] - 2026-11-23
 
 ### Changed

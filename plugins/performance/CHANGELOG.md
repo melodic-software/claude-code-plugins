@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.8] - 2026-11-24
+
+### Changed
+
+- References to the failing-test skill name `/testing:fix-failing`.
+
 ## [0.16.7] - 2026-11-24
 
 ### Changed
