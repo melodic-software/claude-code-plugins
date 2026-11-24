@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.10] - 2026-11-24
+
+### Changed
+
+- `/architecture:improve` names four successors in its Next section; the boundaries-lens codify route stays in its routing table.
+
 ## [6.0.9] - 2026-11-24
 
 ### Changed
