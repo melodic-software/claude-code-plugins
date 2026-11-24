@@ -8,7 +8,7 @@
   "fail": [
     { "answer": [], "why": "no Skill call" },
     {
-      "answer": [{ "tool": "Skill", "input": { "skill": "testing:diagnose" } }],
+      "answer": [{ "tool": "Skill", "input": { "skill": "testing:fix-failing" } }],
       "why": "another testing skill"
     }
   ]

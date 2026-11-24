@@ -65,20 +65,12 @@ const MAX_HANDED = 5;
 const MAX_CHECKED = 20;
 const MAX_ISSUE_PAGES = 15;
 const COMMENT_PAGES = 3;
-// A run counts as an attempt only when it reached intake (reachedIntake) and
-// its verdict did not stop on a transient answer (classifyRun).
 const ATTEMPTS = 2;
-// judgment: about a day of hourly sweeps. Past this many runs that stopped on a
-// transient answer, each further one counts as an attempt, so a fault that
-// never clears still reaches a person.
 export const TRANSIENT_LIMIT = 24;
 export const RUN_LIMIT = 6;
 const MIN_AGE_MS = 3_600_000;
 const HOUR_MS = 3_600_000;
 const BOT = "github-actions[bot]";
-// `filed` is HANDED once the comment hands the issue to a maintainer. An older
-// sweep's record holds the number of the issue it filed, or FILING while that
-// filing was under way; both stop the sweep too.
 export const FILING = "?";
 export const HANDED = "handed";
 // Each run id in `runs=` may carry `+` (it reached intake and counts), `~` (it
@@ -93,26 +85,14 @@ const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,+~-]*) filed=([0-9]*|\?
 // work-unblock's when it unparks the issue to needs-triage, as its first line.
 // Admission edits its comment in place, so a hand-back counts from its last edit.
 const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- work-unblock unparked triage -->(?:\n|$)|<!-- work-resolve-issue outcome=intake[ >]|<!-- intake-triage admission -->\n<!-- intake-triage retriage -->)/;
-// The visible text of the hand-off comment, which the search matches.
 const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";
-// The Work status states a hand-off may replace (null for unset): untriaged,
-// and ready only on an issue the listing saw at status: ready (bornReady),
-// since admission and work-unblock also write ready.
 const HAND_OFF_FROM = [null, FLOOR];
 const BORN_HAND_OFF_FROM = [...HAND_OFF_FROM, "ready"];
-// Labels a verdict or a person leaves: an issue with one is triaged.
 const TRIAGED = /^(needs-human|needs-spec|needs-owner-decision|needs-reporter-info|agent-ready|admission-deferred)$|^status: /;
-// What keeps a born-triaged `status: ready` issue out of admission on purpose.
 const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-human", "needs-owner-decision", "needs-reporter-info", ...UNTRUSTED_LABELS]);
 
-// An issue's lowercased label names; `labels`, when given, stands in for its
-// own (as its Work status field decides them, statusListing).
 const names = (i, labels) => (labels ?? (i.labels ?? []).map((l) => l.name)).map((n) => String(n ?? "").toLowerCase());
-// An open sub-issue makes admission wait (admit.mjs openSubIssues), so it
-// would only send the issue back at status: ready. Admission's own wait
-// comment is not consulted: admission edits it in place, so it can outlive
-// the wait it describes and would park a cleared issue for good.
 const bornReady = (i, labels) =>
   String(i.body ?? "")
     .trimEnd()
@@ -122,12 +102,6 @@ const bornReady = (i, labels) =>
   !(i.issue_dependencies_summary?.blocked_by > 0) &&
   !((i.sub_issues_summary?.total ?? 0) > (i.sub_issues_summary?.completed ?? 0));
 
-// `statusLabels` (statusListing) maps an issue number to its label names as
-// its Work status field decides them; an issue it leaves out is judged by its
-// own labels, except one in its `held` set (Work status mid-write), which is
-// not dispatched this pass (conservative: no dispatch on a state not read).
-// An issue whose own labels hold a routing label (check-born-triaged.mjs
-// routingLabel) is never one: intake skips it.
 export function selectCandidates({ issues, now, authorIds, statusLabels = new Map(), routing = ROUTING_DEFAULTS }) {
   const untriagedOrReady = (i) => {
     if (statusLabels.held?.has(i.number)) return false;
@@ -147,8 +121,6 @@ const rotatedPastCheckedCap = (group, eligibleCount, now) => {
   return [...group.slice(start), ...group.slice(0, start)];
 };
 
-// `appId` is the lanes App's account id: only its hand-back starts a new
-// cycle, so no one else can reset the dispatch count.
 export function readState(comments, appId = null) {
   const handBack = Math.max(
     ...comments
@@ -174,8 +146,6 @@ export function readState(comments, appId = null) {
   return { commentId: null, runs: [], filed: null, reached: new Map() };
 }
 
-// `details` lists each run as {id, conclusion}, for the hand-off; `reached`
-// maps each run read so far to its mark (classifyRun).
 const runEntry = (reached) => (id) => `${id}${reached.get(id) ?? ""}`;
 export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reached = new Map() }) =>
   `<!-- claude-lane triage-sweep runs=${runs.map(runEntry(reached)).join(",")} filed=${filed ?? ""} -->\n` +
@@ -194,13 +164,6 @@ export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reache
     ? `Intake triage did not triage this issue after ${runs.length} dispatches; #${filed} hands it to a maintainer.`
     : `The triage sweep dispatched [intake triage](${runUrl}) for this issue (dispatch ${runs.length}; ${ATTEMPTS} runs that reach intake, or ${RUN_LIMIT} dispatches, hand it to a maintainer).`);
 
-// Whether a run reached intake, from its jobs: the Intake Triage caller job, or
-// a job of the reusable it calls ("Intake Triage / ..."), finished neither
-// skipped nor cancelled. The kill switch, a degraded upstream or a born-triaged
-// gate skips it; a run cancelled before it, or that never started, lists it
-// cancelled, skipped or not at all. A run from before the job rename names the
-// caller intake-triage and the verdict job apply-verdict. The reusable's apply
-// job is `Apply`, or `claude-intake-triage-apply` before its Title Case rename.
 const INTAKE_JOB = /^(?:Intake Triage|intake-triage)(?: \/ |$)/;
 const INTAKE_APPLY_JOB = /^(?:Intake Triage|intake-triage) \/ (?:.*-apply|Apply)$/;
 const APPLY_JOB = "Apply Verdict";
@@ -228,22 +191,14 @@ const applyJob = (jobs) => {
 // while githubstatus.com lists Actions in an outage, which marks it `-`, and
 // nothing records an API incident at the time a run ran.
 const TRANSIENT = /failed with status 5\d\d\b|GitHub answered 5\d\d\b|\bfetch failed\b|aborted due to timeout/;
-// apply-verdict joins several write failures into one annotation (its
-// missedAnnotation), so a note is transient only when every status it reports
-// is a 5xx: "GitHub answered 500" beside "GitHub answered 403" counts. A note
-// that reports no status is read by TRANSIENT alone (a timeout, a reset).
 const STATUS = /(?:failed with status|GitHub answered) (\d{3})\b/g;
 const transientNote = (message) => {
   const statuses = [...message.matchAll(STATUS)].map((m) => m[1]);
   return statuses.length > 0 ? statuses.every((code) => code.startsWith("5")) : TRANSIENT.test(message);
 };
 const DEFERRED = "permission denial(s) on an otherwise clean triage";
-// apply-verdict's notice when a fault held it green (its closing), read as a
-// failure annotation is.
 const HELD = /^held: /;
 const EXIT_LINE = /^Process completed with exit code \d+\.$/;
-// The apply-verdict step (intake-triage.yml) that runs only when a lanes kill
-// switch refused its token, so the run wrote no verdict.
 export const VOIDED_STEP = "Report the voided verdict";
 export const voidedVerdict = (jobs) => Boolean(applyJob(jobs ?? [])?.steps?.some((s) => s?.name === VOIDED_STEP && s.conclusion === "success"));
 const checkRunPath = (job) => {
@@ -274,20 +229,12 @@ export async function classifyRun(jobs, annotations) {
   return notes.length > 0 && notes.every((a) => transientNote(String(a.message ?? ""))) ? "~" : "+";
 }
 
-// What the marks add up to: `attempts` the runs that count (an unread run
-// counts), `dispatches` the runs RUN_LIMIT sees. The first TRANSIENT_LIMIT
-// transient runs count toward neither; each one past them counts toward both.
 export function tally(runs, marks) {
   const all = runs.map((id) => marks.get(id) ?? "+");
   const forgiven = Math.min(all.filter((m) => m === "~").length, TRANSIENT_LIMIT);
   return { attempts: all.filter((m) => m !== "-").length - forgiven, dispatches: runs.length - forgiven };
 }
 
-// `reached` counts the attempts; unread, every run counts. RUN_LIMIT bounds
-// the runs that never reached intake: the sweep's own kill-switch check stops
-// it while the switch is on, so only a gate that keeps skipping intake (a long
-// upstream degradation, a born-triaged read that keeps failing) gets there.
-// `dispatches` leaves out the transient runs tally forgives.
 export function decide({ state, latest, reached = state.runs.length, dispatches = state.runs.length }) {
   if (state.filed) return "stop";
   if (state.runs.length === 0) return "dispatch";
@@ -298,8 +245,6 @@ export function decide({ state, latest, reached = state.runs.length, dispatches 
 const FILED_TITLE = /^Intake triage left #([1-9][0-9]*) untriaged after /;
 const SEARCH_PAGES = 10;
 
-// The numbers `pick` takes from one search's items. A failed or incomplete
-// search excludes nothing: those issues are then read and skipped by their state.
 async function search(call, query, pick) {
   const q = encodeURIComponent(query);
   const numbers = new Set();
@@ -371,10 +316,6 @@ async function handedInSweepComments(call, repo, appId) {
   return numbers;
 }
 
-// The issues handed to a maintainer, so their comments cost no reads: those an
-// older sweep filed a hand-off issue for (only a title the bot wrote counts),
-// and those whose own state comment hands them off (handedInSweepComments).
-// The caller skips them only while they are at needs-triage.
 async function handedOff(call, repo, appId) {
   const filed = await search(call, `repo:${repo} is:issue author:app/github-actions in:title "Intake triage left"`, (item) =>
     item.user?.login === BOT ? Number(FILED_TITLE.exec(String(item.title ?? ""))?.[1] ?? 0) : 0,
@@ -382,10 +323,6 @@ async function handedOff(call, repo, appId) {
   return new Set([...filed, ...(await handedInSweepComments(call, repo, appId))]);
 }
 
-// One pass. `call` returns null for a GET that 404s. `setStatus(number,
-// state)` (write-status.mjs statusWriter's set) writes the Work status field.
-// `statusLabels` is statusListing's map, read once before the pass; `routing`
-// the binding's routing labels (readRouting).
 export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null, setStatus = async () => {}, statusLabels = new Map(), routing = ROUTING_DEFAULTS }) {
   const repoUrl = `${serverUrl}/${repo}`;
   const issues = [];
@@ -401,10 +338,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   const eligible = selected.filter((i) => !(filed.has(i.number) && atFloor(i)));
   const candidates = [...eligible.filter(neverCommented), ...rotatedPastCheckedCap(eligible.filter((i) => !neverCommented(i)), eligible.length, now)];
   result.candidates = candidates.length;
-  // A hold a person set since the listing stands (write-status.mjs keepHold):
-  // the issue is held, so it is neither handed off nor recorded. So does any
-  // state past triage the field reads now (HAND_OFF_FROM): the listing can
-  // read field events stale, and the issue may have been admitted since.
   const listedReady = (i) => names(i, statusLabels.get(i.number)).includes("status: ready");
   const handOff = async (issue) => {
     const { number } = issue;
@@ -416,8 +349,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     }
     return written?.outcome !== "held" && written?.outcome !== "moved";
   };
-  // Issues the sweep already handed off cost their reads and do not count
-  // toward MAX_CHECKED, so they cannot starve the issues behind them.
   let checked = 0;
   const redispatches = [];
   let outOfCalls = false;
@@ -435,8 +366,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         full = batch.length === 100;
         if (!full) break;
       }
-      // Past the pages read, the state comment may be hidden: a person
-      // decides, so the state is set once.
       if (full) {
         if (atFloor(issue)) continue;
         checked += 1;
@@ -444,20 +373,13 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         continue;
       }
       const state = readState(comments, appId);
-      // Handed to a maintainer already: it is at needs-triage.
       if (state.filed) continue;
       checked += 1;
       const last = state.runs.at(-1);
       const latest = state.runs.length > 0 ? await call("GET", `/repos/${repo}/actions/runs/${last}`) : null;
-      // A run the API no longer has counts as finished.
       const finished = state.runs.length > 0 && latest === null ? { status: "completed" } : latest;
-      // Once the runs could hand the issue off, read each run the state has
-      // not recorded (classifyRun). A read that finds no run counts the run
-      // and is recorded; one that fails counts it for this pass only.
       const known = new Map(state.reached);
       const reached = new Map(known);
-      // At RUN_LIMIT the issue is handed off whatever the reads say, so with the
-      // hand slots used up it stops and nothing is read.
       const capped = state.runs.length >= RUN_LIMIT && result.handed.length >= MAX_HANDED;
       if (state.runs.length >= ATTEMPTS && finished?.status === "completed" && !capped) {
         for (const id of state.runs.filter((r) => !known.has(r))) {
@@ -471,7 +393,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
           }
         }
       }
-      // Unread, every run counts.
       const { attempts, dispatches } = tally(state.runs, reached);
       const action = decide({ state, latest: finished, reached: attempts, dispatches });
       if (action === "wait") result.waiting.push(number);
@@ -507,8 +428,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     try {
       if (action === "dispatch" && result.dispatched.length >= MAX_DISPATCHES) action = "stop";
       if (action === "hand" && result.handed.length >= MAX_HANDED) action = "stop";
-      // A capped issue records what this pass read, so no later pass reads it
-      // again. The record is best effort: a failed write costs a re-read.
       if (action === "stop" && known.size > state.reached.size && remaining() > 0) {
         try {
           await writeState(call, repo, number, state, {
@@ -522,8 +441,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         }
         return;
       }
-      // Never start a run the budget left cannot record, or a hand-off it cannot finish.
-      // A hand-off reads each run's conclusion but a transient one's.
       const reads = state.runs.filter((id) => id !== last && reached.get(id) !== "~").length;
       if ((action === "dispatch" && remaining() < 2) || (action === "hand" && remaining() < reads + 2)) {
         result.truncated = `stopped at #${number}: too little call budget left`;
@@ -554,8 +471,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
           const run = id === last ? latest : reached.get(id) === "~" ? null : await call("GET", `/repos/${repo}/actions/runs/${id}`);
           runs.push({ id, conclusion: run?.conclusion ?? null, reached: reached.get(id) });
         }
-        // The state first, then the record that stops later passes: a failed
-        // record leaves the issue for the next pass, which sets it again.
         if (!(await handOff(issue))) return;
         await writeState(call, repo, number, state, { runs: state.runs, filed: HANDED, repoUrl, details: runs, reached: known });
         result.handed.push(number);
@@ -566,15 +481,6 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   }
 }
 
-// Each open issue the Work status field or a status label places, mapped to
-// its label names as the field decides them (read-status.mjs statusLabels),
-// from one issuesByStatus (resolve-config.mjs) listing of every state, so the
-// field can add a candidate as well as drop one. No config, no map. The map's
-// `held` is the set of issues the listing left out mid-write (issuesByStatus
-// `held`): selectCandidates skips them this pass rather than judge them by
-// labels that could miss a field hold; the next pass lists them again.
-// With the field unset, the agent-ready label is dropped: it starts no lane
-// run, and admission writes the Work status, so the issue is triaged.
 export async function statusListing({ github, repository, config, trustedActors, issuesByStatus }) {
   if (!config) return new Map();
   const listed = await issuesByStatus(github, repository, config.order, { config, trustedActors });

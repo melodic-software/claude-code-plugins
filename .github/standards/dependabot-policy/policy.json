@@ -3,9 +3,9 @@
   "scheduleInterval": "weekly",
   "scheduleIntervalByEcosystem": {
     "github-actions": {
-      "accepted": ["daily"],
-      "reviewed": "2026-11-16",
-      "basis": "Owner decision 2026-11-16: the github-actions entry checks daily. First-party actions float on main and official-vendor actions on their major tag (architecture owner-decisions L351), so the entry moves vendor major tags and third-party full-commit-SHA pins, never a first-party ref."
+      "accepted": ["daily", "weekly"],
+      "reviewed": "2026-11-23",
+      "basis": "Owner decision 2026-11-23 returns github-actions to weekly, since Dependabot moves no first-party ref (owner-decisions L351) and the entry now carries only vendor major tags and third-party SHA pins; both values are accepted during the fleet switch."
     }
   },
   "cooldownMinimumDays": 3,
@@ -86,7 +86,7 @@
         "directory": "/plugins/harness-ops/skills/control-claude-code/driver",
         "dependency": "@microsoft/tui-test",
         "reviewed": "2026-10-24",
-        "basis": "plugins/harness-ops/skills/control-claude-code/driver/driver.mjs:245 installs this lockfile on the user's machine, :420-422 load the engine and its per-platform native binary (package-lock.json:22-30) into the session holder and start claude in it after :87 clears the API credential variables, so the session runs on the saved claude.ai subscription login and a hijacked release runs beside it.",
+        "basis": "plugins/harness-ops/skills/control-claude-code/driver/driver.mjs ensureInstalled() installs this lockfile on the user's machine, and serve() loads the engine and its per-platform native binary (the @koromix/koffi-* entries in package-lock.json) into the session holder and starts claude in it after buildLaunch() deletes the UNSET_VARS API credential variables, so the session runs on the saved claude.ai subscription login and a hijacked release runs beside it.",
         "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
       },
       {

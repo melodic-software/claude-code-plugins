@@ -189,7 +189,7 @@
     {"from":"claude-code-plugins","to":"primer/primitives","type":"cites","relation":"external","count":1,"files":["docs/upstream/user-interface-default-sources.md"]},
     {"from":"claude-code-plugins","to":"priv-kweihmann/multimetric","type":"cites","relation":"external","count":2,"files":["plugins/code-metrics/reference/collectors.md","plugins/code-metrics/scripts/collectors/multimetric.py"]},
     {"from":"claude-code-plugins","to":"pulumi/pulumi","type":"cites","relation":"external","count":1,"files":["docs/conventions/pr-pipeline/README.md"]},
-    {"from":"claude-code-plugins","to":"pytest-dev/pytest-randomly","type":"cites","relation":"external","count":3,"files":["plugins/debugging/skills/debug/reference/ecosystem-debugging.md","plugins/testing/skills/diagnose/context/investigate.md","plugins/testing/skills/write/context/write.md"]},
+    {"from":"claude-code-plugins","to":"pytest-dev/pytest-randomly","type":"cites","relation":"external","count":3,"files":["plugins/debugging/skills/debug/reference/ecosystem-debugging.md","plugins/testing/skills/fix-failing/context/investigate.md","plugins/testing/skills/write/context/write.md"]},
     {"from":"claude-code-plugins","to":"pytest-dev/pytest-rerunfailures","type":"cites","relation":"external","count":2,"files":["plugins/testing/skills/audit/SKILL.md","plugins/testing/skills/audit/scripts/retry-config-scan.awk"]},
     {"from":"claude-code-plugins","to":"python/cpython","type":"cites","relation":"external","count":1,"files":["plugins/source-control/skills/babysit-loop/reference/promotion-evidence-bootstrap.md"]},
     {"from":"claude-code-plugins","to":"python/tzdata","type":"cites","relation":"external","count":1,"files":["plugins/session-flow/skills/keep-going/scripts/vendor/README.md"]},

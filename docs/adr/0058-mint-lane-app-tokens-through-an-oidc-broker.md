@@ -9,6 +9,9 @@
 - Amended by
   [ADR 0071](0071-start-pr-unblock-from-a-push-to-main-dispatcher-checked-at-the-gate-and-the-broker.md):
   point 3 gains the dispatcher path
+- Superseded in part by `.github/workflows/pr-run-activity-write.yml`, which runs no skill: the
+  Consequences residual that the claude-code-action process in the write job can request an OIDC
+  token. The broker stands.
 
 ## Context
 

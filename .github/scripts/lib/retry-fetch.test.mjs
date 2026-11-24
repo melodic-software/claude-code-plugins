@@ -96,7 +96,6 @@ test("a rate-limit wait past the 60 s budget is not taken: the answer goes back 
   const long = limited([{ status: 429, headers: { "retry-after": "61" } }, { status: 200 }]);
   assert.equal((await long.send("https://api/x")).status, 429);
   assert.deepEqual(long.slept, []);
-  // 40 s, then 30 s more would pass 60: the second call returns its 429.
   const spent = limited([{ status: 429, headers: { "retry-after": "40" } }, { status: 200 }, { status: 429, headers: { "retry-after": "30" } }, { status: 200 }]);
   assert.equal((await spent.send("https://api/x")).status, 200);
   assert.equal((await spent.send("https://api/y")).status, 429);
@@ -104,8 +103,6 @@ test("a rate-limit wait past the 60 s budget is not taken: the answer goes back 
   assert.equal(spent.sent.length, 3);
 });
 
-// budgetedFetch and the rate guard's latch mark their fetch counted and handle
-// a rate limit themselves, so a wait here would stack on theirs.
 test("a fetch that already counts its answers is left to the rate guard on a rate limit", async () => {
   const sent = [];
   const slept = [];
@@ -160,7 +157,6 @@ test("a retry line names the error and its cause code, never its message", async
   assert.doesNotMatch(h.logged[0], /ghs_secret/);
 });
 
-// The lane run report's failure rows: $RUNNER_TEMP/lane-run-report/api-failures.jsonl.
 function recorded(answers, { counted = false } = {}) {
   const dir = tempDir("retry-fetch-failures-");
   const fetchImpl = async () => {

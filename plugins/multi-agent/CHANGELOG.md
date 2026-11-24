@@ -3,6 +3,41 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.7.0] - 2026-11-24
+
+### Added
+
+- Nine `support-only` rows in `reference/benchmarks.json`, so every work type has candidate sources for a consensus once they pass longevity, accuracy and coverage: `vals-terminal-bench` and `arena-agent-code` (coding), `vals-vibe-code` and `designarena-code` (web-ui), `vals-finance-agent` and `arena-agent-work` (knowledge), `arena-text-to-image` and `designarena-image` (image), and `aa-intelligence-index` (coding, knowledge). `www.designarena.ai` joins the `registry-fetcher` gate and `workflows/registry-audit.js`.
+
+### Changed
+
+- The vendor-routing audit names the failing-test skill `/testing:fix-failing`.
+
+### Fixed
+
+- `/multi-agent:route vendors` counts a board record that names a model without the effort
+  suffix the vendor's current ids carry (a base name such as `gemini-4-neon` for
+  `gemini-4-neon-high`), canonicalized to `<model>-<record effort>` when that id exists, else to
+  the first such id the vendor lists; it no longer abstains for that vendor. A version or other
+  non-effort suffix still abstains.
+- Route's board fetch (`fetch-boards`) passes each registry row's `expect` marker and
+  `--render-fallback`, so a blocked or script-drawn board page renders through the Firecrawl CLI
+  when the docs-cache `renderer` is `firecrawl`, and a page without its marker is unread.
+
+- `vendor-decide` takes `--use <investigate|task>` (default `task`). With `investigate`, the
+  `--needs-tools` gate checks the vendor's `read_only_tools` from `external-agents models`,
+  falling back to `tools` when the entry has none, so a read-only brief no longer routes to a
+  vendor whose read-only mode refuses a tool it needs. The route skill passes the brief's use, and
+  a research or fact-check brief names `web` in `--needs-tools`.
+
+## [3.6.5] - 2026-11-24
+
+### Changed
+
+- The vendor-routing audit names the lyric revision skill `/songwriting:revise`.
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [3.6.4] - 2026-11-24
 
 ### Fixed

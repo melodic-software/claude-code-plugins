@@ -55,7 +55,15 @@ class SizeCheckTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def run_check(
-        self, rows, rule="crossing", mode="change", reference=5, run=(), replicas=None
+        self,
+        rows,
+        rule="crossing",
+        mode="change",
+        reference=5,
+        run=(),
+        replicas=None,
+        registry=None,
+        manifest=None,
     ):
         for f, n, fn in rows:
             if n is not None and fn is None:
@@ -82,6 +90,17 @@ class SizeCheckTests(unittest.TestCase):
         conf = self.root.parent / f"{self.root.name}-config.json"
         report.write_text(json.dumps(document), encoding="utf-8")
         conf.write_text(json.dumps(config), encoding="utf-8")
+        registry_args = []
+        if registry is not None:
+            listed = self.root.parent / f"{self.root.name}-registry.txt"
+            listed.write_text(registry, encoding="utf-8")
+            self.addCleanup(listed.unlink)
+            registry_args = ["--registry", str(listed)]
+        if manifest is not None:
+            pairs = self.root.parent / f"{self.root.name}-manifest.txt"
+            pairs.write_text(manifest, encoding="utf-8")
+            self.addCleanup(pairs.unlink)
+            registry_args += ["--manifest", str(pairs)]
         try:
             result = subprocess.run(
                 [
@@ -90,6 +109,7 @@ class SizeCheckTests(unittest.TestCase):
                     "add",
                     "--config",
                     str(conf),
+                    *registry_args,
                     str(report),
                 ],
                 capture_output=True,
@@ -221,6 +241,92 @@ class SizeCheckTests(unittest.TestCase):
             [(r["file"], r["kind"], r["fails"]) for r in block["rows"]],
             [("copy.txt", "crossed", True), ("over.txt", "grew", False)],
         )
+
+    def test_a_copy_in_registry_and_manifest_is_measured_at_its_canonical(
+        self,
+    ) -> None:
+        (self.root / "lib").mkdir()
+        (self.root / "plugins" / "p" / "scripts").mkdir(parents=True)
+        registry = "# shared copies\nlib/tool.sh -> plugins/*/scripts/tool.sh\n"
+        result, block, text = self.run_check(
+            [("lib/tool.sh", 4, None), ("plugins/p/scripts/tool.sh", 7, None)],
+            registry=registry,
+            manifest="# generated\nlib/tool.sh plugins/p/scripts/tool.sh\n",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            [(r["file"], r.get("canonical"), r["fails"]) for r in block["rows"]],
+            [("plugins/p/scripts/tool.sh", "lib/tool.sh", False)],
+        )
+        self.assertIn("measured at its canonical lib/tool.sh", text)
+        self.assertIn("PASS", text)
+
+    def test_the_canonical_of_a_registered_copy_still_fails_a_crossing(self) -> None:
+        (self.root / "lib").mkdir()
+        (self.root / "plugins" / "p" / "scripts").mkdir(parents=True)
+        registry = "lib/tool.sh -> plugins/*/scripts/tool.sh\n"
+        result, block, _ = self.run_check(
+            [("lib/tool.sh", 7, None), ("plugins/p/scripts/tool.sh", 7, None)],
+            registry=registry,
+            manifest="lib/tool.sh plugins/p/scripts/tool.sh\n",
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(
+            [(r["file"], r.get("canonical"), r["fails"]) for r in block["rows"]],
+            [
+                ("lib/tool.sh", None, True),
+                ("plugins/p/scripts/tool.sh", "lib/tool.sh", False),
+            ],
+        )
+
+    def test_a_copy_the_manifest_does_not_list_still_fails(self) -> None:
+        (self.root / "plugins" / "p" / "scripts").mkdir(parents=True)
+        (self.root / "plugins" / "q" / "scripts").mkdir(parents=True)
+        registry = "lib/tool.sh -> plugins/*/scripts/tool.sh\n"
+        result, block, _ = self.run_check(
+            [
+                ("plugins/p/scripts/tool.sh", 7, None),
+                ("plugins/q/scripts/tool.sh", 7, None),
+            ],
+            registry=registry,
+            manifest="lib/tool.sh plugins/p/scripts/tool.sh\n",
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(
+            [(r["file"], r.get("canonical"), r["fails"]) for r in block["rows"]],
+            [
+                ("plugins/q/scripts/tool.sh", None, True),
+                ("plugins/p/scripts/tool.sh", "lib/tool.sh", False),
+            ],
+        )
+
+    def test_a_registry_line_without_a_manifest_exempts_nothing(self) -> None:
+        (self.root / "plugins" / "p" / "scripts").mkdir(parents=True)
+        result, block, _ = self.run_check(
+            [("plugins/p/scripts/tool.sh", 7, None)],
+            registry="lib/tool.sh -> plugins/*/scripts/tool.sh\n",
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(block["failed"], 1)
+
+    def test_a_manifest_pair_without_a_cluster_line_exempts_nothing(self) -> None:
+        (self.root / "plugins" / "p" / "scripts").mkdir(parents=True)
+        result, block, _ = self.run_check(
+            [("plugins/p/scripts/tool.sh", 7, None)],
+            registry="lib/other.sh -> plugins/*/scripts/other.sh\n",
+            manifest="lib/tool.sh plugins/p/scripts/tool.sh\n",
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(block["failed"], 1)
+
+    def test_a_plain_registry_line_does_not_exempt_a_crossing(self) -> None:
+        (self.root / "plugins" / "p" / "scripts").mkdir(parents=True)
+        result, block, _ = self.run_check(
+            [("plugins/p/scripts/tool.sh", 7, None)],
+            registry="scripts/tool.sh\n",
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(block["failed"], 1)
 
     def test_an_unreadable_file_cannot_decide(self) -> None:
         result, _, _ = self.run_check([("gone.txt", None, None)])

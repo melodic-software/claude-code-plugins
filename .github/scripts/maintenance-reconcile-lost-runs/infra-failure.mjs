@@ -40,14 +40,9 @@ export const gateEntries = (entries) => {
 };
 export const INSTALL_STEP = /^(Install |Set up (job|Node|Python)$)/;
 export const FAILED = new Set(["failure", "cancelled", "timed_out", "startup_failure"]);
-// A run that ended without a result; reconcile.mjs re-runs its first attempt once.
 export const LOST = new Set(["cancelled", "timed_out", "startup_failure"]);
 const STOPPED = new Set(["cancelled", "timed_out"]);
-// Minutes after attempt 1 of an infra-only run ended before the reconciler
-// re-runs its failed jobs. One re-run per head: at attempt 2 it is left red,
-// and fix-ci takes it.
 export const INFRA_BACKOFF_MINUTES = 15;
-// An outage loss is re-run within a day; an older one is left to a person (judgment).
 export const LOOKBACK_HOURS = 24;
 const inLookback = (run, now) => Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
 
@@ -200,7 +195,6 @@ export async function testedRun(runs, readJobs) {
   return undefined;
 }
 
-// True when the run's failed jobs exist and every one is infra.
 export function infraOnly(jobs) {
   if (!Array.isArray(jobs)) {
     return false;

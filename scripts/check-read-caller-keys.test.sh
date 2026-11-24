@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .github/standards/runner-policy/package.json
+# test-scope: scripts/ci-deps/package.json
 # Black-box contract test for check-read-caller-keys.sh.
 #
 # Self-contained and cwd-independent: builds a throwaway tree with fixture
@@ -12,7 +12,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT_SRC="$SCRIPT_DIR/check-read-caller-keys.sh"
 SUT_MJS="$SCRIPT_DIR/check-read-caller-keys.mjs"
-POLICY_DIR="$SCRIPT_DIR/../.github/standards/runner-policy"
+DEPS_DIR="$SCRIPT_DIR/../scripts/ci-deps"
 
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
@@ -26,9 +26,9 @@ mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --sut "$SUT_MJS" --label read-caller-keys || return 1
   dir="${!1}"
-  mkdir -p "$dir/.github/workflows" "$dir/.github/standards/runner-policy"
-  cp "$POLICY_DIR/package.json" "$dir/.github/standards/runner-policy/"
-  ln -s "$POLICY_DIR/node_modules" "$dir/.github/standards/runner-policy/node_modules"
+  mkdir -p "$dir/.github/workflows" "$dir/scripts/ci-deps"
+  cp "$DEPS_DIR/package.json" "$dir/scripts/ci-deps/"
+  ln -s "$DEPS_DIR/node_modules" "$dir/scripts/ci-deps/node_modules"
   cat >"$dir/.github/workflows/pr-run-activity-read.yml" <<'EOF'
 on:
   workflow_call:

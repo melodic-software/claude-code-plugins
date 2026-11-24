@@ -1,6 +1,9 @@
 # Record plugin-acceptance security reviews
 
-- Status: accepted; each later review or delta review amends this record with its own dated section
+- Status: accepted; each later review or delta review amends this record with its own dated section;
+  superseded in part by `plugins/context-usage/README.md` ("No part of the plugin denies a tool
+  call."): the context-usage mod delta's line that its `tool.call` hook denies a call in blocking
+  mode
 - Date: 2026-07-12
 - Related: the review procedure and its criteria 1-7 in
   [Plugin-acceptance security review](../migration-playbook.md#plugin-acceptance-security-review);
