@@ -246,11 +246,31 @@ case "$*" in
   printf '%s\n' "${!var:-}"
   ;;
 */actions/runs/*)
-  # One run by id, as the review wait polls it: RUN_<id>, else a failed read.
+  # One run by id, as the review wait polls it: RUN_<id>, else a failed read;
+  # RUN_<id>_DONE from the STUB_DONE_AT-th read of a run by id on, and from
+  # the STUB_RUN_FAIL_AT-th on, a 502 (STUB_RUN_FAIL_STATUS). With -i its
+  # headers lead, with a weak ETag of the body. A read whose If-None-Match
+  # matches that ETag gets a 304 as gh gives it: headers whose ETag drops
+  # the W/, `gh: HTTP 304` on stderr, and exit 1.
   id="$*"
   id="${id##*actions/runs/}"
   var="RUN_$id"
+  n=$(grep -cE '/actions/runs/[0-9]+$' "$STUB_LOG")
+  if [[ -n "${STUB_RUN_FAIL_AT:-}" && $n -ge $STUB_RUN_FAIL_AT ]]; then
+    printf 'gh: Server Error (HTTP %s)\n' "${STUB_RUN_FAIL_STATUS:-502}" >&2
+    exit 1
+  fi
+  [[ -z "${STUB_DONE_AT:-}" || $n -lt $STUB_DONE_AT ]] || var="RUN_${id}_DONE"
   [[ -n "${!var:-}" ]] || exit 1
+  if [[ " $* " == *" -i "* ]]; then
+    tag="\"$(cksum <<<"${!var}" | cut -d' ' -f1)\""
+    if [[ "$*" == *"If-None-Match: W/$tag "* ]]; then
+      printf 'HTTP/2.0 304 Not Modified\r\nEtag: %s\r\n\r\n' "$tag"
+      echo 'gh: HTTP 304' >&2
+      exit 1
+    fi
+    printf 'HTTP/2.0 200 OK\r\nEtag: W/%s\r\nContent-Type: application/json\r\n\r\n' "$tag"
+  fi
   printf '%s\n' "${!var}"
   ;;
 */pulls/*/files*)
@@ -443,11 +463,46 @@ export RUN_11 RUNS_CODE_LATER
 RUN_11="$(run 11 $CODE in_progress)"
 expect "a review still running at the cap fails pending, naming the automatic re-run" 1 \
   "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 480s for it; pr-dispatch-feedback re-runs ci-status"
-if [[ "$(grep -cxF 'api repos/o/r/actions/runs/11' "$TMP_ROOT/log")" == 8 ]]; then
+run_reads() { grep -cE " repos/o/r/actions/runs/$1\$" "$TMP_ROOT/log"; }
+if [[ "$(run_reads 11)" == 8 ]]; then
   ok "the wait reads the waiting run once a poll, 8 polls at most"
 else
-  fail "the wait read run 11 $(grep -cxF 'api repos/o/r/actions/runs/11' "$TMP_ROOT/log") times: '$(sort "$TMP_ROOT/log" | uniq -c)'"
+  fail "the wait read run 11 $(run_reads 11) times: '$(sort "$TMP_ROOT/log" | uniq -c)'"
 fi
+etag_11="W/\"$(cksum <<<"$RUN_11" | cut -d' ' -f1)\""
+if [[ "$(grep -cxF 'api -i repos/o/r/actions/runs/11' "$TMP_ROOT/log")" == 1 &&
+  "$(grep -cxF "api -i -H If-None-Match: $etag_11 repos/o/r/actions/runs/11" "$TMP_ROOT/log")" == 7 ]]; then
+  ok "the first poll of a run sends no condition, and each later one sends the ETag of its 200 verbatim"
+else
+  fail "the wait's conditions on run 11: '$(grep -E '/actions/runs/11$' "$TMP_ROOT/log" | uniq -c)'"
+fi
+export RUN_11_DONE STUB_DONE_AT STUB_RUN_FAIL_AT STUB_RUN_FAIL_STATUS
+RUN_11_DONE="$(run 11 $CODE)" STUB_DONE_AT=3 RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success)")"
+expect "a 304 keeps waiting and a 200 for the finished run ends the wait" 0 "Waited 180s for the review lanes on $HEAD." "::error::"
+if [[ "$(run_reads 11)" == 3 && "$(grep -c "If-None-Match: $etag_11 " "$TMP_ROOT/log")" == 2 ]]; then
+  ok "the wait read run 11 three times, the last two conditional"
+else
+  fail "the wait's reads of run 11: '$(grep -E '/actions/runs/11$' "$TMP_ROOT/log" | uniq -c)'"
+fi
+unset STUB_DONE_AT
+RUNS_CODE_LATER="$(runs "$(run 11 $CODE in_progress)" "$(run 10 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progress '')")"
+STUB_RUN_FAIL_AT=3 expect "a 5xx on a conditional read ends the wait and fails closed as before" 1 \
+  "::error::could not read run 11; re-run this run."
+if [[ "$(run_reads 11)" == 5 ]]; then
+  ok "the failed conditional read was sent 3 times after a 200 and a 304"
+else
+  fail "the failed conditional read took $(run_reads 11) reads of run 11, want 5"
+fi
+STUB_RUN_FAIL_AT=3 STUB_RUN_FAIL_STATUS=404 expect "a 404 on a conditional read ends the wait, and the judgment still reads the lane" 1 \
+  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 180s for it"
+if [[ "$(run_reads 11)" == 3 ]]; then
+  ok "a 4xx on a conditional read is sent once"
+else
+  fail "a 4xx on a conditional read took $(run_reads 11) reads of run 11, want 3"
+fi
+unset STUB_RUN_FAIL_AT STUB_RUN_FAIL_STATUS RUN_11_DONE
 RUN_11="$(run 11 $CODE)" RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
 JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success)")"
 expect "a review that finishes during the wait passes without a re-run" 0 "Waited 60s for the review lanes on $HEAD." "::error::"

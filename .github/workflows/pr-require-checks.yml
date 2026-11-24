@@ -5041,6 +5041,13 @@ jobs:
                 return 0
               fi
               cat "$err" >&2
+              # A 304 answers a read sent with If-None-Match: the object has
+              # not changed since that ETag. gh exits 1 on it; gh_read sends it
+              # once and returns 3.
+              if grep -qE '(^|[^0-9])HTTP 304([^0-9]|$)' "$err"; then
+                rm -f "$err"
+                return 3
+              fi
               until=
               ! declare -F api_budget_stop_until >/dev/null || until=$(api_budget_stop_until "$pool")
               # A 4xx that is no rate limit (404, 422, a 403 the token lacks)
@@ -7900,9 +7907,12 @@ jobs:
           # head's runs: the loop reuses the wait's when nothing waited, and
           # reads it again after a wait. A review still running at the cap
           # fails, and rerun-ci-status re-runs ci-status when it finishes.
+          # Each read after a lane's first sends If-None-Match with the ETag
+          # of its last 200; a 304 is that same unfinished run, which GitHub
+          # does not count against the rate limit.
           poll=${REVIEW_POLL_SECONDS:-60} polls=$((${REVIEW_WAIT_SECONDS:-480} / ${REVIEW_POLL_SECONDS:-60}))
           stop_at=$(($(cat "$RUNNER_TEMP/gh-read.deadline" 2>/dev/null || echo 120) - 120))
-          declare -A waiting=()
+          declare -A waiting=() etags=()
           while [ "$polls" -gt 0 ] && read -r file lane checks; do
             run=$(lane_run "$HEAD_SHA") || { waiting=(); break; }
             if [ -n "$run" ] && [ "$(jq -r .status <<<"$run")" != completed ]; then
@@ -7914,8 +7924,13 @@ jobs:
             sleep "$poll"
             polls=$((polls - 1)) waited=$((waited + poll))
             for file in "${!waiting[@]}"; do
-              run=$(read_api "run ${waiting[$file]}" "repos/$GITHUB_REPOSITORY/actions/runs/${waiting[$file]}") || { waiting=(); break 2; }
-              [ "$(jq -r .status <<<"$run")" != completed ] || unset "waiting[$file]"
+              cond=() rc=0
+              [ -z "${etags[$file]:-}" ] || cond=(-H "If-None-Match: ${etags[$file]}")
+              run=$(gh_read -i "${cond[@]}" "repos/$GITHUB_REPOSITORY/actions/runs/${waiting[$file]}") || rc=$?
+              [[ $rc -ne 3 || ${#cond[@]} -eq 0 ]] || continue
+              [ "$rc" -eq 0 ] || { echo "::error::could not read run ${waiting[$file]}; re-run this run." >&2; waiting=(); break 2; }
+              etags[$file]=$(sed '/^\r\?$/q' <<<"$run" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
+              [ "$(sed '1,/^\r\?$/d' <<<"$run" | jq -r .status)" != completed ] || unset "waiting[$file]"
             done
           done
           [ "$waited" -eq 0 ] || { echo "Waited ${waited}s for the review lanes on $HEAD_SHA."; rm -f "$head_runs_dir/$HEAD_SHA"; }
