@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for lib/index-regen.sh — the shared slice-index regeneration
-# script.
-# Run directly: bash lib/index-regen.test.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,8 +41,6 @@ assert_not_contains() {
   esac
 }
 
-# Build a slice INDEX.md with the standard frontmatter and a stale generated
-# body. $1 = slice dir; remaining args = child names for the children list.
 write_slice_index() {
   local dir="$1"
   shift
@@ -72,8 +67,6 @@ write_slice_index() {
   } >"$dir/INDEX.md"
 }
 
-# Child slice with its own INDEX.md carrying the given abstract line (written
-# raw, so callers can pass quoted or unquoted scalars).
 write_child_index() {
   local dir="$1" abstract_raw="$2"
   mkdir -p "$dir"
@@ -86,7 +79,6 @@ write_child_index() {
   } >"$dir/INDEX.md"
 }
 
-# Index-less leaf: one reserved artifact with a header abstract.
 write_leaf_artifact() {
   local dir="$1" artifact="$2" abstract_raw="$3"
   mkdir -p "$dir"
@@ -98,7 +90,6 @@ write_leaf_artifact() {
   } >"$dir/$artifact"
 }
 
-# Extract the lines strictly between the markers.
 generated_body() {
   awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
     $0 == e { on = 0 }
@@ -111,7 +102,6 @@ run_script() {
   bash "$SCRIPT" "$@" 2>&1
 }
 
-# --- --help: side-effect-free exit 0, documents the contract -----------------
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
@@ -177,7 +167,6 @@ assert_contains "zero-children parity ok" "$OUT" "parity: ok (0 declared, 0 on d
 BODY=$(generated_body "$S")
 assert_eq "zero-children body is the explicit placeholder" "(no child slices)" "$BODY"
 
-# --- index-less leaf: abstract resolves via the reserved-name precedence ------
 S="$TEST_TMPDIR/leaf"
 write_slice_index "$S" explored planned
 write_leaf_artifact "$S/explored" EXPLORE.md 'Explore-derived abstract'
@@ -196,7 +185,6 @@ run_script "$S" >/dev/null
 BODY=$(generated_body "$S")
 assert_contains "INDEX.md outranks EXPLORE.md" "$BODY" "[kid](kid/INDEX.md) — Index-borne abstract"
 
-# --- multi-family leaf without an index is a parity error naming it -----------
 S="$TEST_TMPDIR/multifam"
 write_slice_index "$S" messy
 write_leaf_artifact "$S/messy" EXPLORE.md 'Explore abstract'
@@ -210,7 +198,6 @@ assert_contains "multi-family error demands an index" "$OUT" "requires an index"
 BODY=$(generated_body "$S")
 assert_eq "multi-family failure leaves the body untouched" "STALE BODY LINE" "$BODY"
 
-# --- parity orphans, both directions ------------------------------------------
 S="$TEST_TMPDIR/orphan-disk"
 write_slice_index "$S" alpha
 write_child_index "$S/alpha" 'Alpha abstract'
@@ -222,8 +209,6 @@ assert_contains "on-disk orphan is named" "$OUT" "on-disk child slice 'undeclare
 BODY=$(generated_body "$S")
 assert_eq "on-disk orphan leaves the body untouched" "STALE BODY LINE" "$BODY"
 
-# A duplicate declared name passes both membership walks (each copy finds the
-# one directory), so it needs its own parity rejection.
 S="$TEST_TMPDIR/dup-children"
 write_slice_index "$S" alpha alpha
 write_child_index "$S/alpha" 'Alpha abstract'
@@ -242,8 +227,6 @@ OUT=$(run_script "$S") || rc=$?
 assert_exit "declared-but-missing orphan exits 1" 1 "$rc"
 assert_contains "declared orphan is named" "$OUT" "declared child 'ghost' has no child-slice directory"
 
-# A declared subdir that exists but holds no index artifact is still an orphan
-# (the T5 predicate is content-derived, not name-derived).
 S="$TEST_TMPDIR/orphan-empty-dir"
 write_slice_index "$S" hollow
 mkdir -p "$S/hollow"
@@ -266,7 +249,6 @@ OUT=$(run_script "$S") || rc=$?
 assert_exit "interior noun-dirs do not break parity" 0 "$rc"
 assert_contains "interior noun-dirs: parity counts only the child slice" "$OUT" "parity: ok (1 declared, 1 on disk)"
 
-# --- no INDEX.md: parity explicitly not-applicable ----------------------------
 S="$TEST_TMPDIR/no-index"
 mkdir -p "$S"
 rc=0
@@ -299,7 +281,6 @@ OUT=$(run_script "$S") || rc=$?
 assert_exit "duplicated markers exit 2" 2 "$rc"
 assert_contains "duplicated markers name the counts" "$OUT" "found 2 BEGIN, 2 END"
 
-# --- size cap: exit 3, pre-existing body preserved, two-lever hint ------------
 S="$TEST_TMPDIR/cap"
 write_slice_index "$S" alpha
 write_child_index "$S/alpha" 'A long enough abstract that the tiny cap below is exceeded'
@@ -312,13 +293,11 @@ assert_contains "cap hint offers the abstract lever" "$OUT" "shorten child abstr
 assert_contains "cap hint names the override env var" "$OUT" "INDEX_REGEN_MAX_BYTES"
 BODY=$(generated_body "$S")
 assert_eq "cap failure preserves the pre-existing body" "STALE BODY LINE" "$BODY"
-# An invalid cap falls back to the default instead of silently disabling.
 rc=0
 OUT=$(INDEX_REGEN_MAX_BYTES=banana bash "$SCRIPT" "$S" 2>&1) || rc=$?
 assert_exit "invalid cap value falls back to the default" 0 "$rc"
 assert_contains "invalid cap value is called out" "$OUT" "not a positive integer"
 
-# --- wrapped/multiline abstracts fail loudly ----------------------------------
 S="$TEST_TMPDIR/wrapped-own"
 mkdir -p "$S"
 {
@@ -396,7 +375,6 @@ rc=0
 OUT=$(run_script "$S") || rc=$?
 assert_exit "underscore emphasis in the slice's own abstract exits 2" 2 "$rc"
 
-# Intraword underscores are not emphasis and must stay legal.
 S="$TEST_TMPDIR/emphasis-snake"
 write_slice_index "$S" kid
 write_child_index "$S/kid" '"Keeps snake_case_names and https://example.com/a_b_page intact"'
@@ -422,8 +400,6 @@ assert_eq "generated body is exactly one line per child" 1 "$(printf '%s\n' "$BO
 assert_contains "the + survives verbatim on the single line" "$BODY" "Adds the new gate + keeps the old one running until the flip"
 FIRSTCHARS=$(printf '%s' "$BODY" | cut -c1-2)
 assert_eq "the line is a child entry, not a bare continuation" "- " "$FIRSTCHARS"
-# And an INPUT abstract already corrupted into a wrapped '+' continuation is
-# rejected rather than re-mirrored.
 S="$TEST_TMPDIR/plus-wrapped-input"
 mkdir -p "$S"
 {

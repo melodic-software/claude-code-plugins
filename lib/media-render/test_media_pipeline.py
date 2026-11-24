@@ -55,7 +55,6 @@ class PureTest(unittest.TestCase):
             'language=eng', 'o.mp4'])
 
     def test_plan_split_cuts_at_chapter_starts_and_refuses_an_oversize_chapter(self):
-        # 100 B/s against 2,500 B with 10% headroom: 22.5 s a part at most.
         self.assertEqual(media_size.plan_split([0, 10, 20, 30], 40, 4_000, 2_500), [(0, 20), (20, 40)])
         with self.assertRaises(media_size.SizeError):
             media_size.plan_split([0, 30], 40, 4_000, 2_000)
@@ -152,7 +151,7 @@ class FfmpegTest(unittest.TestCase):
 BAND = 0.24
 SIZE = (1920, 1080)
 PLAYER_WIDTH = 888   # GitHub's inline video player, in pixels
-MIN_TEXT_PX = 14     # the smallest text height a reviewer can read in that player
+MIN_TEXT_PX = 14
 SMALLEST_FONT = r"""() => {
   let least = Infinity;
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
