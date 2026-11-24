@@ -33,9 +33,9 @@ HERE = Path(__file__).resolve().parent
 PLUGIN = HERE.parents[2]
 FIXTURE = HERE.parent / 'fixtures/shfred0.overrides.json'
 SYNTHETIC = HERE.parent / 'fixtures/synthetic.js'
-SYN_HOLDS = [2, 3] * 12   # synthetic.js HOLDS: 24 drawings held 2 and 3 frames at 24 fps
+SYN_HOLDS = [2, 3] * 12
 PACK = PLUGIN / 'styles/woodcut-ink'
-EXPECTED = 239   # distinct drawings in shfred0; a decode change that drops one must fail, not pass 238/238
+EXPECTED = 239
 
 sys.path.insert(0, str(PLUGIN / 'skills/learn-style/scripts'))
 import controls  # noqa: E402
@@ -155,12 +155,12 @@ def synthetic(work):
     starts = [sum(SYN_HOLDS[:k]) / 24 for k in range(len(SYN_HOLDS))]
     case(f'decode: {len(SYN_HOLDS)} drawings at their first frames',
          len(ds) == len(starts) and all(abs(t - s) < 1e-3 for (_, t, _), s in zip(ds, starts)))
-    measure.main([str(work / 'work'), '--tag', 'synthetic'])   # fidelity recorded, not asserted (O5 fallback b)
+    measure.main([str(work / 'work'), '--tag', 'synthetic'])
     scene = work / 'no-duration/scene.js'
     scene.parent.mkdir()
     src = SYNTHETIC.read_text(encoding='utf-8')
     cut = '\n'.join(ln for ln in src.splitlines() if not ln.startswith('window.DURATION'))
-    scene.write_text(cut, encoding='utf-8')   # ./ink.js still resolves: render.py serves scripts/
+    scene.write_text(cut, encoding='utf-8')
     case('D18: a scene without DURATION makes render.py exit 1',
          cut != src and render_cli(scene, work / 'no-duration/frames') == 1)
     case('D23: frames past f9999 and traces past d999 read in numeric order', numeric_order(work / 'd23'))

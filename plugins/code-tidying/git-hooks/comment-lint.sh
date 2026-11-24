@@ -180,7 +180,7 @@ while IFS= read -r -d '' f; do
   mkdir -p "$records/${f%/*}" && : >"$records/$f"
 done < <(adr_records)
 
-checks_changed_lines
+checks_changed_lines --skip-reindent
 checks_bash_run "$settings" --list comment_lint_allow . >"$CHECKS_TMP/allow"
 python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
   <"$CHECKS_TMP/paths" >"$CHECKS_TMP/findings" 2>"$CHECKS_TMP/judge.err"

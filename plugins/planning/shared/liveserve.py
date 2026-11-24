@@ -38,15 +38,15 @@ if str(HERE) not in sys.path:
 import detached  # noqa: E402  (beside this file; sys.path is set just above)
 import session_bridge  # noqa: E402
 
-MAX_BYTES = 50 * 1024 * 1024  # judgment: a static build with sample data fits well within this
-MAX_FILES = 2000  # judgment
+MAX_BYTES = 50 * 1024 * 1024
+MAX_FILES = 2000
 READY = re.compile(r"liveserve: serving http://127\.0\.0\.1:([0-9]{1,5})/")
-START_SECONDS = 10.0  # how long a new server may take to print READY
-MARKER = "python" if detached.WINDOWS else "liveserve.py"  # what detached.alive finds in its command line or program
+START_SECONDS = 10.0
+MARKER = "python" if detached.WINDOWS else "liveserve.py"
 CSP = "default-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 HEADERS = {"Content-Security-Policy": CSP, "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store",
            "Cross-Origin-Opener-Policy": "same-origin"}
-SENDING = 16  # judgment: files sent at once; a request past them waits up to WAIT seconds, then answers 503
+SENDING = 16
 WAIT = 10.0
 CHUNK = 64 * 1024
 TEXT = "text/plain; charset=utf-8"
@@ -178,7 +178,7 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "liveserve"
     sys_version = ""
     protocol_version = "HTTP/1.1"
-    timeout = 30  # judgment: an idle or slow connection is closed after this many seconds
+    timeout = 30
 
     def __getattr__(self, name):
         # BaseHTTPRequestHandler answers 501 to a method it has no do_X for; every method but GET and HEAD is 405 here.

@@ -75,7 +75,9 @@ set `block`.
   move the reason into the code or the commit message, or link the outside constraint.
 - An outside-constraint note needs its link, or `remove-comments-ignore`, to pass the lint, though
   the keep list keeps it without one. About one finding in eight in the dry run was such a note.
-- A moved or re-indented comment counts as added.
+- A comment moved in from another file counts as added. One only re-indented or moved within its own
+  file does not, so a formatter-only change passes
+  ([#17178](https://github.com/melodic-software/claude-code-plugins/issues/17178)).
 - The commit-time hook needs Python 3 with pygments on each machine that commits; an agent without
   it gets a failed commit, a person a notice. CI installs pygments already.
 - Workflow files are judged, since the version-pin shape exists only there; the comment pass skips

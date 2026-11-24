@@ -15,7 +15,6 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 mkdir -p "$TMP/deep/1/2/3/empty" "$TMP/named"; EMPTY="$TMP/deep/1/2/3/empty"
-# Four directories above SOLO hold no other repository, so the ancestor probe never leaves the fixture.
 SOLO="$TMP/iso/a/b/c/repo"
 mkdir -p "$SOLO"
 git -C "$SOLO" init -q -b main
@@ -35,7 +34,6 @@ else
   fail "named path wins" "$out"
 fi
 
-# The stub records its args and prints two roots only for `root --all`.
 cat >"$TMP/ghq" <<EOF
 #!/bin/sh
 printf '%s\n' "\$*" >"$TMP/ghq-args"
@@ -84,7 +82,6 @@ else
   fail "parent holding 2 repos is emitted as ancestor" "$out"
 fi
 
-# A working directory inside one checkout resolves that checkout's parent as the root.
 mkdir -p "$TMP/fleet"
 git -C "$TMP/fleet" init -q -b main "$TMP/fleet/one"
 git -C "$TMP/fleet" init -q -b main "$TMP/fleet/two"
@@ -97,7 +94,6 @@ else
   fail "cwd at a checkout root resolves its sibling fleet as ancestor" "$out"
 fi
 
-# Dot-prefixed sibling checkouts count toward the ancestor, as the shared walker traverses them.
 mkdir -p "$TMP/hidden"
 git -C "$TMP/hidden" init -q -b main "$TMP/hidden/.one"
 git -C "$TMP/hidden" init -q -b main "$TMP/hidden/.two"
@@ -108,7 +104,6 @@ else
   fail "dot-prefixed sibling checkouts qualify a parent as the ancestor" "$out"
 fi
 
-# 4 directories below the checkout top: counting from the working directory would stop inside the checkout.
 mkdir -p "$TMP/fleet/one/a/b/c/d"
 out="$(SCOPE_CWD="$TMP/fleet/one/a/b/c/d" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"
 if [[ "$out" == "$want" ]]; then

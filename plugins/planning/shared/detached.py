@@ -191,7 +191,6 @@ def _pid_ok(pid):
 
 
 def _output(cmd, timeout=5, env=None):
-    """cmd's stdout as text, or None when it cannot be run or times out."""
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env).stdout
     except (OSError, subprocess.SubprocessError):
@@ -341,7 +340,6 @@ def stop(pid, marker, start=None, wait=5.0):
 
 
 def _gone_within(pid, wait):
-    """True once pid has exited, checked every 50 ms for at most `wait` seconds."""
     deadline = time.monotonic() + wait
     while time.monotonic() < deadline:
         if not _running(pid):

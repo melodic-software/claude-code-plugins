@@ -28,7 +28,6 @@ const README = 'https://github.com/melodic-software/claude-code-plugins/blob/mai
 type Level = 'quiet' | 'approach' | 'edge'
 type Event = Level | 'reset'
 type Reading = Map<string, SessionRateLimit>
-// An event and the reading that produced it, so a late line states both from one reading.
 type Due = { event: Event; limit: SessionRateLimit | undefined }
 type Identity = { uuid?: string; email?: string }
 type Voided = { cause: 'account' | 'reset'; kinds: string[] }
@@ -350,7 +349,6 @@ async function refresh($: EngineInterface, st: State, cfg: Config, limits?: read
     limits ?? $.session.usage().then(u => u.rateLimits),
     currentIdentity($, st).catch(() => undefined),
   ])
-  // A refresh that started before the last one applied holds an older reading and identity.
   if (seq < st.appliedSeq) return
   st.appliedSeq = seq
   // An unreadable identity is no evidence either way, so the recorded one stands; a field one
@@ -386,7 +384,6 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   }
   if (await operatorHolds($, st, cfg)) return []
   const lines = dueLines(st, cfg)
-  // A restatement with no reading to restate waits for the first carrier that has one.
   if ((st.restate || st.restateIfLoud) && (st.reading?.size ?? 0) === 0) return []
   consume(st)
   if (lines.length > 0 && st.notice?.kind === 'operator') {
@@ -546,7 +543,6 @@ const reportOptions = ($: EngineInterface, st: State, cfg: Config) => {
   for (const line of cfg.bad) logOnce($, st, line, line, 'transcript')
 }
 
-// Decides in memory whether to write, so an event that writes nothing starts no process.
 async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger: 'event' | 'timer') {
   if (!cfg.writes || st.origin?.kind === 'task-notification' || st.reading === undefined) return
   const home = await homeDir($)
@@ -570,7 +566,6 @@ async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger
   const sig = JSON.stringify({ ...body, captured_at: undefined })
   if (st.lastAttempt !== undefined && st.lastAttempt.sig === sig && now - st.lastAttempt.at < FLOOR_MS) return
   const argv = ['node', `${$.plugin.root}/${HELPER}`, target, '--preserve-key', 'rate_limits', ...(moved ? [] : ['--floor', '300'])]
-  // Only a write the helper decided (written, or skipped by rule) dedupes; a failed one is tried at the next carrier.
   try {
     const run = await $.process.run(argv, { stdin: JSON.stringify(body), timeoutMs: 10_000 })
     if (run.exitCode === 0 || run.exitCode === 3) {
