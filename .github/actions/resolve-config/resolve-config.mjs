@@ -51,8 +51,14 @@ const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 const MERGEABLE_READS = 3;
 const MERGEABLE_WAIT_MS = 5000;
 
-const readOwn = (name) =>
-  JSON.parse(readFileSync(new URL(name, import.meta.url), "utf8"));
+const OWN_FILES = {
+  "./lane-rules.json": new URL("./lane-rules.json", import.meta.url),
+  "./effect-grants.json": new URL("./effect-grants.json", import.meta.url),
+  "./activity-rules.json": new URL("./activity-rules.json", import.meta.url),
+  "./patch-rules.json": new URL("./patch-rules.json", import.meta.url),
+  "./patch-rules.schema.json": new URL("./patch-rules.schema.json", import.meta.url),
+};
+const readOwn = (name) => JSON.parse(readFileSync(OWN_FILES[name], "utf8"));
 
 function readUnder(root, relative, name = "base-path") {
   let real;

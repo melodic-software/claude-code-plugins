@@ -164,14 +164,18 @@ function stage(overrides) {
   return { status: result.status, stdout: result.stdout, args, allowed, denied, prompt, plugins, jobEnv, env };
 }
 
-test("every module and file a runner's script activity loads resolves in the staged base-script layout", () => {
+function runnerScripts() {
   const { parse } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("yaml");
   const config = parse(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"));
   const runnerLanes = Object.entries(config.lanes).filter(([lane]) => {
     const workflow = path.join(REPO_ROOT, ".github/workflows", `${lane}.yml`);
     return existsSync(workflow) && /uses: \.\/\.github\/workflows\/pr-run-activity-(read|write)\.yml/.test(readFileSync(workflow, "utf8"));
   });
-  const scripts = [...new Set(runnerLanes.flatMap(([, lane]) => lane.slots.map((slot) => config.activities[slot.activity].script)).filter(Boolean))];
+  return [...new Set(runnerLanes.flatMap(([, lane]) => lane.slots.map((slot) => config.activities[slot.activity].script)).filter(Boolean))];
+}
+
+test("every module and file a runner's script activity loads resolves in the staged base-script layout", () => {
+  const scripts = runnerScripts();
   assert.ok(scripts.includes(".github/scripts/pr-unblock/report-escalation.sh"), scripts.join(" | "));
   const copy = skillScript(/^\s+- name: Copy the script's base directory$/);
   const runs = ["read", "write"].map((kind) => {
@@ -236,6 +240,34 @@ test("a staged resolve-config module still loads yaml and ajv from the copied no
   const staged = path.join(dest, ".github/actions/resolve-config/resolve.mjs");
   const run = spawnSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(pathToFileURL(staged).href)});`], { cwd: dest, encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
+});
+
+test("every runner .mjs entry imports from its staged tree", () => {
+  const entries = runnerScripts().filter((script) => script.endsWith(".mjs"));
+  assert.ok(entries.length > 0);
+  for (const script of entries) {
+    const dest = mkdtempSync(path.join(root, "closure-"));
+    stageClosure(REPO_ROOT, script, dest);
+    const url = pathToFileURL(path.join(dest, script)).href;
+    const run = spawnSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(url)});`], { cwd: dest, encoding: "utf8" });
+    assert.equal(run.status, 0, `${script}: ${run.stderr}`);
+  }
+});
+
+test("a script path outside the base is refused before anything is read or copied", () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  for (const script of ["../outside/run.sh", ".github/../../outside/run.sh", path.join(REPO_ROOT, ".github/scripts/pr-unblock/report-escalation.sh")]) {
+    assert.throws(() => stageClosure(REPO_ROOT, script, dest), /outside the base/, script);
+  }
+  assert.deepEqual(readdirSync(dest), []);
+});
+
+test("a staged declare-test-scope reads the base config through resolve-config's rule files", async () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  const script = ".github/scripts/pr-unblock/declare-test-scope.mjs";
+  stageClosure(REPO_ROOT, script, dest);
+  const { testScopeFromBase } = await import(pathToFileURL(path.join(dest, script)).href);
+  assert.equal(typeof (await testScopeFromBase(REPO_ROOT)).apply, "boolean");
 });
 
 // #8595: the lanes run the latest CLI, so the comment above shell_denied

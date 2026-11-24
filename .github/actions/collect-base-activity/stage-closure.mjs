@@ -23,8 +23,10 @@ const KEPT_TREES = [path.join(".github", "actions", "resolve-config", "node_modu
 
 export function stage(base, script, dest) {
   const root = path.resolve(base);
+  const entry = path.relative(root, path.resolve(root, script));
+  if (!entry || entry.startsWith("..") || path.isAbsolute(script)) throw new Error(`${script} is outside the base`);
   const copies = new Set();
-  const entryDir = path.dirname(path.normalize(script));
+  const entryDir = path.dirname(entry);
   if (entryDir !== ".") {
     for (const entry of readdirSync(path.join(root, entryDir), { withFileTypes: true })) {
       if (!entry.isDirectory()) copies.add(path.join(entryDir, entry.name));
