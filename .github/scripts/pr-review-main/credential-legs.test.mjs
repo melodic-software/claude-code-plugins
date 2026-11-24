@@ -25,7 +25,6 @@ import { admits } from "../lib/gate-expression.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
 
 const TEXT = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
-// Each job and step is read once.
 const memo = (fn) => {
   const seen = new Map();
   return (...args) => {
@@ -48,13 +47,11 @@ const SECRETS = { key: "REVIEWS_CLAUDE_API_KEY", sub: "REVIEWS_CLAUDE_CODE_OAUTH
 const SHA = "a".repeat(40);
 const SLOTS = [1, 2, 3, 4];
 
-// evaluate() reads no matrix context; a matrix value rides under inputs.
 const expr = (text) => text.replace(/\bmatrix\./g, "inputs.matrix.");
 const val = (text, ctx) => value(expr(text), ctx);
 const stepRuns = (condition, ctx, jobOk) => admits(expr(condition), ctx, { status: jobOk ? "success" : "failure" });
 const named = wf.stepNamed;
 
-// The handoff step's own reason check (its run: case), from the workflow.
 const CASE = /case "\$REASON" in\n\s+([a-z| -]+)\) ;;/.exec(named(KEY, "Hand the lane on").text)[1].split("|").map((r) => r.trim());
 
 // The old conditions, reasons and route env, at a6a9c686f3 (main before this
@@ -70,17 +67,12 @@ const OLD = {
   fallbackReason: "${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}",
 };
 
-// The old credential steps' shell (5599e627fc): present=true on a set
-// secret; else present=false when a later leg is set (the key leg always,
-// the subscription leg on the fallback token), else no present output.
 function oldCredential(legName, s) {
   const own = { key: s.key, subscription: s.sub, fallback: s.fallback }[legName];
   const later = { key: true, subscription: s.fallback, fallback: false }[legName];
   return { present: own ? "true" : later ? "false" : "", "fallback-ready": String(later) };
 }
 
-// The launcher steps' outputs: the outcome lands on chunk `at`, the chunks
-// before it having reviewed and handed nothing on.
 function chunks(ran, l, outcome) {
   const steps = {};
   for (const k of SLOTS) {
@@ -92,9 +84,6 @@ function chunks(ran, l, outcome) {
   return steps;
 }
 
-// One lane's instance of one leg job, old or new: whether its model runs,
-// its fallback-ready, its records' fallback-reason, and the reason it hands
-// the lane on with ("" for none).
 function legInstance(version, job, legName, s, l, reason) {
   const base = { "inputs.matrix.lane": l.lane, "inputs.matrix.reason": reason, ...s.secrets };
   const reached = l.applies && !l.off;
@@ -141,8 +130,6 @@ function legInstance(version, job, legName, s, l, reason) {
 }
 const prefixed = (prefix, map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [`${prefix}.${k}`, v]));
 
-// A route job's matrix: the lanes with a non-empty reason, or a failed
-// route (no next leg for any lane) when one reason is outside REASONS.
 function route(id, envFor, ctx) {
   const reasons = named(id, "Route the handed-off lanes").env.REASONS.split(" ");
   const rows = LANES.map((l) => ({ lane: l.lane, reason: val(envFor(l), ctx) })).filter((r) => r.reason !== "");
@@ -167,7 +154,6 @@ function chain(version, s) {
     ...Object.fromEntries(s.lanes.map((l, i) => [`vars.${LANES[i].sw}`, l.off ? "true" : ""])),
   };
   const out = { reports: [], started: [], legs: {} };
-  // The gate.
   if (version === "old") {
     ctx["steps.gate.outputs.skip-key"] = { ok: "false", skip: "true", failed: "" }[s.gate];
     ctx[`needs.${GATE}.outputs.skip-key`] = ctx["steps.gate.outputs.skip-key"];
@@ -180,7 +166,6 @@ function chain(version, s) {
     const condition = version === "old" ? OLD.report(l.sw) : named(GATE, `Report the skipped ${l.lane} key leg`).if;
     if (runs(condition, ctx)) out.reports.push(l.lane);
   }
-  // The key leg, one instance per lane.
   const handed = {};
   if (runs(version === "old" ? OLD.key : wf.jobIf(KEY), ctx)) {
     out.started.push(KEY);
@@ -195,7 +180,6 @@ function chain(version, s) {
     ctx[`needs.review.outputs.${l.lane}`] = handed[l.lane] ?? "";
     ctx[`needs.review.outputs.${l.lane}-base-sha`] = handed[l.lane] ? SHA : "";
   }
-  // The key route, then each later leg and the route after it.
   let rows = [];
   if (runs(version === "old" ? OLD.route : wf.jobIf("review-handoffs"), ctx)) {
     const r = route("review-handoffs", (l) => (version === "old" ? OLD.routeEnv(l.lane, l.sw) : named("review-handoffs", "Route the handed-off lanes").env[l.env]), ctx);
@@ -236,8 +220,6 @@ const KEY_OUTCOMES = launcherOutcomes(S.handoffReason, "api-key", false);
 const SUB_OUTCOMES = { true: launcherOutcomes(S.handoffReason, "subscription", true), false: launcherOutcomes(S.handoffReason, "subscription", false) };
 const subOutcomes = (fallback) => SUB_OUTCOMES[fallback];
 
-// The first lane walks every dimension; the second takes a few fixed shapes,
-// one of them switched off, which keeps the count inside the time budget.
 function* firstLane() {
   for (const applies of [true, false])
     for (const off of [false, true])
@@ -279,8 +261,6 @@ test("both lanes' chains start the same legs with the same credential decisions 
     assert.deepEqual(after, before, show(s));
     shapes.add(before.started.filter((j) => !j.includes(":")).join(","));
   }
-  // Every shape is reached: no leg, key only, key then subscription, the
-  // subscription alone (a gate skip), and on to fallback.
   for (const shape of ["", KEY, `${KEY},${SUB}/claude-review`, `${KEY},${SUB}/claude-review,${FB}/claude-review`, `${SUB}/claude-review,${SUB}/claude-security-review`, `${SUB}/claude-review,${FB}/claude-review`]) {
     assert.ok(shapes.has(shape), `reached ${shape || "no leg"}`);
   }

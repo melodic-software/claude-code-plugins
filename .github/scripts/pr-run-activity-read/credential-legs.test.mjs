@@ -1,17 +1,3 @@
-// pr-run-activity-read.yml runs one leg per call: the caller's first call
-// the key, its second the subscription token, its third the fallback token,
-// chosen by the caller's fallback input. Its presence steps (key-present,
-// token-present, fallback-present) are ci-workflows' select-model-credential
-// leg calls, fetched at the pin the workflow names, and check-broker's credit
-// read is its start call. The callers chain their next call on this file's
-// workflow_call outputs, which keep their names and values: this table drives
-// the run job's own step conditions, inputs and outputs through every
-// fallback input, fallback-ready, credit verdict, secret set or empty, each
-// launcher end run-claude-cli's own handoffReason can produce, and a step
-// failing after the leg, and holds each state to the expressions the file
-// used before the action (quoted from 5599e627fc): the same steps run and
-// credential-present, handed-off, lane-class and both fallback reasons keep
-// their values.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -25,12 +11,10 @@ import { workflowText } from "../lib/workflow-text.mjs";
 
 const PATH = new URL("../../workflows/pr-run-activity-read.yml", import.meta.url);
 const TEXT = readFileSync(PATH, "utf8");
-// `defaults: run:` precedes the jobs, so the job reader starts at `jobs:`.
 const JOBS = TEXT.slice(TEXT.indexOf("\njobs:\n"));
 const wf = workflowText(JOBS);
 const S = await loadSelect(selectPin(TEXT));
 
-// A run job step's condition, single-line or folded.
 function stepIf(body) {
   const folded = /^ {8}if: >-\n((?: {10}.*\n)+)/m.exec(body);
   if (folded) return folded[1].replace(/\s+/g, " ").trim();
@@ -43,7 +27,6 @@ const stepBody = (name) => {
 };
 const envOf = (body, name) => new RegExp(`^ {10}${name}: (.*)$`, "m").exec(body)[1];
 
-// The old presence steps, outputs and reasons, at 5599e627fc.
 const READY = "steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'";
 const OLD = {
   keyIf: `${READY} && inputs.fallback == ''`,
@@ -60,8 +43,6 @@ const SECRETS = { key: "claude-api-key", sub: "claude-code-oauth-token", fallbac
 const STEPS = { key: "key-present", sub: "token-present", fallback: "fallback-present" };
 const ACT = { key: "act-key", sub: "act-token", fallback: "act-fallback" };
 
-// The steps after the presence checks, unchanged by the action: their
-// conditions come from the workflow text.
 const RECORD = stepBody("Record the launcher's lane outcome");
 const COLLECT = stepBody("Collect the issue outcome");
 const LATER = {
@@ -70,7 +51,6 @@ const LATER = {
   collect: stepIf(COLLECT),
 };
 
-// The launcher's outputs for the leg that ran, ended by `end`.
 function act(leg, end) {
   const id = ACT[leg];
   const handoff = end.kind === "handoff";
@@ -82,16 +62,12 @@ function act(leg, end) {
   };
 }
 
-// The run job from the presence steps on, given each presence step's
-// outputs: which launcher ran, the job outputs, and both fallback reasons.
 function after(base, presence, s, outputs, recordReason, collectReason) {
   const ctx = { ...base, ...presence, "steps.config.outputs.kind": "skill", "steps.act-turns.outcome": "success" };
   for (const leg of Object.keys(ACT)) {
     ctx[`steps.${ACT[leg]}.outcome`] = "skipped";
     if (runs(LATER.act[leg], ctx)) Object.assign(ctx, act(leg, s.end));
   }
-  // A step failing after the leg changes no output: the job outputs and the
-  // lane record (always()) read step outputs whatever the job's result.
   if (s.failAfter) ctx["steps.act-error.outcome"] = "failure";
   const out = {
     ran: Object.values(ACT).filter((id) => ctx[`steps.${id}.outcome`] !== "skipped"),
@@ -110,7 +86,6 @@ function context(s) {
     "inputs.role": "pr-unblock",
     "steps.launch.outcome": s.reached ? "success" : "skipped",
     "steps.go.outputs.run": s.reached ? "true" : "",
-    // check-broker reads the credit history on the first call alone.
     "needs.check-broker.outputs.skip-key": s.fallback === "" ? s.gate : "",
     [`secrets.${SECRETS.key}`]: s.key ? "set" : "",
     [`secrets.${SECRETS.sub}`]: s.sub ? "set" : "",
@@ -139,7 +114,6 @@ function newRun(s) {
     presence[`steps.${id}.outcome`] = "skipped";
     if (!runs(stepIf(call.text), base)) continue;
     const input = (name) => (call.inputs[name] === undefined ? "" : value(call.inputs[name], base));
-    // No presence call reads the credit history itself.
     assert.equal(input("key-job"), "", id);
     const decided = S.leg({ leg: LEG[leg], role: input("role"), credentialSet: input("credential-set"), fallbackSet: input("fallback-set"), keyOff: input("key-off"), selected: input("selected"), held: false, reason: input("reason") }).outputs;
     presence[`steps.${id}.outcome`] = "success";
@@ -156,8 +130,6 @@ function newRun(s) {
   );
 }
 
-// The launcher ends a leg can have: a result, a failure, or each handoff
-// run-claude-cli's handoffReason produces for that leg.
 function ends(leg, ready) {
   const launcherLeg = { key: "api-key", sub: "subscription", fallback: "fallback" }[leg];
   const out = [{ kind: "result" }, { kind: "fail" }];
@@ -165,9 +137,6 @@ function ends(leg, ready) {
   return out;
 }
 
-// The run job's first step holds these: issue mode takes an empty, handoff,
-// credit-stop or fallback input, and only the second call takes a
-// fallback-ready.
 const valid = (issue, fallback, ready) =>
   (!issue || ["", "handoff", "credit-stop", "fallback"].includes(fallback)) && (["", "fallback"].includes(fallback) ? ready === "" : true);
 
@@ -204,8 +173,6 @@ test("pr-run-activity-read's run job runs the same leg and sets the same outputs
 });
 
 test("the workflow_call outputs the run and check-broker jobs set, and their sources, are unchanged from 5599e627fc", () => {
-  // Quoted from 5599e627fc, with the broker job under its id since its rename,
-  // check-broker.
   const call = {
     "head-sha": "${{ jobs.run.outputs.head-sha }}",
     "lane-class": "${{ jobs.run.outputs.lane-class }}",
@@ -217,7 +184,6 @@ test("the workflow_call outputs the run and check-broker jobs set, and their sou
   };
   const brokerCheck = {
     allowed: "${{ steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true' }}",
-    // Since 5599e627fc, a start-gate budget stop also sets skip-reason budget.
     "skip-reason": "${{ steps.kill.outputs.cause == 'budget' && 'budget' || steps.broker.outputs.skip-reason }}",
     attempt: "${{ github.run_attempt }}",
     lease: "${{ steps.lease.outputs.lease }}",
@@ -229,7 +195,6 @@ test("the workflow_call outputs the run and check-broker jobs set, and their sou
   for (const [name, expression] of Object.entries(call)) {
     assert.equal(new RegExp(`^ {6}${name}:\\n(?: {8}.*\\n)*? {8}value: (.*)$`, "m").exec(outputsBlock)?.[1], expression, name);
   }
-  // skip-run feeds only this file's run and report conditions, checked by value below.
   const { "skip-run": skipRun, ...kept } = wf.outputs("check-broker");
   assert.equal(typeof skipRun, "string");
   assert.deepEqual(kept, brokerCheck);
@@ -246,13 +211,6 @@ test("check-broker's start call reads the credit history on the first call alone
   assert.match(credit.text, /^ {8}continue-on-error: true$/m, "a failed read runs the key");
 });
 
-// A first call whose key check-broker's credit read skipped hands off before
-// its run job when declines are posted: no run job, no report, so the
-// caller's handoff read finds no check posted and starts the subscription
-// call, as it did when the run job ran only to hand off. The job conditions
-// below are the ones the file used before (quoted from 538e065c10), with the
-// sender id's format('{0}', ...) read as the id itself, which the evaluator
-// takes as a context name.
 const OLD_GATES = {
   run: "!(github.event_name == 'pull_request' && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID) && needs.check-broker.outputs.skip-reason == ''",
   report:
@@ -353,7 +311,6 @@ test("with the key leg's run and report skipped, the jobs after them skip as the
   assert.equal(runs(wf.jobIf("record-broker-allow"), { "needs.check-broker.outputs.allowed": "true" }), true, "record-broker-allow still records the allow");
 });
 
-// handoff-evidence.sh on a stub gh that answers one jobs listing.
 const EVIDENCE = fileURLToPath(new URL("../lib/handoff-evidence.sh", import.meta.url));
 function evidence(jobs, calls, facts) {
   const dir = tempDir("skip-run-evidence-");

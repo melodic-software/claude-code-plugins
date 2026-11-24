@@ -1,28 +1,3 @@
-// Starts the pr-unblock lane's review-dependency activity for each open
-// Dependabot pull request dependency-classify.mjs sorts `review`, from the
-// same dispatcher run as dispatch.mjs (pr-unblock-dispatch.yml), so the
-// trigger gate and the broker check it as they check a resolve-conflicts
-// dispatch. A head that already carries a pr-unblock / review-dependency check
-// run was reviewed, unless the head's newest pr-unblock /
-// apply-dependency-verdict check run skipped no-model-turn: the
-// review-dependency check runs that started before it handled nothing, so the
-// head is dispatched again. A verdict check that is a lane stop (a reason
-// escalation-routes.json routes to a failing status) or a kill-switch stop
-// releases them the same way, until `limits.limit-stops-per-head` such stops stand on the head, as
-// in dispatch.mjs. The model job's own selection decides the round
-// cap, and every such round posts its round marker. A limit stop holds the
-// head only until its limit resets, at most `limits.limit-stops-per-head`
-// times (limit-stop.mjs), as in dispatch.mjs. Logs carry PR numbers, SHAs and
-// run ids only.
-//
-// Reads are spent only where they can change the decision: none once
-// maxDispatch is reached, none for a head the record holds as reviewed, and
-// no commits or files for a red ci-status, which is review tier on its own
-// (dependency-classify.mjs classify). A head is recorded only once a verdict
-// check started after its newest review-dependency check, or that check is a
-// select job skip no verdict follows, so a no-model-turn verdict still to come
-// can release it.
-
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
@@ -34,22 +9,12 @@ export const DEFAULTS = Object.freeze({
   base: "main",
   workflow: "pr-unblock.yml",
   checkName: "pr-unblock / review-dependency",
-  // The verdict job's check: its no-model-turn skip releases the round's
-  // review-dependency check runs.
   verdictCheckName: "pr-unblock / apply-dependency-verdict",
   // The GitHub Actions app, as in dispatch.mjs.
   appId: 15368,
-  // Judgment: one model run per PR, a few Dependabot PRs open at a time.
   maxDispatch: 2,
 });
 
-// The neutral titles review-dependency-not-run posts from the select job's
-// skip reasons (review-dependency.mjs select): no verdict job follows them,
-// so no no-model-turn verdict can release the head. The select job's
-// superseded-sha lands on the head it was sent for, which the PR has left;
-// the same title on the head read here, the PR's current one, is the gate's
-// head-lag stop, which did no work, so lagStopsRelease sends it again
-// (limit-stop.mjs) and it is not recorded.
 const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", "Skipped: not-applicable", "Skipped: superseded-sha"]);
 
 const GATE_JOB = /\/actions\/runs\/([1-9][0-9]*)\/job\/([1-9][0-9]*)$/;
@@ -143,7 +108,6 @@ export async function dispatchDependencyReviews({
     try {
       const ci = await gateCheckRuns((name) => api.listCheckRuns({ sha: node.headRefOid, checkName: name, appId }));
       const ciStatus = ciStatusOf(ci);
-      // The same reads the model job's select step classifies from.
       tier = RED.has(ciStatus) ? "review" : (
         await classifyPull({
           pull: {
@@ -172,15 +136,6 @@ export async function dispatchDependencyReviews({
       if (ciStatus === "success") {
         existing = existing.filter((run) => !(run.status === "completed" && run.conclusion === "neutral" && run.output?.title === `Skipped: ${GATE_HOLD_SKIP}`));
       }
-      // A round whose verdict job skipped no-model-turn handled nothing, and
-      // one whose verdict job stopped on a reason routed to a failing status,
-      // or that the kill switch stopped (limit-stop.mjs releasesHead), is
-      // retried on the same head, a fresh model session, until
-      // limit-stops-per-head such stops stand on it: either way the
-      // review-dependency check runs that started before that verdict job
-      // stop counting, so this run dispatches the head again. A limit stop is
-      // not released that way, though its round's verdict also finds no model
-      // turn: it holds the head until its limit resets.
       let verdicts = [];
       if (anyHandles(existing, { now, limits, lagStopsRelease: true })) {
         verdicts = await api.listCheckRuns({ sha: node.headRefOid, checkName: verdictCheckName, appId });
@@ -196,11 +151,6 @@ export async function dispatchDependencyReviews({
           }
         }
       }
-      // Until a verdict check started after the newest review-dependency
-      // check, a no-model-turn verdict may still release the head, so it is
-      // not recorded yet; a newest check that is a select job skip no verdict
-      // job follows records at once. A limit stop never records the head, or
-      // its reset could not release it. An unreadable start records nothing.
       const newestCheck = Math.max(...existing.map(startOf));
       const last = existing.find((run) => startOf(run) === newestCheck);
       const terminal = last?.status === "completed" && last.conclusion === "neutral" && TERMINAL_SKIPS.has(last.output?.title);
@@ -208,7 +158,6 @@ export async function dispatchDependencyReviews({
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
-      // A read that fails, whatever GitHub answered, holds the PR for a later run.
       log(`::warning::#${node.number}: could not read check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
       continue;
     }

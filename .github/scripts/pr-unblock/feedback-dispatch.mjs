@@ -196,7 +196,6 @@ import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-f
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
 import { answeredIds, anyListed, askedComments, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
 
-// fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, startOf, writeRecord } from "./dispatch-record.mjs";
@@ -212,24 +211,14 @@ export const DEFAULTS = Object.freeze({
   activity: "address-feedback",
   replyActivity: "publish-feedback",
   checkName: "pr-unblock / address-feedback",
-  // The reply job's check: its no-model-turn or finding-stands skip
-  // releases the round's address-feedback check runs.
   replyCheckName: "pr-unblock / publish-feedback",
   reviewWorkflows: Object.freeze([
     ".github/workflows/pr-review-hosted.yml",
     ".github/workflows/pr-review-security-hosted.yml",
   ]),
-  // The lanes each review workflow names in its reviewed-head marker
-  // (melodic-software/ci-workflows pr-review-cli.yml).
   markerLanes: Object.freeze(["claude-review", "claude-security-review"]),
   holdLabels: FEEDBACK_HOLDS,
-  // claude[bot], which posted reviews before both lanes moved to pr-review-cli
-  // (.github/standards/trusted-actors/trusted-actors.json). pr-review-cli posts
-  // as github-actions[bot]; threadAuthors accepts those comments only when the
-  // lane footer is their last line, which withLaneBinding keeps only on a
-  // comment bound to its lane's run.
   reviewerId: 209825114,
-  // github-actions[bot], which writes the reviewed-head markers.
   markerAuthorId: ACTIONS_BOT_ID,
   // The GitHub Actions app: only a check run it created counts.
   appId: 15368,
@@ -262,12 +251,7 @@ export async function ownerSkip({ api, pull, adoption, now }) {
   return "";
 }
 
-// The tick whose completion starts the sweep.
 export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
-// Releasing rounds at one head, or rounds for a fix request (sweepFixRequest),
-// after which the sweep stops sending it (judgment: a third round with no model
-// turn points at a cause a retry does not clear; the select job's round cap,
-// address-feedback.mjs DEFAULT_MAX_ROUNDS, may end it sooner).
 export const SWEEP_HEAD_CAP = 3;
 
 const newestStarted = (runs) => runs.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), runs[0]);
@@ -275,29 +259,15 @@ const newestStarted = (runs) => runs.reduce((a, b) => (startOf(b) > startOf(a) ?
 const isoSeconds = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 const heldLabels = (pull, settings) => (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
 const slotEnabled = (resolved, name) => resolved?.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
-// The first listed run of the activity for PR `number` created at or after
-// `since` (ms); a run with no readable creation time counts.
 const runSince = async ({ api, settings }, number, since) =>
   (await api.listWorkflowRuns(settings.workflow)).find(
     (run) => isPrUnblockTitle(run.display_title, settings.activity, number) && !(Date.parse(run.created_at ?? "") < since),
   );
-// The reply check skips that leave the head for another round: a lane stop
-// (a stop escalation-routes.json routes to a failing status) is retried on
-// the same head, a fresh model session, under SWEEP_HEAD_CAP with the rest,
-// and so is a kill-switch stop, which posted no reply.
 const RELEASES = new Set(["Skipped: no-model-turn", "Skipped: finding-stands", LANE_STOP, KILL_SWITCH_STOP]);
 const releases = (run) => run?.status === "completed" && run.conclusion === "neutral" && RELEASES.has(run.output?.title);
-// The gate's head-lag stop (check-trusted-trigger.mjs fetchPull), which
-// report-check-run posts as a superseded-sha skip (gate-skip-reasons.json) on
-// the head the select job read. Every other superseded-sha check lands on a
-// head the PR has left (a cancel, apply-patch's moved tip), so one on the
-// PR's current head is a lag stop that did no work there.
 const headLagStop = (run) => run.status === "completed" && run.conclusion === "neutral" && run.output?.title === "Skipped: superseded-sha";
-// A pass-only round's reply check (publish-feedback.mjs PASS_ONLY_SKIP)
-// answers no thread, so it neither releases a head nor ends a release.
 const roundReplies = (runs) => runs.filter((run) => run.output?.title !== "Skipped: pass-only");
 
-// The SHA the newest marker of `lane` written by the marker author names, or "".
 export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAuthorId) {
   const prefix = `<!-- claude-lane-reviewed-head lane=${lane} sha=`;
   const marker = comments
@@ -307,11 +277,6 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
   return SHA.test(sha) ? sha : "";
 }
 
-// threadAuthors' answer for an unresolved thread, read in full, that the select
-// job keeps: it accepts the thread and its review is on a marker-confirmed
-// head (onReviewedHead), unless requestSkip finds no trusted `@codex` request
-// behind a listed bot's review in `mentions` and `reviews` (its reason goes to
-// `log`). `heads` is reviewedHeads of the PR's issue comments.
 function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set(), mentions = [], reviews = [], triggers = null, log = () => {} }) {
   if (thread.isResolved !== false || thread.comments.pageInfo?.hasNextPage === true) {
     return null;
@@ -360,15 +325,11 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
   return authors;
 }
 
-// The `@codex` request candidates and review times requestSkip reads, from
-// the PR's issue comments (REST), its threads (THREADS_QUERY) and, only when
-// an unresolved thread holds a listed bot's comment, one read of its reviews.
 async function requestEvidence({ api, number, pull, comments, threads, reviewerIds }) {
   const listed = threads.some((thread) => thread.isResolved === false && anyListed(thread.comments.nodes.map((node) => node.author?.databaseId), reviewerIds));
   if (!listed) {
     return { mentions: [], reviews: [], triggers: null };
   }
-  // Serial reads: the outage posture's element 6 (docs/conventions/pr-pipeline/README.md#outage-posture).
   const reviews = await api.listReviews(number);
   const triggers = await readTriggers({ api, pr: number, pull });
   return {
@@ -381,18 +342,12 @@ async function requestEvidence({ api, number, pull, comments, threads, reviewerI
   };
 }
 
-// With escalatedOnly, only a thread the lane answered (its escalation or a
-// finding-stands adjudication) that threadAuthors marks with a trusted
-// person's direction after it counts: a decided thread, not a fix request.
 export const hasWorkableThread = (threads, { escalatedOnly = false, ...options }) =>
   threads.some((thread) => {
     const authors = keptAuthors(thread, options);
     return authors !== null && (!escalatedOnly || (authors.some((entry) => entry.author === "lane") && authors.some((entry) => entry.direction === true)));
   });
 
-// When the newest fix request by one of `fixers` was posted in a thread the
-// select job keeps and the reviewer bot opened, in ms, or null. Direction may
-// sit on any head (onReviewedHead), so no reviewed head is needed.
 function newestFixRequest(threads, { fixers, ...options }) {
   const times = threads.flatMap((thread) => {
     const authors = keptAuthors(thread, { ...options, fixers, heads: new Set() });
@@ -407,7 +362,6 @@ function newestFixRequest(threads, { fixers, ...options }) {
   return readable.length > 0 ? Math.max(...readable) : null;
 }
 
-// fixRequesters over a PR's threads, as listReviewThreads reads them.
 const threadFixers = ({ threads, trustedHumans, permission }) =>
   fixRequesters({
     comments: threads.flatMap((thread) =>
@@ -418,14 +372,9 @@ const threadFixers = ({ threads, trustedHumans, permission }) =>
   });
 
 export const VERIFY_WORKFLOW = ".github/workflows/pr-verify.yml";
-// The relay a person's new review comment starts, and the only event it runs on.
 export const RELAY_WORKFLOW = ".github/workflows/pr-review-comment-relay.yml";
 export const RELAY_EVENT = "pull_request_review_comment";
 
-// The relay run the event names, read back from the API, when a listed human
-// (not the lanes App) started it and any re-run, it ran on a review comment of
-// a same-repository PR and succeeded; otherwise null, logged. The event's
-// actor ids only skip early; the API's admit.
 export async function relayUpstream({ api, upstream, repository, appSenderId, trustedHumans, log }) {
   const listed = (user) => Number.isSafeInteger(user?.id) && user.id !== appSenderId && trustedHumans.has(user.id);
   const skip = (why) => {
@@ -451,14 +400,12 @@ export async function relayUpstream({ api, upstream, repository, appSenderId, tr
   }
   return run;
 }
-// Its pull_request_target run follows a label coming off a PR (see main).
 export const MERGE_WORKFLOW = ".github/workflows/pr-merge.yml";
 
 // The newest completed review run of this repository's head at `head` that
 // reviewed something (not skipped or cancelled), or null. A fork PR at the
 // same SHA lists its runs too; one must not stand in for this repository's.
 export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }) {
-  // One workflow's listing at a time: element 6's serial reads.
   const listings = [];
   for (const path of settings.reviewWorkflows) {
     listings.push(await api.listCompletedRuns(path, head));
@@ -476,9 +423,6 @@ export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }
   return runs[0] ?? null;
 }
 
-// Each workflow's run listing is read at most once a run, when a pass first
-// asks; a failed read is shared too, so a rate-limited endpoint is not asked
-// again.
 export function shareWorkflowRuns(base) {
   const seen = new Map();
   const listWorkflowRuns = (workflow) => {
@@ -508,19 +452,11 @@ export async function dispatchFeedback({
   requestSince = null,
   passOnly = false,
   adoption = NO_ADOPTION,
-  // verify-cap.mjs verifyReader's { cap, supersededAtHead }, or
-  // verifyCapReader's cap refusal alone, or null.
   verifyCapped = () => null,
-  // The verifier reads this pass may still spend on PRs with no unresolved
-  // thread (EARLIER_FAIL_READS); main shares one across the pass's sweeps.
   earlierFailReads = { left: EARLIER_FAIL_READS },
   verifyReads = new Map(),
-  // The sweep decides every PR before it sends any: the decision then
-  // returns { number, send } and send() posts it.
   defer = false,
 }) {
-  // Each skip names the upstream run, so a relay or review run traces to its
-  // dispatch decision in one log read.
   const upstreamOf = () => {
     const path = WORKFLOW_PATH.test(String(upstream?.path)) ? upstream.path.slice(".github/workflows/".length) : "an unnamed workflow";
     return `upstream ${path} run ${upstream?.id}`;
@@ -555,8 +491,6 @@ export async function dispatchFeedback({
   }
   const titled = (run, number) => isPrUnblockTitle(run.display_title, settings.activity, number);
   const reviewStarted = Date.parse(upstream.run_started_at ?? "");
-  // A run of this activity for the PR, created after this review started and
-  // not done, holds the dispatch (see below).
   const holds = (run, number) =>
     run.status !== "completed" && titled(run, number) && !(Date.parse(run.created_at ?? "") < reviewStarted);
   const pulls = (await api.pullsForCommit(head)).filter(
@@ -574,12 +508,9 @@ export async function dispatchFeedback({
   if (pull.draft !== false) {
     return skip(`#${number} is a draft`);
   }
-  // The gate and the broker check the same: the relayed comment was on this PR.
   if (relayed && !(upstream.pull_requests ?? []).some((entry) => entry?.number === number)) {
     return skip(`relay run ${upstreamRunId} does not name #${number}`);
   }
-  // A lanes App PR, or an adopted owner PR once idle. A pass-only round
-  // resolves threads as the lanes App, which only its own PRs allow.
   const owner = pull.user?.id !== appSenderId;
   if (owner && (passOnly || !ownerAuthored(pull, adoption))) {
     return skip(`#${number} was not opened by the lanes App${passOnly ? "" : " or an adopted owner"}`);
@@ -623,11 +554,6 @@ export async function dispatchFeedback({
       return skip(`#${number}: ${unreviewed.join(", ")} has not marked head ${head} reviewed`);
     }
     const threads = await api.listReviewThreads(number);
-    // A human-gated PR dispatches only for a thread a trusted person with
-    // write access asked the lane to fix, unless a lane escalation put the
-    // label on and no review lane holds the PR; on an owner PR only as that
-    // escalation lets fix-ci work it (gate-source.mjs prHold). The label
-    // stays on either way: clear-escalations.mjs owns taking it off.
     const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
     const timeline = async () => [...commentItems(comments), ...(await api.listLabelEvents(number))];
     let gated = false;
@@ -650,15 +576,7 @@ export async function dispatchFeedback({
     }
     const fixers = await threadFixers({ threads, trustedHumans, permission: api.getPermission });
     const requesters = gated ? fixers : null;
-    // On an ungated head, any unresolved thread dispatches, even one the select
-    // job will not keep (a reviewer the lane does not act on, a review of an
-    // older head): select then escalates feedback-untaken-threads, and its
-    // lane-stopped check handles the head, so the stall gets a stop once.
     const evidence = await requestEvidence({ api, number, pull, comments, threads, reviewerIds });
-    // A relayed comment sends a round only for a thread the lane escalated
-    // that a trusted person has since answered, so a comment elsewhere does
-    // not re-send threads a round already worked at this head; a fix request
-    // keeps the tick's sweep (sweepFixRequest).
     const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers, ...evidence, log, escalatedOnly: relayed });
     if (relayed && !workable) {
       return skip(`#${number} has no unresolved escalated thread a trusted person answered`);
@@ -668,15 +586,11 @@ export async function dispatchFeedback({
     }
     const asked = !owner && askedComments(comments, { trustedHumans, appId: appSenderId }).length > 0;
     if (!workable && !asked && !threads.some((thread) => thread.isResolved === false)) {
-      // Only a PR with a fail note from another head can be refused
-      // verify:earlier-fail with notes to work; the rest keep the free skip.
       if (owner || !earlierFailNoted(threads, head)) {
         return skip(`#${number} has no unresolved review thread`);
       }
       noThread = true;
     }
-    // On an owner PR an unresolved thread the lane does not take (one the
-    // person wrote or answered) stays the person's, so it starts no round.
     if (owner && !workable) {
       return skip(`#${number} has no thread the lane works`);
     }
@@ -713,20 +627,9 @@ export async function dispatchFeedback({
   if (!passOnly) {
     // NaN compares false, so a run with no readable start still counts.
     const sinceNotes = (run) => cutoff === null || !(Date.parse(run.started_at ?? "") <= cutoff);
-    // A fix request does not lift a limit stop's reset hold.
     const counts = (run) => sinceNotes(run) || (requestSince !== null && limitResetsAt(run, resolved.limits) !== null);
     let existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(counts);
-    // A round whose reply job skipped no-model-turn (decided from the scan
-    // job's outputs and the select job's head) handled nothing, and one that
-    // skipped finding-stands left a thread for the next round at this head:
-    // the address-feedback check runs that started before that reply job
-    // stop counting, so the next trigger dispatches the head again. Each such
-    // round posted its round marker, so the select job's round cap ends it. A
-    // limit stop is never released: limit-stop.mjs still holds the head until
-    // its reset and counts it toward limits.limit-stops-per-head.
     let replies = [];
-    // A select job's own stop (lane-stopped on this check) ends the head; only
-    // a reply job's skip releases it.
     const selectStopped = existing.some(laneStop);
     if (anyHandles(existing, { now, limits: resolved.limits })) {
       replies = roundReplies(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
@@ -761,10 +664,6 @@ export async function dispatchFeedback({
   // reader's FAIL refusal there, and so does a pass-only round: its pass may
   // meet a same-head FAIL it did not supersede, whose notes stay open.
   const expected = passOnly || notesSince !== null ? [VERIFY_FAIL] : [];
-  // Each read can take VERIFY_CAP_TIMEOUT_MS, and a sweep decides PR after PR
-  // inside one 10-minute job, so a pass reads at most EARLIER_FAIL_READS heads
-  // that have no thread; the rest wait for a later pass inside
-  // EARLIER_FAIL_WINDOW_MS (sweepUnsent), as does a head whose read failed.
   const readKey = `${number}:${head}:${pull.base?.sha}:${expected.join(",")}`;
   if (noThread && !verifyReads.has(readKey)) {
     if (earlierFailReads.left <= 0) {
@@ -791,9 +690,6 @@ export async function dispatchFeedback({
       return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
     }
   }
-  // A model round names the FAILed heads behind the gate's verify:earlier-fail
-  // refusal, whose notes the select job reads from their verdict artifacts
-  // when no thread is left to work.
   const earlierFail = passOnly ? [] : earlierFailHeads;
   if (noThread && earlierFail.length === 0) {
     return skip(`#${number} has no unresolved review thread`);
@@ -806,12 +702,8 @@ export async function dispatchFeedback({
       activity: settings.activity,
       "dispatcher-run-id": String(runId),
       ...(passOnly ? { "verify-pass-head": head } : {}),
-      // The gate's reader found the FAIL at this head superseded, so the
-      // round resolves that FAIL's notes too (address-feedback.mjs select).
       ...(passOnly && supersededAtHead === true ? { "verify-superseded-head": head } : {}),
       ...(earlierFail.length > 0 ? { "verify-earlier-fail-heads": earlierFail.join(" ") } : {}),
-      // A person's relayed reply leaves resolve-feedback-threads nothing to
-      // resolve, so pr-unblock.yml starts no such job for it.
       ...(relayed ? { "upstream-relay": "true" } : {}),
     },
   };
@@ -843,20 +735,9 @@ export async function dispatchFeedback({
   return defer ? { number, send } : send();
 }
 
-// The verifier reads one dispatcher pass spends on lanes App PRs with no
-// unresolved thread (judgment: 3 reads of up to VERIFY_CAP_TIMEOUT_MS each
-// leave the 10-minute job room for its other work).
 export const EARLIER_FAIL_READS = 3;
-// How long after a head's newest review run completed the unsent sweep still
-// reads a head with no unresolved thread and a fail note from another head
-// (judgment: about four half-hourly ticks, so a failed or capped read is
-// retried a few times, and an answered one is re-read at most that often,
-// with no record to carry across ticks).
 export const EARLIER_FAIL_WINDOW_MS = 2 * 60 * 60_000;
 
-// Whether a review thread holds a pr-verify fail note (verify-notes.mjs, by
-// github-actions[bot], VERIFY_NOTE_MARKER first) from a review of another
-// head than `head`: the sign of an earlier FAIL the gate may refuse on.
 export const earlierFailNoted = (threads, head) =>
   threads.some((thread) => {
     const first = thread?.comments?.nodes?.[0];
@@ -871,25 +752,8 @@ const connectionLost = (error) => error?.name === "TypeError" && error.message =
 // Rounds one tick sends (judgment: five bounds the extra dispatches and their
 // reads per tick well under the GITHUB_TOKEN's 1,000 requests an hour).
 export const SWEEP_TICK_CAP = 5;
-// Time after which the sweep decides no further PR. The gate trusts a
-// dispatched run only if it was created within 10 minutes of this run's start
-// (check-trusted-trigger.mjs WINDOW_MS), and the dispatch job's timeout is 10
-// minutes too: setup (18 s on run 41759929522), this budget, the decision in
-// flight (one verifier read, VERIFY_CAP_TIMEOUT_MS) and the sends leave about
-// 2.5 minutes of margin (judgment).
 export const SWEEP_DECIDE_BUDGET_MS = 5 * 60_000;
 
-// The sweep, in pass order: each open PR whose newest round the token broker
-// refused as workflow-modified or the gate stopped head-lag (sweepRefused); each open lanes App PR into
-// main with a fix request newer than its head's last round (sweepFixRequest); each whose
-// head's newest reply check took a releasing skip, under SWEEP_HEAD_CAP such
-// checks (sweepOne); then sweepStale, sweepUnsent and sweepIdleOwner. Each PR
-// is decided at most once a tick, until SWEEP_TICK_CAP PRs are decided or
-// SWEEP_DECIDE_BUDGET_MS is spent. Only then are the decided rounds sent, back
-// to back, so each record uploads seconds after its POST, well inside the
-// gate's wait for it (check-trusted-trigger.mjs requireRecorded). Each send's
-// result, with the head's newest completed review run id, goes to onSent;
-// returns the first, or null.
 export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, onSent = () => {}, clock = Date.now, ...rest }) {
   const context = { api, repository, appSenderId, log, settings, rest: { ...rest, defer: true } };
   const listed = await openPulls(context);
@@ -941,8 +805,6 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
     try {
       result = { ...(await send()), upstreamRunId, ...(refireOf ? { refireOf } : {}) };
     } catch (error) {
-      // A POST the API rejects starts no round to hold the PR: log it and
-      // send the rounds after it, as the per-PR sweep did.
       log(`::warning::#${number}: the sweep could not send its round: ${error.message}`);
       continue;
     }
@@ -952,9 +814,6 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
   return sent[0] ?? null;
 }
 
-// Hours after an owner PR turns idle during which the tick still sends a head
-// with no round (judgment: four of pr-unblock-dispatch.yml's half-hourly ticks,
-// so a late or dropped tick, or a transient skip, does not lose the PR).
 export const IDLE_OWNER_WINDOW_HOURS = 2;
 
 // An owner PR's review completes while the person's session is still on it,
@@ -984,10 +843,6 @@ async function sweepIdleOwner(context) {
   return updated > since - IDLE_OWNER_WINDOW_HOURS * 3_600_000 ? dispatchAtHead(context) : null;
 }
 
-// Each open lanes App PR into the base, and each adopted owner PR
-// (dispatchFeedback applies its idle test); only the idle pass takes the
-// owner PRs.
-// One listing per client: a tick's sweeps and recoveries share it.
 const listed = new WeakMap();
 async function openPulls({ api, repository, appSenderId, settings, rest }) {
   if (!listed.has(api)) {
@@ -1002,8 +857,6 @@ async function openPulls({ api, repository, appSenderId, settings, rest }) {
   );
 }
 
-// The recovery's walk: each open lanes App PR, decided by `decide` in listing
-// order until one dispatches.
 async function sweepPulls(context, decide) {
   const { log } = context;
   for (const pull of (await openPulls(context)).filter((row) => row.user?.id === context.appSenderId)) {
@@ -1020,21 +873,10 @@ async function sweepPulls(context, decide) {
   return null;
 }
 
-// The newest status of `context` on a head by github-actions[bot], read
-// across every page newest first, as ci-status and report-escalation.sh clear
-// read it; null when there is none.
 export function newestStatus(statuses, context) {
   return statuses.find((row) => row?.context === context && row?.creator?.login === "github-actions[bot]") ?? null;
 }
 
-// A head whose newest pr-unblock/address-feedback status fails although no
-// review thread is left unresolved: a person resolved the threads after the
-// lane stopped, and nothing else dispatches the lane on that head. A run of
-// the activity then finds nothing to fix (address-feedback.mjs `resolved`),
-// and report-stop-status clears the status. Once per stop: a pr-unblock run
-// for the PR created after the failing status holds the head. The upstream is
-// the head's newest completed review run, as for any other dispatch. An
-// adopted owner PR (sweepIdleOwner) keeps its Hold: line and idle gates.
 async function sweepStale({ api, pull, repository, appSenderId, log, settings, rest }) {
   const head = pull.head.sha;
   const number = pull.number;
@@ -1088,15 +930,8 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
   return rest.defer ? { number, send, upstreamRunId: upstream.id } : send();
 }
 
-// pr-dispatch-feedback.yml's dispatch job timeout-minutes.
 export const UNSENT_GRACE_MS = 10 * 60_000;
 
-// A head with an unresolved thread and no address-feedback check run, and no
-// run of the activity for the PR created since its newest review run started:
-// its review completion's dispatch skipped for a reason that may clear, such
-// as verify-cap.mjs's unreadable FAIL cap, and no review run follows to send
-// it again. A skip that stands costs the reads dispatchFeedback makes before
-// it, each tick.
 async function sweepUnsent(context) {
   const { api, pull, repository, appSenderId, log, settings, rest } = context;
   const head = pull.head.sha;
@@ -1105,10 +940,6 @@ async function sweepUnsent(context) {
   }
   const threads = await api.listReviewThreads(pull.number);
   const unresolved = threads.filter((thread) => thread.isResolved === false);
-  // A head with no unresolved thread is sent again only while it may be
-  // refused verify:earlier-fail with notes to work (a fail note from another
-  // head), and only inside EARLIER_FAIL_WINDOW_MS of its newest review run's
-  // completion: its read may have failed, or a pass's read cap left it.
   if (unresolved.length === 0 && !earlierFailNoted(threads, head)) {
     return null;
   }
@@ -1120,12 +951,6 @@ async function sweepUnsent(context) {
   if (unresolved.length === 0 && !(Date.parse(upstream.updated_at ?? "") >= (rest.now ?? Date.now()) - EARLIER_FAIL_WINDOW_MS)) {
     return null;
   }
-  // Each review, pr-merge and comment-relay run's completion at the head
-  // starts a dispatch in the head's concurrency group, not the sweep's, so the
-  // head waits out that job's timeout after the last of them. An unreadable
-  // time does not count. A pr-verify FAIL's dispatch runs in a verify-<id>
-  // group at main's head, so the notes it posts as unresolved threads just
-  // before it stand in for it: the newest comment on one counts too.
   const triggers = [];
   for (const [path, event] of [...settings.reviewWorkflows.map((path) => [path, "pull_request"]), [MERGE_WORKFLOW, "pull_request_target"], [RELAY_WORKFLOW, RELAY_EVENT]]) {
     triggers.push(...(await api.listCompletedRuns(path, head, event)).filter((run) => run.head_sha === head && run.event === event));
@@ -1135,7 +960,6 @@ async function sweepUnsent(context) {
   if (!(last <= (rest.now ?? Date.now()) - UNSENT_GRACE_MS)) {
     return null;
   }
-  // A round that ended before posting its check is sent once.
   const sent = await runSince(context, pull.number, Date.parse(upstream.run_started_at ?? upstream.created_at ?? ""));
   if (sent) {
     log(`skip: #${pull.number}: ${settings.workflow} run ${sent.id} for ${settings.activity} started after head ${head}'s review`);
@@ -1145,8 +969,6 @@ async function sweepUnsent(context) {
   return dispatched === null ? null : { ...dispatched, upstreamRunId: upstream.id };
 }
 
-// Whether the head's newest reply check released it, and whether releasing
-// skips reached SWEEP_HEAD_CAP there (logged).
 async function releaseState({ api, pull, log, settings }) {
   const head = pull.head.sha;
   const replies = roundReplies(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId }));
@@ -1164,11 +986,6 @@ async function sweepOne(context) {
   return released && !capped ? dispatchAtHead(context) : null;
 }
 
-// A head whose newest fix request came after its newest address-feedback check
-// run, or which has none, under SWEEP_HEAD_CAP rounds and releases, with no run
-// of the activity for the PR created since the request. That last holds a
-// round that ended before posting its check, so a request is sent once. A PR
-// with no such thread costs one read.
 async function sweepFixRequest(context) {
   const { api, pull, appSenderId, rest, settings } = context;
   const trustedHumans = rest.trustedHumans ?? new Set();
@@ -1217,8 +1034,6 @@ async function dispatchSince(context, requestSince, what) {
   return dispatchAtHead(context, { requestSince });
 }
 
-// dispatchFeedback for a PR's head with the head's newest completed review run
-// as the upstream, with that run's id; null when it has none or nothing is sent.
 async function dispatchAtHead({ api, pull, repository, appSenderId, log, settings, rest }, options = {}) {
   const head = pull.head.sha;
   const upstream = await reviewRunAt({ api, head, repository, settings });
@@ -1230,24 +1045,6 @@ async function dispatchAtHead({ api, pull, repository, appSenderId, log, setting
   return dispatched === null ? null : { ...dispatched, upstreamRunId: upstream.id };
 }
 
-// A round the token broker refused as workflow-modified (refire-refused.mjs
-// tokenRefusal): it was in flight when a lane workflow file changed on main,
-// so its push or reply job's token was refused, and a re-run keeps the old
-// file. The tick, before its other sweeps, sends the activity again as a
-// fresh attempt-1 dispatch on main's files at the same head, with the head's
-// newest completed review run as the upstream, as every sweep dispatch.
-// Once per refused run: only the newest run of the activity for the PR
-// counts, so the run this sends, or any later one, ends it. It counts only
-// when it failed within FAILED_RUN_WINDOW_HOURS, posted a check run on the
-// PR's current head (one head per refusal), and that head has fewer than
-// SWEEP_HEAD_CAP address-feedback check runs, which bounds a chain of
-// refusals. Check runs started before the refused run ended stop counting
-// (requestSince), but a limit stop keeps its reset hold. A refusal for any
-// other reason is left alone. A run the gate stopped head-lag counts the same
-// way, whatever its conclusion, when its own address-feedback check on the
-// PR's current head is that stop (headLagStop): a head that moved since was
-// gated by its own run, so the stop was right there. The result names the
-// stopped run (refireOf), which the dispatched-run record keeps.
 async function sweepRefused(context) {
   const { api, pull, log, settings, rest } = context;
   const head = pull.head.sha;
@@ -1283,32 +1080,17 @@ async function sweepRefused(context) {
   return dispatched === null ? null : { ...dispatched, refireOf: String(last.id) };
 }
 
-// This file's workflow, whose lost runs the tick recovers.
 export const DISPATCH_WORKFLOW = ".github/workflows/pr-dispatch-feedback.yml";
 
-// The workflow's job that dispatches, by its display name, or by its id
-// (`dispatch`) on a run started before the rename; a loss of its other jobs
-// leaves no head undispatched.
 const DISPATCH_JOB = new Set(["Dispatch", "dispatch"]);
-// A job that ran a step, as reconcile.mjs holdReason reads one.
 const jobStarted = (job) => (Array.isArray(job?.steps) ? job.steps : []).some((step) => step?.conclusion != null && step.conclusion !== "skipped");
 // A failed dispatch job sent nothing either (#11344: its POST threw), and
 // nothing else sends it again, so it is recovered as a lost one is. LOST stays
 // the reconciler's set: it re-runs what it holds.
 const RECOVERABLE = new Set([...LOST, "failure"]);
-// Hours after a failed run during which the tick retries it (judgment: four
-// half-hourly ticks, as IDLE_OWNER_WINDOW_HOURS, so a dropped tick does not
-// lose it). A POST the API rejects starts no round to hold the PR, and the
-// tick logs it and ends green (sweepPulls), so this age is the only bound.
 export const FAILED_RUN_WINDOW_HOURS = 2;
 const dispatchLost = (job) => DISPATCH_JOB.has(job?.name) && RECOVERABLE.has(job.conclusion) && jobStarted(job);
 
-// The newest run of DISPATCH_WORKFLOW other than this one, created within
-// LOOKBACK_HOURS (FAILED_RUN_WINDOW_HOURS for a failed one), that ended in
-// RECOVERABLE with its dispatch job lost or failed after it started; null when
-// none, or when the listing cannot be
-// read. One listing call when none ended in RECOVERABLE; then one jobs read per such run, newest
-// first, until one matches.
 export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
   const since = now - LOOKBACK_HOURS * 3_600_000;
   const failedSince = now - FAILED_RUN_WINDOW_HOURS * 3_600_000;
@@ -1334,11 +1116,6 @@ export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
   return null;
 }
 
-// The recovery: when a lost run of this workflow is in the window
-// (lostDispatchRun), the first open lanes App PR into main, short of the
-// sweep's cap, that dispatchFeedback dispatches for its head's newest
-// completed review run. Returns dispatchFeedback's result with that run's id,
-// or null.
 export async function recoverLost({ api, repository, appSenderId, log, settings = DEFAULTS, now, ...rest }) {
   const deferred = await recoverDeferred({ ...rest, api, repository, appSenderId, log, settings, now });
   if (deferred !== null) {
@@ -1350,11 +1127,6 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
   }
   log(`recover: ${DISPATCH_WORKFLOW} run ${lost.id} ended ${lost.conclusion} after its Dispatch job started`);
   const context = { api, repository, appSenderId, log, settings, rest };
-  // A round that ended before posting its check does not handle the head, and
-  // the lost run stays in the window for a day, so each lost run sends at most
-  // one round per PR: a finished run of the activity for the PR created after
-  // it holds the PR. A run still going is dispatchFeedback's to skip. One
-  // listing a tick, read when the first PR asks.
   let finished;
   const sentSince = async (number) => {
     finished ??= api.listFinishedRunsSince(settings.workflow, lost.created_at);
@@ -1374,17 +1146,7 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
   return dispatched;
 }
 
-// The record post-verify-notes uploads when the lost-run reconciler re-ran it
-// to apply a verdict the kill switch deferred (reconcile.mjs, the Verdict
-// kind), named for the head and the verdict. The re-run sends no round
-// itself, since check-trusted-trigger trusts a dispatcher only at attempt 1
-// or re-run by a listed human; this tick, an attempt-1 run, sends it.
 export const DEFERRED_RECORD = /^pr-feedback-deferred-([0-9a-f]{40})-(fail|pass)$/;
-// The artifact the reconciler uploads before it re-runs a Verdict
-// (maintenance-reconcile-lost-runs.yml), kept a day longer than any record
-// that re-run leaves; the only re-runner a record is trusted from
-// (deferringRun). With none listed unexpired, no record can be either, and
-// the per-head reads are skipped.
 export const DEFERRAL_MARKER = "pr-feedback-deferral";
 // One listing page; a full one may hide an unexpired row, so it counts as one.
 const ARTIFACT_PAGE = 100;
@@ -1401,16 +1163,6 @@ const deferringRun = (run, repository) =>
   run.run_attempt > 1 &&
   run.triggering_actor?.login === ACTIONS_BOT;
 
-// The first deferred verdict at an open lanes App PR's head that
-// dispatchFeedback sends for the head's newest completed review run, as
-// main() would have for an on-time verdict: a FAIL with notesSince the
-// record's upload, when its notes reached the PR, so a round before then
-// does not hold it; a PASS as a pass-only round. A run of the activity for
-// the PR created after the record holds it, so each record is sent once.
-// One DEFERRAL_MARKER read first; only while it lists an unexpired marker
-// (or the read fails, or the page is full) does each head cost two
-// exact-name artifact reads, fail then pass; a record whose read fails is
-// logged and left to the next tick.
 export async function recoverDeferred({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
   try {
     const markers = await api.listArtifactsNamed(DEFERRAL_MARKER);
@@ -1552,7 +1304,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     throw new Error(tooMany);
   }
 
-  // A workflow file's runs matching `query`, one page.
   const workflowRuns = async (path, query) => (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
 
   async function graphql(query, variables, signal) {
@@ -1586,12 +1337,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     },
     listIssueComments: async (number) => pages(`${repo}/issues/${number}/comments?per_page=100`, 50, `#${number} has more than 5000 comments`),
     listLabelEvents: (number) => listLabelEvents({ graphql, repository, number }),
-    // prHold's review reads (gate-source.mjs reviewReader), on an owner PR
-    // carrying the human-gated label only.
     listReviewComments: (number, since) => pages(`${repo}/pulls/${number}/comments?since=${encodeURIComponent(since)}&per_page=100`),
     listReviews: (number) => pages(`${repo}/pulls/${number}/reviews?per_page=100`),
-    // The REST issue timeline, for a listed bot's automatic review
-    // (address-feedback.mjs readTriggers).
     listTimeline: (number) => pages(`${repo}/issues/${number}/timeline?per_page=100`),
     listRequestHistory: async (number) => requestHistoryOf(await graphql(REQUEST_HISTORY_QUERY, { owner, name, pr: number })),
     async listReviewThreads(number) {
@@ -1627,16 +1374,12 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       return (await request(`${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`)).workflow_runs ?? [];
     },
     getWorkflowRun: (id) => request(`${repo}/actions/runs/${encodeURIComponent(id)}`),
-    // A commit's committer date, the time it was made.
     headCommittedAt: async (sha) => (await request(`${repo}/commits/${sha}`)).commit?.committer?.date ?? "",
     listOpenPulls: async (base) => pages(`${repo}/pulls?state=open&base=${encodeURIComponent(base)}&per_page=100`, 10, `more than 1000 open PRs into ${base}`),
     // Every status on a commit, newest first across pages.
     listStatuses: async (sha) => pages(`${repo}/commits/${sha}/statuses?per_page=100`, 10, `commit ${sha} has more than 1000 statuses`),
-    // The newest completed pull_request runs of a workflow file at a head.
     listCompletedRuns: async (path, head, event = "pull_request") =>
       workflowRuns(path, new URLSearchParams({ head_sha: head, event, status: "completed", per_page: "10" })),
-    // A workflow file's newest 100 runs created since `since`: many ticks'
-    // worth, so a run the window holds is listed again by a later tick.
     listRecentRuns: async (path, since) => workflowRuns(path, new URLSearchParams({ created: `>=${since}`, per_page: "100" })),
     // Every finished workflow_dispatch run of a workflow created since `since`,
     // newest first. The API returns at most 1,000 for a filtered listing
@@ -1653,7 +1396,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       const query = new URLSearchParams({ name, per_page: String(ARTIFACT_PAGE) });
       return (await request(`${repo}/actions/artifacts?${query}`)).artifacts ?? [];
     },
-    // A run's latest attempt's jobs, with their steps.
     async listRunJobs(id) {
       const listing = await request(`${repo}/actions/runs/${encodeURIComponent(id)}/jobs?filter=latest&per_page=100`);
       if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
@@ -1661,7 +1403,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
       return listing.jobs;
     },
-    // A job's check run annotations, one page: the token step's refusal.
     listAnnotations: (id) => request(`${repo}/check-runs/${encodeURIComponent(id)}/annotations?per_page=100`),
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(`${repo}/actions/workflows/${workflow}/dispatches`, "POST", {
@@ -1674,13 +1415,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
   };
 }
 
-// The pr-unblock lane as the dispatched run resolves it: resolve-config from
-// the base checkout, deciding only the address-feedback slot, for this PR and
-// head, on a workflow_dispatch event. Naming the activity keeps another slot's
-// predicate (resolve-conflicts' mergeable) from needing facts this run lacks.
-// The workflow installs resolve-config's dependencies before this runs.
-// A valid config whose lane has no address-feedback slot resolves to null;
-// every refusal, a malformed config included, throws.
 export async function resolveFeedbackSlot({ number, head, env, github, settings = DEFAULTS }) {
   const { resolveFromBase } = await import(
     new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
@@ -1695,9 +1429,6 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
       EVENT_NAME: "workflow_dispatch",
       PR_NUMBER: String(number),
       HEAD_SHA: head,
-      // Only reading: the dispatched runners perform the prepare step and
-      // hand on what the read runner's address-feedback leaves (its patch
-      // and its replies), as that runner's applied-by-supported names them.
       PREPARE_SUPPORTED: "true",
       APPLIED_BY_SUPPORTED: "patch feedback-replies",
       GITHUB_TOKEN: env.GITHUB_TOKEN,
@@ -1753,8 +1484,6 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
       now,
     });
   }
-  // Every comment read binds the review lanes' comments to their runs
-  // (address-feedback.mjs withLaneBinding), read with ARTIFACT_READ_TOKEN.
   const client = shareWorkflowRuns(withLaneBinding(reads, laneReads, tick.store));
   let upstream = eventRun;
   const common = {
@@ -1765,14 +1494,10 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
     verifyReads: new Map(),
     appSenderId: Number(env.APP_SENDER_ID),
     reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
-    // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(trustedListPath(env, env.TRUSTED_ACTORS || trustedActorsPath(env.BASE_PATH))),
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/docs/conventions/work-items.yaml`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     adoption: await ownerAdoption(env, log),
-    // The gate's reader for the FAIL-cap skip and a pass-only round's
-    // superseded FAIL (verify-cap.mjs), when the workflow names it in
-    // VERIFY_EVIDENCE_SCRIPT.
     verifyCapped: verifyCapped ?? (env.VERIFY_EVIDENCE_SCRIPT ? verifyReader(env, { log }) : undefined),
     now,
     log,
@@ -1824,9 +1549,6 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
   let notesSince = null;
   let requestSince = null;
   let passOnly = false;
-  // A relayed reply is new direction at a head an earlier round may have
-  // handled: as for a fix request, only check runs started after the relay
-  // run was created count, and the head's handled record is skipped.
   if (upstream?.path === RELAY_WORKFLOW) {
     upstream = await relayUpstream({ api: client, upstream, repository: common.repository, appSenderId: common.appSenderId, trustedHumans: common.trustedHumans, log });
     if (upstream === null) {
@@ -1886,7 +1608,6 @@ export function failureOutcome(error, token) {
   return { line: failureAnnotation(error, token), code: 1 };
 }
 
-// The line holds no token and no line break, whichever client threw.
 export const failureAnnotation = (error, token) => {
   const line = `::error::pr-feedback dispatch failed: ${error.message}${error.call ? ` on ${error.call}` : ""}${causeLabel(error)}${detailSuffix(error)}`;
   return (token ? line.split(token).join("[redacted]") : line).replace(/[\x00-\x1f\x7f]+/g, " ");

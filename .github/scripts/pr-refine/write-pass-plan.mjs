@@ -12,7 +12,6 @@ import { planPasses } from "./plan-passes.mjs";
 
 const LANE = "pr-refine";
 
-// CODEOWNERS_FILE: the base's .github/CODEOWNERS, as resolve-config reads it.
 const { BASE_PATH, PATHS_FILE, CODEOWNERS_FILE, TRUNCATED, GITHUB_OUTPUT } = process.env;
 const truncated = TRUNCATED === "true";
 const doc = configFromBase({ BASE_PATH });

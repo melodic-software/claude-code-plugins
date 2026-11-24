@@ -115,8 +115,6 @@ test("the cap is the merge gate's", () => {
 
 test("a chunked review's verdict sums every chunk's findings and takes the most CRITICAL ones in a chunk", () => {
   const { output: _, ...rest } = args(undefined);
-  // The chunk with the most CRITICAL findings comes first: the max wins, not
-  // the last chunk or the sum.
   const verdict = buildChunkedVerdict({
     ...rest,
     outputs: [
@@ -126,8 +124,6 @@ test("a chunked review's verdict sums every chunk's findings and takes the most 
   });
   assert.deepEqual({ findings: verdict.findings, critical: verdict.critical, items: verdict.items.length }, { findings: 5, critical: 2, items: 5 });
   assert.equal(verdict.summary, "Chunk 1 of 2: first\n\nChunk 2 of 2: second");
-  // `items` lists 3 CRITICAL findings while `critical` is 2: each item names
-  // its chunk, so the CRITICAL ones `critical` counts are the ones in one chunk.
   assert.deepEqual(
     verdict.items.map((item) => [item.chunk, item.severity]),
     [
@@ -142,15 +138,12 @@ test("a chunked review's verdict sums every chunk's findings and takes the most 
     assert.ok(verdict.items.filter((item) => item.chunk === chunk && item.severity === "CRITICAL").length <= verdict.critical);
   }
   assert.deepEqual(Object.keys(verdict).sort(), Object.keys(buildVerdict(args({ findings: [], summary: "s" }))).sort());
-  // One chunk is the single-pass verdict, unchanged.
   const one = { findings: [finding("CRITICAL")], summary: "s" };
   assert.deepEqual(buildChunkedVerdict({ ...rest, outputs: [one] }), buildVerdict(args(one)));
   assert.throws(() => buildChunkedVerdict({ ...rest, outputs: [one, { findings: [finding("HIGH")], summary: "s" }] }), /chunk 2 of 2/);
   assert.throws(() => buildChunkedVerdict({ ...rest, outputs: [] }));
 });
 
-// A diff directory of chunk-<k>/part-<n>.patch files, and each chunk's
-// execution file: a Read of each of its own parts and a result.
 function chunkedRun(dir, chunks, { skip = [], result = () => ({ findings: [finding("CRITICAL")], summary: "s" }) } = {}) {
   const diff = path.join(dir, "diff");
   const files = chunks.map((texts, i) => {
@@ -203,8 +196,6 @@ test("main writes verdict.json and the name output", () => {
 test("a chunked run writes one verdict over its chunks, the most CRITICAL in a chunk, and a notice per chunk", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
   try {
-    // Chunk 1 is 3 + 4 bytes with one CRITICAL; chunk 2 is 5 bytes with two
-    // CRITICAL and one IMPORTANT.
     const outputs = { 1: { findings: [finding("CRITICAL")], summary: "a" }, 2: { findings: [finding("CRITICAL"), finding("IMPORTANT"), finding("CRITICAL")], summary: "b" } };
     const env = chunkedRun(dir, [["+x\n", "+yz\n"], ["+abc\n"]], { result: (k) => outputs[k] });
     const script = fileURLToPath(new URL("./write-verdict.mjs", import.meta.url));
@@ -237,8 +228,6 @@ test("a chunk that failed, left no verdict, or skipped a part writes no verdict 
       rmSync(dir, { recursive: true, force: true });
     }
   }
-  // A run that read chunk 1's parts for chunk 2, or a chunk count that is
-  // not the directories on disk, voids the verdict too.
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
   try {
     const env = chunkedRun(dir, [["+x\n"], ["+y\n"]]);
