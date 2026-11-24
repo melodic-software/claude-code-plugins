@@ -122,7 +122,7 @@ person can run it, never that it is present.
 **Verification record, `/context`.** We treat `/context` as a gated, user-only built-in command
 the model cannot invoke.
 
-- **Probe:** the `/harness-ops:inventory` extraction of the installed Claude Code 2.1.285 binary
+- **Probe:** the `/harness-ops:inventory` (if enabled) extraction of the installed Claude Code 2.1.285 binary
   on 2026-09-29 (`builtin_commands` lane: `gated` true, `user_invocable` true, `model_invocable`
   false).
 - **Pointer:** the `/context [all]` row in

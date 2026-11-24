@@ -29,9 +29,9 @@ reports, `apply` resolves. PowerShell formatting and linting are two concerns, e
 git-hook entry. The hooks run only the plugin's shipped PSScriptAnalyzer adapter, where a
 `PSScriptAnalyzerSettings.psd1` governs the file, and otherwise nothing; they never run a command
 from the repository's powershell record (`docs/conventions/ecosystems/powershell.yaml`), which
-`/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
+`/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) run on request. The only consumer-project files this
 plugin writes are its git-hook entry copies (`apply install-git-hooks`); the record is written by
-`/toolchain:setup apply powershell`, never here. Rules come from the repository's own settings
+`/toolchain:setup apply powershell` (if enabled), never here. Rules come from the repository's own settings
 file, and the tunables are the native `userConfig` options (the on/off toggle and the
 end-of-turn check). The `pwsh` runtime and the PSScriptAnalyzer module are resolved from the
 environment (never bundled, never downloaded), and the plugin installs nothing, so `apply` is
@@ -96,7 +96,7 @@ restores the FAIL semantics. A missing `node` stays FAIL in either state: every 
    - `none`: INFO "unresolved": no settings file governs the repository, so the hooks run
      nothing. This is the opt-out by design.
    A detail saying a powershell record exists is INFO beside the row: the hooks never run it, and
-   `/toolchain:lint` or `/toolchain:check` runs it on request.
+   `/toolchain:lint` (if enabled) or `/toolchain:check` (if enabled) runs it on request.
 4. **PSScriptAnalyzer module.** Probe **only when a row found `pwsh`** (so the probe never errors
    on a pwsh-less box):
    `pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { "present" } else { "absent" }'`.
@@ -116,8 +116,8 @@ restores the FAIL semantics. A missing `node` stays FAIL in either state: every 
    [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
    `fix-cmd` and `lint-cmd` values: each holds `<files>`, `fix-cmd` only formats and `lint-cmd`
    only reports, with findings as `<path>:<line>` lines. Hand the draft to
-   `/toolchain:setup apply powershell`, the one writer of those keys, so `/toolchain:lint` and
-   `/toolchain:check` can run them on request.
+   `/toolchain:setup apply powershell` (if enabled), the one writer of those keys, so `/toolchain:lint` (if enabled) and
+   `/toolchain:check` (if enabled) can run them on request.
 7. **Hook toggle.** Report the effective `powershell_format_enabled` value:
    `${user_config.powershell_format_enabled}` (unexpanded or empty means default `true`; any
    value other than `true` disables the hooks). Also report `powershell_format_end_of_turn`:
@@ -224,7 +224,7 @@ Run `check`, then for each finding point at the resolution. This skill installs 
   it. The settings file is the executed-adjacent trust boundary above; the choice and the edit
   belong to the consumer.
 - a concern unresolved, or a tool the plugin ships no adapter for: `check` step 6's draft, for
-  `/toolchain:setup apply powershell`.
+  `/toolchain:setup apply powershell` (if enabled).
 - toggle off: set `powershell_format_enabled` to `true` through Claude Code's native flow,
   interactively with `/plugin configure powershell-format@<marketplace>` or by a headless route,
   as the marketplace's plugin-reconfiguration convention gives them in
@@ -260,7 +260,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - Run the formatter or linter. `git commit` of a `.ps1`, `.psm1`, or `.psd1` file exercises the
   installed pre-commit entries end-to-end. The `check` pwsh probes and `--resolve` rows are read-only; they never format,
   lint, or mutate any file.
-- Write the powershell record: `/toolchain:setup apply powershell` does.
+- Write the powershell record: `/toolchain:setup apply powershell` (if enabled) does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the repository,
   including `PSScriptAnalyzerSettings.psd1`. The `pwsh` runtime and the PSScriptAnalyzer module
   are resolved from the environment, never installed, so remediation is guidance only.

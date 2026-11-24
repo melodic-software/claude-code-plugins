@@ -225,8 +225,8 @@ through:
   `clear-escalations.mjs`, the `pr-unblock/` and `work-resolve-issue/` modules they import, the
   ci-status hold steps in `.github/workflows/pr-require-checks.yml`, the steps in
   `.github/workflows/pr-merge.yml` that run those scripts and set their environment,
-  `/source-control:babysit-prs`'s `diff_risk.py` and `babysit_verify_evidence.py` and the
-  modules they import from that skill's `scripts/` directory, and the `merge`
+  `plugins/source-control/skills/babysit-prs/scripts/diff_risk.py` and `babysit_verify_evidence.py` and the
+  modules they import from that `scripts/` directory, and the `merge`
   settings in `docs/conventions/pr-pipeline.yaml`);
 - it widens what any other action under `.github/actions/` lets through: who is trusted
   (`check-trusted-base`, `check-signed-commits`), what untrusted text reaches a lane
@@ -473,7 +473,7 @@ missing rule. Put at most five such lines in one block after the manifest block,
 then `<summary>Uncovered rules (N)</summary>` with `N` the lines inside, a blank line, the lines, a
 blank line and `</details>`. With no uncovered rule, post no block. The block appears in a
 blocking-only review too. When the summary would exceed the character cap the prompt states, drop
-this block first. `/corrections:codify reviews` reads these lines as candidate rules.
+this block first. `/corrections:codify reviews` (if enabled) reads these lines as candidate rules.
 
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the
 classes the wrapper's prompt defines, each named by its criterion, with a reason naming the

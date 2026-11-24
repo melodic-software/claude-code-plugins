@@ -70,8 +70,8 @@ prohibitions without rationale, reasoning-echo directives, think-carefully steer
 steers, settled-answers lines on analysis surfaces, and stale example scaffolding fall there.
 Guidance a long-run file *lacks* (when to stop and when to keep going, a finish line, a task file,
 the end-of-run report shape) is that plugin's `audit-prompting-postures`. When
-that plugin is enabled, route such findings to `/harness-config:audit-instructions` or
-`/harness-config:audit-prompting-postures`, invoked via the Skill tool, rather than
+that plugin is enabled, route such findings to `/harness-config:audit-instructions` (if enabled) or
+`/harness-config:audit-prompting-postures` (if enabled), invoked via the Skill tool, rather than
 judging them against this checklist; when it is not enabled, keep each as a criteria-free
 observation in this audit's report (never a checklist finding, never silently dropped) so the
 operator can weigh it against current official prompting guidance.

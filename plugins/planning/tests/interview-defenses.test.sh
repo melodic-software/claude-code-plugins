@@ -532,11 +532,12 @@ done
 # merge of main (#17872 prescribed-solution Stance line) with this PR: against main the section differs only by "at most one contradiction pass"; the no-silent-resolve rule is byte-identical
 # the edit adds the recommendation gain-and-cost sentence to the question template and to "Alternatives carry their tradeoffs"; no-silent-resolve is unchanged
 # only the quality-bar title rule and the discovery-only shape of the rethink question changed; the no-silent-resolve and auto-guard text is untouched
+# Only optional-plugin guards changed in the Stance section; the in-round no-silent-resolve rule and both defenses are unchanged.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "3186a92e888b864d54c9226e7a4144772ce7932e69eb27f7a2cd705f5a0469ce"
+  "da00ce1da1f6eae9bf57e362b92b83ba296d72ecc7315e529d93a9fe428864b5"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -649,7 +650,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
-  "c691a060155fba1998680f1a5b6f37830b0a3a333bfdb3bdb22f8f7e771e5228"
+  "78ad563aa030fde8d01483f8bd0ffd0fffad22a36873596c2253532b07328549"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 # Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
@@ -749,7 +750,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the Brief" \
-  "4efb3896a64abd5f75c67fbddd4d2fca75144cfd5da298572fb1e8e7ef3ee434"
+  "2602cd6d30ed7352ba273f13338a3fac6f0e17626f36648c984568db2a11edf7"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
@@ -759,7 +760,7 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "0bc0ea2cf034b6b3987093465c2588b0297c28f41709d7706f9f8f9579c5c171"
+  "7a4386a0469a6a1ecdd8269e727dd9527dc56d9253bd3527757b61d71897ba0e"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,

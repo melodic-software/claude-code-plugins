@@ -45,9 +45,9 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. Python formatting and linting are two concerns. The hooks run only the
 plugin's shipped adapter, where that tool's own config governs the file, and otherwise nothing; they
 never run a command from the repository's python record (`docs/conventions/ecosystems/python.yaml`), which
-`/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this plugin
+`/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) run on request. The only consumer-project files this plugin
 writes are its git-hook entry copies (`apply install-git-hooks`); the record is written by
-`/toolchain:setup apply python`, never here. The tunables are the native `userConfig` options (the on/off toggle, the
+`/toolchain:setup apply python` (if enabled), never here. The tunables are the native `userConfig` options (the on/off toggle, the
 gitignored-file switch and the end-of-turn check). `apply install-ruff` is the one other write
 path: the adapter's tool, installed into the repo's existing managed environment as described
 below.
@@ -97,15 +97,15 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
    - `none`: INFO "unresolved": no shipped adapter's config governs the repository, so the hooks run
      nothing. This is the opt-out by design.
    A detail saying a python record exists is INFO beside the row: the hooks never run it, and
-   `/toolchain:lint` or `/toolchain:check` runs it on request.
+   `/toolchain:lint` (if enabled) or `/toolchain:check` (if enabled) runs it on request.
 4. **Draft, never write, the record.** When a concern is unresolved, or the person names a tool the
    plugin ships no adapter for, say that the hooks will not run that tool: they run only the shipped
    adapter. Find the repository's own formatter and linter by the steps in
    [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
    `fix-cmd` and `lint-cmd` values: each holds `<files>`, `fix-cmd` only formats (import ordering
    included) and `lint-cmd` only reports, with findings as `<path>:<line>` lines. Hand the draft to
-   `/toolchain:setup apply python`, the one writer of those keys, so `/toolchain:lint` and
-   `/toolchain:check` can run them on request.
+   `/toolchain:setup apply python` (if enabled), the one writer of those keys, so `/toolchain:lint` (if enabled) and
+   `/toolchain:check` (if enabled) can run them on request.
 5. **Hook toggle.** Report the effective `python_format_enabled` value:
    `${user_config.python_format_enabled}` (unexpanded or empty means default `true`). Also report
    `python_format_end_of_turn`: `${user_config.python_format_end_of_turn}` (unexpanded or empty means
@@ -252,7 +252,7 @@ only points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-- a concern unresolved: `check` step 4's draft, for `/toolchain:setup apply python`. The plugin
+- a concern unresolved: `check` step 4's draft, for `/toolchain:setup apply python` (if enabled). The plugin
   imposes no rules and no tool of its own; it offers to create a minimal config for the Ruff
   adapter in the repository root only when the person explicitly asks for one.
 
@@ -268,7 +268,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the formatter or the linter. Editing any `.py`/`.pyi` file exercises the batch hook;
   `git commit` exercises the installed pre-commit entries.
-- Write the python record: `/toolchain:setup apply python` does.
+- Write the python record: `/toolchain:setup apply python` (if enabled) does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Create a virtual environment, install Ruff globally, or install outside a managed
   environment the repo already uses.
