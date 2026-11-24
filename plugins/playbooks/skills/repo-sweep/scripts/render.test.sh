@@ -9,7 +9,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 # shellcheck source=../../../lib/test-helpers.sh
 source "$HERE/../../../lib/test-helpers.sh"
-assert_err() { # <label> <expected-exit> <stderr-substring> <args...>
+assert_err() {
   local label=$1 want=$2 sub=$3 out rc
   shift 3
   out=$(bash "$SCRIPT" "$@" 2>"$TMP/err")

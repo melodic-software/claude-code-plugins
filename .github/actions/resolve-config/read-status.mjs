@@ -16,7 +16,6 @@ import { join } from "node:path";
 
 import { FIELD_API } from "./write-status.mjs";
 
-const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 const STANDARDS_TRUSTED_ACTORS = "components/trusted-actors/trusted-actors.json";
 export const HOLD_STATES = ["needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec"];
 const LABEL_STATE = "agent-ready";
@@ -109,7 +108,10 @@ export async function statusEvents({ github, repository, number, config, since =
 }
 
 export function loadTrustedActors(env = {}) {
-  const path = env.STANDARDS_DIR ? join(env.STANDARDS_DIR, STANDARDS_TRUSTED_ACTORS) : env.TRUSTED_ACTORS_PATH || join(env.BASE_PATH || ".base", TRUSTED_ACTORS);
+  const path = env.STANDARDS_DIR ? join(env.STANDARDS_DIR, STANDARDS_TRUSTED_ACTORS) : env.TRUSTED_ACTORS_PATH;
+  if (!path) {
+    throw new Error("no standards checkout (STANDARDS_DIR is unset), so the trusted-actor list cannot be read");
+  }
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
@@ -166,9 +168,10 @@ export async function fieldStatusSetter({ github, repository, number, config, tr
  * reading it only when no call has. A failed read, or one past the limit,
  * throws StatusReadError from any of them.
  * `config` and `trustedActors` default to the base config's models.issue-status
- * and the trusted-actor list (under STANDARDS_DIR, else TRUSTED_ACTORS_PATH,
- * else under BASE_PATH). An unset config reads nothing: labels and REST events
- * come back as they are; a config or trusted-actor list that cannot be loaded
+ * and the trusted-actor list (loadTrustedActors: STANDARDS_DIR, else
+ * TRUSTED_ACTORS_PATH, never BASE_PATH).
+ * An unset config reads nothing: labels and REST events come back as they
+ * are; a config or trusted-actor list that cannot be loaded
  * makes every call throw.
  * `github` is a createGitHub client.
  */

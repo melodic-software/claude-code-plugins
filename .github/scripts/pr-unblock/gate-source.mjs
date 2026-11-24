@@ -24,7 +24,7 @@
 import process from "node:process";
 
 import { FOOTER as LANE_FOOTER } from "../lib/lane-binding.mjs";
-import { readRawTrustedActors, SAME_TREE_LIST, trustedListPath } from "../lib/trusted-actors.mjs";
+import { readRawTrustedActors, trustedListPath } from "../lib/trusted-actors.mjs";
 import { escalationActivity } from "./escalation-routes.mjs";
 
 export const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated -->";
@@ -78,7 +78,7 @@ let trustedHumanIds;
 export function trustedHumans() {
   if (trustedHumanIds === undefined) {
     try {
-      const list = readRawTrustedActors(trustedListPath(process.env, SAME_TREE_LIST));
+      const list = readRawTrustedActors(trustedListPath(process.env));
       trustedHumanIds = new Set(list.actors.filter((actor) => actor?.kind === "human" && Number.isSafeInteger(actor.id)).map((actor) => actor.id));
     } catch {
       trustedHumanIds = new Set();

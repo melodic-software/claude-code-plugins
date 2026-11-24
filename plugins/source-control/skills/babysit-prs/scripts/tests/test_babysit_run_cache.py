@@ -1,6 +1,3 @@
-"""babysit_run_cache: one process parses the file once until it changes on
-disk, and what it serves never aliases the parsed copy."""
-
 from __future__ import annotations
 
 import errno
@@ -62,7 +59,6 @@ class ParsesOncePerProcess(unittest.TestCase):
         at = run_cache.now().isoformat()
         self.other_process_writes({"s": {"a": {"at": at, "value": 2}}})
         self.assertEqual(run_cache.get("s", "a", None), 2)
-        # A put merges into the other process's file, not the stale copy.
         run_cache.put("s", "b", 3)
         stored = json.loads(self.path.read_text(encoding="utf-8"))
         self.assertEqual(stored["s"]["a"]["value"], 2)

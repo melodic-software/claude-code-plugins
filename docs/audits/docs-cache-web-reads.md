@@ -83,10 +83,10 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | implementation | `agents/implementer.md:7` | WebFetch grant | kept | General worker grant for whatever page an item names; no fixed docs page |
 | implementation | `agents/scoped-implementer.md:7` | WebFetch grant | kept | Same as the implementer row |
 | kindle-dedrm | `skills/manage/reference/workflow.md:30` | curl downloads, also at lines 49 and 71 | kept | Binary downloads (installer and zips) |
-| kindle-dedrm | `skills/manage/scripts/check-drift.sh:59` | curl HEAD request to pinned URLs | kept | Reachability probe; reads no body |
+| kindle-dedrm | `skills/manage/scripts/check-drift.sh:56` | curl HEAD request to pinned URLs | kept | Reachability probe; reads no body |
 | knowledge | `agents/digest-worker.md:4` | WebFetch grant | kept | Rendered reads for presence claims only; absence reads already go through `fetch-docs.sh --cache --max-age 0` (`skills/docpage-digest/context/anthropic-docs-profile.md:116`) |
 | knowledge | `skills/video-digest/context/watch-pipeline.md:139` | WebFetch previews of harvested links, also at line 320 | kept | Previews that rank arbitrary links by WebFetch's prompt; not docs reads |
-| knowledge | `skills/course-digest/extraction/lib/players/hotmart.js:102` | fetch of subtitle segments, also at line 327 | kept | Runs inside the course player's frame for its session and CORS; not a page |
+| knowledge | `skills/course-digest/extraction/lib/players/hotmart.js:101` | fetch of subtitle segments, also at line 326 | kept | Runs inside the course player's frame for its session and CORS; not a page |
 | knowledge | `skills/course-digest/extraction/download-resources.js:47` | `node:https` download of course resources | kept | File downloads such as PDFs, not pages |
 | knowledge | `skills/video-digest/extraction/harvesting/fetch-deck-attachments.js:256` | `node:https` download of deck attachments from harvested links | kept | File downloads, not pages |
 | knowledge | `skills/map-corpus/discovery/link-map-format.md:31` | WebFetch or curl of discovery snapshots | kept | Sitemaps and forge tree listings that a deterministic parser reads byte for byte; the pages themselves are read by the fetch route (line 35) |
@@ -105,10 +105,10 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | planning | `shared/server.py:552` | HTTPS probe through the user's tunnel address | kept | Probes the user's own tunnel, not a page |
 | planning | `shared/share.py:300` | HTTPS lease probe to the user's tunnel host | kept | Probes the user's own tunnel, not a page |
 | playbooks | `skills/fable-5/SKILL.md:142` | WebFetch when the manifest records the page unread | kept | Fallback; the primary read is already on the cache |
-| playbooks | `skills/boris/scripts/update.sh:77` | curl of the upstream version JSON | kept | API, not a page |
-| playbooks | `skills/boris/scripts/update.sh:86` | curl of the upstream skill file | kept | Drift check that vendors the bytes verbatim; a skill source file, not a docs page |
-| playbooks | `skills/boris/vendor/upstream-skill.md:45` | Upstream text telling a session to WebFetch a version URL | kept | Vendored third-party text treated as data; the skill never runs it (`skills/boris/scripts/update.sh:192`) |
-| playbooks | `skills/skill-authoring/scripts/update.sh:76` | curl of the upstream skill file | kept | Drift check that vendors the bytes verbatim; a skill source file, not a docs page |
+| playbooks | `skills/boris/scripts/update.sh:75` | curl of the upstream version JSON | kept | API, not a page |
+| playbooks | `skills/boris/scripts/update.sh:84` | curl of the upstream skill file | kept | Drift check that vendors the bytes verbatim; a skill source file, not a docs page |
+| playbooks | `skills/boris/vendor/upstream-skill.md:45` | Upstream text telling a session to WebFetch a version URL | kept | Vendored third-party text treated as data; the skill never runs it (`skills/boris/scripts/update.sh:190`) |
+| playbooks | `skills/skill-authoring/scripts/update.sh:74` | curl of the upstream skill file | kept | Drift check that vendors the bytes verbatim; a skill source file, not a docs page |
 | playwright | `lib/cli-version-check.mjs:104` | fetch of the npm registry's latest-version JSON | kept | Registry API, not a page |
 | plugin-quality | `agents/auditor.md:6` | WebFetch grant | kept | Fallback for when `fetch-docs.sh` records a page unread or writes no manifest |
 | session-flow | `skills/workflow/context/continuation.md:225` | WebFetch on each pointer when the discovery plugin is not enabled | moved | |
@@ -121,7 +121,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | speech | `reference/elevenlabs.md:58` | curl download of the ElevenLabs OpenAPI spec | kept | A JSON spec too large for a page read, not a page |
 | speech | `scripts/assets.py:76` | Model file download | kept | Binary download |
 | speech | `scripts/elevenlabs.py:183` | ElevenLabs API | kept | Authenticated API call, not a page |
-| speech | `scripts/narrate.py:429` | OpenAI speech API | kept | Authenticated API call, not a page |
+| speech | `scripts/narrate.py:428` | OpenAI speech API | kept | Authenticated API call, not a page |
 | user-interface | `skills/write-css/SKILL.md:60` | WebFetch on official docs when context7 and discovery are absent | kept | Fallback for when `/context7:lookup` and `/discovery:research` are not enabled; the plugin carries no cache copy |
 | user-interface | `skills/write-animation/SKILL.md:65` | WebFetch on official docs as the fourth route | kept | Used when `/context7:lookup` and `/discovery:research` give no answer; the plugin carries no cache copy |
 | wizard | `skills/generate/template.sh:778` | curl in an example stage | kept | Example text the author deletes; an API call, not a page |

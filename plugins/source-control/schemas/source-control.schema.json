@@ -27,6 +27,11 @@
       "default": true,
       "description": "When true, a /source-control:pull-request run, or a pr-unblock address-feedback round, that pushes a change making an open pull request's body stale (what changed, verification, the Left out: line) rewrites those sections in place, so the body describes the current head. false leaves the body as it was."
     },
+    "pr_body_format_gate": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the guardrails plugin's block-body-format-violation hook refuses a pull request body that breaks the format this repository declares (pr_body_required_sections, and the opener rule where linkage_gate_uses_pattern matches a workflow). false turns that refusal off; a repository that declares no format is never judged."
+    },
     "evidence_inline_max_captures": {
       "type": "integer",
       "minimum": 0,

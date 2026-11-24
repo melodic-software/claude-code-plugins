@@ -127,7 +127,7 @@ test("an unset models.issue-status reads nothing", async () => {
 });
 
 test("an unreadable trusted-actor list warns once and makes every read throw, naming the load cause", async () => {
-  const { labels, lines, calls } = reader({ 7: { state: "needs-human" } }, { trustedActors: undefined, env: { TRUSTED_ACTORS_PATH: "/nonexistent/trusted.json" } });
+  const { labels, lines, calls } = reader({ 7: { state: "needs-human" } }, { trustedActors: undefined, env: { STANDARDS_DIR: "/nonexistent/standards" } });
   const loadFailed = (number) => (error) => error instanceof StatusReadError && error.number === number && /ENOENT/.test(error.message);
   await assert.rejects(() => labels(7, ["agent-ready"]), loadFailed(7));
   await assert.rejects(() => labels(8, ["agent-ready"]), loadFailed(8));

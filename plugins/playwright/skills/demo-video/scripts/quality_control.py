@@ -39,8 +39,8 @@ from PIL import Image, ImageDraw
 from frame_seek import check_frame, seek_time
 from demo_common import SMOOTH_10_90, SMOOTH_PEAK_A, SMOOTH_PEAK_V, Ink, anchor_box, edge_ink, font, load_config, page_change
 
-AW, AH = 240, 135   # registration resolution
-SW, SH = 480, 270   # stillness / blend resolution
+AW, AH = 240, 135
+SW, SH = 480, 270
 
 
 def decode(video, w, h):
@@ -70,7 +70,6 @@ def ncc_valid(img, T):
     def box(S):
         return S[th:, tw:] - S[:-th, tw:] - S[th:, :-tw] + S[:-th, :-tw]
     n = th * tw
-    # a near-flat window (blank page area) would divide by ~0: floor its variance at a share of the template's
     var = np.maximum(box(S2) - box(S1) ** 2 / n, 0.05 * tn * tn + 1e-6)
     return corr / (tn * np.sqrt(var))
 
@@ -110,7 +109,7 @@ class Registrar:
         res.sort()
         j = max(range(len(res)), key=lambda i: res[i][1])
         z, s, (px, py) = res[j]
-        if 0 < j < len(res) - 1:   # parabolic refinement over scale
+        if 0 < j < len(res) - 1:
             a, b, c = res[j - 1][1], s, res[j + 1][1]
             den = a - 2 * b + c
             if den < 0:
@@ -135,7 +134,7 @@ def sheet(frames_rgb, items, path):
 
 def spans(idx, fps):
     """Frame indices -> 't0-t1s' spans for messages."""
-    runs = []   # [first, one past last] of each consecutive run
+    runs = []
     for i in idx:
         if runs and i == runs[-1][1]:
             runs[-1][1] = i + 1
@@ -182,7 +181,7 @@ def main(argv=None):
         print('quality control: no page frames found', file=sys.stderr)
         return 2
 
-    band_top = H - CAP['margin'] - CAP['pill_h'] - CAP['clear']   # top of the caption band, CSS px
+    band_top = H - CAP['margin'] - CAP['pill_h'] - CAP['clear']
     rows = int(band_top * AH / H)
     reg = Registrar(W, H, CAM['zmax'], rows)
     est = {}
@@ -193,7 +192,7 @@ def main(argv=None):
             print(f'quality control: frame {i} names a capture not in the timeline', file=sys.stderr)
             return 2
         if prev is not None and est[prev][3] == path and np.abs(reg_frames[i] - reg_frames[prev]).max() < 2:
-            est[i] = est[prev]   # an unchanged frame keeps its measurement
+            est[i] = est[prev]
         else:
             z, rect, s = reg.estimate(reg_frames[i], path, est[prev][0] if prev is not None else None)
             est[i] = (z, rect, s, path)
@@ -206,16 +205,16 @@ def main(argv=None):
     cx = np.array([est[i][1][0] + est[i][1][2] / 2 for i in runtime])
     cy = np.array([est[i][1][1] + est[i][1][3] / 2 for i in runtime])
     good = np.array([est[i][2] >= Q['match_min'] for i in runtime])
-    if good.any() and not good.all():   # a frame that does not match its capture gives no rect: interpolate
+    if good.any() and not good.all():
         at = np.arange(len(runtime))
         lnz, cx, cy = (np.interp(at, at[good], v[good]) for v in (lnz, cx, cy))
-    def med5(v):   # registration noise is one or two frames wide
+    def med5(v):
         p = np.pad(v, 2, mode='edge')
         return np.median(np.stack([p[k:k + len(v)] for k in range(5)]), axis=0)
     lnz, cx, cy = (med5(v) for v in (lnz, cx, cy))
     zf = np.exp(lnz)
 
-    def view(j):   # the camera rect at runtime position j
+    def view(j):
         z = zf[j]
         return [cx[j] - W / z / 2, cy[j] - H / z / 2, W / z, H / z]
 
@@ -248,11 +247,9 @@ def main(argv=None):
         rect = view(j)
         rect[0] = min(max(rect[0], 0.0), W - rect[2])
         rect[1] = min(max(rect[1], 0.0), H - rect[3])
-        # registration is good to about one analysis pixel: an edge passes if a gutter lies within that
-        # distance of where it was measured, and an edge that close to the page edge is the page edge
         prec = W / AW / zf[j]
         ink = ink_for(est[i][3], log[i]['captures'][-1])
-        least = None   # each edge's lowest ink over the shifts
+        least = None
         for d in np.arange(-prec, prec + 1e-6, 1.0):
             e = edge_ink(ink, [rect[0] + d, rect[1] + d, rect[2], rect[3]], Q['edge_band'], W, H, 2 * prec)
             least = e if least is None else {k2: min(least.get(k2, v), v) for k2, v in e.items()}
@@ -303,7 +300,7 @@ def main(argv=None):
     sm[:, band0:band1, :] = 0
     diff = np.abs(sm[1:] - sm[:-1]).reshape(len(sm) - 1, SH // 15, 15, SW // 16, 16).mean(axis=(2, 4)).max(axis=(1, 2))
     rset = set(runtime)
-    runs, run_start = [], None   # (first, last) frame of each still run
+    runs, run_start = [], None
     for i in range(1, n):
         if i in rset and (i - 1) in rset and diff[i - 1] < Q['still_block_delta']:
             run_start = i - 1 if run_start is None else run_start
@@ -319,7 +316,7 @@ def main(argv=None):
         a0, a1 = r[0] / fps, (r[1] + 1) / fps
         return max([seconds for start, end, seconds in reads if start < a1 and end > a0] or [0.0])
 
-    def span(r):   # a run of n still frames spans n frames, one more than its n-1 gaps
+    def span(r):
         return (r[1] - r[0] + 1) / fps
     over = [r for r in runs if span(r) > Q['still_max'] + read_in(r) + 1 / fps]
     worst = max(over, key=lambda r: span(r) - read_in(r)) if over else max(runs, key=span, default=None)
@@ -343,7 +340,7 @@ def main(argv=None):
     over, over_at = [], []
     for s0, s1 in moves:
         if runtime[s1] - runtime[s0] != s1 - s0:
-            continue   # spans a gap in runtime frames (title): not a camera move
+            continue
         dl = lnz[s1] - lnz[s0]
         pv = np.hypot(cx - cx[s0], cy - cy[s0])
         dpan = float(pv[s1]) * max(zf[s0], zf[s1]) / W
@@ -368,14 +365,12 @@ def main(argv=None):
         if (i - 1) not in rset or est[i][3] == est[i - 1][3]:
             continue
         url = bool({i - 1, i, i + 1} & url_frames)
-        changed = page_change(est[i][3], est[i - 1][3])   # the measure build_edl.py plans camera moves around
+        changed = page_change(est[i][3], est[i - 1][3])
         if not url and changed < Q['nav_change_min']:
             continue
         j = pos[i]
         cuts.append(i)
         url_frames -= {i - 1, i, i + 1}
-        # moving[j] compares registrations against two different captures, so a zoomed cut shows a
-        # small jump there with the camera still; the frames on each side say whether it moved
         still = not (moving[max(0, j - 2):j].any() or moving[j + 1:j + 3].any())
         at_one = zf[j - 1] <= Q['nav_zoom_max'] and zf[j] <= Q['nav_zoom_max']
         clean = (i not in clipped) and ((i - 1) not in clipped)
@@ -387,16 +382,14 @@ def main(argv=None):
           bad_cuts or f'{len(cuts)} page cuts, camera still; URL changes at 1.0x, state cuts at 1.0x or with clean edges',
           bad_cut_at + [f for f in url_frames if f < n])
 
-    # Checked around each page change only: slow camera motion also makes a frame resemble the average
-    # of its neighbors, and is not a crossfade.
     blends = []
     near_cut = sorted({c + d for c in cuts for d in range(-4, 5)} & rset)
     for i in near_cut:
         if (i - 1) not in rset or (i + 1) not in rset:
             continue
-        A, B, F = sm[i - 1], sm[i + 1], sm[i]   # caption band masked: a caption fade is a designed blend
+        A, B, F = sm[i - 1], sm[i + 1], sm[i]
         d = A - B
-        if float(np.abs(d).mean()) < 0.5:   # neighbors alike: nothing to blend (typing, cursor travel)
+        if float(np.abs(d).mean()) < 0.5:
             continue
         alpha = float(((F - B) * d).sum() / max((d * d).sum(), 1e-6))
         resid = float(np.abs(F - (alpha * A + (1 - alpha) * B)).mean())
@@ -420,7 +413,7 @@ def main(argv=None):
     for stale in out.glob('sheet-fail-*.png'):
         stale.unlink()
     for name, idx in fail_frames.items():
-        idx = [min(i, n - 1) for i in idx] or [runtime[0]]   # a check with no frame of its own shows the first page frame
+        idx = [min(i, n - 1) for i in idx] or [runtime[0]]
         sheet(rgb, [(i, f'{name} {i / fps:.2f}s') for i in idx], out / f'sheet-fail-{name}.png')
     report = {'video': str(a.video), 'runtime_s': round(len(runtime) / fps, 3), 'checks': results,
               'zoom_series': [[round(runtime[j] / fps, 3), round(float(zf[j]), 3)] for j in range(len(runtime))]}
