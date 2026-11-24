@@ -54,3 +54,17 @@ repository edit, since a score written into a file is stale within weeks.
   trials prove a pair. Usage saving comes from trials and from work Claude cannot do.
 - Adding a source is a registry row reviewed by pull request; its page is judged at read time.
 - The mechanism is an experiment, switched off or removed if routed work does not hold up.
+
+## Amendment (2026-11-24): route on the best error-ranged leading source plus trial results
+
+This amends decision 2; it does not supersede it. In practice routing rests on the best leading
+source with a stated error range, plus trial results on this machine. A consensus of two
+independent sources is still used when it exists, but today's sources rarely provide one.
+
+- Route fetches and reads only registry rows that can lead; support-only and provider-own rows
+  stay in the registry as pointers, are listed unread, and are fetched only while trials are
+  active, since their records seed trial candidates.
+- The `vendors.tiebreak` setting, including the plan-usage step, is removed: a tie keeps the work
+  on Claude unless one non-Claude vendor remains eligible.
+- Promotion of a support-only row to permanent was removed in
+  [#18809](https://github.com/melodic-software/claude-code-plugins/pull/18809).
