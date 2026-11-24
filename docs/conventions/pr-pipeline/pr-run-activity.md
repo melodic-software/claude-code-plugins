@@ -330,9 +330,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`, with the App token or,
    in the read file, the `GITHUB_TOKEN`, which has no `issues` grant: in a private repository a PR
    that closes an issue may fail the step red.
-8. `collect-base-activity` copies what the activity runs from the base out of `.base`: a script's
-   directory and the directory of every file it loads, transitively, to `$RUNNER_TEMP/base-script`
-   at their repository paths, where the runner runs it as `$RUNNER_TEMP/base-script/<script>`, or
+8. `collect-base-activity` copies what the activity runs from the base out of `.base`: the files in
+   a script's own directory and every file it loads, transitively, each on its own, to
+   `$RUNNER_TEMP/base-script` at their repository paths, where the runner runs it as `$RUNNER_TEMP/base-script/<script>`, or
    for a skill the base `plugins/` and
    `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`. For
    [`prepare: merge-base`](#prepare-merge-base) the read file, and the write file under the

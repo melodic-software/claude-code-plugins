@@ -1,8 +1,9 @@
 name: Collect Base Activity
 description: >
   Copy what an activity runs out of the base checkout before the PR head
-  replaces it: a script's directory and the directory of every file it
-  loads to $RUNNER_TEMP/base-script at their repository paths, or for
+  replaces it: the files in a script's own directory and every file it
+  loads, transitively, to $RUNNER_TEMP/base-script at their repository
+  paths, or for
   a skill the base plugins/ and .claude-plugin/ to
   $RUNNER_TEMP/base-marketplace, plus the plugins to install, prompt (with its
   changed-paths) and claude_args (with read access to the marketplace copy,
