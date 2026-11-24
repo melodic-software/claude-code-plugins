@@ -113,10 +113,9 @@ Graceful degradation: where a named step below is not available in the consuming
 
 ## Next
 
-- A deepening candidate's shape is agreed, when available: /planning:plan
+- A deepening candidate's shape is agreed: /planning:plan.
 - A finding is about coupling between modules: /coupling:reduce.
-- The boundaries lens wrote a findings file, when available: /corrections:codify findings
-- A boundary rule is recorded and nothing enforces it yet: /architecture:enforce-boundaries
+- A boundary rule is recorded and nothing enforces it yet: /architecture:enforce-boundaries.
 - An agreed candidate's module has no tests to protect the refactor: /testing:write, characterization tests first.
 
 ## Related
