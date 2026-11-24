@@ -339,7 +339,6 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
 
   if (basis === 'default' && trialsActive) {
     const trialPick = selectActiveTrial({
-      recordsBySource,
       modelsByVendor,
       skippedSilentVendors,
       unavailableInUseVendors,
@@ -347,7 +346,6 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
       effectiveVendorOrder,
       failedOutcomes,
       taskType: opts.taskType,
-      taskClass: opts.taskClass,
       notes,
     })
     if (trialPick) {
