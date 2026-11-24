@@ -11,8 +11,6 @@ HOOK="$SELF_DIR/pre-push-changelog-fragments.sh"
 . "$SELF_DIR/lib/test-harness.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
-# shellcheck source=lib/changed-files.sh
-. "$SELF_DIR/lib/changed-files.sh"
 
 ZERO=0000000000000000000000000000000000000000
 BUDGET_SECONDS=3
@@ -85,19 +83,33 @@ git_test_config "$f" update-ref -d refs/remotes/origin/main
 expect "an unfetched base is left to CI" 0 "is not fetched" "$f" "refs/heads/topic $h refs/heads/topic $ZERO"
 rm -rf "$f"
 
-repo="$(cd "$SELF_DIR/.." && pwd)"
-if (cd "$repo" && changed_files::verify_base origin/main); then
-  h="$(head_of "$repo")"
-  start=$(date +%s%N)
-  (cd "$repo" && printf 'refs/heads/t %s refs/heads/t %s\n' "$h" "$ZERO" | bash scripts/pre-push-changelog-fragments.sh origin >/dev/null 2>&1)
-  ms=$((($(date +%s%N) - start) / 1000000))
-  if ((ms <= BUDGET_SECONDS * 1000)); then
-    ok "the hook runs in ${ms} ms on this repository, within ${BUDGET_SECONDS} s"
-  else
-    fail "the hook took ${ms} ms on this repository, over the ${BUDGET_SECONDS} s pre-push budget"
-  fi
+fixture_tree::build f --sut "$HOOK" --sut check-changelog-fragments.sh --git --plugins --label prepush-budget || exit 1
+printf '%s\n' '# fragment mode' >"$f/scripts/fragment-plugins.txt"
+for i in $(seq 1 100); do
+  mkdir -p "$f/plugins/p$i/.claude-plugin" "$f/plugins/p$i/skills" "$f/.changes/p$i"
+  printf '{\n  "name": "p%s",\n  "version": "1.0.0"\n}\n' "$i" >"$f/plugins/p$i/.claude-plugin/plugin.json"
+  printf '# Changelog\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First.\n' >"$f/plugins/p$i/CHANGELOG.md"
+  printf 'v1\n' >"$f/plugins/p$i/skills/a.md"
+  printf 'p%s\n' "$i" >>"$f/scripts/fragment-plugins.txt"
+done
+commit "$f" base
+git_test_config "$f" branch -q -M main
+git_test_config "$f" update-ref refs/remotes/origin/main main
+git_test_config "$f" checkout -q -b topic
+for i in $(seq 1 20); do
+  printf 'v2\n' >"$f/plugins/p$i/skills/a.md"
+  printf -- '---\nbump: patch\n---\n\n### Fixed\n\n- Topic.\n' >"$f/.changes/p$i/topic-$(printf '%08x' "$i").md"
+done
+commit "$f" change
+h="$(head_of "$f")"
+start=$(date +%s%N)
+expect "a 100-plugin, 20-fragment push passes" 0 "" "$f" "refs/heads/topic $h refs/heads/topic $ZERO"
+ms=$((($(date +%s%N) - start) / 1000000))
+if ((ms <= BUDGET_SECONDS * 1000)); then
+  ok "the hook ran in ${ms} ms at that scale, within the ${BUDGET_SECONDS} s pre-push budget"
 else
-  ok "budget case skipped: origin/main is not fetched in this checkout"
+  fail "the hook took ${ms} ms at that scale, over the ${BUDGET_SECONDS} s pre-push budget"
 fi
+rm -rf "$f"
 
 test_harness::report

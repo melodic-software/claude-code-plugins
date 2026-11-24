@@ -156,3 +156,9 @@ This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
   The rest of the affected-files check (about 7.6 s plus 0.25 s per changed file, measured on 29
   red heads) stays in the pre-PR check and CI. A further gate joins `pre-push` only when it runs
   in 3 s.
+- **Over budget: optimize first, then move**
+  ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L413)).
+  When the timing test trips, the first response is an optimization item for the slow check. The
+  check leaves the hook for CI only when it cannot be brought under 3 s. One over-run on an
+  unusually large change is a signal to look at, not by itself a removal. The check that grows
+  with the repository is `validate-plugin-contracts.mjs`.
