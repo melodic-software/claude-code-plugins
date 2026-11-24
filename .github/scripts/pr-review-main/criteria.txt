@@ -16,5 +16,4 @@ copy-if-present docs/review standards/review
 copy-if-present .claude/rules standards/rules
 read .github/scripts/pr-review-main
 read .github/actions
-read .github/standards/trusted-actors
 read .github/workflows/pr-review-main.yml

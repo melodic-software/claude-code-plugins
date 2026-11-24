@@ -20,14 +20,14 @@ const CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
 const FILES = {
   config: read(`../../../${CONFIG_PATH}`),
   schema: json("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json"),
-  vocabulary: json("../../standards/github-actions-conventions/vocabulary.json"),
+  vocabulary: json("../../scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json"),
   laneRules: LANE_RULES,
   effectGrants: EFFECT_GRANTS,
   activityRules: json("./activity-rules.json"),
 };
 const THIS_REPOSITORY = "1277265216";
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
-const ACTORS_SCHEMA = json("../../standards/trusted-actors/trusted-actors.schema.json");
+const ACTORS_SCHEMA = json("../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json");
 
 test("each row is keyed by a repository id and holds exactly the repository label, lanes and trusted-actor additions", () => {
   assert.ok(Object.keys(GRANTS).length > 0);

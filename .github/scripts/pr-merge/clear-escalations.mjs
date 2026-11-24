@@ -161,8 +161,6 @@
 //                        `native` re-judges enable-auto-merge's refusal
 //   LANES_BOT_LOGIN      the lanes App bot login (default
 //                        melodic-automation-lanes[bot])
-//   TRUSTED_ACTORS_PATH  the base trusted-actors.json (default
-//                        .base/.github/standards/trusted-actors/trusted-actors.json)
 //   GITHUB_API_URL
 //   GITHUB_RUN_NUMBER    where the sweep starts (rotated)
 //   BABYSIT_VERIFY_GH_TOKEN, BABYSIT_VERIFY_LISTING, BABYSIT_VERIFY_HEAD_REFS,

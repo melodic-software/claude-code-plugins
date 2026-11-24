@@ -9,23 +9,15 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 
 import { loadTrustedActors as statusList } from "../../actions/resolve-config/read-status.mjs";
 import { loadTrustedActors, loadTrustedList as triggerList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { TRUSTED_ACTORS_PATH as HOLDS_PATH } from "../pr-merge/merge-holds.mjs";
 import { reviewerIdFrom, trustedHumansFrom } from "../pr-unblock/address-feedback.mjs";
 import { dependabotIdFrom } from "../pr-unblock/review-dependency.mjs";
 import { readHumans } from "../work-resolve-issue/report-outcome.mjs";
-import { listCommits } from "./trusted-actors.fixtures.mjs";
-import { listBlob, listChangedAt, loadTrustedList, readRawTrustedActors, SAME_TREE_LIST, STANDARDS_LIST_PATH, TRUSTED_ACTORS_PATH, trustedActorsPath, trustedListPath } from "./trusted-actors.mjs";
+import { LIST_FIXTURE, listCommits } from "./trusted-actors.fixtures.mjs";
+import { listBlob, listChangedAt, loadTrustedList, readRawTrustedActors, STANDARDS_LIST_PATH, trustedListPath } from "./trusted-actors.mjs";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const SCRIPTS = join(ROOT, ".github/scripts");
-
-test("the list path is the one under .github/standards, under .base unless a base is given", () => {
-  assert.equal(TRUSTED_ACTORS_PATH, ".github/standards/trusted-actors/trusted-actors.json");
-  assert.equal(trustedActorsPath(), ".base/.github/standards/trusted-actors/trusted-actors.json");
-  assert.equal(trustedActorsPath(""), ".base/.github/standards/trusted-actors/trusted-actors.json");
-  assert.equal(trustedActorsPath("/b"), "/b/.github/standards/trusted-actors/trusted-actors.json");
-  assert.equal(fileURLToPath(SAME_TREE_LIST), join(ROOT, TRUSTED_ACTORS_PATH));
-});
+const SAME_TREE_COPY = ".github/standards/trusted-actors/trusted-actors.json";
 
 test("the list is read from the standards checkout STANDARDS_DIR names, else the path the workflow gives; with neither it throws", () => {
   assert.equal(STANDARDS_LIST_PATH, "components/trusted-actors/trusted-actors.json");
@@ -43,14 +35,14 @@ test("read-status reads the list from STANDARDS_DIR, else TRUSTED_ACTORS_PATH, a
   assert.deepEqual(statusList({ STANDARDS_DIR: standards, TRUSTED_ACTORS_PATH: "/missing", BASE_PATH: "/missing" }), { marker: 2 });
   assert.deepEqual(statusList({ TRUSTED_ACTORS_PATH: join(standards, STANDARDS_LIST_PATH), BASE_PATH: "/missing" }), { marker: 2 });
   const copy = tempDir("trusted-actors-copy-");
-  mkdirSync(dirname(join(copy, TRUSTED_ACTORS_PATH)), { recursive: true });
-  writeFileSync(join(copy, TRUSTED_ACTORS_PATH), '{"marker":1}');
+  const legacy = join(copy, ".github/standards/trusted-actors/trusted-actors.json");
+  mkdirSync(dirname(legacy), { recursive: true });
+  writeFileSync(legacy, '{"marker":1}');
   assert.throws(() => statusList({ BASE_PATH: copy }), /STANDARDS_DIR is unset/);
   assert.throws(() => statusList({}), /STANDARDS_DIR is unset/, "the default .base copy is not read either");
 });
 
-test("merge-holds and resolve-config, which import nothing from scripts/lib, name the same paths", () => {
-  assert.equal(HOLDS_PATH, TRUSTED_ACTORS_PATH);
+test("resolve-config, which imports nothing from scripts/lib, names the same standards path", () => {
   const source = readFileSync(join(ROOT, ".github/actions/resolve-config/resolve-config.mjs"), "utf8");
   assert.match(source, new RegExp(`\\nconst STANDARDS_TRUSTED_ACTORS_PATH = "${STANDARDS_LIST_PATH.replaceAll(".", "\\.")}";\\n`));
 });
@@ -134,7 +126,7 @@ function gateSourceCopyBesideFixture() {
     mkdirSync(dirname(join(tree, ".github/scripts", rel)), { recursive: true });
     copyFileSync(join(SCRIPTS, rel), join(tree, ".github/scripts", rel));
   }
-  mkdirSync(dirname(join(tree, TRUSTED_ACTORS_PATH)), { recursive: true });
+  mkdirSync(dirname(join(tree, SAME_TREE_COPY)), { recursive: true });
   mkdirSync(dirname(join(tree, STANDARDS_LIST_PATH)), { recursive: true });
   return tree;
 }
@@ -186,7 +178,7 @@ test("every reader, permissive ones included, returns what main returned on each
 
 test("gate-source reads the standards checkout STANDARDS_DIR names, and with none trusts no one over its same-tree list", async () => {
   const tree = gateSourceCopyBesideFixture();
-  writeFileSync(join(tree, TRUSTED_ACTORS_PATH), doc([h]));
+  writeFileSync(join(tree, SAME_TREE_COPY), doc([h]));
   const standards = tempDir("trusted-actors-gate-standards-");
   mkdirSync(dirname(join(standards, STANDARDS_LIST_PATH)), { recursive: true });
   writeFileSync(join(standards, STANDARDS_LIST_PATH), doc([{ id: 11, login: "Other", kind: "human" }]));
@@ -207,13 +199,13 @@ test("gate-source reads the standards checkout STANDARDS_DIR names, and with non
   }
 });
 
-test("on the real list every reader agrees with the validated view", async () => {
-  const path = join(ROOT, TRUSTED_ACTORS_PATH);
+test("on the captured standards list every reader agrees with the validated view", async () => {
+  const path = LIST_FIXTURE;
   const text = readFileSync(path, "utf8");
   const tree = gateSourceCopyBesideFixture();
   const list = loadTrustedList(path);
   const humans = [...list.humans];
-  assert.ok(humans.length > 0, "the real list names a person");
+  assert.ok(humans.length > 0, "the list names a person");
   assert.deepEqual(await readers(path, text, tree, "real"), [
     view(list),
     [...list.ids],

@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/lib/fixtures/standards/*
 // pr-dispatch-feedback.yml's slot read through the real resolver: the
 // dispatcher script resolves only the address-feedback slot of a pr-unblock
 // lane whose resolve-conflicts slot has a mergeable predicate (runs
@@ -95,8 +96,6 @@ function baseWith(text) {
   const base = tempDir("feedback-dispatch-base-");
   for (const file of [
     "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
-    ".github/standards/github-actions-conventions/vocabulary.json",
-    ".github/standards/trusted-actors/trusted-actors.json",
   ]) {
     mkdirSync(dirname(join(base, file)), { recursive: true });
     cpSync(join(ROOT, file), join(base, file));

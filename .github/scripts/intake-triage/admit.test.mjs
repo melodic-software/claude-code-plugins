@@ -27,7 +27,7 @@ import { checkRun, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { main as checkBlockers } from "../work-resolve-issue/check-blockers.mjs";
 import { selectCandidates } from "../maintenance-audit-lane-runs/triage-sweep.mjs";
 import { rmSync } from "node:fs";
-import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
+import { standardsAt, standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -4227,11 +4227,12 @@ describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
       method === "POST" && path === "/graphql" && body.query.includes("ISSUE_FIELD_ADDED_EVENT") ? { data: { repository: { issue: { timelineItems: { nodes: [] } } } } } : admitGithub(method, path, body);
     const dir = tempDir("drift-chain-");
     try {
-      const actors = join(dir, "trusted-actors.json");
+      const standards = standardsAt(join(dir, "standards"));
+      const actors = standards.list;
       writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ kind: "human", id: HUMAN, login: "person" }] }));
       const outputs = {};
       const lines = [];
-      const env = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "7", TRUSTED_ACTORS_PATH: actors, LANES_APP_ID: String(APP), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) };
+      const env = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "7", TRUSTED_ACTORS_PATH: actors, LANES_APP_ID: String(APP), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: standards.dir };
       await checkBlockers({ env, github, log: (line) => lines.push(line), write: (values) => Object.assign(outputs, values) });
       return { ...outputs, lines };
     } finally {

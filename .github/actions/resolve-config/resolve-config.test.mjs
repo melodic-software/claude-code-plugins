@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { issueLaneWebHostsFromBase, main, refineDispatchActivitiesFromBase, resolveFromBase } from "./resolve-config.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { STANDARDS_FIXTURE } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, "resolve-config.mjs");
@@ -25,8 +26,8 @@ const LIVE_SCHEMA = join(
 );
 const CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
 const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
-const VOCABULARY_PATH =
-  ".github/standards/github-actions-conventions/vocabulary.json";
+const LEGACY_VOCABULARY = ".github/standards/github-actions-conventions/vocabulary.json";
+const STANDARDS_VOCABULARY = "components/github-actions-conventions/vocabulary.json";
 
 const scratch = tempDir("resolve-config-");
 after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -46,13 +47,15 @@ function workspace({
   counter += 1;
   const root = join(scratch, `ws-${counter}`);
   const base = join(root, ".base");
+  const standards = join(root, "standards");
   mkdirSync(base, { recursive: true });
+  mkdirSync(standards, { recursive: true });
   if (config !== null) {
     place(base, configPath, join(FIXTURES, config));
   }
   place(base, SCHEMA_PATH, LIVE_SCHEMA);
   if (vocabulary) {
-    place(base, VOCABULARY_PATH, join(FIXTURES, "vocabulary.json"));
+    place(standards, STANDARDS_VOCABULARY, join(FIXTURES, "vocabulary.json"));
   }
   if (head) {
     place(root, configPath, join(FIXTURES, head));
@@ -74,6 +77,7 @@ function workspace({
       LANE: "pr-run-checks",
       ACTIVITY: "run-tests",
       BASE_PATH: base,
+      STANDARDS_DIR: standards,
       CONFIG_PATH: configPath,
       OUTPUT_PATH: join(root, "resolved.json"),
       EVENT_NAME: "pull_request",
@@ -333,10 +337,8 @@ test("a config symlink that leaves base-path fails red", async (t) => {
   await assertFailsRed(t, env, /outside base-path/);
 });
 
-const STANDARDS_VOCABULARY = "components/github-actions-conventions/vocabulary.json";
-
 function standardsCheckout(root, { vocabulary = true } = {}) {
-  const dir = join(root, "standards");
+  const dir = join(root, "standards-other");
   mkdirSync(dir, { recursive: true });
   if (vocabulary) {
     place(dir, STANDARDS_VOCABULARY, join(FIXTURES, "vocabulary.json"));
@@ -349,21 +351,24 @@ test("with standards-path set, the vocabulary is read from the standards checkou
   assert.equal(await main({ env: { ...env, STANDARDS_DIR: standardsCheckout(root) }, github: srcChanged() }), 0);
 });
 
-test("with standards-path set, base-path's vocabulary is never read", async (t) => {
-  const { root, env } = workspace();
+test("with standards-path set, base-path's retired vocabulary copy is never read", async (t) => {
+  const { root, base, env } = workspace({ vocabulary: false });
+  place(base, LEGACY_VOCABULARY, join(FIXTURES, "vocabulary.json"));
   await assertFailsRed(t, { ...env, STANDARDS_DIR: standardsCheckout(root, { vocabulary: false }) }, /vocabulary is missing/);
 });
 
-test("an empty standards-path reads the vocabulary under base-path", async () => {
-  const { env } = workspace();
-  assert.equal(await main({ env: { ...env, STANDARDS_DIR: "" }, github: srcChanged() }), 0);
+test("an empty standards-path rejects the config for its missing vocabulary, a base-path copy unread", async (t) => {
+  const { base, env } = workspace({ vocabulary: false });
+  place(base, LEGACY_VOCABULARY, join(FIXTURES, "vocabulary.json"));
+  await assertFailsRed(t, { ...env, STANDARDS_DIR: "" }, /vocabulary is missing/);
 });
 
 test("a vocabulary symlink that leaves standards-path fails red", async (t) => {
   const { root, base, env } = workspace();
+  place(base, LEGACY_VOCABULARY, join(FIXTURES, "vocabulary.json"));
   const dir = standardsCheckout(root, { vocabulary: false });
   mkdirSync(dirname(join(dir, STANDARDS_VOCABULARY)), { recursive: true });
-  symlinkSync(join(base, VOCABULARY_PATH), join(dir, STANDARDS_VOCABULARY));
+  symlinkSync(join(base, LEGACY_VOCABULARY), join(dir, STANDARDS_VOCABULARY));
   await assertFailsRed(t, { ...env, STANDARDS_DIR: dir }, /outside standards-path/);
 });
 
@@ -1012,7 +1017,7 @@ test("on a pull_request event, draft comes from the payload without an API call"
   assert.deepEqual(calls, []);
 });
 
-const LIVE_VOCABULARY = join(HERE, "../../standards/github-actions-conventions/vocabulary.json");
+const LIVE_VOCABULARY = join(HERE, "../../scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json");
 function withAppliedBy(env) {
   writeFileSync(
     join(env.BASE_PATH, CONFIG_PATH),
@@ -1021,7 +1026,7 @@ function withAppliedBy(env) {
       "      - activity: apply-patch\n        needs: [fix-ci]\n",
     ),
   );
-  copyFileSync(LIVE_VOCABULARY, join(env.BASE_PATH, VOCABULARY_PATH));
+  copyFileSync(LIVE_VOCABULARY, join(env.STANDARDS_DIR, STANDARDS_VOCABULARY));
   env.LANE = "pr-unblock";
   env.ACTIVITY = "fix-ci";
   env.PREPARE_SUPPORTED = "true";
@@ -1088,7 +1093,7 @@ test("MODEL_RUNG empty, 0 or 1 resolves; any other value is refused as invalid-r
 });
 
 test("issueLaneWebHostsFromBase: resolve-issue's web-access domains from the base config, none when it reads no web", () => {
-  assert.equal(issueLaneWebHostsFromBase({ BASE_PATH: join(HERE, "../../..") }), "any");
+  assert.equal(issueLaneWebHostsFromBase({ BASE_PATH: join(HERE, "../../.."), STANDARDS_DIR: STANDARDS_FIXTURE }), "any");
   assert.deepEqual(issueLaneWebHostsFromBase(workspace().env), []);
 });
 

@@ -228,6 +228,22 @@ def file_payload(text: str) -> dict[str, Any]:
     }
 
 
+CAPTURED_LIST_COMMITS = (
+    pathlib.Path(__file__).resolve().parents[6]
+    / ".github/scripts/lib/fixtures/standards-list-commits.json"
+)
+
+
+def list_commits(date: str | None) -> list[Any]:
+    """The captured `GET /repos/{owner}/{repo}/commits?path=...&per_page=1`
+    response, its newest commit dated `date`; none when `date` is None."""
+    if date is None:
+        return []
+    commits = json.loads(CAPTURED_LIST_COMMITS.read_text())
+    commits[0]["commit"]["committer"]["date"] = date
+    return commits
+
+
 class FakeGitHub:
     """Answers the reader's reads: the artifact listing, runs, a compare of a
     run head against main, the pull request's commits, the trusted-actor list,
@@ -249,6 +265,7 @@ class FakeGitHub:
         self.actors: Any = {"version": 1, "actors": [MAINTAINER, LANES]}
         self.team_yaml: str | None = None
         self.standards_actors: Any = None
+        self.standards_list_changed: str | None = None
         self.calls: list[list[str]] = []
         self.envs: list[tuple[list[str], Any]] = []
         self.fail: set[str] = set()
@@ -589,6 +606,11 @@ class FakeGitHub:
         )
         if path == standards:
             return ok(file_payload(json.dumps(self.standards_actors)))
+        if path == (
+            f"repos/{STANDARDS_REPO}/commits?path={policy.STANDARDS_TRUSTED_ACTORS}"
+            f"&sha={STANDARDS_SHA}&per_page=1"
+        ):
+            return ok(list_commits(self.standards_list_changed))
         if path.startswith(f"repos/{REPO}/contents/"):
             # Read at main's tip only, never by the branch's name.
             if not path.endswith(f"?ref={MAIN_SHA}") or self.actors is None:
@@ -8857,12 +8879,21 @@ class TheTrustedListMustBeTheJudgedOne(unittest.TestCase):
     """For a repository that opts in to the standards list, a pass refuses
     `verify:spec-changed` unless the trusted list's blob it records
     (write-verdict.mjs `trusted_actors_blob`) is the live list's; one
-    recording none stands while the `.github/standards/` copy is at the tip."""
+    recording none stands while the `.github/standards/` copy is at the tip,
+    and once it is gone, only when it started after the list last changed."""
 
-    def refusal(self, live: Any, copy: Any = LIST_V1, team: str = OPTED_IN, **recorded: Any) -> Any:
+    def refusal(
+        self,
+        live: Any,
+        copy: Any = LIST_V1,
+        team: str = OPTED_IN,
+        changed: str | None = None,
+        **recorded: Any,
+    ) -> Any:
         fake = passing()
         fake.records[named(HEAD, "pass")] = record(**recorded)
         fake.team_yaml, fake.actors, fake.standards_actors = team, copy, live
+        fake.standards_list_changed = changed
         with (
             mock.patch.object(policy, "_STANDARDS_SHA", {}),
             mock.patch.object(policy, "_STANDARDS_TEXT", {}),
@@ -8879,9 +8910,16 @@ class TheTrustedListMustBeTheJudgedOne(unittest.TestCase):
                     self.refusal(LIST_V1, trusted_actors_blob=malformed), ve.SPEC_CHANGED
                 )
 
-    def test_no_recorded_blob_stands_only_while_the_copy_is_there(self) -> None:
-        self.assertIsNone(self.refusal(LIST_V2))
-        self.assertEqual(self.refusal(LIST_V1, copy=None), ve.SPEC_CHANGED)
+    def test_no_recorded_blob_stands_while_the_copy_is_there(self) -> None:
+        self.assertIsNone(self.refusal(LIST_V2, changed="2026-10-20T00:00:00Z"))
+
+    def test_no_recorded_blob_without_the_copy_is_judged_by_the_list_s_change_time(self) -> None:
+        self.assertIsNone(self.refusal(LIST_V1, copy=None, changed="2026-10-01T00:00:00Z"))
+        self.assertIsNone(self.refusal(LIST_V1, copy=None))
+        self.assertEqual(
+            self.refusal(LIST_V1, copy=None, changed="2026-10-20T00:00:00Z"), ve.SPEC_CHANGED
+        )
+        self.assertEqual(self.refusal(LIST_V1, copy=None, changed=RUN_STARTED), ve.SPEC_CHANGED)
 
     def test_a_repository_that_does_not_opt_in_compares_no_blob(self) -> None:
         stale = ve.git_blob(json.dumps(LIST_V2).encode())
@@ -8946,21 +8984,27 @@ class TheResolverAndTheGateAgreeOnTheList(unittest.TestCase):
         self.assertEqual(blob, self.git("rev-parse", f"HEAD:{policy.STANDARDS_TRUSTED_ACTORS}"))
         return blob
 
-    def resolver_stale(self) -> bool:
-        changed = self.git("log", "-1", "--format=%cI", "--", policy.STANDARDS_TRUSTED_ACTORS)
+    def list_changed(self) -> str:
+        return self.git("log", "-1", "--format=%cI", "--", policy.STANDARDS_TRUSTED_ACTORS)
+
+    def resolver_stale(self, started: str = PASS_STARTED) -> bool:
+        changed = self.list_changed()
         return self.node(
             f"import {{ specChanged }} from {json.dumps(RESOLVE_PR.as_uri())};"
-            f"console.log(JSON.stringify(specChanged([{json.dumps(self.PASS_STARTED)}],"
+            f"console.log(JSON.stringify(specChanged([{json.dumps(started)}],"
             f" {{ linkedIssues: [], specKind: 'closes', listChangedAt: {json.dumps(changed)} }})));"
         )
 
-    def gate_stale(self, blob: str | None) -> bool:
+    def gate_stale(self, blob: str | None, copy: bool = True) -> bool:
         fake = passing()
         fake.records[named(HEAD, "pass")] = record(
             **({} if blob is None else {"trusted_actors_blob": blob})
         )
         live = (self.root / policy.STANDARDS_TRUSTED_ACTORS).read_text()
         fake.team_yaml, fake.standards_actors = OPTED_IN, json.loads(live)
+        fake.standards_list_changed = self.list_changed()
+        if not copy:
+            fake.actors = None
         refusal = read(fake).refusal
         self.assertIn(refusal, (None, ve.SPEC_CHANGED))
         return refusal == ve.SPEC_CHANGED
@@ -8977,6 +9021,13 @@ class TheResolverAndTheGateAgreeOnTheList(unittest.TestCase):
 
     def test_no_recorded_blob_with_the_copy_there_is_fresh_to_both(self) -> None:
         self.assertEqual((self.gate_stale(None), self.resolver_stale()), (False, False))
+
+    def test_no_recorded_blob_with_the_copy_gone_weighs_the_list_s_change_time_for_both(self) -> None:
+        self.commit("2026-10-05T00:00:00Z", list_text=json.dumps(LIST_V2))
+        fresh = (self.gate_stale(None, copy=False), self.resolver_stale(RUN_STARTED))
+        self.commit("2026-10-20T00:00:00Z", list_text=json.dumps(LIST_V1))
+        stale = (self.gate_stale(None, copy=False), self.resolver_stale(RUN_STARTED))
+        self.assertEqual((fresh, stale), ((False, False), (True, True)))
 
 
 if __name__ == "__main__":

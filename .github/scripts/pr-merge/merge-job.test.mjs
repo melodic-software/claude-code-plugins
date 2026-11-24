@@ -175,7 +175,7 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
       mkdirSync(standards, { recursive: true });
       const config = readFileSync(join(root, "docs/conventions/pr-pipeline.yaml"), "utf8");
       writeFileSync(join(conventions, "pr-pipeline.yaml"), edit(config));
-      const list = join(root, ".github/standards/trusted-actors/trusted-actors.json");
+      const list = join(root, ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json");
       writeFileSync(join(standards, "trusted-actors.json"), actors === undefined ? readFileSync(list, "utf8") : JSON.stringify({ version: 1, actors }));
       symlinkSync(join(root, "plugins"), join(dir, ".base/plugins"));
       // The shared rate guard the listing sources.
@@ -195,7 +195,7 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
         DEPENDABOT: "off",
         LANE_PRS: "gate",
         EVENT_PR: "",
-        TRUSTED_ACTORS_PATH: join(dir, ".base/.github/standards/trusted-actors/trusted-actors.json"),
+        TRUSTED_ACTORS_PATH: edit === undefined ? join(root, ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json") : join(dir, ".base/.github/standards/trusted-actors/trusted-actors.json"),
         ...env,
       },
     });

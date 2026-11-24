@@ -1120,6 +1120,7 @@ function env(dir) {
     GITHUB_RUN_ATTEMPT: "1",
     TRACKER_CONFIG: join(dir, "absent.json"),
     BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)),
+    STANDARDS_DIR: standardsCheckout(),
     RUNNER_CHECKS: existsSync(join(dir, "runner-checks")) ? readFileSync(join(dir, "runner-checks"), "utf8") : "",
   };
 }

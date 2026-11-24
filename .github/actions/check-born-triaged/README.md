@@ -30,7 +30,7 @@ these hold on the issue:
 
 - Its body ends with `<!-- work-items:born-triaged -->` as its last line, where the decompose
   publisher writes it; a copy elsewhere in the body does not count.
-- Its author is on [`trusted-actors.json`](../../standards/trusted-actors/trusted-actors.json) with
+- Its author is on [`trusted-actors.json`](https://github.com/melodic-software/standards/blob/main/components/trusted-actors/trusted-actors.json) with
   kind `human`, or is the lanes App bot, both matched by numeric user id. A marker in an issue from
   anyone else is ignored.
 - It has an Issue Type and a status: a Work status field a trusted account set to anything but

@@ -8,6 +8,7 @@ import { after, describe, test } from "node:test";
 import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/size-split.mjs";
 import { main } from "./check-blockers.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { standardsAt } from "../lib/trusted-actors.fixtures.mjs";
 
 const HUMAN = { id: 101, login: "person" };
 const STRANGER = { id: 202, login: "stranger" };
@@ -15,9 +16,10 @@ const APP = { id: 303, login: "melodic-automation-lanes[bot]" };
 const UNTRUSTED = "provenance: untrusted";
 const dir = tempDir("check-blockers-");
 after(() => rmSync(dir, { recursive: true, force: true }));
-const TRUSTED = join(dir, "trusted-actors.json");
+const STANDARDS = standardsAt(join(dir, "standards"));
+const TRUSTED = STANDARDS.list;
 writeFileSync(TRUSTED, JSON.stringify({ version: 1, actors: [{ kind: "human", id: HUMAN.id, login: HUMAN.login }] }));
-const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) };
+const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS.dir };
 
 const issue = (number, state, { repo = "o/r", reason = state === "closed" ? "completed" : null, closer = HUMAN } = {}) => ({
   number,

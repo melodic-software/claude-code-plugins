@@ -607,7 +607,7 @@ test("noRefineDue takes only numeric ids matching this PR and head", () => {
 
 test("the no-refine accounts are fix-docs's excluded authors, none a listed human or the lanes App, and the live config lists no refine-dispatch activity", async () => {
   assert.deepEqual([...NO_REFINE_ACCOUNTS].sort(), [...FIX_DOCS.excludedAuthorIds].sort());
-  const { humans, logins } = loadTrustedList(fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url)));
+  const { humans, logins } = loadTrustedList(fileURLToPath(new URL("../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json", import.meta.url)));
   const lanesApp = logins.get("melodic-automation-lanes[bot]");
   assert.ok(Number.isInteger(lanesApp));
   for (const id of NO_REFINE_ACCOUNTS) {

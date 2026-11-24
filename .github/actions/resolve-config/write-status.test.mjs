@@ -467,13 +467,13 @@ test("statusWriter set with keepHold throws and writes nothing when the field ca
   assert.ok(!calls.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")));
 });
 
-test("statusWriter with no standards checkout reads no trusted-actor list, the base's copy included: a plain set still writes, and every field read throws", async () => {
+test("statusWriter with no standards checkout reads neither list, the base's copies included, so every call throws and writes nothing", async () => {
   const w = fieldWorld(null);
   const { set, leaveAgentReady } = await writerOver(w.github, { BASE_PATH: ROOT });
-  assert.equal((await set(7, "needs-human")).outcome, "written", "a plain set needs only the config");
-  await assert.rejects(() => set(8, "needs-triage", { keepHold: true }), (error) => error instanceof StatusWriteError && /could not be read/.test(error.message));
+  await assert.rejects(() => set(7, "needs-human"), (error) => error instanceof StatusWriteError && /vocabulary is missing/.test(error.message));
+  await assert.rejects(() => set(8, "needs-triage", { keepHold: true }), StatusWriteError);
   await assert.rejects(() => leaveAgentReady(9, "needs-triage"), StatusWriteError);
-  assert.deepEqual(w.posts().map(([, path]) => path), ["/repos/o/r/issues/7/issue-field-values"]);
+  assert.equal(w.posts().length, 0);
 });
 
 test("statusWriter with no readable config throws on every call and writes nothing", async () => {
