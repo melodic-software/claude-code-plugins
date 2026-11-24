@@ -49,8 +49,6 @@ Describe 'Test-DefenderExclusions -- baseline' -Tag 'check' {
         $result.detail.exclusion_path_count | Should -Be 0
         $result.detail.unexpected_path_count | Should -Be 0
         $result.detail.items_count | Should -Be 0
-        # Admin-gated checks must keep needs_admin=true even when run elevated
-        # so downstream tooling consistently classifies coverage. Mirrors TPM.
         $result.needs_admin | Should -BeTrue
     }
 

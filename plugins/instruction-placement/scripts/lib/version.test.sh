@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for lib/version.sh: the plugin's one version comparator
-# and the measured-on stamp parser precompute.sh's mechanics line reads.
-#
-# Fixture strings only: no live `claude` call and no network. One case reads
-# the shipped mechanics record, to prove the parser still finds a stamp in it
-# after an edit to its citation markers.
 # test-scope: plugins/instruction-placement/context/verified-mechanics.md
 
 set -uo pipefail

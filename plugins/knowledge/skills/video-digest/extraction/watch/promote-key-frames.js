@@ -1,7 +1,3 @@
-/**
- * Promote curated vision-triage frames into the staged `key-frames/` lane.
- */
-
 import fs from "node:fs/promises";
 import path from "node:path";
 

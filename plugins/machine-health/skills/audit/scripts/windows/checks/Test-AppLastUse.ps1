@@ -129,8 +129,6 @@ $CheckBody = {
             Source    = $latest ? $latest.Source : $null
         }
 
-        # Without a readable UserAssist, or with nothing that could name the app
-        # in it, a missing launch is no evidence either way.
         $verdict = if ($launch.LastRun) {
             'launched'
         } elseif ($userAssist.ReadState -eq 'ok' -and $launch.HasRecord) {
@@ -160,13 +158,11 @@ $CheckBody = {
     $readStates = @($window.ReadState, $installed.ReadState, $userAssist.ReadState, $prefetch.ReadState, $bam.ReadState)
 
     $severity = Get-UnmutedSeverity -Items $items.ToArray() -ReadState $readStates
-    # Every verdict rests on UserAssist; an unreadable one leaves the list unjudged.
     if (-not (Test-ReadStateUsable $userAssist.ReadState)) { $severity = 'UNKNOWN' }
     $summary = ("$noLaunchCount of $($items.Count) installed app(s): $noLaunchText. " +
         "$launchedCount launched; $noEvidenceCount without launch evidence.")
     if ($userAssist.ReadState -ne 'ok') { $summary += " UserAssist launch records: $($userAssist.ReadState)." }
 
-    # Elevation-only fields, per the app-last-use row of Get-ElevationMatrix.ps1.
     $adminFields = @(
         if ($prefetch.ReadState -eq 'denied') { 'prefetch_state' }
         if ($bam.ReadState -eq 'denied') { 'bam_state' }

@@ -1,12 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
 # test-scope: plugins/planning/shared/schema/event.schema.json
-"""Tests for round.py V1: schema validation, refusals and warnings, affects, apply, archive,
-status --latency, the sidecar lock and the rebuild check.
-
-Every test drives round.py through its CLI (`sys.executable round.py ...`) in a temporary data dir.
-Only `TestRebuild` needs a server; it starts one through `ensure-running --port 0` and stops it.
-"""
 
 from __future__ import annotations
 
@@ -65,7 +59,6 @@ STOCK_RESTATE = {
 
 
 def with_restates(data):
-    """`data` (a round file or an ops file) with STOCK_RESTATE on every add-round that adds questions and names no `restate`."""
     if not isinstance(data, dict):
         return data
     if data.get("questions") and "restate" not in data:
@@ -85,7 +78,6 @@ def with_restates(data):
 
 
 def base_doc():
-    """A v2.1-shaped questions.json: no schemaVersion, two groups, three questions."""
     return {
         "meta": {"title": "Test interview"},
         "rev": 3,
@@ -1666,7 +1658,7 @@ class TestStatusLive(DirCase):
         )
         ledger = self.tmp / "ledger.md"
 
-        def counts():  # (answered per status --json, Q1's export-ledger status)
+        def counts():
             rc, out, err = self.rp("status", "--json")
             self.assertEqual(rc, 0, out + err)
             answered = sum(g["answered"] for g in json.loads(out)["groups"])
@@ -4168,7 +4160,6 @@ class TestRoundTooling(DirCase):
 
     def test_a_failed_sync_after_the_write_keeps_the_round_and_names_the_recovery(self):
         ledger = self.ledger()
-        # A directory where sync-ledger writes its temp file: the pre-check passes, the write fails.
         (self.tmp / f".{ledger.name}.sync").mkdir()
         rc, out, err = self.rp(
             "add-round",
@@ -4185,7 +4176,6 @@ class TestRoundTooling(DirCase):
         self.assertIn("round 2 posted; register not synced (", err)
         recover = f"--dir {shlex.quote(str(self.dir))} sync-ledger --ledger {shlex.quote(str(ledger))}"
         self.assertIn(f"run: round.sh {recover}", err)
-        # Once the cause is gone, the named command writes the round's row.
         (self.tmp / f".{ledger.name}.sync").rmdir()
         rc, out, err = self.rp("sync-ledger", "--ledger", str(ledger))
         self.assertEqual(rc, 0, out + err)
@@ -4265,8 +4255,6 @@ class TestRoundTooling(DirCase):
             self.assertEqual(ledger.read_text(encoding="utf-8"), text)
 
     def test_questions_in_one_file_date_against_the_round_before_the_write(self):
-        # The page's newest round is 1; Q4 opens round 2 and Q5 is a round 1 question in the
-        # same file, so neither was asked after a later round was posted.
         rc, out, err = self.rp(
             "add-round",
             "--file",
@@ -4291,7 +4279,6 @@ class TestRoundTooling(DirCase):
         self.assertEqual(rc, 0, out + err)
         row = "- Q5 | open | round 1 (sweep) (added in round 2) | Question Q5? |"
         self.assertIn(row, ledger.read_text(encoding="utf-8").splitlines())
-        # A second sync leaves the note it wrote alone.
         rc, out, err = self.rp("sync-ledger", "--ledger", str(ledger))
         self.assertEqual(rc, 0, out + err)
         self.assertIn(row, ledger.read_text(encoding="utf-8").splitlines())
@@ -5002,7 +4989,6 @@ class TestLedgerCheck(DirCase):
     def drift_one_row(self):
         text = self.ledger.read_text(encoding="utf-8")
         row = next(x for x in text.splitlines() if x.startswith("- Q2 |"))
-        # Keep the status, round and title cells; the resolution cell is the last.
         edited = "|".join(row.split("|")[:4]) + "| edited in the ledger"
         self.ledger.write_text(text.replace(row, edited), encoding="utf-8")
 
@@ -5407,7 +5393,6 @@ class TestCliHygiene(DirCase):
         fake.mkdir()
         for name in ("python3", "python"):
             stub = fake / name
-            # Runs the trivial probe, but reports Python 2 to a version check.
             stub.write_text(
                 '#!/bin/sh\ncase "$2" in *version_info*) exit 1;; esac\nexit 0\n',
                 encoding="utf-8",
@@ -5750,8 +5735,6 @@ class TestConstraintRecheck(DirCase):
         self.assertEqual(self.status(), {})
         self.new_constraint()
         self.assertEqual(self.status(), {"Q1": ["C2"], "Q2": ["C2"]})
-        # Both wait on Claude: only a revise or reconfirm clears the mark, so an answered
-        # question must not read stale, which asks the user to pick again.
         self.assertEqual(self.state("Q1"), "upstream-changed")
         self.assertEqual(self.state("Q2"), "upstream-changed")
 
@@ -5851,7 +5834,6 @@ ROUND_FULL = FIXTURES / "round-file" / "round-full.md"
 
 
 def run_bytes(*args):
-    """(exit code, stdout bytes, stderr text) of round.py run with no data dir."""
     p = subprocess.run(
         [sys.executable, str(ROUND), *args], capture_output=True, timeout=60
     )

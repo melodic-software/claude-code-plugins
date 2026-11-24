@@ -58,8 +58,6 @@ _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-# `lib/registrations.py` is shared with the sibling extractor that writes the
-# shape, so a consumer can never read it by a rule of its own.
 from registrations import registrations_of  # noqa: E402  (path set above; plugin-bundled module)
 
 import discover  # noqa: E402  (sibling module; the script's own directory is on sys.path)
@@ -70,10 +68,6 @@ STORE_SCHEMA = 1
 PAIRS_SCHEMA = 1
 INVENTORY_SCHEMA = 1
 
-# Keys the detector reads out of the inventory JSON. The extractor's integrity
-# block guards extraction-level drift, NOT its own top-level key names, so a
-# renamed key would read here as an empty surface rather than an error. Each
-# one is presence-checked and a miss is reported as broken, consumer-side.
 INVENTORY_KEYS = ("builtin_commands", "bundled_skills", "plugin_backed", "integrity")
 
 VERDICTS = ("prefer-native", "prefer-ours", "complementary", "superseded", "defer")
@@ -91,25 +85,16 @@ OBSERVATION_CLASSES = ("extraction", "live-roster", "upstream-source")
 COMPONENT_KINDS = ("skill", "agent")
 NATIVE_MARKERS = ("hidden", "gated", "model-invocation-disabled")
 INTEGRATIONS = ("route", "wrap", "suggest")
-# Classes that may take route or wrap when the row is not defer and, for a
-# bundled skill, not model-invocation-disabled. The marker and defer rules
-# below replace this set rather than adding to it.
 ROUTE_OR_WRAP_CLASSES = (
     "bundled-skill",
     "plugin-backed-builtin",
     "marketplace-plugin",
 )
-# A wrap or suggest row names how the surface is actually invoked. The class
-# rules are a floor; Skill-tool reach is per surface, so the evidence line is
-# what a later reader re-derives from.
 INVOCATION_MODE_RE = re.compile(
     r"model[- ]invoc|disableModelInvocation|Skill[- ]tool|local-jsx|"
     r"invocation mode|non-prompt|command type",
     re.IGNORECASE,
 )
-# Suggest parity keys on this sentence shape, never the bare phrase
-# "available in your session": that phrase already occurs in unrelated prose
-# (harness-ops:changelog) and must not count as a baked suggestion.
 SUGGEST_SHAPE_RE = re.compile(
     r"If /([A-Za-z0-9][A-Za-z0-9-]*) is available in your session \("
 )
@@ -160,9 +145,6 @@ CLASS_OF_LANE = {lane: klass for klass, lane in LANE_OF_CLASS.items()}
 CLASS_OF_LANE[PLUGIN_COMPONENT_LANE] = "plugin-backed-builtin"
 
 
-# Lane order in the generated view: (class, section heading, singular noun used
-# in a row's own prose). Provenance classes are never merged into one list -
-# they carry different disable switches and different rosters per host.
 LANES: tuple[tuple[str, str, str], ...] = (
     ("builtin-command", "Built-in CLI commands", "built-in command"),
     ("bundled-skill", "Bundled skills", "bundled skill"),
@@ -182,22 +164,10 @@ LANES: tuple[tuple[str, str, str], ...] = (
     ),
 )
 
-# The canonical presence-gate token owned by docs/contracts/native-references.
-# A baked description phrase carries it; the reverse-parity scan keys on it.
 GATE_TOKEN = "resolves in this session"
 
-# The parity token for marketplace-plugin rows (a first-party plugin skill is
-# not a native surface, so its routing lines phrase per seam-phrasing, not
-# native-references). A baked description phrase for that class carries this
-# token instead; the reverse-parity scan keys on both, per class.
 MARKETPLACE_GATE_TOKEN = "installed from its marketplace"
 
-# A description that names a native surface by class and kind inside a
-# presence clause (`when|where|if ... the bundled design skill is available`)
-# without the gate token is routing on a presence condition the registry
-# cannot see: no store row records it and no parity check protects it. The
-# availability word is what separates a presence condition from a plain
-# mention ("Not for: the bundled doctor skill's fix pass").
 PRESENCE_MENTION_RE = re.compile(
     r"\b(?:when|where|if)\b[^.;()]{0,80}?"
     r"\b(?:bundled|built-in|plugin-backed built-in|session-provided)\s+"
@@ -206,15 +176,6 @@ PRESENCE_MENTION_RE = re.compile(
     re.IGNORECASE,
 )
 
-# START_MARKER and END_MARKER fence the generated block in the form the ai-slop audit
-# skips, and a new view gets them. A view written with the older LEGACY markers (a
-# consumer repository may still carry one) is read too; a view carries exactly one of
-# the two forms, and regenerating keeps the one it carries. A marker is a standalone
-# line; one opening with START_PREFIX belongs to the BEGIN GENERATED form even when
-# the rest of the line differs, and is refused naming the expected line. Each form is
-# (prefix of its start line, start line, end line). The instruction names the store and
-# the script by what holds in any repository: the store path is configurable, and the
-# script lives under the plugin's install directory, not the repository.
 START_PREFIX = "<!-- BEGIN GENERATED: native-surfaces."
 START_MARKER = (
     f"{START_PREFIX} Edit the native-overlap store, then run "
@@ -228,18 +189,13 @@ MARKER_FORMS = (
     (LEGACY_START_MARKER, LEGACY_START_MARKER, LEGACY_END_MARKER),
 )
 
-# A `native description:` evidence line quotes the native text verbatim, so one carrying an em dash
-# keeps it and tells the ai-slop audit to skip each physical line that carries one. Authored
-# evidence lines are never marked. Applied with `fullmatch`.
 VERBATIM_LINE_RE = re.compile(r"(\[\d+\] )?native description: .*—.*", re.DOTALL)
 VERBATIM_MARKER = " <!-- ai-slop-ignore: verbatim native text -->"
 
 # Every pattern below is applied with `fullmatch`, so a trailing newline fails.
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 AS_OF_RE = re.compile(r"\d+\.\d+\.\d+")
-# One plugin or component name segment: never `.`/`..`, never a path separator.
 SEGMENT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-# A dismissed native surface name, rendered into a generated markdown table.
 NATIVE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._: -]*")
 REASON_MAX = 300
 # A fingerprint: the first 32 hex chars of the SHA-256 of the whitespace-collapsed
@@ -249,16 +205,10 @@ REASON_MAX = 300
 FINGERPRINT_LEN = 32
 FINGERPRINT_RE = re.compile(rf"[0-9a-f]{{{FINGERPRINT_LEN}}}")
 RESURFACED = "resurfaced: description changed"
-# A trigger that is nothing but a date (however spelled) fails the observability
-# bar: a date alone is not an observable event.
 BARE_DATE_TRIGGER_RE = re.compile(
     r"^\W*(?:by|after|before|on|from)?\W*\d{4}(?:-\d{2}(?:-\d{2})?)?\W*$", re.IGNORECASE
 )
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
-# An upstream commit in an observation detail: 8-40 hex chars with at least one
-# letter, so a bare numeric run (a date, a count) never reads as a commit. A
-# genuinely all-digit real SHA prefix is possible in principle; cite more of
-# the SHA in the detail and the lookahead is satisfied.
 UPSTREAM_SHA_RE = re.compile(r"\b(?=[0-9a-f]*[a-f])[0-9a-f]{8,40}\b")
 
 VIEW_HEADER = """# Native surfaces registry
@@ -482,8 +432,6 @@ def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
     plugin_backed = lane_payloads.get("plugin_backed") or {}
     surfaces: list[discover.Surface] = []
     seen: set[str] = set()
-    # A filtered name still keeps the plugin_backed fallback from fabricating
-    # an unmarked surface for it, but does not claim a built-in plugin's name.
     filtered: set[str] = set()
     for lane, payload in lane_payloads.items():
         if lane == "plugin_backed":
@@ -496,8 +444,6 @@ def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
                 continue
             registrations = registrations_of(entry)
             seen.add(name)
-            # A plugin-backed name the extractor enriched in this lane is one
-            # surface, scored once, under the plugin-backed class.
             klass, source = (
                 (CLASS_OF_LANE["plugin_backed"], "plugin_backed")
                 if name in plugin_backed
@@ -662,8 +608,6 @@ def _native_problems(native: Any, label: str, *, markers: bool) -> list[str]:
                 f"{label}: `native.markers` must be a list drawn from "
                 f"{', '.join(NATIVE_MARKERS)}"
             )
-        # Markers whose basis is the docs, not the extraction: the changelog's
-        # native-drift pass does not compare them, so each must be recorded.
         docs_sourced = native.get("docs_markers", [])
         if not isinstance(docs_sourced, list) or any(
             m not in (recorded if isinstance(recorded, list) else [])
@@ -731,8 +675,6 @@ def validate_row(row: Any, index: int) -> list[str]:
     if verdict not in VERDICTS:
         problems.append(f"{label}: `verdict` must be one of {', '.join(VERDICTS)}")
     if not isinstance(row.get("reason"), str) or not row.get("reason", "").strip():
-        # Required for every verdict, not only prefer-ours: a verdict with no
-        # stated reason cannot be re-derived when its trigger fires.
         problems.append(f"{label}: `reason` must be a non-empty string")
 
     evidence = row.get("evidence")
@@ -889,10 +831,6 @@ def validate_store(store: Any) -> list[str]:
     rows = store.get("rows")
     if not isinstance(rows, list):
         return problems + ["store `rows` must be a list"]
-    # Identity includes `component.kind`: a skill and an agent may share a name
-    # inside one plugin, and they are distinct components resolving to distinct
-    # paths (`skills/<name>/SKILL.md` vs `agents/<name>.md`). Keying without kind
-    # would report two legitimate rows as a duplicate.
     seen: set[tuple[str, str, str, str]] = set()
     for index, row in enumerate(rows):
         problems.extend(validate_row(row, index))
@@ -902,8 +840,6 @@ def validate_store(store: Any) -> list[str]:
                     row["native"]["name"],
                     row["component"]["plugin"],
                     row["component"]["skill"],
-                    # `.get` so a row whose kind is missing (already reported by
-                    # validate_row) still participates in duplicate detection.
                     str(row["component"].get("kind", "")),
                 )
             except (KeyError, TypeError):
@@ -914,8 +850,6 @@ def validate_store(store: Any) -> list[str]:
                 )
             seen.add(key)
 
-    # A dismissal is a ruling that a pair is NOT an overlap; a verdict row is a
-    # ruling that it is. One pair never carries both.
     dismissals = store.get("dismissals", [])
     if not isinstance(dismissals, list):
         return problems + ["store `dismissals` must be a list when present"]
@@ -1060,8 +994,6 @@ def render_block(
                 r["native"]["name"],
                 r["component"]["plugin"],
                 r["component"]["skill"],
-                # Same identity tuple validation keys on, so a same-named
-                # skill/agent pair renders in a stable, total order.
                 r["component"]["kind"],
             ),
         )
@@ -1243,10 +1175,6 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
     `metadata` neither satisfies a baked claim nor counts as an orphan.
     """
     problems: list[str] = []
-    # Parity is keyed per token: native rows bake the native-references gate,
-    # marketplace-plugin rows bake the seam-phrasing marketplace gate. One
-    # description may legitimately carry both (one skill, two rows of the two
-    # classes), so each token's orphan scan consults its own claimed set.
     baked_desc: dict[str, set[tuple[str, str]]] = {
         GATE_TOKEN: set(),
         MARKETPLACE_GATE_TOKEN: set(),
@@ -1287,9 +1215,6 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
         frontmatter, body = split_frontmatter(text)
         native_name = row["native"]["name"]
         if wants_desc:
-            # Scoped to the description field, never the whole frontmatter: the
-            # description is the routing-effective surface, so the same token in
-            # `argument-hint` or `metadata` must not satisfy a baked claim.
             if row_token not in frontmatter_description(frontmatter):
                 problems.append(
                     f"{label}: `baked.description_phrase` is true but the description in "
@@ -1321,7 +1246,6 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
                 f"suggest sentence for `/{native_name}`"
             )
 
-    # The loop above already indexed every row's `component`, `native` and `baked` flags.
     claimed_suggest = {
         (row["component"]["plugin"], row["component"]["skill"], row["native"]["name"])
         for row in rows
@@ -1414,9 +1338,6 @@ def check_presence_mentions(repo: Path) -> list[str]:
         return advisories
     for label, description in _presence_descriptions(plugins_dir):
         for match in PRESENCE_MENTION_RE.finditer(description):
-            # Token presence is judged per clause, not per description: one
-            # skill may carry a gated marketplace clause and an ungated native
-            # clause, and the second is the one this check exists to find.
             clause_end = len(description)
             for stop in ".;)":
                 at = description.find(stop, match.start())
@@ -1461,8 +1382,6 @@ def build_native_index(
                     "entry": entry,
                 }
     for name, plugin in (inventory.get("plugin_backed") or {}).items():
-        # The extractor enriches a same-named command or skill with the plugin;
-        # reclassify that registration rather than replace it with a bare one.
         enriched = native_index.get(name)
         native_index[name] = {
             "class": "plugin-backed-builtin",
@@ -1494,8 +1413,6 @@ def plugin_component_payload(
     registration carrying the owning plugin as `plugin_name`."""
     out: dict[str, list[dict[str, Any]]] = {}
     for plugin, rec in plugins.items():
-        # `in_loader: false` is a registration the loader never requires: not
-        # proven live, so not a native surface to rule against.
         if not isinstance(rec, dict) or rec.get("in_loader") is False:
             continue
         base = {"plugin_name": plugin, "gated": rec.get("gated") is True}
@@ -1528,8 +1445,6 @@ def plugin_component_payload(
 
 
 def _lane_payloads(inventory: dict[str, Any]) -> dict[str, Any]:
-    # The workflow lane is optional: an extraction that predates it simply
-    # has no such lane, which is not a missing consumed key.
     return {
         lane: plugin_component_payload(inventory[lane])
         if lane == PLUGIN_COMPONENT_LANE
@@ -1572,15 +1487,10 @@ def cmd_detect(args: argparse.Namespace) -> int:
     if _failed(validate_pairs(pairs_data)):
         return 1
 
-    # A malformed integrity block reads as an empty one: every field below then
-    # falls back to the same "unknown" it would have reported field by field.
     integrity = inventory["integrity"]
     if not isinstance(integrity, dict):
         integrity = {}
     status = integrity.get("status", "unknown")
-    # Per-lane floors, when the extractor reports them. An older inventory
-    # without `lanes` is read through the top-level status alone, so a
-    # consumer on a newer plugin against an older extraction still parses.
     lanes = integrity.get("lanes")
     if not isinstance(lanes, dict):
         lanes = None
@@ -1609,7 +1519,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
 
     def broken_lane_evidence(lanes_in_play: set[str]) -> tuple[bool | None, list[str]]:
         if not lanes_in_play:
-            return None, []  # session-provided and marketplace rows have no lane
+            return None, []
         notes: list[str] = []
         broken = [lane for lane in sorted(lanes_in_play) if lane_broken(lane)]
         for lane in broken:
@@ -1700,16 +1610,12 @@ def cmd_detect(args: argparse.Namespace) -> int:
         ]
 
     def keyed(scored: list[discover.Scored]) -> dict[tuple[str, str, str, str], Any]:
-        # A name scored in two lanes keeps its first surface's pair, the
-        # registration the native index holds.
         out: dict[tuple[str, str, str, str], Any] = {}
         for s, c, score, matched in scored:
             component = {"plugin": c.plugin, "skill": c.name, "kind": c.kind}
             out.setdefault(pair_key(s.name, component), (s, score, matched))
         return out
 
-    # Seeds read their score from every scored pair, so a seed below the
-    # discovery cut still shows how far lexical evidence alone would carry it.
     all_scored = discover.score_all(surfaces, corpus)
     seed_scores = keyed(all_scored)
     scores = keyed(
@@ -1717,7 +1623,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
     )
 
     candidates: list[dict[str, Any]] = []
-    for pair in pairs_data["pairs"]:  # shape guaranteed by validate_pairs above
+    for pair in pairs_data["pairs"]:
         native = pair.get("native", {})
         component = pair.get("component", {})
         target = f"{component.get('plugin')}:{component.get('skill')}"
@@ -1732,10 +1638,6 @@ def cmd_detect(args: argparse.Namespace) -> int:
         else:
             evidence.append(f"`{name}` present in the extraction as {seen['class']}")
             evidence.extend(registration_evidence(registrations_of(seen["entry"])))
-        # The lane a candidate's re-derivability depends on: the seeded class
-        # when the name is absent from the extraction, the observed class when
-        # present, and both when the two disagree (a class collision), so a
-        # broken lane on either side marks the candidate.
         observed_lane = lane_of(seen) if seen else None
         seeded_lanes = (
             {observed_lane}
@@ -1860,9 +1762,6 @@ def cmd_detect(args: argparse.Namespace) -> int:
             resurfaced,
         )
 
-    # Every dismissal is checked against the current descriptions, not only the
-    # pairs that scored above the cut: a description that drifted far enough to
-    # drop a pair out of discovery is exactly the change a dismissal must catch.
     for key, entry in sorted(store_dismissals.items()):
         if key in examined or key in store_verdicts:
             continue
@@ -1910,11 +1809,6 @@ def cmd_detect(args: argparse.Namespace) -> int:
         "counts_are": "floors" if status != "ok" else "totals",
     }
     if lanes is not None:
-        # A run-wide advisory (an unvalidated CLI version) applies to every
-        # lane's numbers, so an ok lane under it still reports floors. A lane
-        # -attributed advisory (prefixed with the lane name by the extractor)
-        # degrades only its own lane: a healthy lane beside a broken one keeps
-        # its totals, which is the point of reporting per lane.
         lane_prefixes = tuple(f"{lane}:" for lane in LANE_ORDER) + tuple(
             f"{lane} lane broken:" for lane in LANE_ORDER
         )
@@ -2039,8 +1933,6 @@ def cmd_self_check(args: argparse.Namespace) -> int:
     advisories: list[str] = []
 
     if not store_path.is_file():
-        # Foreign-repo posture: a repository with no store is not a broken
-        # repository, it is one that never adopted the registry.
         print(
             f"degraded: no store at {store_path} - nothing to check "
             "(report-only mode; the apply machinery is unavailable here)"
@@ -2075,15 +1967,6 @@ def cmd_self_check(args: argparse.Namespace) -> int:
     problems.extend(check_baked_parity(repo, rows))
     advisories.extend(check_presence_mentions(repo))
 
-    # A verdict lives for the model only once the component's body carries its
-    # Boundary section; the store alone ships to nobody. Broken, not degraded:
-    # degraded is reserved for what this repository cannot fix by editing its
-    # own files (an upstream release it does not own, a comparison with no local
-    # basis), and a consumer gate passes a degraded run for exactly that reason.
-    # A missing section is repairable in the change that adds the row, and the
-    # section is invocation-loaded, so it spends no listing budget and moves no
-    # routing: nothing the description phrase's separate gate protects against
-    # applies to it.
     unbaked_boundary = [
         _row_label(row, index)
         for index, row in enumerate(rows)
@@ -2141,17 +2024,10 @@ def cmd_self_check(args: argparse.Namespace) -> int:
         }
     )
     if recorded_shas:
-        # Mirrors the --cli-version seam: the registry never fetches upstream
-        # itself, so without the flag the comparison is honestly undecidable.
-        # The flag repeats, one value per upstream repository the store cites
-        # (a changelog commit in one repository, a plugin commit in another),
-        # and a recorded commit matches when any provided value matches it.
         current_shas: list[str] = []
         for raw in args.upstream_sha or []:
             candidate = raw.strip().lower()
             if not re.fullmatch(r"[0-9a-f]{8,40}", candidate):
-                # A malformed value must not silently pass: an empty or short
-                # prefix would match every recorded SHA via startswith.
                 advisories.append(
                     f"--upstream-sha {raw!r} is not an 8-40 character "
                     "hex commit prefix; the recorded upstream commit(s) "

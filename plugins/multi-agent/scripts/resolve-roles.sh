@@ -57,8 +57,8 @@ Options:
 JSON shape: {"session_model", "session_frontier", "workload", "roles": {<role>:
 {"role", "single": V, "fanout": V, "source": {"model", "effort"}, "basis":
 {"model", "fanout_model", "effort"}}}, "vendors": {"routing", "trials",
-"auto_delegation", "tiebreak", "trials_prove", "trials_fail", "promotion_audits",
-"promotion_days", "claude", "codex", "antigravity", "sources", "source"}, "layers": [{"layer", "path", "state"}],
+"auto_delegation", "tiebreak", "trials_prove", "trials_fail", "claude", "codex",
+"antigravity", "sources", "source"}, "layers": [{"layer", "path", "state"}],
 "notes": [...]}, where V is {"model", "omit_model", "effort", "guarded"}. A
 basis is `upstream` or `judgment` as the bundled layer records it
 (basis_<field> in reference/defaults.yaml), `config` when a consumer layer
@@ -221,7 +221,7 @@ valid_value() { # valid_value <field> <value>
   fanout_model) [[ "$ALIASES" == *" $2 "* ]] ;;
   effort) [[ "$EFFORTS" == *" $2 "* ]] ;;
   frontier_guard | declared | bool) [[ "$2" == true || "$2" == false ]] ;;
-  trials_prove | positive_int) [[ "$2" =~ ^[1-9][0-9]*$ ]] ;;
+  trials_prove) [[ "$2" =~ ^[1-9][0-9]*$ ]] ;;
   trials_fail) [[ "$2" =~ ^[1-9][0-9]*$ ]] && ((10#$2 >= 2)) ;;
   vendor_rank) [[ "$2" =~ ^-?(0|[1-9][0-9]*)$ ]] ;;
   frontier)
@@ -271,7 +271,6 @@ apply_layer() {
     vendors.routing | vendors.trials) field=bool ;;
     vendors.trials_prove) field=trials_prove ;;
     vendors.trials_fail) field=trials_fail ;;
-    vendors.promotion_audits | vendors.promotion_days) field=positive_int ;;
     vendors.tiebreak)
       value="${value//[^[:print:]]/?}"
       NOTES+=("$label: vendors.tiebreak rejected: '${value:0:40}' is not a list of allowed tiebreak steps; the layer below supplies it")
@@ -525,7 +524,7 @@ raw_or_null() {
 }
 
 vendors_json() {
-  local r t ad tp tf pa pd tb_items=() step vn v_parts=() vs_parts=() s_parts=() ss_parts=() sorted_sids sid
+  local r t ad tp tf tb_items=() step vn v_parts=() vs_parts=() s_parts=() ss_parts=() sorted_sids sid
   r="$(val vendors.routing)"
   [[ -n "$r" ]] || r=true
   t="$(val vendors.trials)"
@@ -534,8 +533,6 @@ vendors_json() {
   [[ -n "$ad" ]] || ad=false
   tp="$(raw_or_null "$(val vendors.trials_prove)")"
   tf="$(raw_or_null "$(val vendors.trials_fail)")"
-  pa="$(raw_or_null "$(val vendors.promotion_audits)")"
-  pd="$(raw_or_null "$(val vendors.promotion_days)")"
 
   for step in "${V_TIEBREAK[@]+"${V_TIEBREAK[@]}"}"; do
     tb_items+=("$(json_str "$step")")
@@ -555,8 +552,8 @@ vendors_json() {
     done <<<"$sorted_sids"
   fi
 
-  printf '{"routing":%s,"trials":%s,"auto_delegation":%s,"tiebreak":[%s],"trials_prove":%s,"trials_fail":%s,"promotion_audits":%s,"promotion_days":%s,%s,"sources":{%s},"source":{"routing":%s,"trials":%s,"auto_delegation":%s,"tiebreak":%s,"trials_prove":%s,"trials_fail":%s,"promotion_audits":%s,"promotion_days":%s,%s,"sources":{%s}}}' \
-    "$r" "$t" "$ad" "$(join "${tb_items[@]+"${tb_items[@]}"}")" "$tp" "$tf" "$pa" "$pd" \
+  printf '{"routing":%s,"trials":%s,"auto_delegation":%s,"tiebreak":[%s],"trials_prove":%s,"trials_fail":%s,%s,"sources":{%s},"source":{"routing":%s,"trials":%s,"auto_delegation":%s,"tiebreak":%s,"trials_prove":%s,"trials_fail":%s,%s,"sources":{%s}}}' \
+    "$r" "$t" "$ad" "$(join "${tb_items[@]+"${tb_items[@]}"}")" "$tp" "$tf" \
     "$(join "${v_parts[@]}")" "$(join "${s_parts[@]+"${s_parts[@]}"}")" \
     "$(json_or_null "$(src vendors.routing)")" \
     "$(json_or_null "$(src vendors.trials)")" \
@@ -564,8 +561,6 @@ vendors_json() {
     "$(json_or_null "$V_TIEBREAK_SRC")" \
     "$(json_or_null "$(src vendors.trials_prove)")" \
     "$(json_or_null "$(src vendors.trials_fail)")" \
-    "$(json_or_null "$(src vendors.promotion_audits)")" \
-    "$(json_or_null "$(src vendors.promotion_days)")" \
     "$(join "${vs_parts[@]}")" "$(join "${ss_parts[@]+"${ss_parts[@]}"}")"
 }
 

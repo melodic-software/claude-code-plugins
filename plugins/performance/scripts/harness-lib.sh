@@ -101,8 +101,6 @@ harness_resolve_shim_dir() {
   resolved_parent="$(cd "$parent" && pwd -P)" || harness_die "cannot resolve the shim directory's parent: $parent"
   local resolved="$resolved_parent/$base"
 
-  # Reject the system temporary roots by RESOLVED PREFIX, not by substring: a
-  # legitimate directory whose name merely contains "tmp" must not misfire.
   local normalized root normalized_root
   normalized="$(harness_real_dir "$resolved_parent")/$base"
   normalized="${normalized,,}"

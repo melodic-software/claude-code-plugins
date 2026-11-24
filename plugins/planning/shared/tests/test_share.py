@@ -63,7 +63,7 @@ class TestEnsureRunning(Running):
         before = tunnel.read(self.d)
         real, calls = share_cli.bridge.ping, []
 
-        def ping(port, timeout=1.0):  # the first ping finds the server; the second, for its guest port, fails
+        def ping(port, timeout=1.0):
             calls.append(port)
             return None if len(calls) == 2 else real(port, timeout)
 
@@ -82,15 +82,14 @@ class TestEnsureRunning(Running):
         rec = tunnel.read(self.d)
         code, _, err = share(self.d, "stop")
         self.assertEqual(code, 0, err)
-        (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")  # its pid has exited
+        (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")
         runs = self.d.parent / "cf-runs.txt"
-        # a 6 s start limit keeps the case (a tunnel slower than the limit) without waiting out the real 15 s one
         slow = env(SHARED_START_SECONDS="6", FAKE_CF_DELAY="8", SHARED_TUNNEL_SECONDS="60", FAKE_CF_ARGS=str(runs))
         code, out, err = share(self.d, "ensure-running", environ=slow)
         self.assertEqual(code, 0, err)
         now = tunnel.read(self.d)
         self.assertEqual(out["guestUrl"].split("#")[0].rstrip("/"), now["url"])
-        self.assertEqual(len(runs.read_text(encoding="utf-8").splitlines()), 1)  # the recorded tunnel is the only one started
+        self.assertEqual(len(runs.read_text(encoding="utf-8").splitlines()), 1)
         self.assertIsNotNone(tunnel.alive(self.d))
 
     def test_it_answers_the_contract_fields(self):
@@ -369,7 +368,6 @@ class TestLogsSummary(unittest.TestCase):
         code, out, err = share(self.d, "logs", "--summary", "--json")
         self.assertEqual(code, 0, err)
         self.assertEqual(out["errors"], [
-            # aaaa1111: its entry is LINES[6] and its last repeats come in LINES[11]'s summary.
             {"fp": "aaaa1111", "kind": "error", "message": "TypeError: x is undefined", "source": "/app.js:12", "count": 3,
              "firstSeen": self.at(6), "lastSeen": self.at(11), "devices": {"phone": 1}, "browsers": {"chrome": 1}},
             {"fp": "bbbb2222", "kind": "error", "message": "boom", "source": "", "count": 1, "firstSeen": self.at(7), "lastSeen": self.at(7), "devices": {"computer": 1}, "browsers": {"safari": 1}},
@@ -490,7 +488,7 @@ class TestOpen(ShareCase):
         script = stub / "opener.py"
         script.write_text(
             "import json, os, stat, sys, time, urllib.parse, urllib.request\n"
-            "time.sleep(1.5)\n"  # outlast the 1 s window: the page must stay until the browser has it
+            "time.sleep(1.5)\n"
             "page = urllib.request.url2pathname(urllib.parse.urlparse(sys.argv[1]).path)\n"
             f"json.dump({{'argv': sys.argv[1:], 'page': page, 'mode': stat.S_IMODE(os.stat(page).st_mode), 'html': open(page, encoding='utf-8').read()}}, open({str(seen)!r}, 'w'))\n",
             encoding="utf-8",
@@ -615,7 +613,7 @@ class TestRestart(Running):
         self.assertEqual((out["guestUrl"], out["restarted"]), (self.first["guestUrl"], True))
         self.assertEqual(tunnel.read(self.d)["pid"], cf["pid"])
         self.assertTrue(detached.alive(cf["pid"], cf["marker"]))
-        self.assertEqual(self.session_record()["token"], old_token)  # an armed watcher reconnects
+        self.assertEqual(self.session_record()["token"], old_token)
         _, _, snap = call(self.guest_port(), "GET", "/api/state", headers=a)
         self.assertEqual(sorted(p["name"] for p in snap["people"]), ["Ann", "Bo", "Host"])
         self.assertEqual(sorted(c["text"] for c in snap["cards"]["Q1"] if c["kind"] == "person"), ["Card", "Saved method"])
@@ -658,7 +656,7 @@ class TestTunnelRestart(Running):
 
 
 PORT_FLOOR = 20000
-PORT_TURN = itertools.count(os.getpid())  # two pytest sessions on one host start at different ports
+PORT_TURN = itertools.count(os.getpid())
 
 
 def ephemeral_start():
@@ -728,7 +726,7 @@ class TestAdoptTunnel(ShareCase):
         self.assertEqual((out["localUrl"], out["tunnel"], out["shareChanged"]), (f"http://127.0.0.1:{self.port}/", "quick", False))
         rec = tunnel.read(self.d)
         self.assertEqual((rec["pid"], rec["url"], rec["port"], rec["adopted"]), (self.cf.pid, self.url, self.port, True))
-        self.assertEqual(len(self.runs()), 1)  # only the outside one: nothing new was started
+        self.assertEqual(len(self.runs()), 1)
         _, _, snap = call(self.port, "GET", "/api/state?since=0", headers={"X-Owner-Token": self.owner_token()})
         self.assertEqual(snap["me"]["role"], "owner")
 
@@ -892,7 +890,7 @@ class TestNamedTunnel(ShareCase):
         self.assertEqual(tunnel.retired(self.d)["url"], f"https://{self.HOST}")
 
     def test_a_quick_session_switched_to_named_moves_its_guests(self):
-        code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=self.env())  # the server probes with its start environment
+        code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=self.env())
         self.assertEqual(code, 0, err)
         key = first["guestUrl"].split("#join=")[1]
         _, _, joined = call(self.port, "POST", "/api/join", {"key": key, "name": "Ann", "device": "computer"})
@@ -905,7 +903,7 @@ class TestNamedTunnel(ShareCase):
         self.assertEqual(snap["me"]["pid"], joined["pid"])
 
     def test_a_hostname_that_does_not_reach_this_server_is_refused_and_the_quick_link_kept(self):
-        code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=self.env(probe_port=free_port()))  # nothing answers there
+        code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=self.env(probe_port=free_port()))
         self.assertEqual(code, 0, err)
         code, out, err = share(self.d, *["ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token)], environ=self.env())
         self.assertEqual((code, out["guestUrl"], out["tunnel"]), (1, first["guestUrl"], "quick"), err)
@@ -993,7 +991,7 @@ class TestNamedTunnelLease(ShareCase):
         self.assertRegex(out["guestUrl"], rf"^https://{re.escape(self.HOST)}/#join=")
         self.assertNotIn("tunnelFallback", out)
         port = self.guest_port()
-        self.assertNotEqual(port, share_cli.NAMED_PORT)  # any free port: the route follows it
+        self.assertNotEqual(port, share_cli.NAMED_PORT)
         self.assertEqual(cf.probes[0][0], self.HOST)
         self.assertRegex(cf.probes[0][1], r"^/api/tunnel-probe/[0-9a-f]{32}$")
         want = {"config": {"ingress": [{"hostname": self.HOST, "service": f"http://127.0.0.1:{port}"}, {"service": "http_status:404"}]}}
@@ -1014,7 +1012,7 @@ class TestNamedTunnelLease(ShareCase):
         self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
         self.assertEqual(out["tunnelFallback"], f"another interview session already serves https://{self.HOST}")
         self.assertIn(f"named tunnel {self.HOST}: another interview session already serves", err)
-        self.assertEqual(cf.puts, [])  # never repoint a tunnel another machine runs
+        self.assertEqual(cf.puts, [])
         self.assertNotIn("run --token-file", " ".join(self.cf_runs()))
 
     def test_a_link_whose_answer_shows_no_free_tunnel_falls_back_to_a_quick_tunnel(self):
@@ -1031,7 +1029,7 @@ class TestNamedTunnelLease(ShareCase):
         cf = FakeCloudflare(self)
         code, first, err = self.ensure(cf)
         self.assertEqual(code, 0, err)
-        held = FakeCloudflare(self, edge=(404, b'{"error": "not-found"}'))  # what any interview server answers, ours too
+        held = FakeCloudflare(self, edge=(404, b'{"error": "not-found"}'))
         code, out, err = self.ensure(cf, lease=held.url)
         self.assertEqual((code, out["tunnel"], out["guestUrl"], out["shareChanged"]), (0, "named", first["guestUrl"], False), err)
         self.assertNotIn("tunnelFallback", out)
@@ -1122,8 +1120,8 @@ class TestNamedTunnelLease(ShareCase):
         code, out, err = share(self.d, "ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", str(self.api), environ=environ)
         self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
         self.assertEqual(out["tunnelFallback"], "another machine runs its tunnel (1 other connector connected) as it started here")
-        self.assertEqual(len(self.cf_runs()), 2)  # the named run, then the quick one
-        self.assertIsNone(tunnel.retired(self.d))  # the named tunnel ended at once, not kept serving
+        self.assertEqual(len(self.cf_runs()), 2)
+        self.assertIsNone(tunnel.retired(self.d))
 
     def test_a_route_another_machine_rewrote_while_this_one_started_ends_it(self):
         cf = FakeCloudflare(self)
@@ -1152,7 +1150,6 @@ class TestNamedTunnelLease(ShareCase):
     def test_a_named_start_that_ends_on_a_race_keeps_the_quick_link_guests_hold(self):
         port = free_port()
         cf = FakeCloudflare(self, connections=[[], [connector("0a0a0a0a-0000-4000-8000-00000000000a")]])
-        # The server's switch check goes to its own guest port, so the named tunnel passes it and the race decides.
         environ = env(FAKE_CF_ARGS=str(self.args), SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url, SHARED_PROBE_ORIGIN=f"http://127.0.0.1:{port}", SHARED_PROBE_SECONDS="3")
         code, first, err = share(self.d, "ensure-running", "--guest-port", str(port), environ=environ)
         self.assertEqual((code, first["tunnel"]), (0, "quick"), err)
@@ -1169,7 +1166,7 @@ class TestNamedTunnelLease(ShareCase):
         args = ["ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", str(self.api)]
         code, first, err = share(self.d, *args, environ=environ)
         self.assertEqual((code, first["tunnel"]), (0, "named"), err)
-        cf.connections = [connector(ours)]  # the list still shows the connector of the cloudflared about to die
+        cf.connections = [connector(ours)]
         rec = tunnel.read(self.d)
         detached.stop(rec["pid"], rec["marker"], rec["processStart"])
         code, out, err = share(self.d, *args, environ=environ)
@@ -1201,7 +1198,7 @@ class TestNamedTunnelLease(ShareCase):
 
     def test_token_files_may_start_with_a_tilde_and_resolve_under_home(self):
         cf = FakeCloudflare(self)
-        home = self.root  # both files sit there: tunnel.token and api.token
+        home = self.root
         args = ["ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", "~/tunnel.token", "--tunnel-api-token-file", "~/api.token"]
         environ = env(FAKE_CF_ARGS=str(self.args), SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url, HOME=str(home), USERPROFILE=str(home))
         code, out, err = share(self.d, *args, environ=environ)
@@ -1267,7 +1264,7 @@ class TestLinkHolder(unittest.TestCase):
     def test_a_timeout_holds_it_uncertainly(self):
         silent = socket.socket()
         silent.bind(("127.0.0.1", 0))
-        silent.listen()  # accepts the connection and never answers
+        silent.listen()
         self.addCleanup(silent.close)
         with mock.patch.object(share_cli, "LEASE_SECONDS", 0.3):
             why, sure = self.holder(origin=f"http://127.0.0.1:{silent.getsockname()[1]}")
@@ -1299,7 +1296,7 @@ class TestShareSh(ShareCase):
 
     def test_share_sh_runs_share_py(self):
         p = self.run_sh("status")
-        self.assertEqual(p.returncode, 1)  # no data dir yet
+        self.assertEqual(p.returncode, 1)
         self.assertIn("no such data dir", p.stderr)
 
     def test_share_sh_runs_python_isolated_from_the_environment(self):
@@ -1372,8 +1369,8 @@ class TestLives(Running):
 
     def test_ensure_running_after_a_crash_ends_stale_records(self):
         lid, rec = self.started()
-        detached.stop(self.session_record()["pid"], share_cli.SERVER_MARKER)  # the server crashes...
-        detached.stop(*tunnel._identity(rec))  # ...and the machine restarts: nothing of the live prototype runs
+        detached.stop(self.session_record()["pid"], share_cli.SERVER_MARKER)
+        detached.stop(*tunnel._identity(rec))
         detached.stop(*tunnel._server(rec))
         code, _, err = share(self.d, "ensure-running")
         self.assertEqual(code, 0, err)
@@ -1402,7 +1399,7 @@ class TestLives(Running):
         self.assertEqual(code, 0, err)
         self.assertIn(f"the server on port {port} that a live prototype showed keeps running", err)
         self.assertFalse(tunnel.tunnel_running(rec))
-        socket.create_connection(("127.0.0.1", port), timeout=5).close()  # still listening
+        socket.create_connection(("127.0.0.1", port), timeout=5).close()
 
 
 if __name__ == "__main__":

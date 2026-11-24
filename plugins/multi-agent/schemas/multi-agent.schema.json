@@ -91,18 +91,6 @@
           "type": "integer",
           "minimum": 2
         },
-        "promotion_audits": {
-          "description": "Registry audits a support-only benchmark row must pass in a row before /multi-agent:audit-defaults registry proposes it permanent.",
-          "type": "integer",
-          "minimum": 1,
-          "default": 3
-        },
-        "promotion_days": {
-          "description": "Days the passing registry audits must span before /multi-agent:audit-defaults registry proposes a support-only row permanent.",
-          "type": "integer",
-          "minimum": 1,
-          "default": 30
-        },
         "claude": { "$ref": "#/$defs/vendor_entry" },
         "codex": { "$ref": "#/$defs/vendor_entry" },
         "antigravity": { "$ref": "#/$defs/vendor_entry" },

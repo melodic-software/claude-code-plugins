@@ -56,9 +56,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh. scripts/check-killswitch-hoist.sh pins this line to
-# hook::is_enabled's semantics.
 [[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED:-true}" == "true" ]] || exit 0
 # Parameter expansion, not `dirname`: a command substitution forks, which is a
 # process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
@@ -82,15 +79,10 @@ hook::require jq "PreToolUse" "source-control" "$INPUT"
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 COMMAND="${COMMAND//$'\r'/}"
 [[ -n "$COMMAND" ]] || exit 0
-# Applicability pre-filter before any parsing: `git` as its own word (or a
-# path's last segment) plus both subcommand words, so an unrelated Bash call
-# never pays for the tokenizer. The command text is pre-tokenizer, so quotes
-# count as boundaries.
 [[ "$COMMAND" =~ (^|[^[:alnum:]_.-])[Gg][Ii][Tt][^[:alnum:]_-] ]] || exit 0
 [[ "$COMMAND" == *worktree* ]] || exit 0
 [[ "$COMMAND" == *add* ]] || exit 0
 
-# Same `printf | jq` feed and parameter-expansion CR strip as the command read.
 HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 HOOK_CWD="${HOOK_CWD//$'\r'/}"
 
@@ -157,7 +149,6 @@ configured_root() {
   fi
   if [[ -z "$r" ]]; then
     r="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
-    # An unexpanded ${user_config placeholder is an unset value.
     # shellcheck disable=SC2016  # the single-quoted token is matched literally
     [[ "$r" == *'${user_config'* ]] && r=""
   fi
@@ -181,12 +172,6 @@ block() {
   exit 2
 }
 
-# The parse, the `cd`/`pushd`/`popd` poisoning, the wrapper/`-C` base
-# composition and the add-target walk are worktree-path-lib.sh's, shared
-# verbatim with the claim sibling so the two gates can never disagree about
-# which target a command names. The nesting verdict is this hook's alone, and
-# WORKTREE_ADD_BASE carries the composed effective directory the block message
-# needs as its repository hint.
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local abs verdict kind detail

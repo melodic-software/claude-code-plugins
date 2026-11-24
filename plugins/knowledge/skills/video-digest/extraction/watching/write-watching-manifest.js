@@ -1,7 +1,3 @@
-/**
- * Write watching selection manifest to the work slice — temp paths only, no bulk frame copy.
- */
-
 import fs from "node:fs/promises";
 import path from "node:path";
 

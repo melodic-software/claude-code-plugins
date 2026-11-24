@@ -51,9 +51,16 @@
 #                                                 adds a fragment for it whose bump
 #                                                 is not none; 1 otherwise; 2 when
 #                                                 git fails
-#   changelog_fragments::dependabot_only <base>   0 when the change set against
-#                                                 <base> is Dependabot's alone and
-#                                                 needs no fragment (see below)
+#   changelog_fragments::bot_only <base> <login> <email>
+#                                                 0 when the change set against
+#                                                 <base> is <login>'s alone, every
+#                                                 commit's signature verified by GitHub
+#                                                 (https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)
+#   changelog_fragments::dependabot_only <base>   bot_only for dependabot[bot]: its
+#                                                 change set needs no fragment
+#   changelog_fragments::standards_sync_only <base>
+#                                                 bot_only for melodic-standards-sync[bot]:
+#                                                 managed copies need no fragment
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/changelog-fragments.sh is sourced-only\n' >&2
@@ -275,9 +282,18 @@ changelog_fragments::bump_delivered() {
   return 1
 }
 
-# 0 when the change set is Dependabot's alone: CHANGELOG_PR_AUTHOR (CI sets it
-# from the pull request) is dependabot[bot], and every commit in it is authored
-# by Dependabot, committed by GitHub, and carries a signature GitHub verified. A
+changelog_fragments::dependabot_only() {
+  changelog_fragments::bot_only "$1" 'dependabot[bot]' '49699333+dependabot[bot]@users.noreply.github.com'
+}
+
+changelog_fragments::standards_sync_only() {
+  changelog_fragments::bot_only "$1" 'melodic-standards-sync[bot]' '300666570+melodic-standards-sync[bot]@users.noreply.github.com'
+}
+
+# 0 when the change set is <login>'s alone: CHANGELOG_PR_AUTHOR (CI sets it
+# from the pull request) is <login>, and every commit in it is authored by
+# <login> <email>, committed by GitHub, and carries a signature GitHub verified
+# (https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification). A
 # commit anyone else pushes to the branch fails the last two: git lets a pusher
 # write any author and committer, but not GitHub's signature. The signature is
 # read from the API, so without GITHUB_REPOSITORY or a working gh the answer is 1.
@@ -286,11 +302,11 @@ changelog_fragments::bump_delivered() {
 # pull_request merge commit resolved to its branch tip. In the merge queue the
 # checked-out commit is the queue's squash, so CI sets CHANGELOG_PR_HEAD to the
 # queued pull request's head commit and the commits are read from there.
-# shellcheck disable=SC2034 # CF_DEPENDABOT_BLOCKER is read by the sourcing script
-changelog_fragments::dependabot_only() {
-  local base="$1" tip=HEAD from commits sha an ae ce verified
-  CF_DEPENDABOT_BLOCKER=""
-  [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
+# shellcheck disable=SC2034 # CF_BOT_BLOCKER is read by the sourcing script
+changelog_fragments::bot_only() {
+  local base="$1" login="$2" email="$3" tip=HEAD from commits sha an ae ce verified
+  [[ "${CHANGELOG_PR_AUTHOR:-}" == "$login" && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
+  CF_BOT_BLOCKER=""
   if [[ -n "${CHANGELOG_PR_HEAD:-}" ]]; then
     tip="$CHANGELOG_PR_HEAD"
   elif git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
@@ -302,12 +318,12 @@ changelog_fragments::dependabot_only() {
   # shellcheck source=/dev/null
   [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
   while IFS=$'\t' read -r sha an ae ce; do
-    CF_DEPENDABOT_BLOCKER="commit ${sha:0:12} by $an <$ae>"
-    [[ "$ce" == 'noreply@github.com' && "$an" == 'dependabot[bot]' && "$ae" == '49699333+dependabot[bot]@users.noreply.github.com' ]] || return 1
-    CF_DEPENDABOT_BLOCKER=""
+    CF_BOT_BLOCKER="commit ${sha:0:12} by $an <$ae>"
+    [[ "$ce" == 'noreply@github.com' && "$an" == "$login" && "$ae" == "$email" ]] || return 1
+    CF_BOT_BLOCKER=""
     verified="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.commit.verification.verified' 2>/dev/null)" || return 1
-    CF_DEPENDABOT_BLOCKER="commit ${sha:0:12} carries Dependabot's name but no signature GitHub verified"
+    CF_BOT_BLOCKER="commit ${sha:0:12} carries $login's name but no signature GitHub verified"
     [[ "$verified" == true ]] || return 1
   done <<<"$commits"
-  CF_DEPENDABOT_BLOCKER=""
+  CF_BOT_BLOCKER=""
 }

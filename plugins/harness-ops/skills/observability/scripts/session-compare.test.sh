@@ -72,7 +72,6 @@ if command -v duckdb >/dev/null 2>&1; then
   main="$TMP/main"
   mkdir -p "$main"
   {
-    # s-a: model m-x, effort high and medium; every value type in both encodings.
     metric "$TOKENS" 1 \
       "$(point s-a m-x high input '"asInt":"100"')" \
       "$(point s-a m-x high input '"asInt":"10"')" \
@@ -80,13 +79,11 @@ if command -v duckdb >/dev/null 2>&1; then
       "$(point s-a m-x high cacheRead '"asInt":"1000"')" \
       "$(point s-a m-x high cacheCreation '"asDouble":200')" \
       "$(point s-a m-x medium input '"asInt":"5"')"
-    # s-b: model m-y, no effort attribute.
     metric "$TOKENS" 1 \
       "$(point s-b m-y - input '"asInt":"7"')" \
       "$(point s-b m-y - output '"asInt":"3"')" \
       "$(point s-b m-y - cacheCreation '"asInt":"30"')"
     metric "$TOKENS" 1 "$(point s-c m-x low input '"asInt":"1"')" "$(point s-z m-z high input '"asInt":"9999"')"
-    # s-t: token points but no cost point.
     metric "$TOKENS" 1 "$(point s-t m-x high input '"asInt":"4"')"
     metric "$COST" 1 \
       "$(point s-a m-x high - '"asDouble":0.75')" \

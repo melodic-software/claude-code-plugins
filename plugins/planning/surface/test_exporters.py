@@ -1,12 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/ledger-legacy/*
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
 # test-scope: .markdownlint-cli2.jsonc plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
-"""Tests for the exporters and import-ledger (AC27 to AC29), driven through round.py's CLI.
-
-Sessions are built in temporary data dirs: questions.json written directly, responses.json
-derived from a hand-written event log with the server's own rebuild function. The ledger and
-Brief outputs are graded by the plugin's `scripts/check-open-questions.sh`.
-"""
 
 from __future__ import annotations
 
@@ -33,7 +27,6 @@ ROUND = HERE / "round.py"
 CHECK = HERE.parent / "scripts" / "check-open-questions.sh"
 REPO = HERE.parents[2]
 BASH = shutil.which("bash")
-# The repository's locked install, else one on PATH; None when neither resolves.
 MARKDOWNLINT = shutil.which(
     str(REPO / "node_modules" / ".bin" / "markdownlint-cli2")
 ) or shutil.which("markdownlint-cli2")
@@ -62,8 +55,6 @@ def event(seq, qid, kind, alt=None, text=""):
     return {"seq": seq, "id": qid, "kind": kind, "alt": alt, "text": text, "at": AT}
 
 
-# A confirmed restatement's goal and criteria: what a page export needs to pass the --brief
-# gate once a question is answered, for a test that grades the Brief for something else.
 RESTATED = {
     "goal": "Ship the build cache.\n- Finish line: merged — checked by ci-status via the pull request's checks",
     "acceptance": "- builds reuse the cache",
@@ -628,12 +619,10 @@ class TestExportBrief(SessionCase):
             ],
         )
         self.assertIn("Export test", text)
-        # Q1's own answer replaced the recommendation, so its commitment is no risk.
         self.assertNotIn("Unticked promise", text)
         self.assertRegex(text, r"- Q2: .*\*\*arbiter: USER-RESERVED\*\*")
         self.assertTrue(text.rstrip().endswith("## Plan"))
         self.assertNotIn("superseded-by-plan", text)
-        # Field labels from context/problem-framing.md "Problem fields" and "Work size".
         self.assertIn(
             "### Problem\n\n- Gap: unknown\n- Who / how many: unknown\n- Frequency: unknown\n"
             "- Trend: unknown\n- Cost: unknown\n- Evidence: unknown\n\n### Intent",
@@ -725,8 +714,6 @@ class TestExportBrief(SessionCase):
         )
 
     def test_into_reads_fences_as_the_gate_does(self):
-        # A four-backtick fence quoting a three-backtick one and a tilde line: the fenced
-        # `## Plan` is content, and the section ends at the real one.
         nested = "## Brief\n\n### TLDR\n\n````markdown\n```\n## Plan\n```\n~~~\n````\n\n"
         ledger, plan = self.merged_plan(self.PLAN_HEAD + nested + self.PLAN_TAIL)
         self.assertEqual(
@@ -1550,8 +1537,6 @@ class TestBriefDecisionsOnce(SessionCase):
                 q28 = [x for x in text.splitlines() if re.search(r"\bQ28\b", x)]
                 self.assertEqual(len(q28), 1, q28)
                 if name == "restated":
-                    # The recap carries every answered row, Q28 marked as Q13's replacement
-                    # in Decisions.
                     self.assertEqual(
                         self.section(text, "Constraints").strip(), "- none recorded"
                     )
@@ -1562,7 +1547,6 @@ class TestBriefDecisionsOnce(SessionCase):
     def test_no_decision_line_appears_twice(self):
         for name, text in self.briefs(constraints="- stdlib only (Q2)"):
             with self.subTest(name):
-                # A decision line is a bullet naming a Q<N>; `- none` repeats by design.
                 lines = [
                     x
                     for x in text.splitlines()
@@ -1578,7 +1562,6 @@ class TestBriefDecisionsOnce(SessionCase):
                 self.assertEqual(twice, [])
                 answered = {f"Q{i}" for i in range(1, 29)} - {"Q13"}
                 if name == "restated":
-                    # The recap carries Q2; the constraint citing it stays as written.
                     self.assertNotIn("- Q2 Short Q2:", text)
                     self.assertIn("- stdlib only (Q2)", self.section(text, "Constraints"))
                 self.assertEqual(set(leads), answered)
@@ -1594,7 +1577,6 @@ class TestBriefDecisionsOnce(SessionCase):
         own = "Q3 Short Q3: accepted: Recommended answer for Q3."
         text = self.confirmed(
             qs,
-            # Q2's answer changes after the recap was taken.
             [*events, event(5, "Q2", "alt", alt="a")],
             decisions="\n".join(cut),
             constraints=f"- launch before Q4 2026\n- {own}",
@@ -1619,8 +1601,6 @@ class TestBriefDecisionsOnce(SessionCase):
         self.assertRegex(recap, r"Q4 open: .*…\)")
         text = self.confirmed(
             qs,
-            # "Tick these and confirm" ticks Q1's commitment after the recap was taken; Q2 then
-            # takes an alternative, so its answer changed and its line stays as written.
             [
                 *events,
                 event(5, "Q1", "confirm", alt="0"),
@@ -1643,7 +1623,6 @@ class TestBriefDecisionsOnce(SessionCase):
         self.assertIn("- Q2 open: ", self.section(text, "Decisions"))
         constraints = self.section(text, "Constraints")
         self.assertIn("- Q2 Short Q2: alt a: Alt a of Q2\n", constraints)
-        # Q4's recap line cut its long answer; it still reads once, whole.
         q4 = [x for x in text.splitlines() if re.match(r"^- Q4\b", x)]
         self.assertEqual(
             q4,
@@ -2009,7 +1988,6 @@ class TestBriefIntent(SessionCase):
                 question("Q1", basis=basis),
                 question("Q2", basis="Shared buckets leak between forks."),
                 question("Q3"),
-                # The basis argues for the recommendation, which an alternative turned down.
                 question("Q4", basis="Why the recommendation wins."),
             ],
             events,
@@ -2182,7 +2160,6 @@ class TestCommitmentsCarriedByAnswerKind(SessionCase):
         self.assertIn("- 0 commitments confirmed; 0 unconfirmed", brief)
         self.assertIn("free-text: Run it at 03:00, after backups finish.", brief)
         self.assertNotIn("nightly report", brief)
-        # The ledger keeps the tick, so an import restores it.
         self.assertIn(
             "commitments:: +Cleanup runs after the nightly report",
             register_rows(self.export("ledger"))[0],
@@ -2902,7 +2879,6 @@ class TestImportLedger(SessionCase):
             )
             for i, t in enumerate(terminals, 1)
         ]
-        # A head that reads like the tail, with no commitment and with only an empty one.
         own = {"decision": "own", "updatedAt": AT}
         qs += [
             question("Q5", terminal=dict(own, text="mine; confirmed:: y")),
@@ -3323,7 +3299,6 @@ class TestSupersededByPlan(SessionCase):
     RES = "plan proposes: admin only; was: any enrolled user"
     ROW = "proposal:: admin only; was:: any enrolled user"
     FIELDS = {"proposal": "admin only", "was": "any enrolled user", "note": None}
-    # After the import's own stamp, so a page answer given after a re-import counts.
     AFTER = "2999-01-01T00:00:00Z"
 
     def seed(self, res=RES):
@@ -3487,7 +3462,6 @@ class TestSupersededByPlan(SessionCase):
             ("admin only", "any enrolled user"),
         )
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
-        # An accept reconfirms the proposal and keeps the commitments on the answered row.
         ops.write_text(
             json.dumps(
                 {"ops": [{"op": "record-terminal", "id": "Q1", "decision": "accept"}]}
@@ -3820,7 +3794,6 @@ def corpus_wait(waits, by="claude"):
 
 
 def corpus_cases():
-    """The merge gate's adversarial held-row corpus (corpus.py, corpus2.py, corpus3.py): name -> (ops, seed ledger)."""
     base = [corpus_add()]
     cases = {}
     for tag, waits in [
@@ -3911,8 +3884,6 @@ def corpus_cases():
 
 
 def held_state(doc, resp):
-    """Per question: the hold, the decision that counts, else the newest one a user hold set
-    aside, the confirmed commitments and the plan proposal."""
     responses = resp.get("responses") or {}
     events = resp.get("events") or []
     seeds = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
@@ -3954,9 +3925,6 @@ def load_state(d):
 
 
 def resumed_state(d):
-    """held_state plus what a resumed session must get back: every commitment in order with its
-    confirmation, the withdrawal, the seeded text of an unheld row still unsettled, and the
-    register's status, arbiter and whether the decision carries the commitments."""
     doc = json.loads((d / "questions.json").read_text(encoding="utf-8"))
     path = d / "responses.json"
     resp = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -3966,7 +3934,6 @@ def resumed_state(d):
     state = held_state(doc, resp)
     for q in doc["questions"]:
         r = rows[q["id"]]
-        # A held row shows no seed text until its hold clears, when the property test compares it.
         unsettled = (
             r["status"] in exporters.UNSETTLED
             and not q.get("waiting")
@@ -4111,8 +4078,6 @@ class TestHeldRowProperty(SessionCase):
         rnd = random.Random(seed)
         qs, rows = [], {}
         expect = {"open": 0, "superseded": 0, "answered": 0, "deferred": 0}
-        # Unheld superseded-by-plan rows reconfirmed by an accept or kept by a defer: the row
-        # keeps the proposal, not the decision, so only their confirmed commitments are compared.
         expect["loose"] = set()
         for i, (by, decision, superseded, confirmed) in enumerate(self.SHAPES, 1):
             qid = f"Q{i}" if seed % 2 == 0 else f"H{i}"
@@ -4166,9 +4131,6 @@ class TestHeldRowProperty(SessionCase):
             expect["superseded" if superseded else "open"] += 1
             qs.append(q)
         n = len(self.SHAPES)
-        # Never-held rows: an open row with confirmed commitments, superseded-by-plan rows
-        # without and with confirmed commitments, answered and deferred rows with confirmed
-        # commitments, and superseded-by-plan rows reconfirmed by an accept or kept by a defer.
         unheld = [
             (None, False, True),
             (None, True, False),
@@ -4225,7 +4187,6 @@ class TestHeldRowProperty(SessionCase):
                 }
                 if structured:
                     rows[qid]["proposal"] = [new, old]
-            # An accept that leaves a commitment unticked reads open.
             unticked = len(q.get("commitsConfirmed", [])) < len(q["commits"])
             if decision == "accept" and unticked:
                 expect["open"] += 1
@@ -4236,8 +4197,6 @@ class TestHeldRowProperty(SessionCase):
             else:
                 expect["superseded" if superseded else "open"] += 1
             qs.append(q)
-        # Never-held superseded-by-plan rows whose resolution is not a proposal, some with
-        # confirmed commitments, some holding the confirmed tail's mark.
         for mark in ("", "", "; confirmed::", "; confirmed:: x"):
             qid = f"Q{len(qs) + 1}" if seed % 2 == 0 else f"H{len(qs) + 1}"
             commits = [self.text(rnd) for _ in range(rnd.randint(0, 3))]
@@ -4326,7 +4285,6 @@ class TestHeldRowProperty(SessionCase):
             cleared,
             f"seed {seed}",
         )
-        # The cleared rows round-trip too, each with its confirmed commitments.
         again = self.tmp / f"again-{seed}"
         again.mkdir()
         rc, out = self.rp("import-ledger", "--ledger", str(cleared_ledger), d=again)
@@ -4351,11 +4309,6 @@ LEGACY_SHAPES = 36
 
 
 def legacy_state(doc):
-    """What an import left in questions.json, from its raw fields and none of its timestamps: per
-    question the commitments with their confirmation, the terminal decision (an accept's or an
-    alternative's text is its note), the recommendation and alternatives (a plan proposal's
-    `was` is the alternative keyed was), the archived reason, the hold, the set-aside keys and
-    the seeded row with its proposal pair."""
     seeds = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
     state = {}
     for q in doc["questions"]:
@@ -4690,7 +4643,6 @@ class TestResumedState(SessionCase):
         self.assertIn("- Q1 confirmed so far: One writer\n", brief)
         self.assertIn("- risk: No network (unconfirmed); from Q1\n", brief)
 
-    # Every combination: seed x hold x decision x commitment set, one question each.
     SEEDS = {
         None: None,
         "proposal": {
@@ -4742,8 +4694,6 @@ class TestResumedState(SessionCase):
             for d in self.DECISIONS
             for c in self.TICKS
         ):
-            # A withdrawn row carries only its withdrawal: a hold or a seeded deferral on it
-            # does not export.
             if (
                 decision
                 and decision[0] == "withdraw"
@@ -4849,8 +4799,6 @@ class TestResumedState(SessionCase):
                 self.assertEqual(after[qid], before[qid], rows[i - 1])
         self.assertEqual(len(after), len(combos))
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
-        # Clearing every hold on both sides leaves the same state, except for the combinations
-        # held_loss names, which the grammar has no field for and this pins as still lost.
         for d in (self.dir, fresh):
             path = d / "questions.json"
             doc = json.loads(path.read_text(encoding="utf-8"))
@@ -5087,7 +5035,6 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         rc, out = self.rp("validate", d=fresh)
         self.assertEqual(rc, 0, out)
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), labeled)
-        # A round the page changes no longer matches the label, so the plain cell is written.
         doc = self.doc(fresh)
         doc["questions"][0]["round"] = 2
         (fresh / "questions.json").write_text(json.dumps(doc), encoding="utf-8")

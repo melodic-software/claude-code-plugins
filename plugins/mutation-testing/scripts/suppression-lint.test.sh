@@ -1,31 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for suppression-lint.sh.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir.
-#
-# Every expected `finding_id` below was produced by running the `finding_id`
-# snippet published in `skills/audit/context/suppression.md` through Python,
-# not by running the script under test. A test whose expectations came from the
-# implementation would pass over a wrong recipe, which is the whole class of
-# defect this suite exists to catch. The constants and their constituents:
-#
-#   846675cd2cbd91bd  SBR  arid(kind=log-call)             src/pricing.ts
-#   2b9ccfdf16a06d53  ROR  arid(kind=trivial-accessor)     src/zeta.ts + src/alpha.ts
-#   bdb157ec775557fa  UOI  arid(kind=metric-emission)      src/metrics.ts at anchor/v2
-#   276c895e90c283f0  the same entry derived from its anchor/v1 instead
-#   b6a58c5c18aa9e26  ROR  arid(kind=generated-region)     src/B.ts before src/a.ts
-#   e4b5f308c11518db  the same entry with the sites in locale order instead
-#   b0cdc692ed4e8a74  LCR  arid(kind=debug-repr)           src/render.ts
-#   a9bd6eb74943144f  AOR  arid(kind=hard-to-test)         src/slow.ts
-#
-# Two of those are negative constants. `276c895e90c283f0` is what picking the
-# lowest anchor version would produce, and `e4b5f308c11518db` what a locale sort
-# of the sites would produce; asserting the entry filed under the byte-sorted,
-# greatest-version key reports `ok` is what makes those two rules non-vacuous.
-#
-# `hard-to-test` is the rejected-kind fixture because the vocabulary table names
-# it as explicitly not a kind, so the case is drawn from the contract rather
-# than invented.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,7 +15,6 @@ fail() {
 }
 
 last_out=""
-# check_exit <expected> <label> <actual>: the verdict both runners report.
 check_exit() {
   if [[ "$3" -eq "$1" ]]; then
     pass "$2 (exit $3)"
@@ -75,8 +47,6 @@ lacks() {
     fail "$2 - output was: $last_out"
   fi
 }
-
-# --- a valid record -----------------------------------------------------------
 
 valid="$WORK/arid.md"
 cat >"$valid" <<'RECORD'
@@ -111,8 +81,6 @@ has "ok 2b9ccfdf16a06d53" "the two-site entry reports ok"
 has "entries=2 ok=2 failed=0" "the summary counts both entries"
 lacks "accepted kinds:" "a clean run does not print the vocabulary"
 
-# The sites are written zeta-then-alpha, so an implementation that hashed them
-# in file order would miss the key the contract's sorted recipe derives.
 run 0 "sites hash in sorted order, not file order" "$valid"
 
 # --- the sort is on encoded bytes, not the locale's collation ------------------
@@ -138,8 +106,6 @@ run 0 "sites sort on bytes, so src/B.ts precedes src/a.ts" "$bytesort"
 has "ok b6a58c5c18aa9e26" "the byte-sorted key is the one derived"
 lacks "e4b5f308c11518db" "the locale-sorted key is never derived"
 
-# --- a site carrying several anchor versions uses the greatest ----------------
-
 versions="$WORK/versions.md"
 cat >"$versions" <<'RECORD'
 ```yaml
@@ -159,8 +125,6 @@ RECORD
 run 0 "a multi-version site uses its greatest anchor version" "$versions"
 has "ok bdb157ec775557fa" "the v2-derived key is the one compared"
 lacks "276c895e90c283f0" "the v1-derived key is never derived"
-
-# --- a wrong hash --------------------------------------------------------------
 
 wrong="$WORK/wrong-hash.md"
 cat >"$wrong" <<'RECORD'
@@ -182,8 +146,6 @@ has "mismatch 0000000000000000" "the mismatch names the stored key"
 has "constituents hash to b0cdc692ed4e8a74" "the mismatch names the derived key"
 has "entries=1 ok=0 failed=1" "the summary counts the failure"
 
-# A constituent edited without re-deriving the key is the same failure, reached
-# from the other side: the key is the one that was correct before the edit.
 edited="$WORK/edited-constituent.md"
 cat >"$edited" <<'RECORD'
 ```yaml
@@ -201,8 +163,6 @@ RECORD
 
 run 1 "a renamed surface beside a stale key fails" "$edited"
 has "mismatch 846675cd2cbd91bd" "the stale key is reported, not silently accepted"
-
-# --- an unknown node kind ------------------------------------------------------
 
 unknown="$WORK/unknown-kind.md"
 cat >"$unknown" <<'RECORD'
@@ -226,8 +186,6 @@ has "accepted kinds:" "a kind failure lists the accepted kinds"
 has "log-call" "the accepted kinds come from the real vocabulary table"
 has "generated-region" "the accepted kinds include the last table row"
 
-# The hash is correct here, so the entry fails on membership alone. An
-# implementation that graded shape rather than membership would pass it.
 lacks "mismatch" "the unknown-kind entry is not also reported as a mismatch"
 
 prose="$WORK/prose-claim.md"
@@ -248,8 +206,6 @@ RECORD
 run 1 "free prose in claim fails" "$prose"
 has "claim is not the canonical arid(kind=<node-kind>)" "prose is named as the defect"
 
-# --- the vocabulary is read from a file, not compiled in -----------------------
-
 kinds="$WORK/kinds.md"
 cat >"$kinds" <<'TABLE'
 #### The node-kind vocabulary
@@ -265,8 +221,6 @@ run 0 "--kinds makes membership come from the given table" --kinds "$kinds" "$un
 has "ok a9bd6eb74943144f" "a kind the given table carries passes"
 run 1 "a kind the given table omits fails" --kinds "$kinds" "$valid"
 has "kind=log-call" "the omitted kind is named"
-
-# --- a malformed entry ---------------------------------------------------------
 
 malformed="$WORK/malformed.md"
 cat >"$malformed" <<'RECORD'
@@ -392,12 +346,7 @@ has "malformed 846675cd2cbd91bd" "a February 31st names the entry"
 has "date is not ISO-8601 (YYYY-MM-DD): 2026-02-31" "the impossible day is named"
 lacks "ok 846675cd2cbd91bd" "a February 31st is not reported ok"
 
-# --- the rest of the calendar rule ---------------------------------------------
-# Month length and the leap rule, the two parts field ranges alone cannot see.
-# 1900 and 2000 pin the century clause: a year divisible by 100 is a leap year
-# only when it is also divisible by 400.
-
-calendar_case() { # <expected-exit> <date> <label>
+calendar_case() {
   local record="$WORK/calendar-$2.md"
   printf 'suppressions:\n  846675cd2cbd91bd:\n    check: mutation-testing/operator/SBR\n    claim: arid(kind=log-call)\n    sites:\n      - surface: src/pricing.ts\n        anchor/v1: "e:9f1c2a3b:4d5e6f70"\n    reason: "Structured-logging call; the suite asserts on no log emission."\n    date: %s\n' "$2" >"$record"
   run "$1" "$3" "$record"
@@ -441,8 +390,6 @@ has "mismatch 4444444444444444" "the first failure in order is the verdict"
 has "constituents hash to a9bd6eb74943144f" "the hash failure is reported"
 has "kind=hard-to-test, not in the vocabulary" "the kind failure is not hidden behind it"
 
-# --- an empty record -----------------------------------------------------------
-
 emptymap="$WORK/empty-mapping.md"
 cat >"$emptymap" <<'RECORD'
 # Accepted arid-node suppressions
@@ -471,24 +418,15 @@ norecord="$WORK/no-mapping.md"
 printf '# Notes\n\nNo mapping here.\n' >"$norecord"
 run 2 "a file with no suppressions mapping fails closed" "$norecord"
 
-# --- an absent record is a valid state ----------------------------------------
-
 run 0 "an absent record is a valid state" "$WORK/does-not-exist.md"
 has "absent " "the absent record is reported"
 has "entries=0 ok=0 failed=0" "an absent record counts zero entries"
-
-# --- several records in one invocation ----------------------------------------
 
 run 1 "several records are graded in one run" "$valid" "$wrong"
 has "record $valid" "the first record is named"
 has "record $wrong" "the second record is named"
 has "entries=3 ok=2 failed=1" "the summary spans every record"
 
-# --- a proposed entry graded from stdin ---------------------------------------
-
-# The audit skill's Phase 4 grades a PROPOSED entry, which is in no record yet,
-# and that skill writes nothing outside its opt-in persist phase. Stdin is how
-# the two reconcile.
 run_stdin() {
   local expected="$1" label="$2" input="$3"
   local actual
@@ -502,8 +440,6 @@ has "ok 846675cd2cbd91bd" "the stdin record's entries are graded"
 
 run_stdin 1 "a failing record on stdin exits 1" "$unknown"
 has "unknown-kind a9bd6eb74943144f" "the stdin failure names the entry"
-
-# --- usage --------------------------------------------------------------------
 
 run 2 "no record is a usage error"
 run 2 "an unknown argument is refused" --nope "$valid"

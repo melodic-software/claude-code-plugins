@@ -199,14 +199,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Absolute self-path. Root mode re-invokes this script with the child's cwd AT
-# the dispatched root, so a relative "${BASH_SOURCE[0]}" the caller happened to
-# type would no longer resolve from there.
 SCRIPT_PATH="$SCRIPT_DIR/$(basename -- "${BASH_SOURCE[0]}")"
 
-# The header range is derived from the comment block itself (same idiom as the
-# sibling checkers), so adding header lines can never desync the help output.
-# A hardcoded line range drifts silently and clips mid-paragraph.
 usage() {
   awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 }
@@ -244,8 +238,6 @@ if [[ -n "${PLUGIN_TEST_DEADLINE+x}" && ! "$PLUGIN_TEST_DEADLINE" =~ ^[0-9]+$ ]]
   exit 2
 fi
 
-# Git is optional. Plugin-cache installs are plain trees; non-git checks still
-# run when CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR) points at them.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 HAVE_GIT=0
 if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
@@ -265,16 +257,6 @@ INVOKING_TOPLEVEL="${CHECK_SKILL_INVOKING_TOPLEVEL-$INVOKING_TOPLEVEL}"
 # shellcheck source=./skill-frontmatter.sh
 source "$SCRIPT_DIR/skill-frontmatter.sh"
 
-# Base ref for the git-backed diff checks (3, 8, 9) — see the header. Default
-# HEAD (uncommitted-rewrite case); an explicit ref enables a post-commit audit.
-# Validated only when a git repo is present; ignored otherwise.
-#
-# The verdict is DEFERRED rather than fatal here, for the same reason the skills
-# root resolution is: this runs before the dispatch, against the CALLER's repo,
-# and in root mode the ref belongs to the DISPATCHED repo instead. A caller in
-# repo A gating a root in repo B with a ref that exists only in B must not be
-# rejected before anything is dispatched. Each child re-runs this check against
-# its own repo, where a genuinely absent ref is still exit 2.
 BASE_REF="${CHECK_SKILL_BASE_REF:-HEAD}"
 BASE_REF_ERR=""
 if [[ "$HAVE_GIT" == 1 && "$BASE_REF" != "HEAD" ]] &&
@@ -282,16 +264,6 @@ if [[ "$HAVE_GIT" == 1 && "$BASE_REF" != "HEAD" ]] &&
   printf -v BASE_REF_ERR 'Error: CHECK_SKILL_BASE_REF=%s is not a valid commit' "$BASE_REF"
 fi
 
-# Resolve the skills root without baking a repo layout (convention-resolution
-# ladder): explicit override, then plugin project dir, then git-root default.
-# Outside a git repo the git-root step is unavailable — require an explicit
-# root (or CLAUDE_PROJECT_DIR) rather than aborting solely for missing VCS.
-#
-# Resolution runs BEFORE the dispatch below, which needs it to tell a skill name
-# from a root, and its failures are DEFERRED rather than fatal here: an explicit
-# root positional must work with no env and no git (the plugin-cache case). The
-# deferred message is printed on the single-skill path only, after the usage
-# check, so a no-argument call still reports usage exactly as it always has.
 SKILLS_ROOT=""
 SKILLS_ROOT_ERR=""
 if [[ -n "${CHECK_SKILL_SKILLS_ROOT:-}" ]]; then
@@ -304,9 +276,6 @@ else
   SKILLS_ROOT_ERR='Error: not in a git repo and no skills root set: set CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR), or run from inside a git repository'
 fi
 
-# Anchor a relative skills root to the project root. The setup action persists a
-# project-relative path; if the skill is invoked from a subdirectory a relative
-# root would otherwise resolve against the cwd and miss the skills.
 if [[ -n "$SKILLS_ROOT" && "$SKILLS_ROOT" != /* && ! "$SKILLS_ROOT" =~ ^[A-Za-z]:[\\/] ]]; then
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     SKILLS_ROOT="$CLAUDE_PROJECT_DIR/$SKILLS_ROOT"
@@ -318,22 +287,6 @@ if [[ -n "$SKILLS_ROOT" && "$SKILLS_ROOT" != /* && ! "$SKILLS_ROOT" =~ ^[A-Za-z]
   fi
 fi
 
-# --- Skills-root dispatch ----------------------------------------------------
-# Classify every positional, in this order:
-#   1. SKILL NAME: no `/` and no `\`, a resolved root, and
-#      <root>/<arg>/SKILL.md is a file. Name beats directory unconditionally, so
-#      a same-named directory beside the caller cannot hijack the bare-name call
-#      the repo's changed-skills gate makes. It is also the recursion guard:
-#      every child below is handed a bare leaf that resolves under its own root.
-#      The slash-free restriction stops `../skills` escaping the root here.
-#   2. SKILL DIRECTORY (rejected): a directory holding its own SKILL.md. Walking
-#      it as a root finds no SKILL.md in any SUBdirectory and reports no skills
-#      at exit 0, so a CI lane written that way (tab completion hands you
-#      exactly this path) gates nothing and stays green forever.
-#   3. ROOT: any other existing directory.
-#   4. Neither: unresolvable. A slash-bearing one is held separately, because it
-#      can never be a skill name and so is an environment error rather than a
-#      lookup miss, whether or not any other positional resolved.
 DISPATCH_NAMES=()
 DISPATCH_ROOTS=()
 DISPATCH_BAD=()
@@ -431,18 +384,10 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
       *) DISPATCH_ENV_ERR=1 ;;
       esac
     done
-    # An existing root holding no skills is reported, not an error: the sibling
-    # check-listing-budget.sh does the same, and exit 2 here would hard-error
-    # the commonest run (a repo with an empty .claude/skills). The named line is
-    # what keeps it from being silent.
     ((dispatch_found == 0)) && printf 'No skills found under: %s\n' "$dispatch_root"
   done
   printf '\n%d passed, %d failed\n' "$DISPATCH_PASSED" "$DISPATCH_FAILED"
   ((DISPATCH_LEFT == 0)) || printf '%d skill(s) left script tests to CI, counted in neither tally above\n' "$DISPATCH_LEFT"
-  # An environment error is not a finding, so it must not be reported as one.
-  # The rollup wording is pinned by the skill body and the suite, and a run that
-  # never produced a verdict belongs in neither tally, so the shortfall is said
-  # out loud here instead of being folded into either number.
   if ((DISPATCH_ENV_ERR)); then
     printf 'Error: one or more skill runs hit an environment error and are counted in neither tally above\n' >&2
     exit 2
@@ -451,27 +396,14 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
   ((DISPATCH_LEFT > 0)) && exit 3
   exit 0
 elif ((${#DISPATCH_BAD_PATHS[@]} > 0)); then
-  # A positional carrying a path separator can never be a skill name, so an
-  # unresolvable one is an environment error even when nothing else resolved.
-  # Without this the single-skill body answered a typo'd path, and an unmatched
-  # `plugins/*/skills` glob, with the plugin:skill cache guidance at exit 1.
   printf 'Error: skills root does not exist: %s\n' "${DISPATCH_BAD_PATHS[*]}" >&2
   exit 2
 elif (($# > 1)); then
-  # The body below reads only $1 and would silently drop every later
-  # positional, the silent omission the root form exists to kill.
   printf 'Error: more than one skill name given: %s\n' "$*" >&2
   printf 'Pass one <skill-name>, or one or more skills roots.\n' >&2
   exit 2
 fi
 
-# Single-skill path only (root mode has already exited above): the deferred
-# base-ref verdict is this run's own, because the repo it was validated against
-# is the repo this run will query. Placed before the USAGE check specifically,
-# so a no-argument call still reports the base ref first exactly as it did
-# before the verdict was deferred. It sits AFTER the dispatch refusals, so a
-# call that also gets its positionals wrong now names that instead; all of
-# those paths exit 2 either way, and the positional error is the more specific.
 if [[ -n "$BASE_REF_ERR" ]]; then
   printf '%s\n' "$BASE_REF_ERR" >&2
   exit 2
@@ -527,21 +459,7 @@ DESC_CHAR_CAP=1536
 # https://agentskills.io/specification#description-field. As of: 2026-08-31.
 # Recheck trigger: the spec moving the field maximum re-derives this constant.
 DESC_FIELD_CAP=1024
-# Approach margin: a description this close to the field maximum WARNs even though
-# it is still legal. A description is the surface an author edits to add a trigger
-# phrase, and one added phrase in this marketplace's descriptions runs roughly 15
-# to 30 codepoints (`, 'find dead code'` is 19), so 32 is one such clause of
-# headroom — the smallest margin that still speaks up BEFORE the next ordinary
-# edit breaches rather than after. Widening it is cheap; the band is WARN-only and
-# never changes an exit code.
 DESC_FIELD_WARN_MARGIN=32
-# Recorded pre-existing breaches, one skill path per line (`#` comments and blank
-# lines ignored), addressed the way the caller's repo names its skills — the same
-# `plugins/<plugin>/skills/<skill>` form check 3 diffs against. A listed skill's
-# over-cap description downgrades from FAIL to WARN so introducing the FAIL does
-# not strand a fleet that already carries offenders. The list can only SHRINK: a
-# listed skill now at or under the cap is a stale row and FAILs. Unset (the
-# default, and every consumer repo) means no downgrades at all.
 DESC_FIELD_BASELINE="${CHECK_SKILL_DESC_FIELD_BASELINE:-}"
 # NAME_MAX_LEN is this checker's `name` limit, 64 characters of lowercase
 # alphanumerics and hyphens matching the directory, taken from the Agent Skills
@@ -590,20 +508,8 @@ POCOCK_DESC_MAX=419
 POCOCK_BODY_MAX=160
 POCOCK_DESC_MEDIAN=130
 POCOCK_BODY_MEDIAN=70
-# Check 30: the description target and warn threshold are settings, resolved
-# through the config cascade (docs/contracts/config-cascade/README.md in the
-# marketplace repository): the default below, then the team layer
-# <home>/skill-quality.yaml, then the personal layer
-# <home>/skill-quality.local.yaml, a later layer winning key by key. The target
-# prints as INFO and the warn threshold WARNs above it; the field maximum,
-# DESC_FIELD_CAP, stays fixed. The warn default is Pocock's measured max.
 DESC_TARGET_DEFAULT=250
 DESC_WARN_DEFAULT=$POCOCK_DESC_MAX
-# Check 30: the router cap, a house setting of `/playbooks:skill-authoring`
-# (`## Body`, router standard): a SKILL.md stays under this many tokens. The
-# count is an estimate, whole-file codepoints divided by ROUTER_CHARS_PER_TOKEN
-# and rounded up, the same 4 chars/token check-listing-budget.sh defaults to,
-# not a tokenizer count.
 ROUTER_TOKEN_CAP=5000
 ROUTER_CHARS_PER_TOKEN=4
 
@@ -625,10 +531,6 @@ note() {
   printf 'INFO: %s\n' "$*"
 }
 
-# Does the record file "$1" list "$2"? Rows are one path per line, `#` comments
-# and surrounding whitespace ignored. Shared by the two record files this gate
-# reads (check 2b's description baseline, check 14's evals warrant exemptions)
-# so a row is recognized the same way in both.
 path_list_contains() {
   local file="$1" needle="$2" row
   while IFS= read -r row || [[ -n "$row" ]]; do
@@ -640,12 +542,6 @@ path_list_contains() {
   return 1
 }
 
-# Unquoted trigger items in stdin text: each comma-separated item of the first
-# "Use when" clause, up to the ". " or "; " that ends it, with a leading "or" or
-# "and" dropped. An item holding a quote is skipped, since its 'quoted' phrase
-# is tracked already. Each prints in single quotes, the form extract_triggers
-# prints, so quoting a formerly unquoted item does not read as a drop.
-# Contractions fold the way extract_triggers folds them.
 use_when_items() {
   sed "s/\\([[:alpha:]]\\)'\\([[:alpha:]]\\)/\\1\\2/g" 2>/dev/null |
     awk -v sq="'" '
@@ -666,8 +562,6 @@ use_when_items() {
       }'
 }
 
-# Sorted-unique trigger phrases in a listing's DESCRIPTION and WHEN_TO_USE text:
-# every 'quoted' phrase plus the unquoted "Use when" items of each field.
 listing_triggers() {
   {
     printf '%s\n%s\n' "$1" "$2" | skill_frontmatter::extract_triggers
@@ -676,10 +570,6 @@ listing_triggers() {
   } | sort -u
 }
 
-# Trigger phrases in a frontmatter block's LISTING text — the description +
-# when_to_use pair the harness assembles into one listing entry. Reads the
-# frontmatter as a string so every caller (working tree, base ref, sibling
-# skill) derives triggers the same way.
 fm_listing_triggers() {
   local fm="$1"
   listing_triggers \
@@ -687,8 +577,6 @@ fm_listing_triggers() {
     "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")"
 }
 
-# The frontmatter of the SKILL.md under repo-relative skill dir "$1" at
-# BASE_REF. Returns 1 when the base ref has no such file.
 base_ref_fm() {
   git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$1/SKILL.md" 2>/dev/null || return 1
   git -C "$REPO_ROOT" show "$BASE_REF:$1/SKILL.md" 2>/dev/null | skill_frontmatter::extract
@@ -787,7 +675,6 @@ vc_strip_negated_mutate() {
 }
 
 vc_lead_mutate() {
-  # Positive action verbs only. "remediation" (noun) is not advertising.
   grep -qE \
     '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)' \
     < <(vc_strip_negated_mutate "$1")
@@ -799,9 +686,6 @@ vc_lead_readonly() {
   *"read-only by default"* | *"read only by default"*) return 1 ;;
   *) ;;
   esac
-  # A scoped "does not modify X" next to a mutate advertisement is a
-  # restriction, not a never-mutates claim (Fixes the files but does not
-  # modify vendored dependencies).
   vc_lead_mutate "$t" && return 1
   grep -qE \
     'read[- ]only|report[- ]only|findings[[:space:]]+(report|only)|no edits applied|never[[:space:]]+(writes|mutates|modifies|edits)|does not[[:space:]]+(modify|edit|write|mutate)|zero mutations|performs[[:space:]]+zero[[:space:]]+mutations' \
@@ -875,7 +759,6 @@ check_25() {
   fi
 }
 
-# Read once here: check 25 and checks 1-3 below all use these.
 FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
 CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
 CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
@@ -887,8 +770,6 @@ if [[ "${CHECK_SKILL_ONLY:-}" == 25 ]]; then
   check_25
   summarize
 fi
-
-# --- Check 1: frontmatter parses; description present; declared name matches --
 
 if [[ -z "$FRONTMATTER" ]]; then
   err "no YAML frontmatter block found (expected content between two '---' fences)"
@@ -965,7 +846,7 @@ else
     if [[ -z "$CUR_MODEL" || "$CUR_MODEL" =~ [[:space:]] ]]; then
       err "frontmatter model '$CUR_MODEL' is empty or contains whitespace; use inherit or one model alias or id (characters such as ':', '/' and '@' in a provider id are allowed)"
     elif [[ "$RAW_MODEL" != "$CUR_MODEL" ]]; then
-      : # quoted, so YAML reads a string
+      :
     elif [[ "$CUR_MODEL" == [\[\{]* || "${CUR_MODEL,,}" =~ ^(true|false|yes|no|on|off|null|~)$ ]]; then
       err "frontmatter model '$CUR_MODEL' is not a string: YAML reads an unquoted collection, boolean or null as a non-string value; use inherit or one model alias or id"
     fi
@@ -1018,7 +899,6 @@ fi
 # combined length must include it whenever when_to_use is populated, or this
 # check under-counts by 3 and can pass an entry that actually overflows.
 JOINER_LEN=0
-# Working-tree listing triggers, compared against the base ref by check 3.
 CUR_TRIG="$(listing_triggers "$CUR_DESC" "$CUR_WTU")"
 DESC_LEN=${#CUR_DESC}
 WTU_LEN=${#CUR_WTU}
@@ -1055,9 +935,6 @@ fi
 # measure.
 DESC_CP_LEN="$(skill_frontmatter::codepoint_len "$CUR_DESC")"
 
-# Is this skill recorded as a pre-existing breach? Keyed by the skill's path
-# relative to the repo root (SKILL_REL), the only identifier that is unique across
-# plugins — skill leaf names repeat (`audit`, `check`) many times over.
 DESC_FIELD_BASELINED=0
 if [[ -n "$DESC_FIELD_BASELINE" ]]; then
   if [[ ! -f "$DESC_FIELD_BASELINE" ]]; then
@@ -1081,13 +958,6 @@ else
   note "description field $DESC_CP_LEN/$DESC_FIELD_CAP codepoints (spec field maximum)"
 fi
 
-# --- Check 3: trigger-keyword preservation vs HEAD -------------------------
-
-# The base-ref SKILL.md frontmatter, read ONCE for the three checks that need it
-# (3 trigger preservation, 8 vendor-sync pairing, 9 stale-tracking metadata).
-# HAVE_BASE_FM carries the existence probe's answer, so "no base-ref version
-# (new skill)" stays distinct from a base-ref file whose frontmatter block is
-# empty.
 HAVE_BASE_FM=0
 BASE_FM=""
 if [[ "$HAVE_GIT" == 1 ]] && BASE_FM="$(base_ref_fm "$SKILL_REL")"; then
@@ -1101,23 +971,8 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
   if [[ -n "$BASE_TRIG" ]]; then
     MISSING="$(comm -23 <(printf '%s\n' "$BASE_TRIG") <(printf '%s\n' "$CUR_TRIG"))"
     if [[ -n "$MISSING" ]]; then
-      # A dropped phrase that reappears verbatim in a SIBLING skill's listing
-      # text (same skills root, working tree) — where the sibling's BASE_REF
-      # frontmatter did NOT already carry it — is a deliberate trigger MOVE,
-      # not a lost trigger: the marketplace listing still routes the phrase,
-      # which is the drift this check exists to surface. The base-ref
-      # condition keeps the exception exactly as narrow as the rationale: a
-      # phrase the sibling carried all along is coincidental overlap, not a
-      # move, and dropping it here reports as a dropped phrase (the advisory
-      # warning below), not as a move. Moves WARN naming the host.
-      # Repo-relative parent of the skills root ("" when skills sit at the
-      # repo root), so sibling base-ref lookups address the right tree entry.
       SKILLS_REL_PARENT=""
       [[ "$SKILL_REL" == */* ]] && SKILLS_REL_PARENT="${SKILL_REL%/*}"
-      # A sibling's working-tree listing text is the same for every missing
-      # phrase, so read and parse each SKILL.md once here rather than once per
-      # phrase (the per-phrase scan below then only walks the cached arrays).
-      # Glob order sets the first-genuine-host tie-break.
       SIB_NAMES=()
       SIB_TRIGS=()
       for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
@@ -1135,8 +990,6 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
           OTHER_NAME="${SIB_NAMES[$sib_i]}"
           OTHER_REL="${SKILLS_REL_PARENT:+$SKILLS_REL_PARENT/}$OTHER_NAME"
           if OTHER_BASE_FM="$(base_ref_fm "$OTHER_REL")"; then
-            # Sibling already carried the phrase at BASE_REF: coincidental
-            # overlap, not a move — keep looking for a genuine host.
             grep -qxF -- "$phrase" <<<"$(fm_listing_triggers "$OTHER_BASE_FM")" && continue
           fi
           MOVE_HOST="$OTHER_NAME"
@@ -1149,11 +1002,6 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
         fi
       done <<<"$MISSING"
       if ((${#LOST[@]} > 0)); then
-        # Advisory, never a FAIL: a dropped phrase is often a deliberate
-        # consolidation of near-synonym triggers into a named intent category,
-        # which a hard failure would block. The warning names each phrase so
-        # the reviewer confirms the description still routes that intent, or
-        # restores the phrase.
         warn "dropped trigger keyword(s) vs $BASE_REF: ${LOST[*]}. Confirm the description still names each intent these phrases carried (deliberate consolidation), or restore them"
       fi
     else
@@ -1238,22 +1086,6 @@ while IFS= read -r ref; do
   fi
   if [[ ! -e "$resolve_base/$check_ref" ]]; then
     ref_line="$(grep -nF "$ref" "$SKILL_MD" 2>/dev/null | head -1 | cut -d: -f1)"
-    # A path that misses here but DOES resolve under a SIBLING skill of the same
-    # skills root is most often a cross-skill citation written in the
-    # skill-internal form — not a missing file. Every bare path in this check
-    # resolves against the CITING skill's dir, so the bare form is wrong either
-    # way and still FAILs; what changes is the message. The default wording
-    # sends the author looking for the file under their own skill, where it will
-    # never be — naming the host sibling and the anchored form that works is the
-    # difference between a dead end and a one-line fix.
-    #
-    # The sibling hit is EVIDENCE, not proof: this check deliberately extracts
-    # inline-code refs as well as link targets, so a generic path (`scripts/run.sh`) can
-    # collide with an unrelated same-named sibling file. The wording therefore
-    # stays conditional and keeps the hand-verify instruction the default
-    # message carries — a coincidental name match and an illustrative example
-    # are both still live readings. Glob order is sorted, so a path present
-    # under more than one sibling names the first deterministically.
     REF_HOST=""
     for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
       [[ -f "$other_md" && "$other_md" != "$SKILL_MD" ]] || continue
@@ -1382,8 +1214,6 @@ else
   warn "npx not found — markdownlint check skipped"
 fi
 
-# --- Check 7: scripts/*.test.sh pass where present -------------------------
-
 if [[ "${CHECK_SKILL_SKIP_SCRIPT_TESTS:-}" == "1" ]]; then
   note "script tests skipped (CHECK_SKILL_SKIP_SCRIPT_TESTS=1)"
 elif [[ -d "$SKILL_DIR/scripts" ]]; then
@@ -1395,11 +1225,6 @@ elif [[ -d "$SKILL_DIR/scripts" ]]; then
       note "script tests skipped: the skill is outside the current repository"
       break
     fi
-    # Sharing a toplevel is not being part of the repo: a plugin copy git
-    # never tracked can sit under a home-directory work tree, and a nested
-    # repo would vouch for itself. Only the invoking repo answers: a test runs
-    # when its index tracks it, or when it is untracked, not ignored, and its
-    # skills root already holds a tracked file (a new skill not committed yet).
     test_real="$(cd -- "${test_sh%/*}" && pwd -P)/${test_sh##*/}"
     test_rel="${test_real#"$INVOKING_TOPLEVEL"/}"
     if [[ "$test_real" != "$INVOKING_TOPLEVEL"/* ]]; then
@@ -1440,7 +1265,6 @@ elif [[ -d "$SKILL_DIR/scripts" ]]; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
     else
       err "script test failed: ${test_sh#"$SKILL_DIR"/}"
-      # Replay the tail: a long failing test would otherwise flood the log.
       if (($(printf '%s\n' "$test_out" | wc -l) > 100)); then
         printf '... output truncated to the last 100 lines; run bash %s for all of it\n' "$test_sh" >&2
         printf '%s\n' "$test_out" | tail -n 100 >&2
@@ -1451,17 +1275,8 @@ elif [[ -d "$SKILL_DIR/scripts" ]]; then
   done < <(find "$SKILL_DIR/scripts" -name '*.test.sh' -type f 2>/dev/null | sort)
 fi
 
-# --- Check 8: vendor/ byte-identical vs HEAD (vendor-backed only) ----------
-
-# The upstream-sha pairing shows vendor/ matches its recorded hash, not that it came from
-# upstream: anyone editing vendor/ can recompute it. It stops an accidental unpaired edit, not a
-# deliberate one; provenance rests on diff review and the skill's own content tests.
 VENDOR_SHA_DEFINITION="SHA-256 of the one non-dotfile under vendor/ with CR bytes removed; with several, SHA-256 of their '<sha>  <path under vendor/>' lines sorted bytewise"
 
-# Prints the vendor/ content hash VENDOR_SHA_DEFINITION states, or nothing
-# when no SHA-256 tool is on PATH. Dotfiles (such as a lint config beside the
-# upstream copy) are repository tooling, not upstream content, so they are left
-# out.
 vendor_content_sha() {
   local dir="$1" hasher f
   if command -v sha256sum >/dev/null 2>&1; then
@@ -1482,15 +1297,10 @@ vendor_content_sha() {
   done | LC_ALL=C sort | "${hasher[@]}" | awk '{print $1}'
 }
 
-# metadata_value <key> <frontmatter>: the unquoted value of metadata.<key>.
 metadata_value() {
   skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field "$1" <<<"$2")"
 }
 
-# Only meaningful when the skill has a HEAD baseline: a brand-new vendored skill
-# staged before a pre-commit run has no prior vendor/ to preserve, so its staged
-# files must not read as "changed vs HEAD". Outside a git repo there is no
-# baseline to compare — skip rather than abort the whole gate.
 if [[ "$HAVE_GIT" != 1 ]]; then
   [[ -d "$SKILL_DIR/vendor" ]] && note "not in a git repo — vendor byte-identity (check 8) skipped"
 elif [[ -d "$SKILL_DIR/vendor" && "$HAVE_BASE_FM" == 1 ]]; then
@@ -1498,15 +1308,8 @@ elif [[ -d "$SKILL_DIR/vendor" && "$HAVE_BASE_FM" == 1 ]]; then
   if git -C "$REPO_ROOT" diff --quiet "$BASE_REF" -- "$SKILL_REL/vendor/" 2>/dev/null; then
     note "vendor/ unchanged vs $BASE_REF"
   elif [[ -n "$VENDOR_STATUS" ]] && ! grep -qv '^R100' <<<"$VENDOR_STATUS"; then
-    # A pure rename keeps every byte, so the guarantee holds.
     note "vendor/ only renamed vs $BASE_REF (contents byte-identical)"
   else
-    # A vendor/ diff is legitimate exactly when paired with a bumped
-    # metadata.upstream-version: the maintainer-run sync flow (the skill's own
-    # `update` action) always replaces vendor/ wholesale from a fresh upstream
-    # release AND bumps this key in the same change. A vendor/ diff with no
-    # accompanying version bump means vendor/ was hand-edited, which the
-    # byte-identical guarantee forbids.
     BASE_UPSTREAM_VERSION="$(metadata_value upstream-version "$BASE_FM")"
     CUR_UPSTREAM_VERSION="$(metadata_value upstream-version "$FRONTMATTER")"
     BASE_UPSTREAM_SHA="$(metadata_value upstream-sha "$BASE_FM")"
@@ -1514,9 +1317,6 @@ elif [[ -d "$SKILL_DIR/vendor" && "$HAVE_BASE_FM" == 1 ]]; then
     if [[ -n "$CUR_UPSTREAM_VERSION" && "$CUR_UPSTREAM_VERSION" != "$BASE_UPSTREAM_VERSION" ]]; then
       note "vendor/ changed vs $BASE_REF, paired with an upstream-version bump ($BASE_UPSTREAM_VERSION -> $CUR_UPSTREAM_VERSION) — legitimate sync"
     elif [[ -n "$CUR_UPSTREAM_SHA" && "$CUR_UPSTREAM_SHA" != "$BASE_UPSTREAM_SHA" ]]; then
-      # Upstream can change bytes without bumping its version. A changed
-      # metadata.upstream-sha pairs the sync only when it equals the content
-      # hash recomputed here, so a hand edit cannot ride a made-up sha.
       VENDOR_SHA="$(vendor_content_sha "$SKILL_DIR/vendor")"
       if [[ -z "$VENDOR_SHA" ]]; then
         err "vendor/ changed vs $BASE_REF with an upstream-sha bump, but neither sha256sum nor shasum is on PATH to verify it"
@@ -1531,8 +1331,6 @@ elif [[ -d "$SKILL_DIR/vendor" && "$HAVE_BASE_FM" == 1 ]]; then
   fi
 fi
 
-# --- Check 9: stale-tracking metadata keys preserved vs HEAD ---------------
-
 if [[ "$HAVE_GIT" != 1 ]]; then
   note "not in a git repo — stale-tracking metadata (check 9) skipped"
 elif [[ "$HAVE_BASE_FM" == 1 ]]; then
@@ -1543,8 +1341,6 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
     fi
   done
 fi
-
-# --- Check 11: Gotchas surface present --------------------------------------
 
 if ! grep -qEi '^##+[[:space:]]+(gotchas|quirks)' "$SKILL_MD" &&
   [[ ! -f "$SKILL_DIR/context/gotchas.md" ]] &&
@@ -1576,8 +1372,6 @@ if [[ -n "$CUR_DESC" ]]; then
   fi
 fi
 
-# --- Check 13: no committed cache/build artifacts ----------------------------
-
 if [[ "$HAVE_GIT" != 1 ]]; then
   note "not in a git repo — committed-artifact scan (check 13) skipped"
 else
@@ -1600,7 +1394,7 @@ evals_warrant_exemptions_file() {
       return 0
     fi
     parent="$(dirname -- "$d")"
-    [[ "$parent" == "$d" ]] && break # reached a root: dirname is a fixed point
+    [[ "$parent" == "$d" ]] && break
     d="$parent"
   done
   return 1
@@ -1612,9 +1406,6 @@ evals_warrant_skip() {
   path_list_contains "$file" "$1"
 }
 
-# A plugin suite case counts for the skill when its flow-list `tags:` names the
-# skill: in the case's prompt.md front matter, where convert-evals-json.py writes
-# it on every case it converts, or in a single-file case.yaml.
 plugin_case_tags_skill() {
   local d re="^tags:[[:space:]]*\[(.*,)?[[:space:]]*['\"]?${SKILL_NAME}['\"]?[[:space:]]*(,.*)?\]"
   for d in "$(dirname -- "$SKILLS_ROOT")"/evals/*/; do
@@ -1646,21 +1437,15 @@ if [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
   fi
 fi
 
-# --- Check 15: companion spoke dirs referenced from the hub -------------------
-
 for spoke_dir in context reference references templates lanes actions; do
   [[ -d "$SKILL_DIR/$spoke_dir" ]] || continue
   grep -q "$spoke_dir/" "$SKILL_MD" ||
     warn "orphan spoke: $spoke_dir/ exists but SKILL.md never references it (progressive-disclosure routing gap)"
 done
 
-# --- Check 16: metadata.category (informational) ------------------------------
-
 if [[ -n "$FRONTMATTER" ]] && ! grep -q 'category:' < <(grep -A8 '^metadata:' <<<"$FRONTMATTER"); then
   note "no metadata.category in frontmatter (optional — category not machine-readable)"
 fi
-
-# --- Check 17: vendor sync age ------------------------------------------------
 
 if [[ -d "$SKILL_DIR/vendor" ]]; then
   SYNCED_VAL="$(awk '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && /^[[:space:]]+synced:/{print $2;exit}' <<<"$FRONTMATTER" | tr -d "\"'")"
@@ -1700,21 +1485,16 @@ fi
 # mutation at load time.
 precompute_readonly_line() {
   local line="$1"
-  line="${line#"${line%%[![:space:]]*}"}" # ltrim
-  line="${line#\$ }"                      # strip a leading `$ ` prompt
+  line="${line#"${line%%[![:space:]]*}"}"
+  line="${line#\$ }"
 
-  # Shell metacharacters that can introduce a second command or a write. `<(`
-  # and `>(` process substitution are caught by the `<`/`>` tests.
   case "$line" in
   *'>'* | *'<'* | *';'* | *'&'*) return 1 ;;
   *) ;;
   esac
   # shellcheck disable=SC2016  # single quotes are deliberate: '$(' is a literal glob, not a shell expansion
-  case "$line" in *'$('*) return 1 ;; *) ;; esac # $(...) command substitution
-  case "$line" in *'`'*) return 1 ;; *) ;; esac  # backtick command substitution
-  # `|| echo <fallback>` is the one sanctioned continuation. Remove those, then
-  # any residual pipe disqualifies the line — a bare `| sink`, or a `||`
-  # continuation into a non-echo command such as `|| bash x`.
+  case "$line" in *'$('*) return 1 ;; *) ;; esac
+  case "$line" in *'`'*) return 1 ;; *) ;; esac
   # shellcheck disable=SC2016  # single quotes deliberate: \|\| and $ are literal regex, not a shell expansion
   local sanitized
   sanitized="$(sed -E 's/\|\|[[:space:]]*echo([[:space:]]|$)/ /g' <<<"$line")"
@@ -1742,8 +1522,6 @@ precompute_readonly_line() {
     esac
     ;;
   gh)
-    # gh nests the read verb after the object (gh pr diff, gh run view). Allow
-    # only a known read verb, and never when a write verb is also present.
     case " $line " in
     *" create "* | *" edit "* | *" delete "* | *" merge "* | *" close "* | *" comment "*) return 1 ;;
     *" view "* | *" diff "* | *" list "* | *" status "* | *" checks "*) return 0 ;;
@@ -1820,9 +1598,9 @@ fi
 # recognized only at line start or after whitespace (per the injection docs), so
 # a mid-token `!`` such as an inline `#!` code span in prose is not an injection.
 INJECTIONS=()
-inj_in_fence=0 # inside any fenced code block
+inj_in_fence=0
 inj_fence_len=0
-inj_is_injection=0 # the current fence opened as a ```! injection block
+inj_is_injection=0
 # shellcheck disable=SC2016  # single quotes deliberate: backticks and $ are literal regex, not shell expansion
 inj_fence_re='^(```+)([^`]*)$'
 while IFS= read -r il || [[ -n "$il" ]]; do
@@ -1831,7 +1609,7 @@ while IFS= read -r il || [[ -n "$il" ]]; do
     iticks="${BASH_REMATCH[1]}"
     iinfo="${BASH_REMATCH[2]}"
     ilen=${#iticks}
-    iinfo="${iinfo#"${iinfo%%[![:space:]]*}"}" # ltrim the info string
+    iinfo="${iinfo#"${iinfo%%[![:space:]]*}"}"
     if ((inj_in_fence == 0)); then
       inj_in_fence=1
       inj_fence_len=$ilen
@@ -1846,7 +1624,7 @@ while IFS= read -r il || [[ -n "$il" ]]; do
     if ((inj_is_injection == 1)) && [[ -n "$itrim" && "$itrim" != \#* ]]; then
       INJECTIONS+=("$il")
     fi
-    continue # inside a non-injection fence → literal example, skip inline scan
+    continue
   fi
   # Outside any fence: collect every inline injection on the line. grep -oE
   # emits each anchored `<boundary>!`cmd`` match on its own line; strip the
@@ -1855,8 +1633,8 @@ while IFS= read -r il || [[ -n "$il" ]]; do
   # glob metacharacters is captured verbatim.
   # shellcheck disable=SC2016  # single quotes deliberate: the backticks are literal delimiters, not shell expansion
   while IFS= read -r inj_match; do
-    inj_match="${inj_match#*'!`'}" # drop boundary + opening !`
-    inj_match="${inj_match%'`'}"   # drop closing backtick
+    inj_match="${inj_match#*'!`'}"
+    inj_match="${inj_match%'`'}"
     INJECTIONS+=("$inj_match")
   done < <(grep -oE '(^|[[:space:]])!`[^`]+`' <<<"$il")
 done <"$SKILL_MD"
@@ -1881,8 +1659,6 @@ if ((${#INJECTIONS[@]} > 0)); then
   if grep -qE '^shell:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER"; then
     note "shell: declared — dynamic-context injection portability is the author's explicit choice"
   else
-    # Each injection is one line, so the first match in the joined list is the
-    # first injection's first bash-only token.
     bash_only_hit="$(printf '%s\n' "${INJECTIONS[@]}" | grep -oE "$bash_only_re" | head -1 || true)"
     if [[ -n "$bash_only_hit" ]]; then
       # shellcheck disable=SC2016  # single quotes deliberate: the backticked tokens in the message are literal
@@ -1967,8 +1743,6 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       warn "stale fresh-eyes-exempt directive ($fe_rel:$fe_ln) — no judgment-language hit within $FRESH_EYES_PROXIMITY_LINES lines; the heuristic list, not the directive, may be the gap — verify before removing"
       ;;
     *)
-      # Scanner and dispatcher ship together; an unknown record is a bug here,
-      # never the audited skill's fault — fail loud, not silent.
       err "check 21 internal error: unknown scan record '$fe_kind' ($fe_rel)"
       ;;
     esac
@@ -2214,8 +1988,7 @@ done
 # The contract is a FIXED POINT: the literal text after `summary:` must be what
 # every reader recovers, whether it reads with a real YAML parser or a regex.
 # This check treats a value a parser rejects as costing the skill its whole
-# frontmatter (record: the unquoted-description comment under the
-# `# --- Check 1` header above).
+# frontmatter (https://code.claude.com/docs/en/skills#frontmatter-reference).
 # Requiring a plain, unquoted, colon-free scalar is the largest subset a regex
 # reader can recover exactly, which is why it is stricter than YAML alone.
 #
@@ -2243,18 +2016,6 @@ if skill_frontmatter::has_metadata_field summary <<<"$FRONTMATTER"; then
     err "metadata.$SUMMARY_ERR"
   fi
 fi
-
-# --- Check 23: completion-criteria signal (WARN; advisory heuristic) ----------
-# Flags a numbered procedure (three or more ordered-list steps outside fenced
-# code blocks) whose text carries no completion-criteria signal — no observable
-# done-condition a reader can test. A step without one invites premature
-# completion: the model marks it done at the first plausible output. Advisory
-# only: a static scan can detect the ABSENCE of any completion signal, never
-# grade the quality of a criterion, and an illustrative list is
-# indistinguishable from an operative one — so the signal tokens are
-# deliberately broad and only genuinely signal-free procedures fire.
-# Write-side doctrine: docs-hygiene:write-for-agents ("Give every step a
-# completion criterion").
 
 CC_SIGNAL='done|complete|verified|verify|confirm|assert|exit|pass|green|criteria|criterion|until|settle|expect|observable|observed|succeed|fail'
 # Blank lines separate LOOSE list items without closing the block — but a
@@ -2369,22 +2130,8 @@ else
   note "invocation mode: model-invoked (fleet default)"
 fi
 
-# --- Check 25: description/verb-contract polarity (FAIL) --------------------
-# Defined above check 1, where CHECK_SKILL_ONLY=25 also runs it alone.
 check_25
 
-# --- Check 26: long spoke files carry a table of contents (WARN; advisory) ---
-# A spoke long enough that its reader (the model, mid-task) cannot take in its
-# shape in one pass needs a table of contents up front, so the section it wants
-# is one anchor hop away instead of a scan. Threshold, basis, and the heuristic's
-# source: TOC_LINE_THRESHOLD above. Scoped to every markdown file under the
-# spoke dirs check 15 routes (reference|references|context), at any depth,
-# because nested spoke layouts (`reference/<topic>/<file>.md`) are a supported
-# shape and a long file two levels down costs its reader the same scan.
-# vendor/ is upstream material this gate never lints. A TOC is a per-file
-# property, so the finding names the file relative to the skill root. Advisory
-# only: a long file can be a flat catalog that a TOC would not help, so a WARN
-# is a candidate to judge, not a defect.
 while IFS= read -r toc_md; do
   [[ -f "$toc_md" ]] || continue
   toc_lines="$(grep -c '' "$toc_md")"
@@ -2400,25 +2147,6 @@ done < <(
   done | sort
 )
 
-# --- Check 27: `## Next` successor section (advisory) -------------------------
-# The skill-bodies rule says a skill with a natural successor names it in a
-# `## Next` section placed before `## Gotchas` (or before the last H2 when the
-# file has none), in one of two shapes: one `/plugin:skill` invocation on a
-# line, optionally followed by a sentence; or two to four bullets of
-# `<outcome>: /plugin:skill`. Whether a skill HAS a successor is the author's
-# call, so absence is an INFO note rather than a WARN: most skills in a large
-# fleet are terminal or not yet wired, and a WARN on each would drown the
-# gate. A section that is present but misplaced or malformed is a WARN,
-# because that is a shape the rule names and the author did not intend.
-#
-# 27b. A stage-bearing skill is the exception to "absence is the author's
-# call": its `metadata.workflow-stage` puts it mid-sequence, so it has a
-# successor by construction. When it has no `## Next` and no older routing
-# heading either (Handoff, Routing, Integration, Skill chaining, each matched
-# as a prefix because the fleet titles them several ways), the absence is a
-# WARN. `interview`, `prd` and `design` are left out of the stage list on
-# purpose: they route through the artifacts they write, not through a
-# successor section. `anytime`, `operator`, and `session` are not stages.
 NEXT_STAGE_BEARING='^(explore|research|plan|implement|test|review|verify|pr|retro)$'
 NEXT_ROUTING_HEADING='^##[[:space:]]+(handoff|routing|integration|skill chaining)'
 
@@ -2439,14 +2167,10 @@ else
   elif [[ -z "$NEXT_GOTCHAS_LINE" ]] && ((NEXT_LINE == NEXT_LAST_H2)); then
     NEXT_HIT="is the last section; the rule places it before the last H2"
   fi
-  # The section body runs from the heading to the next H2 or end of file.
   NEXT_BLOCK="$(awk -v s="$NEXT_LINE" 'NR > s { if ($0 ~ /^## /) exit; print }' "$SKILL_MD")"
   NEXT_BULLETS="$(grep -cE '^- ' <<<"$NEXT_BLOCK" || true)"
   NEXT_TOKEN='/[a-z0-9-]+:[a-z0-9-]+'
   if ((NEXT_BULLETS == 0)); then
-    # The single shape opens with the invocation itself (a leading backtick
-    # allowed), not with prose that happens to mention one: prose first is
-    # how an operative chain reads.
     NEXT_FIRST="$(grep -vE '^[[:space:]]*$' <<<"$NEXT_BLOCK" | head -1 || true)"
     if [[ -z "$NEXT_FIRST" ]]; then
       NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }body is empty"
@@ -2457,8 +2181,6 @@ else
     if ((NEXT_BULLETS < 2 || NEXT_BULLETS > 4)); then
       NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BULLETS bullet(s); the outcome-bullet shape carries two to four"
     fi
-    # A bullet may wrap onto indented continuation lines; judge each bullet
-    # with its continuation joined.
     NEXT_BAD="$(awk -v tok="$NEXT_TOKEN" '
       /^- / { if (b != "" && b !~ tok) n++; b = $0; next }
       /^[[:space:]]+[^[:space:]]/ { b = b " " $0; next }
@@ -2467,9 +2189,6 @@ else
       NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BAD bullet(s) name no /plugin:skill successor"
     fi
   fi
-  # Either shape is a mention for the human, so the whole block, not just the
-  # line that names the successor, is read for the three things the rule
-  # excludes: Skill-tool phrasing, an availability gate, a fallback clause.
   NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|(^|[^[:alnum:]_])(is|are|if|when)( not)? enabled([^[:alnum:]_]|$)|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 | sed -E -e 's/^[^[:alpha:]]+//' -e 's/[^[:alpha:]]+$//' || true)"
   if [[ -n "$NEXT_OPERATIVE" ]]; then
     NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, availability gate, or fallback clause"
@@ -2481,12 +2200,6 @@ else
   fi
 fi
 
-# --- Check 28: metadata keys come from the registry (WARN) ---------------------
-# The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
-# `## Metadata`: a key earns its place when something reads it. The registry
-# beside this script lists each allowed key with its consumer; a key missing
-# from it WARNs and never FAILs, because a consumer repo may read keys this
-# marketplace does not know about.
 META_REGISTRY="$SCRIPT_DIR/metadata-registry.txt"
 META_KEYS="$(awk '
   /^metadata:[[:space:]]*$/ { inmeta = 1; next }
@@ -2516,19 +2229,6 @@ else
   ((META_UNKNOWN == 0)) && note "every metadata key is in the registry"
 fi
 
-# --- Check 29: this repo's history references in the SKILL.md body (WARN) ------
-# The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
-# `## History and provenance`: a skill body states the current rule, and the
-# issue or pull request that produced it belongs in the changelog and git
-# history. This flags a bare hash-number reference in the body, including one
-# inside a tracked-work marker; the test file holds the concrete shapes.
-# The frontmatter is not read, and reference files are not checked.
-# Exempt: code spans and fenced code blocks; a cross-repo `owner/repo#N`
-# (anything glued to the `#` on the left); link anchors and URLs; a bare `#N`
-# whose block (a run of non-blank lines) also cites N upstream, as `owner/repo#N`
-# or an `/issues/N` or `/pull/N` URL, so a pointer record can name its upstream
-# bug once in full and then by number; and every line of a stored-value record
-# block, one that carries an as-of date and a recheck trigger somewhere in it.
 HIST_HITS="$(awk '
   function cited(num, lower) {
     return lower ~ ("[a-z0-9_.-]+/[a-z0-9_.-]+#" num "([^0-9]|$)") ||
@@ -2576,26 +2276,12 @@ else
   note "no history references in the SKILL.md body"
 fi
 
-# --- Check 30: skill size vs the size settings and the base ref (WARN) ---------
-# The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
-# `## Descriptions` and `## Body`: shorter is the default, and a rewrite should
-# not grow a skill. WARNs on a description above the description_warn setting
-# or a body above Pocock's max, on a
-# SKILL.md above the router cap (see the constants), and on growth of the
-# description or body against the base ref. The base ref is
-# CHECK_SKILL_BASE_REF when set, else the merge-base of HEAD with origin/HEAD
-# or origin/main; with neither, or for a skill new at that ref, the growth half
-# is skipped with an INFO. Never a FAIL.
-body_lines() { # SKILL.md text on stdin; lines after the closing frontmatter fence
+body_lines() {
   awk 'NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
     fm { if (/^---[[:space:]]*$/) fm = 0; next }
     { n++ }
     END { print n + 0 }'
 }
-# The settings layers, repo-relative. <home> is the convention home the
-# repository's pointer region binds, else docs/conventions when it binds none.
-# A repository that declined a home, a root no home applies to, and a run
-# outside git read no layer, so the defaults apply.
 SETTINGS_LIB="$SCRIPT_DIR/../lib"
 SETTINGS_LAYERS=()
 if [[ "$HAVE_GIT" == 1 ]]; then
@@ -2607,10 +2293,6 @@ if [[ "$HAVE_GIT" == 1 ]]; then
   *) ;;
   esac
 fi
-# skill_quality_setting <key> <default>: sets SETTING_VALUE and SETTING_LAYER.
-# A value must be a whole number from 1 to DESC_FIELD_CAP. A layer that holds
-# another value, or does not parse, is named and dropped for the key, so a valid
-# later layer still wins, else the default; an earlier layer's value never does.
 skill_quality_setting() {
   local key="$1" rel value status
   SETTING_VALUE="$2"
@@ -2891,7 +2573,5 @@ if ((ST_BASELINE_OK == 1)) && [[ -n "$SKILL_REL" ]]; then
   done < <(awk -v pre="$SKILL_REL/" '{ sub(/#.*/, "") } NF >= 2 && index($1, pre) == 1 { print $1 }' "$SETTINGS_TOKEN_BASELINE")
 fi
 ((ST_ANY == 0)) && note "no settings token used as a condition without a fallback"
-
-# --- Summary ---------------------------------------------------------------
 
 summarize

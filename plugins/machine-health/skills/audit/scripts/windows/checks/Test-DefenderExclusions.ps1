@@ -35,8 +35,6 @@ $adminFieldList = @(
     'unexpected_path_count'
 )
 
-# Outer-catch fallback must keep admin-gate metadata so unexpected
-# failures don't get misclassified as non-admin downstream.
 $FailureSummary = 'Defender exclusion check failed.'
 $PassThru = $false
 $FailureNeedsAdmin = $true
@@ -51,7 +49,6 @@ $CheckBody = {
             foreach ($listName in $script:DefenderExclusionTypes.Keys) {
                 $type = $script:DefenderExclusionTypes[$listName]
                 foreach ($value in $state.$listName) {
-                    # Extension and process exclusions have no known-safe list and stay INFO.
                     $expected = $type -eq 'path' -and (Test-DefenderKnownSafePath -Path $value)
                     $itemSeverity = $type -eq 'path' -and -not $expected ? 'WARN' : 'INFO'
                     $items.Add((New-DefenderExclusionItem -Type $type -Value $value -MutedKeys $MutedKeys `
@@ -59,7 +56,6 @@ $CheckBody = {
                 }
             }
 
-            # A muted item counts as expected.
             $unexpectedPaths = @($items | Where-Object { $_.exclusion_type -eq 'path' -and -not $_.expected -and -not $_.muted } |
                     ForEach-Object { $_.value })
             $severity = Get-UnmutedSeverity -Items $items.ToArray()
@@ -85,7 +81,6 @@ $CheckBody = {
                 -NeedsAdmin $true -RanSuccessfully $true
         }
         'masked' {
-            # Unknown, never "no exclusions" (see Get-DefenderExclusionState.ps1).
             $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
                 -Severity 'UNKNOWN' `
                 -Summary 'Defender exclusion lists are masked (re-run elevated).' `

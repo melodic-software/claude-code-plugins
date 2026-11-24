@@ -862,9 +862,6 @@ flat "a marker followed by a hyphen" "$A_ROOT/repo" 'echo beta-org-x' allow
 assert_contains "flat root, a marker followed by a hyphen: the prefilter misses" "$GUARD_ERR" "trace prefilter-miss"
 flat "a cwd in a domain root's hyphenated sibling is neutral" "${B_ROOT}-x" "ls $A_ROOT" allow
 
-# The stated failure direction: a root cannot say whether `<owner>-x` is a tree
-# of <owner> or an owner of its own, so an unlisted owner reads as the listed
-# one's, below a root that holds one directory per owner too.
 call "$ROOTED" "$A_ROOT/repo" 'ls ~/repos/github.com/beta-org-unlisted/repo'
 verdict "an unlisted owner that starts with a listed owner and a hyphen" deny
 

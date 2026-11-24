@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Tests for ratio.py, the paired-sample ratio.
-#
-# The two behaviors under test are refusals, not calculations: the paired ratio
-# is SUPPRESSED under concurrency (the arms are no longer load-matched, so
-# pairing by index compares samples that never shared conditions), and arms of
-# unequal length are rejected outright rather than silently truncated.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,7 +32,6 @@ write_samples "$WORK/old" 40 40 40 40
 write_samples "$WORK/new" 10 10 10 10
 write_samples "$WORK/short" 10 10
 
-# --- 1. serial run reports the paired ratio, given enough pairs ---
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1 BENCH_MIN_PAIRS=4
 assert_eq "a serial run exits 0" "0" "$RUN_RC"
 assert_contains "the paired ratio is reported" "median_paired_ratio=4.00x" "$RUN_OUT"
@@ -88,8 +81,6 @@ assert_eq "a comparison arm the clock cannot resolve is refused" "2" "$RUN_RC"
 assert_contains "the all-zero arm is refused before any ratio prints" \
   "clock resolution" "$RUN_OUT"
 
-# A denominator whose p50 is 0 but which has SOME non-zero samples reaches the
-# percentile gate rather than the earlier all-zero refusal.
 write_samples "$WORK/mostlyzero" 0 0 0 90
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/mostlyzero" BENCH_CONC=1 BENCH_MIN_PAIRS=1
 assert_eq "a zero-p50 denominator exits 0" "0" "$RUN_RC"
@@ -129,20 +120,15 @@ assert_contains "the ratio is suppressed by name" "SUPPRESSED: concurrency=4" "$
 assert_not_contains "no paired ratio is printed under concurrency" "median_paired_ratio" "$RUN_OUT"
 assert_contains "the suppression states the reason" "never shared conditions" "$RUN_OUT"
 
-# --- 3. an unset BENCH_CONC FAILS rather than defaulting to serial ---
-# Defaulting would silently re-enable the paired ratio under concurrency for
-# any caller who forgot to pass it.
 capture env -u BENCH_CONC BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" \
   "$HARNESS_PYTHON" "$RATIO"
 assert_eq "an unset BENCH_CONC is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains the danger of defaulting" "re-enable the paired ratio" "$RUN_OUT"
 
-# --- 4. unequal arms are refused, not truncated ---
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/short" BENCH_CONC=1
 assert_eq "unequal arms are refused" "2" "$RUN_RC"
 assert_contains "the refusal names the silent truncation" "silently drop" "$RUN_OUT"
 
-# --- 5. an all-zero comparison arm is refused ---
 write_samples "$WORK/zeros" 0 0 0 0
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/zeros" BENCH_CONC=1
 assert_eq "an all-zero comparison arm is refused" "2" "$RUN_RC"
@@ -159,7 +145,6 @@ run_ratio BENCH_OLD="$WORK/spliced" BENCH_NEW="$WORK/short" BENCH_CONC=1
 assert_eq "a spliced row is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the concurrent-append cause" "concurrent appends" "$RUN_OUT"
 
-# --- 7. a non-integer BENCH_MIN_PAIRS is refused, never silently defaulted ---
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1 BENCH_MIN_PAIRS=lots
 assert_eq "a non-integer BENCH_MIN_PAIRS is refused" "2" "$RUN_RC"
 
@@ -181,8 +166,6 @@ assert_contains "ratio-of-p50 is unmoved too" "ratio_of_p50=1.00x" "$RUN_OUT"
 assert_contains "the divergence is flagged" "DISAGREEMENT" "$RUN_OUT"
 assert_contains "the flag names the diverging statistic" "ratio-of-p95" "$RUN_OUT"
 
-# The negative arm. Three agreeing ratios must NOT be flagged, or the check
-# fires on every run and flags nothing.
 run_ratio BENCH_OLD="$WORK/spike_new" BENCH_NEW="$WORK/spike_new" BENCH_CONC=1
 assert_not_contains "agreeing ratios are not flagged" "DISAGREEMENT" "$RUN_OUT"
 

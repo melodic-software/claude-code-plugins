@@ -53,7 +53,6 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 
 hook::buffer_stdin_to INPUT || exit 0
 
-# jq-free pre-filter: a payload with neither word cannot match.
 [[ "$INPUT" == *until* || "$INPUT" == *--watch* ]] || exit 0
 
 hook::require jq "PreToolUse" guardrails "$INPUT"
@@ -73,8 +72,6 @@ FWG_WATCH=0
 [[ "$FWG_COMMAND" == *--watch* ]] && FWG_WATCH=1
 ((FWG_UNTIL || FWG_WATCH)) || exit 0
 
-# Read only once the text could match: a boolean is not a string the fast path
-# proves, so this call costs a jq process.
 hook::jq_fields "$INPUT" '.tool_input.run_in_background' || exit 0
 [[ "${HOOK_JQ_FIELDS[0]-}" == true ]] && exit 0
 
@@ -123,7 +120,6 @@ fwg::bare_text() {
     s="${e%% *}"
     e="${e#* }"
     t="${e%% *}"
-    # A body nested in an earlier one is already cut.
     ((s < at)) && continue
     text+="${FWG_COMMAND:at:s-at}${FWG_NL}"
     at=$t

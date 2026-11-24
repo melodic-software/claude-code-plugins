@@ -87,8 +87,6 @@ export function resolveTempPath(serialized) {
   return serialized;
 }
 
-/** Session fields holding a temp path. Every one is always PRESENT on the result — set to
- * `undefined` rather than omitted when the input had no value. */
 const TEMP_SESSION_DIR_KEYS = ["workDir", "framesDir", "contactSheetsDir"];
 
 /**

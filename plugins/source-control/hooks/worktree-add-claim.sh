@@ -31,9 +31,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_ENABLED:-true}" == "true" ]] || exit 0
 # Parameter expansion, not `dirname`: a command substitution forks, which is a
 # process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
@@ -71,10 +68,6 @@ CLAIM="$HOOK_DIR/../scripts/worktree-claim.sh"
 
 CLAIM_TARGETS=()
 
-# The parse, the `cd`/`pushd`/`popd` poisoning, the wrapper/`-C` base
-# composition and the add-target walk are worktree-path-lib.sh's, shared
-# verbatim with the containment sibling so the two hooks can never disagree
-# about which target an executed command named. Only the claim is this hook's.
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 collect_add() {
   local abs
@@ -85,17 +78,12 @@ collect_add() {
   return 0
 }
 
-# Fail open (header): the add has run, so a command the reader cannot parse
-# exits 0 quietly rather than refusing.
 HOOK_BPS_FAIL_OPEN=1
 hook::bash_parse_segments "$COMMAND" collect_add
 HOOK_BPS_FAIL_OPEN=0
 
-# Nothing we could honestly attribute to an executed `git worktree add`.
 ((${#CLAIM_TARGETS[@]})) || exit 0
 
-# A successful claim gives the model nothing to act on, so only a foreign
-# claim is reported: the model must not write in that worktree.
 foreign=""
 
 for target in "${CLAIM_TARGETS[@]}"; do

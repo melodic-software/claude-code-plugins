@@ -103,7 +103,6 @@ $CheckBody = {
 
     $readStates = @($read.ReadState, $read.ServiceState)
     $severity = Get-UnmutedSeverity -Items $items -ReadState $readStates
-    # An unread socket table or service list can hide any listener, so no item verdict stands.
     if (@($readStates | Where-Object { $_ -notin @('ok', 'absent') }).Count -gt 0) { $severity = 'UNKNOWN' }
     $unresolved = @($items | Where-Object { $null -eq $_.key }).Count
     $warned = @($items | Where-Object { $_.severity -eq 'WARN' }).Count

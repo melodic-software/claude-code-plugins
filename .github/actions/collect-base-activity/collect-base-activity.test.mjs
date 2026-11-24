@@ -178,19 +178,17 @@ function runnerScripts() {
 test("every module and file a runner's script activity loads resolves in the staged base-script layout", () => {
   const scripts = runnerScripts();
   assert.ok(scripts.includes(".github/scripts/pr-unblock/report-escalation.sh"), scripts.join(" | "));
-  const copy = skillScript(/^\s+- name: Copy the script's base directory$/);
-  const runs = ["read", "write"].map((kind) => {
-    const workflow = readFileSync(path.join(REPO_ROOT, `.github/workflows/pr-run-activity-${kind}.yml`), "utf8");
-    return /^\s+("\$RUNNER_TEMP\/base-script\/[^\n]*")$/m.exec(workflow)?.[1];
-  });
-  assert.ok(runs[0] && runs[0] === runs[1], `both runners run the script by one path: ${runs.join(" | ")}`);
+  const copy = skillScript(/^\s+id: script$/);
   const missing = {};
   for (const script of scripts) {
     const runTemp = mkdtempSync(path.join(root, "script-"));
-    const env = { PATH: process.env.PATH, SCRIPT: script, SCRIPT_DIR: path.join(runTemp, "base-script"), BASE_PATH: REPO_ROOT, RUNNER_TEMP: runTemp, GITHUB_ACTION_PATH: import.meta.dirname };
+    const output = path.join(runTemp, "github-output");
+    writeFileSync(output, "");
+    const env = { PATH: process.env.PATH, SCRIPT: script, SCRIPT_DIR: path.join(runTemp, "base-script"), BASE_PATH: REPO_ROOT, RUNNER_TEMP: runTemp, GITHUB_ACTION_PATH: import.meta.dirname, GITHUB_OUTPUT: output };
     const result = spawnSync("bash", ["-e", "-c", copy], { env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    const entry = spawnSync("bash", ["-c", `printf %s ${runs[0]}`], { env, encoding: "utf8" }).stdout;
+    const entry = /^script-path=(.+)$/m.exec(readFileSync(output, "utf8"))?.[1];
+    assert.ok(entry, `the copy step names ${script}'s staged path`);
     const seen = new Set();
     const walk = (file) => {
       if (seen.has(file)) return;
@@ -201,6 +199,22 @@ test("every module and file a runner's script activity loads resolves in the sta
     walk(entry);
   }
   assert.deepEqual(missing, {});
+});
+
+test("both runners run the script at the path the action's own output names, never a layout of their own", () => {
+  const action = readFileSync(ACTION, "utf8");
+  assert.match(action, /^ {2}script-path:\n(?: {4}.*\n)*? {4}value: \$\{\{ steps\.script\.outputs\.script-path \}\}$/m);
+  const { parse } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("yaml");
+  for (const kind of ["read", "write"]) {
+    const workflow = readFileSync(path.join(REPO_ROOT, `.github/workflows/pr-run-activity-${kind}.yml`), "utf8");
+    const steps = Object.values(parse(workflow).jobs).flatMap((job) => job.steps ?? []);
+    const stage = steps.find((step) => step.id === "stage");
+    assert.match(stage?.uses ?? "", /\/\.github\/actions\/collect-base-activity$/, kind);
+    const act = steps.find((step) => step.id === "act-script");
+    assert.equal(act?.env?.STAGED_SCRIPT, "${{ steps.stage.outputs.script-path }}", kind);
+    assert.match(act.run, /^"\$STAGED_SCRIPT"$/m, kind);
+    assert.doesNotMatch(act.run, /base-script/, `${kind} names no staging layout`);
+  }
 });
 
 test("a data file a module loads from outside its directory is staged alone, and every file beside the module", () => {

@@ -79,8 +79,6 @@ $CheckBody = {
                 if ($reportDir -and -not (Test-Path -LiteralPath $reportDir)) {
                     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
                 }
-                # Only generate when the file doesn't already exist (tests
-                # seed the HTML directly to avoid running powercfg).
                 if (-not (Test-Path -LiteralPath $ReportPath)) {
                     $null = powercfg /batteryreport /output "$ReportPath" /duration 30 2>&1
                 }

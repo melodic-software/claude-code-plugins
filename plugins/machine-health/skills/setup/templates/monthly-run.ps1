@@ -213,7 +213,6 @@ $status.ok = $status.exit_code -eq 0 -and $status.is_error -eq $false -and $stat
 
 [System.IO.File]::WriteAllText("$logPrefix.stdout.json", $stdout)
 [System.IO.File]::WriteAllText("$logPrefix.stderr.log", $text.err.ToString())
-# Written whole, then renamed, so a reader never sees a half-written status file.
 [System.IO.File]::WriteAllText("$logPrefix.status.json.tmp", ($status | ConvertTo-Json))
 [System.IO.File]::Move("$logPrefix.status.json.tmp", "$logPrefix.status.json")
 # A read still pending on a stream held open elsewhere could block disposal; the process exit frees it.

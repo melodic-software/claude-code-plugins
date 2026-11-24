@@ -236,7 +236,6 @@ export function resolveWorkArtifacts(workDir, captionClass = "manual-and-auto") 
 export const RECOVER_USAGE =
   "Usage: node watch/recover-watch-bootstrap.js <slice-dir> <workDir> <framesDir> <contactSheetsDir>";
 
-/** Frames per contact sheet, matching the 4x4 cell grid the sheets on disk were built with. */
 const FRAMES_PER_CONTACT_SHEET = 16;
 
 /**

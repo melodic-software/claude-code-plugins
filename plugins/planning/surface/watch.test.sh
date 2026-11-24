@@ -15,7 +15,6 @@
 # test-scope: plugins/planning/surface/schema/*
 # test-scope: plugins/planning/.claude-plugin/plugin.json
 set -u
-# Every watcher in the suite is one session unless a case names another.
 export WATCH_ID=suite
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 pass=0
@@ -27,7 +26,6 @@ py=$(command -v python3 || command -v python)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-watch.XXXXXX")
 d="$tmp/data"
 mkdir -p "$d"
-# A short settle window in each data dir; the defaults outlast the cases' 10 s delivery waits.
 fast_settle='"settleQuiet": 3, "settleBurst": 12'
 printf '{%s}\n' "$fast_settle" >"$d/settings.json"
 # The native absolute form watch.sh prints (C:/... under Git Bash, the plain path elsewhere).
@@ -75,8 +73,6 @@ PORT=$(sed -n 's/^PORT=//p' "$d/.interview-session.env" | tr -d '\r')
 TOKEN=$(sed -n 's/^TOKEN=//p' "$d/.interview-session.env" | tr -d '\r')
 cp "$d/.interview-session.env" "$tmp/env.saved"
 
-# Block until the server on port $1 (default $PORT) reports a waiting watcher (up to 10 s), so a
-# POST lands mid-wait.
 until_waiting() {
   local end=$((SECONDS + 10))
   while [[ "$SECONDS" -lt "$end" ]]; do
@@ -86,7 +82,6 @@ until_waiting() {
   return 1
 }
 
-# (a) curl missing
 WATCH_CURL=/nonexistent bounded 10 "$tmp/a.out" "$tmp/a.err" bash "$here/watch.sh" "$d"
 rc=$?
 if [[ "$rc" -eq 2 ]] && grep -q curl "$tmp/a.err"; then
@@ -95,9 +90,6 @@ else
   bad "curl missing: rc=$rc err=$(cat "$tmp/a.err")"
 fi
 
-# (b) wrong token: a second data dir whose env file points at the live port with another token.
-# "At once" means no retry: a retry loop would sleep 5 s per failed poll (60 s before exit 2),
-# so a 20 s bound still catches one while leaving room for process start-up on a loaded host.
 mkdir -p "$tmp/wrong"
 sed 's/^TOKEN=.*/TOKEN=not-the-token/' "$tmp/env.saved" >"$tmp/wrong/.interview-session.env"
 start=$SECONDS
@@ -110,9 +102,6 @@ else
   bad "wrong token: rc=$rc took=${took}s err=$(cat "$tmp/b.err")"
 fi
 
-# (p) gap G10: an env file recording another plugin version (a server started before a plugin
-# update) gets one `note:` line on stderr before the first poll; the live server's own version, in
-# case (b)'s env file, gets none. The wrong token ends each run after one poll.
 installed=$(sed -n 's/^  "version": "\([^"]*\)".*/\1/p' "$here/../.claude-plugin/plugin.json")
 mkdir -p "$tmp/older"
 grep -v -e '^PLUGIN_VERSION=' -e '^TOKEN=' "$tmp/env.saved" >"$tmp/older/.interview-session.env"
@@ -127,7 +116,6 @@ else
   bad "version note: rc=$rc installed=[$installed] err=$(cat "$tmp/p.err") b.err=$(cat "$tmp/b.err")"
 fi
 
-# (k) a PORT that is not all digits: exit 2 naming the env file, never a stripped port
 mkdir -p "$tmp/badport"
 sed 's/^PORT=.*/PORT=80@evil/' "$tmp/env.saved" >"$tmp/badport/.interview-session.env"
 bounded 10 "$tmp/k.out" "$tmp/k.err" bash "$here/watch.sh" "$tmp/badport"
@@ -138,7 +126,6 @@ else
   bad "bad PORT: rc=$rc err=$(cat "$tmp/k.err")"
 fi
 
-# (c) a delivery prints one self-describing JSON line and exits 0
 bash "$here/watch.sh" "$d" >"$tmp/c.out" 2>"$tmp/c.err" &
 wpid=$!
 until_waiting
@@ -175,7 +162,6 @@ fi
 seq=$(tr -dc '0-9' <"$d/.watch-seq" 2>/dev/null)
 if [[ -n "$seq" && "$seq" -ge 1 ]]; then ok ".watch-seq stores the delivered seq ($seq)"; else bad ".watch-seq not stored"; fi
 if [[ ! -f "$d/.watch-replay" ]]; then ok "a blocking delivery writes no .watch-replay"; else bad ".watch-replay written after a blocking delivery"; fi
-# The documented wake read: the exit-0 payload alone in .watch-wake.json, one JSON line.
 wake_kind=$("$py" -c '
 import json, sys
 lines = open(sys.argv[1], encoding="utf-8").read().splitlines()
@@ -193,7 +179,7 @@ post_note() {
     -H 'Content-Type: application/json' --data "{\"kind\": \"note\", \"text\": \"$1\"}" \
     "http://127.0.0.1:$PORT/api/answer"
 }
-event_seqs() { # file: the delivered seqs, space-separated
+event_seqs() {
   "$py" -c '
 import json, sys
 print(" ".join(str(e["seq"]) for e in json.loads(open(sys.argv[1], encoding="utf-8").read())["events"]))
@@ -216,7 +202,6 @@ else
   bad "AC8 re-delivery: bound=${bound}s rc=$rc got=[$got] replay=[$replay] err=$(cat "$tmp/e.err")"
 fi
 
-# (f) a second arm with no new event keeps waiting
 bounded 3 "$tmp/f.out" "$tmp/f.err" bash "$here/watch.sh" "$d"
 rc=$?
 if [[ "$rc" -eq 124 && ! -s "$tmp/f.out" ]]; then
@@ -245,8 +230,6 @@ else
   bad "new event: post=$code rc=$rc got=[$got] err=$(cat "$tmp/g.err")"
 fi
 
-# (h) AC9, AC10: the wake command exactly as the skill documents it in context/surface.md, run
-# as one bash invocation with an ops.json holding one handle op for every unhandled event.
 doc="$here/../skills/interview/context/surface.md"
 marker='<!-- wake-command: surface/watch.test.sh runs the fenced command below -->'
 n_marker=$(grep -cxF -- "$marker" "$doc" 2>/dev/null)
@@ -267,7 +250,7 @@ code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Toke
   -H 'Content-Type: application/json' --data '{"kind": "accept", "id": "Q1"}' \
   "http://127.0.0.1:$PORT/api/answer")
 rev() { "$py" -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["rev"])' "$d/questions.json" 2>&1; }
-claude_lines() { # Claude thread lines on Q1 (add writes the first one)
+claude_lines() {
   "$py" -c '
 import json, sys
 q = next(q for q in json.load(open(sys.argv[1], encoding="utf-8"))["questions"] if q["id"] == "Q1")
@@ -283,7 +266,6 @@ CLAUDE_PLUGIN_ROOT="$(cd "$here/.." && pwd)" WAIT_FAILS=1 bounded 4 "$tmp/h.out"
 rc=$?
 rev_after=$(rev)
 lines_after=$(claude_lines)
-# Every event is handled, so the re-armed watcher waits (a clean timeout here) and prints no line.
 if [[ "$code" == 200 && "$rc" -eq 124 && "$rev_after" == $((rev_before + 1)) ]] &&
   grep -q '^applied 1 ops' "$tmp/h.out" && ! grep -q '^{' "$tmp/h.out"; then
   ok "AC10: the documented chain applies once (rev $rev_before to $rev_after) and re-arms a waiting watcher"
@@ -295,7 +277,6 @@ if [[ "$rc" -eq 124 && "$lines_before" =~ ^[0-9]+$ && "$lines_after" == "$lines_
 else
   bad "AC9: Claude lines on Q1 went from $lines_before to $lines_after (chain rc=$rc)"
 fi
-# The chain consumed ops.json, so running the same command again applies nothing and re-arms.
 CLAUDE_PLUGIN_ROOT="$(cd "$here/.." && pwd)" WAIT_FAILS=1 bounded 4 "$tmp/h2.out" "$tmp/h2.err" bash -c "$run"
 rc2=$?
 if [[ ! -e "$d/ops.json" && "$rc2" -eq 124 && "$(rev)" == "$rev_after" ]] && grep -q '^nothing to apply' "$tmp/h2.out"; then
@@ -304,8 +285,6 @@ else
   bad "re-run wake: ops.json $([[ -e "$d/ops.json" ]] && echo kept || echo gone) rc=$rc2 rev $rev_after to $(rev) out=$(cat "$tmp/h2.out") err=$(cat "$tmp/h2.err")"
 fi
 
-# (i) a data dir named with $( ), a backtick and a single quote: `next` stays one literal command
-# for that exact dir.
 mkdir -p "$odd"
 printf '{%s}\n' "$fast_settle" >"$odd/settings.json"
 if bash "$here/round.sh" --dir "$odd" ensure-running --port 0 >/dev/null 2>"$tmp/i.start"; then
@@ -342,7 +321,6 @@ print(d["events"][0]["seq"])
     bad "odd dir: post=$code rc=$rc fields=[$fields] out=$(cat "$tmp/i.out") err=$(cat "$tmp/i.err")"
   fi
   if bash -n -c "$next" 2>/dev/null; then ok "next for an odd data dir passes bash -n"; else bad "odd dir next fails bash -n: $next"; fi
-  # Running next applies ops.json in that exact dir, then re-arms a watcher that waits.
   oseq=$(line 7)
   printf '{"ops": [{"op": "handle", "seqs": [%s]}]}\n' "$oseq" >"$odd/ops.json"
   CLAUDE_PLUGIN_ROOT="$(cd "$here/.." && pwd)" WAIT_FAILS=1 bounded 4 "$tmp/j.out" "$tmp/j.err" bash -c "$next"
@@ -359,9 +337,6 @@ else
   bad "odd dir next run: not run"
 fi
 
-# (l) one watcher per data dir: a second session exits 3 naming the holder, and a stale lease is
-# reclaimed. Its own data dir sets leaseTimeout and waitTimeout to 5, so the poll a killed holder
-# leaves in flight ends within seconds.
 ld="$tmp/lease"
 mkdir -p "$ld"
 printf '{"leaseTimeout": 5, "waitTimeout": 5, %s}\n' "$fast_settle" >"$ld/settings.json"
@@ -380,7 +355,6 @@ if bash "$here/round.sh" --dir "$ld" ensure-running --port 0 >/dev/null 2>"$tmp/
   fi
   kill "$apid" 2>/dev/null
   wait "$apid" 2>/dev/null
-  # The killed holder's last poll ends by its 5 s timeout; the lease expires 5 s after that.
   end=$((SECONDS + 20))
   until grep -q '"waiting": false' < <(curl -s --max-time 2 "http://127.0.0.1:$lport/api/state") || [[ "$SECONDS" -ge "$end" ]]; do
     sleep 0.2
@@ -402,10 +376,6 @@ else
   bad "stale lease: not run"
 fi
 
-# (m) the fallback watcher id, and a release during a wait. With no WATCH_ID or session id, a
-# parent pid of 1 forms no id (exit 2, no poll); any other parent pid forms <hostname>-<pid>. A
-# release while that watcher waits ends it with exit 3, and the next event reaches only the
-# watcher that claims next.
 if [[ -n "${lport:-}" ]]; then
   [[ -s "$ld/.watch-seq" ]] && bash "$here/round.sh" --dir "$ld" handle --seq "$(cat "$ld/.watch-seq")" >/dev/null
   bash "$here/round.sh" --dir "$ld" lease --release >/dev/null
@@ -459,9 +429,6 @@ else
   bad "watcher id and release: not run (no lease server)"
 fi
 
-# (m2) round.sh lease --takeover after /clear: one command releases the old holder's lease and arms
-# watch.sh for the new session. The old watcher exits 3 with a handed-over message and no delivery;
-# the next event reaches the new session only.
 if [[ -n "${lport:-}" ]]; then
   bash "$here/round.sh" --dir "$ld" lease --release >/dev/null
   WATCH_ID=old bash "$here/watch.sh" "$ld" >"$tmp/to.out" 2>"$tmp/to.err" &
@@ -509,7 +476,6 @@ fi
 # not a watch.sh survives it (a lease pid is never trusted without the command line).
 bash "$here/watch.sh" "$d" >"$tmp/n.out" 2>"$tmp/n.err" &
 wpid=$!
-# An earlier case may leave a waiter on this server, so wait for this watcher's own pid.
 lease_pid=''
 end=$((SECONDS + 10))
 while [[ "$lease_pid" != "$wpid" && "$SECONDS" -lt "$end" ]]; do
@@ -528,8 +494,6 @@ else
 fi
 wait "$wpid" 2>/dev/null
 
-# (o) a refused poll after the env file is gone is a clean stop: exit 3 at once, not 12 retries
-# 5 s apart. The server is killed directly, so only watch.sh's own check can end the watcher.
 fast="$tmp/fast"
 mkdir -p "$fast"
 if bash "$here/round.sh" --dir "$fast" ensure-running --port 0 >/dev/null 2>&1; then
@@ -557,7 +521,6 @@ else
   bad "clean-stop case: no server"
 fi
 
-# (d) server gone: put the old env file back, and expect exit 2 after one failed poll
 cp "$tmp/env.saved" "$d/.interview-session.env"
 WAIT_FAILS=1 bounded 15 "$tmp/d.out" "$tmp/d.err" bash "$here/watch.sh" "$d"
 rc=$?
