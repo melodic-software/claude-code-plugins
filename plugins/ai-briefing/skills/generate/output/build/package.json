@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "linkinator": "^8.1.0",
-    "node-pptx-parser": "^1.0.1",
+    "node-pptx-parser": "^1.0.2",
     "playwright": "1.65.1",
     "pptxgenjs": "^4.0.1",
     "remark-gfm": "^4.0.1",
