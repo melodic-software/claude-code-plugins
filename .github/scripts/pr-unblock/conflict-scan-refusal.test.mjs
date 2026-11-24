@@ -6,8 +6,6 @@ import { test } from "node:test";
 import { main } from "./conflict-scan-refusal.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-// The escalation-reason main writes, given the markers in a fresh directory
-// and the download's outcome; no leg output is read.
 const run = (markers, read = "success") => {
   const dir = tempDir("conflict-scan-refusal-");
   const scanRefused = join(dir, "scan-refused");
