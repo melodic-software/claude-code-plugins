@@ -6,11 +6,9 @@ import { readFileSync } from "node:fs";
 
 const HOUR_MS = 3_600_000;
 
-// Every key of `defaults`, its value in `set` where `valid(value, key)` holds, else its default.
 const overDefaults = (defaults, set, valid) =>
   Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, valid(set?.[key], key) ? set[key] : value]));
 
-// resolve-config's output file, parsed; undefined when it is absent or unreadable.
 const readConfig = (path) => {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
@@ -36,7 +34,6 @@ export const LIMIT_DEFAULTS = Object.freeze({
   "turn-cap-restarts": 0,
   "stop-retries": 2,
 });
-// The leaves 0 is a valid value of; every other leaf is at least 1.
 const ZERO_ALLOWED = new Set(["turn-cap-restarts", "stop-retries", "sweep-gap-minutes"]);
 
 // Every leaf, each set integer within its range over its default.

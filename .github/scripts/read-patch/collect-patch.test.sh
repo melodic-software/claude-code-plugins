@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for collect-patch.sh on throwaway repositories. Each fixture commits
-# a gated head, changes the working tree as an activity would, and the patch
-# must rebuild that tree when applied to a fresh checkout of the head.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,8 +41,6 @@ new_repo() {
   PATCH="$TMP/out.$RANDOM/patch.diff"
   mkdir -p "$(dirname "$PATCH")"
 }
-# run_collect [<head>]: runs from the checkout as the runner does; sets OUT,
-# ERR and RC.
 run_collect() {
   local head=${1-$HEAD_SHA}
   RC=0
@@ -53,10 +48,7 @@ run_collect() {
   ERR=$(cat "$TMP/err")
 }
 field() { sed -n "s/^$1=//p" <<<"$OUT"; }
-# The SHA-256 by an implementation other than the script's.
 sha256_of() { python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$1"; }
-# apply_to_fresh: applies the patch to a fresh clone of the gated head and
-# compares that tree with the fixture's, ignored files aside.
 apply_to_fresh() {
   local fresh="$TMP/fresh.$RANDOM"
   git clone -q --no-checkout "$R" "$fresh"
@@ -77,7 +69,6 @@ check 'clean: no SHA-256' '' "$(field sha256)"
 check 'clean: no patch file' no "$([[ -e $PATCH ]] && echo yes || echo no)"
 
 echo '# planted patch file'
-# A file already at the patch path is not the activity's patch.
 new_repo
 printf 'planted\n' >"$PATCH"
 run_collect
@@ -112,8 +103,6 @@ check 'binary: the patch applies' 0 "$APPLY_RC"
 check 'binary: the applied tree matches' yes "$SAME"
 
 echo '# committed and staged'
-# The activity was told to commit nothing; a commit or a staged change is
-# still part of what it changed against the gated head.
 new_repo
 put edit.txt 'committed\n'
 tg commit -q -am 'model commit'
@@ -177,7 +166,6 @@ check 'edited move: the patch applies' 0 "$APPLY_RC"
 check 'edited move: the applied tree matches' yes "$SAME"
 
 echo '# repository config'
-# Config the activity could set does not change the patch's form.
 new_repo
 tg config diff.noprefix true
 tg config color.diff always
@@ -299,9 +287,6 @@ check 'a nested sub/.npmrc is in the patch' 1 "$(in_patch sub/.npmrc)"
 check 'a new empty .ENV is in the patch' 1 "$(in_patch .ENV)"
 
 echo '# from-tree'
-# merge-base mode: the patch is measured from the conflict tree prepare.sh
-# wrote (a base-side file, and a marker file), so it holds only the model's
-# resolution, and it applies to that tree.
 new_repo
 put base-side.txt 'from main\n'
 put edit.txt '<<<<<<< HEAD\none\n=======\nuno\n>>>>>>> main\n'

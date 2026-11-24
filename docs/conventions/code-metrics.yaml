@@ -1,5 +1,3 @@
-# Team layer for the code-metrics plugin (reference: plugins/code-metrics/reference/config.md).
-# Every key is optional; an absent key keeps the bundled default.
 scope:
   exclude:
     - "**/node_modules/**"

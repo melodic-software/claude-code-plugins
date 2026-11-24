@@ -409,35 +409,15 @@ const RUN_WINDOW_MS = 10 * 60_000;
 const BLOB = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const HOUR_MS = 3_600_000;
-// The write runner's step that mints the lane token, which every model run follows.
 const MINT_STEP = "Request the lane token";
-// The read runner's step a run stops at, green, when its lane workflow files
-// differ from main's: no model ran and no outcome marker follows.
 const STALE_STEP = "Stop on stale workflow files";
-// work-resolve-issue.yml's calls of the read runner: the API key leg, then
-// the subscription and fallback legs a handoff starts.
 const RESOLVE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"];
-// work-resolve-issue.yml's check-admission job, by its id before the rename
-// and its id.
 const ADMIT = ["admit", "check-admission"];
-// The check-admission job's step that skips a run while the issue has an open blocker,
-// or its blockers cannot be read (check-blockers.mjs); pick-slot then skips.
 const BLOCKER_STEP = "Wait for open blockers";
-// The check-admission job's step after BLOCKER_STEP, which runs only once the blockers
-// pass; green with pick-slot skipped, it found an upstream outage
-// (check-upstream-status), since check-admission's proceed then fails on nothing else.
 const UPSTREAM_STEP = "Check upstream status";
-// The read runner's check-broker step a run stops at, green, when its in-slot
-// re-check (check-blockers.mjs RECHECK) finds an open blocker added while it
-// waited for its slot, or cannot read them; no model ran and no marker follows.
 const RECHECK_STOP_STEP = "Stop on an open blocker";
-// The check-admission job's step a run stops at for good on untrusted provenance.
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
-// check-broker's step, which asks the broker before any resolve-issue run job.
 const BROKER_STEP = "Ask the broker whether the lane may run";
-// check-broker's step before BROKER_STEP, which skips it while a kill switch is on.
-// check-admission and pick-slot run it first too, and while a switch is on skip their
-// gated steps: INSTALL_STEP and TRIGGER_STEP in check-admission, WIP_STEP in pick-slot.
 const KILL_STEP = "Check the kill switch";
 // check-broker's step that runs exactly when KILL_STEP stopped on the
 // GITHUB_TOKEN budget (cause budget). Its name carries the window's reset,
@@ -456,8 +436,6 @@ const FLOOR_SPAN_MS = FLOOR_SPAN_MIN * 60_000;
 const INSTALL_STEP = "Install resolve-config's packages";
 const TRIGGER_STEP = "Check the trigger";
 const WIP_STEP = "Check the WIP cap";
-// The steps that run a model: the read runner's legs and its reused-branch
-// summary pass. A run where one ran is never a rate-limit stop before the model.
 const MODEL_STEP = /^(?:Run the skill on|Summarize the reused branch on) /;
 // A raw job log line, its timestamp first, whose rest matches the pattern `rest`.
 const stamped = (rest) => new RegExp(String.raw`^\d{4}-\d\d-\d\dT[\d:.]+Z ` + rest);
@@ -489,17 +467,12 @@ const FLOOR_JOB_ENDS = new Set(["success", "skipped", "failure"]);
 const NO_RESET = "rate-limited";
 const LOG_UNREAD = "unread";
 const OVER_CAP = /answered a body over \d+ bytes$/;
-// The write runner's step after MINT_STEP that runs exactly when a token was
-// minted; a MINT_STEP success with it skipped is a mint that stopped green.
 const STAGE_STEP = "Stage the activity from the base";
 // request-lane-token's notice when kill-switch-ok ends a kill-switch refusal
 // green with no token, at a mint or at check-broker's check.
 const STOPPED = stamped(
   String.raw`##\[notice\]lane-(?:token-stopped: the broker refused the token|check-stopped: the broker refused the check) because a lanes kill switch is on(?:,|$)`,
 );
-// check-broker's step after BROKER_STEP that runs in issue mode exactly on
-// the broker's allow; a BROKER_STEP success with it skipped is a check that
-// stopped green.
 const LEASE_STEP = "Claim the issue with a lane lease";
 // The runner's markers around request-lane-token's one composite step, its
 // `Request the lane token` with id `request`; a STOPPED line counts only
@@ -530,8 +503,6 @@ const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 // the lane PR it names at the verify cap and restarted or parked the issue
 // itself. One with no attempt started nothing.
 const CAPPED_CLOSE = /^<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=[0-9a-f,]* attempt=[0-9]+ of=[0-9]+(?: parked)? -->/;
-// The lane never starts on these (report-outcome.mjs LANE_HOLDS). Only a
-// person removes the outside-actor label, so its issue is never handed to triage.
 const HOLDS = LANE_HOLDS;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -561,14 +532,9 @@ const sweepBudgetMs = (env) => {
   const minutes = Number(env.SWEEP_BUDGET_MINUTES);
   return (Number.isFinite(minutes) && minutes > 0 ? minutes : SWEEP_BUDGET_MIN) * 60_000;
 };
-// The one comment per issue that says it keeps being re-fired on a backoff,
-// edited in place on each re-fire; it reads as a re-fire record timed by its
-// last edit.
 const INFRA = /^<!-- work-unblock infrastructure ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 // The longest wait between backoff re-fires.
 export const BACKOFF_CAP_HOURS = STRANDED_BACKOFF_MAX;
-// When the next re-fire is due: `hours`, the cause's
-// limits.stranded-backoff-hours, doubled per re-fire so far.
 const backoffDue = (since, refires, hours) => since + Math.min(hours * 2 ** refires, BACKOFF_CAP_HOURS) * HOUR_MS;
 const spanOpens = (reset, now) => {
   if (now < reset) {
@@ -609,15 +575,10 @@ export async function checkCloser(env, actions) {
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
   console.log(`::error title=label-unblocked::#${number}: ${escapeCommand(error?.message ?? error)}`);
-// A failed listing is no verdict on any issue (outage posture element 2): the
-// sweep holds, with this notice, and the next tick reads it again.
 const reportHold = (what, error) => {
   console.log(`::notice title=label-unblocked::the ${what} listing failed (${escapeCommand(error?.message ?? error)}); holding, and the next sweep reads it again`);
   markLaneHold();
 };
-// main's clients tag the error of a read (a GET, or a GraphQL query as
-// retryServerErrors tells one) that met a GitHub fault (isFault), and count
-// on the GitHub client (`held`) the issues failedFor holds on one.
 const READ_FAULT = Symbol("a read met a GitHub fault");
 function markReads(client) {
   const marked = async (method, apiPath, body, ...rest) => {
@@ -634,12 +595,6 @@ function markReads(client) {
   marked.held = 0;
   return marked;
 }
-// What one issue's failed read or write adds to the run's failures. A faulted
-// read is no verdict on the issue (outage posture element 2): the issue is
-// held with a notice and the run stays green. Anything else, a failed write
-// or a read that failed for another reason, is reported and ends the run red.
-// A Work status read that failed (StatusReadError) is no verdict either: the
-// issue is not admitted or lifted this run, with a warning, and is held.
 function failedFor(github, number, error) {
   if (error instanceof StatusReadError) {
     console.log(`::warning title=label-unblocked::#${number}: ${escapeCommand(error.message)}; not admitted or lifted this run`);
@@ -658,9 +613,6 @@ function failedFor(github, number, error) {
 
 const isLabel = (event, kind) => event.event === kind && String(event.label?.name).toLowerCase() === LABEL;
 
-// A re-fire marker reads as outcome `refired` with its workflow key,
-// `breaker` when a kill-switch refusal caused it, and `budget` when that was
-// a stop on the GITHUB_TOKEN budget.
 const parseMarker = (body) => {
   const refire = REFIRED.exec(String(body ?? "")) ?? INFRA.exec(String(body ?? ""));
   if (!refire) {
@@ -672,10 +624,6 @@ const parseMarker = (body) => {
   return { outcome: "refired", key: refire[1], breaker, budget: tag === BUDGET_TAG, ...(floor && { floor: Date.parse(floor) }) };
 };
 
-// The lanes App's outcome and re-fire markers on an issue, oldest first, each
-// with when it was posted (the backoff comment and the budget record, each
-// edited in place: last edited). The budget record is one marker per re-fire
-// it records, its earlier edits included.
 const appMarkers = (comments, bot) =>
   comments
     .filter((comment) => comment.user?.login === bot)
@@ -688,16 +636,10 @@ const appMarkers = (comments, bot) =>
     .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at))
     .sort((a, b) => a.at - b.at);
 
-// The App's markers after which its removal of agent-ready is a restart.
 const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding", "retry", "wait"]);
 
-// The outcomes restarted at once, each bounded by its `limits` leaf.
 const CAPPED_RESTARTS = { "turn-cap": "turn-cap-restarts", retry: "stop-retries", wait: "stop-retries" };
 
-// A removal of agent-ready is a restart, not a stop, only when the App made
-// it, the App's newest marker before it is `limited`, `turn-cap`, `retry`, `wait` or a re-fire, and the next agent-ready
-// event after it is the App adding the label back. Any other removal stops the
-// lane, a pushback after a restart included.
 function isRestart(events, index, markers, bot) {
   const removal = events[index];
   const at = Date.parse(removal.created_at);
@@ -709,41 +651,21 @@ function isRestart(events, index, markers, bot) {
   return next !== undefined && isLabel(next, "labeled") && next.actor?.login === bot;
 }
 
-// Whether a label event's actor is the lanes App (by its login) or a listed
-// human (by id): the labelers whose labels the lane acts on.
 const trustedLabeler = (event, { bot, humans }) => event?.actor?.login === bot || humans.has(event?.actor?.id);
 
-// The newest `labeled` event for label `name` among an issue's events.
 const newestAdd = (events, name) =>
   events.filter((event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === name.toLowerCase()).at(-1);
 
-// Why status: ready does not admit: its newest add in `events` is neither a
-// listed human's nor the lanes App's (a bot setter's ready reads as ready but
-// never admits on its own). null when it counts.
 const untrustedReady = (events, { bot, humans }) =>
   trustedLabeler(newestAdd(events, READY), { bot, humans }) ? null : `${READY} was added by neither a listed human nor the lanes App`;
 
-// Whether lowercased label names carry a parked status: confirmed beside
-// status: ready, which admission lifts so the issue keeps one status label
-// (a manual intake re-dispatch skips intake-reenter, which lifts it).
 const parkedBesideReady = (lower) => lower.includes(CONFIRMED) && lower.includes(READY);
 
-// An issue's lowercased names as the Work status field decides them
-// (`statusOf`, read-status.mjs; `own` the issue's own lowercased labels when
-// none is given), a deferred one reading as status: ready too
-// (readyWhileDeferred). A legacy admission-deferred label without
-// status: ready shows status: ready lost only while the field holds no
-// trusted deferred state (the reader's `state`, from the same read).
 async function fieldFirst(statusOf, number, own) {
   const lower = statusOf ? (await statusOf(number, own)).map((name) => String(name).toLowerCase()) : own;
   return readyWhileDeferred(lower, own, async () => (await statusOf?.state?.(number)) === "deferred");
 }
 
-// The mark a deferral counts as (admitDeferred): the newest add of
-// admission-deferred in `events`, except that the lanes App's Work status
-// change to deferred right after a listed human's admission-deferred label
-// add, with no change between, is sync-status writing that person's label
-// into the field, so the person's add is the mark.
 function deferralMark(events, { bot, humans }) {
   const changes = events.filter((event) => ["labeled", "unlabeled"].includes(event.event) && String(event.label?.name).toLowerCase() === DEFERRED_LABEL);
   const newest = changes.at(-1);
@@ -752,9 +674,6 @@ function deferralMark(events, { bot, humans }) {
   return echo ? before : newestAdd(events, DEFERRED_LABEL);
 }
 
-// The issue's events with its Work status field changes as label events
-// (read-status.mjs statusEvents, through the reader's `events`), or its REST
-// events when the reader gives none.
 const eventsOf = (github, repo, statusOf, number) =>
   statusOf?.events ? statusOf.events(number) : paginate(github, `/repos/${repo}/issues/${number}/events`);
 
@@ -776,22 +695,11 @@ export function agentReadyEvents(rows, { field, bot, humans }) {
   });
 }
 
-// `events` with `extra` merged in by time, `events` first at the same time.
 const mergeByTime = (events, extra) =>
   [...events.map((event) => [0, event]), ...extra.map((event) => [1, event])]
     .sort(([a, x], [b, y]) => Date.parse(x.created_at) - Date.parse(y.created_at) || a - b)
     .map(([, event]) => event);
 
-// Why `number` is not promoted (`reason`, null when it is ready), whether a
-// hold label is the reason (`held`), whether a hold its deferral lapsed on is
-// (`kept`), whether it reads deferred, whether it reads a parked status:
-// confirmed beside status: ready, whether its deferral lapsed on a lost
-// status: ready (`notReady`), and, for a deferred issue still at status:
-// ready, the reasons it changed since its deferral that a person or intake
-// must judge again (`stale`). `lower` is its names as the Work status field
-// decides them (fieldFirst); `current` the issue as read. A deferred issue not
-// yet agent-ready is judged by admit.mjs deferralLapsed on `events` (read when
-// not given) and its body's last edit.
 async function refusal(args) {
   const base = `/repos/${args.repo}/issues/${args.number}`;
   const current = await args.github("GET", base);
@@ -841,24 +749,16 @@ async function readiness({ github, repo, number, humans, closes, bot = DEFAULT_B
   if (pending.length > 0) {
     return `${pending.length} blocker(s) not closed by a listed human or a merge`;
   }
-  // The lane skips an umbrella while a sub-issue is open (check-blockers.mjs),
-  // so its parent slices wait for them instead of taking a run that does nothing.
   const subs = await openSubIssues(github, base, current);
   if (subs.length > 0) {
     return `an umbrella waiting on open ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")}`;
   }
-  // Removing the label by hand stops the lane until a person adds it back,
-  // or the App or a listed human marks the issue `status: ready` again.
   const comments = await paginate(github, `${base}/comments`);
   const markers = appMarkers(comments, bot);
   const stopped = (event, index) => isLabel(event, "unlabeled") && !isRestart(events, index, markers, bot);
   if (removalStands(events, stopped, (event) => trustedLabeler(event, { bot, humans }))) {
     return `${LABEL} was removed and ${READY} not added since`;
   }
-  // The App sent it to intake (unpark, its field change off confirmed): only
-  // intake's status: ready admits it, however often an overlapping sweep reads
-  // the same close. A later re-park (status: confirmed set again) ends that
-  // unpark, so a later close unparks anew.
   const unparked = (event) => event.event === "unlabeled" && String(event.label?.name).toLowerCase() === CONFIRMED && event.actor?.login === bot;
   const reMark = (event) => event?.event === "labeled" && [READY, CONFIRMED].includes(String(event.label?.name).toLowerCase());
   if (!lower.includes(READY) && removalStands(events, unparked, (event) => trustedLabeler(event, { bot, humans }), reMark)) {
@@ -867,16 +767,6 @@ async function readiness({ github, repo, number, humans, closes, bot = DEFAULT_B
   return null;
 }
 
-// Where the sweep's window starts and why: SWEEP_MARGIN_MIN before the last
-// successful scheduled run of this workflow (not the current one, and the one
-// before it when that run was paced, PACED_STEP), no further back than
-// LOOKBACK_HOURS (PACED_LOOKBACK_HOURS after a paced run), and only when that
-// run's SWEEP_STEP succeeded and its log shows it read the closed-issue
-// listing (LISTED). A run that is not such a sweep (no steps, a skipped step, a
-// held sweep), or a read that fails, gives PACED_LOOKBACK_HOURS: a held run may
-// follow a paced one whose clean sweep is past LOOKBACK_HOURS, so the fallback
-// re-reads that far and never skips, at the cost of a longer closed listing on
-// those runs only.
 async function sweepSince({ actions, jobLog, repo, now, runId }) {
   let widest = now - LOOKBACK_HOURS * HOUR_MS;
   const fullest = now - PACED_LOOKBACK_HOURS * HOUR_MS;
@@ -896,8 +786,6 @@ async function sweepSince({ actions, jobLog, repo, now, runId }) {
     const older = runs.filter((run) => String(run?.id) !== String(runId ?? "")).sort((a, b) => order(b) - order(a));
     const listJobs = jobLister(actions, repo);
     let last = older[0];
-    // A paced run swept nothing: start from the sweep before it, as far back
-    // as PACED_LOOKBACK_HOURS, so a tick dropped or late after it loses no close.
     if (last && RUN_ID.test(String(last.id)) && !(Date.parse(last.run_started_at ?? last.created_at) <= now - PACED_LOOKBACK_HOURS * HOUR_MS)) {
       const paced = namedJobs(await listJobs(last), SWEEP_JOB).some((job) => (job?.steps ?? []).some((step) => step?.name === PACED_STEP && step.conclusion === "success"));
       if (paced) {
@@ -948,15 +836,10 @@ async function closedSince(github, repo, since) {
     .map((item) => Number(item.number));
 }
 
-// One answer per issue per run: a swept close is also its dependents'
-// blocker, and a blocker can block several dependents. `where` is the
-// blocker's repository: outside `repo`, only a listed human's close counts.
 function trustedClose(args) {
   return readClose(args).then(({ trusted }) => trusted);
 }
 
-// trustedClose's one read, cached in `closes`: { issue, trusted }, the issue
-// as read then, so a caller that needs it reads it no second time.
 function readClose({ github, repo, where = repo, number, humans, closes, bot = DEFAULT_BOT }) {
   const key = `${where.toLowerCase()}#${number}`;
   if (!closes.has(key)) {
@@ -972,12 +855,8 @@ function readClose({ github, repo, where = repo, number, humans, closes, bot = D
   return closes.get(key);
 }
 
-// The lanes App, by its login, as appCloseKind takes it.
 const byBot = (bot) => (actor) => actor?.login === bot;
 
-// stillBlocking's reader for this repository's blockers: trustedClose, or a
-// report-delivered close by the App that a verdict or admission in `events`
-// postdates (admit.mjs clearedPastReport).
 const clearedHere = ({ github, repo, humans, closes, bot = DEFAULT_BOT, events }) =>
   clearedPastReport({
     github,
@@ -987,24 +866,16 @@ const clearedHere = ({ github, repo, humans, closes, bot = DEFAULT_BOT, events }
     after: judgedSince(events, (actor) => trustedLabeler({ actor }, { bot, humans })),
   });
 
-// stillBlocking's reader for another repository's blocker: trustedClose
-// there, and a read that fails leaves it blocking.
 const closedElsewhere = (args) => (blocker) => {
   const where = /\/repos\/([\w.-]+\/[\w.-]+)$/.exec(String(blocker.repository_url ?? ""))?.[1];
   return where ? trustedClose({ ...args, where, number: Number(blocker.number) }).catch(() => false) : false;
 };
 
-// The admission pace for one run: `take()` answers whether one more issue may
-// get agent-ready now, reading the issue lane's status the first time it is
-// asked and counting each admission against its room. A lane paused over its
-// WIP or held cap, or a queued count that could not be read (fail-open),
-// admits nothing, as intake's admission does.
 function admissionGate(status) {
   let room;
   let reason;
   let pause;
   return {
-    // Why take() last answered false.
     why: () =>
       pause
         ? `the issue lane is paused (${pause})`
@@ -1033,14 +904,6 @@ function admissionGate(status) {
   };
 }
 
-// Admits a ready issue within the gate's room: its Work status set to
-// agent-ready, which starts the lane run, unless a person's hold kept it; past
-// the room, sets it deferred unless it already reads deferred (`deferred`). No
-// status label is added; the agent-ready write removes the other status
-// labels first (write-status.mjs). The admission record (admission-record.mjs) names
-// the title and body of one read right before the field write, so the run's
-// text freeze (write-issue.mjs) has an anchor; a failed read or post throws,
-// and nothing is admitted without it.
 async function admit({ github, repo, number, gate, deferred, appId, writer = NO_WRITER }) {
   if (!(await gate.take())) {
     if (!deferred && (await heldOnSet(writer, number, "deferred"))) {
@@ -1058,11 +921,6 @@ async function admit({ github, repo, number, gate, deferred, appId, writer = NO_
   console.log(`label-unblocked: #${number} set to ${LABEL}`);
 }
 
-// Parks a ready issue a merged Refs pull request may have done (admit.mjs
-// mergedRefsAfter, `pulls`): admit.mjs's comment naming the pull requests
-// first, then its Work status set to confirmed. The comment goes first
-// because admission's park reads it: a failed write leaves the issue queued,
-// for the next sweep, never parked with no way out.
 async function parkDone({ github, repo, number, pulls, writer = NO_WRITER }) {
   const base = `/repos/${repo}/issues/${number}`;
   await sayWhy(github, repo, base, await paginate(github, `${base}/comments`), refusalText(doneReason(pulls)));
@@ -1072,12 +930,6 @@ async function parkDone({ github, repo, number, pulls, writer = NO_WRITER }) {
   console.log(`label-unblocked: #${number} parked for a done-check: merged Refs pull request ${pulls.map((n) => `#${n}`).join(", ")}`);
 }
 
-// Why `issue`, otherwise ready but at status: confirmed (`lower`, its names
-// as the field decides them), stays parked (`why`), or null when intake
-// should judge it again, with when it was parked (`parkedAt`) and its
-// `comments`: a blocker's close is news only when it came after the newest
-// change to status: confirmed, and a missing date reads as no news. Each read
-// is skipped once a cheaper check answers.
 async function staysParked({ github, repo, issue, lower, humans, appId, admission, statusOf }) {
   const base = `/repos/${repo}/issues/${issue.number}`;
   const { rules } = await admission();
@@ -1105,13 +957,6 @@ async function staysParked({ github, repo, issue, lower, humans, appId, admissio
 // send it to intake.
 export const UNPARKED_MARKER = "<!-- work-unblock unparked triage -->";
 
-// Hands parked issue `number` (`comments` its comments, `parkedAt` the time
-// of its newest change to status: confirmed, `isApp(user)` whether a comment
-// is the lanes App's) back to intake: the App's UNPARKED_MARKER comment,
-// unless one already follows that park, then its Work status set to
-// needs-triage. The comment
-// goes first, so a failed write leaves the issue parked for the next sweep,
-// which finds the comment.
 async function handBackParked({ github, repo, number, comments, parkedAt, isApp, writer, why }) {
   const base = `/repos/${repo}/issues/${number}`;
   const marked = comments.some(
@@ -1131,8 +976,6 @@ async function handBackParked({ github, repo, number, comments, parkedAt, isApp,
 export const splitHandBack = (body) =>
   `${UNPARKED_MARKER}\n${bodyVersion(body)}\nAdmission refused this issue only for done-when items a lane run cannot perform beside items it can, which intake's refine step splits off only in an intake run, so work-unblock set its Work status to needs-triage, and the hourly triage sweep sends it back to intake triage.`;
 
-// Posts splitHandBack for `issue` unless the lanes App (`appId`) already
-// posted it for this body among `comments`.
 async function handBackSplit({ github, repo, issue, comments, appId }) {
   const text = splitHandBack(issue.body ?? "");
   if (!comments.some((comment) => appId !== undefined && comment.user?.id === appId && String(comment.body ?? "") === text)) {
@@ -1140,9 +983,6 @@ async function handBackSplit({ github, repo, issue, comments, appId }) {
   }
 }
 
-// Hands each of `parked` ({issue, lower}) that should go back to intake back
-// to it (handBackParked), counting them first. Returns how many reads or
-// writes failed.
 async function unpark({ github, repo, parked, humans, appId, admission, writer = NO_WRITER, statusOf }) {
   const going = [];
   let failed = 0;
@@ -1250,11 +1090,6 @@ async function reenterStopped({ github, repo, listed, names, humans, bot, writer
   return failed;
 }
 
-// The open deferred issues (Work status deferred, or a legacy
-// admission-deferred label), oldest opened first: `byStatus` (main's
-// issuesByStatus), or the label listing when it gives none. An issue the
-// field listing holds (`held`, mid-write) is not admitted this sweep: safe,
-// the next sweep retries.
 async function deferredIssues(github, repo, byStatus) {
   const listed = byStatus ? await byStatus(["deferred"]) : null;
   if (listed) {
@@ -1265,8 +1100,6 @@ async function deferredIssues(github, repo, byStatus) {
   );
 }
 
-// Revisits the open deferred issues, oldest first. Returns how many reads or
-// writes failed.
 async function admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer = NO_WRITER, statusOf, byStatus, maps = NO_MAPS }) {
   let waiting;
   try {
@@ -1281,17 +1114,12 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
   for (const item of waiting) {
     const number = Number(item.number);
     try {
-      // Anyone who can label could defer an issue, and re-admitting it adds
-      // the App's agent-ready, which starts a credentialed run: only the App's
-      // or a listed human's newest change to deferred counts. A bot setter
-      // the Work status reader trusts is neither.
       const events = await eventsOf(github, repo, statusOf, number);
       const mark = deferralMark(events, { bot, humans });
       if (!trustedLabeler(mark, { bot, humans })) {
         console.log(`::warning title=label-unblocked::#${number}: ${DEFERRED_LABEL} was added by neither the lanes App nor a listed human, so it is left as is and not re-admitted`);
         continue;
       }
-      // Only a listed human lifts attended: a removal by anyone else holds as the label does.
       if (attendedHold(events, humans)) {
         console.log(`label-unblocked: #${number} stays deferred: the newest removal of ${ATTENDED} was not a listed human's`);
         continue;
@@ -1301,8 +1129,6 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         await admitMarked({ github, repo, number, issue: current, names: lower, events, humans, bot, appId, closes, gate, admission, doneBy, writer });
         continue;
       }
-      // Intake defers an issue an open pull request is for; it waits here
-      // until no such pull request is open.
       const pulls = reason === null ? await openPullsFor(github, repo, number) : [];
       if (pulls.length > 0) {
         console.log(`label-unblocked: #${number} stays deferred: open pull request #${pulls[0]} is for it`);
@@ -1317,7 +1143,6 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
           console.log(`label-unblocked: #${number} sent back to intake: ${reason}`);
         }
       } else if (stale.length > 0) {
-        // As intake's admit: needs-decision when a person settles a reason, else status: confirmed.
         const code = lapsedReason(stale);
         if (!(await refuseDeferred({ github, repo, number, comments: await paginate(github, `/repos/${repo}/issues/${number}/comments`), reasons: reason, labels: [parkingStatus(code)], code, writer }))) {
           console.log(`label-unblocked: #${number} refused: ${reason}`);
@@ -1332,12 +1157,6 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
   return failed;
 }
 
-// Ends a deferral: the Work status goes back to ready, so a blocker's close
-// or a later sweep admits it, only when the issue kept status: ready and its
-// newest change to status: ready (`events`) is a listed human's or the App's;
-// otherwise to needs-triage, so the App never stands in as the setter of a
-// ready no trusted account set. Returns whether a person's hold kept the
-// issue (heldOnSet).
 async function dropDeferral({ number, events, bot, humans, notReady = false, writer }) {
   const trusted = !notReady && trustedLabeler(newestAdd(events, READY), { bot, humans });
   return heldOnSet(writer, number, trusted ? "ready" : "needs-triage");
@@ -1345,10 +1164,6 @@ async function dropDeferral({ number, events, bot, humans, notReady = false, wri
 
 const labelNames = (issue) => (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name));
 
-// The run's record of the map issues it leaves out: `skip(item)` answers
-// whether `item`'s own labels hold a routing label of `routing`
-// (check-born-triaged.mjs routingLabel) and records it, and `notice()` names
-// each one recorded, or is null when none was.
 function mapSkipper(routing) {
   const skipped = new Map();
   return {
@@ -1369,12 +1184,8 @@ function mapSkipper(routing) {
 }
 const NO_MAPS = { skip: () => false };
 
-// What a helper called with no writer writes to the Work status field: nothing.
 const NO_WRITER = { set: async () => {}, leaveAgentReady: async () => {}, restart: async () => {} };
 
-// Sets the Work status to `state` unless a person set a hold since the issue
-// was read (write-status.mjs keepHold; a hold write replaces any state).
-// Returns whether that hold kept the issue: the caller then writes nothing more for it.
 async function heldOnSet(writer, number, state) {
   const moved = await writer.set(number, state, HOLD_STATES.includes(state) ? undefined : { keepHold: true });
   if (moved?.outcome !== "held") {
@@ -1384,18 +1195,8 @@ async function heldOnSet(writer, number, state) {
   return true;
 }
 
-// The labels a closed issue's state strip may remove: no status label, as
-// the Work status field carries that state.
 const unstatused = (issue) => labelNames(issue).filter((name) => !isStatusLabel(name));
 
-// A closed issue loses its state labels (host-run), so no queue or count
-// reads it as waiting. Read fresh: a run queued behind another may land after a reopen,
-// and an open issue keeps them; the sweep hands in the issue its close check
-// just read (`read`) instead. A post-merge fix issue keeps agent-ready
-// across its close, as post-merge-file-demotion-issues.yml reopens it with the label
-// and the sweep relabels it (recurrenceRefusal). A Work status of agent-ready
-// moves to needs-triage (write-status.mjs leaveAgentReady), so a reopen does
-// not read as queued work no run picked up; any other state stays.
 async function stripClosed({ github, repo, number, read, writer = NO_WRITER }) {
   const base = `/repos/${repo}/issues/${number}`;
   try {
@@ -1417,12 +1218,6 @@ async function stripClosed({ github, repo, number, read, writer = NO_WRITER }) {
   }
 }
 
-// The verdict intake's admission reads, from the issue itself: each of Size,
-// Complexity and Uncertainty as the config's key for the option a listed
-// human or the App set, else `unset`. Decide reads the untrusted-provenance
-// hold from the labels.
-// The work lanes' reader (resolve-config dimensions.mjs) reads an unset field
-// as a default; admission never does. A read of an unexpected shape throws.
 async function issueVerdict({ github, repo, number, humans, appId, dimensionsConfig, fieldSetters }) {
   const rows = await github("GET", `/repos/${repo}/issues/${number}/issue-field-values`, undefined, FIELD_API);
   if (!Array.isArray(rows)) {
@@ -1443,10 +1238,6 @@ async function issueVerdict({ github, repo, number, humans, appId, dimensionsCon
 
 export const skipText = (reason) => `Left out of admission: ${reason}, so work-unblock removed \`${DEFERRED_LABEL}\`.`;
 
-// Intake's admission rules (admit.mjs decide) on `issue` as just read, its
-// labels read as `names` (its names as the Work status field decides them),
-// with `events` its events. `status: ready` counts only when its newest add is a
-// listed human's or the App's: the App's agent-ready starts a credentialed run.
 async function admissionDecision({ github, repo, number, issue, names, events, humans, bot, appId, closes, admission, doneBy }) {
   const { rules, dimensionsConfig, webHosts, fieldSetters } = await admission();
   const verdict = await issueVerdict({ github, repo, number, humans, appId, dimensionsConfig, fieldSetters });
@@ -1463,10 +1254,6 @@ async function admissionDecision({ github, repo, number, issue, names, events, h
   });
   const unset = untrustedReady(events, { bot, humans });
   const decision = unset === null ? decide({ ...facts, verdict, rules, humans, appId, repository: repo, webHosts }) : { verdict: "skip", reasons: [unset] };
-  // A born-triaged issue's filer sets its fields after filing, so a refusal
-  // for unset fields alone is a wait (`fields`): readmitReady writes nothing,
-  // and a person's deferral says why and comes off, so the triage sweep still
-  // sends it to intake if they never land.
   const trusted = (id) => humans.has(id) || (appId !== undefined && id === appId);
   if (decision.unsetOnly && notBornTriaged(issue, trusted) === null) {
     return { decision: { verdict: "wait", reasons: [`born triaged, ${decision.unsetOnly.join(" and ")} not set yet`], pulls: [], fields: true }, facts };
@@ -1474,11 +1261,6 @@ async function admissionDecision({ github, repo, number, issue, names, events, h
   return { decision, facts };
 }
 
-// A wait decide() marks `retriage` (a blocker the App closed
-// report-delivered): the Work status goes to needs-triage, so the triage
-// sweep runs intake again, and the comment quotes each report as data, as
-// intake's admit() does. Returns whether a person's hold kept the issue
-// (heldOnSet).
 async function sendToTriage({ github, repo, number, base, comments, decision, reasons, writer }) {
   if (await heldOnSet(writer, number, "needs-triage")) {
     return true;
@@ -1489,10 +1271,8 @@ async function sendToTriage({ github, repo, number, base, comments, decision, re
 
 const NEEDS_TRIAGE = "needs-triage";
 
-// The Work status a refusal's parking label (`status`) is written as.
 const refusedState = (status) => (status === NEEDS_DECISION ? "needs-owner-decision" : status === NEEDS_TRIAGE ? NEEDS_TRIAGE : "confirmed");
 
-// The lane name work-unblock's stop-reason markers carry (../lib/stop-reason.mjs).
 const UNBLOCK_LANE = "work-unblock";
 
 // The admission comment's text for a refusal: one that holds for a person
@@ -1520,22 +1300,10 @@ export function lapsedReason(lapsed) {
   return holds.some(({ reason }) => reason.startsWith(UNTRUSTED) || reason.startsWith(SECURITY_AREA)) ? "security" : "intent";
 }
 
-// The owner reason of decide()'s hold, or null for a park. decide names it
-// (`reason`); a hold that names none fails closed as intent.
 const decisionReason = (decision) => (decision.hold ? (decision.reason ?? "intent") : null);
 
-// The parking label of a refusal whose owner reason is `code`: needs-decision
-// when a person settles it, else status: confirmed for a park (`code` null),
-// or needs-triage for decide's `triage` (a split only an intake run makes), so
-// the triage sweep dispatches that run.
 const parkingStatus = (code, triage = false) => (code !== null ? NEEDS_DECISION : triage ? NEEDS_TRIAGE : CONFIRMED);
 
-// Refuses a deferred issue for `reasons`: the admission comment (`comments`
-// its comments; heldText with `code`) first, then the Work status the
-// parking label (`labels[0]`) names, then attended when `labels` names it, so
-// a failed write leaves the issue either still deferred, for the next sweep,
-// or held, which no sweep admits. Returns whether a person's hold kept the
-// issue (heldOnSet).
 async function refuseDeferred({ github, repo, number, comments, reasons, labels, code = null, writer = NO_WRITER }) {
   const base = `/repos/${repo}/issues/${number}`;
   await sayWhy(github, repo, base, comments, heldText(reasons, code));
@@ -1548,10 +1316,6 @@ async function refuseDeferred({ github, repo, number, comments, reasons, labels,
   return false;
 }
 
-// Runs intake's admission rules on an issue a listed human marked, and admits
-// it within the gate's room only on an admit verdict. `status: ready` counts
-// only when its newest add, in `events`, is a listed human's or the App's, as
-// the mark's own add must be.
 async function admitMarked({ github, repo, number, issue, names, events, humans, bot, appId, closes, gate, admission, doneBy, writer = NO_WRITER }) {
   const base = `/repos/${repo}/issues/${number}`;
   const { decision, facts } = await admissionDecision({ github, repo, number, issue, names, events, humans, bot, appId, closes, admission, doneBy });
@@ -1560,10 +1324,6 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
     console.log(`label-unblocked: #${number}, marked by a person, passes the admission rules`);
     await admit({ github, repo, number, gate, deferred: true, appId, writer });
   } else if (decision.verdict === "refuse") {
-    // As intake's admit: needs-decision only when a person settles a reason;
-    // a split only an intake run makes (decide's `triage`) at needs-triage;
-    // any other refusal (a merged Refs pull request, a manual external step
-    // beside attended, itself a hold) parks at status: confirmed.
     const code = decisionReason(decision);
     const status = parkingStatus(code, decision.triage);
     if (decision.triage) {
@@ -1583,7 +1343,6 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
       console.log(`label-unblocked: #${number}, marked by a person, waits: ${reasons}`);
     }
   } else {
-    // A skip drops the person's mark, so the comment tells them why.
     await sayWhy(github, repo, base, facts.comments, skipText(reasons));
     if (!(await dropDeferral({ number, events, bot, humans, writer }))) {
       console.log(`label-unblocked: #${number} deferral dropped: ${reasons}`);
@@ -1605,36 +1364,6 @@ export async function admissionUndecided({ comments, events, bot }) {
   return (await events()).some((event) => event?.event === "labeled" && String(event.label?.name).toLowerCase() === READY && Date.parse(event.created_at) > decided);
 }
 
-// Runs intake's admission on the open `status: ready` issues in no queue:
-// neither agent-ready nor admission-deferred, so nothing else revisits them (a
-// deferral whose label was lost, or a `status: ready` set by hand). Those of
-// the sweep's one open-issue listing (`listed`), oldest updated first; an issue with a hold or refuse label, an open blocker
-// (its close admits it) or an open sub-issue is left out unread, and at most
-// `cap` of the rest are decided. Skipped as intake's admit skips, on two reads
-// and not counted against `cap`, since a skip writes nothing and so stays
-// oldest updated: one already agent-ready, whose `status: ready` neither a
-// listed human nor the App added, or whose agent-ready removal stands
-// (admit.mjs admissionSettled). The writes are intake's (admit.mjs admit): an admit
-// verdict within the gate's room gets agent-ready, past it deferred;
-// a refusal parks at status: confirmed, needs-owner-decision when it
-// holds for a person, or needs-triage for a split only an intake run makes
-// (decide's `triage`); a wait on an open pull request is set deferred. `names`
-// gives a listed issue's names as the Work status field decides them
-// (listedNames).
-// A born-triaged issue whose fields are not set yet (admissionDecision `fields`)
-// gets no write, no comment and no share of `cap`.
-// Of the open-sub-issue issues left out, those whose number is the UTC hour of
-// `now` modulo 24 get refreshSplitWait: one comments read each, and a
-// sub-issues read only for a comment it may rewrite, so each is read once a
-// day whether or not a sub-issue closes. One that read shows has no open
-// sub-issue goes to the rules: the summary leaves a duplicate close out of
-// `completed`, so it can show a wait with nothing open. Every issue left out
-// for an open blocker or sub-issue, on the same hour, goes to the rules when
-// no admission decided its `status: ready` (admissionUndecided): one comments
-// read each, shared with refreshSplitWait, and its events only when it has an
-// admission comment. A decision that leaves that comment unchanged, or posts
-// none, leaves the issue undecided, so it is decided again the next day.
-// Returns how many reads or writes failed.
 async function readmitReady({ github, repo, listed: open, names = labelNames, humans, bot, gate, appId, admission, cap, now, writer = NO_WRITER, statusOf, maps = NO_MAPS }) {
   const lower = (item) => names(item).map((name) => name.toLowerCase());
   const listed = open.filter((item) => lower(item).includes(READY) && !maps.skip(item));
@@ -1644,8 +1373,6 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
   const hour = new Date(now).getUTCHours();
   const rotated = (entry) => Number(entry.number) % 24 === hour && entry.issue_dependencies_summary?.blocked_by === 0 && lower(entry).includes(READY) && !queued(lower(entry));
   const drained = new Set();
-  // The comments refreshSplitWait read, by issue; null once it rewrote the
-  // admission comment, which decides the issue.
   const read = new Map();
   for (const item of listed.filter((entry) => rotated(entry) && waiting(entry))) {
     const base = `/repos/${repo}/issues/${item.number}`;
@@ -1703,7 +1430,6 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
     const number = Number(item.number);
     const base = `/repos/${repo}/issues/${number}`;
     try {
-      // The issue is read fresh: an earlier pass of this sweep may have labeled it.
       const issue = await github("GET", base);
       const labels = await fieldFirst(statusOf, number, labelNames(issue).map((name) => name.toLowerCase()));
       const events = await eventsOf(github, repo, statusOf, number);
@@ -1719,16 +1445,12 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
       }
       const { decision, facts } = await admissionDecision({ github, repo, number, issue, names: labels, events, humans, bot, appId, closes, admission, doneBy });
       const reasons = decision.reasons.join("; ");
-      // Only a verdict that moves the issue out of this listing uses the cap: a
-      // wait with no open pull request (a Size large split pending) keeps it in
-      // no queue, oldest updated, so counting it would spend the cap on it every sweep.
       if (decision.verdict === "admit" || decision.verdict === "refuse" || (decision.verdict === "wait" && decision.pulls.length > 0)) {
         decided += 1;
       }
       if (decision.verdict === "admit") {
         await admit({ github, repo, number, gate, deferred: false, appId, writer });
       } else if (decision.verdict === "refuse") {
-        // As intake's admit: the parking state is the one write.
         const code = decisionReason(decision);
         if (decision.triage) {
           await handBackSplit({ github, repo, issue, comments: facts.comments, appId });
@@ -1763,9 +1485,6 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
   return failed;
 }
 
-// Labels each issue `closed` blocked that is ready, each at most once per run,
-// within the gate's room, oldest opened first (owner Q95). Returns how many
-// reads or writes failed.
 async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, writer = NO_WRITER, closes = new Map(), statusOf, maps = NO_MAPS }) {
   const seen = new Map();
   let failed = 0;
@@ -1778,8 +1497,6 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
           console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
           continue;
         }
-        // A merge the App ran closes an issue with no close run, so the sweep
-        // strips its queue labels, from the issue the close check just read.
         failed += await stripClosed({ github, repo, number: source, read: issue, writer });
       }
       blocked = await paginate(github, `/repos/${repo}/issues/${source}/dependencies/blocking`);
@@ -1789,7 +1506,6 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
     }
     for (const item of blocked) {
       const number = Number(item.number);
-      // A label write here can land only in this repository.
       if (!String(item.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase()) || item.pull_request) {
         console.log(`label-unblocked: skipped a blocked item outside this repository's issues`);
         continue;
@@ -1842,8 +1558,6 @@ export const failedComment = ({ stops, run = "", onResumed = false }) =>
 const FAILED_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or it stopped or the token broker refused it because its workflow files differ from main's.`;
 export const refireComment = (key, cause = FAILED_CAUSE) => refireRecord(key, cause);
 
-// Why a stranded issue has nothing running, as the comments say it, after
-// `hours` with nothing running.
 const hoursText = (hours) => `${hours} hour${hours === 1 ? "" : "s"}`;
 const strandedCause = {
   "no-run": (hours) => `No work-resolve-issue run started in the ${hoursText(hours)} since \`${LABEL}\` was last added.`,
@@ -1852,8 +1566,6 @@ const strandedCause = {
 };
 
 const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token, or the token broker's leave to run.`;
-// A rate-limit stop's cause, naming the latest reset (ms) its stop lines named,
-// or, for a server error hold (`server`, its 5xx), the time the hold passed.
 const rateLimitCause = (reset, server = null) => {
   const at = new Date(reset).toISOString().replace(/\.\d{3}Z$/, "Z");
   return server
@@ -1967,7 +1679,6 @@ export function sharedLaneRuns(actions, repo) {
     const [from, to] = runWindow(addedAt);
     const start = Math.floor(from / BUCKET_MS) * BUCKET_MS;
     if (!spans.has(start)) {
-      // A failed listing is not kept: the next issue in the span reads again.
       spans.set(
         start,
         spanRuns(actions, repo, [start, start + BUCKET_MS + RUN_WINDOW_MS]).catch((error) => {
@@ -1991,47 +1702,14 @@ export function sharedLaneRuns(actions, repo) {
   };
 }
 
-// How every one of `runs` (completed) did no work in its latest attempt, or
-// null when one did some: no job minted a lane token (a run that minted, then
-// had report-outcome's mint alone stop with the STOPPED notice in its log, is
-// `breaker` at `token`, since the switch left it unreported), and the
-// agent-ready run either had its `Request the lane token` step or check-broker's BROKER_STEP
-// fail for a reason other than the kill switch, or with no reason in its log,
-// or had that mint step stop green with no token and no STOPPED notice in its
-// log (`mint-failed`, which wins; the read runner resolve-issue calls has no
-// MINT_STEP, so its broker ask is the one the broker can fail), had the broker
-// refuse it for the kill switch at check-broker or a mint (failed, or stopped
-// green with its STOPPED notice: at check-broker, BROKER_STEP succeeded and
-// LEASE_STEP skipped), or had check-broker skip its broker ask, a green check-admission
-// its INSTALL_STEP and TRIGGER_STEP or a green pick-slot its WIP_STEP for the
-// kill switch (`breaker`), or,
-// with no MODEL_STEP run, had check-admission, pick-slot or a call's check-broker or run
-// job fail on a RATE_LIMITED last line (`mint-failed`, with `reset` the latest
-// reset named), was skipped by the WIP
-// cap (`capped`: pick-slot ran, no resolve-issue call did), or was skipped by the
-// check-admission job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
-// not, or a call's check-broker stopped at RECHECK_STOP_STEP), or by check-admission's
-// upstream-status stop (`outage`: a green check-admission whose UPSTREAM_STEP ran and
-// pick-slot skipped). A run another gate stopped before its mint (an open closing PR, a reused
-// branch) is none of these, so it is never re-fired here. Returned as
-// `stalled`, with `run` the run that made it a breaker trip and `stage`
-// where: `check` at check-broker, before any model turn, or `token` at a mint.
 async function didNoWork(jobsOf, refusalOf, runs) {
-  // A higher rank wins across runs; between equal ranks the first stays.
-  // `outage` ranks lowest, so a run of any other class keeps that class's wait.
   const rank = { outage: 0.5, capped: 1, blocked: 1, breaker: 2, "mint-failed": 3 };
   let stalled = null;
   let tripped = null;
   let stage = null;
-  // A run the switches stopped makes the trip a switch trip, whatever other
-  // run a budget stop stopped.
   let switched = false;
-  // The latest window reset a budget stop names, in ms.
   let resetAt = null;
-  // The latest reset a rate-limit stop names, in ms; 0 for none.
   let reset = 0;
-  // A server error hold's 5xx, which names the stop only when no rate limit
-  // stopped a run too.
   let server = null;
   let limitSeen = false;
   const atLeast = (kind, run, at, budget = false) => {
@@ -2058,9 +1736,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       continue;
     }
     const named = (name) => namedJobs(jobs, name);
-    // Any call's check-broker: a later leg asks the broker again for its slot.
     const calls = RESOLVE_CALLS.flatMap(named);
-    // A budget stop at check-broker: no model ran.
     const budgetSteps = calls.flatMap((job) => (job?.steps ?? []).filter((step) => step?.conclusion === "success" && BUDGET_STEP.test(String(step?.name))));
     const budget = budgetSteps.length > 0;
     for (const step of budgetSteps) {
@@ -2079,16 +1755,12 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const killed =
       budget ||
       calls.some(killedBefore(BROKER_STEP)) || ADMIT.flatMap(named).some(switchedOff(INSTALL_STEP, TRIGGER_STEP)) || named("pick-slot").some(switchedOff(WIP_STEP));
-    // A failed job before any model turn: check-admission, pick-slot, or a call's
-    // check-broker or run job, in a run where no model step ran.
     const preModel = [...ADMIT.flatMap(named), ...named("pick-slot"), ...calls.filter((job) => / \/ (?:broker-check|Broker Check|check-broker|Check Broker|run|Run)$/.test(String(job.name)))];
     const limited = modelRan(jobs) ? undefined : preModel.find((job) => job.conclusion === "failure");
     const checked = calls.find((job) => failedAt(job, BROKER_STEP));
     const checkStopped = calls.find((job) => job.conclusion === "success" && endedAt(job, BROKER_STEP, "success") && endedAt(job, LEASE_STEP, "skipped"));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const stopped = jobs.find(stoppedAt);
-    // Every call skipped: a key the key-credit gate held off skips
-    // resolve-issue alone, and its subscription call runs.
     const capped =
       named("pick-slot").some((job) => job.conclusion === "success") &&
       named("resolve-issue").length > 0 &&
@@ -2100,9 +1772,6 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       ADMIT.flatMap(named).some((job) => job.conclusion === "success" && endedAt(job, UPSTREAM_STEP, "success")) &&
       named("pick-slot").length > 0 &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
-    // One log per run: check-broker's when it refused, failed or stopped
-    // green, else the first failed mint's, else the first stopped mint's,
-    // else the first failed job's before any model turn.
     const refused = await (killed
       ? null
       : checked
@@ -2234,7 +1903,6 @@ function floorIn(lines) {
   return found && limited ? found.split(" ")[0] : found;
 }
 
-// The refusal in a log's `lines`, in `mode`, as refusalReader describes.
 function refusalIn(lines, mode) {
   if (mode === "floor") {
     return floorIn(lines);
@@ -2260,9 +1928,6 @@ function refusalIn(lines, mode) {
   return DENIAL[mode].exec(lines[end - 1])?.[1] ?? null;
 }
 
-// Each run's latest-attempt job listing, read once per run id. A completed
-// run's listing is kept in `carry` (verdict-carry.mjs), which answers it while
-// the run listing shows the same attempt and update.
 function jobLister(actions, repo, carry) {
   const listed = new Map();
   return (run) => {
@@ -2288,11 +1953,8 @@ function jobLister(actions, repo, carry) {
 }
 
 const endedAt = (job, name, conclusion) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === conclusion);
-// A mint that ended green with no token: kill-switch-ok's stop.
 const stoppedAt = (job) => endedAt(job, MINT_STEP, "success") && endedAt(job, STAGE_STEP, "skipped");
 
-// Whether the job listing of one of `runs` with a usable id passes `test`,
-// read run by run until one does.
 async function someRunJobs(jobsOf, runs, test) {
   for (const run of runs.filter((item) => RUN_ID.test(String(item.id)))) {
     if (test(await jobsOf(run))) {
@@ -2302,8 +1964,6 @@ async function someRunJobs(jobsOf, runs, test) {
   return false;
 }
 
-// Whether a mint of one of `runs` stopped green: such a run that also minted
-// did work and never reported, as a failed run did before kill-switch-ok.
 const stoppedMint = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => jobs.some(stoppedAt));
 
 // The display name of each job this script reads, by job id. The jobs API
@@ -2322,14 +1982,8 @@ const JOB_NAMES = {
 const namedJobs = (jobs, id) =>
   jobs.filter((job) => [JOB_NAMES[id], id].some((name) => job?.name === name || String(job?.name).startsWith(`${name} /`)));
 
-// Whether one of `runs` stopped at the check-admission job's provenance stop.
 const stoppedUntrusted = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => ADMIT.flatMap((id) => namedJobs(jobs, id)).some((job) => endedAt(job, UNTRUSTED_STEP, "success")));
 
-// Whether one of `runs` stopped at the read runner's stale-workflow stop, in
-// any of its calls: a later leg waits for its slot after the first hands off,
-// so it can be the one that stops. The run's report-outcome then re-fires the
-// issue at once; a run that ended red there (its mint refused or failed) still
-// ran no model, so it counts here, ahead of any failed mint.
 const stoppedStale = (jobsOf, runs) =>
   someRunJobs(jobsOf, runs, (jobs) => RESOLVE_CALLS.flatMap((name) => namedJobs(jobs, name)).some((job) => endedAt(job, STALE_STEP, "success")));
 
@@ -2361,9 +2015,6 @@ const cancelledBeforeWork = (jobsOf, runs) =>
 
 const sameRepo = (side, repo) => String(side?.repo?.full_name ?? "").toLowerCase() === repo.toLowerCase();
 
-// The pull requests the lanes App opened for issue `number`: cross-referenced
-// on the issue, from the issue's lane branch, with head and base in this
-// repository.
 async function lanePulls({ github, repo, number, bot }) {
   const here = `/repos/${repo}`.toLowerCase();
   const numbers = new Set(
@@ -2388,14 +2039,10 @@ async function lanePulls({ github, repo, number, bot }) {
   return pulls;
 }
 
-// A listed human's open pull request for issue `number` (openPullsFor: one
-// GitHub says closes it, or one with its `Refs:` line), or null: work running
-// on the issue, as an open lane PR is.
 async function humanPull({ github, repo, number, humans }) {
   return (await humanPullsFor(github, repo, number, humans))[0] ?? null;
 }
 
-// The newest of those opened at or after `addedAt`, or null.
 async function lastLanePull({ github, repo, number, addedAt, bot }) {
   let last = null;
   for (const pull of await lanePulls({ github, repo, number, bot })) {
@@ -2415,8 +2062,6 @@ export function laneSlots({ laneLevel = {}, env = process.env, now = Date.now(),
   return read.level;
 }
 
-// Every work-resolve-issue run that has not finished: its title, the status
-// listing that held it, and its creation time in ms (NaN when unreadable).
 async function runsInFlight(actions, repo) {
   const runs = [];
   for (const status of IN_FLIGHT) {
@@ -2437,13 +2082,8 @@ async function runsInFlight(actions, repo) {
 // An unreadable creation time is never stale, so the run still counts.
 const staleQueued = (run, now, minutes) => run.status === "queued" && now - run.created >= minutes * 60_000;
 
-// `issue`'s lowercased names as the Work status field decides them (fieldFirst).
 const fieldNamesOf = (statusOf, issue) => fieldFirst(statusOf, issue.number, labelNames(issue).map((name) => name.toLowerCase()));
 
-// For a fix issue post-merge-file-demotion-issues reopened on a repeat failure: why
-// it is not relabeled now, or null with what to do. Null for any other issue,
-// and for one agent-ready was added to since the reopen, which the restart
-// and re-fire rules then take.
 async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf, now, limits }) {
   if (issue.user?.login !== ALERT_BOT || !FIX_ISSUE.test(String(issue.body ?? ""))) {
     return null;
@@ -2463,8 +2103,6 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
   if (events.some((event) => isLabel(event, "labeled") && Date.parse(event.created_at) >= at)) {
     return null;
   }
-  // The App's re-add admits on its own, so it may only repeat a label that
-  // admission would take: a listed human's or the App's own.
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
   if (lastAdd === undefined || !trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
@@ -2481,9 +2119,6 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
   if (person) {
     return { reason: `a listed human's PR #${person.number} for it is open` };
   }
-  // A run that names the issue holds it even when stale queued: it may still
-  // be its run. A stale queued run that names no issue never starts, so it
-  // cannot be this issue's run in flight and does not make the check unsure.
   const runs = await inFlight();
   if (runs === null) {
     return { reason: "no Actions token to read its lane runs" };
@@ -2499,14 +2134,8 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
   return { reason: null, resets: at, recurrence: recurrence.id, recorded };
 }
 
-// Whether the lanes App (`bot`) posted one of `comments` opening with `marker`.
 const appPosted = (comments, bot, marker) => comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(marker));
 
-// What the lane PR the newest agent-ready label's run opened asks for: a
-// hand-off to triage once it merged with `Refs:` or closed unmerged, or
-// nothing, with why. `held`: the issue's one hold is needs-human, which only
-// the end (merge or unmerged close) of the Refs PR report-outcome set it for
-// lifts.
 function pullRefusal({ pull, number, comments, events, bot, held }) {
   const byApp = (marker) => appPosted(comments, bot, marker);
   const refs = String(pull.body ?? "").split(/\r?\n/, 1)[0].trim() === `Refs: #${number}`;
@@ -2535,8 +2164,6 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
   return { reason: null, handOff: merged ? "merged" : "closed", pr: pull.number, resets: ended, explained: byApp(handedMarker(pull.number)), release: held };
 }
 
-// Why an agent-ready issue whose newest label has no marker after it is not
-// re-fired or handed off now, or null with what to do.
 async function refireRefusal({ github, actions, jobLog, carry, repo, number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped, runsOf, upstreamClear }) {
   if (!trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
@@ -2548,17 +2175,9 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
   }
-  // The lane stops for good on an issue untrusted provenance holds
-  // (check-blockers.mjs), so one is never re-fired or handed to a person here:
-  // admission's refusal path takes it to a person. The label itself is a hold
-  // above; this is the removal by someone unlisted. An outsider's issue loses
-  // agent-ready to the lane's report-skip, and a run that stopped on it is
-  // never re-fired (stoppedUntrusted, below).
   if (untrustedHold({ labels: [], events, humans, isApp: byBot(bot) })) {
     return { reason: `${UNTRUSTED} was last removed by neither a listed human nor the lanes App` };
   }
-  // The lane skips an issue a blocker still blocks (check-blockers.mjs), so
-  // one is never re-fired or handed to a person while one does.
   const base = `/repos/${repo}/issues/${number}`;
   const closes = new Map();
   const pending = await stillBlocking(
@@ -2570,7 +2189,6 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   if (pending.length > 0) {
     return { reason: `waiting on ${pending.length} blocker(s) not closed by a listed human or a merge` };
   }
-  // The lane skips an umbrella while a sub-issue is open (check-blockers.mjs).
   const subs = await openSubIssues(github, base, issue);
   if (subs.length > 0) {
     return { reason: `an umbrella waiting on open ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")}` };
@@ -2582,14 +2200,8 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   const relabeled = (marker) =>
     events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
   const hoursFor = resolveStrandedBackoff(limits["stranded-backoff-hours"]);
-  // A re-fire past the first on these workflow files waits longer each time
-  // (backoffDue from `since`, starting at `hours`), and its record is the one
-  // backoff comment, edited in place, never a new comment or a hold.
   const backoff = (key, since, cause, hours) => {
     const first = Math.min(...firedOn(key).map((marker) => marker.at));
-    // Each breaker record's own re-add, the App's first after it (dated by
-    // when it was posted), is that trip's, not this cause's; the backoff
-    // comment's edits never move it.
     const adds = events.filter((event) => isLabel(event, "labeled") && event.actor?.login === bot);
     const trips = new Set(markers.filter((marker) => marker.breaker).map((marker) => adds.find((event) => Date.parse(event.created_at) >= marker.at)));
     const refires = adds.filter((event) => Date.parse(event.created_at) >= first && !trips.has(event)).length;
@@ -2600,10 +2212,6 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     const own = comments.filter((comment) => comment.user?.login === bot && INFRA.test(String(comment.body ?? ""))).at(-1);
     return { reason: null, resets: due, refire: key, recorded: true, infra: { id: own?.id, body: infraComment(key, cause, refires + 1) } };
   };
-  // An issue with nothing running since `since`: once its cause's hours have
-  // passed with no open lane PR and no open pull request of a listed human's
-  // for it, re-fired, once per version of the lane workflow files and then on
-  // a backoff.
   const stranded = async (since, why, cause) => {
     const hours = hoursFor[cause];
     if (now - since < hours * HOUR_MS) {
@@ -2635,14 +2243,11 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   if (runs.some((run) => run.status !== "completed")) {
     return { reason: "its lane run is still going" };
   }
-  // When the newest of its runs ended: every clock below starts there.
   const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
   const jobsOf = jobLister(actions, repo, carry);
   if (await stoppedUntrusted(jobsOf, runs)) {
     return { reason: "its lane run stopped on an outside author or untrusted provenance, which a person decides" };
   }
-  // A stale stop ran no model; a failed mint in its re-fire job is no failed
-  // mint of the lane's, so it skips the did-no-work clock below.
   const stale = await stoppedStale(jobsOf, runs);
   const refusalOf = refusalReader(jobLog, repo, carry);
   const { stalled, run: refused, stage, budget, resetAt, reset, server } = (!stale && (await didNoWork(jobsOf, refusalOf, runs))) || {};
@@ -2662,13 +2267,6 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     // https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
     const trips = stalled === "breaker" && !budget ? markers.filter((marker) => marker.breaker && !marker.budget && marker.floor === undefined && marker.at > from).length : 0;
     const over = budget ? -1 : trips - limits["limit-stops-per-issue"];
-    // A check-broker trip ran no model, and this sweep runs only with the
-    // kill switch off, so it re-fires now; a mint trip ran the model and
-    // waits like any failed mint.
-    // An upstream-status stop ran no model either, so it re-fires now once
-    // the status page reads clear; while it does not (an outage, or a page it
-    // cannot read) it waits as before, and that wait is never carried to the
-    // next sweep, which reads the page again.
     const outage = stalled === "outage";
     const clamp = (stalled === "breaker" && stage === "check") || (outage && (await upstreamClear())) ? 0 : limits["reset-clamp-min"];
     // A budget stop waits for a span early in a window after the reset it names:
@@ -2691,26 +2289,16 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
       return { reason: "its lane run did no work, and the issue lane is paused over its WIP cap" };
     }
     const key = await workflowKey();
-    // A record after the newest label is one whose label write failed: the
-    // sweep finishes it without posting another.
     const recorded = markers.some((marker) => marker.outcome === "refired" && marker.at >= addedAt);
-    // A mint that keeps failing (a broker misconfigured, an issue it refuses)
-    // goes on a backoff after limits.limit-stops-per-issue re-fires on these
-    // workflow files, as a crash does after one. A WIP cap skip made no mint
-    // attempt, and the cap and restarts-per-run bound it.
     const fired = firedOn(key).length;
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
       return backoff(key, ended, reset ? rateLimitCause(reset, server) : MINT_CAUSE, hoursFor["failed-mint"]);
     }
-    // An issue keeps one budget record, edited in place for each window; the
-    // edit carries the dates of the ones before it.
     const budgetRecord = budget
       ? comments.filter((comment) => comment.user?.login === bot && parseMarker(comment.body)?.budget && RUN_ID.test(String(comment.id))).at(-1)
       : undefined;
     const earlier = budgetRecord ? [...budgetEarlier(budgetRecord.body), budgetRecord.updated_at ?? budgetRecord.created_at] : [];
     const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended, budget, record: budgetRecord?.id, earlier } : undefined;
-    // Trips sort by when their run ended, not when they fell due, so the sweeps
-    // after the switch clears drain them oldest first whatever their waits.
     return { reason: null, resets: trip ? ended : due, refire: key, recorded, stall: stalled, trip, ...(reset && { cause: rateLimitCause(reset, server) }), ...(budget && resetAt !== null && { closes: due + FLOOR_SPAN_MS }) };
   }
   const floored = stale ? null : await floorStop(jobsOf, refusalOf, runs);
@@ -2758,35 +2346,21 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   return { reason: null, resets: addedAt, refire: key, recorded: recorded.length > 0 };
 }
 
-// Why an agent-ready issue is not restarted now (after a limit stop) or
-// re-fired (after a failed run), or null with the time it has waited since.
-// Every fact is read from the API this sweep; `read` lists the issue's
-// comments or events once, shared with the recurrence check.
 async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf, upstreamClear }) {
-  // The holds as the Work status field decides them, so a hold set only on
-  // the field stops here too.
   const holds = (await fieldNamesOf(statusOf, issue)).filter((label) => HOLDS.has(label));
-  // needs-human alone may be report-outcome's hold on a Refs PR, which the
-  // lane PR check below may lift; any other hold stops everything here.
   const held = holds.length > 0;
   if (held && (holds.length > 1 || holds[0] !== HUMAN_LABEL)) {
     return { reason: `held by ${holds.find((label) => label !== HUMAN_LABEL)}` };
   }
   const comments = await read("comments");
   const markers = appMarkers(comments, bot);
-  // A re-fire record ends no run, so only outcome markers count here.
   const marker = markers.filter((item) => item.outcome !== "refired").at(-1);
   const events = await read("events");
-  // The listing can be older than a removal: agent-ready taken off since, by
-  // anyone but the App restarting the lane, ends all unblock actions here.
   const labelEvents = events.filter((event) => isLabel(event, "labeled") || isLabel(event, "unlabeled"));
   const newestLabel = labelEvents.at(-1);
   if (newestLabel !== undefined && isLabel(newestLabel, "unlabeled") && !isRestart(events, events.lastIndexOf(newestLabel), markers, bot)) {
     return { reason: `${LABEL} was removed` };
   }
-  // A lane run starts on agent-ready being added, and its outcome marker ends
-  // it, so a label added after the newest marker is a run since: still going,
-  // one that left no marker (a PR opened, or the run failed), or none yet.
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
   const addedAt = Date.parse(lastAdd?.created_at);
   if (Number.isFinite(addedAt) && (marker === undefined || addedAt > marker.at)) {
@@ -2795,31 +2369,20 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
   }
-  // A fail route whose comment went out but whose agent-ready removal did not
-  // land. An agent-ready added after the newest marker (a person's re-add)
-  // returned through refireRefusal above, so none was added since: finish it.
   if (marker?.outcome === "failed") {
     return { reason: `a failed stop left ${LABEL} on`, fail: { finish: true } };
   }
   const addedSince = (by) =>
     events.filter((event) => isLabel(event, "labeled") && by(event)).reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
   const since = addedSince((event) => event.actor?.login !== bot);
-  // A stop routed to wait names the pull request it waits on (`pr=`): while
-  // that pull request is open the issue waits, and once it merges or closes
-  // it restarts like a retry, under its own count of waits.
   if (marker?.outcome === "wait" && marker.pr) {
     const pull = await github("GET", `/repos/${repo}/pulls/${marker.pr}`);
     if (pull?.state === "open") {
       return { reason: `waiting on pull request #${marker.pr}` };
     }
   }
-  // report-outcome keeps agent-ready after a turn cap or a stop routed to
-  // retry or wait only while a restart is left, and stops the issue otherwise; the
-  // count here bounds a forged or stale marker the same way.
   const bound = CAPPED_RESTARTS[marker?.outcome];
   if (bound) {
-    // Only a listed human's agent-ready resets the count, so another labeler
-    // cannot buy restarts.
     const humanSince = addedSince((event) => humans.has(event.actor?.id));
     const caps = markers.filter((item) => item.outcome === marker.outcome && item.at > humanSince).length;
     return caps > limits[bound]
@@ -2837,8 +2400,6 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   if (stops >= limits["limit-stops-per-issue"]) {
     return { reason: `${stops} limit stops since a person last added ${LABEL}`, fail: { stops, run: marker.run, onResumed: marker.onResumed } };
   }
-  // A funding stop with no regain date waits limits.fallback-reset, as a
-  // limit stop with no reset does (clampReset).
   const resets = clampReset(marker.resets, marker.at, limits);
   if (now < resets) {
     return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}`, due: resets };
@@ -2846,9 +2407,6 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   return { reason: null, resets };
 }
 
-// Restarts, re-fires or hands off up to `cap` issues, longest-waiting first,
-// of those it decides before `clock()` reaches `deadline`. Returns how many
-// reads or writes failed.
 async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots, clock = Date.now, deadline = Number.POSITIVE_INFINITY, upstream = checkUpstreamStatus, maps = NO_MAPS }) {
   let failed = 0;
   const ready = [];
@@ -2865,12 +2423,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       }
       return shas.join("-");
     })());
-  // The issue lane's run pause; a read that fails never pauses.
   const wipCapped = () => status().then((s) => s.paused);
-  // Whether the status pages check-admission gates on read clear, read once per sweep
-  // and only for a run its upstream-status stop skipped. Only a read that
-  // found every component (`ok`) and no outage is clear; check-admission fails open on
-  // an unreadable page, but here that keeps the wait.
   let upstreamRead;
   const upstreamClear = () =>
     (upstreamRead ??= (async () => {
@@ -2883,18 +2436,8 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
         return false;
       }
     })());
-  // The unfinished lane runs, read once per run and only for a reopened fix
-  // issue; null with no Actions token.
   let flight;
   const inFlight = () => (flight ??= actions ? runsInFlight(actions, repo) : Promise.resolve(null));
-  // The agent-ready issues: the field listing's (issuesByStatus) among the
-  // sweep's open-issue listing (`openIssues`), or the label listing with no field
-  // listing given. An issue the field listing holds (`held`, mid-write) is not
-  // among them, so it is not restarted this sweep: safe, the next sweep retries.
-  // Nor is one it lists by its agent-ready label with the Work status unset:
-  // the label starts no run, a restart from agent-ready finds the field unset
-  // and writes nothing (write-status.mjs restart); intake triages it when it
-  // is opened (check-born-triaged.mjs `label-only`).
   let open;
   try {
     const found = byStatus ? await byStatus([LABEL]) : null;
@@ -2913,18 +2456,11 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     reportHold(LABEL, error);
     return 0;
   }
-  // A merged pull request that names the issue on a `Refs:` line, whoever
-  // opened it, is work done off the lane: admission's own check, read only
-  // for an issue about to be re-fired, and as none when the read fails.
   const doneBy = mergedRefsReader({ github, repository: repo, numbers: open.map((item) => Number(item.number)), humans, appId });
   const listings = new Map();
   const readsOf = (issue) => {
     if (!listings.has(issue.number)) {
       const listed = {};
-      // The events carry the Work status field's changes (eventsOf), so a hold
-      // set only on the field has its setter read, and its moves onto and off
-      // agent-ready as agent-ready label events (agentReadyEvents), from the
-      // field read the reader already made for the issue when it has one.
       const rowsOf = statusOf?.fieldRows ?? fieldRows;
       const history = async () => {
         const events = await eventsOf(github, repo, statusOf, issue.number);
@@ -2936,15 +2472,8 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     return listings.get(issue.number);
   };
   const runsOf = sharedLaneRuns(actions, repo);
-  // Least recently decided first (the carried `decided` times; one never
-  // decided goes first), so issues a sweep's budget leaves out lead the next
-  // one and none waits behind issues decided every sweep.
   const decidedAt = (issue) => carry?.decidedAt(Number(issue.number)) ?? Number.NEGATIVE_INFINITY;
   const sorted = open.map((issue, at) => ({ issue, at, decided: decidedAt(issue) })).sort((a, b) => a.decided - b.decided || a.at - b.at);
-  // A wait carried from an earlier sweep (verdict-carry.mjs `decided`) stands
-  // while the issue is unchanged since (its listed updated_at), the wait has
-  // not ended and the lane workflow files are the same; it only ever keeps
-  // an issue waiting, and every other issue is read and decided fresh.
   const carriedOf = (issue) => carry?.carriedWait(Number(issue.number));
   const current = sorted.some(({ issue }) => carriedOf(issue)) ? await workflowKey().catch(() => null) : null;
   const stands = (issue) => {
@@ -2961,8 +2490,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     }
   }
   console.log(`::notice title=label-unblocked::${order.length} agent-ready issue(s) to decide, ${sorted.length - order.length} carried waiting from an earlier sweep`);
-  // A wait this sweep decided, kept for the next one when it has an end and
-  // the lane workflow files' key reads; anything else keeps no wait.
   const keepWait = async (issue, verdict) => {
     const number = Number(issue.number);
     const due = verdict?.reason ? verdict.due : undefined;
@@ -2970,8 +2497,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     carry?.keepDecided(number, key ? { reason: verdict.reason, due, updated: issue.updated_at, key } : undefined);
   };
   for (const [index, issue] of order.entries()) {
-    // Past the budget no further issue is decided, so the job ends inside its
-    // limit and the decided ones below are still written.
     if (clock() >= deadline) {
       console.log(`::notice title=label-unblocked::the sweep's time budget ran out: ${order.length - index} of ${order.length} agent-ready issue(s) left for the next sweep, which decides them first`);
       break;
@@ -2987,12 +2512,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
         await keepWait(issue, verdict);
       }
       if (fail) {
-        // The fail route: the comment first and the field write last, so the
-        // stop is never invisible. A failed write is retried by the next sweep,
-        // which finds the failed marker newest and writes only the field.
-        // The Work status leaves agent-ready for confirmed: no hold, so a
-        // person's agent-ready runs it again, and not ready, which the App
-        // setting it would let the sweep re-admit at once.
         const base = `/repos/${repo}/issues/${issue.number}`;
         if (!fail.finish) {
           await github("POST", `${base}/comments`, { body: failedComment(fail) });
@@ -3007,8 +2526,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       }
       const done = verdict.refire ? await doneBy(issue.number) : [];
       if (done.length > 0) {
-        // Handed to triage as a lane PR merged with `Refs:` is: admission
-        // then parks it at `status: confirmed` for a done-check.
         const pr = done.at(-1);
         const explained = appPosted(await read("comments"), bot, handedMarker(pr));
         console.log(`label-unblocked: #${issue.number} not re-fired: ${doneReason(done)}`);
@@ -3035,10 +2552,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       reportHold("floor re-fire record", error);
     }
   }
-  // Kill-switch re-fires only top the lane's unfinished runs up to the queue
-  // target, so a clear keeps the slots full instead of flooding their queue;
-  // a listing that fails re-fires none of them this sweep. Upstream-status
-  // re-fires after an outage share that room.
   const paced = (item) => item.stall === "breaker" || item.stall === "outage";
   const budgeted = (item) => item.stall === "breaker" && item.trip?.budget;
   let room = 0;
@@ -3095,12 +2608,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       continue;
     }
     if (handOff) {
-      // The comment first, then the Work status, set to needs-triage, which
-      // lifts a needs-human hold only the App's refs hold set (pullRefusal)
-      // and takes the issue off agent-ready; a failed write leaves the issue
-      // for the next sweep, which finds the comment and writes only the field.
-      // The hourly triage sweep dispatches intake on it, whose fresh
-      // `status: ready` re-admits it.
       try {
         if (!explained) {
           await github("POST", `${base}/comments`, { body: handOff === "merged" ? refsMergedComment(pr) : refsClosedComment(pr) });
@@ -3115,7 +2622,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       continue;
     }
     try {
-      // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
         const body = floor ? floorComment(refire, { repo, ...floor }) : stall === "breaker" ? breakerComment(refire, { repo, ...trip }) : refireComment(refire, cause);
         await (trip?.record === undefined
@@ -3127,8 +2633,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
           ? github("POST", `${base}/comments`, { body: infra.body })
           : github("PATCH", `/repos/${repo}/issues/comments/${infra.id}`, { body: infra.body }));
       }
-      // The field events, not the record, bound a restart, so a failed record
-      // (the alert locks every fix issue) is named and the restart goes ahead.
       if (recurrence && !recorded) {
         await github("POST", `${base}/comments`, { body: recurrenceComment(recurrence) }).catch((error) =>
           console.log(`::warning title=label-unblocked::#${number}: the relabel record was not posted: ${escapeCommand(error?.message ?? error)}`),
@@ -3138,10 +2642,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
       failed += failedFor(github, number, error);
       continue;
     }
-    // A failed restart would leave the issue out of the lane with nothing
-    // saying so, so it is tried twice and then named; a second try re-reads
-    // the field, so a half-done first one (cleared, not set) is finished. A
-    // person who moved the issue off agent-ready since the listing wins.
     try {
       const restarted = await writer
         .restart(number, { from: [LABEL] })
@@ -3162,19 +2662,12 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
 
 const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
 
-// A close that counts as done: by a listed human or a merge, the lanes App's
-// already-done close whose evidence still holds (owner Q9), or the lanes
-// App's close of a size split's parent with its split finished (admit.mjs
-// splitParentClosed, owner Q93).
 async function isTrustedClose(github, repo, issue, humans, bot) {
   const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
   const isApp = byBot(bot);
   return (await closedByHumanOrMerge(github, repo, issue, humans, isApp)) || splitParentClosed({ github, repository: repo, issue, isApp, humans, trusted });
 }
 
-// For each issue in `closed` (on the sweep, only one a listed human or a
-// merge closed), closes its split parent when it is done (closeSplitParent).
-// Returns how many reads or writes failed.
 async function closeSplitParents({ github, repo, closed, sweep, humans, bot, closes = new Map(), writer = NO_WRITER, statusOf, maps = NO_MAPS }) {
   let failed = 0;
   for (const number of closed) {
@@ -3187,10 +2680,7 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot, clo
   return failed;
 }
 
-// Closes the open parent of issue `number` once its split is finished
-// (closeDoneParent). A map parent goes no further.
 async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep, writer, statusOf, maps }) {
-  // The sweep's close check already read the issue (readClose, cached in `closes`).
   const { issue, trusted } = sweep ? await readClose({ github, repo, number, humans, closes, bot }) : { issue: await github("GET", `/repos/${repo}/issues/${number}`), trusted: true };
   if (!issue?.parent_issue_url || !trusted) {
     return;
@@ -3201,12 +2691,6 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
   }
 }
 
-// On the sweep, the open issues (`listed`) whose sub_issues_summary shows
-// every sub-issue completed, whose number is the UTC hour of `now` modulo 24,
-// at most `cap` of them in listing order, each read fresh and closed when its
-// split is finished (closeDoneParent): a parent whose last sub-issue closed
-// outside the sweep window, or one admission parked that now re-enters
-// (reenterFinished). Returns how many reads or writes failed.
 async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now, writer = NO_WRITER, statusOf, maps = NO_MAPS }) {
   const hour = new Date(now).getUTCHours();
   const done = (item) => (item.sub_issues_summary?.total ?? 0) > 0 && item.sub_issues_summary.completed === item.sub_issues_summary.total;
@@ -3227,10 +2711,6 @@ async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now,
   return failed;
 }
 
-// Closes `parent` (an issue as just read), as completed and with one comment
-// first, when it is open here and its split is finished (admit.mjs
-// splitLeftOpen, owner Q93, which checks every sub-issue's close). Its body is
-// never edited. One that stays open may re-enter intake (reenterFinished).
 async function closeDoneParent({ github, repo, parent, humans, closes, bot, writer = NO_WRITER, statusOf }) {
   if (parent?.state !== "open" || !NUMBER.test(String(parent.number)) || !String(parent.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase())) {
     return;
@@ -3240,8 +2720,6 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, writ
   const children = await paginate(github, `${base}/sub_issues`);
   let names;
   const namesOf = async () => (names ??= fieldNamesOf(statusOf, parent));
-  // A failed refresh never holds back the close below; the sweep's rotation
-  // tries the comment again.
   try {
     if (await refreshSplitWait({ github, repo, parent, names: await namesOf(), comments, open: async () => children.filter((child) => child?.state !== "closed"), bot })) {
       console.log(`label-unblocked: #${parent.number} admission comment now names its open sub-issues`);
@@ -3267,14 +2745,6 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, writ
   await writer.leaveAgentReady(Number(parent.number), "needs-triage");
 }
 
-// Hands `parent` (an open issue as read, `names` its names as the field
-// decides them, with its `comments` and sub-issues `children`) back to intake
-// (handBackParked) when admission parked it at status: confirmed on
-// SIZE_SPLIT_DONE and every sub-issue now counts as done (subIssueLeftOpen,
-// `trusted` judging each close): decide admits such a finished parent for the
-// issue lane's one verified-done run, as unpark does. Any other park stays, a
-// verify-unmet one included: that run's park rewrote the admission comment.
-// Returns whether it wrote.
 async function reenterFinished({ github, repo, parent, names, comments, children, trusted, bot, writer, statusOf }) {
   const parkedDone = comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(ADMIT_MARKER) && String(comment.body).includes(SIZE_SPLIT_DONE));
   if (!parkedDone || !confirmedOnly(names) || children.length === 0 || (await subIssueLeftOpen(children, trusted, repo)) !== null) {
@@ -3287,17 +2757,8 @@ async function reenterFinished({ github, repo, parent, names, comments, children
   return true;
 }
 
-// The admission comment's text for a wait, before its reasons (sayWhy's callers).
 const WAIT_PREFIX = "Not admitted to the issue lane yet: ";
 
-// Rewrites the lanes App's admission comment on `parent` (an open issue as
-// read) to the text decide gives an issue waiting on its open sub-issues alone
-// (admit.mjs subIssueWait), when every reason it gives is the pending split or
-// an open sub-issue and `open()` (its open sub-issues, read only then) now
-// differ. Only for a parent with status: ready in no queue or hold, no
-// blocker and an open sub-issue, since decide's reasons there are those
-// sub-issues alone; never posts a comment. `names` are its lowercased names
-// as the field decides them. Returns whether it wrote.
 async function refreshSplitWait({ github, repo, parent, names: labels, comments, open, bot }) {
   if (!labels.includes(READY) || labels.includes(LABEL) || labels.includes(DEFERRED_LABEL) || labels.some((label) => HOLDS.has(label)) || parent.issue_dependencies_summary?.blocked_by !== 0) {
     return false;
@@ -3319,10 +2780,6 @@ async function refreshSplitWait({ github, repo, parent, names: labels, comments,
   return true;
 }
 
-// What a marked issue's admission check reads from the default branch: the
-// rules, models.issue-dimensions, the issue lane's web hosts and the field
-// setter reader. resolve-config needs the packages its step installed in this
-// job, so it loads only when a marked issue needs it.
 const baseAdmission = (env) => {
   let loaded;
   return () =>
@@ -3341,18 +2798,6 @@ const baseAdmission = (env) => {
     })());
 };
 
-// The open issues whose Work status is one of `states` (every state when
-// none is given; resolve-config.mjs issuesByStatus over the base config's
-// models.issue-status), each `labels` its names as the field decides them
-// (read-status.mjs statusLabels); null while models.issue-status is unset.
-// resolve-config loads only on the first call, as baseAdmission does. One
-// listing of every state serves every call of a sweep (one call per page of
-// open issues); its 10 re-reads are shared by every state. When that listing
-// fails, this call and every later one list only their own `states`, as
-// before the shared listing: one issue whose status cannot be read then stops
-// only a listing that could match it, never one for a state it is not in.
-// `held` (issues whose Work status is mid-write) is the listing's, for
-// listedNames.
 const fieldListing = (env, github, repo) => {
   let loaded;
   let listing;
@@ -3383,8 +2828,6 @@ const fieldListing = (env, github, repo) => {
         found = await own();
       }
     }
-    // issuesByStatus's own match for `states`: the field's state, or with no
-    // state a label of one of them.
     const wanted = states && new Set(states.flatMap((state) => config.labels[state] ?? []).map((label) => label.toLowerCase()));
     const kept = wanted ? found.filter((item) => (item.state === null ? item.labels.some((label) => wanted.has(label.toLowerCase())) : states.includes(item.state))) : found;
     return Object.defineProperty(
@@ -3395,10 +2838,6 @@ const fieldListing = (env, github, repo) => {
   };
 };
 
-// The Work status field the restart rules read (`field`, the base config's
-// models.issue-status field-id) and its raw event reader (`fieldRows`,
-// resolve-config.mjs fieldEvents); none while models.issue-status is unset or
-// cannot be read, when each restart fails by name (write-status.mjs restart).
 async function workStatusField(env, github, repo) {
   try {
     const { fieldEvents, issueStatusFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
@@ -3410,13 +2849,6 @@ async function workStatusField(env, github, repo) {
   }
 }
 
-// The sweep's open-issue listing's names as the Work status field decides
-// them: one field listing of every state laid over `listed` (an issue it
-// leaves out has no status), or each issue's own labels with no `byStatus`.
-// An issue the listing holds (`held`, its Work status mid-write) gets no names,
-// so readmitReady skips it this sweep rather than trust labels that could miss
-// a field hold; the next sweep lists it again. Throws when the field listing
-// fails.
 async function listedNames(byStatus) {
   const found = byStatus ? await byStatus() : null;
   if (!found) {
@@ -3437,9 +2869,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
-    // A finished work-resolve-issue run and a hand-started run sweep as the
-    // schedule does: the payload is not read, and a finished run's sender is
-    // usually the lanes App.
     const sweep = ["schedule", "workflow_dispatch", "workflow_run"].includes(env.GITHUB_EVENT_NAME);
     const event = sweep ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
     if (!sweep && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
@@ -3450,8 +2879,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
       return 0;
     }
     if (!sweep) {
-      // A bot's close (the lanes App's, or a PR merge a bot ran) is skipped
-      // cleanly: the broker refuses it, and the hourly sweep picks it up.
       if (event.sender?.type === "Bot") {
         console.log("label-unblocked: a bot closed this issue; nothing read or labeled");
         return 0;
@@ -3465,11 +2892,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     const routing = readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "label-unblocked" });
     const maps = mapSkipper(routing);
-    // The Work status field is the state: each status write sets it
-    // (write-status.mjs statusWriter), and holds, readiness, event history and
-    // the deferred listing read it (read-status.mjs). A caller that hands its
-    // own client and no writer, reader or listing writes no field and reads
-    // labels only.
     const own = Boolean(github);
     github = markReads(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse }));
     const writeTo = writer ?? (own ? NO_WRITER : await statusWriter({ env, github, repository: repo }));
@@ -3482,14 +2904,10 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
       jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
       actions = actions && markReads(actions);
     }
-    // The last sweep's job listings and log verdicts (verdict-carry.mjs),
-    // kept again for the next sweep when VERDICTS_OUT is set.
     const carry = sweep && env.VERDICTS_OUT ? loadCarry(env.VERDICTS_IN, now) : null;
     const window = sweep ? await sweepSince({ actions, jobLog, repo, now, runId: env.GITHUB_RUN_ID }) : null;
     let closed = sweep ? [] : [Number(event.issue.number)];
     if (sweep) {
-      // Nothing else runs on a close list this sweep could not read. This run
-      // ends green but prints no LISTED_LINE, so the next window stays back.
       try {
         closed = await closedSince(github, repo, new Date(window.since));
       } catch (error) {
@@ -3511,8 +2929,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer: writeTo, statusOf: statusTo, byStatus: listing, maps }) : 0;
     const closes = new Map();
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, writer: writeTo, closes, statusOf: statusTo, maps });
-    // Before readmitReady, so a split parent whose last sub-issue closed is
-    // closed, not decided, on the sweep that sees that close.
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes, writer: writeTo, statusOf: statusTo, maps });
     if (!sweep) {
       failed += await stripClosed({ github, repo, number: Number(event.issue.number), writer: writeTo });
@@ -3525,8 +2941,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
       }
       if (listed) {
         failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now, writer: writeTo, statusOf: statusTo, maps });
-        // Readiness and queues read the Work status field: one field listing
-        // over the open issues, and none read when it fails.
         let names;
         try {
           names = await listedNames(listing);
@@ -3554,8 +2968,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     if (github.held > 0) {
       console.log(HELD_LINE);
     }
-    // The run sweepSince takes as the next window's start: green, its closed
-    // listing read, nothing held. The workflow marks it for the pacer.
     if (sweep && failed === 0 && !(github.held > 0) && env.GITHUB_OUTPUT) {
       appendFileSync(env.GITHUB_OUTPUT, "clean-sweep=true\n");
     }
