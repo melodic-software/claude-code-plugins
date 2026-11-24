@@ -502,12 +502,14 @@ jobs:
         timeout-minutes: 3
         run: bash .base/.github/scripts/lib/install-pinned-ffmpeg.sh /opt/tools/bin
 
-      # The guardrails hooks read every Bash command through shfmt and refuse the
-      # call without it, so a guardrails eval needs it on PATH. The
-      # setup-pinned-shfmt action holds the pin; /opt/tools, since each eval run
-      # replaces HOME.
-      - name: Install pinned shfmt for guardrails
-        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
+      # Each plugin's prerequisites.json shfmt entry:
+      # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/repo-hygiene/prerequisites.json
+      - name: Install pinned shfmt for shell-reading plugins
+        if: >-
+          steps.stage.outputs.go == 'true' &&
+          (contains(steps.plugins.outputs.list, 'plugins/guardrails') ||
+          contains(steps.plugins.outputs.list, 'plugins/repo-hygiene') ||
+          contains(steps.plugins.outputs.list, 'plugins/bash-format'))
         uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           bin-dir: /opt/tools/bin
@@ -1214,8 +1216,12 @@ jobs:
         timeout-minutes: 3
         run: bash .base/.github/scripts/lib/install-pinned-ffmpeg.sh /opt/tools/bin
 
-      - name: Install pinned shfmt for guardrails
-        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
+      - name: Install pinned shfmt for shell-reading plugins
+        if: >-
+          steps.stage.outputs.go == 'true' &&
+          (contains(steps.plugins.outputs.list, 'plugins/guardrails') ||
+          contains(steps.plugins.outputs.list, 'plugins/repo-hygiene') ||
+          contains(steps.plugins.outputs.list, 'plugins/bash-format'))
         uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           bin-dir: /opt/tools/bin
