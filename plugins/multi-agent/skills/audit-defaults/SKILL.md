@@ -1,5 +1,5 @@
 ---
-description: "Recheck bundled multi-agent role defaults against upstream pointers (`defaults`), sweep repository model/effort/subagent/workflow prose (`repo`), or recheck benchmark registry rows for reachability, dates, coverage and current-model testing (`registry`) with a proposed diff to the shipped benchmark registry. Proposes only; never edits a file in its default modes (an explicit apply request in registry mode opens a PR in the marketplace repository only). Use when: 'are the routing defaults current', 'audit the role map', 'recheck model defaults', 'recheck the benchmark registry', 'audit benchmark sources', 'did the workflow guidance change', or 'new model released, check the defaults'."
+description: "Recheck bundled multi-agent role defaults against upstream pointers (`defaults`), sweep repository model/effort/subagent/workflow prose (`repo`), or recheck benchmark registry rows for reachability, dates, coverage and current-model testing (`registry`) with a proposed diff to the shipped benchmark registry. Proposes only; never edits a repository file in its default modes (registry mode records per-machine audit history in the plugin data directory; an explicit apply request there opens a PR in the marketplace repository only). Use when: 'are the routing defaults current', 'audit the role map', 'recheck model defaults', 'recheck the benchmark registry', 'audit benchmark sources', 'did the workflow guidance change', or 'new model released, check the defaults'."
 argument-hint: "[<role>|fanout|repo|registry]"
 user-invocable: true
 disable-model-invocation: false
@@ -197,7 +197,7 @@ file:line with the reason, then any `skippedAreas` by name.
 `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json` (shipped rows only) in one fenced `diff` block, or
 `No changes proposed.` State how many rows were read and how many were not, any
 `skippedRows`, and every label in `nulls`.
-Show each row's `error_range` beside `tests_current_models`. Put the `registry-history.mjs`
+Show each row's `tests_required_vendors` and `error_range` beside `tests_current_models`. Put the `registry-history.mjs`
 promotion lines in the same diff block, after the workflow's hunks, and list each promotion's
 audit dates as its evidence and each `pending` row with its reason.
 

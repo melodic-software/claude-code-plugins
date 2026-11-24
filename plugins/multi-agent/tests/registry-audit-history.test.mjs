@@ -1,7 +1,8 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,16 +15,36 @@ const data = (prompt, name) => {
   const m = prompt.match(new RegExp('<data name="' + name + '">\\n([\\s\\S]*?)\\n</data>'))
   return m ? JSON.parse(m[1]) : undefined
 }
-const rawPage = (url, text = 'Board 2026-11-15') =>
-  'docs-raw: url=' + url + ' state=read format=markdown validated=yes sha256=' + 'a'.repeat(64) +
-  ' kind=page bytes=' + Buffer.byteLength(text) + ' body_sha256=' + createHash('sha256').update(text).digest('hex') + '\n' + text
+const fixtures = mkdtempSync(join(tmpdir(), 'registry-audit-history-'))
+after(() => rmSync(fixtures, { recursive: true, force: true }))
+const pages = new Map()
+const rawPage = url => {
+  if (!pages.has(url)) {
+    const slug = url.replace(/^https:\/\/www\.vals\.ai\//, '')
+    mkdirSync(join(fixtures, 'www-vals-ai'), { recursive: true })
+    writeFileSync(join(fixtures, 'www-vals-ai', slug + '.md'), 'Board 2026-11-15\n')
+    const out = execFileSync('bash', [join(plugin, 'scripts', 'docs-raw.sh'), url], {
+      encoding: 'utf8',
+      env: {
+        ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('DOCS_CACHE_'))),
+        FETCH_DOCS_FIXTURE_DIR: fixtures.replace(/\\/g, '/'),
+        FETCH_DOCS_CLAUDE_BIN: '',
+      },
+    })
+    assert.match(out, /^docs-raw: url=\S+ state=read .* kind=page /, 'the real docs-raw.sh produced the raw page from the fetch-docs fixture seam')
+    pages.set(url, out)
+  }
+  return pages.get(url)
+}
 
 const row = (id, workloads, status = 'support-only', extra = {}) => ({
   id, workloads, link: 'https://www.vals.ai/' + id, publisher: 'vals', provider_own: false,
   status, task_set: id, expect: 'Board', source: 'shipped', ...extra,
 })
 
-const VERDICT = { reachable: true, page_date: '2026-11-15', tests_current_models: 'yes', error_range: 'yes', notes: [] }
+const VERDICT = {
+  reachable: true, page_date: '2026-11-15', tests_current_models: 'yes', tests_required_vendors: 'yes', error_range: 'yes', notes: [],
+}
 
 async function run(args, verdict = () => ({})) {
   const calls = []
@@ -73,7 +94,7 @@ test('each failed check is recorded false', async () => {
     'live-board': { reachable: false },
     'dated-board': { page_date: '2026-04-01' },
     'range-board': { error_range: 'no' },
-    'models-board': { tests_current_models: 'unclear' },
+    'models-board': { tests_required_vendors: 'unclear' },
   }
   const { result } = await run(
     { rows: Object.keys(cases).map(id => row(id, ['coding'])), asOf: '2026-11-23', currentModels: CURRENT },
@@ -84,6 +105,29 @@ test('each failed check is recorded false', async () => {
   assert.deepEqual(checks['dated-board'], { ...PASS, dated: false })
   assert.deepEqual(checks['range-board'], { ...PASS, error_range: false })
   assert.deepEqual(checks['models-board'], { ...PASS, current_models: false })
+})
+
+test('a permanent row testing current models of only some vendors is not demoted and does not count toward promotion', async () => {
+  const { calls, result } = await run(
+    { rows: [row('part-board', ['coding'], 'permanent')], asOf: '2026-11-23', currentModels: CURRENT },
+    () => ({ tests_current_models: 'yes', tests_required_vendors: 'no' }),
+  )
+  const judge = calls.find(c => c.opts.label === 'judge:part-board')
+  assert.deepEqual(judge.opts.schema.properties.tests_required_vendors, { type: 'string', enum: ['yes', 'no', 'unclear'] })
+  assert.equal(result.rows[0].tests_current_models, 'yes')
+  assert.equal(result.rows[0].tests_required_vendors, 'no')
+  assert.deepEqual(result.proposedChanges.filter(c => c.field === 'status'), [], 'no permanent -> support-only proposal')
+  assert.equal(result.historyRecords[0].checks.current_models, false)
+})
+
+test('a permanent row that tests no current models is still demoted', async () => {
+  const { result } = await run(
+    { rows: [row('old-board', ['coding'], 'permanent')], asOf: '2026-11-23', currentModels: CURRENT },
+    () => ({ tests_current_models: 'no', tests_required_vendors: 'no' }),
+  )
+  assert.deepEqual(result.proposedChanges.filter(c => c.field === 'status'), [
+    { source_id: 'old-board', field: 'status', from: 'permanent', to: 'support-only', reason: 'does not test current models' },
+  ])
 })
 
 test('current_models needs the vendor list: without currentModels the check fails', async () => {

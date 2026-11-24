@@ -17,6 +17,7 @@ Return one closed JSON verdict object and nothing else (no prose before or after
   "page_date": "<YYYY-MM-DD or null>",
   "covers_work_types": ["coding"],
   "tests_current_models": "yes",
+  "tests_required_vendors": "yes",
   "error_range": "yes",
   "notes": []
 }
@@ -45,8 +46,9 @@ Rules:
 - `tests_current_models`: `"yes"` when the page tests current models (matching `current_models`
   when provided), `"no"` when it covers only older generations or omits current models, or
   `"unclear"` when unreachable, mapped without a body, or coverage cannot be determined.
-- When the prompt passes `required_vendors`, `tests_current_models` is `"yes"` only when the page
-  tests a current model id of every vendor listed there.
+- `tests_required_vendors`: `"yes"` only when the page tests a current model id of every vendor in
+  `required_vendors`, `"no"` when it misses one, or `"unclear"` when unreachable, the prompt passes
+  no `required_vendors`, or coverage cannot be determined. It never changes `tests_current_models`.
 - `error_range`: `"yes"` when the page text states an error range for its scores (a confidence
   interval, a plus-or-minus, or a standard error), `"no"` when it states none, or `"unclear"` when
   unreachable or the text cannot settle it.
