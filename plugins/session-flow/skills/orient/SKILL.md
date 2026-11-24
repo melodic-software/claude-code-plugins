@@ -48,8 +48,7 @@ now" matters, not just "what did we just say." The verification records
      the ask needs), never by position: a section moved to the hop file is
      read from there; `<memory_dir>` resolves as
      [`save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md) "Where save-points live"
-     says (`.work/` in a git work tree by default), never Claude Code's auto-memory directory
-     under `~/.claude/projects/`;
+     says (`.work/` in a git work tree by default), never Claude Code's auto-memory directory;
    - the workflow checklist (`<memory_dir>/<slug>/`), the stage ledger;
    - running-retro ledgers (`<memory_dir>/running-retros/`), accumulated
      in-flight findings.
