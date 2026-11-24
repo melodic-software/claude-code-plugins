@@ -1252,7 +1252,7 @@ limits:
   # in-flight check count it among runs that name no issue. 60 is judgment:
   # well past a hosted runner's pickup.
   stale-queued-minutes: 60
-  sweep-gap-minutes: 15
+  sweep-gap-minutes: 5
   # Base hours of work-unblock's re-fire backoff for a stranded agent-ready
   # issue, per cause, doubled once per re-fire already made and held at 24
   # (the schema's description says where each cause's doubling starts). The
