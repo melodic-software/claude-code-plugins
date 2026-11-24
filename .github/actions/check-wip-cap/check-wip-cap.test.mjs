@@ -657,12 +657,12 @@ const BASE_FILES = [
   ".github/CODEOWNERS",
   ".github/standards/trusted-actors/trusted-actors.json",
 ];
-async function runMain(answers, extraEnv = {}, config) {
+async function runMain(answers, extraEnv = {}, config, baseFiles = BASE_FILES) {
   const dir = tempDir("check-wip-cap-");
   const base = join(dir, "base");
   mkdirSync(base);
   if (config !== undefined) {
-    for (const file of BASE_FILES) {
+    for (const file of baseFiles) {
       mkdirSync(dirname(join(base, file)), { recursive: true });
       copyFileSync(new URL(`../../../${file}`, import.meta.url), join(base, file));
     }
@@ -850,6 +850,31 @@ test("no workflow restores or saves a WIP cap state, and pick-slot runs the chec
   assert.deepEqual(callers, ["work-resolve-issue.yml:pick-slot"]);
   const pickSlot = yamlAt(".github/workflows/work-resolve-issue.yml").jobs["pick-slot"];
   assert.equal(pickSlot["cache-mode"], "read");
+});
+
+test("main reads the base config with the standards checkout STANDARDS_DIR names, and action.yml passes standards-path to it", async () => {
+  const standards = join(tempDir("check-wip-cap-standards-"), "standards");
+  for (const [from, to] of [
+    [".github/standards/github-actions-conventions/vocabulary.json", "components/github-actions-conventions/vocabulary.json"],
+    [".github/standards/trusted-actors/trusted-actors.json", "components/trusted-actors/trusted-actors.json"],
+  ]) {
+    mkdirSync(dirname(join(standards, to)), { recursive: true });
+    copyFileSync(new URL(`../../../${from}`, import.meta.url), join(standards, to));
+  }
+  const baseFiles = BASE_FILES.filter((file) => !file.startsWith(".github/standards/"));
+  const answers = { open: [pr()], merged: 24 };
+  const read = await runMain(answers, { STANDARDS_DIR: standards }, pastConfig(), baseFiles);
+  assert.equal(read.held, "false", read.logs.join("\n"));
+  assert.equal(read.wip.pause_basis, "read");
+  assert.equal(read.wip.pause_from, "2026-10-01");
+  assert.notEqual(read.wip.admission_basis, "config-unreadable");
+  const unread = await runMain(answers, { STANDARDS_DIR: "" }, pastConfig(), baseFiles);
+  assert.equal(unread.held, "true");
+  assert.equal(unread.wip.admission_basis, "config-unreadable");
+  const action = yamlAt(".github/actions/check-wip-cap/action.yml");
+  assert.equal(action.inputs["standards-path"]?.default, "");
+  const check = action.runs.steps.find((step) => step.id === "check");
+  assert.match(String(check?.env?.STANDARDS_DIR), /^\$\{\{ inputs\.standards-path \}\}$/);
 });
 
 test("main's warning before pause-from says the pause date is not reached", async () => {
