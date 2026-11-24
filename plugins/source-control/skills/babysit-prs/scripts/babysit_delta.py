@@ -5,7 +5,6 @@ Owns branch-freshness classification, the trust-boundary mutation policy, the
 per-PR classifier with its suppressible/unsuppressible worker-dispatch deltas,
 the head-ref uniqueness guard, and cadence recommendation.
 """
-
 from __future__ import annotations
 
 import math
@@ -58,17 +57,7 @@ ACTIONABLE_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 # the single-PR path in pr_queue_snapshot.py) build the message through this
 # constant so the two cannot drift.
 HEAD_REF_ALIAS_ERROR_MARKER = "head-ref alias check:"
-# Fan-out safety net: force a worker check-in on an otherwise-unchanged PR at
-# least this often, so "nothing changed" can never mean "never checked again"
-# (a classifier blind spot or a forgotten stuck PR). Snapshot-level detection
-# already runs every cadence cycle regardless; this bounds only the coarser,
-# expensive fresh-worker dispatch. Override with --max-quiet-recheck-seconds.
 DEFAULT_MAX_QUIET_RECHECK_SECONDS = 4 * 60 * 60
-# A pending check must be at least this old before a stuck-check class that
-# ages out (`stuck_queued`, `never_settling`) fires, so normal in-flight CI and
-# freshly-started non-required checks are never reported stuck. Override with
-# --stuck-check-age-seconds. Orphaned StatusContexts (no backing run) are
-# detected structurally and are not subject to this threshold.
 DEFAULT_STUCK_CHECK_AGE_SECONDS = 30 * 60
 ADVISORY_FIX_ROUND_CAP = 100
 # Provenance classes in `safety.md`'s (a)/(b)/(c) round taxonomy: (a) a genuine
@@ -207,11 +196,6 @@ DEFAULT_CLASSIFY_CONFIG = ClassifyConfig()
 
 
 def _validated_positive_seconds(value: float, flag: str) -> float:
-    """Coerce one seconds-valued override, refusing anything not finite/positive.
-
-    Shared by the per-flag validators below so the two cannot drift; `flag`
-    names the CLI option in the refusal so the message stays specific.
-    """
     message = f"{flag} must be a finite number greater than zero"
     try:
         seconds = float(value)
@@ -329,14 +313,6 @@ def head_repository_scope(
 
 
 def _ledgered_comment_ids(prior: dict[str, Any]) -> set[str]:
-    """Every review-trigger comment id our own mutation ledger recorded.
-
-    The two same-login arms below ask opposite questions of the same evidence --
-    `detect_foreign_activity` looks for a trigger comment that is NOT in here,
-    `detect_attribution_drift` for one that IS -- so the ledger read is shared:
-    a divergence between the two would silently change which comments each arm
-    considers accounted for.
-    """
     recorded: set[str] = set()
     for history_key in ("request_history", "request_attempt_history"):
         for entry in json_object(prior.get(history_key)).values():
@@ -432,10 +408,6 @@ def detect_attribution_drift(
             continue
         landed = author_login(comment)
         landed_cf = landed.casefold()
-        # Only a landed author that is still one of our accepted self-logins is
-        # drift (the degrade case). A non-self author on a ledgered id is not
-        # this arm's concern -- foreign-activity semantics, and structurally
-        # unreachable for an immutable comment we posted.
         if landed_cf == intended or not is_self_login(landed, self_logins):
             continue
         evidence.append(
@@ -459,9 +431,6 @@ def classify_pr(
     reaction_signals: list[dict[str, str]] | None = None,
     config: ClassifyConfig = DEFAULT_CLASSIFY_CONFIG,
 ) -> dict[str, Any]:
-    # Validate once before any actionable/draft/closed short-circuit can skip
-    # the quiet fallback expression. A malformed override is an operator error
-    # for the whole snapshot, not only for PRs that happen to be quiet.
     quiet_recheck_seconds = validated_max_quiet_recheck_seconds(
         config.max_quiet_recheck_seconds
     )
@@ -480,18 +449,12 @@ def classify_pr(
     self_logins = normalize_self_logins(config.self_logins)
     human_stop = human_stop_from_feedback(feedback, self_logins)
     merge_state = str(pr.get("mergeStateStatus") or "").upper()
-    # Stuck-check detection reuses the already-normalized checks (no new fetch).
-    # Attached to the same `checks` dict returned below as `checks["stuck"]`,
-    # always present (empty when none) for a stable consumer contract. Surfaced
-    # only as a material finding below -- never a blocker.
     checks["stuck"] = classify_stuck_checks(
         checks["checks"],
         observed_at,
         merge_state=merge_state,
         age_threshold_seconds=stuck_age_seconds,
     )
-    # Held for approval: failing in the rollup (the merge gate keeps holding),
-    # but escalated to a person here rather than counted as a fixable failure.
     checks["approval_held"] = classify_approval_held_checks(checks["checks"])
     approval_held_keys = {
         check_identity_key(check) for check in checks["approval_held"]
@@ -505,17 +468,7 @@ def classify_pr(
     head_sha = str(pr.get("headRefOid") or "")
     updated_at = str(pr.get("updatedAt") or "")
     branch_freshness = compute_branch_freshness(pr)
-    # Computed this early (rather than alongside the other fan-out deltas
-    # below) so `new_material_feedback` can consult it: whether a
-    # blocking-id-turned-material transition happened at the same head it
-    # was recorded blocking at, or on a fresh head.
     head_sha_changed = bool(prev) and prev.get("head_sha") != head_sha
-    # Only a disposition recorded at the CURRENT head legitimately suppresses
-    # the reused-id escape valve below -- mirrors `collect_feedback`'s own
-    # `disposition_applies` check. `item["id"] not in dispositions` alone
-    # would let a *stale* (older-head) disposition record keep disabling the
-    # escape valve even after the PR has moved to a new head, silently
-    # swallowing genuinely new material content that a bot reused the id for.
     dispositions_at_current_head = {
         fid
         for fid, record in dispositions.items()
@@ -587,22 +540,12 @@ def classify_pr(
         )
         or (head_sha_changed and item["id"] not in dispositions_at_current_head)
     ]
-    # The human arms drop this engine's own posts: it comments under the
-    # operator's login, so without this every prior worker reply would count
-    # as new human feedback and re-dispatch forever (the rule
-    # `reference/review-discipline.md` §1 sets for classification replies).
-    # Bot arms need no such filter, since `collect_feedback` routes only
-    # bot-authored items there. Only the new-feedback deltas filter:
-    # self-authored items stay in `feedback["human_blocking"]`, so a maintainer
-    # can still human-stop their own PR.
     new_human_feedback = [
         item
         for item in human_items
         if item["id"] not in prev_human_ids
         and not is_self_login(item.get("author"), self_logins)
     ]
-    # Against `prev_human_blocking_ids`, not `prev_human_ids`, so an id edited
-    # or reclassified from nonblocking into blocking still trips this arm.
     new_human_blocking_feedback = [
         item
         for item in feedback["human_blocking"]
@@ -614,14 +557,6 @@ def classify_pr(
     )
     new_to_state = not prev
 
-    # Blockers/material and status are derived here -- ahead of the fan-out
-    # gate below -- purely so the gate can consult `blockers` to recognize a
-    # clean, non-draft, zero-blocker PR and route it straight to the
-    # mode-appropriate merge gate instead of dispatching a worker it does not
-    # need (see `pr_clean_ready_for_direct_gate` below). Every input here
-    # (feedback, human_stop, merge_state, mutation_policy, review_trigger,
-    # refresh_for_head, review_decision, checks, changed, new_to_state) is
-    # already computed above this point.
     blockers: list[str] = []
     material: list[str] = []
     if pr.get("isDraft"):
@@ -763,11 +698,6 @@ def classify_pr(
     else:
         status = "idle"
 
-    # A material item with no disposition at the CURRENT head was never
-    # triaged for this head's content (e.g. the worker checked in, then
-    # crashed before disposing it). An older-head disposition does not count,
-    # matching `new_material_feedback`; counting it would suppress
-    # `quiet_recheck_due` for content no one disposed.
     untriaged_material_feedback = [
         item
         for item in feedback["material"]
@@ -788,19 +718,11 @@ def classify_pr(
         and not untriaged_material_feedback
     )
 
-    # Fan-out gate: does this PR need a fresh 1:1 worker *this cycle*? Grounded
-    # in deltas against the previous snapshot, not the raw classification --
-    # `classification == "active"` is sticky (e.g. the same still-pending CI
-    # check re-reports every cycle) and would otherwise spawn a worker forever
-    # on a PR that is simply still waiting, not newly actionable.
     has_failing = "checks_failing_identities" in prev
     if has_failing != ("checks_pending_identities" in prev):
         raise ValueError(
             "persisted check identity state must contain both failing and pending arrays"
         )
-    # Narrower than "the check sets differ": a check starting, or one of
-    # several pending checks finishing, is not actionable. Only a new failing
-    # check, a failing check clearing, or all pending checks settling is.
     if has_failing:
         prev_checks_failing = persisted_check_identity_keys(
             prev.get("checks_failing_identities"), "checks_failing_identities"
@@ -815,9 +737,6 @@ def classify_pr(
             check_identity_key(identity) for identity in checks["pending_identities"]
         }
     else:
-        # One-cycle migration for snapshots written before stable identities
-        # were persisted. Display names remain available for compatibility,
-        # then the next saved snapshot carries the unambiguous identity arrays.
         prev_checks_failing = legacy_check_identity_keys(prev.get("checks_failing"))
         prev_checks_pending = legacy_check_identity_keys(prev.get("checks_pending"))
         current_checks_failing = legacy_check_identity_keys(checks["failing"])
@@ -838,18 +757,10 @@ def classify_pr(
         and merge_state in ACTIONABLE_MERGE_STATES
         and prev_merge_state not in ACTIONABLE_MERGE_STATES
     )
-    # Symmetric to `resolved_failing_checks`: a PR previously blocked only by
-    # human feedback (CHANGES_REQUESTED, an unresolved inline thread) that the
-    # user has since addressed -- with no accompanying head SHA, check, or
-    # merge-state change -- must still get a fresh worker/merge-gate check
-    # promptly rather than waiting for `quiet_recheck_due`'s fallback window.
     resolved_human_blocking = bool(
         json_object(prev.get("human_stop")).get("required")
         and not feedback["human_blocking"]
     )
-    # The same for a bot blocker clearing at the same head, which trips no
-    # other delta. An id that only reclassified into `material` (a ledger
-    # dispose or downgrade) is a triage just performed, not a clearing.
     genuinely_cleared_blocking_ids = (
         prev_blocking_ids - set(blocking_feedback_ids) - set(material_feedback_ids)
     )
@@ -865,25 +776,7 @@ def classify_pr(
     worker_checkin_head_unconfirmed = bool(
         prev and last_worker_checkin_head_sha != head_sha
     )
-    # Computed here (rather than alongside `quiet_recheck_due` below) so
-    # `dispatch_pending_unconfirmed` can consult it too.
     last_worker_checkin = parse_timestamp(prev.get("last_worker_checkin_at"))
-    # Crash gap: `--write-state` persists this cycle's delta state, but
-    # `record-worker-checkin` runs only later, at dispatch
-    # (`reference/orchestration.md`'s Fan-Out Gate Safety Net). A run that
-    # exits between them leaves the next `prev` with the delta absorbed, and
-    # the one arm still standing, `worker_checkin_head_unconfirmed`, is
-    # suppressible. `pending_worker_dispatch_head_sha`, persisted in the same
-    # write as the delta, records the owed dispatch so it survives.
-    #
-    # Confirmation needs a check-in at or after the obligation's
-    # `pending_worker_dispatch_recorded_at`, not just one at the same head: an
-    # older check-in at an unchanged head predates the obligation. The
-    # obligation survives a clean-ready PR only when it included an
-    # unsuppressible delta, and otherwise only while the PR is still not
-    # clean-ready this cycle, since the direct gate has then not taken over.
-    # Legacy snapshots missing either field fail safe toward one extra
-    # dispatch.
     prev_pending_dispatch_head_sha = str(
         prev.get("pending_worker_dispatch_head_sha") or ""
     )
@@ -924,18 +817,6 @@ def classify_pr(
         or merge_state_became_actionable
         or worker_checkin_head_unconfirmed
     )
-    # Never suppressed: each of these names something the direct merge gate
-    # cannot do, so a worker is required even on an otherwise fully clean PR.
-    # - `new_blocking_feedback`/`new_human_blocking_feedback` structurally
-    #   cannot coincide with `pr_clean_ready_for_direct_gate` (both already
-    #   feed `blockers`), listed for completeness only.
-    # - `new_material_feedback` is a nonblocking bot finding the merge gate
-    #   never inspects or triages -- only a worker resolves it.
-    # - `became_ready_for_review`: SKILL.md's Fan Out section requires a
-    #   worker to assess draft completeness on every draft-to-ready
-    #   transition regardless of CI cleanliness ("Zero-blocker drafts are
-    #   the exception: always route them through a worker"); the merge gate
-    #   only re-validates mergeability, never completeness.
     unsuppressible_delta = bool(
         new_blocking_feedback
         or new_material_feedback
@@ -945,20 +826,9 @@ def classify_pr(
     worker_actionable_delta = bool(
         (suppressible_delta and not pr_clean_ready_for_direct_gate)
         or unsuppressible_delta
-        # Bypasses the direct-gate suppression on its own -- see
-        # `dispatch_pending_unconfirmed`'s definition above for why a
-        # cross-cycle dispatch obligation must win even when every delta that
-        # originally created it has since been absorbed into `prev`.
         or dispatch_pending_unconfirmed
     )
     observed = parse_timestamp(observed_at)
-    # Also gated on `pr_clean_ready_for_direct_gate`: a clean, non-draft,
-    # zero-blocker PR routed straight to the merge gate never gets a worker
-    # check-in recorded (that only happens at worker dispatch), so without
-    # this guard `last_worker_checkin is None` would stay permanently true
-    # for it and this fallback would force `needs_worker` every single cycle
-    # -- silently reintroducing the same over-dispatch the
-    # `suppressible_delta` group above was added to fix.
     quiet_recheck_due = bool(
         not worker_actionable_delta
         and not pr_clean_ready_for_direct_gate
@@ -1005,16 +875,6 @@ def classify_pr(
         and not refresh_accepted_awaiting_head
         and not foreign_activity["detected"]
     )
-    # Reasons in the suppressible group are filtered through the same
-    # `pr_clean_ready_for_direct_gate` check as `suppressible_delta` above,
-    # so a raw delta suppressed this cycle (e.g. a head SHA change on an
-    # already-clean PR) is never reported as a reason when `needs_worker` is
-    # actually False. Reasons in the unsuppressible group are never filtered.
-    # Every reason is additionally dropped while
-    # `refresh_accepted_awaiting_head` or a foreign-activity hold is in
-    # effect, mirroring `needs_worker`'s own overrides just above --
-    # otherwise a populated reasons list would contradict `needs_worker`
-    # being forced `False`.
     needs_worker_reasons = (
         []
         if refresh_accepted_awaiting_head or foreign_activity["detected"]
@@ -1035,26 +895,11 @@ def classify_pr(
                 ("checks_changed", checks_changed, True),
                 ("merge_state_became_actionable", merge_state_became_actionable, True),
                 ("became_ready_for_review", became_ready_for_review, False),
-                # Not suppressible while a same-head dispatch remains unconfirmed
-                # from a prior cycle -- see `dispatch_pending_unconfirmed` above.
                 (
                     "worker_checkin_head_unconfirmed",
                     worker_checkin_head_unconfirmed,
                     not dispatch_pending_unconfirmed,
                 ),
-                # `dispatch_pending_unconfirmed` can be true while
-                # `worker_checkin_head_unconfirmed` is false -- a same-head
-                # check-in that predates the pending obligation confirms neither
-                # signal the same way, so this needs its own reason: without it,
-                # a worker forced in solely by an unconfirmed crash-recovered
-                # obligation would report no reason at all. Never suppressible:
-                # by the time this is true, either `prev_pending_dispatch_unsuppressible`
-                # already gated it to an obligation the direct merge gate cannot
-                # resolve on its own, or (per its definition above) the PR is
-                # still not `pr_clean_ready_for_direct_gate` this cycle -- in
-                # that case the direct gate has not taken over the obligation's
-                # concern either, so it must not be filtered out the way other
-                # suppressible reasons are.
                 ("dispatch_pending_unconfirmed", dispatch_pending_unconfirmed, False),
                 ("quiet_recheck_due", quiet_recheck_due, True),
             )
@@ -1062,9 +907,6 @@ def classify_pr(
         ]
     )
 
-    # The write-ahead dispatch obligation `dispatch_pending_unconfirmed` reads
-    # next cycle: `--write-state` persists it in the same write as this
-    # cycle's delta state, unlike the check-in written only at dispatch.
     pending_worker_dispatch_head_sha = head_sha if needs_worker else ""
     pending_worker_dispatch_unsuppressible = bool(needs_worker and unsuppressible_delta)
     pending_worker_dispatch_recorded_at = observed_at if needs_worker else ""
@@ -1137,12 +979,6 @@ def classify_pr(
         },
         "needs_worker": needs_worker,
         "needs_worker_reasons": needs_worker_reasons,
-        # Surfaced (not just used locally) so `apply_head_ref_guard`'s late
-        # branch-uniqueness-clear arm can consult the exact same verdict
-        # instead of recomputing a shorter version of this predicate that
-        # omits `untriaged_material_feedback` -- see that guard's use of this
-        # field for why the two must never diverge. Same-cycle only, not
-        # persisted by `persisted_pr_state`.
         "pr_clean_ready_for_direct_gate": pr_clean_ready_for_direct_gate,
         "last_worker_checkin_at": prev.get("last_worker_checkin_at") or "",
         "last_worker_checkin_head_sha": last_worker_checkin_head_sha,
@@ -1169,24 +1005,6 @@ def apply_head_ref_guard(
         "shared_with": peers,
     }
     if unique:
-        # This guard runs after `classify_pr` already computed `needs_worker`
-        # from the prior snapshot, so a PR blocked only by an unresolved or
-        # shared head ref last cycle -- now cleared -- would otherwise wait
-        # out `quiet_recheck_due`'s fallback window even though branch writes
-        # just became allowed. Force it in, same as any other cleared blocker
-        # -- unless the PR is otherwise direct-gate-ready. Reads
-        # `pr_clean_ready_for_direct_gate` verbatim from `classify_pr` rather
-        # than recomputing it here: a local re-derivation can drift (omitting
-        # the `untriaged_material_feedback` clause, say, would treat a PR with
-        # already-known material bot feedback and a recent check-in as
-        # direct-gate-ready the moment branch uniqueness cleared, suppressing
-        # `branch_uniqueness_cleared` even though the merge gate never
-        # triages bot feedback). This guard never adds a blocker on the unique
-        # path, so `pr["blockers"]` here already reflects every *other*
-        # blocker for the current cycle. A non-draft, CLEAN/HAS_HOOKS PR with
-        # none of those left, and no untriaged material feedback, has nothing
-        # left for a worker to do and belongs on the direct merge gate per
-        # the runbook's Fan Out contract.
         if (
             prev_unique is False
             and not pr.get("needs_worker")
@@ -1196,32 +1014,7 @@ def apply_head_ref_guard(
             reasons = pr.get("needs_worker_reasons")
             if is_json_array(reasons) and "branch_uniqueness_cleared" not in reasons:
                 reasons.append("branch_uniqueness_cleared")
-            # `classify_pr` already finalized `pending_worker_dispatch_head_sha`
-            # (empty, since `needs_worker` was False there) before this
-            # late arm ran and flipped `needs_worker` to True. Without
-            # this, `--write-state` would persist an empty pending-dispatch
-            # head for a PR this cycle just decided needs a worker,
-            # reopening the exact crash gap `pending_worker_dispatch_head_sha`
-            # exists to close (see its definition in `classify_pr`), but
-            # for this one arm. The `not pr.get("needs_worker")` guard
-            # above -- required to even reach this branch -- guarantees
-            # `pending_worker_dispatch_head_sha` is still `""` here (it is
-            # only ever non-empty when `needs_worker` was already True),
-            # so setting it unconditionally cannot clobber an obligation
-            # recorded earlier this cycle for a different reason.
             pr["pending_worker_dispatch_head_sha"] = str(pr.get("head_sha") or "")
-            # `pending_worker_dispatch_unsuppressible` was likewise
-            # finalized `False` by `classify_pr` (the same "needs_worker
-            # was False there" guarantee above), and is deliberately left
-            # as-is here rather than set `True`: this arm only ever fires
-            # while the PR is not `pr_clean_ready_for_direct_gate`, the same
-            # "not yet clean-ready" condition every other suppressible reason
-            # is gated on, so `branch_uniqueness_cleared` belongs in that
-            # same suppressible category, not the unsuppressible one.
-            # `pending_worker_dispatch_recorded_at` is left at `classify_pr`'s
-            # empty finalization for the same reason: `dispatch_pending_unconfirmed`
-            # only ever consults it while `pending_worker_dispatch_unsuppressible`
-            # is `True`, which this suppressible-only obligation never is.
         return
     pr["mutation_policy"]["branch_write_allowed"] = False
     if peers:

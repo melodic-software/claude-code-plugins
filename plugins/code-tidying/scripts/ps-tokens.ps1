@@ -5,9 +5,10 @@
     commented-out-code.py.
 .DESCRIPTION
     Default: one record per input path: the parse-error count, every token as
-    [Kind, Text], and every comment as [startLine, endLine, startColumn, text].
-    The Python side owns the Comment/NewLine/#Requires filtering so both backends
-    share one filter.
+    [Kind, Text], every comment as [startLine, endLine, startColumn, text], the
+    text the parser decoded, and each comment's [startOffset, endOffset] into
+    that text in UTF-16 code units. The Python side owns the
+    Comment/NewLine/#Requires filtering so both backends share one filter.
 
     -Bodies <path>: that file holds a JSON array of comment bodies; emits one
     boolean per body, true when the body parses cleanly and carries structure that
@@ -93,6 +94,7 @@ foreach ($p in $Path) {
         (Resolve-Path -LiteralPath $p).ProviderPath, [ref]$tokens, [ref]$errors) | Out-Null
     $tk = [string[]]::new($tokens.Count * 2)
     $cm = [System.Collections.Generic.List[object[]]]::new()
+    $sp = [System.Collections.Generic.List[int[]]]::new()
     $nested = [System.Collections.Generic.List[string]]::new()
     $i = 0
     foreach ($t in $tokens) {
@@ -103,6 +105,7 @@ foreach ($p in $Path) {
             $cm.Add([object[]]@(
                     $t.Extent.StartLineNumber, $t.Extent.EndLineNumber,
                     $t.Extent.StartColumnNumber, $t.Text))
+            $sp.Add([int[]]@($t.Extent.StartOffset, $t.Extent.EndOffset))
         }
         elseif ($t -is [System.Management.Automation.Language.StringExpandableToken]) {
             Add-NestedTokens $nested (($i - 2) / 2) $t
@@ -110,6 +113,7 @@ foreach ($p in $Path) {
     }
     Write-Json @{
         errors   = @($errors).Count; tokens = $tk; comments = $cm; nested = $nested
-        reserved = [string[]]$script:reserved
+        reserved = [string[]]$script:reserved; spans = $sp
+        text     = $tokens[0].Extent.StartScriptPosition.GetFullScript()
     }
 }

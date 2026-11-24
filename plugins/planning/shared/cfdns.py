@@ -46,9 +46,9 @@ import tunnel  # noqa: E402  (beside this file; sys.path is set just above)
 API = "https://api.cloudflare.com/client/v4"
 ID = re.compile(r"[0-9a-f]{32}")  # zone and account ids
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")  # tunnel ids
-PER_PAGE = 100  # judgment: records per list request
-MAX_PAGES = 100  # judgment: a zone this tool lists stays well under PER_PAGE * MAX_PAGES records
-RECORD_FIELDS = ("id", "type", "name", "content", "proxied")  # what the output shows of a DNS record
+PER_PAGE = 100
+MAX_PAGES = 100
+RECORD_FIELDS = ("id", "type", "name", "content", "proxied")
 TUNNEL_ID = "--tunnel-id must be the tunnel's id, a UUID"
 
 

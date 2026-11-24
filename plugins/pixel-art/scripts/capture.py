@@ -343,7 +343,6 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
     scene = Path(scene).resolve()
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    # A previous run's shots, video, or manifest would read as this run's result.
     for stale in [*out_dir.glob("shot-*.png"), out_dir / "scene.webm", out_dir / "manifest.json"]:
         stale.unlink(missing_ok=True)
     # Serve a copy of the scene alone: scenes are self-contained, and serving scene.parent would
@@ -456,7 +455,6 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
         (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         return manifest
     except TimeoutError as exc:
-        # A socket timeout says only "timed out"; name the wait that ran out.
         raise TimeoutError(f"{step}: {exc}") from exc
     finally:
         if devtools is not None:

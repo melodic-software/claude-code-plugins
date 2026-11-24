@@ -250,8 +250,6 @@ if [[ "$TIER" == scan ]]; then
   [[ -z "$BATCH_PLAN_ARG" ]] || fail_usage "--tier scan writes no plan: --batch-plan is not accepted"
 fi
 
-# Which selective child + flags a tier runs per repo. `all` and `build` both fold
-# the caches tier into the build manifest (single-repo `build` = includes caches).
 CACHES_CHILD="$SCRIPT_DIR/clean-caches.sh"
 BUILD_CHILD="$SCRIPT_DIR/clean-build.sh"
 GIT_CHILD="$SCRIPT_DIR/git-prune.sh"
@@ -269,12 +267,9 @@ select_manifest_child() {
   fi
 }
 
-# Does this tier run a per-repo manifest child (caches/build/all) and/or the git
-# prune child (git/all)?
 tier_has_manifest() { [[ "$TIER" == caches || "$TIER" == build || "$TIER" == all ]]; }
 tier_has_git() { [[ "$TIER" == git || "$TIER" == all ]]; }
 
-# Manifest child token written into the plan (apply picks the script from it).
 manifest_child_token() { [[ "$TIER" == caches ]] && printf 'caches' || printf 'build'; }
 
 # The REPO manifest token the requested tier AUTHORIZES at apply, or empty for a
@@ -302,8 +297,6 @@ plan_repo_record_wellformed() {
   local top="$1" token="$2" manifest="$3"
   [[ -n "$top" && ("$token" == caches || "$token" == build) && -n "$manifest" ]]
 }
-# A GITDIR record's only load-bearing field is the representative worktree toplevel
-# to cd into; its common-dir key is informational.
 plan_gitdir_record_wellformed() { [[ -n "$1" ]]; }
 
 # Child `Summary: …` parsing, shared by the apply and dry-run loops so both read a
@@ -317,9 +310,6 @@ summary_field() {
   printf '%s\n' "${v:-0}"
 }
 
-# ---------------------------------------------------------------------------
-# SCAN: read-only inventory per repo; no plan, nothing to gate.
-# ---------------------------------------------------------------------------
 if [[ "$TIER" == scan ]]; then
   [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from, --owner and/or --fleet)"
   batch_resolve_repos "${REPO_INPUTS[@]}"
@@ -367,9 +357,6 @@ if [[ "$TIER" == scan ]]; then
   exit 0
 fi
 
-# ---------------------------------------------------------------------------
-# APPLY: consume the gated plan only (never re-enumerate).
-# ---------------------------------------------------------------------------
 if [[ "$DRY_RUN" -eq 0 ]]; then
   [[ -n "$BATCH_PLAN_ARG" ]] || fail_usage "--apply requires --batch-plan <path> from a prior --dry-run"
   [[ -f "$BATCH_PLAN_ARG" ]] || fail_usage "batch plan not found: $BATCH_PLAN_ARG"
@@ -521,9 +508,6 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   exit 0
 fi
 
-# ---------------------------------------------------------------------------
-# DRY-RUN: enumerate, plan, write the gated plan.
-# ---------------------------------------------------------------------------
 [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from, --owner and/or --fleet)"
 
 batch_resolve_repos "${REPO_INPUTS[@]}"
@@ -566,7 +550,6 @@ fi
 mkdir -p "$PLAN_DIR" 2>/dev/null || fail_usage "cannot create batch-plan directory: $PLAN_DIR"
 : >"$PLAN" 2>/dev/null || fail_usage "cannot write batch plan: $PLAN"
 
-# Per-skip match tracking so a skip that protects nothing is surfaced loudly.
 batch_reset_skip_hits
 
 REPOS=${#BATCH_TOPS[@]}
@@ -583,7 +566,6 @@ ROW_PATHS=()
 ROW_BYTES=()
 LIST_TOPS=()
 LIST_MANIFESTS=()
-# add_row <top> <outcome> <paths> <bytes>: one summary-table row per repo.
 add_row() {
   ROW_TOPS+=("$1")
   ROW_OUTCOMES+=("$2")
@@ -594,10 +576,6 @@ add_row() {
 printf 'Fleet Clean (dry-run)\n'
 printf 'Tier: %s\n' "$TIER"
 printf 'Repos: %s\n' "$REPOS"
-# One preflight run, not once per repo: host-global facts (processes, IDE) plus
-# recent builds under every batch repository. The git-only tier does not delete
-# caches or build output, so it does not pay this walk. Apply does not run it
-# again: the dry-run output is what the confirmation gate reads.
 if tier_has_manifest && ((${#BATCH_TOPS[@]} > 0)); then
   printf 'PreflightScope: batch-repositories\n'
   if preflight_out="$(bash "$SCRIPT_DIR/preflight.sh" "${BATCH_TOPS[@]}" 2>&1)"; then
@@ -655,7 +633,6 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   key="${BATCH_KEYS[$i]}"
   printf 'Progress: %s/%s %s\n' "$((i + 1))" "${#BATCH_TOPS[@]}" "$top" >&2
 
-  # 1. Skip list (separator-agnostic).
   if batch_skip_match "$key"; then
     batch_emit "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
     add_row "$top" skipped 0 0
@@ -668,8 +645,6 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   bytes=0
   new_gitdir=0
 
-  # 2. Manifest tier (caches/build/all): run the child dry-run, capture its
-  #    manifest + planned bytes, record a REPO plan line.
   if tier_has_manifest; then
     manifest="$(manifest_for "$i" "$key")"
     tok="$(manifest_child_token)"
@@ -729,8 +704,6 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
 
   printf -v reason '%s; ' "${reason_parts[@]}"
   reason="${reason%; }"
-  # A manifest-tier repo with nothing planned that adds no new object store has
-  # nothing for apply to remove. A new store is a real prune/gc plan.
   outcome=would-clean
   if [[ "$planned" -eq 0 && "$bytes" -eq 0 && "$new_gitdir" -eq 0 ]]; then outcome=nothing-to-do; fi
   batch_emit "$top" "$outcome" "$reason"
@@ -742,15 +715,12 @@ for ((i = 0; i < ${#BATCH_DUPS[@]}; i++)); do
   add_row "${BATCH_DUPS[$i]}" skipped 0 0
 done
 
-# Invalid inputs reported as blocked outcomes.
 for ((i = 0; i < ${#BATCH_INVALID[@]}; i++)); do
   batch_emit "${BATCH_INVALID[$i]}" blocked "${BATCH_INVALID_REASONS[$i]}"
   add_row "${BATCH_INVALID[$i]}" blocked 0 0
   BLOCKED=$((BLOCKED + 1))
 done
 
-# Surface skip entries that matched nothing — a typo can never silently fail to
-# protect a repo.
 batch_report_unmatched_skips
 
 printf 'Repo | Outcome | Paths | Bytes\n'

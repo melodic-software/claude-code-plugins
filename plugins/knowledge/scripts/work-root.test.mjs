@@ -38,7 +38,6 @@ function cli(cwd, args, extraEnv = {}) {
   return spawnSync(process.execPath, [CLI, ...args], { cwd, env: { ...env, ...extraEnv }, encoding: "utf8" });
 }
 
-/** The base derivation, run as the distill skill text spelled it. */
 function baseHash(projectPath) {
   return execFileSync(
     "bash",

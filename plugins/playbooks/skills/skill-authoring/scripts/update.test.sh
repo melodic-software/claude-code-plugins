@@ -8,8 +8,6 @@ TEST_TMPDIR="$(mktemp -d)"
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-# --- 1. --help contract --------------------------------------------------------
-
 help_out=$(bash "$SCRIPT" --help 2>&1)
 help_exit=$?
 assert_exit "--help exits 0" 0 "$help_exit"
@@ -31,8 +29,6 @@ else
   fail "-h emits non-empty stdout" "non-empty" "empty"
 fi
 
-# --- 2. Unknown flag handling ----------------------------------------------------
-
 unknown_out=$(bash "$SCRIPT" --bogus-flag 2>&1)
 unknown_exit=$?
 assert_exit "unknown flag exits 2" 2 "$unknown_exit"
@@ -51,8 +47,6 @@ if declare -F local_metadata_field >/dev/null; then
 else
   fail "source-guard: helpers exposed after source" "function defined" "undefined"
 fi
-
-# --- 4. Nested metadata parsing on fixture ----------------------------------------
 
 FIXTURE_SKILL="$TEST_TMPDIR/SKILL.md"
 cat >"$FIXTURE_SKILL" <<'EOF'
@@ -76,8 +70,6 @@ assert_eq "parses metadata.upstream-version (nested)" "1.0.0" "$parsed_ver"
 parsed_synced=$(local_metadata_field "synced")
 assert_eq "parses metadata.synced (nested)" "2026-03-17" "$parsed_synced"
 
-# --- 5. Upstream frontmatter version extraction -----------------------------------
-
 FIXTURE_UP="$TEST_TMPDIR/upstream.md"
 cat >"$FIXTURE_UP" <<'EOF'
 ---
@@ -99,8 +91,6 @@ printf '# Just a body\nversion: 9.9.9 in prose should not match\n' >"$FIXTURE_NO
 nofm_ver=$(upstream_version_from_file "$FIXTURE_NOFM")
 assert_eq "no frontmatter returns empty version" "" "$nofm_ver"
 
-# --- 6. replace_metadata_field mutates indented key --------------------------------
-
 FIXTURE_MUT="$TEST_TMPDIR/SKILL-mut.md"
 cat >"$FIXTURE_MUT" <<'EOF'
 ---
@@ -121,14 +111,8 @@ assert_contains "upstream-version bumped" "$mutated" "upstream-version: 2.0.0"
 assert_contains "synced bumped" "$mutated" "synced: 2030-01-01"
 assert_not_contains "old synced removed" "$mutated" "2026-03-17"
 
-# --- 7. file_sha returns empty for missing file -------------------------------------
-
 missing_sha=$(file_sha "$TEST_TMPDIR/does-not-exist.txt")
 assert_eq "file_sha returns empty for missing path" "" "$missing_sha"
-
-# --- 8. run_check exit-code contract (0 no drift, 1 drift, 2 unverifiable) ---------
-# The fetch is stubbed. The vendored copy and the upstream copy start as the
-# same bytes, and the frontmatter version matches the upstream file's.
 
 FRONTMATTER_FILE="$FIXTURE_SKILL"
 VENDOR_FILE="$TEST_TMPDIR/vendor-skill.md"
@@ -206,8 +190,6 @@ assert_eq "hazard scan flags a process-substitution fetch" \
 REAL_VENDOR="$SCRIPT_DIR/../vendor/upstream-skill.md"
 hits=$(vendor_hazards "$REAL_VENDOR")
 assert_eq "vendor/upstream-skill.md carries no fetch-and-run or self-update instruction" "" "$hits"
-
-# --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

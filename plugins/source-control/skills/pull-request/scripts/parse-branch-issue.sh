@@ -275,8 +275,6 @@ if [[ -n "$REPO_ROOT" ]]; then
           old_location "$personal_override" "still read as the personal override" "$PERSONAL_YAML"
         fi
       fi
-      # The team layer is the YAML, a layer only when git tracks it, as in the
-      # commit skill. The retired .claude/source-control.md is not read.
       if convention_key_tracked "$REPO_ROOT" "$CONVENTION_KEY_YAML_REL"; then
         LAYERS+=("$TEAM_YAML")
       elif [[ -e "$TEAM_YAML" ]]; then

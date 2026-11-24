@@ -87,6 +87,28 @@ git -C "$REPO" add notes.md
 expect "a token on an unchanged line does not block" "0|" "$(check "$REPO")"
 
 new_repo
+printf 'if x; then\nsee %s here\ncd  %s\nfi\n' "$FAKE_LINUX" "$FAKE_LINUX" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+git -C "$REPO" commit -q -m old --no-verify
+printf 'if x; then\n  see %s here\nfi\n' "$FAKE_LINUX" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+expect "a formatter-only reindent of a path does not block" "0|" "$(check "$REPO")"
+printf 'if x; then\n  see %s here\n  cd %s\n  ls %s\nfi\n' "$FAKE_LINUX" "$FAKE_LINUX" "$FAKE_LINUX" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+expect "a path whose inner whitespace changed, or added beside a reindent, blocks, naming only those lines" "1|run.sh:3: machine-specific path (Linux user path detected)
+run.sh:4: machine-specific path (Linux user path detected)
+$HINT" "$(check "$REPO")"
+
+new_repo
+printf 'if x; then\ntoken=%s\nfi\n' "$FAKE_GHP" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+git -C "$REPO" commit -q -m old --no-verify
+printf 'if x; then\n  token=%s\nfi\n' "$FAKE_GHP" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+expect "a token on a reindented line still blocks" "1|run.sh:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+
+new_repo
 printf 'brand new token=%s\n' "$FAKE_GHP" >"$REPO/new.txt"
 git -C "$REPO" add new.txt
 expect "a new file is judged whole" 1 "$(rc_of "$REPO")"

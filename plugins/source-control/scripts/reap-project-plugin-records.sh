@@ -74,10 +74,6 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # shellcheck source=../hooks/hook-utils.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../hooks/hook-utils.sh" || exit 2
 
-# Print the header block (everything after the shebang up to the first
-# non-comment line) with its comment markers stripped. Derived rather than a
-# hardcoded line range: such a range silently truncates or over-runs as the
-# header grows.
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}"
@@ -159,7 +155,6 @@ norm_path() {
   printf '%s' "$p"
 }
 
-# resolve_dir <dir> — the directory's native absolute form, or empty.
 resolve_dir() {
   [[ -d "$1" ]] || return 1
   (cd "$1" 2>/dev/null && native_pwd) || return 1
@@ -172,7 +167,6 @@ if [[ -z "$arg_native" ]]; then
   exit 2
 fi
 
-# refuse_main_tree <why> — name the main working tree and exit 2.
 refuse_main_tree() {
   printf 'error: --worktree-path is a main working tree (%s) — refusing: %s\n' "$1" "$arg_native"
   printf 'info: this script reaps the records of a worktree being torn down, never those of a main checkout.\n'
@@ -274,7 +268,6 @@ fi
 # relative pathspec against the cwd.
 SETTINGS_REL=".claude/settings.json"
 
-# file_fingerprint <path> — a byte-level fingerprint, or `absent`.
 file_fingerprint() {
   if [[ -f "$1" ]]; then
     cksum <"$1" 2>/dev/null || printf 'unreadable'
@@ -322,12 +315,6 @@ settings_git_state() {
 settings_before_state="$(settings_git_state)"
 settings_before_print="$(file_fingerprint "$SETTINGS_REL")"
 
-# settle_settings — runs once after the uninstall loop and the post-reap
-# enumeration, on every exit path that follows them, so the survivor result is
-# always read before the file is touched. It restores only this one file, and
-# only when git proved it tracked and clean before the pass, so it cannot
-# discard anyone's edit. It never touches installed_plugins.json, so it cannot
-# bring an install record back.
 settle_settings() {
   local reason
   [[ "$(file_fingerprint "$SETTINGS_REL")" != "$settings_before_print" ]] || return 0
@@ -372,12 +359,6 @@ while IFS=$'\t' read -r id scope; do
   fi
 done <<<"$matches"
 
-# The post-reap pass is the only thing that turns "the uninstall calls returned
-# 0" into "the records are gone". A failure here therefore means UNVERIFIED, not
-# zero survivors — the identical failure the PRE-reap enumeration already treats
-# as a degrade. Absorbing it into an empty list is how a script comes to report
-# certainty it does not have, and it is the one outcome a caller acts on by
-# deleting the directory.
 if ! survivors="$(collect_matches)"; then
   settle_settings
   printf 'info: reaped %s, no-op %s, surviving UNKNOWN\n' "$reaped" "$noop"

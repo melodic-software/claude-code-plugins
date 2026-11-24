@@ -572,7 +572,6 @@ clean_target_eligible() {
   return 0
 }
 
-# Class-tagged candidate accumulators, consumed by clean_plan. Reset per run.
 CLEAN_CAND_ABS=()
 CLEAN_CAND_CLASS=()
 
@@ -794,7 +793,6 @@ clean_manifest_target_valid() {
   return 1
 }
 
-# _clean_reject <reason> <entry>: report a rejected manifest entry and count it failed.
 _clean_reject() {
   printf 'Rejected (%s): %s\n' "$1" "$2" >&2
   CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))

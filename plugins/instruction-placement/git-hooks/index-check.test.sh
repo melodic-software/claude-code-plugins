@@ -90,6 +90,18 @@ add_rule "$REPO"
 printf 'x\n' >"$REPO/src/b.cs"
 git -C "$REPO" add src/b.cs
 expect "a commit touching neither a rules file nor the index does no work, even with a stale index" "0||" "$(check "$REPO")"
+mkdir -p "$WORK/gitlog"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"%s/git.log"\nexec "%s" "$@"\n' "$WORK" "$(command -v git)" >"$WORK/gitlog/git"
+chmod +x "$WORK/gitlog/git"
+: >"$WORK/git.log"
+(cd "$REPO" && PATH="$WORK/gitlog:$PATH" bash "$CHECK" >/dev/null 2>&1)
+expect "a commit touching neither a rules file nor the index copies no instruction file out of the index" no \
+  "$(grep -q checkout-index "$WORK/git.log" && echo yes || echo no)"
+git -C "$REPO" add .claude/rules/csharp.md
+: >"$WORK/git.log"
+(cd "$REPO" && PATH="$WORK/gitlog:$PATH" bash "$CHECK" >/dev/null 2>&1)
+expect "a staged rule still copies the staged instruction files to render from" yes \
+  "$(grep -q checkout-index "$WORK/git.log" && echo yes || echo no)"
 
 new_repo
 add_rule "$REPO"

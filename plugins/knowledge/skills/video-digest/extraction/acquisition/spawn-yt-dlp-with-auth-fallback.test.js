@@ -6,7 +6,6 @@ import { spawnYtDlpWithAuthFallback } from "./spawn-yt-dlp-with-auth-fallback.js
 
 const BOT_ERROR = "ERROR: Sign in to confirm you're not a bot";
 
-/** The production derivation of a fallback-capable source's classification. */
 const FALLBACK_SOURCE = adapterSourceDeclarations(youtubeAdapter);
 
 /**

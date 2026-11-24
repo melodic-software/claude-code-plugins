@@ -221,6 +221,14 @@ reads the file itself, through a script where the key names one below.
   when git tracks the file, as `pr_body_required_sections` is. Neither is read at the home
   directory or outside a git working tree. An unknown value at a level is reported, naming the
   level, and the default applies.
+- `pr_body_format_gate`: `true` or `false`, default `true`, whether the guardrails plugin's
+  `block-body-format-violation` hook refuses a pull request body that breaks the format this
+  repository declares: the `pr_body_required_sections` sections, and the opener line where
+  `linkage_gate_uses_pattern` matches a workflow. No skill here reads it. The hook reads it with
+  those two keys from the tracked team file and the git-ignored personal override, which wins per
+  key, so one person can turn it off in one repository; another value is reported and leaves it
+  on. A repository that declares neither key is never judged
+  ([pr-body convention](../../../docs/contracts/pr-body-convention/README.md)).
 - `evidence_inline_max_captures` and `evidence_record_fields`: how
   `/source-control:pull-request evidence` lays out its comment
   ([evidence.md](../skills/pull-request/reference/evidence.md) step 4).

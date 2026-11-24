@@ -244,13 +244,6 @@ rows_outside() {
   ' "$3"
 }
 
-# Set brief_lo and brief_hi to the Brief's own lines in "$brief". A PLAN.md holds
-# `## Brief` + `## Plan`: a heading under `## Plan` must not stand in for a
-# section the Brief lacks, so only the lines from the `## Brief` heading to the
-# next level-2 heading count. A file with no `## Brief` heading counts whole.
-# With `lenient`, a fence left open reads the headings above it rather than
-# making the Brief ungradeable: a stray fence under `## Plan` sits below every
-# Brief heading.
 brief_bounds() {
   local brief_h2 brief_h2_status
   brief_lo=0
@@ -659,8 +652,6 @@ if [[ "$brief_named" -eq 1 ]]; then
   [[ -n "$brief" ]] || die_ungradeable "--brief needs a value"
   [[ -f "$brief" ]] || die_ungradeable "--brief not found: $brief"
 fi
-# --surface grades the Brief's sections, which only --brief with --procedure
-# reads; accepting it alone would report a comparison that never ran.
 if [[ "$surface_named" -eq 1 ]]; then
   [[ -n "$surface" ]] || die_ungradeable "--surface needs a value"
   [[ "$brief_named" -eq 1 && "$procedure_on" -eq 1 ]] ||
@@ -916,12 +907,6 @@ fi
 
 brief_state="unchecked"
 if [[ "$brief_named" -eq 1 && -z "$deferred_ids" ]]; then
-  # Nothing was retired, so there is nothing to look up and the Brief is not
-  # read. Its headings and fences are graded only in service of the lookup: a
-  # Brief is a large planning document with its own code samples, and refusing a
-  # clean register over a stray fence in a section this gate never grades would
-  # fail the caller for a defect outside the check they asked for. The
-  # existence check above still ran; the caller named a file that must exist.
   brief_state="ok"
 elif [[ "$brief_named" -eq 1 ]]; then
   headings_or_die 'deferred questions' "$brief"
@@ -972,7 +957,6 @@ if [[ "$brief_named" -eq 1 ]]; then
     brief_state="unconfirmed"
     printf 'brief: the restatement is unconfirmed (%s in %s); the user confirms the latest restate, then the Brief is exported again\n' "${restatement_stamp#- Restatement: }" "$brief" >&2
   elif [[ -n "$restatement_stamp" && "$answered" -gt 0 ]]; then
-    # Lenient, as the deferred lookup is: without --procedure a stray fence is not refused.
     brief_bounds lenient
     page_title=""
     goal=""
@@ -1016,7 +1000,6 @@ if [[ "$procedure_on" -eq 1 ]]; then
     brief_bounds
     section_patterns=('tl;?dr' 'problem' 'goal' 'work[- ]size' 'constraints'
       'acceptance criteria' 'captured assumptions' 'out[- ]of[- ]scope' 'deferred questions')
-    # A page export writes Intent above Goal; a hand-written Brief need not.
     [[ -z "$restatement_stamp" ]] || section_patterns+=('intent')
     for section_pattern in "${section_patterns[@]}"; do
       headings_or_die "^#+[[:space:]]+${section_pattern}[[:space:]]*\$" "$brief"

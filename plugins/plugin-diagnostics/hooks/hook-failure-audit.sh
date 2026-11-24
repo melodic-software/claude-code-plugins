@@ -78,11 +78,6 @@ set -uo pipefail
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
-# Kill switch FIRST, above every source: a disabled hook must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh fails a hook whose first early exit sits
-# below a source.
 [[ "${CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED:-true}" == "true" ]] || exit 0
 
 # Advisory abort boundary (#3713): any status other than 0 writes one stderr
@@ -132,8 +127,6 @@ TRANSCRIPT="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$TRANSCRIPT" && -f "$TRANSCRIPT" ]] || exit 0
 SESSION="${HOOK_JQ_FIELDS[1]}"
 [[ -n "$SESSION" ]] || SESSION="no-session"
-# data.session_id (additive, hook-telemetry rule 1): the sink routes an
-# envelope carrying one into the per-session log beside session-event-log.sh.
 SESSION_ID=""
 [[ "$SESSION" != "no-session" && "$SESSION" =~ ^[A-Za-z0-9._-]+$ ]] && SESSION_ID="$SESSION"
 SESSION="${SESSION//[^A-Za-z0-9_-]/-}"
@@ -177,10 +170,6 @@ CURSOR_FILE=""
 CURSOR=0
 if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
   MARKER_DIR="${CLAUDE_PLUGIN_DATA}/hook-failure-audit"
-  # `-d` first: after the first turn the directory always exists, and `mkdir -p`
-  # on an existing directory is a whole process to reach the same no-op. A
-  # directory that exists but is unwritable reaches the writes below and fails
-  # there, which is the degrade-toward-rescanning path.
   if [[ -d "$MARKER_DIR" ]] || mkdir -p "$MARKER_DIR" 2>/dev/null; then
     CURSOR_FILE="$MARKER_DIR/${SESSION}.cursor"
     CURSOR_BYTES=""
@@ -226,10 +215,6 @@ dispose_and_exit() {
   exit 0
 }
 
-# Bounded COLD read: the first Stop of a session (or a reset) is the one read
-# the cursor cannot bound, so the byte cap stays. When the cap truncates, the
-# first in-window line is likely partial — drop it, as guard_launch_monitor.py
-# does. The override exists for the contract test.
 TAIL_BYTES="${HOOK_FAILURE_AUDIT_TAIL_BYTES:-2000000}"
 
 # The pre-filter is a cheap candidate test only; the structural jq selection
@@ -319,7 +304,7 @@ NEEDLE='"hook_non_blocking_error"'
 RECORDS=""
 LINES=()
 N=0
-scan_lines() { # <first index to test>
+scan_lines() {
   local i
   for ((i = $1; i < N; i++)); do
     [[ "${LINES[i]}" == *"$NEEDLE"* ]] && RECORDS+="${LINES[i]}"

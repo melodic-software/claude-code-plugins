@@ -55,8 +55,6 @@ stanza_for() {
   git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="$1" 'index($0, p)'
 }
 
-# --- AC1: plain git worktree add is reported unclaimed ------------------------
-
 git -C "$REPO" worktree add -q "$EXT/wt-plain" -b feat/plain
 assert_file_exists "plain git worktree add created the tree" "$EXT/wt-plain/README"
 
@@ -79,8 +77,6 @@ run_claim report --repo-dir "$REPO"
 assert_exit "after claim, report is clean (exit 0)" 0 "$?"
 assert_contains "report now lists the tree CLAIMED" "$OUT" "CLAIMED"
 
-# --- AC2: two sessions on one host produce different reasons -----------------
-
 git -C "$REPO" worktree add -q "$EXT/wt-s1" -b feat/s1
 git -C "$REPO" worktree add -q "$EXT/wt-s2" -b feat/s2
 run_claim claim "$EXT/wt-s1" --repo-dir "$REPO" --session-id host-session-one
@@ -95,8 +91,6 @@ else
   fail "two concurrent sessions on one host produce different reasons" "distinct" "$r1"
 fi
 
-# --- AC3: check-enter surfaces a foreign live claim --------------------------
-
 run_claim check-enter "$EXT/wt-s1" --repo-dir "$REPO" --session-id host-session-two
 assert_exit "foreign check-enter stops (exit 4)" 4 "$?"
 assert_contains "foreign claim text reaches the caller" "$ERR" "FOREIGN CLAIM:"
@@ -108,7 +102,6 @@ run_claim check-enter "$EXT/wt-s1" --repo-dir "$REPO" --session-id host-session-
 assert_exit "owning session check-enter allows (exit 0)" 0 "$?"
 assert_contains "owning check-enter echoes the claim" "$OUT" "host-session-one"
 
-# Relative / `.` paths must resolve to the same tree (review: silent allow).
 OUT="$(cd "$EXT/wt-s1" && bash "$CLAIM" check-enter . --session-id host-session-two 2>"$TEST_TMPDIR/err")"
 assert_exit "check-enter . from inside a foreign-claimed tree stops" 4 "$?"
 ERR="$(cat "$TEST_TMPDIR/err")"
@@ -129,13 +122,10 @@ assert_exit "check-enter on an unclaimed tree exits 3" 3 "$?"
 assert_contains "unclaimed entry names UNCLAIMED" "$ERR" "UNCLAIMED:"
 assert_contains "unclaimed entry names the path" "$ERR" "$EXT_PHYS/wt-empty"
 
-# Main checkout / unrelated path: nothing to consult.
 run_claim check-enter "$REPO" --repo-dir "$REPO" --session-id anyone
 assert_exit "check-enter on the main checkout is a no-op" 0 "$?"
 run_claim check-enter "$UNRELATED" --repo-dir "$REPO" --session-id anyone
 assert_exit "check-enter on a non-worktree path is a no-op" 0 "$?"
-
-# --- AC4: helper-created reason strings are not rewritten --------------------
 
 git -C "$REPO" worktree add -q "$EXT/wt-helper" -b feat/helper
 git -C "$REPO" worktree lock --reason "$HELPER_REASON" "$EXT/wt-helper"
@@ -307,8 +297,6 @@ git -C "$REPO" worktree lock "$EXT/wt-hand-bare"
 run_claim handover "$EXT/wt-hand-bare" --repo-dir "$REPO" --session-id hand-old --to hand-new
 assert_exit "handover of a lock with no reason is refused (exit 4)" 4 "$?"
 
-# A re-lock that fails puts the old reason back. The stub fails only the lock
-# that would name the new session, so the restoring lock reaches real git.
 git -C "$REPO" worktree add -q "$EXT/wt-hand-roll" -b feat/hand-roll
 ROLL_REASON="$(HOSTNAME=testhost bash -c 'source "$1"; worktree_lock_reason worktree-claim.sh "$2"' _ "$SCRIPT_DIR/lib/worktree-facts.sh" roll-old)"
 git -C "$REPO" worktree lock --reason "$ROLL_REASON" "$EXT/wt-hand-roll"
@@ -377,7 +365,6 @@ CLAUDE_CODE_SESSION_ID='${CLAUDE_CODE_SESSION_ID}' CLAUDE_SESSION_ID=env-legacy 
 assert_contains "an unexpanded CLAUDE_CODE_SESSION_ID token falls through to CLAUDE_SESSION_ID" "$OUT" "session env-legacy since"
 CLAUDE_SESSION_ID=env-legacy run_claim release "$EXT/wt-env-order" --repo-dir "$REPO"
 
-# handover names both ids explicitly; the environment never supplies OLD.
 git -C "$REPO" worktree add -q "$EXT/wt-env-hand" -b feat/env-hand
 run_claim claim "$EXT/wt-env-hand" --repo-dir "$REPO" --session-id env-hand-old
 CLAUDE_CODE_SESSION_ID=env-hand-old run_claim handover "$EXT/wt-env-hand" --repo-dir "$REPO" --to env-hand-new
@@ -386,11 +373,11 @@ assert_exit "handover without --session-id is usage, whatever CLAUDE_CODE_SESSIO
 CFG="$TEST_TMPDIR/harness-config"
 mkdir -p "$CFG/projects/-proj" "$CFG/sessions"
 STALE_HOST=stalehost
-stale_lock() { # <name> <reason>
+stale_lock() {
   git -C "$REPO" worktree add -q "$EXT/$1" -b "feat/$1"
   git -C "$REPO" worktree lock --reason "$2" "$EXT/$1"
 }
-run_stale() { # <name> [args]
+run_stale() {
   local name="$1"
   shift
   CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/$name" --repo-dir "$REPO" "$@"
@@ -511,8 +498,6 @@ assert_exit "--batch outside stale is usage (exit 2)" 2 "$?"
 run_claim stale --batch </dev/null
 assert_exit "stale --batch without --repo-dir is usage (exit 2)" 2 "$?"
 
-# One worktree-list parse and one transcript scan per batch: stubs on PATH log
-# each git and find call, then hand it to the real tool.
 COUNT_BIN="$TEST_TMPDIR/count-bin"
 COUNT_LOG="$TEST_TMPDIR/count.log"
 mkdir -p "$COUNT_BIN"
@@ -540,7 +525,7 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   SPAWN_ROOT="$TEST_TMPDIR/spawn-root"
   mkdir -p "$SPAWN_ROOT"
   spawn_paths=()
-  add_spawn_trees() { # <first> <last>: locked trees sp-<n>, idle sessions on this host
+  add_spawn_trees() {
     local n
     for ((n = $1; n <= $2; n++)); do
       git -C "$SPAWN_REPO" worktree add -q "$SPAWN_ROOT/sp-$n" -b "feat/sp-$n"
@@ -548,7 +533,7 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
       spawn_paths+=("$SPAWN_ROOT/sp-$n")
     done
   }
-  spawn_census() { # <args>...: process creations for one worktree-claim.sh call
+  spawn_census() {
     local log="$TEST_TMPDIR/spawn.log"
     (cd "$UNRELATED" && printf '%s\0' "${spawn_paths[@]}" |
       CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$STALE_HOST" \
@@ -568,13 +553,12 @@ else
   skip_case "spawn budget: no working strace on this host"
 fi
 
-registry_entry() { # <config> <file-stem> <pid> <session> <procStart>
+registry_entry() {
   printf '{"pid":%s,"sessionId":"%s","procStart":"%s","cwd":"/x","kind":"interactive"}\n' \
     "$3" "$4" "$5" >"$1/sessions/$2.json"
 }
 
-# Each row must equal what single-path `stale` returns and prints for that path.
-batch_agrees() { # <label> <config> <path>...
+batch_agrees() {
   local label="$1" CFG="$2" rows="" p rc note
   shift 2
   for p in "$@"; do
@@ -654,13 +638,12 @@ if [[ "$(uname -s)" == Linux && -r "/proc/$$/stat" ]] && command -v jq >/dev/nul
   DEAD_PID=$(($(</proc/sys/kernel/pid_max) + 1))
   LIVE_CFG="$TEST_TMPDIR/live-registry"
   mkdir -p "$LIVE_CFG/projects/-proj" "$LIVE_CFG/sessions"
-  # Not JSON: reading it would turn every verdict below into "unknown shape".
   printf 'credential\n' >"$LIVE_CFG/sessions/$$.key"
-  live_tree() { # <session> <transcript-age>
+  live_tree() {
     stale_lock "wt-$1" "$(stale_reason "$1")"
     touch -d "$2" "$LIVE_CFG/projects/-proj/$1.jsonl"
   }
-  run_live() { # <session> [args]
+  run_live() {
     local session="$1" CFG="$LIVE_CFG"
     shift
     run_stale "wt-$session" "$@"
@@ -711,7 +694,6 @@ if [[ "$(uname -s)" == Linux && -r "/proc/$$/stat" ]] && command -v jq >/dev/nul
     "$EXT/wt-lv-live" "$EXT/wt-lv-dead" "$EXT/wt-lv-dead-fresh" \
     "$EXT/wt-lv-reused" "$EXT/wt-lv-unlisted" "$EXT/wt-lv-both"
 
-  # A host where a start time cannot be read cannot prove an entry dead either.
   DARWIN_BIN="$TEST_TMPDIR/darwin-bin"
   mkdir -p "$DARWIN_BIN"
   printf '#!/usr/bin/env bash\necho Darwin\n' >"$DARWIN_BIN/uname"
@@ -773,14 +755,11 @@ assert_exit "git without worktree list -z fails closed (exit 5)" 5 "$old_git_rc"
 assert_contains "the old-git failure names the floor" "$ERR" "git >= 2.36.0"
 assert_contains "the old-git failure names the installed version" "$ERR" "git version 2.35.0"
 
-# s1 must not match s10
 git -C "$REPO" worktree add -q "$EXT/wt-s10" -b feat/s10
 run_claim claim "$EXT/wt-s10" --repo-dir "$REPO" --session-id s10
 run_claim check-enter "$EXT/wt-s10" --repo-dir "$REPO" --session-id s1
 assert_exit "session s1 does not own a session-s10 claim" 4 "$?"
 
-# Run by bare name from its own directory: the library must still load, so a
-# foreign claim still stops instead of failing open.
 (cd "${CLAIM%/*}" && bash "${CLAIM##*/}" check-enter "$EXT/wt-s10" --repo-dir "$REPO" --session-id s1 2>/dev/null)
 assert_exit "bare-name invocation still stops on a foreign claim" 4 "$?"
 
@@ -799,9 +778,6 @@ assert_not_contains "without --root no placement line is printed" "$ERR" "outsid
 run_claim claim --all-unclaimed --repo-dir "$ROOT_REPO" --root "$ROOT_DIR"
 assert_exit "--root is refused outside report" 2 "$?"
 
-# --- siblings under a symlinked root resolve to physical paths ---------------
-# parse_worktrees reuses one parent's resolved path for every sibling; a root
-# reached through a symlink must still report and match the physical spelling.
 LINK_REPO="$(mkrepo)"
 REAL_ROOT="$TEST_TMPDIR/real-root"
 LINK_ROOT="$TEST_TMPDIR/link-root"
@@ -814,7 +790,6 @@ if [[ -L "$LINK_ROOT" ]]; then
   git -C "$LINK_REPO" worktree add -q "$LINK_ROOT/sib-a" -b feat/sib-a
   git -C "$LINK_REPO" worktree add -q "$LINK_ROOT/sib-b" -b feat/sib-b
   git -C "$LINK_REPO" worktree add -q "$OTHER_ROOT/sib-c" -b feat/sib-c
-  # A sibling under the same parent that is itself a symlink, to another directory.
   ln -s "$OTHER_ROOT/sib-c" "$REAL_ROOT/sib-c-link"
   # git records the resolved path, so porcelain would never show the symlinked spelling. Point
   # each admin gitdir at the logical path, so parse_worktrees canonicalizes all three in one run:

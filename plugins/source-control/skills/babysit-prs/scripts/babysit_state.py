@@ -6,7 +6,6 @@ lock, atomic writes, corrupt-state quarantine, the persisted per-PR projection
 and its lookup, mutation-ledger merging, the scope-aware `save_state`,
 persistent error quarantine, and cross-cycle sweep counters.
 """
-
 from __future__ import annotations
 
 import json
@@ -30,19 +29,10 @@ from babysit_util import (
     parse_timestamp,
 )
 
-# Stamped by every writer; readers refuse a mismatch instead of guessing at a
-# foreign layout. A state file from a different engine generation must be
-# migrated deliberately, never reinterpreted silently.
 STATE_SCHEMA_VERSION = 1
 STATE_FILE_NAME = "queue-state.json"
-# A PR that errors this many consecutive snapshot cycles is quarantined: its
-# errors stop forcing the recommended cadence to "active" (they remain visible
-# in the snapshot's error list) until the quarantine TTL lapses, at which point
-# it gets a fresh chance to prove itself fixed.
 ERROR_QUARANTINE_THRESHOLD = 3
 ERROR_QUARANTINE_TTL_SECONDS = 24 * 60 * 60
-# Reruns allowed for one failing check at one PR head. A check that fails again
-# after its rerun is a real failure, fixed or reported, never rerun again.
 FLAKE_RERUN_CAP = 1
 
 
@@ -147,7 +137,6 @@ def state_lock(path: Path, timeout_seconds: float = 90.0) -> Any:
 
 
 def _lock_first_byte(fileno: int, *, unlock: bool) -> None:
-    """Take the lock without blocking, or release it, on this platform."""
     if os.name == "nt":
         import msvcrt
 
@@ -302,8 +291,6 @@ def record_mutation_ledger_entry(
 
 
 def _check_rerun_key(check: dict[str, Any]) -> str:
-    # babysit_checks decides what one check is; serialized so no separator
-    # inside a check name can collide two checks.
     return json.dumps(list(babysit_checks.check_identity_key(check)))
 
 
@@ -343,8 +330,6 @@ def record_rerun(
             "time(s) at this head; treat the failure as real"
         )
     entry = ledger.setdefault(key, {})
-    # Only the head being judged keeps records: an older head's counts can
-    # never apply again, so they are dropped rather than kept forever.
     by_check = json_object(json_object(entry.get("check_reruns")).get(head_sha))
     entry["check_reruns"] = {head_sha: by_check}
     by_check[_check_rerun_key(check)] = {
@@ -419,8 +404,6 @@ def update_error_quarantine(
             and now is not None
             and quarantined_until <= now
         ):
-            # Quarantine lapsed: restart the streak rather than resuming it, so
-            # re-entry requires the same sustained evidence as first entry.
             entry = {}
             quarantined_until = None
         consecutive = int(entry.get("consecutive_errors") or 0) + 1
@@ -474,9 +457,6 @@ def save_state(
         snapshot_prs = [
             pr for pr in json_array(snapshot.get("prs")) if is_json_object(pr)
         ]
-        # An unscoped queue run is the only one that owns every record in the
-        # file: it discovered against the whole watched surface, so what it did
-        # not observe is genuinely gone.
         unscoped_queue_run = mode == "queue" and scope is None
         if unscoped_queue_run:
             in_scope_keys = set(current_prs)
@@ -513,12 +493,6 @@ def save_state(
             if is_json_object(current_pr):
                 record_mutation_ledger_entry(ledger, key, current_pr)
 
-        # A complete sweep visited and classified every PR. The snapshot's own
-        # `complete` flag already excludes advisory-only errors (a degraded
-        # head-ref alias cross-check leaves per-PR state intact), so an
-        # advisory-only run still advances the full sweep; deriving it from raw
-        # `errors` here would wrongly hold the sweep back. The fallback keeps
-        # callers that omit `complete` on the pre-split "no errors" meaning.
         complete_queue = mode == "queue" and snapshot.get(
             "complete", not snapshot["errors"]
         )
@@ -563,8 +537,6 @@ def save_state(
             cycles_since_full_sweep = (
                 int(current.get("cycles_since_full_sweep") or 0) + 1
             )
-        # An unscoped queue run owns the whole error map; scoped and single
-        # runs replace only the keys they observed and preserve the rest.
         if unscoped_queue_run:
             merged_errors: dict[str, Any] = {}
         elif mode == "queue":

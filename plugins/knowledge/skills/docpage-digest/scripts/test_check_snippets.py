@@ -15,7 +15,7 @@ import os
 import sys
 import unittest
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gate_harness import KEEP, GateTestCase, gate_path, write  # noqa: E402
 
@@ -83,7 +83,6 @@ class TestFailLoudUnparsed(GateHarness):
         self.assertIn(b"no '## Prompt snippets'", proc.stderr)
 
     def test_unparsed_prose_zero_fences_fails(self):
-        # The shipped-under-CLEAN class: section exists, no fence, recall text.
         text = """## Prompt snippets (exact)
 
 You are a helpful assistant.

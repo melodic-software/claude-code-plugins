@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main } from "../../scripts/pr-unblock/dispatch.mjs";
 import { main as refineEvent } from "../../scripts/pr-unblock/refine-event-dispatch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -106,7 +107,7 @@ async function run(text, ciFixPulls = [], docsPulls = [], tracker = null) {
   const dispatched = [];
   try {
     const code = await main(
-      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: output, BASE_PATH: base, APP_SENDER_ID: String(LANES_APP) },
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: output, BASE_PATH: base, STANDARDS_DIR: standardsCheckout(), APP_SENDER_ID: String(LANES_APP) },
       { api: api(dispatched, ciFixPulls, docsPulls), sleep: async () => {}, log: () => {}, now: Date.parse("2026-10-17T12:00:00Z") },
     );
     return { code, dispatched };
@@ -201,6 +202,7 @@ async function runEvent(text, pull) {
       GITHUB_RUN_ID: "4242",
       RUN_IDS_FILE: join(base, "run-ids"),
       BASE_PATH: base,
+      STANDARDS_DIR: standardsCheckout(),
       APP_SENDER_ID: String(LANES_APP),
       SENDER_ID: String(LANES_APP),
       RUN_ATTEMPT: "1",
@@ -253,7 +255,7 @@ test("a base config the resolver refuses fails the run before any dispatch", asy
   try {
     await assert.rejects(
       main(
-        { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: join(base, "output"), BASE_PATH: base, APP_SENDER_ID: String(LANES_APP) },
+        { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: join(base, "output"), BASE_PATH: base, STANDARDS_DIR: standardsCheckout(), APP_SENDER_ID: String(LANES_APP) },
         { api: api(dispatched), sleep: async () => {}, log: () => {} },
       ),
       /fails the schema/,

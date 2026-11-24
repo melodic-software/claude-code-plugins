@@ -208,23 +208,18 @@ for packet in "$root_abs"/*/*/*; do
     continue
   fi
 
-  # An unemitted deliverable (header property 2) outranks retention, and is
-  # checked BEFORE age so the reported reason is the real one.
   if [[ -n "$(find "$packet_real" -iname 'item*.md' -print -quit 2>/dev/null)" ]]; then
     echo "RETAIN-ITEM $packet"
     retained_item=$((retained_item + 1))
     continue
   fi
 
-  # Shape THEN calendar. The shape test alone is not a date test, and a name that
-  # merely looks like a nonce must not be graded as one — see nonce_is_real_utc.
   if [[ ! "$nonce" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || ! nonce_is_real_utc "$nonce"; then
     echo "UNPARSABLE $packet"
     unparsable=$((unparsable + 1))
     continue
   fi
 
-  # Lexical comparison is chronological for this fixed-width UTC format.
   if [[ "$nonce" < "$cutoff" ]]; then
     if [[ "$apply" -eq 1 ]]; then
       if rm -rf -- "$packet_real"; then

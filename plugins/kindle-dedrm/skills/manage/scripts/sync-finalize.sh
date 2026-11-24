@@ -29,7 +29,6 @@ if [[ "${KINDLE_VER}" != "2.8.0.70980" ]]; then
   echo "[sync-finalize] Continuing with cleanup anyway, but key extraction may fail until version is restored."
 fi
 
-# A cached installer is what the firewall didn't catch.
 if [[ -f "${CACHED_INSTALLER}" ]]; then
   # portability-ok: Windows-only script (Git Bash + PowerShell + LOCALAPPDATA
   # above already require Windows) — a BSD stat fallback would be dead code.

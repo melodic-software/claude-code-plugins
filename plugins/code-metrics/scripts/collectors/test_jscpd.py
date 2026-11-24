@@ -256,8 +256,6 @@ class JscpdAdapterTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 argv = log.read_text(encoding="utf-8")
-                # One byte above the adapter's own bound, so the pre-filter is
-                # the only gate on either major.
                 self.assertIn("--max-size 1048577", argv, version)
                 self.assertIn("--max-lines 2147483647", argv, version)
 
