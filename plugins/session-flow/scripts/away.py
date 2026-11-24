@@ -106,7 +106,13 @@ SETTING_DEFAULTS = {
     "away_report_by_day_off": "10:00",
     "away_days_off": "Sat,Sun",
     "away_watched_folders": "",
+    "away_orchestrate": "false",
 }
+POSTURE_KEY = "away_orchestrate"
+POSTURE_NOTE = (
+    "Orchestrator posture is on: invoke /session-flow:orchestrate if its imperatives are not in context, "
+    "and follow the Orchestrator posture section of the away rules."
+)
 DAY_NAMES = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 CLOCK_RE = re.compile(r"([01]?\d|2[0-3]):([0-5]\d)")
 
@@ -162,6 +168,21 @@ def resolve_settings(env: Mapping[str, str], pairs: list[str]) -> dict[str, str]
         if _given(value):
             settings[key] = value
     return settings
+
+
+def posture_choice(pairs: list[str]) -> str | None:
+    """The posture a `start` names with --setting away_orchestrate, or None when it names none, so
+    a start that leaves the setting out keeps the posture already stored."""
+    choice = None
+    for pair in pairs:
+        key, _, value = pair.partition("=")
+        if key != POSTURE_KEY or not _given(value):
+            continue
+        flag = value.strip().lower()
+        if flag not in ("true", "false"):
+            raise AwayError(f"{POSTURE_KEY} takes true or false, not {value!r}")
+        choice = "orchestrator" if flag == "true" else "off"
+    return choice
 
 
 def _given(value: str) -> bool:
@@ -482,6 +503,7 @@ def watched_folders(settings: Mapping[str, str]) -> list[str]:
 
 def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
     settings = resolve_settings(os.environ, args.setting)
+    posture = posture_choice(args.setting)
     if args.kind == "until" and not args.until:
         raise AwayError("--kind until needs --until <ISO time>")
     if args.until:
@@ -511,6 +533,7 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
                 mode_warned=False,
                 scope=None,
                 task_file=None,
+                posture="off",
             )
         state.update(kind=args.kind, report_by=report_by.isoformat() if report_by else None)
         state["watched"] = watched_folders(settings)
@@ -518,6 +541,8 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
             state["scope"] = args.scope
         if task_file:
             state["task_file"] = task_file
+        if posture:
+            state["posture"] = posture
         return state
 
     with locked(paths.lock):
@@ -1040,6 +1065,8 @@ def on_stop(hook: Hook) -> dict | None:
     if "blocks_fresh" in failed:
         parts.append("Keep each `<!-- away:... -->` marker exactly once; this hook rewrites what lies between them.")
     parts.append(f"Re-read {paths.rules} if the away rules are not in context.")
+    if state.get("posture") == "orchestrator":
+        parts.append(POSTURE_NOTE)
     return _block(" ".join(parts))
 
 
@@ -1058,6 +1085,8 @@ def on_user_prompt_submit(hook: Hook) -> dict | None:
             f"Run `{hook.command} end {hook.target}` only when this message reads as the person "
             "being back: subagent reports, /loop and cron prompts and other sessions' messages also arrive here."
         )
+        if state.get("posture") == "orchestrator":
+            text += f" {POSTURE_NOTE}"
     else:
         text = (
             f"The person is back. Show them the away report at {state['report_path']} once, leading with "
