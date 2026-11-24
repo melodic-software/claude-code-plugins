@@ -407,6 +407,20 @@ test('model-diversity arms are not judged by a Coverage line', async () => {
   assert.ok(!extract(calls).prompt.includes('Coverage line'))
 })
 
+test('a model-diversity leaf runs an agent that pins no effort, so its fan-out model and effort apply', async () => {
+  const roles = { orchestrator: { fanout: { model: 'opus', effort: 'high' } }, retrieval: { fanout: { model: 'sonnet', effort: 'low' } } }
+  const { calls } = await run({ ...BUNDLED, diffBase: 'abc', roles, diversity: 'model' })
+  const leaves = calls.filter(c => c.opts.phase === 'Review')
+  assert.deepEqual(leaves.map(c => c.opts.label), ['model:opus', 'model:sonnet'])
+  for (const c of leaves) {
+    const fm = frontmatter(c.opts.agentType)
+    assert.ok(!/^effort:/m.test(fm), `${c.opts.agentType} pins no effort`)
+    assert.match(fm, /^model:\s*inherit\b/m, `${c.opts.agentType} inherits the model`)
+    assert.equal(c.opts.model, c.opts.label.slice('model:'.length), `${c.opts.label} passes its fan-out model`)
+    assert.ok(c.opts.effort, `${c.opts.label} passes an effort`)
+  }
+})
+
 test('a handback leaf that returned nothing still has its findings file extracted', async () => {
   const findingsPaths = { 'security-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-security-reviewer.md' }
   const { result, calls } = await run({ ...BUNDLED, diffBase: 'abc', findingsPaths }, {
