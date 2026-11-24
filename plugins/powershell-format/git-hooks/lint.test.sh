@@ -287,7 +287,7 @@ mkdir -p "$marker"
 expect "shared run: format rewrote the approved, staged rule module" "    Write-Verbose 'r'" "$(sed -n 3p "$REPO/rules/R.psm1")"
 expect "shared run: with CustomRulePath declared, format lints nothing, so no rule module runs unsigned" "0" "$(cached "$REPO")"
 expect "shared run: a rule module format rewrote stops lint at the trust gate, as lint's own start does" yes \
-  "$(cd "$REPO" && bash "$CHECK" 2>&1 | grep -q 'trust gate: linting skipped' && echo yes || echo no)"
+  "$(grep -q 'trust gate: linting skipped' < <(cd "$REPO" && bash "$CHECK" 2>&1) && echo yes || echo no)"
 
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))
