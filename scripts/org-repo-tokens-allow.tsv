@@ -8,7 +8,6 @@ plugins/ai-slop/schemas/ai-slop.schema.json	melodic-software/claude-code-plugins
 plugins/architecture/reference/config.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/architecture/schemas/architecture.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/architecture/skills/improve/research/boundaries/README.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/architecture/skills/map-landscape/scripts/reference-edges.sh	melodic-software/claude-code-plugins	1	names this marketplace's own repository (install, issue target or example)
 plugins/attribution/reference/detector-findings.md	melodic-software/standards	2	names another repository of the publishing organization in prose or an example
 plugins/attribution/schemas/attribution.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/attribution/skills/audit/reference/source-fetch.md	melodic-software/claude-code-plugins	1	names this marketplace's own repository (install, issue target or example)
@@ -140,8 +139,8 @@ plugins/source-control/skills/babysit-loop/reference/promotion-evidence-resoluti
 plugins/source-control/skills/babysit-prs/reference/orchestration.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/source-control/skills/babysit-prs/reference/safety.md	melodic-software/ci-workflows	4	link to another repository of the publishing organization, cited for a reader
 plugins/source-control/skills/babysit-prs/reference/safety.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
-plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py	melodic-software/claude-code-plugins	1	names this marketplace's own repository (install, issue target or example)
-plugins/source-control/skills/pull-request/reference/create.md	melodic-software/claude-code-plugins	5	raw link to this marketplace's own published doc
+plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py	melodic-software/standards	1	the repository the trusted list and Dependabot policy are read from when the team YAML sets trusted_actors_source: standards
+plugins/source-control/skills/pull-request/reference/create.md	melodic-software/claude-code-plugins	4	raw link to this marketplace's own published doc
 plugins/source-control/skills/pull-request/reference/merge.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/source-control/skills/pull-request/reference/ready-for-review.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
 plugins/source-control/skills/pull-request/reference/reviewer-shapes.md	melodic-software/claude-code-plugins	1	names this marketplace's own repository (install, issue target or example)
@@ -165,7 +164,7 @@ plugins/work-items/reference/label-taxonomy.md	melodic-software/claude-code-plug
 plugins/work-items/reference/label-taxonomy.md	melodic-software/github-iac	1	names another repository of the publishing organization in prose or an example
 plugins/work-items/reference/work-class-labels.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/work-items/schemas/work-items.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
-plugins/work-items/skills/decompose/context/container-lifecycle.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
+plugins/work-items/skills/decompose/context/container-lifecycle.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/work-items/skills/work/SKILL.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
 plugins/writing/schemas/writing.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/planning/offers/offerable.json	melodic-software/claude-code-plugins	1	the offered plugin's install source: the offer installs domain-driven-design from this marketplace on yes
