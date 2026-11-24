@@ -23,7 +23,6 @@ own() {
 [[ ${SHARED_READ_AT:-} =~ ^[1-9][0-9]{0,11}$ ]] || own "no read time"
 [[ ${SHARED_TEXT_MAX_AGE_MINUTES:-} =~ ^[1-9][0-9]{0,3}$ ]] || own "no age limit"
 age=$(($(date +%s) - SHARED_READ_AT))
-# A read time up to a minute ahead of this runner's clock is clock skew.
 ((age >= -60)) || own "a read time in the future"
 ((age <= SHARED_TEXT_MAX_AGE_MINUTES * 60)) || own "read ${age}s ago, past the ${SHARED_TEXT_MAX_AGE_MINUTES}-minute limit"
 [[ ${SHARED_MAIN:-} =~ ^[0-9a-f]{40}$ ]] || own "no main commit"

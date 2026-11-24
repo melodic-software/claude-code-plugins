@@ -1,14 +1,3 @@
-// pr-unblock.yml's adjudicate-feedback picks each disputed thread's leg
-// through ci-workflows' select-model-credential, fetched at the pin the
-// workflow names: check-adjudicator-key-credit's start call, one key, subscription
-// and fallback call for the whole job, and two next-leg calls per slot. This
-// truth table drives the workflow's own conditions and inputs through every
-// combination of credit verdict, secrets set or empty, slot count, and how
-// each slot's key and subscription legs end (a verdict, a failure, or each
-// handoff run-claude-cli's own handoffReason can produce), and holds each
-// state to the shell steps and conditions the job used before the action
-// (quoted from 1d1e10bc50): the same slots stage, the same legs judge, and
-// each leg records the same fallback-ready and fallback-reason.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -18,7 +7,6 @@ import { workflowText } from "../lib/workflow-text.mjs";
 import { MAX_THREADS } from "./adjudicate-feedback.mjs";
 
 const TEXT = readFileSync(new URL("../../workflows/pr-unblock.yml", import.meta.url), "utf8");
-// Each lookup reads the whole workflow, so the table reads each step once.
 const memo = (read) => {
   const seen = new Map();
   return (...args) => {
@@ -35,7 +23,6 @@ const GATE = "check-adjudicator-key-credit";
 const JOB = "adjudicate-feedback";
 const SECRETS = { key: "PR_UNBLOCK_CLAUDE_API_KEY", sub: "PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN", fallback: "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN" };
 const SLOTS = Array.from({ length: MAX_THREADS }, (_, n) => n);
-// A step that has no id, by its name: its if: and single-line with: inputs.
 const named = memo((job, name) => {
   const found = wf.job(job).split(/\n(?= {6}- name: )/).filter((s) => s.startsWith(`      - name: ${name}\n`));
   assert.equal(found.length, 1, `${job} step ${name}`);
@@ -45,10 +32,8 @@ const named = memo((job, name) => {
   return { if: /^ {8}if: (.*)$/m.exec(found[0])?.[1] ?? "", inputs };
 });
 const counted = (n) => `fromJSON(steps.prepare.outputs.count || '0') > ${n}`;
-// The count test as a literal the shared evaluator reads.
 const withCount = (expression, n, count) => expression.replace(counted(n), count > n ? "'true'" : "''");
 
-// The old steps and conditions, at 1d1e10bc50.
 const oldKey = (s) => {
   const skip = { ok: "false", skip: "true", failed: "" }[s.gate];
   if (skip === "true") return { key: "false", reason: "credit-stop" };
@@ -66,7 +51,6 @@ const OLD = {
   report: "steps.credit.outputs.skip-key == 'true'",
 };
 
-// A judge step's outputs: skipped, or ended as `end` says.
 function judged(id, ran, end) {
   if (!ran) return { [`steps.${id}.outcome`]: "skipped" };
   const handoff = end.kind === "handoff";
@@ -111,10 +95,7 @@ function oldRun(s) {
   return out;
 }
 
-// The job as the workflow now runs it.
 function newRun(s) {
-  // check-adjudicator-key-credit's start call runs under continue-on-error: a read
-  // that fails leaves its outputs empty, and the key runs.
   const credit = wf.step(GATE, "credit");
   assert.equal(credit.inputs.leg, "start");
   assert.match(credit.text, /^ {8}continue-on-error: true$/m);
@@ -171,8 +152,6 @@ function ends(leg, fallbackReady) {
   return out;
 }
 
-// Slots 0 and 1 end independently, so one slot's answer never stands in for
-// another's; slot 2 repeats slot 0.
 function* states() {
   for (const gate of ["ok", "skip", "failed"])
     for (const key of [true, false])
@@ -198,9 +177,6 @@ test("adjudicate-feedback's slots stage and judge on the same legs, with the sam
   assert.ok(count > 1000, `${count} states`);
 });
 
-// The job has one subscription call, so its state reads empty-token-with-
-// fallback on every slot; unguarded, a slot the key answered would still
-// start the fallback leg.
 test("a slot the key answered starts no fallback leg, though the subscription token is empty", () => {
   const s = { gate: "ok", key: true, sub: false, fallback: true, count: 1, ends: SLOTS.map(() => ({ key: { kind: "verdict" }, sub: { kind: "verdict" } })) };
   assert.deepEqual(newRun(s).slots[0].legs, ["key"]);
