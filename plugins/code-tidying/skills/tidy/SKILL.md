@@ -221,7 +221,7 @@ Examples:
 
 Body facts to supply:
 
-- Which lane, which tidyings, and the anchor commit. Name a tidying without a bare `#` (`Beck 8, Explaining Variables`): GitHub links `#8` to issue or PR 8.
+- Which lane, which tidyings, and the anchor commit. Name a tidying without a bare `#` (`Beck 8, Explaining Variables`), so the number is not [autolinked as an issue or PR reference](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls#issues-and-pull-requests).
 - Verification commands run and their results.
 
 `/source-control:pull-request create` (if enabled) reports the created `<pr_number>`. Immediately post one follow-up comment on that PR with `tidy`'s audit trail:
