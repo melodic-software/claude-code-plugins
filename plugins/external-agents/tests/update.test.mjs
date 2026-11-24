@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -10,7 +9,7 @@ import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { effortChoices, models } from "../scripts/lib/models.mjs";
 import { update, configKeys, versionSource } from "../scripts/lib/update.mjs";
 import { usage } from "../scripts/lib/usage.mjs";
-import { noOperatorSettings } from "./support/world.mjs";
+import { cli, noOperatorSettings } from "./support/world.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, "fixtures");
@@ -239,7 +238,7 @@ describe("what update checks, from the provider record", () => {
 describe("the update command", () => {
   test("update with no product is a usage error", () => {
     const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
-    const got = spawnSync(process.execPath, [join(here, "..", "bin", "external-agents"), "update"], { encoding: "utf8", cwd: scratch, env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") } });
+    const got = cli(["update"], { cwd: scratch, env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") } });
     assert.equal(got.status, 2);
     assert.match(got.stdout, /^external-agents: refused: invalid product/);
   });
@@ -367,14 +366,13 @@ describe("models", () => {
 
   test("an unknown product is refused with exit 2, as JSON", () => {
     const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
-    const got = spawnSync(process.execPath, [join(here, "..", "bin", "external-agents"), "models", "nope"], { encoding: "utf8", cwd: scratch, env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") } });
+    const got = cli(["models", "nope"], { cwd: scratch, env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") } });
     assert.equal(got.status, 2);
     assert.deepEqual([JSON.parse(got.stdout).product, JSON.parse(got.stdout).status], ["nope", "refused"]);
   });
 });
 
 describe("usage", () => {
-  const bin = join(here, "..", "bin", "external-agents");
   const windows = process.platform === "win32";
 
   function cliEnv(root, { product, fake, scenario }) {
@@ -429,7 +427,7 @@ describe("usage", () => {
         },
       },
     });
-    const got = spawnSync(process.execPath, [bin, "usage", "codex"], { encoding: "utf8", cwd: env.cwd, env: env.env });
+    const got = cli(["usage", "codex"], { cwd: env.cwd, env: env.env });
     assert.equal(got.status, 0, got.stdout + got.stderr);
     assert.doesNotMatch(got.stdout, /acct_secret_99|super-secret-plan/);
     assert.deepEqual(JSON.parse(got.stdout), {
@@ -470,7 +468,7 @@ describe("usage", () => {
         },
       },
     });
-    const got = spawnSync(process.execPath, [bin, "usage", "codex"], { encoding: "utf8", cwd: env.cwd, env: env.env });
+    const got = cli(["usage", "codex"], { cwd: env.cwd, env: env.env });
     assert.equal(got.status, 0, got.stdout + got.stderr);
     const reading = JSON.parse(got.stdout);
     assert.equal(reading.remaining, 0);
@@ -520,7 +518,7 @@ describe("usage", () => {
         },
       },
     });
-    const got = spawnSync(process.execPath, [bin, "usage", "antigravity"], { encoding: "utf8", cwd: env.cwd, env: env.env });
+    const got = cli(["usage", "antigravity"], { cwd: env.cwd, env: env.env });
     assert.equal(got.status, 0, got.stdout + got.stderr);
     const doc = JSON.parse(got.stdout);
     assert.equal(doc.status, "ok");
@@ -577,10 +575,10 @@ describe("usage", () => {
   test("usage prints unavailable with exit 2 for an unknown product, and --help lists usage", () => {
     const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
     const env = { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") };
-    const bad = spawnSync(process.execPath, [bin, "usage", "nope"], { encoding: "utf8", cwd: scratch, env });
+    const bad = cli(["usage", "nope"], { cwd: scratch, env });
     assert.equal(bad.status, 2);
     assert.equal(JSON.parse(bad.stdout).status, "unavailable");
-    const help = spawnSync(process.execPath, [bin, "--help"], { encoding: "utf8", cwd: scratch, env });
+    const help = cli(["--help"], { cwd: scratch, env });
     assert.equal(help.status, 0);
     assert.match(help.stdout, /^\s+usage <product>/m);
   });

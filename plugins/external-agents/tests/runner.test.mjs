@@ -3,16 +3,16 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { describe, test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveBinary } from "../scripts/lib/binary.mjs";
 import { readBreaker } from "../scripts/lib/breaker.mjs";
 import { listJobs, readJob, repoKey, writeJob } from "../scripts/lib/jobs.mjs";
-import { conventionHome } from "../scripts/lib/config.mjs";
+import { conventionHome, loadConfig } from "../scripts/lib/config.mjs";
 import { classify } from "../scripts/lib/outcome.mjs";
 import { pidStartTime } from "../scripts/lib/process.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { cancel, dataDirFor, installedDataDir, result, review, run, status } from "../scripts/lib/runner.mjs";
-import { assertNoBypass, clean, cliArgs, completed, events, fakeAgy, fakeCmd, fixture, fixtures, gitRepo, launched, opened, said, scratch, THREAD, world } from "./support/world.mjs";
+import { assertNoBypass, clean, cli, cliArgs, completed, events, fakeAgy, fakeCmd, fixture, fixtures, gitRepo, isolation, launched, opened, said, scratch, THREAD, world } from "./support/world.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -447,6 +447,28 @@ describe("use modes set once per machine through the plugin options", () => {
     assert.equal(got.job.mode, "read-only");
   });
 
+  test("each option's manifest default is the mode the cascade resolves with the option unset", () => {
+    const declared = JSON.parse(readFileSync(join(here, "..", ".claude-plugin", "plugin.json"), "utf8")).userConfig;
+    const { values, provenance } = loadConfig({ projectRoot: world().cwd, userConfig: {} });
+    assert.equal(Object.keys(declared).length, 4);
+    for (const [key, option] of Object.entries(declared)) {
+      const [product, , use] = key.split("_");
+      assert.equal(option.default, values[product].uses[use].mode, key);
+      assert.equal(provenance[`${product}.uses.${use}.mode`], "defaults", key);
+    }
+  });
+
+  test("a spawned CLI under the test isolation finds no managed settings file and no user settings location", () => {
+    const options = pathToFileURL(join(here, "..", "lib", "plugin-options.mjs")).href;
+    const probe = (expr) => `import(${JSON.stringify(options)}).then((m) => process.stdout.write(JSON.stringify(${expr})))`;
+    const read = (args, expr) => JSON.parse(spawnSync(process.execPath, [...args, "--input-type=module", "-e", probe(expr)], { encoding: "utf8" }).stdout);
+    const userSettings = 'm.resolveInstall("/x/plugins/cache/m/external-agents/1").userSettings';
+    assert.equal(read([], userSettings), join("/x", "settings.json"));
+    const isolated = ["--import", pathToFileURL(isolation).href];
+    assert.equal(read(isolated, userSettings), null);
+    assert.deepEqual(read(isolated, 'm.managedSettingsFiles("linux")'), []);
+  });
+
   test("a managed settings file applies with no user settings location, as for a --plugin-dir copy", async () => {
     const managed = withOptions({ antigravity_uses_task_mode: "write" });
     const got = await run(agy(world(ok), { install: { pluginId: null, name: "external-agents", userSettings: null }, managedFiles: [managed.install.userSettings] }));
@@ -829,8 +851,7 @@ describe("provider record", () => {
 });
 
 describe("the command", () => {
-  const bin = join(here, "..", "bin", "external-agents");
-  const invoke = (args, env) => spawnSync(process.execPath, [bin, ...args], { encoding: "utf8", env, cwd: scratch });
+  const invoke = (args, env, input) => cli(args, { env, cwd: scratch, input });
   const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
 
   test("status lists nothing for a fresh data directory", () => {
@@ -865,7 +886,7 @@ describe("the command", () => {
     assert.equal(invoke(["run", "codex", "--yolo"], bare).status, 2);
     assert.equal(invoke(["status"], bare).status, 2);
     assert.match(invoke(["status"], bare).stderr, /CLAUDE_PLUGIN_DATA is not set/);
-    const empty = spawnSync(process.execPath, [bin, "run", "codex", "--use", "task"], { encoding: "utf8", env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") }, cwd: scratch, input: "" });
+    const empty = invoke(["run", "codex", "--use", "task"], { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") }, "");
     assert.equal(empty.status, 2);
     assert.match(empty.stdout, /no prompt was given/);
   });
@@ -895,11 +916,10 @@ describe("a review that hits an unexpected error", () => {
     assert.match(got.stderr, /ENOTDIR|ENOENT|EEXIST/);
     assert.equal(got.code, 1);
 
-    const bin = join(here, "..", "bin", "external-agents");
     const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
-    const cli = spawnSync(process.execPath, [bin, "review", "codex", "--base", "main"], { encoding: "utf8", cwd: w.cwd, env: { ...bare, CLAUDE_PLUGIN_DATA: join(file, "external-agents-x") } });
-    assert.match(cli.stdout, firstLine);
-    assert.equal(cli.status, 1);
+    const spawned = cli(["review", "codex", "--base", "main"], { cwd: w.cwd, env: { ...bare, CLAUDE_PLUGIN_DATA: join(file, "external-agents-x") } });
+    assert.match(spawned.stdout, firstLine);
+    assert.equal(spawned.status, 1);
   });
 
   test("a corrupt breaker file still gives the status line", async () => {

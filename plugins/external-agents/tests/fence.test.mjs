@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test } from "node:test";
 import { review, run, status } from "../scripts/lib/runner.mjs";
-import { assertNoBypass, clean, cliArgs, fakeAgy, fixtures, gitRepo, scratch, tests, world } from "./support/world.mjs";
+import { assertNoBypass, clean, cli, cliArgs, fakeAgy, fixtures, gitRepo, scratch, world } from "./support/world.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -156,13 +155,12 @@ describe("write fences and extra writable directories", () => {
   });
 
   test("the command collects every --add-dir, refusing the first bad one before anything starts", () => {
-    const bin = join(tests, "..", "bin", "external-agents");
     const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
     const env = { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") };
-    const got = spawnSync(process.execPath, [bin, "run", "codex", "--use", "task", "--add-dir", scratch, "--add-dir", "relative/dir"], { encoding: "utf8", env, cwd: scratch, input: "fix it" });
+    const got = cli(["run", "codex", "--use", "task", "--add-dir", scratch, "--add-dir", "relative/dir"], { env, cwd: scratch, input: "fix it" });
     assert.equal(got.status, 2);
     assert.equal(got.stdout, 'codex: refused: --add-dir "relative/dir" is not an absolute path\n');
-    const onReview = spawnSync(process.execPath, [bin, "review", "codex", "--base", "main", "--add-dir", scratch], { encoding: "utf8", env, cwd: scratch });
+    const onReview = cli(["review", "codex", "--base", "main", "--add-dir", scratch], { env, cwd: scratch });
     assert.equal(onReview.status, 2);
     assert.equal(onReview.stdout, "codex: failed (review: unknown option --add-dir)\n");
   });
