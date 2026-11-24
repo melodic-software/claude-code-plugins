@@ -1,17 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Set-ApprovalState.ps1 -- the sole writer of
-approvals.json and mutes.json (actions mute, unmute, approve, revoke,
-exclude-service, include-service).
-
-.DESCRIPTION
-Expected values come from the plan's "Resolver and state write" table: the
-mute entry shape, the approve entry shape, unmute under every check id, revoke
-setting approved = false, and the validation column. Check ids used here are
-shipped catalog ids on this branch.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Set-ApprovalState.ps1' -MockHelpers

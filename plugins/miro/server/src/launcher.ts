@@ -132,7 +132,6 @@ function removeStalePartials(target: string): void {
     try {
       if (statSync(path).mtimeMs < cutoff) rmSync(path, { recursive: true, force: true });
     } catch {
-      // Another launch removed or renamed it first.
     }
   }
 }
@@ -150,7 +149,6 @@ export function buildAtomically(
     try {
       rmSync(partial, { recursive: true, force: true });
     } catch {
-      // Nothing to discard, or a path the OS cannot handle; the failure is reported below.
     }
   };
   try {
@@ -161,7 +159,6 @@ export function buildAtomically(
     renameSync(partial, target);
   } catch (error) {
     discard();
-    // A concurrent launch that finished a good copy wins, whatever made this one fail.
     if (ready(target)) return;
     if (error instanceof LaunchBroken) throw error;
     throw new LaunchBroken(`cannot create ${target}: ${error}`, command);

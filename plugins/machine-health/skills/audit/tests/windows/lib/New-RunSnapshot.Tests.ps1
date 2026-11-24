@@ -1,15 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/New-RunSnapshot.ps1: the scheduled-run fields and
-Get-NewFindingKey, the per-check baseline diff against the previous latest.json.
-
-.DESCRIPTION
-Expected keys are worked out by hand from each fixture under the rule in the
-Get-NewFindingKey help: a key is new when this run lists it unmuted under a check
-whose previous entry lists detail.items and is not SKIPPED, and that entry lacks it.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'New-RunSnapshot.ps1'

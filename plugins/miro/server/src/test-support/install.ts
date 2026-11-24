@@ -18,7 +18,6 @@ export function tempDataDir(): { dataDir: string; cleanup: () => void } {
       try {
         unlinkSync(join(installDir(dataDir), "node_modules"));
       } catch {
-        // no link was made, or it is already gone
       }
       rmSync(dataDir, { recursive: true, force: true });
     },

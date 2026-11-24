@@ -46,10 +46,6 @@ expect() { # <label> <want> <got>
   if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
-# --- The node_modules walk is bound to prerequisites.json -----------------------
-# The shim path is not composed from the manifest, so this case is the binding:
-# the manifest lists markdownlint-cli2, jq and node, and the gates state
-# markdownlint-cli2's local_bin verbatim.
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   if jq -e '(.requires | map(.id)) == ["markdownlint-cli2", "jq", "node"] and .requires[0].detect.local_bin == ["node_modules/.bin/markdownlint-cli2"]' "$MANIFEST" >/dev/null 2>&1; then
@@ -118,8 +114,6 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   # shellcheck disable=SC2016
   EXPECTED_STOP='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","--run-if-unset-or-true","MARKDOWN_FORMAT_END_OF_TURN","${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh","--end-of-turn"]'
   expect "hooks.json: the Stop row is gated on the end-of-turn option" "$EXPECTED_STOP" "$(jq -c '.hooks.Stop[0].hooks[0].args' "$HOOKS_JSON")"
-  # Unset is the reporting state, so the option declares no default for a stored
-  # false to stand in for.
   expect "hooks.json: the end-of-turn option is a boolean with no default" "boolean false" \
     "$(jq -r '.userConfig.markdown_format_end_of_turn | "\(.type) \(has("default"))"' "$PLUGIN_ROOT/.claude-plugin/plugin.json")"
   expect "hooks.json: no SessionStart row; harness-ops runs the probe" "false" "$(jq '.hooks | has("SessionStart")' "$HOOKS_JSON")"
@@ -127,13 +121,9 @@ else
   fail "hooks.json assertions need jq and $HOOKS_JSON"
 fi
 
-# --- SessionStart probe: run by harness-ops behind markdown_format_enabled -----
-# harness-ops' prerequisites-fleet.mjs runs this plugin's probe and skips it when the
-# option is set to anything but true; that runner's own test covers the gate.
 expect "prerequisites.json: session_probe is gated on markdown_format_enabled" "MARKDOWN_FORMAT_ENABLED" \
   "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
 
-# Resolve a real markdownlint-cli2. Skip the rest of the suite when none is available.
 REAL_MD="$(command -v markdownlint-cli2 || true)"
 [[ -n "$REAL_MD" ]] || REAL_MD="$REPO_ROOT/node_modules/.bin/markdownlint-cli2"
 if [[ ! -x "$REAL_MD" ]]; then
@@ -148,11 +138,8 @@ WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$WORK" "$UNRELATED"' EXIT
 
-# The row's args from hooks.json, with the plugin root substituted.
 mapfile -t ROW_ARGS < <(jq -r '.hooks.PostToolBatch[0].hooks[0].args[]' "$HOOKS_JSON" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN_ROOT#g")
 
-# new_md_repo <dir> [config_body] -> init a git repo with a .markdownlint-cli2.jsonc
-# (unless config_body is the literal NO_CONFIG).
 new_md_repo() {
   local r="$1" cfg="${2:-}"
   mkdir -p "$r"
@@ -168,7 +155,6 @@ new_md_repo() {
   fi
 }
 
-# payload <tool> <file>...: a PostToolBatch payload with one call per file.
 payload() {
   local tool="$1"
   shift
@@ -186,7 +172,6 @@ fire() {
   )
 }
 
-# run_edit <file>: Edit one file in a batch; prints the row's whole output.
 run_edit() { fire "$(payload Edit "$1")"; }
 
 # Two documented rule outcomes drive the fixtures: markdownlint MD047 (a file ends
@@ -194,7 +179,6 @@ run_edit() { fire "$(payload Edit "$1")"; }
 NO_NL=$'# T\n\ntext'
 FIXED=$'# T\n\ntext\n'
 
-# --- Opt-in gate OFF (no markdownlint config) -> file left untouched ----------
 REPO_NO="$WORK/no-config"
 new_md_repo "$REPO_NO" NO_CONFIG
 printf '%s' "$NO_NL" >"$REPO_NO/a.md"
@@ -211,7 +195,6 @@ printf '%s' "$NO_NL" >"$REPO_PJ/a.md"
 run_edit "$REPO_PJ/a.md" >/dev/null
 expect "a package.json property does not opt in: file left untouched" "$NO_NL" "$(cat "$REPO_PJ/a.md")"
 
-# --- Rewrites, and prints nothing --------------------------------------------
 REPO="$WORK/consumer"
 new_md_repo "$REPO"
 mkdir -p "$REPO/docs"
@@ -228,13 +211,11 @@ printf '# T\n\ntext\n' >"$REPO/clean.md"
 OUT=$(run_edit "$REPO/clean.md")
 expect "a clean file: silent exit 0 and unchanged" "0||$(printf '# T\n\ntext')" "$?|$OUT|$(cat "$REPO/clean.md")"
 
-# Findings no longer reach the model: an unfixable MD033 is neither fixed nor reported.
 printf '# T\n\n<b>x</b>\n' >"$REPO/html.md"
 OUT=$(run_edit "$REPO/html.md")
 expect "a lint finding is not reported (no additionalContext, no systemMessage)" "0|" "$?|$OUT"
 expect "the finding's file is not rewritten" "$(printf '# T\n\n<b>x</b>')" "$(cat "$REPO/html.md")"
 
-# A .mdc file is Markdown too.
 printf '%s' "$NO_NL" >"$REPO/rule.mdc"
 run_edit "$REPO/rule.mdc" >/dev/null
 expect "an Edit of a .mdc file is fixed" "${FIXED}x" "$(
@@ -242,9 +223,6 @@ expect "an Edit of a .mdc file is fixed" "${FIXED}x" "$(
   printf x
 )"
 
-# --- The batch -----------------------------------------------------------------
-# One call, several files, all rewritten; a Read, a non-Markdown file and a
-# duplicate are not.
 printf '%s' "$NO_NL" >"$REPO/b1.md"
 printf '%s' "$NO_NL" >"$REPO/b2.mdc"
 printf '%s' "$NO_NL" >"$REPO/b3.md"
@@ -269,7 +247,6 @@ expect "batch: an Edit'd .mdc is rewritten" "${FIXED}x" "$(
 expect "batch: a Read'd .md is never rewritten" "$NO_NL" "$(cat "$REPO/b3.md")"
 expect "batch: a non-Markdown file is untouched" "q" "$(cat "$REPO/notes.txt")"
 
-# A file with a finding does not stop its neighbors from being rewritten.
 printf '# T\n\n<b>x</b>\n' >"$REPO/bad.md"
 printf '%s' "$NO_NL" >"$REPO/good.md"
 fire "$(payload Edit "$REPO/bad.md" "$REPO/good.md")" >/dev/null
@@ -285,14 +262,11 @@ expect "a MultiEdit'd file is rewritten" "${FIXED}x" "$(
   printf x
 )"
 
-# --- Skips ----------------------------------------------------------------------
-# .githooks/ holds installed copies of check scripts, never rewritten here.
 mkdir -p "$REPO/.githooks/markdown-format"
 printf '%s' "$NO_NL" >"$REPO/.githooks/markdown-format/copy.md"
 fire "$(payload Write "$REPO/.githooks/markdown-format/copy.md")" >/dev/null
 expect "a file under .githooks/ is skipped" "$NO_NL" "$(cat "$REPO/.githooks/markdown-format/copy.md")"
 
-# The config's ignores hold for an explicitly passed path, silently.
 REPO_EX="$WORK/ignores-config"
 new_md_repo "$REPO_EX" '{ "ignores": ["gen/**"] }'
 mkdir -p "$REPO_EX/gen"
@@ -300,7 +274,6 @@ printf '%s' "$NO_NL" >"$REPO_EX/gen/g.md"
 OUT=$(run_edit "$REPO_EX/gen/g.md")
 expect "an ignored file is left untouched and silent" "0|$NO_NL" "$?|$OUT$(cat "$REPO_EX/gen/g.md")"
 
-# A nested config opts in only its subtree.
 REPO_NE="$WORK/nested"
 new_md_repo "$REPO_NE" NO_CONFIG
 mkdir -p "$REPO_NE/docs/deep"
@@ -349,12 +322,10 @@ expect "approved: the batch row rewrites, silently" "0|${FIXED}x" "$?|$OUT$(
   printf x
 )"
 
-# The kill switch.
 printf '%s' "$NO_NL" >"$REPO/kill.md"
 OUT=$(fire "$(payload Edit "$REPO/kill.md")" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false)
 expect "kill switch off: silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO/kill.md")"
 
-# A repo-local node_modules/.bin shim resolves when PATH has none.
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink node sh; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
@@ -373,14 +344,12 @@ expect "repo-local shim: resolved and the file fixed" "${FIXED}x" "$(
   printf x
 )"
 
-# markdownlint-cli2 absent: the file is skipped silently; the SessionStart probe reports the gap.
 REPO_NR="$WORK/no-md"
 new_md_repo "$REPO_NR"
 printf '%s' "$NO_NL" >"$REPO_NR/a.md"
 OUT=$(fire "$(payload Edit "$REPO_NR/a.md")" PATH="$FAKEBIN")
 expect "markdownlint-cli2 absent: silent exit 0 and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_NR/a.md")"
 
-# A shim whose symlink leaves the repository is not run.
 REPO_ES="$WORK/escaping-shim"
 new_md_repo "$REPO_ES"
 mkdir -p "$REPO_ES/node_modules/.bin" "$WORK/outside"
@@ -391,7 +360,6 @@ printf '%s' "$NO_NL" >"$REPO_ES/a.md"
 fire "$(payload Edit "$REPO_ES/a.md")" PATH="$FAKEBIN" >/dev/null
 expect "an escaping node_modules/.bin symlink is not run" "$NO_NL" "$(cat "$REPO_ES/a.md")"
 
-# Gitignored path: neither rewritten by default, unless markdown_format_lint_gitignored is set.
 REPO_IGN="$WORK/gitignored"
 new_md_repo "$REPO_IGN"
 git -C "$REPO_IGN" config core.excludesFile /dev/null
@@ -406,7 +374,6 @@ expect "gitignored + markdown_format_lint_gitignored=true: file fixed" "${FIXED}
   printf x
 )"
 
-# A markdown file outside every git working tree is left alone, config or not.
 OUTSIDE="$WORK/outside-tree"
 mkdir -p "$OUTSIDE"
 printf '{ "config": { "default": true } }\n' >"$OUTSIDE/.markdownlint-cli2.jsonc"
@@ -414,7 +381,6 @@ printf '%s' "$NO_NL" >"$OUTSIDE/scratch.md"
 run_edit "$OUTSIDE/scratch.md" >/dev/null
 expect "outside a git working tree: file untouched" "$NO_NL" "$(cat "$OUTSIDE/scratch.md")"
 
-# Symlinked repo root: the file reached through a symlinked directory is still rewritten.
 if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   REPO_SL="$WORK/symlink-real"
   new_md_repo "$REPO_SL"
@@ -429,7 +395,6 @@ else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
 
-# A file symlinked out of the repository is not followed.
 REPO_FS="$WORK/file-symlink"
 new_md_repo "$REPO_FS"
 printf '%s' "$NO_NL" >"$WORK/external.md"

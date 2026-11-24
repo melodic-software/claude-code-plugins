@@ -1,11 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/checks/Test-NetworkListeners.ps1, with Get-ListenerOwner
-mocked. Expected severities follow check-catalog.md section 24: unresolved
-UNKNOWN, loopback INFO, exposed and unsigned or user-writable WARN.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-NetworkListeners' `

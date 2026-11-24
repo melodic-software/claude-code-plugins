@@ -60,7 +60,6 @@ BeforeAll {
         return $Text
     }
 
-    # The roots block with one command appended to its last line after '; ', as SKILL.md says.
     function Join-RootsCommand {
         param([string] $Roots, [string] $Command)
         if ($Command) { $Roots.TrimEnd() + '; ' + $Command.Trim() } else { $Roots.TrimEnd() }
@@ -105,7 +104,6 @@ Describe 'audit SKILL.md command templates' -Tag 'skill' {
             @{ Name = 'import'; Index = 6; Expected = @('&', '.', 'Get-ElevatedLaunch', 'Join-Path', 'Join-Path') }
         ) {
             $command = if ($Index -eq 0) { '' } else { $script:AuditBlocks[$Index].Replace('<ScriptSha256>', 'AB' * 32) }
-            # Substituted across the command too, so a command that types a token itself fails.
             $text = Format-RootTemplate -Text (Join-RootsCommand $script:AuditBlocks[0] $command) -Token $script:AuditTokens -Value $Root
 
             $parsed = Get-CommandList $text

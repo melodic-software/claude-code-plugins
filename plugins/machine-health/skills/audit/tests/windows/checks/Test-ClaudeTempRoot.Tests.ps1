@@ -158,8 +158,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'measures age at the session level, not the project-key level' {
-            # An old project key holding only fresh sessions must not trip the age arm:
-            # a key directory is reused, so its own timestamp is not an age signal.
             $root = Join-Path $script:tmpDir 'base\claude'
             New-Item -ItemType Directory -Path $root -Force | Out-Null
             $null = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'fresh'
@@ -253,9 +251,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'streams one session directory and stops inside it once the walk budget runs out' {
-            # The stand-in clock proves the deadline is tested per entry; the Get-ChildItem
-            # throw proves no directory is collected whole first, since collecting a huge or
-            # slow directory is what held the walk past its budget before any test ran.
             $root = Join-Path $script:tmpDir 'base\claude'
             $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 50
             Mock Get-ChildItem { throw 'a directory must be streamed, never collected whole' }
