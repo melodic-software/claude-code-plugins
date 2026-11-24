@@ -68,7 +68,7 @@
       "link": "https://www.vals.ai/benchmarks/terminal-bench-4",
       "publisher": "vals.ai",
       "provider_own": false,
-      "status": "permanent",
+      "status": "support-only",
       "task_set": "terminal-bench",
       "expect": "Terminal-Bench 4.0 leaderboard"
     },
@@ -78,19 +78,19 @@
       "link": "https://arena.ai/leaderboard/agent/code",
       "publisher": "arena.ai",
       "provider_own": false,
-      "status": "permanent",
+      "status": "support-only",
       "task_set": "arena-agent-code",
       "expect": "Agent Arena"
     },
     {
       "id": "vals-vibe-code",
       "workloads": ["web-ui"],
-      "link": "https://www.vals.ai/benchmarks/vibe-code",
+      "link": "https://www.vals.ai/benchmarks/vibe-code-v1-1-1",
       "publisher": "vals.ai",
       "provider_own": false,
-      "status": "permanent",
+      "status": "support-only",
       "task_set": "vibe-code",
-      "expect": "Vibe Code Bench leaderboard"
+      "expect": "Vibe Code Bench v1.1.1 leaderboard"
     },
     {
       "id": "designarena-code",
@@ -98,7 +98,7 @@
       "link": "https://www.designarena.ai/leaderboard/code",
       "publisher": "designarena.ai",
       "provider_own": false,
-      "status": "permanent",
+      "status": "support-only",
       "task_set": "designarena-code",
       "expect": "W / "
     },
@@ -108,7 +108,7 @@
       "link": "https://www.vals.ai/benchmarks/fabv2-1",
       "publisher": "vals.ai",
       "provider_own": false,
-      "status": "permanent",
+      "status": "support-only",
       "task_set": "finance-agent",
       "expect": "Finance Agent leaderboard"
     },
@@ -118,7 +118,7 @@
       "link": "https://arena.ai/leaderboard/agent/work",
       "publisher": "arena.ai",
       "provider_own": false,
-      "status": "permanent",
+      "status": "support-only",
       "task_set": "arena-agent-work",
       "expect": "Agent Arena"
     },
@@ -128,7 +128,7 @@
       "link": "https://arena.ai/leaderboard/image/text-to-image",
       "publisher": "arena.ai",
       "provider_own": false,
-      "status": "permanent",
+      "status": "support-only",
       "task_set": "arena-text-to-image",
       "expect": "Text-to-Image"
     },
@@ -138,7 +138,7 @@
       "link": "https://www.designarena.ai/leaderboard/image",
       "publisher": "designarena.ai",
       "provider_own": false,
-      "status": "permanent",
+      "status": "support-only",
       "task_set": "designarena-image",
       "expect": "W / "
     },
@@ -151,16 +151,6 @@
       "status": "support-only",
       "task_set": "aa-intelligence-index",
       "expect": "Intelligence Index score"
-    },
-    {
-      "id": "aa-coding-agent-index",
-      "workloads": ["coding"],
-      "link": "https://artificialanalysis.ai/agents/coding-agents",
-      "publisher": "artificialanalysis.ai",
-      "provider_own": false,
-      "status": "support-only",
-      "task_set": "aa-coding-agent-index",
-      "expect": "Coding Agent Index"
     }
   ]
 }

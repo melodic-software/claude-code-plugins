@@ -44,7 +44,7 @@ test('schemas are closed JSON Schemas and shipped benchmarks.json has pointers o
 
   assert.equal(shipped.version, 1)
   assert.deepEqual(shipped.rows.map((r) => r.id).sort(), [
-    'aa-coding-agent-index', 'aa-image-t2i', 'aa-intelligence-index', 'arena-agent-code',
+    'aa-image-t2i', 'aa-intelligence-index', 'arena-agent-code',
     'arena-agent-work', 'arena-text-to-image', 'cursorbench', 'designarena-code', 'designarena-image',
     'gdpval-aa', 'terminal-bench', 'vals-finance-agent', 'vals-index', 'vals-terminal-bench',
     'vals-vibe-code', 'webdev-arena',
