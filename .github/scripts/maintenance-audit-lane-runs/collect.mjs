@@ -1,7 +1,3 @@
-// The lane sweep's collect job: reads the last day's runs and the open PRs
-// through the REST API with the job's read-only token, and writes one data
-// file per unit of model work, plus the open items the judge checks for
-// coverage. No model. Stops gathering at its call budget and says so.
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,8 +5,6 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 
-// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
-// is read at call time, so a test's stub is guarded too.
 const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 export const MAX_UNITS = 8;
@@ -25,11 +19,6 @@ const LANE_WORKFLOW = /^\.github\/workflows\/(pr|work|intake)-[a-z0-9-]+\.ya?ml$
 const SELF = ".github/workflows/maintenance-audit-lane-runs.yml";
 // GitHub's run listing returns at most this many runs per filtered search.
 const LIST_CAP = 1000;
-// Calls the listing leaves for what follows: the open PR and issue reads (4)
-// and the most the units can spend, four A units (5 runs, each a jobs read
-// and 3 failed jobs' annotations and log) and, with no D unit, four C units
-// (10 PRs): 4 + 4 * 5 * 7 + 4 * 10. A D unit (3 sampled runs) costs less
-// than the C unit it displaces.
 export const DETAIL_RESERVE = 184;
 
 export function createBudget(limit) {
@@ -74,7 +63,6 @@ const ranked = (runs, keep) => {
     .map(([workflow, runIds]) => ({ workflow, runIds }));
 };
 
-// Units in order A, D, C, at most MAX_UNITS; ids are slice letter plus position.
 export function selectUnits({ repo, runs, pulls, trusted }) {
   const own = runs.filter((r) => r.head_repository?.full_name === repo);
   const units = [
@@ -97,7 +85,6 @@ export function selectUnits({ repo, runs, pulls, trusted }) {
   return units.slice(0, MAX_UNITS).map((u, i) => ({ id: `${u.slice.toLowerCase()}${i + 1}`, ...u }));
 }
 
-// The last `count` lines, with ANSI codes and the runner's timestamp prefix removed.
 export function tailLog(text, count = LOG_LINES) {
   return String(text)
     .split("\n")
@@ -133,7 +120,6 @@ export async function listRuns({ gh, repo, from, to, budget, reserve = DETAIL_RE
     const batch = await gh.call(`${runsOf(id, a, b)}&per_page=100`);
     return { total: batch.total_count, runs: batch.workflow_runs };
   };
-  // Whether every run of the range was read into `got`; `first` is its head().
   const list = async (id, a, b, first, got) => {
     for (const r of first.runs) got.set(r.id, r);
     if (first.total >= LIST_CAP && b - a >= 2000) {
@@ -163,7 +149,6 @@ export async function listRuns({ gh, repo, from, to, budget, reserve = DETAIL_RE
     if (room()) counted.push({ w, first: await head(w.id, from, to) });
     else partial.push({ path: w.path, listed: 0, total: null });
   }
-  // Busiest first, so a budget that runs out leaves the smaller workflows part-read.
   counted.sort((x, y) => y.first.total - x.first.total || x.w.path.localeCompare(y.w.path));
   const runs = [];
   for (const { w, first } of counted) {
@@ -196,7 +181,6 @@ const failedNames = (items) => (items ?? []).filter((x) => x.conclusion === "fai
 const runUrl = (repo, id) => `https://github.com/${repo}/actions/runs/${id}`;
 const latestJobs = (gh, repo, id) => gh.call(`/repos/${repo}/actions/runs/${id}/jobs?filter=latest&per_page=100`);
 
-// How many items end in each conclusion, or each status while unfinished.
 const countOutcomes = (items) => {
   const counts = {};
   for (const x of items) counts[x.conclusion ?? x.status] = (counts[x.conclusion ?? x.status] ?? 0) + 1;
@@ -325,14 +309,11 @@ export async function main({ env = process.env, now = Date.now() } = {}) {
       truncated = `stopped at unit ${unit.id}: ${error.message}`;
       break;
     }
-    // A unit of a workflow the listing read only part of says so.
     const window = { window_start: since, window_end: until };
     if (unit.workflow) window.window_complete = !partial.some((p) => p.path === unit.workflow);
     writeFileSync(join(out, "units", `${unit.id}.json`), `${JSON.stringify({ ...unit, ...window, ...detail }, null, 2)}\n`);
     written.push(unit.id);
   }
-  // Unless complete, the file job keeps every earlier digest entry when
-  // truncated is set, else the entries naming a workflow in partial.
   writeFileSync(
     join(out, "collect-status.json"),
     `${JSON.stringify({ complete: truncated === null && partial.length === 0, truncated, partial: partial.map((p) => p.path) })}\n`,
