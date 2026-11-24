@@ -48,6 +48,7 @@ if (argv[0] === "app-server") {
   const answer = scenario.answers?.[argv.join(" ")];
   if (answer) {
     process.stdout.write(answer.stdout ?? "");
+    process.stderr.write(answer.stderr ?? "");
     process.exit(answer.exit ?? 0);
   }
   if (argv[0] === "login") process.exit(scenario.login_exit ?? 0);
