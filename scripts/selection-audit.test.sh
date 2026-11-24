@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Tests for scripts/selection-audit.sh: the strace read parser, the trace audit
-# end to end against a stub selector and a stub pr-require-checks.yml fallback (a suite that
-# reads a file the selector does not map to it is a gap, and so is an unmapped
-# read by a suite the fallback does not run; a mapped, a fallback-run, an
-# unchecked and an untracked read are not), the replay verdicts including
-# selector errors, and usage errors. The trace case needs strace, as
-# the audit does, so it fails rather than skips where strace is missing.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -28,8 +21,6 @@ git_repo() {
     git -C "$1" config commit.gpgsign false
 }
 
-# ci_fallback <repo> <suite>...: a pr-require-checks.yml whose UNMAPPED branch calls
-# run-plugin-tests.sh, and a run-plugin-tests.sh whose --list is the suites given.
 ci_fallback() {
   local repo="$1"
   shift
@@ -43,7 +34,6 @@ ci_fallback() {
     >"$repo/scripts/run-plugin-tests.sh"
 }
 
-# --- reads: the parser -------------------------------------------------------
 repo="$TMP_ROOT/repo"
 mkdir -p "$repo" "$TMP_ROOT/repo2"
 real="$(cd "$repo" && pwd -P)"
@@ -65,7 +55,6 @@ else
   fail "reads: got [$got] want [$want]"
 fi
 
-# --- trace: end to end against a stub selector ---------------------------------
 if ! strace -qq -o /dev/null -e trace=openat true >/dev/null 2>&1; then
   fail "strace is missing or cannot trace here; the trace audit cannot be exercised"
 else
@@ -77,7 +66,6 @@ else
   echo named >"$t/data/named.txt"
   echo odd >"$t/data/unmapped.txt"
   echo broken >"$t/data/broken.txt"
-  # The root toolchain files every suite reads are no gap.
   echo '{}' >"$t/package.json"
   echo 22 >"$t/.node-version"
   echo '*.log' >"$t/.gitignore"
@@ -90,9 +78,7 @@ else
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/recorded.txt data/named.txt data/unmapped.txt data/untracked.txt data/broken.txt' \
     'cat package.json .node-version .gitignore .gitattributes data/.gitignore data/.gitattributes .github/npm-fetch.npmrc' >"$t/suites/reader.test.sh"
   printf '%s\n' '#!/usr/bin/env bash' 'true' >"$t/suites/quiet.test.sh"
-  # Reads the unmapped file too, but the fallback corpus does not run it.
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/unmapped.txt' >"$t/suites/zz-outside.test.sh"
-  # An eval fixture is data no lane runs, so the corpus leaves it untraced.
   mkdir -p "$t/plugins/x/evals/fixtures"
   printf '%s\n' 'open("data/hidden.txt").read()' >"$t/plugins/x/evals/fixtures/test_fake.py"
   ci_fallback "$t" suites/reader.test.sh suites/quiet.test.sh
@@ -199,8 +185,6 @@ EOF
     fail "trace: ci.yml-named fallback exit $rc, want 0"
   fi
 
-  # A Python suite runs under scripts/lib/pytest-python.sh's choice: here the
-  # checkout's setup-env venv, whose python imports pytest and logs its run.
   echo 'def test_v(): pass' >"$t/suites/test_v.py"
   mkdir -p "$t/.work/venv/bin"
   # shellcheck disable=SC2016 # the stub's $1 is its own argument, written literally
@@ -278,7 +262,6 @@ EOF
   fi
 fi
 
-# --- replay: verdict per commit ------------------------------------------------
 r="$TMP_ROOT/replay-repo"
 git_repo "$r"
 mkdir -p "$r/scripts" "$r/suites"
@@ -383,7 +366,6 @@ else
   fail "replay planned outside the corpus: exit $rc: $out"
 fi
 
-# --- usage ---------------------------------------------------------------------
 for args in "trace --shard 2/2" "bogus" "replay --suite x"; do
   rc=0
   # shellcheck disable=SC2086 # each case is a word list on purpose

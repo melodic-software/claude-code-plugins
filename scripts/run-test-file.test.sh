@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for scripts/run-test-file.sh in a throwaway checkout: the test's git
-# config and the signals the runner forwards to the test it starts.
 # The fixture suites hold shell source as literal data on purpose.
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -17,7 +15,6 @@ mkdir -p "$c/scripts/lib" "$c/tests"
 cp "$SELF_DIR/run-test-file.sh" "$c/scripts/"
 cp "$SELF_DIR/lib/checkout-path.sh" "$SELF_DIR/lib/pytest-python.sh" "$SELF_DIR/lib/test-git-env.sh" "$c/scripts/lib/"
 
-# A host global config that signs every commit through a failing program.
 hostile="$TMP_ROOT/hostile.gitconfig"
 printf '[user]\n\tname = host\n\temail = host@example.invalid\n[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = /bin/false\n' >"$hostile"
 printf '%s\n' 'd=$(mktemp -d) && trap "rm -rf \"$d\"" EXIT && git init -q "$d" && git -C "$d" commit -q --allow-empty -m x && git -C "$d" log -1 --format=%ae' \

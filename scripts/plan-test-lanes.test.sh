@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Tests for scripts/plan-test-lanes.sh: every selected suite lands on exactly one
-# leg of the lane of its ecosystem, the legs are sized from suite-seconds, a lane
-# goes wider than the selection only where the planner's header says, and a
-# selected suite no lane runs fails the plan. The fixture cases run a copy of
-# the planner and the selector in a throwaway repo; the LIVE cases hold the
-# real tree: scripts/test-windows-plan.txt names exactly the steps
-# pr-test-platforms.yml gates.
 # test-scope: .github/workflows/pr-test-platforms.yml
 set -uo pipefail
 
@@ -20,7 +13,6 @@ REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 repo="" scratch=""
 fixture_tree::build repo --sut plan-test-lanes.sh --sut affected-tests.sh --sut run-plugin-tests.sh \
   --git --label plan-test-lanes || exit 1
-# Outside the fixture repo: an untracked file there is part of every --base diff.
 fixture_tree::build scratch --label plan-test-lanes-err || exit 1
 ERR="$scratch/plan.err"
 
@@ -31,20 +23,16 @@ printf '%s\n' plugins/knowledge/vendor/repo-analysis .github/actions/check-signe
   scripts/lane-transcripts >"$repo/scripts/outside-node-packages.txt"
 printf 'plugins/fx/evals/fixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 
-# mk <path> [<content>]: a fixture file.
 mk() {
   mkdir -p "$repo/$(dirname "$1")"
   printf '%s\n' "${2:-# $1}" >"$repo/$1"
 }
-# The selector refuses a tree with no shared-library manifest; one canonical-only
-# source satisfies it.
 mk lib/widget.sh "widget() { :; }"
 mk scripts/sync-widget.sh "[ \"\$1\" = --print-manifest ] && printf 'src\\tlib/widget.sh\\n'"
 for s in a b c d e f g h; do
   mk "plugins/$s/$s.sh" "echo $s"
   mk "plugins/$s/$s.test.sh" "bash \"\$(dirname \"\$0\")/$s.sh\""
 done
-# a.test.sh also reads a stylesheet, which the inert list keeps off the Windows plan.
 mk plugins/a/a.css "p {}"
 printf 'cat a.css\n' >>"$repo/plugins/a/a.test.sh"
 printf 'plugins/a/*.css # a stylesheet no Windows step reads\n' >"$repo/scripts/test-windows-inert-paths.txt"
@@ -99,9 +87,8 @@ plan() {
   OUT="$(cd "$repo" && bash scripts/plan-test-lanes.sh "$@" 2>"$ERR")" && RC=0 || RC=$?
 }
 key() { sed -n "s/^$1=//p" <<<"$OUT"; }
-# suites <lane>: every suite of the lane's plan, one per line, sorted.
 suites() { key "$1_plan" | jq -r '.[][]' | tr -d '\r' | LC_ALL=C sort; }
-check() { # <label> <condition-rc>
+check() {
   if [[ "$2" -eq 0 ]]; then ok "$1"; else fail "$1 (rc=$RC) $(cat "$ERR") $OUT"; fi
 }
 is() { [[ "$1" == "$2" ]]; }
@@ -152,8 +139,6 @@ plan -- plugins/a/a.sh plugins/g/g.sh
 is "$before" "[0]" && is "$(key bash_legs)" "[0,1]"
 check "a suite that runs alone weighs three times its seconds: 100 + 3 x 20 needs a second leg" $?
 
-# g runs alone (60) before e can start (150 behind it), so g and e's leg weighs
-# 210, not 150, and h goes to d's leg (180).
 printf 'plugins/g/g.test.sh\n' >"$repo/scripts/run-plugin-tests-serial.txt"
 plan -- plugins/d/d.sh plugins/e/e.sh plugins/g/g.sh plugins/h/h.sh
 : >"$repo/scripts/run-plugin-tests-serial.txt"
@@ -228,7 +213,6 @@ check "a change to a lock the test-bash step never installs brings no lock toolc
 rm -rf "$repo/plugins/locks" "$repo/plugins/animation/requirements.txt" "$repo/plugins/playwright" "$repo/lib/media-render" \
   "$repo/.github/requirements-ci.txt" "$repo/.github/requirements-relock.txt"
 
-# The media-render and explainer-video suites capture frames with Playwright for Python.
 mk lib/media-render/media-render.test.sh "# test-scope: lib/media-render/*"
 mk plugins/explainer-video/scripts/explainer-video.test.sh "# test-scope: plugins/explainer-video/scripts/*"
 plan -- lib/media-render/media_encode.py plugins/explainer-video/scripts/stills.py
@@ -252,22 +236,16 @@ plan -- plugins/animation/requirements.txt
 is "$(suites python | tr '\n' ' ')" "plugins/p/test_p.py plugins/q/test_q.py "
 check "the animation lock test-python installs is a Python pin" $?
 
-# A suite suite-seconds.txt does not list weighs the mean of the listed Python
-# suites (200 and 100: 150), not 5 s, so a heavy new suite cannot hide on one leg.
 mk plugins/u/test_u.py "assert True"
 plan -- plugins/p/p.py plugins/q/test_q.py plugins/u/test_u.py
 grep -q 'python: 3 suite(s), 450 suite-seconds, 3 leg(s)' "$ERR"
 check "an unlisted Python suite counts the mean of the listed ones, so 200 + 100 + 150 take 3 legs" $?
 
-# The real file's spread: most Python suites take 1 s and a few take minutes,
-# so their median is 1 s. Twenty 1 s rows beside 200 and 100 have a mean of
-# 320/22, which rounds to 15; an unlisted suite weighs that, never under 5 s.
 cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
 for i in $(seq 1 20); do printf 'plugins/one/test_one%s.py 1\n' "$i"; done >>"$repo/scripts/suite-seconds.txt"
 plan -- plugins/u/test_u.py
 grep -q 'python: 1 suite(s), 15 suite-seconds, 1 leg(s)' "$ERR"
 check "with many 1 s rows an unlisted Python suite still weighs their mean (15), above the 5 s default" $?
-# With only 1 s rows the mean is 1, and the 5 s default is the floor.
 grep -v 'test_[pq][.]py' "$repo/scripts/suite-seconds.txt" >"$scratch/light.txt"
 cp "$scratch/light.txt" "$repo/scripts/suite-seconds.txt"
 plan -- plugins/u/test_u.py
@@ -276,9 +254,6 @@ check "an unlisted Python suite never weighs less than the 5 s default" $?
 cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
 rm -f "$repo/plugins/u/test_u.py"
 
-# 1650 suite-seconds would take ceil(1650/180) = 10 legs; test-python stops at 9.
-# Longest first onto the least-loaded leg: p, r, s, t, u, v, w, x and y open the
-# nine legs, then m joins y (120) and q joins x (130).
 cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
 for s in r s t u v w x y m; do mk "plugins/$s/test_$s.py" "assert True"; done
 printf '%s\n' "plugins/r/test_r.py 190" "plugins/s/test_s.py 180" "plugins/t/test_t.py 170" \
@@ -341,11 +316,6 @@ rc=0
 [[ " $(key node_packages) " != *" .github/actions/resolve-config "* ]] || rc=1
 check "a sibling of a trigger file does not run that package" "$rc"
 
-# The packages with a suite that lists .github/workflows/ and reads every file
-# in it, so no workflow's name reaches them: callers.test.mjs and
-# api-budget-coverage.test.mjs (resolve-config), check-signed-commits.test.mjs,
-# check-wip-cap.test.mjs, log-api-budget.test.mjs, handoff-evidence.test.mjs
-# (lib), pr-merge's workflow.test.mjs and lane-transcripts' pull.test.mjs.
 EVERY_WORKFLOW=".github/actions/resolve-config .github/actions/check-signed-commits .github/actions/check-wip-cap \
 .github/actions/log-api-budget .github/scripts/lib .github/scripts/pr-merge scripts/lane-transcripts"
 
@@ -456,12 +426,6 @@ plan --base
 is "$RC" 2
 check "--base with no ref is a usage error" $?
 
-# --- LIVE: the real tree -------------------------------------------------------
-# The whole-tree plan of the live tree reads every file, so it is the
-# `test-plan-corpus` gate step of pr-require-checks.yml's lint-repo job, which
-# runs on every pull request, not a case here.
-
-# The (job, key) pairs pr-test-platforms.yml gates on, against the plan's lines.
 yml_pairs="$(awk '
   /^  [A-Za-z0-9_-]+:[[:blank:]]*$/ { job = $1; sub(/:$/, "", job) }
   match($0, /outputs\.steps\), '\''[^'\'']+'\''\)/) {

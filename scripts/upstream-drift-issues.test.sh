@@ -49,8 +49,6 @@ LOG=""
 OUT=""
 CODE=0
 
-# run_sut <report-file> [sut args...]: runs the script with the stub, in a
-# fresh log; leaves stdout+stderr in OUT and the exit code in CODE.
 run_sut() {
   local report="$1"
   shift
@@ -65,7 +63,6 @@ run_sut() {
   CODE=$?
 }
 
-# calls: every recorded call, one per line, argv joined by spaces.
 calls() {
   local i n
   n="$(cat "$LOG/count" 2>/dev/null || echo 0)"
@@ -74,8 +71,6 @@ calls() {
   done
 }
 
-# body_file_of <verb>: the path of the body file recorded for the first call
-# whose verb matches.
 body_file_of() {
   local i n
   n="$(cat "$LOG/count" 2>/dev/null || echo 0)"
@@ -88,19 +83,18 @@ body_file_of() {
   return 1
 }
 
-# body_of <verb>: the contents of that body file.
 body_of() {
   local f
   f="$(body_file_of "$1")" && cat "$f"
 }
 
-expect_code() { # <name> <expected>
+expect_code() {
   if [[ "$CODE" == "$2" ]]; then pass "$1"; else bad "$1" "exit $CODE, want $2; output: $OUT"; fi
 }
-expect_has() { # <name> <haystack> <needle>
+expect_has() {
   if [[ "$2" == *"$3"* ]]; then pass "$1"; else bad "$1" "missing '$3' in: $2"; fi
 }
-expect_lacks() { # <name> <haystack> <needle>
+expect_lacks() {
   if [[ "$2" != *"$3"* ]]; then pass "$1"; else bad "$1" "unexpected '$3' in: $2"; fi
 }
 
@@ -110,7 +104,6 @@ BOT_AUTHOR='"user":{"login":"github-actions[bot]","type":"Bot"}'
 USER_AUTHOR='"user":{"login":"mallory","type":"User"}'
 OPEN='"state":"open","state_reason":null'
 COMPLETED='"state":"closed","state_reason":"completed"'
-# #5's title only starts like acme/widgets'; it is closed, so no sweep reaches it.
 LIST_NONE="$TMP/list-none.json"
 printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra",%s,%s}]\n' "$COMPLETED" "$BOT_AUTHOR" >"$LIST_NONE"
 LIST_OPEN="$TMP/list-open.json"
@@ -130,7 +123,6 @@ printf '%s\n' \
   "page repo=acme/widgets pin=$PIN head=$HEAD status=clean path=docs/upstream/widgets.md" \
   "row line=7 status=unchanged path=skills/alpha/SKILL.md" >"$CLEAN"
 
-# --- create: no exact-title issue open, drift -------------------------------
 GH_STUB_LIST="$LIST_NONE"
 run_sut "$DRIFT"
 expect_code "create: exit 0" 0
@@ -157,9 +149,6 @@ fi
 expect_lacks "create: no label is added" "$c" 'label'
 expect_lacks "create: no assignee flag" "$c" '--assignee'
 
-# --- a report with no unknown token keeps the record body byte for byte ------
-# Run again until the UTC date is the same before and after, so a run that
-# crosses midnight cannot mismatch the body's run date.
 for _ in 1 2; do
   run_date="$(date -u +%Y-%m-%d)"
   run_sut "$DRIFT"
@@ -204,7 +193,6 @@ else
   bad "admission: the filed body is a trusted drift issue for its upstream id" "got: $trusted"
 fi
 
-# --- edit: exact-title issue open, drift ------------------------------------
 GH_STUB_LIST="$LIST_OPEN"
 run_sut "$DRIFT"
 expect_code "edit: exit 0" 0
@@ -214,7 +202,6 @@ expect_lacks "edit: creates nothing" "$c" 'issue create'
 expect_lacks "edit: never touches the near-match issue 5" "$c" 'issue edit 5'
 expect_lacks "edit: an in-place edit adds no label" "$c" 'label'
 
-# --- close: exact-title issue open, clean -----------------------------------
 run_sut "$CLEAN"
 expect_code "close: exit 0" 0
 c="$(calls)"
@@ -230,7 +217,6 @@ c="$(calls)"
 expect_lacks "clean, none open: no create" "$c" 'issue create'
 expect_lacks "clean, none open: no close" "$c" 'issue close'
 
-# --- a same-titled issue someone else opened is never edited or closed ------
 LIST_SPOOF="$TMP/list-spoof.json"
 printf '[{"number":9,"title":"Upstream drift: acme/widgets",%s,%s},{"number":12,"title":"Upstream drift: acme/widgets",%s,%s}]\n' \
   "$OPEN" "$USER_AUTHOR" "$OPEN" "$BOT_AUTHOR" >"$LIST_SPOOF"
@@ -253,11 +239,6 @@ expect_lacks "spoof only: never edits the user's issue 9" "$c" 'issue edit 9'
 run_sut "$CLEAN"
 expect_lacks "spoof only, clean: never closes the user's issue 9" "$(calls)" 'issue close'
 
-# --- an upstream that left the report has its bot issue closed --------------
-# Open: the bot's #12 (acme/widgets, still reported), the bot's #20
-# (acme/gone, no longer reported), a user's #21 for acme/old, and the bot's
-# #22 whose title is not the drift shape.
-# Closed: the bot's #23 for acme/closed-gone.
 SWEEP="$TMP/sweep.json"
 printf '[{"number":12,"title":"Upstream drift: acme/widgets",%s,%s},{"number":20,"title":"Upstream drift: acme/gone",%s,%s},{"number":21,"title":"Upstream drift: acme/old",%s,%s},{"number":22,"title":"Upstream drift notes",%s,%s},{"number":23,"title":"Upstream drift: acme/closed-gone","state":"closed","state_reason":"completed",%s}]\n' \
   "$OPEN" "$BOT_AUTHOR" "$OPEN" "$BOT_AUTHOR" "$OPEN" "$USER_AUTHOR" "$OPEN" "$BOT_AUTHOR" "$BOT_AUTHOR" >"$SWEEP"
@@ -276,9 +257,7 @@ run_sut "$DRIFT" --dry-run
 expect_lacks "sweep, dry run: closes nothing" "$(calls)" 'issue close'
 expect_has "sweep, dry run: still reports the action" "$OUT" 'action=close-unreported repo=acme/gone'
 
-# --- a closed issue for the title: reopened on drift unless muted -----------
-# The bot's #12 for acme/widgets, closed with the given state_reason.
-closed_list() { # <state_reason JSON>
+closed_list() {
   printf '[{"number":12,"title":"Upstream drift: acme/widgets","state":"closed","state_reason":%s,%s}]\n' "$1" "$BOT_AUTHOR" >"$TMP/list-closed.json"
   GH_STUB_LIST="$TMP/list-closed.json"
 }
@@ -349,8 +328,6 @@ c="$(calls)"
 expect_lacks "spoof closed: never reopens the user's issue 9" "$c" 'issue reopen'
 expect_has "spoof closed: creates its own issue" "$c" 'issue create'
 
-# --- the same bot's issues from another filer are never touched -------------
-# The monitoring lane marks its body's first line, the lane sweep its last.
 MONITOR_BODY='"body":"<!-- factory-monitor key=x fp=0123456789abcdef -->\n**Signal:** 1 main red"'
 SWEEP_BODY='"body":"Filed by the lane sweep.\n\n<!-- lane-sweep:fp=0123456789abcdef -->\n"'
 LIST_OTHERS="$TMP/list-others.json"
@@ -436,7 +413,6 @@ if [[ "$trusted" == "true playwright/playwright vendored" ]]; then
 else
   bad "admission: the filed vendored body is a trusted vendored drift issue for its upstream id" "got: $trusted"
 fi
-# AC10: an open issue for a vendored id is edited, never filed twice.
 LIST_VENDORED_OPEN="$TMP/list-vendored-open.json"
 printf '[{"number":15,"title":"Upstream drift: playwright/playwright",%s,%s}]\n' "$OPEN" "$BOT_AUTHOR" >"$LIST_VENDORED_OPEN"
 GH_STUB_LIST="$LIST_VENDORED_OPEN"
@@ -446,13 +422,11 @@ c="$(calls)"
 expect_has "unknown pin, issue open: edits issue 15" "$c" 'issue edit 15 --body-file'
 expect_lacks "unknown pin, issue open: files no second issue" "$c" 'issue create'
 expect_lacks "unknown pin, issue open: an in-place edit adds no label" "$c" 'label'
-# No skills/ segment in the path: the id names it.
 printf '%s\n' \
   "page repo=user-interface/write-css pin=unknown head=unknown status=drift path=plugins/user-interface/scripts/check-good-css-drift.sh" >"$TMP/vendored-noskill.txt"
 GH_STUB_LIST="$LIST_NONE"
 run_sut "$TMP/vendored-noskill.txt"
 expect_has "unknown pin, no skill path: the id names it" "$(body_of create)" '### `user-interface/write-css`'
-# A clean record page beside a drifted unknown page on one id.
 MIXED_PIN="$TMP/mixed-pin.txt"
 printf '%s\n' \
   "page repo=acme/widgets pin=$PIN head=$HEAD status=clean path=docs/upstream/widgets.md" \
@@ -463,14 +437,12 @@ expect_has "clean record beside drifted unknown: vendored wording" "$body" 'no l
 expect_has "clean record beside drifted unknown: names the skill" "$body" '### `widgets:sync`'
 expect_lacks "clean record beside drifted unknown: no re-audit footer" "$body" 'Re-audit'
 expect_lacks "clean record beside drifted unknown: no pin sentence" "$body" 'Pin `'
-# Any other non-hex token is rejected before any gh call.
 for bad_token in "pin=UNKNOWN head=unknown" "pin=unknown head=none" "pin=zz12 head=$HEAD" "pin=$PIN head=" "pin= head=unknown"; do
   printf '%s\n' "page repo=acme/widgets $bad_token status=drift path=docs/upstream/widgets.md" >"$TMP/bad-token.txt"
   run_sut "$TMP/bad-token.txt"
   expect_code "bad token ($bad_token): exit 2" 2
   expect_has "bad token ($bad_token): no gh call" "[$(calls)]" '[]'
 done
-# The sweep leaves an untracked <plugin>/<skill> id alone.
 LIST_VENDORED_SWEEP="$TMP/list-vendored-sweep.json"
 printf '[{"number":16,"title":"Upstream drift: dometrain/update",%s,%s}]\n' "$OPEN" "$BOT_AUTHOR" >"$LIST_VENDORED_SWEEP"
 GH_STUB_LIST="$LIST_VENDORED_SWEEP"
@@ -617,7 +589,6 @@ run_sut "$DRIFT"
 if [[ "$CODE" != 0 ]]; then pass "failed reopen: exits nonzero"; else bad "failed reopen: exits nonzero" "$OUT"; fi
 c="$(calls)"
 expect_lacks "failed reopen: does not edit the closed issue's body" "$c" 'issue edit 12 --body-file'
-# A failed reopen stops that issue's body edit; the next upstream still runs.
 TWO_DRIFT="$TMP/two-drift.txt"
 printf '%s\n' \
   "page repo=acme/widgets pin=$PIN head=$HEAD status=drift path=docs/upstream/widgets.md" \

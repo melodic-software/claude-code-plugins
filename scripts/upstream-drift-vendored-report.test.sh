@@ -21,7 +21,6 @@ TMP="$(mktemp -d)" || exit 2
 cleanup() { [[ -n "$TMP" && "$TMP" != / ]] && rm -rf "$TMP"; }
 trap cleanup EXIT
 
-# stub <name> <body...>: an executable check script under $TMP/stubs.
 mkdir -p "$TMP/stubs"
 stub() {
   local f="$TMP/stubs/$1"
@@ -44,8 +43,6 @@ REPORT=""
 BROKEN=""
 SUMMARY=""
 
-# run_sut <table-file> [extra args...]: runs the adapter on that table in a
-# fresh directory; stdout+stderr land in OUT and the exit code in CODE.
 run_sut() {
   local table="$1" dir
   shift
@@ -57,22 +54,22 @@ run_sut() {
   CODE=$?
 }
 
-table() { # <file> <rows...>
+table() {
   local f="$1"
   shift
   printf '%s\n' "$@" >"$f"
 }
 
-expect_code() { # <name> <expected>
+expect_code() {
   if [[ "$CODE" == "$2" ]]; then pass "$1"; else bad "$1" "exit $CODE, want $2; output: $OUT"; fi
 }
-expect_has() { # <name> <haystack> <needle>
+expect_has() {
   if [[ "$2" == *"$3"* ]]; then pass "$1"; else bad "$1" "missing '$3' in: $2"; fi
 }
-expect_lacks() { # <name> <haystack> <needle>
+expect_lacks() {
   if [[ "$2" != *"$3"* ]]; then pass "$1"; else bad "$1" "unexpected '$3' in: $2"; fi
 }
-expect_eq() { # <name> <actual> <expected>
+expect_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else bad "$1" "got [$2], want [$3]"; fi
 }
 
@@ -101,7 +98,6 @@ expect_has "basic: summary names the exit code" "$(cat "$SUMMARY")" "Exit code 1
 expect_lacks "basic: row output never on stdout" "$OUT" "drifted"
 expect_lacks "basic: row stderr never on stdout" "$OUT" "offline"
 
-# --- an out-of-contract exit (AC11) ----------------------------------------
 table "$TMP/t-broken" \
   "acme/clean|$S/clean.sh|" \
   "acme/broken|$S/broken.sh|--check" \
@@ -114,7 +110,6 @@ expect_has "broken: later rows still run" "$(cat "$REPORT")" "repo=acme/drift pi
 expect_has "broken: error annotation" "$OUT" "::error title=Drift check broke its contract::acme/broken exited 7"
 expect_eq "broken: row id in the broken-contract file" "$(cat "$BROKEN")" "acme/broken"
 
-# --- a hanging row and --row-timeout (D19) ---------------------------------
 table "$TMP/t-hang" "acme/hang|$S/hang.sh|" "acme/clean|$S/clean.sh|"
 start=$SECONDS
 run_sut "$TMP/t-hang" --row-timeout 1
@@ -126,7 +121,6 @@ expect_has "hang: timeout warning" "$OUT" "::warning title=Drift check timed out
 expect_eq "hang: a timeout is not a broken contract" "$(cat "$BROKEN")" ""
 if ((elapsed < 20)); then pass "hang: stopped at the timeout"; else bad "hang: stopped at the timeout" "${elapsed}s"; fi
 
-# --- workflow commands in a row's output (D14) -----------------------------
 table "$TMP/t-cmd" "acme/cmd|$S/commands.sh|"
 run_sut "$TMP/t-cmd"
 expect_code "commands: exit 0" 0
@@ -136,7 +130,6 @@ expect_has "commands: kept in the job summary" "$(cat "$SUMMARY")" "::stop-comma
 expect_eq "commands: report holds only the page line" "$(cat "$REPORT")" \
   "page repo=acme/cmd pin=unknown head=unknown status=drift path=$S/commands.sh"
 
-# --- rows run with no token (D5) and get the table's arguments ---------------
 table "$TMP/t-env" "acme/token|$S/token.sh|" "acme/args|$S/args.sh|--check"
 run_sut "$TMP/t-env"
 expect_code "env: exit 0" 0
@@ -147,7 +140,6 @@ run_sut "$TMP/t-mark"
 expect_code "files-only: exit 0" 0
 expect_eq "files-only: the mark never reaches the script's arguments" "$(cat "$TMP/args-seen" 2>/dev/null)" "--check|"
 
-# --- a table that cannot be finished (D16) ---------------------------------
 table "$TMP/t-bad" "acme/clean|$S/clean.sh|" "not an id|$S/drift.sh|"
 dir="$(mktemp -d "$TMP/stale.XXXXXX")"
 printf 'page repo=old/report pin=unknown head=unknown status=clean path=x\n' >"$dir/vendored.txt"
@@ -155,7 +147,6 @@ OUT="$(bash "$SUT" --table "$TMP/t-bad" --output "$dir/vendored.txt" --broken-co
 CODE=$?
 expect_code "unfinished: exit 2" 2
 if [[ ! -e "$dir/vendored.txt" ]]; then pass "unfinished: no output file, a stale one removed"; else bad "unfinished: no output file, a stale one removed" "$(cat "$dir/vendored.txt")"; fi
-# The filer on that absent path: exit 2 and no gh call, so nothing is closed.
 mkdir -p "$TMP/bin" "$TMP/ghlog"
 printf '%s\n' '#!/usr/bin/env bash' "printf '%s\n' \"\$*\" >>\"$TMP/ghlog/calls\"" 'exit 0' >"$TMP/bin/gh"
 chmod +x "$TMP/bin/gh"
@@ -176,7 +167,6 @@ table "$TMP/t-flag" "acme/x|-rf|"
 run_sut "$TMP/t-flag"
 expect_code "path starting with a dash: exit 2" 2
 
-# --- the shipped table (D6, AC19) --------------------------------------------
 OUT="$(bash "$SUT" --list 2>&1)"
 CODE=$?
 expect_code "--list: exit 0" 0

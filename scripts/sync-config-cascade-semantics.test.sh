@@ -27,7 +27,6 @@ root=""
 fixture_tree::build root --no-lib --label cascade-semantics || exit 1
 readme="$root/README.md"
 
-# write_readme <implementers-rows>: a README whose generated block is a placeholder.
 write_readme() {
   printf '# T\n\n## Implementers\n\n%s\n%s\n\n## Semantics at a glance\n\n%s\n\nplaceholder\n\n%s\n' \
     "$HEAD" "$1" "$BEGIN" "$END" >"$readme"
@@ -38,7 +37,6 @@ run() { python3 "$SUT" "$@" "$readme" 2>&1; }
 # edit_readme <sed-expression>: in-place edit that also works with BSD sed.
 edit_readme() { sed "$1" "$readme" >"$readme.tmp" && mv "$readme.tmp" "$readme"; }
 
-# expect <label> <expected-rc> <rc> <out>
 expect() {
   if [[ $3 -eq $2 ]]; then ok "$1"; else fail "$1: expected rc=$2, got rc=$3: $4"; fi
 }

@@ -69,7 +69,6 @@ if [[ "$node_only" = 1 ]]; then
   exit 0
 fi
 
-# Python.
 want=$(tr -d '[:space:]' <.python-version)
 venv=${SETUP_ENV_VENV:-$root/.work/venv}
 bin=$venv/bin

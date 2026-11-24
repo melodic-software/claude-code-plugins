@@ -56,7 +56,6 @@ packages=() exclusions=() subprojects=() subproject_owners=()
 read_list::into packages "$PACKAGES_FILE" --comments inline || exit 2
 read_list::into exclusions "$EXCLUSIONS_FILE" --comments inline || exit 2
 read_list::into subprojects "$SUBPROJECTS_FILE" --comments inline || exit 2
-# Each row is `<package> <owner> [<trigger>...]`; only the owner directory matters here.
 for row in ${subprojects[@]+"${subprojects[@]}"}; do
   owner=""
   read -r _ owner _ <<<"$row"
@@ -103,8 +102,6 @@ run_package() {
   (test_git_env::isolate "$git_config" && cd "$pkg" && npm test)
 }
 
-# install_locked_deps <pkg>: `npm ci` each `file:` dependency of <pkg> that has
-# a lockfile, once per run, so a suite that loads modules from it finds them.
 install_locked_deps() {
   local dep dir
   while IFS= read -r dep; do

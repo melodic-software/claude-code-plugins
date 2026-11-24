@@ -1,21 +1,10 @@
 #!/usr/bin/env bash
-# Self-test for scripts/run-plugin-tests.sh: the parallel runner, the serial
-# allowlist, the print lock, the skip accounting, and the exit contract.
-#
-# Fixtures are throwaway suites under a mktemp root handed to the runner with
-# --root, so the repository's own corpus is never discovered here. The only git
-# state is one fixture suite's repository under that root.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNNER="$ROOT/scripts/run-plugin-tests.sh"
-# The test-bash lane exports this on main; each case below sets it itself.
 unset PLUGIN_TEST_ADVISORY
-# scripts/check-affected.sh exports these to the suites it runs; the share and
-# deadline cases below set them themselves.
 unset PLUGIN_TEST_SHARE_WARN_ONLY PLUGIN_TEST_DEADLINE PLUGIN_TEST_LEFT_FILE
-# CI's GITHUB_ACTIONS would turn the suite budget on for every case; the
-# suite-budget cases below turn it on themselves.
 export PLUGIN_TEST_SUITE_BUDGET=0
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
@@ -28,22 +17,18 @@ export PLUGIN_TEST_SUITE_BUDGET=0
 scratch=""
 fixture_tree::build scratch --label run-plugin-tests
 
-# make_root <name> -> prints a fresh fixture root with the plugin/hook layout.
 make_root() {
   local r="$scratch/$1"
   mkdir -p "$r/plugins" "$r/.claude/hooks"
   printf '%s' "$r"
 }
 
-# write_suite <root> <rel-path> <body> -> a suite script under the fixture root.
 write_suite() {
   local path="$1/$2"
   mkdir -p "$(dirname "$path")"
   printf '#!/usr/bin/env bash\n%s\n' "$3" >"$path"
 }
 
-# run_runner <expected-rc> <label> [runner args...]: runs the runner, records
-# its combined output in RUN_OUTPUT and asserts the exit status.
 run_runner() {
   local want_rc="$1" label="$2" rc=0
   shift 2
@@ -64,7 +49,6 @@ assert_output_has() {
   fi
 }
 
-# assert_error_count <label> <n>: RUN_OUTPUT holds exactly n suite error annotations.
 assert_error_count() {
   local label="$1" want="$2" got
   got="$(grep -c '^::error title=' <<<"$RUN_OUTPUT" || true)"
@@ -86,10 +70,7 @@ assert_output_lacks() {
 
 empty_list="$scratch/empty-serial.txt"
 : >"$empty_list"
-# The shipped advisory list names repository suites a fixture root lacks, and
-# the runner's stale guard would reject it; the advisory cases below pass their own.
 export PLUGIN_TEST_ADVISORY_LIST="$empty_list"
-# The same holds for the shipped suite-budget exceptions list.
 export PLUGIN_TEST_SUITE_EXCEPTIONS="$empty_list"
 
 r="$(make_root pass)"
@@ -109,8 +90,6 @@ else
   fail "--list: got [$RUN_OUTPUT]"
 fi
 
-# A gate's self-test and a shared library's suite are corpus suites too: the
-# whole-tree run reaches them by discovery, not by a workflow step of their own.
 r="$(make_root scripts-lib)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
 write_suite "$r" scripts/check-x.test.sh 'echo "ok: gate self-test"'
@@ -207,8 +186,6 @@ PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "an empty --timings value is 
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "without --timings the run is unchanged" --root "$r" plugins/c/c.test.sh
 assert_output_has "the TIME line still prints" "TIME: plugins/c/c.test.sh "
 
-# A Bash-run caller can export another plugin's data directory. The runner
-# clears it before spawning, so the suite sees the variable unset.
 r="$(make_root plugin-data)"
 # The suite body is written literally: the $ must survive into the spawned script.
 # shellcheck disable=SC2016
@@ -229,10 +206,6 @@ else
   unset CLAUDE_PLUGIN_DATA
 fi
 
-# A host whose global git config signs every commit, through a signing program
-# that fails, and names its own identity. Each suite reads a fixed test config
-# in place of it, so a plain fixture commit succeeds and never carries the
-# host's identity, and a `git config --global` write stays in its own suite.
 r="$(make_root git-config)"
 hostile="$scratch/hostile.gitconfig"
 printf '[user]\n\tname = host\n\temail = host@example.invalid\n[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = /bin/false\n' >"$hostile"
@@ -253,13 +226,6 @@ r="$(make_root multicorejit)"
 write_suite "$r" plugins/a/env.test.sh 'echo "jit=${DOTNET_MultiCoreJitMinNumCpus-unset} xdg=${XDG_CACHE_HOME-unset}"'
 DOTNET_MultiCoreJitMinNumCpus=1 XDG_CACHE_HOME=/host/cache PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a suite reports its .NET and cache environment" --root "$r"
 assert_output_has "a suite runs with MultiCoreJit off over the host's value, and the host's XDG_CACHE_HOME" "jit=65535 xdg=/host/cache"
-
-# --- parallelism and the serial allowlist -------------------------------------
-#
-# Probe suites mark themselves running, pause, and record every OTHER marker
-# they can see: an overlap file with content means the suite shared its window
-# with another suite. Under --jobs 3 the three parallel probes must overlap;
-# the serial probes must never see anyone.
 
 r="$(make_root parallel)"
 probe_dir="$scratch/probes"
@@ -301,7 +267,6 @@ if ((overlaps > 0)); then
 else
   fail "no parallel probe saw a sibling under --jobs 3; the group ran serially"
 fi
-# Serial suites run first, so every serial block precedes every parallel one.
 serial_last="$(grep -n '^PASS: plugins/s' <<<"$RUN_OUTPUT" | tail -n 1 | cut -d: -f1)"
 parallel_first="$(grep -n '^PASS: plugins/p' <<<"$RUN_OUTPUT" | head -n 1 | cut -d: -f1)"
 if [[ -n "$serial_last" && -n "$parallel_first" ]] && ((serial_last < parallel_first)); then
@@ -309,9 +274,6 @@ if [[ -n "$serial_last" && -n "$parallel_first" ]] && ((serial_last < parallel_f
 else
   fail "serial suites did not all finish before the parallel group (serial last line $serial_last, parallel first line $parallel_first)"
 fi
-# Each suite's block is contiguous: between its header and its PASS line, every
-# line carries that suite's own tag. Interleaving would put another suite's tag
-# inside the block.
 block_defects="$(awk '
   /^=== plugins\/.*\.test\.sh ===$/ { suite = $2; sub(/^plugins\/.*\//, "", suite); inblock = 1; next }
   inblock && /^PASS: / { inblock = 0; next }
@@ -323,20 +285,6 @@ else
   fail "interleaved output: $block_defects"
 fi
 
-# --- a serial-allowlisted suite drawn by --suites-from stays serial ----------
-#
-# The allowlist is the thing a second parallel runner would forget, and
-# scripts/affected-tests.sh --jobs N reaches this runner through --suites-from
-# rather than through discovery. Nothing proved the allowlist still holds for a
-# suite the SELECTION drew: the --suites-from block further down keeps its
-# serial suite out of the selection, so it never reaches the partition. The
-# mechanic is this file's and is identical on both entry paths, so it is pinned
-# here, beside the probes that can see concurrency, rather than re-fixtured in
-# the selector's suite.
-#
-# p2 and s2 are left out of the selection on purpose: s2 is allowlisted and
-# unselected, which must NOT be reported stale, because the stale guard reads
-# the full discovery and not the selection.
 rm -f "$probe_dir"/overlap.* "$probe_dir"/running.*
 picked="$scratch/selection-serial.txt"
 printf 'plugins/p1/p1.test.sh\nplugins/p3/p3.test.sh\nplugins/s1/s1.test.sh\n' >"$picked"
@@ -376,14 +324,10 @@ ok "no suite overlaps under --jobs 1"
 PLUGIN_TEST_JOBS=2 PLUGIN_TEST_SERIAL_LIST="$serial_list" run_runner 0 "PLUGIN_TEST_JOBS sets the default job count" --root "$r"
 assert_output_has "the environment default is reported" "3 across up to 2 job(s)"
 
-# A failing suite inside the parallel group is still reported by name and
-# still fails the run; the other members of the group still complete.
 write_suite "$r" plugins/p2/p2.test.sh 'echo "boom" >&2; exit 3'
 PLUGIN_TEST_SERIAL_LIST="$serial_list" run_runner 1 "a failure inside the parallel group fails the run" --root "$r" --jobs 3
 assert_output_has "the parallel failure is named" "FAIL: plugins/p2/p2.test.sh"
 assert_output_has "its siblings still report" "PASS: plugins/p3/p3.test.sh"
-
-# --- the allowlist's stale guard ---------------------------------------------
 
 stale_list="$scratch/stale.txt"
 printf 'plugins/gone/gone.test.sh\n' >"$stale_list"
@@ -391,14 +335,6 @@ PLUGIN_TEST_SERIAL_LIST="$stale_list" run_runner 2 "an allowlist entry naming no
 assert_output_has "the stale entry is named" "names 'plugins/gone/gone.test.sh', which matches no discovered suite"
 assert_output_lacks "nothing ran before the stale guard fired" "=== plugins/"
 
-# --- capture keys survive colliding path shapes -------------------------------
-#
-# A capture keyed on the suite path with slashes rewritten to a double
-# underscore collides the moment a path segment already contains
-# one: plugins/a__b/c.test.sh and plugins/a/b__c.test.sh flatten to the same
-# name. Two colliding suites in one parallel batch then overwrite each other's
-# output and exit status, so one real failure can be reported as a pass. Both
-# suites here fail, with distinct output, and both must be reported.
 r="$(make_root collide)"
 write_suite "$r" "plugins/a__b/c.test.sh" 'echo "marker from a__b/c"; exit 1'
 write_suite "$r" "plugins/a/b__c.test.sh" 'echo "marker from a/b__c"; exit 1'
@@ -410,27 +346,16 @@ assert_output_has "the first colliding suite keeps its own output" "marker from 
 assert_output_has "the second colliding suite keeps its own output" "marker from a/b__c"
 assert_output_lacks "neither collides into a missing result" "no result recorded"
 
-# The same pair under --jobs 1: a serial run writes the captures one after the
-# other, so a colliding key would silently overwrite rather than race. Keeping
-# the case pins the key's uniqueness rather than the scheduling that exposed it.
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "colliding path shapes stay distinct under --jobs 1" --root "$r"
 assert_output_has "serial: the first colliding suite still reports" "FAIL: plugins/a__b/c.test.sh"
 assert_output_has "serial: the second colliding suite still reports" "FAIL: plugins/a/b__c.test.sh"
 
-# A path containing a colon must survive the index-keyed argument the worker
-# receives, rather than being split at the wrong separator.
 r="$(make_root colon)"
 write_suite "$r" "plugins/od:d/name.test.sh" 'echo "marker from the colon path"'
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a path containing a colon runs" --root "$r"
 assert_output_has "the colon path is reported whole" "PASS: plugins/od:d/name.test.sh"
 assert_output_has "the colon path keeps its output" "marker from the colon path"
 
-# --- the parallel group starts longest first ------------------------------------
-#
-# Under --jobs 1 the blocks print in start order. b and e tie at 30 s and keep
-# their sorted order, c follows at 10 s, and the unlisted a and d count 0 and
-# come last in sorted order. The serial suite s still runs before all of them,
-# however long the seconds file says it is.
 r="$(make_root longest-first)"
 for name in a b c d e s; do
   write_suite "$r" "plugins/$name/$name.test.sh" 'echo ok'
@@ -457,12 +382,6 @@ else
   fail "start order without a seconds file: expected abcdes, got $order"
 fi
 
-# --- --shard partitions the corpus --------------------------------------------
-#
-# Sorted, the seven suites are a..g at indexes 0..6, so of three legs leg 0
-# draws a, d, g; leg 1 draws b, e; leg 2 draws c, f. The allowlist names b and
-# c, neither of which is on leg 0: the stale guard must still read the full
-# discovery there rather than call both entries stale.
 r="$(make_root shard)"
 for name in a b c d e f g; do
   write_suite "$r" "plugins/$name/$name.test.sh" 'echo ok'
@@ -494,14 +413,6 @@ for spec in 2/2 x 1 1/0 ''; do
 done
 assert_output_has "the bad shard spec is named" "--shard wants <index>/<total>"
 
-# --- --suites-from: the supplied selection replaces the discovered corpus ------
-#
-# scripts/affected-tests.sh hands its selection here instead of carrying a
-# second parallel runner. The three properties that matters rests on: only the
-# listed suites run, a listed suite OUTSIDE the discovered corpus still runs
-# (the selector's input is a path list, not this runner's discovery), and the
-# serial allowlist's stale guard still reads the FULL discovery, so an
-# allowlist entry the selection did not draw is not reported stale.
 r="$(make_root suites-from)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
 write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"'
@@ -531,11 +442,6 @@ PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "an empty selection exits 0 h
   --root "$r" --suites-from "$empty_selection"
 assert_output_lacks "the empty selection runs nothing" "=== plugins/"
 
-# --- advisory suites ------------------------------------------------------------
-#
-# A suite on the advisory list warns instead of failing, but only under
-# PLUGIN_TEST_ADVISORY=1, which CI sets for runs on main alone. A pull request
-# run leaves it unset, so the same failure fails the leg there.
 r="$(make_root advisory)"
 write_suite "$r" plugins/planning/shared/tests/ui-a.test.sh 'echo "FAIL: ui timing" >&2; exit 1'
 # shellcheck disable=SC2016 # the suite expands it, not this script
@@ -551,8 +457,6 @@ assert_output_has "on main, the suite's FAIL block still prints" "FAIL: plugins/
 assert_output_has "on main, the summary names the advisory failure" "1 advisory suite(s) FAILED"
 assert_output_lacks "on main, the run does not claim all green" "All plugin tests passed."
 assert_output_lacks "on main, the advisory failure gets no error annotation" "::error"
-# The nonce comes before any suite block, the warning repeats it, and no suite
-# sees it (babysit_postmerge.py credits only a warning carrying it).
 nonce="$(sed -n 's/^Advisory nonce: \([0-9a-f]\{16\}\)$/\1/p' <<<"$RUN_OUTPUT")"
 before_blocks="$(sed -n '/^=== /q; p' <<<"$RUN_OUTPUT")"
 if [[ -n "$nonce" && "$before_blocks" == *"Advisory nonce: $nonce"* &&
@@ -576,7 +480,6 @@ PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SE
   run_runner 1 "on main, a failing suite not on the advisory list still fails the run" --root "$r"
 assert_output_lacks "on main, a non-advisory failure gets no warning" "::warning"
 
-# One annotation per failing suite, so a log reader can group by suite.
 assert_output_has "a failing suite gets its own error annotation" \
   "::error title=plugins/b/b.test.sh::plugins/b/b.test.sh failed (exit 1)"
 assert_error_count "a failing suite gets exactly one error annotation" 1
@@ -606,10 +509,6 @@ PLUGIN_TEST_ADVISORY_LIST="$stale_advisory" PLUGIN_TEST_SERIAL_LIST="$empty_list
   run_runner 2 "an advisory entry that matches no suite is rejected" --root "$r"
 assert_output_has "the stale advisory entry is named" "plugins/gone/gone.test.sh"
 
-# --- --budget: a suite over its share fails by name ------------------------------
-#
-# The slow suite sleeps past two whole seconds, so its whole-second timing is at
-# least 2 whatever the clock boundary, over a 1 s share; the quick one is 0 or 1.
 r="$(make_root budget)"
 write_suite "$r" plugins/slow/slow.test.sh 'sleep 2.1; echo "ok: slow"'
 write_suite "$r" plugins/quick/quick.test.sh 'echo "ok: quick"'
@@ -653,17 +552,12 @@ PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "an empty --budget= is reject
 PLUGIN_TEST_SHARE_MARGIN=0 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a zero share margin is rejected" --root "$r" --budget 60
 assert_output_has "the bad margin is named" "PLUGIN_TEST_SHARE_MARGIN must be a positive integer (got '0')"
 
-# A suite with no median is named with the default share it gets.
 PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=7 PLUGIN_TEST_SECONDS_LIST="$budget_seconds" \
   PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a run with an unlisted suite still passes" --root "$r" --budget 600
 assert_output_has "the unlisted suite is named with its default share" \
   "note: plugins/quick/quick.test.sh has no median in $budget_seconds, so it gets the default 7s share"
 assert_output_lacks "a listed suite is not named as unlisted" "note: plugins/slow/slow.test.sh"
 
-# --- the local gate: a passing suite over its share warns, a failing one fails --
-#
-# The slow suite passes but runs past its fixed 1 s share, as a passing suite
-# does on a loaded host.
 PLUGIN_TEST_SHARE_WARN_ONLY=1 PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 \
   PLUGIN_TEST_SECONDS_LIST="$no_seconds" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 0 "in the local gate a passing suite over its share does not fail the run" --root "$r" --jobs 2 --budget 1
@@ -673,7 +567,6 @@ assert_output_has "the warning annotation names the suite" \
 assert_output_lacks "the passing over-share suite is not failed" "FAIL: plugins/slow/slow.test.sh"
 assert_error_count "the passing over-share suite gets no error annotation" 0
 
-# The per-suite budget cases below reuse the budget root, so this one has its own.
 fail_root="$(make_root warn-only-fail)"
 write_suite "$fail_root" plugins/slowfail/slowfail.test.sh 'sleep 2.1; echo "FAIL: slow and broken" >&2; exit 1'
 PLUGIN_TEST_SHARE_WARN_ONLY=1 PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 \
@@ -692,13 +585,6 @@ PLUGIN_TEST_SHARE_WARN_ONLY=yes PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 2 "a share warn-only switch other than 0 or 1 is rejected" --root "$fail_root" --budget 60
 assert_output_has "the bad switch is named" "PLUGIN_TEST_SHARE_WARN_ONLY must be 0 or 1 (got 'yes')"
 
-# --- PLUGIN_TEST_DEADLINE: the local gate ends at its budget ---------------------
-#
-# Six suites of 6 s each, 36 s in all, against a deadline 5 s away, far enough
-# that a loaded host still launches the first: it ends past the deadline, so no
-# other launches. The run takes one suite's 6 s; the 20 s bound is the 5 s
-# deadline, that suite and 9 s for a loaded host, under the 36 s of a run that
-# ignores the deadline.
 deadline_root="$(make_root deadline)"
 for s in a b c d e f; do
   write_suite "$deadline_root" "plugins/$s/$s.test.sh" 'sleep 6; echo "ok"'
@@ -727,8 +613,6 @@ else
   fail "left file: $(cat "$left_file" 2>/dev/null); output: $RUN_OUTPUT"
 fi
 
-# Without the deadline --budget still runs every suite, which is the only budget
-# any CI caller could pass.
 quick_root="$(make_root deadline-quick)"
 for s in a b c; do
   write_suite "$quick_root" "plugins/$s/$s.test.sh" 'echo "ok"'
@@ -738,8 +622,6 @@ PLUGIN_TEST_SECONDS_LIST="$no_seconds" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
 assert_output_has "--budget alone runs the last suite" "PASS: plugins/c/c.test.sh"
 assert_output_lacks "--budget alone leaves nothing" "LEFT TO CI"
 
-# A deadline already past holds back the serial group too, and a run with nothing
-# failed still exits 0. The timings hold only what ran, which is nothing here.
 deadline_serial="$scratch/deadline-serial.txt"
 printf '%s\n' plugins/a/a.test.sh >"$deadline_serial"
 tfile="$scratch/deadline-timings.tsv"
@@ -757,7 +639,6 @@ else
   fail "timings: $(cat "$tfile"); left: $(cat "$left_file" 2>/dev/null)"
 fi
 
-# A suite left never hides a suite that ran and failed.
 deadline_fail="$(make_root deadline-fail)"
 write_suite "$deadline_fail" plugins/a/a.test.sh 'sleep 6; echo "FAIL: broken" >&2; exit 1'
 write_suite "$deadline_fail" plugins/b/b.test.sh 'echo "ok"'
@@ -768,8 +649,6 @@ PLUGIN_TEST_DEADLINE=$((now + 5)) PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
 assert_output_has "the failed suite is named" "plugins/a/a.test.sh failed (exit 1)"
 assert_output_has "the suite left is named beside it" "LEFT TO CI: plugins/b/b.test.sh"
 
-# The deadline is this run's: a suite that starts a run of its own, as this file
-# does, must not inherit it, or that inner run would stop launching at once.
 deadline_inherit="$(make_root deadline-inherit)"
 # shellcheck disable=SC2016 # the fixture suite expands these, not this file.
 write_suite "$deadline_inherit" plugins/a/a.test.sh 'echo "saw deadline=${PLUGIN_TEST_DEADLINE-unset} left=${PLUGIN_TEST_LEFT_FILE-unset}"'
@@ -780,9 +659,6 @@ PLUGIN_TEST_DEADLINE=$((now + 600)) PLUGIN_TEST_LEFT_FILE="$left_file" PLUGIN_TE
 assert_output_has "a suite does not inherit the deadline" "saw deadline=unset left=unset"
 assert_output_has "a run inside its deadline reads as a full pass" "All plugin tests passed."
 
-# A suite inherits PLUGIN_TEST_LOG_DIR, so it can write its own left marker. That
-# never turns a failure into a pass, with a deadline or without one. Its key is
-# 000000: the only suite in its root.
 deadline_forge="$(make_root deadline-forge)"
 # shellcheck disable=SC2016 # the fixture suite expands this, not this file.
 write_suite "$deadline_forge" plugins/a/a.test.sh ': >"$PLUGIN_TEST_LOG_DIR/000000.left"; exit 1'
@@ -792,8 +668,6 @@ assert_output_lacks "a suite that ran is not left" "LEFT TO CI"
 printf -v now '%(%s)T' -1
 PLUGIN_TEST_DEADLINE=$((now + 600)) PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 1 "a recorded result wins over a left marker inside a deadline" --root "$deadline_forge"
-# With no deadline a left marker means nothing: a worker killed before it records
-# a result is still the failure it always was.
 deadline_killed="$(make_root deadline-killed)"
 # shellcheck disable=SC2016 # the fixture suite expands these, not this file.
 write_suite "$deadline_killed" plugins/a/a.test.sh ': >"$PLUGIN_TEST_LOG_DIR/000000.left"; kill -9 "$PPID"'
@@ -808,9 +682,6 @@ for bad in x -1 ''; do
 done
 assert_output_has "the bad deadline is named" "PLUGIN_TEST_DEADLINE must be epoch seconds (got '')"
 
-# --- the per-suite budget: warn over the threshold, fail over the ceiling --------
-#
-# Reuses the budget root: slow takes at least 2 s, quick 0 or 1.
 no_exceptions="$scratch/no-such-exceptions.txt"
 PLUGIN_TEST_SUITE_BUDGET=1 PLUGIN_TEST_SUITE_WARN=1 PLUGIN_TEST_SUITE_CEILING=60 \
   PLUGIN_TEST_SUITE_EXCEPTIONS="$no_exceptions" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
@@ -867,11 +738,6 @@ PLUGIN_TEST_SUITE_BUDGET=1 PLUGIN_TEST_SUITE_CEILING=0 PLUGIN_TEST_SUITE_EXCEPTI
   PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a zero ceiling is rejected" --root "$r"
 assert_output_has "the bad ceiling is named" "PLUGIN_TEST_SUITE_CEILING must be a positive integer (got '0')"
 
-# --- the shipped lists against the shipped corpus -------------------------------
-#
-# Every entry in scripts/run-plugin-tests-serial.txt,
-# scripts/run-plugin-tests-advisory.txt and scripts/suite-budget-exceptions.txt
-# must name a suite that exists today.
 stale=0
 while read -r line secs _ || [[ -n "$line" ]]; do
   [[ -n "$line" && "$line" != \#* ]] || continue
