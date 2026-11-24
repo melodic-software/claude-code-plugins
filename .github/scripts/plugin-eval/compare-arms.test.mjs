@@ -103,3 +103,27 @@ test("a change to plugin text the arms do not carry, such as a reference file, b
   assert.equal(r.status, 1);
   assert.match(r.stdout, /plugins\/p\/reference\/x\.md/);
 });
+
+test("a context/ markdown edit is carried: after has the head's text, before the merge base's", () => {
+  const CONTEXT = "plugins/p/context/rules.md";
+  const f = fixture({ [CONTEXT]: "New context.\n" }, { [CONTEXT]: "Main context.\n" });
+  const r = run(f);
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.patch("after"), /\+New context\./);
+  assert.match(r.patch("before"), /context\/rules\.md/);
+  assert.doesNotMatch(r.patch("before"), /\+New context\./);
+  assert.ok(applies(f.repo, f.main, join(r.out, "after", "edit.patch")));
+  assert.ok(applies(f.repo, f.main, join(r.out, "before", "edit.patch")));
+});
+
+test("a context/ file that is not markdown, plugin.json or probes/ builds nothing", () => {
+  const skill = { [SKILL]: "---\nname: s\ndescription: d\n---\nNew rule.\n" };
+  const script = run(fixture({ ...skill, "plugins/p/context/lookup.sh": "echo hi\n" }));
+  assert.equal(script.status, 1);
+  assert.match(script.stdout, /select-plugins\.mjs refuses/);
+  for (const path of ["plugins/p/.claude-plugin/plugin.json", "plugins/p/probes/p.md"]) {
+    const r = run(fixture({ ...skill, [path]: "{}\n" }));
+    assert.equal(r.status, 1, path);
+    assert.match(r.stdout, new RegExp(`would not carry ${path.replaceAll(".", "\\.")}`));
+  }
+});

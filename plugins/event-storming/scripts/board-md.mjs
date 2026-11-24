@@ -2,8 +2,7 @@
 
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { realpathSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -255,7 +254,7 @@ function parseNodes(lines, sectionKey, problems) {
     if (/^ {0,2}- /.test(line)) {
       flush();
       container.push({ type: "item", line });
-      if (!(sectionKey === MAP_SECTION)) {
+      if (sectionKey !== MAP_SECTION) {
         problems.push({ level: "warn", message: `list line is not a sticky: ${line.slice(0, 60)}` });
       }
       continue;
@@ -304,6 +303,12 @@ function renderNodes(nodes) {
 const renderSticky = (sticky, indent) =>
   `${indent}- [${sticky.kind}] ${escapeText(sticky.text)}${sticky.attrs.id ? renderAttrs(sticky.attrs) : ""}`;
 
+function trimBlankEnds(lines) {
+  while (lines.length && lines[0] === "") lines.shift();
+  while (lines.length && lines[lines.length - 1] === "") lines.pop();
+  return lines;
+}
+
 export function parseBoard(source) {
   const problems = [];
   const lines = source.replace(/\r\n/g, "\n").replace(/\n+$/, "").split("\n");
@@ -333,8 +338,7 @@ export function parseBoard(source) {
       problems.push({ level: "warn", message: `unknown section kept verbatim: ${section.title}` });
     }
   }
-  while (head.length && head[0] === "") head.shift();
-  while (head.length && head[head.length - 1] === "") head.pop();
+  trimBlankEnds(head);
   return { meta, head, sections, problems };
 }
 
@@ -356,9 +360,7 @@ export function renderBoard(board) {
     } else if (section.known) {
       body = renderNodes(section.nodes);
     } else {
-      body = [...section.lines];
-      while (body.length && body[0] === "") body.shift();
-      while (body.length && body[body.length - 1] === "") body.pop();
+      body = trimBlankEnds([...section.lines]);
     }
     if (body.length) out.push("", ...body);
   }
@@ -537,6 +539,16 @@ function insertTopLevel(list, node) {
   else list.splice(firstZone, 0, node);
 }
 
+function versionText(version) {
+  if (!Number.isInteger(version) || version < 1) throw new BoardError("version must be a positive integer");
+  return String(version);
+}
+
+function personaList(personas) {
+  if (!Array.isArray(personas)) throw new BoardError("personas must be a list");
+  return personas.map((p) => cleanText(p, "persona"));
+}
+
 const OPS = {
   add(board, op) {
     if (!(op.kind in KINDS)) throw new BoardError(`unknown kind ${op.kind}`);
@@ -621,14 +633,8 @@ const OPS = {
     for (const key of ["phase", "domain", "title", "session"]) {
       if (op[key] !== undefined) board.meta[key] = cleanText(op[key], key);
     }
-    if (op.version !== undefined) {
-      if (!Number.isInteger(op.version) || op.version < 1) throw new BoardError("version must be a positive integer");
-      board.meta.version = String(op.version);
-    }
-    if (op.personas !== undefined) {
-      if (!Array.isArray(op.personas)) throw new BoardError("personas must be a list");
-      board.meta.personas = op.personas.map((p) => cleanText(p, "persona"));
-    }
+    if (op.version !== undefined) board.meta.version = versionText(op.version);
+    if (op.personas !== undefined) board.meta.personas = personaList(op.personas);
     return null;
   },
 };
@@ -656,15 +662,9 @@ export function newBoard(metaInput, now) {
   for (const key of ["domain", "session", "phase"]) {
     if (metaInput[key] !== undefined) meta[key] = cleanText(metaInput[key], key);
   }
-  if (metaInput.version !== undefined) {
-    if (!Number.isInteger(metaInput.version) || metaInput.version < 1) throw new BoardError("version must be a positive integer");
-    meta.version = String(metaInput.version);
-  }
+  if (metaInput.version !== undefined) meta.version = versionText(metaInput.version);
   meta.updated = now;
-  if (metaInput.personas !== undefined) {
-    if (!Array.isArray(metaInput.personas)) throw new BoardError("personas must be a list");
-    meta.personas = metaInput.personas.map((p) => cleanText(p, "persona"));
-  }
+  if (metaInput.personas !== undefined) meta.personas = personaList(metaInput.personas);
   const sections = SECTIONS[format].map((t) => ({ title: t, key: slug(t), known: true, nodes: [], lines: [] }));
   return { meta, head: [`# ${escapeText(title)}`], sections, problems: [] };
 }

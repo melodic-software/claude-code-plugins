@@ -6,7 +6,7 @@ Structured confirmation that a bug fix actually resolves the reported issue. Cor
 
 - A bug was reported and a fix was implemented
 - User asks "is this fixed?" or "does this resolve the issue?"
-- `/testing:diagnose` (reproduce-fix-retest-regression) cycle completed and needs summary evidence
+- `/testing:fix-failing` (reproduce-fix-retest-regression) cycle completed and needs summary evidence
 
 ## Process
 
@@ -47,7 +47,7 @@ Gold standard for fix confirmation is a test that:
 1. **Fails** when run against pre-fix code (proves the bug exists)
 2. **Passes** when run against fixed code (proves the fix works)
 
-If `/testing:diagnose` was used, this test should already exist. Reference it by name:
+If `/testing:fix-failing` was used, this test should already exist. Reference it by name:
 
 ```
 Reproduction test: returns_null_when_user_is_deleted  # name it per your framework's convention

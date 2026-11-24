@@ -44,7 +44,6 @@ import { ATTENDED as ATTENDED_LABEL, HOST_RUN as HOST_RUN_LABEL } from "../lib/l
 export { ATTENDED_LABEL, HOST_RUN_LABEL };
 
 const ROUTE_NAMES = new Set(["hold", "host-run", "attended", "retry", "wait", "intake", "park", "close", "fail"]);
-// The routes a row's `retries` may cap.
 const COUNTED_ROUTES = new Set(["retry", "wait", "intake"]);
 // The owner's reasons for a person (owner direction 2026-10-27).
 export const HOLD_CLASSES = new Set(["intent-change", "design-change", "security-risk", "cost-risk"]);
@@ -67,18 +66,15 @@ for (const [reason, row] of Object.entries(STOP_ROUTES)) {
     throw new Error(`stop-routes.json: ${reason} does not hold, so it takes no class`);
   }
 }
-// runCode's security backstop routes to this row.
 if (STOP_ROUTES["security-risk"]?.route !== "hold" || STOP_ROUTES["security-risk"].class !== "security-risk") {
   throw new Error("stop-routes.json: security-risk needs a hold route and class security-risk");
 }
-// A spent cap that routed to retry would retry without end.
 for (const spent of ["retry-spent", "turn-cap-spent"]) {
   if (STOP_ROUTES[spent]?.route === "retry" || !Object.hasOwn(STOP_ROUTES, spent)) {
     throw new Error(`stop-routes.json: ${spent} needs a route other than retry`);
   }
 }
 
-// A reason's row, or undefined when the table does not list it.
 const rowOf = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason] : undefined);
 // A reason's route; a reason the table does not list names no owner reason,
 // so it fails rather than reaching a person.
@@ -92,32 +88,14 @@ export const stopRetries = (reason, cap) => Math.min(cap, rowOf(reason)?.retries
 export const stopFault = (reason) => rowOf(reason)?.fault === true;
 export const stopWhy = (reason) => rowOf(reason)?.why ?? "the stop reason is not in the lane's route table";
 
-// The codes a run may open its `stopped` reason with, longest first, each in
-// any case: security-risk with a hyphen, underscore, space or nothing between
-// its words, every other code only hyphenated and followed by no word
-// character or hyphen, so "Design change in X" names no code.
 const CODES = Object.keys(STOP_ROUTES)
   .filter((reason) => STOP_ROUTES[reason].code === true)
   .sort((a, b) => b.length - a.length)
   .map((code) => [code, code === "security-risk" ? /^security[-_\s]*risk/i : new RegExp(`^${code}(?![\\w-])`, "i")]);
-// A reason that names a security concern, even inside a word (but not wholly
-// inside a listed name, KNOWN_NAMES below); the short acronyms (XSS, RCE, CVE)
-// only as whole words, so "source" names none.
 const SECURITY_CONCERN =
   /security|vuln|inject|exfiltrat|malicious|backdoor|exploit|branch[\s_-]?protection|attack|unauthori[sz]|hijack|\btake[\s-]?over\b|took\s+over|\bstol(?:e|en)\b|\bstranger|\boutsider|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
-// The secret nouns: a security word everywhere, released only after an
-// ending code and only in a capability phrasing (CAPABILITY below).
 const SECRET_NOUN = String.raw`credential|secret|token|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|deploy[\s_-]?key|ssh[\s_-]?key|access[\s_-]?key|\bpat\b(?!-)`;
 const SECURITY_WORD = new RegExp(`${SECURITY_CONCERN.source}|${SECRET_NOUN}`, "i");
-// known-names.json: identifiers (a skill id, a principle name) that hold a
-// security word but name no risk, each with a why. A security word that lies
-// wholly inside one, written exactly as listed as a whole identifier (not next
-// to a letter, digit, `-`, `_` or `:`), names none; one that runs past its edge
-// ("github-deploy key") still does. Fail closed: a listed name joins at least
-// two parts with `-`, `_` or `:`, so a bare word such as "attack" cannot be
-// listed, and holds no secret noun, so it never releases a credential mention.
-// A checkout without the file (a sparse one that lists only this module and
-// its table) reads no names, which only holds more.
 const readKnownNames = () => {
   try {
     return JSON.parse(readFileSync(new URL("./known-names.json", import.meta.url), "utf8"));
@@ -144,9 +122,6 @@ const LISTED_NAME = Object.keys(KNOWN_NAMES).length
       "gu",
     )
   : null;
-// The first match of `pattern` in `text` that does not lie wholly inside a
-// listed name. Each match start is tried, so a match that starts inside a name
-// and runs past it is still found.
 const outsideNames = (pattern) => {
   const global = new RegExp(pattern.source, `${pattern.flags}g`);
   return (text) => {
@@ -161,43 +136,15 @@ const outsideNames = (pattern) => {
 };
 const concernOutsideNames = outsideNames(SECURITY_CONCERN);
 const wordOutsideNames = outsideNames(SECURITY_WORD);
-// The phrasings that name a secret only as something a run needs ("a host
-// with model credentials", "needs an API key the lane does not hold", "tokens
-// per task"). Fail closed: the phrasing counts only when the secret noun,
-// after at most a model or deploy qualifier, ends the clause or is followed by
-// a lane capability ("the lane", "to run"), so "needs the token to be
-// rotated", "needs the API key, which ..." and "needs the reused token" hold.
 const N = "(?:credentials?|api[\\s_-]?keys?|tokens?|secrets?|passwords?)";
 const END = "(?=\\s*(?:$|[.;)]|\\s(?:to\\s+(?:run|invoke|call|use|reach|spend)|the\\s+lane|this\\s+lane|it\\s+does|which\\s+only|only)\\b))";
 const CAPABILITY = new RegExp(
   `\\b(?:(?:a|the)\\s+)?host\\s+with\\s+(?:(?:model|an?|the)\\s+)*${N}${END}|\\b(?:needs?|requires?|lacks?)\\s+(?:(?:an?|the|model|deploy)\\s+)*${N}${END}|\\btokens?\\s+(?:per|spent|count|usage|budget)\\b|,\\s*tokens\\s*,`,
   "gi",
 );
-// A token count of a thousand or more ("76,888 tokens", "1500000 tokens",
-// "120k tokens") is a measure, not a credential, so after an ending code its
-// "tokens" names no secret. Fail closed: the count is a measure only when
-// "tokens" ends the reason (a final full stop included) or a parenthesis, or
-// a measurement word follows it ("76,888 tokens headless"), so "1,500 tokens
-// were sent to ...", "1,500 tokens. They ..." and "2,048 tokens, now in the
-// public log" hold. A small count ("3 tokens leaked") still holds, and a
-// count releases nothing in a reason that also says what was done with
-// tokens (TOKEN_HANDLING): "rotate the 1,200 tokens" holds.
 const TOKEN_COUNT =
   /(?<![\w.,])(?:\d{1,3}(?:,\d{3})+|\d{4,}|\d+(?:\.\d+)?[kKM])\s?tokens?\b(?=\s*(?:\.?\s*$|\))|\s+(?:headless|interactive|vs|versus|per|spent|used|total|budget|startup|payload|context|prompt|cached|saved|more|fewer|less)\b)/g;
 const TOKEN_HANDLING = /\b(?:rotat|revok|leak|expos|upload|paste|print|commit|push|dump|reveal|email|cop(?:y|ie[ds])|gist|screenshot)|\b(?:post(?:ed|s)?|shar(?:e|ed|es|ing)|logged|visible|shown|reus\w*|stol\w*)\b/i;
-// The technical senses of a secret noun, which name no secret. A hyphenated
-// measure (a per-token rate, token spending) can never name a credential, so
-// it releases wherever it stands (TOKEN_MEASURE). A phrase that can name a
-// real credential by its kind or scope (a subscription, model, read or write
-// token; an input, output or cache token, which in Actions wording is an
-// action's `token` input or a step's token output; "whose token has no
-// `statuses: read`"; "the token's permissions"; "has no credentials") is read
-// like a capability phrasing (CRED_SENSE): it releases only when every other
-// word of the reason is a capability word, so any word before or after it
-// that could state an exposure ("the public run log now holds the write
-// token", "the output token is in ...") holds. Like a count, each releases
-// nothing in a reason that also says what was done with a secret
-// (TOKEN_HANDLING).
 const TOKEN_MEASURE = /\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b/gi;
 const SCOPE = String.raw`(?:\x60[^\x60\n]{1,40}\x60|[\w-]+:\s*(?:read|write)|(?:[\w-]+\s+)?(?:permissions?|scopes?))`;
 const CRED_SENSE = new RegExp(
@@ -205,11 +152,6 @@ const CRED_SENSE = new RegExp(
   "gi",
 );
 const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " ").replace(TOKEN_MEASURE, " "));
-// The only words a reason that names a secret noun may hold beside its
-// capability phrasings. Fail closed: any other word, so any exposure however
-// worded ("uploaded", "posted", "holds", "contains", "the key was ..."), a
-// pronoun that could point at the secret but "it", or a word in another
-// script, holds. "this" and "that" count only before "lane", "needs" or "ci".
 const CAPABILITY_WORDS = new Set(
   "a an the and or to on of for with not no cannot can does do only lane host desktop machine gpu run runs need needs requires lacks hold invoke call calls spend paid credit prepaid eval evals suite suites claude model live task tasks completed work against records pass rate advisor wall time printer driver it has have had role s ci azure gh dequeue step merge job whose read write cover workflow".split(" "),
 );
@@ -217,22 +159,11 @@ const capabilityOnly = (text) => {
   const words = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   return words.every((word, i) => CAPABILITY_WORDS.has(word) || (/^th(?:is|at)$/.test(word) && /^(?:lane|needs|ci)$/.test(words[i + 1] ?? "")));
 };
-// The routes that end the lane's work on the issue rather than bring it back:
-// a security mention after one of their codes still reaches a person (owner
-// decision 2026-10-29), unless the secret is only named in a capability
-// phrasing: a person is only for a real security risk such as a leaked token
-// (owner direction, docs/contracts/loop-lane/README.md "When work stops for
-// the owner"), and a capability limit is none. This holds for a pushback that
-// opens with a host-run or attended code too. An intake code removes
-// agent-ready, so it ends the lane's work as well. A wait or retry code comes
-// back to the lane anyway, except after a pushback (runCode's anyCodeEnds).
 const ENDING_ROUTES = new Set(["close", "host-run", "attended", "intake"]);
 const endingRiskWord = (text) => {
   const counted = withoutCounts(text);
   const capabilities = counted.replace(CAPABILITY, " ");
   const rest = TOKEN_HANDLING.test(text) ? capabilities : capabilities.replace(CRED_SENSE, " ");
-  // A listed name counts only for the word match: CAPABILITY and
-  // capabilityOnly still read it, so a name beside a secret noun holds.
   return concernOutsideNames(text) ?? wordOutsideNames(rest) ?? (capabilityOnly(rest) ? "" : (wordOutsideNames(counted) ?? ""));
 };
 const namesEndingRisk = (text) => endingRiskWord(text) !== "";

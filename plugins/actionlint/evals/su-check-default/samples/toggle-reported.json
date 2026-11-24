@@ -72,6 +72,10 @@
     {
       "answer": "| `actionlint_enabled` | **✅ PASS** | `true` |",
       "why": "bold two-token verdict cell"
+    },
+    {
+      "answer": "| 4 | Toggles | INFO | `actionlint_enabled` is the default `true`, so the pre-commit entry lints. |",
+      "why": "article before default"
     }
   ],
   "fail": [
@@ -145,6 +149,10 @@
     {
       "answer": "actionlint_enabled | ✅ ❌ | unknown |",
       "why": "verdict cell of icons, then no value"
+    },
+    {
+      "answer": "actionlint_enabled is the option that turns the hooks off or on.",
+      "why": "the, then no value"
     }
   ]
 }

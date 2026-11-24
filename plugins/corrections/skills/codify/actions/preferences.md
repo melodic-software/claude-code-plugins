@@ -49,7 +49,9 @@ names a source, not a mistake, so section 1's exceptions do not lift the thresho
    threshold and keep a group at or over it. List a group under it as seen and dropped, however firmly
    or often it was put, and even when the person already said yes to it.
 8. **Confirm each.** For every kept preference, show one line stating it, the projects that
-   contributed (`project` values) and the excerpts behind it. When every excerpt comes from one
+   contributed (`project` values) and the excerpts behind it. Give each `project` value in full and
+   quote each excerpt as it reads; a session id or a short project name stands in for neither.
+   When every excerpt comes from one
    project, say it may be that project's convention rather than the person's. Ask them to confirm,
    reword or drop each one. Nothing moves on without a yes for that preference; a yes the invocation
    already gives for a named preference counts.

@@ -26,6 +26,10 @@ Dispatch a verifier that **does not inherit the implementer's numbers**. Give it
 claim; withhold the reasoning that produced the figures. A verifier shown the expected answer
 verifies the answer, not the work.
 
+Dispatch it with the Agent tool. Re-deriving the numbers in this context is not this phase; only
+when the Agent tool is unavailable or denied, say so and report `Reproduced by an independent
+verifier: no`.
+
 The brief should say, in substance: distrust the reported numbers, re-derive them yourself, and
 report what you actually observe including the ways you could not reproduce it.
 

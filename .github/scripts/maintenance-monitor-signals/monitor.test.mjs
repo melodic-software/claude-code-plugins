@@ -1,9 +1,3 @@
-// Runs end to end through detect, planIssues and writePlan against an
-// in-memory issue store: for each signal, the first run files one incident,
-// a run with the same findings writes nothing, new findings rewrite that
-// issue's body with no
-// comment, a clear run closes it, and a later episode files a new incident.
-// Every rewrite takes agent-ready off.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -47,7 +41,6 @@ const incident = (status) => ({
 });
 const held = (pr) => ({ pr, enqueued: false, merged: false, reason: "risk:MED", updatedAt: "2026-10-18T06:00:00Z" });
 
-// [signal, first evidence, new evidence]
 const CASES = [
   ["1 main red", { mainRun: red("not ok 1 - a") }, { mainRun: red("not ok 1 - b") }],
   [
@@ -102,16 +95,11 @@ const planFor = (s, data, extra = {}) =>
 const runOnce = (s, data, extra = {}) => writePlan({ plan: planFor(s, data, extra), call: s.call, repo: "o/r", runUrl: url(900), wait: async () => {} });
 
 const nothing = { filed: [], updated: [], closed: [], retired: [], failed: [] };
-// Throttling's first findings with a second key alongside.
 const TWO_KEYS = { failedRuns: [denied(1, "lane-token-denied: the broker answered 500 with reason unknown"), denied(2, "HTTP 429 rate limit")] };
 
 const ROOT = new URL("../../..", import.meta.url).pathname;
-// The org Work status field and the option ids it maps, written by hand.
 const FIELD = 48484079;
 const OPTION = { "needs-triage": 84879216, "needs-owner-decision": 84879218, "agent-ready": 84879220 };
-// One issue's Work status field reading `state`, last set by account `setter`,
-// behind a real statusWriter. A POST sets it as the lanes App, or throws
-// `postError`; `written` lists the states POSTed.
 function workStatus(state, setter, postError) {
   const written = [];
   const value = () => (state === null ? [] : [{ issue_field_id: FIELD, single_select_option: { id: OPTION[state] } }]);
@@ -340,8 +328,6 @@ test("signal 11 prints one ::error line per run while it fires; other signals pr
   assert.deepEqual(errorLines(detect({ postMergeReports: reports.slice(0, 3) })), []);
 });
 
-// The job reads carry comes from the newest scheduled or hand-started run of
-// main's copy of this workflow, this run aside, and only with JOBS_CARRY_PATH.
 const LANE = ".github/workflows/maintenance-monitor-signals.yml";
 const carryActions = (runs) => {
   const calls = [];
@@ -402,7 +388,6 @@ test("no JOBS_CARRY_PATH reads nothing, and a carry that cannot be read carries 
   ]) {
     assert.deepEqual(await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download }), { jobs: new Map(), held: null, episodes: {} });
   }
-  // A file from before the carry held runs carries none over no span; a bad held run drops only the held runs.
   const old = JSON.stringify({ version: 1, repository: "o/r", runs: [ENTRY] });
   assert.deepEqual((await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download: () => old })).held, { runs: [], from: null, through: null, scanned: [] });
   const bad = await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download: () => jobsCarryFile("o/r", [ENTRY], { ...HELD, runs: [{ ...HOLD, lane: "other" }] }) });

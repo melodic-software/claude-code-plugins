@@ -64,7 +64,9 @@ The lint entry (`${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh`), its adapter
 (`${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`) and the resolver they share are the single source of
 truth for what the plugin requires and how it resolves things; step 4 asks the resolver itself.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then read the
+**Read it first.** Open `${CLAUDE_PLUGIN_ROOT}/git-hooks/lint.sh` and
+`${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh` with the Read tool before any probe, also when step 4
+resolves nothing. Probe what it actually does, don't recite this file. Then read the
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.

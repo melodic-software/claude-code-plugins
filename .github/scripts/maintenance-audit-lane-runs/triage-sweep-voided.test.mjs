@@ -1,9 +1,3 @@
-// An intake run whose verdict a lanes kill switch voided (the broker refused
-// apply-verdict's token with reason kill-switch, as in runs 43076956280 and
-// 43077440327) wrote nothing. apply-verdict stays green, as every lane's
-// lane-token-stopped does, and runs one named step; the sweep reads that step
-// from the job listing, counts the run as no attempt, and dispatches intake
-// again rather than handing the issue off on it.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -20,15 +14,12 @@ const issue = (number, over = {}) => ({ number, user: { id: HUMAN }, labels: [],
 const step = (name, conclusion) => ({ name, status: "completed", conclusion });
 const job = (name, conclusion, steps, id) => ({ name, status: "completed", conclusion, steps, check_run_url: `https://api.github.com/repos/o/r/check-runs/${id}` });
 const reached = (apply) => [job("Kill Switch", "success", [], 1), job("Born Triaged", "success", [], 2), job("Intake Triage / claude-intake-triage", "success", [], 3), apply];
-// apply-verdict's steps as those two runs listed them, with the voided step run.
 const VOIDED = reached(
   job("Apply Verdict", "success", [step("Check who started the run", "success"), step("Request the lane token", "success"), step(VOIDED_STEP, "success"), step("Write the verdict", "skipped")], 301),
 );
-// The same stop with the step skipped: what those runs list without it.
 const UNMARKED = reached(
   job("Apply Verdict", "success", [step("Check who started the run", "success"), step("Request the lane token", "success"), step(VOIDED_STEP, "skipped"), step("Write the verdict", "skipped")], 302),
 );
-// A verdict written that left the issue untriaged.
 const WROTE = reached(job("Apply Verdict", "success", [step("Request the lane token", "success"), step(VOIDED_STEP, "skipped"), step("Write the verdict", "success")], 303));
 const STOPPED_NOTE = { annotation_level: "notice", message: "lane-token-stopped: the broker refused the token because a lanes kill switch is on, a designed stop; this run takes no token and skips the rest" };
 const done = { status: "completed", conclusion: "success" };
@@ -49,8 +40,6 @@ function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {} }) {
       if (!(m[1] in jobs)) throw new Error(`GET ${path}: HTTP 502`);
       return { total_count: jobs[m[1]].length, jobs: jobs[m[1]] };
     }
-    // A written verdict lists no annotations, the unmarked stop its broker
-    // notice; any other annotations read fails.
     if (method === "GET" && path === "/repos/o/r/check-runs/303/annotations?per_page=100") return [];
     if (method === "GET" && path === "/repos/o/r/check-runs/302/annotations?per_page=100") return [STOPPED_NOTE];
     if (method === "GET") throw new Error(`GET ${path}: HTTP 502`);
@@ -97,8 +86,6 @@ test("a voided run with no dispatch slot left is recorded transient, and the nex
   assert.equal(recorded.length, 1);
   assert.equal(stateLine(recorded[0]), "<!-- claude-lane triage-sweep runs=11+,22~ filed= -->");
 
-  // The next pass's jobs read would answer 502 (no jobs listed): the recorded
-  // mark stands, so the run still counts as no attempt.
   const next = fakeGitHub({ issues: [issue(1)], comments: { 1: [{ ...stateComment([11, 22]), body: recorded[0].body.body }] }, runs: { 22: done } });
   const second = await sweep(next);
   assert.deepEqual([second.dispatched, second.handed], [[1], []]);
@@ -106,9 +93,6 @@ test("a voided run with no dispatch slot left is recorded transient, and the nex
   assert.equal(stateLine(next.writes[1]), "<!-- claude-lane triage-sweep runs=11+,22~,901 filed= -->");
 });
 
-// The step's `if:` is reached only through the token step, which runs only
-// after the config and the who-check passed: a run is marked voided only when
-// it passed the trust checks a dispatch must pass.
 test("apply-verdict runs the voided step only on the broker's kill-switch refusal, after the who-check, and stays green", () => {
   const wf = workflowText(readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8"));
   const voided = wf.step("apply-verdict", "voided");

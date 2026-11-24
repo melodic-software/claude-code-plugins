@@ -5,6 +5,14 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.10.3] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+- The enforcement ladder copy (3.4.1) says a check runs locally, at the stage the check-placement contract assigns, and in CI, in place of the undefined "edit time".
+
 ## [5.10.2] - 2026-11-23
 
 ### Changed

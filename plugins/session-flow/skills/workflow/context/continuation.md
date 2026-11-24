@@ -221,7 +221,8 @@ or handoff file sends that skill to its full path, which the cloud delivery refu
 is committed and pushed, name the launch as `--cloud prompt <topic> <purpose naming the file's
 repo-relative path>`; when it is not, say the user commits and pushes it first. Judge
 the fit from the upstream criteria, read live through `/discovery:read-docs` (if that plugin is
-enabled; otherwise fetch each pointer below with WebFetch), never from memory:
+enabled; otherwise fetch each pointer below with the session-flow plugin's
+`scripts/fetch-docs.sh --cache`, following its `reference/docs-lookup-procedure.md`), never from memory:
 
 - **Pointer**: the decision rule,
   <https://code.claude.com/docs/en/remote-control#remote-control-vs-cloud-sessions>; when cloud

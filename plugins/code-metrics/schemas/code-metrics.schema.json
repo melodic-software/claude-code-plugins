@@ -88,6 +88,10 @@
         "check": {
           "enum": ["report", "crossing", "crossing-or-growth"],
           "description": "What audit-size.sh --check fails: report fails nothing; crossing fails a changed file that went from below size.file_lines at the base to at or above it; crossing-or-growth also fails a file already at or above it that grew."
+        },
+        "copies_manifest": {
+          "type": ["string", "null"],
+          "description": "A file listing generated copies, one `<canonical> <copy>` pair per line, relative to the repository root. The size check measures a copy at its canonical only when this file lists the pair and a scope.registries cluster line names the canonical and a member matching the copy. Null exempts nothing."
         }
       }
     },

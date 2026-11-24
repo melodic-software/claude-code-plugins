@@ -205,7 +205,7 @@ export const STAGE_COMMANDS = [
   {
     stage: "test",
     skill: "testing/write",
-    also: [{ when: "when a test fails,", skill: "testing/diagnose" }],
+    also: [{ when: "when a test fails,", skill: "testing/fix-failing" }],
   },
   { stage: "review", skill: "review/quality-gate" },
   {

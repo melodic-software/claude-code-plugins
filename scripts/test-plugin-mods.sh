@@ -113,22 +113,20 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! version_at_least "$versio
   exit 0
 fi
 
+jobs="${MOD_TEST_JOBS:-2}"
+[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || jobs=2
+
 buf="$(mktemp -d)" || exit 2
 trap 'rm -rf "$buf"' EXIT
 pids=()
-for i in "${!mods[@]}"; do
-  claude plugin test "${mods[i]}" >"$buf/$i.out" 2>&1 &
-  pids[i]=$!
-done
 failed=()
-for i in "${!mods[@]}"; do
+collect() {
+  local i=$1 rc=0 tests="" line msg
   echo "=== claude plugin test ${mods[i]} ==="
-  rc=0
   wait "${pids[i]}" || rc=$?
   cat "$buf/$i.out"
-  ((rc == 0)) && continue
+  ((rc == 0)) && return
   failed+=("${mods[i]}")
-  tests=""
   while IFS= read -r line; do
     [[ $line =~ ^\(fail\)\ (.+)$ ]] || continue
     line="${BASH_REMATCH[1]}"
@@ -138,6 +136,17 @@ for i in "${!mods[@]}"; do
   msg="${mods[i]}: ${tests:-exit $rc with no (fail) line; see the log above}"
   msg="${msg//'%'/%25}"
   echo "::error title=Mod tests failed::$msg"
+}
+next=0
+for i in "${!mods[@]}"; do
+  while ((i - next >= jobs)); do
+    collect $((next++))
+  done
+  claude plugin test "${mods[i]}" >"$buf/$i.out" 2>&1 &
+  pids[i]=$!
+done
+while ((next < ${#mods[@]})); do
+  collect $((next++))
 done
 if [[ ${#failed[@]} -gt 0 ]]; then
   echo "Mod tests failed." >&2

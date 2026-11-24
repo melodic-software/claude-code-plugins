@@ -6,7 +6,7 @@
 # pr-refine lane, as
 # docs/conventions/pr-pipeline/pr-run-activity.md (run job step 3) states. The gate's own checks are check-trusted-trigger's suite; this
 # asserts only the read file's wiring of them.
-# test-scope: .github/workflows/pr-run-activity-read.yml .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-run-activity-read.yml scripts/ci-deps/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,7 +17,7 @@ results=$(
   cd "$ROOT" && node --input-type=module - <<'EOF'
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-const require = createRequire(`${process.cwd()}/.github/standards/runner-policy/package.json`);
+const require = createRequire(`${process.cwd()}/scripts/ci-deps/package.json`);
 const YAML = require("yaml");
 
 const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
@@ -56,7 +56,7 @@ say(!("dispatcher-run-id" in broker), "the broker check sends no dispatcher run 
 EOF
 )
 if [[ -z "$results" ]]; then
-  fail "the structure check printed nothing; is .github/standards/runner-policy installed?"
+  fail "the structure check printed nothing; is scripts/ci-deps installed?"
 fi
 while IFS=$'\t' read -r verdict text; do
   [[ -n $verdict ]] || continue

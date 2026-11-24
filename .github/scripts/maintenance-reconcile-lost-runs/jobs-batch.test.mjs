@@ -1,10 +1,3 @@
-/**
- * A reconcile pass with its first-attempt job reads batched through
- * lib/run-jobs.mjs. Expected values come from the rule that a served pass
- * decides exactly as a REST pass does, so each plan below is run with
- * /graphql refused and with it answered, and must give the same re-runs,
- * outputs and carry with fewer calls.
- */
 import assert from "node:assert/strict";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -22,13 +15,6 @@ const MAIN_REVIEW = ".github/workflows/pr-review-main.yml";
 const LAST_PASS = { id: 900, path: ".github/workflows/maintenance-reconcile-lost-runs.yml", event: "schedule", head_branch: "main" };
 const MAIN_TIP = "e".repeat(40);
 
-/**
- * GitHub as the reconciler reads it with no open pull request: lane runs by
- * workflow and status, first-attempt jobs and annotations by REST, and the
- * same jobs through RUN_JOBS when `graphql` is "on". "refused" answers
- * every query 502; "errors" answers it with a GraphQL error body; "nulls"
- * answers no node. `carry` lists one trusted pass with a settled-runs artifact.
- */
 function fakeGitHub(runs, graphql, carry) {
   const calls = [];
   const byId = new Map(runs.map((r) => [r.id, r]));
@@ -108,7 +94,6 @@ function fakeGitHub(runs, graphql, carry) {
   return { github, calls };
 }
 
-/** Plan then act, as the workflow runs them; the plan's carry is returned. */
 async function reconcile(runs, graphql, carry) {
   const { github, calls } = fakeGitHub(runs, graphql, carry);
   const dir = tempDir("reconcile-batch-");
@@ -134,11 +119,6 @@ async function reconcile(runs, graphql, carry) {
 }
 
 const step = (name, number, conclusion = "success") => ({ name, number, status: "completed", conclusion });
-/**
- * A pr-verify Check Intent job as REST lists it: numbered steps, the ones it
- * never reached skipped. `held` ran "Note the hold" with the resolver's notice;
- * `judged` reached the judge step; `wrote` started the verdict write.
- */
 const intentJob = (id, { held = false, judged = false, wrote = false, failed = false } = {}) => ({
   id,
   name: "Check Intent",
@@ -180,19 +160,11 @@ const oneJob = (id, name, failedStep, notes = []) => ({
   steps: [step("Set up job", 1), step(failedStep, 2, "failure"), step("Later step", 3, "skipped"), step("Complete job", 4)],
   notes,
 });
-/** A pr-review-main run as it lists: seven skipped jobs and two that ran. */
 const reviewJobs = (id) => [
   ...Array.from({ length: 7 }, (_, i) => ({ ...skippedJob(id * 10 + i), name: `Review ${i}` })),
   { ...intentJob(id * 10 + 7), name: "Check Trigger" },
   { ...intentJob(id * 10 + 8), name: "Review Handoffs Credit" },
 ];
-/**
- * Six succeeded pr-verify runs, one of them held on a GitHub fault, and a
- * succeeded pr-review-main run; three failed lost lane runs: one before its
- * judge step (701, whose read the last pass carried), one past it, one that
- * wrote its verdict; two failed intake runs, one only in its floor-label job;
- * two failed verdict posts, one the kill switch stopped and one that broke.
- */
 const WORLD = [
   ...[601, 602, 603, 604, 605].map((id) => verifyRun(id, "success", [intentJob(id * 10), skippedJob(id * 10 + 1)])),
   verifyRun(606, "success", [intentJob(6060, { held: true }), skippedJob(6061)]),
@@ -206,7 +178,6 @@ const WORLD = [
   verifyRun(902, "failure", [oneJob(9020, "Post Verify Notes", "Post the notes", [{ annotation_level: "failure", title: "", message: "the post broke" }])], { path: VERDICT_DISPATCH }),
 ];
 const slim = ({ notes: _, ...job }) => job;
-/** The last pass's carry: run 701's first-attempt read, which holdReason takes instead of reading. */
 const CARRY = JSON.stringify({
   version: SETTLED_VERSION,
   repository: REPO,

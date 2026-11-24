@@ -1,11 +1,3 @@
-// Expected values come from the requested behavior: a listed human's added
-// queue-state label is written to the Work status field unless the field holds
-// a hold; an added agent-ready label writes nothing, since the App's write
-// would admit with no admission record and people set agent-ready on the field
-// itself; an added hold label and any removal but agent-ready's write nothing;
-// agent-ready taken off, a person stopping the lane, writes confirmed, never a
-// state that reads as ready, only while the field reads agent-ready; a label's
-// absence never resets the field.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -15,7 +7,6 @@ import * as syncStatus from "./sync-status.mjs";
 const { onLabelEvent, translateLabel } = syncStatus;
 const REPO = "o/r";
 
-// `field` is the field's trusted state (null for none). Records each write and read.
 function harness({ field = null } = {}) {
   const calls = [];
   const status = {

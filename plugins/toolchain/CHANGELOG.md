@@ -3,6 +3,18 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.4] - 2026-11-24
+
+### Changed
+
+- References to the failing-test skill name `/testing:fix-failing`.
+
+## [3.2.3] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [3.2.2] - 2026-11-24
 
 ### Changed

@@ -1,8 +1,3 @@
-// Expected values come from D30: each step of the work lane posts a
-// `pipeline/<activity>` commit status on the lane branch's head SHA. The
-// statuses skip nothing (a failing one only holds the merge gate), so the run's own
-// prep steps are posted as it reported them, the two lane jobs from their
-// GitHub job results, and nothing is posted without a lane branch.
 import assert from "node:assert/strict";
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -33,8 +28,6 @@ test("a run that pushed back or stopped is a failed resolve-issue", () => {
   }
 });
 
-// The plan's fixed text for a run that reached its turn cap: the cause, never
-// the run's words, and only when the run left no outcome of its own.
 test("a run stopped at its turn cap says so in the resolve-issue description", () => {
   const unread = { exit: "stopped", steps: [], unread: true };
   const status = (outcome, turnCap) =>
@@ -50,7 +43,6 @@ test("a run stopped at its turn cap says so in the resolve-issue description", (
   assert.equal(status({ exit: "stopped", steps: [] }, { cap: 75 }).description, "Failed in the work lane run.");
 });
 
-// A funding stop names its cause instead of a failure or the turn cap.
 test("a run stopped on the lane's funding says so in the resolve-issue description", () => {
   const unread = { exit: "stopped", steps: [], unread: true };
   const status = plan({ outcome: unread, branch: BRANCH, resolveResult: "failure", reportResult: "success", turnCap: { cap: 75 }, funding: { regain: null } }).find(
@@ -129,8 +121,6 @@ test("the description is fixed text, never the run's own words", () => {
   }
 });
 
-// main against a fake GitHub API: the statuses it posts are the lane's effect
-// on the repository, an unmanaged dependency, so they are what the test checks.
 function fakeFetch(routes) {
   const calls = [];
   const fetch = async (url, init = {}) => {
@@ -208,7 +198,6 @@ test("main names the lane branch a run left when report-outcome did not finish, 
   });
 });
 
-// A status post repeats to the same state, so it is sent again like a read.
 test("main survives a dropped socket on the branch read and on a status post", async () => {
   await withOutcome(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
@@ -217,7 +206,6 @@ test("main survives a dropped socket on the branch read and on a status post", a
         ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-123-1$/, 200, { object: { sha: SHA } }],
         ["POST", new RegExp(`/statuses/${SHA}$`), 201, {}],
       ]);
-      // The first send of each method fails on the network after it was made.
       const drop = new Set(["GET", "POST"]);
       const fetch = async (url, init = {}) => {
         const answer = await inner(url, init);
@@ -319,9 +307,6 @@ test("main fails when the branch head cannot be read", async () => {
   );
 });
 
-// A resumed run that committed nothing kept no branch, and report-outcome
-// opens its PR from the branch it resumed at the tip run-checks checked, so
-// this run's statuses go on that tip, replacing the earlier run's.
 const RESUMED = "work-resolve-issue/issue-77-100-1";
 const TIP = "e".repeat(40);
 const resumedChecks = (branch = RESUMED, results = [{ check: "scripts/check-changelog-fragments.sh --check", exit: 0 }]) =>
@@ -353,10 +338,6 @@ test("main posts a resumed run's statuses on the resumed branch's checked tip", 
   );
 });
 
-// lane.json can be rewritten by code the model started, so its resume counts
-// only when it equals the runner's resume branch and the branch passed the
-// gate report-outcome opens its PR on: a check ran, none failed, and every
-// commit ahead of the default branch is the lanes App's.
 test("main posts nothing for a resumed run whose resume or check results do not match the runner's", async () => {
   for (const [label, resume, runner, checks, commits] of [
     ["a failing check", RESUMED, RESUMED, resumedChecks(RESUMED, [{ check: "x", exit: 1 }])],
@@ -378,8 +359,6 @@ test("main posts nothing for a resumed run whose resume or check results do not 
   }
 });
 
-// The statuses belong on the tip the PR opens from, so a resumed branch that
-// moved past the checked tip, or whose ref cannot be read, gets none.
 test("main posts nothing for a resumed branch no longer at the checked tip", async () => {
   for (const [label, refTip] of [
     ["a moved branch", "f".repeat(40)],

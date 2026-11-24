@@ -6,6 +6,10 @@
     {
       "answer": "view: file (team)\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\nThis is mermaid source; it won't render in the terminal.",
       "why": "notice after the fence"
+    },
+    {
+      "answer": "```mermaid\nflowchart LR\n  A[Build] --> B[Deploy]\n```\n\nThis is Mermaid source; it has not been rendered to an image. `mmdc` is not installed here, so only a structural check ran.",
+      "why": "has not been rendered, backticked mmdc"
     }
   ],
   "fail": [
@@ -16,6 +20,10 @@
     {
       "answer": "view: file (team)\n\nmmdc is not installed, so I described the pipeline in prose: build, test, push, deploy.",
       "why": "notice without the fence"
+    },
+    {
+      "answer": "```mermaid\nflowchart LR\n  A[Build] --> B[Deploy]\n```\n\nMermaid renders in GitHub and most Markdown viewers, so it will show up once committed.",
+      "why": "says where it renders, never that it is unrendered"
     }
   ]
 }

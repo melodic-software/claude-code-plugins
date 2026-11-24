@@ -38,7 +38,6 @@ const LIVE = {
   trustedActors: json(TRUSTED_ACTORS_PATH),
   roleMap: read(ROLE_MAP_PATH),
 };
-// A listed human in the live trusted-actor list, and an account not on it.
 const LISTED = 153232337;
 const UNLISTED = 42;
 const FIXTURE = {
@@ -54,17 +53,13 @@ const assertRejected = (fn, code) =>
     return true;
   });
 
-// Facts under which every live skill activity's predicate applies.
 const LIVE_FACTS = {
-  // resolve-issue starts on the Work status field event.
   event: "field_added",
   changedPaths: ["docs/guide.md"],
   changedTargets: ["docs/guide.md"],
-  // resolve-issue applies only while its issue reads agent-ready.
   labels: ["agent-ready"],
   mergeable: "conflicting",
   draft: false,
-  // A listed human set the issue Small, Low and Known (the org's option ids).
   fieldValues: [
     { field: 15462270, option: 27053568 },
     { field: 48625720, option: 85127651 },
@@ -83,10 +78,6 @@ const DEFAULT_RUN = {
   "max-turns": 75,
 };
 
-// models.issue-dimensions: the live config's field and option ids (the org's,
-// 2026-10-18) with fixture budgets in place of its tuning, so a tuning PR is a
-// config-only edit. Turn cap = ceil(base-turns x complexity factor); the
-// timeout is the size's; a skip takes the shortest size timeout.
 const TUNING = {
   sizes: { small: { "base-turns": 11, "timeout-minutes": 7 }, medium: { "base-turns": 20, "timeout-minutes": 9 }, large: "split" },
   complexity: { low: 1, medium: 1.5, high: 2.5 },
@@ -139,8 +130,6 @@ for (const [size, complexity, turns, minutes] of [
   });
 }
 
-// A field no listed account set reads as small, medium or known: the run
-// goes ahead at that budget instead of being refused.
 for (const [why, dims, options] of [
   ["an issue with no Complexity", { size: "small", uncertainty: "known" }, {}],
   ["an issue with no fields", {}, {}],
@@ -168,8 +157,6 @@ for (const [why, dims, options, reason] of [
   });
 }
 
-// Admission takes a trusted size-split sub-issue whatever its Size (owner
-// Q93), so a Large one runs on split-child-size's budget, pinned as that size.
 test("live config: a trusted split child rated Large runs on split-child-size's budget; any other Large stays split-required", () => {
   const large = { size: "large", complexity: "low", uncertainty: "known" };
   const child = issueSlot(large, { splitChild: true });
@@ -198,8 +185,6 @@ test("live config: an option id the config does not map fails the resolve", () =
   );
 });
 
-// The run job takes what pick-slot read, whose timeout is already fixed: a
-// field changed while the run waited for its slot cannot give it more turns.
 test("live config: pinned dimensions win over fields changed since", () => {
   const slot = issueSlot({ size: "medium", complexity: "high", uncertainty: "known" }, { pinnedDimensions: "small/low/known" });
   assert.equal(slot["issue-dimensions"], "small/low/known");
@@ -228,8 +213,6 @@ test("live config: no size label is read", () => {
   assert.ok(!neededFacts(LIVE, request).includes("labelers"));
 });
 
-// run-claude-cli needs a model alias, so resolve-issue routes to code-fix: a
-// worker on code, Opus at the verifier's effort from the role map.
 test("live config: resolve-issue runs its route's model alias, its turns from its dimensions", () => {
   const slot = issueSlot({ size: "small", complexity: "low", uncertainty: "known" });
   assert.equal(slot.models.profile, "code-fix");
@@ -239,10 +222,6 @@ test("live config: resolve-issue runs its route's model alias, its turns from it
   assert.equal(modelArgs(slot.models), "--model opus --max-turns 11 --effort high");
 });
 
-// An issue's Complexity picks the starting
-// profile. High runs Opus at effort xhigh; low, medium and unset keep the
-// activity's own route (code-fix for resolve-issue). The turn cap
-// still comes from the dimensions.
 const liveIssueSlot = (dims, pinnedDimensions) =>
   resolve(LIVE, {
     lane: "work-resolve-issue",
@@ -299,8 +278,6 @@ test("live config: a Knowable issue runs", () => {
   assert.equal(slot["issue-dimensions"], "small/low/knowable");
 });
 
-// fix-ci's retry one rung up: rung 1 takes code-fix's
-// escalate-to profile, Opus at effort xhigh; rung 0 keeps code-fix.
 const fixCiSlot = (rung) =>
   resolve(LIVE, { lane: "pr-unblock", activity: "fix-ci", configPath: CONFIG_PATH, basePath: ".base", facts: LIVE_FACTS, rung })
     .selected.models;
@@ -320,8 +297,6 @@ test("live config: the rung-up profile has no rung above it, so a rung cannot cl
   assert.equal(doc.models.profiles[up]["escalate-to"], undefined);
 });
 
-// Fable is owner-gated pending a per-week allowance: no live profile names
-// the frontier tier, so no route, rung or Complexity can reach it.
 test("live config: no profile names fable or best", () => {
   for (const [name, profile] of Object.entries(parse(LIVE.config).models.profiles)) {
     assert.ok(!["fable", "best"].includes(profile.model), name);
@@ -329,8 +304,6 @@ test("live config: no profile names fable or best", () => {
   }
 });
 
-// The live tuning is checked for shape only: it loads, every org option is
-// mapped, and an assessed, known issue of a size that runs applies.
 test("live config: the live issue-dimensions maps every org option and runs a known small issue", () => {
   const live = resolve(LIVE, {
     lane: "work-resolve-issue",
@@ -402,7 +375,6 @@ test("issue-status: a block with every state labeled and ordered once loads", ()
   assert.equal(fixtureSlot(withModels(statusModels(STATUS))).applies, true);
 });
 
-// DIMS with the complexity an unset field reads as, so it loads.
 const LOADING_DIMS = { ...DIMS, complexity: { low: 1, medium: 1.5 } };
 const twoStates = { "needs-triage": ["needs-triage"], "agent-ready": ["agent-ready"] };
 for (const [why, status, code, text, dims] of [
@@ -472,8 +444,6 @@ for (const [why, models, code] of [
   });
 }
 
-// The model rung: only the selected slot climbs, one hop at most, and only
-// from a profile that names a rung above it.
 const LADDER = {
   profiles: {
     p1: { model: "sonnet", "max-turns": 5, "escalate-to": "p2" },
@@ -512,8 +482,6 @@ test("live config: a script activity resolves no models", () => {
   assert.equal(liveSlot("pr-unblock", "report-escalation").models, null);
 });
 
-// run-claude-cli needs a model alias (the read runner refuses `default`), so
-// review-dependency routes to verify-pr's profile (plan Q3).
 test("live config: pr-unblock / review-dependency runs opus high at 60 turns, the review profile", () => {
   const slot = liveSlot("pr-unblock", "review-dependency");
   assert.deepEqual(slot.models, { profile: "review", model: "opus", effort: "high", "subagent-model": "inherit", "max-turns": 60 });
@@ -539,10 +507,7 @@ for (const [route, profile, args] of [
   ["review-code", "pr-review", "--model opus --max-turns 75 --effort high"],
   ["review-security", "pr-review", "--model opus --max-turns 75 --effort high"],
   ["triage-issue", "triage", "--model sonnet --max-turns 30 --effort medium"],
-  // Owner decision: the reuse summary is a short read-only pass at a low turn budget.
   ["summarize-reuse", "summary", "--model sonnet --max-turns 10 --effort medium"],
-  // Owner decision 2026-10-24: the adjudicator of a disputed finding is at
-  // least as strong as the review lanes: Opus.
   ["adjudicate-feedback", "review", "--model opus --max-turns 60 --effort high"],
 ]) {
   test(`live config: ${route} resolves ${args}`, () => {
@@ -562,10 +527,6 @@ test("live config: merge-risk resolves the rater's model and effort and the chec
   assert.equal(modelSettings(models), JSON.stringify({ env: { CLAUDE_CODE_SUBAGENT_MODEL: "opus" } }));
 });
 
-// docs/plugin-philosophy.md, Capability tiers, rules 3 and 4: the review lanes'
-// verdict is chosen before any test lane reports on the head, so no objective
-// signal backs it, and its model is never weaker than any route that writes
-// the code it reviews.
 test("live config: the review lanes' model is never weaker than a code-writing route", () => {
   const rank = { haiku: 0, sonnet: 1, opus: 2 };
   const modelOf = (route) => {
@@ -585,12 +546,6 @@ test("live config: the review lanes' model is never weaker than a code-writing r
   }
 });
 
-// Role profiles. Expected values read by hand from the role map
-// (plugins/multi-agent/reference/defaults.yaml): worker's model is inherit and
-// its mechanical workload sonnet, verifier's effort high; the owner's rule
-// sends inherit, and any role route that resolves no alias, to opus.
-// address-feedback and resolve-conflicts run on run-claude-cli, which cannot
-// pass the default model, so they take fix-ci's code-fix route.
 for (const activity of ["fix-ci", "address-feedback", "resolve-conflicts"]) {
   test(`live config: ${activity} runs as a worker on code, opus at the verifier's effort, 75 turns`, () => {
     const slot = liveSlot("pr-unblock", activity);
@@ -607,8 +562,6 @@ for (const activity of ["fix-ci", "address-feedback", "resolve-conflicts"]) {
   });
 }
 
-// The role map's worker runs mechanical work on sonnet at its own effort,
-// medium; the profile keeps standard's 75 turns.
 test("live config: fix-docs runs as a mechanical worker, sonnet at the worker's effort, 75 turns", () => {
   const slot = liveSlot("pr-refine", "fix-docs");
   assert.deepEqual(slot.models, {
@@ -623,8 +576,6 @@ test("live config: fix-docs runs as a mechanical worker, sonnet at the worker's 
   assert.equal(modelArgs(slot.models), "--model sonnet --max-turns 75 --effort medium");
 });
 
-// Every route the live config names runs on a routed alias: never empty,
-// `default`, `inherit`, a model ID, or the frontier tier (fable, best).
 test("live config: every route resolves to a model alias, never empty, default or a model ID", () => {
   const doc = parse(LIVE.config);
   const routes = Object.keys(doc.models.routes);
@@ -675,7 +626,6 @@ for (const [why, roleMap] of [
   ["a role map without the role", "schema: 1\nroles:\n  verifier:\n    model: sonnet\n    effort: high\n"],
   ["a role model of default", roleMapWith("    model: default")],
   ["a role model that is a model ID", roleMapWith("    model: claude-sonnet-5-5")],
-  // Owner rule: Fable never routes automatically, so the frontier tier is opus.
   ["a role model of fable", roleMapWith("    model: fable")],
   ["a role model of best", roleMapWith("    model: best")],
 ]) {
@@ -684,8 +634,6 @@ for (const [why, roleMap] of [
   });
 }
 
-// The reader refuses YAML aliases; a role map holding one is treated as absent,
-// so fix-ci still resolves, on opus, instead of failing its lane.
 test("live config: a role map holding a YAML alias resolves fix-ci to opus", () => {
   const roleMap = "schema: 1\nroles:\n  worker: &w\n    model: sonnet\n    effort: medium\n  verifier: *w\n";
   const { models } = resolve(
@@ -719,7 +667,6 @@ for (const [why, profile] of [
   });
 }
 
-// A fixture config with a models block, or `null` to leave the block out.
 const withModels = (models) => {
   const doc = parse(FIXTURE.config);
   if (models !== null) {
@@ -774,12 +721,10 @@ for (const [why, models] of [
   ["a zero max-turns", { profiles: { p: { model: "opus", "max-turns": 0 } }, "default-profile": "p" }],
   ["a subagent model ID", { profiles: { p: { model: "opus", "subagent-model": "claude-sonnet-5", "max-turns": 5 } }, "default-profile": "p" }],
   ["an unknown profile key", { profiles: { p: { model: "opus", "max-turns": 5, advisor: "fable" } }, "default-profile": "p" }],
-  // Fable stays off until the owner sets a Fable allowance for the lanes.
   ["a model of fable", { profiles: { p: { model: "fable", "max-turns": 5 } }, "default-profile": "p" }],
   ["a model of best", { profiles: { p: { model: "best", "max-turns": 5 } }, "default-profile": "p" }],
   ["a subagent model of fable", { profiles: { p: { model: "opus", "subagent-model": "fable", "max-turns": 5 } }, "default-profile": "p" }],
   ["a subagent model of best", { profiles: { p: { model: "opus", "subagent-model": "best", "max-turns": 5 } }, "default-profile": "p" }],
-  // run-claude-cli cannot pass `default`, which sets no --model.
   ["a model of default", { profiles: { p: { model: "default", "max-turns": 5 } }, "default-profile": "p" }],
   ["no default-profile", { profiles: { p: { model: "opus", "max-turns": 5 } } }],
   ["no profiles", { profiles: {}, "default-profile": "p" }],
@@ -800,8 +745,6 @@ test("the schema still admits opus and sonnet as a model, and every subagent mod
   }
 });
 
-// Files whose schema admits any model and subagent model, so a value the
-// schema refuses still reaches the resolver.
 const uncheckedModels = (files) => {
   const schema = structuredClone(files.schema);
   delete schema.$defs.profile.properties.model.enum;
@@ -872,7 +815,6 @@ test("a run route that is not one of the five is undefined-route, as a model-rou
   );
 });
 
-// main() with model-route against a base holding the live config.
 const scratch = tempDir("resolve-models-");
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
@@ -934,8 +876,6 @@ test("main with model-route triage-issue writes the triage profile's outputs", a
   });
 });
 
-// A launcher caller (run-claude-cli) takes model as an input, and cannot pass
-// `default`, which sets no --model, so the base's schema refuses it.
 test("main refuses a profile whose model is default", async () => {
   const env = routeEnv();
   const doc = parse(readFileSync(join(env.BASE_PATH, CONFIG_PATH), "utf8"));
@@ -945,8 +885,6 @@ test("main refuses a profile whose model is default", async () => {
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
 });
 
-// fix-ci on pr-unblock, on a labeled event; its labels-absent predicate reads
-// the PR's labels fresh, answered here with none.
 async function mainOnFixCi({ dropRoleMap = false, config } = {}) {
   const env = routeEnv({
     MODEL_ROUTE: "",
@@ -1026,7 +964,6 @@ async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROW
     ACTIVITY: "resolve-issue",
     EVENT_NAME: "issues",
     REPOSITORY: "o/r",
-    // What the read runner hands on for resolve-issue.
     APPLIED_BY_SUPPORTED: "patch work-outcome",
   });
   writeFileSync(join(env.BASE_PATH, CONFIG_PATH), TUNED.config);
@@ -1049,9 +986,6 @@ async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROW
   return { code, outputs: readOutputs(env.GITHUB_OUTPUT), calls };
 }
 
-// The caller reads whether the issue is a trusted split child (check-blockers.mjs)
-// and passes it; a resolve that reads the dimensions without it fails rather
-// than rating a trusted Large child split-required.
 test("main on an issue fails when split-child is neither true nor false", async () => {
   for (const value of ["", "yes"]) {
     const { code } = await mainOnIssue([], value);
@@ -1074,9 +1008,6 @@ test("main on an issue set Medium, High, Known writes its turn cap, dimensions a
   assert.equal(read.headers["X-GitHub-Api-Version"], "2026-03-10");
 });
 
-// The trusted Work status folds into the labels (read-status.mjs statusLabels):
-// agent-ready a listed human set admits with no label, one an unlisted account
-// set does not, and a field hold holds a labeled issue.
 test("main on an issue reads its trusted Work status as its status label", async () => {
   const DIMS_SET = [fieldEvent("IssueFieldAddedEvent", 15462270, LISTED), fieldEvent("IssueFieldAddedEvent", 48625720, LISTED), fieldEvent("IssueFieldAddedEvent", 48625721, LISTED)];
   const status = (value, actor) => ({ ...fieldEvent("IssueFieldAddedEvent", 48484079, actor), value });
@@ -1107,7 +1038,6 @@ test("main on an issue reads a disagreeing Work status once more", async () => {
   const settles = await mainOnIssue(events, "false", () => (reads++ === 0 ? firstRead : [...FIELD_ROWS, fieldRow(48484079, 84879220)]), []);
   assert.equal(settles.code, 0);
   assert.equal(settles.outputs.applies, "true");
-  // The dimensions come from the read the status agreed on, not the first.
   assert.equal(settles.outputs["issue-dimensions"], "medium/high/known");
   assert.equal(valueReads(settles.calls), 2);
   const stays = await mainOnIssue(events, "false", FIELD_ROWS, []);
@@ -1186,7 +1116,6 @@ test("fieldEvents reads each event's field, actor, time and values, oldest first
     { field: "48484079", removed: true, actorId: LISTED, actorLogin: "kyle-sexton", actorType: "User", at: "2026-11-06T10:00:00Z", from: "needs-human", to: null },
     at("2026-11-06T11:00:00Z", { field: "48484079", actorId: null, actorLogin: "ghost", actorType: "Bot", from: null, to: "needs-triage" }),
   ]);
-  // fieldSetters folds the same events: the newest actor per field, null for one with no id.
   assert.deepEqual({ ...(await fieldSetters(github, "o/r", 7)) }, { 48484079: null, 15462270: 337595936 });
 });
 
