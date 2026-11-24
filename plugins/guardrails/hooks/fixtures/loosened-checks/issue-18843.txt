@@ -1,0 +1,26 @@
+## Problem
+
+An eval-held pull request whose compare run cannot start stays held with no way out: when `compare-arms.sh` refuses the PR (a plugin path the arms do not carry, a `select-plugins.mjs` refusal, or arms that do not differ), no compare run can ever post the no-loss record that `release-eval-hold.mjs` needs to remove the do-not-merge label.
+
+## Owner decision
+
+Row L400 of docs/owner-decisions.md: https://github.com/melodic-software/architecture/blob/5cce3c0b3bce6582676adba07391f70b36f350a9/docs/owner-decisions.md#L400 (2026-11-24T14:04:50Z, typed in the github-optimization loop session). Question: "Eval holds when the compare run can't start". Recommendation shown: "(a) Merge first by default, run the eval later, and revert on a bad result." Owner, verbatim: "/session-flow:go-with-recommendations". Decision: (a): the PR merges first, its affected cases run on the default branch after, and a FAIL reverts it.
+
+The row also names "the org API key is off". Since #18813, `CLAUDE_EVALS_DISABLED` stays `false` and `true` is the owner's emergency kill switch only, so that case arises only in an emergency, when holding is the safe outcome; recording it would need a job to run through the kill switch. This issue covers the compare-refused case only.
+
+## Loosened check this decision authorizes
+
+- **Eval hold release.** pr-merge's `release-eval-hold.mjs` lifts a `reason=eval` hold without a no-loss eval-pair record when the PR's newest compare run at its head, since the hold was set, records `compare-refused`, read back from the run under the same trust checks as a compare record. A run at that head since the hold that started and measured a loss, is still running, or was re-run keeps the hold. `Compare Prepare` stays behind `CLAUDE_EVALS_DISABLED` as before.
+
+## Done when
+
+- [ ] A compare run that `compare-arms.sh` refuses (exit 3 with its `refused=true` marker) records `compare-refused` in a `Compare Cannot Start: compare-refused` job and runs no arm.
+- [ ] `release-eval-hold.mjs` lifts a `reason=eval` hold on that record at the current head, and keeps the hold for a missing record alone, another hold reason, a body hold, a member veto, a re-hold with no newer run, or a run at the head that measured a loss.
+- [ ] The release comment states that the PR merges first, its affected cases run on the default branch after, and a FAIL reverts it.
+- [ ] `docs/review/evals.md` describes the release.
+
+## Related
+
+- Delivered by #18797.
+- Extends row L371 (eval PRs that add scripts merge before their run).
+

@@ -1,0 +1,10 @@
+**Decision recorded.** The `pre-push` hook's 3 s budget is enforced by the CI hook budget gate (`scripts/check-git-hook-time-budget.sh`, merged in #18836), so the stand-in timing case in `scripts/pre-push-branch-checks.test.sh` (added in #18855 until that gate landed) is removed.
+
+Row: https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L413
+Owner, verbatim: "Yeah, go with recommendations. If anything, if the hook cover fails and goes above 3 seconds, either that needs to be optimized, or it needs to be moved to CI/CD and removed from the hook"
+
+## Done when
+
+- The in-suite timing case in `scripts/pre-push-branch-checks.test.sh` is gone, and the pre-push 3 s budget is checked by `scripts/check-git-hook-time-budget.sh`, which times every `pre-push` entry the root `lefthook.yml` ships (`branch-checks` included).
+- ADR 0072's addendum names that gate as the budget check.
+

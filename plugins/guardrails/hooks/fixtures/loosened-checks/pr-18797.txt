@@ -1,0 +1,35 @@
+Closes #18843
+
+Owner decision: [row L400 of docs/owner-decisions.md](https://github.com/melodic-software/architecture/blob/5cce3c0b3bce6582676adba07391f70b36f350a9/docs/owner-decisions.md#L400), quoted with the owner's words on #18843. This PR builds its compare-refused case only: since #18813, `CLAUDE_EVALS_DISABLED` is the owner's emergency kill switch, and recording an "evals switched off" cause would need a job to run through it.
+
+## Summary
+
+An eval-held pull request that compare mode refuses now merges first. Each compare run records that it cannot start, and pr-merge's release step reads those records back and removes the do-not-merge label that held it for the eval, but only once every plugin whose skill, agent or context text the PR changes (or, when it changes none, every plugin it changes) has its own refused run: a refusal for one plugin never lifts a hold over another plugin's cut. After merge, the affected cases run on the default branch, and a FAIL reverts the PR, through the follow-up `docs/review/evals.md` already prescribes for PRs that merge before their run.
+
+## Fix
+
+- **The compare run records the refusal and its target.** `compare-arms.sh` writes `refused=true` and exits 3 only for a real refusal (a plugin path the arms do not carry, a `select-plugins.mjs` refusal, arms that do not differ); bad input or a wrong target still exits 1. In `pr-run-plugin-evals.yml`, `Build the arm patches` records `cannot-start=compare-refused` only on exit 3 with that marker (a bare exit 3 fails the step), `compare-before` and `compare-after` do not run on it, and a `Compare Cannot Start: compare-refused` job succeeds. The compare run name is now `eval-compare pr=<n> head=<sha> target=plugins/<name>`, so a run reads back with the plugin it compared. `Compare Prepare` stays behind `CLAUDE_EVALS_DISABLED`, unchanged from main.
+- **`release-eval-hold.mjs` reads the records back per plugin.** For a held PR with no record at its head, the compare runs naming that PR and head created since the hold was set are listed, paging back to the hold's start (at most 10 pages; a list cut short counts nothing). The PR's files are read (`evalPlugins`: each plugin with a changed path under `skills/`, `agents/` or `context/`, both sides of a rename). For every such plugin, the newest run at the head naming that plugin as its target decides: it must pass `runVouches`, sit on the default-branch tip, and show exactly one successful `Compare Cannot Start: compare-refused` job and no successful `Compare Record`; a record comment vouching for it hands the decision to the record path. An older run for that plugin (or one whose name carries no target) at that head since the hold that is still going, was re-run, or failed with `Compare Verdict` not succeeding (a LOSS or VOID) keeps the hold. A file list that does not read in full, a PR with no such plugin, a plugin with no refused run of its own, a missing record alone, other hold reasons, a body hold and a member veto all keep it, and a VALID record still wins.
+- **The release comment carries the obligation.** It starts with `<!-- eval-hold-released head=<sha> cannot-start=compare-refused run=<run ids> -->`, links each plugin's run, and states that the PR merges first, its affected cases run on the default branch after, and a FAIL reverts it.
+- **Docs.** `docs/review/evals.md` and the loop-lane contract's Cross-lane PR hold describe the release; the loop-lane CHANGELOG has an entry.
+
+## Verification
+
+- `node --test --test-concurrency=4`, each suite alone at the final head: `release-eval-hold.test.mjs` 61/61, `workflow.test.mjs` 19/19, `hill-climb-workflow.test.mjs` 13/13, `compare-arms.test.mjs` 8/8, `plugin-eval/credential-legs.test.mjs` 7/7, `eval-handoff.test.mjs` 15/15, `check-kill-switch.test.mjs` 83/83, `check-upstream-status.test.mjs` 14/14, `sync-credential-legs.test.mjs` 11/11. Cases include a cut in one plugin beside a case-only change in another whose run refused (kept), refused runs for both changed plugins (released, both runs named), one plugin refused and the other without a refused run (kept), a files read that fails or is cut short (kept), a run name without a target (kept), an older loss for another plugin (released) and for the same plugin (kept), a re-hold after a release (kept until a newer run), evidence on page 2 (released), a list cut off at 10 pages (kept), and a bare exit 3 (fails the step).
+- Not run locally: `label-unblocked.test.mjs` and `resolve-config/callers.test.mjs` read `pr-run-plugin-evals.yml` but need the `yaml` package, not installed on this host; CI runs them.
+- The jobs-API fixture is the captured response of compare run 45279570859; the cannot-start and loss variants are derived from it in the test.
+- `scripts/selection-audit.sh trace --strict` on `release-eval-hold.test.mjs` and `workflow.test.mjs`: no gap. `actionlint` on `pr-run-plugin-evals.yml`: no findings.
+- Left out: a live compare run that records `compare-refused`; none exists before this merges, so the job shape is checked against the workflow file and the captured run.
+
+## Related
+
+- Row L371's mechanism is the session-run follow-up in `docs/review/evals.md`: the merging session, or the next session taking up the PR's follow-up, dispatches the scoped suite run and reverts on a FAIL. Nothing dispatches it automatically, because `run-eval` refuses any dispatcher that is not a listed human.
+- #18783 added the merge-first rule to `docs/review/evals.md`; this PR adds the mechanism behind it.
+- #18813 set `CLAUDE_EVALS_DISABLED` as the owner's emergency kill switch.
+
+## Loosened checks
+
+- **Eval hold release.** pr-merge's `release-eval-hold.mjs` lifts a `reason=eval` hold without a no-loss eval-pair record when, for every plugin whose skill, agent or context text the PR changes (or, when it changes none, every plugin it changes, so a reference-only or manifest-only PR still merges first under L400), the newest compare run at its head since the hold naming that plugin records `compare-refused`, under the conditions above. Authorized by row L400 ("compare mode refuses the PR"), quoted on #18843; a refusal for one plugin is not a refusal of the PR, so it releases nothing alone. No other check is loosened: `Compare Prepare` and the arm jobs keep the kill switch exactly as on main.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+

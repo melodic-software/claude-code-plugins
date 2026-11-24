@@ -1,0 +1,22 @@
+Closes #18909
+
+## Summary
+
+`scripts/pre-push-branch-checks.test.sh` timed the seven pre-push checks against the 3 s budget as a stand-in for the hook budget gate. That gate (`scripts/check-git-hook-time-budget.sh`, #18836) is now on main and times every `pre-push` entry, `branch-checks` included. This removes the stand-in and points ADR 0072's addendum back to the gate.
+
+## Fix
+
+- `scripts/pre-push-branch-checks.test.sh`: drop the timing case around the clean-branch run; that run's pass assertion stays.
+- `docs/adr/0072-...md`: the addendum's "Budget unchanged" bullet names the gate again.
+
+## Verification
+
+- The budget is not loosened, only moved: `scripts/check-git-hook-time-budget.sh:14-16` times "every pre-commit and pre-push entry that the root lefthook.yml ... ships" against "pre-push 3 s" (merged in #18836).
+- Suite: 25/25 pass locally. This push's `branch-checks` hook ran in 1.01 s.
+
+## Related
+
+- #18855 (added the stand-in), #18836 (the gate)
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+

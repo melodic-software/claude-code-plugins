@@ -1,0 +1,28 @@
+## Context
+
+The changelog fragment gate, `changelog-fragments-required` (`scripts/check-changelog-fragments.sh --check-required`), fails every standards-sync pull request that changes a managed copy under a fragment-mode plugin. Sync PR #18775 could not merge for that reason, which kept main red. A hand-added fragment commit cannot fix it: such a commit fails PR Check Managed Files.
+
+Owner decision: loosen `changelog-fragments-required` so it skips a verified standards-sync pull request ([owner-decisions L407](https://github.com/melodic-software/architecture/blob/9c75330063d05a7d9cbb444428b7e5da1cf0e2b5/docs/owner-decisions.md#L407), Q285 option (a)). Owner, verbatim: "Go with recommendations."
+
+## Proposed work
+
+Exempt a pull request from `changelog-fragments-required` when all three of these hold, the same checks the Dependabot exemption makes:
+
+- the PR author is `melodic-standards-sync[bot]`;
+- every commit in it is that bot's, committed by GitHub;
+- GitHub verified every commit's signature.
+
+`check-vendor-version-bump.sh` stays exempt for Dependabot only.
+
+## Acceptance criteria
+
+- `--check-required` passes a fragment-mode plugin change with no fragment when the PR author is `melodic-standards-sync[bot]` and every commit is that bot's, committed by GitHub, with a signature GitHub verified.
+- It still prints MISSING FRAGMENT when another login opened the PR, when a signature is not verified, when Dependabot's login sits on sync commits, or when any commit has another author.
+- The Dependabot exemption behaves as before, and `check-vendor-version-bump.sh` exempts only Dependabot.
+- `scripts/check-changelog-fragments.test.sh` covers the exemption and the four refusals.
+
+## References
+
+- #18795 implements this.
+- #18775 is the sync PR that hit the gate.
+

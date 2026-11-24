@@ -13,6 +13,9 @@ pr_body_required_sections:
   - Fix
   - Verification
   - Related
+pr_body_loosened_checks_heading: Loosened checks
+pr_body_loosened_checks_record_pattern: 'https://github\.com/melodic-software/architecture/blob/[^/[:space:]]+/docs/owner-decisions\.md#L[0-9]+'
+pr_body_loosened_checks_verbatim_marker: 'verbatim:'
 babysit_loop_stop_mode: standing
 babysit_loop_tier: worker
 babysit_loop_merge: c2-mechanical
