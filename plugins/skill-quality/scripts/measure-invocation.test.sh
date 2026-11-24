@@ -189,9 +189,6 @@ train_tr="$(jq -r '.skills[0].splits.train.trigger_rate' "$TMP/score.json")"
 val_tr="$(jq -r '.skills[0].splits.validation.trigger_rate' "$TMP/score.json")"
 train_ft="$(jq -r '.skills[0].splits.train.false_trigger_rate' "$TMP/score.json")"
 val_ft="$(jq -r '.skills[0].splits.validation.false_trigger_rate' "$TMP/score.json")"
-# Fixture descriptions are built so positives quote the target triggers and
-# negatives quote the rival's. Expect a strong floor, not a perfect 1.0 on
-# every token-overlap quirk.
 awk -v t="$train_tr" -v v="$val_tr" 'BEGIN { exit !((t+0) >= 0.5 && (v+0) >= 0.5) }'
 tr_ok=$?
 awk -v t="$train_ft" -v v="$val_ft" 'BEGIN { exit !((t+0) <= 0.5 && (v+0) <= 0.5) }'
@@ -437,8 +434,6 @@ else
   fail "score mishandled a quote in TMPDIR: $out"
 fi
 
-# emit-plugin-eval writes the CLI's default of 3 runs per case; --runs
-# overrides it, and a non-positive value is a usage error.
 if grep -qx 'runs: 3' "$emit_dir/fixture-target-pos-train-01/prompt.md"; then
   pass "emit-plugin-eval defaults to runs: 3"
 else

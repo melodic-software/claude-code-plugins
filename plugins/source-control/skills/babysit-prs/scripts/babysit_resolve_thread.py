@@ -455,32 +455,14 @@ def project_thread(
         if not isinstance(body, str):
             return None
         if _author_is_self(comment):
-            # The mandated classification reply (review-discipline.md) restates
-            # the source finding's own severity marker as one of its table
-            # columns -- scanning a self-reply raw would re-trip this guard on
-            # the worker's own echo, stranding the thread again right after
-            # `bot_only` above stopped treating that same reply as a
-            # disqualifying human participant. Stripping only the
-            # classification-table rows (not the whole body) mirrors
-            # `babysit_classify.count_findings`: non-table self content -- a
-            # maintainer using a self-login to raise a genuine new finding --
-            # still flags.
             return strip_classification_rows(body)
         return body
 
-    # Fail closed on truncation: an unfetched comment could carry the marker,
-    # so a truncated thread is treated as severity-flagged, not as clean.
     severity_flagged = truncated or any(
         (body := _severity_scan_body(c)) is not None and _has_severity_marker(body)
         for c in comments
     )
 
-    # How many SOURCE findings this thread carries, over the same bodies the
-    # severity scan reads -- so a self classification reply's table rows are
-    # stripped here too and the worker's own echo of a finding is not counted a
-    # second time. None means the count is unknown (a truncated comment page could
-    # hide another finding), which the independent-resolver guard treats as
-    # multi-finding rather than as one.
     finding_count = (
         None
         if truncated
@@ -491,17 +473,6 @@ def project_thread(
         )
     )
 
-    # The `incorrect` disposition is proven by counter-evidence someone POSTED IN
-    # REPLY to the finding, and "someone" cannot be the finding's own author:
-    # the opener is excluded, and so is every later reply under the OPENER'S
-    # login. The mandated classification reply restates the finding's own text
-    # (`reference/review-discipline.md`), so a finding bot that also replies on
-    # its own thread would otherwise supply the very words asserted as the
-    # rebuttal -- the finding rebutting itself. A DIFFERENT bot's reply, and the
-    # caller's own reply under a self-login, both remain admissible: those are
-    # the independent parties the disposition is about. An opener whose login the
-    # API withheld cannot be excluded by identity, so no reply is admitted at
-    # all (such a thread is already not `botOnly`).
     opener_login = first_author.get("login")
     opener_key = opener_login.casefold() if isinstance(opener_login, str) else None
 
@@ -514,7 +485,6 @@ def project_thread(
         body = comment.get("body")
         return body if isinstance(body, str) else None
 
-    # A human reply that explicitly parks the thread instead of addressing it.
     human_deferred = truncated or (
         (
             human_reply := _most_recent_human_reply_body(
@@ -535,13 +505,7 @@ def project_thread(
         "laneAnswered": lane_answered,
         "severityFlagged": severity_flagged,
         "findingCount": finding_count,
-        # Live count of ALL comments (not just the fetched page) -- the TOCTOU
-        # comparison signal, so a reply beyond the first fetched page is detected.
         "commentCount": total_count if isinstance(total_count, int) else None,
-        # Latest comment-edit signal; None (fail closed) when a page is
-        # undisclosed, since an edit could hide beyond page 1. None never matches
-        # a real pinned timestamp, so the guard refuses rather than trusting an
-        # incomplete view.
         "lastCommentUpdatedAt": None if truncated else _latest_comment_update(comments),
         "path": (
             comments[0].get("path")
@@ -637,9 +601,6 @@ def classify(
     if thread["isResolved"]:
         return "skipped-already-resolved"
     if not thread["botOnly"] and not include_human:
-        # bright line: never touch a thread unless a bot OPENED it and every
-        # other participant is a bot too (checked across all comments, not just
-        # the first), unless autopilot opts in
         return "skipped-human-thread"
     if include_human and not pinned_thread and thread.get("humanDeferred", True):
         # Bulk `--include-human` must not sweep a thread a human deliberately
@@ -647,17 +608,10 @@ def classify(
         # explicit per-thread vet and may still proceed.
         return "skipped-human-deferred"
     if (autonomous or only_outdated) and not thread["isOutdated"]:
-        # unattended: require a deterministic "addressed" signal so the worker
-        # cannot resolve a still-current finding and self-satisfy the merge gate
         return "skipped-not-outdated"
     if (autonomous or independent) and thread.get("severityFlagged", True):
-        # unattended: never a security or P1 thread. Default True fails closed
-        # when the projection did not compute the signal.
         return "skipped-severity-marked"
     if own_pr and not thread.get("laneAnswered", False):
-        # The own-PR exception admits only a thread a lane already answered:
-        # the resolver is the PR's author, so the "handled" claim must come
-        # from another actor. Default False fails closed.
         return "skipped-own-pr-not-lane-answered"
     if independent and not _is_single_finding(thread):
         # Resolution is a THREAD-level act while a disposition is a claim about ONE
@@ -678,9 +632,6 @@ def classify(
     return "eligible"
 
 
-# A disposition is admissible only with its own evidence flag, and only that
-# flag -- the pairing is what makes the claim checkable, so a caller cannot
-# assert `fixed` and hand over a tracker id.
 DISPOSITION_EVIDENCE: dict[str, str] = {
     "fixed": "--fix-commit",
     "deferred": "--tracker-item",
@@ -754,14 +705,6 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
         and isinstance(head_owner, str)
     ):
         return False, "refused-evidence-unverifiable"
-    # Every segment interpolated into the compare path is FORMAT-VALIDATED first,
-    # matching `babysit_gh.fetch_base_compare`'s rule for the identical
-    # call shape. Two of the three arrive in an API response body, so "the API
-    # said so" is their only provenance: a crafted or compromised response
-    # carrying path syntax would otherwise redirect this request to an
-    # unintended endpoint. `sha` is validated here too rather than resting on
-    # `main`'s argument check, so the function's own contract holds for every
-    # caller.
     if not (
         is_owner_repo_pair(head_owner, head_name)
         and FIX_COMMIT_RE.match(head_oid)
@@ -1173,8 +1116,6 @@ def main() -> int:
     }
 
     if not args.independent_resolver:
-        # Evidence flags outside the mode that consumes them would be accepted
-        # and ignored, which reads to the caller like the evidence was checked.
         stray = [flag for flag, value in evidence_args.items() if value is not None]
         if args.disposition is not None:
             stray.insert(0, "--disposition")
@@ -1315,16 +1256,9 @@ def main() -> int:
             inScope=False,
         )
 
-    # Resolve self logins only after the owner-scope refusal above: '@me'
-    # resolution is a network call, mirroring babysit_merge.py's ordering, so
-    # an out-of-scope owner refuses with no gh invocation at all.
     try:
         self_logins = normalize_self_logins(resolve_authors(args.self_logins))
     except RuntimeError:
-        # '@me' could not be resolved to a gh login; fail closed by keeping
-        # only the explicit non-'@me' logins -- an unresolved self identity
-        # is simply not recognized as self, so a comment under it is judged a
-        # third-party human, never silently trusted as self on a guessed identity.
         self_logins = normalize_self_logins(
             token
             for token in (args.self_logins or "").split(",")
@@ -1340,8 +1274,6 @@ def main() -> int:
             return _refuse(f"{type(exc).__name__}: {exc}")
         own_pr = is_self_login(pr_author, self_logins)
         if own_pr and args.autonomous and not lane_logins:
-            # babysit_lane_logins unset: fall back to the repository's own
-            # lane identity, read only where a person merges it.
             identity, lane_logins_source = repo_lane_identity(repo, number)
             lane_logins = normalize_login_set([identity] if identity else [])
         if own_pr and not (args.autonomous and lane_logins):
@@ -1377,9 +1309,6 @@ def main() -> int:
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         return _refuse(f"{type(exc).__name__}: {exc}")
 
-    # One definition for both consumers below: the per-resolve audit record and
-    # the summary on stdout. Two copies of this rule could drift, and one of
-    # them is an append-only audit trail.
     if args.autonomous:
         mode = "autonomous"
     elif args.independent_resolver:
@@ -1421,18 +1350,9 @@ def main() -> int:
             args.expected_last_updated is not None
             and thread.get("lastCommentUpdatedAt") != args.expected_last_updated
         )
-        # Evaluated in list mode too, not only under --resolve. A dry run whose
-        # pins have already drifted would otherwise report would-resolve for a
-        # thread the very next --resolve refuses, making the prediction wrong in
-        # the one direction that matters. Both pin flags already require
-        # --thread-id (a usage error otherwise), so the pin has a target whenever
-        # either comparison can be true.
         stale_pin = count_stale or last_updated_stale
         evidence_refusal = ""
         if verdict == "eligible" and not stale_pin and args.independent_resolver:
-            # Validate in list mode too: a dry run of an evidence-gated mode that
-            # skipped validation would report would-resolve for evidence the
-            # world rejects, which is the one answer this mode exists to prevent.
             verified, evidence_refusal = verify_disposition(
                 thread,
                 repo=repo,
@@ -1518,9 +1438,6 @@ def main() -> int:
                 "skippedOwnPrNotLaneAnswered": acted(
                     "skipped-own-pr-not-lane-answered"
                 ),
-                # Independent-resolver refusals, rolled up alongside the other
-                # skip counters so a caller sees "the evidence did not hold"
-                # without re-deriving it from the per-thread action values.
                 "refusedEvidence": sum(
                     1
                     for row in results

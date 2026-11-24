@@ -7,7 +7,7 @@ LIB="$HERE"
 READER="$LIB/parse-concern-value.sh"
 KEYS=(comment_posture comment_keep_list comment_edit_scope encode_constraints_unattended class_c_max_lines apply_local_renames comment_lint comment_adr_dir)
 TEAM_ONLY_KEYS=" comment_lint comment_adr_dir "
-LIST_KEYS=" comment_lint_allow "
+LIST_KEYS=" comment_lint_allow comment_lint_exclude "
 
 help() {
   cat <<'EOF'
@@ -15,11 +15,12 @@ Read the code-tidying comment settings from the repository's file layers: the te
 file <home>/code-tidying.yaml and the personal override <home>/code-tidying.local.yaml,
 the personal override winning key by key. <home> is the bound convention home
 (reference/config.md), docs/conventions when none is bound or it was declined.
-comment_lint, comment_lint_allow and comment_adr_dir are read from the team file only.
+comment_lint, comment_lint_allow, comment_lint_exclude and comment_adr_dir are read from
+the team file only.
 
 Usage: comment-settings.sh [<dir>]
        comment-settings.sh --keep-list <value>
-       comment-settings.sh --list comment_lint_allow [<dir>]
+       comment-settings.sh --list comment_lint_allow|comment_lint_exclude [<dir>]
 
   <dir>        a directory inside the repository; default: the current directory.
   --keep-list  check one comment_keep_list value from another layer (userConfig)
@@ -41,7 +42,7 @@ EOF
 }
 
 usage() {
-  echo "comment-settings: usage: comment-settings.sh [<dir>] | --keep-list <value> | --list comment_lint_allow [<dir>]" >&2
+  echo "comment-settings: usage: comment-settings.sh [<dir>] | --keep-list <value> | --list comment_lint_allow|comment_lint_exclude [<dir>]" >&2
   exit 2
 }
 keep_list=""

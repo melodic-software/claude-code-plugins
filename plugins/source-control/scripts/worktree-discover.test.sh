@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-discover.sh. Black-box: throwaway git fixtures
-# (git environment and global config isolated by test-helpers.sh, a ghq stand-in,
-# a temporary HOME) run from a directory outside every repository, with
-# assertions on the TSV rows and exit codes. No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,8 +53,6 @@ chmod +x "$GHQ"
 RC=0
 OUT=""
 ERR=""
-# run_disc <global config> <ghq bin> [args...]: from a non-repository cwd, with
-# a HOME holding no fleet config unless a case writes one.
 run_disc() {
   local global="$1" ghq="$2"
   shift 2
@@ -68,7 +62,6 @@ run_disc() {
   ERR="$(cat "$T/err")"
 }
 
-# rows <kind> <path>: the rows of that kind for that path.
 rows() { printf '%s\n' "$OUT" | awk -F'\t' -v k="$1" -v p="$2" '$1 == k && $2 == p'; }
 
 run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
@@ -112,7 +105,6 @@ assert_eq "user-global fleet config names a repository" $'repo\t'"$C"$'\t0' "$(r
 run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
 assert_eq "named repositories replace the configured scope" "" "$(rows repo "$C")"
 
-# The project-scoped config outranks the user-global one, as in the fleet audit.
 mkrepo "$FLEET/github.com/o/e"
 E="$(top "$FLEET/github.com/o/e")"
 mkdir -p "$T/proj/.claude"
@@ -137,7 +129,6 @@ run_disc "$GLOBAL" "$T/bin/no-ghq" --project-dir
 assert_exit "--project-dir without a value is a usage error" 2 "$RC"
 rm -f "$T/home/.claude/repo-fleet-hygiene.conf"
 
-# A repository found only by the root scan has its own root resolved and scanned.
 mkrepo "$FLEET/github.com/o/d"
 D="$(top "$FLEET/github.com/o/d")"
 ROOT3="$T/root3"
@@ -151,8 +142,6 @@ assert_eq "an owner found by the scan contributes its root" $'root\t'"$ROOT3"$'\
 assert_eq "that root is scanned" $'worktree\t'"$ROOT3/d-wt3"$'\t'"$D" "$(rows worktree "$ROOT3/d-wt3")"
 git -C "$D" worktree remove --force "$ROOT/d-wt" >/dev/null 2>&1
 
-# A worktree below a root but not its direct child (inside another worktree's
-# .work/, or under a plain directory) is listed from its repository's registration.
 git -C "$A" worktree add -q -b wnest "$ROOT/a-wt/.work/nested" >/dev/null 2>&1
 mkdir -p "$ROOT/group"
 git -C "$B" worktree add -q -b wdeep "$ROOT/group/b-deep" >/dev/null 2>&1
@@ -170,7 +159,6 @@ git -C "$A" worktree remove --force "$ROOT/a-wt/.work/nested" >/dev/null 2>&1
 git -C "$B" worktree remove --force "$ROOT/group/b-deep" >/dev/null 2>&1
 rmdir "$ROOT/group" "$ROOT/a-wt/.work"
 
-# A path holding a tab cannot be a TSV field: skipped, with a warning.
 TABBED="$ROOT/tab"$'\t'"wt"
 if git -C "$A" worktree add -q -b wtab "$TABBED" >/dev/null 2>&1; then
   run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
@@ -182,7 +170,6 @@ else
   skip_case "a directory name holding a tab is not creatable on this host"
 fi
 
-# Rungs below the git key: the plugin option, then the plugin data directory.
 printf '%s' "$T/opt-root" >"$T/fallback"
 # shellcheck disable=SC2016
 printf '%s' '${user_config.worktree_root}' >"$T/fallback-unset"
@@ -200,7 +187,6 @@ assert_exit "no rung resolves: exits 3" 3 "$RC"
 assert_contains "no rung resolves: says so" "$ERR" "no worktree root resolved"
 assert_eq "no rung resolves: repositories are still listed" $'repo\t'"$B"$'\t1' "$(rows repo "$B")"
 
-# Read-only: a retired alias is read, never rewritten or dropped.
 git -C "$A" config melodic.worktreeroot "$ROOT"
 run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$A"
 assert_eq "retired alias still answers" $'root\t'"$ROOT"$'\tgit-config' "$(rows root "$ROOT")"
@@ -266,7 +252,6 @@ run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$B" --fallback-root-file "$inputs
 assert_exit "--remove-input-files: no root still exits 3" 3 "$RC"
 assert_eq "--remove-input-files: input dir removed after a non-zero exit" absent "$(dir_state "$inputs")"
 
-# The trap is armed when the flag is parsed, so a later usage error cleans up.
 inputs="$T/inputs-usage"
 mkinputs "$inputs" "$T/data"
 run_disc /dev/null "$T/bin/no-ghq" --fallback-root-file "$inputs/worktree-root" \
@@ -274,7 +259,6 @@ run_disc /dev/null "$T/bin/no-ghq" --fallback-root-file "$inputs/worktree-root" 
 assert_exit "--remove-input-files: unknown flag still exits 2" 2 "$RC"
 assert_eq "--remove-input-files: input dir removed after a later usage error" absent "$(dir_state "$inputs")"
 
-# The files are read after parsing, so an unreadable one before the flag is removed too.
 inputs="$T/inputs-newline"
 mkinputs "$inputs" "$T/data"$'\n'
 run_disc /dev/null "$T/bin/no-ghq" --data-root-file "$inputs/data-root" \

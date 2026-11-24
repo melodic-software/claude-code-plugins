@@ -54,10 +54,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PR_NUMBER=""
 CHECKOUT=""
 
-# Print the header block (everything after the shebang up to the first
-# non-comment line) with its comment markers stripped. Derived rather than a
-# hardcoded line range: such a range silently truncates or over-runs as the
-# header grows.
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}"
@@ -169,8 +165,6 @@ fetch_surface() {
   [[ -z "$json" ]] || ALL_JSON+="$json"$'\n'
 }
 
-# --- Surface 1: General PR comments (issue-level) ----------------------------
-
 fetch_surface "issues/$PR_NUMBER/comments" '
   {
     id: .id,
@@ -183,8 +177,6 @@ fetch_surface "issues/$PR_NUMBER/comments" '
     in_reply_to_id: null
   }
 '
-
-# --- Surface 2: Review-level comments ----------------------------------------
 
 fetch_surface "pulls/$PR_NUMBER/reviews" '
   select(.body != null and .body != "")
@@ -199,8 +191,6 @@ fetch_surface "pulls/$PR_NUMBER/reviews" '
       in_reply_to_id: null
     }
 '
-
-# --- Surface 3: Inline review comments (line-anchored) -----------------------
 
 fetch_surface "pulls/$PR_NUMBER/comments" '
   {

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Tests for write-changelog-fragments.sh against throwaway git fixtures: a repo
-# with plugins alpha (listed in scripts/fragment-plugins.txt) and beta (not
-# listed), and a stub scripts/new-changelog-fragment.sh that names fragments the
-# way the real one does. Run inside this repository, every fragment written is
-# also checked by the real validator in scripts/lib/changelog-fragments.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,8 +15,6 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# mkrepo [--no-list] — echoes a repo on branch feat/x with alpha and beta
-# committed on main and one uncommitted edit to each staged.
 mkrepo() {
   local r
   r="$(mktemp -d "$TEST_TMPDIR/repoXXXXXX")"
@@ -61,8 +54,6 @@ STUB
   printf '%s' "$r"
 }
 
-# write <repo> <message> [args...] — run the writer from a subdirectory, so the
-# repository-root resolution is exercised too.
 write() {
   local r="$1" msg="$2"
   shift 2
@@ -71,7 +62,6 @@ write() {
 frag() { cat "$1/$2"; }
 nfrag() { find "$1/.changes" -name '*.md' 2>/dev/null | wc -l | tr -d ' '; }
 
-# valid <label> <repo> <path> — the real validator accepts the fragment.
 valid() {
   [[ -f "$REPO_LIB" ]] || return 0
   local err
@@ -145,8 +135,6 @@ out=$(write "$r" "refactor!: rename the option")
 assert_contains "one commit, 0.x alpha: minor" "$(cat "$r/.changes/alpha/"*.md)" $'bump: minor\n---\n\n### Changed\n\n- **Breaking:** rename the option'
 assert_contains "one commit, 1.x beta: major" "$(cat "$r/.changes/beta/"*.md)" $'bump: major\n---\n\n### Changed\n\n- rename the option'
 
-# A second commit on the branch appends to the branch's fragment and raises
-# the bump only upward; a none commit leaves it alone.
 r=$(mkrepo)
 out=$(write "$r" "fix: first")
 git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: first" >/dev/null
@@ -165,15 +153,12 @@ assert_eq "none on a released fragment: nothing written" "" "$out4"
 assert_not_contains "none on a released fragment: unchanged" "$(frag "$r" "$out")" "fourth"
 [[ -n "$out3" ]] || fail "third commit reported its fragment" path ""
 
-# A none fragment followed by a feat becomes a minor fragment with no reason
-# line left before its first section.
 r=$(mkrepo)
 out=$(write "$r" "docs: first")
 write "$r" "feat: second" >/dev/null
 assert_eq "none then feat" $'---\nbump: minor\n---\n\n### Added\n\n- second' "$(frag "$r" "$out")"
 valid "none then feat validates" "$r" "$out"
 
-# --base fills only the plugins with no branch fragment.
 r=$(mkrepo)
 git -C "$r" commit -qm "feat: committed without a fragment" >/dev/null
 out=$(write "$r" "feat(alpha): the pull request" --base main)
@@ -183,7 +168,6 @@ out=$(write "$r" "feat(alpha): the pull request" --base main)
 assert_eq "--base: a covered plugin is left alone" "" "$out"
 assert_eq "--base: still one fragment" 1 "$(nfrag "$r")"
 
-# A subject the mapping cannot read needs --level.
 r=$(mkrepo)
 out=$(write "$r" "Add the widget")
 assert_exit "non-Conventional subject: exit 2" 2 "$?"
@@ -197,21 +181,17 @@ r=$(mkrepo)
 out=$(write "$r" "feat: x" --level none)
 assert_contains "--level overrides the type" "$(frag "$r" "$out")" "bump: none"
 
-# An unmappable subject that touches no listed plugin is not refused.
 r=$(mkrepo)
 git -C "$r" reset -q -- plugins/alpha >/dev/null
 out=$(write "$r" "Update beta docs")
 assert_exit "unmappable subject, no listed plugin: exit 0" 0 "$?"
 assert_eq "unmappable subject, no listed plugin: nothing written" 0 "$(nfrag "$r")"
 
-# A rerun after a failed commit does not add the entry twice.
 r=$(mkrepo)
 out=$(write "$r" "fix: once")
 write "$r" "fix: once" >/dev/null
 assert_eq "rerun: the entry appears once" 1 "$(grep -c -- '- once' "$r/$out")"
 
-# The same description under another type is a new entry, not a rerun, and
-# a body line that only contains the entry text does not count either.
 r=$(mkrepo)
 out=$(write "$r" "fix: update docs")
 git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: update docs" >/dev/null
@@ -225,8 +205,6 @@ echo three >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
 write "$r" "fix: second" >/dev/null
 assert_eq "entry text inside a body line: still written" 1 "$(grep -c '^- second$' "$r/$out")"
 
-# A fragment main already holds, from an earlier branch with the same name,
-# is not this branch's: a new fragment is written and the old one untouched.
 r=$(mkrepo)
 out=$(write "$r" "fix: earlier change")
 {
@@ -243,9 +221,6 @@ assert_eq "same slug on main: the merged fragment is untouched" "$old" "$(cat "$
 out3=$(write "$r" "feat: later change" --base main)
 assert_eq "same slug on main, --base: the staged fragment counts as the branch's" "" "$out3"
 
-# A listed name with no plugin and a docs/conventions/<name>/CHANGELOG.md or
-# docs/contracts/<name>/CHANGELOG.md is a convention: a change under that
-# directory gets a fragment for it.
 for home in conventions contracts; do
   r=$(mkrepo)
   {
@@ -268,8 +243,6 @@ for home in conventions contracts; do
   assert_contains "convention ($home) at 0.x, breaking: minor" "$(frag "$r" "$out")" $'bump: minor\n---\n\n### Fixed\n\n- **Breaking:** y'
 done
 
-# Two releasing commits of the same type share one heading, and a later
-# entry lands under the matching heading when another follows it.
 r=$(mkrepo)
 out=$(write "$r" "fix: one")
 git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: one" >/dev/null
@@ -287,8 +260,6 @@ assert_eq "fix, feat, fix: the late fix sits under Fixed" $'### Fixed\n\n- one\n
   "$(sed -n '/^### Fixed/,$p' "$r/$out")"
 valid "merged headings validate" "$r" "$out"
 
-# A fragment already on the merge base is never edited, and nothing is
-# written while a merge is in progress.
 r=$(mkrepo)
 {
   git -C "$r" commit -qm "feat: alpha work"

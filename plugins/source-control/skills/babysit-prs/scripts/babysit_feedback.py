@@ -205,9 +205,6 @@ def collect_feedback(
             ignored.append(record)
         elif has_blocking_text(text) or has_blocking_severity(text):
             disposition = json_object(dispositions.get(fid))
-            # Only honor a disposition recorded at the current head. If the PR has
-            # advanced, the same feedback id must be re-evaluated (a new P1 posted
-            # under a sticky id at a new head must not inherit an old downgrade).
             disposition_applies = (
                 bool(current_head) and disposition.get("head_sha") == current_head
             )
@@ -215,18 +212,6 @@ def collect_feedback(
                 record["disposed_reason"] = str(disposition.get("reason") or "")
                 material.append(record)
             elif approval_downgrade(text):
-                # An explicit approval verdict with no genuine severity marker
-                # (no CRITICAL/IMPORTANT, no required-fix term surviving negation
-                # redaction): the blocking-looking text is descriptive prose --
-                # e.g. "blocking criteria", "blocking checks", "no blocking
-                # issues" -- not a live finding. This is structural, not
-                # login-gated: a clean approval reads the same from any bot, and
-                # this keeps the snapshot consistent with
-                # babysit-readiness-gate.sh reporting findings=0 for the very
-                # same review. A login named in `approval_downgrade_logins` opts
-                # that bot's clean approvals into the more-conservative `material`
-                # bucket (surfaced but non-blocking) instead of being fully
-                # ignored; the safe default for every other bot is `ignored`.
                 record["downgrade"] = "approval_verdict"
                 if normalized_bot_login(item) in approval_downgrade_logins:
                     material.append(record)

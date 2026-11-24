@@ -371,8 +371,8 @@ out="$(run nobasis worker --session-model opus --defaults "$T/nobasis/defaults.y
 assert_contains "no bundled basis: unrecorded" "$out" '"basis":{"model":"unrecorded","fanout_model":"unrecorded","effort":"unrecorded"}'
 
 out="$(run plain worker --session-model opus)"
-assert_contains "bundled vendors defaults emitted" "$out" '"vendors":{"routing":true,"trials":false,"auto_delegation":false,"tiebreak":[],"trials_prove":null,"trials_fail":null,'
-assert_contains "bundled vendors source layers recorded" "$out" '"source":{"routing":"bundled","trials":"bundled","auto_delegation":"bundled","tiebreak":null,"trials_prove":null,"trials_fail":null,'
+assert_contains "bundled vendors defaults emitted" "$out" '"vendors":{"routing":true,"trials":false,"auto_delegation":false,"trials_prove":null,"trials_fail":null,'
+assert_contains "bundled vendors source layers recorded" "$out" '"source":{"routing":"bundled","trials":"bundled","auto_delegation":"bundled","trials_prove":null,"trials_fail":null,'
 
 fixture vendorsvalid
 cat >"$T/vendorsvalid/user.yaml" <<'YAML'
@@ -381,9 +381,6 @@ vendors:
   routing: true
   trials: true
   auto_delegation: true
-  tiebreak:
-    - fewest-tokens
-    - vendor-order
   trials_prove: 3
   trials_fail: 2
   claude:
@@ -402,7 +399,6 @@ YAML
 cat >"$T/vendorsvalid/repo/docs/conventions/multi-agent.yaml" <<'YAML'
 schema: 1
 vendors:
-  tiebreak: [most-usage-left, vendor-order]
   codex:
     rank: 1
   claude:
@@ -412,7 +408,7 @@ out="$(run vendorsvalid worker --session-model opus --user-file "$T/vendorsvalid
 assert_eq "valid vendors block exits 0" 0 "$?"
 assert_lacks "valid vendors block produces no unknown key note" "$out" 'unknown key'
 assert_contains "valid vendors block has no notes" "$out" '"notes":[]'
-assert_contains "valid vendors block resolves layered values" "$out" '"vendors":{"routing":true,"trials":true,"auto_delegation":true,"tiebreak":["most-usage-left","vendor-order"],"trials_prove":3,"trials_fail":2,"claude":{"in_use":true,"rank":2},"codex":{"in_use":true,"rank":1},"antigravity":{"in_use":false,"rank":3},"sources":{"terminal-bench":{"enabled":false}},"source":{"routing":"user-config","trials":"user-config","auto_delegation":"user-config","tiebreak":"team","trials_prove":"user-config","trials_fail":"user-config","claude":{"in_use":"user-config","rank":"team"},"codex":{"in_use":"user-config","rank":"team"},"antigravity":{"in_use":"user-config","rank":"user-config"},"sources":{"terminal-bench":{"enabled":"user-config"}}}}'
+assert_contains "valid vendors block resolves layered values" "$out" '"vendors":{"routing":true,"trials":true,"auto_delegation":true,"trials_prove":3,"trials_fail":2,"claude":{"in_use":true,"rank":2},"codex":{"in_use":true,"rank":1},"antigravity":{"in_use":false,"rank":3},"sources":{"terminal-bench":{"enabled":false}},"source":{"routing":"user-config","trials":"user-config","auto_delegation":"user-config","trials_prove":"user-config","trials_fail":"user-config","claude":{"in_use":"user-config","rank":"team"},"codex":{"in_use":"user-config","rank":"team"},"antigravity":{"in_use":"user-config","rank":"user-config"},"sources":{"terminal-bench":{"enabled":"user-config"}}}}'
 if ! command -v node >/dev/null 2>&1; then
   pass "valid vendors output is valid JSON (skipped: no node)"
 elif printf '%s' "$out" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null; then
@@ -442,8 +438,6 @@ fixture vendorsinvalid
 cat >"$T/vendorsinvalid/user.yaml" <<'YAML'
 schema: 1
 vendors:
-  tiebreak:
-    - fewest-tokens
   trials_fail: 2
 YAML
 cat >"$T/vendorsinvalid/repo/docs/conventions/multi-agent.yaml" <<'YAML'
@@ -451,9 +445,6 @@ schema: 1
 vendors:
   trials_fail: 1
   trials_prove: 0
-  tiebreak:
-    - vendor-order
-    - bogus-step
   claude:
     in_use: yes
     rank: high
@@ -464,11 +455,19 @@ assert_eq "invalid vendors keys still exit 0" 0 "$?"
 assert_contains "trials_fail: 1 is rejected" "$out" "team: vendors.trials_fail rejected: '1'"
 assert_contains "trials_fail falls back to lower layer" "$out" '"trials_fail":2'
 assert_contains "trials_prove: 0 is rejected" "$out" "team: vendors.trials_prove rejected: '0'"
-assert_contains "unknown tiebreak step is rejected" "$out" "team: vendors.tiebreak rejected: 'bogus-step'"
-assert_contains "rejected tiebreak keeps lower layer" "$out" '"tiebreak":["fewest-tokens"]'
 assert_contains "invalid in_use is rejected" "$out" "team: vendors.claude.in_use rejected: 'yes'"
 assert_contains "invalid rank is rejected" "$out" "team: vendors.claude.rank rejected: 'high'"
 assert_contains "unknown vendors key is ignored" "$out" "team: vendors.bogus ignored: unknown key"
+
+fixture vendorstiebreak
+cat >"$T/vendorstiebreak/repo/docs/conventions/multi-agent.yaml" <<'YAML'
+schema: 1
+vendors:
+  tiebreak: [vendor-order]
+YAML
+out="$(run vendorstiebreak worker --session-model opus)"
+assert_contains "vendors.tiebreak is ignored as unknown key" "$out" "team: vendors.tiebreak.0 ignored: unknown key"
+assert_lacks "vendors.tiebreak is not emitted in output" "$out" '"tiebreak"'
 
 printf '\n%d cases, %d failed\n' "$CASES" "$FAILED"
 ((FAILED == 0))

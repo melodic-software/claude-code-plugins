@@ -39,8 +39,6 @@ from babysit_util import run_command
 
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 BRANCH_RE = re.compile(r"[A-Za-z0-9._/-]+")
-# A fetch reads one pull request's new commits; a slow remote must not hold
-# the gate past its budget.
 FETCH_TIMEOUT_SECONDS = 60.0
 REGISTRY = "scripts/shared-copies.txt"
 
@@ -76,8 +74,6 @@ def _names(out: str) -> list[str]:
 def _diff_names(
     root: Path, old: str, new: str, pathspecs: Iterable[str]
 ) -> list[str] | None:
-    """The paths under `pathspecs` that differ between `old` and `new`; None
-    when git cannot list them."""
     out = _git(
         root, "diff", "--name-only", "--no-renames", "-z", old, new, "--",
         *pathspecs,
@@ -86,8 +82,6 @@ def _diff_names(
 
 
 def _full_history_clone(roots: Iterable[Path], tip_ref: str) -> tuple[Path, str] | None:
-    """The first clone that resolves `tip_ref` and holds its whole history
-    (not shallow or partial)."""
     for checkout in roots:
         root = merge_policy._full_history_root(checkout)
         if root is None:
@@ -136,8 +130,6 @@ def _blob(root: Path, rev: str, path: str) -> str:
 def _carried_sources(
     root: Path, base: str, head: str, tip: str, touched: set[str]
 ) -> list[str] | None:
-    """The canonicals the pull request carries that the base changed since
-    `base`; None when the base's changes cannot be listed."""
     added = (
         _pairs(_blob(root, head, REGISTRY)) - _pairs(_blob(root, base, REGISTRY))
         if REGISTRY in touched
@@ -220,9 +212,6 @@ def changed_since_merge_base(
             }
         touched = set(_names(own))
     if scoped:
-        # The PR editing the registry itself overlaps whatever the base
-        # changed there. A registry absent or unreadable at the tip registers
-        # nothing, so the doubt falls toward enqueuing.
         skipped = [
             p
             for p in scoped
