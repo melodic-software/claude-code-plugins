@@ -38,7 +38,6 @@ class ExitCodeTaxonomy(unittest.TestCase):
         self.assertEqual(snapshot.exit_code_for({"errors": [_advisory_error()]}), 3)
 
     def test_substantive_precedence_over_advisory(self):
-        # A run carrying both must never be masked by the advisory split.
         self.assertEqual(
             snapshot.exit_code_for(
                 {"errors": [_advisory_error(), _substantive_error()]}
@@ -120,8 +119,6 @@ class ResolveSelfLoginsTests(unittest.TestCase):
             )
 
     def test_self_is_a_full_override_that_excludes_me(self) -> None:
-        # --self mirrors the gate: exactly the given logins, @me neither added nor
-        # even resolved.
         with mock.patch.object(
             gh, "resolve_author", side_effect=AssertionError("must not resolve @me")
         ):
@@ -144,9 +141,6 @@ class ResolveSelfLoginsTests(unittest.TestCase):
             )
 
     def test_empty_self_is_a_full_override_yielding_no_logins(self) -> None:
-        # An explicit `--self ""` must still be treated as "the flag was supplied"
-        # (full override, empty set) -- not as "the flag was omitted" (which would
-        # fall through to resolving and adding @me).
         with mock.patch.object(
             gh, "resolve_author", side_effect=AssertionError("must not resolve @me")
         ):
@@ -254,16 +248,8 @@ class ApproveWithNitsClassification(unittest.TestCase):
         self.assertEqual(result["feedback"]["blocking"], [])
         self.assertEqual(result["new_feedback"]["blocking"], [])
         self.assertEqual(result["feedback"]["material"], [])
-        # classify_pr surfaces four buckets and collect_feedback puts every record
-        # in exactly one, so all four empty means this review was routed to
-        # `ignored` -- the bucket the snapshot shape does not project.
         self.assertEqual(result["feedback"]["human_blocking"], [])
         self.assertEqual(result["feedback"]["human"], [])
-        # Four-empty alone cannot distinguish "routed to `ignored`" from "dropped
-        # without reaching any bucket", and no sibling test covers this branch --
-        # they exit at CHANGES_REQUESTED and at the blocking-severity fallthrough.
-        # Assert the bucket at its own layer, under the same FeedbackConfig
-        # classify_pr passes down, so the two cannot drift apart.
         buckets = feedback.collect_feedback(
             _pr_with_claude_review(APPROVE_WITH_NITS_BODY),
             None,
@@ -271,13 +257,8 @@ class ApproveWithNitsClassification(unittest.TestCase):
             self._CONFIG.feedback,
         )
         self.assertEqual(len(buckets["ignored"]), 1)
-        # Pins the arrival branch, not just the destination: the approval-verdict
-        # downgrade, never the catch-all fallthrough that also lands in `ignored`.
         self.assertEqual(buckets["ignored"][0]["downgrade"], "approval_verdict")
         self.assertNotIn("1 blocking bot feedback item(s)", result["blockers"])
-        # Consistent with the gate's findings=0: a clean approval is fully
-        # non-blocking, so a worker is never dispatched for it and the PR routes
-        # straight to the direct merge gate.
         self.assertFalse(result["needs_worker"])
         self.assertTrue(result["pr_clean_ready_for_direct_gate"])
 
@@ -383,8 +364,6 @@ class SelfIdentityDecouplingTests(unittest.TestCase):
         return list(args.resolved_self_logins)
 
     def test_extra_self_survives_when_author_is_dropped(self) -> None:
-        # Autopilot widening drops --author; the configured extra identity must
-        # still be suppressed (under-inclusion regression).
         with tempfile.TemporaryDirectory() as state_dir:
             args = argparse.Namespace(
                 pr="owner/repo#1",
@@ -399,8 +378,6 @@ class SelfIdentityDecouplingTests(unittest.TestCase):
         self.assertIn("kyle-sexton", resolved)
 
     def test_discovery_author_is_not_treated_as_self(self) -> None:
-        # A discovery --author for someone other than the authenticated user must
-        # not enter the self set (over-inclusion regression).
         with tempfile.TemporaryDirectory() as state_dir:
             args = argparse.Namespace(
                 pr="owner/repo#1",
@@ -504,10 +481,6 @@ class SinglePrScopeClassifierConsumptionTests(unittest.TestCase):
         # human-stop their own PR); it just must not re-dispatch a worker.
         self.assertTrue(classified["feedback"]["human_blocking"])
         self.assertEqual(classified["new_feedback"]["human"], [])
-        # The downstream effect, not just the mechanism: the suppressed comment
-        # contributes no dispatch reason. `needs_worker` itself stays True here
-        # on unrelated first-cycle reasons (empty state dir), so asserting on it
-        # would not isolate the self-exclusion.
         self.assertNotIn(
             "new_human_blocking_feedback", classified["needs_worker_reasons"]
         )
