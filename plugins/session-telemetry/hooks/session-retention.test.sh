@@ -16,13 +16,10 @@ source "$HOOK_DIR/session-telemetry-test-helpers.sh"
 
 ON=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED=true
 
-# stamp_to <var> <days-ago>: a `touch -t` timestamp that many days in the past.
 stamp_to() {
   printf -v "$1" '%(%Y%m%d%H%M)T' "$((EPOCHSECONDS - $2 * 86400))"
 }
 
-# populate <root> <count>: <count> session files, file i being i days old
-# (file 1 newest), so recency order and age agree and the union rule is exact.
 populate() {
   local root="$1" n="$2" i st f
   mkdir -p "$root/sessions"
@@ -34,8 +31,6 @@ populate() {
   done
 }
 
-# Spawn-counting shims: every process the hook may start is logged, then
-# delegated to the real binary.
 SHIM="$TEST_TMPDIR/shim"
 SPAWNS="$TEST_TMPDIR/spawns"
 mkdir -p "$SHIM"
@@ -45,7 +40,6 @@ for b in ls find mv rm nohup; do
   chmod +x "$SHIM/$b"
 done
 
-# run <project> [env...]: no stdin is offered at all (the hook must not read it).
 run() {
   local proj="$1"
   shift
@@ -59,9 +53,6 @@ run "$P"
 assert_eq "disabled → every file kept" 40 "$(find "$P/.observability/claude/sessions" -name '*.jsonl' | wc -l | tr -d ' ')"
 assert_eq "disabled → no process spawned" 0 "$(wc -l <"$SPAWNS" | tr -d ' ')"
 
-# --- the union rule: keep newest N or younger than D days -------------------
-# 100 files, file i is i days old. keep 30 sessions / 14 days: files 1..30
-# are protected by count, files 1..14 by age; doomed = 31..100 (70 files).
 P="$TEST_TMPDIR/union"
 populate "$P/.observability/claude" 100
 t0=$EPOCHREALTIME
@@ -71,8 +62,6 @@ kept=$(find "$P/.observability/claude/sessions" -name '*.jsonl' | wc -l | tr -d 
 assert_eq "100 files, 30/14 → 30 kept" 30 "$kept"
 assert_eq "the newest 30 are the survivors" "s001.jsonl s030.jsonl" \
   "$(find "$P/.observability/claude/sessions" -name '*.jsonl' -exec basename {} \; | sort | sed -n '1p;$p' | tr '\n' ' ' | sed 's/ $//')"
-# Three processes on a first prune (ls, find, rm); the pending sweep's find
-# is paid only once a prune-pending directory exists.
 assert_eq "a pruning run spawns three processes (ls, find, rm)" 3 "$(wc -l <"$SPAWNS" | tr -d ' ')"
 # No stdin read: a writer that holds the pipe open for 3 s (the Win32 late-EOF
 # shape) must not delay the hook at all. Measured on the reading side, because
@@ -99,14 +88,10 @@ fi
 assert_eq "held-open stdin: the prune still ran" 30 "$(find "$P2/.observability/claude/sessions" -name '*.jsonl' | wc -l | tr -d ' ')"
 printf 'info: 100-file prune took %s ms\n' "$(awk -v a="$t0" -v b="$t1" 'BEGIN { printf "%d", (b - a) * 1000 }')"
 
-# keep by age beyond the count: 50 sessions / 1 day → files 1..50 by count,
-# files younger than 1 day: none older than the count, so 50 kept.
 P="$TEST_TMPDIR/bycount"
 populate "$P/.observability/claude" 60
 run "$P" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS=50 CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS=1
 assert_eq "count protects beyond age" 50 "$(find "$P/.observability/claude/sessions" -name '*.jsonl' | wc -l | tr -d ' ')"
-# keep by age beyond the count: 5 sessions / 40 days on 60 files → all younger
-# than 40 days are kept (files 1..39), the rest doomed.
 P="$TEST_TMPDIR/byage"
 populate "$P/.observability/claude" 60
 run "$P" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS=5 CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS=40
@@ -135,8 +120,6 @@ P="$TEST_TMPDIR/archiver"
 populate "$P/.observability/claude" 40
 ARCHIVE_LOG="$TEST_TMPDIR/archiver.log"
 ARCHIVE_PID="$TEST_TMPDIR/archiver.pid"
-# The hook appends ' "$@"' to the command; the trailing ; leaves that as a
-# command exec never reaches, so sleep gets only its 30.
 CMD="echo \$\$ >\"$ARCHIVE_PID\"; printf '%s\\n' \"\$1\" >>\"$ARCHIVE_LOG\"; exec sleep 30;"
 t0=$EPOCHREALTIME
 run "$P" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND="$CMD"

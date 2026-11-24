@@ -151,7 +151,6 @@ async function main(argv) {
   }
   const request = { argument: opts.argument, userConfig: { surface: opts.surface }, pacing: opts.pacing, ledger: opts.ledger }
   let out = await resolveSurface(request)
-  // Planners and offers only ride the default's line, so look them up only when it prints.
   if (out.decidedBy === 'default') {
     const found = await findOffers({ installed: installedPlugins(), unattended: opts.unattended, dataDir: opts.dataDir })
     out = await resolveSurface({ ...request, ...found })

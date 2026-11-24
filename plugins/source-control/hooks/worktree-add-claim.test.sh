@@ -49,7 +49,6 @@ run "$REPO" "git status" "s-status"
 assert_exit "a git command that is not worktree add is a no-op" 0 "$RC"
 assert_silent "non-add produces no additionalContext" "$OUT"
 
-# Leave an unlocked decoy; echo must not claim it (review: substring pre-filter).
 git -C "$REPO" worktree add -q "$EXT/wt-decoy" -b feat/decoy
 run "$REPO" "echo git worktree add $EXT/wt-decoy" "s-echo"
 assert_exit "echo naming git worktree add is not a git call" 0 "$RC"
@@ -98,8 +97,6 @@ sb=$(wt_stanza "$REPO2" wt-b)
 assert_contains "first hook session is alpha" "$sa" "session alpha since"
 assert_contains "second hook session is beta" "$sb" "session beta since"
 
-# Only the parsed add target is claimed — a sibling unclaimed tree stays
-# unlocked so a concurrent session can still claim it.
 git -C "$REPO2" worktree add -q "$EXT/wt-keep" -b feat/keep
 git -C "$REPO2" worktree add -q "$EXT/wt-take" -b feat/take
 run "$REPO2" "git worktree add $EXT/wt-take -b feat/take" "taker"
@@ -108,7 +105,6 @@ take=$(wt_stanza "$REPO2" wt-take)
 assert_not_contains "sibling unclaimed tree is not stolen" "$keep" "locked"
 assert_contains "parsed add target is claimed" "$take" "taker"
 
-# git -C targets the other repository, not the payload cwd.
 REPO_A="$(mkrepo)"
 REPO_B="$(mkrepo)"
 git -C "$REPO_A" worktree add -q "$EXT/wt-cwd-unclaimed" -b feat/cwd-u
@@ -119,9 +115,6 @@ dashc=$(wt_stanza "$REPO_B" wt-dashc)
 assert_not_contains "payload-cwd unclaimed tree is not claimed by git -C" "$cwd_u" "locked"
 assert_contains "git -C add target is claimed in the other repo" "$dashc" "dashc-sess"
 
-# --- Fail open when the command cannot be read ------------------------------
-# The add has already run, so a reader that cannot parse (here: no shfmt on PATH
-# and none in ~/.local/bin) must leave the call alone: exit 0, no refusal text.
 NOSHFMT="$TEST_TMPDIR/noshfmt-bin"
 mkdir -p "$NOSHFMT" "$TEST_TMPDIR/noshfmt-home"
 # jq through a wrapper that keeps the real HOME, so a version manager's shim resolves.

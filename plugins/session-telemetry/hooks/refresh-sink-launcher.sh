@@ -31,8 +31,6 @@ data="${data%/}"
 target="${root%/}/hooks/hook-telemetry-sink.sh"
 [[ -f "$target" ]] || exit 0
 
-# json_str_to <var> <text>: <text> as a JSON string body. Control characters
-# other than newline, tab and carriage return are dropped.
 json_str_to() {
   local s="$2"
   s="${s//\\/\\\\}"

@@ -88,7 +88,8 @@ tidy sweep (that is `/code-tidying:tidy`).
    `modified` or `superseded` is a FAIL whose remediation is `apply install-git-hooks`.
 9. **Comment-lint settings and tools.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/comment-settings.sh"`
    and report `comment_lint` (`off` when unset), `comment_posture`, and the file each came from;
-   `comment-settings.sh --list comment_lint_allow` lists the allow patterns. A `comment_lint`
+   `comment-settings.sh --list comment_lint_allow` lists the allow patterns and
+   `--list comment_lint_exclude` the excluded path globs. A `comment_lint`
    `invalid` line is a FAIL naming the file. When the level is `report` or `block`, probe
    `python3 -c 'import pygments'` with the `python3` on `PATH`: a failure is a FAIL, since the entry
    then reports pygments missing at every commit. Report `python3` and `pygments` as the tools to
