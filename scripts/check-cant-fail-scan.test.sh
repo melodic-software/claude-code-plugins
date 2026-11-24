@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/testing/skills/audit/adapters/*.yaml
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
