@@ -1,0 +1,386 @@
+{
+  "total_count": 8,
+  "jobs": [
+    {
+      "id": 138060155789,
+      "run_id": 45279570859,
+      "workflow_name": "eval-compare pr=18309 head=6f55fa9f7eb693a9b155eb0dca278f8f0f28775e",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45279570859",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgJQbLjQ",
+      "head_sha": "ffeab93bdf4e0a40dd17e6ec0c2b7504a91b72a4",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138060155789",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45279570859/job/138060155789",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-11-23T22:25:43Z",
+      "started_at": "2026-11-23T22:25:45Z",
+      "completed_at": "2026-11-23T22:26:18Z",
+      "name": "Compare Prepare",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-23T22:25:46Z",
+          "completed_at": "2026-11-23T22:25:47Z"
+        },
+        {
+          "name": "Check out the default branch",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-23T22:25:47Z",
+          "completed_at": "2026-11-23T22:25:52Z"
+        },
+        {
+          "name": "Set up Node",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-23T22:25:52Z",
+          "completed_at": "2026-11-23T22:25:53Z"
+        },
+        {
+          "name": "Check the kill switch",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-23T22:25:53Z",
+          "completed_at": "2026-11-23T22:25:53Z"
+        },
+        {
+          "name": "Stop when the kill switch is on",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5,
+          "started_at": "2026-11-23T22:25:53Z",
+          "completed_at": "2026-11-23T22:25:53Z"
+        },
+        {
+          "name": "Check the dispatcher is a trusted human",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-23T22:25:53Z",
+          "completed_at": "2026-11-23T22:25:53Z"
+        },
+        {
+          "name": "Check the compare inputs",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-23T22:25:53Z",
+          "completed_at": "2026-11-23T22:25:53Z"
+        },
+        {
+          "name": "Check the pull request head",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-23T22:25:53Z",
+          "completed_at": "2026-11-23T22:25:54Z"
+        },
+        {
+          "name": "Check the pull request author",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-23T22:25:54Z",
+          "completed_at": "2026-11-23T22:25:55Z"
+        },
+        {
+          "name": "Stop on an untrusted pull request author",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-11-23T22:25:55Z",
+          "completed_at": "2026-11-23T22:25:55Z"
+        },
+        {
+          "name": "Fetch the pull request's commits as data",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-11-23T22:25:55Z",
+          "completed_at": "2026-11-23T22:26:14Z"
+        },
+        {
+          "name": "Build the arm patches",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 12,
+          "started_at": "2026-11-23T22:26:14Z",
+          "completed_at": "2026-11-23T22:26:14Z"
+        },
+        {
+          "name": "Scan the before patch for credentials",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 13,
+          "started_at": "2026-11-23T22:26:14Z",
+          "completed_at": "2026-11-23T22:26:14Z"
+        },
+        {
+          "name": "Scan the after patch for credentials",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 14,
+          "started_at": "2026-11-23T22:26:14Z",
+          "completed_at": "2026-11-23T22:26:14Z"
+        },
+        {
+          "name": "Stop on a patch the scan did not clear",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 15,
+          "started_at": "2026-11-23T22:26:14Z",
+          "completed_at": "2026-11-23T22:26:14Z"
+        },
+        {
+          "name": "Upload the before patch",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 16,
+          "started_at": "2026-11-23T22:26:14Z",
+          "completed_at": "2026-11-23T22:26:14Z"
+        },
+        {
+          "name": "Upload the after patch",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 17,
+          "started_at": "2026-11-23T22:26:14Z",
+          "completed_at": "2026-11-23T22:26:14Z"
+        },
+        {
+          "name": "Log the API budget at the end",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-11-23T22:26:14Z",
+          "completed_at": "2026-11-23T22:26:14Z"
+        },
+        {
+          "name": "Post Fetch the pull request's commits as data",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 35,
+          "started_at": "2026-11-23T22:26:14Z",
+          "completed_at": "2026-11-23T22:26:14Z"
+        },
+        {
+          "name": "Post Check out the default branch",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 36,
+          "started_at": "2026-11-23T22:26:14Z",
+          "completed_at": "2026-11-23T22:26:15Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 37,
+          "started_at": "2026-11-23T22:26:15Z",
+          "completed_at": "2026-11-23T22:26:15Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138060155789",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1001732754,
+      "runner_name": "GitHub Actions 1001732754",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 138060157936,
+      "run_id": 45279570859,
+      "workflow_name": "eval-compare pr=18309 head=6f55fa9f7eb693a9b155eb0dca278f8f0f28775e",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45279570859",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgJQbT8A",
+      "head_sha": "ffeab93bdf4e0a40dd17e6ec0c2b7504a91b72a4",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138060157936",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45279570859/job/138060157936",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-11-23T22:25:43Z",
+      "started_at": "2026-11-23T22:25:43Z",
+      "completed_at": "2026-11-23T22:25:43Z",
+      "name": "Check Key Credit",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138060157936",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 138060158370,
+      "run_id": 45279570859,
+      "workflow_name": "eval-compare pr=18309 head=6f55fa9f7eb693a9b155eb0dca278f8f0f28775e",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45279570859",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgJQbVog",
+      "head_sha": "ffeab93bdf4e0a40dd17e6ec0c2b7504a91b72a4",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138060158370",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45279570859/job/138060158370",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-11-23T22:25:43Z",
+      "started_at": "2026-11-23T22:25:43Z",
+      "completed_at": "2026-11-23T22:25:43Z",
+      "name": "Run Eval",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138060158370",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 138060158525,
+      "run_id": 45279570859,
+      "workflow_name": "eval-compare pr=18309 head=6f55fa9f7eb693a9b155eb0dca278f8f0f28775e",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45279570859",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgJQbWPQ",
+      "head_sha": "ffeab93bdf4e0a40dd17e6ec0c2b7504a91b72a4",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138060158525",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45279570859/job/138060158525",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-11-23T22:25:43Z",
+      "started_at": "2026-11-23T22:25:43Z",
+      "completed_at": "2026-11-23T22:25:43Z",
+      "name": "Run Eval Subscription",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138060158525",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 138060493668,
+      "run_id": 45279570859,
+      "workflow_name": "eval-compare pr=18309 head=6f55fa9f7eb693a9b155eb0dca278f8f0f28775e",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45279570859",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgJQvzZA",
+      "head_sha": "ffeab93bdf4e0a40dd17e6ec0c2b7504a91b72a4",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138060493668",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45279570859/job/138060493668",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-11-23T22:26:18Z",
+      "started_at": "2026-11-23T22:26:18Z",
+      "completed_at": "2026-11-23T22:26:18Z",
+      "name": "Compare Before",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138060493668",
+      "labels": [],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 138060494480,
+      "run_id": 45279570859,
+      "workflow_name": "eval-compare pr=18309 head=6f55fa9f7eb693a9b155eb0dca278f8f0f28775e",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45279570859",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgJQv2kA",
+      "head_sha": "ffeab93bdf4e0a40dd17e6ec0c2b7504a91b72a4",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138060494480",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45279570859/job/138060494480",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-11-23T22:26:19Z",
+      "started_at": "2026-11-23T22:26:19Z",
+      "completed_at": "2026-11-23T22:26:18Z",
+      "name": "Compare Verdict",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138060494480",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 138060495113,
+      "run_id": 45279570859,
+      "workflow_name": "eval-compare pr=18309 head=6f55fa9f7eb693a9b155eb0dca278f8f0f28775e",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45279570859",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgJQv5CQ",
+      "head_sha": "ffeab93bdf4e0a40dd17e6ec0c2b7504a91b72a4",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138060495113",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45279570859/job/138060495113",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-11-23T22:26:19Z",
+      "started_at": "2026-11-23T22:26:19Z",
+      "completed_at": "2026-11-23T22:26:18Z",
+      "name": "Compare After",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138060495113",
+      "labels": [],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 138060496305,
+      "run_id": 45279570859,
+      "workflow_name": "eval-compare pr=18309 head=6f55fa9f7eb693a9b155eb0dca278f8f0f28775e",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45279570859",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgJQv9sQ",
+      "head_sha": "ffeab93bdf4e0a40dd17e6ec0c2b7504a91b72a4",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138060496305",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45279570859/job/138060496305",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-11-23T22:26:19Z",
+      "started_at": "2026-11-23T22:26:19Z",
+      "completed_at": "2026-11-23T22:26:18Z",
+      "name": "Compare Record",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138060496305",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    }
+  ]
+}

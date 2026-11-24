@@ -394,17 +394,32 @@ const namedPull = (run) => {
   return title === null ? null : Number(title[1]);
 };
 
+export const COMPARE_RUN_PAGES = 10;
+
+const createdAt = (run) => (typeof run?.created_at === "string" ? run.created_at : "");
+
 function compareRunLister(github, repo) {
-  let listed;
-  return () => {
-    listed ??= github("GET", `/repos/${repo}${COMPARE_RUNS_LIST}`).then(
-      (answer) => (Array.isArray(answer?.workflow_runs) ? answer.workflow_runs : []),
-      (error) => {
+  const runs = [];
+  let pages = 0;
+  let last = false;
+  let failed = false;
+  const reaches = (since) => runs.length > 0 && createdAt(runs.at(-1)) !== "" && createdAt(runs.at(-1)) < since;
+  return async (since) => {
+    while (!failed && !last && !reaches(since) && pages < COMPARE_RUN_PAGES) {
+      pages += 1;
+      try {
+        const batch = (await github("GET", `/repos/${repo}${COMPARE_RUNS_LIST}&page=${pages}`))?.workflow_runs;
+        if (!Array.isArray(batch)) {
+          throw new Error(`page ${pages} held no workflow_runs`);
+        }
+        runs.push(...batch);
+        last = batch.length < 100;
+      } catch (error) {
+        failed = true;
         console.log(`release-eval-hold: the compare runs did not list: ${escapeCommand(error?.message ?? error)}`);
-        return [];
-      },
-    );
-    return listed;
+      }
+    }
+    return { runs, complete: !failed && (last || reaches(since)) };
   };
 }
 
@@ -415,16 +430,21 @@ async function readAll(github, repo, number, humans, runsGitHub = github, listRu
   if (early === "no-eval-hold") {
     return { early };
   }
-  const named = (await listRuns()).filter((run) => namedPull(run) === number);
+  const events = await paginate(github, `${base}/events`);
+  const since = heldAt(events);
+  const listed = since === null ? { runs: [], complete: false } : await listRuns(since);
+  const named = listed.runs.filter((run) => namedPull(run) === number);
   if (early !== null && named.length === 0) {
     return { early };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
-  const events = await paginate(github, `${base}/events`);
   const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
   const defaultBranch = pull?.base?.repo?.default_branch;
   const vouched = await readRuns(runsGitHub, repo, comments, defaultBranch);
-  const cannotStart = await readCannotStart(runsGitHub, repo, named.filter((run) => !vouched.has(String(run.id))), pull?.head?.sha, defaultBranch);
+  if (since !== null && !listed.complete) {
+    console.log(`release-eval-hold: #${number} the compare runs since ${since} run past ${COMPARE_RUN_PAGES} pages; no cannot-start run counts`);
+  }
+  const cannotStart = listed.complete ? await readCannotStart(runsGitHub, repo, named, vouched, since, pull?.head?.sha, defaultBranch) : null;
   return { pull, comments, events, reviews, vouched, cannotStart };
 }
 
@@ -491,14 +511,14 @@ async function readRuns(github, repo, comments, defaultBranch) {
   return vouched;
 }
 
-async function readCannotStart(github, repo, named, head, defaultBranch) {
+async function readCannotStart(github, repo, named, vouched, since, head, defaultBranch) {
   if (!/^[0-9a-f]{40}$/.test(String(head)) || typeof defaultBranch !== "string") {
     return null;
   }
   const newest = named
-    .filter((run) => COMPARE_TITLE.exec(String(run.display_title))?.[2] === head)
-    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0];
-  if (newest === undefined || !/^[1-9][0-9]{0,19}$/.test(String(newest.id))) {
+    .filter((run) => COMPARE_TITLE.exec(String(run.display_title))?.[2] === head && createdAt(run) >= since)
+    .sort((a, b) => createdAt(b).localeCompare(createdAt(a)))[0];
+  if (newest === undefined || vouched.has(String(newest.id)) || !/^[1-9][0-9]{0,19}$/.test(String(newest.id))) {
     return null;
   }
   const tip = await readTip(github, repo, defaultBranch);

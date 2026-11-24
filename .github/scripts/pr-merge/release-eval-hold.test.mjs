@@ -11,6 +11,7 @@ import {
   cannotStartCause,
   cannotStartMarker,
   citedRun,
+  COMPARE_RUN_PAGES,
   COMPARE_RUNS_LIST,
   decide,
   EVAL_GATED_LABEL,
@@ -184,13 +185,14 @@ const RAN = { total_count: 2, jobs: [
   { name: "Compare Prepare", status: "completed", conclusion: "success" },
   { name: "Compare Record", status: "completed", conclusion: "success" },
 ] };
-function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, jobs = {}, compareStatus = "ahead", tip = TIP, listed = [] } = {}) {
+function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, jobs = {}, compareStatus = "ahead", tip = TIP, listed = [], timeline = events } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
-    if (method === "GET" && path === `/repos/${REPO}${COMPARE_RUNS_LIST}`) {
+    if (method === "GET" && path.startsWith(`/repos/${REPO}${COMPARE_RUNS_LIST}&page=`)) {
       if (listed === null) throw new Error("HTTP 502");
-      return { total_count: listed.length, workflow_runs: listed };
+      const page = Number(path.slice(`/repos/${REPO}${COMPARE_RUNS_LIST}&page=`.length));
+      return { total_count: listed.length, workflow_runs: listed.slice((page - 1) * 100, page * 100) };
     }
     const jobsPath = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/jobs\?/.exec(path);
     if (method === "GET" && jobsPath) {
@@ -226,7 +228,7 @@ function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(p
     const entry = pulls[match?.[2]];
     if (method === "GET" && match[1] === "pulls" && !match[3]) return entry.pull;
     if (method === "GET" && match[3] === "/comments") return entry.comments;
-    if (method === "GET" && match[3] === "/events") return events;
+    if (method === "GET" && match[3] === "/events") return timeline;
     if (method === "GET" && match[3] === "/reviews") return [];
     if (method === "POST" || method === "DELETE") return null;
     throw new Error(`unexpected ${method} ${path}`);
@@ -559,14 +561,18 @@ test("a failed read of the open pull requests fails the run and still runs the r
 });
 
 const CANNOT_RUN_ID = "44900000002";
-const cannotStartJobs = (cause = "evals-disabled", overrides = {}) => ({
-  total_count: 3,
-  jobs: [
-    { name: "Compare Prepare", status: "completed", conclusion: "success" },
-    { name: `${CANNOT_START_JOB}: ${cause}`, status: "completed", conclusion: "success", ...overrides },
-    { name: "Compare Record", status: "completed", conclusion: "skipped" },
-  ],
-});
+const CAPTURED_JOBS = JSON.parse(readFileSync(new URL("./fixtures/release-eval-hold-compare-jobs.json", import.meta.url), "utf8"));
+const withJob = (answer, job) => ({ ...answer, total_count: answer.total_count + 1, jobs: [...answer.jobs, job] });
+const cannotStartJob = (cause, overrides = {}) => {
+  const prepare = CAPTURED_JOBS.jobs.find((job) => job.name === "Compare Prepare");
+  return { ...prepare, id: prepare.id + 1, name: `${CANNOT_START_JOB}: ${cause}`, conclusion: "success", ...overrides };
+};
+const cannotStartJobs = (cause = "evals-disabled", overrides = {}) =>
+  withJob(
+    { ...CAPTURED_JOBS, jobs: CAPTURED_JOBS.jobs.map((job) => (job.name === "Compare Prepare" ? { ...job, conclusion: "success" } : job)) },
+    cannotStartJob(cause, overrides),
+  );
+const recordedToo = (answer) => ({ ...answer, jobs: answer.jobs.map((job) => (job.name === "Compare Record" ? { ...job, conclusion: "success" } : job)) });
 const listedRun = (overrides = {}) =>
   compareRun({ id: Number(CANNOT_RUN_ID), html_url: `https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}`, created_at: "2026-11-06T10:30:00Z", ...overrides });
 const cannotStart = (head = HEAD, cause = "evals-disabled") => ({ head, cause, run: { id: CANNOT_RUN_ID, html_url: `https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}` } });
@@ -581,9 +587,10 @@ test("cannotStartCause reads the one Compare Cannot Start job's cause, and only 
     "a job that skipped": cannotStartJobs("evals-disabled", { conclusion: "skipped" }),
     "a job still going": cannotStartJobs("evals-disabled", { status: "in_progress", conclusion: null }),
     "a name with text after the cause": cannotStartJobs("evals-disabled x"),
-    "two such jobs": { total_count: 2, jobs: [cannotStartJobs().jobs[1], cannotStartJobs("compare-refused").jobs[1]] },
-    "a run whose record job succeeded too": { total_count: 2, jobs: [cannotStartJobs().jobs[1], { name: "Compare Record", status: "completed", conclusion: "success" }] },
-    "no such job": RAN,
+    "two such jobs": withJob(cannotStartJobs(), cannotStartJob("compare-refused")),
+    "a run whose record job succeeded too": recordedToo(cannotStartJobs()),
+    "no such job, as in the captured run": CAPTURED_JOBS,
+    "no such job in a run that recorded": RAN,
     "a jobs list past one page": { ...cannotStartJobs(), total_count: 101 },
     "an unreadable answer": {},
   };
@@ -664,7 +671,7 @@ test("main keeps the hold when no compare run names the pull request, reading no
   assert.deepEqual(calls.filter(isWrite), []);
   assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
   assert.ok(lines.includes("release-eval-hold: #8 kept: no-record"));
-  assert.equal(calls.filter((call) => call.path.endsWith(COMPARE_RUNS_LIST)).length, 1, "one list serves every held pull request");
+  assert.equal(calls.filter((call) => call.path.includes(COMPARE_RUNS_LIST)).length, 1, "one list serves every held pull request");
   assert.ok(!calls.some((call) => /\/pulls\/[78]$|\/jobs\?/.test(call.path)));
 });
 
@@ -692,4 +699,68 @@ test("main keeps the hold when the newest compare run at the head started, or th
     assert.deepEqual(calls.filter(isWrite), [], name);
     assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), name);
   }
+});
+
+const RELABELED_AT = "2026-11-06T12:00:00Z";
+const relabeled = [
+  ...events,
+  { event: "unlabeled", label: { name: LABEL }, created_at: "2026-11-06T11:00:00Z" },
+  { event: "labeled", label: { name: LABEL }, created_at: RELABELED_AT },
+];
+const reHold = () => comment(`Held again.\n${holdLine("eval")}`, { at: "2026-11-06T12:01:00Z" });
+
+test("a hold put back after a cannot-start release waits for a compare run started since", async () => {
+  const before = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), reHold()] } }, { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, timeline: relabeled });
+  const { lines } = await quietMain(before.github);
+  assert.deepEqual(before.calls.filter(isWrite), []);
+  assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
+  assert.ok(!before.calls.some((call) => call.path.includes("/jobs?")), "the run before the label is not read");
+  const after = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment(), reHold()] } },
+    { listed: [listedRun({ created_at: "2026-11-06T12:30:00Z" })], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, timeline: relabeled },
+  );
+  await quietMain(after.github);
+  assert.deepEqual(after.calls.filter(isWrite).map((call) => call.method), ["POST", "DELETE"]);
+});
+
+test("the newest compare run at the head decides even when a record comment vouches for it", async () => {
+  const recorded = listedRun({ id: Number(RUN_ID), created_at: "2026-11-06T10:45:00Z" });
+  const laterOld = recordComment(OLD, { at: "2026-11-06T11:30:00Z" });
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment(), ciRecord(), laterOld] } },
+    { runs: { [RUN_ID]: compareRun() }, listed: [recorded, listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } },
+  );
+  const { lines } = await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite), []);
+  assert.ok(lines.includes("release-eval-hold: #7 kept: record-head-mismatch"));
+  assert.ok(!calls.some((call) => call.path.startsWith(`/repos/${REPO}/actions/runs/${CANNOT_RUN_ID}/jobs?`)), "the older cannot-start run is not read");
+});
+
+const otherRuns = (count, at) => Array.from({ length: count }, (_, i) => listedRun({ id: 900000 + i, created_at: at, display_title: `eval-compare pr=8 head=${HEAD}` }));
+
+test("main pages the compare runs back to the hold's start", async () => {
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment()] } },
+    { listed: [...otherRuns(100, "2026-11-06T10:50:00Z"), listedRun(), ...otherRuns(100, "2026-11-06T09:00:00Z")], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } },
+  );
+  await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite).map((call) => call.method), ["POST", "DELETE"]);
+  assert.deepEqual(
+    calls.filter((call) => call.path.includes(COMPARE_RUNS_LIST)).map((call) => call.path.slice(-7)),
+    ["&page=1", "&page=2"],
+    "stops at the first page that reaches back past the label",
+  );
+});
+
+test("a compare run list cut off before the hold's start releases nothing", async () => {
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment()] } },
+    { listed: [listedRun({ created_at: "2026-11-06T10:50:00Z" }), ...otherRuns(COMPARE_RUN_PAGES * 100, "2026-11-06T10:40:00Z")], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } },
+  );
+  const { code, lines } = await quietMain(github);
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter(isWrite), []);
+  assert.equal(calls.filter((call) => call.path.includes(COMPARE_RUNS_LIST)).length, COMPARE_RUN_PAGES);
+  assert.ok(lines.includes(`release-eval-hold: #7 the compare runs since ${LABELED_AT} run past ${COMPARE_RUN_PAGES} pages; no cannot-start run counts`));
+  assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
 });
