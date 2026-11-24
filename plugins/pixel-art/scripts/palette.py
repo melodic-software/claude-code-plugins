@@ -9,10 +9,7 @@ import struct
 import zlib
 
 TRANSPARENT = "."
-# Assigned, in order, to colors that do not name a key. 64 marks, none of them ".".
 KEY_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ~!"
-# 4x4 Bayer index matrix. Ordered dither adds ((index * 2 + 1) - 16) * AMP // 16
-# to each sRGB channel before the nearest-color pick. Off unless requested.
 BAYER_4X4 = (
     (0, 8, 2, 10),
     (12, 4, 14, 6),
@@ -20,7 +17,7 @@ BAYER_4X4 = (
     (15, 7, 13, 5),
 )
 DITHER_AMPLITUDE = 32
-ALPHA_CUTOFF = 128  # alpha below 128 (below 50% of 255) becomes transparent
+ALPHA_CUTOFF = 128
 
 
 def hex_rgb(value):

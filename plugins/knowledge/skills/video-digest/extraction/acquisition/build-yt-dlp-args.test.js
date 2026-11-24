@@ -16,8 +16,6 @@ const OUTPUT = `${WORK_DIR}/%(id)s.%(ext)s`;
 
 describe("buildYtDlpArgs", () => {
   it("includes caption and metadata flags for full mode", () => {
-    // The production derivation — never hand-wired values that could mask a
-    // divergence between the adapter's declarations and the built args.
     const args = buildYtDlpArgs(URL, {
       mode: "full",
       outputTemplate: OUTPUT,

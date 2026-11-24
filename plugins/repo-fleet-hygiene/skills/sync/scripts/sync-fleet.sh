@@ -404,7 +404,6 @@ unpark() {
 park_finish() {
   local action="$1" repo="$2" branch="$3" held="$4" sha="$5" back="${6:-}" rc wt errf said hint=""
   local args=(--name "$held" --existing-branch --repo-dir "$repo")
-  # Without --root the helper resolves the root from the repository itself.
   [[ -z "$WT_ROOT" ]] || args+=(--root "$WT_ROOT")
   switch_default "$repo" "$branch" || {
     rc=$?

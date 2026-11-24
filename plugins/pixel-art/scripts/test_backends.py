@@ -1,4 +1,3 @@
-"""End-to-end adapter tests. Paid binaries and APIs are stand-ins that speak the documented contract."""
 import base64
 import contextlib
 import io

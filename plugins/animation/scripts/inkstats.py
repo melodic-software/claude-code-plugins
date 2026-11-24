@@ -93,16 +93,16 @@ import decode
 import workdir
 
 SEG = 3.35
-BASE_FPS = 24             # the film rate a drawing's hold is counted on when no pack or render.json names one
+BASE_FPS = 24
 STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'straight_border', 'straight_caption',
          'specks', 'gaps', 'holes', 'ink_sd', 'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'sliver',
          'sliver_border', 'sliver_caption', 'boil')
-FLAT_B, FLAT_SD = 32, 2   # flat black: a 32 px block fully inside eroded ink with gray sd under 2
-BORDER = 0.03             # border class, every border row: this share of the short side, from each edge (the stroke)
-PRESENT = 0.1             # a drawing has the border class when its ring is at least this share ink
-CAPTION = 0.013           # caption class: each detected box grown by this share of the short side (its outline)
-CLASSES = ('border', 'caption')   # labels 0 and 1; label 2 is the interior
-WEAK_PEAK = 0.005         # judgment: a mode gray level holding under 0.5% of the frame is no flat tone
+FLAT_B, FLAT_SD = 32, 2
+BORDER = 0.03
+PRESENT = 0.1
+CAPTION = 0.013
+CLASSES = ('border', 'caption')
+WEAK_PEAK = 0.005
 
 
 def film_end(film, last_t, fps):
@@ -141,13 +141,13 @@ def drawings(film, fps, region=None, window=None):
             continue
         prev = rgb.astype(np.int16)
         yield rgb, t
-    else:   # the film ended: a video where its stream ends, a work dir at the last drawing's t1, anything else one frame after the last
+    else:
         t = min(film_end(film, t, fps), t1)
     yield None, t
 
 
 def ridge_widths(mask):
-    m = cv2.copyMakeBorder(mask.astype(np.uint8), 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)   # frame edge ends a stroke
+    m = cv2.copyMakeBorder(mask.astype(np.uint8), 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
     dt = cv2.distanceTransform(m, cv2.DIST_L2, 5)[1:-1, 1:-1]
     r = (dt >= 1) & (dt >= cv2.dilate(dt, np.ones((3, 3), np.uint8)) - 1e-3)
     return 2 * dt[r]
@@ -209,20 +209,20 @@ def contour_stats(ink, lab):
         total += seg.sum()
         straight += seg[seg >= 30].sum()
         frame = ((p <= 0) & (q <= 0)).any(1) | ((p[:, 0] >= W - 1) & (q[:, 0] >= W - 1)) \
-            | ((p[:, 1] >= H - 1) & (q[:, 1] >= H - 1))   # a run along the frame edge is the frame, not a stroke
+            | ((p[:, 1] >= H - 1) & (q[:, 1] >= H - 1))
         segs.append(np.c_[at(lab, (p + q) / 2), seg][~frame])
     segs = np.vstack(segs)
     per = {}
     for k, n in enumerate(CLASSES):
         s = segs[segs[:, 0] == k, 1]
         per[n] = float(s[s >= 30].sum() / s.sum()) if s.sum() >= 200 else None
-    return (raw / smooth - 1, straight / total, per) if total else (None, None, per)   # no contour over 50 px: n/a
+    return (raw / smooth - 1, straight / total, per) if total else (None, None, per)
 
 
 def texture(g, ink):
     """(grain, period) of the gray inside the ink; None where the interior is too small to say."""
     gf = g.astype(np.float32)
-    inner = cv2.erode(ink, np.ones((11, 11), np.uint8)).astype(bool)   # every 5x5 box mean lies inside eroded ink
+    inner = cv2.erode(ink, np.ones((11, 11), np.uint8)).astype(bool)
     s = gf[inner].std() if inner.sum() >= 1000 else 0
     grain = float(cv2.blur(gf, (5, 5))[inner].std() / s) if s > 0 else None
     core = cv2.erode(ink, np.ones((7, 7), np.uint8)).astype(bool)
@@ -230,7 +230,7 @@ def texture(g, ink):
         return grain, None
     p = np.abs(np.fft.rfft2(np.where(core, gf - gf[core].mean(), 0))) ** 2
     f = np.hypot(np.fft.rfftfreq(g.shape[1])[None, :], np.fft.fftfreq(g.shape[0])[:, None])
-    ring = np.round(f * max(g.shape)).astype(int)   # bins at one spatial frequency, every direction
+    ring = np.round(f * max(g.shape)).astype(int)
     level = (np.bincount(ring.ravel(), p.ravel()) / np.maximum(np.bincount(ring.ravel()), 1))[ring]
     ok = (f > 1 / 24) & (f < 0.35) & (level > 0)   # pitch 3-24 px: clear of the cutoff and the 2 px codec grid
     return grain, float((p[ok] / level[ok]).max() / np.log(core.sum())) if ok.any() else None
@@ -273,7 +273,7 @@ def one(rgb):
     core_i = cv2.erode(ink.astype(np.uint8), k5).astype(bool)
     core_p = cv2.erode((~ink).astype(np.uint8), k5).astype(bool)
     flat = None
-    if ink.mean() >= 0.5:   # dark drawings only: share of mostly-ink blocks that are flat, untextured black
+    if ink.mean() >= 0.5:
         H, W = (g.shape[0] // FLAT_B) * FLAT_B, (g.shape[1] // FLAT_B) * FLAT_B
 
         def blocks(a):
@@ -462,7 +462,7 @@ def report(m, pack, name, size=None):
     for s, v, (lo, hi), d in out:
         print(f"| {s} | {'n/a' if v is None else f'{v:.4g}'} | {lo:.4g}-{hi:.4g} | "
               f"{'n/a' if d is None else f'{d:.2f}'} | {'n/a' if d is None else 'yes' if d <= 1 else 'NO'} |")
-    for s in pack.get('measured_only', []):   # subject-sensitive: reported beside the source, never judged
+    for s in pack.get('measured_only', []):
         v = film_value(m, s)
         print(f"| {s} | {'n/a' if v is None else f'{v:.4g}'} | source {pack['ref'][s]:.4g} | - | measured only |")
     ds = [r[3] for r in out if r[3] is not None]
@@ -487,12 +487,12 @@ def main(argv=None):
     ap.add_argument('--rows', type=Path)
     ap.add_argument('--pack', type=Path)
     a = ap.parse_args(argv)
-    pack = load_pack(a.pack) if a.pack else None   # fail on a bad pack path before the long measure
+    pack = load_pack(a.pack) if a.pack else None
     region = [int(v) for v in nums(a.region, 4)] if a.region else None
     meta = Path(a.film) / 'render.json'
     fps = a.fps or (json.load(open(meta, encoding='utf-8'))['fps'] if meta.is_file() else None) or BASE_FPS
     rows = measure(a.film, fps, region, nums(a.t, 2))
-    base = pack['knobs']['frame_rate']['base_fps'] if pack else fps   # holds are counted on the style's rate
+    base = pack['knobs']['frame_rate']['base_fps'] if pack else fps
     m = summary(rows, parse_cuts(a.cuts), a.seg, base)
     if a.json:
         a.json.write_text(json.dumps(m, indent=1) + '\n', encoding='utf-8')

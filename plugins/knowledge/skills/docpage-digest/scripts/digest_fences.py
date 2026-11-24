@@ -5,7 +5,6 @@ this directory on sys.path and import from here. Parsing is exact — no
 ``.strip()`` on fence payloads — because a per-line strip is how indented-fence
 corruption and a load-bearing trailing space earned a clean quote-gate result.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -14,7 +13,7 @@ import re
 import sys
 from typing import Callable, Iterator, List, NamedTuple, NoReturn, Optional, Tuple
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "lib")
 )
