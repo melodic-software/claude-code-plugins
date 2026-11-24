@@ -25,7 +25,6 @@ FIXTURE = (
     / "lane_runs"
     / "run_and_latest_attempt.json"
 )
-# Every attempt field babysit_review_evidence.bind() reads.
 BIND_FIELDS = gh.LANE_ATTEMPT_FIELDS
 
 
