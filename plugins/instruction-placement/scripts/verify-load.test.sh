@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for verify-load.sh.
-#
-# The last case drives the REAL Claude Code CLI. A verification tool that is
-# only unit-tested proves nothing about whether Claude Code loads anything, so
-# the live case is the point of the suite rather than an extra. When the CLI is
-# unavailable it is skipped LOUDLY and the reason is printed — never silently,
-# and never counted as a pass.
-#
 # fixture-isolation-scope: this suite builds git fixtures and clears the
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.

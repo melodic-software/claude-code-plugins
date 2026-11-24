@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for precompute.sh.
-#
-# The point of the suite is the count agreement. precompute.sh feeds a skill's
-# `## Pre-computed context` header, so a count that disagrees with the engines
-# is not a cosmetic defect: it sets the model's expectation of the repository
-# before any work starts. These cases pin the counts to the same discovery
-# functions the engines call, on the two layouts a root-only
-# `find .claude/rules` misses entirely.
-#
 # fixture-isolation-scope: this suite builds git fixtures and clears the
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.

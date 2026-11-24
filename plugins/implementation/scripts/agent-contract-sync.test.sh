@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Both implementation worker agents carry the same worker contract inline, so a worker that never
-# reads a reference file still gets the scope fence, STOP rules and return shape. This suite fails
-# when the text between the contract markers, or the skills: and tools: frontmatter, differs
-# between implementer.md and scoped-implementer.md.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
