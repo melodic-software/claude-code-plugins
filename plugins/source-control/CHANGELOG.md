@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.12.0] - 2026-11-24
+
+### Added
+
+- The babysit merge policy reads the trusted-actor list and the Dependabot policy from `melodic-software/standards` (`components/trusted-actors/trusted-actors.json` and `components/dependabot-policy/policy.json`) when the repository's `docs/conventions/source-control.yaml` at the same ref sets `trusted_actors_source: standards`. It resolves the commit `main` names once per process and reads each file once. Without the key, or with `repository`, both lists are read from the repository's own copies at that ref, as before. Any other value, or a value that is not a scalar, reads neither list, so the lane adopts nothing.
+
 ## [13.11.0] - 2026-11-24
 
 ### Added
