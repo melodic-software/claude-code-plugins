@@ -263,7 +263,7 @@ make_root "$r" ':' ':'
 mkdir -p "$r/scripts/lib"
 printf '%s\n' 'pre-push:' '  jobs:' '    - name: local-push' '      run: scripts/pp.sh {1}' >>"$r/lefthook.yml"
 # shellcheck disable=SC2016
-printf '%s\n' '#!/usr/bin/env bash' 'SCRIPT_DIR="$(dirname "$0")"' '. "$SCRIPT_DIR/lib/helper.sh"' 'gate="$SCRIPT_DIR/check-x.sh"' '"$gate"' >"$r/scripts/pp.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'SCRIPT_DIR="$(dirname "$0")"' '. "$SCRIPT_DIR/lib/helper.sh"' 'gate="$SCRIPT_DIR/check-x.sh"' '"$gate"' '# see scripts/other.sh' 'echo "run scripts/other.sh" >&2' 'true # scripts/other.sh' >"$r/scripts/pp.sh"
 printf '%s\n' 'helper() { :; }' >"$r/scripts/lib/helper.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$r/scripts/check-x.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$r/scripts/other.sh"

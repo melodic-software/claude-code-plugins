@@ -176,7 +176,7 @@ grow with the repository: starts of the interpreters the entries use (pwsh compi
 one-line type with Add-Type, bare python3, node, bash, git) plus a fixed git and node part.
 The budget is 3 s x that reference / its value on the desk that set the budget (916 ms,
 Linux on WSL2, 2026-11-24), so a slower runner
-does not flake; CI also prints the hooks' own ratio to that desk and warns when the two
+does not flake; each run also prints the hooks' own ratio to that desk, and CI warns when the two
 ratios differ by more than 30%. It fails a
 hook over that budget, an entry whose tool is missing, and a pre-push entry that skips a check
 or exits non-zero. A local run skips a missing tool (item 4's skip). Nothing kills a hook at

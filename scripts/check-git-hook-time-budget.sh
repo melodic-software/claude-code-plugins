@@ -27,8 +27,8 @@ hooks pay, without timing a tool the hooks run; bare python3, node, bash, git); 
 Its value on the host that set the budget is 916 ms (Linux on WSL2, 24 CPUs, 2026-11-24,
 median of five runs: 892, 1011, 947, 916, 912 ms); the same runs put pre-commit at 2269 ms
 and pre-push at 276 ms. The scaled budget
-is 3 s x this run's reference / 916 ms. In CI the hooks' own ratio (total / desk
-total) prints beside the reference ratio, with a warning when they differ by over 30%. Raw
+is 3 s x this run's reference / 916 ms. Every run prints the hooks' own ratio (total / desk
+total) beside the reference ratio; in CI it warns when they differ by over 30%. Raw
 seconds, the ratio and the scaled budget all print; pass/fail is on the scaled budget.
 Under a tracer (TracerPid not 0) the times print and nothing is judged.
 
@@ -168,13 +168,14 @@ if ((! force)); then
           queue+=("$(realpath -m --relative-to="$ROOT" "$ROOT/${f%/*}/$token")")
           break
         elif [[ -f "$ROOT/$token" ]]; then
-          queue+=("$token")
+          queue+=("$(realpath -m --relative-to="$ROOT" "$ROOT/$token")")
           break
         fi
         [[ "$token" == */* ]] || break
         token=${token#*/}
       done
-    done < <(grep -oE '[A-Za-z0-9_./-]+\.(sh|mjs|py|awk)' "$ROOT/$f" | sort -u)
+    done < <(sed -E -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*(echo|printf)[[:space:]]/d' -e 's/[[:space:]]#.*//' "$ROOT/$f" |
+      grep -oE '[A-Za-z0-9_./-]+\.(sh|mjs|py|awk)' | sort -u)
   done
   hit=""
   while IFS=$'\t' read -r status f; do
