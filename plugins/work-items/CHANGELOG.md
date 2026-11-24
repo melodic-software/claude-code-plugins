@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.14.7] - 2026-11-23
+
+### Changed
+
+- name a person's call the approve step, not admission, in triage and work-loop
+
+  Admission is the check with no model that follows the triage verdict, so a
+  label a person applied or removed is now described as someone allowed to
+  approve work.
+
+- The track `edit` and `view` actions say "map", not "decision map", as wayfind's own vocabulary rule says.
+
 ## [15.14.6] - 2026-11-23
 
 ### Changed

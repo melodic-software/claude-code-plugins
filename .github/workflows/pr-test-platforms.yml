@@ -77,7 +77,7 @@ jobs:
       steps: ${{ steps.plan.outputs.windows_steps }}
     steps:
       - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Fetch base
@@ -202,11 +202,11 @@ jobs:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       # The guards read every Bash command through shfmt (lib/hook-utils.sh) and
@@ -246,11 +246,11 @@ jobs:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - name: Test the file-name rename executor on Windows (shard 2 of 2)
@@ -302,11 +302,11 @@ jobs:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - name: Test secret-pattern-detection on Windows
@@ -348,11 +348,11 @@ jobs:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - name: Test hardcoded-path-check on Windows
@@ -394,11 +394,11 @@ jobs:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       # shfmt for the same reason as the rename-1 job.
@@ -471,11 +471,11 @@ jobs:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       # shfmt for the same reason as the rename-1 job.
@@ -540,7 +540,7 @@ jobs:
         shell: bash
     steps:
       - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       # Git hands paths back in the C:/ form and `pwd -P` turns that into /c/...,
@@ -564,7 +564,7 @@ jobs:
         run: bash plugins/playbooks/skills/repo-sweep/scripts/state.test.sh
       - name: Set up Python
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_server.py')
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       # The shared session's API suites: detached.py's Windows branches (DETACHED_PROCESS,
@@ -605,11 +605,11 @@ jobs:
     timeout-minutes: 32
     steps:
       - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
       - name: Test test_cfdns on macOS

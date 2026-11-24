@@ -35,6 +35,10 @@ We read `claude plugin list --json` as one row per install with `id`, `scope`, `
 - Record the whole machine's facts and identity domains, not only binaries: /harness-ops:machine-profile
 - The fleet's versions, a different question: /harness-ops:plugins-audit
 
+## Related
+
+- Updating the plugin fleet: /harness-ops:plugins.
+
 ## Gotchas
 
 Node is the only runtime this skill needs; the checker is `lib/prerequisites.mjs`, generated from the repository's canonical copy. A plugin whose `prerequisites.json` is still in the retired `tools` shape fails the schema and exits 2.

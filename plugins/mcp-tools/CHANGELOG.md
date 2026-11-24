@@ -3,6 +3,15 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to audit and audit-posture, matching the committed skill-link table
+
+  Each now names the other MCP audit and the harness skill beside it, one
+  condition per line.
+
 ## [0.9.3] - 2026-11-21
 
 ### Changed

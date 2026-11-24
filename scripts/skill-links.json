@@ -935,6 +935,13 @@
       "next": [],
       "related": []
     },
+    "evals:audit": {
+      "next": [
+        "A missing case or gate side: /evals:design.",
+        "A repaired case or grader: /evals:validate."
+      ],
+      "related": []
+    },
     "evals:design": {
       "next": [
         "Scaffolded a skill's cases: `/evals:validate <eval-dir>`, then `/evals:plugin-eval` to run them.",
@@ -1110,7 +1117,8 @@
         "An editorial or enforced cut is applied from the report; another consequential cut cites a closed watch: `/harness-config:unhobble watch`.",
         "A finding lands on the memory layer: `/harness-memory:audit`.",
         "Project instructions still live in `CLAUDE.md`: `/instruction-placement:migrate plan`.",
-        "Posture guidance is absent rather than wrong: `/harness-config:audit-prompting-postures`."
+        "Posture guidance is absent rather than wrong: `/harness-config:audit-prompting-postures`.",
+        "A rule a check could enforce moves to a mechanism: `/corrections:codify rules <file>`."
       ],
       "related": []
     },
@@ -1131,7 +1139,7 @@
     },
     "harness-config:audit-permission-state": {
       "next": [
-        "Audit shows dropped rules or an autoMode block needing drafting: /harness-config:draft-auto-mode-rules"
+        "/harness-config:draft-auto-mode-rules when the audit shows dropped rules or an autoMode block needing drafting."
       ],
       "related": [
         "Check grant portability and auto-mode durability: /harness-config:audit-permission-grants",
@@ -1162,7 +1170,7 @@
     },
     "harness-config:unhobble": {
       "next": [
-        "Experiment closed and PR ready to merge with retired rules: /review:security-review"
+        "/review:security-review when the experiment is closed and the PR with retired rules is ready to merge."
       ],
       "related": [
         "Rewriting rather than verbatim-restoring a defended instruction: /harness-config:audit-instructions",
@@ -1170,7 +1178,9 @@
       ]
     },
     "harness-memory:audit": {
-      "next": [],
+      "next": [
+        "A finding names a rule a check can enforce: /corrections:codify rules <file>."
+      ],
       "related": [
         "Check if instruction text is still needed by current models: /harness-config:audit-instructions",
         "Check for missing posture guidance: /harness-config:audit-prompting-postures",

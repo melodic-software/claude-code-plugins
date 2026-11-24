@@ -135,6 +135,11 @@ Claude Code silently ignores can FAIL (C18). Likewise an absent `x-mcp-header` p
 declared one that breaks the spec's constraints can FAIL (C20). A destructive tool with no preview
 counterpart is info only (C21).
 
+## Related
+
+- Checking supply-chain safety of configured MCP servers: /mcp-tools:audit-posture.
+- Checking MCP config correctness and enablement: /harness-config:audit.
+
 ## What this skill does not do
 
 - Does not modify tool definitions. It reports. Use findings to guide manual improvements.

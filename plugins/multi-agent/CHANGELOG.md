@@ -3,6 +3,15 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.2] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to audit-defaults and route, matching the committed skill-link table
+
+  Each now lists its context-dependent links after `## Next`, one condition
+  per line.
+
 ## [3.6.1] - 2026-11-23
 
 ### Added

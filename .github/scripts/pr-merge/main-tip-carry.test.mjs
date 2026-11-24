@@ -21,7 +21,7 @@ test("each job's tip step is the resolve-branch-tip action on main", () => {
   for (const job of JOBS) {
     const tip = wf.steps(job).find((s) => s.name === "Resolve main's tip");
     assert.ok(tip, `${job}: tip step`);
-    assert.match(tip.text, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@[0-9a-f]{40} # v\d+\.\d+\.\d+\n {8}with:\n {10}branch: main$/m, job);
+    assert.match(tip.text, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@main\n {8}with:\n {10}branch: main$/m, job);
   }
 });
 

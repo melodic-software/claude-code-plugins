@@ -52,14 +52,10 @@ _ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\", "/": "/"}
 
 
 def _is_item(content: str) -> bool:
-    """Whether a line's content opens a block-sequence item."""
     return content == "-" or content.startswith("- ")
 
 
 def _value_starts_at(text: str, index: int) -> bool:
-    """Whether a quote at `index` opens a quoted string: only where a value
-    starts (line start, after `: `, `- `, `[` or `,`), never inside a plain
-    value such as `it's`."""
     before = text[:index].rstrip()
     if before == "" or before.lstrip() == "-" or before[-1] in "[,":
         return True
@@ -183,7 +179,6 @@ def _flow_sequence(text: str, line: int) -> list[Any]:
 
 
 def _split_key(content: str, line: int) -> tuple[str, str] | None:
-    """Return (key, rest) when the content is a mapping entry, else None."""
     if content.startswith(("'", '"')):
         quote = content[0]
         close = content.find(quote, 1)
@@ -204,7 +199,7 @@ def _split_key(content: str, line: int) -> tuple[str, str] | None:
 
 class _Parser:
     def __init__(self, text: str) -> None:
-        self.lines: list[tuple[int, int, str]] = []  # (indent, lineno, content)
+        self.lines: list[tuple[int, int, str]] = []
         for number, raw in enumerate(text.splitlines(), 1):
             if raw.startswith(("---", "...")):
                 raise YamlSubsetError(number, "document markers are outside the subset")
@@ -270,7 +265,6 @@ class _Parser:
             child_indent, _, content = self.lines[self.pos]
             if child_indent > parent_indent:
                 return self._block(child_indent)
-            # A sequence may sit at the parent's indent (`key:` then `- item`).
             if child_indent == parent_indent and _is_item(content):
                 return self._sequence(child_indent)
         return None
@@ -292,8 +286,6 @@ class _Parser:
                 continue
             split = _split_key(item, number)
             if split is not None:
-                # A mapping whose first entry sits on the dash line; the rest
-                # of its entries are indented to the item column.
                 item_indent = indent + 2
                 key, rest = split
                 first = (
@@ -305,8 +297,6 @@ class _Parser:
                     self.pos < len(self.lines)
                     and self.lines[self.pos][0] == item_indent
                 ):
-                    # Seeding the mapping with the first entry makes the
-                    # duplicate check fire on the duplicate key's own line.
                     result.append(self._mapping(item_indent, {key: first}))
                 else:
                     result.append({key: first})

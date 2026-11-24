@@ -392,6 +392,14 @@ Two upstream dependencies of this skill:
 | We treat the description as the routing surface and measure a baked description against the per-entry cap and the listing budget, reading both values from the settings pointers here. For which entries overflow drops, we use the order our own binary reading records in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md); the docs page and that reading disagree on the drop order | [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short), [`skillListingMaxDescChars`](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars), [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction); the drop order is our binary reading |
 | We make no static availability claim for a native surface, because we treat settings and environment, plan, platform or provider, and host surface as each able to remove one | [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills), [environment variables](https://code.claude.com/docs/en/env-vars), [Commands](https://code.claude.com/docs/en/commands), [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions) |
 
+## Related
+
+- Enumerating invocable surfaces: /harness-ops:inventory.
+- Skill listing budget and structure: /skill-quality:check.
+- Live skill visibility and starvation: /harness-ops:audit-skill-visibility.
+- MCP tool overlap and quality: /mcp-tools:audit.
+- Tracking new CLI releases: /harness-ops:changelog.
+
 ## Gotchas
 
 - **We treat a plugin skill as never shadowing a native one**: both resolve and the model chooses.

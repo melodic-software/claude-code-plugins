@@ -1,4 +1,4 @@
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import { CARD_ROW, forgetDraft, openCard, readCard, refreshCard, settingsCard, shownIn } from './card.tsx'
 import { BUILD } from './core/build.js'
@@ -17,6 +17,50 @@ export { CHANGE_MS } from './card.tsx'
 export { aspectFrom, hitAt, hitsAt, switchesAt, toViewBox } from './core/clicks.js'
 export { TITLE_CAPS, withTitle } from './core/commands.js'
 
+/** Whether session.start has run: a desktop attaching before it leaves the start to session.start. */
+let isSessionUp = false
+/** Whether the room started in this session: it starts only once a desktop surface is attached. */
+let started = false
+/** Set once a desktop window detaches, until one attaches: /bedroom says so while the roster holds no desktop. */
+let desktopGone = false
+
+/** Registers /bedroom and starts the room, once a session: at session.start with a desktop attached, or on the first desktop attach or above-prompt render. */
+async function start($: EngineInterface): Promise<void> {
+  if (started) return
+  started = true
+  await $.command.register({
+    name: 'bedroom',
+    description:
+      'The bedroom theme of the themes plugin: alone it shows the settings card in the desktop app; status, tv, tape, console, pc, light, lamp, lava (on or off), time, date, weather, signal, hall, shader, sound, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), sync, stats, calibrate, reset, on, off',
+  })
+  await load($)
+  await readNow($)
+  markStarted()
+  const unpainted = colorProblems.find(line => line.startsWith("Desktop won't paint"))
+  if (unpainted !== undefined) $.ui.toast(unpainted)
+  const set = await setLook($, ctxOf($))
+  note(`loaded build ${BUILD}: ${set.isDrawn ? 'drawn' : `not drawn, ${set.reason}`}`)
+  await readCard($)
+  await startPieces($, ctxOf($))
+  await startMinuteChain($, async gap => {
+    const ctx = ctxOf($)
+    for (const piece of PIECES) {
+      try {
+        await piece.tick?.(ctx)
+      } catch (error) {
+        failed(piece.name, 'tick', error)
+      }
+    }
+    await tickPieces($, ctx)
+    want('clock', minuteOfHalfDay(ctx.nowMs))
+    await sendMinute($, ctx.fields(), gap)
+    void refreshCard($).catch(() => undefined)
+  })
+  flush($)
+  if (!set.isDrawn) $.ui.toast(`bedroom is not drawn: ${set.reason}`)
+  await ask($, 'the session starting')
+}
+
 /** The bedroom theme: wires the hooks to core/, the settings card and the pieces of this build (pieces/index.ts). */
 export const register: Register = (on, options) => {
   useOptions(options)
@@ -24,37 +68,20 @@ export const register: Register = (on, options) => {
   addHooks(on)
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({
-      name: 'bedroom',
-      description:
-        'The bedroom theme of the themes plugin: alone it shows the settings card in the desktop app; status, tv, tape, console, pc, light, lamp, lava (on or off), time, date, weather, signal, hall, shader, sound, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), sync, stats, calibrate, reset, on, off',
-    })
-    await load($)
-    await readNow($)
-    markStarted()
-    const unpainted = colorProblems.find(line => line.startsWith("Desktop won't paint"))
-    if (unpainted !== undefined) $.ui.toast(unpainted)
-    const set = await setLook($, ctxOf($))
-    note(`loaded build ${BUILD}: ${set.isDrawn ? 'drawn' : `not drawn, ${set.reason}`}`)
-    await readCard($)
-    await startPieces($, ctxOf($))
-    await startMinuteChain($, async gap => {
-      const ctx = ctxOf($)
-      for (const piece of PIECES) {
-        try {
-          await piece.tick?.(ctx)
-        } catch (error) {
-          failed(piece.name, 'tick', error)
-        }
-      }
-      await tickPieces($, ctx)
-      want('clock', minuteOfHalfDay(ctx.nowMs))
-      await sendMinute($, ctx.fields(), gap)
-      void refreshCard($).catch(() => undefined)
-    })
-    flush($)
-    if (!set.isDrawn) $.ui.toast(`bedroom is not drawn: ${set.reason}`)
-    await ask($, 'the session starting')
+    isSessionUp = true
+    started = false
+    if (e.surface === 'desktop' || (await $.session.surfaces()).includes('desktop')) await start($)
+    return next(e)
+  })
+
+  on('session.attach', { surface: 'desktop' }, async ($, e, next) => {
+    desktopGone = false
+    if (isSessionUp) await start($)
+    return next(e)
+  })
+
+  on('session.detach', { surface: 'desktop' }, ($, e, next) => {
+    if (started) desktopGone = true
     return next(e)
   })
 
@@ -106,16 +133,18 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'bedroom' }, async ($, e) => {
-    const text = await runCommand($, e.args)
+    const answer = await runCommand($, e.args)
+    const isGone = desktopGone && !(await $.session.surfaces()).includes('desktop')
+    const text = isGone ? `no desktop window shows this session; ${answer}` : answer
     flush($)
     const [word = '', key = ''] = e.args.trim().toLowerCase().split(/ +/)
     if (word === 'title') forgetDraft(key)
     if (e.args.trim() === '') {
       await openCard($)
-      return { text }
+      return { text, isTextDisplayOnly: true }
     }
     await refreshCard($, undefined, describe(ctxOf($)))
-    return { text }
+    return { text, isTextDisplayOnly: true }
   })
 
   on('ui.render', { component: 'Placed' }, async ($, e, next) => {
@@ -127,6 +156,7 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.surface !== 'desktop') return next(e)
+    if (!started && isSessionUp) void start($).catch(error => failed('bedroom', 'start on a desktop render', error))
     const now = await shownIn($, undefined, true)
     if (now === undefined) return next(e)
     return settingsCard($, $.ui.resolve(e), now)

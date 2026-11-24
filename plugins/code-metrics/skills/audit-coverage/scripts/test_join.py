@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for join.py at its command line.
-
-Each case writes a small complexity document and one or more parsed-artifact
-documents into a temporary directory, so the shapes under test (an absolute
-`SF:` path, a lane with no function end lines, a function with no executable
-lines) are visible in the test rather than buried in a fixture tree. The
-end-to-end join over the committed fixtures is the shell suite's job.
-"""
 
 from __future__ import annotations
 
@@ -106,10 +98,6 @@ class JoinCase:
 
 class ArtifactMergeTests(unittest.TestCase):
     def test_two_artifacts_covering_one_function_are_folded_not_stacked(self) -> None:
-        # Two suites each report `classify`: the first never entered it, the
-        # second did. Kept as two records, the lookup returns whichever landed
-        # first, so the function reads 0 percent (and maximal CRAP) beside a
-        # file row the merged line table already shows as covered.
         with tempfile.TemporaryDirectory() as tmp:
             case = JoinCase(tmp).complexity(
                 [complexity_row("src/a.py", "classify", 1, 4, "python", 3)]
@@ -138,13 +126,9 @@ class ArtifactMergeTests(unittest.TestCase):
         )
         self.assertEqual(function["hit"], 1)
         self.assertEqual(function["values"]["coverage_pct"], 100.0)
-        # A fully covered function's CRAP is its complexity, not comp^2 + comp.
         self.assertEqual(function["values"]["crap"], function["values"]["cyclomatic"])
 
     def test_two_methods_sharing_a_name_in_one_file_stay_separate(self) -> None:
-        # One file, two classes, both with a `render` the artifact names
-        # unqualified. Folding them on the name alone would let the covered
-        # one stand in for the uncovered one.
         with tempfile.TemporaryDirectory() as tmp:
             case = JoinCase(tmp).complexity(
                 [
@@ -189,10 +173,6 @@ class ArtifactMergeTests(unittest.TestCase):
         )
 
     def test_two_methods_sharing_an_exact_name_bind_by_position(self) -> None:
-        # Keeping the two records separate is only half the fix: the lookup
-        # must not then hand both complexity rows the first record. The
-        # artifact names both methods `render` exactly, so the start line the
-        # complexity collector reported is what separates them.
         with tempfile.TemporaryDirectory() as tmp:
             case = JoinCase(tmp).complexity(
                 [
@@ -236,16 +216,6 @@ class ArtifactMergeTests(unittest.TestCase):
         self.assertEqual(by_start[10]["values"]["coverage_pct"], 0.0)
 
     def test_one_functions_start_is_not_a_neighbours_start(self) -> None:  # identifier, not prose # spellchecker:disable-line
-        # The two formats mean different things by "start": lcov reports the
-        # `FN:` declaration line while the coverage.py JSON report gives the
-        # first body line. In `cm_sample.py` that makes lcov's start for
-        # `classify` (line 9, the `def`) equal coverage.py's start for the
-        # nested `classify.inner` (line 12, its first body line). Folding on a
-        # start line alone therefore hands the nested helper the outer
-        # function's region, leaves `classify` holding only lcov's `FNDA:0`,
-        # and reports it at 0 percent and maximal CRAP beside a file row that
-        # says 62.5. A Python repository that emits both artifacts hits this
-        # with no configuration, because both names are discovered by default.
         with tempfile.TemporaryDirectory() as tmp:
             case = JoinCase(tmp).complexity(
                 [
@@ -327,14 +297,6 @@ class ArtifactMergeTests(unittest.TestCase):
         self.assertEqual(rows["classify.inner"]["values"]["lines_executable"], 1)
 
     def test_two_formats_disagreeing_on_a_start_line_still_fold(self) -> None:
-        # The same disagreement seen from the other side: one function, named
-        # the same by both artifacts, whose start lcov reports as the `def`
-        # line and Cobertura as the first body line. Refusing to fold two
-        # records whose starts differ splits one function in two, and the
-        # lookup then binds the complexity row to the record carrying the
-        # declaration line and its `FNDA:0`, reporting a fully covered
-        # function at 0 percent. The values must not depend on which artifact
-        # discovery happened to read first either.
         lcov = {
             "src/a.py": {
                 "lines": {},
@@ -427,13 +389,6 @@ class ArtifactMergeTests(unittest.TestCase):
 
 
 def go_section(blocks: dict[str, tuple[int, int]]) -> dict:
-    """A parsed Go cover profile section: no line table, one block table.
-
-    `blocks` maps the profile's own `start.col,end.col` identity to the
-    block's statement count and its execution count, which is the shape
-    `go_cover.py` prints. `total` and `hit` are this profile's own totals,
-    and the join recomputes them from the merged blocks.
-    """
     table = {
         key: {"statements": statements, "count": count}
         for key, (statements, count) in blocks.items()
@@ -453,11 +408,6 @@ class StatementWeightTests(unittest.TestCase):
     """A Go cover profile weighs statements over line ranges, not lines."""
 
     def test_two_shards_union_their_blocks_rather_than_taking_a_maximum(self) -> None:
-        # Two profiles from separate test shards, each entering the block the
-        # other missed. Each says 2 statements with 1 hit, so any rule over
-        # those aggregates reports 1 of 2 = 50 percent, while the two runs
-        # between them covered both statements. The union of the blocks is
-        # what makes that 100.
         shards = [
             {"3.19,4.11": (1, 1), "7.2,7.54": (1, 0)},
             {"3.19,4.11": (1, 0), "7.2,7.54": (1, 1)},
@@ -482,10 +432,6 @@ class StatementWeightTests(unittest.TestCase):
         self.assertEqual(row["values"]["coverage_pct"], 16.67)
 
     def test_the_statement_ratio_outranks_a_line_table_for_the_same_file(self) -> None:
-        # The profile's 7 statements with 2 hit are 28.57 percent, the number
-        # `go tool cover -func` prints for this file. A line artifact naming
-        # the same `.go` file measures something else, here 1 of 4 lines, and
-        # a partial or stale one must not replace the exact native measure.
         profile = go_section(
             {"3.19,4.11": (1, 1), "4.11,6.3": (1, 1), "7.2,7.54": (5, 0)}
         )
@@ -507,9 +453,6 @@ class StatementWeightTests(unittest.TestCase):
         row = next(r for r in document["measures"] if r["function"] is None)
         self.assertEqual(row["values"]["coverage_pct"], 28.57)
         self.assertEqual(row["cov_source"], "statement-ratio")
-        # The line counts came from a real line table, but 1 of 4 lines is not
-        # 28.57 percent: printed beside a statement ratio they would read as
-        # the counts behind it. The file row states one measure only.
         self.assertIsNone(row["values"]["lines_executable"])
         self.assertIsNone(row["values"]["lines_hit"])
         collector = next(
@@ -546,9 +489,6 @@ class StatementWeightTests(unittest.TestCase):
         self.assertEqual(row["cov_source"], "statement-ratio")
 
     def test_a_go_function_reports_null_line_counts_not_zero(self) -> None:
-        # The profile never measured lines, so the function's line counts are
-        # not 0: reporting 0 executable and 0 hit claims the artifact looked
-        # at the range and found nothing runnable in it.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -562,13 +502,10 @@ class StatementWeightTests(unittest.TestCase):
         row = next(r for r in document["measures"] if r["function"] == "F")
         self.assertIsNone(row["values"]["lines_executable"])
         self.assertIsNone(row["values"]["lines_hit"])
-        # A profile names no functions, so coverage and CRAP stay null too.
         self.assertIsNone(row["values"]["coverage_pct"])
         self.assertIsNone(row["values"]["crap"])
 
     def test_a_line_measured_function_with_no_lines_in_range_reports_zero(self) -> None:
-        # The other side of the same rule: this artifact does measure lines
-        # and carries none in the function's range, so 0 is what it found.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -584,12 +521,6 @@ class StatementWeightTests(unittest.TestCase):
         self.assertIsNone(row["values"]["coverage_pct"])
 
     def test_an_empty_line_section_still_counts_as_having_measured_lines(self) -> None:
-        # A line artifact covered this `.go` file and carried no executable
-        # line, which is a measurement of zero. A Go profile covers it too, so
-        # the merged line table is empty either way: reading the table after
-        # the fact cannot tell "measured, found none" from "never measured
-        # lines", and only the first is a 0. Whether a line-measuring section
-        # was merged has to be recorded as it happens.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -667,8 +598,6 @@ class PathNormalizationTests(unittest.TestCase):
         self.assertEqual(document["measures"][0]["file"], "pkg/sample.go")
 
     def test_an_ambiguous_suffix_joins_to_nothing(self) -> None:
-        # Two services vendor the same `pkg/a.py`; an artifact naming only the
-        # shared suffix must not credit whichever service came first.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -695,11 +624,6 @@ class PathNormalizationTests(unittest.TestCase):
         self.assertIn("0 of 2", coverage_row["reason"])
 
     def test_a_basename_two_artifact_paths_share_joins_to_nothing(self) -> None:
-        # One profile lists `service-a/handler.go` and `service-b/handler.go`
-        # and only the first is in scope. The second matches no suffix, so it
-        # reaches the basename fallback, where the scope alone is unambiguous:
-        # taking it would union an unrelated package's covered block into the
-        # scoped file and report a file that never ran as half covered.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -736,11 +660,6 @@ class PathNormalizationTests(unittest.TestCase):
         self.assertEqual(file_row["values"]["coverage_pct"], 0.0)
 
     def test_the_collision_is_seen_across_artifacts_not_just_within_one(self) -> None:
-        # The coverage skill discovers one artifact per coverage file, so two
-        # services each shipping a `handler.go` arrive as two documents. A
-        # count that stopped at one artifact would not see the collision at
-        # all, and the out-of-scope service would credit the scoped one exactly
-        # as it does inside a single profile.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -769,9 +688,6 @@ class PathNormalizationTests(unittest.TestCase):
         self.assertEqual(file_row["values"]["coverage_pct"], 0.0)
 
     def test_one_file_listed_under_two_spellings_is_not_a_collision(self) -> None:
-        # `//` is a spelling the parsers' own normalization does not collapse.
-        # Both keys name one file, so counting spellings rather than distinct
-        # paths would reject the basename and drop coverage that was measured.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -792,12 +708,6 @@ class PathNormalizationTests(unittest.TestCase):
         self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
 
     def test_two_formats_naming_one_file_are_not_a_collision(self) -> None:
-        # A Go profile writes the module path the compiler saw and an lcov
-        # tracefile writes the repository path, so one file reaches the join
-        # under two spellings that do not normalize to each other. Counting
-        # basenames across formats would read that as two competing files and
-        # refuse the profile, losing the statement ratio that outranks the line
-        # table for exactly this file.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -823,11 +733,6 @@ class PathNormalizationTests(unittest.TestCase):
     def test_one_formats_ambiguity_does_not_refuse_another_formats_path(
         self,
     ) -> None:
-        # Two `go_cover` paths share `handler.go`, so that basename is
-        # ambiguous for that format. A single lcov path carrying the same
-        # basename is not ambiguous for lcov and still has to reach the scoped
-        # file: flattening the two formats into one set of basenames would
-        # refuse it and drop line coverage the artifact really did measure.
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -881,9 +786,6 @@ class RunRowTests(unittest.TestCase):
                 "lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}}
             ).join()
         row = [r for r in document["run"] if r["measure"] == "coverage"][0]
-        # Half the lane was measured and half was not, so the row is neither
-        # ok nor unavailable; reporting it ok let the assembler call the whole
-        # document complete while this row said 1 of 2.
         self.assertEqual(row["status"], "partial")
         self.assertIn(
             "partial, 1 of 2 scope files present in the artifacts", row["reason"]
@@ -1264,9 +1166,6 @@ class ShortNameJoinTests(unittest.TestCase):
         }
 
     def test_a_short_name_binds_to_the_function_whose_range_holds_it(self) -> None:
-        # The record is placed at 11-14, which is `Beta.run`. Bound by the
-        # trailing name alone it also reached `Alpha.run`, which never ran, and
-        # reported it at 100 percent out of the other method's region.
         rows = self._rows(self._document(), "src/dispatch.py")
         self.assertEqual(rows["Beta.run"]["values"]["coverage_pct"], 100.0)
         self.assertEqual(rows["Beta.run"]["cov_source"], "artifact-region")
@@ -1298,13 +1197,6 @@ class ShortNameJoinTests(unittest.TestCase):
             self.assertEqual(row["values"]["cyclomatic"], 3)
 
     def test_two_records_inside_one_range_leave_that_function_unjoined(self) -> None:
-        # `src/relay.py` declares `run` twice, at 4-4 and at 5-6, two nested
-        # closures the artifact also recorded short, and both sit inside
-        # `Alpha.run` at 3-6. The range narrows the candidates without
-        # separating them, so taking the first would hand `Alpha.run` a hit
-        # count that is one of the two records and no way to tell which. The
-        # row is withheld and says why. `Beta.run` at 11-14 holds neither
-        # record, so it keeps the line-range fallback over its own lines.
         rows = self._rows(self._document(), "src/relay.py")
         alpha = rows["Alpha.run"]
         self.assertEqual(alpha["cov_source"], "ambiguous")

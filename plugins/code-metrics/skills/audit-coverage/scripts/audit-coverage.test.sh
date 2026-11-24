@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for the audit-coverage entry point (audit-coverage.sh):
-# artifact discovery and the usage error for a named path that does not exist,
-# the join it prints for each committed artifact format
-# (fixtures/coverage/lcov-1x.info, lcov-2.2.info, lcov-absolute-sf.info,
-# cobertura.xml, coverage-py.json, go-cover.out), the run rows that explain a
-# reduced result, the sanctioned-replication collapse of the joined document
-# (fixtures/coverage/lcov-cluster.info covers both cluster copies of the
-# registry's shared file), and the markdown rendering.
-#
-# Complexity comes from the audit skill's audit-complexity script, so its collectors
-# are stubbed at runtime the same way its own suite does it: a temporary bin/
-# prepended to a filtered PATH carries a fake `lizard` replaying
-# fixtures/tool-output/lizard.csv (function start AND end lines) and a fake
-# `shellmetrics` replaying fixtures/tool-output/shellmetrics.csv (a start line
-# only, which is what makes Bash CRAP not-applicable). Nothing executable is
-# committed (design T13). No test command is ever run: this skill reads
-# artifacts.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/parsers/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/scripts/yaml_subset.py
 # test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
 set -uo pipefail
@@ -93,9 +76,6 @@ assert_doc "the absolute SF: path joined to the repository-relative scope file" 
 assert_doc "every coverage row carries cov_source" "$out" \
   'd["measures"] and all(r["cov_source"] in ("artifact-region","line-range") for r in d["measures"])'
 
-# 4. lcov-1x.info: the classic FN/FNDA pairing. The function is never entered,
-#    so its coverage is 0 rather than the 1/6 its declaration line would give,
-#    and its CRAP is comp squared plus comp.
 out="$(run_json lcov-1x.info)"
 assert_doc "a function with a hit flag of 0 reports 0 percent" "$out" \
   'any(r["function"]=="classify" and r["values"]["coverage_pct"]==0 and r["hit"]==0 for r in d["measures"])'
@@ -105,7 +85,6 @@ assert_doc "the file row still reports the lines the artifact hit" "$out" \
   'any(r["function"] is None and r["values"]["lines_executable"]==6 and r["values"]["lines_hit"]==1 for r in d["measures"])'
 assert_doc "a line-range join is labeled as one" "$out" \
   'any(r["function"]=="classify" and r["cov_source"]=="line-range" for r in d["measures"])'
-# The Bash lane's collector (shellmetrics.csv) reports no function end lines.
 assert_doc "bash CRAP is a visible not-applicable row, not a null" "$out" \
   'any(r["lane"]=="bash" and r["measure"]=="crap" and r["status"]=="not-applicable" for r in d["run"])'
 assert_matches "the bash CRAP row says why" "$out" 'no function end lines'
@@ -135,16 +114,10 @@ assert_doc "a fully covered function has CRAP equal to its complexity" "$out" \
 out="$(run_json cobertura.xml go-cover.out)"
 assert_doc "the bash file row comes from the Cobertura report" "$out" \
   'any(r["file"].endswith("cm-sample.sh") and r["values"]["coverage_pct"]==80 for r in d["measures"])'
-# A Go profile weighs statements, not lines: its four hit statements out of
-# five are the 80% `go tool cover -func` prints, and it never says which lines
-# carry them, so the line counts are null rather than a count of nothing.
 assert_doc "the go profile joins by its unique basename" "$out" \
   'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["values"]["coverage_pct"]==80.0 and r["values"]["lines_executable"] is None for r in d["measures"])'
 assert_doc "the go file row names the statement ratio as its basis" "$out" \
   'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["cov_source"]=="statement-ratio" for r in d["measures"])'
-# The profile measures no lines at all, so the Go function's line counts are
-# null. A 0 there would say the artifact looked at the range and found nothing
-# executable in it, which is not what a statement profile reports.
 assert_doc "a go function measured only by a profile reports null, not 0, lines" "$out" \
   'any(r["function"]=="Classify" and r["values"]["lines_executable"] is None and r["values"]["lines_hit"] is None and r["values"]["coverage_pct"] is None and r["values"]["crap"] is None for r in d["measures"])'
 assert_doc "both lanes name the format they read" "$out" \
@@ -163,11 +136,6 @@ assert_doc "only the lane matched in part is partial" "$out" \
   '{r["lane"] for r in d["run"] if r["measure"]=="coverage" and r["status"]=="partial"}=={"bash"}'
 assert_doc "no threshold produced a finding or a severity" "$out" \
   'all(t["reference"] is None for t in d["thresholds"]) and all(not r["over_reference"] for r in d["measures"])'
-# Two artifacts measure cm-sample.go here: the profile weighs 4 of 5
-# statements (80%) and lcov-2.2.info lists 6 lines all hit (100%). The
-# profile's ratio is the file's exact native measure and wins, the row says
-# so, and the line counts do not ride along as the counts behind a number
-# they do not produce. The function row is line-based and keeps the region.
 assert_doc "a go profile outranks a line artifact for the same file" "$out" \
   'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["values"]["coverage_pct"]==80.0 and r["cov_source"]=="statement-ratio" and r["values"]["lines_executable"] is None and r["values"]["lines_hit"] is None for r in d["measures"])'
 assert_doc "both formats are still named as read for the go lane" "$out" \

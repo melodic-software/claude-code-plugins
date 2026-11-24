@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.1.6] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to audit, matching the committed skill-link table
+
+  It points settings and permission-rule questions to harness-config:audit.
+
 ## [2.1.5] - 2026-11-21
 
 ### Fixed

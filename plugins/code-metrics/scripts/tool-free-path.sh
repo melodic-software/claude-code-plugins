@@ -68,9 +68,6 @@ for name in sorted(bins):
 PY
 }
 
-# Python interpreters are resolved to a non-mutating executable: a pyenv
-# (or similar) shim that prepends its version bin would put skipped
-# collectors back on PATH when the adapter probe runs.
 _cm_is_python_interp() {
   case "$1" in
     python|python[0-9]|python[0-9].*|python3|python3.*|pypy|pypy3|pypy3.*) return 0 ;;
