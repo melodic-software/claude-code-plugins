@@ -1,7 +1,3 @@
-// A skill leaf's verify-scripts, validated by the real schema and passed
-// through to the selected activity for collect-base-activity. Contract:
-// docs/conventions/pr-pipeline/README.md, "Activities", verify-scripts: exact
-// paths of scripts under scripts/ or a plugin's (or plugin skill's) scripts/.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -79,21 +75,14 @@ for (const path of [
   });
 }
 
-// Only the runner that stages edit tools grants them, so a read skill that
-// hands on no patch would list them for nothing.
 test("verify-scripts with no applied-by.patch fails the schema", () => {
   rejected({ "verify-scripts": ["scripts/check-x.sh"] }, { handsOnPatch: false });
 });
 
-// The read runner stages them under prepare: ci-context too, as base copies the
-// skill is told to run in place of the checkout's (the live config's fix-ci, which
-// live-config.test.mjs resolves); checks stay refused there.
 test("checks on a prepare: ci-context skill fail the schema", () => {
   rejected({ effect: "read", prepare: "ci-context", "applied-by": { patch: "apply-patch" }, checks: ["scripts/check-x.sh"] });
 });
 
-// The read runner, which holds no write credential, may run scripts that run
-// checkout code.
 test("verify-scripts may list scripts that run checkout code", () => {
   const list = ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"];
   assert.deepEqual(run({ "verify-scripts": list }).selected["verify-scripts"], list);

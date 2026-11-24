@@ -26,23 +26,14 @@ import { laneStop } from "./escalation-routes.mjs";
 
 export { ACTIONS_APP_ID, LANE_STOP, laneStop, retryRung } from "./escalation-routes.mjs";
 
-// The run's lane-outcome record from output.text, or null when it has none,
-// names another check run, or is a leg that handed off (its class is not the
-// run's).
 function laneRecord(run) {
   const record = readRecord(run.output?.text);
   if (!record || record.handoff === true || run.name !== `${record.lane} / ${record.activity}`) {
     return null;
   }
-  // Only a usage limit's reset is read; an auth stop always waits
-  // fallback-reset.
   return { failureClass: record.class ?? "", resets: record.class === "rate-limit" ? (record.resets?.at ?? "") : "" };
 }
 
-// The lane record classes that stop a run until a reset. A credit stop is not
-// one: an API key out of credit or at its spend limit does not recover when a
-// usage window resets, so its failed run handles the head like any other
-// failure, and the morning brief's KEY line names the key to rotate.
 const STOP_CLASSES = new Set(["rate-limit", "auth"]);
 
 // The failed `run`'s limit stop as { failureClass, resetsAt } (epoch ms), or
@@ -79,13 +70,6 @@ export function pendingStop(runs, { now, limits = LIMIT_DEFAULTS }) {
   return pending;
 }
 
-// The lane record classes of a run whose model never started
-// (ci-workflows docs/lane-outcome.md, Failure classes): the CLI install failed,
-// or the sandbox probe kept the run from starting. Such a failure says
-// nothing about the head, so it holds: it neither handles the head nor counts
-// toward `limit-stops-per-head`, and the next tick dispatches again. Every
-// other failure still counts, a red run with no record and `no-credential`
-// included: a missing secret fails the same way every tick, like `auth`.
 const FAULT_CLASSES = new Set(["install-failed", "sandbox-unavailable"]);
 const faultStop = (run) => run?.status === "completed" && run.conclusion === "failure" && FAULT_CLASSES.has(laneRecord(run)?.failureClass);
 
@@ -94,14 +78,10 @@ const untrustedSkip = (run) =>
   run.conclusion === "neutral" &&
   String(run.output?.title ?? "").startsWith("Skipped: untrusted-trigger");
 
-// A run that neither handles the head nor counts toward its cap.
 const ignored = (run) => untrustedSkip(run) || faultStop(run);
 
-// A completed neutral check run titled `title`.
 const neutralTitled = (run, title) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === title;
 
-// The neutral check a run skipped on a held PR posts (report-check-run's
-// `Skipped: <reason>` title).
 const heldSkip = (run) => neutralTitled(run, "Skipped: awaiting-human");
 
 // The gate's head-lag stop (check-trusted-trigger.mjs fetchPull), which
@@ -113,16 +93,6 @@ const heldSkip = (run) => neutralTitled(run, "Skipped: awaiting-human");
 export const HEAD_LAG_STOP = "Skipped: superseded-sha";
 export const headLagStop = (run) => neutralTitled(run, HEAD_LAG_STOP);
 
-// Three opt-ins, for a dispatcher that checks the PR's holds itself before it
-// reads the check runs: with `heldSkipsRelease` a held skip stops handling the
-// head, so a head skipped while held is dispatched once the hold is gone; with
-// `lagStopsRelease` a head-lag stop on the head read does too, so a round the
-// gate stopped on a lagging API read is sent again; with `failuresRetry` a
-// failed run of any kind does too. Either way the head is handled once
-// `limit-stops-per-head` of them, limit stops included, stand on it, so a
-// dispatcher and a run that disagree about a hold stop there. A newer run
-// still going handles the head, and a newer finished one decides it, so each
-// stop is sent again once.
 const released = (run, { heldSkipsRelease = false, lagStopsRelease = false } = {}) =>
   (heldSkipsRelease && heldSkip(run)) || (lagStopsRelease && headLagStop(run)) || killSwitchStop(run);
 
@@ -174,7 +144,6 @@ export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry =
 // recorded under a higher one.
 export function permanentlyHandles(runs, options = {}) {
   const { done, retryable } = completedRuns(runs, options);
-  // cappedAt needs every finished run retryable, so the two cases are disjoint.
   return done.some((run) => !retryable(run)) || cappedAt(runs, options) > 0;
 }
 

@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: sp-bare-proposes-writes-nothing
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: proposal-fields
     type: regex

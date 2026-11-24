@@ -5,6 +5,12 @@
 - Supersedes, for this repository: ADR 0037's decision 2 (both OAuth lanes retire) and the
   consequences that follow from it, and ADR 0002's once-per-PR trigger set. ADR 0037's seat layer
   (decisions 1 and 3 to 8) stands unchanged.
+- Superseded in part by `.github/workflows/pr-review-hosted.yml` and
+  `.github/workflows/pr-review-security-hosted.yml`: Decision 3's `cancel-in-progress: true`
+  (both callers set `false`, so a newer push waits for the running review), the second 2026-09-24
+  addendum's "both callers pass only `runner`" (neither takes a runner input), and the 2026-10-02
+  addendum's Decision 2 (both pass `docs-only-paths: ''`, so a documentation-only scope is
+  security-reviewed too). The per-push trigger stands.
 
 ## Context
 

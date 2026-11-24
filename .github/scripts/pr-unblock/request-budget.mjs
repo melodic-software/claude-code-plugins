@@ -44,7 +44,6 @@ export function budgetedFetch({
   const counts = { rest: 0, notModified: 0, graphql: 0 };
   const last = new Map();
 
-  // One request on the wire, a resend included.
   async function observed(url, init) {
     const response = await rawFetch(url, init);
     const header = (name) => response.headers?.get?.(name) ?? null;
@@ -91,8 +90,6 @@ export function budgetedFetch({
     return Object.assign(response, { rateLimited: true });
   }
 
-  // One line in the pr-merge rate line's shape: counts, then each resource's
-  // last header reading.
   function summary() {
     const readings = [...last].map(([resource, [limit, remaining, used, reset]]) => {
       const at = Number(reset) > 0 ? new Date(Number(reset) * 1000).toISOString().replace(".000Z", "Z") : "unknown";
@@ -101,8 +98,6 @@ export function budgetedFetch({
     return [`api-calls rest=${counts.rest} not-modified=${counts.notModified} graphql=${counts.graphql}`, ...readings].join(" ");
   }
 
-  // retryServerErrors counts each attempt, so a factory handed this fetch
-  // counts nothing more (countRequests).
   return { fetch: countsRequests(wrapped), counts, summary };
 }
 

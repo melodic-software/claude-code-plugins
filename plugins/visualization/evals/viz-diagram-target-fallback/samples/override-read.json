@@ -1,24 +1,30 @@
 {
   "pass": [
     {
-      "answer": [
-        { "tool": "Skill", "input": { "skill": "visualization:visualize" } },
-        { "tool": "Read", "input": { "file_path": "/workspace/docs/conventions/visualization.local.yaml" } }
-      ],
-      "why": "the skill, then the personal override"
+      "answer": "diagram_target: excalidraw (docs/conventions/visualization.local.yaml)\ndiagram_target: excalidraw unavailable (no canvas server connected); using auto",
+      "why": "the layer line SKILL.md Step 3 prints, then the fallback"
+    },
+    {
+      "answer": "Settings:\n- diagram_target: `excalidraw` (/workspace/docs/conventions/visualization.local.yaml)",
+      "why": "backticked value, absolute path to the personal override"
     }
   ],
   "fail": [
     {
-      "answer": [
-        { "tool": "Skill", "input": { "skill": "visualization:visualize" } },
-        { "tool": "Read", "input": { "file_path": "/workspace/docs/conventions/visualization.yaml" } }
-      ],
-      "why": "only the team file, which does not exist"
+      "answer": "diagram_target: excalidraw (docs/conventions/visualization.yaml)",
+      "why": "names the team file, which does not exist"
     },
     {
-      "answer": [],
-      "why": "no tool calls"
+      "answer": "diagram_target: auto (plugin default)",
+      "why": "the override was never resolved"
+    },
+    {
+      "answer": "I did not read docs/conventions/visualization.local.yaml, so diagram_target stays excalidraw by guess.",
+      "why": "file named, no layer line"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

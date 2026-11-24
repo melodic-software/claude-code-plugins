@@ -1,6 +1,3 @@
-// Expected values come from the owner's direction of 2026-10-27, restated
-// 2026-10-29: a person only for an intent, design, security or cost reason;
-// every retry has a hard end.
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,8 +9,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const KNOWN_NAMES = JSON.parse(readFileSync(new URL("./known-names.json", import.meta.url), "utf8"));
 
-// A fault says nothing about the issue: a runner, job or crash, not what the
-// run wrote or decided, which a retry can repeat for a reason in the issue.
 test("a stop is a fault only when the lane's machinery failed, never for what the run wrote", () => {
   for (const reason of ["outcome-unread", "issue-file", "scan-refused-fault", "patch-apply-failed"]) {
     assert.equal(stopFault(reason), true, reason);
@@ -55,8 +50,6 @@ test("the dimension skips reach no person, and only a credential-shaped patch ho
   assert.equal(stopRoute("patch-invalid"), "retry");
 });
 
-// stop-routes.mjs's header: a person only for an intent, design, security or
-// cost reason, so every hold row names which one.
 test("every hold row's class is intent-change, design-change, security-risk or cost-risk", () => {
   const classes = ["intent-change", "design-change", "security-risk", "cost-risk"];
   assert.deepEqual([...HOLD_CLASSES].sort(), [...classes].sort());
@@ -67,7 +60,6 @@ test("every hold row's class is intent-change, design-change, security-risk or c
   }
 });
 
-// These stops name no owner reason, so none goes to a person.
 test("a stop with no code, a done or delivered issue, a wait on a pull request and a split go to no person", () => {
   assert.equal(stopRoute("stopped"), "retry");
   assert.equal(stopRetries("stopped", 2), 1);
@@ -81,9 +73,6 @@ test("a stop with no code, a done or delivered issue, a wait on a pull request a
   }
 });
 
-// An ordering stop names no owner reason ("When work stops for the owner",
-// docs/contracts/loop-lane/README.md): intake triage writes the blocked-by
-// edge, so admission waits for the blocker.
 test("a blocked-by-issue code goes back through intake once, and an intent-change code still holds", () => {
   assert.equal(runCode("blocked-by-issue #13187 must land first"), "blocked-by-issue");
   assert.equal(runCode("blocked-by-issue: #13187 must land first"), "blocked-by-issue");
@@ -92,8 +81,6 @@ test("a blocked-by-issue code goes back through intake once, and an intent-chang
   assert.equal(stopReasonCode("blocked-by-issue"), "none");
   assert.equal(runCode("intent-change: must land after the sibling part #13187"), "intent-change");
   assert.equal(stopRoute("intent-change"), "hold");
-  // Owner Q4: intake removes agent-ready, so a security mention after the
-  // code still reaches a person, as it does with no code.
   assert.equal(runCode("blocked-by-issue: #5 rotates the leaked token"), "security-risk");
   assert.equal(runCode("rotates the leaked token"), "security-risk");
 });
@@ -198,17 +185,12 @@ test("a reason with no code that names security or a vulnerability, even inside 
   }
 });
 
-// Owner rule: only a real owner reason reaches a person, and plain reasons
-// name intent, design and cost all the time, so only their code holds.
 test("a reason with no code that names intent, design or cost stays stopped", () => {
   for (const reason of ["the test design needs X", "the cost of retrying", "The intent of the check is unclear.", "insecure-looking but fine"]) {
     assert.equal(runCode(reason), "stopped", reason);
   }
 });
 
-// Owner decision 2026-10-29 (Q4): a security mention always reaches the
-// owner. A close, host-run or attended code whose text names security holds;
-// a wait or retry code comes back to the lane anyway, so it keeps its route.
 test("a close, host-run or attended reason that names security holds as security-risk", () => {
   for (const reason of [
     "report-delivered: security audit found CRITICAL leak",
@@ -254,8 +236,6 @@ test("an ending reason that names a secret noun as a capability keeps its route"
   }
 });
 
-// A technical sense of a secret noun names no secret, so an ending reason
-// keeps its route. Each reason below held as security-risk on a real stop.
 test("an ending reason that names a token or credential only in a technical sense keeps its route", () => {
   for (const reason of [
     "host-only: the eval needs paid model calls on the role's subscription token",
@@ -276,7 +256,6 @@ test("an ending reason that names a token or credential only in a technical sens
     assert.equal(securityWord(reason), "", reason);
   }
   assert.equal(runCode("the token leaked into the log"), "security-risk");
-  // A secret value, an exposure or a credential path still holds beside a technical sense.
   for (const reason of [
     "host-only: the subscription token was pasted into the log",
     "host-only: a write token leaked in the fixture",
@@ -314,8 +293,6 @@ test("an ending reason that names a token or credential only in a technical sens
   }
 });
 
-// A large token count is a measure, not a credential: run 41380225807 held a
-// host-only reason as security on the "tokens" in its count.
 test("an ending reason that names a large token count keeps its route", () => {
   for (const reason of [
     "host-only: Attributing the startup gap (76,888 tokens headless vs 45,141 interactive) by source means re-running headless `claude -p` ...",
@@ -349,8 +326,6 @@ test("an ending reason that names a large token count keeps its route", () => {
   }
 });
 
-// Security review of the capability carve-out: a reason that says where a
-// secret ended up names no risk word, and must still reach a person.
 test("an ending reason that names an exposed secret without a risk word holds", () => {
   const exposures = [
     "needs the API key, which a stranger now has",
@@ -402,17 +377,12 @@ test("an ending reason that names an exposed secret without a risk word holds", 
       assert.equal(runCode(reason), "security-risk", reason);
     }
   }
-  // An exposure word anywhere in the reason holds, even in a clause apart
-  // from the secret noun: the last two exposures above leave the noun's own
-  // sentence, so a check scoped near the noun would release them.
   const apart = "host-only: needs a host with model credentials; the eval writes its summary to an artifact";
   assert.equal(runCode(apart), "security-risk", apart);
   const pasted = "manual-external: the dashboard holds an api key that was pasted publicly";
   assert.equal(runCode(pasted), "security-risk", pasted);
 });
 
-// The exposures above that say "took over" also say "attacker", so this case
-// alone holds the phrase in the word list.
 test("an ending reason that says took over, with no other security word, holds", () => {
   for (const code of ["host-only", "manual-external", "already-done"]) {
     const reason = `${code}: someone took over the maintainer account`;
@@ -421,10 +391,6 @@ test("an ending reason that says took over, with no other security word, holds",
   }
 });
 
-// Security review: the release takes only an allowlist of capability words
-// beside the secret noun, so an exposure worded with no listed sink word, a
-// pronoun or a bare "key" that points at the secret, or text in another
-// script still reaches a person.
 test("an ending reason that names a secret noun beside any unlisted word holds", () => {
   for (const reason of [
     "host-only: needs the API key. It was uploaded to the issue thread.",
@@ -487,8 +453,6 @@ test("a reason that opens with another code keeps it, and one naming no owner re
   assert.equal(runCode("Reason: the tests failed"), "stopped");
 });
 
-// The load check runs on import, so each case imports a copy of the module
-// beside its own copy of the real table.
 const NO_NAMES_FILE = Symbol("no known-names.json");
 async function loadsWith(table, names = KNOWN_NAMES) {
   const root = tempDir("stop-routes-");
@@ -517,15 +481,11 @@ test("the known names do not load with a bare word, a secret noun, a capital or 
   }
 });
 
-// pr-require-checks' sparse checkout of the base lists this module and its
-// table alone: with no names file, no name is exempt.
 test("with no known-names.json every name holds", async () => {
   const { runCode: bare } = await loadsWith(STOP_ROUTES, NO_NAMES_FILE);
   assert.equal(bare("already-done: `attack-the-premise` found the work done"), "security-risk");
 });
 
-// Security review: a match that starts inside a listed name and runs past its
-// edge still counts, so a name never splits a two-word secret or concern.
 test("a security word that runs past a listed name's edge holds", async () => {
   const { runCode: withNames, securityWord: wordWith } = await loadsWith(STOP_ROUTES, { ...KNOWN_NAMES, "github-deploy": "why", "ci:branch": "why" });
   for (const [reason, word] of [
@@ -553,15 +513,11 @@ test("the table does not load without a security-risk hold row, or with a class 
   await assert.rejects(loadsWith({ ...STOP_ROUTES, stopped: { ...STOP_ROUTES.stopped, class: "security-risk" } }), /stopped/);
 });
 
-// Owner decision 2026-10-28: a manual external step needs the owner present,
-// which is attended, not a decision (needs-human) or a host run (host-run).
 test("a manual external step routes to attended, and a host-only stop to host-run", () => {
   assert.equal(stopRoute("manual-external"), "attended");
   assert.equal(stopRoute("host-only"), "host-run");
 });
 
-// A pushback never waits, so with anyCodeEnds a security mention after a wait
-// code reads as security-risk; a stopped run's wait code keeps its route.
 test("runCode with anyCodeEnds reads a security mention after a wait code", () => {
   const reason = "blocked-by-pr: #12's log printed the deploy token.";
   assert.equal(runCode(reason), "blocked-by-pr");

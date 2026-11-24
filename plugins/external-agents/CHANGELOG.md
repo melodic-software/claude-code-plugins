@@ -3,6 +3,30 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2] - 2026-11-24
+
+### Changed
+
+- `external-agents update` reads a provider's config reference through the shared docs cache
+
+  The page is read with the plugin's new `scripts/fetch-docs.sh --cache --profile generic` copy
+  (with `docs-cache.sh`, `fetch-docs-generic.sh` and `html2md.py`, registered in
+  `scripts/shared-copies.txt`), so a page another session read within the cache's TTL is served
+from the cache instead of fetched again. A page the script leaves
+  unread keeps the config keys unverified, naming its reason. `prerequisites.json` declares
+  `curl` and `jq` as optional. The `fetch-docs-generic.sh` copy is not executable, like its
+  canonical, because `fetch-docs.sh` sources it.
+
+## [0.7.1] - 2026-11-24
+
+### Fixed
+
+- `external-agents models <product>` now prints `read_only_tools`, the tools that still work under
+  `--mode read-only`, from a new `harness.read_only_tools` list in each provider record (Codex:
+  `file`, `shell`, `web`, `mcp`; Antigravity: `file`). A record with no list reports `tools`
+  there. Before this, `tools` was the only view, so a router could send a read-only research brief
+  to Antigravity, whose read-only runs refuse shell, web and MCP calls.
+
 ## [0.7.0] - 2026-11-24
 
 ### Added

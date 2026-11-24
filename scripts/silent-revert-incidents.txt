@@ -243,3 +243,4 @@ clean c8470efd09d78d924a962483ff8a0b7809180e11 [6370a44e75986a12ec2a79a2e8deec39
 # is left is the one `"version"` line of plugins/evals/.claude-plugin/plugin.json
 # that bb0f08bf8 (#12320, the previous release) had written.
 clean fbdf2ec7e33548d58168a16304771740fcc7253d [bb0f08bf8ebb7db22a145964d54d80f3b92a5a2b=1] chore(release) deleted 56 bump: none fragments #12339 had added
+clean a6c6f1d74a29177290961ec924837cd522c9435d [3ae269a3511ba736df662fb4148b17ca48cf9a0f=167] refactor(evals) moved helpers #18267 had just added into case_skills.py; 216 before moves were discounted

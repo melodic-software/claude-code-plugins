@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
-import { emptyRecord, markHandled, parseRecord } from "./dispatch-record.mjs";
+import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 
 const CHECK = "pr-unblock / review-dependency";
 
@@ -290,6 +291,15 @@ const roundRun = (name, conclusion, title, started) => ({
 });
 const noModelTurn = (started = "2026-10-17T10:05:00Z") => roundRun("apply-dependency-verdict", "neutral", "Skipped: no-model-turn", started);
 const headOf = (node, runs) => new Map([[node.headRefOid, runs]]);
+const ciStatusRun = (conclusion, at, id = 1) => ({
+  id,
+  name: "CI Status",
+  app: { slug: "github-actions" },
+  status: conclusion ? "completed" : "in_progress",
+  conclusion,
+  started_at: at,
+  completed_at: conclusion ? at : null,
+});
 
 test("a head whose last round had no model turn dispatches again, and is not recorded as handled", async () => {
   for (const [label, check] of [
@@ -475,7 +485,6 @@ test("a head whose newest review-dependency check is a select skip is recorded, 
   for (const [label, runs] of [
     ["the round cap after a no-model-turn round", [roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"), noModelTurn(), roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z")]],
     ["the round cap alone", [roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z")]],
-    ["a sort that no longer applies", [roundRun("review-dependency", "neutral", "Skipped: not-applicable", "2026-10-17T11:00:00Z")]],
   ]) {
     const node = pr(64);
     const record = emptyRecord();
@@ -486,6 +495,70 @@ test("a head whose newest review-dependency check is a select skip is recorded, 
   const record = emptyRecord();
   await run(fakeApi({ nodes: [node], checks: headOf(node, [roundRun("review-dependency", "neutral", "Skipped: not-assessed", "2026-10-17T10:00:00Z")]) }), { record });
   assert.equal(record.handled.get(CHECK), undefined);
+});
+
+const CAPTURED_RUN = "45325911125";
+const CAPTURED_JOBS = JSON.parse(readFileSync(new URL("./fixtures/jobs-45325911125-attempt-1.json", import.meta.url), "utf8")).jobs;
+const capturedRun = (jobs = CAPTURED_JOBS) => ({ [CAPTURED_RUN]: jobs });
+const shifted = (jobs, minutes, attempt) =>
+  jobs.map((job) => ({ ...job, run_attempt: attempt ?? job.run_attempt, started_at: new Date(Date.parse(job.started_at) + minutes * 60_000).toISOString().replace(".000", "") }));
+const notApplicable = (posted) => ({
+  ...roundRun("review-dependency", "neutral", "Skipped: not-applicable", posted),
+  external_id: `pr-unblock:review-dependency:${CAPTURED_RUN}:1`,
+});
+
+test("a not-applicable skip holds its head unrecorded while CI Status runs, and the gate ending red sends the head", async () => {
+  const node = pr(73);
+  const skip = notApplicable("2026-11-24T04:24:53Z");
+  const jobs = capturedRun();
+  const record = emptyRecord();
+  const running = await run(fakeApi({ nodes: [node], checks: headOf(node, [ciStatusRun(null, "2026-11-24T04:23:07Z", 2), skip]), jobs }), { record });
+  assert.deepEqual(running.dispatched, [], "the skip holds the head while the gate runs");
+  assert.equal(record.handled.get(CHECK), undefined, "not recorded, so the next run reads the head again");
+  const ended = await run(fakeApi({ nodes: [node], checks: headOf(node, [ciStatusRun("failure", "2026-11-24T04:30:55Z", 2), skip]), jobs }), { record });
+  assert.deepEqual(ended.dispatched, [{ number: 73, workflowRunId: "7073" }], "the red gate sends the round that moves the pin");
+});
+
+test("a skip posted after the gate ended red is released when its own attempt started before the gate ended", async () => {
+  const node = pr(75);
+  const checks = headOf(node, [ciStatusRun("failure", "2026-11-24T04:24:00Z", 2), notApplicable("2026-11-24T04:24:53Z")]);
+  const raced = await run(fakeApi({ nodes: [node], checks, jobs: capturedRun() }));
+  assert.deepEqual(raced.dispatched, [{ number: 75, workflowRunId: "7075" }], "select read the gate before it ended red");
+  const otherAttempt = await run(fakeApi({ nodes: [node], checks, jobs: capturedRun([...shifted(CAPTURED_JOBS, 2), ...shifted(CAPTURED_JOBS, 0, 2)]) }));
+  assert.deepEqual(otherAttempt.dispatched, [], "an earlier job of another attempt does not stand for the skip's run");
+});
+
+test("a skip whose run started after the gate ended red holds the head unrecorded, and a red re-run of the gate on the same head sends it", async () => {
+  const node = pr(76);
+  const skip = notApplicable("2026-11-24T04:32:00Z");
+  const jobs = capturedRun(shifted(CAPTURED_JOBS, 9));
+  const record = emptyRecord();
+  const held = await run(fakeApi({ nodes: [node], checks: headOf(node, [ciStatusRun("failure", "2026-11-24T04:30:55Z", 2), skip]), jobs }), { record });
+  assert.deepEqual(held.dispatched, [], "the skip sorted the finished gate");
+  assert.equal(record.handled.get(CHECK), undefined, "and is left out of the record");
+  const gates = [ciStatusRun("failure", "2026-11-24T04:30:55Z", 2), ciStatusRun("failure", "2026-11-24T04:40:00Z", 3)];
+  const rerun = await run(fakeApi({ nodes: [node], checks: headOf(node, [...gates, skip]), jobs }), { record });
+  assert.deepEqual(rerun.dispatched, [{ number: 76, workflowRunId: "7076" }]);
+});
+
+test("a gate that ends green does not release a not-applicable skip taken while it ran", async () => {
+  const node = pr(77);
+  const checks = headOf(node, [ciStatusRun("success", "2026-11-24T04:30:55Z", 2), notApplicable("2026-11-24T04:24:53Z")]);
+  assert.deepEqual((await run(fakeApi({ nodes: [node], checks, jobs: capturedRun() }))).dispatched, []);
+});
+
+const VERSION_7_WRITER_OUTPUT = '{"version":7,"handled":{"pr-unblock / review-dependency":["cccccccccccccccccccccccccccccccccccccc74"]},"bases":{},"dispatched":{},"docsRuns":{}}\n';
+
+test("a version 7 record that holds a head a not-applicable skip left is read as empty, and the version 8 writer's record reads back", async () => {
+  const node = pr(74);
+  const record = parseRecord(VERSION_7_WRITER_OUTPUT);
+  assert.equal(record.handled.get(CHECK), undefined, "read as empty");
+  const checks = headOf(node, [ciStatusRun("failure", "2026-11-24T04:30:55Z", 2), notApplicable("2026-11-24T04:24:53Z")]);
+  assert.deepEqual((await run(fakeApi({ nodes: [node], checks, jobs: capturedRun() }), { record })).dispatched, [{ number: 74, workflowRunId: "7074" }]);
+  markHandled(record, CHECK, node.headRefOid);
+  const text = serializeRecord(record);
+  assert.equal(JSON.parse(text).version, 8);
+  assert.deepEqual([...parseRecord(text).handled.get(CHECK)], [node.headRefOid]);
 });
 
 // A record the dispatcher wrote before a no-model-turn verdict released the

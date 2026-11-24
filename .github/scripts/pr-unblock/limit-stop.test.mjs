@@ -7,10 +7,6 @@ const HOUR = 3_600_000;
 const ENDED = "2026-10-17T10:00:00Z";
 const ended = Date.parse(ENDED);
 const run = (id = 1) => ({ id, status: "completed", conclusion: "failure", completed_at: ENDED, output: { title: "x" } });
-// The lane-outcome record report-check-run writes into output.text of a posted
-// check run named `<lane> / <activity>`, built by hand from
-// docs/lane-outcome.md's rate-limit example plus the hub's activity; `fields`
-// override it.
 const RECORD = {
   v: 1,
   lane: "pr-unblock",
@@ -42,8 +38,6 @@ test("a stated reset is held between one hour and seven days after the run ended
   assert.equal(limitResetsAt(posted({ ...LIMIT, ...resets("2027-01-01T00:00:00Z") })), ended + 7 * 24 * HOUR);
 });
 
-// A 401 fails every run on that credential until a person re-sets it, so it
-// waits like a usage limit that states no reset, and counts toward the cap.
 test("a refused credential (class auth) is a limit stop that resets fallback-reset hours after the run ended", () => {
   const AUTH = { class: "auth", turns: 1 };
   assert.equal(limitResetsAt(posted(AUTH)), ended + 5 * HOUR);
@@ -62,8 +56,6 @@ test("pendingStop names the unreset stop that resets last, and nothing once all 
   assert.equal(pendingStop([run()], { now: ended }), null);
 });
 
-// A key out of credit does not recover when a usage window resets, so a credit
-// stop is no limit stop: its failed run handles the head, and no reset waits.
 test("a credit stop is no limit stop: no reset, nothing pending, and the head is handled", () => {
   const credit = posted({ class: "credit-stop", turns: 1 });
   assert.equal(limitResetsAt(credit), null);
@@ -77,8 +69,6 @@ test("another class, or a failed run with no record, is no limit stop", () => {
   assert.equal(limitResetsAt(run()), null);
 });
 
-// The `lane=<lane> activity=<activity> class=...` summary line report-check-run
-// wrote before ADR 0087 slice 3 is retired.
 test("the retired summary line is not read: a run that carries only it is no limit stop", () => {
   const legacy = {
     ...run(),
@@ -109,7 +99,6 @@ test("a limit stop handles the head until its reset", () => {
   assert.equal(anyHandles([posted(LIMIT_LINE)], { now: Date.parse("2026-10-17T13:00:00Z") }), false);
 });
 
-// A resolved `limits` leaf set away from every default (hours and counts).
 const SET = {
   "fallback-reset": 2,
   "reset-clamp-min": 3,
@@ -131,9 +120,6 @@ test("the resolved limits set how many reset limit stops handle a head", () => {
   assert.equal(anyHandles([posted(LIMIT, { id: 1 })], { now, limits: SET }), true);
 });
 
-// Without an opt-in, the count of limit stops holds a head (anyHandles) but
-// never records it: a head recorded at the default cap of 3 would stay
-// recorded under a resolved cap of 5.
 test("limit stops alone never handle a head for good, under the default cap or a higher one", () => {
   const three = [1, 2, 3].map((id) => posted(LIMIT, { id }));
   const FIVE = { ...SET, "limit-stops-per-head": 5 };
@@ -148,8 +134,6 @@ test("a failed run with no record handles the head, however long ago it ended", 
   assert.equal(permanentlyHandles([run()]), true);
 });
 
-// resolve-conflicts opts in: a failed run is retried, every failure (limit
-// stops included) counting toward limit-stops-per-head (3 by default).
 test("with failures retried, failed runs stop handling the head until three of them stand on it", () => {
   const now = ended + HOUR;
   const options = { now, failuresRetry: true };
@@ -162,10 +146,6 @@ test("with failures retried, failed runs stop handling the head until three of t
   assert.equal(permanentlyHandles([run(1), run(2), run(3)], { failuresRetry: true }), true);
 });
 
-// A class whose run never started the model (ci-workflows lane-outcome.md:
-// install-failed, sandbox-unavailable) is a fault: it holds, counts toward no
-// cap, and the next tick dispatches the head again. A class that persists or
-// that a model turn may have run under (no-credential, max-turns) still counts.
 test("a fault stop holds without counting toward the cap; a max-turns failure still counts", () => {
   const now = ended + HOUR;
   const fault = (cls, id) => posted({ class: cls }, { id });
@@ -196,8 +176,6 @@ test("with failures retried, an unreset limit stop or any run that did not fail 
   assert.equal(permanentlyHandles([run(1), { ...run(2), conclusion: "success" }], { failuresRetry: true }), true);
 });
 
-// The neutral check report-check-run posts for a skip whose reason is
-// awaiting-human (decide.mjs: "Skipped: <reason>"), as a held PR leaves it.
 const heldSkip = { id: 9, status: "completed", conclusion: "neutral", completed_at: ENDED, output: { title: "Skipped: awaiting-human" } };
 
 test("with held skips released, an awaiting-human skip does not handle the head", () => {
@@ -208,7 +186,6 @@ test("with held skips released, an awaiting-human skip does not handle the head"
   assert.equal(permanentlyHandles([heldSkip], { heldSkipsRelease: true }), false);
   const other = { ...heldSkip, output: { title: "Skipped: not-applicable" } };
   assert.equal(anyHandles([other], { now, heldSkipsRelease: true }), true, "another skip still handles it");
-  // A run that reads a hold the dispatcher does not stops at the cap.
   const three = [heldSkip, { ...heldSkip, id: 10 }, { ...heldSkip, id: 11 }];
   assert.equal(anyHandles(three, { now, heldSkipsRelease: true }), true);
   assert.equal(permanentlyHandles(three, { heldSkipsRelease: true }), true);
@@ -231,9 +208,6 @@ test("with lag stops released, a head-lag stop does not handle the head until th
   assert.equal(cappedAt(three, { lagStopsRelease: true }), 3);
 });
 
-// A run the lanes kill switch stopped did no work: its own kill-switch step,
-// or a broker refusal of its mint (request-lane-token kill-switch-ok), posts
-// neutral kill-switch (decide.mjs: "Skipped: <reason>").
 const killed = (id = 20, started = "2026-10-17T09:00:00Z") => ({
   id,
   status: "completed",
@@ -318,9 +292,6 @@ test("a credit stop on an API key is no limit stop", () => {
   assert.equal(limitResetsAt(posted(credit)), null);
 });
 
-// docs/lane-outcome.md, Failure classes: review-unposted is a run that
-// succeeded with no review to post, shell-failed an older run with no working
-// shell. Neither is a usage limit or a run whose model never started.
 test("review-unposted and shell-failed records are read, and are neither a limit nor a fault stop", () => {
   const now = ended + HOUR;
   for (const cls of ["review-unposted", "shell-failed"]) {

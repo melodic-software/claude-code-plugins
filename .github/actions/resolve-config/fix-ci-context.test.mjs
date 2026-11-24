@@ -1,6 +1,3 @@
-// fix-ci-context.mjs's round cap read through the real resolver: with no
-// FIX_CI_ROUNDS, main takes loop.fix-ci-rounds from the base's
-// pr-pipeline.yaml. Lives here because it needs resolve-config's dependencies.
 import assert from "node:assert/strict";
 import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -11,7 +8,6 @@ import { main } from "../../scripts/pr-unblock/fix-ci-context.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
-// The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
 const APP = 337595936;
 const fixCommit = {
   sha: "c".repeat(40),
@@ -21,7 +17,6 @@ const fixCommit = {
 const api = {
   getPull: async () => ({ state: "open", head: { sha: "a".repeat(40), repo: { full_name: "o/r" } } }),
   listPullCommits: async () => [fixCommit, fixCommit, fixCommit],
-  // A failing check: the round cap is read only when one fails.
   listCommitCheckRuns: async () =>
     Object.assign([{ id: 11, name: "Lint Shell", status: "completed", conclusion: "failure", app: { slug: "github-actions" } }], { complete: true }),
 };
@@ -36,7 +31,6 @@ test("with no FIX_CI_ROUNDS, main reads loop.fix-ci-rounds from the base config"
       PR_NUMBER: "42",
       APP_SENDER_ID: String(APP),
       CONTEXT_FILE: join(dir, "context.json"),
-      // This checkout stands in for the base: its config sets 3.
       BASE_PATH: ROOT,
     };
     await main(env, { api, log: () => {} });

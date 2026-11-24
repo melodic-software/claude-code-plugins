@@ -39,7 +39,7 @@ frontmatter_key() {
 }
 
 check_pair() {
-  local a="$1" b="$2" f rc=0 key
+  local a="$1" b="$2" f rc=0 key want
   for f in "$a" "$b"; do
     if [[ ! -f "$f" ]]; then
       echo "missing agent: $f"
@@ -60,10 +60,11 @@ check_pair() {
     rc=1
   fi
   for key in skills tools; do
-    if [[ -z "$(frontmatter_key "$a" "$key")" ]]; then
+    want="$(frontmatter_key "$a" "$key")"
+    if [[ -z "$want" ]]; then
       echo "no $key: frontmatter in $a"
       rc=1
-    elif [[ "$(frontmatter_key "$a" "$key")" != "$(frontmatter_key "$b" "$key")" ]]; then
+    elif [[ "$want" != "$(frontmatter_key "$b" "$key")" ]]; then
       echo "$key: frontmatter differs"
       rc=1
     fi
