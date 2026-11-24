@@ -20,7 +20,6 @@
 #
 # Idempotency: re-running --check on a no-drift state produces identical output.
 
-# No set -e — exit codes captured explicitly for a clean report.
 set -uo pipefail
 
 VERSION_URL="https://howborisusesclaudecode.com/api/version"
@@ -32,7 +31,6 @@ VENDOR_FILE="${SKILL_DIR}/vendor/upstream-skill.md"
 TMPDIR_RUN=$(mktemp -d -t boris-update-XXXXXX)
 trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
-# log, err, section, replace_metadata_field and main.
 # shellcheck source=vendor-update.sh
 source "${SCRIPT_DIR}/vendor-update.sh" || exit 2
 

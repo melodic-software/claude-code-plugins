@@ -120,9 +120,6 @@ verdict_is "00000000T000000Z" UNPARSABLE "the all-zero nonce is reported UNPARSA
 verdict_is "20260231T000000Z" UNPARSABLE "the Feb-31 nonce is reported UNPARSABLE, not DELETE"
 verdict_is "$OLD" DELETE "a real expired nonce is still reported DELETE"
 
-# A dry run must reach the same verdicts — the calendar check belongs to grading,
-# not to `--apply`, and an operator previewing the tree must see UNPARSABLE there
-# rather than a WOULD-DELETE that never materializes.
 shaped_dry="$WORK/shaped-dry/evidence"
 rm -rf "$WORK/shaped-dry"
 mkdir -p "$shaped_dry/s/g/00000000T000000Z"
@@ -137,16 +134,6 @@ run 0 "dry run over legitimate calendar values" --root "$real"
 verdict_is "20240229T000000Z" WOULD-DELETE "a leap day is graded as a real nonce"
 verdict_is "19700101T000000Z" WOULD-DELETE "the epoch is graded as a real nonce"
 verdict_is "20991231T235959Z" KEEP "a far-future nonce is graded as a real nonce"
-
-# --- a broken date round-trip refuses LOUDLY, never silently ----------------
-#
-# Fail-closed is right, but silence is not: a `date` that exists yet cannot
-# round-trip would grade EVERY packet UNPARSABLE, stopping retention forever
-# while still printing a summary and exiting 0. The startup self-check runs the
-# already-validated cutoff through the same path, so a broken userland is
-# refused the way a missing `date` already is. Simulated with a stub `date`
-# earlier on PATH that satisfies the dialect probe and the cutoff computation
-# but fails every round-trip parse.
 
 stubdir="$WORK/stub-bin"
 rm -rf "$stubdir"
@@ -182,9 +169,6 @@ if [[ -e "$stub_root/s/g/$OLD/audit-notes.md" ]]; then
 else
   fail "a packet was deleted despite an ungradable date implementation"
 fi
-# The regression guard: a round-trip strict enough to reject the two above must
-# still grade a REAL old nonce as expired. Without this, a validator that
-# refuses everything would pass both checks above and silently end retention.
 if [[ ! -e "$shaped/s/g/$OLD" ]]; then
   pass "a genuinely old nonce is still deleted under --apply"
 else

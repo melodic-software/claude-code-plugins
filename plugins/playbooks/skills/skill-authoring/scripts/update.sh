@@ -22,7 +22,6 @@
 # Upstream version is read from the remote file's own YAML frontmatter
 # `version:` field (no separate version API).
 
-# No set -e — exit codes captured explicitly for a clean report.
 set -uo pipefail
 
 INSTALL_URL="https://howborisusesclaudecode.com/api/install-thariq"
@@ -33,7 +32,6 @@ VENDOR_FILE="${SKILL_DIR}/vendor/upstream-skill.md"
 TMPDIR_RUN=$(mktemp -d -t skill-authoring-update-XXXXXX)
 trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
-# log, err, section, replace_metadata_field and main.
 # shellcheck source=vendor-update.sh
 source "${SCRIPT_DIR}/vendor-update.sh" || exit 2
 
