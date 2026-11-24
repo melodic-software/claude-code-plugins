@@ -358,8 +358,8 @@ reads the file itself, through a script where the key names one below.
   `standards_repository` names, through the contents API, at the one commit its `main` names when
   the process first reads it; `repository`, or unset, reads the repository's own
   `.github/standards/` copy. Setting `standards` widens which pull requests the babysit lane
-  adopts and merges unattended in that repository, so a repository beyond claude-code-plugins and
-  pr-pipeline-sandbox sets it only with an owner-decisions row approving that repository. The
+  adopts and merges unattended in that repository, so set it only where the repository's owner
+  has approved that through their own approval process. The
   Dependabot policy, `components/dependabot-policy/policy.json`, is read the same way from
   `standards_repository` whenever that key is set, whatever `trusted_actors_source` says, and
   from the `.github/standards/` copy when it is unset; `standards_repository` alone leaves the

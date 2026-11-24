@@ -229,7 +229,7 @@
     "trusted_actors_source": {
       "enum": ["repository", "standards"],
       "default": "repository",
-      "description": "Where /source-control:babysit-prs, the pr-merge lane gate and the pull-request ready check read the trusted-actors list. standards reads components/trusted-actors/trusted-actors.json from the repository standards_repository names, at the one commit its main names when the process first reads it. repository, or unset, reads the repository's own .github/standards copy. Any other value, or standards without a valid standards_repository, reads neither list and no Dependabot policy, so the lane adopts nothing. Setting standards widens which pull requests the babysit lane adopts and merges unattended in that repository: a repository beyond claude-code-plugins and pr-pipeline-sandbox sets it only with an owner-decisions row approving that repository."
+      "description": "Where /source-control:babysit-prs, the pr-merge lane gate and the pull-request ready check read the trusted-actors list. standards reads components/trusted-actors/trusted-actors.json from the repository standards_repository names, at the one commit its main names when the process first reads it. repository, or unset, reads the repository's own .github/standards copy. Any other value, or standards without a valid standards_repository, reads neither list and no Dependabot policy, so the lane adopts nothing. Setting standards widens which pull requests the babysit lane adopts and merges unattended in that repository: set it only where the repository's owner has approved that through their own approval process."
     },
     "standards_repository": {
       "type": "string",
