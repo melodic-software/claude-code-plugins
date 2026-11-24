@@ -17,9 +17,7 @@ import { join } from "node:path";
 import { FIELD_API } from "./write-status.mjs";
 
 const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
-// The states that hold an issue for a person.
 export const HOLD_STATES = ["needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec"];
-// The state whose field changes make no synthetic label event (syntheticFrom).
 const LABEL_STATE = "agent-ready";
 // A Work status read that failed or would pass the reader's limit: the
 // caller stops, since the labels alone could miss a hold set on the field.
@@ -33,7 +31,6 @@ export class StatusReadError extends Error {
 const annotate = (line) => String(line).replaceAll(/[\r\n%]/g, " ");
 const fold = (name) => String(name).toLowerCase();
 
-// The owner-decision and reporter-info hold labels.
 export const DECISION_LABELS = Object.freeze(["needs-owner-decision"]);
 export const INFO_LABELS = Object.freeze(["needs-reporter-info"]);
 const HOLD_NAMES = new Set([...DECISION_LABELS, ...INFO_LABELS]);
@@ -230,7 +227,6 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
         ...setup,
         ...(sleep ? { sleep } : {}),
         fieldEvents: (_github, _repository, _number, options) => {
-          // The same logical read: replaced, not counted against `limit`.
           if (options?.again) {
             read.set(issue, setup.fieldEvents(github, repository, issue));
           }
@@ -250,9 +246,6 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
     }
     return states.get(issue) ?? null;
   };
-  // Whether a Work status config is set and the issue's field holds no
-  // trusted state, so its labels alone stand for its status; reuses the
-  // newest `labels` read. False with no config, where the labels are the state.
   labels.unset = async (number) => (await ready()) !== null && (await labels.state(number)) === null;
   labels.events = async (number) => {
     const issue = Number(number);
@@ -266,8 +259,6 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
       throw new StatusReadError(issue, error);
     }
   };
-  // The issue's raw field events (resolve-config.mjs fieldEvents), the same
-  // read `labels` and `labels.events` made for it, or [] with no config.
   labels.fieldRows = async (number) => {
     const issue = Number(number);
     if ((await ready()) === null) {

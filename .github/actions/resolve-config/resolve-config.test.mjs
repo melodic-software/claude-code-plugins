@@ -37,9 +37,6 @@ function place(root, relative, source) {
   copyFileSync(source, join(root, relative));
 }
 
-// A workspace whose `.base/` holds the config, the live schema and the fixture
-// vocabulary. `head` puts a config at the workspace root, where the PR head
-// would be checked out.
 function workspace({
   config = "valid.yaml",
   configPath = CONFIG_PATH,
@@ -88,7 +85,6 @@ function workspace({
   };
 }
 
-// Reads the delimited GITHUB_OUTPUT form back into an object.
 function readOutputs(path) {
   const outputs = {};
   const lines = readFileSync(path, "utf8").split("\n");
@@ -103,7 +99,6 @@ function readOutputs(path) {
   return outputs;
 }
 
-// A fake API: each route is a path prefix and its response; every call is logged.
 function fakeGitHub(routes) {
   const calls = [];
   const github = async (method, path) => {
@@ -140,12 +135,10 @@ function pullRoutes({ changedFiles, files, labels = [] }) {
   };
 }
 
-// valid.yaml's pr-run-checks lane has a paths predicate, so it reads the PR.
 const srcChanged = () =>
   fakeGitHub(pullRoutes({ changedFiles: 1, files: [{ filename: "src/a.js" }] }))
     .github;
 
-// Exit 1, no file, no outputs, and an error annotation naming the cause.
 async function assertFailsRed(t, env, cause, github = noApi) {
   const log = t.mock.method(console, "log", () => {});
   const code = await main({ env, github });
@@ -251,9 +244,6 @@ for (const mode of ["bypassPermissions", "acceptEdits", "default", "plan"]) {
   });
 }
 
-// A script's write-runner checkout: head unless the leaf sets base; a skill
-// has none, and setting one on a skill or to another value fails the schema.
-// The key is inserted after `after`, a line of the leaf.
 const withCheckout = (checkout, { activity = "run-tests", after = "    script: scripts/run-tests.sh\n" } = {}) => {
   const { env } = workspace();
   env.ACTIVITY = activity;
@@ -618,7 +608,6 @@ test("a config with no predicate makes no API call", async () => {
   assert.deepEqual(calls, []);
 });
 
-// Gives valid.yaml's fix-prose activity (lane pr-refine) a predicate.
 function withPredicate(env, predicate) {
   const config = join(env.BASE_PATH, CONFIG_PATH);
   writeFileSync(
@@ -661,7 +650,6 @@ test("on workflow_dispatch, labels come from the PR and the event maps to dispat
   assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
 });
 
-// An issues lane: the event payload is the issue, and there is no PR.
 function issueEvent(env, issue) {
   writeFileSync(env.EVENT_PATH, JSON.stringify({ action: "labeled", issue }));
   env.EVENT_NAME = "issues";
@@ -707,8 +695,6 @@ test("on an issues event, labels-absent reads the issue's labels now", async () 
   assert.deepEqual(calls, ["GET /repos/melodic-software/claude-code-plugins/issues/7"]);
 });
 
-// No predicate reads a work class: an agent-ready issue with no class and
-// one with a structural class both apply, read now from the issue.
 test("an agent-ready issue applies whatever work class it carries, or none", async () => {
   for (const labelsNow of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
     const { env } = workspace();
@@ -722,8 +708,6 @@ test("an agent-ready issue applies whatever work class it carries, or none", asy
   }
 });
 
-// The work-class keys are gone, so a config that still gates on a class fails
-// the schema rather than gating nothing in silence.
 test("an admission or work-classes predicate fails the schema", async (t) => {
   for (const predicate of [
     { admission: { classes: ["work-class: read-only"] } },
@@ -736,7 +720,6 @@ test("an admission or work-classes predicate fails the schema", async (t) => {
   }
 });
 
-// valid.yaml's fix-prose (lane pr-refine) with prepare: merge-base and `extra`.
 function withPrepare(env, extra = "") {
   const config = join(env.BASE_PATH, CONFIG_PATH);
   writeFileSync(
@@ -986,9 +969,6 @@ test("on a pull_request event, draft comes from the payload without an API call"
   assert.deepEqual(calls, []);
 });
 
-// applied-by and the patch rules (README.md, Activities and Patch rules). The
-// producer is fix-ci in pr-unblock, whose apply-patch slot needs it; the live
-// vocabulary, since the fixture lacks the verb "apply".
 const LIVE_VOCABULARY = join(HERE, "../../standards/github-actions-conventions/vocabulary.json");
 function withAppliedBy(env) {
   writeFileSync(
@@ -1029,7 +1009,6 @@ test("a leaf without applied-by resolves whatever applied-by-supported says", as
   assert.equal(await main({ env, github: noApi }), 0);
 });
 
-// The rule files the run reads beside resolve-config.mjs, with one replaced.
 const rulesWith = (name, value) => (relative) =>
   relative === name ? value : JSON.parse(readFileSync(join(HERE, relative), "utf8"));
 

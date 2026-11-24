@@ -38,7 +38,6 @@ const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
-// The multi-agent role map a role profile resolves through.
 const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
@@ -53,8 +52,6 @@ const MERGEABLE_WAIT_MS = 5000;
 const readOwn = (name) =>
   JSON.parse(readFileSync(new URL(name, import.meta.url), "utf8"));
 
-// The text of <basePath>/<relative>, or undefined when it does not exist. A
-// path whose real location (after symlinks) leaves base-path is an error.
 function readUnderBase(basePath, relative) {
   let real;
   try {
@@ -88,7 +85,6 @@ const FIELD_EVENT_NODES = `nodes {
       }`;
 const FIELD_FRAGMENTS = `fragment who on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }
 fragment field on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId } }`;
-// The newest field events one issue read takes.
 const FIELD_EVENT_LIMIT = 100;
 const FIELD_EVENTS = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
@@ -126,7 +122,6 @@ export async function fieldEvents(github, repository, number) {
   if (!Array.isArray(nodes)) {
     throw new Error("the issue's field events answer holds no event list");
   }
-  // `full`: the window held its limit, so older events went unread.
   return Object.defineProperty(eventsFrom(nodes), "full", { value: nodes.length >= FIELD_EVENT_LIMIT });
 }
 
@@ -179,9 +174,6 @@ function settersOf(events) {
 export const ISSUE_PAGE_SIZE = 25;
 // Pages issuesByStatus reads before it throws: 2,000 open issues.
 export const MAX_ISSUE_PAGES = 80;
-// Field events per issue in the listing, as many as fieldEvents reads: the
-// Work status setter is the newest Work status event among them, and a field
-// value with none among a full window throws rather than read as unset.
 const LISTED_FIELD_EVENTS = 100;
 // Issues per listing whose Work status disagrees in the listing and is read
 // again alone (read-status.mjs fieldStatusSetter): 10. Each re-read costs two
@@ -255,12 +247,7 @@ export async function issuesByStatus(github, repository, states, { since, config
       if (!Number.isInteger(node?.number) || !Array.isArray(nodes)) {
         throw new Error("the open issues answer holds an issue with no number or event list");
       }
-      // The value and its events come from one read, so no fieldNames check.
       const events = eventsFrom(nodes);
-      // An issue whose status cannot be read fails the listing only when it
-      // could be one of `states`: a wanted label, or a Work status value or
-      // event naming one of them. Any other is skipped, so one issue's
-      // unreadable field cannot stop a listing it has no part in.
       const wantedValue = (node?.issueFieldValues?.nodes ?? []).find((value) => value?.field?.fullDatabaseId === statusField && states.includes(value?.name));
       const hasStatusEvent = events.some((event) => event.field === statusField);
       const couldMatch = () => labeled || wantedValue !== undefined || events.some((event) => event.field === statusField && states.includes(event.to));
@@ -269,7 +256,6 @@ export async function issuesByStatus(github, repository, states, { since, config
         if (nodes.length >= LISTED_FIELD_EVENTS && fieldValues.some((value) => String(value.field) === statusField) && !hasStatusEvent) {
           throw new Error(`#${node.number}'s Work status setter is older than its newest ${LISTED_FIELD_EVENTS} field events`);
         }
-        // A listing can answer a value with none of the events that set it.
         if (wantedValue !== undefined && !hasStatusEvent) {
           throw new StatusDisagreement(`issue field ${statusField} (Work status) holds \`${wantedValue.name}\`, but the listing shows no Work status event`);
         }
@@ -352,8 +338,6 @@ async function gatherFacts(
   if (needed.includes("draft")) {
     facts.draft = event.pull_request?.draft ?? (await fetchPull()).draft;
   }
-  // An issues event has no PR: labels come from the issue (the payload's, or
-  // read now for labels-absent).
   const issue = eventName === "issues" ? event.issue : undefined;
   if (issue !== undefined) {
     // The issue's org field values: REST answers the integer field and
@@ -385,10 +369,6 @@ async function gatherFacts(
       facts.fieldSetters = settersOf(await readEvents());
     }
     if (needed.includes("splitChild")) {
-      // Whether the issue is a trusted size-split sub-issue, which takes
-      // split-child-size: the caller reads it (admit.mjs trustedSplitChild,
-      // in work-resolve-issue's check-blockers.mjs) and passes it as
-      // SPLIT_CHILD, so this floored module never loads intake's.
       if (splitChild !== "true" && splitChild !== "false") {
         throw new Error("split-child must be `true` or `false` when the issue's dimensions are read");
       }
@@ -399,10 +379,6 @@ async function gatherFacts(
         ? (await github("GET", `/repos/${repository}/issues/${Number(issue.number)}`)).labels
         : issue.labels;
       facts.labels = labels.map((label) => label.name);
-      // The trusted Work status decides the queue state, agent-ready included,
-      // as read-status.mjs statusLabels folds it in: a field-only admission
-      // matches `labels`, and a field hold matches `labels-absent`. A failed
-      // read throws rather than fall back to the labels, which could miss a hold.
       if (status?.config) {
         const readState = async () => {
           const fieldEventsRead = await readEvents();
@@ -419,13 +395,10 @@ async function gatherFacts(
           if (error?.name !== "StatusDisagreement") {
             throw error;
           }
-          // A read racing a write, as read-status.mjs fieldStatusSetter
-          // treats it: both reads once more, and a second disagreement throws.
           await sleep(DISAGREEMENT_WAIT_MS);
           values = undefined;
           events = undefined;
           state = await readState();
-          // The dimensions come from the read the status agreed on.
           if (needed.includes("fieldValues")) {
             facts.fieldValues = await readValues();
           }
@@ -460,7 +433,6 @@ async function gatherFacts(
         ? [file.filename, file.previous_filename]
         : [file.filename],
     );
-    // What the head still holds: an activity cannot edit a removed file.
     facts.changedTargets = files
       .filter((file) => file.status !== "removed")
       .map((file) => file.filename);
@@ -468,8 +440,6 @@ async function gatherFacts(
   return facts;
 }
 
-// A model run's step outputs, or empty ones for a script. The args are
-// checked against their only shape, so no output can carry a second line.
 const MODEL_ARGS = /^--model [a-z]+ --max-turns [1-9][0-9]*(?: --effort [a-z]+)?$/;
 function modelOutputs(models) {
   if (models === null) {
@@ -484,7 +454,6 @@ function modelOutputs(models) {
     "claude-args": args,
     "settings-json": modelSettings(models),
     "max-turns": String(models["max-turns"]),
-    // run-claude-cli inputs. Every profile resolves a routed alias.
     model: models.model,
     effort: models.effort ?? "",
   };
@@ -514,7 +483,6 @@ function outputsFor({ lane, selected }) {
     issues: selected.grant.issues,
     actions: selected.grant.actions ?? "",
     "actions-variables": selected.grant["actions-variables"] ?? "",
-    // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
     ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),
     ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
@@ -535,13 +503,11 @@ const escapeCommand = (text) =>
 
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
-// The base-path and config-path env names, with their defaults.
 const pathsOf = (env) => ({
   basePath: env.BASE_PATH || DEFAULT_BASE_PATH,
   configPath: env.CONFIG_PATH || DEFAULT_CONFIG_PATH,
 });
 
-// `readRules` reads a rule file beside this module; tests replace it.
 function filesUnderBase(basePath, configPath, readRules = readOwn) {
   checkConfigPath(configPath);
   const schema = readJsonUnderBase(basePath, SCHEMA_PATH);
@@ -563,8 +529,6 @@ function filesUnderBase(basePath, configPath, readRules = readOwn) {
   };
 }
 
-// MODEL_RUNG as resolve()'s rung: empty is none, 0 or 1 that rung; anything
-// else is passed on for resolve() to refuse.
 const modelRung = (value) => (value === undefined || value === "" ? undefined : /^[01]$/.test(value) ? Number(value) : value);
 
 // The ResolvedConfig for the request env names, or a throw: a Rejection
@@ -575,8 +539,6 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
   const { basePath, configPath } = pathsOf(env);
   const files = filesUnderBase(basePath, configPath, readRules);
   const doc = loadConfig(files, { configPath });
-  // A lane run checks the patch rules before anything else; the token
-  // broker, which calls loadConfig and resolveGrant itself, never reads them.
   checkPatchRules(files.patchRules, files.patchRulesSchema, doc.activities);
   const request = {
     lane: env.LANE,
@@ -603,8 +565,6 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
       createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
   });
   const resolved = resolve(files, { ...request, facts });
-  // A runner that does not perform the prepare step would run the skill
-  // without it, so an applying leaf that needs one fails instead.
   const { selected: chosen } = resolved;
   if (chosen?.applies && chosen.prepare && env.PREPARE_SUPPORTED !== "true") {
     throw new Error(
@@ -719,7 +679,6 @@ export function branchCleanupFromBase(env) {
   return configFromBase(env)["branch-cleanup"] ?? {};
 }
 
-// A run that is no lane activity resolves only its model route.
 function resolveRouteFromBase(env) {
   if (env.LANE) {
     throw new Error("set lane or model-route, not both");

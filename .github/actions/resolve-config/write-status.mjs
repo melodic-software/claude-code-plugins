@@ -1,8 +1,3 @@
-// The Work status writer (models.issue-status). An issue's Work status field
-// is its state: writeState and statusWriter set it to a named state, and a
-// write that does not land throws StatusWriteError. Imports nothing outside
-// node at load, so a job that installs no resolve-config dependencies can
-// still import FIELD_API; its writer then throws on every call.
 export const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 
 // The wait between a restart's clear and its set. GitHub can stamp the removal
@@ -13,7 +8,6 @@ export const RESTART_GAP_MS = 3000;
 
 // The statuses GitHub answers a field value that names no option with.
 const NAME_REFUSED = new Set([400, 422]);
-// The state whose write starts the issue lane.
 const AGENT_READY = "agent-ready";
 const HOST_RUN_OR_PARK_STOP_STATE = "confirmed";
 const fold = (name) => String(name).toLowerCase();
@@ -166,8 +160,6 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
     failure = new StatusWriteError(`models.issue-status could not be read: ${error?.message ?? error}`, { cause: error });
   }
   const wrote = new Map();
-  // The field's trusted state, and whether it is a hold a listed human set.
-  // Only a field read needs the trusted-actor list, so a plain `set` writes without it.
   const readField = async (number) => {
     try {
       const { fieldStatusSetter, HOLD_STATES, loadTrustedActors } = await import("./read-status.mjs");
@@ -221,9 +213,6 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
     }
     return { removed };
   };
-  // Puts `removed` back on the issue after its agent-ready write failed: with
-  // no trusted field state, the labels alone carry the issue's state
-  // (read-status.mjs statusLabels). Throws `error`, naming a failed put-back.
   const restoreAndThrow = async (number, removed, error) => {
     if (removed.length > 0) {
       try {
@@ -251,7 +240,6 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
       throw failure;
     }
     const fresh = keepHold || Array.isArray(from);
-    // A person may set a hold after any write, this process's own included.
     if (fresh) {
       const now = await readField(number);
       if (keepHold && now.personHold && now.state !== releases) {

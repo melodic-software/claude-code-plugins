@@ -16,7 +16,6 @@ const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline
 ];
 const FIELD = 48484079;
 
-// A fake client recording calls, answering a POST with `option` held.
 function fake(answer = (body) => [{ issue_field_id: FIELD, single_select_option: { id: 84879220, name: body.issue_field_values[0].value } }]) {
   const calls = [];
   const github = async (method, path, body, headers, options) => {
@@ -67,10 +66,6 @@ for (const [why, answer, state, config, text] of [
   });
 }
 
-// A fake whose field reads `option`, last set by `setter`, and whose POSTs
-// answer with the posted state's option and set the field to it, by the lanes
-// App. The issue carries `labels`, which a label DELETE removes.
-// `put(option, setter)` sets the field as a person would between writes.
 function fieldWorld(option, setter, labels = []) {
   const calls = [];
   const github = async (method, path, body) => {
@@ -103,7 +98,6 @@ function fieldWorld(option, setter, labels = []) {
     throw new Error(`unexpected ${method} ${path}`);
   };
   const posts = () => calls.filter(([method, path]) => method === "POST" && path.endsWith("/issue-field-values"));
-  // Each label read, label removal and field write, in order.
   const steps = () =>
     calls
       .filter(([method, path]) => path.includes("/labels") || (method !== "GET" && path.includes("/issue-field-values")))
@@ -183,7 +177,6 @@ test("statusWriter restart treats a 404 clear as nothing set, and stops on a per
 });
 
 test("statusWriter restart from agent-ready leaves a field a person moved elsewhere", async () => {
-  // A listed human moved the issue to confirmed after the caller's listing.
   const moved = fieldWorld(Number(Object.keys(CONFIG.options).find((id) => CONFIG.options[id] === "confirmed")), 153232337);
   const calls = [];
   const github = async (method, path, body) => {
@@ -253,8 +246,6 @@ test("statusWriter set to agent-ready throws and writes nothing when a status la
   assert.equal(w.posts().length, 1);
 });
 
-// With no trusted field state the labels alone carry the issue's state, so a
-// failed agent-ready write must not leave the issue with neither.
 test("statusWriter set to agent-ready puts the removed labels back when the field write fails", async () => {
   const failing = (w, failPutBack = false) => async (method, path, body) => {
     if (method === "POST" && path.endsWith("/issue-field-values")) throw new Error("HTTP 500");
@@ -340,7 +331,6 @@ test("statusWriter leaveAgentReady writes only while the trusted field reads age
   const ready = fieldWorld(84879220, human);
   assert.equal((await (await writerOver(ready.github)).leaveAgentReady(7, "needs-triage")).outcome, "written");
   assert.equal(ready.posts().length, 1);
-  // The field holds a person's hold: taking agent-ready off writes nothing.
   for (const [why, w] of [
     ["needs-human", fieldWorld(86380005, human)],
     ["unset", fieldWorld(null)],

@@ -29,8 +29,6 @@ export const PATTERNS = {
   "github-workflows": () => ["/.github/workflows/**"],
   codeowners: () => ["/CODEOWNERS", "/.github/CODEOWNERS", "/docs/CODEOWNERS"],
   gitmodules: () => [".gitmodules"],
-  // One pattern for the root and each top-level directory the rule refuses a
-  // settings file in, so the rule's own exceptions decide which.
   settings: (dirs) =>
     ["", ...dirs].filter((dir) => PATH_RULES.settings(segments(`${dir}/settings.json`))).map((dir) => (dir ? `/${dir}/**/settings*.json` : "/settings*.json")),
   "lane-grants": () => ["/.github/actions/resolve-config/lane-grants.json", "/.github/standards/trusted-actors/trusted-actors.json"],
