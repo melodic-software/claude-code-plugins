@@ -235,7 +235,8 @@ These were decided to wait, each for the condition or in the issue named:
 - a switch that turns off sealing of lane transcripts for a private repository, added to the
   shared launcher when the first private repository runs a factory lane;
 - the fix-one loop for a baselined rule (a `toolchain` skill named `fix-baseline`, at most 5
-  open pull requests), until a rule is first baselined ([linters review rule](../review/linters.md)).
+  open pull requests) and the pre-commit hook that fixes a changed file, until a rule is first
+  baselined ([linters review rule](../review/linters.md)).
 
 ## License notice
 
