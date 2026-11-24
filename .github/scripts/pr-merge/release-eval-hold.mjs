@@ -4,16 +4,19 @@
 // its current head is posted by a listed human, or by github-actions[bot] from
 // a compare run of pr-run-plugin-evals.yml that this script reads back: a
 // successful workflow_dispatch run on the default branch whose run name
-// (`eval-compare pr=<n> head=<sha>`, set from its inputs) names this pull
-// request and the record's head, and whose Compare Record job ran to success. The comment's author alone counts for
+// (`eval-compare pr=<n> head=<sha> target=plugins/<name>`, set from its
+// inputs) names this pull request and the record's head, and whose Compare
+// Record job ran to success. The comment's author alone counts for
 // nothing, since any workflow can post as github-actions[bot] (owner decision
 // Q136: https://github.com/melodic-software/claude-code-plugins/issues/17854).
-// With no record at the head, the newest compare run naming this pull request
-// and its head also releases the hold when that run, trusted the same way,
-// ran its Compare Cannot Start job to success: the run itself recorded that it
-// cannot start (CANNOT_START_CAUSES), so the pull request merges first and its
-// affected cases run on the default branch after (docs/review/evals.md). A
-// missing record alone never releases. No model. The hold convention is in
+// With no record at the head, compare runs also release the hold when, for
+// every plugin whose skills/, agents/ or context/ files the pull request
+// changes, the newest compare run at the head for that plugin, trusted the
+// same way, ran its Compare Cannot Start job to success: each run itself
+// recorded that it cannot start (CANNOT_START_CAUSES), so the pull request
+// merges first and its affected cases run on the default branch after
+// (docs/review/evals.md). A refusal for one plugin never releases another's
+// cut, and a missing record alone never releases. No model. The hold convention is in
 // docs/contracts/loop-lane/README.md (Cross-lane PR hold).
 //
 // The head and the label are read again before the comment and before the
@@ -49,7 +52,8 @@ export const RELEASES_PER_RUN = 5;
 export const EVAL_REASON = "eval";
 const RECORD = /^<!-- eval-pair verdict=no-loss validity=VALID head=([0-9a-f]{40}) -->$/;
 const RUN = /^<!-- eval-pair-run id=([1-9][0-9]{0,19}) -->$/;
-const COMPARE_TITLE = /^eval-compare pr=([1-9][0-9]{0,9}) head=([0-9a-f]{40})$/;
+const COMPARE_TITLE = /^eval-compare pr=([1-9][0-9]{0,9}) head=([0-9a-f]{40})(?: target=plugins\/([A-Za-z0-9][A-Za-z0-9._-]*)\/?)?$/;
+const EVAL_TEXT = /^plugins\/([A-Za-z0-9._-]+)\/(?:skills|agents|context)\//;
 export const COMPARE_WORKFLOW = ".github/workflows/pr-run-plugin-evals.yml";
 export const WORKFLOW_LOGIN = "github-actions[bot]";
 export const RUNS_PER_PULL = 3;
@@ -118,10 +122,10 @@ export function citedRun(comment) {
 }
 
 /**
- * What a run read from GET actions/runs/{id} vouches for, { pr, head }, when
- * it is a completed, successful first attempt of a workflow_dispatch run of
- * COMPARE_WORKFLOW on `defaultBranch` of `repo` with a compare run name; else
- * null. A re-run of failed jobs skips the dispatcher check and re-samples an
+ * What a run read from GET actions/runs/{id} vouches for, { pr, head, plugin },
+ * when it is a completed, successful first attempt of a workflow_dispatch run
+ * of COMPARE_WORKFLOW on `defaultBranch` of `repo` with a compare run name;
+ * else null. `plugin` is null for a name that carries no target. A re-run of failed jobs skips the dispatcher check and re-samples an
  * arm, so only attempt 1 counts. The run name comes from the dispatch inputs,
  * which the runs API does not return.
  */
@@ -141,7 +145,28 @@ export function runVouches(run, repo, defaultBranch) {
     return null;
   }
   const title = COMPARE_TITLE.exec(String(run.display_title ?? ""));
-  return title === null || !/^[0-9a-f]{40}$/.test(String(run.head_sha)) ? null : { pr: Number(title[1]), head: title[2] };
+  return title === null || !/^[0-9a-f]{40}$/.test(String(run.head_sha)) ? null : { pr: Number(title[1]), head: title[2], plugin: title[3] ?? null };
+}
+
+/**
+ * The plugins whose skills/, agents/ or context/ files a pull request changes,
+ * sorted, from GET pulls/{n}/files (a rename counts both paths), or null when
+ * the list holds fewer files than `changedFiles`, as a list cut short does.
+ */
+export function evalPlugins(files, changedFiles) {
+  if (!Array.isArray(files) || !Number.isSafeInteger(changedFiles) || files.length < changedFiles) {
+    return null;
+  }
+  const names = new Set();
+  for (const file of files) {
+    for (const path of [file?.filename, file?.previous_filename]) {
+      const name = EVAL_TEXT.exec(String(path ?? ""))?.[1];
+      if (name !== undefined) {
+        names.add(name);
+      }
+    }
+  }
+  return [...names].sort();
 }
 
 /**
@@ -261,10 +286,10 @@ export function decide({ pull, comments, reviews = [], events, humans, vouched =
 export const releasedComment = (head, record) =>
   `${releasedMarker(head, record.id)}\nThe \`${LABEL}\` hold waited only on eval evidence (\`reason=${EVAL_REASON}\`), and a VALID no-loss eval-pair record for \`${head}\` was posted ${citedRun(record) === null ? "by a listed human" : `by compare run ${citedRun(record)}, read back as this pull request's`}: ${record.html_url}. pr-merge removed \`${LABEL}\`. To hold again, add the label back with a new \`pr-hold\` reason line.`;
 
-export const cannotStartMarker = (head, { cause, run }) => `<!-- eval-hold-released head=${head} cannot-start=${cause} run=${run.id} -->`;
+export const cannotStartMarker = (head, { cause, runs }) => `<!-- eval-hold-released head=${head} cannot-start=${cause} run=${runs.map((run) => run.id).join(",")} -->`;
 
 export const cannotStartComment = (head, cannotStart) =>
-  `${cannotStartMarker(head, cannotStart)}\nThe \`${LABEL}\` hold waited only on eval evidence (\`reason=${EVAL_REASON}\`), and compare run ${cannotStart.run.id} for \`${head}\`, read back as this pull request's, recorded that it cannot start (\`${cannotStart.cause}\`): ${cannotStart.run.html_url}. Such a pull request merges first: after it merges, its affected cases run in a suite run on the default branch, and a FAIL reverts it (docs/review/evals.md). pr-merge removed \`${LABEL}\`. To hold again, add the label back with a new \`pr-hold\` reason line.`;
+  `${cannotStartMarker(head, cannotStart)}\nThe \`${LABEL}\` hold waited only on eval evidence (\`reason=${EVAL_REASON}\`), and for every plugin whose skill, agent or context text this pull request changes, the newest compare run for \`${head}\`, read back as this pull request's, recorded that it cannot start (\`${cannotStart.cause}\`): ${cannotStart.runs.map((run) => `\`${run.plugin}\` ${run.html_url}`).join(", ")}. Such a pull request merges first: after it merges, its affected cases run in a suite run on the default branch, and a FAIL reverts it (docs/review/evals.md). pr-merge removed \`${LABEL}\`. To hold again, add the label back with a new \`pr-hold\` reason line.`;
 
 /**
  * A reason to stop before the remaining reads, or null. A cited run is read
@@ -444,8 +469,24 @@ async function readAll(github, repo, number, humans, runsGitHub = github, listRu
   if (since !== null && !listed.complete) {
     console.log(`release-eval-hold: #${number} the compare runs since ${since} run past ${COMPARE_RUN_PAGES} pages; no cannot-start run counts`);
   }
-  const cannotStart = listed.complete ? await readCannotStart(runsGitHub, repo, named, vouched, since, pull?.head?.sha, defaultBranch) : null;
+  const plugins = listed.complete && named.length > 0 ? await readEvalPlugins(github, repo, number, pull?.changed_files) : null;
+  const cannotStart = plugins === null ? null : await readCannotStart(runsGitHub, repo, named, vouched, since, pull?.head?.sha, defaultBranch, plugins);
   return { pull, comments, events, reviews, vouched, cannotStart };
+}
+
+async function readEvalPlugins(github, repo, number, changedFiles) {
+  let files;
+  try {
+    files = await paginate(github, `/repos/${repo}/pulls/${number}/files`, 30);
+  } catch (error) {
+    console.log(`release-eval-hold: #${number} files did not read: ${escapeCommand(error?.message ?? error)}`);
+    return null;
+  }
+  const plugins = evalPlugins(files, changedFiles);
+  if (plugins === null) {
+    console.log(`release-eval-hold: #${number} files listed ${files.length} of ${changedFiles}; no cannot-start run counts`);
+  }
+  return plugins;
 }
 
 async function readTip(github, repo, defaultBranch) {
@@ -511,27 +552,41 @@ async function readRuns(github, repo, comments, defaultBranch) {
   return vouched;
 }
 
-async function readCannotStart(github, repo, named, vouched, since, head, defaultBranch) {
-  if (!/^[0-9a-f]{40}$/.test(String(head)) || typeof defaultBranch !== "string") {
+async function readCannotStart(github, repo, named, vouched, since, head, defaultBranch, plugins) {
+  if (!/^[0-9a-f]{40}$/.test(String(head)) || typeof defaultBranch !== "string" || plugins.length === 0) {
     return null;
   }
-  const [newest, ...older] = named
-    .filter((run) => COMPARE_TITLE.exec(String(run.display_title))?.[2] === head && createdAt(run) >= since)
-    .sort((a, b) => createdAt(b).localeCompare(createdAt(a)));
-  if (newest === undefined || vouched.has(String(newest.id)) || !/^[1-9][0-9]{0,19}$/.test(String(newest.id))) {
-    return null;
-  }
+  const atHead = named
+    .map((run) => ({ run, title: COMPARE_TITLE.exec(String(run.display_title)) }))
+    .filter(({ run, title }) => title?.[2] === head && createdAt(run) >= since)
+    .sort((a, b) => createdAt(b.run).localeCompare(createdAt(a.run)));
   const tip = await readTip(github, repo, defaultBranch);
-  const vouch = tip === null ? null : await readBack(github, repo, newest, defaultBranch, tip, cannotStartCause, `recorded no cause it cannot start`);
-  if (vouch === null || vouch.head !== head) {
+  if (tip === null) {
     return null;
   }
-  const loss = await olderLoss(github, repo, older);
-  if (loss !== null) {
-    console.log(`release-eval-hold: run ${newest.id} cannot start, but ${loss}`);
-    return null;
+  const runs = [];
+  for (const plugin of plugins) {
+    const [newest, ...older] = atHead.filter(({ title }) => (title[3] ?? plugin) === plugin);
+    if (newest === undefined || newest.title[3] !== plugin) {
+      console.log(`release-eval-hold: no compare run at ${head} since the hold names ${plugin} as its target`);
+      return null;
+    }
+    const { run } = newest;
+    if (vouched.has(String(run.id)) || !/^[1-9][0-9]{0,19}$/.test(String(run.id))) {
+      return null;
+    }
+    const vouch = await readBack(github, repo, run, defaultBranch, tip, cannotStartCause, `recorded no cause it cannot start`);
+    if (vouch === null || vouch.head !== head || vouch.plugin !== plugin) {
+      return null;
+    }
+    const loss = await olderLoss(github, repo, older.map((entry) => entry.run));
+    if (loss !== null) {
+      console.log(`release-eval-hold: run ${run.id} cannot start, but ${loss}`);
+      return null;
+    }
+    runs.push({ plugin, cause: vouch.verdict, id: String(run.id), html_url: run.html_url });
   }
-  return { head, cause: vouch.verdict, run: { id: String(newest.id), html_url: newest.html_url } };
+  return { head, cause: runs[0].cause, runs };
 }
 
 export const VERDICT_JOB = "Compare Verdict";
@@ -643,7 +698,7 @@ export async function main({ env = process.env, github, runsGitHub, now = Date.n
         await github("DELETE", `${base}/labels/${LABEL}`);
         released.push(number);
         if (!record) {
-          console.log(`release-eval-hold: #${number} released head=${head} cannot-start=${cannotStart.cause} run=${cannotStart.run.html_url}`);
+          console.log(`release-eval-hold: #${number} released head=${head} cannot-start=${cannotStart.cause} run=${cannotStart.runs.map((run) => run.html_url).join(",")}`);
           continue;
         }
         const wait = Math.round((now() - Date.parse(record.created_at)) / 60000);

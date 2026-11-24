@@ -580,10 +580,11 @@ real-time deadline. A hold that lands after the merge is not a hold.
   the reason line by a listed human or the lanes App, both on a
   line of their own outside a quote or fence, and no other reason, body hold or member veto stands
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). With no
-  record at the head, the same step also removes it when the newest compare run naming this PR and
-  its head reads back the same way but ran its `Compare Cannot Start: <cause>` job to success
+  record at the head, the same step also removes it when, for every plugin whose skill, agent or
+  context text the PR changes, the newest compare run naming this PR, its head and that plugin as
+  its target reads back the same way but ran its `Compare Cannot Start: <cause>` job to success
   instead, the run's own record that compare mode refused the PR (`compare-refused`);
-  its comment carries `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run id> -->`,
+  its comment carries `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run ids> -->`,
   and the PR merges first and owes the default-branch run in
   [evals.md](../../review/evals.md#where-and-on-what). A missing record alone releases nothing.
   Keep "do not merge" and `do-not-merge` out of the record comment: they read as a veto.

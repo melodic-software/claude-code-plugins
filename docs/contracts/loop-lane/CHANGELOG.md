@@ -11,7 +11,8 @@ Minor. The Cross-lane PR hold gains a release reason; no topology, escalation-co
 capability-tier or §4 invariant changed.
 
 - **Eval hold, compare run cannot start.** With no record at the head, pr-merge's release step also
-  lifts an eval hold when the newest compare run naming the PR and its head reads back as trusted
+  lifts an eval hold when, for every plugin whose skill, agent or context text the PR changes, the
+  newest compare run naming the PR, its head and that plugin as its target reads back as trusted
   and ran its `Compare Cannot Start: compare-refused` job to success. The PR merges first and owes
   the default-branch run in `docs/review/evals.md`. A missing record alone still releases nothing.
 

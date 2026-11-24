@@ -1,10 +1,10 @@
 name: PR Run Plugin Evals
-# release-eval-hold.mjs reads a compare run's pull request and head from this
-# name, since the runs API returns no dispatch inputs
+# release-eval-hold.mjs reads a compare run's pull request, head and target
+# plugin from this name, since the runs API returns no dispatch inputs
 # (https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
 run-name: >-
   ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
-  && format('eval-compare pr={0} head={1}', inputs.pr, inputs.head-sha) || '' }}
+  && format('eval-compare pr={0} head={1} target={2}', inputs.pr, inputs.head-sha, inputs.target) || '' }}
 
 # Runs `claude plugin eval` on a fresh GitHub-hosted runner, two ways:
 #

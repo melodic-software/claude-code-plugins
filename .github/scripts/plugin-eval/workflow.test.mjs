@@ -212,7 +212,7 @@ test("the verdict job's name is the one whose failure keeps a cannot-start relea
 test("compare mode leaves the suite legs out, and its run name is the one the release reads back", async () => {
   assert.match(text, /name: Check Key Credit\n(?: {4}#[^\n]*\n)* {4}if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false' && \(\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
   assert.match(job("compare-prepare"), /if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false'\n {6}&& github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n/);
-  assert.match(text, /format\('eval-compare pr=\{0\} head=\{1\}', inputs\.pr, inputs\.head-sha\)/);
+  assert.match(text, /format\('eval-compare pr=\{0\} head=\{1\} target=\{2\}', inputs\.pr, inputs\.head-sha, inputs\.target\)/);
   const { runVouches } = await import("../pr-merge/release-eval-hold.mjs");
   const head = "d".repeat(40);
   const run = {
@@ -223,11 +223,13 @@ test("compare mode leaves the suite legs out, and its run name is the one the re
     conclusion: "success",
     run_attempt: 1,
     head_sha: "f".repeat(40),
-    display_title: `eval-compare pr=12 head=${head}`,
+    display_title: `eval-compare pr=12 head=${head} target=plugins/demo`,
     repository: { full_name: "o/r" },
     head_repository: { full_name: "o/r" },
   };
-  assert.deepEqual(runVouches(run, "o/r", "main"), { pr: 12, head });
+  assert.deepEqual(runVouches(run, "o/r", "main"), { pr: 12, head, plugin: "demo" });
+  assert.deepEqual(runVouches({ ...run, display_title: `eval-compare pr=12 head=${head} target=plugins/demo/` }, "o/r", "main"), { pr: 12, head, plugin: "demo" });
+  assert.equal(runVouches({ ...run, display_title: `eval-compare pr=12 head=${head} target=demo` }, "o/r", "main"), null);
 });
 
 test("a compare run records that compare mode refuses the pull request, after its dispatcher, input and head checks, and runs no arm", async () => {
