@@ -84,7 +84,6 @@ BACKUP_SUFFIX = ".discriminate-backup"
 
 
 def resolve(value: str) -> pathlib.Path:
-    """Resolve a path spelling, reporting any conversion on stderr."""
     path, conversion = pathfix.resolve_existing(value)
     if conversion:
         print(f"NOTE: {conversion}", file=sys.stderr)
@@ -174,9 +173,6 @@ def last_line(text: str) -> str:
 
 
 def warn_uncommitted(target: pathlib.Path) -> None:
-    """Rule 5, reported rather than enforced: committing first makes an
-    accidental clobber recoverable, and it costs nothing. The enforcement that
-    actually protects the file is the sidecar and the verified restore."""
     # `-C` changes directory, it does not isolate. An inherited absolute GIT_DIR
     # overrides repository discovery and GIT_CONFIG replaces the file git reads,
     # so an ambient environment would make this warning describe a different

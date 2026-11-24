@@ -87,7 +87,6 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
 
 
 def extract_markdown_urls(text: str, base_url: str) -> list:
-    """Link targets from markdown: [](), <autolink>, and bare URLs."""
     urls = []
     for regex, bare_text_capture in (
         (MD_LINK_RE, False),
@@ -150,7 +149,6 @@ def extract_sitemap_xml_urls(data: bytes) -> list:
 
 
 def glob_regex(pattern: str):
-    """Path glob: '**' spans directories, '*' and '?' stay inside one segment."""
     out, i = [], 0
     while i < len(pattern):
         if pattern.startswith("**/", i):
@@ -172,7 +170,6 @@ def glob_regex(pattern: str):
 
 
 def extract_repo_tree_urls(data: bytes, args) -> tuple:
-    """Raw URLs for the listed blobs the globs keep, plus the repository record."""
     adapter = ADAPTERS[args.forge]
     for flag, value in (("--owner", args.owner), ("--repo", args.repo)):
         if not value or not REPO_NAME_RE.match(value) or value in (".", ".."):

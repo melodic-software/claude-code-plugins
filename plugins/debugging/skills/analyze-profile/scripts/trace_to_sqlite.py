@@ -199,8 +199,6 @@ def load_chrome_trace(con, data):
 
 
 def pick(table, index, what):
-    """table[index] for a non-negative integer index; a negative one would
-    silently count from the end."""
     if not isinstance(index, int) or isinstance(index, bool) or index < 0:
         raise InputError(f"{what} index {index!r} is not a non-negative integer")
     return table[index]

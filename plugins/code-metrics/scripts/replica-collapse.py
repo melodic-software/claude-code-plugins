@@ -80,7 +80,6 @@ def root_relative(path: str, prefix: str) -> str:
 
 
 def carrier(rootrel: str, entry: str) -> str | None:
-    """The prefix in front of a registry line, or None when it is not this line."""
     if rootrel == entry:
         return ""
     if rootrel.endswith("/" + entry):
@@ -91,7 +90,6 @@ def carrier(rootrel: str, entry: str) -> str | None:
 def registry_match(
     rootrel: str, registries: list[tuple[str, list[tuple[int, str]]]]
 ) -> tuple[str, int, str, str] | None:
-    """The first registry line a root-relative path belongs to, with its carrier."""
     for registry_path, entries in registries:
         for number, entry in entries:
             where = carrier(rootrel, entry)

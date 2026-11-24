@@ -82,8 +82,6 @@ class Refusal:
     error_contains: tuple[str, ...]
     refused_by: str
     enforced_at: str
-    # Envelope fields a caller may branch on, asserted by identity. A consumer
-    # reading `inScope` needs it present and false, not merely falsy-or-absent.
     envelope_fields: tuple[tuple[str, object], ...] = ()
     # Rows claiming the refusal precedes every network call. These are replayed
     # against a recording `gh` shim that is the only executable on PATH, and the
@@ -123,9 +121,6 @@ class Effect:
     entry_point: str
     argv: tuple[str, ...]
     fixture: str
-    # WHICH way state moved, not merely that it moved: a boolean lets a reap
-    # that rewrites the expired lease -- or touches an unrelated file -- pass a
-    # row whose claim is deletion. See DELTA_KINDS.
     delta: str
     exit_code: int
 
@@ -913,18 +908,10 @@ def _thread(
         "humanDeferred": human_deferred,
     }
     if severity_flagged is not None:
-        # Omitted by default so the rows that never reach the severity guard
-        # keep exercising `classify`'s fail-closed `.get(..., True)` default.
         thread["severityFlagged"] = severity_flagged
     if finding_count is not _OMITTED:
-        # Likewise omitted by default, so the rows that never reach the
-        # multi-finding guard keep exercising its fail-closed default. None is a
-        # MEANINGFUL value here (the projection reports it for a truncated
-        # comment page), which is why omission needs its own sentinel.
         thread["findingCount"] = finding_count
     if lane_answered is not None:
-        # Omitted by default, so the own-PR rows keep exercising the guard's
-        # fail-closed `.get(..., False)` default.
         thread["laneAnswered"] = lane_answered
     return thread
 
@@ -1245,10 +1232,6 @@ PREDICATES: tuple[Predicate, ...] = (
 EMPTY_STATE = "empty"
 EXPIRED_WORKER_LEASE = "expired-worker-lease"
 
-# Observed movement of the state directory's file set, asserted over the
-# fingerprint's keys rather than named paths -- a path literal here would couple
-# the contract to the lease writer's internal layout, which is exactly the drift
-# this module refuses to encode.
 UNCHANGED = "unchanged"
 ADDED = "files added"
 REMOVED = "files removed"
