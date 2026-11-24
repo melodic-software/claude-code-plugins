@@ -11,7 +11,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import { commitPulls, createGitHub, ETAG, GitHubError, graphQLReader, isFault, paginate } from "../../scripts/lib/github-client.mjs";
-import { loadTrustedList } from "../../scripts/lib/trusted-actors.mjs";
+import { loadTrustedList, trustedListPath } from "../../scripts/lib/trusted-actors.mjs";
 
 export { loadTrustedList };
 
@@ -1084,7 +1084,7 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
     let list;
     let deniedIds;
     try {
-      list = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+      list = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS_PATH));
       deniedIds = parseDeniedIds(env.DENIED_ACTOR_IDS);
     } catch {
       throw new Stop("list-unreadable");

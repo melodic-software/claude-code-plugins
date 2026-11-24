@@ -18,6 +18,7 @@ import { pathToFileURL } from "node:url";
 import { AGENT_READY } from "../../scripts/lib/lane-vocabulary.mjs";
 import { trackerBindingText } from "../../scripts/pr-merge/merge-holds.mjs";
 import { createGitHub } from "../../scripts/lib/github-client.mjs";
+import { trustedListPath } from "../../scripts/lib/trusted-actors.mjs";
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { isStatusLabel, statusReader } from "../resolve-config/read-status.mjs";
 
@@ -186,7 +187,7 @@ async function main() {
   const { GITHUB_API_URL, GITHUB_TOKEN, REPOSITORY, ISSUE_NUMBER, TRUSTED_ACTORS_PATH, LANES_APP_ID, TRACKER_CONFIG, BORN_TRIAGED } = process.env;
   let list = null;
   try {
-    list = JSON.parse(readFileSync(TRUSTED_ACTORS_PATH, "utf8"));
+    list = JSON.parse(readFileSync(trustedListPath(process.env, TRUSTED_ACTORS_PATH), "utf8"));
   } catch {
     // checkBornTriaged reports list-unreadable.
   }

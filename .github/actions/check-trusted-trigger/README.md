@@ -14,6 +14,7 @@ condition 1 and the actor and author parts of condition 2).
 | `event-name` | `${{ github.event_name }}` | The triggering event |
 | `event-path` | `${{ github.event_path }}` | The event payload file |
 | `trusted-actors-path` | `.base/.github/standards/trusted-actors/trusted-actors.json` | The list, from the base-SHA checkout |
+| `standards-path` | empty | A standards checkout (`download-standards`' `path`), made before head code ran; when set, the list is read from its `components/trusted-actors/trusted-actors.json` and `trusted-actors-path` is ignored |
 | `pr-number` | empty | The PR on `workflow_dispatch`; ignored otherwise |
 | `github-token` | `${{ github.token }}` | Reads this run's own record on every path, the PR on `workflow_dispatch` and `workflow_run`, and its branch ref on `workflow_dispatch` |
 | `denied-actor-ids` | empty | Comma- or space-separated user ids that stop the lane with `bot-actor` |

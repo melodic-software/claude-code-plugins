@@ -343,6 +343,40 @@ test("a config symlink that leaves base-path fails red", async (t) => {
   await assertFailsRed(t, env, /outside base-path/);
 });
 
+const STANDARDS_VOCABULARY = "components/github-actions-conventions/vocabulary.json";
+
+function standardsCheckout(root, { vocabulary = true } = {}) {
+  const dir = join(root, "standards");
+  mkdirSync(dir, { recursive: true });
+  if (vocabulary) {
+    place(dir, STANDARDS_VOCABULARY, join(FIXTURES, "vocabulary.json"));
+  }
+  return dir;
+}
+
+test("with standards-path set, the vocabulary is read from the standards checkout, not base-path", async () => {
+  const { root, env } = workspace({ vocabulary: false });
+  assert.equal(await main({ env: { ...env, STANDARDS_DIR: standardsCheckout(root) }, github: srcChanged() }), 0);
+});
+
+test("with standards-path set, base-path's vocabulary is never read", async (t) => {
+  const { root, env } = workspace();
+  await assertFailsRed(t, { ...env, STANDARDS_DIR: standardsCheckout(root, { vocabulary: false }) }, /vocabulary is missing/);
+});
+
+test("an empty standards-path reads the vocabulary under base-path", async () => {
+  const { env } = workspace();
+  assert.equal(await main({ env: { ...env, STANDARDS_DIR: "" }, github: srcChanged() }), 0);
+});
+
+test("a vocabulary symlink that leaves standards-path fails red", async (t) => {
+  const { root, base, env } = workspace();
+  const dir = standardsCheckout(root, { vocabulary: false });
+  mkdirSync(dirname(join(dir, STANDARDS_VOCABULARY)), { recursive: true });
+  symlinkSync(join(base, VOCABULARY_PATH), join(dir, STANDARDS_VOCABULARY));
+  await assertFailsRed(t, { ...env, STANDARDS_DIR: dir }, /outside standards-path/);
+});
+
 const REJECTIONS = [
   [
     "rejection 1: a schema-invalid config",
