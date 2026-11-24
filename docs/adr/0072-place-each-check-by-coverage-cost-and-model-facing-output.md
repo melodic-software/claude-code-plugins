@@ -147,8 +147,8 @@ Owner decision
 ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L412)).
 This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
 
-- **Second entry.** This repository's `lefthook.yml` adds `changelog-fragments`
-  (`scripts/pre-push-changelog-fragments.sh`): `check-changelog-fragments.sh --check` and
+- **Second entry.** This repository's `lefthook.yml` adds `branch-checks`
+  (`scripts/pre-push-branch-checks.sh`): `check-changelog-fragments.sh --check` and
   `--check-required` against the remote's default branch, for a pushed branch whose tip is HEAD.
   On 2026-11-24 missing or malformed fragments caused 406 of the 962 PR-minutes that Check Plugins
   and Check Catalog spent red, all on causes these two gates catch.
@@ -162,3 +162,10 @@ This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
   check leaves the hook for CI only when it cannot be brought under 3 s. One over-run on an
   unusually large change is a signal to look at, not by itself a removal. The check that grows
   with the repository is `validate-plugin-contracts.mjs`.
+- **Seven whole-branch checks**
+  ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L413)).
+  After the fragment checks the same job runs, in parallel against the same base, the four
+  changelog-parity modes, `sync-plugin-options-docs.py --check`, `validate-plugin-contracts.mjs`
+  (a warning fails), and the marketplace, catalog and cheat-sheet generators in `--check` mode.
+  They read the working tree, so a dirty tree leaves them to CI. On native Windows (MINGW, MSYS,
+  Cygwin) only the fragment checks run until the job is timed there.

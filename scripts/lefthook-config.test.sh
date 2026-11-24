@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: lefthook.yml .claude/settings.json scripts/pre-push-changelog-fragments.sh
+# test-scope: lefthook.yml .claude/settings.json scripts/pre-push-branch-checks.sh
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -31,10 +31,10 @@ else
 fi
 
 local_jobs="$(grep -E '^[[:space:]]+- name:' "$CONFIG" | sed -E 's/^[[:space:]]+- name:[[:space:]]*//' | tr '\n' ' ')"
-if [[ "$local_jobs" == "changelog-fragments " ]] && grep -q 'run: scripts/pre-push-changelog-fragments.sh' "$CONFIG"; then
-  ok "lefthook.yml's only own job is the pre-push changelog-fragments check (ADR 0072, 2026-11-24 addendum)"
+if [[ "$local_jobs" == "branch-checks " ]] && grep -q 'run: scripts/pre-push-branch-checks.sh' "$CONFIG"; then
+  ok "lefthook.yml's only own job is the pre-push branch-checks job (ADR 0072, 2026-11-24 addendum)"
 else
-  fail "lefthook.yml's own jobs must be exactly changelog-fragments running scripts/pre-push-changelog-fragments.sh, got: $local_jobs"
+  fail "lefthook.yml's own jobs must be exactly branch-checks running scripts/pre-push-branch-checks.sh, got: $local_jobs"
 fi
 
 if ! grep -q 'guardrails-remote-pre-push-content' "$CONFIG"; then
@@ -86,7 +86,7 @@ if command -v lefthook >/dev/null 2>&1; then
     git init -q -b main "$work" || exit 2
     cp "$CONFIG" "$work/lefthook.yml"
     mkdir -p "$work/scripts"
-    cp "$REPO_ROOT/scripts/pre-push-changelog-fragments.sh" "$work/scripts/"
+    cp "$REPO_ROOT/scripts/pre-push-branch-checks.sh" "$work/scripts/"
     git -C "$work" add lefthook.yml scripts
     git -C "$work" commit -q -m "chore: seed lefthook" --no-verify
     git -C "$work" remote add origin "$bare"
@@ -98,7 +98,7 @@ if command -v lefthook >/dev/null 2>&1; then
     dump="$(cd "$work" && lefthook dump 2>/dev/null)"
     if ! grep -q 'skip_lfs: true' <<<"$dump" ||
       ! grep -q 'name: guardrails-remote-pre-push-content' <<<"$dump" ||
-      ! grep -q 'name: changelog-fragments' <<<"$dump" ||
+      ! grep -q 'name: branch-checks' <<<"$dump" ||
       grep -q 'name: check-affected' <<<"$dump" ||
       grep -q 'reference-verify' <<<"$dump"; then
       echo "FAIL_DUMP:$dump"
