@@ -74,7 +74,7 @@ parity() {
 
 contracts() {
   local out rc=0
-  out="$(node "$SCRIPT_DIR/validate-plugin-contracts.mjs" 2>&1)" || rc=$?
+  out="$(VALIDATE_CONTRACTS_BASE_REF="$default" node "$SCRIPT_DIR/validate-plugin-contracts.mjs" 2>&1)" || rc=$?
   printf '%s\n' "$out"
   if ((rc == 0)) && grep -q '^warning: ' <<<"$out"; then
     echo "a contract warning fails like an error (scripts/validate-plugins.sh)."

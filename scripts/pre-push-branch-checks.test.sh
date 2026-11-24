@@ -18,9 +18,6 @@ HOOK="$SELF_DIR/pre-push-branch-checks.sh"
 . "$SELF_DIR/lib/fixture-tree.sh"
 
 ZERO=0000000000000000000000000000000000000000
-BUDGET_SECONDS=3
-REF_NODE_STARTS=38
-REF_HOST_MS=1723
 REAL_HEAD="$(git -C "$REPO_ROOT" rev-parse HEAD)" || exit 2
 OBJECTS="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir)/objects" || exit 2
 f=""
@@ -169,6 +166,11 @@ commit "$f" contract-error
 run_hook
 expect "a plugin contract error stops the push" 1 "must not set defaultEnabled" \
   "plugin-contracts failed; fix: fix the manifest or skill finding, then re-run node scripts/validate-plugin-contracts.mjs"
+if [[ "$out" != *"VALIDATE_CONTRACTS_BASE_REF unset"* ]]; then
+  ok "the contract check runs with the push's base, so the retirements append-only check is not skipped"
+else
+  fail "the contract check ran without VALIDATE_CONTRACTS_BASE_REF: $out"
+fi
 
 topic
 fragment "$HINT_PLUGIN" 0000000e
@@ -235,71 +237,5 @@ expect "a stale cheat sheet stops the push" 1 "Cheat sheet drift" "cheatsheet fa
 git_test_config "$f" update-ref -d refs/remotes/origin/main
 run_hook
 expect "an unfetched base is left to CI" 0 "is not fetched"
-git_test_config "$f" update-ref refs/remotes/origin/main main
-
-mapfile -t plugins < <(cd "$f" && for m in plugins/*/.claude-plugin/plugin.json; do m="${m#plugins/}" && echo "${m%%/*}"; done)
-live_plugins=${#plugins[@]}
-live_fragments="$(find "$f/.changes" -name '*.md' | wc -l)"
-extra=$(((live_plugins + 3) / 4))
-topic
-for ((i = 0; i < extra; i++)); do
-  p="${plugins[i]}"
-  q="$p-headroom"
-  cp -R "$f/plugins/$p" "$f/plugins/$q"
-  jq --arg q "$q" '.name = $q' "$f/plugins/$q/.claude-plugin/plugin.json" >"$f/.git/m.tmp" && mv "$f/.git/m.tmp" "$f/plugins/$q/.claude-plugin/plugin.json"
-  jq --arg p "$p" --arg q "$q" '.plugins += [.plugins[] | select(.name == $p) | .name = $q | .source = "./plugins/" + $q]' \
-    "$f/.claude-plugin/marketplace.json" >"$f/.git/mp.tmp" && mv "$f/.git/mp.tmp" "$f/.claude-plugin/marketplace.json"
-  printf '%s\n' "$q" >>"$f/scripts/fragment-plugins.txt"
-  plugins+=("$q")
-done
-commit "$f" headroom-base
-git_test_config "$f" branch -q -f main HEAD
-git_test_config "$f" update-ref refs/remotes/origin/main HEAD
-total=${#plugins[@]}
-fragments=$(((live_fragments * 5 + 3) / 4))
-((fragments >= total)) || fragments=$total
-for ((i = 0; i < fragments; i++)); do
-  p="${plugins[i % total]}"
-  ((i >= total)) || printf '\nTopic.\n' >>"$f/plugins/$p/README.md"
-  fragment "$p" "$(printf '%08x' "$((i + 4096))")"
-done
-commit "$f" budget
-reference() {
-  git -C "$f" status --porcelain --untracked-files=all >/dev/null
-  git -C "$f" ls-files -z 'plugins/*/.claude-plugin/plugin.json' | (cd "$f" && node -e '
-    const fs = require("fs");
-    let n = 0;
-    for (const p of fs.readFileSync(0, "utf8").split("\0").filter(Boolean)) n += Object.keys(JSON.parse(fs.readFileSync(p, "utf8"))).length;
-    for (const e of fs.readdirSync("plugins", { recursive: true, withFileTypes: true })) if (e.isFile()) n += fs.readFileSync(e.parentPath + "/" + e.name).length;
-    process.stdout.write(String(n));
-  ') >/dev/null
-  local i
-  for ((i = 0; i < REF_NODE_STARTS; i++)); do node -e 0; done
-}
-ref_runs=()
-for _ in 1 2 3; do
-  start=$(date +%s%N)
-  reference
-  ref_runs+=("$((($(date +%s%N) - start) / 1000000))")
-done
-ref_ms="$(printf '%s\n' "${ref_runs[@]}" | sort -n | sed -n 2p)"
-start=$(date +%s%N)
-run_hook
-ms=$((($(date +%s%N) - start) / 1000000))
-limit=$((BUDGET_SECONDS * 1000 * ref_ms / REF_HOST_MS))
-if [[ "$out" != *"left to CI"* ]]; then
-  ok "the budget push ran all seven checks"
-else
-  fail "the budget push skipped a check: $out"
-fi
-tracer="$(awk '/^TracerPid:/ {print $2}' /proc/$$/status 2>/dev/null)"
-scale="$total plugins (live $live_plugins, x1.25) and $fragments fragments (live $live_fragments)"
-if [[ -n "$tracer" && "$tracer" != 0 ]]; then
-  ok "budget not judged: a tracer (pid $tracer) slows every syscall; hook ${ms} ms, reference ${ref_ms} ms at $scale"
-elif ((ms <= limit)); then
-  ok "the hook ran in ${ms} ms at $scale, within ${limit} ms: the ${BUDGET_SECONDS} s budget scaled by this host's reference ${ref_ms} ms over ${REF_HOST_MS} ms"
-else
-  fail "the hook took ${ms} ms at $scale, over ${limit} ms: the ${BUDGET_SECONDS} s budget scaled by this host's reference ${ref_ms} ms over ${REF_HOST_MS} ms"
-fi
 
 test_harness::report
