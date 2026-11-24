@@ -816,6 +816,26 @@ class FilterThenRecordEndToEnd(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "standards_repository"):
             skip.main_inputs(self.base)
 
+    def test_a_repository_or_unknown_source_keys_unread_or_raises(self) -> None:
+        for team, expected in (
+            ("trusted_actors_source: repository\n", "unread"),
+            ("trusted_actors_source: elsewhere\n", None),
+            ("trusted_actors_source: [standards]\n", None),
+        ):
+            with self.subTest(team=team):
+                (self.base / "docs/conventions/source-control.yaml").write_text(team)
+                _git(self.base, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+                _git(self.base, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "c")
+                read = skip.merge_policy
+                with mock.patch.object(read, "standards_file") as standards:
+                    if expected is None:
+                        with self.assertRaisesRegex(RuntimeError, "trusted_actors_source"):
+                            skip.main_inputs(self.base)
+                    else:
+                        inputs = skip.main_inputs(self.base)
+                        self.assertEqual(inputs[skip.STANDARDS_INPUT], expected)
+                standards.assert_not_called()
+
 
 class TheReaderListingRaisesOnAFailedRead(unittest.TestCase):
     def test_an_unreadable_listing_raises_runtime_error(self) -> None:

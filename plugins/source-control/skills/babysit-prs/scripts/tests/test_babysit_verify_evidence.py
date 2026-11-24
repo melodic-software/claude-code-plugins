@@ -608,8 +608,8 @@ class FakeGitHub:
             return ok(file_payload(self.team_yaml))
         if path == f"repos/{REPO}/contents?ref={MAIN_SHA}":
             return ok([])
-        if path == f"repos/{STANDARDS_REPO}/commits/main":
-            return ok({"sha": STANDARDS_SHA})
+        if path == f"repos/{STANDARDS_REPO}/git/ref/heads/main":
+            return ok({"ref": "refs/heads/main", "object": {"sha": STANDARDS_SHA}})
         standards = (
             f"repos/{STANDARDS_REPO}/contents/"
             f"{policy.STANDARDS_TRUSTED_ACTORS}?ref={STANDARDS_SHA}"
@@ -3334,6 +3334,23 @@ class TheSpecMustBeTrusted(unittest.TestCase):
                     STANDARDS_REPO in " ".join(c) for c in fake.calls
                 )
                 self.assertEqual(read_standards, team == OPTED_IN)
+
+    def test_a_failed_standards_read_refuses_without_the_copy(self) -> None:
+        valid = {"version": 1, "actors": [MAINTAINER, LANES]}
+        for failing in (
+            f"repos/{STANDARDS_REPO}/git/ref/heads/main",
+            f"repos/{STANDARDS_REPO}/contents/{policy.STANDARDS_TRUSTED_ACTORS}",
+        ):
+            with self.subTest(failing=failing):
+                self.enterContext(mock.patch.object(policy, "_STANDARDS_SHA", {}))
+                self.enterContext(mock.patch.object(policy, "_STANDARDS_TEXT", {}))
+                fake = passing()
+                fake.team_yaml, fake.actors, fake.standards_actors = OPTED_IN, valid, valid
+                fake.fail = {failing}
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
+                self.assertFalse(
+                    any(ve.TRUSTED_ACTORS_PATH in " ".join(c) for c in fake.calls)
+                )
 
 
 class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):

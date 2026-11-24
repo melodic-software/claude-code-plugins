@@ -110,7 +110,7 @@ trusted_list() {
     std=$(printf '%s\n' "$team" | bash "$PARSER" --strict - standards_repository) || return 1
     std=${std//$'\r'/}
     [[ "$std" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || return 1
-    sha=$(gh api --hostname "$host" "repos/$std/commits/main" --jq .sha) || return 1
+    sha=$(gh api --hostname "$host" "repos/$std/git/ref/heads/main" --jq .object.sha) || return 1
     sha=${sha//$'\r'/}
     [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || return 1
     gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$std/contents/$STANDARDS_TRUSTED_ACTORS?ref=$sha"

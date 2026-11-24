@@ -36,7 +36,8 @@ case "\$1 \$2" in
     case "\$endpoint" in
       */events\?*) serve events.json ;;
       */comments\?*) serve comments.json ;;
-      repos/example-org/standards/commits/main) serve standards-head.json ;;
+      repos/example-org/standards/git/ref/heads/main) serve standards-head.json ;;
+      repos/example-org/standards/commits/main) serve standards-tag.json ;;
       repos/example-org/standards/contents/*) serve standards-trusted.json ;;
       */contents/docs/conventions/source-control.yaml)
         [[ -f "$TEST_TMPDIR/team.yaml" ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
@@ -166,15 +167,18 @@ assert_exit "an eval line from the lanes App the settings name lets the flip go 
 
 comments "$(comment 2026-11-21T07:00:05Z User 101 owner "$EVAL_LINE")"
 mv "$TEST_TMPDIR/trusted.json" "$TEST_TMPDIR/standards-trusted.json"
-printf '{"sha":"%s"}\n' "$(printf '5%.0s' {1..40})" >"$TEST_TMPDIR/standards-head.json"
+printf '{"ref":"refs/heads/main","object":{"sha":"%s"}}\n' "$(printf '5%.0s' {1..40})" >"$TEST_TMPDIR/standards-head.json"
+printf '{"sha":"%s"}\n' "$(printf '6%.0s' {1..40})" >"$TEST_TMPDIR/standards-tag.json"
 printf 'trusted_actors_source: standards\nstandards_repository: example-org/standards\n' >"$TEST_TMPDIR/team.yaml"
 run 7 >/dev/null 2>&1
 assert_exit "an opted-in repository reads the standards list" 0 "$?"
 assert_contains "the standards list is read at main's commit" "$(cat "$TEST_TMPDIR/calls")" "repos/example-org/standards/contents/components/trusted-actors/trusted-actors.json?ref=5555555555555555555555555555555555555555"
 assert_not_contains "the repository copy is not read" "$(cat "$TEST_TMPDIR/calls")" ".github/standards/trusted-actors"
+assert_not_contains "main is read by its full ref, never a same-named tag" "$(cat "$TEST_TMPDIR/calls")" "standards/commits/main"
 rm -f "$TEST_TMPDIR/standards-head.json"
 run 7 >/dev/null 2>&1
-assert_exit "an unresolved standards commit leaves the label holding" 3 "$?"
+assert_exit "an unresolved standards branch leaves the label holding, a tag named main notwithstanding" 3 "$?"
+rm -f "$TEST_TMPDIR/standards-tag.json"
 for team in 'trusted_actors_source: elsewhere' 'trusted_actors_source: [standards]' \
   'trusted_actors_source: standards' $'trusted_actors_source: standards\nstandards_repository: not-a-pair' \
   $'trusted_actors_source: standards\nstandards_repository: [example-org/standards]'; do

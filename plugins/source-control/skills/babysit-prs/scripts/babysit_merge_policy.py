@@ -5100,16 +5100,14 @@ def reads_standards(owner: str, name: str, ref: str) -> str | None:
 
 
 def standards_sha(repo: str) -> str:
-    """The standards repository `repo`'s main at its first read in this
-    process, so every file a process reads from it comes from one commit."""
+    """The standards repository `repo`'s main branch tip (`base_tip`, by its
+    full ref) at its first read in this process, so every file a process
+    reads from it comes from one commit."""
     if repo not in _STANDARDS_SHA:
-        status, payload = _get(f"repos/{repo}/commits/main")
-        sha = json_object(payload).get("sha") if status == 200 else None
-        if not SHA_RE.fullmatch(str(sha or "")):
-            raise PolicyReadError(
-                f"{repo} main could not be resolved (status {status})"
-            )
-        _STANDARDS_SHA[repo] = str(sha)
+        try:
+            _STANDARDS_SHA[repo] = base_tip(*_split_repo(repo), "main")
+        except PolicyReadError as exc:
+            raise PolicyReadError(f"{repo}: {exc}") from exc
     return _STANDARDS_SHA[repo]
 
 
