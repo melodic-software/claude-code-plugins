@@ -1910,6 +1910,7 @@ jobs:
         if: steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'script'
         env:
           SCRIPT: ${{ steps.config.outputs.script }}
+          STAGED_SCRIPT: ${{ steps.stage.outputs.script-path }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -1920,7 +1921,7 @@ jobs:
           export ACTIVITY_ARGS
           unset GH_TOKEN GITHUB_TOKEN RESOLVED
           rm -f "$SKIP_REASON_FILE"
-          "$RUNNER_TEMP/base-script/$SCRIPT"
+          "$STAGED_SCRIPT"
           reason=""
           if [ -s "$SKIP_REASON_FILE" ]; then
             reason=$(head -n 1 "$SKIP_REASON_FILE" | tr -d '\r')

@@ -115,7 +115,9 @@ const headRun = /(^|[\s;&|(])(\.\/|npm |npx |yarn |pnpm |make\b|pytest|python |n
 const offenders = after.filter((s) => s.run && headRun.test(s.run)).map((s) => s.name);
 say(offenders.length === 0, `no run step after the head checkout runs head code (${offenders.join(", ") || "none"})`);
 const script = byId("act-script").run ?? "";
-say(/"\$RUNNER_TEMP\/base-script\/\$SCRIPT"/.test(script), "a script activity runs from its base copy");
+say(/^\s*"\$STAGED_SCRIPT"$/m.test(script) && byId("act-script").env?.STAGED_SCRIPT === "${{ steps.stage.outputs.script-path }}"
+  && /^\.\/\.base\/\.github\/actions\/collect-base-activity\b/.test(byId("stage").uses ?? ""),
+  "a script activity runs from its base copy");
 // No model runs beside the lane token: no step runs claude-code-action or
 // takes a Claude credential, and a skill fails red before the mint.
 say(!steps.some((s) => /claude-code-action/.test(s.uses ?? "")) && !/secrets\./.test(JSON.stringify(wf.jobs.run)) && !wf.on.workflow_call.secrets,
@@ -205,7 +207,7 @@ say(/sha256/.test(byId("tracker-config").run ?? ""), "the tracker config copy re
 const scriptEnv = byId("act-script").env ?? {};
 say(/base-script/.test(String(scriptEnv.TRACKER_CONFIG ?? "")), "the script step gets TRACKER_CONFIG from the base copy");
 const trackerCheck = script.search(/sum=\$\(sha256sum <"\$TRACKER_CONFIG"\)\n\s*if \[ "\$\{sum%% \*\}" != "\$TRACKER_SHA256" \]; then\n[^\n]*\n\s*exit 1/); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$RUNNER_TEMP/base-script/$SCRIPT"'),
+say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$STAGED_SCRIPT"'),
   "the script step fails on a tracker config whose SHA-256 differs, before running the script");
 
 // Hash checks compare and fail, not merely run.
