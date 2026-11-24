@@ -2947,7 +2947,7 @@ jobs:
         if: steps.hook_budget_scope.outputs.applies == 'true'
         timeout-minutes: 2
         run: |
-          npm ci --ignore-scripts --loglevel http
+          npm ci --ignore-scripts
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >>"$GITHUB_PATH"
       - name: Verify every git hook stays within its time budget
         id: git_hook_time_budget
