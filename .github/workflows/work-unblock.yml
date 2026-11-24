@@ -103,8 +103,8 @@ on:
     # labeled and unlabeled start only the sync-status job.
     types: [closed, labeled, unlabeled]
   schedule:
-    - cron: "4,19,34 * * * *"
-    - cron: "49 * * * *"
+    - cron: "13,43,58 * * * *"
+    - cron: "28 * * * *"
   # A finished issue lane run may free a slot, so the sweep runs at once and
   # admits the next deferred issue instead of waiting for the hour. It runs
   # main's code only, for a same-repository run, and reads no artifact of the
@@ -453,7 +453,7 @@ jobs:
   publish-lane-level:
     name: Publish Lane Level
     needs: label-unblocked
-    if: ${{ !cancelled() && github.event_name == 'schedule' && github.event.schedule == '49 * * * *' && github.ref == 'refs/heads/main' }}
+    if: ${{ !cancelled() && github.event_name == 'schedule' && github.event.schedule == '28 * * * *' && github.ref == 'refs/heads/main' }}
     concurrency:
       group: work-unblock-publish-lane-level
       cancel-in-progress: false
