@@ -4022,8 +4022,12 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: /tmp/ci-workflows-at-pin
-          key: ci-workflows-at-pin-${{ hashFiles('.github/workflows/*.yml') }}
+          key: ci-workflows-at-pin-${{ github.run_id }}
           restore-keys: ci-workflows-at-pin-
+      - name: List the restored ci-workflows pins
+        run: |
+          mkdir -p /tmp/ci-workflows-at-pin
+          find /tmp/ci-workflows-at-pin -mindepth 1 -maxdepth 1 -printf '%f\n' | sort >"$RUNNER_TEMP/pins-restored.txt"
 
       # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
       # starts src/launch.ts, which installs the runtime dependencies from the
@@ -4167,15 +4171,16 @@ jobs:
           key: ${{ steps.npm_cache.outputs.cache-primary-key }}
       - name: Keep the 20 newest ci-workflows pins
         id: pins
-        if: github.ref == 'refs/heads/main' && steps.pin_cache.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/main'
         run: |
           dir=/tmp/ci-workflows-at-pin
           [ -d "$dir" ] || exit 0
+          find "$dir" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | comm -13 "$RUNNER_TEMP/pins-restored.txt" - | grep -q . || exit 0
           find "$dir" -mindepth 1 -maxdepth 1 -printf '%T@ %f\n' | sort -rn | tail -n +21 |
             while read -r _ pin; do rm -rf "${dir:?}/$pin"; done
-          [ -z "$(find "$dir" -mindepth 1 -maxdepth 1)" ] || echo "any=true" >>"$GITHUB_OUTPUT"
+          echo "new=true" >>"$GITHUB_OUTPUT"
       - name: Save the ci-workflows pin cache
-        if: steps.pins.outputs.any == 'true'
+        if: steps.pins.outputs.new == 'true'
         uses: actions/cache/save@v6
         with:
           path: /tmp/ci-workflows-at-pin
