@@ -31,9 +31,6 @@ mk_repo() {
   git_test_config "$dir" commit -qm base
 }
 
-# run_case <label> <expected-rc> [<path-to-add>...]
-# Adds each path (committed), runs `--check`, asserts the exit code, and on an
-# expected failure asserts that every added path is named in the output.
 run_case() {
   local label="$1" expected="$2"
   shift 2
@@ -184,21 +181,16 @@ test_harness::assert_unknown_mode "$SUT_SRC"
 EMITTER="$SCRIPT_DIR/../plugins/docs-naming/skills/generate-file-name-gate/scripts/emit-gate.sh"
 ROOT_SCOPES="$SCRIPT_DIR/../plugins/docs-naming/scripts/root-scopes.jq"
 
-# script_exempt_names <gate>: one name per line from the gate's EXEMPT_NAMES.
 script_exempt_names() {
   sed -n "s/^EXEMPT_NAMES=' \(.*\) '\$/\1/p" "$1" | tr ' ' '\n' | sed '/^$/d'
 }
 
-# exempt_name_seeds <gate>: each exempt name, from the config and from the
-# gate's own list, under docs/ and outside it, one path per line.
 exempt_name_seeds() {
   {
     jq -r '.file_names.exempt_basenames[]' "$REPO_CONFIG"
     script_exempt_names "$1"
   } | sort -u | awk 'NF {print "docs/x/" $0; print "plugins/x/" $0}'
 }
-# This repository's settings live in docs/conventions/docs-naming.yaml; the
-# emitter takes a JSON document, so the YAML is converted once into a fixture dir.
 # shellcheck source=../plugins/docs-naming/lib/layer-yaml.sh
 . "$SCRIPT_DIR/../plugins/docs-naming/lib/layer-yaml.sh"
 REPO_YAML="$SCRIPT_DIR/../docs/conventions/docs-naming.yaml"
@@ -214,8 +206,6 @@ EMITTED_ROOTS=""
 DRIFT_REPORT=""
 DRIFT_RC=""
 
-# drift_norm <script-path> <rule> <roots> <file>: <file> with the four
-# by-construction differences replaced by fixed tokens.
 drift_norm() {
   local path="$1" rule="$2" roots="$3" s stem
   s="$(cat "$4" && printf x)"
@@ -231,9 +221,6 @@ drift_norm() {
   printf '%s' "$s"
 }
 
-# drift_compare <repo> <emitted-script> [<arg>]: runs this gate and the emitted
-# one with the same argument. Sets DRIFT_RC to this gate's exit code and
-# DRIFT_REPORT to empty when both agree after normalization, or to what differs.
 drift_compare() {
   local repo="$1" emitted="$2" tmp rc_a rc_b side a b
   shift 2
@@ -254,7 +241,6 @@ drift_compare() {
   done
 }
 
-# drift_seed <repo> <path>...: writes and commits each path.
 drift_seed() {
   local repo="$1" p
   shift
@@ -283,17 +269,12 @@ if [[ -n "$drift_ready" ]]; then
   while IFS= read -r one; do
     [[ -n "$one" ]] && exempt_seeds+=("docs/a/Bad_Name.$one")
   done < <(jq -r '.file_names.exempt_extensions[]' "$REPO_CONFIG")
-  # A glob entry gets its literal prefix plus a name the rule rejects, the
-  # same seed the emitter's own suite uses.
   while IFS= read -r one; do
     [[ "$one" == *'*' ]] || continue
     one="${one%%\**}"
     one="${one%/}"
     [[ -n "$one" ]] && exempt_seeds+=("$one/Exempt_By-PATH.md")
   done < <(jq -r '.file_names.exempt_paths[]' "$REPO_CONFIG")
-  # A probe the rule rejects under every root, in each extension a root object
-  # claims; and for each glob a root exempts, one path under it (exempt) and
-  # the same path under docs/ (judged, since the docs root exempts nothing).
   while IFS= read -r one; do
     [[ -n "$one" ]] && offender_seeds+=("$one")
   done < <(jq -r -f "$ROOT_SCOPES" "$REPO_CONFIG" |
@@ -307,10 +288,6 @@ if [[ -n "$drift_ready" ]]; then
     exempt_seeds+=("p/$one/Exempt_By-ROOT.md")
     offender_seeds+=("docs/p/$one/Judged_By-DOCS.md")
   done < <(jq -r '.file_names.roots[] | objects | .exempt_paths[]?' "$REPO_CONFIG")
-  # Every offender shape the header names, the exemption boundaries (a case
-  # variant of an exempt name, an exempt extension in the wrong case), case
-  # collisions including one against an exempt name, and non-markdown files
-  # outside docs/ that neither gate may judge.
   offender_seeds+=(
     docs/NEW-FILE.md docs/a/snake_case.md docs/a/Mixed.md docs/a/foo..md
     docs/a/foo.md. docs/a/foo... docs/a/noext docs/a/README.md.bak
@@ -325,7 +302,6 @@ if [[ -n "$drift_ready" ]]; then
   )
 fi
 
-# drift_emit <repo> <config> <out-dir>: renders the template into the fixture.
 drift_emit() {
   bash "$EMITTER" --config "$2" --root "$1" --out-dir "$3" >/dev/null 2>"$1/.git/emit.err"
 }
