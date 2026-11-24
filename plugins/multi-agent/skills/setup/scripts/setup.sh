@@ -306,6 +306,7 @@ apply() {
     }
     existing="$(awk -F '\t' '$1!="schema" && $1!="block"' <<<"$records")"
   fi
+  existing="$(awk -F '\t' '$1!="vendors.tiebreak" && $1!~/^vendors\.tiebreak\./' <<<"$existing")"
 
   local pair key value
   for pair in "${PAIRS[@]}"; do

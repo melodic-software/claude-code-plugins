@@ -283,5 +283,19 @@ assert_eq "valid vendors keys write cleanly" 0 "$?"
 out="$(run vendors check session=opus)"
 assert_contains "check resolves written vendors keys" "$out" '"routing":false'
 
+fixture tbupgrade
+mkdir -p "$T/tbupgrade/repo/docs/conventions"
+printf 'schema: 1\nvendors:\n  tiebreak:\n    - fewest-tokens\n    - vendor-order\n  trials_fail: 2\n' >"$T/tbupgrade/repo/docs/conventions/multi-agent.local.yaml"
+run tbupgrade apply --layer local --write vendors.routing=false >/dev/null
+assert_eq "an unrelated apply over a retired tiebreak list succeeds" 0 "$?"
+assert_eq "the apply drops the retired tiebreak list and keeps the rest" $'schema: 1\nvendors:\n  routing: false\n  trials_fail: 2' "$(cat "$T/tbupgrade/repo/docs/conventions/multi-agent.local.yaml")"
+
+fixture tbclear
+mkdir -p "$T/tbclear/repo/docs/conventions"
+printf 'schema: 1\nvendors:\n  tiebreak: [most-usage-left, vendor-order]\n  trials_fail: 2\n' >"$T/tbclear/repo/docs/conventions/multi-agent.local.yaml"
+run tbclear apply --layer local --write vendors.tiebreak= >/dev/null
+assert_eq "vendors.tiebreak= over a retired list succeeds" 0 "$?"
+assert_eq "vendors.tiebreak= removes every child of the list" $'schema: 1\nvendors:\n  trials_fail: 2' "$(cat "$T/tbclear/repo/docs/conventions/multi-agent.local.yaml")"
+
 printf '\n%d cases, %d failed\n' "$CASES" "$FAILED"
 ((FAILED == 0))
