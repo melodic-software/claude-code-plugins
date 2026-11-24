@@ -19,15 +19,12 @@ inputs:
     description: The issue to check.
     required: false
     default: ${{ github.event.issue.number }}
-  trusted-actors-path:
-    description: Path to the trusted-actor list, read from a default-branch checkout.
-    required: false
-    default: .base/.github/standards/trusted-actors/trusted-actors.json
   standards-path:
     description: >
       A melodic-software/standards checkout (download-standards' `path`
-      output), checked out before any head code ran. When set, the list is
-      read from it and trusted-actors-path is ignored.
+      output), checked out before any head code ran. The trusted-actor list
+      is read from it only: unset, or without the list,
+      the action fails closed.
     required: false
     default: ""
   lanes-app-id:
@@ -76,7 +73,6 @@ runs:
       shell: bash
       env:
         ISSUE_NUMBER: ${{ inputs.issue-number }}
-        TRUSTED_ACTORS_PATH: ${{ inputs.trusted-actors-path }}
         STANDARDS_DIR: ${{ inputs.standards-path }}
         LANES_APP_ID: ${{ inputs.lanes-app-id }}
         BORN_TRIAGED: ${{ inputs.born-triaged }}

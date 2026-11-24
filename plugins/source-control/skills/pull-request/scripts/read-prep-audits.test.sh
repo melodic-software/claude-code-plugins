@@ -87,7 +87,6 @@ check_fail_closed "a mapping keyed by class" \
   $'prep_audits:\n  rules:\n    enabled: false\n' "prep_audits is a mapping, not a list"
 check_fail_closed "a repeated prep_audits key" \
   $'prep_audits: []\nprep_audits:\n  - class: rules\n    enabled: false\n' "prep_audits appears more than once"
-# The parser emits no record for an empty value, so these are found in the text.
 check_fail_closed "an empty flow list as a skill" \
   $'prep_audits:\n  - class: rules\n    enabled: false\n    skill: []\n' "prep_audits item has a key with no value"
 check_fail_closed "an unknown key with an empty value" \

@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main } from "../../scripts/pr-unblock/feedback-dispatch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -170,6 +171,7 @@ async function run(slot, text = config(slot)) {
         GITHUB_OUTPUT: join(base, "output"),
         RUNNER_TEMP: base,
         BASE_PATH: base,
+        STANDARDS_DIR: standardsCheckout(),
         GITHUB_EVENT_PATH: event,
         APP_SENDER_ID: String(APP_ID),
       },

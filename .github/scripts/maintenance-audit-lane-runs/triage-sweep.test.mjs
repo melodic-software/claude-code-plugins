@@ -25,6 +25,7 @@ import {
   selectCandidates,
   statusListing,
 } from "./triage-sweep.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const ROOT = new URL("../../..", import.meta.url).pathname;
 const FIELD = STATUS_CONFIG["field-id"];
@@ -197,7 +198,7 @@ test("a needs-human the job token writes to the field reads back and a later sel
   const fields = {};
   const github = fieldWorld(issues, fields);
   assert.deepEqual(await fieldSelect(issues, fields), [1]);
-  const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r" });
+  const { set } = await statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github, repository: "o/r" });
   await set(1, "needs-human");
   assert.deepEqual(fields[1], { state: "needs-human", setter: 41898282 });
   const names = await statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} })(1, []);
@@ -583,7 +584,7 @@ test("after 2 untriaged dispatches the sweep sets its Work status and hands it o
 test("a hand-off at needs-triage on the field alone is skipped unread on the next pass", async () => {
   const issues = [issue(1)];
   const fields = {};
-  const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github: fieldWorld(issues, fields), repository: "o/r" });
+  const { set } = await statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github: fieldWorld(issues, fields), repository: "o/r" });
   const runs = { 11: { status: "completed", conclusion: "failure" }, 22: { status: "completed", conclusion: "success" } };
   const first = fakeGitHub({ issues, comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] }, runs });
   const result = await runSweep({ call: first.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: set });
@@ -641,7 +642,7 @@ test("an agent-ready issue the listing read stale as needs-triage is left as is 
   const runs = { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } };
   const handOffPass = async (fields, listed = ["needs-triage"], extra = []) => {
     const issues = [issue(1, { body: "Fix it.\n\n<!-- work-items:born-triaged -->" })];
-    const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github: fieldWorld(issues, fields), repository: "o/r" });
+    const { set } = await statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github: fieldWorld(issues, fields), repository: "o/r" });
     const gh = fakeGitHub({ issues, comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }, ...extra] }, runs });
     const stale = new Map([[1, listed]]);
     const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: set, statusLabels: stale });

@@ -60,7 +60,6 @@ import assets
 import pydeps
 
 SAMPLE_RATE = 24000
-# fp32: on a 32-thread x86 CPU it ran at 0.37 x real time, the int8 export at 2.62 and fp16 at 0.46 (2026-10-02)
 MODEL = 'onnx/model.onnx'
 MAX_TOKENS = 500             # the model reads 512 ids, two of them pads; each voice holds 510 style rows
 DEFAULT_VOICE = 'af_heart'
@@ -98,7 +97,7 @@ def plan(text, phonemize, vocab):
     words = []
     for token in text.split():
         lead, body, trail = re.fullmatch(r'(\W*)(.*?)(\W*)', token).groups()
-        if not body:   # all punctuation, such as an em dash
+        if not body:
             lead, trail = token, ''
         pre = [vocab[c] for c in lead if c in vocab]
         core = [vocab[c] for c in (phonemize(body) if body else '') if c in vocab]
@@ -233,7 +232,7 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, mod
 RETRY_DELAYS_S = (1, 2, 4)
 EDGE_RETRY_DELAYS_S = (5, 20, 60)   # the endpoint drops requests for a while, then recovers (rany2/edge-tts#473)
 DEFAULT_TIMEOUT_S = 120.0
-TIMEOUT_GRACE_S = 1.0        # the adapter's own timeout reports first; the thread join is the backstop
+TIMEOUT_GRACE_S = 1.0
 FLOOR_VAR = 'SPEECH_EGRESS_FLOOR'
 EDGE_VOICE = 'en-US-AndrewNeural'
 OPENAI_HOST, OPENAI_MODEL, OPENAI_VOICE = 'api.openai.com', 'gpt-4o-mini-tts', 'marin'
@@ -256,8 +255,8 @@ class Backend:
     default_voice: str = ''
     online: bool = True
     paid: bool = False
-    timed: bool = False   # the words come from the voice itself, not an estimate
-    per_paragraph: bool = False   # one request per paragraph: a long request drops late and loses everything
+    timed: bool = False
+    per_paragraph: bool = False
     retry_delays_s: tuple = RETRY_DELAYS_S
 
 
@@ -301,7 +300,7 @@ def bounded(fn, timeout):
     def run():
         try:
             box['value'] = fn()
-        except BaseException as e:   # re-raised on the caller's thread below
+        except BaseException as e:
             box['error'] = e
     t = threading.Thread(target=run, daemon=True)
     t.start()
@@ -454,7 +453,7 @@ def elevenlabs_backend(env, data_flag):
         except elevenlabs.TimedOut as e:
             raise CallTimeout(str(e)) from None
         except (elevenlabs.Missing, elevenlabs.Blocked, elevenlabs.Failed, ValueError) as e:
-            raise Unavailable(str(e)) from None   # elevenlabs.py already retries 429 and 5xx itself
+            raise Unavailable(str(e)) from None
         return out_dir / 'narration.wav', record['words']
     import elevenlabs
     return Backend('elevenlabs', voice, elevenlabs.DEFAULT_VOICE, paid=True, timed=True)
@@ -539,7 +538,7 @@ def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S
                      time.monotonic() - began, paragraph)
                 shutil.rmtree(work, ignore_errors=True)
                 return None
-            except Exception as e:   # any other failure of a voice is retried
+            except Exception as e:
                 note(b.name, v, 'failed', str(e) or type(e).__name__, time.monotonic() - began, paragraph)
             else:
                 note(b.name, v, 'ok', '', time.monotonic() - began, paragraph)
