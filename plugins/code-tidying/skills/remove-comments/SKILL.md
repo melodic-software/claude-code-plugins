@@ -286,6 +286,10 @@ an UNPROVABLE file yields proposals only.
   `/architecture:improve` for a reshape that needs a design decision.
 - ADR candidates listed but not recorded: `/architecture:adr` with each one.
 
+## Related
+
+- Audit lint or type suppressions in scope: /code-metrics:audit-suppressions.
+
 ## Gotchas
 
 - A comment that *looks* like restatement can disambiguate genuinely ambiguous code. Misclassifying

@@ -119,6 +119,12 @@ the user (fixing trivial mechanical items directly).
   sibling that owns it (`/discipline:do-your-research`) while keeping the general
   scrutiny here.
 
+## Related
+
+- Stress-test a plan before implementation: /planning:devils-advocate.
+- Structured pre-merge review checkpoint: /review:quality-gate.
+- Single-axis unverified claim audit: /discipline:do-your-research.
+
 ## Gotchas
 
 - Re-reading your own work in the same context and feeling reassured is not the

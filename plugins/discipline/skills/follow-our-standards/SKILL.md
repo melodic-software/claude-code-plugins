@@ -106,6 +106,11 @@ finding cites the doc from its own repository's source.
 Upstream/downstream sync and dedup design; this skill only respects an
 existing managed / locally-owned seam when one is declared.
 
+## Related
+
+- Check against external vendor docs instead of org standards: /discipline:recheck-against-upstream.
+- Challenge whether an inherited convention still holds: /discipline:reason-dont-recite.
+
 ## Gotchas
 
 - When only a remote fetch or the portable baseline resolved, cite that, not

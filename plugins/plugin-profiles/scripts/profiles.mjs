@@ -1100,8 +1100,10 @@ function noticeLines(s, sessionId) {
   if (doesNotApply(s.surface)) return [surfaceLine(s.surface)];
   const lines = [];
   if (s.session) {
+    const id = validId(sessionId) ? sessionId : "<session id>";
     lines.push(`This session runs in profile ${s.session.profile}.`);
-    lines.push(`Resume it in that profile with: claude --resume ${validId(sessionId) ? sessionId : "<session id>"}`);
+    lines.push(`Plugins outside this profile are off. Ask for one in words, or reopen with: claude --resume ${id} --profile-add <plugin>`);
+    lines.push(`Resume it in that profile with: claude --resume ${id}`);
     if (s.session.added.length) lines.push(addedLine(s.session.added));
   } else if (s.profile) {
     lines.push(`Profile ${s.profile} applies here (${s.settingsFile}${s.repositoryWide ? ", which every worktree of this repository reads" : ""}).`);

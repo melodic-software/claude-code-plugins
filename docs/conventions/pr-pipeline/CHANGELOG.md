@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [12.7.2] - 2026-11-24
+
+### Changed
+
+- ci-workflows actions and reusables run at `@main`, and official vendor actions at their moving major tag (ADR 0129). The daily ci-workflows repin workflow and its merge-floor row are gone.
+
 ## [12.7.1] - 2026-11-23
 
 ### Changed

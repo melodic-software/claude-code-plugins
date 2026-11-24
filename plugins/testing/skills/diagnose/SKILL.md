@@ -75,6 +75,11 @@ drives the full cycle including code edits and suggests `/verification:confirm` 
 - All green after the regression pass: /verification:confirm fix.
 - The diagnosis showed feature tests are missing: /testing:write.
 
+## Related
+
+- Observed failure with no failing test yet: /debugging:debug.
+- Captured CPU profile or heap snapshot: /debugging:analyze-profile.
+
 ## Gotchas
 
 - Process-global singleton symptoms ("frozen", "already initialized"). Usually a shared-state fixture problem; check the consuming project's fixture conventions for the named pattern before inventing a workaround

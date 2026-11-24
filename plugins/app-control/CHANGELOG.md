@@ -3,6 +3,14 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.1] - 2026-11-24
+
+### Changed
+
+- `/app-control:drive` and `/app-control:map` gain a `## Related` section for links that apply
+  only in some runs. Drive's link for refreshing the control skill with a run's lessons moves from
+  `## Next` to `## Related`.
+
 ## [0.32.0] - 2026-11-23
 
 ### Changed

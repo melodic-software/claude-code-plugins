@@ -178,6 +178,14 @@ The table follows the Before text from its first word to its last:
 - **Does not claim to be the standards it names.** Each layer is our selection from a published
   standard; see the source records below.
 
+## Related
+
+- Check finished prose for AI-writing tells: /ai-slop:audit.
+- Repeated prose across files: /docs-hygiene:extract-ssot.
+- Trim an over-long draft without rewriting: /docs-hygiene:compress.
+- Reshape existing prose for scanning readers: /writing:be-concise.
+- Writing agent-loaded markdown instead: /docs-hygiene:write-for-agents.
+
 ## Gotchas
 
 - **Falling back because no `STYLE.md` sat in the root.** Style rules also live in contributor

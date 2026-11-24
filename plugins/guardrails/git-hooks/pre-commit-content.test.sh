@@ -1,16 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/guardrails/git-hooks/pre-push-content.sh
-# Contract tests for the guardrails pre-commit entry (git-hooks/pre-commit-content.sh):
-# a secret or machine-specific path on a line the commit adds blocks with
-# "<path>:<line>: <message>"; one on an unchanged line, in an unstaged change,
-# in a symlinked file, an ordinary binary, or under an exempt path does not;
-# a token in a file holding a NUL byte, UTF-16LE text included, blocks; a staged
-# gitignored file is judged and an untracked one is not; files judged in one
-# commit keep each file's own findings; a merge in progress is judged on the
-# lines it adds against every parent, so what the merged branch already holds
-# passes, unless the merge changes its mode; a symlink turned into a regular
-# file is judged whole and the reverse is not judged; --worktree covers uncommitted and untracked files; and the plugin's vendored
-# installer wires the entry, pattern libraries included, so `git commit` runs it.
 # test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/reference-verify.sh
 # test-scope: plugins/guardrails/hooks/abort-boundary.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/hook-utils.sh plugins/guardrails/hooks/resolve-convention-pattern.sh
@@ -102,8 +91,6 @@ printf 'brand new token=%s\n' "$FAKE_GHP" >"$REPO/new.txt"
 git -C "$REPO" add new.txt
 expect "a new file is judged whole" 1 "$(rc_of "$REPO")"
 
-# A tracked `-diff` attribute makes numstat call a text file binary and the diff
-# print no hunks; the bytes decide, so the token is still found.
 new_repo
 printf '*.yml -diff\n' >"$REPO/.gitattributes"
 printf 'key: value\ntoken: %s\n' "$FAKE_GHP" >"$REPO/ci.yml"

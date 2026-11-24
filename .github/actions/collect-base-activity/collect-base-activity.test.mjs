@@ -21,7 +21,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
-// Children that call mktemp (the verify-script wrapper) write here, outside the checkout fixtures.
 const childTmp = tempDir("collect-base-children-");
 process.env.TMPDIR = childTmp;
 
@@ -74,18 +73,13 @@ const SHELL_DENIED = [
   "Read(//proc/**)",
   `Read(/${WORKSPACE}/.git/**)`,
 ];
-// The write lanes' git deny rule: all of git.
 const WRITE_GIT_DENIED = ["Bash(git *)"];
-// Every write lane also denies Edit on the plugin copy the skill loads from.
 const marketplaceDenied = (env) => `Edit(/${env.MARKETPLACE}/**)`;
-// The deny rules other than the write lanes' shell, git and plugin-copy sets.
 const ownDenied = (denied, env) =>
   denied.filter((rule) => !SHELL_DENIED.includes(rule) && !WRITE_GIT_DENIED.includes(rule) && rule !== marketplaceDenied(env));
 
-// The Bash rules other than the commit grant's chmod rule.
 const wrapperRules = (allowed) => allowed.filter((rule) => rule.startsWith("Bash") && rule !== CHMOD_RULE);
 
-// The `run: |` block of the step with `id: skill`, dedented.
 function skillScript(step = /^\s+id: skill$/) {
   const lines = readFileSync(ACTION, "utf8").split("\n");
   const id = lines.findIndex((line) => step.test(line));
@@ -105,8 +99,6 @@ let root;
 let base;
 let resolved;
 
-// The issue lane's protected-path rules come from the base's apply-patch
-// and patch-rules.json, as committed; every issue-lane base needs them.
 const PATCH_RULE_FILES = [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/test-scope.mjs", ".github/scripts/pr-unblock/escalation-routes.mjs", ".github/scripts/pr-unblock/escalation-routes.json", ".github/scripts/lib/retry-fetch.mjs", ".github/scripts/lib/run-main.mjs", ".github/scripts/lib/lane-branch.mjs", ".github/actions/resolve-config/patch-rules.json"];
 function copyPatchRules(dir) {
   for (const file of PATCH_RULE_FILES) cpSync(path.join(REPO_ROOT, file), path.join(dir, file), { recursive: true });
@@ -127,7 +119,6 @@ before(() => {
 });
 
 after(() => {
-  // The check copies are made read-only.
   spawnSync("chmod", ["-R", "u+w", root]);
   rmSync(root, { recursive: true, force: true });
 });
@@ -272,9 +263,6 @@ test("a writing skill that cannot commit gets no chmod rule and no chmod instruc
   assert.ok(!args.includes("chmod"), args);
 });
 
-// prepare: merge-base runs only on run-claude-cli, in the read runner (the
-// launcher tests below); the claude-code-action path fails red, with checks
-// or without.
 test("prepare: merge-base on claude-code-action fails red before any output", () => {
   for (const run of [() => stage({ PREPARE: "merge-base" }), () => withChecks(["scripts/check-x.sh --check"], { PREPARE: "merge-base" })]) {
     const { status, stdout, args } = run();
@@ -284,9 +272,6 @@ test("prepare: merge-base on claude-code-action fails red before any output", ()
   }
 });
 
-// pr-run-activity.md, "Skill activities": each listed check runs from the base
-// copy against the checkout, through a wrapper that takes no arguments, and
-// that wrapper is the only Bash the runner grants.
 function withChecks(checks, overrides = {}, selected = {}) {
   const dir = mkdtempSync(path.join(root, "checks-"));
   const workspace = path.join(dir, "workspace");
@@ -399,8 +384,6 @@ test("a listed check's copy carries the base's shellcheck, markdownlint and ruff
   }
 });
 
-// check-changed-skills.sh --merge-base runs the checker beside its scripts/
-// copy, never the checkout's.
 test("a listed check's copy carries the base's skill-quality scripts", () => {
   const scripts = path.join(base, "plugins", "skill-quality", "scripts");
   mkdirSync(scripts, { recursive: true });
@@ -484,10 +467,6 @@ for (const check of ["scripts/check-x.sh; rm -rf /", "../scripts/check-x.sh", "s
   });
 }
 
-// pr-run-activity.md, "Skill activities": each listed verify-script runs with
-// any arguments from a read-only base copy of its plugin, so a file it reads
-// beside itself (here ../../../scripts/lib.sh) comes along, through a wrapper
-// that starts in the checkout, refuses paths outside it and pins git config.
 const VERIFY = "plugins/vtest/skills/audit/scripts/scan.sh";
 function withVerify(list, overrides = {}) {
   const dir = mkdtempSync(path.join(root, "verify-"));
@@ -580,7 +559,6 @@ test("only the check-skill.sh wrapper runs with a fresh, writable HOME and CLAUD
     const [, home, config] = /home=(\S+) config=(\S+)\n$/.exec(run.stdout) ?? [];
     assert.ok(home && !home.startsWith(callerHome) && !home.startsWith(root), run.stdout);
     assert.equal(config, path.join(home, ".claude"));
-    // ls -A printed only the .claude entry of a HOME that held nothing else.
     assert.equal(run.stdout, `${home}:\n.claude\n\n${config}:\nhome=${home} config=${config}\n`);
     return home;
   });
@@ -620,9 +598,6 @@ test("the verify-script wrapper runs the script without GH_TOKEN or GITHUB_TOKEN
   assert.equal(run.stdout, "GH_TOKEN=unset GITHUB_TOKEN=unset KEPT=yes\n");
 });
 
-// pr-run-activity.md, "Skill activities": the issue lane lists the repository's
-// test runner and git-mv-rm.sh as verify-scripts, so the same generator wraps
-// them. These stage the real scripts (and the libs they source) into the base.
 const REPO = new URL("../../../", import.meta.url);
 const LANE_TOOLS = ["scripts/run-test-file.sh", "scripts/git-mv-rm.sh"];
 function withLaneTools() {
@@ -681,9 +656,6 @@ test("skill-quality's checks get wrapper rules, and check-skill runs a skill's t
   mkdirSync(path.join(skill, "scripts"), { recursive: true });
   writeFileSync(path.join(skill, "SKILL.md"), "---\ndescription: Demo skill. Use when 'demo'.\n---\n\n# Demo\n");
   writeFileSync(path.join(skill, "scripts", "token.test.sh"), 'echo "seen=${GH_TOKEN-unset},${GITHUB_TOKEN-unset}"\nexit 1\n');
-  // Like a lane run: the workspace is a checkout, and the test the lane wrote
-  // is not committed yet, beside a skills root that holds a tracked file. A
-  // failing fixture call fails here, never reads as a skipped test.
   const git = (...args) => {
     const result = spawnSync(
       "git",
@@ -731,8 +703,6 @@ test("the prompt names git-mv-rm as the way to rename or delete a file, only whe
   assert.ok(!bare.args.includes("Rename or delete"), bare.args);
 });
 
-// The issue lane lists new-changelog-fragment.sh: from the read-only copy of
-// scripts/, it must write the fragment into the checkout it runs in.
 test("new-changelog-fragment writes a fragment into the checkout from the read-only copy", () => {
   const files = ["scripts/new-changelog-fragment.sh", "scripts/lib/changelog-fragments.sh", "scripts/lib/read-list.sh"];
   for (const file of files) {
@@ -753,8 +723,6 @@ test("new-changelog-fragment writes a fragment into the checkout from the read-o
   assert.equal(readFileSync(path.join(workspace, run.stdout.trim()), "utf8"), "---\nbump: patch\n---\n\n");
 });
 
-// An issue lane's checkout is detached: the wrapper names the fragment after
-// the lane branch built from the run's ids, and a caller's value cannot steer it.
 test("in an issue lane new-changelog-fragment names a detached checkout's fragment after the lane branch", () => {
   const files = ["scripts/new-changelog-fragment.sh", "scripts/lib/changelog-fragments.sh", "scripts/lib/read-list.sh"];
   for (const file of files) {
@@ -807,7 +775,6 @@ test("run-test-file runs an in-checkout test file by its runner and prints the e
   assert.equal(node.status, 0, node.stderr);
   assert.match(node.stdout, /pass 1/);
   assert.match(node.stderr, /exit status: 0\n$/);
-  // pytest for test_*.py, through python3 when no venv has pytest and setup-env is not staged.
   const shim = path.join(dir, "shim");
   mkdirSync(shim);
   writeFileSync(path.join(shim, "python3"), '#!/usr/bin/env bash\necho "python3 $*"\nexit 5\n', { mode: 0o755 });
@@ -930,11 +897,6 @@ test("run-test-file refuses a pytest node id or a name a runner could read as mo
   }
 });
 
-// A *.test.js or *.test.ts file that imports vitest runs with its package's
-// locked vitest (`npx --no-install vitest run` from the nearest package.json).
-// The stand-in installed there prints where it ran and fails a file that says
-// BROKEN, so a pass, a failure and the directory are the stand-in's, not the
-// script's.
 function withVitestPackage(staged) {
   const pkg = path.join(staged.workspace, "plugin");
   const vitest = path.join(pkg, "node_modules", "vitest");
@@ -973,9 +935,6 @@ test("run-test-file runs a vitest file with its package's vitest from the packag
   assert.match(broken.stderr, /exit status: 1\n$/);
 });
 
-// A lane checkout has no node_modules in a plugin package, so run-test-file
-// installs the package's lockfile (npm ci --ignore-scripts) once, first. The
-// stand-in vitest is a local file: dependency, so the install needs no network.
 test("run-test-file installs a package's locked dependencies once when node_modules is missing", () => {
   const staged = withLaneTools();
   assert.equal(staged.status, 0);
@@ -1074,8 +1033,6 @@ test("a read skill gets no check wrapper", () => {
   assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
 });
 
-// pr-run-activity.md, "prepare: review-threads": the skill runs on the read
-// runner's launcher; on claude-code-action, in the write runner, it fails red.
 test("prepare: review-threads on claude-code-action fails red before any output", () => {
   const feedbackDir = mkdtempSync(path.join(root, "threads-"));
   writeFileSync(path.join(feedbackDir, "threads.json"), "{}");
@@ -1086,8 +1043,6 @@ test("prepare: review-threads on claude-code-action fails red before any output"
   assert.equal(args, "");
 });
 
-// prepare: dependency-review runs only on run-claude-cli, in the read runner
-// (the launcher tests below); the claude-code-action path fails red.
 test("prepare: dependency-review on claude-code-action, or as a gate, fails red before any output", () => {
   for (const [overrides, message] of [
     [{ PREPARE: "dependency-review" }, /::error::dependency-review: the skill runs on run-claude-cli, in the read runner/],
@@ -1100,9 +1055,6 @@ test("prepare: dependency-review on claude-code-action, or as a gate, fails red 
   }
 });
 
-// pr-run-activity.md, "prepare: ci-context": a read skill that holds no write
-// token gets Bash, Edit and Write to rerun and fix the failing checks, reads
-// the runner's read-only context file, and gets no commit tool.
 function withCiContext({ file = true, effect = "read" } = {}) {
   const dir = mkdtempSync(path.join(root, "ci-"));
   const ciDir = path.join(dir, "lane-ci");
@@ -1189,13 +1141,9 @@ test("web-access with any domain allows every fetch, search and the research ski
     assert.ok(allowed.includes(rule), `${rule} in ${allowed.join(" | ")}`);
   }
   assert.deepEqual(plugins, ["work-items@melodic-software", "discovery@melodic-software", "knowledge@melodic-software"]);
-  // A lane run has nobody to answer an ask, so the prompt passes --unattended.
   assert.match(args, /\/discovery:research --unattended/);
 });
 
-// pr-run-activity.md, "Skill activities": for `any` only, the two docs
-// scripts from a read-only copy, with their cache and page files in the
-// scratch directory.
 function readDocsRules(env) {
   return ["fetch-docs.sh", "docs-cache.sh"].flatMap((script) => [
     `Bash(bash ${env.DOCS_DIR}/${script} *)`,
@@ -1208,12 +1156,10 @@ test("web-access with any domain allows the read-docs scripts and points their f
   assert.equal(status, 0);
   // Both the bare and the double-quoted path, since a rule matches the path as written.
   assert.deepEqual(wrapperRules(allowed), readDocsRules(env));
-  // The skill's bare Edit and Write must not reach the scripts its rules run.
   assert.deepEqual(ownDenied(denied, env), [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
   for (const name of ["fetch-docs.sh", "fetch-docs-generic.sh", "docs-cache.sh", "html2md.py"]) {
     assert.equal(statSync(path.join(env.DOCS_DIR, name)).mode & 0o222, 0, name);
   }
-  // The cache directory travels in the prompt, never through $GITHUB_ENV.
   assert.equal(jobEnv, "");
   const cache = `--cache-dir ${env.SCRATCH}/docs-cache`;
   assert.ok(args.includes(`bash ${env.DOCS_DIR}/fetch-docs.sh --cache ${cache} --out ${env.SCRATCH}/docs-`), args);
@@ -1242,8 +1188,6 @@ test("a docs script copy path a rule cannot carry fails the stage", () => {
   assert.ok(wrapperRules(allowed).length === 0, allowed.join(" | "));
 });
 
-// With a domain list the docs scripts stay denied, so the prompt names
-// WebFetch on the listed hosts as the way to read a page, not read-docs.
 test("web-access with a domain list tells the run to read the listed hosts with WebFetch", () => {
   const { status, args } = withWebAccess({ enabled: true, domains: ["code.claude.com", "docs.github.com"] });
   assert.equal(status, 0);
@@ -1284,9 +1228,6 @@ test("a read skill gets no web tools even with web-access", () => {
   assert.deepEqual(plugins, ["work-items@melodic-software"]);
 });
 
-// A read skill whose applied-by sets patch hands its change on as a patch
-// (pr-run-activity.md, Skill activities): the write tool set, no commit tool,
-// and the instruction to leave the change uncommitted.
 const UNCOMMITTED_SENTENCE = "Leave every change uncommitted in the working tree";
 
 function withAppliedBy(appliedBy, overrides = {}) {
@@ -1336,9 +1277,6 @@ test("prepare: ci-context with applied-by.patch keeps the ci-context tool set", 
   assert.ok(!args.includes(UNCOMMITTED_SENTENCE), args);
 });
 
-// Every write lane, in every mode the runner builds, carries the whole shell
-// deny set and the plugin copy's Edit deny: a mode that resets or rebuilds the
-// deny list must not drop them.
 for (const [name, run] of [
   ["mutate-branch", () => stage({})],
   ["mutate-tracker", () => stage({ EFFECT: "mutate-tracker" })],
@@ -1373,8 +1311,6 @@ for (const [name, run] of [
   });
 }
 
-// The plugin loads in place from the marketplace copy, so the copy is
-// read-only to every process the skill starts, whatever the activity's effect.
 for (const effect of ["read", "mutate-branch"]) {
   test(`the marketplace copy is read-only for a ${effect} skill`, () => {
     const { status, env } = stage({ EFFECT: effect, CAN_COMMIT: "false" });
@@ -1388,12 +1324,8 @@ for (const effect of ["read", "mutate-branch"]) {
   });
 }
 
-// --- launcher: run-claude-cli, which reads only inside the checkout ---
-
 const outputOf = (text, name) => (new RegExp(`^${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1$`, "m").exec(text)?.[2] ?? "").split("\n").filter(Boolean);
 
-// Runs the skill step for run-claude-cli and reads its launcher outputs and
-// the stage it left.
 function launch(overrides = {}) {
   const stageDir = path.join(mkdtempSync(path.join(root, "stage-")), "lane-stage");
   const run = stage({ LAUNCHER: "run-claude-cli", STAGE: stageDir, WORKSPACE, EFFECT: "read", CAN_COMMIT: "false", ...overrides });
@@ -1416,7 +1348,6 @@ function launch(overrides = {}) {
   };
 }
 
-// The file tools never reach the checkout's .git, on every launcher arm.
 const GIT_DENIED = ["Read(./.git/**)", "Edit(./.git/**)", "Write(./.git/**)"];
 
 test("run-claude-cli: a ci-context skill gets Bash, Edit and Write, the staged context and plugin under .lane/, and no claude_args", () => {
@@ -1452,7 +1383,6 @@ test("run-claude-cli: a read skill without ci-context gets no Bash, Edit or Writ
   assert.doesNotMatch(run.preamble, /context file/);
 });
 
-// A resolved file for the launcher tests: the activity's args plus `extra`.
 function launchResolved(extra) {
   const file = path.join(mkdtempSync(path.join(root, "launch-ab-")), "resolved.json");
   writeFileSync(file, JSON.stringify({ selected: { args: "fix", ...extra } }));
@@ -1481,11 +1411,6 @@ test("run-claude-cli refuses a writing skill, a patch-producing skill with a pre
   }
 });
 
-// pr-run-activity.md, "Issue mode": the issue lane runs on the launcher, so its
-// check and verify-script wrappers are staged for .lane/checks and
-// .lane/verify (--restricted reads nothing outside the checkout), named there
-// in the rules and the preamble, and denied to the file tools; the prompt
-// passes the issue before the activity's args.
 test("run-claude-cli: an issue lane's patch skill stages its check and verify-script wrappers for .lane/, denied to the file tools", () => {
   mkdirSync(path.join(base, "scripts"), { recursive: true });
   writeFileSync(path.join(base, "scripts", "check-x.sh"), "#!/usr/bin/env bash\necho check\n", { mode: 0o755 });
@@ -1517,9 +1442,6 @@ test("run-claude-cli: an issue lane's patch skill stages its check and verify-sc
   assert.ok(run.preamble.includes(`with the script's own arguments and paths inside the checkout: ${lane}/verify/bin/scan <arguments>.`), run.preamble);
   assert.ok(run.preamble.startsWith("You run unattended as a CI lane activity on an issue,"), run.preamble);
   assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args --issue 7 fix, then follow the skill instructions to the end.\n");
-  // The skill's Bash: the check, verify-script and git-read wrappers,
-  // nothing else; every other command matches no allow rule under dontAsk,
-  // and all of git stays denied, so git runs only through git-read.
   assert.deepEqual(run.allowedTools.filter((rule) => rule.startsWith("Bash")).toSorted(), [
     `Bash(${lane}/checks/bin/check-x)`,
     `Bash(${lane}/git/git-read *)`,
@@ -1528,16 +1450,10 @@ test("run-claude-cli: an issue lane's patch skill stages its check and verify-sc
   assert.ok(run.deniedTools.includes("Bash(git *)"));
   for (const tool of ["Edit", "Write", "NotebookEdit"]) assert.ok(run.deniedTools.includes(`${tool}(./.lane/git/**)`), tool);
   assert.ok(run.preamble.includes(`only with ${lane}/git/git-read status, diff, log or show`), run.preamble);
-  // A PR lane's patch skill keeps all of git denied.
   const pr = launch({ SKILL: "source-control:pull-request", RESOLVED: launchResolved(PATCH) });
   assert.ok(pr.deniedTools.includes("Bash(git *)") && !pr.allowedTools.some((rule) => rule.includes("git")));
 });
 
-// pr-run-activity.md, "Issue mode": the paths apply-issue-patch refuses are
-// denied to the issue lane's file tools, and the preamble tells the run to
-// stop with patch-protected-path when its change needs one, so it stops at
-// its first such write instead of at the push. A plugin's settings file,
-// which apply-patch pushes, stays writable; a PR lane gets none of this.
 test("run-claude-cli: an issue lane's patch skill is denied the paths apply-issue-patch refuses and told to stop on one", () => {
   const run = launch({ ISSUE_NUMBER: "7", SKILL: "source-control:pull-request", RESOLVED: launchResolved(PATCH) });
   assert.equal(run.status, 0, run.stdout);
@@ -1553,9 +1469,6 @@ test("run-claude-cli: an issue lane's patch skill is denied the paths apply-issu
   assert.doesNotMatch(pr.preamble, /patch-protected-path/);
 });
 
-// git-read, run against a real checkout: the four read commands run with
-// fsmonitor, hooks and external diff programs off, and every option that
-// writes a file or reads one outside the checkout is refused before git runs.
 test("run-claude-cli: an issue lane's git-read runs only git's read commands, and refuses --output, --no-index and outside paths", () => {
   const dir = mkdtempSync(path.join(root, "git-read-"));
   const workspace = path.join(dir, "workspace");
@@ -1566,7 +1479,6 @@ test("run-claude-cli: an issue lane's git-read runs only git's read commands, an
   git("add", "a.txt");
   git("-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-qm", "c");
   writeFileSync(path.join(workspace, "a.txt"), "two\n");
-  // A planted fsmonitor and external diff in the checkout's own config.
   const marker = path.join(dir, "ran");
   git("config", "core.fsmonitor", `touch ${marker}; false`);
   git("config", "diff.external", `touch ${marker}`);
@@ -1639,9 +1551,6 @@ test("run-claude-cli: a skill plugin holding a symbolic link fails red", () => {
   assert.deepEqual(run.tools, []);
 });
 
-// A read skill with no prepare mode that hands on a patch gets Bash with no
-// script rule unless its skill has one, Edit, Write and Agent, the git
-// directory denied, and the instruction to leave its change uncommitted.
 test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Edit, Write and Agent, no Bash rule, and .git denied", () => {
   const run = launch({ RESOLVED: launchResolved(PATCH), SKILL: "source-control:pull-request" });
   assert.equal(run.status, 0, run.stdout);
@@ -1661,10 +1570,6 @@ test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Ed
   assert.deepEqual(run.plugins, []);
 });
 
-// address-feedback on the launcher: the patch tool set, the review-thread
-// tool's wrapper as its one Bash rule (bare and quoted), the thread files
-// staged read-only and denied to the file tools, and state/ left writable for
-// the replies file. pr-run-activity.md, "prepare: review-threads".
 function launchThreads({ runFile = true, threads = '{"threads":[]}\n', extra = {} } = {}) {
   const feedbackDir = mkdtempSync(path.join(root, "launch-feedback-"));
   writeFileSync(path.join(feedbackDir, "threads.json"), threads);
@@ -1688,7 +1593,6 @@ test("run-claude-cli: review-threads gets the patch tool set, the review-thread 
     "Agent",
     `Bash("${FEEDBACK_TOOL}" *)`,
     `Bash(${FEEDBACK_TOOL} *)`,
-    // Only removes an executable bit; apply-patch refuses a new one.
     "Bash(chmod -x *)",
     "Edit",
     "Edit(./.lane/scratch/**)",
@@ -1700,8 +1604,6 @@ test("run-claude-cli: review-threads gets the patch tool set, the review-thread 
   for (const rule of [...FEEDBACK_FILE_DENIED, "Bash(git *)", "Bash(wc *)", "Bash(cat *)", "Read(./.git/**)", "Read(//proc/**)", "NotebookEdit(./.lane/plugins/**)", "WebFetch", "WebSearch"]) {
     assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   }
-  // A deny rule beats an allow rule: none names the wrapper. state/ is the
-  // wrapper's to write, through Bash; the file tools are denied it, exactly.
   assert.ok(!run.deniedTools.some((rule) => rule.includes("feedback-thread *") || rule.includes("bin/feedback-thread")), run.deniedTools.join(" | "));
   assert.deepEqual(
     run.deniedTools.filter((rule) => rule.includes("feedback/state")),
@@ -1773,10 +1675,6 @@ test("run-claude-cli: fix-ci and fix-docs get no review-thread wrapper and stage
   }
 });
 
-// fix-docs runs ai-slop:audit under dontAsk: Bash runs exactly the skill's
-// own scripts by absolute path, bare and quoted (its `!` line runs
-// "<dir>/detect.sh" --show-config), the fix flow's digest guard among them,
-// with git, the user-scope script and the read-only print commands denied.
 const SLOP = `${WORKSPACE}/.lane/plugins/ai-slop/skills/audit/scripts`;
 test("run-claude-cli: fix-docs gets exactly the ai-slop scripts' rules and the shell deny set", () => {
   const slopBase = mkdtempSync(path.join(root, "base-slop-"));
@@ -1830,10 +1728,6 @@ test("run-claude-cli: a ci-context skill that hands on a patch keeps the ci-cont
   assert.ok(!run.preamble.includes(UNCOMMITTED_SENTENCE), run.preamble);
 });
 
-// ci-ci.md, "A digest pin the pull request moved": a ci-context skill's
-// verify-scripts are staged as base copies under .lane/verify, denied to the
-// file tools, and named in the preamble as the only copy to run. Its Bash is
-// bare, so the plain-command rule of a patch skill's verify prompt stays out.
 test("run-claude-cli: a ci-context skill's verify-scripts are staged base copies the preamble names as the only copy to run", () => {
   const ciDir = mkdtempSync(path.join(root, "ci-launch-verify-"));
   writeFileSync(path.join(ciDir, "context.json"), "{}");
@@ -1861,9 +1755,6 @@ test("prepare: ci-context with verify-scripts on claude-code-action fails red", 
   assert.match(run.stdout, /::error::ci-context: verify-scripts stage on run-claude-cli only/);
 });
 
-// web-access on the launcher: `any` only, with the research plugins staged
-// under .lane/ beside the skill's own and the web tools neither stripped by
-// --restricted nor denied.
 function webBase() {
   const dir = mkdtempSync(path.join(root, "base-web-"));
   for (const plugin of ["source-control", "discovery", "knowledge"]) mkdirSync(path.join(dir, "plugins", plugin), { recursive: true });
@@ -2020,11 +1911,6 @@ test("claude-code-action: tidy fails red before any output", () => {
   assert.equal(run.args, "");
 });
 
-// review-dependency on the launcher: Edit, Write and Agent with no Bash, the
-// context file staged read-only under .lane/dependency/ and denied to the file
-// tools, git and the shell read commands denied though no Bash is granted,
-// one WebFetch rule per configured host, and the verdict schema written for
-// the launcher's json-schema-file.
 const DEPENDENCY_APPLIED_BY = { "applied-by": { patch: "apply-dependency-patch", "dependency-verdict": "apply-dependency-verdict" } };
 const DEPENDENCY_HOSTS = ["github.com", "raw.githubusercontent.com", "www.npmjs.com", "registry.npmjs.org", "pypi.org"];
 function launchDependency({ file = true, web = true } = {}) {
@@ -2067,7 +1953,6 @@ test("run-claude-cli: a dependency-review skill gets Edit, Write and Agent with 
   ]) {
     assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   }
-  // A deny rule beats an allow rule: nothing the skill may write reaches the context copy.
   assert.ok(!run.deniedTools.includes("WebFetch") && !run.deniedTools.includes("WebSearch"), run.deniedTools.join(" | "));
   assert.equal(readFileSync(path.join(run.stageDir, "dependency", "dependency.json"), "utf8"), '{"pr":7}');
   assert.equal(run.pluginDirs, ".lane/plugins/source-control", "no research plugin under a host list");
@@ -2079,9 +1964,6 @@ test("run-claude-cli: a dependency-review skill gets Edit, Write and Agent with 
   assert.equal(run.args, "", "no claude_args for the launcher");
 });
 
-// The schema the launcher holds the verdict to is the shape the verdict job
-// validates: the verdicts review-dependency.mjs names and the limits
-// apply-dependency-verdict.mjs enforces.
 test("run-claude-cli: the dependency verdict schema matches the verdict job's verdicts and limits", () => {
   const run = launchDependency({ web: false });
   assert.equal(run.status, 0, run.stdout);
@@ -2096,7 +1978,6 @@ test("run-claude-cli: the dependency verdict schema matches the verdict job's ve
   );
   assert.deepEqual([schema.properties.evidence.maxItems, schema.properties.evidence.items.maxLength], [LIMITS.evidence, LIMITS.evidenceItem]);
   assert.deepEqual([schema.properties.reasons.items.not, schema.properties.evidence.items.not], [{ pattern: UNPLAIN_PATTERN }, { pattern: UNPLAIN_PATTERN }]);
-  // With no web access the web tools stay denied.
   assert.ok(run.deniedTools.includes("WebFetch") && run.deniedTools.includes("WebSearch"), run.deniedTools.join(" | "));
 });
 
@@ -2127,10 +2008,6 @@ test("run-claude-cli: a dependency-review skill with no context file fails red b
   assert.equal(run.promptFile, "");
 });
 
-// resolve-conflicts on the launcher: Edit, Write and Agent with no Bash, git
-// and the shell read commands denied though no Bash is granted, and the merge
-// context the runner writes after the stage under .lane/merge/ denied to the
-// file tools.
 const MERGE_FILE_DENIED = ["Edit(./.lane/merge/**)", "Write(./.lane/merge/**)", "NotebookEdit(./.lane/merge/**)"];
 
 test("run-claude-cli: a merge-base skill gets Edit, Write and Agent with no Bash, and the merge context denied to the file tools", () => {
@@ -2151,7 +2028,6 @@ test("run-claude-cli: a merge-base skill gets Edit, Write and Agent with no Bash
   ]) {
     assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   }
-  // A deny rule beats an allow rule: no allowed tool reaches the merge context or .git.
   assert.ok(!run.allowedTools.some((rule) => rule.startsWith("Bash")), run.allowedTools.join(" | "));
   assert.ok(run.preamble.includes(`the merge context is ${WORKSPACE}/.lane/merge/conflicts.json`), run.preamble);
   assert.match(run.preamble, /leave a path you cannot resolve with its conflict markers, and edit no other file/);

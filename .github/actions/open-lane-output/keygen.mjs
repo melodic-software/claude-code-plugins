@@ -1,9 +1,3 @@
-// The owner's offline key generation for open-lane-output. Prints the public
-// key file's one line to stdout and writes the private key, base64 PKCS#8 DER,
-// to the file descriptor --private-key-fd names (3 or above, so never the
-// terminal), for a pipe into the secret store. It writes no file itself.
-//
-//   { node keygen.mjs --private-key-fd 3 >key.pub; } 3>&1 | gh secret set NAME --env ENV
 import crypto from "node:crypto";
 import { fstatSync, writeSync } from "node:fs";
 import process from "node:process";

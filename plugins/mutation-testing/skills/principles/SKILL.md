@@ -82,6 +82,11 @@ a seeded result is an estimate of thoroughness, never a defect count. Seeding is
 - The question is whether the suite catches realistic bugs: `/mutation-testing:seed-faults`.
 - A survivor is judged productive: `/testing:write`.
 
+## Related
+
+- General test-design questions: /tdd:principles.
+- Coverage or complexity caveats: /code-metrics:principles.
+
 ## What this skill does NOT do
 
 - Run a mutation tool. That is `/mutation-testing:audit`.
