@@ -155,7 +155,6 @@ def existing_trigger(
     recognizer: re.Pattern[str],
     known_comment_ids: set[str] | None = None,
 ) -> dict[str, Any] | None:
-    """Return an exact trigger that durable state cannot already attribute."""
     comments = fetch_paginated_api(
         f"repos/{repo}/issues/{number}/comments?per_page=100", "PR issue comments"
     )

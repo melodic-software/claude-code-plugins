@@ -1881,11 +1881,6 @@ def _argv(argv: tuple[str, ...]) -> str:
 
 
 def _table_head(*columns: str) -> list[str]:
-    """A markdown header row plus its separator, derived from the columns.
-
-    Every table below emitted both by hand, so a column added to one line and
-    not the other rendered a broken table that only a reader would notice.
-    """
     return [
         "| " + " | ".join(columns) + " |",
         "| " + " | ".join("---" for _ in columns) + " |",

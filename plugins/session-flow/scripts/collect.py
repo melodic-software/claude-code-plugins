@@ -198,7 +198,6 @@ def _norm_key(key: str, parent: str) -> str:
 
 
 def _key_paths(obj: object, prefix: str, depth: int, out: set[str]) -> None:
-    """Key paths to CENSUS_DEPTH; list items merge under `[]`, tagged with their `type` value."""
     if depth >= CENSUS_DEPTH:
         return
     if isinstance(obj, dict):
@@ -225,7 +224,6 @@ def _label(value: object) -> str:
 
 
 def census_keys(record: dict) -> tuple[str, list[str]]:
-    """The (version|model) bucket of one record and the `<section>:<key>` names it counts."""
     kind = record.get("type") if isinstance(record.get("type"), str) else "<none>"
     message = _obj(record.get("message"))
     version = record.get("version") if isinstance(record.get("version"), str) else "unknown"
@@ -820,13 +818,11 @@ def build_record(
 
 
 def stored_policy(record: dict) -> tuple:
-    """The settings besides the transcript that shaped a record's stored text; None where a field is missing."""
     redaction = _obj(record.get("redaction"))
     return record.get("collector_digest"), record.get("excerpt_limits"), redaction.get("excerpts_suppressed")
 
 
 def load_store(store: Path) -> dict[Path, tuple[dict | None, tuple, float | None]]:
-    """(fingerprint, collection policy, session end) of each readable stored record; others are re-ingested."""
     index: dict[Path, tuple[dict | None, tuple, float | None]] = {}
     for path in store.glob("p-*/*.json"):
         try:

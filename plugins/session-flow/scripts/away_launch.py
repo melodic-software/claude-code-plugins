@@ -49,7 +49,6 @@ def _managed_setting(files: list[Path], *keys: str) -> tuple[Path | None, object
 
 
 def launch_warnings(config_dir: Path, project: Path, managed: Path | None = None) -> list[str]:
-    """One line per launch warning; `managed` replaces this platform's managed-settings.json."""
     user = config_dir / "settings.json"
     local, shared = project / ".claude" / "settings.local.json", project / ".claude" / "settings.json"
     managed_set = managed_files(managed or managed_base())

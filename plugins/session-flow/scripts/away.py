@@ -191,11 +191,6 @@ def _report_by_on(day: date, settings: Mapping[str, str], days_off: frozenset[in
 
 
 def next_report_by(now: datetime, settings: Mapping[str, str]) -> datetime | None:
-    """The next report-by time when `now` is inside the night window, else None.
-
-    Works on naive local times. The window runs from night_start to the next report-by time,
-    which is the day-off time on a day off and the workday time otherwise.
-    """
     days_off = parse_days(settings["away_days_off"])
     due = _report_by_on(now.date(), settings, days_off)
     if due <= now:
@@ -207,7 +202,6 @@ def next_report_by(now: datetime, settings: Mapping[str, str]) -> datetime | Non
 
 
 def parse_instant(value: str) -> datetime:
-    """An ISO time as an aware datetime; a naive one is taken as machine local time."""
     parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.astimezone()
 
@@ -321,10 +315,6 @@ def _id_number(entry: Mapping) -> int:
 
 
 def append_refusals(paths: Paths, entries: list[dict], unless_seen: str | None = None) -> list[str]:
-    """Append each entry with the next `R<n>` id, under the lock so parallel hooks never share one.
-
-    With `unless_seen`, an entry whose value for that key is already recorded is skipped.
-    """
     with locked(paths.lock):
         existing = read_refused(paths)
         seen = {entry.get(unless_seen) for entry in existing} if unless_seen else set()
@@ -373,7 +363,6 @@ def one_line(value: object) -> str:
 
 
 def clean(value: object, limit: int = FIELD_LIMIT) -> str | None:
-    """A caller-supplied name or reason, redacted and capped before it is stored or shown."""
     return None if value is None else redact(str(value), limit)
 
 
@@ -388,7 +377,6 @@ def _redact_leaves(value: object) -> object:
 
 
 def describe_tool(name: object, tool_input: object) -> str:
-    """The tool call as one line: a file tool's name and path, a command, or redacted input JSON."""
     tool = clean(name)
     if isinstance(tool_input, dict) and isinstance(tool_input.get("file_path"), str):
         return f"{tool} {redact(tool_input['file_path'])}"
@@ -409,7 +397,6 @@ def render_block(name: str, lines: list[str]) -> str:
 
 
 def header_lines(state: Mapping) -> dict[str, str]:
-    """The header lines a later start may change, keyed by label."""
     return {
         "Report by": state["report_by"] or "until you are back",
         "Kind": state["kind"],
@@ -419,7 +406,6 @@ def header_lines(state: Mapping) -> dict[str, str]:
 
 
 def rewrite_header(text: str, state: Mapping) -> str:
-    """Replace the changeable header lines, leaving everything from the first section on as written."""
     split = text.find("\n## ")
     head, rest = (text, "") if split < 0 else (text[:split], text[split:])
     lines = head.split("\n")
@@ -768,7 +754,6 @@ def find_transcript(env: Mapping[str, str], session: str) -> Path | None:
 
 
 def refresh(state: dict, paths: Paths, files: bool) -> None:
-    """Regenerate the refused and external-action blocks, and with `files` the files block too."""
     started = parse_instant(state["started"])
     if state.get("transcript_path"):
         transcript = Path(state["transcript_path"])
@@ -828,7 +813,6 @@ def guarded_report(state: Mapping) -> Path:
 
 
 def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
-    """Rewrite the named script-owned blocks; the slow file scan writes apart from the others."""
     report = guarded_report(state)
     report.parent.mkdir(parents=True, exist_ok=True)
     text = report.read_text(encoding="utf-8") if report.exists() else skeleton(state)
@@ -886,7 +870,6 @@ def _clear_held(paths: Paths, state: Mapping) -> Path:
 
 
 def _remove_dirs(paths: Paths) -> None:
-    """Remove the session dir, then `away/`, each only when empty, so the hooks' shell gate exits early."""
     if os.name == "nt":
         with contextlib.suppress(OSError):
             paths.lock.unlink()
@@ -896,7 +879,6 @@ def _remove_dirs(paths: Paths) -> None:
 
 
 def sweep_delivered(root: Path, plugin_root: Path) -> None:
-    """Clear every other delivered absence whose lock is free, such as one an earlier version left."""
     try:
         entries = sorted((root / "away").iterdir())
     except OSError:
@@ -968,7 +950,6 @@ class Hook(NamedTuple):
 
 
 def _record_refusal(hook: Hook, event: str, tool_name: object, detail: str) -> str | None:
-    """Append one refusal with the hook's agent id; None when it could not be recorded."""
     entry = {"event": event, "tool_name": clean(tool_name), "detail": detail}
     if isinstance(hook.payload.get("agent_id"), str):
         entry["agent_id"] = clean(hook.payload["agent_id"])
