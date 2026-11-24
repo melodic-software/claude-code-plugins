@@ -7641,6 +7641,162 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(combined.adoption_idle_hours, main)
 
 
+class TrustedActorsSource(unittest.TestCase):
+    """`trusted_actors_source` in the team YAML at the same ref places the
+    trusted list and the Dependabot policy: the repository's copies when it
+    is unset or `repository`, the standards ones at one `main` commit a
+    process when it is `standards`, each read once, and neither otherwise."""
+
+    STANDARDS_SHA = "d" * 40
+    MAIN = f"repos/{policy.STANDARDS_REPO}/commits/main"
+    STANDARDS_LIST = {
+        "version": 1,
+        "actors": [{"id": 9, "login": "a-person", "kind": "human"}],
+    }
+    REPO_LIST = {
+        "version": 1,
+        "actors": [{"id": 5, "login": "another-person", "kind": "human"}],
+    }
+
+    def setUp(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        for cache in (
+            policy._TRUSTED_IDS,
+            policy._TRUSTED_SOURCE,
+            policy._STANDARDS_SHA,
+            policy._STANDARDS_FILES,
+        ):
+            cache.clear()
+            self.addCleanup(cache.clear)
+        self.gh = GhFake().install(self)
+
+    def standards_at(self, path: str) -> str:
+        return f"repos/{policy.STANDARDS_REPO}/contents/{path}?ref={self.STANDARDS_SHA}"
+
+    def repo_at(self, path: str, repo: str = REPO) -> str:
+        return f"repos/{repo}/contents/{path}?ref={SHA}"
+
+    def fake(self, team: str | None, repo: str = REPO) -> None:
+        if team is not None:
+            self.gh.rest[self.repo_at(TEAM_YAML, repo)] = file_payload(team)
+        self.gh.rest[self.repo_at(policy.TRUSTED_ACTORS_PATH, repo)] = file_payload(
+            json.dumps(self.REPO_LIST)
+        )
+        self.gh.rest[self.repo_at(POLICY, repo)] = file_payload('{"from": "repository"}')
+        self.gh.rest[self.MAIN] = {"sha": self.STANDARDS_SHA}
+        self.gh.rest[self.standards_at(policy.STANDARDS_TRUSTED_ACTORS_PATH)] = (
+            file_payload(json.dumps(self.STANDARDS_LIST))
+        )
+        self.gh.rest[self.standards_at(policy.STANDARDS_DEPENDABOT_POLICY_PATH)] = (
+            file_payload('{"from": "standards"}')
+        )
+
+    def reads(self, endpoint: str) -> int:
+        return sum(1 for call in self.gh.calls if call[1:2] == [endpoint])
+
+    def list_reads(self) -> list[int]:
+        return [
+            self.reads(endpoint)
+            for endpoint in (
+                self.repo_at(policy.TRUSTED_ACTORS_PATH),
+                self.repo_at(POLICY),
+                self.MAIN,
+                self.standards_at(policy.STANDARDS_TRUSTED_ACTORS_PATH),
+                self.standards_at(policy.STANDARDS_DEPENDABOT_POLICY_PATH),
+            )
+        ]
+
+    def test_the_opt_in_reads_both_from_standards(self) -> None:
+        self.fake("trusted_actors_source: standards\n")
+        self.assertEqual(
+            policy.trusted_listing(REPO, SHA), ((9, "a-person", "human"),)
+        )
+        self.assertEqual(policy.trusted_actors(REPO, SHA), ((9,), (9,)))
+        self.assertEqual(
+            policy._dependabot_policy("owner", "repo", SHA), {"from": "standards"}
+        )
+        self.assertEqual(self.list_reads(), [0, 0, 1, 1, 1])
+
+    def test_unset_or_repository_reads_the_repository_copies(self) -> None:
+        for team in (
+            None,
+            "babysit_loop_merge: c2-mechanical\n",
+            "trusted_actors_source: repository\n",
+        ):
+            with self.subTest(team=team):
+                self.reset()
+                self.fake(team)
+                self.assertEqual(
+                    policy.trusted_listing(REPO, SHA),
+                    ((5, "another-person", "human"),),
+                )
+                self.assertEqual(
+                    policy._dependabot_policy("owner", "repo", SHA),
+                    {"from": "repository"},
+                )
+                self.assertEqual(self.list_reads(), [1, 1, 0, 0, 0])
+
+    def test_an_unknown_or_non_scalar_value_reads_neither(self) -> None:
+        for team in (
+            "trusted_actors_source: elsewhere\n",
+            "trusted_actors_source: Standards\n",
+            "trusted_actors_source:\n",
+            "trusted_actors_source:\n  - standards\n",
+            '"trusted_actors_source":\n  - standards\n',
+        ):
+            with self.subTest(team=team):
+                self.reset()
+                self.fake(team)
+                with self.assertRaises(policy.PolicyReadError):
+                    policy.trusted_listing(REPO, SHA)
+                with self.assertRaises(policy.PolicyReadError):
+                    policy._dependabot_policy("owner", "repo", SHA)
+                self.assertEqual(policy.trusted_actors(REPO, SHA), ((), ()))
+                self.assertEqual(self.list_reads(), [0, 0, 0, 0, 0])
+
+    def test_a_failed_read_of_the_choice_or_of_standards_raises(self) -> None:
+        opted_in = "trusted_actors_source: standards\n"
+        trusted = self.standards_at(policy.STANDARDS_TRUSTED_ACTORS_PATH)
+        dependabot_policy = self.standards_at(policy.STANDARDS_DEPENDABOT_POLICY_PATH)
+        for endpoint, answer, readers in (
+            (self.repo_at(TEAM_YAML), 502, ("list", "policy")),
+            (self.MAIN, 502, ("list", "policy")),
+            (self.MAIN, {"sha": "main"}, ("list", "policy")),
+            (trusted, 502, ("list",)),
+            (dependabot_policy, 502, ("policy",)),
+        ):
+            for reader in readers:
+                with self.subTest(endpoint=endpoint, answer=answer, reader=reader):
+                    self.reset()
+                    self.fake(opted_in)
+                    self.gh.rest[endpoint] = answer
+                    with self.assertRaises(policy.PolicyReadError):
+                        if reader == "list":
+                            policy.trusted_listing(REPO, SHA)
+                        else:
+                            policy._dependabot_policy("owner", "repo", SHA)
+                    if reader == "list":
+                        self.assertEqual(policy.trusted_actors(REPO, SHA), ((), ()))
+                    self.assertEqual(self.list_reads()[:2], [0, 0])
+
+    def test_two_repositories_share_one_standards_commit_and_read(self) -> None:
+        other = "owner/other"
+        for repo in (REPO, other):
+            self.fake("trusted_actors_source: standards\n", repo)
+        for repo in (REPO, other):
+            owner, name = repo.split("/")
+            self.assertEqual(
+                policy.trusted_listing(repo, SHA), ((9, "a-person", "human"),)
+            )
+            self.assertEqual(
+                policy._dependabot_policy(owner, name, SHA), {"from": "standards"}
+            )
+        self.assertEqual(self.list_reads()[2:], [1, 1, 1])
+        self.assertEqual(self.reads(self.repo_at(TEAM_YAML, other)), 1)
+
+
 class ForeignPaths(unittest.TestCase):
     """Owner decision 2026-10-22: an adopted pull request's floor scores only
     the paths someone other than its author touched."""
