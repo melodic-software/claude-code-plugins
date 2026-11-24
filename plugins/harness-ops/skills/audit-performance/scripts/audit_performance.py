@@ -48,10 +48,6 @@ _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-# Re-exported, not merely used: the spawn-noise names are part of this engine's
-# surface (its tests and its --spawn-samples default read them from here), and
-# the module they now live in is shared with the `performance` plugin so the
-# bimodal threshold has exactly one home.
 from spawn_noise import (  # noqa: E402  (path set above; plugin-bundled module)
     BIMODAL_SPREAD_RATIO,
     NOOP_SPAWN,
@@ -79,7 +75,6 @@ SUBPROCESS_TIMEOUT_S = 20
 #: Plugin install scopes, most specific first. A plugin installed at two scopes loads once.
 SCOPE_PRECEDENCE = ("local", "project", "user")
 
-#: Files whose CONTENT this engine may read. Everything else is stat-only.
 ALLOWLISTED_READS = (
     "settings.json",  # install-root and project settings: sweep config, hooks, statusline, env
     ".last-cleanup",  # retention-sweep sentinel (mtime only, but read as a file)
@@ -93,28 +88,17 @@ ALLOWLISTED_READS = (
 #: word. Enforced in `read_proc_text`, which raises on any other name. `cmdline` is deliberately
 #: absent: it is process-supplied text, and an empty read is not evidence of a kernel thread.
 PROC_TEXT_READS = frozenset({"status", "stat"})
-#: Root of the proc filesystem. A parameter rather than a literal so the classifier is testable.
 PROC_ROOT = Path("/proc")
 #: `PF_KTHREAD` in the kernel's task flags word, stable from v2.6.32 through v6.18. proc(5)
 #: disclaims stability for the flags field, so a renumbering would classify every kernel thread
 #: as user-space: the failure mode is under-exclusion (an investigable false alarm), never
 #: over-exclusion (a hidden user-space leak).
 PF_KTHREAD = 0x00200000
-#: Ceiling on how many processes one population read may classify. The shortlist is ten names
-#: wide, and a machine selected for being contended must not pay an unbounded per-pid read.
 KTHREAD_CLASSIFY_CAP = 50
-#: How many non-kernel rows the population shortlist keeps. Ranked rows are walked until this
-#: many survive, so kernel threads at the top of the ranking never crowd out user-space rows.
 SHORTLIST_SIZE = 10
 
-#: Seconds between the two process-population samples that separate churn from accumulation.
 POPULATION_GAP_S = 3.0
-#: A process younger than this is not an orphan candidate however dead its parent looks.
 ORPHAN_MIN_AGE_HOURS = 24.0
-#: Orphan attribution is scoped to the debris the fan-out layer actually leaves behind:
-#: the shells, console hosts, and runtimes that hooks, statusline renders, and subagents
-#: spawn. A top-level desktop application normally outlives whatever launched it, so
-#: sweeping every process would report a dead parent as a defect hundreds of times over.
 ORPHAN_CANDIDATE_NAMES = frozenset(
     {
         "bash",
@@ -137,10 +121,6 @@ ORPHAN_CANDIDATE_NAMES = frozenset(
         "cygwin-console-helper.exe",
     }
 )
-#: Dead-parent census only. The orphan verdict still uses ORPHAN_MIN_AGE_HOURS and
-#: ORPHAN_CANDIDATE_NAMES, because that verdict is what routes a process toward a kill.
-#: A process this young is still inside teardown, so the census requires an age strictly
-#: above this guard.
 DEAD_PARENT_CENSUS_MIN_AGE_SECONDS = 5.0
 #: MSYS coreutils names background tasks and Monitors leave behind, added to the census
 #: and not to the verdict set. Suffixed only: the census runs on Windows process tables
@@ -157,15 +137,11 @@ DEAD_PARENT_CENSUS_EXTRA_NAMES = frozenset(
         "du.exe",
     }
 )
-#: How many rows the dead-parent CPU ranking keeps. It needs no name list: any process whose
-#: parent is gone is ranked, so a detached-by-design process surfaces only when it burns CPU.
 DEAD_PARENT_BY_CPU_SIZE = 10
 
 #: Executable names a `claude` on PATH can carry. Windows resolves `.exe` and `.cmd` through
 #: PATHEXT, so a PATH scan that looks only for the bare name under-reports there.
 CLAUDE_ON_PATH_NAMES = ("claude", "claude.exe", "claude.cmd")
-#: Every CLI-probe finding routes to the first-party install-diagnostics command; this engine
-#: observes which binary it measured and never adjudicates an install.
 DOCTOR_ROUTE = "run `claude doctor`"
 #: Only the native installer has a documented binary path, so an unrecognized path is an
 #: unclassified layout rather than evidence of an irregular install.
@@ -198,41 +174,25 @@ MATCHER_EXACT_CHARS = re.compile(r"^[A-Za-z0-9_\- ,|]+$")
 #: Matcher spellings that select every tool. An absent matcher does the same.
 MATCHER_MATCH_ALL = frozenset({"*", ""})
 
-#: The file kinds the fan-out projection always runs. A fixed representative baseline, not a
-#: scan of any tree: the projection answers "how many handlers fire for a write of this kind of
-#: file", and a baseline that changed with the machine would make two captures incomparable.
-#: Every extension a classified `if` gate names is projected as well, so a gate on a kind
-#: outside this baseline gets its own row instead of matching nothing; `other` stays last and
-#: means a file no gate names.
 PROJECTION_FILE_KINDS = (".md", ".py", ".sh", ".ts", ".json", "other")
 PROJECTION_OTHER_KIND = "other"
-#: Tools whose calls carry a file path, so an `Edit(...)` or `Write(...)` extension gate is decided by extension.
 FILE_WRITING_TOOLS = ("Write", "Edit", "NotebookEdit")
-#: Tools the projection runs. Bash carries no single file path, so it gets one tool-only row.
 PROJECTION_TOOLS = FILE_WRITING_TOOLS + ("Bash",)
-#: The only `if` shape this engine classifies: an `Edit` or `Write` rule whose glob ends in
-#: `*<suffix>`, optionally under a directory prefix (`**/` and literal segments). `dir` is that
-#: prefix and `suffix` the dotted tail; the last dotted component is the extension the rule is
-#: decided by, so it compares directly against PROJECTION_FILE_KINDS.
 IF_EXTENSION_GATE = re.compile(
     r"^(?P<tool>Edit|Write)\((?P<dir>(?:\*\*/)?(?:[^()*{},\s/]+/)*)\*(?P<suffix>(?:\.[A-Za-z0-9_]+)+)\)$"
 )
 
-#: Hook cost is never a sum. Named once so the block's `note` and its `notes` list cannot drift.
 HOOK_PARALLEL_NOTE = (
     "Hooks on one event run in parallel, so wall-clock cost is roughly the slowest hook "
     "plus contention, NOT the sum of their timings. This engine enumerates configured "
     "hooks and never executes one; a hook is third-party code with arbitrary side "
     "effects, and running it would make this capture a mutation."
 )
-#: What the projection cannot see. Both are over-counts rather than hidden spawns, and both are
-#: reported so a reader never mistakes a ceiling for a measurement.
 HOOK_ANCHOR_NOTE = (
     "An `if` rule matches only under its anchor, so an edit to a file outside the project "
     "directory never matches one; the projection counts those rows as firing and over-counts "
     "there."
 )
-#: The `source` labels `hook_inventory` gives settings files, the only handlers the projection collapses.
 SETTINGS_SOURCES = frozenset({"settings.json", "project settings.json"})
 HOOK_DEDUP_NOTE = (
     "Handlers from settings files that spawn the same command and arguments count once toward "
@@ -244,32 +204,16 @@ SETTINGS_DUPLICATE_REASON = (
     "duplicate settings handler: an earlier settings-file handler spawns the same command and "
     "arguments, so this copy counts toward the ceiling only (see HOOK_DEDUP_NOTE)"
 )
-#: Shell executables whose repeated appearance in one command line means nested shells.
 SHELL_TOKENS = ("bash", "sh", "zsh", "pwsh", "powershell", "cmd")
-#: Tokens after which the NEXT token is the thing being run rather than an argument value.
-#: Without this test a bare shell-token match convicts `node run.js cmd` and `make sh`, where
-#: `cmd` and `sh` are values and no shell starts. The list is a FLOOR: a shell reached through
-#: a position it does not cover is missed, and the note beside the finding says so. Known
-#: misses: a shell reached through a subshell (`$(bash x.sh)` or a backquoted one) and one
-#: reached through a runner that takes arguments of its own first (`timeout 5 bash x.sh`).
 COMMAND_POSITION_PREDECESSORS = frozenset(
     {"exec", "env", "sudo", "nohup", "command", "|", "||", "&&", ";"}
 )
 #: `-c` is deliberately NOT in that set: it means "count" to grep and "create" to tar, so it
 #: hands the next token the command slot only when the token before it is itself a shell.
 SHELL_COMMAND_FLAG = "-c"
-#: A run of shell operators, padded apart from its neighbors before the command-position
-#: test tokenizes: `a&&bash b` and `a && bash b` are the same command line, and only the
-#: spaced spelling survives a plain split. Applied to that test's own token list only.
 OPERATOR_RUN = re.compile(r"([;|&]+)")
-#: Characters the command-position tokenizer maps to a sentinel while it is inside a quoted
-#: run, so a quoted executable containing spaces stays one token and a quoted operator is not
-#: read as a delimiter. The sentinels are control characters no real command line carries, and
-#: none of them is whitespace to `str.split`.
 QUOTED_SENTINELS = {" ": "\x00", ";": "\x01", "|": "\x02", "&": "\x03"}
-#: The reverse map, applied to one token at a time before its basename is taken.
 SENTINEL_CHARACTERS = {sentinel: raw for raw, sentinel in QUOTED_SENTINELS.items()}
-#: Quote characters that open and close a quoted run.
 QUOTE_CHARACTERS = "\"'"
 #: The variable that selects which bash Claude Code hands a shell-form command to on Windows.
 GIT_BASH_PATH_ENV = "CLAUDE_CODE_GIT_BASH_PATH"
@@ -277,8 +221,6 @@ GIT_BASH_PATH_ENV = "CLAUDE_CODE_GIT_BASH_PATH"
 #: harness auto-detects Git Bash as if the variable were unset.
 ACCEPTED_GIT_BASH_NAMES = frozenset({"bash.exe", "sh.exe", "bash", "sh"})
 
-#: The wrapping shell no command string can show. Stated once so the hook block, the statusline
-#: block and SKILL.md cannot drift apart on what an empty finding list means.
 HARNESS_WRAPPER_NOTE = (
     "Shell form (no `args`) hands the whole `command` string to a shell before its first word "
     "runs, and the statusline command runs in a shell the same way, so a shell-form command "
@@ -1119,8 +1061,6 @@ def attribute_orphans(
     orphans: list[dict] = []
     live_parent: list[dict] = []
     unknown: list[dict] = []
-    # name -> [count, youngest_hours, oldest_hours, cpu_seconds]. Counted in full before the
-    # orphan sample cap below; this table is not a kill list.
     census_by_name: dict[str, list] = {}
     census_unknown = 0
     census_names = (
@@ -1177,7 +1117,6 @@ def attribute_orphans(
                 row[0] += 1
                 row[1] = min(row[1], age_hours)
                 row[2] = max(row[2], age_hours)
-                # One unreadable member makes the sum unknown, never an undercount.
                 row[3] = None if row[3] is None or cpu is None else row[3] + cpu
         elif census_aged and parent_state == "unknown":
             census_unknown += 1
@@ -1365,10 +1304,6 @@ def population_trend(
     rows.sort(
         key=lambda r: (r["exited"] + r["started"], r["count_second"]), reverse=True
     )
-    # The second sample is the live one, so classify its pids; a name that has since drained
-    # entirely falls back to the first sample's pids rather than going unclassified. The
-    # ranked rows are walked until ten non-kernel rows are kept, so kernel threads at the top
-    # of the ranking never crowd user-space rows out of the shortlist.
     live = {
         row["name"]: second.get(row["name"]) or first.get(row["name"], set())
         for row in rows
@@ -1607,8 +1542,6 @@ def classify_if_gate(rule: object) -> dict:
     text = str(rule).strip()
     match = IF_EXTENSION_GATE.match(text)
     if match:
-        # Lower-cased so a mixed-case extension folds into its projection row; kept as-is it
-        # would match no file kind and vanish. Its case is not modeled, so it is narrowed.
         suffix = match.group("suffix")
         components = suffix.lower().split(".")[1:]
         return {
