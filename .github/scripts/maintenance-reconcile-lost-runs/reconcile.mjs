@@ -257,6 +257,7 @@ import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-
 import { HELD_STEP, refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
+import { followUp } from "./followup.mjs";
 import {
   AGGREGATE_JOBS,
   FAILED,
@@ -1854,7 +1855,6 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       return finish(0);
     }
     if (env.FOLLOWUP === "true") {
-      const { followUp } = await import("./followup.mjs");
       result = await followUp({ repo, call, say, now, env, readStatus });
       if (result.items.some(recorded) && !env.RECORD_PATH) {
         throw new Error("RECORD_PATH is not set");
