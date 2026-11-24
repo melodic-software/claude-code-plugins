@@ -4024,10 +4024,27 @@ jobs:
           path: /tmp/ci-workflows-at-pin
           key: ci-workflows-at-pin-${{ github.run_id }}
           restore-keys: ci-workflows-at-pin-
-      - name: List the restored ci-workflows pins
+      - name: Rebuild each restored ci-workflows pin from its checked objects
         run: |
-          mkdir -p /tmp/ci-workflows-at-pin
-          find /tmp/ci-workflows-at-pin -mindepth 1 -maxdepth 1 -printf '%f\n' | sort >"$RUNNER_TEMP/pins-restored.txt"
+          dir=/tmp/ci-workflows-at-pin
+          mkdir -p "$dir"
+          for old in "$dir"/*; do
+            [ -e "$old" ] || continue
+            pin=${old##*/}
+            new=$(mktemp -d "$RUNNER_TEMP/pin-XXXXXX")
+            if [[ $pin =~ ^[0-9a-f]{40}$ ]] && [ -e "$old/ready" ] && git -C "$new" init -q &&
+              git -C "$new" -c transfer.fsckObjects=true fetch -q --depth 1 --no-tags "file://$old" "$pin" &&
+              [ "$(git -C "$new" rev-parse --verify -q "$pin^{commit}")" = "$pin" ]; then
+              touch "$new/ready"
+              touch -r "$old" "$new"
+              rm -rf "${old:?}"
+              mv "$new" "$old"
+            else
+              echo "::notice::dropped restored pin $pin: it did not rebuild from checked objects"
+              rm -rf "${old:?}" "${new:?}"
+            fi
+          done
+          find "$dir" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort >"$RUNNER_TEMP/pins-restored.txt"
 
       # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
       # starts src/launch.ts, which installs the runtime dependencies from the
