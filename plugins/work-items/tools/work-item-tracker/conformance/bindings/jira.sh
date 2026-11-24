@@ -9,8 +9,6 @@ CB_BINDING_TMP=""
 
 cb_setup() {
   CB_BINDING_TMP="$(mktemp)"
-  # The jira config subtree holds placeholders: no exercised path reaches
-  # wit_need_jira_config, since create-item=false blocks item seeding.
   jq -cn '{schema_version:"1.0", provider:"jira",
     config:{lease_ttl_hours:24,
       jira:{site:"conformance.atlassian.net", project_keys:["CONF"],
