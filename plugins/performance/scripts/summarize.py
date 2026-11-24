@@ -42,8 +42,6 @@ import pathfix
 
 DEFAULT_PERCENTILES = "50,95"
 
-# A percentile that moves by more than this fraction of itself when the single largest
-# sample is dropped is carried by that one sample, not by the distribution.
 OUTLIER_SHIFT = 0.10
 
 

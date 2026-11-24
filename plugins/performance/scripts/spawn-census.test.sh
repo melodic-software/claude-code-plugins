@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Tests for spawn-census.sh, the drift-immune process-spawn counter.
-#
-# The counting cases prove the instrument reads correctly. The refusal cases are
-# the more important half: every one of them reproduces a way the source-run
-# census reported a confident wrong number, and each asserts the script now
-# FAILS instead of quietly producing one.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,9 +11,6 @@ source "$SCRIPT_DIR/test-helpers.sh"
 
 run_census() { capture bash "$CENSUS" "$@"; }
 
-# The workspace must NOT sit under the system temporary root: the script rejects
-# a temp-rooted shim directory by design, so a mktemp workspace here would make
-# every counting case unrunnable.
 WORK="${PERF_HARNESS_TEST_ROOT:-$HOME/.cache/performance-harness-tests}/spawn-census.$$"
 mkdir -p "$WORK"
 trap 'rm -rf "$WORK"' EXIT
@@ -35,13 +26,11 @@ printf 'z\n' | sed 's/z/w/' >/dev/null
 cat /dev/null
 SUBJECT
 
-# --- 1. the instrument reads correctly ---
 run_census --shim-dir "$SHIM" --label counted --tool sed --tool cat -- bash "$WORK/subject.sh"
 assert_eq "a well-formed census exits 0" "0" "$RUN_RC"
 assert_contains "two sed spawns and one cat spawn are counted" "spawns=3" "$RUN_OUT"
 assert_contains "the breakdown names the tools" "2 sed" "$RUN_OUT"
 
-# --- 2. rule 1, empirically: two runs against an unchanged subject agree ---
 first="$RUN_OUT"
 run_census --shim-dir "$SHIM" --label counted --tool sed --tool cat -- bash "$WORK/subject.sh"
 assert_eq "a second run against the unchanged subject agrees" \
@@ -75,11 +64,9 @@ run_census --shim-dir "$SHIM" --label stdin-missing --tool cat --no-ledger \
   --stdin-file "$WORK/no-such-payload.txt" -- bash -c 'exit 0'
 assert_eq "a missing --stdin-file is refused" "2" "$RUN_RC"
 
-# --- 4. a builtin-only subject counts zero, and does not miscount its shims ---
 run_census --shim-dir "$SHIM" --label builtins --tool sed --tool cat -- bash -c 'printf ok'
 assert_contains "a builtins-only subject counts zero spawns" "spawns=0" "$RUN_OUT"
 
-# --- 5. the shim directory is required, and a temporary one is refused ---
 run_census --label nodir --tool sed -- bash -c 'printf ok'
 assert_eq "a missing shim directory is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains the fixed-PATH requirement" "SAME directory" "$RUN_OUT"
@@ -99,7 +86,6 @@ run_census --shim-dir "$SHIM" --label badtool \
 assert_eq "an unresolvable tool is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains the undercount" "undercounts" "$RUN_OUT"
 
-# --- 7. a Windows drive-letter subject path is refused ---
 run_census --shim-dir "$SHIM" --label winpath --tool sed -- bash 'D:/worktrees/repo/hook.sh'
 assert_eq "a drive-letter subject path is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the 127 shape" "exits 127 in both arms" "$RUN_OUT"
@@ -108,10 +94,6 @@ run_census --shim-dir "$SHIM" --label winpathok --tool sed --allow-windows-paths
   -- bash -c 'printf %s "D:/native/tool.exe"'
 assert_eq "--allow-windows-paths is the documented escape hatch" "0" "$RUN_RC"
 
-# --- 8. the ledger catches a shim directory that moved between runs ---
-# This is the standalone-invocation half of rule 1. The driver's two-runs-agree
-# proof cannot cover it, because a census is run on its own far more often than
-# through a driver.
 mkdir -p "$WORK/shim-moved"
 run_census --shim-dir "$WORK/shim-moved" --label counted --tool sed --tool cat \
   -- bash "$WORK/subject.sh"
@@ -126,7 +108,6 @@ run_census --shim-dir "$SHIM" --label counted --no-ledger --tool sed --tool cat 
   -- bash "$WORK/subject.sh"
 assert_eq "--no-ledger skips the recorded-entry check" "0" "$RUN_RC"
 
-# --- 9. a subject that never ran is refused, not counted as zero ---
 run_census --shim-dir "$SHIM" --label missing --tool sed --no-ledger \
   -- /nonexistent/definitely-not-here.sh
 assert_eq "a subject exiting 127 is refused" "2" "$RUN_RC"

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Tests for harness-lib.sh, the shared precondition helpers.
-#
-# Every case here asserts that a precondition FAILS when it is unmet. That is
-# the point of the library: harness-integrity.md rule 2 forbids degrading into a
-# weaker check that passes, so "it refused" is the behavior under test, not an
-# error path to tolerate.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,7 +22,6 @@ assert_eq "drive root folds to POSIX" "/c/" "$(harness_posix_form 'C:/')"
 assert_eq "an already-POSIX path is unchanged" "/d/a/b" "$(harness_posix_form '/d/a/b')"
 assert_eq "a non-path string is unchanged" "before" "$(harness_posix_form 'before')"
 
-# --- harness_require_posix_path ---
 capture harness_require_posix_path "the subject" 'D:/worktrees/repo/hook.sh'
 assert_eq "a drive-letter path is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the POSIX spelling" "/d/... rather than D:/..." "$RUN_OUT"
@@ -42,7 +35,6 @@ assert_eq "a POSIX path is accepted" "0" "$RUN_RC"
 capture harness_require_posix_path "the subject" 'bash -c "printf %s hello"'
 assert_eq "an ordinary command string is accepted" "0" "$RUN_RC"
 
-# --- harness_resolve_shim_dir ---
 capture harness_resolve_shim_dir ""
 assert_eq "an empty shim directory is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains why there is no default" "must be the SAME directory" "$RUN_OUT"
@@ -63,13 +55,10 @@ capture env TMPDIR=/tmp bash -c \
   "source '$SCRIPT_DIR/harness-lib.sh'; harness_resolve_shim_dir '$TMPDIR_ALIAS/perf-shim-probe'"
 assert_eq "a temp root reached by another spelling is refused" "2" "$RUN_RC"
 
-# A directory whose NAME merely contains "tmp" is not under the temporary root
-# and must be accepted; a substring match here would misfire on real paths.
 mkdir -p "$WORK/tmp-but-not-temp"
 harness_resolve_shim_dir "$WORK/tmp-but-not-temp"
 assert_contains "a stable directory named tmp-* is accepted" "tmp-but-not-temp" "$HARNESS_SHIM_DIR"
 
-# --- harness_ledger_check ---
 harness_ledger_check "case-ledger" "/d/stable/shim"
 capture harness_ledger_check "case-ledger" "/d/stable/shim"
 assert_eq "an unchanged injected PATH entry passes" "0" "$RUN_RC"
@@ -99,8 +88,6 @@ printf '#!/bin/sh\nexit 127\n' >"$STUB_DIR/python3"
 chmod +x "$STUB_DIR/python3"
 printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_PYTHON" >"$REAL_DIR/python"
 chmod +x "$REAL_DIR/python"
-# Only the stub and wrapper directories are on PATH, so no system python can
-# answer for either case; bash itself is invoked by absolute path.
 BASH_BIN="$(type -P bash)"
 
 capture env PATH="$STUB_DIR:$REAL_DIR" "$BASH_BIN" -c \
