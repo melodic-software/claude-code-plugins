@@ -139,6 +139,11 @@ misreads into working code, where the audit can no longer see them as findings:
   proceeds. A reply of "semantics confirmed" is the recommended token, not a required
   one; any clear confirmation opens the gate.
 
+## Related
+
+- Measure cross-repository copied files: /coupling:reduce.
+- Extract repeated markdown into one named SSOT: /docs-hygiene:extract-ssot.
+
 ## Gotchas
 
 - The subtle case is the paraphrase. It reads as original prose but

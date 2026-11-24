@@ -123,6 +123,13 @@ this table gives the other.
 Once either skill is loaded, route by the target in front of you, not by the
 phrase that reached it; the sections above say where.
 
+## Related
+
+- Reshape human-read tickets, PRs, or docs: /writing:be-concise.
+- Batch markdown compression with semantic-diff guard: /docs-hygiene:compress.
+- Batch code simplification sweep: /code-tidying:batch-simplify.
+- Remove duplicated content rather than wordiness: /discipline:point-dont-copy.
+
 ## Gotchas
 
 - Terseness is not duplication. Removing a second copy of a fact is

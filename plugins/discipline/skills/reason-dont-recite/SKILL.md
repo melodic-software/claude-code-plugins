@@ -86,6 +86,13 @@ and routes it to the human, and does not open a standards PR (or any outward
 artifact) without explicit opt-in. Degrade to that skill in prose when it is
 not enabled.
 
+## Related
+
+- Route disagreement with a shared standard upstream: /discipline:follow-our-standards.
+- Recover original decision rationale from history: /discovery:trace-intent.
+- Check conformance against external vendor docs: /discipline:recheck-against-upstream.
+- Reuse or replace an established pattern in new work: /discipline:reuse-or-replace.
+
 ## Gotchas
 
 - The tell is a justification that only restates the incumbency. "because

@@ -261,10 +261,10 @@ degrade to prose guidance when it is absent.
   Abbreviation policy, acronym casing, and casing style route to the
   consuming ecosystem's own style guide, never a baked-in verdict.
 
-## Next
+## Related
 
-- The person picked a name that replaces an existing one: /docs-hygiene:rename-references <old> to <new>.
-- The picked name is a domain term: /domain-driven-design:ubiquitous-language curate.
+- Settling the underlying domain concept or glossary term: /domain-driven-design:ubiquitous-language.
+- Propagating an already-decided rename across call sites: /docs-hygiene:rename-references.
 
 ## Gotchas
 
