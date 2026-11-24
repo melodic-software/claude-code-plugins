@@ -3,6 +3,13 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.1] - 2026-11-24
+
+### Changed
+
+- `/spelling:setup` now carries a `## Related` section that points at `/toolchain:lint` and
+  `/toolchain:setup`.
+
 ## [3.3.0] - 2026-11-23
 
 ### Added

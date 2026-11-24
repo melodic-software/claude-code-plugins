@@ -3,6 +3,13 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.7] - 2026-11-24
+
+### Changed
+
+- `/naming:name-it-better` now lists its domain-glossary and rename-sweep links under
+  `## Related`, not `## Next`, since each one applies only in a given situation.
+
 ## [0.7.6] - 2026-11-23
 
 ### Changed
