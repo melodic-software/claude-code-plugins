@@ -44,7 +44,7 @@ graders:
     target: last_message
   - name: confidence-tag
     type: regex
-    pattern: '\bconfidence\b[*:`|\s-]{0,12}[*`(\[]*(?:verified|likely|needs-review|unverified)\b|\b(?:verified|likely|needs-review|unverified)\b[*`)\]]*[ \t]*confidence\b|^[ \t]*\|[ \t]*\d+[ \t]*\|(?:[^\n|]*\|)*?[ \t]*[*`]*(?:verified|likely|needs-review|unverified)[*`]*[ \t]*\||\bunverified\b[^\n]{0,40}\bverification:[ \t]*skipped\b'
+    pattern: '\bconfidence\b[*:`|\s-]{0,12}[*`(\[]*(?:verified|likely|needs-review)\b|\b(?:verified|likely|needs-review)\b[*`)\]]*[ \t]*confidence\b|^[ \t]*\|[ \t]*\d+[ \t]*\|(?:[^\n|]*\|)*?[ \t]*[*`]*(?:verified|likely|needs-review)[*`]*[ \t]*\||\bunverified\b[^\n]{0,40}\bverification:[ \t]*skipped\b'
     flags: 'im'
     target: last_message
   - name: enforcement-escalation

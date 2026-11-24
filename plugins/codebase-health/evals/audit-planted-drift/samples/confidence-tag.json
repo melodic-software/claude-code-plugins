@@ -28,6 +28,14 @@
     {
       "answer": "I could not get the validator to run, so this stays unverified for now.",
       "why": "unverified as an ordinary word, no skipped line"
+    },
+    {
+      "answer": "Confidence: unverified.",
+      "why": "review example: unverified with no skipped line"
+    },
+    {
+      "answer": "| 1 | warning | doc-drift | README.md:4 | README names a missing script | unverified |",
+      "why": "review example: unverified cell with no skipped line"
     }
   ]
 }

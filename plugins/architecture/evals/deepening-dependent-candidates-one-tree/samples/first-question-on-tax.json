@@ -39,6 +39,10 @@
     {
       "answer": "**First question (Mail sender).** Should SMTP and the recording adapter share one port?\n\nThe tax module comes after.",
       "why": "header names the mail sender; tax only after the question"
+    },
+    {
+      "answer": "Before the first question, the order: tax module with invoice total, then mail sender.\n\nShould SMTP and the recording adapter share one port?",
+      "why": "review example: first question named in the plan line, the question is on the mail sender"
     }
   ]
 }
