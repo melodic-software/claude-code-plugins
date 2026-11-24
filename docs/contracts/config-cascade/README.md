@@ -126,7 +126,7 @@ first line that is exactly three backticks.
 paths and the one it used. `.claude/<name>` is a supported location, not a retired file: its
 fallback read carries no retirement record and is not the dual-read window below.
 
-**The user-global and personal override layers.** There is no user-global file layer: a
+**The user-global and personal override layers.** There is no user-global file layer. A
 per-person value lives in `userConfig`. The personal override is `<home>/<concern>.local.<ext>`. A
 surface that still reads `~/.claude/<name>` or `${CLAUDE_PROJECT_DIR}/.claude/<stem>.local.<ext>`
 keeps working until it migrates in its own change. The team-tracked verdict, the root classification
@@ -684,9 +684,9 @@ open. Every row fills `Who wins` and `Merge form` with one short phrase each, ne
 `Floor direction` with a value from the policy-floor section above, taken from the row's `Who wins`
 cell as it stands on `main` (`no-floor` when the surface has no policy-floor key). Every row
 below is currently expressed as a **dedicated file**; a surface that migrates to a convention doc
-under the expression doctrine above rewrites its row in the same PR (path → the convention home,
-layers → `team, via pointer line`, who wins → `team via pointer line`, merge form →
-`convention doc`, conformance → the retirement record id). A structured surface that adopts the
+under the expression doctrine above rewrites its row in the same PR (the path becomes the convention home,
+layers becomes `team, via pointer line`, who wins becomes `team via pointer line`, merge form
+becomes `convention doc`, and conformance becomes the retirement record id). A structured surface that adopts the
 [location axis](#location-of-the-team-layer-a-docs-convention-file-or-claudename) keeps its layers
 and merge form, names both team-layer locations in the path column, and states the precedence in
 its conformance cell.
