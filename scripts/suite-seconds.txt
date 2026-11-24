@@ -830,7 +830,6 @@ scripts/node-notice-rows.test.sh 8
 scripts/pilot-plugin-quality-sim.test.sh 1
 scripts/plugin-validate-report.test.sh 1
 scripts/post-merge-demotion-alert.test.sh 62
-scripts/repin-ci-workflows.test.sh 2
 scripts/run-outside-node-suites.test.sh 1
 scripts/run-plugin-tests.test.sh 41
 scripts/selection-audit.test.sh 1

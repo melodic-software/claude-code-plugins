@@ -8759,6 +8759,33 @@ class TheBaselineFileTakesNoLinkOrVerdict(unittest.TestCase):
             self.assertFalse(ve._native_baseline(REPO, lanes, "agent-lanes[bot]", None))
             listed.assert_not_called()
 
+    def queued(self, path: str, baseline_file: str | None = BASELINE) -> str | None:
+        fake = FakeGitHub([], {})
+        with (
+            mock.patch.object(
+                policy, "pull_request", return_value=pull(user=LANES_BOT, changed_files=1)
+            ),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(
+                policy, "changed_files", return_value=(self.files((path, None)), True)
+            ),
+        ):
+            reader = ve.Reader(
+                REPO,
+                "main",
+                now=NOW,
+                agent_identity="agent-lanes[bot]",
+                baseline_file=baseline_file,
+            )
+            return reader.queued_hold(PR)
+
+    def test_a_queued_baseline_entry_with_no_verdict_stays_queued(self) -> None:
+        self.assertIsNone(self.queued(BASELINE))
+
+    def test_any_other_queued_entry_with_no_verdict_is_held(self) -> None:
+        self.assertEqual(self.queued("docs/a.md"), "verify:missing")
+        self.assertEqual(self.queued(BASELINE, baseline_file=None), "verify:missing")
+
     def test_only_a_link_shape_refusal_is_set_aside(self) -> None:
         for refusal in (
             "linked-issues:0",

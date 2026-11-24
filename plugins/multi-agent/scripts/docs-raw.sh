@@ -7,7 +7,13 @@
 # docs-fetcher-gate.mjs). It takes no path argument and writes only a temporary
 # directory it removes on exit.
 #
-#   docs-raw.sh <url> [<section-id>...]
+#   docs-raw.sh [--render] <url> [<section-id>...]
+#
+# --render is for a benchmark registry fetcher: the URL must be a row link in
+# ../reference/benchmarks.json beside this script, and the fetch passes that
+# row's expect marker and --render-fallback, so a page that comes back blocked
+# or without the marker (a page drawn by script) is rendered through the
+# Firecrawl CLI when docs-cache.sh's renderer is firecrawl.
 #
 # The page is fetched with --cache --max-age 0, so the server is asked every
 # time and cached bytes never stand in for a failed fetch. The profile follows
@@ -26,7 +32,10 @@
 # whole-page threshold) or map (its section map: id level start end bytes
 # sha256 heading_path). With ids, kind is sections: each section's heading,
 # body and child sections. kind too-large has no body: the ids asked for more
-# than MAX_BODY bytes, or the body would pass it. The body's CRLF line ends
+# than MAX_BODY bytes, or the body would pass it. MAX_BODY, which also caps
+# kind page, stays under the 30000 characters of Bash output Claude Code reads
+# back by default (BASH_MAX_OUTPUT_LENGTH,
+# https://code.claude.com/docs/en/env-vars), so the header is never cut off. The body's CRLF line ends
 # become LF; bytes and body_sha256 are the byte count and hash of the body
 # without its trailing newlines, so a reader can tell a retyped body from the
 # printed one. Summaries and notes are never printed: this is a
@@ -36,7 +45,7 @@
 # lookup itself failed.
 set -uo pipefail
 
-MAX_BODY=65536
+MAX_BODY=28000
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 die() {
@@ -44,7 +53,12 @@ die() {
   exit 2
 }
 
-[[ $# -ge 1 ]] || die "usage: docs-raw.sh <url> [<section-id>...]"
+render=0
+if [[ "${1:-}" == --render ]]; then
+  render=1
+  shift
+fi
+[[ $# -ge 1 ]] || die "usage: docs-raw.sh [--render] <url> [<section-id>...]"
 url="${1%%#*}"
 shift
 [[ "$url" =~ ^https://([A-Za-z0-9.-]+)(:[0-9]{1,5})?([/?].*)?$ ]] || die "not an https URL: $url"
@@ -61,12 +75,22 @@ platform.claude.com) profile=platform ;;
 *) profile=generic ;;
 esac
 
+extra=()
+if [[ $render -eq 1 ]]; then
+  registry="$HERE/../reference/benchmarks.json"
+  [[ -f "$registry" ]] || die "--render needs a benchmark registry beside this script"
+  expect="$(jq -r --arg u "$url" '[.rows[] | select((.link | sub("#.*$"; "")) == $u) | .expect] | first // empty' "$registry")" ||
+    die "cannot read the benchmark registry"
+  [[ -n "$expect" ]] || die "--render: not a registry row link: $url"
+  extra=(--render-fallback --expect "$expect")
+fi
+
 tmp="$(mktemp -d)" || die "cannot make a temporary directory"
 trap 'rm -rf "$tmp"' EXIT
 store=()
 [[ "$profile" != generic ]] || store=(--cache-dir "$tmp/cache")
 
-bash "$HERE/fetch-docs.sh" --cache --max-age 0 --public-only ${store[@]+"${store[@]}"} --profile "$profile" --out "$tmp/out" "$url" >/dev/null ||
+bash "$HERE/fetch-docs.sh" --cache --max-age 0 --public-only ${store[@]+"${store[@]}"} ${extra[@]+"${extra[@]}"} --profile "$profile" --out "$tmp/out" "$url" >/dev/null ||
   die "fetch-docs.sh failed"
 # Unit separators, not tabs: IFS whitespace would merge an empty field into the next.
 IFS=$'\x1f' read -r state reason key sha format validated bytes file < <(
@@ -83,6 +107,7 @@ fi
 cache=(bash "$HERE/docs-cache.sh" ${store[@]+"${store[@]}"} --escalate-percent 100 --escalate-bytes "$MAX_BODY")
 whole="$("${cache[@]}" config | sed -n 's/^whole_page_bytes=\([0-9]*\) .*/\1/p')"
 [[ "$whole" =~ ^[0-9]+$ ]] || die "cannot read whole_page_bytes from docs-cache.sh config"
+[[ "$whole" -le "$MAX_BODY" ]] || whole="$MAX_BODY"
 # The pinned entry when the cache stored one; the fetched file when it did not.
 if [[ -n "$key" ]]; then src=("$key-$sha"); else src=(--file "$file"); fi
 

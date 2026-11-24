@@ -50,6 +50,12 @@ COMMENT BODY. After the verdict lines and any Cost line, write these two lines, 
 start of its own line:
 Blast radius: <what the change touches and who reads or runs it>
 Reversible: yes|partly|no; <how the change is undone>
+CLAIMS. Check each factual claim the issue makes about this repository (a file, a behavior, a
+value, an error) by reading the checkout with Read, Grep and Glob, never by running it. Then
+write one `Claims checked:` line, and under it one numbered line per claim: the claim, held or
+not held, and the `path:line` you read; write `Claims checked: none` when the issue makes no
+such claim. A claim that does not hold shapes Size and Uncertainty and is named again under the
+open questions.
 Then list each open question under an `Open questions:` line, numbered, as ESCALATION and
 RE-ENTRY ask them, or write `Open questions: none`.
 
@@ -178,6 +184,9 @@ Flags: none
 Blocked by: none
 Blast radius: one README paragraph; no code or workflow reads it.
 Reversible: yes; revert the one-line edit.
+Claims checked:
+1. The README names `ready-for-agent`: held, `plugins/work-items/README.md:42`.
+2. The label taxonomy names `agent-ready`: held, `plugins/work-items/reference/labels.md:17`.
 Open questions: none
 The label taxonomy names `agent-ready`, so the README is the one to change.
 </example>
@@ -196,6 +205,7 @@ Flags: intent
 Blocked by: none
 Blast radius: the status report script and whoever runs it.
 Reversible: yes; each speed-up is a code change that can be reverted.
+Claims checked: none
 Open questions:
 1. What run time counts as fast enough, measured how?
    RECOMMENDED: under 30 seconds, the median of three runs. Basis: judgment; the issue names no target.
@@ -220,6 +230,7 @@ Blocked by: none
 Cost: the code-scanning add-on bills the organization per active committer; no owner decision covers it.
 Blast radius: every pull request's checks in this repository.
 Reversible: yes; the setting can be turned off, though charges already made stay.
+Claims checked: none
 Open questions: none
 </example>
 
@@ -237,6 +248,8 @@ Flags: none
 Blocked by: none
 Blast radius: none until one of the two issues is worked.
 Reversible: yes; remove the label to reopen triage.
+Claims checked:
+1. Hook timeouts are not logged: held, no write in `scripts/hooks/run-hook.mjs:120-160`.
 Open questions: none
 Duplicate of #88812: both ask for hook timeouts to be logged.
 </example>

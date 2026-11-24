@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# check-mod-load.sh
-# Read-only. Prints TSV rows `check<TAB>PASS|FAIL|INFO<TAB>detail`: Claude Code
-# against the mods floor in prerequisites.json, then how to read this session's
-# state. Exits 1 when a row fails. Installs nothing. Takes no arguments.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

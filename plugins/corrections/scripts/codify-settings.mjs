@@ -1,19 +1,4 @@
 #!/usr/bin/env node
-// Prints codify's settings and the layer that set each, resolved through the config cascade
-// (lib/config-cascade.mjs, ADR 0075): the schema default, the user option (two of the keys), the team
-// file <home>/corrections.yaml and the personal override <home>/corrections.local.yaml, <home> from the
-// convention-home pointer line.
-//   {"min_occurrences": N, "layer": "defaults" | "team" | "local", "path": file relative to the project | null,
-//    "ratchet_offer": {"value", "layer", "path"}, "review_mining_prs": {"value", "layer", "path"}}
-// Both of the last two take "userConfig" as a layer too. --user-ratchet-offer and
-// --user-review-mining-prs pass the options the skill body renders; an empty value, an unrendered
-// placeholder or the default is unset.
-// A value the schema refuses is named on stderr (the first five per layer, then a count of the rest)
-// and dropped: an invalid team value falls to the
-// default, never to a lower layer, an invalid personal value leaves the team value standing. A declined, not-applicable or
-// broken pointer line leaves both files unread, said on stderr.
-// Usage: codify-settings.mjs [--project DIR] [--user-ratchet-offer V] [--user-review-mining-prs V]
-// (--project defaults to the git root of the current directory)
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -30,7 +15,6 @@ const SHOWN = 5;
 
 const say = (text) => process.stderr.write(`codify-settings: ${text}\n`);
 
-/** Each layer's first SHOWN errors on stderr, then a count of the rest, so a file of unknown keys cannot flood it. */
 function sayErrors(layers) {
   for (const { name, path, errors } of layers) {
     for (const error of errors.slice(0, SHOWN)) say(error);
@@ -43,7 +27,6 @@ function gitRoot(dir) {
   return r.status === 0 ? r.stdout.trim() : dir;
 }
 
-/** {home} or {home: null, why} from the project's pointer line, as lib/resolve-convention-home.sh reports it. */
 function conventionHome(project) {
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
   if (r.status === 0) return { home: r.stdout.trim() };
@@ -87,7 +70,6 @@ try {
   rmSync(scratch, { recursive: true, force: true });
 }
 sayErrors(out.layers);
-/** The layer that set a key and that layer's file relative to the project, or null. */
 function source(key) {
   const layer = out.provenance[key] ?? "defaults";
   const file = out.layers.find((l) => l.name === layer)?.path;

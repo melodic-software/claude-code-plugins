@@ -111,6 +111,12 @@ conventions for per-ecosystem naming, locations, and fixtures.
 - New tests, their quality unchecked: /testing:audit.
 - Tests written for survivors a mutation run handed over: /mutation-testing:audit on that file, to confirm each kill.
 
+## Related
+
+- Run the new tests across ecosystems: /toolchain:check.
+- Test-design WHY guidance: /tdd:principles.
+- Seed realistic faults to test suite strength: /mutation-testing:seed-faults.
+
 ## Gotchas
 
 - Check the consuming project's own gotcha notes before writing tests

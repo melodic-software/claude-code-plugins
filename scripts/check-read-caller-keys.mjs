@@ -18,7 +18,7 @@ const TIP_REF = "${{ github.event.repository.default_branch }}";
 const TIP_STEP_REF = "${{ steps.tip.outputs.sha }}";
 const TIP_BRANCHES = new Set(["main", TIP_REF]);
 const TIP_USES =
-  /^melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@[0-9a-f]{40}$/;
+  /^melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@main$/;
 const REPOSITORY = "melodic-software/claude-code-plugins";
 // A job-level `uses:` naming one of this repository's workflows, in local
 // (`./`) or remote (`owner/repo/...@ref`) form.

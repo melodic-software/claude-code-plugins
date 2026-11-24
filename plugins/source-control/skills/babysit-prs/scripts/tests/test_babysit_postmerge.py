@@ -5648,7 +5648,7 @@ class AnchorUpload(unittest.TestCase):
         dropin = re.compile(
             r"      - name: Write the source-control trust settings\n"
             r"        uses: melodic-software/ci-workflows/\.github/actions/"
-            r"apply-claude-managed-settings@[0-9a-f]{40} # v[0-9.]+\n"
+            r"apply-claude-managed-settings@main\n"
             r"        with:\n"
             r"          drop-in-file: \.base/\.github/source-control-settings\.json\n"
             r"          drop-in-name: 50-source-control\n"

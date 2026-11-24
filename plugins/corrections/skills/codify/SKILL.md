@@ -179,13 +179,16 @@ did not escape review needs no answer.
 
 ## 6. Consent and write
 
-- **A person invoked the skill** (they typed `/corrections:codify`): that is consent to write the
-  proposal. Write it to `.work/codify/<branch-slug>/<UTC-timestamp>-proposal.md`, the path the
-  proposal is written to, where `<branch-slug>` is the current branch lowercased with every
-  character outside `[a-z0-9._-]` replaced by `-`. An empty slug means no file; present the proposal
-  in the report only. Announce the path before writing. On the first write, check that
-  `.work/codify/` holds a `.gitignore` containing `*` and create it (announced) when absent; never
-  edit the repository's own `.gitignore`.
+- **A person invoked the skill** (their own message runs `/corrections:codify` as a command, not
+  quoted, pasted or asked about, whether the slash command loaded the skill or the model then
+  loaded it through the Skill tool): that is consent to write the proposal. Write it to
+  `.work/codify/<branch-slug>/<UTC-timestamp>-proposal.md`, where `<branch-slug>` is the current
+  branch (`git branch --show-current`) lowercased with every character outside `[a-z0-9._-]`
+  replaced by `-`. An empty slug means no file; present the proposal in the report only. Announce
+  the path, then call Write with the whole proposal before starting the report; the step is done
+  when the file exists. A proposal shown only in the reply is not written. On the first write,
+  check that `.work/codify/` holds a `.gitignore` containing `*` and create it (announced) when absent;
+  never edit the repository's own `.gitignore`.
 - **The model invoked the skill**: it only proposes. Present the proposal in the report and write
   nothing.
 - **A blocking check** (a hook, a required CI check, a lint at error level): ask before installing it,
@@ -215,10 +218,11 @@ holds neither.
 
 ## Report
 
-Problems first: a mistake that meets the ladder's "Guardrail criterion" with no check in the
-repository yet, stated in those words as a "no guardrail" finding naming that section; an unproven
-check; a count below threshold; no old ref and no plant. Then the count, the rung by its id, the scope, the proof line from the script, and the proposal path or that nothing was written. A rung
-id read through the ladder's [alias](reference/enforcement-ladder.md#tier-2-static-analysis), from
+When section 6 writes a proposal file, write it before this report. Problems first: a mistake
+that meets the ladder's "Guardrail criterion" with no check in the repository yet, stated in those
+words as a "no guardrail" finding naming that section; an unproven check; a count below threshold;
+no old ref and no plant. Then the count, the rung by its id, the scope, the proof line from the
+script, and the written proposal's path or why nothing was written. A rung id read through the ladder's [alias](reference/enforcement-ladder.md#tier-2-static-analysis), from
 the repository's instructions, a stub or a findings file, gets one line naming the old id and the
 current one. End with the question for any blocking install.
 
