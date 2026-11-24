@@ -43,8 +43,6 @@ export function markerForms(name, instruction) {
   ];
 }
 
-// Per form, the standalone marker lines in content: { starts, ends }, each a
-// list of { at, text } with `at` the offset where the marker text begins.
 function scanMarkers(content, forms) {
   const found = forms.map(() => ({ starts: [], ends: [] }));
   let at = 0;

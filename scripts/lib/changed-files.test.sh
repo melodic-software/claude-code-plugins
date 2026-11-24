@@ -24,7 +24,6 @@ SCRIPTS_DIR="$(cd "$SELF_DIR/.." && pwd)"
 # shellcheck source=test-harness.sh
 . "$SELF_DIR/test-harness.sh"
 
-# mk_repo -> prints the path of a fresh repo with one committed base tree.
 mk_repo() {
   local dir
   dir="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
@@ -95,7 +94,6 @@ if (
 else
   fail "resolve_base returned an unresolvable ref"
 fi
-# A repo with no main/master and no origin/ has nothing to fall back to.
 bare="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 git_init_test_repo "$bare" >/dev/null
 printf 'seed\n' >"$bare/f.txt"
@@ -227,8 +225,6 @@ if ((${#paths[@]} == 1)) && [[ "${paths[0]}" == "$quoted_name" ]]; then
 else
   fail "into mangled a C-quotable pathname: ${paths[*]-<none>}"
 fi
-# Prove the fixture is a real regression guard: the shape being replaced does
-# mangle this name, so the assertion above is discriminating rather than vacuous.
 line_wise="$(git -C "$repo" diff --name-only "$base")"
 if [[ "$line_wise" != "$quoted_name" ]]; then
   ok "the line-wise read this helper replaced does mangle that name (guard is live)"
@@ -254,8 +250,6 @@ else
 fi
 rm -rf "$repo"
 
-# --- into: the caller may name its out-array anything ---------------------
-#
 # A nameref resolves its target in the scope where it is USED, so any local
 # declared inside the function that shares the caller's chosen out-var name
 # shadows the caller's variable for the rest of the call. Measured on the

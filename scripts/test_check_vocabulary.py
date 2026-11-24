@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Self-test for the retired-sense vocabulary checker.
-
-Each case builds a throwaway git repository holding a copy of the checker and
-its shipped data file plus the files the case names, so the suite proves the
-shipped rules and allowlist rather than the current state of this checkout.
-"""
 
 from __future__ import annotations
 
@@ -40,7 +34,6 @@ HERE = Path(__file__).resolve().parent
 GATE = HERE / "check-vocabulary.py"
 DATA = HERE / "vocabulary-senses.json"
 
-# One line per sense that the sense's rules report.
 HITS = {
     "rung": "## Choosing the rung: text, diagram, page, or video",
     "default-ladder": "The shipped default ladder is page, then terminal.",
@@ -50,8 +43,6 @@ HITS = {
     "contract-brief": "The Brief is the contract the plan builds on.",
 }
 
-# One line per sense that a rule matches but an allowlist entry keeps, with
-# the path it is written to.
 ALLOWED = {
     "rung": (
         "plugins/session-flow/skills/find-handoff/reference/rung-1-known-location.md",
@@ -118,10 +109,6 @@ def eval_rows(sense: str, line: str):
     ]
 
 
-# Every allowlist entry in the data file, each with one line that a rule of
-# its sense matches and that the entry keeps: (sense, kind, value, path, line).
-# Deleting or renaming an entry fails test_the_table_names_every_allowlist_entry,
-# and a new entry needs a row here.
 ALLOWLIST = [
     phrase(
         "rung",

@@ -11,8 +11,6 @@ import { readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import process from "node:process";
 
-// scripts/lib/marker-block.mjs: the locate / compare / report-drift-or-write
-// flow shared with scripts/generate-cheatsheet.mjs, whose suite exercises it.
 import { findMarkerBlock, markerForms, syncMarkerBlock, wrapMarkerBlock } from "./lib/marker-block.mjs";
 
 // Paths render with forward slashes on every platform, in messages and in
@@ -31,11 +29,6 @@ const taxonomyLabel = toPosix(relative(root, taxonomyPath));
 
 const FORMS = markerForms("catalog", "Run node scripts/generate-catalog.mjs");
 
-// Category render order, conforming to the vocabulary tiers owned by
-// docs/catalog-taxonomy.md (lifecycle spine, then domain-and-cross-cutting).
-// Every run (generate and --check) asserts this list equal, in order, to the
-// document's own tables, so a value added, dropped, renamed or reordered on
-// one side only fails instead of drifting quietly.
 const CATEGORY_ORDER = [
   "discovery",
   "design",
@@ -58,11 +51,6 @@ const CATEGORY_ORDER = [
   "personal",
 ];
 
-// The document's own statement of the vocabulary: the backticked first column
-// of the two tier tables under "## Vocabulary", in document order. A narrow
-// parse of a stable shape that FAILS CLOSED: a reworked section that yields no
-// rows throws rather than returning a shorter list that happens to compare
-// equal to a shorter CATEGORY_ORDER.
 function taxonomyCategories() {
   const text = readFileSync(taxonomyPath, "utf8");
   const section = text.match(/^## Vocabulary$([\s\S]*?)(?=^## )/m);
@@ -124,7 +112,7 @@ function buildBody() {
   const sections = [];
   for (const category of CATEGORY_ORDER) {
     const items = byCategory.get(category);
-    if (items.length === 0) continue; // skip empty categories (e.g. reserved deployment)
+    if (items.length === 0) continue;
     sections.push(`## ${heading(category)}\n\n${items.join("\n")}`);
   }
 

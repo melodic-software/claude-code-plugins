@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: scripts/lib/* # fixture-tree.sh --lib copies the whole directory
-# Unit tests for scripts/lib/hook-configs.sh: one fixture tree per case, the
-# library sourced inside it, and the rows its callbacks receive compared whole.
 # shellcheck disable=SC2016  # fixture bodies are literal JSON/YAML; expansion is never wanted
 # shellcheck disable=SC2031  # f is written by fixture_tree::build through a nameref, never in rows()'s subshell
 set -uo pipefail
@@ -16,18 +14,17 @@ SCRIPTS_DIR="$(cd "$SELF_DIR/.." && pwd)"
 
 f=""
 
-new_fixture() { # <out-var>
+new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPTS_DIR/check-hook-exec-form-frontmatter.py" --lib --plugins || return 1
   mkdir -p "${!1}/.github"
   cp "$SCRIPTS_DIR/../.github/requirements-ci.txt" "${!1}/.github/requirements-ci.txt"
 }
 
-put() { # <fixture> <relpath> <content>
+put() {
   mkdir -p "$(dirname "$1/$2")"
   printf '%s\n' "$3" >"$1/$2"
 }
 
-# rows <fixture> [scan|sources]: what the callbacks saw, one `|`-joined line each.
 rows() (
   cd "$1" || exit 2
   # shellcheck source=hook-configs.sh
@@ -44,7 +41,7 @@ rows() (
   fi
 )
 
-expect() { # <label> <got> <want>
+expect() {
   if [[ "$2" == "$3" ]]; then
     ok "$1"
   else
@@ -52,7 +49,7 @@ expect() { # <label> <got> <want>
   fi
 }
 
-event() { # <hook-object-json>: a hooks.json with one Stop hook
+event() {
   printf '{"hooks":{"Stop":[{"hooks":[%s]}]}}' "$1"
 }
 

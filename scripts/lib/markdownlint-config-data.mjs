@@ -24,8 +24,6 @@ const OPTIONS_KEYS = new Set([
 ]);
 const CODE_KEYS = new Set(["customRules", "markdownItPlugins", "outputFormatters", "modulePaths"]);
 
-// rewrite(text, step): copies strings whole and hands every other position to
-// step(i), which returns [text to emit, next position].
 const rewrite = (text, step) => {
   let out = "";
   let i = 0;
@@ -43,7 +41,6 @@ const rewrite = (text, step) => {
   return out;
 };
 
-// JSONC to JSON: drop comments, then trailing commas, outside strings.
 const stripJsonc = (text) => {
   const bare = rewrite(text, (i) => {
     if (text.startsWith("//", i)) {

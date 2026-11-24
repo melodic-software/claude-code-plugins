@@ -67,9 +67,6 @@ class FindDuplicateKeysTests(unittest.TestCase):
         self.assertEqual(["scope"], detector.find_duplicate_keys(text))
 
     def test_duplicate_only_flagged_within_same_object(self) -> None:
-        # The same key name in TWO SIBLING objects (not the same object) is
-        # not a duplicate -- duplication is scoped to one JSON object
-        # literal, matching what "last-wins" actually means.
         text = json.dumps(
             {"a": {"name": "inner-a"}, "b": {"name": "inner-b"}, "name": "outer"}
         )
@@ -152,8 +149,6 @@ class CliTests(unittest.TestCase):
         self.assertIn("does not exist", err)
 
     def test_malformed_json_does_not_double_report(self) -> None:
-        # A parse failure is the schema-validation step's job to report, not
-        # this gate's -- it must not also fail (or crash) on unparsable input.
         manifest = self.write("plugin.json", "{not json")
         code, out, err = self.run_cli([str(manifest)])
         self.assertEqual(0, code)

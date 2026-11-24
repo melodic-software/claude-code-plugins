@@ -19,7 +19,6 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=test-harness.sh
 . "$SELF_DIR/test-harness.sh"
 
-# mk <content> -> path of a temp list file
 mk() {
   local f
   f="$(mktemp "$TMP_ROOT/f.XXXXXX")"
@@ -27,7 +26,6 @@ mk() {
   printf '%s' "$f"
 }
 
-# expect <label> <mode> <content> <expected entries, newline-joined via $'\n'>
 expect() {
   local label="$1" mode="$2" content="$3" want="$4"
   local f got
@@ -47,8 +45,6 @@ expect() {
   rm -f "$f"
 }
 
-# --- shared basics ---------------------------------------------------------
-
 for mode in inline leading; do
   expect "$mode: drops blank lines" "$mode" $'a\n\n\nb\n' $'a\nb'
   expect "$mode: drops a whole-line comment" "$mode" $'# note\na\n' $'a'
@@ -57,13 +53,6 @@ for mode in inline leading; do
   expect "$mode: keeps a final line with no trailing newline" "$mode" $'a\nb' $'a\nb'
   expect "$mode: strips a trailing CR" "$mode" $'a\r\nb\r\n' $'a\nb'
 done
-
-# --- the divergence: a non-leading '#' -------------------------------------
-#
-# This is the whole reason the mode argument exists. `inline` truncates at the
-# `#`; `leading` keeps it, because a token-list entry is an ERE and a regex may
-# legitimately contain one. Asserting BOTH answers is what proves the two modes
-# are genuinely distinct rather than one aliasing the other.
 
 expect "inline: truncates at a non-leading #" inline $'keep me # drop this\n' $'keep me'
 expect "leading: keeps a non-leading # as data" leading $'keep me # and this\n' $'keep me # and this'
@@ -78,11 +67,7 @@ expect "leading: an ERE containing # survives intact" leading $'^foo#bar$\n' $'^
 expect "leading: a trailing-# entry survives intact" leading $'a#\nb\n' $'a#\nb'
 expect "inline: the same entry is TRUNCATED to its pre-# text" inline $'a#\nb\n' $'a\nb'
 
-# --- no escape syntax, by decision -----------------------------------------
-
 expect "inline: backslash-# is NOT an escape (documented decision)" inline $'a\\#b\n' $'a\\'
-
-# --- --comments is required, with no default -------------------------------
 
 f="$(mk $'a\n')"
 entries=()
@@ -158,8 +143,6 @@ else
 fi
 rm -f "$f"
 
-# --- an unreadable file is loud, never an empty list -----------------------
-
 entries=(sentinel)
 if read_list::into entries /nonexistent/list.txt --comments inline 2>/dev/null; then
   fail "a missing file was reported as an empty list"
@@ -190,12 +173,6 @@ for victim in file mode line out; do
 done
 rm -f "$f"
 
-# --- read_list::into_text parses a string exactly as into parses a file ----
-#
-# The text reader exists for a list that has no path (a baseline read out of a
-# git rev). Asserting it against the SAME inputs as the file reader is what
-# proves the two share one parse rather than growing a second one.
-
 text_expect() {
   local label="$1" mode="$2" content="$3" want="$4"
   local -a entries=()
@@ -225,8 +202,6 @@ else
   ok "into_text requires --comments too"
 fi
 
-# --- the stale-entry guard -------------------------------------------------
-
 read_list::reset_used
 # shellcheck disable=SC2034  # passed to the library BY NAME; the nameref is the use
 declare -a list=(alpha beta gamma)
@@ -249,8 +224,6 @@ else
   fail "a fully consumed list reported [${stale[*]}] stale"
 fi
 
-# reset_used must actually forget, or a gate that walks two lists in one process
-# would inherit the first list's marks and under-report the second.
 read_list::reset_used
 stale=()
 read_list::stale_to stale list
@@ -272,7 +245,6 @@ else
   fail "an empty list did not yield an empty stale set"
 fi
 
-# A duplicated entry is reported once: the operator gets one line to delete.
 read_list::reset_used
 # shellcheck disable=SC2034  # passed to the library BY NAME; the nameref is the use
 declare -a dupes=(same same other)
@@ -284,7 +256,6 @@ else
   fail "duplicate handling returned [${stale[*]}], want [same other]"
 fi
 
-# report_stale: one prefix, one line per stale entry, rc 1 only when stale.
 read_list::reset_used
 read_list::mark_used beta
 report_out="$(read_list::report_stale list scripts/demo.txt 'no longer shadows anything' 2>&1)" && report_rc=0 || report_rc=$?
@@ -308,8 +279,6 @@ else
   fail "report_stale returned non-zero for a fully consumed list"
 fi
 
-# stale_line is public so a gate whose entries go stale for different reasons
-# still spells the prefix once.
 line_out="$(read_list::stale_line scripts/demo.txt entry 'gained a CHANGELOG.md' 2>&1)"
 if [[ "$line_out" == "STALE BASELINE: scripts/demo.txt: 'entry' gained a CHANGELOG.md" ]]; then
   ok "stale_line writes the unified diagnostic to stderr"
@@ -318,11 +287,6 @@ else
 fi
 
 read_list::reset_used
-
-# --- the shipped files still parse under the mode their consumer uses ------
-#
-# Liveness: these assert against the REAL data files, so a file that grows an
-# entry its consumer's mode would mangle fails here rather than in production.
 
 REPO="$(cd "$SELF_DIR/../.." && pwd)"
 entries=()

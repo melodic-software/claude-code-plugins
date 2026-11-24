@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Entry-protocol tests. The subshell cases run in a child bash: a fatal inside
-# this process would take the suite down with it, which is the property under
-# test.
-#
 # test-scope: scripts/*.sh
 # shellcheck disable=SC2016  # child programs stay single-quoted so this shell does not expand $1 before bash -c
 set -uo pipefail
@@ -101,7 +97,6 @@ else
   fail "classify --nope exited $rc"
 fi
 
-# --all and --paths must not consult a ref, even when git cannot resolve one.
 log="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 rc=0
 child 'source "$1"; git() { printf x >>"$2"; return 1; }; gate_entry::classify --all' "$log" || rc=$?
@@ -284,9 +279,6 @@ BASE_REF_ALLOW=(
   "changelog-fragments.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
 )
 
-# Prints the rev-parse lines under <scripts-dir> that peel to a commit or use
-# --verify, comments and changed-files.sh excluded, and not on BASE_REF_ALLOW.
-# The pattern is assembled so this file does not match itself.
 base_ref_predicate_hits() {
   local dir="$1" f name line entry allowed
   local pattern="rev-parse.*(\\^\\{commit\\}|--ver""ify)"
@@ -305,13 +297,11 @@ base_ref_predicate_hits() {
   done
 }
 
-# Prints each BASE_REF_ALLOW entry that matches no line under <scripts-dir>.
 stale_base_ref_allow() {
   local dir="$1" entry file sub
   for entry in "${BASE_REF_ALLOW[@]}"; do
     file="${entry%%|*}"
     sub="$(cut -d'|' -f2 <<<"$entry")"
-    # An entry names a file under scripts/ or scripts/lib/, as the scan reads both.
     grep -qF -- "$sub" "$dir/$file" "$dir/lib/$file" 2>/dev/null || printf '%s\n' "$entry"
   done
 }
