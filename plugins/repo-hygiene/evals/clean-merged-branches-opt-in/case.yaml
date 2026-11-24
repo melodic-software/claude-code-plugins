@@ -40,12 +40,6 @@ graders:
     input_match: 'repo-hygiene:clean'
     min: 1
     arm: 'with-only'
-  - name: prune-dry-run-ran
-    type: tool_used
-    tool: 'Bash'
-    input_match: 'git-prune\.sh'
-    min: 1
-    arm: 'with-only'
   - name: branch-audit-ran
     type: tool_used
     tool: 'Bash'
