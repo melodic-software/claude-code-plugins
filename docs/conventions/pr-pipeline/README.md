@@ -2861,7 +2861,9 @@ an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage
 line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
 so digits, `-` and `.` are safe, and the longest name is 194 characters. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
-account type, `verdict`, `summary`, `notes`, `evidence` and `run_id`. The head SHA is the one `pr-require-checks`
+account type, `verdict`, `summary`, `notes`, `evidence`, `run_id` and `trusted_actors_blob`, the
+git blob id of the standards trusted-actor list the run read (`git rev-parse HEAD:<path>` of
+`components/trusted-actors/trusted-actors.json` at the run's standards commit). The head SHA is the one `pr-require-checks`
 ran on, never the pull request's live head. `evidence` records `capture: no-app` with the reason
 "no app check ran", `capture_count` 0 and empty `features`, since no CI job drives the app, and
 `local_loop`, the count `k` from an `Evidence loop: k/3` line
@@ -2996,9 +2998,15 @@ widen no further. The lane closes the incident itself once main stays green, so 
 request for it names no remaining work. Intake and admission do not trust it.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
-makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
+makes the gate refuse that pass `verify:spec-changed`, and so does a change to the trusted-actor
+list it judged with (owner decision row 383, option (c)): in a repository whose `trusted_actors_source` is
+`standards`, the gate refuses a pass whose `trusted_actors_blob` is not the live list's blob, and a
+pass that records none while the repository's `.github/standards/trusted-actors/` copy is gone. The
+resolver then judges the head again:
 when every counted pass at the head started before the spec's last change, it proceeds with the
-reason `spec-changed` instead of skipping. Nothing re-runs pr-verify on an issue event, so the
+reason `spec-changed` instead of skipping. For the list, that change is the committer time of the
+newest standards commit at the run's standards SHA touching the list (standards squash-merges, so
+its merge time), read once through the commits API; another standards file's change is none. Nothing re-runs pr-verify on an issue event, so the
 lost-run reconciler does it: for an open pull request whose head's `pr-require-checks` run passed
 and holds such a pass, it re-runs that run with a record naming the attempt the re-run starts, and
 pr-verify judges the head against the spec as it is now. The gate and the resolver both weigh the
@@ -3117,7 +3125,10 @@ head:
   resolve-pr reads it) are the ones its verdict recorded, none
   was edited after the verdict's run started, and each issue's spec comments (written, and last
   edited if ever, by a `User` on the trusted-actor list's humans, the pull request's author
-  included) are the ones it recorded by id and update time, none added, edited or deleted; a partial
+  included) are the ones it recorded by id and update time, none added, edited or deleted, and, in a
+  repository that reads the trusted-actor list from standards, its `trusted_actors_blob` is the
+  live list's git blob id (none recorded counts while the `.github/standards/trusted-actors/` copy
+  is at the branch tip); a partial
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
   list's humans, the pull request's author included, or is a sub-issue intake's size split filed
