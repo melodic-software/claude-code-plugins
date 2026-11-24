@@ -28,6 +28,7 @@ import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
+import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader, GATE_HOLD_SKIP, gateCheckRuns, gateHoldOnly, newestOf, newestRound } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -50,9 +51,20 @@ export const DEFAULTS = Object.freeze({
 // the same title on the head read here, the PR's current one, is the gate's
 // head-lag stop, which did no work, so lagStopsRelease sends it again
 // (limit-stop.mjs) and it is not recorded.
+const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", "Skipped: superseded-sha"]);
 const NOT_APPLICABLE = "Skipped: not-applicable";
-const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", NOT_APPLICABLE, "Skipped: superseded-sha"]);
-const sortedBeforeGateEnd = (run, gateEnd) => run.output?.title === NOT_APPLICABLE && !(startOf(run) > gateEnd);
+
+async function sortedBeforeGateEnd(api, run, gateEnd) {
+  if (!(startOf(run) > gateEnd)) {
+    return true;
+  }
+  const [runId, attempt] = String(postingAttempt(run) ?? "").split(":");
+  if (!attempt) {
+    return false;
+  }
+  const starts = ((await api.readLatestJobs(runId))?.jobs ?? []).filter((job) => String(job.run_attempt) === attempt).map(startOf);
+  return starts.length > 0 && Math.min(...starts) < gateEnd;
+}
 
 const GATE_JOB = /\/actions\/runs\/([1-9][0-9]*)\/job\/([1-9][0-9]*)$/;
 
@@ -174,9 +186,16 @@ export async function dispatchDependencyReviews({
       if (ciStatus === "success") {
         existing = existing.filter((run) => !(run.status === "completed" && run.conclusion === "neutral" && run.output?.title === `Skipped: ${GATE_HOLD_SKIP}`));
       }
-      const gate = newestOf(ci);
-      const gateEnd = gate?.status === "completed" ? Date.parse(gate.completed_at ?? "") : Number.NaN;
-      existing = existing.filter((run) => !(sortedBeforeGateEnd(run, gateEnd) && Number.isFinite(gateEnd)));
+      const gateEnd = RED.has(ciStatus) ? Date.parse(newestOf(ci)?.completed_at ?? "") : Number.NaN;
+      if (Number.isFinite(gateEnd)) {
+        const kept = [];
+        for (const run of existing) {
+          if (run.output?.title !== NOT_APPLICABLE || !(await sortedBeforeGateEnd(api, run, gateEnd))) {
+            kept.push(run);
+          }
+        }
+        existing = kept;
+      }
       // A round whose verdict job skipped no-model-turn handled nothing, and
       // one whose verdict job stopped on a reason routed to a failing status,
       // or that the kill switch stopped (limit-stop.mjs releasesHead), is
@@ -208,7 +227,7 @@ export async function dispatchDependencyReviews({
       // its reset could not release it. An unreadable start records nothing.
       const newestCheck = Math.max(...existing.map(startOf));
       const last = existing.find((run) => startOf(run) === newestCheck);
-      const terminal = last?.status === "completed" && last.conclusion === "neutral" && TERMINAL_SKIPS.has(last.output?.title) && !sortedBeforeGateEnd(last, gateEnd);
+      const terminal = last?.status === "completed" && last.conclusion === "neutral" && TERMINAL_SKIPS.has(last.output?.title);
       if (permanentlyHandles(existing, { limits, lagStopsRelease: true }) && (terminal || verdicts.some((run) => startOf(run) > newestCheck))) {
         markHandled(record, checkName, node.headRefOid);
       }
