@@ -98,7 +98,7 @@ If after 3 iterations the fix keeps breaking other things:
 When `/implementation:implement` encounters a test failure during its TDD cadence:
 
 - `/implementation:implement` recognizes the failure
-- Chains to `/testing:diagnose` for the reproduce→fix→retest cycle
+- Chains to `/testing:fix-failing` for the reproduce→fix→retest cycle
 - Returns to `/implementation:implement` after the loop exits green
 
 When the loop is invoked standalone (outside `/implementation:implement`):

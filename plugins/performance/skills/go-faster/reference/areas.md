@@ -474,7 +474,7 @@ them live when a command's output, or the files you find, do not match the entry
 - **Owner**: none.
 - **Record**: for each entry in `workflows`, a measured finding from its `reruns`, unit `count`,
   value its runs among the 20 listed with `attempt` above 1, tier E2, workload
-  `<workflow> runs among the last 20 ci runs`, `fix_owner` `/testing:diagnose`, `command` its
+  `<workflow> runs among the last 20 ci runs`, `fix_owner` `/testing:fix-failing`, `command` its
   `command`, horizon `later`, route `next-run`; and a measured finding from its `test_steps` for
   the median duration of steps whose name contains `test` (any case), unit `elapsed-ms`, tier E2,
   workload `ci steps, last 5 successful <workflow> runs`, `command` its `command`, horizon

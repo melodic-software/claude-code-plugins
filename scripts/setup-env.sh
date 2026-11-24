@@ -5,8 +5,7 @@
 #     installs them);
 #   - ShellCheck at the release CI lints with, in the venv's bin, when the one
 #     on PATH is another version (Linux x86_64 only; elsewhere it says so);
-#   - the locked Node packages (npm ci at the root and in
-#     .github/standards/runner-policy);
+#   - the locked Node packages (npm ci at the root and in scripts/ci-deps);
 #   - Playwright's Chromium, only with --playwright or SETUP_ENV_PLAYWRIGHT=1
 #     (https://playwright.dev/docs/ci: install browsers on each run, no cache).
 #
@@ -52,7 +51,7 @@ hash_of() {
 
 node_packages() {
   local dir key stamp
-  for dir in . .github/standards/runner-policy; do
+  for dir in . scripts/ci-deps; do
     key=$(hash_of "$dir/package-lock.json")
     stamp=$dir/node_modules/.setup-env
     if [[ -f "$stamp" && "$(<"$stamp")" == "$key" ]]; then

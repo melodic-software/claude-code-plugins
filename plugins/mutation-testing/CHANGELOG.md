@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.3] - 2026-11-24
+
+### Changed
+
+- References to the failing-test skill name `/testing:fix-failing`.
+
 ## [0.23.2] - 2026-11-24
 
 ### Changed

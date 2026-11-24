@@ -14,3 +14,4 @@ scope:
   registries: [scripts/cross-plugin-source-registry.txt]
 size:
   check: crossing
+  copies_manifest: scripts/shared-copies.txt

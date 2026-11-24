@@ -1,6 +1,3 @@
-// issuesByStatus over the live models.issue-status: open issues listed by
-// their trusted Work status, with a field no counted account set leaving the
-// labels to decide.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -9,7 +6,6 @@ import { issuesByStatus, MAX_ISSUE_PAGES, MAX_STATUS_REREADS } from "./resolve-c
 
 const FIELD = String(STATUS_CONFIG["field-id"]);
 
-// One issue node: `value` the Work status option name, set by `setter`.
 function issue(number, { labels = [], value, setter = HUMAN_ID } = {}) {
   const created = `2026-11-0${number % 9}T00:00:00Z`;
   return {
@@ -26,7 +22,6 @@ function issue(number, { labels = [], value, setter = HUMAN_ID } = {}) {
   };
 }
 
-// `github` answering each page in turn; the last page has no next.
 function pages(...nodes) {
   const calls = [];
   const github = async (method, path, body) => {
@@ -148,15 +143,11 @@ test("an unreadable issue that could not be one of the states is skipped, so the
   await assert.rejects(() => list(pages(nodes).github, ["needs-human"]), /#13's Work status setter is older than its newest 100 field events/);
 });
 
-// An issue the listing shows at `ready` whose newest listed event is an older
-// `needs-triage`: the listing's events lag the value.
 const stale = (number) => {
   const node = issue(number, { value: "ready" });
   node.timelineItems.nodes[0].value = "needs-triage";
   return node;
 };
-// `github` answering the listing from `nodes` and each issue's own read from
-// `fields` (withFields), counting the per-issue value reads and the waits.
 function rereading(nodes, fields) {
   const counts = { values: 0, sleeps: [] };
   const answer = withFields(pages(nodes).github, fields);
@@ -179,7 +170,6 @@ test("an issue whose listed event lags its value is read again alone, and that r
   assert.deepEqual(counts.sleeps, []);
 });
 
-// Runs `body` with console.log captured, returning what it printed.
 async function logged(body) {
   const lines = [];
   const original = console.log;
@@ -229,7 +219,6 @@ test("past the re-read cap, further disagreeing issues are left out with no more
   assert.equal(counts.values, MAX_STATUS_REREADS);
 });
 
-// An issue the listing shows at `value` with none of its Work status events.
 const eventless = (number, value) => {
   const node = issue(number, { value });
   node.timelineItems.nodes = [];

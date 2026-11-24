@@ -1,7 +1,7 @@
 {
-  "skill": "testing:diagnose",
+  "skill": "testing:fix-failing",
   "plugin": "testing",
-  "skill_dir": "plugins/testing/skills/diagnose",
+  "skill_dir": "plugins/testing/skills/fix-failing",
   "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Near-misses target testing:write (new tests), toolchain:check (running the suite), debugging:debug (non-test runtime bugs), debugging:analyze-profile (profiles and heap snapshots) and testing:run-e2e (live app verification).",
   "competitors": [
     "testing:write",

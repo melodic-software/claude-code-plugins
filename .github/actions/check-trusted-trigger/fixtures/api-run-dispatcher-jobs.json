@@ -1,0 +1,83 @@
+{
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 138123063345,
+      "run_id": 45297965850,
+      "workflow_name": "PR Dispatch Feedback",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45297965850",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgKMawMQ",
+      "head_sha": "d5692adb8b5e072c0c54d015e5e186e09b0e2977",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138123063345",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45297965850/job/138123063345",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-11-24T00:32:21Z",
+      "started_at": "2026-11-24T00:42:32Z",
+      "completed_at": "2026-11-24T00:42:52Z",
+      "name": "Rerun CI Status",
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138123063345",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1001737862,
+      "runner_name": "GitHub Actions 1001737862",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 138123064098,
+      "run_id": 45297965850,
+      "workflow_name": "PR Dispatch Feedback",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45297965850",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgKMazIg",
+      "head_sha": "d5692adb8b5e072c0c54d015e5e186e09b0e2977",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138123064098",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45297965850/job/138123064098",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-11-24T00:32:21Z",
+      "started_at": "2026-11-24T00:42:42Z",
+      "completed_at": "2026-11-24T00:43:28Z",
+      "name": "Dispatch",
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138123064098",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1001737867,
+      "runner_name": "GitHub Actions 1001737867",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 138123064954,
+      "run_id": 45297965850,
+      "workflow_name": "PR Dispatch Feedback",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/45297965850",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOTCGFQM8AAAAgKMa2eg",
+      "head_sha": "d5692adb8b5e072c0c54d015e5e186e09b0e2977",
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/jobs/138123064954",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45297965850/job/138123064954",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-11-24T00:32:21Z",
+      "started_at": "2026-11-24T00:32:21Z",
+      "completed_at": "2026-11-24T00:32:21Z",
+      "name": "Post Verify Notes",
+      "check_run_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-runs/138123064954",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    }
+  ]
+}

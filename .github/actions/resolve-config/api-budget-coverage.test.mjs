@@ -35,9 +35,6 @@ const NO_LOG = "no job-end log-api-budget step";
 const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
 const ALLOWED = new Map([
-  // No checkout to load the log-api-budget action from, and no contents: read
-  // to check one out with; each counts its own POSTs and writes the api-calls
-  // notice itself.
   [
     "intake-triage.yml:dispatch-refined-triage",
     `${NO_LOG}; step "Triage the refined issue again" calls gh without api_budget_wrap_gh`,
@@ -46,8 +43,6 @@ const ALLOWED = new Map([
     "intake-triage.yml:triage-split-children",
     `${NO_LOG}; step "Triage each sub-issue" calls gh without api_budget_wrap_gh`,
   ],
-  // issues: write alone, so no checkout to load the action from: one rollup
-  // listing and at most two writes.
   [
     "maintenance-file-dead-links.yml:file",
     `${NO_LOG}; step "Rewrite the rollup issue" calls gh without api_budget_wrap_gh`,
@@ -56,8 +51,6 @@ const ALLOWED = new Map([
     "post-merge-file-demotion-issues.yml:close-cleared",
     `${NO_LOG}; step "Close the records main cleared" calls gh without api_budget_wrap_gh`,
   ],
-  // issues: write alone, so no checkout to load the action from: two record
-  // listings and one POST per revert.
   [
     "post-merge-file-demotion-issues.yml:file-revert",
     `${NO_LOG}; step "File the revert demotion issue" calls gh without api_budget_wrap_gh`,
@@ -115,8 +108,6 @@ const ENV_SCRIPT =
 // Sourcing api-budget.bash by a literal path, or by "$NAME" from the step env.
 const LIB_SOURCE =
   /(?:^|[\s;{(])(?:\.|source) +(?:["']?([\w./-]*api-budget\.bash)\b|"\$\{?([A-Z_][A-Z0-9_]*)\}?")/gm;
-// The self-wrap line: source the wrapper by a path relative to the script,
-// then call api_budget_wrap_gh <token>.
 const SELF_WRAP =
   /\.\s+"\$\{BASH_SOURCE\[0\]%\/\*\}\/([\w./-]*api-budget\.bash)"[^\n]*\bapi_budget_wrap_gh [a-z]/;
 
@@ -128,7 +119,6 @@ const repoFs = {
   exists: (path) => existsSync(new URL(path, ROOT)),
 };
 
-// The detector over a file system of repository-relative paths.
 const detector = ({ read, exists }) => {
   const actionOf = (step) =>
     step.uses
@@ -213,8 +203,6 @@ const detector = ({ read, exists }) => {
     );
   };
 
-  // A job logs its budget through this action under always(), or through the
-  // shell library's api_budget_emit, as ci-status does with no checkout.
   const covered = (job) => {
     const { steps } = job;
     const logs = steps.some(
@@ -230,22 +218,18 @@ const detector = ({ read, exists }) => {
     const unwrapped = scripts.filter(
       (path) => !scriptWraps(path) && !sourcedUnderWrap(path),
     );
-    // The actions read API_BUDGET_TOKEN from their own environment; a script's
-    // self-wrap does not reach them.
     const actionGaps = steps
       .filter(
         (s) =>
           actionOf(s) && !job.env?.API_BUDGET_TOKEN && !s.env?.API_BUDGET_TOKEN,
       )
       .map((s) => `${actionOf(s)} without API_BUDGET_TOKEN`);
-    // Named by the step's name, else its 0-based index in the job's steps.
     const stepGaps = steps
       .map((s, i) => [s, i])
       .filter(([s]) => ownCallsUnwrapped(s))
       .map(
         ([s, i]) => `step "${s.name ?? i}" calls gh without api_budget_wrap_gh`,
       );
-    // A Node script's counted helper takes its token name from API_BUDGET_TOKEN.
     const nodeGaps = steps.flatMap((s) =>
       nodeScriptsOf(s).map((path) => {
         const { uncounted } = nodeGh(path);
@@ -267,7 +251,6 @@ const detector = ({ read, exists }) => {
     ].filter(Boolean);
   };
 
-  // Every gap in { file: parsed workflow }, as `file:job: what is missing`.
   const gaps = (workflows) =>
     Object.entries(workflows).flatMap(([file, wf]) =>
       Object.entries(wf?.jobs ?? {})
@@ -288,8 +271,6 @@ const repoWorkflows = () =>
       .map((f) => [f, parse(readFileSync(new URL(f, WORKFLOWS), "utf8"))]),
   );
 
-// The repository's gaps are exactly the allowlist's: a job outside it with a
-// gap fails, and so does an allowlisted job whose gap grew, shrank or closed.
 test("every job that calls the GitHub API logs its api budget", () => {
   assert.deepEqual(
     repo.gaps(repoWorkflows()).sort(),
@@ -332,8 +313,6 @@ test("the detector sees each kind of GitHub call", () => {
   assert.equal(stepCallsGitHub({ uses: "actions/checkout@v7" }), false);
 });
 
-// Fixtures: a wrapper, a script that wraps through it, one whose source path
-// misses it, and one with no wrap at all.
 const WRAPPER = ".github/actions/log-api-budget/api-budget.bash";
 const files = {
   [WRAPPER]: "api_budget_wrap_gh() {\n  :\n}\n",
@@ -386,9 +365,6 @@ test("covered() names each missing piece", () => {
   assert.deepEqual(covered({ env, steps: [WRAPPED, BARE, LOG] }), [
     'step "Bare" calls gh without api_budget_wrap_gh',
   ]);
-  // A step that sources the library and records its own readings is covered,
-  // by a literal path or a step env variable holding it; either half alone
-  // is not.
   const READ = 'out=$(gh api -i x)\napi_budget_read github-token /dev/stdin <<<"$out"';
   assert.deepEqual(
     covered({ steps: [{ run: `. .base/${WRAPPER} || true\n${READ}` }, LOG] }),
@@ -434,8 +410,6 @@ test("covered() names each missing piece", () => {
     }),
     ['step "Env" calls gh without api_budget_wrap_gh'],
   );
-  // A script a step env variable names is judged like a literal one when the
-  // step runs it, and not when the step only sources or reads it.
   assert.deepEqual(
     covered({
       steps: [
@@ -479,7 +453,6 @@ test("covered() names each missing piece", () => {
     covered({ steps: [{ run: "bash scripts/wrong-path.sh" }, LOG] }),
     ["scripts/wrong-path.sh does not wrap its gh calls"],
   );
-  // A self-wrapping script gives the job no token for the actions.
   assert.deepEqual(
     covered({
       steps: [
@@ -521,7 +494,6 @@ test("a Node script's gh calls are counted only through a counted helper under A
       "scripts/bare.mjs runs gh outside a counted helper (2 call sites)",
     ],
   );
-  // A comment naming the wrapper is not a counted helper.
   assert.deepEqual(
     covered({ env, steps: [{ run: "node scripts/comment-only.mjs" }, LOG] }),
     ["scripts/comment-only.mjs runs gh outside a counted helper (1 call site)"],

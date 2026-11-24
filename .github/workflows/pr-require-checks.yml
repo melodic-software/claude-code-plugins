@@ -1938,11 +1938,13 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', '.github/standards/runner-policy/package-lock.json') }}
-      - name: Install pinned runner-policy dependencies
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', '.github/standards/runner-policy/package-lock.json', 'scripts/ci-deps/package-lock.json') }}
+      - name: Install pinned runner-policy and workflow-check dependencies
         timeout-minutes: 4
         if: needs.select-tests.outputs.run_workflows == 'true'
-        run: npm ci --prefix .github/standards/runner-policy
+        run: |
+          npm ci --prefix .github/standards/runner-policy
+          npm ci --prefix scripts/ci-deps
       - name: Save the npm cache
         if: github.ref == 'refs/heads/main' && steps.npm_cache.outcome == 'success' && steps.npm_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
@@ -1958,8 +1960,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh runner-policy {0}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
-      # Parses workflows with the yaml package the runner-policy install
-      # above provides, so it gates on the same workflows filter group.
       - name: Check no run reaching the read workflow references the App key
         id: read_caller_keys
         if: needs.select-tests.outputs.run_workflows == 'true'
@@ -1976,10 +1976,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh app-key-references {0}
         run: scripts/check-app-key-references.sh --check
 
-      # Every upload-artifact step keeps its artifact for the days its family's
-      # row in .github/artifact-retention.json names. Parses workflows with the
-      # yaml package the runner-policy install above provides, so it gates on
-      # the workflows filter group, which holds the table.
       - name: Check every artifact upload matches the retention table
         id: artifact_retention
         if: needs.select-tests.outputs.run_workflows == 'true'
@@ -3551,7 +3547,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', 'scripts/ci-deps/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
@@ -3656,7 +3652,7 @@ jobs:
           npm ci
           # The yaml package scripts/check-read-caller-keys.test.sh and
           # scripts/check-artifact-retention.test.sh parse with.
-          npm ci --prefix .github/standards/runner-policy
+          npm ci --prefix scripts/ci-deps
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement plugins/animation/requirements.txt)
@@ -4217,7 +4213,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', 'scripts/ci-deps/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
@@ -4238,7 +4234,7 @@ jobs:
         timeout-minutes: 5
         run: |
           npm ci
-          npm ci --prefix .github/standards/runner-policy
+          npm ci --prefix scripts/ci-deps
           python -m pip install --user --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -7554,7 +7550,11 @@ jobs:
               # skips the hold, once each new SHA is one a tag of that action's
               # repository points to (`git ls-remote --tags`, unauthenticated,
               # as hold_ref reads the tip), so a branch name or a commit no tag
-              # names (a fork's imposter commit) does not pass. Only the
+              # names (a fork's imposter commit) does not pass. An official
+              # vendor's action (owner decision D3, architecture
+              # docs/owner-decisions.md L351) may instead move from one version
+              # tag (vN, vN.N, vN.N.N) to another, once the new tag exists in
+              # that repository; a SHA never pairs with a tag. Only the
               # broker step's file pages count; any other file, status, line or
               # ref, a patch GitHub left out or cut short, or an unread tag
               # list keeps it.
@@ -7572,7 +7572,8 @@ jobs:
                 swaps=
                 if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
                   swaps=$(jq -nr '
-                    def ref_swap: capture("^(?<key>[ \t]*(-[ \t]+)?uses:[ \t]+(?<repo>[A-Za-z0-9]+(-[A-Za-z0-9]+)*/[A-Za-z0-9_-][A-Za-z0-9._-]*)(/[A-Za-z0-9._-]+)*)@(?<ref>[0-9a-f]{40})([ \t]+#[ \t]*v?[0-9A-Za-z._-]+)?[ \t]*$");
+                    def ref_swap: capture("^(?<key>[ \t]*(-[ \t]+)?uses:[ \t]+(?<repo>(?<owner>[A-Za-z0-9]+(-[A-Za-z0-9]+)*)/[A-Za-z0-9_-][A-Za-z0-9._-]*)(/[A-Za-z0-9._-]+)*)@(?<ref>[0-9a-f]{40}|v[0-9]+(\\.[0-9]+){0,2})([ \t]+#[ \t]*v?[0-9A-Za-z._-]+)?[ \t]*$")
+                      | select((.ref | startswith("v") | not) or (.owner | ascii_downcase | IN("actions", "github", "dependabot", "microsoft", "azure", "anthropics", "openai")));
                     def blocks: reduce ((split("\n") | map(sub("\r$"; "")))[], "") as $l ({done: [], cur: []};
                       if $l | test("^[-+]") then .cur += [$l] elif .cur == [] then . else .done += [.cur] | .cur = [] end) | .done;
                     [inputs | arrays[]] as $files
@@ -7583,16 +7584,17 @@ jobs:
                         and all($bs[]; (map(select(startswith("-"))) as $old | map(select(startswith("+"))) as $new
                           | . == $old + $new and ($old | length) == ($new | length)
                           and all(range($old | length); ([$old[.][1:] | ref_swap] | length) == 1
-                            and ([$new[.][1:] | ref_swap] | length) == 1 and ($old[.][1:] | ref_swap | .key) == ($new[.][1:] | ref_swap | .key))))))
+                            and ([$new[.][1:] | ref_swap] | length) == 1 and ($old[.][1:] | ref_swap | .key) == ($new[.][1:] | ref_swap | .key)
+                            and ($old[.][1:] | ref_swap | .ref | startswith("v")) == ($new[.][1:] | ref_swap | .ref | startswith("v")))))))
                     then [$files[].patch | blocks[][] | select(startswith("+")) | .[1:] | ref_swap | "\(.repo) \(.ref)"] | unique[]
                     else empty end' "$RUNNER_TEMP/pr-files.json") || swaps=
                 fi
                 if [ -n "$swaps" ]; then
                   untagged='' untrusted=''
-                  while read -r repo sha; do
+                  while read -r repo ref; do
                     if ! tags=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote --tags "https://github.com/$repo") ||
-                      ! awk -v sha="$sha" '$1 == sha && index($2, "refs/tags/") == 1 { found = 1 } END { exit !found }' <<<"$tags"; then
-                      untagged="$untagged $repo@$sha"
+                      ! awk -v ref="$ref" '(ref ~ /^v/ ? $2 == "refs/tags/" ref : $1 == ref && index($2, "refs/tags/") == 1) { found = 1 } END { exit !found }' <<<"$tags"; then
+                      untagged="$untagged $repo@$ref"
                     fi
                     jq -e --arg owner "${repo%%/*}" 'any(.[]; . == ($owner | ascii_downcase))' <<<"$owners" >/dev/null || untrusted="$untrusted $repo"
                   done <<<"$swaps"

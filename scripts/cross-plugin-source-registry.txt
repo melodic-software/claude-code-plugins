@@ -12,8 +12,10 @@
 # One path-within-plugin per line, relative to each plugin's own root. A line
 # of the form `<canonical> -> <member>...` is a cluster line: the root-relative
 # canonical copy, then the plugin paths or globs that carry it. It is read only
-# by the code-metrics duplication audit (registry-filter.py), which excludes
-# the canonical plus every copy as one sanctioned class; this script skips it.
+# by code-metrics: the duplication audit (registry-filter.py) excludes the
+# canonical plus every copy as one sanctioned class, and the size check
+# (size_check.py) measures a copy at its canonical when scripts/shared-copies.txt
+# also lists the pair; this script skips it.
 
 # Dedicated check: scripts/sync-shared-copies.sh --check
 hooks/hook-utils.sh
