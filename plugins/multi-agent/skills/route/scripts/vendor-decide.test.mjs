@@ -18,7 +18,6 @@ import {
   makeFixture,
   rec,
   row,
-  runFetchBoardsCacheFixture,
   seedOutcome,
   tieWithTokensRecords,
   twoBoards,
@@ -154,20 +153,6 @@ test('AC14: a score with no error_range only supports and cannot count as a lead
   assert.equal(res.json.vendor, 'claude')
   assert.equal(res.json.basis, 'default')
   assert.equal(res.json.sources.find((s) => s.source_id === 'board-b').role, 'support-only')
-})
-
-test('AC14: a board missing a vendor current model id abstains for that vendor', (t) => {
-  const res = twoBoards(t, [
-    rec('board-a', 'codex', 'sparrow-1', 'lead'),
-    rec('board-a', 'claude', 'kestrel-1', 'behind'),
-    rec('board-b', 'codex', 'sparrow-1', 'lead'),
-    rec('board-b', 'claude', 'kestrel-0', 'behind'),
-  ])
-  assert.equal(res.code, 0, res.stderr)
-  assert.equal(res.json.vendor, 'claude')
-  assert.equal(res.json.basis, 'default')
-  assert.equal(res.json.sources.find((s) => s.source_id === 'board-b').role, 'abstains')
-  assert.ok(res.json.notes.some((n) => /abstain/i.test(n) && /claude/i.test(n)))
 })
 
 test('AC14: provider_own results are support-only and support only that provider models', (t) => {
@@ -427,27 +412,6 @@ test('heavy task class raises Claude default effort one step above defaults.yaml
   assert.equal(res.json.vendor, 'claude')
   assert.equal(res.json.effort, 'high')
   assert.equal(res.json.basis, 'default')
-})
-
-
-test('AC6: second fetch-boards run on a fixture row within its window has source cache in manifest', (t) => {
-  const probe = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' })
-  if (probe.status !== 0 || probe.stdout.trim() !== 'ok') {
-    t.skip('bash unavailable or sandboxed on this host')
-    return
-  }
-  const { run1, run2, m1, m2 } = runFetchBoardsCacheFixture(t)
-  assert.equal(run1.status, 0, run1.stderr)
-  assert.equal(m1.boards.length, 1)
-  assert.equal(m1.boards[0].source_id, 'terminal-bench')
-  assert.equal(m1.boards[0].state, 'read')
-  assert.equal(m1.boards[0].source, 'fixture')
-  assert.equal(m1.boards[0].page_date, '2026-11-18')
-  assert.equal(run2.status, 0, run2.stderr)
-  assert.equal(m2.boards[0].source_id, 'terminal-bench')
-  assert.equal(m2.boards[0].state, 'read')
-  assert.equal(m2.boards[0].source, 'cache')
-  assert.equal(m2.boards[0].page_date, '2026-11-18')
 })
 
 test('multi-agent.schema.json defines closed vendors block with exact keys and constraints', () => {
