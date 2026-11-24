@@ -460,6 +460,8 @@ test('multi-agent.schema.json defines closed vendors block with exact keys and c
       'auto_delegation',
       'claude',
       'codex',
+      'promotion_audits',
+      'promotion_days',
       'routing',
       'sources',
       'tiebreak',

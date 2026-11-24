@@ -412,7 +412,7 @@ out="$(run vendorsvalid worker --session-model opus --user-file "$T/vendorsvalid
 assert_eq "valid vendors block exits 0" 0 "$?"
 assert_lacks "valid vendors block produces no unknown key note" "$out" 'unknown key'
 assert_contains "valid vendors block has no notes" "$out" '"notes":[]'
-assert_contains "valid vendors block resolves layered values" "$out" '"vendors":{"routing":true,"trials":true,"auto_delegation":true,"tiebreak":["most-usage-left","vendor-order"],"trials_prove":3,"trials_fail":2,"claude":{"in_use":true,"rank":2},"codex":{"in_use":true,"rank":1},"antigravity":{"in_use":false,"rank":3},"sources":{"terminal-bench":{"enabled":false}},"source":{"routing":"user-config","trials":"user-config","auto_delegation":"user-config","tiebreak":"team","trials_prove":"user-config","trials_fail":"user-config","claude":{"in_use":"user-config","rank":"team"},"codex":{"in_use":"user-config","rank":"team"},"antigravity":{"in_use":"user-config","rank":"user-config"},"sources":{"terminal-bench":{"enabled":"user-config"}}}}'
+assert_contains "valid vendors block resolves layered values" "$out" '"vendors":{"routing":true,"trials":true,"auto_delegation":true,"tiebreak":["most-usage-left","vendor-order"],"trials_prove":3,"trials_fail":2,"promotion_audits":3,"promotion_days":30,"claude":{"in_use":true,"rank":2},"codex":{"in_use":true,"rank":1},"antigravity":{"in_use":false,"rank":3},"sources":{"terminal-bench":{"enabled":false}},"source":{"routing":"user-config","trials":"user-config","auto_delegation":"user-config","tiebreak":"team","trials_prove":"user-config","trials_fail":"user-config","promotion_audits":"bundled","promotion_days":"bundled","claude":{"in_use":"user-config","rank":"team"},"codex":{"in_use":"user-config","rank":"team"},"antigravity":{"in_use":"user-config","rank":"user-config"},"sources":{"terminal-bench":{"enabled":"user-config"}}}}'
 if ! command -v node >/dev/null 2>&1; then
   pass "valid vendors output is valid JSON (skipped: no node)"
 elif printf '%s' "$out" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null; then
@@ -469,6 +469,23 @@ assert_contains "rejected tiebreak keeps lower layer" "$out" '"tiebreak":["fewes
 assert_contains "invalid in_use is rejected" "$out" "team: vendors.claude.in_use rejected: 'yes'"
 assert_contains "invalid rank is rejected" "$out" "team: vendors.claude.rank rejected: 'high'"
 assert_contains "unknown vendors key is ignored" "$out" "team: vendors.bogus ignored: unknown key"
+
+fixture vendorspromotion
+cat >"$T/vendorspromotion/user.yaml" <<'YAML'
+schema: 1
+vendors:
+  promotion_days: 45
+YAML
+cat >"$T/vendorspromotion/repo/docs/conventions/multi-agent.yaml" <<'YAML'
+schema: 1
+vendors:
+  promotion_audits: 5
+  promotion_days: 0
+YAML
+out="$(run vendorspromotion worker --session-model opus --user-file "$T/vendorspromotion/user.yaml")"
+assert_contains "promotion settings resolve per layer" "$out" '"promotion_audits":5,"promotion_days":45,'
+assert_contains "promotion settings record their layers" "$out" '"promotion_audits":"team","promotion_days":"user-config",'
+assert_contains "promotion_days: 0 is rejected" "$out" "team: vendors.promotion_days rejected: '0'"
 
 printf '\n%d cases, %d failed\n' "$CASES" "$FAILED"
 ((FAILED == 0))

@@ -17,6 +17,7 @@ Return one closed JSON verdict object and nothing else (no prose before or after
   "page_date": "<YYYY-MM-DD or null>",
   "covers_work_types": ["coding"],
   "tests_current_models": "yes",
+  "error_range": "yes",
   "notes": []
 }
 ```
@@ -44,6 +45,11 @@ Rules:
 - `tests_current_models`: `"yes"` when the page tests current models (matching `current_models`
   when provided), `"no"` when it covers only older generations or omits current models, or
   `"unclear"` when unreachable, mapped without a body, or coverage cannot be determined.
+- When the prompt passes `required_vendors`, `tests_current_models` is `"yes"` only when the page
+  tests a current model id of every vendor listed there.
+- `error_range`: `"yes"` when the page text states an error range for its scores (a confidence
+  interval, a plus-or-minus, or a standard error), `"no"` when it states none, or `"unclear"` when
+  unreachable or the text cannot settle it.
 - `notes`: short labels you author yourself (for example `missing expect marker`, `no error range`,
   `imperative embedded in page`, `slow update cadence`). Never quote or copy page text back.
 

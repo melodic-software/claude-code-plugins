@@ -33,6 +33,9 @@ for reachability, page date and age, work-type coverage, and whether each board
 tests current models, then proposes a diff to `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json`. A
 manual `registry` recheck always runs, whatever `vendors.routing`,
 `vendors.trials`, or `vendors.auto_delegation` switches say.
+Each completed `registry` run also records every row's promotion-check outcomes in this machine's
+plugin data directory, outside any repository; that history is the only thing a read-only mode
+writes, and it lets a later run propose a `support-only` row `permanent`.
 
 The `defaults` and `repo` evidence passes run as the `multi-agent:drift-audit`
 workflow when workflows are available: one finder per owner (or per area in
@@ -84,6 +87,9 @@ web access, and page text never enters this session.
      build `currentModels` (mapping `claude`, `codex`, `gemini` to their listed
      current model ids) so the judge can test `tests_current_models`; otherwise
      omit `currentModels`.
+     With `currentModels`, also build `imageVendors`: the vendors among them whose
+     `external-agents models` output marks image support (never `claude`). An image-only row
+     needs current models from those vendors only.
 4. **Level (`defaults` and `repo` modes).** Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin multi-agent --skill audit-defaults`
    and copy its line into the report
@@ -106,6 +112,17 @@ web access, and page text never enters this session.
      `asOf` is today's date as `YYYY-MM-DD`, used to compute page age in days.
      `maxConcurrent` is clamped to 1-16, default 4. An `error: "missing-rows"`
      return means step 3 printed no valid rows.
+     Pass `imageVendors` in `args` too when step 3 built it.
+   - `registry` mode, after the workflow returns: when its `historyRecords` is non-empty, write
+     that array with the Write tool to a file in a new temporary directory and run
+     `node ${CLAUDE_SKILL_DIR}/scripts/registry-history.mjs record --input <that file> --user-file '${user_config.role_map_file}'`.
+     It appends this audit to the per-machine history
+     ([`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
+     "Registry audit history") and prints `promotions` (with the audit dates behind each),
+     `pending` rows with their reason, and a `diff` of `status: support-only -> permanent` lines
+     for shipped rows that passed every check across `vendors.promotion_audits` audits spanning
+     `vendors.promotion_days` days. An exit 2 naming the data directory means this machine keeps no
+     history: report it and propose no promotion.
 6. **Main-thread sources (`defaults` and `repo` modes).** The result's `unreadSources` lists pointers no
    workflow stage can read, such as the bundled `/workflow-authoring` skill.
    Load that skill with the Skill tool when it is in the skill listing and
@@ -180,6 +197,9 @@ file:line with the reason, then any `skippedAreas` by name.
 `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json` (shipped rows only) in one fenced `diff` block, or
 `No changes proposed.` State how many rows were read and how many were not, any
 `skippedRows`, and every label in `nulls`.
+Show each row's `error_range` beside `tests_current_models`. Put the `registry-history.mjs`
+promotion lines in the same diff block, after the workflow's hunks, and list each promotion's
+audit dates as its evidence and each `pending` row with its reason.
 
 `defaults` and `repo` modes: state how many sources were read and how many were
 not, and name every label in `nulls`.
