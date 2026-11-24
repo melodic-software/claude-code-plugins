@@ -245,6 +245,7 @@ retyped_ranges() {
     mv "$all.both" "$all"
   done
   cat "$all" >>"$CHECKS_TMP/ranges" || scan_failed .
+  cat "$all" >>"$CHECKS_TMP/path-ranges" || scan_failed .
 }
 
 content_scan() {
@@ -407,7 +408,8 @@ content_scan() {
   ((${#pool[@]} == 0)) || hpp_sweep 0 "${#pool[@]}"
 
   {
-    untag "$out" | checks_filter_findings
+    awk -F "$tab" '$2 != 1' "$out" | untag - | checks_filter_findings
+    awk -F "$tab" '$2 == 1' "$out" | untag - | checks_filter_findings "$CHECKS_TMP/path-ranges"
     untag "$whole"
   } | sort -u -t: -k1,1 -k2,2n >"$result"
 }

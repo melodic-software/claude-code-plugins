@@ -50,8 +50,7 @@ With `born-triaged` false the gate reads the issue once and, with no routing lab
 | Input | Default | Meaning |
 |---|---|---|
 | `issue-number` | `github.event.issue.number` | The issue to check |
-| `trusted-actors-path` | `.base/.github/standards/trusted-actors/trusted-actors.json` | The list, from a default-branch checkout |
-| `standards-path` | empty | A standards checkout (`download-standards`' `path`), made before head code ran; when set, the list is read from its `components/trusted-actors/trusted-actors.json` and `trusted-actors-path` is ignored |
+| `standards-path` | empty | A standards checkout (`download-standards`' `path`), made before head code ran. The list is read only from its `components/trusted-actors/trusted-actors.json`: unset, or without the list, the action fails closed |
 | `lanes-app-id` | empty | The lanes App bot's user id, normally `${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}`; empty trusts listed humans only |
 | `github-token` | `github.token` | Reads the issue; needs `issues: read` |
 | `born-triaged` | `true` | `false` skips only on a routing label; `intake-triage.yml` passes `false` on a reopen and a dispatch |

@@ -33,6 +33,7 @@ import { TRAILER as TEST_SCOPE_TRAILER } from "../../scripts/pr-unblock/declare-
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
 import { contractAtPin, fetchAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
@@ -2134,7 +2135,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
 // own record; the stub answers that read alone, with `rerunner` (the sender by
 // default).
 const RUN_ID = "39500000001";
-async function admitOn(sender, rerunner = sender) {
+async function admitOn(sender, rerunner = sender, standards = standardsCheckout()) {
   const { jobs } = workflow("work-resolve-issue.yml");
   const gate = jobs["check-admission"].steps.find((s) => s.id === "gate");
   const action = parse(read("../check-trusted-trigger/action.yml"));
@@ -2157,7 +2158,7 @@ async function admitOn(sender, rerunner = sender) {
     const values = {
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
       "github.triggering_actor": rerunner.login,
-      "steps.standards.outputs.path": "",
+      "steps.standards.outputs.path": standards,
     };
     // The event and run the runner would pass through the action's defaults.
     const env = {
@@ -2174,7 +2175,6 @@ async function admitOn(sender, rerunner = sender) {
       const given = String(gate.with[input]);
       env[name] = /^\$\{\{/.test(given) ? evaluate(given, values) : given;
     }
-    env.TRUSTED_ACTORS_PATH = fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url));
     const reads = [];
     const github = async (method, path) => {
       reads.push(`${method} ${path}`);
@@ -2209,6 +2209,7 @@ test("work-resolve-issue.yml: an unlisted sender's agent-ready field write is re
   assert.deepEqual(await admitOn(listedBot), { proceed: "false", runs: false }, "a listed bot is not a human");
   const human = { login: "kyle-sexton", id: 153232337, type: "User" };
   assert.deepEqual(await admitOn(human), { proceed: "true", runs: true }, "a listed human's field write is admitted");
+  assert.deepEqual(await admitOn(human, human, ""), { proceed: "false", runs: false }, "with no standards checkout no one is listed: the synced copy is never read");
   assert.deepEqual(await admitOn(human, stranger), { proceed: "false", runs: false }, "an unlisted re-runner of a listed human's run is refused");
   const app = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
   assert.deepEqual(await admitOn(app), { proceed: "true", runs: true }, "the lanes App's own agent-ready is admitted");
@@ -2564,8 +2565,8 @@ test("every catalog lane reads only its role's secrets, and every role: it passe
   }
 });
 
-// The maintenance role's `claude plugin eval` lanes take its key too (owner
-// decision Q2 on #13586): plugin eval runs on the credential in the
+// A `claude plugin eval` lane takes its role's key too (owner decision Q2 on
+// https://github.com/melodic-software/claude-code-plugins/issues/13586): plugin eval runs on the credential in the
 // environment, ANTHROPIC_API_KEY for a Console key
 // (code.claude.com/docs/en/plugin-evals, "Run evals in CI").
 test("a job reads a Claude API key only when its catalog lane runs on run-claude-cli or is a plugin eval leg", () => {
@@ -2708,11 +2709,11 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
   for (const [name, [on, jobs, expected]] of Object.entries(cases)) assert.deepEqual(gates(on, jobs), expected, name);
 });
 
-const LANELESS_ROLES = ["evals"];
+const LANELESS_ROLES = ["maintenance"];
 
 test("each catalog role names its secrets from its prefix, and is keyed only with a run-claude-cli lane", () => {
   const roles = fundingCatalog().roles;
-  assert.deepEqual(roles.filter((role) => role.lanes.length === 0).map((role) => role.id), LANELESS_ROLES, "only a role held assignable before its lanes move to it holds none: evals (melodic-software/architecture#235)");
+  assert.deepEqual(roles.filter((role) => role.lanes.length === 0).map((role) => role.id), LANELESS_ROLES, "only a role held assignable for later lanes holds none: maintenance, whose eval lanes moved to evals (melodic-software/architecture#235)");
   for (const role of roles) {
     assert.equal(role.secretPrefix, role.id.toUpperCase().replaceAll("-", "_"), role.id);
     assert.equal(role.keySecret, `${role.secretPrefix}_CLAUDE_API_KEY`, role.id);
@@ -9917,12 +9918,6 @@ test("no caller of a lane runner caps its cache below read", () => {
   }
 });
 
-// A resolve-issue call that waited in its slot past a lane workflow change
-// stops at `Stop on stale workflow files` before any model turn.
-// resolve-issue-stale reads that step from this run's jobs listing, never a
-// call output, and report-outcome then re-fires the issue at once
-// (report-outcome.mjs refireStale) instead of leaving it to work-unblock's
-// hourly sweep.
 const STALE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"];
 const staleContext = ({ started = "false", reuse = "", stale = "" } = {}) => {
   const context = {
@@ -10402,7 +10397,7 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
   for (const id of ["sweep-areas-subscription", "sweep-areas-fallback"]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
 });
 
-const EVAL_KEY = ["LANE_API_KEY", "${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}"];
+const EVAL_KEY = ["LANE_API_KEY", "${{ secrets.EVALS_CLAUDE_API_KEY }}"];
 const SUBSCRIPTION_EVAL_JOBS = {
   "maintenance-measure-skill-edit-pass.yml": ["run-eval-subscription"],
   "pr-run-plugin-evals.yml": ["run-eval-subscription", "compare-before", "compare-after"],
@@ -10412,11 +10407,11 @@ const SUBSCRIPTION_EVAL_JOBS = {
 const CLASSIFIER_PINS = new Set([...read("../../workflows/maintenance-measure-skill-edit.yml").matchAll(/run-claude-cli@(main)\b/g)].map((m) => m[1]));
 assert.equal(CLASSIFIER_PINS.size, 1, [...CLASSIFIER_PINS].join(", "));
 const CLASSIFIER_PIN = [...CLASSIFIER_PINS][0];
-for (const [file, gateId, keyId, keyJob, marker, stopLevel] of [
-  ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", "run-eval", "pass", "key-credit-stop-MAINTENANCE_CLAUDE_API_KEY", "error"],
-  ["pr-run-plugin-evals.yml", "check-key-credit", "run-eval", "eval", "key-credit-stop-MAINTENANCE_CLAUDE_API_KEY", "warning"],
+for (const [file, gateId, keyId, keyJob, marker] of [
+  ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", "run-eval", "pass", "key-credit-stop-EVALS_CLAUDE_API_KEY"],
+  ["pr-run-plugin-evals.yml", "check-key-credit", "run-eval", "eval", "key-credit-stop-EVALS_CLAUDE_API_KEY"],
 ]) {
-  test(`${file}: the eval runs on the API key alone, and a stopped key ends the run`, () => {
+  test(`${file}: the eval runs on the evals API key first, and a stopped key names the subscription leg or ends the run naming the role`, () => {
     const { jobs } = workflow(file);
     const tokenJobs = SUBSCRIPTION_EVAL_JOBS[file];
     assert.deepEqual(Object.keys(jobs).filter((id) => /^run-eval/.test(id)), [keyId, ...tokenJobs.filter((id) => /^run-eval/.test(id))], "the key leg, and any subscription leg");
@@ -10437,18 +10432,20 @@ for (const [file, gateId, keyId, keyJob, marker, stopLevel] of [
     const credential = steps.find((s) => s.id === "credential");
     assert.match(credential.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@main$/);
     assert.equal(credential.with.leg, "key");
-    assert.equal(credential.with.role, "maintenance");
+    assert.equal(credential.with.role, "evals");
     assert.equal(credential.with.selected, `\${{ needs.${gateId}.outputs.next-leg }}`);
     assert.equal(credential.with["key-off"], "${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}");
     const after = steps.slice(steps.indexOf(credential) + 1);
     assert.deepEqual(after.filter((s) => s.if === undefined || s.if === "always()").map((s) => s.name).filter((n) => n !== "Log the API budget at the end"), []);
     assert.match(after[0].if, /^steps\.credential\.outputs\.present == 'true'/);
-    assert.equal(steps.find((s) => s.id === "next"), undefined, "no next leg");
-    assert.equal(jobs[keyId].outputs?.["next-leg"], undefined);
+    const next = steps.find((s) => s.id === "next");
+    assert.deepEqual(next.with, { state: "${{ steps.credential.outputs.state }}", handoff: "${{ steps.judge.outputs.handoff }}", "handoff-reason": "${{ steps.judge.outputs.handoff-reason }}" });
+    assert.equal(jobs[keyId].outputs["next-leg"], "${{ steps.next.outputs.next-leg }}");
     const stop = steps.find((s) => s.name === "Stop at the key's stop");
+    assert.ok(steps.indexOf(next) < steps.indexOf(stop), "the next leg is named before the stop step reads it");
     assert.equal(stop.if, "${{ always() && (steps.credential.outcome == 'success' && steps.credential.outputs.present != 'true' || steps.judge.outputs.handoff == 'true') }}");
-    assert.match(stop.run, new RegExp(`::${stopLevel}::The API key stopped`));
-    assert.equal(/exit 1/.test(stop.run), stopLevel === "error", `${file}: a measuring pass fails, a suite run warns`);
+    assert.match(stop.run, /::notice::EVALS_CLAUDE_API_KEY stopped \(\$REASON\), so the subscription leg runs/);
+    assert.match(stop.run, /::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped [^\n]*reassign the EVALS role through the account rotation tool[^\n]*\n\s*exit 1/);
     for (const step of steps.filter((s) => /plugin-eval\/eval-handoff\.mjs/.test(String(s.run ?? "")))) {
       assert.match(step.run, /eval-handoff\.mjs\) \|\|\n\s+\{ echo "::error::the handoff classifier failed[^"]*"; exit 1; \}/, `${keyId} ${step.name}`);
     }
@@ -10492,21 +10489,21 @@ for (const [file, gateId, keyId, keyJob, marker, stopLevel] of [
   });
 }
 
-test("the measuring pass takes the API key, and the subscription token only from a subscription compare", () => {
+test("the measuring pass takes the evals API key, and the subscription token only from a compare on a trusted human's pull request", () => {
   const pass = workflow("maintenance-measure-skill-edit-pass.yml");
-  assert.deepEqual(Object.keys(pass.on.workflow_call.secrets), ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"]);
+  assert.deepEqual(Object.keys(pass.on.workflow_call.secrets), ["EVALS_CLAUDE_API_KEY", "EVALS_CLAUDE_CODE_OAUTH_TOKEN"]);
   for (const file of ["maintenance-measure-skill-edit.yml", "pr-run-plugin-evals.yml"]) {
     for (const [id, job] of Object.entries(workflow(file).jobs)) {
       if (job.uses !== "./.github/workflows/maintenance-measure-skill-edit-pass.yml") continue;
       if (file === "pr-run-plugin-evals.yml") {
         assert.deepEqual(job.secrets, {
-          MAINTENANCE_CLAUDE_API_KEY: "${{ inputs.credential != 'subscription' && secrets.MAINTENANCE_CLAUDE_API_KEY || '' }}",
-          MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: "${{ inputs.credential == 'subscription' && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}",
+          EVALS_CLAUDE_API_KEY: "${{ secrets.EVALS_CLAUDE_API_KEY }}",
+          EVALS_CLAUDE_CODE_OAUTH_TOKEN: "${{ needs.compare-prepare.outputs.subscription == 'true' && secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN || '' }}",
         }, `${file} ${id}`);
-        assert.equal(job.with.credential, "${{ inputs.credential }}", `${file} ${id}`);
+        assert.equal(job.with["allow-subscription"], "${{ needs.compare-prepare.outputs.subscription == 'true' }}", `${file} ${id}`);
       } else {
-        assert.deepEqual(Object.keys(job.secrets ?? {}), ["MAINTENANCE_CLAUDE_API_KEY"], `${file} ${id}`);
-        assert.equal(job.with?.credential, undefined, `${file} ${id} runs the default api-key leg`);
+        assert.deepEqual(Object.keys(job.secrets ?? {}), ["EVALS_CLAUDE_API_KEY"], `${file} ${id}`);
+        assert.equal(job.with?.["allow-subscription"], undefined, `${file} ${id} runs the key leg alone`);
       }
     }
   }
@@ -10880,22 +10877,20 @@ function missingLegs(catalog, launched) {
 // decision. The test fails when an exempt lane lacks a leg its entry does not
 // name, or runs a leg its entry waives, so an entry never covers more than it
 // says.
-const EVAL_KEY_ONLY = "owner decisions Q14 and Q136: evals run on the API key alone and stop at its credit stop, so no subscription token reaches PR plugin text or spends plan usage (docs/review/evals.md)";
+const EVAL_KEY_ONLY = "owner decisions Q14 and Q136: the hill climb runs on the evals API key alone and stops at its credit stop, so no subscription token reaches model-written skill text or spends plan usage (docs/review/evals.md)";
 const evalKeyOnly = { legs: ["subscription", "fallback"], reason: EVAL_KEY_ONLY };
 const EVAL_NO_FALLBACK =
-  "owner decision of 2026-11-23 amending Q14 and Q53: a compare run may use the subscription token on a trusted author's pull request, with no fallback token, so a limit stop ends the pass (docs/review/evals.md)";
+  'owner decision "Dedicated eval lane credentials" (architecture#235), keeping 2026-11-23\'s Q14 and Q53 limits: an eval run spends the evals key first and moves to the evals subscription token with no fallback token, so a limit stop ends the run (docs/review/evals.md)';
 const evalNoFallback = { legs: ["fallback"], reason: EVAL_NO_FALLBACK };
-const SUITE_NO_FALLBACK =
-  "owner decision at architecture owner-decisions.md#L370, extending the compare-run decision: a scoped suite run dispatched on the default branch may use the subscription token, with no fallback token, so a limit stop ends the run (docs/review/evals.md)";
 const LEG_EXEMPTIONS = {
-  "pr-run-plugin-evals.yml maintenance run-eval": { legs: ["fallback"], reason: SUITE_NO_FALLBACK },
-  "pr-run-plugin-evals.yml maintenance compare-before": evalNoFallback,
-  "pr-run-plugin-evals.yml maintenance compare-after": evalNoFallback,
-  "maintenance-measure-skill-edit-pass.yml maintenance run-eval": evalNoFallback,
-  "maintenance-measure-skill-edit.yml maintenance measure-baseline": evalKeyOnly,
-  "maintenance-measure-skill-edit.yml maintenance measure-baseline-again": evalKeyOnly,
-  "maintenance-measure-skill-edit.yml maintenance generate-edit": evalKeyOnly,
-  "maintenance-measure-skill-edit.yml maintenance measure-edit": evalKeyOnly,
+  "pr-run-plugin-evals.yml evals run-eval": evalNoFallback,
+  "pr-run-plugin-evals.yml evals compare-before": evalNoFallback,
+  "pr-run-plugin-evals.yml evals compare-after": evalNoFallback,
+  "maintenance-measure-skill-edit-pass.yml evals run-eval": evalNoFallback,
+  "maintenance-measure-skill-edit.yml evals measure-baseline": evalKeyOnly,
+  "maintenance-measure-skill-edit.yml evals measure-baseline-again": evalKeyOnly,
+  "maintenance-measure-skill-edit.yml evals generate-edit": evalKeyOnly,
+  "maintenance-measure-skill-edit.yml evals measure-edit": evalKeyOnly,
 };
 const EXEMPTION_ISSUE = /(?:\(#13586\)|\(docs\/review\/evals\.md\))$/;
 // A secret name's leg: the role's API key, its subscription token, or the

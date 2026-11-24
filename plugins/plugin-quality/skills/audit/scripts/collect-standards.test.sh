@@ -6,7 +6,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/collect-standards.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-# The resolver applies a home only inside a git work tree.
 git init -q "$WORK" >/dev/null 2>&1
 
 # shellcheck source=../../../scripts/test-helpers.sh
@@ -202,8 +201,6 @@ run 1 "an ingest site without the spine is a finding" \
   --component "$ROOT/agents/fetcher.md" --root "$ROOT"
 has "fetcher.md:5" "the ingest site is cited by its body line"
 
-# A contract moved to docs/contracts/<topic>/ leaves a stub at the home path:
-# the stub has no citation sentence, so reading it would report basis-missing.
 MOVED="$WORK/moved"
 git init -q "$MOVED" >/dev/null 2>&1
 plant_home "$MOVED"

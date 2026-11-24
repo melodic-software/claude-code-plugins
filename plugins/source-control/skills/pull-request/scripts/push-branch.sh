@@ -415,8 +415,6 @@ sync_stale_base() {
   [[ "$on" != false ]] || return 0
   [[ -z "$base_repo" ]] || remote=$(cd "${wd:-.}" && remote_of_repo "$base_repo")
   if [[ -z "$on" && -z "$PR" ]]; then
-    # The base repository is not known yet: it takes a forge read, made only
-    # when some remote's fetched default branch turns the setting on.
     for r in $(cd "${wd:-.}" && git remote); do
       [[ "$(cd "${wd:-.}" && setting_at "$r")" != true ]] || on=pending
     done
@@ -436,7 +434,6 @@ sync_stale_base() {
       [[ -n "$base" ]] || base=$(cd "$wd" && remote_default "$FETCH_REMOTE")
     fi
     rm -f "$err"
-    # With no remote for the base repository, the skip below says so.
     if [[ "$on" == pending && -n "$remote" ]]; then
       [[ "$(cd "$wd" && setting_at "$remote")" == true ]] || return 0
     fi

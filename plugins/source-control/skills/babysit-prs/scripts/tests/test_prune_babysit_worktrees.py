@@ -79,7 +79,6 @@ def git(*args: str) -> str:
 
 
 def make_repo(tmp: pathlib.Path) -> pathlib.Path:
-    """A one-commit repository with committer identity and signing set locally."""
     main = tmp / "mainrepo"
     main.mkdir()
     git("init", "-q", str(main))
@@ -365,8 +364,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
                 worktree, lease_path, root, preserve_lease=False
             )
 
-            # The lone dangling pointer must not read as user content, or the
-            # self-heal would strand exactly the orphan it can fully repair.
             self.assertTrue(info["directory_removed"])
             self.assertEqual(info["registration_pruned"], "pruned")
             self.assertFalse(wt.exists())
@@ -389,9 +386,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             )
 
     def test_restores_the_pointer_when_the_directory_will_not_go(self) -> None:
-        # Losing the gitfile to a failed rmdir would strand the registration
-        # permanently: the next run finds an empty directory and no way back to
-        # the owning repository.
         with scratch_dir() as tmp:
             root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
 
@@ -417,10 +411,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         return root, wt, pointer, owner_repo
 
     def test_restores_the_pointer_when_the_rescan_fails(self) -> None:
-        # The rescan runs AFTER the unlink, so an OSError there -- a transient
-        # access failure on the directory -- leaves the directory standing with
-        # its only ownership record already gone. Restoration cannot be keyed on
-        # the rmdir failing.
         with scratch_dir() as tmp:
             root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
 
@@ -442,10 +432,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertEqual(prune.registered_repo_from_gitdir_pointer(wt), owner_repo)
 
     def test_restores_the_pointer_when_a_file_appears_before_the_rmdir(self) -> None:
-        # A file landing in the window between the unlink and the rmdir skips
-        # the removal without raising at all, so this path never reaches an
-        # exception handler -- and the directory survives holding someone's
-        # file plus no way back to the owning repository.
         with scratch_dir() as tmp:
             root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
             stray = wt / "appeared.txt"
@@ -617,7 +603,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         )
 
     def test_skips_the_prune_while_the_directory_survives(self) -> None:
-        # The registration is only cleared once the directory is gone from disk.
         self.assertEqual(
             prune.orphan_registration_state(
                 None, pathlib.Path("x"), directory_removed=False
@@ -685,10 +670,6 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
     def test_keeps_the_caller_s_own_live_lease_while_dropping_the_orphan(
         self,
     ) -> None:
-        # The documented cleanup order prunes while the worker lease is still
-        # held and releases it afterwards
-        # (`reference/orchestration.md` "Cleanup"), so unlinking the record
-        # here would make that release fail and drop ownership early.
         with scratch_dir() as tmp:
             root, orphan_dir, worktree = self._orphan(tmp, 13)
             lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)
@@ -938,8 +919,6 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
         self.assertFalse(report["worktrees"][0]["removed"])
 
     def test_scoped_pr_mode_still_reports_unrecognized_directories(self) -> None:
-        # Scoping to one PR narrows which PRs are acted on, never which
-        # directories are accounted for.
         with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()

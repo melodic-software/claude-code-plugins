@@ -75,7 +75,6 @@ def configured() -> review_trigger.ReviewTriggerConfig:
 
 
 def declared_non_structural() -> review_trigger.ReviewTriggerConfig:
-    """`configured()` plus the reviewer declared a non-structural bot account."""
     return review_trigger.ReviewTriggerConfig(
         trigger_phrase="please review",
         reviewer_logins=frozenset({"reviewbot"}),
@@ -125,14 +124,9 @@ class ReviewGateStateTests(unittest.TestCase):
             review_trigger.DEFAULT_REVIEW_TRIGGER_CONFIG)
         self.assertEqual(gate["gate_state"], "absent")
         self.assertFalse(gate["request_signal_pending"])
-        # No ci_gateway_context configured -> the gateway is treated as
-        # satisfied. Harmless while dormant: gate_state "absent" still blocks
-        # candidacy (see test_dormant_gate_never_produces_a_candidate).
         self.assertTrue(gate["ci_gateway_green"])
 
     def test_unset_ci_gateway_context_is_treated_as_green(self) -> None:
-        # A configured gate with no ci_gateway_context (the documented
-        # gateway-unused fallback) must not stall the trigger forever.
         config = review_trigger.ReviewTriggerConfig(
             trigger_phrase="please review",
             reviewer_logins=frozenset({"reviewbot"}),
@@ -165,9 +159,6 @@ class FailingGateIsNotAnEngagementSignalTests(unittest.TestCase):
     is passed through as its own reported state for the operator to act on."""
 
     def _rollup(self) -> list[dict[str, object]]:
-        # The gate StatusContext is the ONLY non-success check, and it is
-        # excluded from `non_review_checks`, so every other conjunct of
-        # `request_eligible` holds -- the gate state is the isolated variable.
         return [
             {"__typename": "StatusContext", "context": "review-gate",
              "state": "FAILURE", "targetUrl": ""},
@@ -196,9 +187,6 @@ class FailingGateIsNotAnEngagementSignalTests(unittest.TestCase):
         self.assertEqual(result["state"], "failing")
 
     def test_failing_gate_surfaces_as_an_ordinary_failing_check(self) -> None:
-        # Why excluding it from candidacy is not a silent dead-end: the gate
-        # StatusContext is bucketed like any other check, so babysit_delta
-        # raises its failing-check blocker.
         classified = checks.classify_checks(self._rollup())
         self.assertEqual(classified["failing"], ["review-gate"])
 
@@ -209,9 +197,6 @@ class ReviewBotItemTests(unittest.TestCase):
         self.assertTrue(review_trigger.is_review_bot_item(item, configured()))
 
     def test_human_author_is_not_a_review_bot(self) -> None:
-        # Also the dormant-default pin for the `extra_bot_logins` widening: with
-        # the field unset, a `User`-typed author is refused however the reviewer
-        # set reads, so no unconfigured consumer's behavior moves.
         item = {"author": {"__typename": "User", "login": "reviewbot"}}
         self.assertFalse(review_trigger.is_review_bot_item(item, configured()))
 
@@ -225,8 +210,6 @@ class ReviewBotItemTests(unittest.TestCase):
             review_trigger.is_review_bot_item(item, declared_non_structural()))
 
     def test_declared_login_outside_the_reviewer_set_is_not_a_review_bot(self) -> None:
-        # The reviewer-set bound survives the widening: declaring an account a
-        # bot never promotes it to reviewer.
         config = review_trigger.ReviewTriggerConfig(
             trigger_phrase="please review",
             reviewer_logins=frozenset({"reviewbot"}),
@@ -319,10 +302,6 @@ class UserTypedReviewerConsumerTests(unittest.TestCase):
         self.assertEqual(signals, [])
 
     def test_a_declared_reviewers_eyes_reaction_raises_the_blocker(self) -> None:
-        # The widening is not uniformly permissive: recognizing a declared
-        # reviewer's eyes reaction ADDS the awaiting-review blocker that
-        # refusing the account suppressed. Driven end-to-end from the
-        # predicate, not from a hand-built signal.
         config = declared_non_structural()
         with mock.patch.object(review_trigger, "fetch_paginated_api",
                                return_value=self._reactions()):
@@ -423,8 +402,6 @@ class ClassifyReviewRequestTests(unittest.TestCase):
         self.assertEqual(result["missing_observations"], 1)
 
     def test_current_head_reaction_still_suppresses_candidacy(self) -> None:
-        # A reaction newly observed while on THIS head is
-        # current-head-associated and must still block the observation window.
         reaction = [_reaction("9")]
         prior = {"review_trigger": {"reaction_head_sha": HEAD,
                                     "reaction_signal_ids": []}}
@@ -452,8 +429,6 @@ class ValidateCurrentCandidateFreshnessTests(unittest.TestCase):
         self.assertIn("BEHIND", str(ctx.exception))
 
     def test_blocked_but_fresh_head_passes_the_freshness_guard(self) -> None:
-        # A PR BLOCKED purely on pending review (no compare-behind signal) is the
-        # primary review-trigger target and must still pass this guard.
         pr = {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
               "mergeStateStatus": "BLOCKED", "mergeable": "MERGEABLE"}
         with _entered(_candidate_patches(pr)):
@@ -475,9 +450,6 @@ class ValidateCurrentCandidateReactionScopingTests(unittest.TestCase):
                 "mergeStateStatus": "CLEAN", "mergeable": "MERGEABLE"}
 
     def test_stale_earlier_head_reaction_does_not_block_posting(self) -> None:
-        # The reaction has no `reaction_head_sha` recorded for HEAD in the
-        # snapshot, so it is an earlier-head reaction and must not suppress
-        # the posting guard the way the raw `reaction_signals` list would.
         stale = [_reaction("1")]
         with _entered(_candidate_patches(self._pr(), stale)):
             result = request_review.validate_current_candidate(

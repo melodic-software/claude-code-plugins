@@ -49,7 +49,6 @@ function fleet({ plugins, enabled, pluginConfigs = {} }) {
   writeFileSync(path.join(config, "settings.json"), JSON.stringify({ enabledPlugins, pluginConfigs }));
   const ownRoot = path.join(config, "plugins", "cache", "mkt", "plugin-diagnostics", "1.0.0");
   mkdirSync(ownRoot, { recursive: true });
-  // A claude on PATH that leaves a marker: the runner must never start one.
   const bin = path.join(config, "bin");
   mkdirSync(bin);
   writeFileSync(path.join(bin, "claude"), `#!/bin/sh\n: >"${path.join(config, "claude-ran")}"\n`);
@@ -136,7 +135,6 @@ describe("prerequisites-fleet", { skip: !posix && "the claude stub is a POSIX sh
   test("the install record of the current project wins over another project's and over the user record", async () => {
     const f = fleet({ plugins: [gated("alpha")] });
     const current = path.join(f.config, "plugins", "cache", "mkt", "alpha", "1.0.0");
-    // Another install without session_probe: probing it would drop the current install's notices.
     const other = path.join(f.config, "plugins", "cache", "mkt", "alpha", "0.9.0");
     mkdirSync(path.join(other, "lib"), { recursive: true });
     copyFileSync(checker, path.join(other, "lib", "prerequisites.mjs"));
@@ -184,7 +182,6 @@ describe("prerequisites-fleet", { skip: !posix && "the claude stub is a POSIX sh
 
   test("the hook prints one systemMessage document and exits 0", () => {
     const f = fleet({ plugins: [gated("alpha")] });
-    // Run the script itself from a copy placed as plugin-diagnostics in the fake cache.
     const r = spawnSync(process.execPath, [path.join(here, "prerequisites-fleet.mjs")], {
       input: JSON.stringify({ session_id: "cli-1" }),
       env: { PATH: path.join(f.config, "bin"), HOME: f.config, CLAUDE_CONFIG_DIR: f.config },

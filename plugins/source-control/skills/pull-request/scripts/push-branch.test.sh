@@ -436,8 +436,6 @@ PB_IDENTITY="$LANE" lane_run "$wc" feat/idle
 check "lane, idle branch: exits non-zero" "$(nonzero)" "nonzero"
 check "lane, idle branch: nothing pushed" "$(lane_dest)" "NONE"
 
-# An operator login keeps the operator path: the remote receives the branch
-# through plain git, and neither the preflight nor lane-push.sh is involved.
 wc=$(make_clone operator)
 rm -f "$LOG"/*
 (cd "$wc" && PB_LOGIN=operator-example bash "$PUSH_BRANCH") >/dev/null 2>&1

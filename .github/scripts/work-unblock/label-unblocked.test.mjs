@@ -817,10 +817,6 @@ test("an event other than an issue closing changes nothing and fails red", async
   }
 });
 
-// The hourly sweep: an issue a bot closed (a PR merge) starts no close run, so
-// a scheduled run lists the issues closed in the last LOOKBACK_HOURS (3) and
-// runs the close path's rules on each one. A scheduled run has no closer: its
-// actor is whoever last changed the schedule, often a bot, so it is not checked.
 const NOW = Date.parse("2026-10-16T12:00:00Z");
 const SINCE = "2026-10-16T09:00:00.000Z";
 const LANES_BOT = { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]", type: "Bot" };
