@@ -173,6 +173,7 @@ jobs:
       # `true` when the burn-rate pacer paces this schedule tick: the merge and
       # enable-auto-merge jobs then skip their sweep at job level.
       paced: ${{ steps.pace.outputs.paced }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -190,6 +191,13 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Resolve the standards commit
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          checkout: 'false'
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -1097,6 +1105,13 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.dispatch-post-merge-runs.outputs.standards-sha }}
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -1151,8 +1166,9 @@ jobs:
           # The lane token holds no Actions permission.
           ACTIONS_TOKEN: ${{ github.token }}
           ACTOR_ID: ${{ github.actor_id }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           STOP_NOTICE: nothing checked here, the next scheduled run checks every candidate
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/who.mjs
 
       # A run still pending in the concurrency group below starts after this
@@ -1169,7 +1185,8 @@ jobs:
           API_BUDGET_TOKEN: github-token
           # The lane token holds no Actions permission.
           ACTIONS_TOKEN: ${{ github.token }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/superseded.mjs
 
       # Reads the lane's rules from main and works out which token
@@ -1185,6 +1202,7 @@ jobs:
           activity: merge-pr
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Report-only or live, read the same way the gate reads it: for the
       # lane's own PRs only `false` (or no setting at all) is live; for
@@ -1290,6 +1308,7 @@ jobs:
           LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
           # Empty on the schedule and a hand-started run.
           EVENT_PR: ${{ github.event.pull_request.number }}
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
         run: |
           set -euo pipefail
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -1310,8 +1329,7 @@ jobs:
           # Dependabot go by their own switches below whatever their ids.
           ids='[]'
           if [ -n "$(yq '.adoption."idle-hours" // ""' .base/docs/conventions/pr-pipeline.yaml)" ]; then
-            ids=$(jq -c '[.actors[].id | select(type == "number" and . > 0 and . == floor)] | unique' \
-              .base/.github/standards/trusted-actors/trusted-actors.json)
+            ids=$(jq -c '[.actors[].id | select(type == "number" and . > 0 and . == floor)] | unique' "$TRUSTED_ACTORS_PATH")
           fi
           # The gate resolves the same label through babysit_postmerge._role_label.
           human_gated=needs-human
@@ -2272,8 +2290,9 @@ jobs:
           ACTIONS_TOKEN: ${{ github.token }}
           API_BUDGET_OVERRIDE_TOKEN: github-token
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           RESOLVED_CONFIG_PATH: ${{ runner.temp }}/resolved-config.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/refire-refused.mjs
 
       # A pr-unblock escalation adds the human-gated label with a reason. On
@@ -2321,7 +2340,8 @@ jobs:
           API_BUDGET_OVERRIDE_TOKEN: github-token
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
 
       - name: Release eval holds whose record matches the head
@@ -2343,7 +2363,8 @@ jobs:
           API_BUDGET_TOKEN: lanes-app
           API_BUDGET_OVERRIDE_TOKEN: github-token
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/release-eval-hold.mjs
 
       # A green sweep that listed the open pull requests (a held listing
@@ -2505,6 +2526,13 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.dispatch-post-merge-runs.outputs.standards-sha }}
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -2560,8 +2588,9 @@ jobs:
           ACTIONS_TOKEN: ${{ github.token }}
           ACTOR_ID: ${{ github.actor_id }}
           DISPATCH_PR: ${{ inputs.pr }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           STOP_NOTICE: the next scheduled run arms what this one would
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/who.mjs
 
       # The merge job's skip, for this job's group: when another run's
@@ -2581,10 +2610,11 @@ jobs:
           API_BUDGET_SCRIPT: superseded
           ACTIONS_TOKEN: ${{ github.token }}
           SUPERSEDED_JOB: enable-auto-merge
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           # A PR-scoped run's pull request: a sweep or a newer dispatch for it
           # supersedes this run, and this run supersedes no sweep.
           DISPATCH_PR: ${{ inputs.pr }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/superseded.mjs
 
       - name: Resolve the config
@@ -2599,6 +2629,7 @@ jobs:
           activity: enable-auto-merge
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Request the lane token
         id: lane-token
@@ -2973,6 +3004,7 @@ jobs:
           API_BUDGET_TOKEN: lanes-app
           API_BUDGET_OVERRIDE_TOKEN: github-token
           API_BUDGET_SCRIPT: enable-auto-merge
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           set -euo pipefail
           config=.base/docs/conventions/pr-pipeline.yaml

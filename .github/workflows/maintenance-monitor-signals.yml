@@ -64,6 +64,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -102,6 +106,7 @@ jobs:
           CALL_BUDGET: "250"
           WINDOW_MINUTES: "65"
           JOBS_CARRY_PATH: ${{ runner.temp }}/monitor-jobs/jobs.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$RUNNER_TEMP/monitor-jobs"
           AGENT_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
