@@ -3,6 +3,17 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.6.8] - 2026-11-24
+
+### Changed
+
+- `changelog` and `audit-plugin-landscape` read pages through the shared docs cache
+
+  `/harness-ops:changelog` research subagents read a changelog entry through
+  `scripts/fetch-docs.sh --cache --profile generic` instead of `curl`; a GitHub issue is still
+  read with `curl`. `/harness-ops:audit-plugin-landscape` reads a docs page through the same
+  script, not WebFetch, when the `discovery` plugin is not enabled.
+
 ## [10.6.7] - 2026-11-24
 
 ### Changed
