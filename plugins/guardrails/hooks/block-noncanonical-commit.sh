@@ -660,6 +660,7 @@ persisted_alias_expansions() {
 # class stays open regardless: the persisted-alias lookup drops the locating
 # globals on both this guard and main; closing it means deferring resolution to
 # the nested invocation, not failing closed here.
+
 # Alias re-expansion is this guard's only recursive path, and it BRANCHES: every
 # hop re-checks both alias spellings (`alias.<sub>` and `alias.<sub>.command`)
 # independently, so a chain where each hop defines both walks 2^depth analysis
