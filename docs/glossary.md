@@ -431,8 +431,7 @@ Avoid: overlay
 
 The one order of media a view steps down when its preferred medium is unreachable, owned by the
 medium registry ([rendered views](contracts/rendered-views/README.md#reachability-and-the-fallback-chain)).
-
-Avoid: default ladder
+The word it replaced is retired in [`vocabulary-senses.json`](../scripts/vocabulary-senses.json).
 
 ### Planning
 

@@ -320,11 +320,6 @@ ALLOWLIST = [
         "The candidate ladder's default ladder ranks skills first.",
     ),
     phrase(
-        "default-ladder",
-        r"^Avoid: default ladder$",
-        "Avoid: default ladder",
-    ),
-    phrase(
         "overlay",
         r"\bpolicy[- ]overlays?\b",
         "The policy overlay layers on the shipped defaults.",
