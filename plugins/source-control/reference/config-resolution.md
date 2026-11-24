@@ -350,6 +350,10 @@ reads the file itself, through a script where the key names one below.
   repository's own caller workflows, as
   [stuck-checks.md](../skills/babysit-prs/reference/stuck-checks.md#routing-never-auto-fix) and
   [safety.md](../skills/babysit-prs/reference/safety.md) say.
+- `standards_repository`: the `owner/repo` whose `components/trusted-actors/trusted-actors.json`
+  the guardrails merge guard and the review loosened-check reader read, at its main commit, when
+  `trusted_actors_source` is `standards`. No `userConfig` option and no default: with
+  `trusted_actors_source: standards` and no valid value, those readers read no list.
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
 

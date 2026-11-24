@@ -17,4 +17,5 @@ linkage_gate_uses_pattern: '\.github/actions/pr-require-checks/(check-contract|r
 runner_policy_paths:
   - docs/ci-runner-routing.md
 org_settings_repo: melodic-software/github-iac
+standards_repository: melodic-software/standards
 review_lane_producer_repo: melodic-software/ci-workflows
