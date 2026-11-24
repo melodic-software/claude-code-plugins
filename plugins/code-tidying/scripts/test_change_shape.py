@@ -580,8 +580,8 @@ class PowerShellVerdicts(unittest.TestCase):
         self.assertEqual(code, 0, out + err)
 
     def test_windows_1252_non_ascii_comment_deletion_is_comment_only(self):
-        before = "$s = 'caf\xe9' # note\r\n".encode("cp1252")
-        after = "$s = 'caf\xe9'\r\n".encode("cp1252")
+        before = "$s = '\xe9t\xe9' # note\r\n".encode("cp1252")
+        after = "$s = '\xe9t\xe9'\r\n".encode("cp1252")
         code, out, err = run_bytes(before, after, ".ps1")
         self.assertEqual(code, 0, out + err)
 
