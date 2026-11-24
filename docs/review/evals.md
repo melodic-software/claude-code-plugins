@@ -147,4 +147,5 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   reads exactly `false` (Q52).
 - It stays `false`: every eval workflow is started deliberately (dispatch or the `eval: run`
   label), none runs on a schedule. `true` is the owner's emergency kill switch; sessions never
-  change it. Scoping is unchanged: run only the cases the change affects (Q52, Q55).
+  change it (owner decision 2026-11-24, replacing the reset to `true` after a run). Scoping is
+  unchanged: run only the cases the change affects (Q52, Q55).
