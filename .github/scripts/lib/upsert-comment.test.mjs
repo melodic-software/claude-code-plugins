@@ -1,5 +1,3 @@
-// upsert-comment.mjs: one marked comment per pull request, edited in place on
-// a re-run, found only among the bot's own comments.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -10,7 +8,6 @@ const MARKER = "<!-- lane-run-report activity=read/fix-ci run=7 -->";
 const BODY = `${MARKER}\n## Lane run report\n`;
 const args = (extra = {}) => ({ repository: "o/r", pull: "42", marker: MARKER, ...extra });
 
-// A fake client over a list of comments, recording every call.
 function fakeGitHub(comments = []) {
   const calls = [];
   const github = async (method, path, body) => {

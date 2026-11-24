@@ -1,7 +1,3 @@
-// Each signal fires on a positive and stays quiet on a negative. Thresholds
-// come from the signal list the lane implements (over 90%, over 2 ejections a
-// day, held over 24 hours, 0 merges for 3 hours); annotation and status-page
-// shapes are copied from real pr-merge, broker and githubstatus.com output.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -68,7 +64,6 @@ test("parseBudget reads pr-merge's api-budget notice", () => {
 });
 
 test("signal 2: a lane reading over 90% fires, 90% exactly stays quiet", () => {
-  // 4706 of 5200 is 90.5%.
   const hot = ceilingFindings({ ...base, budgetReadings: [reading("lane", 4706, 5200)] });
   assert.deepEqual(
     hot.map((f) => f.key),
@@ -458,8 +453,6 @@ test("signal 8: a recent merge, no countable PR, or a report-only lane stays qui
   assert.deepEqual(quiet(sweep([], { candidates: 0 }), "2026-10-19T10:00:00Z"), []);
   assert.deepEqual(quiet(sweep([], { live: false }), "2026-10-19T10:00:00Z"), []);
   assert.deepEqual(quiet(null, "2026-10-19T10:00:00Z"), []);
-  // A sweep over 70 minutes old means pr-merge is not running (the kill
-  // switch, say), which this signal does not judge.
   assert.deepEqual(quiet(sweep([], { startedAt: "2026-10-19T15:00:00Z" }), "2026-10-19T10:00:00Z"), []);
 });
 
@@ -501,7 +494,6 @@ test("signal 9: the fingerprint holds for the same stops and changes on a new on
   const fp = (stops) => detect({ ...base, laneStops: stops })[0].fingerprint;
   assert.equal(fp([stop(1, "limited"), stop(2, "limited")]), fp([stop(2, "limited"), stop(1, "limited")]));
   assert.notEqual(fp([stop(1, "limited")]), fp([stop(1, "limited"), stop(2, "limited")]));
-  // A stop seen again in the next run's window overlap keeps the fingerprint.
   assert.equal(fp([stop(1, "limited"), stop(2, "limited")]), fp([stop(2, "limited")]));
 });
 
@@ -530,8 +522,6 @@ test("every finding has a marker-safe key, a hex fingerprint, an area and inert 
   }
 });
 
-// collect.mjs hands on only stops past STALLED_HOURS with no attempt since;
-// one finding names each, and its fingerprint moves only with the set.
 test("stalled stops are one finding, a fact per PR, whose fingerprint moves with the stopped heads only", () => {
   const stop = (pr, extra = {}) => ({ pr, head: "a".repeat(40), activity: "fix-ci", reason: "ci-fix-invalid", stoppedAt: "2026-10-19T12:00:00Z", url: `https://github.com/o/r/pull/${pr}#c`, ...extra });
   assert.deepEqual(stalledFindings({ stalledStops: [] }), []);
@@ -550,9 +540,6 @@ test("stalled stops are one finding, a fact per PR, whose fingerprint moves with
   assert.ok(detect({ ...base, stalledStops: [stop(9)] }).some((x) => x.key === "stalled-lane-stop"));
 });
 
-// collect.mjs hands on the newest reports, newest first, stopping at the first
-// readable one: code is the post-merge-code file's text.
-// The reason a real exit-3 report carried (pr-merge run 41067582241, 2026-10-30).
 const CAP = "unreadable: post-merge-detect-silent-revert.yml push runs: total_count 1239, 1000 returned, at the 1000-run search cap";
 const report = (runId, code = "3", reason = CAP) => ({
   runId,
@@ -595,7 +582,6 @@ test("signal 3: a listing a rate limit held in the window counts, though its run
   assert.match(found[0].summary, /^1 occurrences across 1 runs/);
   assert.match(found[0].facts[0], /actions\/runs\/2: rate limited \(the core pool/);
   assert.deepEqual(throttleFindings({ ...base, heldSweeps: [at(2, "failed 3 times", "2026-10-19T16:30:00Z")] }), []);
-  // Before the window, as every other signal 3 source.
   assert.deepEqual(throttleFindings({ ...base, heldSweeps: [at(2, limited, "2026-10-19T12:00:00Z")] }), []);
 });
 
@@ -636,8 +622,6 @@ test("signal 11: the fingerprint holds while the cause holds, through new runs a
   assert.notEqual(fp(later), fp([report(5, "3", "pull requests: HTTP 502"), report(4), report(3), report(2)]));
 });
 
-// The three hold notices as their scripts print them (report-outcome.mjs,
-// label-unblocked.mjs reportHold, handoff-evidence.sh), title and message.
 const FAULT = ["report-outcome", "issue #812 stopped on a fault (outcome-unread), and every retry since a person last added agent-ready was one too; it keeps agent-ready and a later run tries again"];
 const LISTING = ["label-unblocked", "the closed-issue listing failed (GET /repos/o/r/issues: HTTP 502); holding, and the next sweep reads it again"];
 const HANDOFF = ["Handoff evidence hold", "handoff evidence for fix-docs still missing after 3 reads: read-failed; no fallback starts, and the next dispatcher tick sends the PR again"];
@@ -651,12 +635,10 @@ test("signal 13: each lane's hold notice parses, and other notices do not", () =
   assert.equal(parseHold(undefined, "handoff evidence for fix-docs still missing after 3 reads: x; the outputs stay empty"), null);
 });
 
-// label-unblocked.mjs failedFor's notice for one issue's faulted read.
 test("signal 13: work-unblock's held issue read parses to the issue and the status", () => {
   const issueHold = (message) => parseHold("label-unblocked", message);
   assert.deepEqual(issueHold("#20: GET /repos/o/r/issues/20 failed with status 503; holding, and the next sweep reads it again"), { item: "#20", reason: "read fault HTTP 503" });
   assert.deepEqual(issueHold("#7: fetch failed; holding, and the next sweep reads it again"), { item: "#7", reason: "read fault" });
-  // The run-ending error for the same issue, and another title, are no hold.
   assert.equal(issueHold("#20: GET /repos/o/r/issues/20 failed with status 404"), null);
   assert.equal(parseHold("report-outcome", "#20: fetch failed; holding, and the next sweep reads it again"), null);
 });
@@ -678,8 +660,6 @@ test("signal 13: intake-triage's held verdict parses to a fixed reason with no i
 });
 
 test("signal 13: work-resolve-issue's WIP cap hold parses to a fixed reason per cause with no item", () => {
-  // check-wip-cap.mjs's notice template and its causes, read from the script,
-  // so producer and parser are one contract.
   const script = readFileSync(new URL("../../actions/check-wip-cap/check-wip-cap.mjs", import.meta.url), "utf8");
   const template = /`(WIP cap hold: \$\{unread\}[^`]*)`/.exec(script)[1];
   for (const [unread, reason] of [
@@ -689,7 +669,6 @@ test("signal 13: work-resolve-issue's WIP cap hold parses to a fixed reason per 
     assert.ok(script.includes(`"${unread}"`), unread);
     assert.deepEqual(parseHold("WIP cap hold", template.replace("${unread}", unread)), { item: null, reason });
   }
-  // pick-slot's step names a check that did not finish, read from the workflow itself.
   const workflow = readFileSync(new URL("../../workflows/work-resolve-issue.yml", import.meta.url), "utf8");
   const step = /run: echo "(::notice title=WIP cap hold::[^"]*)"/.exec(workflow)[1];
   assert.deepEqual(parseHold(...annotation(step)), { item: null, reason: "WIP cap check unfinished" });
@@ -698,19 +677,15 @@ test("signal 13: work-resolve-issue's WIP cap hold parses to a fixed reason per 
 });
 
 test("signal 13: pr-refine's unread PR head or hold parses to the PR and a fixed reason", () => {
-  // fix-docs-head-held's step, read from the workflow itself, so producer and
-  // parser are one contract.
   const workflow = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8");
   const template = /echo "(::notice title=PR head hold::[^"]*)"/.exec(workflow)[1].replace("$PR_NUMBER", "7");
   const step = template.replace("$what", "head");
   assert.deepEqual(parseHold(...annotation(step)), { item: "#7", reason: "PR head unread" });
-  // lane-hold.mjs's fault hold: the step names the hold, not the head.
   assert.match(workflow, /\[\[ \$HOLD_UNREAD != true \]\] \|\| what="human-gated hold"/);
   assert.deepEqual(parseHold(...annotation(template.replace("$what", "human-gated hold"))), { item: "#7", reason: "PR hold unread" });
   assert.equal(parseHold("PR head hold", "no PR head SHA read for #7; fix-docs does not run"), null);
   assert.equal(parseHold("Handoff evidence hold", annotation(step)[1]), null);
   assert.ok(HOLD_LANES.find((l) => l.lane === "pr-refine").jobs.includes("fix-docs-head-held"));
-  // A hold notice is read at notice level only.
   assert.equal(parseHold(...annotation(step), "warning"), null);
   const files = [...workflow.matchAll(/echo "(::notice title=PR head hold::[^"]*)"/g)].map((m) => m[1]).find((line) => line.includes("changed files"));
   assert.deepEqual(parseHold(...annotation(files.replace("$PR_NUMBER", "9"))), { item: "#9", reason: "PR files unread" });
@@ -723,14 +698,11 @@ test("signal 13: pr-refine's refine-failed warning parses to the pass and its cl
   const lane = HOLD_LANES.find((l) => l.lane === "pr-refine");
   assert.ok(lane.jobs.includes("record-passes"));
   assert.deepEqual(lane.statuses, ["success", "failure"]);
-  // record-passes, in the workflow, runs the script that prints the warning.
   const workflow = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8");
   assert.match(workflow, /\n {2}record-passes:\n[\s\S]*?run: node \.base\/\.github\/scripts\/pr-refine\/log-pass-records\.mjs\n/);
 });
 
 test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reasons with no item", () => {
-  // Each from its producer: resolve-pr.mjs closing, and pr-verify.yml's
-  // `Note the hold` step after the trigger gate in each of its three jobs.
   const resolver = resolverClosing(new GitHubError(502, "GET /repos/o/r/pulls/7"), {});
   assert.deepEqual(parseHold(...annotation(resolver.lines[0])), { item: null, reason: "resolver fault" });
   const workflow = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -756,8 +728,6 @@ test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reas
 });
 
 test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason, in every select step", () => {
-  // Each `Select a lane-source pull request` step's notice, read from the
-  // workflow itself, so producer and parser are one contract.
   const workflow = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
   const notices = [...workflow.matchAll(/echo "(::notice title=pr-review-main::held: [^"]*)"/g)].map((m) => m[1].replace("$retry_call_unknown", "HTTP 502"));
   assert.equal(notices.length, 4, "the check-trigger job's select step and each of three legs'");
@@ -767,21 +737,15 @@ test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason
   const lane = HOLD_LANES.find((l) => l.lane === "pr-review-main");
   assert.deepEqual([lane.workflow, lane.holdStep], ["pr-review-main.yml", "Note the hold"]);
   for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
-  // Each notice sets the select step's `held`, which runs Note the hold, so a
-  // job whose Note the hold was skipped printed no hold.
   assert.equal([...workflow.matchAll(/echo "::notice title=pr-review-main::held: [^"]*"\n {12}echo "held=true" >>"\$GITHUB_OUTPUT"\n/g)].length, 4);
   assert.equal([...workflow.matchAll(/- name: Note the hold\n {8}id: note-hold\n {8}if: steps\.select\.outputs\.held == 'true'\n/g)].length, 4);
-  // A matrix leg is listed as `<job> (<values>)` and counts as that job.
   assert.equal(holdJob(lane.names, "Review (claude-review, claude-review)"), true);
   assert.equal(holdJob(lane.names, "Check Trigger"), true);
   assert.equal(holdJob(lane.names, "Review Handoffs"), false);
   assert.equal(holdJob(lane.names, "Record"), false);
-  // A run from before the job rename lists the ids.
   assert.equal(holdJob(lane.jobs, "review (claude-review, claude-review)"), true);
   assert.equal(holdJob(lane.jobs, "check-trigger"), true);
   assert.equal(holdJob(lane.jobs, "review-handoffs"), false);
-  // A run from before the rename to check-trigger lists its earlier name or
-  // id, which the workflow no longer carries (collect.mjs reads them).
   assert.deepEqual(lane.earlier, ["Trigger", "trigger"]);
   assert.doesNotMatch(workflow, /\n {2}trigger:\n/);
   assert.doesNotMatch(workflow, /\n {4}name: Trigger\n/);
@@ -801,13 +765,10 @@ test("signal 13: each hold lane's names are its jobs' names in its workflow, in 
 });
 
 test("signal 13: pr-merge's lane token hold parses to one fixed reason, for either cause, read from the action", () => {
-  // The notice the action prints, read from the action itself, so producer
-  // and parser are one contract.
   const action = readFileSync(new URL("../../actions/request-lane-token/action.yml", import.meta.url), "utf8");
   const [, msg] = /^ +msg="(lane-token-held: [^"]*)"$/m.exec(action) ?? [];
   assert.ok(msg, "the action builds a lane-token-held message");
   assert.match(action, /^ +echo "::notice title=Lane token hold::\$msg"$/m);
-  // The budget cause appends the rate-limit clause; the 3-request cap appends nothing.
   const pastBudget = "; GitHub's secondary rate limit (core) resets at 2026-11-06T21:00:00Z, past the 1-minute retry budget";
   for (const clause of [pastBudget, ""]) {
     const line = `::notice title=Lane token hold::${msg.replace("${rate_limit}", clause)}`;
@@ -818,7 +779,6 @@ test("signal 13: pr-merge's lane token hold parses to one fixed reason, for eith
   const lane = HOLD_LANES.find((l) => l.lane === "pr-merge");
   assert.equal(lane.workflow, "pr-merge.yml");
   assert.equal(lane.holdStep, undefined, "no pr-merge step runs only on a hold");
-  // Each job named is one whose token step opts into the hold.
   const workflow = readFileSync(new URL("../../workflows/pr-merge.yml", import.meta.url), "utf8");
   for (const job of lane.jobs) {
     const body = new RegExp(`\\n  ${job}:\\n((?: {4,}.*\\n|\\n)+)`).exec(workflow)?.[1] ?? "";

@@ -1,8 +1,3 @@
-// The lane sweep's file job: binds every finding to the unit it came from,
-// checks every claim against main, fingerprints each finding, reads the issues
-// earlier sweeps filed, and writes the open findings into one rolling digest
-// issue per planDigest. No model. Writes with the job's own token, one call at
-// a time, 1 s apart, within its call budget.
 import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
@@ -26,23 +21,12 @@ import {
 } from "./findings.mjs";
 
 export const FILER_LOGIN = "github-actions[bot]";
-// No needs-triage: the digest is a status record the sweep rewrites daily,
-// not an intake item.
 
-// The job names a unit's data shows: the failed jobs of slice A. Slice D's
-// green samples are not a list of the jobs that ran, and its workflow-level
-// findings (duplicate runs, reruns) name no sampled job, so it binds none.
-// Slice C names pull requests, not workflows, so it binds neither.
 export function unitJobs(unit) {
   if (unit.slice === "A") return (unit.runs ?? []).flatMap((r) => (r.failed_jobs ?? []).map((j) => j.name));
   return null;
 }
 
-// Why a finding does not belong to the unit it came from, else null. The
-// judge reads CI text that can steer it, so slice, and the workflow of A and
-// D, must be what collect wrote for the unit, and so must the job of an A
-// unit whose data lists any (an A run whose jobs did not end in failure
-// lists none).
 export function unitMismatch(finding, unit) {
   if (finding.slice !== unit.slice) return "slice-not-unit";
   if (unit.slice !== "C" && finding.workflow !== unit.workflow) return "workflow-not-unit";
@@ -51,14 +35,6 @@ export function unitMismatch(finding, unit) {
   return null;
 }
 
-// The carry rule for an incomplete sweep: an earlier entry it did not see
-// carries when everything carries (the collector stopped early, its record or
-// a unit's data is missing, a findings file is unreadable), when it names no
-// workflow, when its workflow's window was read only in part, or when a unit
-// whose findings were not read could have produced it. An entry records its
-// slice and workflow, not its unit; an A or D finding must match its unit's
-// slice and workflow (unitMismatch), so those two pick out the unit, and a C
-// unit binds no workflow, so an unread C unit carries every C entry.
 export const carryRule =
   ({ all, partial, unread }) =>
   (entry) => {
@@ -69,9 +45,6 @@ export const carryRule =
     return fromUnread ? "unit-unread" : null;
   };
 
-// complete: the collector read every unit's whole window and every unit has a
-// findings file the judge parsed, so a finding missing from this sweep is gone
-// rather than unread. carry: which earlier entries an incomplete sweep keeps.
 export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath = null }) {
   const items = [];
   const dropped = [];
@@ -153,9 +126,6 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
     }
     if (unparsed.some((id) => !units.includes(id))) all ??= "unit-unread";
   } else if (unparsed.length > 0) all ??= "unit-unread";
-  // The collector's own record: a run that stopped before writing every unit
-  // or read part of a workflow's window says so; a missing record is not
-  // complete.
   if (statusPath) {
     try {
       const status = JSON.parse(readFileSync(statusPath, "utf8"));
@@ -173,11 +143,8 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
   return { items, dropped, complete, carry: carryRule({ all, partial, unread }) };
 }
 
-// Model text in the step summary: one line, no code spans, links, mentions
-// or HTML.
 const inertLine = (text) => inertTitle(String(text ?? "").replace(/`/g, ""));
 
-// How many unseen earlier entries carried, counted by reason.
 export function carriedNote(carried) {
   if (carried.length === 0) return "no earlier entry carried over";
   const counts = new Map();
@@ -189,8 +156,6 @@ export function carriedNote(carried) {
 export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: ${inertLine(d.reason)}`;
 
 const DIGEST_TYPE = "Task";
-// Work status, Priority, Size, Complexity and Uncertainty, by option name. The
-// digest is only read; each entry a person wants worked is re-filed and sized.
 const DIGEST_FIELDS = [
   { field_id: 48484079, value: "needs-triage" },
   { field_id: 49622037, value: "medium" },
@@ -198,7 +163,6 @@ const DIGEST_FIELDS = [
   { field_id: 48625720, value: "low" },
   { field_id: 48625721, value: "known" },
 ];
-// Size, Complexity and Uncertainty: the fields whose option names change case.
 const TITLED_FIELDS = new Set([15462270, 48625720, 48625721]);
 
 // The digest's author is github-actions[bot], outside the trusted list, so
@@ -248,8 +212,6 @@ export async function writeDigest({ plan, call, repo, runUrl, leaveAgentReady = 
   return done;
 }
 
-// The issues earlier sweeps filed: github-actions[bot]'s, any state, holding
-// the digest marker or a finding fingerprint, at most ten pages.
 export async function listSweepIssues({ call, repo }) {
   const existing = [];
   for (let page = 1; page <= 10; page += 1) {

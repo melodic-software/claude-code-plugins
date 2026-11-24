@@ -68,8 +68,6 @@ export async function readJobsCarry({ env, repo, actions, download, now = new Da
   return carry;
 }
 
-// One monitor leaf of pr-pipeline.yaml, read with yq as the workflow reads
-// merge.agent-identity and passed to `parse`, or the error that stopped it.
 function readMonitorLeaf({ path, run, query, parse, what }) {
   try {
     return parse(JSON.parse(run("yq", ["-o=json", query, path], { encoding: "utf8" })));
@@ -78,11 +76,9 @@ function readMonitorLeaf({ path, run, query, parse, what }) {
   }
 }
 
-// pr-pipeline.yaml's monitor.lane-holds rule (signals.mjs holdRule).
 export const readHoldRule = ({ path = CONFIG, run = execFileSync } = {}) =>
   readMonitorLeaf({ path, run, query: '.monitor."lane-holds" // {}', parse: holdRule, what: "the monitor.lane-holds rule was" });
 
-// pr-pipeline.yaml's monitor.incidents thresholds (issues.mjs incidentRules).
 export const readIncidentRules = ({ path = CONFIG, run = execFileSync } = {}) =>
   readMonitorLeaf({ path, run, query: ".monitor.incidents // {}", parse: incidentRules, what: "the monitor.incidents thresholds were" });
 
@@ -90,21 +86,11 @@ const WORK_STATUS_FIELD = 48484079;
 const PRIORITY_FIELD = 49622037;
 const INCIDENT_TYPE = "Bug";
 
-// What a signal knows at filing (docs/standards/issue-tracker.md, "Filing an
-// issue"). Size, Complexity and Uncertainty need someone who has read the
-// fault, and triage sets them.
 export const incidentFields = (signal) => [
   { field_id: WORK_STATUS_FIELD, value: "needs-triage" },
   { field_id: PRIORITY_FIELD, value: FILING[signal].priority },
 ];
 
-// A filed incident's body changes only when its findings change, and no write
-// adds a comment except the retirement note. The rewrite takes agent-ready off
-// first (statusWriter's leaveAgentReady, with orUnset), since a person vetted
-// the earlier text; the PATCH runs last and carries the marker, so a failed
-// call before it leaves the old state recorded and the write is retried on the
-// next run. A failed filing is planned again next run; a failed field write
-// only warns, and triage sets what is missing.
 const nothingDone = () => ({ filed: [], updated: [], closed: [], retired: [], failed: [] });
 
 export async function writePlan({ plan, call, repo, runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
@@ -155,7 +141,6 @@ export async function writePlan({ plan, call, repo, runUrl, leaveAgentReady = as
   return done;
 }
 
-// Every signal's state, then each current finding's evidence inside a fence.
 export const statusLines = (plan) =>
   plan.status.flatMap(({ signal, state, findings }) => [
     `- **${signal}**: ${state}`,
@@ -181,7 +166,6 @@ async function main(env = process.env) {
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
     return response.json();
   };
-  // The artifact's one JSON file, or, given names, each named file's text.
   const readArtifact = async (id, files = null) => {
     const dir = mkdtempSync(join(env.RUNNER_TEMP ?? tmpdir(), "monitor-"));
     const unzip = (...name) => execFileSync("unzip", ["-p", join(dir, "a.zip"), ...name], { encoding: "utf8", maxBuffer: 16 << 20 });
@@ -210,8 +194,6 @@ async function main(env = process.env) {
     ownRate: ownRate && { used: ownRate.used, limit: ownRate.limit, remaining: ownRate.remaining },
   });
   const findings = detect(data);
-  // Thresholds this run could not read are a gap no source names, which leaves
-  // every signal and its issue as they are.
   const rules = readIncidentRules();
   const gaps = [...data.gaps];
   if (rules instanceof Error) gaps.push(`incident thresholds: ${rules.message}`);

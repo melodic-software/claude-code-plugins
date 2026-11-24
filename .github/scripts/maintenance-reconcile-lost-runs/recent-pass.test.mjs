@@ -1,7 +1,3 @@
-// The dispatch gap (recent-pass.mjs): a hand-started pass is skipped when a
-// trusted run finished a full pass, one that uploaded reconcile-settled-runs,
-// under MIN_GAP_MINUTES ago, and runs otherwise. Times are picked by hand
-// around the 2026-11-10 pair of dispatches, 14:46Z and 14:51Z.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -18,7 +14,6 @@ const THIS_RUN = 42838338856;
 const runAt = (id, updatedAt, extra = {}) => ({ id, path: PATH, event: "workflow_dispatch", head_branch: "main", status: "completed", updated_at: updatedAt, ...extra });
 const settled = (id, expired = false) => ({ id, name: "reconcile-settled-runs", expired });
 
-// A GitHub stand-in: the workflow's run listing, then each run's artifacts.
 const fakeGitHub = (runs, artifactsByRun) => {
   const calls = [];
   const github = async (method, path) => {
@@ -68,16 +63,13 @@ test("the gap is MIN_GAP_MINUTES: a pass 29 minutes ago skips, one 31 minutes ag
   const at = (updatedAt) => fakeGitHub([runAt(42837000001, updatedAt)], { 42837000001: [settled(1)] }).github;
   assert.equal((await run({}, at("2026-11-10T14:22:00Z"))).output, "skip=true\n");
   assert.equal((await run({}, at("2026-11-10T14:20:00Z"))).output, "skip=false\n");
-  // A shorter configured gap lets the 29-minute-old pass run.
   assert.equal((await run({ MIN_GAP_MINUTES: "15" }, at("2026-11-10T14:22:00Z"))).output, "skip=false\n");
 });
 
 test("a newer run with no settled artifact (a paced, kill-switch or idle tick) is not a full pass", async () => {
   const pacedTick = runAt(42837900000, "2026-11-10T14:35:00Z", { event: "schedule" });
-  // The only full pass is 41 minutes old: the dispatch runs.
   const old = fakeGitHub([pacedTick, runAt(42837000002, "2026-11-10T14:10:00Z")], { 42837000002: [settled(2)] });
   assert.equal((await run({}, old.github)).output, "skip=false\n");
-  // The same paced tick ahead of a full pass 20 minutes old: the dispatch skips.
   const recent = fakeGitHub([pacedTick, runAt(42837000003, "2026-11-10T14:31:00Z", { event: "schedule" })], { 42837000003: [settled(3)] });
   assert.equal((await run({}, recent.github)).output, "skip=true\n");
 });
@@ -94,7 +86,6 @@ test("an expired settled artifact, or one from an untrusted or unfinished run, d
     const { github } = fakeGitHub([listed], { 42837000004: artifacts });
     assert.equal((await run({}, github)).output, "skip=false\n", name);
   }
-  // This run's own artifact never counts.
   const own = fakeGitHub([runAt(THIS_RUN, "2026-11-10T14:50:00Z")], { [THIS_RUN]: [settled(5)] });
   assert.equal((await run({}, own.github)).output, "skip=false\n", "this run");
 });
@@ -141,8 +132,6 @@ test("a failed read runs the pass, with a warning", async () => {
   assert.deepEqual(result.lines, ["::warning::the recent-pass check could not read the last pass (502 Bad Gateway); the dispatch runs"]);
 });
 
-// The workflow wiring: the check runs before the work, never fails the job,
-// gates both spending steps, and takes force from the dispatch input.
 test("the reconciler workflow gates its plan and act steps on the check, after the pacer", () => {
   const text = readFileSync(new URL("../../workflows/maintenance-reconcile-lost-runs.yml", import.meta.url), "utf8");
   assert.match(text, /\n {2}workflow_dispatch:\n {4}inputs:\n {6}force:\n[^\n]*\n {8}type: boolean\n {8}default: false\n/);
