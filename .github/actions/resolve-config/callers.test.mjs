@@ -1289,7 +1289,8 @@ async function postNotRunChecks(job, context) {
 test("work-unblock.yml: publish-lane-level runs on main's schedule only, mints only live, and only publish and revoke see the token", () => {
   const { jobs } = workflow("work-unblock.yml");
   const job = jobs["publish-lane-level"];
-  assert.equal(job.if, "${{ !cancelled() && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}");
+  assert.equal(job.if, "${{ !cancelled() && github.event_name == 'schedule' && github.event.schedule == '28 * * * *' && github.ref == 'refs/heads/main' }}");
+  assert.ok(workflow("work-unblock.yml").on.schedule.some((entry) => entry.cron === "28 * * * *"));
   assert.deepEqual(job.needs, "label-unblocked");
   assert.deepEqual(job.permissions, { actions: "read", contents: "read", "id-token": "write" });
   const mint = job.steps.find((step) => step.id === "lane-token");
@@ -11274,7 +11275,7 @@ test("pr-run-activity-write.yml: the script step passes apply-patch's test-scope
       writeFileSync(output, "");
       const result = spawnSync("bash", ["-e", "-c", step.run], {
         encoding: "utf8",
-        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: script, TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
+        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: script, STAGED_SCRIPT: join(root, "base-script", script), TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
       });
       return { status: result.status, output: readFileSync(output, "utf8") };
     };

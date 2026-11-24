@@ -106,7 +106,6 @@ rdt_worktree_fixture() {
   }
 }
 
-# The end of every part: the host-skipped groups, then the PASS/FAIL report.
 rdt_finish() {
   echo "host-conditional groups skipped: $rdt_skips"
   report

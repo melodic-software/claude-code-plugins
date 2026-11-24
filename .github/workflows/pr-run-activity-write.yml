@@ -1325,6 +1325,7 @@ jobs:
         if: steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'script'
         env:
           SCRIPT: ${{ steps.config.outputs.script }}
+          STAGED_SCRIPT: ${{ steps.stage.outputs.script-path }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The job's own token, for the review lanes' comment records only.
@@ -1445,7 +1446,7 @@ jobs:
           fi
           unset LANE_TOKEN RESOLVED
           rm -f "$SKIP_REASON_FILE" "$ESCALATION_REASON_FILE"
-          "$RUNNER_TEMP/base-script/$SCRIPT"
+          "$STAGED_SCRIPT"
           reason=""
           if [ -s "$SKIP_REASON_FILE" ]; then
             reason=$(head -n 1 "$SKIP_REASON_FILE" | tr -d '\r')

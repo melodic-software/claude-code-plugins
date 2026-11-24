@@ -62,8 +62,6 @@ const SETTINGS_KEYS = new Set([
   'tiebreak',
   'trials_prove',
   'trials_fail',
-  'promotion_audits',
-  'promotion_days',
   'claude',
   'codex',
   'antigravity',

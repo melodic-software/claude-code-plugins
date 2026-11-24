@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for converge-plan.sh (self-contained — ships with the
-# plugin). Reports are built per-case with `--from`, so no Claude Code state file
-# is read; the project paths are real throwaway directories because the script
-# reads each present path's tracked settings through git.
 # test-scope: .gitattributes
 set -uo pipefail
 
@@ -67,18 +63,6 @@ tracked_repo "$P_COMMIT" '{"beta@mk":false}'
 tracked_repo "$P_WT" '{"other@mk":true}'
 mkdir -p "$P_NOGIT"
 
-# One divergence per class, user scope holding the highest version unless noted.
-#   alpha    project pin, not committed             -> actionable, uninstall
-#   beta     project pin, committed enable (false)  -> actionable, update
-#   gamma    project pin in an absent path          -> blocked-absent
-#   delta    project pin in a home directory        -> blocked-home
-#   epsilon  project pin in a linked worktree       -> worktree, uninstall
-#   zeta     user pin behind a project pin, catalog below the project pin
-#                                                   -> blocked-catalog
-#   theta    linked worktree behind a project pin   -> worktree, strategy none
-#   iota     project pin, settings check unreadable (no git) -> update
-#   kappa    local pin                              -> actionable, uninstall -s local
-#   eta      every scope at one version             -> no row
 REPORT="$TEST_TMPDIR/report.json"
 jq -n --arg ok "$P_OK" --arg commit "$P_COMMIT" --arg wt "$P_WT" --arg nogit "$P_NOGIT" \
   --arg gone "$P_GONE" --arg homedir "$P_HOME" '
@@ -153,7 +137,6 @@ assert_eq "counts: worktree, blocked-absent, blocked-home, blocked-catalog" "2 1
 assert_eq "counts: actionable" "4" "$(jq -r '.counts.actionable' "$PLAN")"
 assert_eq "counts: rows" "9" "$(jq -r '.counts.rows' "$PLAN")"
 
-# A worktree row with a committed enable keeps uninstall as the non-default option.
 WT_COMMIT="$TEST_TMPDIR/wt-commit"
 tracked_repo "$WT_COMMIT" '{"mu@mk":true}'
 jq -n --arg p "$WT_COMMIT" '
@@ -169,9 +152,6 @@ assert_eq "worktree + committed enable: uninstall is not the default" "false" \
 assert_eq "worktree + committed enable: carries the warning" "removes a committed enabledPlugins entry" \
   "$(jq -r '.groups[0].rows[0].warning' <<<"$WT_PLAN")"
 
-# The committed-enable state comes from the report's projectEnabledEntry, never
-# from a read of the settings file: here the file on disk holds no entry while
-# the report says the tracked file holds an explicit false.
 SHADOW="$TEST_TMPDIR/shadow"
 tracked_repo "$SHADOW" '{}'
 entry_plan() {

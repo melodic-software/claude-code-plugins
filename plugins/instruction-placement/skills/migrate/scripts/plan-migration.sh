@@ -85,13 +85,6 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The excluded-tree list is this plugin's, defined once in lib/discover.sh so
-# the plan, the index and the wiring gate cannot disagree about whose files a
-# directory holds.
-# A missing or unreadable lib is not a repository with nothing in it. Without
-# the check the exclusion lists were unset, every discovery loop produced
-# nothing, and the plan printed zero DIR rows and exited 0: a clean bill of
-# health from a script that never ran.
 # shellcheck source=../../../scripts/lib/discover.sh
 source "$SCRIPT_DIR/../../../scripts/lib/discover.sh" || {
   echo "plan-migration: cannot load $SCRIPT_DIR/../../../scripts/lib/discover.sh" >&2
@@ -166,8 +159,6 @@ Exit: 0 printed, 1 not a git repository, 2 usage error.
 EOF
     exit 0
     ;;
-  # Accepted and ignored. The script has only ever read, so the flag selected
-  # nothing; it stays so an existing caller does not break on it.
   --dry-run) shift ;;
   --expand-mentions)
     EXPAND_MENTIONS=1
@@ -220,9 +211,6 @@ file_bytes() {
   wc -c <"$1" | tr -d ' \t\r'
 }
 
-# An AGENTS.md under another tool's directory is that tool's file. It is not
-# paired with a Claude CLAUDE.md in the same directory, and it is not part of
-# what a Codex session carries, so it contributes nothing to either row.
 ours_agents_bytes() {
   local dir="$1" seg
   for seg in $IP_FOREIGN_AGENT_TREES; do
@@ -252,9 +240,6 @@ ours_agents_bytes() {
 # Comments are matched as blocks, so a note spanning several lines counts once.
 classify_claude_md() {
   local file="$1" import=0 comment=0 other=0 inblock=0 line trimmed
-  # The target shape is EXACTLY one import line. A file repeating `@AGENTS.md`
-  # loads the same content, so it looks finished, but it is not the shape and a
-  # migration reporting it as `shim` would leave the duplicate in place.
   [[ -f "$file" ]] || {
     printf 'content\n'
     return 0
@@ -325,7 +310,6 @@ instruction_dirs() {
   ' | LC_ALL=C sort -u
 }
 
-# --- DIR and BUDGET -------------------------------------------------------
 while IFS= read -r dir; do
   [[ -n "$dir" ]] || continue
   claude="$dir/CLAUDE.md"
@@ -337,17 +321,11 @@ while IFS= read -r dir; do
   elif [[ "$cb" -eq 0 ]]; then
     state="agents-only"
   elif [[ "$ab" -eq 0 ]]; then
-    # The shim test runs before the content test: a bare import over an empty
-    # AGENTS.md holds nothing to split, and `content-in-claude` would send the
-    # operator through the full sequence for it. Only the exact target shape
-    # counts: Apply does nothing for `shim-empty-target`, so any other import
-    # form would never be rewritten to `@AGENTS.md`.
     state="content-in-claude"
     if [[ "$(classify_claude_md "$claude")" == "shim" ]] && is_exact_shim "$claude" "$cb"; then
       state="shim-empty-target"
     fi
   else
-    # remove-shims.sh takes `shim` as finished, so only the exact shape is.
     case "$(classify_claude_md "$claude")" in
     shim)
       state="shim-noncanonical"
@@ -359,8 +337,6 @@ while IFS= read -r dir; do
   fi
   printf 'DIR\t%s\t%s\t%s\t%s\n' "$dir" "$state" "$cb" "$ab"
 
-  # Cumulative AGENTS.md bytes along the root-to-this-directory path, which is
-  # what a session working in this directory would carry.
   cum=0
   walk="$dir"
   while :; do
@@ -387,23 +363,8 @@ emit_rows() {
   fi
 }
 
-# A directory whose mentions would flood the report is rolled up to one line.
-#
-# N is 10 by judgment, not measurement: no standard sets it. Above about that
-# many rows from one directory a reader stops reading rows and starts skipping
-# them, and the directories that produce them in practice are content
-# directories (a captured corpus, vendored prose) whose mentions are all the
-# same non-finding. A real instruction-surface leak arrives as a handful of rows
-# in `.github`, `.claude` or a script directory, well under the threshold.
-# `--expand-mentions` prints every row when the operator wants the long form.
-# Recheck the number if a repository's real findings ever land above it.
 MENTION_ROLLUP_THRESHOLD=10
 
-# Configuration trees are never rolled up at any count. They are precisely
-# where an instruction-surface leak lives (a settings file, a bootstrap hook, a
-# CI gate enumerating instruction paths), so summarizing them would hide the
-# rows this kind exists to show. `medley` rolled `.lefthook/` up to 15 rows and
-# buried two hooks that key on CLAUDE.md.
 MENTION_NEVER_ROLLUP=".claude/ .github/ .lefthook/ .husky/ .githooks/"
 
 roll_up_mentions() {
@@ -433,8 +394,6 @@ roll_up_mentions() {
   '
 }
 
-# CITE and PATHDET are reported on their own and must not be repeated as
-# MENTION rows, so each keeps its bare `file:line:text` hits for the exclusion.
 PATHDET_HITS="$(mktemp)"
 PATHDET_RAW="$(mktemp)"
 CITE_HITS="$(mktemp)"
@@ -526,19 +485,10 @@ fi
 #     no path
 BENIGN_COMMENT=':[0-9]+:[[:space:]]*(#|//|\*|--|<!--|;)'
 
-# Every existence-ish idiom this fleet's languages spell, plus a catch-all for
-# the ones they do not: a test flag, a name containing exist/stat/access/file,
-# a `Path.`/`os.`-shaped call, a finder, or a method called ON the name. The
-# window is generous (60 characters) so `File.Exists(Path.Combine(dir, "..."))`
-# and `[[ -e "$root/CLAUDE.md" ]]` both land. Nearly all of the 519-row
-# difference above is writes, reads and English prose in eval files.
 PATHDET_PATTERN='(\[\[|\[|\(|^|[[:space:];&|]|!)[[:space:]]*-(e|f|s|r|h|L|name)[[:space:]][^;&|]{0,60}CLAUDE\.md'
 PATHDET_PATTERN="$PATHDET_PATTERN"'|([Ee]xists?|EXISTS|[Ii]s_?[Ff]ile|[Ii]sFile|[Ss]tat|[Tt]est-[Pp]ath|[Aa]ccess(Sync)?|existsSync|statSync|[Ff]ile[Ee]xists|[Pp]ath\.[a-z]+|[Ff]ind[A-Za-z]*[Rr]oot|[Ll]ocate)[^;]{0,60}CLAUDE\.md'
-# A bare assignment of the name to a variable: the lookup itself may be lines
-# away, so the assignment is the only place a grep can see it.
 # shellcheck disable=SC2016 # the quote characters are part of the pattern, not a shell expansion
 PATHDET_PATTERN="$PATHDET_PATTERN"'|[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(=|:=|<-)[[:space:]]*("|'"'"')?CLAUDE\.md'
-# A method called ON the name, postfix, in any of the fleet's languages.
 # shellcheck disable=SC2016 # the quote characters are part of the pattern, not a shell expansion
 PATHDET_PATTERN="$PATHDET_PATTERN"'|CLAUDE\.md("|'"'"')?[[:space:]]*\)?[[:space:]]*\.[[:space:]]*([Ee]xists?|[Ii]s_?[Ff]ile|[Ss]tat|exist\?)'
 
@@ -577,18 +527,6 @@ CITE_PATTERN='\]\([^)]*CLAUDE\.md(#[A-Za-z0-9_-]+)?\)|`?CLAUDE\.md`?[[:space:]]+
 git grep -n -I -E "$CITE_PATTERN" -- '*.md' '*.mdc' 2>/dev/null >"$CITE_HITS"
 sed 's/^/CITE\t/' "$CITE_HITS" | emit_rows CITE
 
-# --- MENTION --------------------------------------------------------------
-# Every OTHER tracked occurrence of the literal `CLAUDE.md`: a YAML list entry,
-# a comment, a shell string, a path in a config. None of these is a markdown
-# link or a filesystem-existence call, so CITE and PATHDET both miss them, and
-# each can still break when the content moves. `claude-code-proxy` carried the
-# case this row exists for: a `DOCUMENTATION_ROOTS` list in a CI workflow whose
-# gate the new top-level AGENTS.md failed.
-#
-# Not triage, just sight: the operator decides what each one means. The
-# instruction files themselves are excluded (a CLAUDE.md naming itself is not a
-# reference), and so are changelogs, which this fleet treats as history that is
-# never corrected.
 cat "$CITE_HITS" "$PATHDET_HITS" >"$ALREADY_REPORTED"
 # grep -f on an empty pattern file matches nothing, so seed one impossible line.
 printf '\x01no-such-line\n' >>"$ALREADY_REPORTED"
@@ -619,10 +557,6 @@ while IFS= read -r rule; do
 done < <(git ls-files -z -- '.claude/rules/*.md' '.claude/rules/**/*.md' 2>/dev/null | tr '\0' '\n')
 printf 'RULES\t%s\t%s\t%s\n' "$rules_total" "$rules_unscoped" "$rules_unscoped_bytes"
 
-# --- DOCSHOME -------------------------------------------------------------
-# Pointer targets go to the documentation home the repository already keeps.
-# Detection only: the skill creates `docs/` solely where there is nothing to
-# find, and never relocates an existing home.
 docs_home="docs"
 docs_state="absent"
 for candidate in docs doc documentation Documentation; do

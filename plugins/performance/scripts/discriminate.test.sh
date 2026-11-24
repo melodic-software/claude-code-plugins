@@ -107,7 +107,6 @@ CONFIG
 
 CHECK_ARGV="[\"$HARNESS_PYTHON\", \"check.py\"]"
 
-# --- 1. the happy path: red without the fix, green with it, arms differ ---
 mkdir -p "$WORK/ok"
 write_subject "$WORK/ok"
 write_check "$WORK/ok"
@@ -135,7 +134,6 @@ git init --quiet "$WORK/git" >/dev/null 2>&1
 git -C "$WORK/git" config user.email harness@example.invalid
 git -C "$WORK/git" config user.name "Harness Test"
 write_check "$WORK/git"
-# Commit the subject WITHOUT the fix, so the committed blob is the broken one.
 cat >"$WORK/git/subject.py" <<'BROKEN'
 import sys
 
@@ -144,8 +142,6 @@ print(value)
 BROKEN
 git -C "$WORK/git" add -A >/dev/null 2>&1
 git -C "$WORK/git" commit --quiet -m "subject without the fix" >/dev/null 2>&1
-# Now apply the fix and leave it UNCOMMITTED. This is the exact situation that
-# destroyed the work in the source run.
 write_subject "$WORK/git"
 write_config "$WORK/git" config.json "$CHECK_ARGV"
 
@@ -178,7 +174,6 @@ assert_contains "the refusal names the 127 shape" "exited 127" "$RUN_OUT"
 assert_not_contains "it does not report a discrimination verdict" "VERDICT: NOT DISCRIMINATING" "$RUN_OUT"
 assert_not_contains "it does not report success" "VERDICT: DISCRIMINATING" "$RUN_OUT"
 
-# --- 4. a check that cannot be LAUNCHED reports HARNESS BROKEN, not a traceback ---
 mkdir -p "$WORK/unlaunchable"
 write_subject "$WORK/unlaunchable"
 write_config "$WORK/unlaunchable" config.json '["definitely-not-a-real-binary-xyz"]'
@@ -189,7 +184,6 @@ assert_not_contains "no traceback reaches the operator" "Traceback (most recent 
 assert_eq "the target survives an unlaunchable check" \
   "$(cat "$WORK/ok/subject.py")" "$(cat "$WORK/unlaunchable/subject.py")"
 
-# --- 5. a signal absent from BOTH arms reports HARNESS BROKEN ---
 mkdir -p "$WORK/nosignal"
 write_subject "$WORK/nosignal"
 write_check "$WORK/nosignal"
@@ -237,7 +231,6 @@ assert_not_contains "it does not score a discrimination verdict" \
   "VERDICT: NOT DISCRIMINATING" "$RUN_OUT"
 assert_not_contains "it does not claim the check ran" "exercises the patched code path, or" "$RUN_OUT"
 
-# --- 7. a check that passes with the fix disabled does not discriminate ---
 mkdir -p "$WORK/weak"
 write_subject "$WORK/weak"
 cat >"$WORK/weak/check.py" <<'WEAK'
@@ -249,7 +242,6 @@ assert_eq "a check that cannot fail exits 1" "1" "$RUN_RC"
 assert_contains "the identical PASSING arms are named" "IDENTICAL PASSING signal" "$RUN_OUT"
 assert_contains "the report rules out a patch that failed to land" "verified applied on disk" "$RUN_OUT"
 
-# --- 8. patch preconditions ---
 mkdir -p "$WORK/anchor"
 write_subject "$WORK/anchor"
 write_check "$WORK/anchor"

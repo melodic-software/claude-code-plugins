@@ -19,7 +19,6 @@ WORK="${PERF_HARNESS_TEST_ROOT:-$HOME/.cache/performance-harness-tests}/resolve-
 mkdir -p "$WORK"
 trap 'rm -rf "$WORK"' EXIT
 
-# --- the script on its own ---
 capture bash "$SCRIPT_DIR/resolve-python.sh"
 assert_eq "resolve-python exits 0 where a Python runs" "0" "$RUN_RC"
 assert_contains "resolve-python prints an absolute path" "/" "${RUN_OUT:0:1}"
@@ -29,7 +28,6 @@ mkdir -p "$EMPTY_DIR"
 capture env PATH="$EMPTY_DIR" "$(type -P bash)" "$SCRIPT_DIR/resolve-python.sh"
 assert_eq "resolve-python refuses when no Python runs" "2" "$RUN_RC"
 
-# --- the go-faster preamble's PY line ---
 PREAMBLE_SKILL="$PLUGIN_ROOT/skills/go-faster/SKILL.md"
 PY_LINE="$(grep -m1 'resolve-python.sh' "$PREAMBLE_SKILL")"
 assert_contains "the preamble has a PY line" 'PY=' "$PY_LINE"

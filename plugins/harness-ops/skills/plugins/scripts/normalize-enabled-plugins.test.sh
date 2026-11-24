@@ -52,7 +52,6 @@ rc=0
 out="$(bash "$NORM" --help)" || rc=$?
 assert_contains "--help lists the exit codes" "$out" "Exit: 0 already sorted"
 
-# --help works with no jq on PATH.
 NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
 mkdir -p "$NOJQ_BIN"
 for tool in bash cat; do
@@ -109,7 +108,6 @@ assert_eq "compact input stays compact" \
   '{"other":1,"enabledPlugins":{"ai-slop@m":false,"context-budget@m":true,"x@m":true}}' \
   "$(tr -d '\n' <"$UNSORTED" | tr -d '\r')"
 
-# One appended key in a longer map moves one key, though three keys change index.
 TAIL="$TEST_TMPDIR/tail.json"
 printf '%s\n' '{"enabledPlugins":{"a@m":true,"c@m":true,"d@m":true,"e@m":true,"b@m":true}}' >"$TAIL"
 rc=0
@@ -117,7 +115,6 @@ out="$(bash "$NORM" --file "$TAIL")" || rc=$?
 assert_exit "appended-key write exits 0" 0 "$rc"
 assert_eq "one appended key reports 1 moved of 5" "normalized moved=1 keys=5" "$out"
 
-# A reversed map keeps only one key in place.
 REV="$TEST_TMPDIR/reversed.json"
 printf '%s\n' '{"enabledPlugins":{"d@m":true,"c@m":true,"b@m":true,"a@m":true}}' >"$REV"
 rc=0
@@ -131,7 +128,6 @@ bash "$NORM" --file "$CRLF" >/dev/null || rc=$?
 assert_exit "CRLF write exits 0" 0 "$rc"
 assert_contains "CRLF line endings survive" "$(od -An -tx1 "$CRLF")" "0d 0a"
 
-# Semantic-diff guard: a jq that reports inequality must abort the write.
 REAL_JQ="$(command -v jq)"
 WRAP="$TEST_TMPDIR/bin"
 mkdir -p "$WRAP"
