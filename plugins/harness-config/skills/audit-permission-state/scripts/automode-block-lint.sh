@@ -100,10 +100,6 @@ end_lane() {
   exit 0
 }
 
-# The lane is optional as a whole: a missing runtime degrades it visibly and
-# leaves every other stage of the skill intact. That is the documented contract
-# for an optional feature, and the alternative -- failing the run -- would make
-# one lane's prerequisite everyone's problem.
 PY=""
 for candidate in python3 python; do
   if command -v "$candidate" >/dev/null 2>&1; then

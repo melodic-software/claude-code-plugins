@@ -147,7 +147,6 @@ cleanup_tmp() {
   for f in "$TMP_PAYLOAD" "$TMP_ENVELOPE" "$TMP_LATEST"; do
     [[ -z "$f" ]] || rm -f "$f"
   done
-  # Only an EMPTY reservation: the name is cleared once the envelope lands.
   if [[ -n "$RESERVED_TARGET" ]] && [[ ! -s "$RESERVED_TARGET" ]]; then
     rm -f "$RESERVED_TARGET"
   fi
@@ -472,8 +471,6 @@ cmd_write() {
     if (set -C && : >"$target") 2>/dev/null; then
       break
     fi
-    # A claim that failed for another reason than a held name is reported as
-    # itself, not buried under the suffix cap.
     if [[ ! -e "$target" ]]; then
       die "cannot reserve the findings file: $target"
     fi
@@ -525,7 +522,6 @@ cmd_write() {
     rollback_publish "cannot compose the history line, so the findings file was rolled back: $target"
   printf '%s\n' "$line" >>"$HISTORY_FILE" ||
     rollback_publish "cannot append to the history file, so the findings file was rolled back: $HISTORY_FILE"
-  # Committed: a later failure is reported, not rolled back.
   RESERVED_TARGET=""
 
   TMP_LATEST="$LATEST_FILE.$$"
