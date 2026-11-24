@@ -42,7 +42,6 @@ export function issueBody(row) {
   ].join("\n");
 }
 
-// Why a row cannot be filed, or null.
 function rowProblem(row) {
   if (!ID.test(String(row?.id ?? ""))) return "id is not a marker id";
   if (typeof row.title !== "string" || row.title === "") return "no title";

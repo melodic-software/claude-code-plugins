@@ -40,8 +40,6 @@ export const releaseMarker = (release) => `<!-- upstream-apply-changelog release
 export const SOURCE_LABEL = "source: upstream-apply-changelog";
 const KIND = /^[a-z][a-z-]{0,39}$/;
 const REASON_MAX = 500;
-// ci-mode.md: the two reasons a plan stops before deriving any row, and
-// hold-path, which the scan job sets when a planned branch changes one.
 const STOP_REASONS = new Set(["cap-exceeded", "range-not-computed", "hold-path"]);
 // range-not-computed can pass on a later run (the changelog fetch failed, or
 // the page lags the tag), so it files nothing and leaves the release undone;
@@ -279,7 +277,6 @@ export async function api(path, { method = "GET", body, allow404 = false } = {})
   return res.status === 204 ? null : res.json();
 }
 
-// Every pull request, in any state, whose head is this branch.
 const pullsFor = (repo, branch) => api(`/repos/${repo}/pulls?state=all&head=${repo.split("/")[0]}:${encodeURIComponent(branch)}`);
 
 // The unread releases, oldest first, from changelog-status.sh's status file:
@@ -401,9 +398,6 @@ export function validatePlan(plan, { release, baseSha }) {
   if (status !== "planned" && status !== "stopped") fail("status is neither planned nor stopped");
   if (plan.range !== `${release}..${release}`) fail("range is not this run's release");
   if (plan.base_sha !== baseSha) fail("base_sha is not the commit the run checked out");
-  // A stopped plan derived no rows, so it publishes no branch; its handoffs
-  // (ci-mode.md: cap exceeded carries a docs-conformance one) are still
-  // filed, under an issue line naming its stop_reason.
   const stopped = status === "stopped";
   const stop_reason = !stopped ? null : STOP_REASONS.has(plan.stop_reason) ? plan.stop_reason : fail("stop_reason is not cap-exceeded, range-not-computed or hold-path");
   const branches = stopped ? [] : Array.isArray(plan.branches) ? plan.branches : fail("branches is not a list");
@@ -608,9 +602,6 @@ async function gate(env) {
   let release = "";
   for (const candidate of candidates) {
     const done = await api(`/repos/${repo}/actions/artifacts?per_page=1&name=${doneArtifact(candidate)}`);
-    // Only the done marker skips a release: push skips a branch that exists
-    // and publish opens a pull request a pushed branch lacks, so a run after a
-    // failed publish finishes the work instead of stranding the branch.
     if (!alreadyProcessed(done)) {
       release = candidate;
       break;
@@ -641,8 +632,6 @@ async function push(env) {
   const writer = createGitHubApi({ token: env.GH_TOKEN, repository: repo, apiUrl: env.GITHUB_API_URL || "https://api.github.com", fetch: guardedFetch });
   const heads = {};
   if (plan.branches.length && !existsSync(BUNDLE_FILE)) throw new Error("the plan names branches and the run left no bundle");
-  // The bundle holds the scan job's synthetic commits only, never the
-  // model's heads, which push never reads.
   const synthetic = readSynthetic(env.SYNTHETIC, plan.branches.length);
   for (const [i, b] of plan.branches.entries()) {
     const local = `refs/upstream-apply-changelog/${b.plugin}`;
@@ -654,7 +643,6 @@ async function push(env) {
     const headTree = synthetic[i].tree;
     const existing = await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true });
     if (existing) {
-      // A re-run's branch counts only when its tip holds the planned tree.
       const tip = existing.object?.sha;
       const tipCommit = SHA.test(tip ?? "") ? await api(`/repos/${repo}/git/commits/${tip}`) : null;
       if (tipCommit?.tree?.sha === headTree) {
@@ -662,8 +650,6 @@ async function push(env) {
         console.log(`${b.branch} already exists at the planned tree; not pushed`);
         continue;
       }
-      // Another tree is an earlier run's work: done once it has a pull
-      // request, else stranded, so the run fails before the done marker.
       const prs = await pullsFor(repo, b.branch);
       if (!prs?.length) throw new Error(`branches[${i}] already exists with another tree and no pull request; open one for it or delete it, then dispatch again`);
       console.log(`${b.branch} already has pull request #${prs[0].number} with another tree; not pushed`);
@@ -683,15 +669,10 @@ async function push(env) {
   console.log(`${Object.keys(heads).length} of ${plan.branches.length} branches are at their planned tree`);
 }
 
-// The scan job's path check, after it fetched each planned head into REPO_DIR.
-// A branch outside its plugin throws; one changing a hold path rewrites the
-// plan in IN to stopped (hold-path) with no branch, and empties heads.txt and
-// rewrites publish.txt to match, so the scans read what push and publish get.
 async function scan(env) {
   const { IN, RELEASE: release, BASE_SHA: baseSha, REPO_DIR: repoDir } = env;
   const text = readFileSync(`${IN}/plan.json`, "utf8");
   const plan = readPlan(text, { release, baseSha });
-  // Only this check sets hold-path; the model's plan may not claim it.
   if (plan.stop_reason === "hold-path") throw new Error("ci-plan.json: stop_reason hold-path is set by the scan job, not the plan");
   const held = holdPathBranch(repoDir, baseSha, plan.branches);
   if (held < 0) {
@@ -721,7 +702,6 @@ async function synthetic(env) {
 async function publish(env) {
   const { RELEASE: release, BASE_SHA: baseSha, PLAN_FILE, GITHUB_REPOSITORY: repo } = env;
   const plan = readPlan(readFileSync(PLAN_FILE, "utf8"), { release, baseSha });
-  // push's heads output: each branch it pushed or found at the planned tree.
   const heads = JSON.parse(env.HEADS || "{}");
   let opened = 0;
   for (const b of plan.branches) {
