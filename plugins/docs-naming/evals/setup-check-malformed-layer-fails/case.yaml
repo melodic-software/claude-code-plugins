@@ -50,6 +50,6 @@ graders:
     arm: both
   - name: fix-not-fallback
     type: llm
-    criteria: 'Pass only if all of these legacy expectations hold. "The FAIL row and the named file are reported rather than a generic failure." "The run is reported as exit 1, not as a warning." "The remedy is fixing the named layer, never silently falling back to the bundled defaults": the reply says the file must be fixed before any file-name skill runs and does not offer to proceed on the defaults instead. "No file is written or repaired without the operator asking": the trace shows no write, edit or shell rewrite of the YAML.'
+    criteria: 'Pass only if the reply reports the resolve FAIL, names docs/conventions/docs-naming.yaml and reports exit 1. The reply treats the parse error in docs/conventions/docs-naming.yaml as a failure to fix and does not offer to fall back to bundled defaults. The trace shows no write, edit or shell rewrite of the YAML.'
     focus: trace
     arm: both

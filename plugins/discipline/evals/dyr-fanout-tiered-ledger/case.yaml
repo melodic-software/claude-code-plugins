@@ -51,10 +51,9 @@ graders:
     focus: 'last_message'
     arm: 'both'
   - name: states-depth-tiered
-    type: regex
-    pattern: '\btiered\b[^\n]{0,80}\b(?:argument|invocation|invoked|passed|requested)\b|\b(?:argument|invocation|invoked|passed|requested)\b[^\n]{0,80}\btiered\b'
-    flags: 'i'
-    target: 'last_message'
+    type: llm
+    criteria: 'Pass only if the reply identifies tiered as the effective fan-out depth for this run and attributes it to the explicit request. Accept concise wording such as Depth: tiered (explicit). Fail if tiered is only mentioned as a default, option, or overridden depth, or if the source of the selected depth is omitted.'
+    focus: 'last_message'
   - name: no-mutating-gh-api
     type: regex
     pattern: '"name":"Bash","input":\{(?:"(?!command")[^"]*":(?:"(?:[^"\\]|\\.)*"|[^,{}"]*),)*"command":"(?!(?:[^"\\]|\\.)*?(?:--method|-X)[ =]?GET\b)(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\-]))gh[ \t]+api\b(?:[^"\\]|\\.)*?(?:[ \t](?:-f|-F|--field|--raw-field|--input)(?=[ \t=])|(?:--method|-X)[ =]?(?:POST|PATCH|PUT|DELETE)\b)'

@@ -16,10 +16,9 @@ graders:
     min: 1
     arm: 'with-only'
   - name: reports-size
-    type: regex
-    pattern: '\b\d+(?:[.,]\d+)?\s?(?:[KMG]i?B|[KMG]|bytes)\b'
-    flags: 'i'
-    target: last_message
+    type: llm
+    criteria: 'The reply quantifies how much disk space the inventory says can be reclaimed. Accept a numeric size with a valid unit, including B or byte, or a bare byte count explicitly labeled Total reclaimable. An unrelated size or a qualitative estimate fails.'
+    focus: last_message
   - name: bundle-kept
     type: regex
     pattern: 'BUNDLE-MARKER-2207'

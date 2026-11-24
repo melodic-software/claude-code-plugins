@@ -23,9 +23,9 @@ graders:
     flags: 'mi'
     arm: with-only
   - name: soak-result-from-moved-section
-    type: regex
-    pattern: '(?=[\s\S]*\bsoak\b)(?=[\s\S]*(?:\b(?:four|4)[ \t]+schedulers?\b|\b(?:six|6)[ \t]+hours?\b))[\s\S]*\b(?:zero|no|0)[ \t]+double[- ]?runs?\b'
-    flags: 'i'
+    type: llm
+    criteria: 'The reply states that the soak run observed zero double runs. Accept equivalent wording and any format. A soak mention without that result, or a zero count attributed to different work, fails.'
+    focus: last_message
     arm: with-only
   - name: no-rerun-backfill
     type: tool_used

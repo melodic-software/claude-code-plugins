@@ -43,10 +43,9 @@ graders:
     flags: 'im'
     target: last_message
   - name: confidence-tag
-    type: regex
-    pattern: '\bconfidence\b[*:`|\s-]{0,12}[*`(\[]*(?:verified|likely|needs-review)\b|\b(?:verified|likely|needs-review)\b[*`)\]]*[ \t]*confidence\b|^[ \t]*\|[ \t]*\d+[ \t]*\|(?:[^\n|]*\|)*?[ \t]*[*`]*(?:verified|likely|needs-review)[*`]*[ \t]*\|'
-    flags: 'im'
-    target: last_message
+    type: llm
+    criteria: 'Pass only if the reported README.md finding about the missing npm run serve script is explicitly tagged verified, likely, or needs-review. Accept a tag within a table cell or elsewhere if explicitly attached to that finding. Fail on an unrelated tag or an incidental use of the word.'
+    focus: last_message
   - name: enforcement-escalation
     type: regex
     pattern: '^[ \t]*(?:#{1,6}[ \t]+|(?:\d+\.[ \t]*)?\*\*[ \t]*|\d+\.[ \t]+)(?:\d+\.[ \t]*)?enforcement\b(?:(?!\n[ \t]*(?:#{1,6}[ \t]|\*\*|\d+\.[ \t]+\*\*))[\s\S]){0,600}?\b(?:lint(?:er|ing|s)?|tests?|CI|git hooks?|pre-commit|type[- ]checks?|analy[sz]ers?|formatters?|schema checks?|scripts?)\b'
