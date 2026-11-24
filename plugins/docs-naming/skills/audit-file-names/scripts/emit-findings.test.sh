@@ -43,7 +43,7 @@ assert_contains "the total line carries the sweep's SITES" "$out" "total: $sweep
 report_rows="$(awk -F'\t' '$1=="REF" && $7=="report"' "$work/sweep.tsv" | grep -c . || true)"
 assert_eq "the fixture has report sites to count" "1" "$([[ "$report_rows" -gt 0 ]] && printf 1 || printf 0)"
 assert_contains "the report-site total counts the report REF rows" "$out" "report sites: $report_rows"
-id_line="$(printf '%s\n' "$out" | grep -m1 '^finding ' | awk '{print $2}')"
+id_line="$(grep -m1 '^finding ' <<<"$out" | awk '{print $2}')"
 assert_eq "the summary is ranked like the plan" "$(grep -m1 '^### FN-' "$work/plan.md" | awk '{print $2}')" "$id_line"
 first_by_tier="$(grep -m1 '^- \*\*By tier:\*\* ' "$work/plan.md" | sed 's/^- \*\*By tier:\*\* //')"
 assert_contains "a summary line quotes the plan's tier breakdown" "$out" "by tier: $first_by_tier;"
