@@ -36,7 +36,6 @@
 # a local matching a destination name, so a future rename cannot reintroduce the
 # shadow quietly.
 
-# Guard against double-sourcing.
 [[ -n "${_PR_LINKAGE_VALIDATOR_LOADED:-}" ]] && return 0
 readonly _PR_LINKAGE_VALIDATOR_LOADED=1
 
@@ -210,8 +209,6 @@ negation_trigger_to() {
   toks=($tail)
   for ((i = ${#toks[@]} - 1; i >= 0 && ${#words[@]} < 5; i--)); do
     tok="${toks[i]}"
-    # A word starts at a letter: leading apostrophes are not part of it, and a
-    # run of apostrophes alone is none.
     [[ "$tok" =~ $_PLV_WORD_ERE ]] && words=("${BASH_REMATCH[0]}" ${words[@]+"${words[@]}"})
   done
   n=${#words[@]}
@@ -248,7 +245,6 @@ scan_linkage() {
     off=0
     while chunk="${lower:off}" && [[ "$chunk" =~ $CLOSING_ERE ]]; do
       m="${BASH_REMATCH[0]}"
-      # The leftmost match is also the first occurrence of its own text.
       pre="${chunk%%"$m"*}"
       start=$((off + ${#pre}))
       len=${#m}
@@ -273,24 +269,12 @@ scan_linkage() {
   [[ "$lower" =~ $NO_ISSUE_ERE ]]
 }
 
-# Content of the first `## <heading>` section into <dest>; returns 1 when there
-# is no such heading, which is a different verdict from an empty one. Only a
-# heading at the SAME level or higher (fewer or equal `#`) closes the section,
-# so a nested `### …` subsection is content — a naive "next line starting with
-# #" reading would call such a section empty.
-#
-# Each line is trimmed through `trim_to`, never a forking `$(trim …)`: one fork
-# per line puts a 1000-line body past the hook's timeout.
-#
-# <dest> is cleared before the heading search, so the not-found return leaves it
-# empty rather than holding whatever the caller had there.
 section_content_to() {
   local __plv_dest="$1" body="$2" heading_lc="${3,,}" t start=0 lvl i=0 out=""
   printf -v "$__plv_dest" '%s' ""
   linkage::split_lines "$body"
   for ((i = 0; i < ${#LINKAGE_LINES[@]}; i++)); do
     trim_to t "${LINKAGE_LINES[i]}"
-    # Quoted: a configured heading such as `What changed?` matches as text.
     [[ "${t,,}" =~ ^##[[:space:]]+"${heading_lc}"$ ]] && {
       start=$((i + 1))
       break
@@ -326,7 +310,6 @@ mask_markdown_code_to() {
   local had_noglob=0
   [[ $- == *f* ]] && had_noglob=1
   set -f
-  # Up to three leading spaces, then the fence run, then the info string.
   local fence_re='^ {0,3}(`{3,}|~{3,})(.*)$'
   linkage::split_lines "$body"
   for ((li = 0; li < ${#LINKAGE_LINES[@]}; li++)); do
@@ -365,11 +348,6 @@ mask_markdown_code_to() {
       out+="$rest"$'\n'
       continue
     fi
-    # Split the line at its backticks, so field f sits between backtick f-1
-    # and backtick f and a run of t backticks leaves t-1 empty fields; word
-    # splitting drops the field after a final backtick, so it is put back.
-    # Every step below is linear in the line: the `${rest:i:1}` walk this
-    # replaced measured the whole line per character, 4.8 s on 30,000 words.
     IFS='`'
     # shellcheck disable=SC2206  # the split is the point; set -f above stops globbing
     fields=($rest)
@@ -400,7 +378,6 @@ mask_markdown_code_to() {
       closer[r]=${last[ticks]:--1}
       last[ticks]=$r
     done
-    # A paired span renders as nothing; an unpaired run stays as backticks.
     rendered="${fields[0]}"
     for ((r = 0; r < nruns; r++)); do
       j=${closer[r]}
@@ -448,8 +425,6 @@ REQUIRED_SECTIONS=(Summary Fix Verification Related)
 LINKAGE_BODY=""
 LINKAGE_PROBLEMS=()
 linkage::scan_body() {
-  # `_plv_`-prefixed per the DEST-NAME CONTRACT above: an out-variable named
-  # `body`, `out`, or `line` would be captured by the callee's own local.
   local _plv_stripped="" _plv_negated="" _plv_linked=0
   strip_html_comments_to _plv_stripped "$1"
   mask_markdown_code_to LINKAGE_BODY "$_plv_stripped"

@@ -107,6 +107,26 @@ export function evaluateSources({
     const ageSeconds = mEntry && typeof mEntry.age_seconds === 'number' ? mEntry.age_seconds : null
     const fetchReason = mEntry && typeof mEntry.reason === 'string' ? mEntry.reason : null
 
+    if (!mEntry && (row.status === 'support-only' || row.provider_own)) {
+      const reason = row.provider_own
+        ? 'not read: provider-own rows cannot lead'
+        : 'not read: support-only rows cannot lead'
+      sourcesOut.push({
+        source_id: row.id,
+        link: row.link,
+        publisher: row.publisher,
+        task_set: row.task_set,
+        status: row.status,
+        provider_own: row.provider_own,
+        read: 'not-read',
+        page_date: null,
+        age_seconds: null,
+        role: 'support-only',
+        reason,
+      })
+      continue
+    }
+
     if (readState === 'unread') {
       const reason = fetchReason || 'missing-from-manifest'
       notes.push(`${row.id}: unread (${reason})`)
@@ -265,13 +285,10 @@ export function resolveConsensus({
   clusters,
   leadingEvaluations,
   modelsByVendor,
-  usageByVendor = new Map(),
   failedOutcomes,
   claudeDefaultModel,
   claudeVersion,
   claudeEffort,
-  effectiveVendorOrder,
-  effectiveTiebreak,
   taskType,
   notes,
 }) {
@@ -414,76 +431,8 @@ export function resolveConsensus({
         tokens: tt,
       }))
 
-      let picked = null
-      if (eligibleTies.length >= 2) {
-        const eligibleVendors = eligibleTies.map((t) => t.vendor)
-        for (const step of effectiveTiebreak) {
-          if (step === 'fewest-tokens') {
-            const units = new Set(eligibleTies.flatMap((t) => t.tokens.map((x) => x.unit)))
-            const allHaveTokens = eligibleTies.every((t) => t.tokens.length > 0)
-            if (allHaveTokens && units.size === 1) {
-              const scored = eligibleTies
-                .map((t) => ({
-                  entry: t,
-                  avg: t.tokens.reduce((s, x) => s + x.value, 0) / t.tokens.length,
-                }))
-                .sort((a, b) => a.avg - b.avg)
-              if (scored[0].avg < scored[1].avg) {
-                picked = scored[0].entry
-                notes.push(`tiebreak fewest-tokens selected ${picked.vendor} (${scored[0].avg} ${[...units][0]})`)
-                break
-              }
-            } else {
-              notes.push('tiebreak fewest-tokens skipped: tied vendors lack comparable token counts')
-            }
-          } else if (step === 'most-usage-left') {
-            const unavailableReasons = []
-            const scored = []
-            for (const t of eligibleTies) {
-              const reading = usageByVendor ? usageByVendor.get(t.vendor) : null
-              if (!reading || reading.status !== 'ok' || typeof reading.remaining !== 'number') {
-                const why = reading && reading.reason ? reading.reason : 'missing'
-                unavailableReasons.push(`${t.vendor}: ${why}`)
-              } else {
-                scored.push({ entry: t, remaining: reading.remaining })
-              }
-            }
-            if (unavailableReasons.length > 0) {
-              const ordered = effectiveVendorOrder.find((v) => eligibleVendors.includes(v))
-              if (ordered) {
-                picked = eligibleTies.find((t) => t.vendor === ordered)
-                notes.push(
-                  `tiebreak most-usage-left unavailable (${unavailableReasons.join('; ')}); falling back to vendor-order: vendor-order selected ${picked.vendor}`,
-                )
-                break
-              }
-              notes.push(
-                `tiebreak most-usage-left unavailable (${unavailableReasons.join('; ')}); falling back to next tiebreak step`,
-              )
-            } else {
-              scored.sort((a, b) => b.remaining - a.remaining)
-              const pct = Math.round(scored[0].remaining * 10000) / 100
-              if (scored[0].remaining > scored[1].remaining) {
-                picked = scored[0].entry
-                notes.push(`tiebreak most-usage-left selected ${picked.vendor} (${pct}% remaining)`)
-                break
-              }
-              notes.push(
-                `tiebreak most-usage-left tied (${pct}% remaining); continuing to next tiebreak step`,
-              )
-            }
-          } else if (step === 'vendor-order') {
-            const ordered = effectiveVendorOrder.find((v) => eligibleVendors.includes(v))
-            if (ordered) {
-              picked = eligibleTies.find((t) => t.vendor === ordered)
-              notes.push(`tiebreak vendor-order selected ${picked.vendor}`)
-              break
-            }
-          }
-        }
-      } else if (eligibleTies.length === 1 && eligibleTies[0].vendor !== 'claude') {
-        picked = eligibleTies[0]
-      }
+      const picked =
+        eligibleTies.length === 1 && eligibleTies[0].vendor !== 'claude' ? eligibleTies[0] : null
 
       if (picked) {
         if (picked.raisedFrom) {
@@ -499,7 +448,7 @@ export function resolveConsensus({
           basis: 'consensus',
         }
       } else {
-        notes.push('tie across independent sources with no resolving tiebreak; caller keeps default vendor claude')
+        notes.push('tie across independent sources; keeping default claude')
       }
     } else {
       notes.push('no overlapping tied vendors across independent sources; keeping default claude')

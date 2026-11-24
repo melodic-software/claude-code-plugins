@@ -23,8 +23,6 @@ const surfaces = { binding: join(ops, "binding.json"), evidence: join(ops, "evid
 writeFileSync(surfaces.binding, "{}");
 writeFileSync(surfaces.evidence, "[]");
 
-// The helper runs from a copy laid out as a marketplace install, so it finds its user
-// settings at <config>/settings.json the way an installed plugin does.
 const config = join(base, "config");
 const installScripts = join(config, "plugins", "cache", "mkt", "source-control", "9.9.9", "skills", "babysit-loop", "scripts");
 mkdirSync(installScripts, { recursive: true });
@@ -32,12 +30,7 @@ for (const name of ["resolve-promotion-evidence.mjs", "operator-options.mjs"]) c
 const HELPER = join(installScripts, "resolve-promotion-evidence.mjs");
 const userSettings = join(config, "settings.json");
 
-// The test seam: a wrapper beside the installed helper that runs its main() with an injected
-// platform and owner test, so a case does not depend on who owns the temp files. A path listed in
-// `owned` is the lane user's (uid 1000), everything else an administrator's (uid 0), and access()
-// grants nothing.
 let seamCount = 0;
-// A path listed in `denied` throws EACCES from stat().
 function seam({ platform = "linux", owned = [], denied = [] } = {}) {
   seamCount += 1;
   const path = join(installScripts, `seam-${seamCount}.mjs`);
@@ -55,11 +48,8 @@ main({ platform: ${JSON.stringify(platform)}, uid: 1000, access: () => false, st
   );
   return path;
 }
-// Every surface and settings file administrator-owned, so the writability check passes.
 const ADMIN = seam();
 
-// The CLI cases read the host's real managed settings; one that configures these options would
-// decide the result, so they skip on such a host.
 const managedConfigures = managedSettingsFiles().some((file) => {
   try {
     return readFileSync(file, "utf8").includes("promotion_evidence_");
@@ -70,7 +60,6 @@ const managedConfigures = managedSettingsFiles().some((file) => {
 const cli = { skip: managedConfigures && "host managed settings configure promotion_evidence_* options" };
 
 let stubCount = 0;
-// A stub checker that exits 9 unless it got exactly the bootstrap argv, plus `extra`.
 function stub(stdout, exitCode = 0, dir = ops, extra = []) {
   stubCount += 1;
   const path = join(dir, `checker-${stubCount}.mjs`);
@@ -143,7 +132,6 @@ test("operator settings bootstrap reports the printed cells and leaves an unprin
   });
   assert.equal(result.cells["C3-auto-merge"].effective, "unpromoted");
   assert.deepEqual(result.cells["C3-ai-review-blocking"], { bound: null, effective: "unpromoted", line: null });
-  // Unset credential roots are not a fail-closed reason: the exact-argv stub saw no flag.
   assert.equal(result.options.promotion_evidence_credential_roots, undefined);
 });
 
@@ -151,7 +139,6 @@ const ROOTS = "/home/runner, C:\\Users\\runner\\.aws,/nonexistent-probe-host/cre
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 test("set credential roots reach the checker as --credential-roots and are reported in options", cli, () => {
-  // The roots name the probe host, so a path absent on this host is still accepted.
   const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", ROOTS]);
   const result = runWith(checker, { promotion_evidence_credential_roots: ROOTS });
   assert.equal(result.failClosedReason, null);
@@ -181,8 +168,6 @@ test("a relative, root, dot-dot, empty or checkout-inside credential root fails 
 });
 
 test("a lane-chosen stub checker or forged binding outside the checkout no longer yields promoted", cli, () => {
-  // The operator's checker reports nothing promoted; the lane's stub, kept in a scratch
-  // directory outside the checkout and worktrees, would print promoted.
   const operatorChecker = stub(GOOD_OUTPUT.replace("bound promoted -> effective promoted", "bound promoted -> effective unpromoted"));
   writeSettings(operatorOptions(operatorChecker));
   const scratch = mkdtempSync(join(tmpdir(), "lane-scratch-"));
@@ -214,7 +199,6 @@ test("values offered only by the env mirror, the checkout, or another plugin's e
   rmSync(join(checkout, ".claude"), { recursive: true, force: true });
 });
 
-// A stub checker that records the evidence file it was handed, then prints `stdout`.
 function recordingStub(stdout, record) {
   stubCount += 1;
   const path = join(ops, `checker-${stubCount}.mjs`);
@@ -230,7 +214,6 @@ process.stdout.write(${JSON.stringify(stdout)});
   return path;
 }
 
-// The publisher's sidecar for the evidence file as it reads now, generated `ageHours` ago.
 const sidecar = join(ops, "evidence.meta.json");
 function writeSidecar(ageHours = 0, overrides = {}) {
   const sha256 = createHash("sha256").update(readFileSync(surfaces.evidence, "utf8")).digest("hex");
@@ -252,7 +235,6 @@ test("--window-start hands the checker a copy with one gate-failure per cell at 
     const seen = JSON.parse(readFileSync(record, "utf8"));
     assert.notEqual(seen.evidence, surfaces.evidence);
     assert.deepEqual(seen.events, [prior, ...CELLS.map((cell) => ({ cell, event: "gate-failure", at: "2026-10-11T07:00:00Z" }))]);
-    // The copy is gone once the helper exits, and the source is untouched.
     assert.throws(() => readFileSync(seen.evidence));
     assert.deepEqual(JSON.parse(readFileSync(surfaces.evidence, "utf8")), [prior]);
   } finally {
@@ -284,7 +266,6 @@ test("--window-start over an unreadable or non-array source fails closed", cli, 
 });
 
 test("a re-earn read from a stale events file fails closed naming the file, its generated_at and the bound", cli, () => {
-  // The checker prints C2 promoted after the restart: a cell re-ratified after the demotion.
   const checker = recordingStub(GOOD_OUTPUT, join(ops, "unused.json"));
   writeFileSync(surfaces.evidence, JSON.stringify([{ cell: "C2-auto-merge", event: "gate-failure", at: "2026-10-01T00:00:00Z" }]));
   try {
@@ -331,7 +312,6 @@ test("without --window-start or a re-earned event the age bound is not read", cl
 });
 
 test("without --window-start a re-earned event read from a stale events file fails closed", cli, () => {
-  // A contrary event lifted by a re-earn in the same file, with no demotion record to restart at.
   const reearned = [
     { cell: "C2-auto-merge", event: "gate-failure", at: "2026-10-01T00:00:00Z", discovered: "2026-10-01T00:00:00Z" },
     { cell: "C2-auto-merge", event: "re-earned", at: "2026-10-20T00:00:00Z", since: "2026-10-01T00:00:00Z" },
@@ -410,7 +390,6 @@ test("garbled checker output fails closed", cli, () => {
   assertFailClosed(runWith(stub("Security binding OK: binding.json\n")), /no 'Effective promotion state' block/);
 });
 
-// A failing read under an ephemeral base proves nothing about the host's credential store.
 for (const base of [
   "/tmp",
   "/tmp/creds",
@@ -430,8 +409,6 @@ for (const base of [
 }
 
 test("the real helper refuses a user-scope surface the test user owns", cli, () => {
-  // No seam: every file this suite created is the test user's own, so the first surface the
-  // helper judges, the checker, is lane-writable.
   assertFailClosed(runWith(stub(GOOD_OUTPUT), {}, { helper: HELPER }), /^lane-writable:promotion_evidence_checker$/);
 });
 
@@ -456,7 +433,6 @@ test("a settings file the lane user owns, or a directory above it, fails closed 
 });
 
 test("on win32 the helper fails closed without judging any surface", cli, () => {
-  // The checker is lane-owned, so a surface judged first would report lane-writable instead.
   const checker = stub(GOOD_OUTPUT);
   assertFailClosed(runWith(checker, {}, { helper: seam({ platform: "win32", owned: [checker] }) }), /^writability-unverifiable-on-win32$/);
 });

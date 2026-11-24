@@ -50,7 +50,6 @@ def _path() -> Path | None:
 
 
 def _load(path: Path) -> dict[str, Any] | None:
-    """The file's contents, {} when malformed, None when it could not be read."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -77,10 +76,6 @@ def _stamp(stat: os.stat_result) -> tuple[int, int, int, int]:
 
 
 def _read(path: Path) -> dict[str, Any] | None:
-    """The file's contents ({} with no file), parsed again only when it changed
-    on disk, or None when it exists but could not be read. Only a parse is
-    kept, so a failed read is tried again. The result is shared: callers copy
-    before changing or serving it."""
     key = str(path)
     try:
         stamp = _stamp(path.stat())
@@ -98,7 +93,6 @@ def _read(path: Path) -> dict[str, Any] | None:
     return data
 
 
-# The open `track()` lists.
 _trackers: list[list[datetime]] = []
 
 
@@ -175,7 +169,6 @@ def put(section: str, key: str, value: Any, at: datetime | None = None) -> None:
     except OSError:
         _memo.pop(str(path), None)
         return
-    # The parse keeps what was written apart from the caller's `value`.
     entries[key] = json.loads(json.dumps(entries[key]))
     _memo[str(path)] = (stamp, data)
 

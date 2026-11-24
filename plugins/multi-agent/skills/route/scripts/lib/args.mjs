@@ -1,15 +1,15 @@
 import path from 'node:path'
-import { TASK_CLASSES, TIEBREAK_STEPS, WORK_TYPES, die } from './common.mjs'
+import { TASK_CLASSES, WORK_TYPES, die } from './common.mjs'
 
 export function usage() {
   process.stdout.write(
     [
       'Usage: vendor-decide --task-type <coding|web-ui|knowledge|image> [--settings <file>]',
       '                     --manifest <file> --records <[source_id=]file> [--records ...]',
-      '                     --models <file> [--usage <file>] [--registry <file>] [--defaults <file>]',
+      '                     --models <file> [--registry <file>] [--defaults <file>]',
       '                     [--state-dir <dir>] [--task-class <everyday|heavy>]',
       '                     [--needs-tools <tools>] [--use <investigate|task>] [--context <tokens>]',
-      '                     [--tiebreak <steps>] [--vendor-order <vendors>] [--now <YYYY-MM-DD>]',
+      '                     [--vendor-order <vendors>] [--now <YYYY-MM-DD>]',
       '',
     ].join('\n'),
   )
@@ -22,7 +22,6 @@ export function parseArgs(argv, pluginRoot) {
     manifest: null,
     records: [],
     models: null,
-    usage: null,
     settings: null,
     stateDir: null,
     registry: path.join(pluginRoot, 'reference', 'benchmarks.json'),
@@ -30,8 +29,6 @@ export function parseArgs(argv, pluginRoot) {
     needsTools: [],
     use: 'task',
     context: null,
-    tiebreak: [],
-    tiebreakSet: false,
     vendorOrder: ['claude', 'codex', 'gemini'],
     vendorOrderSet: false,
     now: null,
@@ -62,9 +59,6 @@ export function parseArgs(argv, pluginRoot) {
         break
       case '--models':
         opts.models = needVal()
-        break
-      case '--usage':
-        opts.usage = needVal()
         break
       case '--needs-tools': {
         const raw = needVal()
@@ -100,17 +94,6 @@ export function parseArgs(argv, pluginRoot) {
       case '--defaults':
         opts.defaults = needVal()
         break
-      case '--tiebreak': {
-        const raw = needVal()
-        opts.tiebreakSet = true
-        opts.tiebreak = raw
-          ? raw
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : []
-        break
-      }
       case '--vendor-order': {
         const raw = needVal()
         opts.vendorOrderSet = true
@@ -135,11 +118,6 @@ export function parseArgs(argv, pluginRoot) {
   }
   if (!TASK_CLASSES.has(opts.taskClass)) {
     die(`--task-class must be one of ${[...TASK_CLASSES].join(', ')}`)
-  }
-  for (const step of opts.tiebreak) {
-    if (!TIEBREAK_STEPS.has(step)) {
-      die(`unknown tiebreak step '${step}' (allowed: ${[...TIEBREAK_STEPS].join(', ')})`)
-    }
   }
   return opts
 }

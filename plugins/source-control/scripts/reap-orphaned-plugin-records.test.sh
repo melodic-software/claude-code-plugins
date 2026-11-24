@@ -55,7 +55,6 @@ chmod +x "$STUB_DIR/claude"
 
 RC=0
 OUT=""
-# run [args...] — one remedy invocation with the stub on PATH.
 run() {
   OUT="$(cd "$TEST_TMPDIR" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" \
     STUB_CALL_LOG="$LOG" bash "$REMEDY" "$@" 2>&1)"

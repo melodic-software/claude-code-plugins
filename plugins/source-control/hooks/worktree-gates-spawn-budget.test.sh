@@ -65,8 +65,6 @@ printf 'seed\n' >"$REPO/README"
 git -C "$REPO" add README
 git -C "$REPO" commit -q -m seed
 mkdir -p "$REPO/sub"
-# Present so the block message's root lookup runs its `git config --get-all`
-# read, which is one of the hoists this suite guards.
 git -C "$REPO" config worktreeroot.path "$OUTSIDE"
 
 payload() {
@@ -76,8 +74,6 @@ payload() {
 
 CREATIONS=0
 EXECVES=0
-# measure <hook-path> <payload>  — fill CREATIONS / EXECVES for one run. stdin
-# arrives on a PIPE, the shape the harness uses.
 measure() {
   local hook="$1" payload="$2" trace
   trace="$(mktemp "$TEST_TMPDIR/trace.XXXXXX")"
@@ -86,7 +82,6 @@ measure() {
       bash "$hook" >/dev/null 2>/dev/null
   # CLONE_THREAD clones are threads (shfmt is Go), not processes.
   CREATIONS=$(grep -E '(clone3?|v?fork)\(' "$trace" | grep -vc CLONE_THREAD)
-  # The traced program's own execve is not a spawn the hook chose to make.
   EXECVES=$(($(grep -cE 'execve\(' "$trace") - 1))
   rm -f "$trace"
 }
@@ -106,10 +101,6 @@ assert_budget() {
   fi
 }
 
-# assert_exact <label> <hook> <payload> <creations> <execve>: for a path that
-# parses the command. One shfmt parse (lib/hook-utils.sh hook::_bps_shfmt_to)
-# forks the same 7 processes and execs the same 2 (shfmt, jq) on every run, so
-# these rows hold an exact count, not a ceiling.
 assert_exact() {
   local label="$1" hook="$2" pl="$3" wantc="$4" wante="$5"
   measure "$hook" "$pl"
@@ -129,36 +120,24 @@ CONTAIN="$SCRIPT_DIR/worktree-add-containment-gate.sh"
 CLAIM="$SCRIPT_DIR/worktree-add-claim.sh"
 CREATE="$SCRIPT_DIR/worktree-create-gate.sh"
 
-# ── containment gate (PreToolUse:Bash — the hook in #3510) ──────────────────
-# The hot path: the matcher fired but this is not a `git worktree add`. Only the
-# stdin buffer and ONE `printf | jq` field read may run.
 assert_budget "containment, non-add command" "$CONTAIN" \
   "$(payload "$OUTSIDE" 'git worktree list' PreToolUse)" 7 2
 
-# A real add that lands outside every repository: two field reads plus the
-# nearest-ancestor probes.
 assert_exact "containment, add outside a repo" "$CONTAIN" \
   "$(payload "$OUTSIDE" "git worktree add $OUTSIDE/wt-ok -b b1" PreToolUse)" 20 6
 
-# The deny path that names the configured root via `git -C` (the command
-# locates the repo; cwd is outside it). Distinct from a plain add whose cwd
-# is already the working tree.
 assert_exact "containment, git -C <repo> add (names root)" "$CONTAIN" \
   "$(payload "$OUTSIDE" "git -C $REPO worktree add sub/nested" PreToolUse)" 24 7
 
-# The deny path with no `-C`: cwd is the working tree, command is a relative add.
 assert_exact "containment, add into a working tree" "$CONTAIN" \
   "$(payload "$REPO" "git worktree add sub/nested" PreToolUse)" 23 7
 
 assert_budget "claim, non-add command" "$CLAIM" \
   "$(payload "$OUTSIDE" 'git worktree list' PostToolUse)" 7 2
 
-# A parsed add target: three field reads plus one worktree-claim.sh run.
 assert_exact "claim, parsed add target" "$CLAIM" \
   "$(payload "$OUTSIDE" "git worktree add $OUTSIDE/wt-claim -b b2" PostToolUse)" 23 7
 
-# ── create gate (WorktreeCreate) ────────────────────────────────────────────
-# Refused before the helper runs, so the count is this hook's own field reads.
 assert_budget "create, payload with no .name" "$CREATE" \
   "$(jq -n --arg cwd "$REPO" '{session_id:"budget",cwd:$cwd,hook_event_name:"WorktreeCreate",name:""}')" 13 4
 

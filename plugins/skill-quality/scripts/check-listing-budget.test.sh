@@ -53,7 +53,6 @@ else
   fail "--help should print the complete header and stop at the first code line (rc=$rc): $out"
 fi
 
-# 2. An explicit root that does not exist is a usage/env error (exit 2).
 out="$(run "$TMP/does-not-exist" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'skills root does not exist' <<<"$out"; then
@@ -62,9 +61,6 @@ else
   fail "a missing explicit root should exit 2 (rc=$rc): $out"
 fi
 
-# 2b. A missing explicit root is rejected even when ANOTHER root is valid.
-#     Silently skipping it would omit a whole plugin subtree and report a
-#     falsely low aggregate under an "OK" — the failure mode this guards.
 make_skill "$TMP/valid-root" only-skill "A fixture."
 out="$(run "$TMP/valid-root" "$TMP/does-not-exist" 2>&1)"
 rc=$?
@@ -74,8 +70,6 @@ else
   fail "a partially-missing explicit root list should exit 2, not silently skip (rc=$rc): $out"
 fi
 
-# 2c. The no-args resolution path still reports "no skills root found" rather
-#     than the explicit-root error — the two branches stay distinct.
 out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/nope-root" bash "$SUT" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'no skills root found' <<<"$out"; then
@@ -93,8 +87,6 @@ else
   fail "empty root should report zero and exit 0 (rc=$rc): $out"
 fi
 
-# 4. A small aggregate, well under the default 8000-char budget, is OK and
-#    exits 0 — advisory-only, never fails even implicitly.
 make_skill "$ROOT_A" small-one "A small fixture skill."
 make_skill "$ROOT_A" small-two "Another small fixture skill."
 out="$(run "$ROOT_A" 2>&1)"
@@ -105,9 +97,6 @@ else
   fail "small aggregate should report OK (rc=$rc): $out"
 fi
 
-# 5. Forcing a tiny budget via CHECK_SKILL_LISTING_BUDGET_CHARS trips the WARN
-#    path — proves the override plumbs through and the check never hardcodes
-#    8000 as unconditional ground truth (item 4's caveat).
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=10 bash "$SUT" "$ROOT_A" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'WARN: aggregate exceeds the budget' <<<"$out" && grep -q 'CHECK-LISTING-BUDGET: WARN' <<<"$out"; then
@@ -116,15 +105,9 @@ else
   fail "forced tiny budget should WARN and still exit 0 (rc=$rc): $out"
 fi
 
-# 6. The joiner is counted: a description + when_to_use entry is exactly
-#    DESC_LEN + 3 + WTU_LEN, not DESC_LEN + WTU_LEN (item 2's fix, mirrored
-#    here since the aggregate must match what check-skill.sh's check 2 now
-#    computes, or the two checks would disagree on the same entry's size).
 desc_40='1234567890123456789012345678901234567890'
 wtu_10='1234567890'
 make_skill "$TMP/joiner-root" joiner-skill "$desc_40" "$wtu_10"
-# Budget set to exactly DESC(40) + WTU(10) = 50 so the un-joined sum would
-# read as "OK" (50/50) but the joined sum (53) must WARN (53 > 50).
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=50 bash "$SUT" "$TMP/joiner-root" 2>&1)"
 if grep -q 'aggregate: 53 chars' <<<"$out" && grep -q 'WARN: aggregate exceeds the budget by 3 chars' <<<"$out"; then
   pass "the 3-char description/when_to_use joiner is counted in the aggregate"
@@ -132,10 +115,6 @@ else
   fail "aggregate should count the 3-char joiner (expected 53 chars, WARN by 3): $out"
 fi
 
-# 7. An oversized single entry is capped at CHECK_SKILL_LISTING_MAX_DESC_CHARS
-#    before summing — mirrors the harness's own per-entry truncation, so one
-#    already-failing (check 2) entry cannot silently inflate the aggregate
-#    past what Claude Code would actually load.
 long_desc="$(printf 'x%.0s' {1..200})"
 make_skill "$TMP/cap-root" cap-skill "$long_desc"
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_MAX_DESC_CHARS=50 CHECK_SKILL_LISTING_BUDGET_CHARS=1000 bash "$SUT" "$TMP/cap-root" 2>&1)"
@@ -168,13 +147,6 @@ else
   fail "expected 2 eligible skills totaling 10 chars (the dmi:true skill excluded): $out"
 fi
 
-# 9b. The invocation-control flag is NORMALIZED before comparison. A bare
-#     string compare against "true" silently re-counts a skill whose
-#     description the harness excludes, because valid YAML can spell the same
-#     boolean several ways. Covered: a trailing `# comment` (a YAML comment
-#     requires preceding whitespace), surrounding whitespace, quoted forms,
-#     and ASCII case variants. A `false` carrying a comment must still be
-#     counted — that is what stops the normalization from over-matching.
 make_skill "$TMP/dmi-norm-root" norm-inline-comment "12345" "" "true # manual-only"
 make_skill "$TMP/dmi-norm-root" norm-quoted "12345" "" '"true"'
 make_skill "$TMP/dmi-norm-root" norm-single-quoted "12345" "" "'true'"
@@ -215,12 +187,6 @@ else
   fail "only the 4 false spellings should count (4 skills, 20 chars): $out"
 fi
 
-# 10. A nonnumeric override is an environment error (exit 2), never a silent
-#     awk coercion to zero (which fabricated a 0-char budget and a bogus
-#     overflow WARN while still exiting 0) and never an undocumented exit 1.
-#     Each case names the variable it expects to be blamed. The two ratio vars
-#     are only consulted when CONTEXT_TOKENS selects the reconstruction branch,
-#     so those cases set a valid CONTEXT_TOKENS alongside.
 assert_env_error() {
   local var="$1" desc="$2"
   shift 2
@@ -270,10 +236,6 @@ else
   fail "the default budget should carry the documented-default label: $out"
 fi
 
-# 13. The fixed budget takes precedence over the token reconstruction, per the
-#     documented contract ("skips the token/fraction reconstruction"). Guards a
-#     regression where the reconstruction branch would win and silently discard
-#     the fixed value, which could flip the OK/WARN verdict.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=99999 CHECK_SKILL_LISTING_CONTEXT_TOKENS=200000 \
   bash "$SUT" "$ROOT_A" 2>&1)"
 rc=$?
@@ -298,8 +260,6 @@ else
   fail "CHECK_SKILL_LISTING_BUDGET_CHARS=0123 should report a 123-char budget (rc=$rc): $out"
 fi
 
-# 14b. `08` is not a valid octal literal at all — the case that degraded the
-#      budget to 0 and reported a bogus "OK" while exiting 0.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=08 bash "$SUT" "$ROOT_A" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -qE 'budget:.*(^|[^0-9])8 chars \(override' <<<"$out" &&
@@ -309,8 +269,6 @@ else
   fail "CHECK_SKILL_LISTING_BUDGET_CHARS=08 should report an 8-char budget (rc=$rc): $out"
 fi
 
-# 14c. The per-entry cap takes the same normalization — a zero-padded `010` cap
-#      truncated entries at 8 chars instead of the requested 10.
 make_skill "$TMP/pad-cap-root" pad-cap-skill "123456789012345"
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_MAX_DESC_CHARS=010 bash "$SUT" "$TMP/pad-cap-root" 2>&1)"
 rc=$?
@@ -320,8 +278,6 @@ else
   fail "CHECK_SKILL_LISTING_MAX_DESC_CHARS=010 should cap the entry at 10 chars (rc=$rc): $out"
 fi
 
-# 14d. The decimal fraction default must keep working — it legitimately starts
-#      with a zero, so the normalization must not reach the ratio overrides.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_CONTEXT_TOKENS=0200000 CHECK_SKILL_LISTING_BUDGET_FRACTION=0.01 \
   bash "$SUT" "$ROOT_A" 2>&1)"
 rc=$?
@@ -331,11 +287,6 @@ else
   fail "a padded token count should reconstruct from decimal 200000 with fraction 0.01 (rc=$rc): $out"
 fi
 
-# 15. A trailing YAML comment on `description` / `when_to_use` is NOT part of
-#     the value a YAML reader delivers, so it must not be measured. It also
-#     hides the surrounding quotes from `strip_quotes`, which would leave the
-#     quoting in the count too (this fixture would measure 52 chars instead of 15).
-#     `make_skill` always emits a quoted scalar, so the raw file is written here.
 mkdir -p "$TMP/yaml-comment-root/commented"
 {
   printf -- '---\n'
@@ -351,9 +302,6 @@ else
   fail "the commented fixture should measure 15 chars (5 + 3 joiner + 7): $out"
 fi
 
-# 15b. An unquoted (plain) scalar ends at the first whitespace-preceded `#`,
-#      which is what a YAML reader does — and a `#` with no preceding
-#      whitespace is ordinary content that must survive.
 mkdir -p "$TMP/yaml-plain-root/plain"
 {
   printf -- '---\n'
@@ -369,8 +317,6 @@ else
   fail "the plain fixture should measure 19 chars (5 + 3 joiner + 11): $out"
 fi
 
-# 15c. A `#` inside a BLOCK scalar is content, not a comment — a markdown
-#      heading in a folded description must survive intact.
 mkdir -p "$TMP/yaml-block-root/blocky"
 {
   printf -- '---\n'
@@ -414,9 +360,6 @@ else
   fail "the literal fixture should measure 6 chars ('abc' + LF + 'de'): $out"
 fi
 
-# 17. A SINGLE-quoted scalar escapes one quote by doubling it, so the doubled
-#     pair is content and the scalar does not end there. Getting this wrong
-#     truncates the value at the first inner quote and undercounts silently.
 mkdir -p "$TMP/yaml-sq-root/sq"
 {
   printf -- '---\n'
@@ -484,9 +427,6 @@ else
   fail "200-file corpus took ${perf_elapsed}s or miscounted (bound 30s): $out"
 fi
 
-# 20. Non-git plugin-cache tree: explicit root still reports.
-#     Marketplace installs are plain dirs; an explicit skills root must not
-#     abort with "not in a git repo" just because cwd has no .git.
 CACHE_TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP" "$CACHE_TMP"' EXIT
 CACHE_SKILLS="$CACHE_TMP/marketplace/some-plugin/1.0.0/skills"
@@ -531,12 +471,6 @@ else
   fail "non-git CHECK_SKILL_SKILLS_ROOT should report OK (rc=$rc): $out"
 fi
 
-# --- Budget resolution from settings (--from-settings) ------------------------
-#
-# BIG_ROOT holds 27 skills whose 1600-char descriptions the per-entry cap trims
-# to 1536 each: 27 x 1536 = 41472 chars. At skillListingBudgetFraction 0.05 the
-# band is 200000 x 4 x 0.05 = 40000 (over by 1472) and 1000000 x 4 x 0.05 =
-# 200000 (within), so the two rows must carry different verdicts.
 BIG_ROOT="$TMP/big/skills"
 long_desc="$(printf '%1600s' '' | tr ' ' 'x')"
 for i in $(seq 1 27); do
@@ -607,8 +541,6 @@ else
   fail "SLASH_COMMAND_TOOL_CHAR_BUDGET=12345 should be the only budget row (rc=$rc): $out"
 fi
 
-# 24. Without the flag (the default consumer CI measures) settings and the env
-#     budget are ignored, and the summary does not call the default configured.
 out="$(cd "$TMP" && CLAUDE_PROJECT_DIR="$P22" CLAUDE_CONFIG_DIR="$CFG22" \
   SLASH_COMMAND_TOOL_CHAR_BUDGET=12345 bash "$SUT" "$BIG_ROOT" 2>&1)"
 rc=$?
@@ -622,8 +554,6 @@ else
   fail "no flag should report the 8000 default, over by 33472, without 'configured' (rc=$rc): $out"
 fi
 
-# 25. CHECK_SKILL_LISTING_BUDGET_FRACTION alone is applied as the band, not
-#     silently dropped in favor of the 8000 default.
 out="$(CHECK_SKILL_LISTING_BUDGET_FRACTION=0.05 run "$BIG_ROOT" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] &&

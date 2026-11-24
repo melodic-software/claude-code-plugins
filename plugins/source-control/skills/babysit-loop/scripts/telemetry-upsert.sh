@@ -111,15 +111,12 @@ SAFE_OK=""
 SAFE_WHY=""
 if tbg_safe_dir source-control "$BODY_DIR"; then SAFE_OK=1; else SAFE_WHY="$TBG_ERR"; fi
 
-# A random id, made once and kept in the safe body dir: stable across restarts,
-# distinct per machine, and never the hostname, which the public marker would publish.
 if [[ -z "$INSTANCE" || "$INSTANCE" == "\${"* ]]; then
   [[ -n "$SAFE_OK" ]] || die 3 "lane_instance unset and $SAFE_WHY; nothing read or written"
   tbg_instance || die 3 "$TBG_ERR; nothing read or written"
   INSTANCE="$TBG_INSTANCE"
   printf "telemetry: lane_instance unset; using the stored random id '%s'\n" "$INSTANCE" >&2
 fi
-# Rejected, never trimmed into something that looks valid.
 [[ "$INSTANCE" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] ||
   die 3 "lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker"
 type -P node >/dev/null 2>&1 || die 4 "node not found (the leak scan needs it); nothing read or written"
@@ -171,9 +168,6 @@ if [[ -n "$READ" ]]; then
   exit 0
 fi
 
-# --- Body-file containment ---------------------------------------------------
-# The file must resolve under the safe body dir, and is read once into a private
-# copy every later step uses; see telemetry-body-gate.sh.
 [[ -n "$SAFE_OK" ]] || die 3 "$SAFE_WHY; nothing read or written"
 SEND_FILE=""
 BODY_COPY=""
@@ -189,11 +183,6 @@ body="$(tr -d '\r' <"$BODY_COPY")"
   die 3 "body carries under 16 payload bytes below the sentinel - nothing written; fix the body composition, do not re-run blind"
 SENT_BODY="$SENT"$'\n'"$body"
 
-# --- Leak scan ---------------------------------------------------------------
-# The comment is public. scanLeak and findMachine (this plugin's generated copy of
-# lib/publish-gate.mjs) judge what would be posted; a hit withholds all of it,
-# never a masked copy, and the message names only the rule. A plain assignment,
-# a home path or a private hostname is withheld too, and so is a scan that cannot run.
 leak="$(printf '%s\n' "$SENT_BODY" | tbg_scan "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs")" ||
   die 3 "the leak scan could not run; nothing written"
 [[ -z "$leak" ]] ||
@@ -210,8 +199,6 @@ if [[ -z "$LIST" ]]; then
     --jq '(.id | tostring) + " " + .user.login')" ||
     die 5 "creating the telemetry comment failed; nothing written"
   POSTED_ID="${POSTED%% *}" POSTED_AS="${POSTED#* }"
-  # A wrong --app-slug would otherwise leave a never-found comment behind every
-  # cycle; the token that posted it can delete it.
   if [[ "$POSTED_AS" != "$ME" ]]; then
     if [[ "$POSTED_ID" =~ ^[0-9]+$ ]] && gh api -X DELETE "repos/$REPO/issues/comments/$POSTED_ID" >/dev/null; then
       cleanup="deleted it"
