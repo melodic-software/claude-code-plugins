@@ -7674,6 +7674,19 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(policy.trusted_actors(REPO, "trunk"), expected)
                 self.assertNotIn(["api", ours], gh.calls)
 
+    def test_a_failed_read_of_the_team_yaml_reads_neither_list(self) -> None:
+        standards_cleared(self)
+        policy._TRUSTED_IDS.clear()
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref=trunk"] = 502
+        listing = {"version": 1, "actors": [{"id": 5, "login": "p", "kind": "human"}]}
+        ours = f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref=trunk"
+        gh.rest[ours] = file_payload(json.dumps(listing))
+        gh.rest[f"repos/{STANDARDS_REPO}/git/ref/heads/main"] = STANDARDS_HEAD
+        self.assertEqual(policy.trusted_actors(REPO, "trunk"), ((), ()))
+        self.assertNotIn(["api", ours], gh.calls)
+        self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
+
     def test_one_standards_commit_and_read_serve_every_repository(self) -> None:
         standards_cleared(self)
         policy._TRUSTED_IDS.clear()
@@ -11091,6 +11104,17 @@ class DependabotEligibility(unittest.TestCase):
             "trusted_actors_source: repository\n"
         )
         self.assertTrue(self.eligibility().eligible)
+        self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
+
+    def test_a_failed_read_of_the_team_yaml_reads_neither_policy(self) -> None:
+        standards_cleared(self)
+        gh = self.fake()
+        ours = f"repos/{REPO}/contents/{POLICY}?ref={SHA}"
+        gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = 502
+        gh.rest[f"repos/{STANDARDS_REPO}/git/ref/heads/main"] = STANDARDS_HEAD
+        result = self.eligibility()
+        self.assertFalse(result.eligible, result.reason)
+        self.assertNotIn(["api", ours], gh.calls)
         self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
 
     def moved_main(
