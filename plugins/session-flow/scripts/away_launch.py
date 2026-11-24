@@ -1,8 +1,3 @@
-"""Launch warnings for step-away: the Claude Code settings that change how an unattended run behaves.
-
-Reads the managed, user, project and local settings files; writes nothing. Stdlib only; Python 3.10+.
-"""
-
 from __future__ import annotations
 
 import json

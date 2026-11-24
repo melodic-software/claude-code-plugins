@@ -46,8 +46,6 @@ fi
 g() { git -C "$1" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "${@:2}"; }
 line_of() { printf '%s\n' "$1" | grep "^$2: " | head -1; }
 
-# new_repo <name> <committed review.yaml body>: a repository whose
-# origin/main commits the body.
 new_repo() {
   local r="$TEST_TMPDIR/$1"
   mkdir -p "$r/docs/conventions"
@@ -60,7 +58,6 @@ new_repo() {
   printf '%s' "$r"
 }
 
-# --- Case 1: the head drops a default-branch pattern and sets note over fail --
 R1="$(new_repo c1 $'loosened_check_verdict: fail\nloosened_check_patterns:\n  - "ci/checks/**"\n  - "text:continue-on-error"\n')"
 printf 'loosened_check_verdict: note\nloosened_check_patterns:\n  - "text:continue-on-error"\n' >"$R1/docs/conventions/review.yaml"
 g "$R1" commit -q -a -m head
@@ -73,7 +70,6 @@ assert_contains "case 1: the pattern the head dropped is still resolved" \
 assert_contains "case 1: the pattern both copies hold is resolved" \
   "$(line_of "$out" loosened_check_patterns)" '"text:continue-on-error"'
 
-# --- Case 2: fail in any layer wins; note holds only when no layer says fail ---
 out="$(node "$RESOLVE" --root "$R1" --ref origin/main --verdict-option note)"
 assert_contains "case 2: a user note under a repository fail resolves fail" \
   "$(line_of "$out" loosened_check_verdict)" "loosened_check_verdict: fail"
@@ -89,14 +85,12 @@ out="$(node "$RESOLVE" --root "$R2" --ref origin/main --verdict-option '${user_c
 assert_contains "case 2: an unrendered placeholder is unset" \
   "$(line_of "$out" loosened_check_verdict)" "loosened_check_verdict: note"
 
-# --- Case 3: patterns are the union of the user option and the repository -----
 printf '%s' '["test/**", "ci/checks/**"]' >"$TEST_TMPDIR/patterns-c3"
 out="$(node "$RESOLVE" --root "$R1" --ref origin/main --patterns-file "$TEST_TMPDIR/patterns-c3")"
 assert_eq "case 3: user and repository patterns are unioned, each once" \
   'loosened_check_patterns: ["test/**","ci/checks/**","text:continue-on-error"] (userConfig, docs/conventions/review.yaml)' \
   "$(line_of "$out" loosened_check_patterns)"
 
-# --- Case 4: defaults, and layers that cannot be read ---------------------------
 R4="$(new_repo c4 $'fanout_diversity: lens\n')"
 out="$(node "$RESOLVE" --root "$R4" --ref origin/main)"
 assert_eq "case 4: no layer sets the verdict, so it is the default fail" \
@@ -121,7 +115,6 @@ assert_contains "case 4: an invalid user verdict falls back to fail" \
   "$(line_of "$out" loosened_check_verdict)" "loosened_check_verdict: fail (default)"
 assert_contains "case 4: an invalid user pattern list is named" "$out" "WARN userConfig loosened_check_patterns"
 
-# --- Case 5: the schema refuses an unknown verdict, accepts a valid file -------
 R5="$(new_repo c5 $'loosened_check_verdict: lenient\n')"
 out="$(node "$SCRIPT_DIR/../skills/setup/scripts/setup-apply.mjs" --check --root "$R5")"
 assert_eq "case 5: an unknown verdict fails the schema check" "1" "$?"

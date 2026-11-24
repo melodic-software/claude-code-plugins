@@ -142,8 +142,6 @@ cmd_partition() {
   bytes_per_line=$(awk -v b="$total_bytes" -v l="$total_lines" 'BEGIN{if (l < 1) l = 1; printf "%.1f", b / l}')
   budget_lines=$(awk -v b="$budget_bytes" -v p="$bytes_per_line" 'BEGIN{if (p <= 0) p = 1; printf "%d", b / p}')
 
-  # Sorted so the partition is a function of the input set, never of the order
-  # a caller happened to enumerate it in.
   rows=$(printf '%s' "$rows" | LC_ALL=C sort -t $'\t' -k1,1 -k2,2 -k3,3)
 
   local plan

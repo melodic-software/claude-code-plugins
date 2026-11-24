@@ -20,7 +20,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -53,8 +53,6 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-# The finding lines are the tool's own documented messages; the closing hint
-# line is this plugin's wording, so the case drops it instead of restating it.
 findings() { printf '%s' "${1%$'\n'*}"; }
 # shellcheck disable=SC2016 # the backticks are Ruff's own message text
 FINDING='a.py:2: F821 Undefined name `undefined_name`'

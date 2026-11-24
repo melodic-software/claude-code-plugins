@@ -123,12 +123,10 @@ def parse_timestamp(ts_str: str) -> datetime | None:
 # Recheck trigger: that section stops naming MultiEdit, or moves.
 _FILE_MODIFYING_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 
-# Truncation length for tool-rejection error snippets in the output.
 _REJECTION_SNIPPET_LEN = 200
 
 
 def _normalize_path(path: str, cwd: str | None) -> str:
-    """Strip cwd prefix from absolute paths so relative and absolute references dedup."""
     norm_path = path.replace("\\", "/").rstrip("/")
     norm_cwd = (cwd or "").replace("\\", "/").rstrip("/")
     if not norm_cwd:
@@ -139,12 +137,10 @@ def _normalize_path(path: str, cwd: str | None) -> str:
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
-    """Return value as a dict when it is one, else an empty dict."""
     return cast(dict[str, Any], value) if isinstance(value, dict) else {}
 
 
 def _as_list(value: Any) -> list[Any]:
-    """Return value as a list when it is one, else an empty list."""
     return cast(list[Any], value) if isinstance(value, list) else []
 
 
@@ -159,7 +155,6 @@ def _count_typed_plugin_skill(text: str, metrics: dict[str, Any]) -> None:
 
 
 def _count_tools_and_extract_paths(content: list[Any], metrics: dict[str, Any]) -> None:
-    """Single-pass: count tool uses and extract file paths from Write/Edit."""
     for raw_item in content:
         if not isinstance(raw_item, dict):
             continue
@@ -279,7 +274,6 @@ def parse_main_transcript(filepath: Path, lane_leg: bool = False) -> dict[str, A
         if version := event.get("version"):
             metrics["versions"].add(version)
         if metrics["cwd"] is None and (cwd := event.get("cwd")):
-            # First cwd is session context; mid-session directory changes are ignored.
             metrics["cwd"] = cwd
 
         match event.get("type"):
@@ -632,7 +626,6 @@ def handoff_journey(handoff_file: Path) -> list[dict[str, Any]]:
 UUID_RE = re.compile(r'"uuid"\s*:\s*"([^"]+)"')
 HANDOFF_TOPIC_RE = re.compile(r"-handoff-(.+)\.md$")
 
-# Aggregate key -> the (section, field) of each session's `data` block it sums.
 _AGGREGATE_TOTALS = {
     "total_assistant_turns": ("turns", "assistant"),
     "total_human_messages": ("turns", "human_messages"),
@@ -664,18 +657,17 @@ def _scan_project(
             try:
                 text = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
-                continue  # already reported per session by parse_one_session
+                continue
             chained[path.stem] = set(UUID_RE.findall(text))
         else:
             others.append(path)
     mentions = 0
     forks: list[dict[str, Any]] = []
     for path in others:
-        # ponytail: whole-file read per transcript; stream lines if project dirs outgrow memory
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
-            continue  # vanished or unreadable: coverage evidence, not a reason to fail
+            continue
         if topic and topic in text:
             mentions += 1
         uuids = set(UUID_RE.findall(text))
@@ -704,9 +696,6 @@ def build_multi_session_output(
             "aggregate": {},
         }
 
-    # Deduplicated here, for every entry point: a repeated id would double the
-    # totals and push coverage above 1.0. Order-preserving: the first id is the
-    # current session.
     session_ids = list(dict.fromkeys(session_ids))
 
     sessions_out: list[dict[str, Any]] = []
@@ -775,11 +764,8 @@ def build_multi_session_output(
     if transcripts_present == len(session_ids):
         status = "pass"
     elif transcripts_present > 0 or agg_subagents:
-        # Genuine partial chain: some transcripts, or subagent evidence only.
         status = "warning"
     else:
-        # Nothing found at all — a bad base dir, stale chain, or wrong SIDs
-        # must fail loudly, not read as a successful all-zero retro.
         status = "error"
     summary = (
         f"Multi-session retro: {len(session_ids)} chained session(s) "
@@ -858,12 +844,6 @@ def build_legs_output(paths: list[Path]) -> dict[str, Any]:
 
 
 def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
-    """Support BOTH legacy positional 2-arg form AND new argparse-flag form.
-
-    Legacy:  parse_transcript.py <session_id> <base_path>
-    New:     parse_transcript.py --sessions SID1 SID2 ... --base <base_path>
-    New:     parse_transcript.py --chain-from <handoff-file> --base <base_path>
-    """
     if len(argv) == 2 and not argv[0].startswith("--") and not argv[1].startswith("--"):
         return argparse.Namespace(
             session_id=argv[0],
@@ -919,7 +899,6 @@ def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
 def main() -> None:
     argv = sys.argv[1:]
     if not argv:
-        # Emit usage error before argparse can produce its own; --help/-h fall through.
         _emit_and_exit(
             "error",
             "Usage: parse_transcript.py <session_id> <base_path>  |  "

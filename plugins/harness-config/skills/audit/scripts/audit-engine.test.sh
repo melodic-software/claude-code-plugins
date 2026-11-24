@@ -17,11 +17,7 @@ TEST_TMPDIR="$(cd "$TEST_TMPDIR" && pwd -P)" || exit 2
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 while IFS= read -r v; do unset "$v"; done < <(compgen -e | grep -E '^SETTINGS_AUDIT_')
 unset CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT
-# Most cases read stdout and stderr together, so the progress lines stay off
-# except in the case that checks them.
 export SETTINGS_AUDIT_ENGINE_PROGRESS=0
-# Suppression ages are judged against a fixed day, so a fixture date never
-# crosses exceptions.max_days as the calendar moves.
 export SETTINGS_AUDIT_ENGINE_TODAY=2026-10-30
 mkdir -p "$TEST_TMPDIR/home/.claude"
 export HOME="$TEST_TMPDIR/home"

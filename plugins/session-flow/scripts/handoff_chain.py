@@ -1,13 +1,3 @@
-"""Handoff chain reader: the section table of each handoff shape, and one walk
-of a chain's hot files and hop files that every consumer shares.
-
-`read_chain(<hot file>)` follows `previous_handoff` back to the chain root and
-returns each file as a `Link`, newest first; a file it cannot reach ends the
-walk as a `missing` or `unreadable` link. `Chain.retired_ids()` reads every hop
-file on the chain for the ids retired under a retire heading. Stdlib only; this
-module imports nothing from `save_point`.
-"""
-
 from __future__ import annotations
 
 import os
@@ -375,8 +365,6 @@ def entry_text(
 
 
 def _archived_entry(lines: list[str], spec: IdSpec, n: int) -> str | None:
-    """The text of entry `[<prefix><n>]` in a hop file's copy of one of `spec`'s
-    sections, or None when the copy does not hold it."""
     for title, at, end in section_spans(lines, 0):
         if title not in spec.sections:
             continue
@@ -577,9 +565,6 @@ def retired_in(text: str, spec: ShapeSpec) -> dict[str, dict[int, str | None]]:
 
 
 def _resolve(cursor: Path, previous: str, strict: bool) -> Path | None:
-    """The predecessor `previous` names. Strict: a bare handoff filename in the
-    same real directory only. Otherwise beside the file, then in its parent
-    (pointers keeping a subdirectory prefix), then by basename beside it."""
     if strict:
         if not HANDOFF_NAME_RE.match(previous):
             return None
@@ -715,7 +700,6 @@ def _journey_sections(bodies: dict[str, list[str]], base: Path) -> dict[str, lis
 
 
 def _row_sessions(body: list[str] | None) -> dict[str, tuple[str, str]]:
-    """Hot-file name to (session id, date), from a Prior sessions table."""
     found: dict[str, tuple[str, str]] = {}
     for line in body or []:
         cells = [c.strip() for c in line.strip().strip("|").split("|")]

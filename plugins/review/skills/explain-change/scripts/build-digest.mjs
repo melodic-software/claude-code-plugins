@@ -157,7 +157,6 @@ function main(args) {
     const problem = bridgeDirProblem(flags["--dir"], flags["--connect"]);
     if (problem) fail(`refused: ${problem}`, 2);
   }
-  // A view never sits beside the record: refuse a temp dir inside a working tree.
   const temp = realpathSync(tmpdir());
   const root = repoRoot(temp);
   if (!connected && root && inside(temp, realpathSync(root))) {

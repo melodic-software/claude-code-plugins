@@ -49,16 +49,11 @@ mkfixture() {
   printf '%s\n' "$dir"
 }
 
-# run_in <root> [arg ...] is the ordinary invocation: CLAUDE_PROJECT_DIR names the
-# root and the cwd is deliberately somewhere else, which is the real preamble
-# situation. Any extra arguments are forwarded to the detector.
 run_in() {
   local root="$1"
   shift
   (cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$root" bash "$DETECT" "$@" 2>/dev/null)
 }
-
-# --- 1. The empty answer ------------------------------------------------------
 
 EMPTY="$(mkfixture empty)"
 empty_exit=0
@@ -66,17 +61,8 @@ empty_out="$(run_in "$EMPTY")" || empty_exit=$?
 assert_equals "empty project prints the empty answer" "none detected" "$empty_out"
 assert_exit "empty project still exits 0" 0 "$empty_exit"
 
-# The literal-glob leak. This is the defect the script's own header names, and
-# it is invisible in the "none detected" assertion above only because that
-# assertion is EXACT. A leak would append the patterns rather than replace the
-# message. Both directions are pinned so neither can regress alone.
 assert_not_contains "unmatched *.sln does not leak its pattern" "$empty_out" '*.sln'
 assert_not_contains "unmatched *.slnx does not leak its pattern" "$empty_out" '*.slnx'
-
-# --- 2. Every marker the script actually detects ------------------------------
-# One case per marker so a dropped entry in the glob list names itself. The
-# .NET pair is matched by GLOB, the other four by exact name; both halves are
-# covered and neither is inferred from the other.
 
 for marker in package.json pyproject.toml Cargo.toml go.mod; do
   one="$(mkfixture "solo-$marker" "$marker")"
@@ -89,19 +75,8 @@ assert_equals "a .sln is detected by glob" "MyApp.sln" "$(run_in "$SLN_ONE")"
 SLNX_ONE="$(mkfixture slnx-one MyApp.slnx)"
 assert_equals "a .slnx is detected by glob" "MyApp.slnx" "$(run_in "$SLNX_ONE")"
 
-# A marker name that is a PREFIX or SUFFIX of a real one must not match: the
-# four exact-name markers are not globs, and the two globs are anchored on the
-# extension. The fixture also carries plausible NON-marker manifests (Makefile,
-# Gemfile, requirements.txt), so widening the marker list fails here instead of
-# passing silently.
 NEARMISS="$(mkfixture near-miss package.json.bak go.mod.orig mypyproject.toml Cargo.toml.lock notes.slnx.txt Makefile Gemfile requirements.txt)"
 assert_equals "near-miss filenames detect nothing" "none detected" "$(run_in "$NEARMISS")"
-
-# --- 3. Multi-ecosystem tree, and the order it reports ------------------------
-# The output order is the loop's glob order, not the filesystem's or sort's, and
-# the skills quote the first lines of this output back to the user. Pinning the
-# whole block keeps a reordering of the glob list from silently changing what a
-# reader sees first.
 
 MULTI="$(mkfixture multi package.json pyproject.toml Cargo.toml go.mod App.sln App.slnx)"
 multi_out="$(run_in "$MULTI")"
@@ -117,8 +92,6 @@ partial_exit=0
 partial_out="$(run_in "$PARTIAL")" || partial_exit=$?
 assert_equals "a match on the FIRST glob with all later misses still reports" "App.slnx" "$partial_out"
 assert_exit "trailing misses under set -e do not abort the script" 0 "$partial_exit"
-
-# --- 4. Multiple files behind one glob ----------------------------------------
 
 MANY_SLN="$(mkfixture many-sln Zebra.sln Alpha.sln Middle.slnx)"
 many_expected="$(printf '%s\n' Middle.slnx Alpha.sln Zebra.sln)"
@@ -137,8 +110,6 @@ SPACED_MULTI="$(mkfixture spaced-multi go.mod)"
 spaced_multi_expected="$(printf '%s\n' 'My Big App.sln' go.mod)"
 assert_equals "a space-bearing match does not split the rest of the list" \
   "$spaced_multi_expected" "$(run_in "$SPACED_MULTI")"
-
-# --- 6. What counts as present: -e, one directory level -----------------------
 
 NESTED="$(mkfixture nested)"
 mkdir -p "$NESTED/services/api"
@@ -159,8 +130,6 @@ sym_out="$(run_in "$SYMLINKED")"
 assert_contains "a symlink to a live marker is detected" "$sym_out" "package.json"
 assert_not_contains "a BROKEN symlink is not detected" "$sym_out" "go.mod"
 
-# --- 7. Root anchoring: CLAUDE_PROJECT_DIR wins -------------------------------
-
 WINS="$(mkfixture anchor-wins Cargo.toml)"
 DECOY="$(mkfixture anchor-decoy package.json)"
 anchor_out="$(cd "$DECOY" && CLAUDE_PROJECT_DIR="$WINS" bash "$DETECT" 2>/dev/null)"
@@ -171,8 +140,6 @@ assert_equals "CLAUDE_PROJECT_DIR outranks the cwd" "Cargo.toml" "$anchor_out"
 # anchoring on the filesystem root.
 blank_out="$(cd "$DECOY" && env CLAUDE_PROJECT_DIR= GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$DETECT" 2>/dev/null)"
 assert_equals "an empty CLAUDE_PROJECT_DIR is treated as unset" "package.json" "$blank_out"
-
-# --- 8. Root anchoring: the git toplevel ---------------------------------------
 
 GITREPO="$TEST_TMPDIR/gitrepo"
 mkdir -p "$GITREPO/deep/nested"
@@ -202,15 +169,8 @@ ghost_out="$(cd "$GHOST" && CLAUDE_PROJECT_DIR="$TEST_TMPDIR/does-not-exist" bas
 assert_equals "a nonexistent CLAUDE_PROJECT_DIR degrades to the cwd" "go.mod" "$ghost_out"
 assert_exit "a nonexistent CLAUDE_PROJECT_DIR does not abort" 0 "$ghost_exit"
 
-# The cd failure must also stay off stderr. The skills redirect stderr away, so
-# a leak is not user-visible there, but it is visible to every other caller.
 ghost_err="$(cd "$GHOST" && CLAUDE_PROJECT_DIR="$TEST_TMPDIR/does-not-exist" bash "$DETECT" 2>&1 >/dev/null)"
 assert_equals "the failed cd prints nothing on stderr" "" "$ghost_err"
-
-# --- 11. Arguments -------------------------------------------------------------
-# The script reads no arguments, but the skill grants are `…/detect-ecosystems.sh:*`
-# and the wrappers forward "$@", so anything a caller appends lands here. It must
-# be inert rather than fatal.
 
 args_exit=0
 args_out="$(run_in "$MULTI" --bogus extra)" || args_exit=$?
@@ -230,8 +190,6 @@ assert_equals "six markers print on exactly six lines" "6" "$line_count"
 
 clean_err="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" bash "$DETECT" 2>&1 >/dev/null)"
 assert_equals "a normal run prints nothing on stderr" "" "$clean_err"
-
-# --- Report --------------------------------------------------------------------
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

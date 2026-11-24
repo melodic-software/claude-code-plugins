@@ -90,6 +90,9 @@ psf_init() {
   PSF_ROOT_ARG="$(psf_pwsh_path "$1")"
   [[ "$PSF_HERE" == /* || "$PSF_HERE" == [A-Za-z]:[\\/]* ]] || PSF_HERE="$PWD/$PSF_HERE"
   PSF_PS1_ARG="$(psf_pwsh_path "$PSF_HERE/psscriptanalyzer.ps1")"
+  PSF_LINT_CACHE=""
+  common="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
+  [[ -z "$common" ]] || PSF_LINT_CACHE="$common/powershell-format-lint"
   psf__path_without_9p
 }
 
@@ -122,7 +125,7 @@ psf_run() {
   local dir="$RT_DIR" rc
   RT_DIR="$1"
   shift
-  PATH="$PSF_PATH" RT_BIN="$PSF_BIN" PSF_PS1="$PSF_PS1_ARG" \
+  PATH="$PSF_PATH" RT_BIN="$PSF_BIN" PSF_PS1="$PSF_PS1_ARG" PSSA_LINT_OUT="${PSF_LINT_OUT:+$(psf_pwsh_path "$PSF_LINT_OUT")}" \
     PSSA_SETTINGS="$(psf_pwsh_path "$dir/$PSF_SETTINGS")" PSSA_REPO_ROOT="$PSF_ROOT_ARG" PSSA_STATE_BASE="$PSF_STATE_ARG" rt_run "$@"
   rc=$?
   RT_DIR="$dir"
@@ -177,4 +180,106 @@ psf_trust_notice() {
 psf_broken() {
   printf 'powershell-format: %s failed under %s:\n' "$2" "$(psf_settings_rel)" >&2
   sed -e 's/^PSSA_ERROR //' -e 's/\r$//' "$1" >&2
+}
+
+psf_lint_key() {
+  local dir=$1
+  shift
+  { printf '%s\n' "$dir" "$@" && git hash-object -- "$dir/$PSF_SETTINGS" "$@"; } | git hash-object --stdin
+}
+
+psf_lint_off() {
+  local f v
+  v="$(git config --type=bool --get checks.powershell-format.lint.declined 2>/dev/null)" ||
+    v="$(git config --type=bool --get checks.powershell-format.powershell-check.declined 2>/dev/null)" ||
+    v="$(git config --type=bool --get checks.git-hooks.declined 2>/dev/null)"
+  [[ "$v" == true ]] && return 0
+  for f in lefthook-local.yml lefthook-local.yaml .lefthook-local.yml .lefthook-local.yaml; do
+    [[ -f "$f" ]] && psf__job_skipped powershell-format-remote-lint <"$f" && return 0
+  done
+  return 1
+}
+
+psf__job_skipped() {
+  awk -v job="$1" '
+    function close_items(min, d) {
+      for (d = top; d >= min; d--) {
+        if (open[d] && name[d] == job && tolower(skip[d]) == "true") found = 1
+        open[d] = 0
+      }
+    }
+    function scalar(v) {
+      sub(/^[ \t]+/, "", v)
+      if (v ~ /^"/) { sub(/^"/, "", v); sub(/".*$/, "", v); return v }
+      if (v ~ /^\047/) { sub(/^\047/, "", v); sub(/\047.*$/, "", v); return v }
+      sub(/[ \t]+#.*$/, "", v)
+      sub(/[ \t]+$/, "", v)
+      return v
+    }
+    function key(d, line, k) {
+      k = line
+      sub(/:.*/, "", k)
+      sub(/^[^:]*:/, "", line)
+      if (k == "name") name[d] = scalar(line)
+      else if (k == "skip") skip[d] = scalar(line)
+    }
+    { sub(/\r$/, "") }
+    /^[ \t]*(#|$)/ { next }
+    {
+      match($0, /^ */)
+      ind = RLENGTH
+      line = substr($0, ind + 1)
+      if (line ~ /^- /) {
+        close_items(ind)
+        open[ind] = 1; name[ind] = ""; skip[ind] = ""
+        if (ind > top) top = ind
+        rest = substr(line, 3)
+        sub(/^ +/, "", rest)
+        if (rest ~ /^[A-Za-z_]+:/) key(ind, rest)
+        next
+      }
+      close_items(ind - 1)
+      if (ind >= 2 && open[ind - 2] && line ~ /^[A-Za-z_]+:/) key(ind - 2, line)
+    }
+    END { close_items(0); exit !found }
+  '
+}
+
+psf_lint_store() {
+  local rc=$1 out=$2 dir=$3 key r lrc=0
+  shift 3
+  [[ -n "$PSF_LINT_CACHE" && -n "${PSF_LINT_OUT:-}" ]] || return 0
+  case $rc in
+  0 | 4)
+    [[ -f "$PSF_LINT_OUT.rc" ]] || return 0
+    while IFS= read -r r || [[ -n "$r" ]]; do
+      r="${r%$'\r'}"
+      [[ "$r" =~ ^[0-9]+$ ]] || return 0
+      ((r > lrc)) && lrc=$r
+    done <"$PSF_LINT_OUT.rc"
+    out="$PSF_LINT_OUT"
+    ;;
+  3 | 6) lrc=$rc ;;
+  *) return 0 ;;
+  esac
+  key="$(psf_lint_key "$dir" "$@")" && [[ -n "$key" ]] || return 0
+  mkdir -p "$PSF_LINT_CACHE" && cp "$out" "$PSF_LINT_CACHE/$key.out" &&
+    printf '%s\n' "$lrc" >"$PSF_LINT_CACHE/$key.rc"
+}
+
+psf_lint_take() {
+  local out=$1 key c
+  shift
+  [[ -n "$PSF_LINT_CACHE" && -d "$PSF_LINT_CACHE" ]] || return 1
+  key="$(psf_lint_key "$@")" && [[ -n "$key" ]] || return 1
+  c="$PSF_LINT_CACHE/$key"
+  [[ -f "$c.rc" ]] || return 1
+  PSF_LINT_RC=""
+  read -r PSF_LINT_RC <"$c.rc"
+  if [[ "$PSF_LINT_RC" =~ ^[0-9]+$ ]] && mv -f "$c.out" "$out"; then
+    rm -f "$c.rc"
+    return 0
+  fi
+  rm -f "$c.rc" "$c.out"
+  return 1
 }

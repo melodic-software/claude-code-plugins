@@ -109,8 +109,6 @@ test('every call names a plugin agent whose tools exclude Agent and Skill', asyn
   }
 })
 
-// The fan-out frontier guard (docs/plugin-philosophy.md): a stage running several agents never
-// runs them on the session's model, which may be the frontier one.
 const NON_FRONTIER = ['opus', 'sonnet', 'haiku']
 test('every fan-out (Review stage) agent pins a non-frontier model, or its call passes one', async () => {
   const roles = { retrieval: { single: { model: 'sonnet', effort: 'low' } } }
@@ -502,9 +500,6 @@ test('string args are parsed as JSON', async () => {
   assert.equal(result.diffBase, 'abc')
 })
 
-// Diversity: `lens` (the default) runs one agent per concern; `model` sends one prompt to each
-// distinct fan-out model in the role map. Expected labels and agent come from the /review:fanout
-// run-everything contract, not from the script's output.
 const review = c => c.filter(x => x.opts.phase === 'Review')
 const LENS_RAN = ['security-reviewer', 'architecture-guardian', 'code-reviewer', 'doc-drift-detector', 'slice:a.md']
 const routed = (o, w, v, r) => ({
@@ -513,8 +508,6 @@ const routed = (o, w, v, r) => ({
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: v },
   retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: r },
 })
-// Two explicit tiers. `inherit` is the session model, which these runs pass no args.session
-// for, so an inherit fan-out variant names no known tier and cannot stand for one here.
 const TWO_TIERS = routed(
   { model: 'opus', effort: 'high' },
   { model: 'opus', effort: 'xhigh' },

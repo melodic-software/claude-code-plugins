@@ -12,96 +12,96 @@ Each entry follows the same shape: name, when-to-apply, when-NOT-to-apply, and, 
 
 Beck's framing: small, named refactorings nobody could hate on. Structural-only. Each targets a specific reading-experience defect. **Apply liberally; commit atomically.**
 
-### #1: Guard Clauses
+### Beck 1: Guard Clauses
 
 - **When to apply:** a method's happy path is buried inside nested `if`/`else`. Replace with early-return guards at the top.
 - **When NOT to apply:** the nested branches each have meaningful logic worth preserving as separate methods (that's Extract Method, not Guard Clause). Also when the language doesn't support early return cleanly.
 - **Example:** `if (x != null) { if (x.IsValid) { ... } }` → `if (x is null || !x.IsValid) return; ...`
 
-### #2: Dead Code
+### Beck 2: Dead Code
 
 - **When to apply:** code that no longer has any callers or any path of execution that reaches it.
 - **When NOT to apply:** the "dead" code is reflectively invoked, used by source generators, or referenced by string name in DI/serialization. Verify before deletion.
 - **Example:** `private static string FormatLegacy(...)` no longer called after a public API consolidated → delete.
 - **Finding candidates:** this entry is for dead code the lane pass walks into. To hunt it deliberately across the whole repository, including the long-untouched code a rotated lane never reaches, run `/code-tidying:audit-dead-code`, which adjudicates each candidate to `dead`, `uncertain`, or `alive` and reports without editing. Bring its `dead` verdicts back here to apply the deletion; leave `uncertain` alone.
 
-### #3: Normalize Symmetries
+### Beck 3: Normalize Symmetries
 
 - **When to apply:** two parallel constructs that do "the same thing" are written in two different ways without semantic justification. Make them look the same.
 - **When NOT to apply:** the asymmetry is intentional (e.g., one variant has additional safety checks the other doesn't need).
 - **Example:** half the validation methods return a result type, half throw exceptions → align them on the result type (only when nothing depends on the exception variants).
 
-### #4: New Interface, Old Implementation
+### Beck 4: New Interface, Old Implementation
 
 - **When to apply:** **Only when the new interface has zero existing consumers.** Add a new abstraction layer over an existing implementation without changing the implementation. Tidy the call sites later.
 - **When NOT to apply:** existing consumers exist that would need to migrate. That's not a tidying. That's a migration with breaking-change risk. **Treat as behavioral.**
 - **Example:** wrapping a static helper class behind an injectable interface, when no one currently calls the static directly. If anyone calls it directly today, this is migration work; defer.
 
-### #5: Reading Order
+### Beck 5: Reading Order
 
 - **When to apply:** members of a file/class/module appear in an order that doesn't match the order a reader needs to encounter them in to understand the file. Reorder so the public API reads top-to-bottom; private helpers go below the methods that call them.
 - **When NOT to apply:** the existing order matches a strong external or project convention (e.g., minimal-API ordering by route, or an alphabetical-by-default rule).
 - **Example:** in a service-registration extensions file, the public `AddXService` is at the bottom, private `ConfigureY` helpers above it → flip the order.
 
-### #6: Cohesion Order
+### Beck 6: Cohesion Order
 
 - **When to apply:** members operating on the same concern are scattered. Group them: constructor → state → operations on that state → operations on derived state.
 - **When NOT to apply:** the existing grouping reflects a different valid axis (e.g., grouped by interface implementation rather than by data they touch).
 - **Example:** `OrderService` has `ValidateAddress`, `ValidateLineItems`, `ApplyDiscount`, `ValidatePayment` mixed with persistence methods → group all the validators together.
 
-### #7: Move Declaration and Initialization Together
+### Beck 7: Move Declaration and Initialization Together
 
 - **When to apply:** a variable is declared near the top of a method and assigned much later. Move the declaration to where it's first used.
 - **When NOT to apply:** language constraints force an early declaration.
 - **Example:** `string result; ... 30 lines ... result = ComputeIt();` → `string result = ComputeIt();`
 
-### #8: Explaining Variables
+### Beck 8: Explaining Variables
 
 - **When to apply:** a sub-expression in a long expression is hard to name in isolation but is doing meaningful work. Extract it into a named local.
 - **When NOT to apply:** the expression is short, the name would be redundant (`int total = a + b;` is not an improvement when `a + b` is used inline once).
 - **Example:** `if (order.LineItems.Where(x => x.Quantity > 0).Sum(x => x.Price * x.Quantity) > customer.CreditLimit)` → extract `var orderTotal = ...; if (orderTotal > customer.CreditLimit)`.
 
-### #9: Explaining Constants
+### Beck 9: Explaining Constants
 
 - **When to apply:** a magic number or magic string appears inline with no clue what it represents. Replace with a named constant.
 - **When NOT to apply:** the literal is self-documenting in context (`for (int i = 0; ...)` doesn't need `const int Zero = 0;`).
 - **Example:** `if (status == 7)` → `if (status == OrderStatus.Cancelled)`.
 
-### #10: Explicit Parameters
+### Beck 10: Explicit Parameters
 
 - **When to apply:** a method takes a "context" or "options" object whose fields are mostly unused, and the caller would benefit from the actual parameters being explicit.
 - **When NOT to apply:** the options object is genuinely a coherent value with many fields, or it's a public API where breaking the signature is behavioral.
 - **Example:** `void Process(ProcessOptions opts)` where every caller only sets `opts.Timeout` → `void Process(TimeSpan timeout)`.
 
-### #11: Chunk Statements
+### Beck 11: Chunk Statements
 
-- **When to apply:** a long method has logical "stages" mashed together with no separation. Insert blank lines between stages. (Not Extract Method, which is #12. Just visual chunking.)
+- **When to apply:** a long method has logical "stages" mashed together with no separation. Insert blank lines between stages. (Not Extract Method, which is Beck 12. Just visual chunking.)
 - **When NOT to apply:** the method is already chunked, or it's short enough that chunking would be overkill.
 - **Example:** a 40-line setup method with no blank lines → insert blank lines between "build context", "validate", "execute", "log".
 
-### #12: Extract Helper
+### Beck 12: Extract Helper
 
-- **When to apply:** a chunk from #11 (or a duplicated chunk across two methods) deserves to be its own named method.
+- **When to apply:** a chunk from Beck 11 (or a duplicated chunk across two methods) deserves to be its own named method.
 - **When NOT to apply:** the chunk is only used once and naming it adds noise without aiding comprehension. Or: extracting it would force complex parameter passing that obscures the original method.
 - **Example:** two different endpoint handlers each have a 12-line "build error response" block → extract `private static IResult ToErrorResponse(Result result)`.
 
-### #13: One Pile
+### Beck 13: One Pile
 
 - **When to apply:** code that should logically be in one place (one file, one class, one section) is split across multiple locations for no semantic reason.
 - **When NOT to apply:** the split is intentional (separate files for build performance, separate classes for layering / testability).
 - **Example:** `OrderValidationRules` and `OrderValidationHelpers` both contain Order validation utilities with overlapping concerns → consolidate.
 
-### #14: Explaining Comments
+### Beck 14: Explaining Comments
 
-- **Posture** (`comment_posture`, resolved in SKILL.md "Variables"): under `necessary`, the default, add only a comment the `/code-tidying:remove-comments` keep list keeps: the `comment_keep_list` file the settings line names, else the shipped list, which keeps a public-API doc comment and a note naming an outside party's limit; give that note its link, which the comment lint needs to pass it. Send every other candidate to the findings table as a rename or an extract (#8, #9, #12, F-3) instead of a comment. Under `none`, add no comment. Under `explanatory`, the rules below.
+- **Posture** (`comment_posture`, resolved in SKILL.md "Variables"): under `necessary`, the default, add only a comment the `/code-tidying:remove-comments` keep list keeps: the `comment_keep_list` file the settings line names, else the shipped list, which keeps a public-API doc comment and a note naming an outside party's limit; give that note its link, which the comment lint needs to pass it. Send every other candidate to the findings table as a rename or an extract (Beck 8, Beck 9, Beck 12, F-3) instead of a comment. Under `none`, add no comment. Under `explanatory`, the rules below.
 - **When to apply:** code does something non-obvious (a workaround for a bug, a subtle invariant, a constraint from outside the code). Add a brief `// Why:` comment. A workaround comment also carries a link (an issue, a URL) or a removal condition, so a reader knows when it can go; without one, `/code-tidying:remove-comments audit` reports it as `unjustified-workaround`.
 - **When NOT to apply:** the code is self-explanatory and the comment would just restate it. Only comment *why*, never *what*.
 - **Example:** `// Workaround: the IDE locks analyzer DLLs; output to bin/cli/ when not building inside it, and remove when the IDE releases the lock after a build`.
 
-### #15: Delete Redundant Comments
+### Beck 15: Delete Redundant Comments
 
 - **When to apply:** a comment restates what the code obviously says, or describes behavior the code no longer has.
-- **When NOT to apply:** the comment is non-obvious context (the kind #14 produces). Be conservative. When uncertain, leave the comment.
+- **When NOT to apply:** the comment is non-obvious context (the kind Beck 14 produces). Be conservative. When uncertain, leave the comment.
 - **Example:** `// Increment counter` above `counter++;` → delete the comment.
 
 ---
@@ -112,9 +112,9 @@ These overlap somewhat with Beck's list but predate it. Use Fowler's framing whe
 
 ### F-1: Extract Method
 
-- **When to apply:** same as Beck #12 (Extract Helper). Fowler's name is more widely recognized; either label works.
-- **When NOT to apply:** same as Beck #12.
-- **Example:** see Beck #12.
+- **When to apply:** same as Beck 12 (Extract Helper). Fowler's name is more widely recognized; either label works.
+- **When NOT to apply:** same as Beck 12.
+- **Example:** see Beck 12.
 
 ### F-2: Inline Method
 
@@ -130,15 +130,15 @@ These overlap somewhat with Beck's list but predate it. Use Fowler's framing whe
 
 ### F-4: Extract Variable
 
-- **When to apply:** same as Beck #8 (Explaining Variables). Fowler's name is also widely used.
-- **When NOT to apply:** same as Beck #8.
-- **Example:** see Beck #8.
+- **When to apply:** same as Beck 8 (Explaining Variables). Fowler's name is also widely used.
+- **When NOT to apply:** same as Beck 8.
+- **Example:** see Beck 8.
 
 ### F-5: Replace Magic Number with Symbolic Constant
 
-- **When to apply:** same as Beck #9 (Explaining Constants), specifically for numeric literals.
-- **When NOT to apply:** same as Beck #9.
-- **Example:** see Beck #9.
+- **When to apply:** same as Beck 9 (Explaining Constants), specifically for numeric literals.
+- **When NOT to apply:** same as Beck 9.
+- **Example:** see Beck 9.
 
 ---
 
@@ -166,13 +166,13 @@ Beck-style structural improvements applied to the prose surface: skill bodies, l
 
 ### P-4: Reading-order improvements (in prose)
 
-- **When to apply:** same as Beck #5, applied to documentation. Readers should encounter "what is this" before "how to use it" before "advanced gotchas".
+- **When to apply:** same as Beck 5, applied to documentation. Readers should encounter "what is this" before "how to use it" before "advanced gotchas".
 - **When NOT to apply:** the existing order matches a deliberate inverted pyramid (most important info first; details below). That's also a valid order.
 - **Example:** a SKILL.md whose "Gotchas" section appears before "Workflow" → move Gotchas to the bottom.
 
 ### P-5: Explaining-comments insertion (in code-shaped prose)
 
-- **Posture:** #14's posture rule applies to the comment this adds.
+- **Posture:** Beck 14's posture rule applies to the comment this adds.
 - **When to apply:** a CLI command, config snippet, or code example in markdown does something non-obvious. Add a one-line `# explains the next line` comment.
 - **When NOT to apply:** the snippet is self-explanatory. Don't pad code blocks with restating-comments.
 
@@ -188,7 +188,7 @@ Beck-style structural improvements applied to the prose surface: skill bodies, l
 
 | Tidying group | Default Conventional Commits type for code lanes | For prose lanes |
 |---|---|---|
-| Beck #1-#15 | `refactor:` | n/a (Beck targets code) |
+| Beck 1-15 | `refactor:` | n/a (Beck targets code) |
 | Fowler F-1 to F-5 | `refactor:` | n/a |
 | P-1 to P-6 | n/a | `docs:` (prose lanes) or `chore(tidy):` (self-update) |
 

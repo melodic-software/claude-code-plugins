@@ -62,7 +62,6 @@ make_repo() {
   echo "$repo"
 }
 
-# check <desc> <repo> <expected stdout> <expected exit> <stderr substring> [VAR=value...]
 check() {
   local desc="$1" repo="$2" want_out="$3" want_rc="$4" want_err="$5"
   shift 5
