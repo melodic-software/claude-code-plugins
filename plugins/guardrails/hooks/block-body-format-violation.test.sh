@@ -179,6 +179,28 @@ pass "issue_body_required_sections: none" "gh issue create --title t --body x" "
 pass "the team layer turns the issue gate off" "gh issue create --title t --body $(q "$INOAC")" "$IOFF"
 pass "the personal override turns the issue gate off" "gh issue create --title t --body $(q "$INOAC")" "$ILOCALOFF"
 pass "an issue format declares no PR format" "gh pr create --title t --body x" "$ISSUE"
+deny "a required ## heading whose only content is the next required heading at ###" "gh issue create --title t --body $(q $'## User story\n\n### Acceptance criteria\n\n- [ ] X works')" "$ISSUE" 'The "### User story" heading is empty or answered _No response_'
+deny "## Steps to reproduce directly followed by ### Expected behavior" "gh issue create --title t --body $(q $'## Steps to reproduce\n### Expected behavior\nIt works.')" "$ISSUE" 'The "### Steps to reproduce" heading is empty or answered _No response_'
+deny "a required heading holding only a deeper heading" "gh issue create --title t --body $(q $'### User story\nAs a maintainer I want X.\n### Acceptance criteria\n#### Checks\n')" "$ISSUE" 'The "### Acceptance criteria" heading is empty or answered _No response_'
+pass "a deeper heading that is not required keeps its content in the section" "gh issue create --title t --body $(q $'### User story\n#### Who\nA maintainer.\n### Acceptance criteria\n- [ ] X works')" "$ISSUE"
+deny "gh issue create with an empty --body" 'gh issue create --title t --body ""' "$ISSUE" 'Missing a "### Steps to reproduce" heading'
+
+PWNED="$TEST_TMPDIR/pwned"
+export PWNED
+INJ=$(mkrepo inj $'issue_body_required_sections:\n  "$(touch $PWNED)":\n    - Summary\n  feature:\n    - User story')
+deny "a kind id that is not a lowercase id is skipped" "gh issue create --title t --body x" "$INJ" 'names an issue kind that is not a lowercase id'
+if [[ -e "$PWNED" ]]; then bad "a quoted kind key holding \$(...) ran a command"; else ok "a quoted kind key holding \$(...) runs nothing (direct, dispatched)"; fi
+mcp_inj() {
+  jq -n --arg b "x" --arg d "$INJ" '{tool_name:"mcp__plugin_github_github__issue_write",cwd:$d,tool_input:{method:"create",owner:"acme",repo:"inj",title:"t",body:$b}}'
+}
+mcp_verdict "$(mcp_inj)"
+assert_eq "MCP issue_write create in a checkout with an injected kind key" "2 2" "$RCS"
+if [[ -e "$PWNED" ]]; then bad "the MCP path ran the injected kind key"; else ok "the MCP path runs nothing from the kind key"; fi
+if grep -nE -- '-v[[:space:]]+"?[A-Za-z_][A-Za-z0-9_]*\[' "$HOOK"; then
+  bad "the hook tests an array subscript with -v, which bash before 5.2 expands twice"
+else
+  ok "the hook tests no array subscript with -v"
+fi
 
 mcp_issue() {
   jq -n --arg t "mcp__plugin_github_github__$1" --arg b "$2" --arg o "$3" --arg m "${4-}" --arg d "$ISSUE" \
@@ -195,6 +217,9 @@ mcp_verdict "$(mcp_issue create_issue "$INOAC" acme)"
 assert_eq "MCP create_issue, a heading missing" "2 2" "$RCS"
 mcp_verdict "$(mcp_issue issue_write "$INOAC" someone-else create)"
 assert_eq "MCP issue_write create to another repository" "0 0" "$RCS"
+mcp_verdict "$(mcp_issue issue_write "" acme create)"
+assert_eq "MCP issue_write create with an empty body" "2 2" "$RCS"
+assert_contains "MCP issue_write create with an empty body names a heading" "$OUT_D" 'Missing a "### Steps to reproduce" heading'
 
 P=$(payload "gh pr create --title t --body-file good.md" "$FULL")
 t0=${EPOCHREALTIME/./}

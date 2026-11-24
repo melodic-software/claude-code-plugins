@@ -97,12 +97,12 @@ _bfv_body_from_word() {
 }
 
 _bfv_body() {
-  local i n=${#GHPOST_TEXTS[@]} w kind="" val=""
+  local i n=${#GHPOST_TEXTS[@]} w kind="" val="" given=0
   for ((i = 0; i < n; i++)); do
     w="${GHPOST_TEXTS[i]}"
     case "$w" in
-    --body | -b) kind=word val="${GHPOST_TEXTS[i + 1]-}" ;;
-    --body=*) kind=word val="${w#--body=}" ;;
+    --body | -b) kind=word val="${GHPOST_TEXTS[i + 1]-}" given=$((i + 1 < n)) ;;
+    --body=*) kind=word val="${w#--body=}" given=1 ;;
     -b?*) kind=word val="${w#-b}" ;;
     --body-file | -F) kind=file val="${GHPOST_TEXTS[i + 1]-}" ;;
     --body-file=*) kind=file val="${w#--body-file=}" ;;
@@ -111,7 +111,12 @@ _bfv_body() {
     esac
     break
   done
-  [[ -n "$kind" && -n "$val" ]] || return 1
+  [[ -n "$kind" ]] || return 1
+  if [[ -z "$val" ]]; then
+    [[ "$kind" == word && "$_BFV_FORM" == issue-create ]] && ((given)) || return 1
+    _BFV_BODY=""
+    return 0
+  fi
   ghpost::bodies
   if [[ "$kind" == word ]]; then
     _bfv_body_from_word "$val"
@@ -175,7 +180,7 @@ _bfv_mcp() {
   guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
   [[ "$TOOL_NAME" != *__issue_write || "${HOOK_JQ_FIELDS[3]}" == create ]] || exit 0
   _BFV_BODY="${HOOK_JQ_FIELDS[0]}"
-  [[ -n "$_BFV_BODY" ]] || exit 0
+  [[ -n "$_BFV_BODY" || "$_BFV_FORM" == issue-create ]] || exit 0
   _bfv_slug_to _BFV_TARGET "${HOOK_JQ_FIELDS[1]}/${HOOK_JQ_FIELDS[2]}" || exit 0
 }
 
@@ -293,6 +298,8 @@ _bfv_prepare_lines() {
 _bfv_check_heads() {
   local mode="$1" maxlvl=2 h i t lvl hl start slvl has mark="##" re_head='^(#+)[[:space:]]+(.*)$' re_any='^(#+)[[:space:]]'
   shift
+  local all
+  printf -v all '\n%s' "$@"
   if [[ "$mode" == issue ]]; then
     maxlvl=3
     mark="###"
@@ -323,7 +330,16 @@ _bfv_check_heads() {
     has=0
     for ((i = start; i < ${#_BFV_LINES[@]}; i++)); do
       _bfv_trim_to t "${_BFV_LINES[i]}"
-      [[ "$t" =~ $re_any ]] && ((${#BASH_REMATCH[1]} <= slvl)) && break
+      if [[ "$t" =~ $re_any ]]; then
+        ((${#BASH_REMATCH[1]} <= slvl)) && break
+        if [[ "$mode" == issue ]]; then
+          [[ "$t" =~ $re_head ]] || continue
+          hl="${BASH_REMATCH[2]}"
+          hl="${hl%"${hl##*[!#[:space:]]}"}"
+          [[ "${all,,}"$'\n' == *$'\n'"${hl,,}"$'\n'* ]] && break
+          continue
+        fi
+      fi
       [[ -z "$t" ]] && continue
       [[ "$mode" == issue && "$t" == "_No response_" ]] && continue
       has=1
@@ -340,7 +356,7 @@ _bfv_check_heads() {
 }
 
 _bfv_issue_kinds() {
-  local key=issue_body_required_sections layer rel line rest kind idx
+  local key=issue_body_required_sections layer rel line rest kind idx bad=0
   _BFV_KINDS=()
   declare -gA _BFV_KIND_HEADS=()
   for layer in LOCAL TEAM; do
@@ -361,8 +377,12 @@ _bfv_issue_kinds() {
         rest="${rest#"$key".}"
         kind="${rest%.*}"
         idx="${rest##*.}"
-        [[ "$kind" != *.* && "$idx" =~ ^[0-9]+$ ]] || continue
-        [[ -v "_BFV_KIND_HEADS[$kind]" ]] || _BFV_KINDS+=("$kind")
+        [[ "$idx" =~ ^[0-9]+$ ]] || continue
+        if [[ ! "$kind" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+          ((bad++)) || _bfv_note "$rel names an issue kind that is not a lowercase id (^[a-z0-9][a-z0-9-]*\$); that kind is skipped."
+          continue
+        fi
+        [[ -n "${_BFV_KIND_HEADS[$kind]+x}" ]] || _BFV_KINDS+=("$kind")
         _BFV_KIND_HEADS[$kind]+="${line#*$'\t'}"$'\n'
       done <<<"$__bfv_k"
       _BFV_ISSUE_SRC="$key in $rel"
