@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for adherence-experiment.sh.
-#
-# WHAT IS ACTUALLY UNDER TEST. This harness produces a NUMBER that a published
-# document (adherence-results.md) reasons from, so the defect that matters is
-# not a crash, it is a number that looks like a measurement and is not one. The
-# suite therefore drives the harness through a STUB CLI that produces a known
-# output per trial and asserts the reported cell, in both directions: a
-# compliant trial must score 1, and a non-compliant trial must score 0. A
-# scoring rule that can only ever say 1 passes a one-directional suite and
-# still reports a constant as a result.
-#
-# The stub is what makes that possible. The real CLI is a live model and cannot
-# be asked for a controlled non-compliant answer, so every case here is
-# deterministic and nothing is skipped.
-#
 # fixture-isolation-scope: the harness under test builds git fixtures, so this
 # suite clears the inherited git environment itself rather than sourcing a
 # harness, keeping the plugin self-contained outside this marketplace.
@@ -34,45 +19,6 @@ assert_lacks() {
 SANDBOX="$(mktemp -d)"
 trap 'rm -rf "$SANDBOX"' EXIT
 
-# ---------------------------------------------------------------------------
-# The stub CLI.
-#
-# Stands in for the Claude Code CLI. Each invocation consumes the next line of
-# a plan file, so the suite decides exactly what every trial "produces" and in
-# what order. Trial order is control then treatment per round, which is what
-# lets a plan line be mapped back to one reported cell.
-#
-# Directives:
-#   compliant       sealed class, leading-underscore field
-#   bare            neither
-#   sealed-only     sealed class, plain field name
-#   underscore-only unsealed class, leading-underscore field
-#   noop            succeeds and writes nothing
-#   crash           exits non-zero without writing
-#
-# Three more exist for the C# shapes that decide whether the scoring scanner
-# credits a field belonging to a DIFFERENT class. Each is something a model can
-# plausibly write for this task, and each would score wrong under a naive
-# whole-file or run-to-end-of-file search:
-#   primary-first   a body-less primary-constructor InvoiceTotal, PREPENDED so
-#                   the seeded InvoiceLine and its `_unitPrice` follow it
-#   brace-in-string a plain-named field, plus a string literal holding a lone
-#                   `{`, plus a trailing class with an underscore field
-#   comment-decl    a comment between the declaration and its opening brace
-#
-# Three more separate a criterion being MET from a token merely being present.
-# Each is a near miss: the right characters in the wrong construct.
-#   decoy-class     `InvoiceTotals`, not the class the task named. `InvoiceTotal`
-#                   is a prefix of it, so an unanchored match scores it compliant
-#   auto-property   `private decimal _total { get; set; }`. A property, not the
-#                   field the convention is about
-#   expr-bodied     a `_Total => x` property and a `_GetTotal() => x` method.
-#                   Underscore names, still no field
-#
-# Every other writing directive APPENDS. That is deliberate: an appending stub
-# makes a missing per-trial reset visible, because trial N would then still see
-# trial N-1's class.
-# ---------------------------------------------------------------------------
 STUB="$SANDBOX/stub-claude"
 cat >"$STUB" <<'STUB_EOF'
 #!/usr/bin/env bash
@@ -183,8 +129,6 @@ PLAN="$SANDBOX/plan"
 STATE="$SANDBOX/state"
 export STUB_PLAN="$PLAN" STUB_STATE="$STATE"
 
-# Run the harness against the stub with a fresh plan. Each argument is one
-# directive, consumed in invocation order.
 run_with_plan() {
   local trials="$1" filler="$2"
   shift 2
@@ -204,11 +148,6 @@ run_with_plan() {
 row() { printf '%s\t%s\t%s\t%s\t%s' "$@"; }
 result_row() { printf 'RESULT\t%s\t%s\t%s\t%s\t%s' "$@"; }
 
-# ---------------------------------------------------------------------------
-# Usage and argument validation
-# ---------------------------------------------------------------------------
-# Every rejected argument list is one exit status, and the status has to be
-# read from the harness run itself, not from a later command.
 assert_usage_error() {
   local desc="$1"
   shift
@@ -219,8 +158,6 @@ assert_usage_error() {
 out="$(bash "$SCRIPT" --help)"
 assert_eq "--help exits 0" "0" "$?"
 assert_contains "--help prints the usage banner" "$out" "adherence-experiment.sh"
-# adherence-results.md documents a re-run as `--trials 8 --filler 120`, so the
-# banner has to admit the flag exists.
 assert_contains "--help documents --filler" "$out" "--filler"
 
 assert_usage_error "an unknown argument is a usage error" --bogus
@@ -281,16 +218,11 @@ assert_contains "the rule carries the identical convention text" "$rule_body" \
 assert_contains "the rule carries the sealed clause verbatim" "$rule_body" 'declared `sealed`'
 assert_contains "the rule carries the underscore clause verbatim" "$rule_body" '_camelCase'
 
-# Filler volume must be identical, or the arms differ in more than delivery and
-# the comparison is confounded. --filler 3 means three sections per half, two
-# halves per arm.
 assert_eq "both arms get identical filler volume (control)" \
   "6" "$(grep -c '^## Repository practice ' "$control_agents" | tr -d ' ')"
 assert_eq "both arms get identical filler volume (treatment)" \
   "6" "$(grep -c '^## Repository practice ' "$treatment_agents" | tr -d ' ')"
 
-# The task edits an EXISTING .cs file; that is what loads the rule before the edit.
-# The seed must be present and byte-identical in both arms.
 if [[ -f "$kept/control/src/Billing.cs" ]] &&
   cmp -s "$kept/control/src/Billing.cs" "$kept/treatment/src/Billing.cs"; then
   pass "both arms seed the same existing .cs file for the edit task"
@@ -299,7 +231,6 @@ else
     "identical Billing.cs in both arms" "differ or missing"
 fi
 
-# The per-trial reset is a git checkout, so each arm must be a committed repo.
 for arm in control treatment; do
   dirty="$(git -C "$kept/$arm" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
   assert_eq "the $arm arm is a committed git repo (reset can work)" "0" "$dirty"
@@ -329,80 +260,42 @@ assert_contains "sealed without the underscore scores 1/0, not both" "$out" \
 assert_contains "the underscore without sealed scores 0/1, not both" "$out" \
   "$(row treatment 1 0 1 0)"
 
-# The sharpest regression. The seeded Billing.cs already declares
-# `private readonly decimal _unitPrice`, so a whole-file underscore search
-# reports compliance for a trial that produced nothing at all, and the
-# criterion becomes a constant that no run can fail.
 out="$(run_with_plan 1 2 noop noop)"
 assert_contains "a trial that writes nothing scores zero (control)" "$out" \
   "$(row control 1 0 0 0)"
 assert_contains "a trial that writes nothing scores zero (treatment)" "$out" \
   "$(row treatment 1 0 0 0)"
 
-# ---------------------------------------------------------------------------
-# The underscore criterion must never credit a field from ANOTHER class
-#
-# Both shapes below defeat a scanner that runs from the InvoiceTotal
-# declaration to end of file, and both are ordinary C#.
-# ---------------------------------------------------------------------------
 out="$(run_with_plan 1 2 comment-decl primary-first)"
-# A comment between the declaration and its brace must not be mistaken for a
-# missing body: this class IS compliant and has to score as such.
 assert_contains "a comment before the opening brace does not lose the body" "$out" \
   "$(row control 1 1 1 1)"
-# A body-less primary constructor declares no field at all. The seeded
-# InvoiceLine that now follows it declares `_unitPrice`, which is not the
-# task's field and must not be credited.
 assert_contains "a body-less class is not credited with a later class's field" "$out" \
   "$(row treatment 1 1 0 0)"
 
-# A lone `{` inside a string literal is data, not structure. Counting it
-# desynchronises the brace depth, the scan overruns the real closing brace, and
-# the trailing class's `_shouldNotCount` is credited to InvoiceTotal.
 out="$(run_with_plan 1 2 brace-in-string noop)"
 assert_contains "a brace inside a string literal does not leak the next class in" \
   "$out" "$(row control 1 1 0 0)"
 
-# ---------------------------------------------------------------------------
-# Near misses: the right characters in the wrong construct
-#
-# Each of these scores full compliance under a match that is loose in one
-# specific way, and each is something a model actually writes.
-# ---------------------------------------------------------------------------
-# `InvoiceTotal` is a prefix of `InvoiceTotals`, so an unanchored class match
-# credits a trial that produced a differently named class, on both criteria.
 out="$(run_with_plan 1 2 decoy-class auto-property)"
 assert_contains "a class whose name merely STARTS with InvoiceTotal scores nothing" \
   "$out" "$(row control 1 0 0 0)"
-# The convention is about FIELD naming. An auto-property carrying the same
-# underscore name does not satisfy it.
 assert_contains "an underscore auto-property is not an underscore field" "$out" \
   "$(row treatment 1 1 0 0)"
 
-# Nor does an expression-bodied property or an underscore-named private method.
 out="$(run_with_plan 1 2 expr-bodied noop)"
 assert_contains "an expression-bodied member is not an underscore field" "$out" \
   "$(row control 1 1 0 0)"
 
-# ---------------------------------------------------------------------------
-# Per-trial isolation, error rows, and aggregation
-#
-# Plan: control-1 compliant, treatment-1 crash, control-2 bare,
-# treatment-2 compliant.
-# ---------------------------------------------------------------------------
 out="$(run_with_plan 2 2 compliant crash bare compliant)"
 assert_eq "a run with a failed trial still exits 0" "0" "$?"
 assert_contains "round 1 control scores compliant" "$out" "$(row control 1 1 1 1)"
 assert_contains "a failed trial is reported as an ERROR row" "$out" \
   "$(printf 'treatment\t1\t-\t-\tERROR')"
 
-# Without the per-trial `git checkout` reset, round 2 would still see round 1's
-# appended sealed class and score 1 for work it did not do.
 assert_contains "each trial starts from a reset tree, not the last trial's edit" \
   "$out" "$(row control 2 0 0 0)"
 assert_contains "round 2 treatment scores compliant" "$out" "$(row treatment 2 1 1 1)"
 
-# n counts SCORED trials, so the crashed trial must not inflate the denominator.
 assert_contains "the control arm tallies both of its scored trials" "$out" \
   "$(result_row control 2 1 1 1)"
 assert_contains "a crashed trial is excluded from the arm's n" "$out" \

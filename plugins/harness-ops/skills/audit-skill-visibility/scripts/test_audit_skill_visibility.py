@@ -91,7 +91,6 @@ class HorizonClampTest(unittest.TestCase):
                 "jsonl": now - timedelta(days=1),
             },
         )
-        # Narrowest == most recent start == the least we can see back to.
         self.assertEqual(
             model["observed_horizon"], (now - timedelta(days=1)).isoformat()
         )
@@ -260,8 +259,6 @@ class ReachabilityTest(unittest.TestCase):
         reach = self._row(_malformed=True)
         self.assertEqual(reach["value"], "misconfigured")
         self.assertIn("malformed-frontmatter", reach["causes"])
-        # The remedy must not read as "delete this skill" -- several silent
-        # causes look exactly like disuse and are actually fixable.
         self.assertNotRegex(reach["remedy"].lower(), r"delete|remove")
 
     def test_missing_description_is_misconfigured(self):
@@ -351,12 +348,6 @@ class ReachabilityTest(unittest.TestCase):
         reach = self._classify_one(entry)["skills"][0]["reachability"]
         self.assertEqual(reach["value"], "misconfigured")
 
-    # --- enabledPlugins, end to end through the installed collector ---------
-    #
-    # Each case builds its settings scopes and a one-plugin install in a
-    # temporary tree and reads them through the same `settings_layers` walk
-    # the listing keys use, so the precedence under test is the reader's, not
-    # a hand-built layer list. Nothing here touches the real ~/.claude.
 
     _NO_KEY = object()
 
@@ -443,9 +434,6 @@ class ReachabilityTest(unittest.TestCase):
             plugins_dir, project_root, engine.merge_enabled_plugins(layers)
         )
         self.assertEqual([e["qualified_name"] for e in denominator], ["alpha:one"])
-        # The enablement answer as the collector resolved it. A hidden row
-        # carries it as reachability evidence; a reachable row's evidence is
-        # its frontmatter, so the default tests read the answer from here.
         self.enablement = {
             "value": denominator[0]["plugin_enabled"],
             "evidence": denominator[0]["plugin_enabled_evidence"],
@@ -911,20 +899,12 @@ class BudgetArithmeticTest(unittest.TestCase):
         self.assertEqual(listing["verdict"], "fit-unconfirmed")
 
     def test_overflow_is_positive_and_exact_when_demand_exceeds(self):
-        # 10 skills x 1000 chars = 10_000 demand against an 8_000 budget. The
-        # rendered listing adds each `- a:N: ` (3 + 4) and 9 newlines:
-        # 10 x 1007 + 9 = 10_079, so 2_079 over.
         cfg = engine.ListingConfig(context_window_tokens=200_000)
         listing = engine.compute_listing(_fleet(), cfg)
         self.assertEqual(listing["demand_chars"], 10_000)
         self.assertEqual(listing["overflow_chars"], 2_079)
         self.assertEqual(listing["verdict"], "overflowing")
 
-    # --- Settings scopes -----------------------------------------------------
-    #
-    # The two listing keys are read from the same scopes the product merges,
-    # per key, user < project < local < flag < policy. Every test here builds
-    # its scopes in a temporary tree and never touches the real ~/.claude.
 
     @staticmethod
     def _managed_unreadable():
@@ -978,7 +958,6 @@ class BudgetArithmeticTest(unittest.TestCase):
         row = merged["skillListingMaxDescChars"]
         self.assertEqual(row["value"], 300)
         self.assertTrue(row["provenance"].endswith("settings.local.json"))
-        # The other key is untouched by scopes that do not define it.
         self.assertEqual(merged["skillListingBudgetFraction"]["provenance"], "default")
 
     def test_a_rejected_file_contributes_no_listing_settings(self):
@@ -1027,7 +1006,6 @@ class BudgetArithmeticTest(unittest.TestCase):
         self.assertEqual(flag[0]["status"], "unread")
         self.assertEqual(flag[0]["path"], "--settings")
         self.assertIn("not observable", flag[0]["note"])
-        # It sits between local and policy, the documented precedence.
         order = [layer["scope"] for layer in layers]
         self.assertLess(order.index("local"), order.index("flag"))
         self.assertLess(order.index("flag"), order.index("policy"))
@@ -1073,7 +1051,6 @@ class BudgetArithmeticTest(unittest.TestCase):
                 os.path.join(dropin, "20-second.json"),
                 {"skillListingBudgetFraction": 0.07},
             )
-            # Hidden files are ignored per the documented merge.
             _write_json(
                 os.path.join(dropin, ".hidden.json"),
                 {"skillListingBudgetFraction": 0.99},
@@ -1134,14 +1111,11 @@ class BudgetArithmeticTest(unittest.TestCase):
         for row in listing["band"]:
             for key in ("budget_chars", "overflow_chars", "verdict", "starved_count"):
                 self.assertIn(key, row)
-        # The top level names no row as this session: numbers are nulled.
         self.assertEqual(listing["budget_basis"], "band")
         self.assertIsNone(listing["budget_chars"])
         self.assertIsNone(listing["overflow_chars"])
         self.assertIsNone(listing["starved_count"])
         self.assertIsNone(listing["label"])
-        # 10 x 1000 = 10,000 demand: overflows at 200k (8,000 and 6,000) and
-        # fits at 1M (40,000 and 30,000), so the verdict is band-dependent.
         self.assertEqual(listing["verdict"], "band-dependent")
         self.assertEqual(
             [row["verdict"] for row in listing["band"]],
@@ -1468,7 +1442,6 @@ class ExemptionTest(unittest.TestCase):
             {"description": "x" * 1000, "disable_model_invocation": True}
         )
         self.assertEqual(listing["demand_chars"], 0)
-        # Freed bytes are NOT returned to the pool -- the budget is unchanged.
         self.assertEqual(listing["budget_chars"], 8_000)
 
     def test_exempt_classes_are_labelled_not_silently_dropped(self):  # identifier, not prose # spellchecker:disable-line
@@ -1545,9 +1518,6 @@ class RenderTablesTest(unittest.TestCase):
         self.assertIn("Nothing to fix from this run.", md)
 
     def test_length_table_ranks_by_demand_when_overflowing_even_unscored(self):
-        # Nine 1,000-character descriptions overflow the 8,000-character budget
-        # with no usage anywhere, so the per-skill starvation claim is withheld
-        # while the length table, which is arithmetic, still renders.
         entries = [self._described(f"p:s{i}", 1000 + i) for i in range(9)]
         model = self._model(entries)
         self.assertEqual(model["listing"]["score_basis"], "unscored")
@@ -1577,7 +1547,6 @@ class RenderTablesTest(unittest.TestCase):
         hidden["plugin_enabled"] = False
         hidden["plugin_enabled_evidence"] = "/repo/.claude/settings.json"
         md = engine._render_markdown(self._model([hidden, _skill("a:one")]))
-        # Nothing is withheld in this run, so the section runs to the end.
         actions = md[md.index("## Next actions") :]
         self.assertIn("Fix the frontmatter of the 1 misconfigured skill", actions)
         self.assertIn("enable the hidden plugins", actions)
@@ -1646,11 +1615,6 @@ class RenderTablesTest(unittest.TestCase):
         )
 
     def test_length_table_ranks_by_source_length_above_the_cap(self):
-        # Six 2,000-character descriptions each charge the 1,536 cap and
-        # overflow the 8,000-character budget. A 5,000-character one charges
-        # the same 1,536, so ranking on the charge would order it by name;
-        # it is the one to trim first, so the source length orders the table
-        # and the charge is shown beside it.
         entries = [self._described(f"p:s{i}", 2000) for i in range(6)]
         entries.append(self._described("p:big", 5000))
         model = self._axes_model(entries)
@@ -1666,9 +1630,6 @@ class RenderTablesTest(unittest.TestCase):
         self.assertIn("at most 1,536 characters", listing)
 
     def test_next_actions_name_the_effective_budget_control(self):
-        # The fraction is the documented control, but not always the effective
-        # one: an env override ignores it, a pin changes only this report, and
-        # a managed-policy value outranks every scope a user edits.
         entries = [self._described(f"p:s{i}", 1000) for i in range(9)]
 
         env_model = self._axes_model(
@@ -1729,7 +1690,6 @@ class InferentialBandTest(unittest.TestCase):
         self.assertTrue(all(s["confidence"] == "inferential" for s in competing))
         bands = [s["band"] for s in competing]
         self.assertEqual(sorted(bands), list(range(1, len(competing) + 1)))
-        # Lowest usage_score ranks first == most likely starved.
         first = min(competing, key=lambda s: s["band"])
         self.assertEqual(first["qualified_name"], "a:0")
 
@@ -1784,12 +1744,9 @@ class ListingScoreTest(unittest.TestCase):
         self.assertEqual(listing["score_basis"], "unscored")
         competing = [s for s in listing["skills"] if s["eligibility"] == "competing"]
         self.assertTrue(all(s["confidence"] == "unscored" for s in competing))
-        # The per-row claim is withheld with its reason, never published as a
-        # ranking: no verdict names a row, and no row carries a band.
         self.assertTrue(all(s["verdict"] == "withheld" for s in competing))
         self.assertTrue(all(s["reason"] == "unscored" for s in competing))
         self.assertTrue(all(s["band"] is None for s in competing))
-        # The arithmetic is untouched: the same three rows cannot fit.
         self.assertEqual(listing["overflow_chars"], 2_079)
         self.assertEqual(listing["starved_count"], 3)
 
@@ -1851,12 +1808,10 @@ class ListingScoreTest(unittest.TestCase):
         self.assertEqual(listing["score_basis"], "unscored")
         self.assertTrue(engine.starvation_withheld(listing))
         by_band = listing["skills"][0]["by_band"]
-        # 10 x 1000 overflows the 200k row and fits the 1M one.
         self.assertEqual(by_band["200k/4"], "withheld")
         self.assertEqual(by_band["1M/4"], "fit-unconfirmed")
         self.assertEqual(listing["skills"][0]["reason"], "unscored")
         self.assertIsNone(listing["skills"][0]["band"])
-        # The counts the band reports per row are untouched.
         starved = {r["label"]: r["starved_count"] for r in listing["band"]}
         self.assertEqual(starved, {"200k/4": 3, "1M/4": 0})
 
@@ -1864,7 +1819,6 @@ class ListingScoreTest(unittest.TestCase):
         """Regression: the band used to sort on a field nothing populated."""
         now = _utc(2026, 8, 31)
         entries = _fleet()
-        # Counts ascend with the index, so the band must descend with it.
         events = [
             {"skill": f"a:{i}", "ts": now, "source": "native", "count": (i + 1) * 10}
             for i in range(10)
@@ -1881,7 +1835,6 @@ class ListingScoreTest(unittest.TestCase):
         bands = {
             row["qualified_name"]: row["starvation"]["band"] for row in model["skills"]
         }
-        # Least-scored is band 1, i.e. first to lose its description.
         self.assertEqual(bands["a:0"], 1)
         self.assertEqual(bands["a:9"], 10)
 
@@ -1912,7 +1865,6 @@ class ScoreBasisScopeTest(unittest.TestCase):
         listing = engine.compute_listing(
             entries,
             engine.ListingConfig(context_window_tokens=200_000),
-            # Only the exempt row has any usage at all.
             {"a:manual": 500.0},
         )
         self.assertEqual(listing["score_basis"], "unscored")
@@ -2004,9 +1956,7 @@ class BareUsageKeyTest(unittest.TestCase):
             listing_config=engine.ListingConfig(context_window_tokens=200_000),
         )
         rows = {r["qualified_name"]: r for r in model["skills"]}
-        # The count reaches the observation field ...
         self.assertEqual(rows["a:one"]["observation"]["count"], 900)
-        # ... but not the band, because the product's own scorer misses it too.
         self.assertEqual(rows["a:one"]["starvation"]["usage_score"], 0)
         self.assertEqual(model["listing"]["score_basis"], "unscored")
 
@@ -2192,7 +2142,6 @@ class ChurnGitReaderTest(unittest.TestCase):
         self._write("a.md", "one")
         self.run("git", "add", "a.md")
         self.run("git", "commit", "-qm", "first")
-        # Touch the file far into the future, as a fresh clone's mtime would be.
         future = time.time() + 86_400 * 30
         os.utime(f"{self.tmp}/a.md", (future, future))
 
@@ -2285,7 +2234,7 @@ class OverflowConsumptionTest(unittest.TestCase):
                 "qualified_name": f"a:{i}",
                 "frontmatter": {"description": "x" * chars},
                 "plugin_enabled": True,
-                "usage_score": i,  # a:0 least used
+                "usage_score": i,
             }
             for i in range(n)
         ]
@@ -2294,7 +2243,6 @@ class OverflowConsumptionTest(unittest.TestCase):
         )
 
     def test_one_char_overflow_starves_only_the_least_used_row(self):
-        # 8 skills x 1000 chars = 8000 demand against an 8000 budget... push 1 over.
         listing = self._listing(n=8, chars=1001, budget_tokens=200_000)
         self.assertGreater(listing["overflow_chars"], 0)
         starved = [s for s in listing["skills"] if s["verdict"] == "likely-starved"]
@@ -2313,14 +2261,9 @@ class OverflowConsumptionTest(unittest.TestCase):
         subtracting the overflow instead would miss that row entirely.
         """
         listing = self._listing(n=10, chars=1000, budget_tokens=200_000)
-        # The overflow figure answers "does the listing overflow", a different
-        # question from "which entries win": 10 x (3 + 4 + 1000) + 9 rendered
-        # against 8_000. The floor is 10 x 5 + 9 = 59, leaving 7_941 for
-        # grants of 1_002: seven fit, three go.
         self.assertEqual(listing["overflow_chars"], 2_079)
         starved = [s for s in listing["skills"] if s["verdict"] == "likely-starved"]
         self.assertEqual(len(starved), 3)
-        # The three lowest-scored, since nothing here varies in length.
         self.assertEqual(
             sorted(s["qualified_name"] for s in starved), ["a:0", "a:1", "a:2"]
         )
@@ -2338,8 +2281,6 @@ class OverflowConsumptionTest(unittest.TestCase):
         a longer, better-scored one was refused. Description LENGTH is a ranking
         input, which no prose account of this mechanism mentions.
         """
-        # Per-entry demand is capped at max_desc_chars (1536), so the budget is
-        # exhausted with full-cap fillers rather than one giant description.
         entries = [
             {
                 "qualified_name": f"a:fill{i}",
@@ -2349,13 +2290,11 @@ class OverflowConsumptionTest(unittest.TestCase):
             for i in range(5)
         ]
         entries += [
-            # Outscores the cheap row, but cannot fit in what the fillers left.
             {
                 "qualified_name": "a:hog",
                 "frontmatter": {"description": "x" * 1536},
                 "plugin_enabled": True,
             },
-            # Lowest score in the set, but cheap enough to survive the leftovers.
             {
                 "qualified_name": "a:cheap",
                 "frontmatter": {"description": "x" * 200},
@@ -2368,16 +2307,9 @@ class OverflowConsumptionTest(unittest.TestCase):
             entries, engine.ListingConfig(context_window_tokens=200_000), scores
         )
         by_name = {r["qualified_name"]: r for r in listing["skills"]}
-        # The name floor takes 67, leaving 7933. A grant costs the description
-        # plus its `: `, so 5 x 1538 = 7690 granted, leaving 243. a:hog needs
-        # 1538 and is shed; the walk does NOT stop there, and a:cheap needs
-        # only 202, so it is granted from the same leftovers.
         self.assertEqual(by_name["a:hog"]["verdict"], "likely-starved")
         self.assertEqual(by_name["a:cheap"]["verdict"], "likely-retained")
         self.assertEqual(by_name["a:fill0"]["verdict"], "likely-retained")
-        # And the band still ranks by exposure, so the cheap survivor is band 1
-        # even though it was retained. Band and verdict answer different
-        # questions and are allowed to disagree.
         self.assertEqual(by_name["a:cheap"]["band"], 1)
 
     def test_the_same_fleet_unscored_keeps_the_count_and_withholds_the_names(self):
@@ -2397,7 +2329,6 @@ class OverflowConsumptionTest(unittest.TestCase):
         self.assertEqual({s["verdict"] for s in competing}, {"withheld"})
         self.assertEqual({s["reason"] for s in competing}, {"unscored"})
         self.assertEqual({s["band"] for s in competing}, {None})
-        # Every field the row can still stand behind is kept.
         for row in competing:
             self.assertEqual(row["eligibility"], "competing")
             self.assertEqual(row["demand_chars"], 1000)
@@ -2453,8 +2384,8 @@ class PerSourceHorizonTest(unittest.TestCase):
             config=engine.Config(),
             clock=now,
             horizons={
-                "otel": now - timedelta(days=7),  # short retention
-                "native": now - timedelta(days=365),  # long history, saw nothing
+                "otel": now - timedelta(days=7),
+                "native": now - timedelta(days=365),
             },
         )
         row = model["skills"][0]["observation"]
@@ -2476,8 +2407,6 @@ class PerSourceHorizonTest(unittest.TestCase):
                 "native": now - timedelta(days=365),
             },
         )
-        # observed_horizon stays the narrowest: it answers "what is the least
-        # this run can see", which is a different question from per-row backing.
         self.assertEqual(
             model["observed_horizon"], (now - timedelta(days=7)).isoformat()
         )
@@ -2636,7 +2565,6 @@ class ResolveInstalledTest(unittest.TestCase):
             }
         )
         out = engine.resolve_installed(manifest, {}, current_project="/repo")
-        # The older project pin loads; the newer user install is superseded.
         self.assertEqual(out["plugins"][0]["scope"], "project")
         self.assertEqual(out["plugins"][0]["root"], "/c/alpha/1.0.0")
         self.assertEqual(out["superseded"][0]["winner"]["version"], "1.0.0")
@@ -2735,8 +2663,6 @@ class ResolveInstalledTest(unittest.TestCase):
                 ]
             }
         )
-        # No current project, so the project-scope record does not apply and
-        # only the user install can load.
         out = engine.resolve_installed(manifest, {})
         self.assertEqual(out["plugins"][0]["scope"], "user")
         self.assertEqual(out["plugins"][0]["root"], "/c/alpha/1.2.0")
@@ -2859,9 +2785,7 @@ class CollectInstalledTest(unittest.TestCase):
         self.assertEqual(resolution["plugins_resolved"], 1)
         self.assertEqual(resolution["manifest_entries"], 1)
         self.assertEqual([e["qualified_name"] for e in denominator], ["alpha:one"])
-        # Read through the catalog path, NOT the (bogus) cached installPath.
         self.assertEqual(denominator[0]["frontmatter"]["description"], "does a")
-        # No scope was consulted, so nothing names the plugin: not enabled.
         self.assertIs(denominator[0]["plugin_enabled"], False)
         self.assertEqual(
             denominator[0]["plugin_enabled_evidence"], engine.NEVER_ENABLED
@@ -2987,10 +2911,6 @@ class ListingFloorVerdictTest(unittest.TestCase):
     """
 
     def test_demand_that_fits_but_floor_does_not_is_overflowing(self):
-        # Forty 5-character names with 200-character descriptions: demand is
-        # 8,000, exactly the 200k/4/0.01 budget. Rendered: 40 x (5 + 4 + 200)
-        # + 39 newlines = 8,399, so 399 over. Floor: 40 x (5 + 2) + 39 = 319,
-        # leaving 7,681 for grants of 202: 38 fit (7,676), two are shed.
         entries = [_competing(f"p:s{i:02d}", 200) for i in range(40)]
         scores = {f"p:s{i:02d}": 100.0 - i for i in range(40)}
         listing = engine.compute_listing(
@@ -3011,10 +2931,6 @@ class ListingFloorVerdictTest(unittest.TestCase):
         self.assertEqual(starved, ["p:s38", "p:s39"])
 
     def test_the_fit_boundary_is_the_rendered_total(self):
-        # One 3-character name against an 8,000 budget, cap lifted: a
-        # 7,993-character description renders to exactly 8,000 and fits; one
-        # more character overflows by one and is shed, because the grant costs
-        # desc + 2 against the 7,995 the name floor leaves.
         cfg = engine.ListingConfig(context_window_tokens=200_000, max_desc_chars=10_000)
         fits = engine.compute_listing([_competing("p:a", 7_993)], cfg, {"p:a": 1.0})
         over = engine.compute_listing([_competing("p:a", 7_994)], cfg, {"p:a": 1.0})
@@ -3025,8 +2941,6 @@ class ListingFloorVerdictTest(unittest.TestCase):
         self.assertEqual(over["skills"][0]["verdict"], "likely-starved")
 
     def test_a_bundled_entry_counts_toward_the_verdict(self):
-        # Bundled `bun` renders 3 + 4 + 7,000 = 7,007; competing `p:a` renders
-        # 3 + 4 + 990 = 997; one newline. 8,005 against 8,000.
         cfg = engine.ListingConfig(context_window_tokens=200_000, max_desc_chars=10_000)
         bundled = _competing("bun", 7_000, source="bundled")
         listing = engine.compute_listing([bundled, _competing("p:a", 990)], cfg)
@@ -3101,7 +3015,6 @@ class NonPluginSkillTest(unittest.TestCase):
         self.assertEqual(by_name["quiet"]["eligibility"], "exempt-name-only")
         self.assertEqual(by_name["typed"]["eligibility"], "exempt-user-only")
         self.assertEqual(by_name["gone"]["eligibility"], "exempt-hidden")
-        # Listed: `- plain: abcde` (14) and `- quiet` (7), one newline.
         self.assertEqual(listing["listing_chars"], 22)
 
     def test_only_the_signed_in_accounts_synced_skills_are_enumerated(self):
@@ -3176,8 +3089,6 @@ class NonPluginSkillTest(unittest.TestCase):
         )
 
     def test_project_skills_load_from_every_parent_up_to_the_repository(self):
-        # Started in packages/web: the root's skills load too, and a nested
-        # name the root already took is listed under its relative path.
         with tempfile.TemporaryDirectory() as tmp:
             repo = os.path.join(tmp, "repo")
             start = os.path.join(repo, "packages", "web")
@@ -3330,8 +3241,6 @@ class NonPluginSkillTest(unittest.TestCase):
         self.assertEqual(
             by_name["proj"]["starvation"]["eligibility"], "exempt-name-only"
         )
-        # `- alpha:one: does a` (19), `- mine: abc` (11),
-        # `- anthropic-skills:pdf: PDFs` (28), `- proj` (6), three newlines.
         self.assertEqual(listing["listing_chars"], 67)
         self.assertIn("user, project and claude.ai-synced skills", listing["counted"])
 
@@ -3487,9 +3396,6 @@ class ListingCaptureTest(unittest.TestCase):
         self.assertTrue(by_name["anthropic-skills:y"]["name_only"])
 
     def test_unenumerated_entries_count_toward_the_verdict(self):
-        # p:a is enumerated: `- p:a: hello` (12). builtin-x (33) and
-        # anthropic-skills:y (20) come from the capture. Two newlines: 67
-        # against 66.
         model = engine.classify(
             denominator=[
                 {
@@ -3534,16 +3440,12 @@ class ListingCaptureTest(unittest.TestCase):
         self.assertEqual(
             listing["capture"]["observed_name_only"], ["anthropic-skills:y"]
         )
-        # The env override is the only budget row, and it is named for the
-        # variable that set it, not for a window it ignores.
         self.assertEqual(
             listing["capture"]["disagrees"], ["SLASH_COMMAND_TOOL_CHAR_BUDGET"]
         )
         self.assertIn("disagree", engine._render_markdown(model).lower())
 
     def test_every_band_row_that_says_fits_disagrees_with_observed_shedding(self):
-        # The 67-character listing fits every row of the band (the smallest
-        # budget is 6,000), so all four rows SKILL.md names disagree.
         model = engine.classify(
             denominator=[_competing("p:a", 5)],
             events=[],
@@ -3574,8 +3476,6 @@ class ListingCaptureTest(unittest.TestCase):
         self.assertEqual(listing["coverage"], "enumerated-only")
 
     def _fitting_model(self, capture):
-        # `- p:a: hello` is 12 characters against the 8,000 a 200k window at
-        # 4 bytes per token gives: it fits with room to spare either way.
         return engine.classify(
             denominator=[_competing("p:a", 5)],
             events=[],
@@ -3587,8 +3487,6 @@ class ListingCaptureTest(unittest.TestCase):
         )
 
     def test_a_fit_without_a_capture_is_never_reported_as_listing_fits(self):
-        # The built-in entries are uncounted here, so a fit is unconfirmed: no
-        # JSON consumer reading the run or the skill row is told it fits.
         model = self._fitting_model(None)
         self.assertEqual(model["listing"]["verdict"], "fit-unconfirmed")
         self.assertEqual(
@@ -3618,7 +3516,6 @@ class ListingCaptureTest(unittest.TestCase):
         )
 
     def test_a_capture_missing_a_counted_skill_leaves_the_fit_unconfirmed(self):
-        # p:b was not in the captured session, so the capture is of another fleet.
         model = self._fleet_model([_competing("p:a", 5), _competing("p:b", 5)])
         listing = model["listing"]
         self.assertEqual(listing["verdict"], "fit-unconfirmed")
@@ -3628,7 +3525,6 @@ class ListingCaptureTest(unittest.TestCase):
         self.assertIn("does not cover the counted fleet", rendered)
 
     def test_a_capture_longer_than_the_count_leaves_the_fit_unconfirmed(self):
-        # Captured `- p:a: hello` is 12; a 3-character description counts 10.
         model = self._fleet_model([_competing("p:a", 3)])
         self.assertEqual(model["listing"]["verdict"], "fit-unconfirmed")
         self.assertEqual(model["listing"]["capture"]["longer_in_capture"], ["p:a"])
@@ -3664,9 +3560,6 @@ class StaleCaptureEntryTest(unittest.TestCase):
         )
 
     def test_an_uninstalled_plugins_entry_is_not_charged(self):
-        # `- p:a: xxxxx` (12) is the whole fleet. `gone:old` (12 + 20 = 32)
-        # belonged to a plugin uninstalled since the capture; charging it made
-        # 12 + 32 + 1 = 45 against 20 read as overflowing.
         capture = _capture_of("- p:a: " + "x" * 5, "- gone:old: " + "y" * 20)
         listing = self._model([_competing("p:a", 5)], capture, 20)["listing"]
         self.assertEqual(listing["listing_chars"], 12)
@@ -3675,14 +3568,11 @@ class StaleCaptureEntryTest(unittest.TestCase):
         self.assertEqual(listing["capture"]["unenumerated_names"], [])
 
     def test_counted_entries_that_overflow_alone_stay_overflowing(self):
-        # `- p:a: ` + 30 is 37 against 20 with no capture charge at all.
         capture = _capture_of("- p:a: " + "x" * 30, "- gone:old")
         listing = self._model([_competing("p:a", 30)], capture, 20)["listing"]
         self.assertEqual(listing["verdict"], "overflowing")
 
     def test_an_overflow_that_needs_a_mismatched_capture_is_unconfirmed(self):
-        # 12 (p:a) + 33 (`- builtin-x: ` + 20) + 1 = 46 against 40: over only
-        # because of the capture's charge, and the capture is of another fleet.
         capture = _capture_of(
             "- p:a: " + "x" * 5, "- builtin-x: " + "z" * 20, "- gone:old"
         )
@@ -3726,9 +3616,6 @@ class StaleCaptureEntryTest(unittest.TestCase):
         self.assertEqual(listing["capture"]["unenumerated_names"], [])
 
     def test_a_checkout_charges_names_outside_its_own_plugins(self):
-        # A checkout walks only its own plugins: another marketplace's plugin
-        # and a nested project skill are fixed costs, while a skill gone from
-        # a checkout plugin is stale.
         capture = _capture_of(
             "- p:a: " + "x" * 5, "- other:b", "- sub/dir:c", "- p:gone"
         )

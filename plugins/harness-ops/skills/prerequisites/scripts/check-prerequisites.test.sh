@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# The fleet table reports a declared dependency present or missing and never installs.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG SESSION_SETTINGS_FILE
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -73,9 +72,6 @@ rc=$?
 expect_eq "a manifest in the retired shape exits 2" 2 "$rc"
 expect_has "the schema failure names the plugin" 'plugin-bad: prerequisites.json fails the schema' "$out"
 
-# Discovery with no roots. A plugin enabled only in the project's
-# settings.local.json is read; a read state with nothing enabled is an empty
-# fleet and never falls back to scanning a repository.
 CONFIG="$WORK/config"
 PROJECT="$WORK/project"
 mkdir -p "$CONFIG/plugins" "$PROJECT/.claude"
@@ -83,8 +79,6 @@ manifest "$WORK/plugin-b" plugin-b "$(entry absent-b required)"
 printf '{"plugins":{"plugin-b@m":[{"scope":"local","projectPath":"%s","installPath":"%s"}]}}\n' "$PROJECT" "$WORK/plugin-b" >"$CONFIG/plugins/installed_plugins.json"
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":false}}' >"$CONFIG/settings.json"
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
-# NOCLAUDE_PATH holds only git, so no claude resolves and the settings fallback
-# runs; STUB_PATH puts a stub claude ahead of it.
 mkdir -p "$WORK/tools" "$WORK/stub"
 ln -s "$(command -v git)" "$WORK/tools/git"
 NOCLAUDE_PATH="$WORK/tools"
@@ -103,7 +97,6 @@ rc=$?
 expect_eq "empty enabled fleet exits 0" 0 "$rc"
 expect_has "empty enabled fleet prints an empty table" 'missing=0 present=0' "$out"
 
-# With no settings or install state at all, the repository's plugins/ are scanned.
 mkdir -p "$WORK/emptyconfig"
 out="$(cd "$WORK/repo" && PATH="$NOCLAUDE_PATH" CLAUDE_CONFIG_DIR="$WORK/emptyconfig" CLAUDE_PROJECT_DIR="" "$NODE" "$SCRIPT")"
 rc=$?
@@ -126,8 +119,6 @@ out="$(cd "$PROJECT" && PATH="$NOCLAUDE_PATH" CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE
 expect_has "fallback skips the whole file when any value is non-Boolean" 'missing=0 present=0' "$out"
 rm "$PROJECT/.claude/settings.local.json"
 
-# With claude on PATH the enabled set comes from `claude plugin list --json`.
-# The stub prints $STUB_LIST, so each case crafts the rows it needs.
 cat >"$WORK/stub/claude" <<'EOF'
 #!/bin/sh
 [ "$1 $2 $3" = "plugin list --json" ] || exit 64
@@ -173,7 +164,6 @@ out="$(cd "$PROJECT" && PATH="$STUB_PATH" STUB_LIST="$listing" SESSION_SETTINGS_
 expect_has "session: a plugin the session file turns off is not read" 'missing=0 present=0' "$out"
 out="$(cd "$PROJECT" && PATH="$STUB_PATH" STUB_LIST="$listing" SESSION_SETTINGS_FILE="$WORK/absent.json" CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" "$NODE" "$SCRIPT")"
 expect_has "session: a missing session file adds nothing" $'plugin-b\tabsent-b\tcli\trequired\tmissing' "$out"
-# A managed settings file wins over the session file: managed off, session on, not read.
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$WORK/session.json"
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":false}}' >"$WORK/managed.json"
 out="$(cd "$PROJECT" && PATH="$NOCLAUDE_PATH" SESSION_SETTINGS_FILE="$WORK/session.json" CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" MANAGED="$WORK/managed.json" CHECKER="$SCRIPT" "$NODE" --input-type=module -e '
@@ -183,7 +173,6 @@ process.exitCode = run([], { managed: [process.env.MANAGED] });
 expect_has "session: a managed file that turns the plugin off wins over the session file" 'missing=0 present=0' "$out"
 rm "$PROJECT/.claude/settings.local.json"
 
-# Unparsable claude output is an error, not a settings fallback.
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
 out="$(run_stub "not json" 2>&1)"
 rc=$?
@@ -242,8 +231,6 @@ out="$("$NODE" "$SCRIPT" --plugin-root 2>&1)"
 rc=$?
 expect_eq "--plugin-root without a directory exits 2" 2 "$rc"
 
-# The reader depends on node alone: no python in the script, and a PATH without
-# python still produces the table.
 expect_eq "the script names no python" 0 "$(grep -ci python "$SCRIPT")"
 out="$(PATH="$WORK/tools" "$NODE" "$SCRIPT" --plugin-root "$WORK/plugin-o")"
 expect_has "the table prints with only node and git available" 'plugin-o' "$out"

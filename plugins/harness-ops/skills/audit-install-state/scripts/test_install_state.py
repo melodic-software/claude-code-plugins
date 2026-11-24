@@ -47,7 +47,6 @@ def build_tree(root: Path) -> None:
     (root / "sessions" / "5052.json").write_text("{}", encoding="utf-8")
 
     (root / "ide").mkdir()
-    # Body deliberately carries an authToken so a test can prove it is not read.
     (root / "ide" / "22580.lock").write_text(
         '{"pid": 32324, "authToken": "SHOULD-NEVER-BE-READ"}', encoding="utf-8"
     )
@@ -299,7 +298,6 @@ class TestRetention(unittest.TestCase):
             ids = [f["id"] for f in retention["findings"]]
             self.assertNotIn("settings-unparsable-pauses-sweep", ids)
             self.assertEqual(retention["effective_days"], 7)
-            # The parse failure itself is still on the record.
             self.assertTrue(retention["user_settings_parse"].startswith("failed:"))
 
     def test_invalid_managed_value_keeps_the_sweep_paused_finding(self) -> None:
@@ -785,7 +783,7 @@ class TestEnvironmentState(unittest.TestCase):
     def test_a_local_tree_with_session_env_and_managed_caches_reads_local(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            build_tree(root)  # carries session-env/
+            build_tree(root)
             (root / "remote-settings.json").write_text("{}", encoding="utf-8")
             (root / "policy-limits.json").write_text("{}", encoding="utf-8")
             state = engine.environment_state(root, own_config_dir=True, env={})
@@ -974,7 +972,7 @@ class TestInUseScheme(unittest.TestCase):
             marker = next(r for r in rows if r["pid"] == 4242)
             self.assertEqual(marker["count"], 3)
             self.assertTrue(marker["self_held"])
-            self.assertEqual(len(rows), 2)  # 4242 markers + sessions/5052.json
+            self.assertEqual(len(rows), 2)
             session = next(r for r in rows if r["pid"] == 5052)
             self.assertFalse(session["self_held"])
 
