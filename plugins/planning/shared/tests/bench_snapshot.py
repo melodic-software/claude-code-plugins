@@ -42,7 +42,7 @@ def seed(app):
         _, _, out = call(port, "POST", "/api/join", {"name": f"Person {i}", "device": "computer", "key": app.session.state["session"]["guestKey"]}, ip(i))
         people.append({"X-Session-Secret": out["secret"], **ip(i)})
     real = app.session.clock
-    t = [real() - MESSAGES * 1.1 - 100]  # the past, so every person's write limit has passed when the run starts
+    t = [real() - MESSAGES * 1.1 - 100]
     app.session.clock = lambda: t[0]
     pids = [app.session.resolve(secret=h["X-Session-Secret"]) for h in people]
     for n in range(MESSAGES):
