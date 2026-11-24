@@ -40,7 +40,7 @@ name: Maintenance Measure Skill Edit
 # which refuses this caller on any event but workflow_dispatch and any actor
 # or re-runner but a listed human. No job holds a merge right, checks or
 # statuses write, or workflows. Every pass and the proposal run on the
-# maintenance role's API key alone, never on a subscription token
+# evals role's API key alone, never on a subscription token
 # (docs/review/evals.md); a stopped key ends the run. How to stop it: set the
 # organization or repository lanes kill-switch variable to anything but
 # "false"; every job that spends or writes checks it first, and the broker
@@ -244,7 +244,7 @@ jobs:
       pass: a
       base-sha: ${{ needs.check-inputs.outputs.base-sha }}
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+      EVALS_CLAUDE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
 
   measure-baseline-again:
     name: Measure Baseline Again
@@ -261,7 +261,7 @@ jobs:
       pass: a2
       base-sha: ${{ needs.check-inputs.outputs.base-sha }}
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+      EVALS_CLAUDE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
 
   check-key-credit:
     name: Check Key Credit
@@ -282,7 +282,7 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: start
-          role: maintenance
+          role: evals
           key-job: propose
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
@@ -298,7 +298,7 @@ jobs:
           outcome: skipped
           lane: maintenance-measure-skill-edit
           lane-id: maintenance-measure-skill-edit
-          credential: MAINTENANCE_CLAUDE_API_KEY
+          credential: EVALS_CLAUDE_API_KEY
           known-failure-class: credit-stop
           handoff: "false"
 
@@ -460,8 +460,8 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: key
-          role: maintenance
-          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
+          role: evals
+          credential-set: ${{ secrets.EVALS_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-key-credit.outputs.next-leg }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
@@ -485,10 +485,10 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: maintenance-measure-skill-edit
-          role: maintenance
+          role: evals
           prompt-file: ${{ runner.temp }}/hill-climb-prompt.md
           preamble: You run unattended as the eval hill-climb CI lane. No one can answer a question during this run, and you change nothing.
-          api-key: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+          api-key: ${{ secrets.EVALS_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
@@ -531,7 +531,7 @@ jobs:
       # written out so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-MAINTENANCE_CLAUDE_API_KEY' && steps.run-key.outputs.handoff-reason == 'credit-stop'
+        if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-EVALS_CLAUDE_API_KEY' && steps.run-key.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -554,7 +554,7 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@v7
         with:
-          name: key-credit-stop-MAINTENANCE_CLAUDE_API_KEY
+          name: key-credit-stop-EVALS_CLAUDE_API_KEY
           overwrite: true
           path: ${{ runner.temp }}/key-credit-stop/run-id
           if-no-files-found: error
@@ -583,7 +583,7 @@ jobs:
         env:
           REASON: ${{ steps.run-key.outputs.handoff-reason || (needs.check-key-credit.outputs.next-leg == 'subscription' && 'credit-stop') || 'no-key' }}
         run: |
-          echo "::error::The API key stopped ($REASON), so no edit was proposed; evals never fall back to subscription tokens (docs/review/evals.md)"
+          echo "::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped ($REASON), so no edit was proposed; a hill climb runs on the API key alone, so reassign the EVALS role through the account rotation tool (docs/review/evals.md)"
           exit 1
 
       # Read from the launcher's file only after the leg's init message reports
@@ -738,7 +738,7 @@ jobs:
       edit-artifact-id: ${{ needs.scan.outputs.artifact-id }}
       edit-sha256: ${{ needs.scan.outputs.sha256 }}
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+      EVALS_CLAUDE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
 
   # No model, no secret. Names the gate that stopped the run, with its
   # numbers; on a win, keeps the edit and each pass's results for 3 days.
