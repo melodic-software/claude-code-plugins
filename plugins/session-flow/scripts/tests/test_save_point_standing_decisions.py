@@ -390,19 +390,6 @@ def test_amend_appends_to_an_existing_index_and_keeps_its_other_lines(tmp_path):
     assert validate(third).returncode == 0, out(validate(third))
 
 
-def test_trailing_whitespace_never_duplicates_an_index_line(tmp_path):
-    first, _, third = three_hops(tmp_path)
-    index = index_file(third, first)
-    lines = index.read_text(encoding="utf-8").split("\n")
-    at = next(i for i, line in enumerate(lines) if line.startswith("- Retired"))
-    lines[at] += "  "
-    index.write_text("\n".join(lines), encoding="utf-8")
-    fourth = role_hop(tmp_path / "repo", tmp_path, third, k=4, flag=False)
-    held = pointer_lines(index.read_text(encoding="utf-8"))
-    assert len({line.rstrip() for line in held}) == len(held) == 2
-    assert validate(fourth).returncode == 0, out(validate(fourth))
-
-
 def test_amend_leaves_no_index_when_the_hot_file_write_fails(tmp_path, monkeypatch):
     path = role_hop(make_repo(tmp_path), tmp_path)
     index = index_file(path)

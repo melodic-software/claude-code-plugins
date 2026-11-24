@@ -2164,7 +2164,7 @@ def _split_index(
 ) -> tuple[list[str], str | None]:
     """Move each retire pointer line out of Review before you continue into
     the index's text: the prior text kept verbatim, then each pointer it does
-    not hold (trailing whitespace ignored) appended once, leaving one index
+    not hold appended once, verbatim, leaving one index
     line where the first pointer stood. Returns the hot lines unchanged and
     `prior` when neither holds a pointer."""
     content = [_line_parts(line)[0] for line in hot]
@@ -2184,10 +2184,10 @@ def _split_index(
         if content[i].startswith(INDEX_PREFIX)
         or (content[i].startswith(POINTER_PREFIX) and _is_pointer(content[i]))
     ]
-    known = {line.rstrip() for line in _index_lines(prior or "")}
+    known = set(_index_lines(prior or ""))
     added: list[str] = []
     for i in found:
-        line = content[i].rstrip()
+        line = content[i]
         if not line.startswith(INDEX_PREFIX) and line not in known:
             known.add(line)
             added.append(line)
@@ -2544,7 +2544,7 @@ def _check_retire_pointers(
     """A role chain's pointers may sit in its retired-entries index (`index`
     stands in for it on disk); when this file or the predecessor names an
     index, the predecessor's pointers include the ones this hop's file copied
-    from it, compared without trailing whitespace."""
+    from it, each compared verbatim."""
     review = doc.section("Review before you continue") or []
     reach = list(review)
     held = _index_pointer(doc)
@@ -2577,9 +2577,8 @@ def _check_retire_pointers(
     if indexed:
         copy = section_of(archived or "", "Review before you continue") or []
         carried = list(dict.fromkeys([*carried, *filter(_is_pointer, copy)]))
-        reach += [line.rstrip() for line in reach]
     for line in carried:
-        if line not in reach and not (indexed and line.rstrip() in reach):
+        if line not in reach:
             report(
                 f"Review before you continue: the predecessor's retire pointer is missing; carry it verbatim: {line[:60]!r}"
             )
