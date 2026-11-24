@@ -172,9 +172,10 @@ branch, since pre-push cost grows with the repository (`scripts/check-git-hook-t
 A piped group counts as one unit. It runs when a change touches a hook config or a script an
 entry calls, or adds or removes a plugin, and on the scheduled full run of main, so growth
 alone can trip it. Each run times a reference workload that runs no hook code and does not
-grow with the repository: bare starts of the interpreters the entries use (pwsh, python3,
-node, bash, git) plus a fixed git and node part. The budget is 3 s x that reference / its
-value on the desk that set the budget (465 ms, Linux on WSL2, 2026-11-24), so a slower runner
+grow with the repository: starts of the interpreters the entries use (pwsh with the
+PSScriptAnalyzer module loaded, bare python3, node, bash, git) plus a fixed git and node part.
+The budget is 3 s x that reference / its value on the desk that set the budget (855 ms,
+Linux on WSL2, 2026-11-24), so a slower runner
 does not flake; CI also prints the hooks' own ratio to that desk and warns when the two
 ratios differ by more than 30%. It fails a
 hook over that budget, an entry whose tool is missing, and a pre-push entry that skips a check

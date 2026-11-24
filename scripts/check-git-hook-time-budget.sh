@@ -6,8 +6,8 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/gate-entry.sh" || exit 2
-base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=465
-ref_rounds=2 ref_files=400 desk_commit_ms=1943 desk_push_ms=255 zero=0000000000000000000000000000000000000000
+base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=855
+ref_rounds=2 ref_files=400 desk_commit_ms=2070 desk_push_ms=265 zero=0000000000000000000000000000000000000000
 
 usage() {
   cat >&2 <<'EOF'
@@ -21,11 +21,12 @@ non-default branch, ranged from origin/main.
 The budget is calibrated, so a slower runner does not flake: a reference workload that
 runs none of the hooks' code and does not grow with the repository is timed in the same
 run: git status over a generated 400-file tree, one node process reading and parsing it,
-then two rounds of one bare start of each interpreter the shipped entries use (pwsh,
-python3, node, bash, git); median of 3. Its value on the host that set the budget is
-465 ms (Linux on WSL2, 24 CPUs, 2026-11-24, median of five runs: 496, 463, 465, 461, 466
-ms); the same runs put pre-commit at 1943 ms and pre-push at 255 ms. The scaled budget
-is 3 s x this run's reference / 465 ms. In CI the hooks' own ratio (total / desk
+then two rounds of one start of each interpreter the shipped entries use (pwsh importing
+PSScriptAnalyzer and formatting one line, since a bare start misses the module load the
+hooks pay; bare python3, node, bash, git); median of 3. Its value on the host that set the
+budget is 855 ms (Linux on WSL2, 24 CPUs, 2026-11-24, median of five runs: 868, 855, 856,
+850, 819 ms); the same runs put pre-commit at 2070 ms and pre-push at 265 ms. The scaled budget
+is 3 s x this run's reference / 855 ms. In CI the hooks' own ratio (total / desk
 total) prints beside the reference ratio, with a warning when they differ by over 30%. Raw
 seconds, the ratio and the scaled budget all print; pass/fail is on the scaled budget.
 Under a tracer (TracerPid not 0) the times print and nothing is judged.
@@ -49,7 +50,7 @@ the gate with the tool's name, since CI installs every hook tool first.
   --runs <n>       runs per entry; an entry's time is the median (default 3)
   --budget-ms <ms> the budget of each hook on the reference host (default 3000)
   --ref-ms <ms>    use this as the run's reference instead of timing it
-  --ref-host-ms <ms> the reference host's value (default 465)
+  --ref-host-ms <ms> the reference host's value (default 855)
   --scope-only     time nothing: print applies=true or applies=false on stdout (the
                    form GITHUB_OUTPUT takes), every other line on stderr
 
@@ -217,7 +218,7 @@ reference_once() {
   ' "$refdir/tree" >/dev/null
   local i
   for ((i = 0; i < ref_rounds; i++)); do
-    pwsh -NoProfile -NonInteractive -Command 0 >/dev/null
+    pwsh -NoProfile -NonInteractive -Command 'Import-Module PSScriptAnalyzer; Invoke-Formatter -ScriptDefinition "Get-Item ." | Out-Null' >/dev/null
     python3 -c 0
     node -e 0
     bash -c :
