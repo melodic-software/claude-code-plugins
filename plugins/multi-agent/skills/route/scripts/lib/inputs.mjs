@@ -60,8 +60,6 @@ const SETTINGS_KEYS = new Set([
   'auto_delegation',
   'trials_prove',
   'trials_fail',
-  'promotion_audits',
-  'promotion_days',
   'claude',
   'codex',
   'antigravity',

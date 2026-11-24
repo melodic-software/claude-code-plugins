@@ -54,7 +54,7 @@ class FakeApi:
                 url = urlsplit(self.path)
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"null")
                 api.calls.append((method, url.path, body))
-                if api.echo_token:  # an error that quotes the request's own credential back
+                if api.echo_token:
                     return self.answer(400, {"success": False, "errors": [{"code": 6003, "message": f"Invalid header {self.headers.get('Authorization')}"}], "result": None})
                 if self.headers.get("Authorization") != f"Bearer {TOKEN}":
                     return self.answer(403, {"success": False, "errors": [{"code": 10000, "message": "Authentication error"}], "result": None})
@@ -158,7 +158,7 @@ class TestPlan(CfdnsCase):
         self.assertEqual(fake.calls, [])
 
     def test_an_api_error_that_quotes_the_token_prints_it_redacted(self):
-        code, out, err = self.plan(self.api(echo_token=True))  # run_cli asserts the token is in neither stream
+        code, out, err = self.plan(self.api(echo_token=True))
         self.assertEqual((code, out), (1, None))
         self.assertIn("Invalid header Bearer [token]", err)
 

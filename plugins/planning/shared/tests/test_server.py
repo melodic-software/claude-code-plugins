@@ -32,7 +32,7 @@ import server
 import session
 import tunnel
 
-os.environ["SHARED_CLOUDFLARED"] = FAKE  # an App's live starter runs cloudflared: never a real one from PATH
+os.environ["SHARED_CLOUDFLARED"] = FAKE
 
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 SECURITY = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"}
@@ -90,7 +90,7 @@ def port_leaks(doc, port, path="$"):
 class TestPortLeaks(unittest.TestCase):
     def test_a_timestamp_holding_the_ports_digits_is_no_leak(self):
         doc = {"people": [{"pid": "host", "joinedAt": 1792710102.8151734}], "serverTime": 51730.5}
-        self.assertIn("5173", json.dumps(doc))  # what a substring search over the JSON matched
+        self.assertIn("5173", json.dumps(doc))
         self.assertEqual(port_leaks(doc, 5173), [])
 
     def test_the_port_as_a_url_host_port_number_field_or_key_is_a_leak(self):
@@ -147,7 +147,6 @@ class ServerCase(unittest.TestCase):
         self.assertEqual(code, 200, out)
 
 
-
 class TestAuthClasses(ServerCase):
     def setUp(self):
         super().setUp()
@@ -157,8 +156,6 @@ class TestAuthClasses(ServerCase):
         self.leader(lead_pid)
 
     def test_person_routes_refuse_a_request_with_no_identity(self):
-        # Join and a device's sign-in code are the routes a newcomer reaches before holding a credential; any other
-        # public route goes unchecked here.
         self.assertEqual(["/api/join", "/api/owner/pair/redeem"], sorted(p for p, (a, _) in server.ROUTES.items() if a == "public"))
         for path, (auth, _) in server.ROUTES.items():
             if auth == "public":
@@ -278,7 +275,7 @@ class TestOwnerDevices(ServerCase):
 
     def test_a_new_owner_link_signs_out_every_device(self):
         devs = [self.pair()[1]]
-        time.sleep(session.WRITE_INTERVAL)  # one code a second
+        time.sleep(session.WRITE_INTERVAL)
         devs.append(self.pair("198.51.100.7")[1])
         status, _, out = self.post("/api/link/owner", {}, self.owner)
         self.assertEqual(status, 200, out)
@@ -363,7 +360,7 @@ class TestTunnelSwitch(ServerCase):
         super().setUp()
         # The probe goes to this server's guest port with the new hostname as Host, as Cloudflare's edge would send it.
         probe = {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{self.port}", "SHARED_PROBE_SECONDS": "2"}
-        lease = {"SHARED_LEASE_ORIGIN": free_edge(), "SHARED_CF_API": CLOSED_ORIGIN}  # the link free, the API off the network
+        lease = {"SHARED_LEASE_ORIGIN": free_edge(), "SHARED_CF_API": CLOSED_ORIGIN}
         patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10", **probe, **lease})
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -789,8 +786,6 @@ class TestRateKeys(ServerCase):
         self.assertEqual(self.get("/api/state", {"CF-Connecting-IP": "2001:db8:1:3::1"})[0], 200)
 
     def test_one_take_stays_fast_and_the_bucket_bounded_past_20000_addresses(self):
-        # Judgment: an O(1) take costs microseconds; a scan of 10000 remembered addresses costs about
-        # a millisecond, so 0.1 ms at the 99th percentile separates the two with room for a slow host.
         bucket = server.Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
         took = []
         for i in range(20000):
@@ -837,14 +832,14 @@ class TestRawRequests(ServerCase):
             s.sendall(b"x")
 
     def test_a_problem_report_has_its_own_longer_deadline_for_its_pictures(self):
-        _, ann = self.join("Ann")  # only a joined person's report waits for its body
+        _, ann = self.join("Ann")
         with mock.patch.object(session, "BODY_SECONDS", 30.0), mock.patch.object(session, "REPORT_SECONDS", 1.0):
             t0 = time.monotonic()
             got, closed = self.request("POST /api/report HTTP/1.1", "Content-Type: application/json", "Content-Length: 100", *(f"{k}: {v}" for k, v in ann.items()), body=b'{"text"')
             took = time.monotonic() - t0
         self.assertEqual(status_and_headers(got)[0], 408)
         self.assertTrue(closed)
-        self.assertLess(took, 4.0)  # REPORT_SECONDS applied, not the 30 s every other route waits
+        self.assertLess(took, 4.0)
 
     def test_a_body_refused_unread_is_no_reset_while_the_client_still_sends_it(self):
         # A socket closed with request bytes unread, or that gets more after it closed, resets the connection (RFC 9293
@@ -975,7 +970,7 @@ class TestBusy(unittest.TestCase):
     def test_reading_a_refused_client_stops_at_its_time_and_byte_bounds(self):
         app = self.busy_app()
         with mock.patch.object(server.GuestServer, "DRAIN_SECONDS", 0.3):
-            self.refused(app)  # and never closes
+            self.refused(app)
             self.assertTrue(wait_for(lambda: app.guest.drains._value == server.GuestServer.DRAINS, seconds=1.5, step=0.05))
         with mock.patch.object(server.GuestServer, "DRAIN_SECONDS", 60), mock.patch.object(server.GuestServer, "DRAIN_BYTES", 1024):
             s = self.refused(app)
@@ -1011,7 +1006,7 @@ class TestOwnerRotation(unittest.TestCase):
         code, _, _ = call(app.guest_port, "POST", "/api/link/owner", {}, {"X-Owner-Token": before["owner"]})
         app.shutdown()
         self.assertEqual(code, 200)
-        detached.write_private(d / server.SECRETS, json.dumps(before) + "\n")  # the file a crash before the fix left
+        detached.write_private(d / server.SECRETS, json.dumps(before) + "\n")
         with self.assertRaisesRegex(server.StartRefused, "predates"):
             server.App(d, watch_tunnel=False)
         self.assertNotEqual(json.loads((d / "state.json").read_text(encoding="utf-8"))["credentials"]["owner"]["tokenHash"], session.sha256(before["owner"]))
@@ -1058,7 +1053,7 @@ class TestOwnerRotation(unittest.TestCase):
         state = json.loads((d / "state.json").read_text(encoding="utf-8"))
         state["credentials"]["owner"]["rotatedAt"] = time.time() + 86400
         detached.write_private(d / "state.json", json.dumps(state) + "\n")
-        (d / server.SECRETS).unlink()  # the documented remedy
+        (d / server.SECRETS).unlink()
         app, owner, log = self.start(d)
         self.assertLessEqual(owner["rotatedAt"], time.time())
         self.assertEqual(owner["tokenHash"], session.sha256(app.secrets["owner"]))
@@ -1101,7 +1096,7 @@ class TestOwnerRotation(unittest.TestCase):
 
         with mock.patch.object(server.detached, "write_private", crash_at_the_secrets_file), self.assertRaises(SystemExit):
             server.App(d, watch_tunnel=False)
-        self.assertLessEqual(json.loads((d / "state.json").read_text(encoding="utf-8"))["credentials"]["owner"]["rotatedAt"], time.time())  # the clamp landed
+        self.assertLessEqual(json.loads((d / "state.json").read_text(encoding="utf-8"))["credentials"]["owner"]["rotatedAt"], time.time())
         app, owner, log = self.start(d)
         self.assertNotEqual(app.secrets["owner"], old)
         self.assertEqual(owner["tokenHash"], session.sha256(app.secrets["owner"]))
@@ -1247,7 +1242,7 @@ class TestSnapshot(ServerCase):
 
     def test_an_unchanged_snapshot_answers_304(self):
         _, guest = self.join("Ann")
-        now = server.time.time()  # one PRESENCE_TICK for every read: the tick turning over is its own test below
+        now = server.time.time()
         with mock.patch.object(server.time, "time", lambda: now):
             _, h, _ = self.get("/api/state", guest)
             code, h2, body = self.get("/api/state", {**guest, "If-None-Match": h["ETag"]})
@@ -1259,7 +1254,7 @@ class TestSnapshot(ServerCase):
     def test_a_presence_change_alone_answers_only_the_presence_part(self):
         ann_pid, ann = self.join("Ann")
         bo_pid, bo = self.join("Bo")
-        now = server.time.time()  # one PRESENCE_TICK for every read: the tick turning over is test_the_clock_tick_answers_presence_so_an_offline_person_drops_out
+        now = server.time.time()
         with mock.patch.object(server.time, "time", lambda: now):
             _, h, snap = self.get("/api/state?since=0", ann)
             self.post("/api/heartbeat", {"q": "Q1", "tab": "t1"}, bo)
@@ -1394,7 +1389,7 @@ class TestSnapshotContract(unittest.TestCase):
     TOP_ALL |= {"suggestions", "results", "chat", "people", "presence", "lastSeen", "requestCounts", "proposals", "myRequests", "myMergeRequests", "inbox", "me"}
     TOP_MODERATOR = {"share", "guestKey"}
     TOP_OWNER = {"requests", "mergeRequests", "claudeProposals", "removed", "cardDetails"}
-    KEY = "Zk3yZk3yZk3y"  # the fixture's session.guestKey
+    KEY = "Zk3yZk3yZk3y"
 
     def setUp(self):
         self.d = tmpdir(self)
@@ -1596,7 +1591,7 @@ class TestFailureLog(ServerCase):
             h.flush()
         log = (self.d / "server.log").read_text(encoding="utf-8")
         self.assertNotIn("\x1b", log)
-        self.assertFalse([line for line in log.splitlines() if line.startswith("2026-01-01")])  # no forged line of its own
+        self.assertFalse([line for line in log.splitlines() if line.startswith("2026-01-01")])
         self.assertIn("boom\\x1b[31m\\x0a2026-01-01", log)
 
 
@@ -1679,7 +1674,7 @@ class TestRequestLog(LogCase):
         self.assertEqual(code, 200, rotated)
         link = (self.d / server.OWNER_LINK).read_text(encoding="utf-8").strip()
         log = self.log_text()
-        self.assertIn("TypeError: x is undefined", log)  # the log is the one read
+        self.assertIn("TypeError: x is undefined", log)
         for secret in (old_owner, rotated["token"], link, out["secret"], key, answer, chat):
             self.assertNotIn(secret, log)
 
@@ -1712,7 +1707,7 @@ class TestClientLog(LogCase):
     def test_a_lone_surrogate_in_a_message_still_reaches_the_log(self):
         _, guest = self.join("Ann")
         self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "cut-emoji-\ud83d"}, guest)[0], 200)
-        self.assertIn('message=cut-emoji- ', self.entry_for("cut-emoji-") + " ")  # the half emoji is dropped, the entry kept
+        self.assertIn('message=cut-emoji- ', self.entry_for("cut-emoji-") + " ")
 
     def test_hidden_characters_never_reach_the_log(self):
         pid, guest = self.join("Ann")
@@ -1763,7 +1758,7 @@ class TestClientLog(LogCase):
         self.assertEqual(codes, [200] * 20)
         code, _, out = self.post("/api/client-log", self.ENTRY, ann)
         self.assertEqual((code, out["error"]), (429, "slow-down"))
-        self.assertEqual(self.post("/api/client-log", self.ENTRY, bo)[0], 200)  # per person, not per address
+        self.assertEqual(self.post("/api/client-log", self.ENTRY, bo)[0], 200)
 
     SUMMARY = {"kind": "summary", "message": "pv=0a1b2c3d lat:/api/vote=0,2 rb:/api/vote=1 gap=900", "ua": "safari phone"}
 
@@ -1780,7 +1775,7 @@ class TestClientLog(LogCase):
         self.assertIn(" INFO request method=POST route=/api/heartbeat status=200 ms=", new[0])
         self.assertTrue(new[0].endswith(f" pid={pid}"), new[0])
         self.assertNotIn("pv=0a1b2c3d", self.log_text())
-        with mock.patch.object(server, "SUMMARY_MIN_SENDERS", 1):  # one guest's batch, written here to read its line
+        with mock.patch.object(server, "SUMMARY_MIN_SENDERS", 1):
             self.app.flush_summaries()
         new = self.log_text().splitlines()[before:]
         self.assertEqual(len(new), 2, new)
@@ -1811,14 +1806,14 @@ class TestClientLog(LogCase):
         _, bo = self.join("Bo")
         self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=ffff0000 gap=10"}, ann)[0], 200)
         self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=00000000 gap=20"}, bo)[0], 200)
-        with mock.patch.object(server, "SUMMARY_BATCH_BYTES", 80):  # room for the two above (37 bytes each as batch JSON), not a third
+        with mock.patch.object(server, "SUMMARY_BATCH_BYTES", 80):
             self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=11111111 gap=30"}, bo)[0], 200)
         self.app.flush_summaries()
         line = self.entry_for(" summary-batch ")
         self.assertIn(" summary-batch summaries=2 dropped=1 counts={} data=", line)
         self.assertEqual(json.loads(line.split(" data=", 1)[1]), [["pv=00000000 gap=20", "phone"], ["pv=ffff0000 gap=10", "phone"]])
         self.app.flush_summaries()
-        self.assertEqual(self.log_text().count(" summary-batch "), 1)  # nothing held, nothing written
+        self.assertEqual(self.log_text().count(" summary-batch "), 1)
 
     def test_summaries_are_written_on_the_batch_cadence_and_at_shutdown(self):
         d = tmpdir(self)
@@ -1872,10 +1867,10 @@ class TestClientLog(LogCase):
         pid, ann = self.join("Ann")
         for msg in ("pv=0a1b2c3d gap=5 use:vf-chat=1 rage:vf-vote=1", "pv=0a1b2c3d gap=6 rep:1a2b3c4d=1 use:vf-chat=2 dead:vf-pencil=1"):
             self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, ann)[0], 200)
-            self.app.flush_summaries()  # a 10-minute tick: one guest's batch waits
+            self.app.flush_summaries()
         self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=cccc0000 owner=1 use:vf-gear=1"}, self.owner)[0], 200)
         self.assertEqual(self.summary_batches(), [])
-        self.app.flush_summaries(stopping=True)  # what shutdown() runs
+        self.app.flush_summaries(stopping=True)
         lines = self.summary_batches()
         self.assertEqual(len(lines), 1, lines)
         self.assertIn(' summary-batch summaries=0 dropped=3 counts={"dead:vf-pencil":1,"rage:vf-vote":1,"use:vf-chat":3,"use:vf-gear":1} data=[]', lines[0])
@@ -2036,9 +2031,9 @@ class TestFaultSpike(LogCase):
             self.fault(guest)
         self.assertEqual(len(self.spikes()), 1)
         with mock.patch.object(server, "SPIKE_COOLDOWN", 0):
-            self.app._spike_quiet_until = 0.0  # the cooldown has ended
+            self.app._spike_quiet_until = 0.0
             self.fault(guest, {**self.PLANTED, "kind": "rejection"})
-            self.assertEqual(len(self.spikes()), 1)  # rejection has one fault in the window
+            self.assertEqual(len(self.spikes()), 1)
             self.fault(guest)
         self.assertEqual([e["count"] for e in self.spikes()], [3, 7])
 
@@ -2203,10 +2198,9 @@ class TestModerationRoutes(ServerCase):
         jib = {"X-Session-Secret": out["secret"]}
         code, _, err = self.get("/api/state?since=0", jib)
         self.assertEqual((code, err["error"]), (403, "waiting"))
-        # The waiting page's one card: the title and the intro, and nothing else of the session.
         self.assertEqual({k: err.get(k) for k in ("title", "intro")}, {"title": self.state(self.ann)["title"], "intro": "Why we meet."})
         self.assertEqual(set(err) - {"error", "message", "title", "intro"}, set())
-        self.assertEqual(self.state(self.ann)["me"]["pid"], self.ann_pid)  # a returning guest is not held
+        self.assertEqual(self.state(self.ann)["me"]["pid"], self.ann_pid)
         code, _, err = self.post("/api/join/act", {"pid": out["pid"], "action": "admit"}, self.bo)
         self.assertEqual((code, err["error"]), (403, "owner-only"))
         code, _, done = self.post("/api/join/act", {"pid": out["pid"], "action": "admit"}, self.owner)
@@ -2293,13 +2287,13 @@ class TestPrototypePage(ServerCase):
         for path in (f"/assets/{self.html}", f"/assets/{self.html}?pin=1"):
             with self.subTest(path=path):
                 code, h, body = self.get(path, self.guest)
-                self.assertEqual((code, body), (missing[0], missing[2]))  # the same answer as no such asset
+                self.assertEqual((code, body), (missing[0], missing[2]))
                 self.assertEqual((code, h["Cache-Control"]), (404, "no-store"))
                 code, _, body = self.get(path, self.owner)
                 self.assertEqual(code, 200)
                 self.assertTrue(body.startswith(self.VARIANT_HTML))
         self.assertEqual(self.get(f"/assets/{self.png}", self.guest)[0], 200)
-        self.assertEqual(self.get(f"/assets/{self.html}")[0], 401)  # no credential is still 401
+        self.assertEqual(self.get(f"/assets/{self.html}")[0], 401)
         self.post("/api/session/settings", {"prototypeTiers": ["screenshot", "snapshot"]}, self.owner)
         self.assertEqual(self.get(f"/assets/{self.html}", self.guest)[0], 200)
 
@@ -2463,7 +2457,7 @@ class TestLiveRoutes(ServerCase):
         self.live_on()
         lid = self.add()
         bad = ("http://quiet-fox.trycloudflare.com/x", "https://a.example", "https://127.0.0.1", "https://api.trycloudflare.com",
-               "https://x.trycloudflare.com.evil.example", "https://quiet-fox.trycloudflare.com:8443")  # only a quick tunnel's origin
+               "https://x.trycloudflare.com.evil.example", "https://quiet-fox.trycloudflare.com:8443")
         for stub in (*(StubLiveStarter(url=u) for u in bad), StubLiveStarter(fail=RuntimeError("boom"))):
             with self.subTest(url=stub.url, fail=stub.fail):
                 self.app.live_starter = stub
@@ -2525,7 +2519,7 @@ class TestConnectYourClaude(ServerCase):
         self.assertEqual(json.loads((self.d / "state.json").read_text(encoding="utf-8"))["log"]["events"], [])
         owner = self.get("/api/state", self.owner)[2]
         self.assertEqual((owner["requests"], owner["requestCounts"]), ([], {"open": 0, "byQ": {}}))
-        self.assertNotIn("Q1", self.get("/api/state", self.bo)[2]["results"])  # waits for the owner's Publish
+        self.assertNotIn("Q1", self.get("/api/state", self.bo)[2]["results"])
         (res,) = self.get("/api/state", self.ann)[2]["results"]["Q1"]
         self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": res["id"]}, self.owner)[0], 200)
         (res,) = self.get("/api/state", self.bo)[2]["results"]["Q1"]
@@ -2598,7 +2592,7 @@ class TestWatcherKey(ServerCase):
             ):
                 with self.subTest(path=path, header=next(iter(headers))):
                     self.assertEqual(self.post(path, body, headers)[0], 401)
-        self.assertEqual(self.get("/api/mine/requests", self.key)[0], 200)  # still good after all of that
+        self.assertEqual(self.get("/api/mine/requests", self.key)[0], 200)
 
     def test_revoke_ends_the_watcher_key(self):
         self.assertEqual(self.post("/api/watcher/revoke", {}, self.ann)[0], 200)
@@ -2743,7 +2737,7 @@ class TestUploads(ServerCase):
     the private data folder, never under a served path). Chunks are 1024 bytes here; hashes are sha256 of the bytes."""
 
     CHUNK = 1024
-    DATA = b"%PDF-1.7\n" + bytes(range(256)) * 9 + b"%%EOF"  # 2318 bytes: chunks of 1024, 1024 and 270
+    DATA = b"%PDF-1.7\n" + bytes(range(256)) * 9 + b"%%EOF"
 
     def setUp(self):
         super().setUp()
@@ -2794,12 +2788,12 @@ class TestUploads(ServerCase):
         self.assertEqual((code, out["received"]), (200, 1), out)
         piece = self.DATA[self.CHUNK:2 * self.CHUNK]
         head = "".join(f"{k}: {v}\r\n" for k, v in {"Host": f"127.0.0.1:{self.port}", "Content-Length": str(len(piece)), **self.chunk_headers(self.ann, uid, 1, piece)}.items())
-        raw_exchange(self.port, f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode() + piece[:300], wait=0.5)  # the connection drops mid-piece
+        raw_exchange(self.port, f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode() + piece[:300], wait=0.5)
         self.assertEqual(wait_for(lambda: uid not in self.app.session._sending, seconds=5), True)
         self.assertEqual(self.mine(self.ann, uid)["status"], {"kind": "uploading", "received": 1, "bytes": self.CHUNK})
         code, _, out = self.chunk(self.ann, uid, 2)
         self.assertEqual((code, out["error"], out["received"]), (409, "chunk-gap", 1))
-        code, _, out = self.chunk(self.ann, uid, 0)  # a repeat of a piece the server has is answered, not written
+        code, _, out = self.chunk(self.ann, uid, 0)
         self.assertEqual((code, out["received"], out["repeat"]), (200, 1, True))
         for i in (1, 2):
             code, _, out = self.chunk(self.ann, uid, i)
@@ -2882,7 +2876,7 @@ class TestUploads(ServerCase):
         self.assertEqual(self.get("/api/state?since=0", self.bo)[2]["files"], {done: {"file": "funnel.pdf", "ext": "pdf", "size": len(self.DATA), "status": "done"}})
 
     def test_a_received_picture_reads_back_only_where_its_item_shows(self):
-        pic = b"\x89PNG\r\n\x1a\n" + bytes(1100)  # 1108 bytes: chunks of 1024 and 84
+        pic = b"\x89PNG\r\n\x1a\n" + bytes(1100)
         shown = self.accepted(self.ann, name="a.png", data=pic)
         hidden = self.accepted(self.bo, name="b.png", data=pic)
         for who, uid in ((self.ann, shown), (self.bo, hidden)):
@@ -2913,11 +2907,11 @@ class TestUploads(ServerCase):
         self.assertEqual(self.post("/api/upload/act", {"id": uid, "action": "approve"}, self.owner)[0], 200)
         self.assertEqual(self.post("/api/chat", {"text": "Look", "attachments": [uid]}, self.ann)[0], 200)
         self.assertEqual(server.IMAGE_PER_MINUTE, 120)
-        self.app.image_bucket = server.Bucket(0, 2)  # no refill: two reads, then the limit
+        self.app.image_bucket = server.Bucket(0, 2)
         self.assertEqual([self.get(f"/api/upload/image?id={uid}", self.bo)[0] for _ in range(2)], [200, 200])
         code, _, out = self.get(f"/api/upload/image?id={uid}", self.bo)
         self.assertEqual((code, out["error"]), (429, "slow-down"))
-        self.assertEqual(self.get(f"/api/upload/image?id={uid}", self.ann)[0], 200)  # another person's count is their own
+        self.assertEqual(self.get(f"/api/upload/image?id={uid}", self.ann)[0], 200)
         self.app.image_bucket = server.Bucket(0, 9)
         self.assertEqual(self.get("/api/upload/image?id=U9-00000000", self.bo)[2]["error"], "not-found")
 
@@ -2930,7 +2924,7 @@ class TestUploads(ServerCase):
                 t0 = time.monotonic()
                 got, _ = raw_exchange(self.port, f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode(), wait=3.0)
                 self.assertEqual(status_and_headers(got)[0], want)
-                self.assertLess(time.monotonic() - t0, 2.5)  # answered without waiting for a body that never comes
+                self.assertLess(time.monotonic() - t0, 2.5)
         code, _, out = self.post("/api/upload/offer", {"file": "a.pdf", "size": 1, "type": "", "pad": "x" * session.OFFER_MAX}, self.ann)
         self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", 96 * 1024))
 
@@ -2941,11 +2935,11 @@ class TestUploads(ServerCase):
         piece = self.DATA[:self.CHUNK]
         head = "".join(f"{k}: {v}\r\n" for k, v in {"Host": f"127.0.0.1:{self.port}", "Content-Length": str(len(piece)), **self.chunk_headers(self.ann, first, 0, piece)}.items())
         with socket.create_connection(("127.0.0.1", self.port), timeout=5) as slow:
-            slow.sendall(f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode() + piece[:10])  # a sender that stalls
+            slow.sendall(f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode() + piece[:10])
             self.assertTrue(wait_for(lambda: self.ann_pid in self.app._chunk_readers, seconds=5))
             code, _, out = self.chunk(self.ann, second, 0)
             self.assertEqual((code, out["error"], out["status"]), (409, "wrong-status", "sending"))
-            self.assertEqual(self.chunk(self.bo, self.accepted(self.bo), 0)[0], 200)  # another person is not held up
+            self.assertEqual(self.chunk(self.bo, self.accepted(self.bo), 0)[0], 200)
         self.assertTrue(wait_for(lambda: self.ann_pid not in self.app._chunk_readers, seconds=5))
         self.assertEqual(self.chunk(self.ann, second, 0)[0], 200)
 
@@ -3036,7 +3030,7 @@ class TestDiscussion(ServerCase):
         self.assertEqual(self.app.session.state["rev"], rev)
         self.assertEqual(self.post("/api/discussion/delete", {"qid": "Q1", "id": cid}, self.ann)[0], 200)
         self.assertEqual(self.comments(self.bo), [])
-        self.assertEqual(self.post("/api/discussion/delete", {"qid": "Q1", "id": cid}, self.ann)[0], 429)  # one a second, then gone
+        self.assertEqual(self.post("/api/discussion/delete", {"qid": "Q1", "id": cid}, self.ann)[0], 429)
         time.sleep(1.05)
         self.assertEqual(self.post("/api/discussion/delete", {"qid": "Q1", "id": cid}, self.ann)[0], 404)
 
@@ -3052,7 +3046,7 @@ class TestDiscussion(ServerCase):
         time.sleep(1.05)
         rev = self.app.session.state["rev"]
         self.assertEqual(self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": True}, self.owner)[2]["hidden"], True)
-        self.assertEqual(self.app.session.state["rev"], rev)  # already hidden: nothing written
+        self.assertEqual(self.app.session.state["rev"], rev)
         time.sleep(1.05)
         self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": False}, self.owner)
         self.assertEqual([c["id"] for c in self.comments(self.bo)], [cid, keep])
@@ -3082,13 +3076,13 @@ class TestDiscussion(ServerCase):
         self.say(self.owner, "Two")
         at = {c["id"]: c["at"] for c in self.app.session.state["discussions"]["Q1"]}
         self.assertEqual(self.post("/api/discussion/read", {"qid": "Q1", "at": at[first]}, self.bo)[2]["read"], True)
-        self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {"Q1": at[first]})  # "Two" is still new to Bo
+        self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {"Q1": at[first]})
         time.sleep(1.05)
         rev = self.app.session.state["rev"]
         self.assertEqual(self.post("/api/discussion/read", {"qid": "Q1", "at": at[first]}, self.bo)[2]["read"], False)
         self.assertEqual(self.app.session.state["rev"], rev)
         time.sleep(1.05)
-        self.post("/api/discussion/read", {"qid": "Q1", "at": 9e12}, self.bo)  # never past the newest comment
+        self.post("/api/discussion/read", {"qid": "Q1", "at": 9e12}, self.bo)
         self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {"Q1": max(at.values())})
         self.assertEqual(self.post("/api/discussion/read", {"qid": "Q1", "at": "soon"}, self.bo)[0], 400)
 
@@ -3113,7 +3107,7 @@ class TestDiscussion(ServerCase):
         self.assertNotIn("request", self.say(self.bo, "Claude without the at sign"))
         host = self.say(self.owner, "@claude summarize this thread")
         hreq = next(r for r in self.get("/api/state", self.owner)[2]["requests"] if r["id"] == host["request"])
-        self.assertEqual(hreq["status"]["kind"], "running")  # the host's own request skips Run
+        self.assertEqual(hreq["status"]["kind"], "running")
 
     def test_the_digest_carries_each_questions_discussion_without_hidden_comments_names_only_with_digest_names(self):
         self.say(self.ann, "Pin it on phones")
@@ -3143,19 +3137,19 @@ class TestDiscussion(ServerCase):
             self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": True}, self.owner)
             self.say(self.bo, "Bo's")
             time.sleep(1.05)
-            self.say(self.ann, "Two")  # the hidden one no longer fills the question
+            self.say(self.ann, "Two")
             time.sleep(1.05)
             code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "Three"}, self.ann)
-            self.assertEqual((code, out["error"]), (409, "too-many-comments"))  # Ann's own two, the hidden one too
+            self.assertEqual((code, out["error"]), (409, "too-many-comments"))
             code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "Kim's"}, self.owner)
             self.assertEqual((code, out["error"]), (409, "discussion-full"))
             time.sleep(1.05)
-            self.say(self.ann, "On Q2", qid="Q2")  # the per-person cap is per question
+            self.say(self.ann, "On Q2", qid="Q2")
 
     def test_at_claude_past_the_pending_cap_posts_the_comment_and_says_no_request_was_filed(self):
         with mock.patch.object(session, "MAX_PENDING_REQUESTS", 1):
             self.assertEqual(self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "first"}, self.ann)[0], 200)
-            time.sleep(1.05)  # past the request route's one a second, which the comment's request shares
+            time.sleep(1.05)
             out = self.say(self.ann, "@Claude and this too?")
         self.assertNotIn("request", out)
         self.assertEqual(out["requestRefused"], "too-many-pending")
@@ -3202,7 +3196,7 @@ class TestDiscussion(ServerCase):
         self.say(self.ann, "One")
         time.sleep(0.01)
         self.say(self.bo, "Two")
-        self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {})  # Ann's One is still new to Bo
+        self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {})
         at = {c["text"]: c["at"] for c in self.app.session.state["discussions"]["Q1"]}
         self.post("/api/discussion/read", {"qid": "Q1", "at": at["Two"]}, self.bo)
         time.sleep(1.05)
@@ -3260,7 +3254,6 @@ class TestDiscussion(ServerCase):
         self.assertIn("Q1", self.get("/api/state", self.ann)[2]["me"]["discussionSeen"])
 
 
-
 class TestGeneralAsk(ServerCase):
     """"@Claude" in chat, and Ask Claude's "About the whole session", file a request with no question: owner-gated as
     any guest request, answered by the `result` op with no qid, and once shared, Claude's chat message."""
@@ -3308,7 +3301,7 @@ class TestGeneralAsk(ServerCase):
     def test_the_answer_replies_to_the_asking_message_even_once_chat_dropped_it_from_its_scan(self):
         asked = self.chat(self.owner, "@Claude where are we?")
         self.assertEqual(self.req(asked["request"])["msg"], asked["id"])
-        with self.app.session._tx() as st:  # its request still names the message, whatever chat holds after it
+        with self.app.session._tx() as st:
             st["chat"][:] = [m for m in st["chat"] if m["id"] == asked["id"]]
             st["chat"][0].pop("request")
         self.answer(asked["request"], "Halfway.")
@@ -3319,11 +3312,11 @@ class TestGeneralAsk(ServerCase):
         for who, text in ((self.ann, "@Claudette can you look?"), (self.bo, "Mail x@claude.ai about it")):
             self.assertNotIn("request", self.chat(who, text), text)
         time.sleep(1.05)
-        self.assertNotIn("request", self.chat(self.ann, "@Claude can you check the copy?"))  # the person called Claude
+        self.assertNotIn("request", self.chat(self.ann, "@Claude can you check the copy?"))
         self.assertEqual(self.app.session.state["requests"], [])
         self.assertEqual(self.app.session.state["chat"][-1]["text"], f"<@{claude_pid}> can you check the copy?")
         self.post("/api/person/remove", {"pid": claude_pid, "on": True}, self.owner)
-        self.assertIn("request", self.chat(self.bo, "(@Claude, check the copy)"))  # with no one called Claude, the word asks
+        self.assertIn("request", self.chat(self.bo, "(@Claude, check the copy)"))
 
     def test_a_refused_chat_request_still_posts_the_message(self):
         self.assertEqual(self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "first"}, self.ann)[0], 200)
@@ -3417,7 +3410,7 @@ class TestGeneralAsk(ServerCase):
         time.sleep(1.05)
         self.assertEqual(self.post("/api/chat", {"text": "Thanks", "replyTo": mid}, self.ann)[0], 200)
         self.assertEqual([n for n in self.app.session.state["notifications"].get("host", []) if n["kind"] in ("reaction", "reply")], [])
-        self.assertEqual(self.app.session.state["chat"][-1]["replyTo"], {"id": mid, "pid": "host", "excerpt": "Halfway.", "claude": True})  # quoted as Claude's on every page
+        self.assertEqual(self.app.session.state["chat"][-1]["replyTo"], {"id": mid, "pid": "host", "excerpt": "Halfway.", "claude": True})
         code, _, out = self.post("/api/chat/propose", {"id": mid}, self.owner)
         self.assertEqual((code, out["error"]), (409, "wrong-status"))
 
@@ -3428,7 +3421,7 @@ class TestGeneralAsk(ServerCase):
         self.assertIsNone(session.document_error(self.app.session.state))
         again = session.Session.load(self.app.session.path)
         self.assertEqual([x["request"] for x in again.state["results"]["session"]], [rid])
-        with self.app.session._tx() as st:  # a result filed under the wrong place does not load
+        with self.app.session._tx() as st:
             st["results"]["Q1"] = st["results"].pop("session")
             self.assertIn("names another place", " ".join(session.cross_field_errors(st)))
             st["results"]["session"] = st["results"].pop("Q1")
@@ -3586,11 +3579,11 @@ class TestSharingDefault(ServerCase):
         self.assertEqual(self.post("/api/chat", {"text": "Thanks", "replyTo": mid}, self.bo)[0], 200)
         self.assertEqual(self.post("/api/request/act", {"action": "takedown", "id": xid}, self.owner)[0], 200)
         chat = self.state(self.bo)["chat"]
-        gone = next(m for m in chat if m["id"] == mid)  # kept as a tombstone, so every open page refreshes it in place
+        gone = next(m for m in chat if m["id"] == mid)
         self.assertEqual((gone["text"], gone["claude"]), ("Taken down by the host.", {"takenDown": True}))
         self.assertEqual(chat[-1]["replyTo"]["excerpt"], "Taken down by the host.")
         self.assertNotIn("Secret-ish summary.", json.dumps(self.state(self.bo)))
-        self.assertIn(mid, self.app.session._chat_touch)  # a page holding it as an older message reads it again
+        self.assertIn(mid, self.app.session._chat_touch)
         self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
         chat = self.state(self.bo)["chat"]
         back = next(m for m in chat if m["id"] == mid)
@@ -3765,7 +3758,7 @@ class TestMoveRequest(ServerCase):
         self.assertTrue(self.sees(self.bo, "Approved on Q1.", "Q1"))
         self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
         self.assertFalse(self.sees(self.bo, "Approved on Q1.", "Q2"))
-        self.assertTrue(self.sees(self.ann, "Approved on Q1.", "Q2"))  # their own Claude's answer, as before it was shared
+        self.assertTrue(self.sees(self.ann, "Approved on Q1.", "Q2"))
         self.assertIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
         self.assertEqual(self.app.session.summary()["queue"]["results"], 1)
         self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)

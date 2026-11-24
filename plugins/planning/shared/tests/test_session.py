@@ -35,7 +35,7 @@ import support  # noqa: E402  (beside this file; imported after session so its s
 HOST = "host"
 PNG = "0123456789abcdef.png"
 HTML = "fedcba9876543210.html"
-LOOK = "The payment step: open the basket, then press Pay."  # a prototype question's look-at line
+LOOK = "The payment step: open the basket, then press Pay."
 
 
 class Clock:
@@ -137,7 +137,6 @@ class SessionCase(unittest.TestCase):
             validate_writes=True,
         )
 
-    # -- helpers -----------------------------------------------------------------------------
 
     def join(self, name, **body):
         self.clock.tick()
@@ -204,11 +203,6 @@ class SessionCase(unittest.TestCase):
 
     def notes(self, pid, kind=None):
         return [n for n in self.s.state["notifications"].get(pid, []) if kind is None or n["kind"] == kind]
-
-
-# ---------------------------------------------------------------------------------------------
-# Item 1: load, validate, atomic write, rev, seq, migration hook, state-invalid
-# ---------------------------------------------------------------------------------------------
 
 
 class TestPersistence(SessionCase):
@@ -310,7 +304,6 @@ class TestPersistence(SessionCase):
         self.assertEqual(sorted(p.name for p in self.tmp.iterdir()), ["assets", "state.json"])
 
     def test_a_file_below_schema_version_7_is_refused_and_left_as_it_was(self):
-        # review: a file from before the last versioned build needs its migrations, which this build no longer has
         doc = self.disk()
         doc["schemaVersion"] = 6
         self.path.write_text(json.dumps(doc), encoding="utf-8")
@@ -350,11 +343,6 @@ class TestPersistence(SessionCase):
         self.assertTrue(s.state["session"]["settings"]["uploads"])
         self.assertEqual(s.state["session"]["settings"]["names"], "initials")
         self.assertTrue(s.state["session"]["settings"]["voting"])
-
-
-# ---------------------------------------------------------------------------------------------
-# Item 2: people and identity
-# ---------------------------------------------------------------------------------------------
 
 
 class TestJoin(SessionCase):
@@ -463,7 +451,7 @@ class TestJoin(SessionCase):
         self.assertEqual(err.http, 403)
 
     def test_a_new_session_issues_a_guest_key_and_refuses_a_join_without_it(self):
-        self.assertEqual(self.key(), "tok0002x9")  # Ids: the owner token is the first token, then 9 bytes, as rotation draws
+        self.assertEqual(self.key(), "tok0002x9")
         self.refused("bad-guest-key", "join", None, {"name": "Ann"}, http=403)
         self.assertTrue(self.s.join(None, {"name": "Ann", "key": "tok0002x9"})["pid"])
 
@@ -714,7 +702,7 @@ class TestMerge(SessionCase):
         self.refused("wrong-status", "request_merge", self.old, {"to": self.bo}, http=409)
         self.refused("bad-field", "request_merge", self.bo, {"to": self.bo})
         self.refused("bad-field", "request_merge", self.bo, {"to": HOST})
-        self.assertEqual(self.notes(HOST, "queue"), [])  # a waiting Inbox item stands for it
+        self.assertEqual(self.notes(HOST, "queue"), [])
 
     def test_approving_a_merge_request_merges_and_notifies(self):
         mid = self.act("request_merge", self.old, {"to": self.ann})["id"]
@@ -749,7 +737,6 @@ class TestMerge(SessionCase):
         before = json.loads(json.dumps(self.s.state["mergeRequests"][0]))
         approved = self.act("request_merge", self.old, {"to": self.ann})["id"]
         self.act("act_on_merge_request", HOST, {"id": approved, "action": "approve"})
-        # The declined one now reads Ann asked about Bo; the approved one, Old Ann into Ann, is the merge itself.
         self.assertEqual(self.s.state["mergeRequests"], [{**before, "from": self.ann}])
         self.assertIsNone(session.document_error(self.s.state))
 
@@ -819,7 +806,7 @@ class TestOwnerMerge(SessionCase):
         self.assertEqual(ctx.exception.code, "unknown-session")
 
     def test_a_request_resolved_just_before_a_merge_into_the_owner_is_told_so_too(self):
-        pid = self.s.resolve(secret=self.twin_secret)  # the server resolves a request, then takes the lock again to act
+        pid = self.s.resolve(secret=self.twin_secret)
         self.act("merge_people", HOST, {"from": self.twin, "to": HOST})
         for read in (lambda: self.act("heartbeat", pid, {}), lambda: self.s.snapshot(pid), lambda: self.act("chat", pid, {"text": "Hi"})):
             with self.assertRaises(session.DomainError) as ctx:
@@ -860,17 +847,12 @@ class TestOwnerMerge(SessionCase):
         mid = self.act("request_merge", self.twin, {"to": self.ann})["id"]
         self.act("act_on_merge_request", HOST, {"id": mid, "action": "decline"})
         self.act("merge_people", HOST, {"from": self.twin, "to": HOST})
-        self.assertEqual(self.s.state["mergeRequests"], [])  # it would read the owner asked to be Ann
+        self.assertEqual(self.s.state["mergeRequests"], [])
         self.assertEqual(session.cross_field_errors(self.s.state), [])
 
     def test_a_guest_still_cannot_claim_to_be_the_owner(self):
         self.refused("bad-field", "request_merge", self.twin, {"to": HOST})
         self.assertEqual(self.s.state["mergeRequests"], [])
-
-
-# ---------------------------------------------------------------------------------------------
-# Item 3: rounds, the transition table, read-only rules, late answers
-# ---------------------------------------------------------------------------------------------
 
 
 class TestRounds(SessionCase):
@@ -940,14 +922,12 @@ class TestRounds(SessionCase):
         self.refused_ops("wrong-status", {"op": "ack-round", "round": 1})
 
     def test_ack_and_the_next_open_land_in_one_apply(self):
-        # follow-up 33: the lane acks and opens the next round together, so the page never waits on Claude between them
         self.open_round(text_q("Q1"))
         self.send()
         self.apply({"op": "ack-round", "round": 1}, {"op": "open-round", "questions": [text_q("Q2")]})
         self.assertEqual((self.round_status(1), self.round_status(2)), ("closed", "open"))
 
     def test_a_cancel_before_that_apply_refuses_all_of_it(self):
-        # gotchas.md: the owner cancels a sent round first; the combined apply then lands nothing
         self.open_round(text_q("Q1"))
         self.send()
         self.act("cancel_round", HOST, {})
@@ -1054,11 +1034,6 @@ class TestRounds(SessionCase):
         self.assertEqual([n["title"] for n in self.notes(self.bo, "round")], ["Round 1 is here."])
 
 
-# ---------------------------------------------------------------------------------------------
-# Item 4: questions, input parsing, purpose, references
-# ---------------------------------------------------------------------------------------------
-
-
 class TestQuestionParsing(SessionCase):
     def test_a_text_question_gets_claude_cards_for_the_recommendation_and_each_alternative(self):
         self.open_round(text_q("Q1"))
@@ -1089,7 +1064,7 @@ class TestQuestionParsing(SessionCase):
 
     def test_the_snapshot_flags_a_stored_alternative_that_restates_the_recommendation(self):
         self.open_round(text_q("Q1"))
-        self.question("Q1")["alternatives"][0]["text"] = "Recommended for Q1"  # a state saved before the refusal
+        self.question("Q1")["alternatives"][0]["text"] = "Recommended for Q1"
         self.s._base_cache = None
         (q,) = self.s.snapshot(HOST)["questions"]
         self.assertEqual([a.get("restates") for a in q["alternatives"]], [True, None])
@@ -1098,7 +1073,7 @@ class TestQuestionParsing(SessionCase):
     def test_an_old_state_shows_no_card_for_a_restating_alternative_and_keeps_state_json(self):
         self.open_round(text_q("Q1"))
         old = self.disk()
-        old["questions"][0]["alternatives"][0]["text"] = "Recommended for Q1"  # saved before the refusal
+        old["questions"][0]["alternatives"][0]["text"] = "Recommended for Q1"
         self.path.write_text(json.dumps(old), encoding="utf-8")
         before = self.path.read_bytes()
         s = session.Session.load(self.path, clock=self.clock, ids=self.ids)
@@ -1145,13 +1120,12 @@ class TestQuestionParsing(SessionCase):
         self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["o:yes", "o:no"])
 
     def test_a_rect_is_percent_so_one_past_100_is_refused_naming_percent(self):
-        # ux-review-3 finding 1: the pixel-sized rect {40, 700, 300, 60} was stored and the mark drew off the picture.
         conf = lambda rect: {**text_q("Q1", rec=False), "format": {"kind": "confirm", "image": PNG, "rect": rect}}  # noqa: E731
         for rect in ({"x": 40, "y": 700, "w": 300, "h": 60}, {"x": 50, "y": 0, "w": 51, "h": 10}, {"x": 0, "y": 95, "w": 10, "h": 6}):
             err = self.refused_ops("bad-field", {"op": "open-round", "questions": [conf(rect)]})
             self.assertIn("percent", err.message)
         self.assertEqual(self.s.state["questions"], [])
-        self.open_round(conf({"x": 60, "y": 90, "w": 40, "h": 10}))  # touching the edges is inside
+        self.open_round(conf({"x": 60, "y": 90, "w": 40, "h": 10}))
         err = self.refused("bad-field", "edit_reference", HOST, {"qid": "Q1", "reference": {"kind": "image", "asset": PNG, "rect": {"x": 10, "y": 20, "w": 300, "h": 200}}}, http=400)
         self.assertIn("percent", err.message)
         self.assertEqual(self.question("Q1")["references"], [])
@@ -1310,7 +1284,6 @@ class TestQuestionBehavior(SessionCase):
         self.act("pick", self.bo, {"qid": "Q1", "option": "opt-2", "view": "focus"})
         self.act("lock", HOST, {"qid": "Q1"})
         self.assertEqual(self.s.state["locks"]["Q1"]["source"], {"kind": "poll"})
-        # By hand: Ann Card, Bo Saved method, nobody None.
         counts = [{"option": "Card", "votes": 1}, {"option": "Saved method", "votes": 1}, {"option": "None", "votes": 0}]
         self.assertEqual(self.poll_outcome("Q1"), {"kind": "poll", "closed": True, "counts": counts})
 
@@ -1367,11 +1340,6 @@ class TestQuestionBehavior(SessionCase):
         prop = self.act("propose", self.ann, {"text": "Ask about refunds"})["id"]
         qid = self.act("act_on_proposal", HOST, {"id": prop, "action": "question"})["question"]
         self.refused("round-not-open", "answer", self.bo, {"qid": qid, "text": "Early", "view": "focus"}, http=409)
-
-
-# ---------------------------------------------------------------------------------------------
-# Item 5: cards, votes, reactions, go-with, picks, view and deviceInfo
-# ---------------------------------------------------------------------------------------------
 
 
 class TestCardsAndVotes(SessionCase):
@@ -1483,10 +1451,10 @@ class TestCardsAndVotes(SessionCase):
         self.assertEqual(react("heart"), ["heart"])
         self.assertEqual(react("idea"), ["heart", "idea"])
         self.assertEqual(react("thumbs"), ["thumbs", "heart", "idea"])
-        self.assertEqual(react("down"), ["down", "heart", "idea"])  # 👎 takes 👍's place, ❤️ and 💡 stay
+        self.assertEqual(react("down"), ["down", "heart", "idea"])
         self.assertEqual(react("thumbs"), ["thumbs", "heart", "idea"])
         self.assertEqual(react("heart", on=False), ["thumbs", "idea"])
-        self.assertEqual(react("down", on=False), ["thumbs", "idea"])  # off for one not held changes nothing
+        self.assertEqual(react("down", on=False), ["thumbs", "idea"])
         self.assertEqual(self.s.state["reactions"]["Q3"], {card: {self.bo: ["thumbs", "idea"]}})
         self.assertEqual(self.s.snapshot(self.bo)["me"]["reactions"], {"Q3": {card: ["thumbs", "idea"]}})
         self.refused("bad-field", "react", self.bo, {"qid": "Q3", "card": card, "reaction": "heart", "on": "yes"})
@@ -1552,11 +1520,6 @@ class TestPicks(SessionCase):
         self.assertEqual([c for c in self.s.state["cards"]["Q1"] if c["kind"] == "person"], [])
 
 
-# ---------------------------------------------------------------------------------------------
-# Item 6: locks, sign-off, suggestions, unlock, Needs review
-# ---------------------------------------------------------------------------------------------
-
-
 class TestLocks(SessionCase):
     def setUp(self):
         super().setUp()
@@ -1600,7 +1563,7 @@ class TestLocks(SessionCase):
 
     def test_sign_off_refuses_a_lock_until_everyone_present_agrees(self):
         self.act("update_settings", HOST, {"signoff": True})
-        self.clock.tick(session.OFFLINE_AFTER)  # whoever joined earlier but sends no heartbeat is offline
+        self.clock.tick(session.OFFLINE_AFTER)
         for p in (HOST, self.ann, self.bo):
             self.s.heartbeat(p, {})
         self.act("vote", self.bo, {"qid": "Q1", "card": "c:a", "on": True})
@@ -1736,11 +1699,6 @@ class TestLocks(SessionCase):
         self.assertEqual(ctx.exception.code, "state-invalid")
 
 
-# ---------------------------------------------------------------------------------------------
-# Item 7: proposals and placements, chat, @mentions, notifications
-# ---------------------------------------------------------------------------------------------
-
-
 class TestProposals(SessionCase):
     def setUp(self):
         super().setUp()
@@ -1853,14 +1811,14 @@ class TestProposals(SessionCase):
                           zip(("Ask about refunds", "Ask about delivery", "Ask about gift cards"), counted)])
         status = {x["id"]: x["status"] for x in self.s.state["proposals"]}
         self.assertEqual([status[i] for i in counted], [{"kind": "question", "question": q} for q in out["questions"]])
-        self.assertEqual(status[late], {"kind": "new"})  # never placed unseen
+        self.assertEqual(status[late], {"kind": "new"})
         self.assertEqual((len(self.notes(self.bo, "proposal")), len(self.notes(self.ann, "proposal"))), (2, 1))
         self.assertIsNone(session.document_error(self.disk()))
 
     def test_proposals_approved_after_the_send_need_no_placement_from_claude(self):
-        props = self.to_working_round()  # six proposals in the sent digest
+        props = self.to_working_round()
         self.act("approve_proposals", HOST, {"ids": props})
-        out = self.open_round(text_q("Q20"))["results"][0]  # no placements: none is new any more
+        out = self.open_round(text_q("Q20"))["results"][0]
         self.assertEqual(out["placed"], [])
         self.assertEqual(sorted(q["round"] for q in self.s.state["questions"] if q["origin"].get("proposal") in props), [2] * 6)
 
@@ -1868,7 +1826,7 @@ class TestProposals(SessionCase):
         self.open_round(text_q("Q1"))
         a, b, c = (self.propose(self.bo, f"Idea {i}") for i in range(3))
         self.act("act_on_proposal", HOST, {"id": c, "action": "park"})
-        self.refused("owner-only", "approve_proposals", self.ann, {"ids": [a, b]}, http=403)  # a leader places one at a time
+        self.refused("owner-only", "approve_proposals", self.ann, {"ids": [a, b]}, http=403)
         self.refused("wrong-status", "approve_proposals", HOST, {"ids": [a, c]}, http=409)
         self.refused("no-such-proposal", "approve_proposals", HOST, {"ids": [a, "P99"]}, http=404)
         for ids in ([], [a, a], "P1", [1]):
@@ -2043,8 +2001,6 @@ class TestChatAndNotifications(SessionCase):
         self.assertEqual(len(self.notes(self.ann, "votes")), 2)
 
     def test_answers_locks_edits_and_plain_chat_ring_no_bell(self):
-        # The bell's kinds are a closed list (mentions, replies, requests, proposals, rounds, merges, roles,
-        # queue items, votes); writing, editing or locking an answer and chat with no mention are none of them.
         self.open_round(text_q("Q1"))
         before = {pid: self.notes(pid) for pid in (HOST, self.ann, self.bo, self.cy)}
         self.act("answer", self.ann, {"qid": "Q1", "text": "Mine", "view": "focus"})
@@ -2091,11 +2047,6 @@ class TestChatAndNotifications(SessionCase):
         for n in self.notes(self.ann):
             self.assertNotIn("Bo", n["title"])
             self.assertNotIn("Cy", n["title"])
-
-
-# ---------------------------------------------------------------------------------------------
-# Item 8: requests (host runner), results stored unpublished until the owner publishes
-# ---------------------------------------------------------------------------------------------
 
 
 class TestChatWindow(SessionCase):
@@ -2287,7 +2238,7 @@ class TestHiddenCharacters(SessionCase):
 
     def test_a_joiner_does_not_make_a_name_unique_but_a_lookalike_letter_does(self):
         self.assertEqual(self.s.join(None, {"key": self.key(), "name": "Ann\U0000200d", "device": "computer"})["name"], "Ann\U0000200d 2")
-        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "\U00000410nn", "device": "computer"})["name"], "\U00000410nn")  # confusables are for "Claude" only
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "\U00000410nn", "device": "computer"})["name"], "\U00000410nn")
 
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
         self.refused("empty", "chat", self.ann, {"text": "\u202e\u200b\x00 \u2066"}, http=400)
@@ -2345,9 +2296,9 @@ class TestWriteLimits(SessionCase):
 
     def test_the_heartbeat_takes_about_one_a_second(self):
         q_of = lambda: next(p["q"] for p in self.s.snapshot(HOST)["presence"] if p["pid"] == self.ann)  # noqa: E731
-        self.twice("heartbeat", {"q": "Q1"}, {"q": "Q3"})  # too soon and it moves q: refused
+        self.twice("heartbeat", {"q": "Q1"}, {"q": "Q3"})
         self.assertEqual(q_of(), "Q1")
-        self.assertEqual(self.s.heartbeat(self.ann, {"q": "Q1"})["pid"], self.ann)  # too soon, the same beat: answered
+        self.assertEqual(self.s.heartbeat(self.ann, {"q": "Q1"})["pid"], self.ann)
         self.clock.tick(session.HEARTBEAT_INTERVAL)
         self.s.heartbeat(self.ann, {"q": "Q3"})
         self.assertEqual(q_of(), "Q3")
@@ -2359,11 +2310,11 @@ class TestWriteLimits(SessionCase):
         self.assertEqual(list(self.s._last_write), [(self.bo, "chat")])
 
     def test_a_forgotten_person_leaves_no_write_record(self):
-        self.act("set_trust", HOST, {"pid": self.ann, "on": True})  # trusted, so never the one forgotten
+        self.act("set_trust", HOST, {"pid": self.ann, "on": True})
         with mock.patch.object(session, "MAX_PEOPLE", 4):
             idle, _ = self.join("Idle")
             self.s.rename(idle, {"name": "Idle Too"})
-            self.s.request_merge(idle, {"to": self.bo})  # a write record, but no content that keeps a person
+            self.s.request_merge(idle, {"to": self.bo})
             self.s._presence.clear()
             self.join("New")
         self.assertNotIn(idle, self.s.state["people"])
@@ -2489,7 +2440,7 @@ class TestRequests(SessionCase):
         rid = self.ask(self.ann)
         r = self.s.state["requests"][0]
         self.assertEqual((rid, r["status"], r["runner"], r["edited"]), ("R1", {"kind": "pending"}, "host", False))
-        self.assertEqual(self.notes(HOST, "queue"), [])  # the owner's Inbox lists it as waiting instead
+        self.assertEqual(self.notes(HOST, "queue"), [])
 
     def test_at_most_ten_pending_requests_per_person(self):
         for i in range(10):
@@ -2618,7 +2569,7 @@ class TestReviewFirstOldSessions(SessionCase):
 
     def test_a_state_written_before_the_setting_keeps_every_answer_for_the_owners_share(self):
         doc = self.disk()
-        doc["session"]["settings"].pop("reviewAnswers", None)  # every state file before the setting lacks it
+        doc["session"]["settings"].pop("reviewAnswers", None)
         self.path.write_text(json.dumps(doc), encoding="utf-8")
         self.s = session.Session.load(self.path, clock=self.clock, ids=self.ids)
         self.assertNotIn("reviewAnswers", self.s.state["session"]["settings"])
@@ -2685,7 +2636,7 @@ class TestInbox(TestRequests):
         self.act("act_on_request", HOST, {"action": "publish", "id": xid})
         item = self.inbox(self.ann)[rid]
         self.assertEqual((item["status"], item["unread"], item["result"]), ("shared", True, xid))
-        self.assertTrue(self.inbox(self.ann)[rid]["unread"])  # nothing marks it read but opening it
+        self.assertTrue(self.inbox(self.ann)[rid]["unread"])
         self.read(self.ann, rid)
         self.assertFalse(self.inbox(self.ann)[rid]["unread"])
 
@@ -2712,7 +2663,7 @@ class TestInbox(TestRequests):
         self.assertEqual([i["key"] for i in snap["inbox"]], ["R2"])
         self.assertNotIn("Ann's private wording", json.dumps(snap))
         self.assertFalse(any(i["group"] == "waiting" for i in snap["inbox"]))
-        self.assertEqual(self.read(self.bo, "R1", "run:R1"), {"read": 0})  # another person's keys mark nothing
+        self.assertEqual(self.read(self.bo, "R1", "run:R1"), {"read": 0})
         self.assertEqual(self.s.state["inboxSeen"][self.bo], {"R2": "waiting"})
 
     def test_the_hosts_waiting_on_you_lists_requests_results_reports_merges_and_joins(self):
@@ -2734,7 +2685,7 @@ class TestInbox(TestRequests):
         self.act("act_on_request", HOST, {"action": "run", "ids": [r1]})
         self.assertNotIn(f"run:{r1}", self.inbox(HOST, "waiting"))
         self.read(HOST, f"share:{xid}")
-        self.assertNotIn(f"run:{r1}", self.s.state["inboxSeen"][HOST])  # a mark of an item gone is dropped on the next read
+        self.assertNotIn(f"run:{r1}", self.s.state["inboxSeen"][HOST])
 
     def test_handled_requests_and_reports_leave_what_waits_on_the_host(self):
         """Follow-up 23: a request the host ran, shared, discarded or cancelled, and a report it resolved, marked seen or
@@ -2756,26 +2707,26 @@ class TestInbox(TestRequests):
         self.assertEqual(sorted(waiting), [f"fail:{failed}"])
         self.assertEqual((waiting[f"fail:{failed}"]["unread"], waiting[f"fail:{failed}"]["qid"]), (True, "Q1"))
         self.read(HOST, f"fail:{failed}")
-        self.assertFalse(self.inbox(HOST, "waiting")[f"fail:{failed}"]["unread"])  # opened: history from here on
+        self.assertFalse(self.inbox(HOST, "waiting")[f"fail:{failed}"]["unread"])
         self.act("act_on_request", HOST, {"action": "rerun", "id": failed})
         self.assertEqual(self.inbox(HOST, "waiting"), {})
         self.apply({"op": "fail-request", "request": failed, "reason": "Still no sources."})
-        self.assertTrue(self.inbox(HOST, "waiting")[f"fail:{failed}"]["unread"])  # a second failure waits again
+        self.assertTrue(self.inbox(HOST, "waiting")[f"fail:{failed}"]["unread"])
         self.read(HOST, f"fail:{failed}")
         self.clock.tick(10)
         self.act("add_to_report", self.bo, {"id": fids[2], "text": "Still broken on the phone."})
-        item = self.inbox(HOST, "waiting")[f"report:{fids[2]}"]  # new words from the reporter wait again, unread
+        item = self.inbox(HOST, "waiting")[f"report:{fids[2]}"]
         self.assertTrue(item["unread"])
         self.read(HOST, f"report:{fids[2]}")
         self.act("act_on_report", HOST, {"action": "ask", "id": fids[2]})
         self.clock.tick(10)
         self.act("add_to_report", self.bo, {"id": fids[2], "text": "And on the laptop."})
-        self.assertTrue(self.inbox(HOST, "waiting")[f"report:{fids[2]}"]["unread"])  # read before it was asked about, unread on its return
+        self.assertTrue(self.inbox(HOST, "waiting")[f"report:{fids[2]}"]["unread"])
 
     def test_only_the_cancelled_flag_marks_a_discard_never_a_reason_claude_wrote(self):
         rid = self.ask(self.ann)
         self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
-        self.apply({"op": "fail-request", "request": rid, "reason": session.NOT_SHARED})  # Claude's text, read from a guest's ask
+        self.apply({"op": "fail-request", "request": rid, "reason": session.NOT_SHARED})
         self.assertTrue(self.inbox(HOST, "waiting")[f"fail:{rid}"]["unread"])
 
     def test_a_read_takes_one_to_a_hundred_string_keys_and_works_while_ended(self):
@@ -2792,7 +2743,7 @@ class TestInbox(TestRequests):
         self.act("act_on_request", HOST, {"action": "decline", "id": r2})
         self.assertEqual(self.read(self.ann, r1), {"read": 1})
         with self.assertRaises(session.DomainError) as ctx:
-            self.s.read_inbox(self.ann, {"keys": [r2]})  # same clock: under a second after the last
+            self.s.read_inbox(self.ann, {"keys": [r2]})
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
         rev, disk = self.s.state["rev"], self.path.read_text(encoding="utf-8")
         self.assertEqual(self.read(self.ann, r1, "R99"), {"read": 0})
@@ -2801,7 +2752,7 @@ class TestInbox(TestRequests):
     def test_a_read_at_the_status_the_page_showed_leaves_a_later_move_unread(self):
         rid = self.ask(self.ann)
         self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
-        self.apply(self.result_op(rid))  # the page still showed Running when the person opened it
+        self.apply(self.result_op(rid))
         self.clock.tick()
         self.assertEqual(self.s.read_inbox(self.ann, {"keys": [rid], "saw": {rid: "running"}}), {"read": 1})
         self.assertEqual((self.inbox(self.ann)[rid]["status"], self.inbox(self.ann)[rid]["unread"]), ("unshared", True))
@@ -2819,7 +2770,7 @@ class TestInbox(TestRequests):
 class TestSelfRunner(SessionCase):
     def setUp(self):
         super().setUp()
-        self.s.update_settings(HOST, {"reviewAnswers": True})  # results wait for the owner's Share
+        self.s.update_settings(HOST, {"reviewAnswers": True})
         self.ann, self.bo = self.people("Ann", "Bo")
         self.open_round(text_q("Q1"))
         self.rid = self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "Which step drops most?", "runner": "self"})["id"]
@@ -2836,7 +2787,6 @@ class TestSelfRunner(SessionCase):
         return self.act("post_my_result", pid, {"id": rid, "summary": summary, "sources": [], "report": "", "used": [], "why": ""})["id"]
 
     def test_only_the_requesters_own_secret_posts_its_result_which_waits_for_the_owner(self):
-        # Owner's decision (PLAN.md Decisions, h2): results wait for the owner's Publish, a guest's own Claude's too.
         self.act("claim_my_request", self.ann, {"id": self.rid})
         body = {"id": self.rid, "summary": "The address step.", "sources": [], "report": "", "used": [{"name": "claude", "type": "cli"}], "why": "Own Claude."}
         self.refused("no-such-request", "post_my_result", self.bo, body, http=404)
@@ -2846,7 +2796,7 @@ class TestSelfRunner(SessionCase):
         self.assertNotIn("Q1", self.s.snapshot(self.bo)["results"])
         self.assertEqual([r["summary"] for r in self.s.snapshot(self.ann)["results"]["Q1"]], ["The address step."])
         self.assertEqual([r["published"] for r in self.s.snapshot(HOST)["results"]["Q1"]], [False])
-        self.assertEqual(self.notes(HOST, "queue"), [])  # the owner's Inbox lists it as waiting instead
+        self.assertEqual(self.notes(HOST, "queue"), [])
         self.act("act_on_request", HOST, {"action": "publish", "id": xid})
         self.assertEqual(self.s.snapshot(self.bo)["results"]["Q1"][0]["summary"], "The address step.")
         self.assertEqual([n["title"] for n in self.notes(self.ann, "request")], ["Your request on question Q1 is done."])
@@ -2884,9 +2834,6 @@ class TestSelfRunner(SessionCase):
         self.act("fail_my_request", self.ann, {"id": self.rid, "reason": "My Claude is offline."})
         self.assertEqual(self.s.state["requests"][0]["status"]["kind"], "failed")
 
-    # Phase 8 (Connect your Claude). Expected values come from the Design's request rules (never in the owner's
-    # queue, no control event, results only with the requester's secret, a person sees only their own self
-    # requests), its write limit of one a second per route, and C18-C20.
 
     def test_a_self_request_makes_no_event_from_request_to_result(self):
         body = {"id": self.rid, "summary": "The address step.", "sources": [], "report": "", "used": [], "why": ""}
@@ -2919,9 +2866,9 @@ class TestSelfRunner(SessionCase):
         second = self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "And the second?", "runner": "self"})["id"]
         self.act("claim_my_request", self.ann, {"id": self.rid})
         with self.assertRaises(session.DomainError) as ctx:
-            self.s.claim_my_request(self.ann, {"id": second})  # same clock instant: under a second later
+            self.s.claim_my_request(self.ann, {"id": second})
         self.assertEqual((ctx.exception.code, ctx.exception.http), ("slow-down", 429))
-        self.s.fail_my_request(self.ann, {"id": second, "reason": "Not needed."})  # another route: its own limit
+        self.s.fail_my_request(self.ann, {"id": second, "reason": "Not needed."})
         with self.assertRaises(session.DomainError) as ctx:
             self.s.fail_my_request(self.ann, {"id": self.rid, "reason": "Not needed."})
         self.assertEqual(ctx.exception.code, "slow-down")
@@ -2950,7 +2897,6 @@ class TestSelfRunner(SessionCase):
         self.assertEqual([(r["from"], r["by"]) for r in sent["digest"]["results"]], [("guest-claude", "Ann")])
 
     def test_a_result_made_before_a_send_and_published_after_it_reaches_the_next_digest_once(self):
-        # Expected: every published result reaches exactly one digest, the first sent after it was shown.
         xid = self.answer_mine(self.ann, self.rid)
         self.send()
         self.ack(1)
@@ -2969,7 +2915,7 @@ class TestSelfRunnerLimits(SessionCase):
 
     def setUp(self):
         super().setUp()
-        self.s.update_settings(HOST, {"reviewAnswers": True})  # results wait for the owner's Share
+        self.s.update_settings(HOST, {"reviewAnswers": True})
         self.ann, self.bo = self.people("Ann", "Bo")
         self.open_round(text_q("Q1"), text_q("Q2"), text_q("Q3"))
 
@@ -2999,8 +2945,8 @@ class TestSelfRunnerLimits(SessionCase):
         with self.assertRaises(session.DomainError) as ctx:
             self.post(self.ann, rid)
         self.assertEqual((ctx.exception.code, ctx.exception.http), ("results-full", 409))
-        self.answered(self.bo, "Q1")  # another person's own count
-        self.answered(self.ann, "Q2")  # another question
+        self.answered(self.bo, "Q1")
+        self.answered(self.ann, "Q2")
 
     def test_one_person_posts_at_most_ten_results_in_one_round(self):
         for qid in ("Q1", "Q2"):
@@ -3046,7 +2992,7 @@ class TestSelfRunnerLimits(SessionCase):
 
     def test_the_digest_stops_at_its_character_budget(self):
         with mock.patch.object(session, "MAX_DIGEST_CHARS", 10):
-            self.shown("1234", "5678", "90", "x")  # 4 + 4 + 2 = 10 fit; the next would pass the budget
+            self.shown("1234", "5678", "90", "x")
             self.send()
         (sent,) = self.events("round-sent")
         self.assertEqual([r["summary"] for r in sent["digest"]["results"]], ["1234", "5678", "90"])
@@ -3057,11 +3003,6 @@ class TestSelfRunnerLimits(SessionCase):
         self.send()
         (sent,) = self.events("round-sent")
         self.assertNotIn("resultsMore", sent["digest"])
-
-
-# ---------------------------------------------------------------------------------------------
-# Item 9: settings, prefs, title, goal, end, links
-# ---------------------------------------------------------------------------------------------
 
 
 class TestSessionControls(SessionCase):
@@ -3078,7 +3019,6 @@ class TestSessionControls(SessionCase):
         self.refused("owner-only", "update_settings", self.ann, {"voting": False})
 
     def test_the_theme_takes_a_palette_beside_mode_and_accent_and_refuses_an_unknown_one(self):
-        # the palettes are the ones the feature names: Default, Midnight, Slate, Paper and High contrast
         for palette in ("default", "midnight", "slate", "paper", "contrast"):
             out = self.act("update_settings", HOST, {"theme": {"palette": palette}})
             self.assertEqual(out["settings"]["theme"], {"mode": "system", "accent": "teal", "palette": palette})
@@ -3089,7 +3029,6 @@ class TestSessionControls(SessionCase):
         self.assertIsNone(session.state_error(self.disk()))
 
     def test_the_owner_sets_which_pop_ups_guests_start_with(self):
-        # round 11: the host's defaults for a guest's three pop-up switches; absent, all three are on (the page's default)
         self.assertNotIn("guestPopups", self.s.snapshot(self.ann)["settings"])
         out = self.act("update_settings", HOST, {"guestPopups": ["round", "request"]})
         self.assertEqual(out["settings"]["guestPopups"], ["request", "round"])
@@ -3148,8 +3087,7 @@ class TestSessionControls(SessionCase):
     def test_popups_name_only_pop_up_kinds_and_belong_to_their_person(self):
         self.assertEqual(self.act("set_prefs", HOST, {"set": {"popups": ["join", "share"]}})["prefs"], {"popups": ["join", "share"]})
         self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {})
-        self.act("set_prefs", HOST, {"set": {"popups": []}})  # every kind off: the Inbox only
-        # Round 11: a guest's own switches, an answered request, a mention and a new round.
+        self.act("set_prefs", HOST, {"set": {"popups": []}})
         self.assertEqual(self.act("set_prefs", self.ann, {"set": {"popups": ["mention", "round"]}})["prefs"], {"popups": ["mention", "round"]})
         for bad in ("join", ["reply"], ["join"] * 7, ["join", "join"], [["join"]], [{}], [1]):
             self.refused("bad-field", "set_prefs", HOST, {"set": {"popups": bad}})
@@ -3200,15 +3138,10 @@ class TestSessionControls(SessionCase):
         self.refused("owner-only", "rotate_owner_link", self.ann, {})
 
 
-# ---------------------------------------------------------------------------------------------
-# Item 10: digest and event log
-# ---------------------------------------------------------------------------------------------
-
-
 class TestDigest(SessionCase):
     def setUp(self):
         super().setUp()
-        self.s.update_settings(HOST, {"reviewAnswers": True})  # results wait for the owner's Share
+        self.s.update_settings(HOST, {"reviewAnswers": True})
         self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
 
     def digest(self):
@@ -3362,11 +3295,6 @@ class TestDigest(SessionCase):
         self.assertEqual(self.s.state["log"]["seq"], 2)
 
 
-# ---------------------------------------------------------------------------------------------
-# Item 11: apply ops all or nothing
-# ---------------------------------------------------------------------------------------------
-
-
 class TestApply(SessionCase):
     def test_ops_land_all_or_none(self):
         before = copy_state(self.s)
@@ -3398,7 +3326,7 @@ class TestApply(SessionCase):
         self.assertEqual(meta["scale"], 1)
 
     def test_add_asset_refuses_the_system_temp_folder_and_names_the_staging_folder(self):
-        other = Path(tempfile.mkdtemp())  # under the system temp folder, beside the data folder
+        other = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, other, ignore_errors=True)
         src = other / "shot.png"
         src.write_bytes(b"\x89PNG\r\n\x1a\n")
@@ -3508,11 +3436,6 @@ class TestApply(SessionCase):
         self.assertEqual([r["status"]["kind"] for r in self.s.state["rounds"]], ["closed", "open"])
 
 
-# ---------------------------------------------------------------------------------------------
-# Snapshots: anonymous view, per-viewer view, Show names masking
-# ---------------------------------------------------------------------------------------------
-
-
 class TestSnapshots(SessionCase):
     def setUp(self):
         super().setUp()
@@ -3528,7 +3451,7 @@ class TestSnapshots(SessionCase):
 
     def test_the_anonymous_view_has_exactly_three_keys(self):
         self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": True})
-        with self.s._tx() as st:  # a session from before every new one had a guest key
+        with self.s._tx() as st:
             st["session"]["guestKey"] = ""
         self.assertFalse(self.s.anonymous_view()["joinNeedsKey"])
 
@@ -3623,18 +3546,11 @@ class TestSnapshots(SessionCase):
         self.assertTrue(self.s.anonymous_view()["ended"])
 
     def test_presence_shows_who_is_here_until_they_go_offline(self):
-        self.clock.tick(session.OFFLINE_AFTER)  # the joins' own presence has lapsed
+        self.clock.tick(session.OFFLINE_AFTER)
         self.s.heartbeat(self.bo, {"q": "Q1", "typing": True})
         self.assertEqual([p["pid"] for p in self.s.snapshot(self.cy)["presence"]], [self.bo])
         self.clock.tick(session.OFFLINE_AFTER + 1)
         self.assertEqual(self.s.snapshot(self.cy)["presence"], [])
-
-
-# ---------------------------------------------------------------------------------------------
-# Phase 4b: formats (multi, scale, rank), Something else, Disagree, the down reaction, diagrams.
-# Expected values come from the amendments "Reactions and formats" and "Presence" and triage 22;
-# digest numbers are worked by hand in each test's comment.
-# ---------------------------------------------------------------------------------------------
 
 
 class FormatCase(SessionCase):
@@ -3699,21 +3615,20 @@ class TestFormatPicks(FormatCase):
         self.assertEqual(self.mine("Q3", self.ann)["order"], ["opt-2", "opt-3", "opt-1"])
 
     def test_multi_scale_and_rank_take_a_pick_not_a_written_answer(self):
-        for qid in ("Q1", "Q3"):  # Q2 is a poll, which refuses a written answer as wrong-purpose first
+        for qid in ("Q1", "Q3"):
             with self.subTest(qid=qid):
                 self.refused("bad-action", "answer", self.ann, {"qid": qid, "text": "Words", "view": "focus"}, http=400)
 
     def test_scale_options_are_its_values_with_the_end_and_middle_labels(self):
         cards = [c["option"] for c in self.s.state["cards"]["Q2"]]
         self.assertEqual(cards, ["1", "2", "3", "4", "5"])
-        self.act("set_purpose", HOST, {"qid": "Q2", "purpose": "decide"})  # a poll locks no single value
+        self.act("set_purpose", HOST, {"qid": "Q2", "purpose": "decide"})
         self.act("lock", HOST, {"qid": "Q2", "card": "o:3"})
         self.assertEqual(self.s.state["locks"]["Q2"]["source"]["text"], "3 (Sometimes)")
 
 
 class TestFormatDigest(FormatCase):
     def test_multi_digest_counts_each_option_picked(self):
-        # Ann Card+Bank, Bo Card, Cy PayPal and her own option: Card 2, PayPal 1, Bank 1; 3 people.
         self.pick(self.ann, "Q1", options=["opt-1", "opt-3"])
         self.pick(self.bo, "Q1", options=["opt-1"])
         self.pick(self.cy, "Q1", options=["opt-2", "other"], other="Apple Pay")
@@ -3722,7 +3637,6 @@ class TestFormatDigest(FormatCase):
         self.assertEqual((out["kind"], out["people"], out["others"]), ("multi", 3, [{"text": "Apple Pay", "backers": 1}]))
 
     def test_scale_digest_gives_counts_mean_and_median(self):
-        # Values 1, 2, 2, 5: mean 10 / 4 = 2.5, median (2 + 2) / 2 = 2.
         for pid, v in ((self.ann, 1), (self.bo, 2), (self.cy, 2), (HOST, 5)):
             self.pick(pid, "Q2", value=v)
         out = self.outcome("Q2")["outcome"]
@@ -3730,15 +3644,12 @@ class TestFormatDigest(FormatCase):
         self.assertEqual((out["mean"], out["median"], out["people"], out["closed"]), (2.5, 2, 4, False))
 
     def test_scale_mean_is_rounded_to_two_places_and_the_odd_median_is_the_middle(self):
-        # Values 1, 4, 5: mean 10 / 3 = 3.33, median 4.
         for pid, v in ((self.ann, 1), (self.bo, 4), (self.cy, 5)):
             self.pick(pid, "Q2", value=v)
         out = self.outcome("Q2")["outcome"]
         self.assertEqual((out["mean"], out["median"]), (3.33, 4))
 
     def test_rank_digest_gives_borda_totals_and_full_order_counts(self):
-        # 3 options: first 2 points, second 1, last 0. Ann and Bo Trust > Speed > Fewer, Cy Speed > Trust > Fewer:
-        # Trust 2 + 2 + 1 = 5, Speed 1 + 1 + 2 = 4, Fewer fields 0.
         self.pick(self.ann, "Q3", order=["opt-2", "opt-1", "opt-3"])
         self.pick(self.bo, "Q3", order=["opt-2", "opt-1", "opt-3"])
         self.pick(self.cy, "Q3", order=["opt-1", "opt-2", "opt-3"])
@@ -3747,8 +3658,6 @@ class TestFormatDigest(FormatCase):
         self.assertEqual(out["orders"], [{"order": ["Trust", "Speed", "Fewer fields"], "people": 2}, {"order": ["Speed", "Trust", "Fewer fields"], "people": 1}])
 
     def test_lock_top_answer_on_a_rank_takes_the_borda_winner(self):
-        # Ann Speed > Trust > Fewer (Speed 2), Bo Trust > Fewer > Speed (Trust 2, Speed 0), Cy Trust > Speed > Fewer:
-        # Trust 1 + 2 + 2 = 5, Speed 2 + 0 + 1 = 3.
         self.pick(self.ann, "Q3", order=["opt-1", "opt-2", "opt-3"])
         self.pick(self.bo, "Q3", order=["opt-2", "opt-3", "opt-1"])
         self.pick(self.cy, "Q3", order=["opt-2", "opt-1", "opt-3"])
@@ -3794,7 +3703,6 @@ class TestSomethingElse(FormatCase):
         self.assertNotIn(self.ann, self.s.state["votes"]["Q4"])
 
     def test_others_pick_a_persons_own_option_on_a_choice_question(self):
-        # Ann's own option, backed by Bo (whose pick moves off Card) and by Cy: 3 with Ann herself.
         self.pick(self.ann, "Q4", option="other", other="Pay by bank app")
         self.pick(self.bo, "Q4", option="opt-1")
         self.act("vote", self.bo, {"qid": "Q4", "card": f"p:{self.ann}", "on": True})
@@ -3853,9 +3761,9 @@ class TestNoneOfThese(FormatCase):
     def test_the_server_adds_none_of_these_last_when_the_format_asks(self):
         options = self.question("Q7")["format"]["options"]
         self.assertEqual(options[-2:], [{"id": "other", "label": "Something else…", "other": True}, {"id": "none", "label": "None of these", "none": True}])
-        self.assertNotIn("none", self.question("Q7")["format"])  # the option is the record, not the flag
+        self.assertNotIn("none", self.question("Q7")["format"])
         self.assertIn("o:none", [session.card_ref(c) for c in self.s.state["cards"]["Q7"]])
-        self.assertNotIn("none", [o["id"] for o in self.question("Q1")["format"]["options"]])  # a multi without the flag
+        self.assertNotIn("none", [o["id"] for o in self.question("Q1")["format"]["options"]])
 
     def test_only_a_multi_question_takes_the_flag(self):
         self.send()
@@ -3919,13 +3827,12 @@ class TestNoneOfThese(FormatCase):
         self.assertNotIn(self.bo, people)
         self.assertIn(self.bo, self.s.state["passes"]["Q7"])
         self.assertNotIn("picks", people[self.cy])
-        self.assertNotIn(HOST, people)  # an empty pick with no comment records nothing
+        self.assertNotIn(HOST, people)
         self.act("pass_", self.cy, {"qid": "Q7"})
-        self.pick(self.cy, "Q7", options=["none"])  # None of these is an answer: it takes back the Pass
+        self.pick(self.cy, "Q7", options=["none"])
         self.assertNotIn(self.cy, self.s.state["passes"]["Q7"])
 
     def test_the_digest_counts_none_of_these_as_its_own_row(self):
-        # Ann Card, Bo None, Cy None with a comment, the owner passes: Card 1, None 2; 3 people.
         self.pick(self.ann, "Q7", options=["opt-1"])
         self.pick(self.bo, "Q7", options=["none"])
         self.pick(self.cy, "Q7", options=["none"], comment="We pay cash")
@@ -3998,14 +3905,6 @@ class TestDisagree(FormatCase):
         self.act("react", self.bo, {"qid": "Q6", "card": f"p:{self.ann}", "reaction": "down"})
         answers = self.outcome("Q6")["outcome"]["answers"]
         self.assertEqual(answers, [{"text": "Slow form", "reactions": {"thumbs": 0, "down": 1, "heart": 0, "idea": 0}, "endorsedBy": 0}])
-
-
-# ---------------------------------------------------------------------------------------------
-# A late Disagree on a locked decision. Expected values come from the owner's decisions: a locked question takes a
-# late Disagree only (votes, Passes and answers stay 409 `locked`); one such Disagree raises "possibly reopened" for
-# the owner (Inbox and digest) and flags its dependents `possibly-reopened` for everyone; Keep decision clears both
-# and is logged, Unlock is the existing unlock; the decision log is the owner's alone.
-# ---------------------------------------------------------------------------------------------
 
 
 class ReopenCase(SessionCase):
@@ -4110,7 +4009,7 @@ class TestPossiblyReopened(ReopenCase):
         self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Users want it"})
         self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Far too costly"})
         (row,) = self.reopen_rows()
-        self.assertEqual(row["n"], 2)  # Cy changing their reason raises nothing new
+        self.assertEqual(row["n"], 2)
         for qid in ("Q2", "Q3"):
             self.assertEqual([f["because"] for f in self.flags(qid)], ["Q1"], qid)
         self.assertEqual(self.flags("Q1") + self.flags("Q4"), [])
@@ -4154,7 +4053,7 @@ class TestPossiblyReopened(ReopenCase):
         self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Users want it"})
         self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
         (row,) = self.reopen_rows()
-        self.assertEqual((row["n"], row["by"]), (1, self.bo))  # the Disagrees held now: Bo's alone
+        self.assertEqual((row["n"], row["by"]), (1, self.bo))
         self.assertEqual([f["because"] for f in self.flags("Q2")], ["Q1"])
         self.assertNotIn("withdrawn", [e["kind"] for e in self.s.state["decisions"]])
 
@@ -4260,7 +4159,7 @@ class TestKeepOrUnlock(ReopenCase):
         self.raise_it()
         self.act("edit_lock", HOST, {"qid": "Q1", "text": "Recommended for Q1."})
         self.assertEqual((self.reopen_rows(), self.flags("Q2"), self.flags("Q3")), ([], [], []))
-        self.assertEqual(self.question("Q2")["needsReview"], [])  # the same text changes nothing to review
+        self.assertEqual(self.question("Q2")["needsReview"], [])
 
     def test_unlock_drops_the_possibly_reopened_flags(self):
         self.raise_it()
@@ -4389,7 +4288,7 @@ class TestPresenceStates(SessionCase):
     def setUp(self):
         super().setUp()
         self.ann, self.bo = self.people("Ann", "Bo")
-        self.clock.tick(session.OFFLINE_AFTER)  # the joins' own presence has lapsed
+        self.clock.tick(session.OFFLINE_AFTER)
 
     def state_of(self, pid):
         return next((p for p in self.s.snapshot(HOST)["presence"] if p["pid"] == pid), None)
@@ -4467,9 +4366,9 @@ class TestPresenceStates(SessionCase):
         self.beat(self.ann, visible=False)
         self.assertEqual(self.state_of(self.ann)["state"], "away")
         rev = self.s.presence_rev()
-        self.assertEqual(self.beat(self.ann, visible=False)["pid"], self.ann)  # the same beat again: answered, not recorded
+        self.assertEqual(self.beat(self.ann, visible=False)["pid"], self.ann)
         self.assertEqual((self.state_of(self.ann)["state"], self.s.presence_rev()), ("away", rev))
-        with self.assertRaises(session.DomainError) as ctx:  # too soon, and it would move q
+        with self.assertRaises(session.DomainError) as ctx:
             self.beat(self.ann, visible=False, q="Q1")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
 
@@ -4477,7 +4376,7 @@ class TestPresenceStates(SessionCase):
         self.beat(self.ann, visible=True)
         self.clock.tick(2)
         self.beat(self.ann, visible=False)
-        self.beat(self.ann, visible=True)  # the second change inside the second: a reload's hidden, then its visible
+        self.beat(self.ann, visible=True)
         with self.assertRaises(session.DomainError) as ctx:
             self.beat(self.ann, visible=False)
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
@@ -4492,13 +4391,13 @@ class TestPresenceStates(SessionCase):
         tab = "a" * 24
         self.beat(self.ann, visible=True, tab=tab)
         self.clock.tick(0.4)
-        self.beat(self.ann, visible=True, tab=tab)  # a new page's first beat, nothing changed
+        self.beat(self.ann, visible=True, tab=tab)
         self.clock.tick(2)
         self.beat(self.ann, visible=True, tab=tab)
         self.clock.tick(0.2)
-        self.beat(self.ann, visible=False, tab=tab)  # the old page unloads
+        self.beat(self.ann, visible=False, tab=tab)
         self.clock.tick(0.3)
-        self.beat(self.ann, visible=True, tab=tab)  # the new page's first beat
+        self.beat(self.ann, visible=True, tab=tab)
         self.assertEqual(self.state_of(self.ann)["state"], "active")
 
     def test_manual_away_lasts_while_sent_and_ends_with_the_next_input_beat(self):
@@ -4530,11 +4429,11 @@ class TestPresenceStates(SessionCase):
 
     def test_two_tabs_of_one_person_each_beat_once_a_second(self):
         self.beat(self.ann, tab="laptop")
-        self.beat(self.ann, tab="phone")  # same instant, another tab: not a second beat of the first
+        self.beat(self.ann, tab="phone")
         with self.assertRaises(session.DomainError) as ctx:
             self.beat(self.ann, tab="laptop", q="Q1")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
-        self.beat(self.ann, tab="phone", visible=False)  # change beats on its own tab: two a second
+        self.beat(self.ann, tab="phone", visible=False)
         self.beat(self.ann, tab="phone", visible=True)
         with self.assertRaises(session.DomainError):
             self.beat(self.ann, tab="phone", visible=False)
@@ -4543,7 +4442,7 @@ class TestPresenceStates(SessionCase):
         self.beat(self.ann, tab="a", visible=True)
         self.beat(self.ann, tab="b", visible=False)
         self.assertEqual(self.state_of(self.ann)["state"], "active")
-        for _ in range(3):  # the hidden tab's throttled beats, one a minute, change nothing
+        for _ in range(3):
             self.clock.tick(20)
             self.beat(self.ann, tab="a", visible=True)
             self.beat(self.ann, tab="b", visible=False)
@@ -4566,10 +4465,10 @@ class TestPresenceStates(SessionCase):
         self.beat(self.ann, tab="hidden", visible=False)
         self.clock.tick(60)
         self.beat(self.ann, tab="hidden", visible=False)
-        self.assertEqual(self.state_of(self.ann)["state"], "active")  # the visible tab's last beat is 60 s old
-        self.clock.tick(30)  # 90 s since the visible tab last beat: it is gone, the hidden one remains
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
+        self.clock.tick(30)
         self.assertEqual(self.state_of(self.ann)["state"], "away")
-        self.clock.tick(60)  # 90 s since any tab beat: offline
+        self.clock.tick(60)
         self.assertIsNone(self.state_of(self.ann))
 
     def test_question_and_typing_come_from_the_latest_beat(self):
@@ -4609,7 +4508,7 @@ class TestPresenceStates(SessionCase):
         self.clock.tick(1)
         self.beat(self.ann, tab="desk", q="Q2", lastFocus=0, focusId=2000)
         self.clock.tick(3)
-        self.beat(self.ann, tab="phone", q="Q1", lastFocus=1, focusId=5000)  # focused again at t=3
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=1, focusId=5000)
         self.assertEqual(self.state_of(self.ann)["q"], "Q1")
 
     def test_without_a_focus_id_a_focus_time_only_moves_earlier(self):
@@ -4617,9 +4516,9 @@ class TestPresenceStates(SessionCase):
         self.clock.tick(1)
         self.beat(self.ann, tab="desk", q="Q2", lastFocus=0)
         self.clock.tick(3)
-        self.beat(self.ann, tab="phone", q="Q1", lastFocus=2)  # would put the phone's focus at t=2
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=2)
         self.assertEqual(self.state_of(self.ann)["q"], "Q2")
-        self.beat(self.ann, tab="desk", q="Q2", lastFocus=4.5)  # a quicker beat: the desk's focus was at t=-0.5
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=4.5)
         self.assertEqual(self.state_of(self.ann)["q"], "Q1")
 
     def test_a_beat_without_a_focus_time_keeps_the_tabs_last_one(self):
@@ -4637,13 +4536,13 @@ class TestPresenceStates(SessionCase):
         self.assertEqual(self.state_of(self.ann)["q"], "Q2")
 
     def test_a_person_keeps_at_most_8_tabs_the_oldest_dropped(self):
-        self.beat(self.ann, tab="t0", visible=True)  # the only visible tab
+        self.beat(self.ann, tab="t0", visible=True)
         for i in range(1, 8):
             self.clock.tick(1)
             self.beat(self.ann, tab=f"t{i}", visible=False)
         self.assertEqual(self.state_of(self.ann)["state"], "active")
         self.clock.tick(1)
-        self.beat(self.ann, tab="t8", visible=False)  # a ninth tab: t0, the least recent, is forgotten
+        self.beat(self.ann, tab="t8", visible=False)
         self.assertEqual(self.state_of(self.ann)["state"], "away")
 
     def test_the_tab_id_is_a_short_string(self):
@@ -4674,13 +4573,6 @@ class TestPresenceStates(SessionCase):
         self.assertEqual(len(entries), 2)
         for e in entries:
             self.assertIsNone(session.wire_error(e, "presence"), e)
-
-
-# ---------------------------------------------------------------------------------------------
-# Phase 4c: session intro, hide and edit an answer, approve new joins, chat reactions, multi backing
-# Expected values come from PLAN.md Phase 4c (1..600 characters, 20 emoji per message, owner-only
-# history, "Hidden by the host", joins wait) and the hand-built states below.
-# ---------------------------------------------------------------------------------------------
 
 
 def digest_of(case):
@@ -4753,7 +4645,6 @@ class TestRepo(SessionCase):
         self.assertNotIn("repo", self.s.snapshot(HOST))
 
     def test_a_malformed_repo_or_commit_is_refused(self):
-        # The field names the refused value, so a refusal by the ops schema (field "ops") does not pass for it.
         for repo in ("octo-org", "a/b/c", "octo-org/..", "octo-org/.", "octo-org/demo\n", "-octo/demo", "octo org/demo", "https://github.com/a/b"):
             self.assertEqual(self.refused_ops("bad-field", {"op": "set-repo", "repo": repo}).details["field"], "repo", repr(repo))
         for commit in ("0123456789abcdef0123456789abcdef0123456", "0123456789abcdef0123456789abcdef01234567" * 2, "0123456789ABCDEF0123456789ABCDEF01234567", "main"):
@@ -4860,14 +4751,14 @@ class TestGatheredPicks(SessionCase):
 class TestHideAndEdit(HideEditCase):
     def test_hidden_card_absent_for_guests_and_digest(self):
         self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True, "reason": "Off topic"})
-        for viewer in (self.cy, self.ann):  # a guest and a leader
+        for viewer in (self.cy, self.ann):
             self.assertNotIn(self.bo_ref, self.refs(viewer))
         own = self.card(self.bo)
         self.assertEqual((own["text"], own["hidden"]["by"], own["hidden"]["reason"]), ("Pay later, rude words here", HOST, "Off topic"))
         self.assertIn("hidden", self.card(HOST))
         digest = digest_of(self)
         self.assertNotIn("rude words", json.dumps(digest))
-        self.assertEqual(digest["people"]["answered"], 1)  # Cy's vote; Bo's hidden answer does not count
+        self.assertEqual(digest["people"]["answered"], 1)
 
     def test_hiding_is_reversible_and_keeps_the_votes(self):
         self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
@@ -4906,7 +4797,7 @@ class TestHideAndEdit(HideEditCase):
         self.assertEqual(next(e for e in top if e["source"] == "person"), {"text": "Pay later", "votes": 1, "source": "person", "edited": True})
 
     def test_once_the_owner_edits_every_version_keeps_who_and_when(self):
-        self.act("answer", self.bo, {"qid": "Q1", "text": "Second", "view": "focus"})  # not moderated yet: no version kept
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Second", "view": "focus"})
         t1 = self.clock.t
         self.act("edit_card", HOST, {"qid": "Q1", "card": self.bo_ref, "text": "Third, by the host"})
         t2 = self.clock.t
@@ -4914,7 +4805,7 @@ class TestHideAndEdit(HideEditCase):
         history = self.history()
         self.assertEqual([(v["text"], v["by"]) for v in history], [("Second", self.bo), ("Third, by the host", HOST)])
         self.assertEqual([v["at"] for v in history], [t1, t2])
-        self.assertNotIn("edited", self.card(self.cy))  # the current text is Bo's own again
+        self.assertNotIn("edited", self.card(self.cy))
 
     def test_history_keeps_the_original_and_the_newest_versions(self):
         self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
@@ -4952,7 +4843,7 @@ class TestApproveJoins(SessionCase):
         host = self.s.snapshot(HOST)
         self.assertEqual([(j["pid"], j["name"]) for j in host["joinRequests"]], [(out["pid"], "Jib")])
         self.assertNotIn(out["pid"], [p["pid"] for p in host["people"]])
-        self.assertEqual(self.notes(HOST, "queue"), [])  # the owner's Inbox lists the join as waiting instead
+        self.assertEqual(self.notes(HOST, "queue"), [])
         self.act("act_on_join", HOST, {"pid": out["pid"], "action": "admit"})
         self.assertIn(out["pid"], [p["pid"] for p in self.s.snapshot(out["pid"])["people"]])
         self.assertEqual(self.s.snapshot(HOST)["joinRequests"], [])
@@ -5033,7 +4924,7 @@ class TestChatReactions(SessionCase):
             self.react(people[i % 4], emoji)
         err = self.refused("reaction-cap", "react_chat", people[0], {"id": self.mid, "emoji": spread[20], "on": True}, http=409)
         self.assertEqual(err.details["max"], 20)
-        self.react(people[1], spread[0])  # an emoji already on the message still takes more people
+        self.react(people[1], spread[0])
         self.assertEqual(len(self.disk()["chat"][0]["reactions"]), 20)
 
     def test_one_persons_reactions_across_messages_are_limited_too(self):
@@ -5056,7 +4947,7 @@ class TestChatReactions(SessionCase):
         notes = self.notes(self.ann, "reaction")
         self.assertEqual(len(notes), 1)
         self.assertEqual((notes[0]["title"], notes[0]["rollup"]["n"], notes[0]["msg"]), ("2 reactions on your chat message.", 2, self.mid))
-        self.react(self.ann, "👍")  # reacting to one's own message tells no one
+        self.react(self.ann, "👍")
         self.assertEqual(len(self.notes(self.ann, "reaction")), 1)
 
     def test_who_reacted_honors_show_names(self):
@@ -5117,7 +5008,7 @@ class TestMultiBacking(FormatCase):
         self.assertEqual(self.others(), {"Apple Pay": 1, "Klarna": 2})
 
     def test_a_backing_an_earlier_build_kept_in_votes_still_counts_and_comes_off(self):
-        self.s.state["votes"]["Q1"] = {self.cy: f"p:{self.ann}"}  # how 0bbffb3 stored one backing on multi
+        self.s.state["votes"]["Q1"] = {self.cy: f"p:{self.ann}"}
         self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
         self.assertEqual(self.s.state["votes"]["Q1"], {self.cy: f"p:{self.ann}"})
         self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "on": False})
@@ -5136,11 +5027,6 @@ class TestMultiBacking(FormatCase):
         self.act("vote", dee, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
         self.act("merge_people", HOST, {"from": dee, "to": self.cy})
         self.assertEqual(self.s.state["backs"], {"Q1": {self.cy: [f"p:{self.ann}", f"p:{self.bo}"]}})
-
-
-# ---------------------------------------------------------------------------------------------
-# Phase 7 (Q98): notes pinned to an element of a prototype variant
-# ---------------------------------------------------------------------------------------------
 
 
 class TestAnnotations(SessionCase):
@@ -5207,7 +5093,7 @@ class TestAnnotations(SessionCase):
                 self.note(self.ann, f"Note {i}")
             err = self.refused("too-long", "annotate", self.ann, {"qid": "Q1", "variant": "v-2", "text": "One more", "anchor": {"selector": "img", "rect": self.AREA}}, http=400)
             self.assertEqual((err.details["field"], err.details["max"]), ("annotations", 3))
-            self.note(self.bo, "Bo's first")  # the cap is per person
+            self.note(self.bo, "Bo's first")
         self.assertEqual([a["pid"] for a in self.s.state["annotations"]], [self.ann] * 3 + [self.bo])
 
     def test_the_route_wants_a_prototype_question_and_one_of_its_variants(self):
@@ -5237,7 +5123,7 @@ class TestAnnotations(SessionCase):
         self.clock.tick()
         self.note(self.bo, "Whole page.", selector="html")
         legacy = {**self.s.state["annotations"][0], "id": "A9", "text": "Legacy note.", "anchor": {"selector": "#pay > b<i>", "rect": self.AREA}}
-        self.s.state["annotations"].append(legacy)  # a selector an earlier build took, loaded as it was
+        self.s.state["annotations"].append(legacy)
         self.send()
         (ev,) = self.events("round-sent")
         self.assertEqual(
@@ -5315,7 +5201,7 @@ class TestPrototypeVersions(SessionCase):
             "no variant": {"qid": "Q3"},
         }
         self.send()
-        self.ack(2)  # round 2 waits for Claude, so an open-round is refused only for its previous
+        self.ack(2)
         before = self.disk()
         for why, prev in bad.items():
             with self.subTest(why):
@@ -5351,7 +5237,7 @@ class TestPrototypeTiers(SessionCase):
     what guests are sent changes: an image variant's asset leaves their state while screenshots are off, an html one
     while snapshots are off, and the owner still sees both."""
 
-    OPT_PIC, REF_PIC = "1111222233334444.png", "aaaabbbbccccdddd.webp"  # not the variant's picture, so each check is its own
+    OPT_PIC, REF_PIC = "1111222233334444.png", "aaaabbbbccccdddd.webp"
 
     def setUp(self):
         super().setUp()
@@ -5368,7 +5254,7 @@ class TestPrototypeTiers(SessionCase):
         self.assertEqual(session.prototype_tiers(self.s.state["session"]["settings"]), ["screenshot", "snapshot"])
         self.assertEqual([v.get("asset") for v in self.variants(self.ann)], [HTML, PNG])
         out = self.act("update_settings", HOST, {"prototypeTiers": ["live", "snapshot", "screenshot"]})
-        self.assertEqual(out["settings"]["prototypeTiers"], ["screenshot", "snapshot", "live"])  # canonical order
+        self.assertEqual(out["settings"]["prototypeTiers"], ["screenshot", "snapshot", "live"])
         self.assertEqual(self.disk()["session"]["settings"]["prototypeTiers"], ["screenshot", "snapshot", "live"])
         self.assertEqual(self.act("update_settings", HOST, {"prototypeTiers": []})["settings"]["prototypeTiers"], [])
         self.assertIsNone(session.document_error(self.disk()))
@@ -5387,11 +5273,11 @@ class TestPrototypeTiers(SessionCase):
             self.assertEqual(self.variants(pid), [{"id": "v-1", "label": "One page", "asset": HTML}, {"id": "v-2", "label": "Two steps"}])
             self.assertNotIn(PNG, json.dumps(snap))
             q2, q3 = (next(q for q in snap["questions"] if q["id"] == i) for i in ("Q2", "Q3"))
-            self.assertEqual(q2["format"]["options"][0]["image"], self.OPT_PIC)  # option pictures stay
-            self.assertEqual(q3["references"][0]["asset"], self.REF_PIC)  # and references
+            self.assertEqual(q2["format"]["options"][0]["image"], self.OPT_PIC)
+            self.assertEqual(q3["references"][0]["asset"], self.REF_PIC)
         self.assertEqual([v.get("asset") for v in self.variants(HOST)], [HTML, PNG])
-        self.assertEqual(self.question("Q1")["format"]["variants"][1]["asset"], PNG)  # the record stays whole
-        self.assertFalse(self.s.asset_hidden(self.ann, PNG))  # pictures are shared with options and references
+        self.assertEqual(self.question("Q1")["format"]["variants"][1]["asset"], PNG)
+        self.assertFalse(self.s.asset_hidden(self.ann, PNG))
 
     def test_snapshots_off_takes_html_variants_out_of_guests_state_and_hides_html_assets_from_them(self):
         self.act("update_settings", HOST, {"prototypeTiers": ["screenshot"]})
@@ -5504,7 +5390,7 @@ class TestPrototypeViews(SessionCase):
                 self.assertEqual(self.variants(self.ann), guest)
                 self.assertEqual(self.variants(HOST), stored["variants"])
                 self.assertEqual(self.s.asset_hidden(self.ann, HTML), "snapshot" not in tiers)
-                self.assertEqual(self.stored(), stored)  # the record stays whole
+                self.assertEqual(self.stored(), stored)
 
     def test_the_document_check_reads_shots_and_snapshot(self):
         self.open_round(self.proto({"id": "v-1", "label": "Flow", "shots": [PNG, self.SHOT2], "snapshot": HTML}, {"id": "v-2", "label": "B", "asset": PNG}))
@@ -5561,7 +5447,7 @@ class TestLiveEntries(SessionCase):
     def test_a_new_session_and_a_state_from_before_lives_hold_no_lives_key(self):
         self.assertNotIn("lives", self.disk())
         self.live_on()
-        self.assertNotIn("lives", self.disk())  # only the first add-live writes it
+        self.assertNotIn("lives", self.disk())
         self.assertNotIn("lives", self.s.snapshot(HOST))
 
     def test_add_live_while_the_live_tier_is_off_is_refused_403_live_off(self):
@@ -5690,7 +5576,7 @@ class TestLiveEntries(SessionCase):
         out = self.approve("L1")
         self.assertEqual((out["live"], out["entry"]["target"]), ("L1", {"kind": "folder", "folder": "staging/r1/live"}))
         self.assertEqual(self.stored("L1")["status"]["kind"], "starting")
-        self.refused("wrong-status", "approve_live", HOST, {"id": "L1"}, http=409)  # a second Approve while it starts
+        self.refused("wrong-status", "approve_live", HOST, {"id": "L1"}, http=409)
         self.assertNotIn("url", self.entry("L1", self.ann))
         self.assertTrue(self.s.live_started("L1", "https://quiet-fox.trycloudflare.com"))
         status = self.stored("L1")["status"]
@@ -5726,7 +5612,7 @@ class TestLiveEntries(SessionCase):
     def test_approve_checks_a_port_against_the_sessions_ports_again(self):
         self.live_on()
         self.apply({"op": "add-live", "label": "Dev server", "port": 5173})
-        (self.tmp / ".shared-ports.json").write_text(json.dumps({"guest": 5173, "control": 41002}), encoding="utf-8")  # moved on a restart
+        (self.tmp / ".shared-ports.json").write_text(json.dumps({"guest": 5173, "control": 41002}), encoding="utf-8")
         exc = self.refused("bad-field", "approve_live", HOST, {"id": "L1", "attest": True}, http=400)
         self.assertEqual(exc.details["field"], "port")
         self.assertEqual(self.stored("L1")["status"], {"kind": "pending"})
@@ -5752,7 +5638,7 @@ class TestLiveEntries(SessionCase):
             self.assertEqual(self.entry("L1", pid)["status"]["kind"], "ended")
         self.refused("wrong-status", "stop_live", HOST, {"id": "L1"}, http=409)
         self.refused("wrong-status", "approve_live", HOST, {"id": "L1"}, http=409)
-        self.assertFalse(self.s.live_started("L1", "https://late.trycloudflare.com"))  # a start that ends after Stop is told so
+        self.assertFalse(self.s.live_started("L1", "https://late.trycloudflare.com"))
         self.assertIsNone(session.document_error(self.disk()))
 
     def test_end_session_ends_every_entry_with_no_url_in_any_view_and_a_reopen_restarts_nothing(self):
@@ -5763,7 +5649,7 @@ class TestLiveEntries(SessionCase):
         self.open_round(self.proto({"id": "v-1", "label": "A", "live": {"id": "L1", "path": "/"}}, {"id": "v-2", "label": "B", "live": {"id": "L2", "path": "/"}},
                                    {"id": "v-3", "label": "C", "live": {"id": "L3", "path": "/"}}))
         self.go_running("L1")
-        self.approve("L3")  # still starting when the session ends
+        self.approve("L3")
         self.act("end_session", HOST, {"on": True})
         self.assertEqual([(e["status"]["kind"], e["status"]["reason"]) for e in self.disk()["lives"]], [("ended", "session-ended")] * 3)
         raw = self.path.read_text(encoding="utf-8")
@@ -5794,9 +5680,9 @@ class TestLiveEntries(SessionCase):
         self.act("update_settings", HOST, {"prototypeTiers": ["screenshot", "snapshot"]})
         self.assertEqual([(e["status"]["kind"], e["status"]["reason"]) for e in self.disk()["lives"]], [("ended", "tier-off")] * 2)
         guest = next(q for q in self.s.snapshot(self.ann)["questions"] if q["id"] == "Q1")["format"]["variants"]
-        self.assertEqual(guest, [{"id": "v-1", "label": "A", "shots": [PNG]}, {"id": "v-2", "label": "B"}])  # the live view is off for guests
+        self.assertEqual(guest, [{"id": "v-1", "label": "A", "shots": [PNG]}, {"id": "v-2", "label": "B"}])
         self.assertEqual(self.s.snapshot(self.ann).get("lives", []), [])
-        self.assertIn("live", self.question("Q1")["format"]["variants"][0])  # the record stays whole
+        self.assertIn("live", self.question("Q1")["format"]["variants"][0])
         self.live_on()
         self.assertEqual({e["status"]["kind"] for e in self.disk()["lives"]}, {"ended"})
 
@@ -5870,7 +5756,7 @@ class StateFixtureCase(unittest.TestCase):
         raw = (tmp / "state.json").read_text(encoding="utf-8")
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
         self.assertEqual(s.state, json.loads(raw))
-        self.assertEqual((tmp / "state.json").read_text(encoding="utf-8"), raw)  # loading writes nothing
+        self.assertEqual((tmp / "state.json").read_text(encoding="utf-8"), raw)
         self.assertEqual(sorted(p.name for p in tmp.iterdir()), ["assets", "state.json"])
         return s
 
@@ -5894,20 +5780,12 @@ class TestStateFrom0bbffb3(StateFixtureCase):
         mid = s.state["chat"][0]["id"]
         s.react_chat(cy, {"id": mid, "emoji": "👍", "on": True})
         s.vote(cy, {"qid": "Q2", "card": f"p:{ann}", "on": True})
-        self.assertEqual(s.state["votes"]["Q2"], {bo: f"p:{ann}"})  # the earlier build's backing stays in votes
+        self.assertEqual(s.state["votes"]["Q2"], {bo: f"p:{ann}"})
         self.assertEqual(s.state["backs"], {"Q2": {cy: [f"p:{ann}"]}})
         self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual(reloaded.state["session"]["intro"], "Why you're here: pick the offsite.")
         self.assertEqual(reloaded.snapshot(ann)["me"]["prefs"]["tour"], "done")
-
-
-# ---------------------------------------------------------------------------------------------
-# Phase 4c review fixes. Expected values come from the review findings (bounded history, owner-only
-# history by its own GET, Hide holds until Show, a tombstone on clearing, edited locks, Hide refused
-# on a locked answer, one chat reaction a second per message, a waiting list of 20 that is never
-# evicted) and the hand-built states below, never from running the code under test.
-# ---------------------------------------------------------------------------------------------
 
 
 class TestHistoryBounds(HideEditCase):
@@ -6038,7 +5916,7 @@ class TestChatReactionRate(SessionCase):
         with self.assertRaises(session.DomainError) as ctx:
             self.s.react_chat(bo, {"id": m1, "emoji": "🎉", "on": True})
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
-        self.s.react_chat(bo, {"id": m2, "emoji": "🎉", "on": True})  # another message is its own limit
+        self.s.react_chat(bo, {"id": m2, "emoji": "🎉", "on": True})
         self.clock.tick(0.5)
         self.s.react_chat(bo, {"id": m1, "emoji": "🎉", "on": True})
         self.assertEqual(self.disk()["chat"][0]["reactions"], {"👍": [bo], "🎉": [bo]})
@@ -6068,10 +5946,10 @@ class TestWaitingList(SessionCase):
     def test_a_full_session_evicts_an_idle_guest_never_a_waiting_one(self):
         with mock.patch.object(session, "MAX_PEOPLE", 4):
             self.act("update_settings", HOST, {"approveJoins": True})
-            jib = self.s.join(None, {"key": self.key(), "name": "Jib"})["pid"]  # the least recently joined: the old rule's pick
+            jib = self.s.join(None, {"key": self.key(), "name": "Jib"})["pid"]
             kai = self.s.join(None, {"key": self.key(), "name": "Kai"})["pid"]
             self.act("update_settings", HOST, {"approveJoins": False})
-            idle = self.s.join(None, {"key": self.key(), "name": "Idle"})["pid"]  # active, never seen, holds nothing
+            idle = self.s.join(None, {"key": self.key(), "name": "Idle"})["pid"]
             self.clock.tick()
             self.s.join(None, {"key": self.key(), "name": "Lu"})
             people = self.s.state["people"]
@@ -6088,7 +5966,7 @@ class TestStateFromF6f1318Versions(StateFixtureCase):
         s = self.load("state-written-f6f1318.json")
         old = s.state["questions"][0]
         self.assertEqual((old["format"]["kind"], [v.get("previous") for v in old["format"]["variants"]]), ("prototype", [None, None]))
-        self.assertNotIn("lookAt", old["format"])  # from before the look-at line: it still loads, and shows none
+        self.assertNotIn("lookAt", old["format"])
         for v in old["format"]["variants"]:
             (s.path.parent / "assets" / v["asset"]).write_bytes(b"x")
         html = old["format"]["variants"][0]["asset"]
@@ -6102,11 +5980,11 @@ class TestStateFromF6f1318Versions(StateFixtureCase):
         raw = (FIXTURES / "state-written-f6f1318.json").read_text(encoding="utf-8")
         s = self.load("state-written-f6f1318.json")
         self.assertNotIn("prototypeTiers", s.state["session"]["settings"])
-        self.assertEqual(json.dumps(s.state, ensure_ascii=False) + "\n", raw)  # written back as it was read
+        self.assertEqual(json.dumps(s.state, ensure_ascii=False) + "\n", raw)
         guest = next(p for p in s.state["people"] if p != HOST)
         shown = [v.get("asset") for v in s.snapshot(guest)["questions"][0]["format"]["variants"]]
         self.assertEqual(shown, [v["asset"] for v in s.state["questions"][0]["format"]["variants"]])
-        s.update_settings(HOST, {"names": "initials"})  # another setting leaves prototypeTiers absent
+        s.update_settings(HOST, {"names": "initials"})
         self.assertNotIn("prototypeTiers", json.loads(s.path.read_text(encoding="utf-8"))["session"]["settings"])
 
 
@@ -6124,7 +6002,7 @@ class TestStateFrom3153973(StateFixtureCase):
         self.assertEqual([v["text"] for v in hist], ["Dinner by the river", "Dinner by the river, early"])
         s.clock.t += 5
         s.answer(bo, {"qid": "Q1", "text": "A pub crawl", "view": "focus"})
-        self.assertNotIn(f"p:{bo}", [c["ref"] for c in s.snapshot(cy)["cards"]["Q1"]])  # still hidden
+        self.assertNotIn(f"p:{bo}", [c["ref"] for c in s.snapshot(cy)["cards"]["Q1"]])
         s.clock.t += 5
         s.answer(bo, {"qid": "Q1", "text": "", "view": "focus"})
         self.assertEqual([c["ref"] for c in s.snapshot(HOST)["cleared"]["Q1"]], [f"p:{bo}"])
@@ -6153,7 +6031,7 @@ class TestStateFrom6579f21(StateFixtureCase):
         s = self.load("state-written-6579f21.json")
         q1 = next(q for q in s.state["questions"] if q["id"] == "Q1")
         self.assertEqual(q1["format"]["rect"], self.PIXEL)
-        self.assertEqual(s.snapshot(HOST)["questions"][0]["format"]["rect"], self.PIXEL)  # the page gets it as stored and clamps it
+        self.assertEqual(s.snapshot(HOST)["questions"][0]["format"]["rect"], self.PIXEL)
         ann = next(p for p, v in s.state["people"].items() if v["name"] == "Ann")
         s.pick(ann, {"qid": "Q1", "option": "no", "view": "focus"})
         s.apply({"ops": [{"op": "remove-reference", "qid": "Q2", "index": 0}]})
@@ -6338,7 +6216,6 @@ class TestWatcherKey(SessionCase):
         self.assertEqual(self.disk()["credentials"]["watchers"], {})
 
     def test_declining_a_join_drops_any_key_its_person_holds(self):
-        # A waiting person cannot ask for a key, so the key is planted directly, as a hand-edited state.json could.
         self.act("update_settings", HOST, {"approveJoins": True})
         jib = self.join("Jib")[0]
         self.s.state["credentials"].setdefault("watchers", {})[session.sha256("planted-key")] = jib
@@ -6409,12 +6286,12 @@ class TestOwnerDevices(SessionCase):
         code = self.act("pair_device", HOST, {})["code"]
         wrong = "22222222" if code != "22222222" else "33333333"
         self.refused_redeem(wrong, "bad-pair-code", address="203.0.113.5")
-        with self.assertRaises(session.DomainError) as ctx:  # the same second, the same address
+        with self.assertRaises(session.DomainError) as ctx:
             self.s.redeem_pairing(None, {"code": code}, address="203.0.113.5")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
-        for _ in range(4):  # five wrong tries in all from this address
+        for _ in range(4):
             self.refused_redeem(wrong, "bad-pair-code", address="203.0.113.5")
-        self.refused_redeem(code, "bad-pair-code", address="203.0.113.5")  # shut out, even with the right code
+        self.refused_redeem(code, "bad-pair-code", address="203.0.113.5")
         self.assertNotIn("devices", self.disk()["credentials"])
 
     def test_a_strangers_misses_never_stop_the_host_signing_in(self):
@@ -6477,14 +6354,7 @@ class TestOwnerDevices(SessionCase):
         self.refused("devices-full", "pair_device", HOST, {}, http=409)
 
 
-# ---------------------------------------------------------------------------------------------
-# Phase 9: uploads. Expected values come from the Design's Upload contract and rules (offer, accept, decline,
-# withdraw, chunk, done, failed; caps 100 MB per guest, 5 GB per session, 10 open per person; chunks in order with
-# resume; magic bytes on the first chunk; the whole file's sha256 on the last; tmp and stored never on the wire),
-# the Brief's upload criteria (AC 21, AC 40), C44 (an answer's attachments are accepted upload ids) and the Phase 9
-# security brief (server-made names, 0700/0600, partial files deleted). Hashes are sha256 of the literal bytes here.
-
-PDF = b"%PDF-1.7\n" + bytes(range(256)) * 3  # 777 bytes: four 200-byte chunks and one of 177
+PDF = b"%PDF-1.7\n" + bytes(range(256)) * 3
 SMALL = 200
 
 
@@ -6587,7 +6457,7 @@ class TestUploadLifecycle(UploadCase):
         for i in range(10):
             self.offer(self.ann, name=f"f{i}.txt", data=b"x")
         self.assertEqual(self.refused("too-many-pending", "offer_upload", self.ann, {"file": "f.txt", "size": 1, "type": ""}).http, 429)
-        self.offer(self.bo, name="g.txt", data=b"x")  # another person's count is their own
+        self.offer(self.bo, name="g.txt", data=b"x")
         self.act("act_on_upload", self.ann, {"id": self.s.state["uploads"][0]["id"], "action": "withdraw"})
         self.offer(self.ann, name="f.txt", data=b"x")
 
@@ -6608,9 +6478,9 @@ class TestUploadLifecycle(UploadCase):
         mb = 1024 * 1024
         gb = 1024 * mb
         guests = self.people(*(f"G{i}" for i in range(52)))
-        offers = [self.act("offer_upload", g, {"file": "a.pdf", "size": 100 * mb, "type": ""})["id"] for g in guests]  # 5200 MB offered
+        offers = [self.act("offer_upload", g, {"file": "a.pdf", "size": 100 * mb, "type": ""})["id"] for g in guests]
         self.assertEqual(self.act("offer_upload", HOST, {"file": "own.zip", "size": 5 * gb - 150 * mb, "type": ""})["status"], "accepted")
-        self.act("act_on_upload", HOST, {"id": offers[0], "action": "accept"})  # 5 GB - 50 MB accepted
+        self.act("act_on_upload", HOST, {"id": offers[0], "action": "accept"})
         e = self.refused("upload-too-large", "act_on_upload", HOST, {"id": offers[1], "action": "accept"}, http=413)
         self.assertEqual((e.details["max"], e.details["left"]), (5 * gb, 50 * mb))
         self.assertEqual(self.upload(offers[1])["status"]["kind"], "offered")
@@ -6624,7 +6494,7 @@ class TestUploadLifecycle(UploadCase):
         self.assertEqual(self.upload(uid)["status"], {"kind": "uploading", "tmp": self.upload(uid)["status"]["tmp"], "received": 1, "bytes": SMALL})
         e = self.refused("chunk-gap", "upload_chunk", self.ann, piece_meta(uid, 2, 4, PDF[400:600]), PDF[400:600])
         self.assertEqual((e.http, e.details["received"]), (409, 1))
-        self.assertEqual(self.chunk(self.ann, uid, 0), {"received": 1})  # a repeat is answered, not written twice
+        self.assertEqual(self.chunk(self.ann, uid, 0), {"received": 1})
         for i in (1, 2, 3):
             out = self.chunk(self.ann, uid, i)
         self.assertEqual(out, {"received": 4, "status": "done"})
@@ -6744,7 +6614,7 @@ class TestUploadAttachments(UploadCase):
         bo_view = self.s.snapshot(self.bo)
         self.assertEqual(next(c for c in bo_view["cards"]["Q1"] if c.get("pid") == self.ann)["attachments"], [uid])
         self.assertEqual(bo_view["files"][uid], {"file": "funnel.pdf", "ext": "pdf", "size": 777, "status": "accepted"})
-        self.act("answer", self.ann, {"qid": "Q1", "text": "See the funnel, again.", "view": "focus"})  # left out: kept
+        self.act("answer", self.ann, {"qid": "Q1", "text": "See the funnel, again.", "view": "focus"})
         self.assertEqual(next(c for c in self.s.state["cards"]["Q1"] if c.get("pid") == self.ann)["attachments"], [uid])
         self.act("pick", self.ann, {"qid": "Q2", "option": "opt-1", "comment": "", "view": "focus", "attachments": [uid]})
         self.assertEqual(next(c for c in self.s.state["cards"]["Q2"] if c.get("pid") == self.ann)["attachments"], [uid])
@@ -6959,7 +6829,7 @@ class TestUploadRecovery(UploadCase):
         self.assertEqual((self.tmp / self.upload(a)["status"]["stored"]).read_bytes(), PDF)
 
 
-PIC = b"\x89PNG\r\n\x1a\n" + bytes(300)  # 308 bytes: chunks of 200 and 108
+PIC = b"\x89PNG\r\n\x1a\n" + bytes(300)
 
 
 class TestAvatars(UploadCase):
@@ -7036,7 +6906,7 @@ class TestAvatars(UploadCase):
         self.assertEqual((mine["avatar"], mine["image"], "shown" in mine), (True, True, False))
         owners = next(u for u in self.s.snapshot(HOST)["uploads"] if u["id"] == uid)
         self.assertEqual((owners["avatar"], "shown" in owners), (True, False))
-        self.assertEqual(self.events("upload-received"), [])  # no file for Claude to read
+        self.assertEqual(self.events("upload-received"), [])
         self.refused("owner-only", "act_on_upload", self.ann, {"id": uid, "action": "approve"})
         self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
         self.assertEqual((self.shown(self.bo, self.ann), self.shown(self.ann, self.ann), self.shown(HOST, self.ann)), (uid, uid, uid))
@@ -7125,7 +6995,7 @@ class TestAttachmentsEverywhere(UploadCase):
         files = self.s.snapshot(self.bo)["files"]
         self.assertEqual((files[pic], files[own].get("image")), ({"file": "shot.png", "ext": "png", "size": 308, "status": "done", "awaitsHost": True}, True))
         self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": pic}).http, 404)
-        self.assertEqual(self.s.upload_image(self.bo, {"id": own})["id"], own)  # the owner's own needs no approval
+        self.assertEqual(self.s.upload_image(self.bo, {"id": own})["id"], own)
         self.assertEqual(self.s.upload_image(self.ann, {"id": pic})["id"], pic)
         self.assertEqual(self.s.upload_image(HOST, {"id": pic})["id"], pic)
         self.assertEqual(self.refused("owner-only", "act_on_upload", self.ann, {"id": pic, "action": "approve"}).http, 403)
@@ -7165,7 +7035,6 @@ class TestAttachmentsEverywhere(UploadCase):
         self.loose(pic, own)
         def pics(pid):
             return self.s.snapshot(pid).get("questionPics")
-        # Waiting for approval: the owner and the uploader see it, with the owner's own; Bo only the owner's.
         self.assertEqual((pics(HOST), pics(self.ann), pics(self.bo)), ({"Q1": [pic, own]}, {"Q1": [pic, own]}, {"Q1": [own]}))
         self.assertEqual(self.s.snapshot(self.ann)["files"][pic]["awaitsHost"], True)
         self.assertNotIn(pic, self.s.snapshot(self.bo)["files"])
@@ -7173,7 +7042,7 @@ class TestAttachmentsEverywhere(UploadCase):
         self.act("act_on_upload", HOST, {"id": pic, "action": "approve"})
         self.assertEqual((pics(self.bo), self.s.snapshot(self.bo)["files"][pic]["image"]), ({"Q1": [pic, own]}, True))
         self.assertEqual(self.s.upload_image(self.bo, {"id": pic})["id"], pic)
-        self.act("act_on_upload", self.ann, {"id": pic, "action": "remove"})  # the uploader's Remove
+        self.act("act_on_upload", self.ann, {"id": pic, "action": "remove"})
         self.assertEqual(pics(self.bo), {"Q1": [own]})
 
     def test_a_draft_picture_never_shows_under_its_question(self):
@@ -7182,12 +7051,12 @@ class TestAttachmentsEverywhere(UploadCase):
         for viewer in (HOST, self.ann, self.bo):
             self.assertNotIn("questionPics", self.s.snapshot(viewer))
         self.assertNotIn(own, self.s.snapshot(self.bo)["files"])
-        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": own}).http, 404)  # the owner's, approved at once
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": own}).http, 404)
         self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": pic}).http, 404)
-        self.assertEqual(self.s.upload_image(HOST, {"id": own})["id"], own)  # its uploader still reads it back
+        self.assertEqual(self.s.upload_image(HOST, {"id": own})["id"], own)
         mine = {u["id"]: u for u in self.s.snapshot(HOST)["myUploads"]}
         self.assertNotIn("carried", mine[own])
-        self.act("act_on_upload", HOST, {"id": own, "action": "remove"})  # the chip's x on a received draft
+        self.act("act_on_upload", HOST, {"id": own, "action": "remove"})
         self.assertEqual(self.refused("not-found", "upload_image", HOST, {"id": own}).http, 404)
 
     def test_the_chips_draft_only_remove_is_refused_once_a_post_carried_the_file(self):
@@ -7199,9 +7068,7 @@ class TestAttachmentsEverywhere(UploadCase):
         self.assertEqual(self.upload(sent)["status"]["kind"], "done")
         self.assertEqual(next(c for c in self.s.state["cards"]["Q1"] if c.get("pid") == self.ann)["attachments"], [sent])
         self.refused("wrong-status", "act_on_upload", self.ann, {"id": sent, "action": "withdraw", "draftOnly": True})
-        # still a draft: the flag changes nothing
         self.assertEqual(self.act("act_on_upload", self.ann, {"id": kept, "action": "remove", "draftOnly": True})["status"], "removed")
-        # without the flag, an explicit Remove of a received file still ends it
         self.assertEqual(self.act("act_on_upload", self.ann, {"id": sent, "action": "remove"})["status"], "removed")
         self.refused("bad-field", "act_on_upload", self.ann, {"id": sent, "action": "remove", "draftOnly": "yes"})
 
@@ -7213,7 +7080,7 @@ class TestAttachmentsEverywhere(UploadCase):
             self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
         self.act("hide_card", HOST, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
         self.act("hide_comment", HOST, {"qid": "Q1", "id": c, "on": True})
-        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus"})  # Ann clears her hidden answer
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus"})
         self.act("delete_comment", self.ann, {"qid": "Q1", "id": c})
         self.assertFalse([r for _, r in session._attaching(self.s.state) if {pic, said} & set(r.get("attachments", ()))])
         for viewer in (HOST, self.ann, self.bo):
@@ -7286,7 +7153,7 @@ class TestAttachmentsEverywhere(UploadCase):
                              ("comment", {"qid": "Q1", "text": "x"})):
             with self.subTest(method=method):
                 self.assertEqual(self.refused("uploads-off", method, self.ann, {**body, "attachments": [uid]}).http, 403)
-                self.act(method, self.ann, {**body, "attachments": []})  # none sent is no upload
+                self.act(method, self.ann, {**body, "attachments": []})
 
     def test_my_own_claude_takes_no_attachments(self):
         uid = self.offered_and_accepted(self.ann)
@@ -7330,7 +7197,7 @@ class TestAttachmentsEverywhere(UploadCase):
         self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": hidden}).http, 404)
         self.assertEqual(self.s.upload_image(self.ann, {"id": hidden})["image"], url)
         self.assertEqual(self.s.upload_image(HOST, {"id": hidden})["image"], url)
-        draft = self.sent_pic(self.ann, name="c.png")  # on nothing yet: its uploader and the owner read it
+        draft = self.sent_pic(self.ann, name="c.png")
         self.assertEqual(next(u for u in self.s.snapshot(self.ann)["myUploads"] if u["id"] == draft)["image"], True)
         self.assertEqual(self.s.upload_image(self.ann, {"id": draft})["image"], url)
         self.refused("not-found", "upload_image", self.bo, {"id": draft})
@@ -7378,7 +7245,7 @@ class TestAttachmentsEverywhere(UploadCase):
             ids[name] = uid
             self.clock.tick()
         self.act("act_on_upload", HOST, {"id": ids["at.png"], "action": "approve"})
-        self.refused("wrong-status", "act_on_upload", HOST, {"id": ids["over.png"], "action": "approve"})  # over the cap it is a file, not a picture
+        self.refused("wrong-status", "act_on_upload", HOST, {"id": ids["over.png"], "action": "approve"})
         self.act("chat", self.ann, {"text": "Two", "attachments": list(ids.values())})
         files = self.s.snapshot(self.bo)["files"]
         self.assertEqual([files[ids["at.png"]].get("image"), files[ids["over.png"]].get("image")], [True, None])
@@ -7589,11 +7456,11 @@ class TestUploadHardening(UploadCase):
             for i in range(10):
                 self.offer(pid, name=f"p{i}.png", data=PNG_HEAD + bytes(10), thumb=big)
         ups = self.disk()["uploads"]
-        self.assertEqual(len(ups), 60)  # every offer went through; past the bound an offer keeps no preview
+        self.assertEqual(len(ups), 60)
         self.assertLessEqual(sum(len(u.get("thumb", "")) for u in ups), 1_000_000)
         for pid in everyone:
             self.assertLessEqual(sum(len(u.get("thumb", "")) for u in ups if u["pid"] == pid), 256_000)
-        self.assertLess(self.path.stat().st_size, 1_200_000)  # the previews plus 60 small records and the rest
+        self.assertLess(self.path.stat().st_size, 1_200_000)
         self.assertLess(len(json.dumps(self.s.snapshot(HOST))), 1_200_000)
 
     def test_a_preview_goes_when_the_file_is_sent_or_fails(self):
@@ -7629,7 +7496,7 @@ class TestUploadHardening(UploadCase):
         uid = self.offered_and_accepted(self.ann)
         self.chunk(self.ann, uid, 0)
         doc = self.disk()
-        doc["people"][self.ann]["status"] = {"kind": "removed", "at": self.clock.t, "by": HOST}  # what b5ed34f wrote
+        doc["people"][self.ann]["status"] = {"kind": "removed", "at": self.clock.t, "by": HOST}
         self.path.write_text(json.dumps(doc), encoding="utf-8")
         self.s = session.Session.load(self.path, clock=self.clock, ids=self.ids, validate_writes=True)
         self.s.recover_uploads()
@@ -7661,7 +7528,7 @@ class TestUploadHardening(UploadCase):
             "linked.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated), ("word/link", b"/etc/passwd", stored, 0o120777)), "failed"),
             "plain-mode.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated, 0o100644)), "done"),
         }
-        self.assertLess(len(cases["bomb.docx"][0]), 8 * 1024)  # tiny on the wire, 2 MiB unpacked: over 100 to 1
+        self.assertLess(len(cases["bomb.docx"][0]), 8 * 1024)
         for name, (data, want) in cases.items():
             with self.subTest(name=name):
                 uid, exc = self.send_file(HOST, name, data)
@@ -7782,9 +7649,9 @@ class TestStateFromE27acc5(StateFixtureCase):
     def test_a_theme_written_without_a_palette_loads_unchanged_and_takes_one(self):
         s = self.load("state-written-e27acc5.json")
         bo = "tok0004x9"
-        self.assertEqual(s.snapshot(bo)["settings"]["theme"], {"mode": "system", "accent": "teal"})  # absent: the default palette
+        self.assertEqual(s.snapshot(bo)["settings"]["theme"], {"mode": "system", "accent": "teal"})
         s.clock.tick()
-        s.update_settings(HOST, {"names": "initials"})  # another write leaves the theme as it was written
+        s.update_settings(HOST, {"names": "initials"})
         self.assertEqual(json.loads(s.path.read_text(encoding="utf-8"))["session"]["settings"]["theme"], {"mode": "system", "accent": "teal"})
         s.update_settings(HOST, {"theme": {"palette": "midnight"}})
         s.set_prefs(bo, {"set": {"palette": "contrast"}})
@@ -7793,13 +7660,6 @@ class TestStateFromE27acc5(StateFixtureCase):
         self.assertEqual(reloaded.state["session"]["settings"]["theme"], {"mode": "system", "accent": "teal", "palette": "midnight"})
         self.assertEqual(reloaded.snapshot(bo)["me"]["prefs"]["palette"], "contrast")
 
-
-# ---------------------------------------------------------------------------------------------
-# Report a problem. Expected values come from the approved V1 (feedback triage row 38): text required, a picture of
-# png, jpeg or webp only (by its bytes) up to 512 KB, allowed while uploads are off; a throttle and a cap on open
-# reports per person; only the owner reads them; Seen tells the reporter; report-filed reaches Claude only when the
-# owner asks (guests never use the owner's Claude unreviewed); the page context carries only the listed fields.
-# ---------------------------------------------------------------------------------------------
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 24
 CTX = {"view": "focus", "tab": "answer", "qid": "Q1", "round": 1, "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844},
@@ -7870,7 +7730,7 @@ class TestReports(SessionCase):
                 self.clock.tick(session.REPORT_INTERVAL)
                 self.refused(code, "report", self.ann, {"text": "x", "ctx": CTX, "image": image}, http=http)
         self.assertEqual((self.s.state.get("reports", {}), (self.tmp / "reports").exists()), ({}, False))
-        self.file(self.ann, image=data_url("jpeg", b"\xff\xd8\xff" + b"\x00" * (512 * 1024 - 3)))  # exactly 512 KB
+        self.file(self.ann, image=data_url("jpeg", b"\xff\xd8\xff" + b"\x00" * (512 * 1024 - 3)))
 
     def test_up_to_four_pictures_go_with_one_report_in_order_and_the_owner_reads_each(self):
         """The owner's ask (2026-10-21): several screenshots in the first send, at most four, each a checked picture."""
@@ -7886,7 +7746,7 @@ class TestReports(SessionCase):
         self.assertNotIn("moreImages", json.dumps(self.s.snapshot(HOST)["reports"]))
         got = [self.s.report_image(HOST, {"id": fid, **({"pic": str(n)} if n else {})})["image"] for n in (None, 2, 3, 4)]
         self.assertEqual(got, [data_url(k, b) for k, b in pics])
-        self.refused("not-found", "report_image", HOST, {"id": fid, "add": "1"}, http=404)  # pictures sent with it are no additions
+        self.refused("not-found", "report_image", HOST, {"id": fid, "add": "1"}, http=404)
         self.act("act_on_report", HOST, {"id": fid, "action": "ask"})
         ev = self.events("report-filed")[0]
         self.assertEqual((ev["images"], ev["addImages"]), (4, 0))
@@ -7905,7 +7765,7 @@ class TestReports(SessionCase):
 
     def test_a_report_from_before_keeps_its_one_picture_and_a_name_the_server_never_makes_does_not_load(self):
         fid = self.file(self.ann, image=data_url("png", PNG_BYTES))
-        self.assertNotIn("moreImages", self.s.state["reports"][fid])  # one picture: the shape a report always had
+        self.assertNotIn("moreImages", self.s.state["reports"][fid])
         self.assertEqual(self.s.snapshot(HOST)["reports"][0]["images"], 1)
         for more in (["reports/F1-p3.png"], ["reports/F1-2.png"], ["../x.png"], [], ["reports/F1-p2.png"] * 4):
             with self.subTest(more=more):
@@ -7927,7 +7787,7 @@ class TestReports(SessionCase):
     def test_one_person_reports_once_per_interval(self):
         self.file(self.ann)
         self.clock.tick(session.REPORT_INTERVAL - 3)
-        self.refused("slow-down", "report", self.ann, {"text": "again", "ctx": CTX}, http=429)  # refused() ticks 2 s: 1 s short
+        self.refused("slow-down", "report", self.ann, {"text": "again", "ctx": CTX}, http=429)
         self.clock.tick(1)
         self.assertEqual(self.s.report(self.ann, {"text": "again", "ctx": CTX})["id"], "F2")
 
@@ -7936,7 +7796,7 @@ class TestReports(SessionCase):
             self.file(self.ann)
         self.clock.tick(session.REPORT_INTERVAL)
         self.refused("too-many-pending", "report", self.ann, {"text": "one more", "ctx": CTX}, http=429)
-        self.file(self.bo)  # another person's count is their own
+        self.file(self.bo)
         self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
         self.file(self.ann)
 
@@ -8016,7 +7876,7 @@ class TestReports(SessionCase):
         for _ in range(5):
             self.file(self.ann)
         self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
-        self.file(self.ann)  # F2..F6 open: five again
+        self.file(self.ann)
         self.refused("too-many-pending", "add_to_report", self.ann, {"id": "F1", "text": "still broken"}, http=429)
         self.assertEqual((self.s.state["reports"]["F1"]["status"], self.s.state["reports"]["F1"].get("adds")), ("seen", None))
         self.act("add_to_report", self.ann, {"id": "F2", "text": "an open one takes it"})
@@ -8030,7 +7890,7 @@ class TestReports(SessionCase):
         self.clock.tick(60)
         self.act("add_to_report", self.ann, {"id": "F1", "text": "and again"})
         item = next(i for i in self.s.snapshot(HOST)["inbox"] if i["key"] == "report:F1")
-        self.assertEqual((item["at"], item["changed"]), (filed + 62, filed + 62))  # act() ticks 2 s
+        self.assertEqual((item["at"], item["changed"]), (filed + 62, filed + 62))
 
     def test_asking_claude_carries_what_the_reporter_added_and_an_add_lets_the_owner_ask_again(self):
         self.file(self.ann)
@@ -8096,7 +7956,7 @@ class TestTakingPart(SessionCase):
         self.open_round(text_q("Q1", purpose="gather", rec=False), text_q("Q2"))
         self.act("answer", self.ann, {"qid": "Q1", "text": "Keep the saved card", "view": "focus"})
         self.act("react", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "thumbs"})
-        self.assertEqual(self.behind(), {self.ann: 1, self.bo: 1, self.cy: 1})  # Q2 for everyone; Q1 is optional for Cy now
+        self.assertEqual(self.behind(), {self.ann: 1, self.bo: 1, self.cy: 1})
         _, d = self.digest()
         self.assertEqual(d["people"]["answered"], 2)
 
@@ -8125,7 +7985,7 @@ class TestTakingPart(SessionCase):
         self.open_round(text_q("Q1", **{"for": [self.bo]}))
         self.assertEqual(self.refused("empty", "pass_", self.bo, {"qid": "Q1"}, http=400).details["field"], "reason")
         self.refused("empty", "pass_", self.bo, {"qid": "Q1", "reason": "  "}, http=400)
-        self.act("pass_", self.cy, {"qid": "Q1"})  # anyone else passes freely
+        self.act("pass_", self.cy, {"qid": "Q1"})
         self.assertEqual(self.s.state["passes"]["Q1"], {self.cy: {"ts": self.clock.t}})
 
     def test_a_pass_works_on_every_purpose_and_undoes(self):
@@ -8257,7 +8117,7 @@ class TestMentionPointers(SessionCase):
             f"{self.tok(self.ann)} see this", f"Ask {self.tok(self.ann)} first", f"What {self.tok(self.ann)} said", f"{self.tok(self.ann)} agrees",
             f"{self.tok(self.ann)} should decide", f"{self.tok(self.ann)} look here", f"{self.tok(self.ann)} asked which step drops most",
         ])
-        self.assertEqual(len(self.notes(self.ann, "mention")), 6)  # the suggestion's text and note are one mention
+        self.assertEqual(len(self.notes(self.ann, "mention")), 6)
         self.act("rename", self.ann, {"name": "Courtney"})
         self.act("update_settings", HOST, {"digestNames": True})
         self.act("act_on_request", HOST, {"action": "run", "ids": [self.s.state["requests"][-1]["id"]]})
@@ -8293,7 +8153,7 @@ class TestMentionPointers(SessionCase):
                 self.act("update_settings", HOST, {"names": names})
                 self.act("chat", HOST, {"text": "@Philippa see this"})
                 self.act("set_removed", HOST, {"pid": self.cy, "on": True})
-                self.act("chat", HOST, {"text": "@Cy left"})  # Cy is gone: the text stays
+                self.act("chat", HOST, {"text": "@Cy left"})
                 snap = self.s.snapshot(self.bo)
                 self.assertNotIn("Philippa", json.dumps(snap))
                 self.assertEqual(snap["chat"][-2]["text"], f"{self.tok(self.ann)} see this")
@@ -8308,7 +8168,7 @@ class TestMentionPointers(SessionCase):
             with self.subTest(viewer=viewer):
                 self.assertNotIn(f"<@{self.ann}>", json.dumps(self.s.snapshot(viewer)))
         self.assertEqual(self.notes(self.ann, "mention"), [])
-        self.act("chat", HOST, {"text": "@Philippa see this"})  # a moderator sees names, so theirs still points
+        self.act("chat", HOST, {"text": "@Philippa see this"})
         self.assertEqual(self.s.state["chat"][-1]["text"], f"{self.tok(self.ann)} see this")
 
     def test_a_removed_person_reads_as_their_last_name_masked_like_every_name(self):
@@ -8346,9 +8206,9 @@ class TestMentionPointers(SessionCase):
         self.assertEqual(self.s.state["chat"][-1]["replyTo"]["excerpt"], "y" * 135 + " ")
 
     def test_a_token_counts_toward_the_text_limit(self):
-        self.assertEqual(len(self.tok(self.ann)) - len("@Philippa"), 3)  # Ids makes her pid tok0003x9
-        self.refused("too-long", "chat", self.bo, {"text": "x" * 1990 + " @Philippa"})  # 2000 characters, 2003 as stored
-        self.act("chat", self.bo, {"text": "x" * 1987 + " @Philippa"})  # 2000 as stored
+        self.assertEqual(len(self.tok(self.ann)) - len("@Philippa"), 3)
+        self.refused("too-long", "chat", self.bo, {"text": "x" * 1990 + " @Philippa"})
+        self.act("chat", self.bo, {"text": "x" * 1987 + " @Philippa"})
 
     def test_edits_store_pointers_too(self):
         self.act("answer", self.bo, {"qid": "Q1", "text": "Mine", "view": "focus"})

@@ -92,8 +92,9 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    plus `<repo>/docs/conventions/multi-agent/benchmarks.json` when present). For every board entry
    in `manifest.json` with `state: "read"`, dispatch one `multi-agent:board-reader` subagent
    (`Read` only) with the board's `file` path, its registry row, `<work_type>`, and the candidate
-   vendors' current model ids. Save each reader's returned JSON to
-   `<tmp-dir>/records-<source_id>.json`. Do not read the page files in this session.
+   vendors' current model ids as `models.json` names them; each record's `model` is one of them
+   verbatim, or `null`. Save each reader's JSON to `<tmp-dir>/records-<source_id>.json`. Do not
+   read the page files in this session.
 6. Run the trust-model decider with the resolved `vendors` settings, binding each reader output to
    its manifest `source_id` (when zero pages were read, pass one empty JSON array file `[]`; pass
    `--needs-tools <comma-list>` and `--context <tokens>` when applicable). Pass `--use <use>`,
