@@ -1,11 +1,3 @@
-// The monitoring lane's signals: each detector reads the collected data and
-// returns findings, one per dedup key. No network. A finding is
-// {key, signal, title, area, summary, facts, fingerprint, observedAt}: the key
-// names the issue, the fingerprint changes only when the evidence does, so an
-// unchanged recurrence updates nothing. observedAt, when set, is when the
-// evidence was produced: a key closed before then is a regression. Every text that came from a run, a PR or the
-// status page is made inert here (one line, no backticks) before it reaches
-// an issue.
 import { createHash } from "node:crypto";
 
 import { listedJob } from "../lib/lane-registry.mjs";
@@ -16,17 +8,11 @@ export const ACTIONS_JOB_LIMIT = 60;
 export const EJECTIONS_PER_DAY = 2;
 export const HELD_HOURS = 24;
 export const STALL_HOURS = 3;
-// pr-unblock-dispatch.yml runs every 30 minutes (cron 9,39), and the feedback
-// sweep runs off each of those ticks, so a stop the lane will retry gets a new
-// attempt within one tick; four ticks with none mean the per-head retries are
-// spent (or a dispatcher refused).
 export const STALLED_HOURS = 2;
 export const SWEEP_MAX_AGE_MINUTES = 70;
 // The owner's threshold (#9170): this many pr-merge sweeps in a row whose
 // post-merge check exited 3 (unreadable), about an hour at the 15-minute cron.
 export const POST_MERGE_UNREADABLE_SWEEPS = 4;
-// This many scheduled or hand-started pr-merge sweeps in a row whose listing
-// held, about an hour at the same cron.
 export const LISTING_HELD_SWEEPS = 4;
 const MAX_FACTS = 25;
 
@@ -45,7 +31,6 @@ const slug = (text) =>
 const day = (date) => date.toISOString().slice(0, 10);
 const pct = (used, limit) => `${((used / limit) * 100).toFixed(1)}%`;
 const share = (r) => r.used / r.limit;
-// Counts masked, so a fingerprint keeps still while the same cause recurs.
 const masked = (text) => text.replace(/\d+/g, "N");
 const reasonOf = (r) => r.reason ?? "no reason recorded";
 
@@ -117,9 +102,6 @@ export function ceilingFindings({ now, budgetReadings = [], jobsInUse = null }) 
   return out;
 }
 
-// Broker refusals from request-lane-token's annotations. workflow-modified is
-// left out: pr-merge re-fires those runs on its schedule, and the feedback
-// sweep sends a refused address-feedback round again.
 const RATE_LIMITED = /github-rate-limited|rate limit|\b429\b/i;
 const BROKER_DENY = /^lane-(?:token|check)-denied: the broker answered (\d{3}) with reason ([a-z]+(?:-[a-z]+)*)/;
 const BROKER_UNREACHABLE = /^broker-unreachable:/;
@@ -150,9 +132,6 @@ export function throttleFindings({ windowStart, failedRuns = [], budgetReadings 
       add("throttle:rate-limited", r.runId ?? "this run", `${r.phase} ${r.name}: 0 of ${r.limit} remaining ${r.url ?? "this run"}`);
     }
   }
-  // A listing a rate limit held ends its run green, so no annotation names it.
-  // Only a hold still unbroken at the monitoring run is seen: collect's walk
-  // stops at the first listed summary.
   for (const s of heldSweeps) {
     if (String(s.reason).startsWith("rate limited") && Date.parse(s.createdAt) >= windowStart.getTime()) {
       add("throttle:rate-limited", s.runId, `pr-merge listing held ${s.url}: ${s.reason}`);
@@ -243,7 +222,6 @@ export function ejectionFindings({ mergeQueueRemovals = [], mergeGroupFailures =
   ];
 }
 
-// pr-merge's "Blocked for over 24 hours" list, from its newest sweep.
 export function heldFindings({ now, sweep = null }) {
   if (!sweep) return [];
   const cutoff = now.getTime() - HELD_HOURS * 3600_000;
@@ -280,8 +258,6 @@ export function auditFindings({ audits = [] }) {
     );
 }
 
-// githubstatus.com: an incident naming Actions that is open or began in the
-// window, or Actions not operational with no such incident.
 export function platformFindings({ windowStart, status = null }) {
   if (!status) return [];
   const actions = (status.components ?? []).find((c) => c.name === "Actions");
@@ -335,9 +311,6 @@ export function throughputFindings({ now, sweep = null, laneMerges = null }) {
   ];
 }
 
-// work-resolve-issue's stops that need a person to know: out of funding, the
-// usage limit, the turn cap, or a stop whose retries are spent (`failed`,
-// which adds no label, so this is where it shows).
 const LANE_STOPS = new Set(["funding", "limited", "turn-cap", "failed"]);
 
 export function laneStopFindings({ laneStops = [] }) {
@@ -355,15 +328,11 @@ export function laneStopFindings({ laneStops = [] }) {
       area: "Issue lane (work-resolve-issue)",
       summary: `work-resolve-issue left ${stops.length} outcome=${outcome} markers in the last hour.`,
       facts: stops.map((s) => `#${s.issue ?? "?"} ${s.createdAt}: ${s.url}`),
-      // The newest stop only: a stop seen again in the window's overlap with the
-      // previous run keeps the fingerprint, so a completed issue is not reopened.
       evidence: [`lane-stop:${outcome}`, Math.max(...stops.map((s) => Number(s.id)))],
     }),
   );
 }
 
-// Pull requests a pr-unblock stop left red with no retry left on their head
-// (collect.mjs, "stalled stops"): no person was asked, so this tells one.
 export function stalledFindings({ stalledStops = [] }) {
   if (stalledStops.length === 0) return [];
   const stops = [...stalledStops].sort((a, b) => a.pr - b.pr || a.activity.localeCompare(b.activity));
@@ -380,11 +349,6 @@ export function stalledFindings({ stalledStops = [] }) {
   ];
 }
 
-// pr-merge's post-merge check could not read lane merges (exit 3) in each of
-// its newest POST_MERGE_UNREADABLE_SWEEPS sweeps, so merges hold with only a
-// warning. It only notifies; a readable sweep clears it. The fingerprint is
-// the newest reason with its counts masked, so a cause that holds is written
-// once.
 export function postMergeUnreadableFindings({ postMergeReports = [] }) {
   const streak = postMergeReports.slice(0, POST_MERGE_UNREADABLE_SWEEPS);
   if (streak.length < POST_MERGE_UNREADABLE_SWEEPS || streak.some((r) => r.code !== "3")) return [];
@@ -403,11 +367,6 @@ export function postMergeUnreadableFindings({ postMergeReports = [] }) {
   ];
 }
 
-// pr-merge's open pull requests were unknown in each of its newest
-// LISTING_HELD_SWEEPS sweeps, so the job gates nothing while its runs end green
-// with only a notice. It only notifies; a sweep that lists clears it. The
-// fingerprint is the newest reason with its counts masked, so a cause that
-// holds is written once.
 export function listingHeldFindings({ heldSweeps = [] }) {
   if (heldSweeps.length < LISTING_HELD_SWEEPS) return [];
   const streak = heldSweeps.slice(0, LISTING_HELD_SWEEPS);
@@ -466,15 +425,6 @@ export function laneVariableFindings({ laneVariableRuns = [] }) {
   ];
 }
 
-// The lanes whose read faults hold green with only a notice (outage posture
-// element 2), the jobs that print each hold notice, and that notice. A lane
-// that passes the threshold of docs/conventions/pr-pipeline.yaml
-// monitor.lane-holds raises signal 13; the leaf's defaults have this one copy.
-// Each lane's `jobs` are those jobs' ids, and `names` their names in the same
-// order, as a run lists them; a run from before the job rename lists the ids.
-// `earlier`, when set, holds the names and ids those jobs had before a later
-// rename, which runs from before it still list. `holdRuns`, when set, is the lane's own cap on unread green runs per window
-// (collect.mjs LIMITS.holdRuns otherwise).
 export const LANE_HOLDS = { threshold: 4, "window-hours": 24 };
 const holdJobs = (workflow, entries) => {
   const listed = entries.map((entry) => listedJob(workflow, ...[entry].flat()));
@@ -536,13 +486,6 @@ export const HOLD_LANES = [
     listPages: 4,
     holdStep: "Note the hold",
   },
-  // pr-merge's two token steps (rate-limit-hold-ok) hold on a rate limit the
-  // lane-token request could not wait out. Its runs are the 2 cron ticks an
-  // hour, one per main push (whose merge and enable-auto-merge jobs skip),
-  // one wake per pr-verify pass, a share of pr-verify's runs, and one per
-  // label removal, a count not measured (UNVERIFIED); pr-verify's 80 a window
-  // and 5 list pages are taken as the cover. No step runs only on a hold, so
-  // each green job's annotations are read.
   { lane: "pr-merge", ...holdJobs("pr-merge.yml", ["merge", "enable-auto-merge"]), area: "Merge lane (pr-merge lane token)", holdRuns: 80, listPages: 5 },
 ];
 
@@ -599,8 +542,6 @@ const HOLD_NOTICES = [
   { title: "refine-failed", level: "warning", pattern: new RegExp(`^pass=(${NAME}) reason=(${NAME})$`), hold: (m) => ({ item: null, reason: `${m[1]} failed: ${m[2]}` }) },
 ];
 
-// One annotation's hold, {item, reason}, or null. Each entry matches one
-// level, notice unless it names another.
 export function parseHold(title, message, level = "notice") {
   for (const { title: t, level: l = "notice", pattern, hold } of HOLD_NOTICES) {
     const m = t === title && l === level ? pattern.exec(String(message)) : null;
@@ -609,8 +550,6 @@ export function parseHold(title, message, level = "notice") {
   return null;
 }
 
-// The monitor.lane-holds leaf as set ({} when absent), with its defaults, or a
-// throw for a value the schema refuses.
 export function holdRule(leaf) {
   const rule = { ...LANE_HOLDS, ...(leaf ?? {}) };
   const whole = (value, min, max) => Number.isInteger(value) && value >= min && value <= max;
@@ -620,12 +559,6 @@ export function holdRule(leaf) {
   return { threshold: rule.threshold, windowHours: rule["window-hours"] };
 }
 
-// A held run ends green with only a notice, so a fault that holds every run
-// shows nowhere else. One finding per lane whose held runs over the rule's
-// window reach its threshold; an issue held that often is one of them. It only
-// notifies, adds no stop and clears once the count drops below the threshold.
-// The fingerprint is the set of hold reasons with counts masked, so a fault
-// that keeps holding is written once.
 export function laneHoldFindings({ laneHolds = [], holdRule: rule = null }) {
   if (!rule) return [];
   const out = [];

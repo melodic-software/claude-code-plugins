@@ -4,6 +4,8 @@
 - Date: 2026-10-12
 - Amends: [ADR 0058](0058-mint-lane-app-tokens-through-an-oidc-broker.md), point 3: the broker's
   trusted-actor check gains the dispatcher path below
+- Superseded in part by `.github/workflows/pr-run-activity-write.yml`, which runs no skill, and no
+  workflow sets `allowed_bots`: Decision 5. The dispatcher and broker checks stand.
 
 ## Context
 

@@ -10,7 +10,7 @@
 # conditions and step bodies. What it cannot assert from this file:
 #   - That apply-patch.mjs refuses every workflow change a merge pushes;
 #     apply-patch.test.mjs owns that.
-# test-scope: .github/workflows/pr-run-activity-write.yml .github/actions/resolve-config/activity-rules.json .github/actions/collect-base-activity/action.yml .github/scripts/merge-base/run-prepare.sh .github/scripts/apply-patch/apply-patch.mjs .github/actions/resolve-config/patch-rules.json .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-run-activity-write.yml .github/actions/resolve-config/activity-rules.json .github/actions/collect-base-activity/action.yml .github/scripts/merge-base/run-prepare.sh .github/scripts/apply-patch/apply-patch.mjs .github/actions/resolve-config/patch-rules.json scripts/ci-deps/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,7 +21,7 @@ results=$(
   cd "$ROOT" && node --input-type=module - <<'EOF'
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-const require = createRequire(`${process.cwd()}/.github/standards/runner-policy/package.json`);
+const require = createRequire(`${process.cwd()}/scripts/ci-deps/package.json`);
 const YAML = require("yaml");
 
 const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
@@ -350,7 +350,7 @@ say(/inputs\.reuse-branch != ''/.test(String(summaryDownload?.if ?? "")) && /ste
 EOF
 )
 if [[ -z "$results" ]]; then
-  fail "the structure check printed nothing; is .github/standards/runner-policy installed?"
+  fail "the structure check printed nothing; is scripts/ci-deps installed?"
 fi
 while IFS=$'\t' read -r verdict text; do
   [[ -n "$verdict" ]] || continue

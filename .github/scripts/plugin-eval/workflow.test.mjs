@@ -92,6 +92,16 @@ test("a dispatched run writes the validity bash ran and verdict lines and the no
   assert.doesNotMatch(summarize, /\$validity"? >/);
 });
 
+test("both legs of a dispatched suite run keep each run's final reply beside its results.json for the upload", () => {
+  const capture =
+    /if \[ "\$DISPATCHED" = true \]; then\n(?: +[^\n]*\n){5}\s+node \.base\/\.github\/scripts\/plugin-eval\/last-messages\.mjs "\$results" "\$OUT\/\$name\/last-messages\.jsonl" \|\|\n\s+echo "::warning::[^"\n]+"\n/g;
+  assert.equal(text.match(capture)?.length, 2);
+  const job = (name) => text.slice(text.indexOf(`\n  ${name}:\n`)).split("\n    steps:\n")[0];
+  assert.match(job("check-key-credit"), /inputs\.mode != 'compare'/);
+  assert.match(job("run-eval"), /needs: check-key-credit\n[\s\S]*needs\.check-key-credit\.result == 'success'/);
+  assert.match(job("run-eval-subscription"), /inputs\.mode != 'compare'/);
+});
+
 test("a pull request run redacts its summary and uploads no results", () => {
   assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'workflow_run' && '--redact' \|\| '' \}\}/);
   assert.match(step("Summarize the results"), /summarize\.mjs "\$results" --plugin "\$name" "\$\{redact\[@\]\}"/);
@@ -177,9 +187,9 @@ test("compare mode hands each arm only the credential input's secret and stops w
 });
 
 test("only the compare record job writes, after the verdict and a fresh head check", () => {
-  assert.deepEqual(compare.match(/[a-z-]+: write/g), ["issues: write"]);
+  assert.deepEqual(compare.match(/[a-z-]+: write/g), ["pull-requests: write"]);
   const record = job("compare-record");
-  assert.match(record, /issues: write/);
+  assert.match(record, /\n {6}pull-requests: write\n/, "a comment on a pull request needs pull-requests: write, issues: write gets a 403");
   assert.match(record, /needs: \[compare-prepare, compare-verdict\]\n/);
   assert.ok(record.indexOf("compare-head.sh") > 0 && record.indexOf("compare-head.sh") < record.indexOf("- name: Post the record"));
   assert.doesNotMatch(record, /inputs\.head-sha \}\}\n {10}path/);
@@ -328,4 +338,40 @@ test("a subscription compare refuses a pull request whose author is not a truste
   assert.equal((await verdict(owner)).proceed, "true", "our own login's pull request");
   assert.equal((await verdict(337595936)).proceed, "true", "our lanes bot's pull request");
   assert.deepEqual(await verdict(12345), { proceed: "false", reason: "untrusted-author" }, "anyone else's pull request");
+});
+
+test("a subscription compare refuses a pull request a bot wrote, before any pass", () => {
+  const { stepNamed, steps } = workflowText(text);
+  const stop = stepNamed("compare-prepare", "Stop on a pull request a bot wrote");
+  for (const credential of ["api-key", "subscription"]) {
+    assert.equal(evaluate(stop.if, { "inputs.credential": credential }), credential === "subscription", credential);
+  }
+  const names = steps("compare-prepare").map((s) => s.name);
+  assert.ok(names.indexOf("Stop on an untrusted pull request author") < names.indexOf("Stop on a pull request a bot wrote"));
+  assert.ok(names.indexOf("Stop on a pull request a bot wrote") < names.indexOf("Build the arm patches"), "the refusal comes before any arm is built");
+
+  const script = /\n {8}run: \|\n((?: {10}.*\n|\n)+)/.exec(stop.text)[1].replace(/^ {10}/gm, "");
+  const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+  const work = mkdtempSync(join(tmpdir(), "bot-author-"));
+  try {
+    symlinkSync(repoRoot, join(work, ".base"));
+    mkdirSync(join(work, "bin"));
+    const run = (reply) => {
+      writeFileSync(join(work, "bin/gh"), `#!/usr/bin/env bash\n${reply}\n`, { mode: 0o755 });
+      return spawnSync("bash", ["-c", script], {
+        cwd: work,
+        env: { PATH: `${join(work, "bin")}:${process.env.PATH}`, PR: "7", GITHUB_REPOSITORY: "o/r", LIST: ".base/.github/standards/trusted-actors/trusted-actors.json" },
+        encoding: "utf8",
+      });
+    };
+    assert.equal(run("echo 153232337").status, 0, "our own login's pull request");
+    const bot = run("echo 337595936");
+    assert.equal(bot.status, 1, "our lanes bot's pull request");
+    assert.match(bot.stdout, /::error::bot-author:/);
+    const unread = run("exit 1");
+    assert.equal(unread.status, 1, "an unread author");
+    assert.match(unread.stdout, /::error::read-fault:/);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
 });

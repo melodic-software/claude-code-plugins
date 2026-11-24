@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Fetch enabled benchmark registry pages through the plugin's scripts/fetch-docs.sh
-# with --profile generic --cache --public-only and per-row --max-age, writing
-# pages and one combined manifest that stamps source_id and page_date per row.
+# with --profile generic --cache --public-only, per-row --max-age and the row's
+# --expect marker, and --render-fallback, so a blocked page or one drawn by
+# script renders through the Firecrawl CLI when docs-cache.sh's renderer is
+# firecrawl. Writes pages and one combined manifest that stamps source_id and
+# page_date per row.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -227,7 +230,7 @@ jq -r --arg wt "$TASK_TYPE" --slurpfile src "$SOURCES_JSON" '
      end) as $en
   | select($en == true)
   | select($wt == "" or ((.workloads | index($wt)) != null))
-  | [.id, .link, ((.freshness_seconds // 86400) | tostring)]
+  | [.id, .link, ((.freshness_seconds // 86400) | tostring), (.expect // "")]
   | @tsv
 ' "$MERGED_REGISTRY" >"$ROWS_TSV" || die "failed to read rows from $REGISTRY"
 
@@ -235,14 +238,16 @@ BOARDS_JSONL="$WORK/boards.jsonl"
 : >"$BOARDS_JSONL"
 
 idx=0
-while IFS=$'\t' read -r row_id row_link row_max_age; do
+while IFS=$'\t' read -r row_id row_link row_max_age row_expect; do
   row_id="${row_id%$'\r'}"
   row_link="${row_link%$'\r'}"
   row_max_age="${row_max_age%$'\r'}"
+  row_expect="${row_expect%$'\r'}"
   [[ -n "$row_id" ]] || continue
   idx=$((idx + 1))
   row_manifest="$WORK/row-$idx.json"
-  cmd=(bash "$FETCH_DOCS" --profile generic --cache --public-only --max-age "$row_max_age" --out "$OUT" --manifest "$row_manifest")
+  cmd=(bash "$FETCH_DOCS" --profile generic --cache --public-only --max-age "$row_max_age" --out "$OUT" --manifest "$row_manifest" --render-fallback)
+  [[ -z "$row_expect" ]] || cmd+=(--expect "$row_expect")
   [[ -z "$CACHE_DIR" ]] || cmd+=(--cache-dir "$CACHE_DIR")
   [[ -z "$MAX_PAGE_BYTES" ]] || cmd+=(--max-page-bytes "$MAX_PAGE_BYTES")
   cmd+=("$row_link")

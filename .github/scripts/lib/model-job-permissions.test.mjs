@@ -16,14 +16,12 @@ const runsModel = (step) => LAUNCHER.test(String(step.uses ?? "")) || /\bclaude\
 const MODEL_SECRET = /claude[-_](api[-_]key|code[-_]oauth[-_]token)$/i;
 const OFF = [undefined, "", false, "false"];
 
-// `expand` maps a step to the steps it runs, so a local composite's own steps count.
 export function modelJobViolations(workflow, expand = (step) => [step]) {
   const found = [];
   for (const [id, job] of Object.entries(workflow.jobs ?? {})) {
     const steps = (job.steps ?? []).flatMap(expand);
     if (!steps.some(runsModel)) continue;
     const bad = (rule, what) => found.push(`${id}: ${rule}: ${what}`);
-    // With no block anywhere the repository default applies, which can be write.
     const permissions = job.permissions ?? workflow.permissions ?? "the repository default";
     if (typeof permissions === "string") {
       if (permissions !== "read-all") bad("write scope", permissions);
@@ -88,7 +86,6 @@ for (const [name, [workflow, rules, expand]] of Object.entries(CASES)) {
   });
 }
 
-// A local composite (`./.github/actions/x`, or `./.base/...` from a base checkout) runs its own steps.
 const expand = (step) => {
   const local = /^\.\/(?:\.base\/)?(\.github\/actions\/[\w-]+)$/.exec(String(step.uses ?? ""));
   const file = local && new URL(`${local[1]}/action.yml`, ROOT);

@@ -2,6 +2,10 @@
 
 - Status: accepted
 - Date: 2026-10-04
+- Superseded in part by `.github/workflows/pr-run-activity-write.yml`, which runs no skill and
+  fails one with `skill-in-write-runner`: Decision 7's skill whose effect is not `read`, and the
+  2026-10-10 addendum's tool grant to such a skill. The head-isolation rule for skill activities
+  stands.
 
 ## Context
 

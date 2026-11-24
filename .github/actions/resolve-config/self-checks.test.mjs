@@ -64,8 +64,6 @@ for (const entry of ["scripts/x.sh; rm -rf /", "../scripts/x.sh", "scripts/x.sh 
   });
 }
 
-// The read runner, which holds no write credential, runs a skill's checks, so
-// a check may run the checkout's test files.
 test("checks and self-checks may run the checkout's test files", () => {
   const { selected } = run({ checks: ["scripts/run-test-file.sh"], "self-checks": ["scripts/affected-tests.sh --run"] });
   assert.deepEqual(selected.checks, ["scripts/run-test-file.sh"]);
@@ -76,8 +74,6 @@ test("check-affected.sh --tests stays a check", () => {
   assert.deepEqual(run({ checks: ["scripts/check-affected.sh --tests"] }).selected.checks, ["scripts/check-affected.sh --tests"]);
 });
 
-// Only the runner that stages edit tools stages them, so a read skill that
-// hands on no patch would list them for nothing.
 test("self-checks with no applied-by.patch fail the schema", () => {
   rejected(() => run({ "self-checks": ["scripts/check-x.sh"] }, { handsOnPatch: false }));
 });

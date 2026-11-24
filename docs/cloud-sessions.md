@@ -203,7 +203,7 @@ scopes its requests to the repositories attached to the session, so a release as
 another repository can be refused.
 
 Not installed at session start (install on demand when working in those areas): the plugin npm
-packages. `plugins/miro/server` and `.github/standards/runner-policy` are each an `npm ci` in their
+packages. `plugins/miro/server` and `scripts/ci-deps` are each an `npm ci` in their
 own directory, while the video-digest, course-digest, and ai-briefing suites install through
 their skills' entry scripts (`plugins/knowledge/skills/video-digest/scripts/run-tests.sh
 install`, `plugins/knowledge/skills/course-digest/scripts/run-tests.sh install`,

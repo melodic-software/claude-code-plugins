@@ -213,7 +213,7 @@ Recommend stays the default posture.
   `.work-item-tracker.local.json`; each announces the edit and touches nothing else. A
   self-ignoring `.gitignore` inside a plugin-owned directory is a different file, not an
   exception. `source-control`'s append is ratified by
-  [ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md);
+  [ADR 0040](https://github.com/melodic-software/claude-code-plugins/blob/0822bda61a013ea266acc01dcf17922873c18675/docs/adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md);
   `work-items`' by [ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md).
 
 ## [1.3] - 2026-09-28

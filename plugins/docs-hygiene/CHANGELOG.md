@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.2] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [4.4.1] - 2026-11-24
 
 ### Changed

@@ -4,6 +4,9 @@
 - Date: 2026-10-12
 - Amends: [ADR 0053](0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md),
   point 1, for callers that pass `trusted-base: default-tip`
+- Superseded in part by `.github/workflows/pr-refine.yml` and
+  `.github/workflows/work-resolve-issue.yml`, which also pass `trusted-base: default-tip`:
+  Decision 3's "no other caller passes the input".
 
 ## Context
 
