@@ -146,10 +146,9 @@ boundary other modules will build on):
    `design-threads.md`.
 
 When the thread is about how a screen or interaction looks or feels, invoke
-`/prototype:explore-directions` via the Skill tool when it is among the available skills. When the
+`/prototype:explore-directions` (if enabled) via the Skill tool. When the
 candidates differ in logic or state (the rules, a state machine, a data model, an API surface) and
-a run can settle the fork, invoke `/prototype:pressure-test observe` via the Skill tool when it is
-among the available skills, because running each candidate on the same inputs shows which one
+a run can settle the fork, invoke `/prototype:pressure-test observe` (if enabled) via the Skill tool, because running each candidate on the same inputs shows which one
 holds where arguing them only predicts it. The test: name the event sequence or record that the
 criteria turn on; when nobody can yet say with confidence how each candidate handles it, a run
 settles the fork (pstack's `exhaust-the-design-space` principle). Confirm the scope of the
@@ -170,7 +169,7 @@ Open these threads when their trigger holds:
 - **Test-seam posture**: any feature with a testable surface. Sketch where its tests will attach;
   reuse an existing seam before adding one, put any new seam as high in the stack as it can go, and
   aim for the fewest seams that cover the surface. The change→test-type mapping lives in
-  `/testing:plan`'s classification table; cite it when the `testing` plugin is enabled, otherwise
+  the classification table of `/testing:plan` (if enabled); cite it, or without that plugin
   apply standard test-design judgment. The sketch is input, not the decision: `/planning:plan`'s
   Test strategy names the test boundaries from it and its Step 5 approval settles them; a seam the
   design needs as a contract still goes in Contracts.
@@ -221,7 +220,7 @@ The inventory covers:
   naming, collisions with common library types, namespaces) before naming
 - Follow the project's codified design principles (e.g. Law of Demeter, dependency direction,
   disambiguating overloaded terms) where declared; otherwise low-coupling/high-cohesion defaults
-- Invoke `/domain-driven-design:ubiquitous-language curate` via the Skill tool (if that plugin is enabled)
+- Invoke `/domain-driven-design:ubiquitous-language curate` (if enabled) via the Skill tool
   the moment a domain term resolves, so the glossary owner applies the consumer's format,
   placement, and context routing; without it, record the resolved term and rejected synonyms in
   the design artifacts
@@ -253,7 +252,7 @@ naming during modeling does not replace it.
 - Dependency direction enforcement per the project's declared layer rules
 
 When the work adds, splits, merges or moves a module or its interface, invoke
-`/architecture:principles` via the Skill tool (if enabled) before writing the topology, and name
+`/architecture:principles` (if enabled) via the Skill tool before writing the topology, and name
 modules, interfaces, seams and adapters in its terms. For modules that already exist, name
 `/architecture:improve` (if enabled) as the step that finds which ones to reshape; this skill scans
 no code. When the architecture plugin is not enabled, say once that it would supply the
@@ -284,13 +283,14 @@ Each round:
    documents): public contracts, data shapes, and user-facing surfaces lead; settled-looking
    mechanical threads sit at the bottom. Order only; thread dependencies still govern what can
    resolve when.
-4. For each project-wide principle discussion surfaces, when `/corrections:codify` is among the
+4. For each project-wide principle discussion surfaces, when `/corrections:codify` (if enabled) is among the
    available skills, hand it the choice of mechanism; it picks the strongest rung of the
    enforcement ladder that can decide the rule and proves the check. Call it as
-   `/corrections:codify "<the principle>"`. Otherwise, propose the strongest mechanism that can
+   `/corrections:codify "<the principle>"` (if enabled). When the `corrections` plugin is not
+   enabled, propose the strongest mechanism that can
    decide the rule: a change that makes the mistake impossible first, then a check that blocks it,
    then a test, and an instruction only when nothing a machine runs can decide it. Say that
-   `/corrections:codify` was not available, so the proposal is unproven. When codify stops with no
+   the `corrections` plugin was not available, so the proposal is unproven. When codify stops with no
    proposal, as it does below its recurrence threshold, propose the same way and say that it
    stopped.
 
@@ -312,7 +312,7 @@ Over the full type inventory, once type modeling stabilizes:
 3. Check overloaded-term disambiguation and domain accuracy against the project's domain
    vocabulary
 4. Record decisions in a terminology table inside `type-inventory.md`
-5. Invoke `/domain-driven-design:ubiquitous-language curate` via the Skill tool (if enabled) to sync resolved
+5. Invoke `/domain-driven-design:ubiquitous-language curate` (if enabled) via the Skill tool to sync resolved
    terms and rejected synonyms into the project's glossary; the table above is the standalone
    fallback
 
@@ -381,8 +381,7 @@ dialect: mermaid
 ```
 
 `scope` is one of `data`, `integration`, `system`. `dialect` is one of `mermaid`, `dbml`,
-`openapi-3.1`, `likec4`, `c4-plantuml`. `/work-items:decompose` (when the `work-items` plugin is
-enabled) reads the label to inline the artifact under a provenance note naming scope and dialect;
+`openapi-3.1`, `likec4`, `c4-plantuml`. `/work-items:decompose` (if enabled) reads the label to inline the artifact under a provenance note naming scope and dialect;
 without that plugin the label is inert. The body is one fenced block in the declared dialect,
 followed by the artifact's prose. Tag the fence with the renderer name: `mermaid`, `dbml`, `yaml`
 for the OpenAPI 3.1 sketch, `likec4`, `plantuml`. An `integration` session labels two artifacts,
@@ -399,7 +398,7 @@ and behave exactly as with no convention doc at all, reporting its provenance as
 `unset (no C4 view emitted)`.
 
 **Diagram craft.** For mermaid layout, readability, and syntax idiom, invoke
-`/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled), asking
+`/visualization:visualize` (if enabled) via the Skill tool, asking
 for the fenced form, since the diagram goes into the typed artifact. Without
 it, emit the plainest correct form of the dialect. The typed artifact is produced either way.
 
@@ -413,7 +412,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
   <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>). Inline prose otherwise
 - **Grounding steps.** Ground a consequential recommendation in the affected code plus its
   consumers and in external research that reads official docs first, routed to
-  `/discovery:explore` and `/discovery:research` if enabled. A recommendation that changes is
+  `/discovery:explore` (if enabled) and `/discovery:research` (if enabled). A recommendation that changes is
   restated as old → new → why. Contract:
   [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md)
 - **Self-answer before asking.** Each candidate question first passes
@@ -422,12 +421,12 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 - **Track resolution status.** Every question and thread is resolved / directional / deferred.
   Deferred items carry a research tag naming the external investigation needed
 - **Codify rules when discovered.** When discussion surfaces a project-wide principle, route it
-  immediately: when `/corrections:codify` is among the available skills, hand it the choice of
+  immediately: hand `/corrections:codify` (if enabled) the choice of
   mechanism; it picks the strongest rung of the enforcement ladder that can decide the rule and
-  proves the check. Call it as `/corrections:codify "<the principle>"`. Otherwise, propose the
+  proves the check. Call it as `/corrections:codify "<the principle>"` (if enabled). When the `corrections` plugin is not enabled, propose the
   strongest mechanism that can decide the rule: a change that makes the mistake impossible first,
   then a check that blocks it, then a test, and an instruction only when nothing a machine runs
-  can decide it. Say that `/corrections:codify` was not available, so the proposal is unproven.
+  can decide it. Say that the `corrections` plugin is not enabled, so the proposal is unproven.
   When codify stops with no proposal, as it does below its recurrence threshold, propose the same
   way and say that it stopped
 - **Incremental artifacts.** Build artifacts as discussion progresses and update them as decisions
@@ -456,10 +455,9 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 - **Code writing**: the implementation stage
 - **External research**: the research capability; this skill synthesizes its results
 - **Diagram craft**: this skill selects the dialect; layout and idiom route to
-  `/visualization:visualize` if enabled, else the plainest correct form is emitted
+  `/visualization:visualize` (if enabled), else the plainest correct form is emitted
 - **UI/UX design**: user research, flows and information architecture are
-  `/user-experience:shape` (if enabled); look and response are `/user-interface:design` (if
-  enabled)
+  `/user-experience:shape` (if enabled); look and response are `/user-interface:design` (if enabled)
 - **Domain event workshops**: an EventStorming-style capability; this skill may suggest it within
   module design
 - **Product intent**: `/planning:prd` (problem, users, success metrics)
@@ -482,7 +480,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 | Skill | Relationship |
 |-------|-------------|
 | `/planning:interview` | **Before.** Locks the brief (scope + constraints); design explores the solution space within them |
-| `/domain-driven-design:ubiquitous-language curate` | **During.** Owns project-glossary updates when design resolves domain language; not type or boundary design |
+| `/domain-driven-design:ubiquitous-language curate` (if enabled) | **During.** Owns project-glossary updates when design resolves domain language; not type or boundary design |
 | `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block |
 | `/naming:name-it-better` (if enabled) | **During.** Proposes candidates for a name the design leaves undecided; the human picks, and the pick is recorded in the terminology table |
 | `/architecture:principles` (if enabled) | **During.** Supplies the module-design terms the topology uses when the work changes module structure (Phase 4) |

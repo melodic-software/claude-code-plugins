@@ -3,6 +3,13 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.30] - 2026-11-24
+
+### Changed
+
+- `/skill-quality:check` now carries a `## Related` section that lists the skills to reach for in
+  nearby situations, one condition per line.
+
 ## [1.1.29] - 2026-11-21
 
 ### Changed

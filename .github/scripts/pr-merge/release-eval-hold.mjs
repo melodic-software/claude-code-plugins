@@ -36,7 +36,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, paginate } from "../lib/github-client.mjs";
-import { loadTrustedList, trustedActorsPath } from "../lib/trusted-actors.mjs";
+import { loadTrustedList, trustedActorsPath, trustedListPath } from "../lib/trusted-actors.mjs";
 import { bodyHolds, fromRest, LANES_APP_LOGIN, vetoers } from "./merge-holds.mjs";
 
 export const LABEL = "do-not-merge";
@@ -448,7 +448,7 @@ export async function main({ env = process.env, github, runsGitHub, now = Date.n
     }
     const repo = env.GITHUB_REPOSITORY;
     const bot = env.LANES_BOT_LOGIN || LANES_APP_LOGIN;
-    const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH || trustedActorsPath());
+    const { humans } = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS_PATH || trustedActorsPath()));
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     runsGitHub ??= env.RUNS_TOKEN ? createGitHub({ token: env.RUNS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : github;
     const holds = await holdEvalGated(github, repo, humans);

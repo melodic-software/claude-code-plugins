@@ -51,7 +51,7 @@ Parse `$ARGUMENTS` and the invoking prompt for four independent narrowings; each
   count, fan out and merge as
   [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md)
   "Resolving repositories", "Fan-out" and "Merging findings" say. Each repository runs the whole
-  scan below with its root anchored, delegated lanes included (`/architecture:improve` gets
+  scan below with its root anchored, delegated lanes included (`/architecture:improve` (if enabled) gets
   `--repo <owner/name>`), and its candidates join one ranked list on this skill's scale
   (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/ranking.md`).
   The single-repository procedure: when the target is not the session's working directory,
@@ -167,7 +167,7 @@ method:
 - `harness-config:audit-automation-gaps`. Depth for the Claude Code operational-setup dimension.
 - `code-tidying:audit-dead-code`. Unused exports, functions and files for the first shape of the
   disconnected-capability scan (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/disconnected.md`); without it, that recipe greps.
-- `/code-metrics:audit-duplication`, when it is among the available skills. Copy count and clone
+- `/code-metrics:audit-duplication` (if enabled). Copy count and clone
   trend for the code dimension: run it with `--json --keep --all` and read the document it prints
   (`--keep` keeps that document as the next run's trend baseline). Each clone class's copy count is
   its number of instances; code-metrics computes `trend`, including the lists of new and grown
@@ -185,7 +185,7 @@ In unattended mode, consult only lanes that run without interaction; a lane whos
 interview- or confirmation-driven is skipped with a `gap:` line naming it, and Tier 0 stands
 alone for that dimension, never simulate a user to drive an interactive lane. `architecture:improve`
 has a declared unattended mode, so this skill invokes it inline as
-`/architecture:improve deepening --unattended` and reads the candidate file it writes
+`/architecture:improve deepening --unattended` (if enabled) and reads the candidate file it writes
 (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Architecture candidates").
 
 ## Candidate output shape
@@ -209,14 +209,14 @@ reader knows what the ranking could not see.
 
 1. Present the ranked candidate list (shape above), evidence gaps included.
 2. The user picks a candidate.
-3. Interview on the pick. Invoke `/planning:interview` via the Skill tool when available, to reach a shared shape:
+3. Interview on the pick. Invoke `/planning:interview` (if enabled) via the Skill tool when available, to reach a shared shape:
    what improvement, why now, what evidence, what done looks like.
-4. Hand off to the pipeline, invoking each via the Skill tool: `/discovery:explore` (internal
-   unknowns) or `/discovery:research` (external unknowns) as needed, then `/planning:plan`. The handoff artifact is the interview's
+4. Hand off to the pipeline, invoking each via the Skill tool: `/discovery:explore` (if enabled) (internal
+   unknowns) or `/discovery:research` (if enabled) (external unknowns) as needed, then `/planning:plan` (if enabled). The handoff artifact is the interview's
    output, with the candidate's evidence citation attached. A pick that fits one small PR may
    instead go to `/improvement:improve`, invoked via the Skill tool with the candidate as its
    target, plus `--repo <owner/name>` when the candidate came from another repository.
-5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` when enabled; the user decides which, if any. Each one filed carries the `source: improvement-find` label (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Source label", including what to do when the label is missing).
+5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` (if enabled); the user decides which, if any. Each one filed carries the `source: improvement-find` label (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Source label", including what to do when the label is missing).
 
 Where a named pipeline skill is not enabled in the consuming project, summarize the equivalent
 handoff shape inline instead of blocking, but absence of a pipeline skill is never license to
@@ -264,8 +264,8 @@ declared-by-the-caller convention. In unattended mode:
 ## Execution requests
 
 "Go implement this", interactively or as a follow-up, routes through the pipeline, never through
-this skill's own hands: interview the pick → `/discovery:explore` / `/discovery:research` →
-`/planning:plan` → `/implementation:implement` → `/verification:confirm`, each delegated to its
+this skill's own hands: interview the pick → `/discovery:explore` (if enabled) / `/discovery:research` (if enabled) →
+`/planning:plan` (if enabled) → `/implementation:implement` (if enabled) → `/verification:confirm` (if enabled), each delegated to its
 skill by invoking it via the Skill tool. An execution request changes where the handoff goes,
 not what this skill is allowed to touch.
 
@@ -301,7 +301,7 @@ mode:
   `architecture:improve` writes under `<memory_dir>/architecture/improve/<branch-slug>/`, with the
   `<memory_dir>/.gitignore` it creates when that file is absent.
 - **Either mode, only when code-metrics is enabled**:
-  - `/code-metrics:audit-duplication --json --keep`, which this skill runs, keeps its report in
+  - `/code-metrics:audit-duplication --json --keep` (if enabled), which this skill runs, keeps its report in
     code-metrics' own data directory, `reports/<state-key>/audit-duplication-<UTC stamp>.json`
     (code-metrics keeps the newest 20 per project), the baseline of the next run's trend;
   - for a growing clone class, this skill writes one review-findings file,

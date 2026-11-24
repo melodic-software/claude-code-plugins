@@ -23,7 +23,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
 import { runAsScript } from "../lib/run-main.mjs";
-import { readRawTrustedActors } from "../lib/trusted-actors.mjs";
+import { readRawTrustedActors, trustedListPath } from "../lib/trusted-actors.mjs";
 import { guardedFetch, createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
 import {
   classifierGaps,
@@ -32,6 +32,7 @@ import {
   DEPENDABOT_LOGIN,
   isDependabotCommit,
   parseConfig,
+  policyPath,
   provenanceReasons,
   withProvenance,
 } from "./dependency-classify.mjs";
@@ -124,6 +125,7 @@ export const GATE_HOLD_SKIP = "gate-hold";
 const GATE_HOLDS = [
   ["person", /^#([1-9][0-9]*) is by an author no review lane reviews and changes trust-gate paths:/],
   ["verdict", /^#([1-9][0-9]*) by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths:/],
+  ["verdict", /^#([1-9][0-9]*) by Dependabot changes only the CDN pins record on trust-gate paths:/],
 ];
 export function gateHoldOnly(annotations, pr) {
   const failures = annotations.filter((note) => note?.annotation_level === "failure").map((note) => String(note.message ?? ""));
@@ -434,11 +436,10 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     "PR_NUMBER",
     "HEAD_SHA",
     "APP_SENDER_ID",
-    "TRUSTED_ACTORS",
     "DEPENDENCY_FILE",
     "CONTEXT_RUN_FILE",
     "DEPENDABOT_CONFIG",
-    "DEPENDABOT_POLICY",
+    ...(env.STANDARDS_DIR ? [] : ["TRUSTED_ACTORS", "DEPENDABOT_POLICY"]),
   ]);
   // Before any model turn and before the upload: no lanes App fix commit of
   // this round is older.
@@ -462,13 +463,13 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     pr,
     headSha: env.HEAD_SHA,
     appId: positive(env.APP_SENDER_ID, "APP_SENDER_ID"),
-    dependabotId: dependabotIdFrom(env.TRUSTED_ACTORS),
+    dependabotId: dependabotIdFrom(trustedListPath(env, env.TRUSTED_ACTORS)),
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
     config,
     baseDir: env.BASE_DIR,
     groups: config === null ? [] : parseGroups(readFileSync(env.DEPENDABOT_CONFIG, "utf8")),
-    policy: readPolicy(env.DEPENDABOT_POLICY, log),
+    policy: readPolicy(policyPath(env, env.DEPENDABOT_POLICY), log),
     provenance,
   });
   if (result.file) {

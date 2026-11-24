@@ -123,7 +123,7 @@ and report its line ([levels](https://github.com/melodic-software/claude-code-pl
 A **recurring** deterministic finding goes to a **standing** mechanism (a
 linter, analyzer, or commit hook that fires on every change). That is the
 territory of an automation-gaps capability
-(`/harness-config:audit-automation-gaps` when that plugin is enabled; prose
+(`/harness-config:audit-automation-gaps` (if enabled); prose
 guidance otherwise).
 
 This skill owns the **one-off, session-time** need: the current task needs a
@@ -137,9 +137,9 @@ script that runs and returns real output satisfies the discipline.
 text runs the corrector above, with the text read as the request. The mode
 answers one question for a block of work that applies one change at several
 sites: build a lever (a script or tool that makes the change at every site),
-or edit each site by hand. `/implementation:implement` calls it before a
+or edit each site by hand. `/implementation:implement` (if enabled) calls it before a
 block that applies one change at three or more sites, and
-`/implementation:implement-dispatch` calls it before it fans one change out
+`/implementation:implement-dispatch` (if enabled) calls it before it fans one change out
 to workers. The block summary names the change, the sites, and how many
 there are.
 

@@ -184,7 +184,7 @@ manager, so the checks cover every commit, not only Claude's tool calls:
 on the lines a commit adds, whatever wrote the file), `pre-push-content` (the same scan on
 each pushed commit, for commits that check never judged). `reference-verify` (CLI flags,
 `/plugin:skill` references and deleted repository paths) is not an entry: over the 3 s push
-budget, it runs in `/source-control:pull-request`'s pre-PR check and in CI. `verify` does not
+budget, it runs in `/source-control:pull-request` (if enabled)'s pre-PR check and in CI. `verify` does not
 list a copy an earlier release installed; `check` step 8 reports the copies in `.git/hooks/` and
 `.githooks/` (`guardrails-r005` to `r024`), and bare `apply` cleans each one on the user's yes,
 marker first, and the script only after any hook-manager line below that runs it is gone. The records do not cover a hook manager's config, `.githooks/local/` (a local
@@ -234,7 +234,7 @@ with your own edit tools. Never runs from bare `apply`.
 6. **Verify.** Run `verify` and report its lines as `check` step 5 does. Also state that with
    no team-tracked `subject_pattern`, and no personal one in a git-ignored
    `docs/conventions/source-control.local.yaml`, every commit-msg subject passes, so the
-   `commit-msg-convention` entry is inert until `/source-control:setup apply` writes a
+   `commit-msg-convention` entry is inert until `/source-control:setup apply` (if enabled) writes a
    convention or the operator writes that file.
 
 When the user does not want an entry in this clone, run
@@ -292,14 +292,14 @@ Never runs from bare `apply`.
 ## `apply identity-domains` (explicit argument only)
 
 Writes `block-cross-domain`'s map, `${CLAUDE_PLUGIN_DATA}/identity-domains.json`, from the
-identity domains `/harness-ops:machine-profile` recorded. `<script>` is
+identity domains `/harness-ops:machine-profile` (if enabled) recorded. `<script>` is
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/identity-domains.sh"`; its header has the
 full rules. Never runs from bare `apply`.
 
 1. **Profile.** The stored profile is `machine-profile/profile.json` in the harness-ops
-   plugin's data directory. A saved `/harness-ops:machine-profile` discover output works
+   plugin's data directory. A saved `/harness-ops:machine-profile` (if enabled) discover output works
    too. When neither path is known, ask the operator. With no profile, point at
-   `/harness-ops:machine-profile` and stop.
+   `/harness-ops:machine-profile` (if enabled) and stop.
 2. **Preview.** Run `<script> --profile <file> --data-dir "${CLAUDE_PLUGIN_DATA}"`, which
    writes nothing and also says whether a map is already there. Each domain with an absolute tree and no
    wildcard becomes one map domain, named after the tree's last segment: the tree is its

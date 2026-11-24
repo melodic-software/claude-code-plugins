@@ -5621,6 +5621,7 @@ def _dependabot_content(
     paths (either side of a rename) are None when the files listing was not
     read whole. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    head_ref = json_object(pr.get("head")).get("ref")
     config = _dependabot_config(owner, name, base_sha, main_sha)
     extra: set[str] = set()
     read: list[frozenset[str] | None] = []
@@ -5638,7 +5639,9 @@ def _dependabot_content(
         if touched is None:
             # Unreadable (or past the listing cap) is not "touches nothing".
             return None, f"unreadable: commit files {sha[:12]}", None
-        refusal = _fix_commit_refusal(owner, name, sha, config, lane_identity, cdn)
+        refusal = _fix_commit_refusal(
+            owner, name, sha, config, lane_identity, cdn, head_ref
+        )
         if refusal:
             return None, f"dependabot-fix-content:{refusal}", None
         extra.update(touched)
@@ -5694,11 +5697,12 @@ def _fix_commit_refusal(
     config: list[tuple[str, str]] | None,
     lane_identity: str | None = None,
     cdn: Callable[[], frozenset[str] | None] | None = None,
+    head_ref: str | None = None,
 ) -> str | None:
     """Why a lanes App commit is not a fix the lane may merge with
     (`babysit_dependabot.fix_refusal` against its one parent) nor the CDN
     pins sync (`babysit_dependabot.cdn_sync_refusal` against the base
-    registry `cdn()` reads), or None. The commit's files, modes and both
+    registry `cdn()` reads, on the pull request's `head_ref`), or None. The commit's files, modes and both
     sides' text are read here; a read that fails is a refusal."""
     status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
     detail = json_object(payload)
@@ -5747,6 +5751,7 @@ def _fix_commit_refusal(
             lane_identity,
             cdn,
             lambda side, path: entry_at(parent if side == "before" else sha, path),
+            head_ref,
         )
     except PolicyReadError as exc:
         sync = f"cdn-sync-unreadable:{str(exc)[:120]}"

@@ -137,4 +137,4 @@ Writes the tests the plan names.
 ## What this skill does NOT do
 
 - **Does not write tests**. `/testing:write`
-- **Does not run tests**. `/toolchain:check` (SSOT for CLI invocation)
+- **Does not run tests**. `/toolchain:check` (if enabled) (SSOT for CLI invocation)

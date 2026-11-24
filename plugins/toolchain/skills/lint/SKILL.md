@@ -23,15 +23,15 @@ Unless this section says otherwise, treat a failure (not a repository, git unava
 
 ## Purpose
 
-Run lint and format checks across affected ecosystems in one command. Fills the gap between "no check" and `/verification:confirm` (build+test+lint):
+Run lint and format checks across affected ecosystems in one command. Fills the gap between "no check" and `/verification:confirm` (if enabled) (build+test+lint):
 
 | Skill | What it runs | Speed |
 |-------|-------------|-------|
 | `/toolchain:lint` | Lint + format only | Fast (~5-15s) |
 | `/toolchain:check` | Build + test + lint | Medium (~30-60s) |
-| `/verification:confirm` | Build + test + lint + outcome verification | Medium+ |
+| `/verification:confirm` (if enabled) | Build + test + lint + outcome verification | Medium+ |
 
-Use `/toolchain:lint` for quick feedback during development. Use `/verification:confirm` before committing.
+Use `/toolchain:lint` for quick feedback during development. Use `/verification:confirm` (if enabled) before committing.
 
 **The command surface is resolved, not hardcoded.** `/toolchain:lint` resolves each ecosystem's `lint-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd` through the shared three-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md). Shared with `/toolchain:check`: the consuming repo's tracked `docs/conventions/ecosystems/<ecosystem>.yaml` (or the legacy `.claude/ecosystems/` file for a name absent there) is authoritative when present, then inference from its build files, then asking. The plugin ships no default command: a key nothing resolves is reported unresolved and runs nothing.
 
@@ -101,7 +101,7 @@ else
 fi
 ```
 
-The loop probes candidate remotes in priority order, the remote the current branch tracks (`branch.<name>.remote`) first, then `origin` if present, then the rest, and selects the first one whose default branch resolves to a locally available tracking ref, never a hardcoded remote name. This handles an unpushed feature branch (no tracking remote) in a repo cloned with a different remote name (e.g. `git clone -o vendor`), and skips a remote that was added but never fetched (its default branch has no local `refs/remotes/<remote>/<branch>` to diff against) in favor of a later remote that does, the candidate is accepted only when `git rev-parse` confirms the tracking ref exists locally. Each candidate's default branch comes from that remote's own `HEAD` (not the current branch's upstream, which on a pushed feature branch points at the feature branch itself and would make `merge-base` equal `HEAD`, yielding an empty diff), falling back to a `git ls-remote --symref` query when the local `HEAD` symref is absent. `merge-base` is taken against the fully-qualified remote-tracking ref `refs/remotes/$REMOTE/$DEFAULT_BRANCH`, which resolves without a local branch of that name and, like the `rev-parse` verify, cannot be misparsed as an option when the remote name begins with a dash (`git clone --origin=-x`); the `git ls-remote` probe terminates option parsing with `--end-of-options` for the same reason. If no candidate yields a locally available default branch, skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths. Cross-cutting runs alongside detected ecosystems when any text file changed and the repository records or states a cross-cutting command.
+The loop probes candidate remotes in priority order, the remote the current branch tracks (`branch.<name>.remote`) first, then `origin` if present, then the rest, and selects the first one whose default branch resolves to a locally available tracking ref, never a hardcoded remote name. This handles an unpushed feature branch (no tracking remote) in a repo cloned with a different remote name (e.g. `git clone -o vendor`), and skips a remote that was added but never fetched (its default branch has no local `refs/remotes/<remote>/<branch>` to diff against) in favor of a later remote that does, the candidate is accepted only when `git rev-parse` confirms the tracking ref exists locally. Each candidate's default branch comes from that remote's own `HEAD` (not the current branch's upstream, which on a pushed feature branch points at the feature branch itself and would make `merge-base` equal `HEAD`, yielding an empty diff), falling back to a `git ls-remote --symref` query when the local `HEAD` symref is absent. `merge-base` is taken against the fully-qualified remote-tracking ref `refs/remotes/$REMOTE/$DEFAULT_BRANCH`, which resolves without a local branch of that name and, like the `rev-parse` verify, cannot be misparsed as an option when the remote name begins with a dash (`git clone --origin=-x`); the `git ls-remote` probe terminates option parsing with `--end-of-options` for the same reason. If no candidate yields a locally available default branch, skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm` (if enabled)) overrides both detection paths. Cross-cutting runs alongside detected ecosystems when any text file changed and the repository records or states a cross-cutting command.
 
 Auto-detection algorithm:
 
@@ -216,7 +216,7 @@ Overall: FAIL (1 of 4 ecosystems failed)
 
 Use `pass`, `FAIL`, a named skip, or `—` (not applicable). Every skip names its reason in `/toolchain:check`'s named classes, and its class decides whether it blocks a "done" claim exactly as `/toolchain:check`'s report table (its section 3) classifies it: `skip (tool missing: <tool>)`, `skip (prerequisite missing: <name>)` and `skip (unresolved: <ecosystem>.<key>)` are environment skips and block "done"; `skip (opt-in unmet: <condition>)` is the consumer's opt-in and does not. Lint installs nothing and runs no CI-parity gates, so it never emits the `dependencies missing` or `unsupported` classes.
 
-An ecosystem's Status and the Overall line read `FAIL` when any cell failed, `INCOMPLETE` when nothing failed but an environment skip remains, and `PASS` only when neither holds. `INCOMPLETE` names each cause with its reason (e.g. `Overall: INCOMPLETE (3 of 4 ecosystems passed; markdown: skip (tool missing: markdownlint-cli2))`), so a caller such as `/verification:confirm` holds its verdict on a lint-only environment gap. An opt-in-unmet skip or a `—` cell never makes a run `INCOMPLETE`.
+An ecosystem's Status and the Overall line read `FAIL` when any cell failed, `INCOMPLETE` when nothing failed but an environment skip remains, and `PASS` only when neither holds. `INCOMPLETE` names each cause with its reason (e.g. `Overall: INCOMPLETE (3 of 4 ecosystems passed; markdown: skip (tool missing: markdownlint-cli2))`), so a caller such as `/verification:confirm` (if enabled) holds its verdict on a lint-only environment gap. An opt-in-unmet skip or a `—` cell never makes a run `INCOMPLETE`.
 
 Split lint and format into separate columns where the ecosystem has both (dotnet, python, bash). Use a single "Lint" column for ecosystems with only one tool (markdown, yaml, powershell). An opt-in-unmet skip fills every column that ecosystem's row has.
 
@@ -272,6 +272,6 @@ The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:ch
 ## Relationship to other skills
 
 - **Composes from `/toolchain:check`**: `/toolchain:check` owns the shared run rules and gotchas. Reference it rather than duplicating
-- **Composed by `/verification:confirm`** (the separate `verification` plugin, when enabled): the lint leg of full verification
+- **Composed by `/verification:confirm` (if enabled)** (the separate `verification` plugin): the lint leg of full verification
 - **After a simplify/cleanup pass**: run `/toolchain:lint` to catch formatting issues the cleanup introduced
 - **Before commit**: `/toolchain:lint --fix` is a quick pre-commit **format** cleanup without the overhead of a full build. Use `/toolchain:lint --code-fix` (interactive confirm, or `--yes` when headless) only when you intentionally want semantic lint autofixes.

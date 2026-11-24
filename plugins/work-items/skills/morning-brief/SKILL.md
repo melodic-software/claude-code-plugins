@@ -438,6 +438,6 @@ label. When none of the configured queue labels exist, the Queues section report
   budget, plan, policy or Azure setting change.
 - **Does not run in CI**. The Cost section reads with the operator's own `gh` and `az` logins;
   a runner would need credentials this skill never asks for.
-- **Does not classify PR merge-readiness authoritatively**. Invoke `/source-control:babysit-prs`
+- **Does not classify PR merge-readiness authoritatively**. Invoke `/source-control:babysit-prs` (if enabled)
   via the Skill tool.
-- **Does not read local telemetry stores**. Invoke `/harness-ops:observability` via the Skill tool.
+- **Does not read local telemetry stores**. Invoke `/harness-ops:observability` (if enabled) via the Skill tool.

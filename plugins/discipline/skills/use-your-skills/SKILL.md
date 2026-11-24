@@ -85,14 +85,14 @@ those:
 
 - **A skill's description quality** (key use case first, natural trigger
   keywords, within the per-entry character cap) is skill-authoring QA. Route
-  to `/skill-quality:check`, invoked via the Skill tool (degrade to prose
+  to `/skill-quality:check` (if enabled), invoked via the Skill tool (degrade to prose
   guidance when the `skill-quality` plugin is not enabled).
 - **The listing budget across all installed skills.** A real skill whose
   trigger keywords are missing from the listing may be a budget problem, not a
   description problem (how the budget is set and what it cuts:
   [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
   That machine-level budget problem is a configuration concern; route to
-  `/harness-config:audit`, invoked via the Skill tool (degrade to prose).
+  `/harness-config:audit` (if enabled), invoked via the Skill tool (degrade to prose).
   `/doctor` estimates the listing's cost
   ([skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor)).
 - **Deterministic per-prompt routing.** A `UserPromptSubmit` hook that injects a

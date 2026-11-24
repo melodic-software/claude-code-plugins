@@ -45,9 +45,9 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. JavaScript, TypeScript and JSON formatting and linting are two concerns.
 The hooks run only the plugin's shipped adapter, where that tool's own config governs the file, and
 otherwise nothing; they never run a command from the repository's typescript, javascript or json
-record (`docs/conventions/ecosystems/<id>.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
+record (`docs/conventions/ecosystems/<id>.yaml`), which `/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) run on
 request. The only consumer-project files this plugin writes are its git-hook entry copies
-(`apply install-git-hooks`); a record is written by `/toolchain:setup apply <id>`, never here. The
+(`apply install-git-hooks`); a record is written by `/toolchain:setup apply <id>` (if enabled), never here. The
 tunables are the native `userConfig` options (the on/off toggle, the gitignored-file switch and the
 end-of-turn check). `apply install-biome` is the one other write path: the adapter's tool, added
 through the repository's own package manager as described below.
@@ -99,7 +99,7 @@ the toggle on while an entry is installed (step 8 reports it as a `tool` line be
    - `none`: INFO "unresolved": no shipped adapter's config governs the repository, so the hooks run
      nothing. This is the opt-out by design.
    A detail saying a record exists is INFO beside the row: the hooks never run it, and
-   `/toolchain:lint` or `/toolchain:check` runs it on request.
+   `/toolchain:lint` (if enabled) or `/toolchain:check` (if enabled) runs it on request.
 
    The `SessionStart` probe resolves the adapter's tool separately, and only where its `when`
    config sits at or above the project directory or is tracked anywhere in its repository: read
@@ -113,8 +113,8 @@ the toggle on while an entry is installed (step 8 reports it as a `tool` line be
    [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
    `fix-cmd` and `lint-cmd` values: each holds `<files>`, `fix-cmd` only formats (import ordering
    included) and `lint-cmd` only reports, with findings as `<path>:<line>` lines. Hand the draft to
-   `/toolchain:setup apply <id>` (the record's ecosystem id), the one writer of those keys, so
-   `/toolchain:lint` and `/toolchain:check` can run them on request.
+   `/toolchain:setup apply <id>` (if enabled) (the record's ecosystem id), the one writer of those keys, so
+   `/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) can run them on request.
 5. **Hook toggle and options.** Report the effective `javascript_format_enabled` value:
    `${user_config.javascript_format_enabled}` (unexpanded or empty means default `true`), and the
    effective `javascript_format_lint_gitignored` value:
@@ -262,7 +262,7 @@ only points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-- a concern unresolved: `check` step 4's draft, for `/toolchain:setup apply <id>`. The plugin
+- a concern unresolved: `check` step 4's draft, for `/toolchain:setup apply <id>` (if enabled). The plugin
   imposes no rules and no tool of its own; it offers to create a minimal config for the Biome
   adapter in the repository root only when the person explicitly asks for one.
 
@@ -278,7 +278,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the formatter or the linter. Editing any supported file exercises the batch hook;
   `git commit` exercises the installed pre-commit entries.
-- Write a typescript, javascript or json record: `/toolchain:setup apply <id>` does.
+- Write a typescript, javascript or json record: `/toolchain:setup apply <id>` (if enabled) does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Install Biome globally or outside the package manager the repository already uses.
 - Download or execute tools during `check`; network use happens only in an explicitly

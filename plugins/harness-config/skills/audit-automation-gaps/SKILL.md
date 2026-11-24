@@ -60,7 +60,7 @@ sibling `audit` skill (are the config files correct?) and the `audit` skill in t
 plugin (is the instruction layer healthy?).
 
 This skill proposes new automation. Whether automation already in place still earns its carry cost
-is owned by `/overengineering:audit`, whose evidence-earned-keep walk treats every incumbent as a
+is owned by `/overengineering:audit` (if enabled), whose evidence-earned-keep walk treats every incumbent as a
 retirement candidate until evidence keeps it. Send a retirement question there when the
 `overengineering` plugin is enabled; when it is not, the **Already enforced** gate still names the
 mechanism covering a concern, and any retirement observation is recorded in the verdict for the
@@ -75,8 +75,8 @@ Parse `$ARGUMENTS` for:
 - **Category filter** (`hooks`, `mcp`, `skills`, `subagents`, `scheduled`): Limit to a specific automation type. Default: `all`
 
 There is deliberately no `ci` category. Two skills own that ground: the `ci-lanes` layer of
-`/overengineering:audit` judges whether each lane already running still earns its carry cost, and
-`/corrections:codify` maps one recurring mistake or review finding to the strongest enforcement rung
+`/overengineering:audit` (if enabled) judges whether each lane already running still earns its carry cost, and
+`/corrections:codify` (if enabled) maps one recurring mistake or review finding to the strongest enforcement rung
 that can catch it, including a check that runs in CI. Route a CI concern to whichever fits when the
 `overengineering` or `corrections` plugin is enabled; when neither is, record the concern in the
 verdict as out of scope and name its owner, rather than widening this audit's categories.
@@ -359,7 +359,7 @@ prints when a reader needs the rows behind a count.
 This section is read-only and sets no target. State no share, ratio or count a tier should reach,
 and do not call a tier too high or too low: the ladder's proportion is a direction with no number.
 The "Sits lower than it could" entries are candidates for a person to judge, not verdicts. One that
-looks worth moving up goes to `/corrections:codify` when the `corrections` plugin is enabled, and
+looks worth moving up goes to `/corrections:codify` (if enabled), and
 is otherwise named for the human; this audit adds none of them to its candidate list. A rule held
 by a mechanism no file shows, such as a type that makes the mistake impossible, is counted only
 when the repository declares it under `rule_inventory.declared` in its `harness-config.yaml`

@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import { commitPulls, createGitHub, ETAG, GitHubError, graphQLReader, isFault, paginate } from "../../scripts/lib/github-client.mjs";
-import { loadTrustedList } from "../../scripts/lib/trusted-actors.mjs";
+import { loadTrustedList, trustedListPath } from "../../scripts/lib/trusted-actors.mjs";
 
 export { loadTrustedList };
 
@@ -395,28 +395,6 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, kin
   }
 }
 
-// A dispatch sent by github-actions[bot] names no human, so it is trusted only
-// through the dispatcher run it names: that workflow, on the default branch,
-// started by a push, a schedule or a listed human, its head SHA an ancestor
-// of the branch tip, a re-run attempt started by a listed human, its record listing this
-// run, and this run, the dispatched workflow on the default branch, created
-// between the dispatcher run's start and the earlier of its last update and
-// WINDOW_MS after its start. A dispatcher started by workflow_run must be
-// runDispatcherWorkflow instead, and no actor of it is checked: the upstream
-// run its record names must be one of runDispatcherUpstreams, run on
-// pull_request in this repository, started (and any re-run) by the lanes App
-// or a listed human, at the PR's current head or at expectedUpstreamHead
-// with the PR at it or at pushedCommit (upstreamHeadHolds). An upstream of
-// runDispatcherRelay instead must have run on pull_request_review_comment,
-// name the PR among its pull_requests, and be started (and any re-run) by a
-// listed human, never the lanes App: a review comment relayed by path, event
-// and actor (ADR 0088). A dispatcher started by pull_request_target vouches
-// for a pr-refine.yml run only: its head repository is this one, one
-// pull_requests entry names this PR on the default branch with base and head
-// in this repository and the run's head_branch as head ref, its actor and
-// triggering actor are the lanes App or a listed human, and the ancestry
-// check reads the commit its record names in place of head_sha (ADR 0090).
-// Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,
@@ -433,6 +411,7 @@ async function verifyDispatcher({
   pushedCommit,
   lanesAppId,
   dispatchedWorkflow,
+  reconcilerWorkflow = "",
   runId,
   sleep,
 }) {
@@ -522,6 +501,13 @@ async function verifyDispatcher({
   if (viaRun) {
     const upstream = await readOrRefuse(github, `/repos/${repository}/actions/runs/${found}`);
     const relayed = runDispatcherRelay !== "" && upstream.path === runDispatcherRelay;
+    const reconciler = reconcilerRecorder(reconcilerWorkflow);
+    const recordedRerun =
+      !relayed &&
+      reconcilerWorkflow !== "" &&
+      upstream.triggering_actor?.id === ACTIONS_BOT_ID &&
+      Number.isInteger(upstream.run_attempt) &&
+      reconciler.attempts(upstream.run_attempt);
     const startedBy = relayed
       ? upstream.event === RELAY_EVENT &&
         Array.isArray(upstream.pull_requests) &&
@@ -531,7 +517,7 @@ async function verifyDispatcher({
       : runDispatcherUpstreams.includes(upstream.path) &&
         upstream.event === "pull_request" &&
         vouches(upstream.actor) &&
-        vouches(upstream.triggering_actor);
+        (recordedRerun || vouches(upstream.triggering_actor));
     const reviewed =
       String(upstream.id) === found &&
       startedBy &&
@@ -540,6 +526,20 @@ async function verifyDispatcher({
       upstreamHeadHolds({ upstreamSha: upstream.head_sha, pullSha: pull.head.sha, expectedUpstreamHead, pushedCommit });
     if (!reviewed) {
       throw new Stop("untrusted-actor");
+    }
+    if (recordedRerun) {
+      await verifyRecordedRerun({
+        github,
+        repository,
+        event,
+        list,
+        deniedIds,
+        recorders: [reconciler],
+        runId: found,
+        runAttempt: String(upstream.run_attempt),
+        sleep,
+        refuse: "untrusted-actor",
+      });
     }
   }
   return own;
@@ -884,6 +884,7 @@ export async function evaluateTrigger({
       pushedCommit,
       lanesAppId,
       dispatchedWorkflow,
+      reconcilerWorkflow,
       runId,
       sleep,
     });
@@ -973,7 +974,7 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
     let list;
     let deniedIds;
     try {
-      list = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+      list = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS_PATH));
       deniedIds = parseDeniedIds(env.DENIED_ACTOR_IDS);
     } catch {
       throw new Stop("list-unreadable");

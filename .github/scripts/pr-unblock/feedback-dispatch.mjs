@@ -186,7 +186,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../lib/github-client.mjs";
-import { trustedActorsPath } from "../lib/trusted-actors.mjs";
+import { trustedActorsPath, trustedListPath } from "../lib/trusted-actors.mjs";
 import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LaneRunPending } from "../lib/lane-binding.mjs";
@@ -1691,6 +1691,7 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
       LANE: settings.lane,
       ACTIVITY: settings.activity,
       BASE_PATH: env.BASE_PATH || ".base",
+      STANDARDS_DIR: env.STANDARDS_DIR,
       EVENT_NAME: "workflow_dispatch",
       PR_NUMBER: String(number),
       HEAD_SHA: head,
@@ -1765,7 +1766,7 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
     appSenderId: Number(env.APP_SENDER_ID),
     reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     // The base checkout's list, the one resolve-config reads beside it.
-    trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || trustedActorsPath(env.BASE_PATH)),
+    trustedHumans: trustedHumansFrom(trustedListPath(env, env.TRUSTED_ACTORS || trustedActorsPath(env.BASE_PATH))),
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/docs/conventions/work-items.yaml`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     adoption: await ownerAdoption(env, log),

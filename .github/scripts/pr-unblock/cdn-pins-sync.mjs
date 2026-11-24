@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
-import { CDN_BUMP_PATHS, CDN_MANIFEST, CDN_RECORD, CDN_SCRIPT, cdnPaths } from "../apply-patch/cdn-paths.mjs";
+import { CDN_BUMP_PATHS, CDN_LOCK, CDN_MANIFEST, CDN_RECORD, CDN_SCRIPT, cdnPaths } from "../apply-patch/cdn-paths.mjs";
 import { unifiedDiff } from "./install-script-pin.mjs";
 
 const EXACT = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/;
@@ -39,11 +39,11 @@ export async function cdnRequest({ files, changedFiles, baseDir, readText }) {
   const head = JSON.parse(record);
   if (!head || !isDeepStrictEqual(head.targets, base.targets)) return null;
   const paths = cdnPaths(base);
-  const texts = await Promise.all([CDN_MANIFEST, ...paths.slice(1)].map(readText));
+  const texts = await Promise.all([CDN_MANIFEST, CDN_LOCK, ...paths.slice(1)].map(readText));
   if (texts.some((text) => text === null)) return null;
-  const [manifest, ...targets] = texts;
+  const [manifest, lock, ...targets] = texts;
   if (!needsSync(manifest, head)) return null;
-  return { script, manifest, files: Object.fromEntries(paths.map((path, i) => [path, i === 0 ? record : targets[i - 1]])) };
+  return { script, manifest, lock, files: Object.fromEntries(paths.map((path, i) => [path, i === 0 ? record : targets[i - 1]])) };
 }
 
 export function cdnPatch(request, resultDir) {

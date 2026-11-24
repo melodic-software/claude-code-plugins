@@ -36,8 +36,8 @@ Every line spends two budgets, and cutting one can overspend the other:
 
 Fewer words spends less of both. The universal brevity rules apply: no more words than the meaning
 needs, no filler, hedging, intensifiers, expletive openings, or restatement of an adjacent line;
-active voice; one idea per sentence; a factual register with nothing sold. `/writing:be-concise`
-owns those rules when the `writing` plugin is enabled; without it, apply them from this
+active voice; one idea per sentence; a factual register with nothing sold. `/writing:be-concise` (if enabled)
+owns those rules; without it, apply them from this
 paragraph. Take those rules and no more of that doctrine: its human-only rules do not transfer. A
 bottom-line-first opening, headings written to be skimmed, bullet lists for scanning, and bounded
 bold serve a person moving down a page fast; an agent needs the rule stated where it applies, not
@@ -144,7 +144,7 @@ the specific styles to leave out ("no hero banner, no pill-shaped buttons"),
 since "avoid a generic look" swaps one default for another.
 
 Ask for outcomes, not thinking. Whether a "think carefully" line helps depends on the target model,
-so follow `/harness-config:audit-instructions` criterion I8-f for the model the text will run on.
+so follow `/harness-config:audit-instructions` (if enabled) criterion I8-f for the model the text will run on.
 A line telling the model to think less or
 not at all is I8-c's, scoped per model the same way. Never ask the model to show or reproduce
 its reasoning in the reply, which some models decline; ask for what the reader needs, such as the
@@ -170,13 +170,13 @@ Good: The summary says what changed and why, and nothing else. Name each test co
 Strict means precise, not loud. State each rule in plain words with its scope and reason, and
 write no all-caps and no marker words (`IMPORTANT`, `MUST`, `NEVER`, `ALWAYS`, `CRITICAL`) to make
 it stick. A plain firm word (never, always) stays when the sentence gives the rule's scope and
-reason. For a rule that must hold every time, name the call `/corrections:codify "<the rule>"`
-for the user; this skill does not build the mechanism. When `/corrections:codify` is among the
+reason. For a rule that must hold every time, name the call `/corrections:codify "<the rule>"` (if enabled)
+for the user; this skill does not build the mechanism. When `/corrections:codify` (if enabled) is among the
 available skills, hand it the choice of mechanism; it picks the strongest rung of the enforcement
 ladder that can decide the rule and proves the check. Otherwise, propose the strongest mechanism
 that can decide the rule: a change that makes the mistake impossible first, then a check that
 blocks it, then a test, and an instruction only when nothing a machine runs can decide it. Say
-that `/corrections:codify` was not available, so the proposal is unproven. A line that keeps
+that the `corrections` plugin was not available, so the proposal is unproven. A line that keeps
 getting missed means the file needs to be shorter. Bold is structure only: a list-item label
 or a defined term at its first use, never a whole sentence or a rule
 ([ADR 0098](../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
@@ -211,7 +211,7 @@ stronger word: a more precise one, and a firm one only for a hard limit
   already exists? Invoke `/docs-hygiene:extract-ssot` via the Skill tool. A new shared home still
   waits for the third occurrence; below that it remedies the repetition in place.
 - Resolved or coined a term in the **consuming project's** domain? Invoke
-  `/domain-driven-design:ubiquitous-language curate` via the Skill tool (if that plugin is enabled) rather
+  `/domain-driven-design:ubiquitous-language curate` (if enabled) via the Skill tool rather
   than hand-writing the entry. A skill defining its own working vocabulary is out of that skill's
   scope and stays where it is.
 - Editing exposed pre-existing problems in the surrounding doc? Invoke the fitting audit
@@ -229,8 +229,8 @@ stronger word: a more precise one, and a firm one only for a hard limit
 ## What this skill does not do
 
 - **Does not author skills.** Whether a skill should exist, what it triggers on, its frontmatter,
-  action shape and body structure are `/playbooks:skill-authoring` territory (description shape
-  and caps: `## Descriptions`; body size: `## Body`), enforced by `/skill-quality:check`. Prose
+  action shape and body structure are `/playbooks:skill-authoring` (if enabled) territory (description shape
+  and caps: `## Descriptions`; body size: `## Body`), enforced by `/skill-quality:check` (if enabled). Prose
   inside an already-authored SKILL.md is still this skill's, since a SKILL.md is agent-consumed
   markdown. The boundary is authorship against wording, not a whole file this skill may not look
   at; read otherwise, the largest agent-facing surface most repos have is governed by no

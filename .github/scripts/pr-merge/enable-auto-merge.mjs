@@ -235,7 +235,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../lib/github-client.mjs";
-import { readRawTrustedActors, TRUSTED_ACTORS_PATH, trustedActorsPath } from "../lib/trusted-actors.mjs";
+import { readRawTrustedActors, TRUSTED_ACTORS_PATH, trustedActorsPath, trustedListPath } from "../lib/trusted-actors.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { laneChecker } from "../lib/lane-binding.mjs";
 import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
@@ -638,7 +638,7 @@ export function vetoLabelOwned(timeline, login, body = "") {
 
 function trustedHumans(env) {
   try {
-    const { actors } = readRawTrustedActors(env.TRUSTED_ACTORS || trustedActorsPath());
+    const { actors } = readRawTrustedActors(trustedListPath(env, env.TRUSTED_ACTORS || trustedActorsPath()));
     return humansOf(actors);
   } catch {
     return new Set();

@@ -139,7 +139,7 @@ counter has more room. The goal, the keep rule and the budget stay as written un
 ## Unattended runs
 
 The skill starts no `/goal` and sets no loop. For a run nobody watches, draft its stop condition
-first with `/planning:draft-goal-condition` when that skill is among the available skills,
+first with `/planning:draft-goal-condition` (if enabled),
 naming the goal's target, `min_attempts` and the budget; without it, write the condition from
 those same three items. The person starts the run with that condition.
 

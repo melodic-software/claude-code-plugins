@@ -26,7 +26,7 @@ the repo and also re-points a repo at a different provider. Not for fixing an ex
 ## The split
 
 Deterministic work is scripted; judgment is not
-(`/discipline:script-the-deterministic-work` if enabled):
+(`/discipline:script-the-deterministic-work` (if enabled)):
 
 | Judgment, you, in this flow | Mechanical, `scripts/generate-adapter.sh` |
 |---|---|
@@ -39,8 +39,8 @@ The interview fills it; the generator consumes it: reach a good spec, then run o
 
 ## Step 1. Interview
 
-Lock the spec's fields before writing anything. Chain to `/planning:interview`, invoked via the
-Skill tool (if enabled), when the answers are not already obvious; otherwise ask directly. Ask in this
+Lock the spec's fields before writing anything. Chain to `/planning:interview` (if enabled), invoked via the
+Skill tool, when the answers are not already obvious; otherwise ask directly. Ask in this
 order, because later answers depend on earlier ones:
 
 1. **Provider identity.** The short name (lowercase, the directory and ID prefix) and the
