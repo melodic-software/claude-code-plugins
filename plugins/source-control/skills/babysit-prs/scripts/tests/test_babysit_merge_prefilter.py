@@ -1,12 +1,4 @@
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/repo_config_fake.py
-"""pr-merge's candidate prefilter: a held candidate never reaches the gate.
-
-A candidate whose listed labels or body carry a hold the gate refuses on is
-dropped with no API call, the gate still refuses the same inputs on its own,
-and when every candidate is held one stays so a gate process still sweeps the
-merge queue. Expected holds come from `PullRequestBodyHold`, the gate's own
-cases.
-"""
 
 from __future__ import annotations
 
@@ -137,8 +129,6 @@ class PrefilterDropsOnlyWhatTheGateRefuses(fixtures.TierEvaluateHarness):
                     self.assertEqual(expected, not gate["ready"], gate["blockers"])
 
 
-# The tracker's human-gated label read an autonomous gate makes: stubbed so
-# no test reads GitHub.
 _role_label = fixtures.role_label_stub()
 
 

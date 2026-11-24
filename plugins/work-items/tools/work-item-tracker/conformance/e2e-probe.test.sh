@@ -13,8 +13,6 @@ assert_contains "--help mentions lifecycle" "$out" "lifecycle"
 bash "$S" --nope >/dev/null 2>&1
 assert_eq "unknown flag → usage exit 2" "2" "$?"
 
-# The probe must use the wayfind labels' colon-SPACE form, never the no-space form a
-# run would silently create. The banned needles are built, so this file never holds them.
 SRC="$(cat "$S")"
 WAYFIND_PREFIX="wayfind:"
 assert_contains "probe creates wayfind: research (space)" "$SRC" "${WAYFIND_PREFIX} research"

@@ -8,12 +8,6 @@ import { WEATHERS } from '../core/settings.js'
 import { CUES } from '../core/signals.gen.js'
 import { cueFree } from '../core/values.js'
 
-/**
- * The weather: the weather field from the stored choice or the setting, and /bedroom weather. `random` changes by
- * itself without asking any service: the kind is a whole-number hash of the local date and its 3-hour block, so every
- * session gives the same weather at the same hour without writing anything, and it is never a storm. `auto` is
- * `random` while no real weather is connected (sourceOf).
- */
 /** How many in 100 blocks `random` gives each kind, in the order of WEATHERS: clear, overcast, rain, downpour, storm. */
 export const SHARES = [60, 25, 12, 3, 0] as const
 
@@ -38,10 +32,6 @@ function kindOf(ctx: Ctx): number {
   return chosen === 'random' ? autoKind(ctx.local()) : WEATHERS.indexOf(chosen as (typeof WEATHERS)[number])
 }
 
-/**
- * What the weather setting comes to: `auto` follows the real weather, and with no real weather connected it is
- * `random`, the made-up weather that changes by itself every three hours; `random` and each kind stand as they are.
- */
 function sourceOf(ctx: Ctx): string {
   const chosen = ctx.setting('weather')
   return chosen === 'auto' ? 'random' : chosen
@@ -55,11 +45,6 @@ function told(ctx: Ctx): string {
   return `the weather is ${now} until /bedroom weather auto`
 }
 
-/**
- * /bedroom weather strike: one lightning strike now, in a storm only, as the scheduled ones are (the shader's pulse
- * rises with the storm's lane, and a strike from a clear sky would read as a fault). At most one each STRIKE_GAP_MS.
- * One the shader cannot take yet is not sent, and the answer says when it can.
- */
 async function strikeNow(ctx: Ctx): Promise<string> {
   if (kindOf(ctx) !== WEATHERS.indexOf('storm')) return `lightning comes only in a storm, and the weather is ${WEATHERS[kindOf(ctx)]}: say /bedroom weather storm first, then /bedroom weather strike`
   const refused = cueRefusal(ctx.nowMs)
@@ -72,7 +57,6 @@ async function strikeNow(ctx: Ctx): Promise<string> {
   return `lightning strikes in about ${Math.round((delay + STRIKE_SHOWS_MS) / 1000)} s`
 }
 let lastAsked: number | undefined
-/** When the mod last sent a strike, asked for or its own. */
 let lastStrike: number | undefined
 
 /**
@@ -96,7 +80,6 @@ export function extraStrikes(minute: number, chance: number): number[] {
   return [0, 1, 2].filter(k => roll(minute, k + 1, 7) < chance * 100).map(k => offset + k * SLOT_S)
 }
 
-/** Whether a strike shown at `at` falls within SCHEDULED_CLEAR_MS of a scheduled one this minute or the next. */
 function nearScheduled(at: number): boolean {
   const start = at - (at % 60_000)
   return [start - 60_000, start, start + 60_000].some(from => {
@@ -105,7 +88,6 @@ function nearScheduled(at: number): boolean {
   })
 }
 
-/** One of the mod's own strikes, when it is a storm, the shader takes cues and the channel is free; a busy channel is tried again twice. */
 async function extraStrike($: EngineInterface, tries = 0): Promise<void> {
   const now = await readNow($)
   const ctx = ctxOf($)
@@ -127,7 +109,6 @@ export async function engineTick($: EngineInterface, ctx: Ctx): Promise<void> {
   for (const second of extraStrikes(Math.floor(ctx.nowMs / 60_000), chance)) $.clock.after(second * 1000, () => void extraStrike($))
 }
 
-/** /bedroom weather lightning rare|normal|often: how often a storm strikes beyond the shader's own schedule. */
 async function lightning(ctx: Ctx, word: string | undefined): Promise<string> {
   const kinds = Object.keys(LIGHTNING)
   if (word === 'default') await ctx.save({ lightning: undefined })
@@ -139,7 +120,6 @@ async function lightning(ctx: Ctx, word: string | undefined): Promise<string> {
   return `lightning is ${now}: ${now === 'rare' ? 'about one strike in three minutes' : now === 'often' ? 'about three strikes a minute' : 'about two strikes a minute'} in a storm`
 }
 
-/** A command that changes the kind shows within seconds; one that does not sends nothing. */
 async function weather(ctx: Ctx, args: readonly string[]): Promise<string> {
   const word = (args[0] ?? '').toLowerCase()
   if (word === '') return told(ctx)

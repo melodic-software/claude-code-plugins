@@ -1,9 +1,3 @@
-"""Contract test for the `duplicates_dropped` total `friction.py mine` reports.
-
-`aggregate` sums each stored record's `friction.duplicates_dropped`, and `render_mine` prints the
-total in its summary line. A record without a `friction` block, or without the field, adds nothing.
-"""
-
 from __future__ import annotations
 
 import importlib.util

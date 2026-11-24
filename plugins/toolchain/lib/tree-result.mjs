@@ -145,7 +145,6 @@ export function remember(repo, session, seen) {
   try {
     writeAtomically(join(repo.store, "sessions"), session, `${seen}\n`);
   } catch {
-    // Reporting again next turn is the safe direction.
   }
 }
 

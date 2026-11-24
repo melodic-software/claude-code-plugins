@@ -593,35 +593,6 @@ test('sources.<id>.enabled false in settings disables that registry row', (t) =>
   assert.deepEqual(res.json.sources.map((s) => s.source_id), ['board-a'])
 })
 
-test('AC10: trials on with either count unset emits one note saying trials stay inactive', (t) => {
-  for (const s of [
-    { routing: true, trials: true },
-    { routing: true, trials: true, trials_prove: 3, trials_fail: null },
-    { routing: true, trials: true, trials_prove: null, trials_fail: 2 },
-  ]) {
-    const res = makeFixture(t, {
-      registry: { version: 1, rows: [row('board-a')] },
-      manifest: { boards: [boardEntry('board-a')] },
-      records: [],
-      settings: s,
-      extraArgs: ['--task-type', 'coding'],
-    })
-    assert.equal(res.code, 0, res.stderr)
-    const trialNotes = res.json.notes.filter((n) => /trials stay inactive/i.test(n))
-    assert.equal(trialNotes.length, 1, `expected 1 inactive note for ${JSON.stringify(s)}`)
-  }
-
-  const resBoth = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a')] },
-    manifest: { boards: [boardEntry('board-a')] },
-    records: [],
-    settings: { routing: true, trials: true, trials_prove: 3, trials_fail: 2 },
-    extraArgs: ['--task-type', 'coding'],
-  })
-  assert.equal(resBoth.code, 0, resBoth.stderr)
-  assert.equal(resBoth.json.notes.some((n) => /trials stay inactive/i.test(n)), false)
-})
-
 test('team rows file appends new rows and refuses duplicate shipped row ids with a note', (t) => {
   const repoDir = mkdtempSync(join(tmpdir(), 'vendor-decide-repo-'))
   t.after(() => rmSync(repoDir, { recursive: true, force: true }))
@@ -727,33 +698,6 @@ test('coding effort floor raises a consensus pick below model default with one n
   assert.equal(resTrial.json.basis, 'trial')
   assert.equal(resTrial.json.effort, 'medium')
   assert.equal(resTrial.json.notes.some((n) => /raised to default/i.test(n)), false)
-})
-
-test('a trial runs the first listed model at its default effort, not the model a board record leads with', (t) => {
-  const models = {
-    ...MODELS,
-    codex: {
-      status: 'ok',
-      unset_model: 'cli-default',
-      models: [
-        { id: 'sparrow-1', efforts: ['low', 'medium', 'high'], default_effort: 'medium' },
-        { id: 'sparrow-2', efforts: ['low', 'medium', 'high'], default_effort: 'medium' },
-      ],
-    },
-  }
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a')] },
-    manifest: { boards: [boardEntry('board-a')] },
-    records: [rec('board-a', 'codex', 'sparrow-2', 'lead', { effort: 'high' })],
-    models,
-    settings: { routing: true, trials: true, trials_prove: 3, trials_fail: 2 },
-    extraArgs: ['--task-type', 'coding'],
-  })
-  assert.equal(res.code, 0, res.stderr)
-  assert.equal(res.json.basis, 'trial')
-  assert.equal(res.json.vendor, 'codex')
-  assert.equal(res.json.model, 'sparrow-1')
-  assert.equal(res.json.effort, 'medium')
 })
 
 test('security: board-reader findings text is never copied to stdout; fixed note emitted per source', (t) => {

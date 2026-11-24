@@ -117,7 +117,6 @@ class LaneRecordCase(unittest.TestCase):
         self, now: datetime = NOW, since: datetime = SINCE
     ) -> pm.PostMergeVerdict:
         gh.reset_gh_call_counts()
-        # Each check as its own process runs it, so each reads the default branch.
         pm._default_branches.clear()
         return pm.check(
             REPO,
@@ -140,8 +139,6 @@ class LaneRecordCase(unittest.TestCase):
 
 class TheCarrySparesTheRecordReads(LaneRecordCase):
     def test_104_carried_records_are_read_in_208_fewer_requests(self) -> None:
-        # The run 39972998315 window: 104 lane-dispatched full runs, each one
-        # name-filtered listing and one read of the run that uploaded it.
         self.lane_runs(104)
         fresh = self.check()
         before = self.counts()
@@ -301,12 +298,10 @@ class AnUnusableCarryReadsAsToday(LaneRecordCase):
                 )
                 self.gh.artifacts["pr-merge-dispatched-11"] = []
                 self.assertTrue(self.check().merges[0].verified)
-                # Record 11 read again, empty twice; record 12 carried.
                 self.assertEqual(self.counts()[ARTIFACTS], 2)
                 self.assertEqual(self.carried(), {"pr-merge-dispatched-12"})
 
     def test_a_carried_rerun_record_from_a_push_run_is_read_again(self) -> None:
-        # A push run writes dispatch records only, never a re-run record.
         name = "pr-merge-rerun-11-attempt-2"
         lane_rerun(self)
         data = self.written()
@@ -358,9 +353,6 @@ class TheCarryIsBoundToTheWindow(LaneRecordCase):
     def test_a_later_check_under_a_higher_floor_keeps_the_earlier_records(
         self,
     ) -> None:
-        # The run's first check proves record 11 (created 10:05) under the
-        # merge gate's floor; a later check in the same run under a floor past
-        # it must not drop it.
         self.lane_runs(1)
         self.check()
         self.check(since=datetime(2026, 10, 12, 10, 30, tzinfo=UTC))
@@ -370,8 +362,6 @@ class TheCarryIsBoundToTheWindow(LaneRecordCase):
         self.assertNotIn(ARTIFACTS, self.counts())
 
     def test_records_another_process_wrote_since_the_load_are_kept(self) -> None:
-        # A gate process loads the file, the next one proves record 12 and
-        # writes it, then the first saves: record 12 stays.
         self.lane_runs(2)
         self.check()
         both = self.written()
@@ -395,9 +385,6 @@ class TheCarryIsBoundToTheWindow(LaneRecordCase):
     def test_a_record_another_process_dropped_since_the_load_stays_dropped(
         self,
     ) -> None:
-        # A gate process loads both records, the next one rejects record 12
-        # and writes the file without it, then the first saves, never having
-        # asked for 12: record 12 stays dropped.
         self.lane_runs(2)
         self.check()
         both = self.written()

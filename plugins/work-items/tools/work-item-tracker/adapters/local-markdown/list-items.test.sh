@@ -13,11 +13,6 @@ assert_usage_error "$S" --nope
 assert_usage_error "$S" --state bogus
 assert_usage_error "$S" --repo
 
-# --repo is accepted for interface parity and re-targets nothing: the store is
-# single-namespace, so a foreign --repo must still list the bound store rather
-# than empty it or trip the unknown-argument path. The conformance binding never
-# threads --repo (CB_REPO is empty for this adapter), so this is the only place
-# the flag's parse is exercised.
 STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "repo-parity" >/dev/null
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$S" --repo other/repo)"
@@ -27,9 +22,6 @@ assert_eq "--repo leaves the stored namespace on the item" "local-markdown:local
   "$(jq -r '.items[0].id' <<<"$LISTED")"
 rm -rf "$STORE"
 
-# --- the envelope reports truncation at the declared ceiling ---
-# A fixture copy of the adapter declares a ceiling of 2. `truncated` turns on a
-# MATCHING item past the ceiling: a closed item there leaves an open listing complete.
 FIX="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 mkdir -p "$FIX/adapters"
 cp -R "$(dirname "$S")" "$FIX/adapters/local-markdown"
@@ -65,7 +57,6 @@ LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS" --label "area")"
 assert_eq "--label matches whole label names, not substrings" "0" "$(jq '.items | length' <<<"$LISTED")"
 assert_usage_error "$S" --label
 
-# --- created_at: written at create, null for an item written before the field ---
 assert_eq "a created item carries a UTC created_at" "true" \
   "$(jq -r '.items[0].created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' <<<"$(WIT_STORAGE_DIR="$STORE" bash "$FS" --label "area: ci")")"
 grep -v '^created_at: ' "$STORE/5.md" >"$STORE/5.md.old"

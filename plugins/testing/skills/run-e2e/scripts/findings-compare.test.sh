@@ -25,14 +25,12 @@ command -v jq >/dev/null 2>&1 || {
 TMP="$(mktemp -d)"
 trap 'rm -rf -- "$TMP"' EXIT
 
-# entry <feature> <part|null> <entry point> <outcome> [reason]: one pass.entries row.
 entry() {
   jq -cn --arg f "$1" --arg p "$2" --arg e "$3" --arg o "$4" --arg r "${5:-}" '{
     feature: $f, part: (if $p == "null" then null else $p end), entry_point: $e, outcome: $o,
     reason: (if $r == "" then null else $r end), wall_time_seconds: 12.5, tokens: 3400,
     unmeasured_reason: null}'
 }
-# finding <id> <feature> <part|null> <severity> <entry point>...: one findings row.
 finding() {
   local id="$1" f="$2" p="$3" s="$4"
   shift 4
@@ -41,15 +39,12 @@ finding() {
     where: "2", entry_points: $ARGS.positional, severity: $s, label: "unstated",
     evidence: ["\($f)/report.md"]}' --args "$@"
 }
-# pass_file <path> <build> <entries file> <findings file>: a findings.json from row files.
 pass_file() {
   jq -n --arg b "$2" --slurpfile e "$3" --slurpfile f "$4" \
     '{pass: {build: $b, entries: $e}, findings: $f}' >"$1"
 }
-# labels <output>: "<id>=<label>" per finding, in output order.
 labels() { jq -r '[.findings[] | "\(.id)=\(.compare)"] | join(" ")' <<<"$1"; }
 
-# --- the earlier pass --------------------------------------------------------
 {
   entry billing export /billing:export passed
   entry cart null /cart failed
@@ -68,11 +63,6 @@ labels() { jq -r '[.findings[] | "\(.id)=\(.compare)"] | join(" ")' <<<"$1"; }
 } >"$TMP/base-findings"
 pass_file "$TMP/base.json" build-1 "$TMP/base-entries" "$TMP/base-findings"
 
-# --- the newer pass ----------------------------------------------------------
-# cart still fails (0001 again, now critical, plus a new 0007); billing/export
-# passes, so 0002 is gone; search/query was cut by the cap; auth/login drove
-# only /auth:login; docs is not listed at all; search/other is another part
-# than the one 0006 was seen at.
 {
   entry billing export /billing:export passed
   entry cart null /cart failed
@@ -123,18 +113,15 @@ same "an entry missing from the newer pass is not checked" "$(not_driven aaaa000
 same "the same entry point under another part does not count as driven" "$(not_driven aaaa0006)" \
   '[{"entry_point":"/search","reason":"cap"}]'
 
-# Every baseline-only id whose entry was not driven is not checked, never GONE.
 gone_undriven="$(jq -r '[.findings[] | select(.compare == "GONE") | .entry_points[]] | join(" ")' <<<"$out")"
 same "only a finding whose every entry point was driven is GONE" "$gone_undriven" "/billing:export"
 
-# A driven entry that failed for another reason still makes a missing id GONE.
 { finding aaaa0009 cart null medium /cart; } >"$TMP/old-cart"
 pass_file "$TMP/old-cart.json" build-0 "$TMP/base-entries" "$TMP/old-cart"
 out="$(bash "$CMP" --baseline "$TMP/old-cart.json" "$TMP/new.json")"
 same "a missing id on an entry that failed again is GONE" \
   "$(jq -r '.findings[] | select(.id == "aaaa0009") | .compare' <<<"$out")" GONE
 
-# Two empty passes compare to nothing.
 : >"$TMP/none"
 pass_file "$TMP/empty.json" build-3 "$TMP/none" "$TMP/none"
 out="$(bash "$CMP" --baseline "$TMP/empty.json" "$TMP/empty.json")"
@@ -179,8 +166,6 @@ cat "$TMP/new.json" "$TMP/new.json" >"$TMP/twice.json"
 bash "$CMP" "$TMP/twice.json" 2>/dev/null
 same "a file with two JSON values exits 2" "$?" 2
 
-# --- the schema --------------------------------------------------------------
-# req <$defs name>: the definition's required fields, sorted.
 req() { jq -r --arg d "$1" '.["$defs"][$d].required | sort | join(" ")' "$SCHEMA"; }
 same "a finding requires its fields" "$(req Finding)" \
   "entry_points evidence feature id kind label part severity where"
@@ -194,7 +179,6 @@ same "the entry outcomes are the ones the script reads" \
   "$(jq -c '.["$defs"].Entry.properties.outcome.enum' "$SCHEMA")" '["passed","failed","not checked"]'
 
 ID="$HERE/finding-id.sh"
-# fid <args...>: the id in $out, the exit status in $rc.
 fid() {
   rc=0
   out="$(bash "$ID" "$@" 2>/dev/null)" || rc=$?

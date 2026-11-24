@@ -140,7 +140,6 @@ export async function stand(start = EVENING): Promise<Stand> {
     },
   }
   const ok = { stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
-  /** A player's child: a dot each 250 ms until its file's length has passed, or for good when it repeats the file itself. */
   async function* child(argv: readonly string[]): AsyncGenerator<{ stream: 'stdout' | 'stderr'; text: string }, { code: number | null; signal: string | null }> {
     const play: Play = { argv, at: now }
     s.plays.push(play)

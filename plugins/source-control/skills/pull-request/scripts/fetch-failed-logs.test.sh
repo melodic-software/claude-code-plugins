@@ -187,10 +187,6 @@ else
   fail "--audit macro emits groups + timing + suspicious sections" "all 3 sections" "$out"
 fi
 
-# Case 15: --help emits the whole banner. usage() slices the header comment block
-# out of the script itself, so nothing but this pins the slice: without it, a
-# short slice that drops exit codes, a long slice that leaks executable lines,
-# and a usage() emitting nothing at all all leave this suite green.
 help_out=$(run_script --help)
 help_ec=$?
 if [[ $help_ec -eq 0 && "$help_out" == *"0  log fetch + extraction succeeded"* &&
@@ -202,8 +198,6 @@ else
   fail "--help emits the full banner through the last documented exit code" \
     "exit 0 + exit codes 0, 3, 4 and 5" "exit $help_ec, out: $help_out"
 fi
-# The other direction: a slice running past the header block leaks executable
-# lines into the banner, so the banner must stop before the first one.
 assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipefail"
 
 # ---- Integration cases (opt-in: INTEGRATION=1) -----------------------------
@@ -214,7 +208,6 @@ assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipe
 #
 # Point INTEGRATION_REPO + INTEGRATION_RUN_ID at a repo/run you can read
 # (the run should contain ##[error] markers).
-
 # Case: another plugin's SessionStart hook can export its own data dir into
 # every Bash call as CLAUDE_PLUGIN_DATA; the default scratch must not land there.
 FOREIGN="$TEST_TMPDIR/codex-openai-codex"
@@ -253,10 +246,6 @@ assert_exit "mktemp scratch: size cap returns exit 3" 3 "$?"
 assert_eq "mktemp scratch: an exit 3 keeps the file its message names" "1" \
   "$(find "$TEST_TMPDIR/mktemp-cap" -name 'run-33333-logs.zip' | wc -l | tr -d ' ')"
 
-# ---- --dir: run from a directory outside every checkout ----------------------
-#
-# <checkout>'s one GitHub remote is acme/app, so the repository can come only from --dir. This
-# stub records no gh default, fails `gh repo view`, and fails a REST read of any other repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
 export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
 CHECKOUT="$TEST_TMPDIR/checkout" FORK="$TEST_TMPDIR/fork" NOREMOTE="$TEST_TMPDIR/noremote"

@@ -6,12 +6,6 @@ import { test } from 'node:test'
 const BEDROOM = new URL('../hooks/bedroom/', import.meta.url)
 const read = path => readFileSync(new URL(path, BEDROOM), 'utf8')
 
-/**
- * The shader's rows, one per switch column of its buffer: 0 tv, 1 lava, 2 pc, 3 lamp, 4 tape, 5 console, 6 light.
- * lights.ts picks each column's level in that order (v.tv, then v.lava past 0.5, v.pc past 1.5, v.lamp past 2.5,
- * v.light past 5.5), and its screen field units (signals.gen.ts SCREEN: tape 4, console 16) put the tape at 4 and the
- * console at 5. HIT2 is each column's second rectangle, all zeros but the tape's, which is its spine. The cat has no row.
- */
 const SHADER_ROWS = {
   tv: ['HIT', 0],
   lava: ['HIT', 1],

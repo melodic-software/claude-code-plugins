@@ -129,12 +129,6 @@ class PathAndShapeTests(unittest.TestCase):
         self.assertEqual(document["src/a.ts"]["lines"], {"1": 1, "2": 1})
 
     def test_two_functions_of_one_name_in_one_section_stay_separate(self) -> None:
-        # One file, two `render` methods in two classes, so one SF section
-        # declares the name twice at two lines. Accumulated by name alone the
-        # two collapse into a single record before the section is even
-        # finished: the uncovered one survives at line 10 wearing the covered
-        # one's count of 5, so a function that never ran reports as covered
-        # and the one that did ran vanishes from the report.
         with tempfile.TemporaryDirectory() as tmp:
             artifact = Path(tmp) / "same-name.info"
             artifact.write_text(

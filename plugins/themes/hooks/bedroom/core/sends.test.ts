@@ -8,7 +8,6 @@ import { HURRY_GAP_MS, REASK_MS, SCREEN_RESTS_MS, STALL_MS, confirmScreen, encod
 const quiet = { sun: 0, weather: 0, work: 0, zone: 0, hall: 0 }
 const fieldsOf = (code: number) => ({ hurry: code % 2, hall: (code >> 1) % 2, tape: (code >> 2) % 2, tapeSeq: (code >> 3) % 2, console: (code >> 4) % 2, consoleSeq: (code >> 5) % 2 })
 
-/** Steps the queue in REASK_MS redraws for `ms`, calling `each` first; the times and values of each move of `name`. */
 function run(name: 'screen' | 'world', from: number, ms: number, each: (now: number) => void = () => undefined): { at: number; value: number }[] {
   const moves: { at: number; value: number }[] = []
   for (let now = from; now <= from + ms; now += REASK_MS) {
@@ -219,7 +218,6 @@ test('a world change asked just after a shader start goes out once 6 s from the 
     clock: { now: async () => now, after: (ms: number, run: () => void) => void timers.push({ at: now + ms, run }) },
     ui: { invalidate: () => undefined },
   } as unknown as EngineInterface
-  /** Runs the timers due up to `to`, letting each one's reads of the clock finish. */
   const advance = async (to: number) => {
     for (;;) {
       timers.sort((a, b) => a.at - b.at)

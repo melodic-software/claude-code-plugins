@@ -41,8 +41,6 @@ if ! [[ "$binding_name" =~ ^[a-z][a-z0-9-]*$ ]]; then
   echo "run-conformance: invalid binding name '$binding_name' (expected ^[a-z][a-z0-9-]*\$)" >&2
   exit 2
 fi
-# Bindings resolve the SAME two-root way adapters do (CONTRACT.md "Adapter resolution"),
-# with WIT_CONFORMANCE_BINDINGS_DIR as the single-root override.
 resolve_binding_file() {
   local name="$1" root
   if [[ -n "${WIT_CONFORMANCE_BINDINGS_DIR:-}" ]]; then
@@ -71,8 +69,6 @@ CB_REPO=""
 # shellcheck source=/dev/null
 source "$BINDING_FILE_SH"
 cb_setup
-# Re-home the binding into a run-private dir: the personal override lands BESIDE it under
-# a fixed name, so two runs sharing $TMPDIR would clobber each other's personal override.
 BINDING_DIR="$(mktemp -d)"
 cp "$WORK_ITEM_TRACKER_BINDING" "$BINDING_DIR/binding.json"
 export WORK_ITEM_TRACKER_BINDING="$BINDING_DIR/binding.json"
@@ -97,12 +93,10 @@ wit_case() {
   esac
 }
 
-# wit_out <jq-filter>: the filter's raw result over WIT_OUT.
 wit_out() {
   jq -r "$1" <<<"$WIT_OUT"
 }
 
-# wit_out_ids: WIT_OUT's item ids as a compact JSON array.
 wit_out_ids() {
   jq -c '[.items[].id]' <<<"$WIT_OUT"
 }
@@ -111,9 +105,6 @@ assert_schema_version() {
   assert_eq "$1 (schema_version)" "1.0" "$(wit_out '.schema_version')"
 }
 
-# A list envelope must say whether it is complete: a reader cannot tell an absent
-# flag from an adapter that never checked. Boolean, not `false`: a live instance
-# past its ceiling legitimately reports true.
 assert_truncated_flag() {
   assert_eq "$1 (truncated is a boolean)" "boolean" "$(wit_out '.truncated | type')"
 }
@@ -158,7 +149,6 @@ SKEW_ROOT="$(mktemp -d)"
 mkdir -p "$SKEW_ROOT/$PROVIDER"
 SKEW_MANIFEST="$SKEW_ROOT/$PROVIDER/capabilities.json"
 
-# write_skew_manifest <schema-version>: the synthetic shadow manifest for $PROVIDER.
 write_skew_manifest() {
   printf '{"schema_version":"%s","provider":"%s","verbs":{"capabilities":true}}\n' \
     "$1" "$PROVIDER" >"$SKEW_MANIFEST"
@@ -215,8 +205,6 @@ if ! verb_supported list-sub-items; then
   wit_case "unsupported list-sub-items gates list-frontier --parent → exit 6" 6 list-frontier --parent "$FAKE_ID"
 fi
 
-# --- status-storage (core-derived: answers on every adapter) ---
-
 wit_case "status-storage" 0 status-storage "${repo_args[@]+"${repo_args[@]}"}"
 assert_schema_version "status-storage"
 assert_eq "status-storage names field or labels" "ok" "$(wit_out 'if (.storage == "field" and .field == "Work status")
@@ -245,8 +233,6 @@ if verb_supported create-item; then
   wit_case "create-item B" 0 create-item --title "$RUN_TAG B" "${repo_args[@]+"${repo_args[@]}"}"
   ITEM_B_ID="$(wit_out '.id')"
 
-  # Edge-at-create path: --parent and --blocked-by in one create-item call, distinct
-  # from the post-create link-blocks/add-sub-item path below.
   if [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
     wit_case "create-item C with --parent + --blocked-by" 0 \
       create-item --title "$RUN_TAG C" --parent "$ITEM_A_ID" --blocked-by "$ITEM_B_ID" \
@@ -264,8 +250,6 @@ if verb_supported get-item && [[ -n "$ITEM_A_ID" ]]; then
   assert_schema_version "get-item A"
   assert_eq "get-item A unblocked" "0" "$(wit_out '.blocked_by_count')"
   assert_eq "get-item A carries no state_history unasked" "false" "$(wit_out 'has("state_history")')"
-  # A new item was never closed: a provider that reads history reports no events, and one
-  # that cannot says so, never an empty history.
   wit_case "get-item A --history" 0 get-item "$ITEM_A_ID" --history
   assert_schema_version "get-item A --history"
   if [[ "$(jq -r '.features.state_history // false' <<<"$CAPS")" == "true" ]]; then
@@ -277,8 +261,6 @@ if verb_supported get-item && [[ -n "$ITEM_A_ID" ]]; then
     assert_eq "get-item A --history: reason given" "true" "$(wit_out '.state_history.reason | type == "string" and length > 0')"
   fi
 fi
-
-# --- change-link (offline: no provider call) ---
 
 if verb_supported change-link; then
   link_id="${ITEM_A_ID:-$FAKE_ID}"
@@ -292,8 +274,6 @@ if verb_supported change-link; then
   branch_ref="$(wit_out '.branch_ref')"
   assert_eq "manifest declares a change_link.branch_pattern" "string" \
     "$(jq -r '.change_link.branch_pattern | type' <<<"$CAPS")"
-  # Round trip: a branch carrying the branch_ref names the same item. Needs a real item,
-  # since --branch-ref qualifies against the binding's declared scope.
   if [[ -n "$ITEM_A_ID" ]]; then
     item_repo="$(sed -E 's/^[^:]+:([^#]+)#.*$/\1/' <<<"$ITEM_A_ID")"
     wit_case "change-link --branch" 0 change-link --branch "feat/${branch_ref}-conformance" --repo "$item_repo"
@@ -315,9 +295,6 @@ if verb_supported add-sub-item && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   assert_eq "B parent_id" "$ITEM_A_ID" "$(wit_out '.parent_id')"
 fi
 
-# --- sub-item enumeration + container-scoped frontier ---
-# B is A's child and blocked by A, so it enumerates as a child but stays out of A's
-# scoped frontier.
 if verb_supported list-sub-items && verb_supported add-sub-item && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-sub-items A" 0 list-sub-items "$ITEM_A_ID"
   assert_schema_version "list-sub-items A"
@@ -340,8 +317,6 @@ if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   assert_contains "frontier holds unblocked A" "$frontier_ids" "$ITEM_A_ID"
   assert_not_contains "frontier drops blocked B" "$frontier_ids" "$ITEM_B_ID"
 
-  # Under field storage each candidate carries its Work status, a name or null; under
-  # labels none does. A freshly created A carries no hold either way.
   wit_case "list-frontier --autonomous" 0 list-frontier --autonomous "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "list-frontier --autonomous"
   assert_contains "autonomous frontier holds unblocked A" "$(wit_out_ids)" "$ITEM_A_ID"
@@ -375,13 +350,11 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
     fail "claim holder set" "non-empty holder" "$HOLDER"
   fi
 
-  # Second session, same identity: race arbitration by lease-comment identity.
   wit_case "second claim backs off → exit 7" 7 claim "$ITEM_A_ID" --session-id "$RUN_TAG-s2"
 
   if verb_supported renew-lease && [[ "$LEASE_CID" =~ ^[0-9]+$ ]]; then
     wit_case "renew-lease A" 0 renew-lease "$ITEM_A_ID" --lease-comment-id "$LEASE_CID"
     assert_schema_version "renew-lease A"
-    # Cross-item guard: A's lease comment must not renew a different item.
     if [[ -n "$ITEM_B_ID" ]]; then
       wit_case "renew-lease rejects a foreign item's comment → exit 7" 7 \
         renew-lease "$ITEM_B_ID" --lease-comment-id "$LEASE_CID"
@@ -394,17 +367,12 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
   fi
 
   if verb_supported reclaim; then
-    # A ran through a back-off, so this also asserts reclaim selects the ACTIVE
-    # lease, not A's superseded newer one.
     wit_case "reclaim live lease is a no-op" 0 reclaim "$ITEM_A_ID"
     assert_eq "live lease not reclaimed" "false" "$(wit_out '.reclaimed')"
-    # `reason` is FREE TEXT with no contract vocabulary, and adapters word it differently,
-    # so assert the semantic fact, never one adapter's prose.
     reclaim_reason="$(wit_out '.reason')"
     assert_contains "reclaim picked the active lease" "$reclaim_reason" "live"
     assert_not_contains "…and not the superseded one" "$reclaim_reason" "superseded"
 
-    # Expired-lease reclaim: ttl 0 lease on B expires immediately.
     if [[ -n "$ITEM_B_ID" ]]; then
       wit_case "claim B with ttl 0" 0 claim "$ITEM_B_ID" --ttl-hours 0 --session-id "$RUN_TAG-s3"
       wit_case "reclaim expired B" 0 reclaim "$ITEM_B_ID"
@@ -414,7 +382,6 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
     fi
   fi
 
-  # A's lease is still live here, and the s2 claim above backed off on it.
   if verb_supported release && [[ "$LEASE_CID" =~ ^[0-9]+$ ]]; then
     if [[ -n "$ITEM_B_ID" ]]; then
       wit_case "release rejects a foreign item's lease → exit 7" 7 \

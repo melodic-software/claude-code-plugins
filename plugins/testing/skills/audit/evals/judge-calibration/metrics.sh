@@ -74,7 +74,6 @@
 # TEST_JUDGE_CMD (the hooks' seam) replaces `claude`.
 set -uo pipefail
 
-# The sweep runs this script as the judge command to read each run's cost.
 if [[ -n "${CAL_JUDGE_INNER:-}" ]]; then
   out="$("$CAL_JUDGE_INNER" "$@")"
   rc=$?
@@ -113,7 +112,6 @@ function header(names,   i, k, n) {
 BEGIN { FS = "\t"; Z = 1.959964; split("FLAG PASS UNKNOWN", L, " ") }
 '
 
-# marks <labels>: calibration.md's holdout-only lines, in the labels' repository.
 marks() {
   local top
   top="$(git -C "$(cd "$(dirname "$1")" && pwd -P)" rev-parse --show-toplevel 2>/dev/null)" || return 0
@@ -128,13 +126,10 @@ holdout() {
   echo 1
 }
 
-# section1 <top> <commit>: section 1 of test-value/SKILL.md at <commit>, the
-# span judge::section1 appends to the judge prompt.
 section1() {
   git -C "$1" show "$2:$SKILL" 2>/dev/null | awk '/^## 1\. /{f=1} f&&/^## /&&!/^## 1\. /{exit} f'
 }
 
-# prompt_commits <top>: every commit that changed the judge's system prompt.
 prompt_commits() {
   local c
   git -C "$1" log --format=%H -- "$PROMPT"
@@ -305,7 +300,6 @@ arm() {
   done 3< <(awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next } !seen[$c["file"]]++ { print $c["file"] }' "$labels")
 }
 
-# judge_env: the hooks' judge library, pointed at a scratch data directory.
 judge_env() {
   TMPD="$(mktemp -d)" || return 2
   trap 'rm -rf "${TMPD:?}"' EXIT
@@ -315,7 +309,6 @@ judge_env() {
   source "$HOOK_DIR/scanner-run.sh"
   # shellcheck source=../../../../hooks/judge-lib.sh
   source "$HOOK_DIR/judge-lib.sh"
-  # No session limit on calibration runs: every case gets its reservation.
   unset CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS
   export CAL_JUDGE_INNER="${TEST_JUDGE_CMD:-claude}" CAL_COST_LOG="$TMPD/cost"
   TEST_JUDGE_CMD="$SELF"

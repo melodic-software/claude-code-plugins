@@ -46,13 +46,11 @@ export function describe(ctx: Ctx): string {
   return `on: ${on.join(', ') || 'nothing'}. off: ${off.join(', ') || 'nothing'}. posters: ${state.posters}. dim: ${Math.round(ctx.saved.dim * 100)}`
 }
 
-/** How much longer than one move the last order to each switch takes to reach the shader, in ms: the card keeps its button inactive that much longer. */
 const extra: Partial<Record<Switch, number>> = {}
 export function extraMsOf(key: Switch): number {
   return extra[key] ?? 0
 }
 
-/** Shows the room alone for SETTLE_MS and brings the shader back, which sets every switch from what is saved. */
 async function sync($: EngineInterface, why: string): Promise<void> {
   holdShader($, why)
   await ask($, why)

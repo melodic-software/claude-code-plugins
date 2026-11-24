@@ -39,8 +39,6 @@ PR = {
     "head": {"sha": HEAD, "ref": "feat/x"},
     "base": {"sha": BASE, "repo": {"private": False}},
 }
-# Path holds on: these tests read what lifts one.
-# This repository's rows, which the floor paths below sit on.
 FLOOR_ROWS = policy.floor_paths_in(
     (pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
 )
@@ -155,9 +153,6 @@ def scored(
         return ve.lane_risk_refusal(REPO, 41, PR, config, 7, humans=lambda: humans)
 
 
-# A path on the floor (`Floor.high`), held as `high-path:` until a
-# trusted person approves the head, as ci-status lifts it (merge-holds.mjs
-# pathLifters). Kyle (id 5) is trusted, id 9 is not.
 FLOORED = dataclasses.replace(DOC, path=".github/actions/resolve-config/resolve.mjs")
 COST = dataclasses.replace(DOC, path="infra/main.tf")
 TRUSTED = frozenset({5})
@@ -204,7 +199,6 @@ class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
                         False,
                     ),
                 )
-        # The trusted list that did not read lifts nothing either.
         self.assertIsNotNone(held_by((DOC, FLOORED), reviews=[review("APPROVED")]))
 
     def test_the_approval_lifts_no_unsafe_path_or_cost_hold(self) -> None:
@@ -245,9 +239,7 @@ def approval(state: str = "APPROVED", sha: str = OLD, user: int = 5) -> dict[str
 
 
 HELPER = {"filename": "scripts/helper.sh", "status": "modified", "patch": "+x"}
-# main's tip commit, which its full ref resolves to.
 TIP = "3" * 40
-# The merge bases of the approved head and of the head with main's tip.
 MB_OLD = "1" * 40
 MB_HEAD = "2" * 40
 BASE_DOC = {"filename": "docs/base.md", "status": "modified", "patch": "+q"}
@@ -283,7 +275,6 @@ def tree(*paths: str, flipped: str = "", truncated: bool = False) -> dict[str, o
 
 
 PATHS = (".github/actions/resolve-config/live-config.test.mjs", SHARED, "docs/base.md", "scripts/helper.sh")
-# The trees of the head and of its merge base with main's tip.
 TREES = {HEAD: tree(*PATHS), MB_HEAD: tree(*PATHS)}
 
 
@@ -391,14 +382,11 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
     def test_an_approval_before_a_base_merge_lifts_the_head(self) -> None:
         reads: list[str] = []
         self.assertEqual(carried([HELD_PATCH], reads=reads), ["user5"])
-        # The head is re-read, the repository's default branch checked, then
-        # the base read once by its full ref; every compare names its tip.
         self.assertEqual(reads[0], f"repos/{REPO}/pulls/{CARRIED_PR['number']}")
         self.assertEqual(reads[1], f"repos/{REPO}")
         self.assertEqual(reads[2], f"repos/{REPO}/git/ref/heads/main")
         self.assertIn(f"repos/{REPO}/compare/{TIP}...{OLD}", reads)
         self.assertFalse(any("compare/main" in r or r.endswith("...main") for r in reads))
-        # A non-hold file the approved head changed, unchanged by the merge.
         self.assertEqual(
             carried([HELPER, HELD_PATCH], old_files=[HELD_PATCH, HELPER]), ["user5"]
         )
@@ -429,7 +417,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
                     carried([HELD_PATCH], reviews=[approval("DISMISSED")], timeline=timeline),
                     [],
                 )
-        # Approve the head, push X, force-push the head back: no range.
         self.assertEqual(
             carried([HELD_PATCH], reviews=[approval("DISMISSED", HEAD)], timeline=[STALE]),
             [],
@@ -593,7 +580,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
         ) as lift:
             self.assertIsNone(held_by((DOC, FLOORED), reviews=[], humans=TRUSTED))
         self.assertEqual(lift.call_args.args[0], REPO)
-        # The configured hold paths, for the owner's decision Q10 carry.
         self.assertEqual(len(lift.call_args.args), 5)
         self.assertIsInstance(lift.call_args.args[4], list)
         with mock.patch.object(policy, "carried_lifters", return_value=[]):
@@ -603,7 +589,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
 class LaneRiskRefusal(unittest.TestCase):
     def test_a_plain_doc_change_holds_nothing(self) -> None:
         self.assertIsNone(refusal())
-        # claude-review's findings are reported, never held.
         self.assertIsNone(refusal(evidence=lanes(code=3)))
 
     def test_a_symlink_or_a_submodule_pointer_holds(self) -> None:
@@ -809,7 +794,6 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
         self.read.assert_not_called()
 
 
-# The gate's hold texts (babysit_merge.unattended_enqueue), written out.
 EJECTED = (
     f"queue-ejected:2 failed-check removals from the merge queue at head {HEAD}; "
     "a push resets the count"

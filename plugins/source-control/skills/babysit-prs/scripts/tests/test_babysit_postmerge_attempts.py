@@ -128,7 +128,6 @@ class TheCarrySparesTheAttemptReads(AttemptCase):
         carried = self.check(self.path)
         self.assertEqual(self.reads(), 0)
         self.assertEqual(carried.report(), expected)
-        # The flake and the failure stand on the carried attempt 1.
         self.assertEqual(
             carried.flakes, (f"https://github.com/{REPO}/actions/runs/11",)
         )
@@ -193,7 +192,6 @@ class AnUnusableFileIsNoFile(AttemptCase):
             entry["head_sha"] = OTHER_SHA
         self.path.write_text(json.dumps(data), encoding="utf-8")
         self.assert_read_as_with_no_file(expected)
-        # The live reads replace the stale entries.
         self.assertNotIn(
             OTHER_SHA, {e["head_sha"] for e in self.written()["attempts"].values()}
         )

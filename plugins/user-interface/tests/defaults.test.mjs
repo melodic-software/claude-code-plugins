@@ -11,7 +11,6 @@ const read = (path) => readFileSync(join(PLUGIN, path), "utf8");
 const schema = JSON.parse(read("reference/team.schema.json"));
 const defaults = parse(read("reference/defaults.yaml"));
 
-// The layer-1 values the settings schema in the design contract fixes.
 const CONTRACT = {
   version: 1,
   css: {
@@ -117,8 +116,6 @@ test("the shipped defaults validate against team.schema.json with no error", () 
   assert.deepEqual(values, CONTRACT);
 });
 
-// Expected values: the key's contract, an integer of at least 0 with default 24 (the gap past
-// which nested surfaces read as independent).
 test("the nested-radius gap limit takes an integer of at least 0 and keeps 24 otherwise", () => {
   const gapWith = (raw) => {
     const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { css_concentric_radius_max_gap_px: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
@@ -130,7 +127,6 @@ test("the nested-radius gap limit takes an integer of at least 0 and keeps 24 ot
   assert.deepEqual(gapWith("1.5"), { gap: 24, error_keys: ["css.concentric_radius.max_gap_px"] });
 });
 
-// Expected values: the key's contract, an integer of at least 16 (the body floor) with default 18.
 test("the long-form reading size takes an integer of at least 16 and keeps 18 otherwise", () => {
   assert.equal(schema.properties.typography.properties.long_form_body_px.minimum, 16);
   const sizeWith = (raw) => {
@@ -143,7 +139,6 @@ test("the long-form reading size takes an integer of at least 16 and keeps 18 ot
   assert.deepEqual(sizeWith("18.5"), { size: 18, error_keys: ["typography.long_form_body_px"] });
 });
 
-// Expected values: the key's contract, the two approach values with default tap-to-activate.
 test("the both-axes activation takes one of its two approaches and keeps tap-to-activate otherwise", () => {
   const activationWith = (raw) => {
     const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { touch_both_axes_activation: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
@@ -155,7 +150,6 @@ test("the both-axes activation takes one of its two approaches and keeps tap-to-
   assert.deepEqual(activationWith("never"), { activation: "tap-to-activate", error_keys: ["touch.both_axes_activation"] });
 });
 
-// Expected values: the key's contract, a list of 1 to 4 of the motion lane's four pass names.
 test("the cleanup order takes a list of the four pass names and refuses anything else", () => {
   const errorKeysWith = (order) => {
     const { layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults: { ...defaults, animation: { ...defaults.animation, cleanup_order: order } }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
@@ -168,7 +162,6 @@ test("the cleanup order takes a list of the four pass names and refuses anything
   assert.deepEqual(errorKeysWith("removal"), ["animation.cleanup_order"]);
 });
 
-// Expected values: the exit factor's contract, a fraction from 0 to 1 with default 0.8.
 test("the exit factor takes a fraction from 0 to 1 and keeps 0.8 otherwise", () => {
   const factorWith = (raw) => {
     const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { animation_duration_ms_exit_factor: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
@@ -181,7 +174,6 @@ test("the exit factor takes a fraction from 0 to 1 and keeps 0.8 otherwise", () 
   assert.deepEqual(factorWith("-0.1"), { factor: 0.8, error_keys: ["animation.duration_ms.exit_factor"] });
 });
 
-// Expected values: the press scale's contract, a fraction from 0 to 1 with default 0.97.
 test("the press scale takes a fraction from 0 to 1 and keeps 0.97 otherwise", () => {
   const scaleWith = (raw) => {
     const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { animation_scale_press: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
@@ -193,7 +185,6 @@ test("the press scale takes a fraction from 0 to 1 and keeps 0.97 otherwise", ()
   assert.deepEqual(scaleWith("-0.1"), { scale: 0.97, error_keys: ["animation.scale.press"] });
 });
 
-// Expected values: the control padding's contract, a list of exactly two CSS lengths (block, inline).
 test("the control padding takes two CSS length strings and refuses any other list", () => {
   const errorKeysWith = (padding) => {
     const { layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults: { ...defaults, spacing: { ...defaults.spacing, control_padding: padding } }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
@@ -205,9 +196,6 @@ test("the control padding takes two CSS length strings and refuses any other lis
   assert.deepEqual(errorKeysWith([8, 16]), ["spacing.control_padding"]);
 });
 
-// Expected values: the floors these keys are bounded by, as the plan's key set states them: the
-// 24px WCAG 2.2 AA target size (SC 2.5.8) for the desktop hit area, and the 16px body floor (1rem)
-// for the smallest fluid body size and the narrow end of the fluid scale.
 test("a floor-bounded key refuses a value below its floor and keeps its default", () => {
   const withValue = (name, raw, path) => {
     const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { [name]: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
@@ -221,8 +209,6 @@ test("a floor-bounded key refuses a value below its floor and keeps its default"
   assert.deepEqual(withValue("typography_fluid_scale_size_narrow_rem", "0.9", "typography.fluid_scale.size_narrow_rem"), { value: 1.125, error_keys: ["typography.fluid_scale.size_narrow_rem"] });
 });
 
-// Expected values: the owner's decision of 2026-11-09, a press-scale lower limit of 0.95 taken as a
-// fraction from 0 to 1.
 test("the press-scale lower limit takes a fraction from 0 to 1 and keeps 0.95 otherwise", () => {
   const limitWith = (raw) => {
     const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { animation_scale_press_min: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });

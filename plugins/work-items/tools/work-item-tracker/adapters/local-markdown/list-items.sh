@@ -44,7 +44,6 @@ emitted=0 truncated=false rows=""
 for n in $(wit_item_numbers); do
   file="$(wit_item_file "$n")"
   wit_state_matches "$state" "$(wit_fm_field "$file" state)" || continue
-  # Filtered before the ceiling check, so the ceiling counts only labeled matches.
   if [[ -n "$label" ]] &&
     ! jq -e --arg l "$label" 'index($l) != null' <<<"$(wit_fm_field "$file" labels)" >/dev/null; then
     continue

@@ -10,6 +10,6 @@ remotes:
 
 pre-push:
   jobs:
-    - name: changelog-fragments
-      run: scripts/pre-push-changelog-fragments.sh {1}
+    - name: branch-checks
+      run: scripts/pre-push-branch-checks.sh {1}
       use_stdin: true

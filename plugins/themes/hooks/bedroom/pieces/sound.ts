@@ -74,11 +74,9 @@ type Player =
   | { kind: 'engine'; name: string }
   | { kind: 'spawn'; name: string; argv: (file: string, gain: number, loop: boolean) => string[]; loops: boolean }
 
-/** Thunder follows the lightning, so it sounds only where the build draws lightning. */
 const THUNDERS = BUILT.includes('weather') && !WITHOUT.includes('weather.lightning')
 
 let finding: Promise<Player | undefined> | undefined
-/** Set when a play failed: nothing plays until /bedroom sound on looks for the player again. */
 let failure: string | undefined
 
 async function onPath($: EngineInterface, dirs: readonly string[], name: string): Promise<boolean> {
@@ -106,7 +104,6 @@ async function find($: EngineInterface): Promise<Player | undefined> {
   return undefined
 }
 
-/** Looks for the player again, forgetting a failure. */
 function lookAgain($: EngineInterface): Promise<Player | undefined> {
   failure = undefined
   finding = find($).catch(error => {
@@ -116,10 +113,6 @@ function lookAgain($: EngineInterface): Promise<Player | undefined> {
   return finding
 }
 
-/**
- * One line in the debug log and everything playing stopped. A player that is missing or will not start plays nothing
- * until /bedroom sound on; a mixer that exits or stops answering is started again after RETRY_MS (`retry`).
- */
 function fail($: EngineInterface, why: string, retry = false): void {
   if (failure !== undefined) return
   failure = why
@@ -133,7 +126,6 @@ function fail($: EngineInterface, why: string, retry = false): void {
 export const RETRY_MS = 10_000
 let retryAt: number | undefined
 
-/** The player while sound is on and none has failed; looked for once, and again once a retried failure's wait is over. */
 async function ready($: EngineInterface): Promise<Player | undefined> {
   if (failure !== undefined && retryAt !== undefined && (await $.clock.now()) >= retryAt) {
     failure = undefined
@@ -145,18 +137,12 @@ async function ready($: EngineInterface): Promise<Player | undefined> {
   return failure === undefined ? player : undefined
 }
 
-/** One play through the engine or a command: stop() ends it at once. */
 type Play = { stopped: boolean; end?: () => void }
 const stopPlay = (play: Play): void => {
   play.stopped = true
   play.end?.()
 }
 
-/** The mixer's side of the mod: the commands not yet answered, the command file once it is named, and its child's end. */
-/**
- * The mixer's side of the mod: the commands not yet answered, the command file once it is named, its child's end, its
- * pid, when it last wrote anything (it writes a dot every BEAT_MS), and whether it has answered a command.
- */
 type Mixer = {
   seq: number
   pending: { seq: number; command: MixerCommand }[]
@@ -169,7 +155,6 @@ type Mixer = {
   answered: boolean
   asked?: { seq: number; answer: (voices: MixerVoice[]) => void }
 }
-/** The last file a mixer's player could not open, kept across mixers for /bedroom sound. */
 let lastFailed: { name: string; text: string; at: number } | undefined
 /** How long /bedroom sound waits for the mixer to report its voices. */
 export const VOICES_WAIT_MS = 800
@@ -177,11 +162,6 @@ export const VOICES_WAIT_MS = 800
 export const SILENT_MS = 10_000
 type Out = { player: Player; isDone: boolean; mixer?: Mixer; bedPlay?: Play; shots: Set<Play> }
 let out: Out | undefined
-/**
- * The bed playing now: its file, the sky it was chosen for, the volume's gain and the sky's level (levelOf), when its
- * last fade ends, while the afternoon builds through the mixer, when that one long ease reaches the golden hour, and,
- * across the evening, the cicadas the night insects take over from.
- */
 let bed: { file: string | undefined; sky: Sky; gain: number; level: number; settledAt: number; aim?: number; evening?: string } | undefined
 
 /**
@@ -205,13 +185,8 @@ async function newerHolds($: EngineInterface): Promise<boolean> {
   return value !== undefined && value > COPY
 }
 
-/**
- * Set while no desktop window shows the session (it detached, or the session ended): nothing plays then, so a session
- * left running after the app is closed is silent. A window attaching again lets the room's sound follow it.
- */
 let away = false
 
-/** The mixer reports this many one-shots' latency in the debug log, from the write to the player's position moving. */
 const LATENCY_NOTES = 3
 
 function openOut($: EngineInterface, player: Player): Out {
@@ -286,10 +261,8 @@ async function runMixer($: EngineInterface, o: Out, m: Mixer): Promise<void> {
   const last = said.split(/[\r\n]+/).filter(line => line.trim() !== '').at(-1)?.trim() ?? ''
   fail($, `the mixer exited ${code}${last === '' ? '' : `: ${last.slice(0, 160)}`}`, m.answered)
 }
-/** When each of the last one-shots was sent, by seq, for the latency notes. */
 const sentAt = new Map<number, { name: string; at: number }>()
 
-/** Writes the command file whole: every command not yet answered. Writes go one after another. */
 function writeCommands($: EngineInterface, m: Mixer): void {
   const path = m.path
   if (path === undefined) return
@@ -310,7 +283,6 @@ function mixerSend($: EngineInterface, o: Out, command: MixerCommand): void {
   void $.clock.now().then(now => sentAt.set(seq, { name, at: now }))
 }
 
-/** A ping every PING_MS while the mixer runs: it stops by itself once none has come for QUIET_MS. */
 function pingLater($: EngineInterface, o: Out): void {
   $.clock.after(PING_MS, () => {
     if (o.isDone) return
@@ -319,7 +291,6 @@ function pingLater($: EngineInterface, o: Out): void {
   })
 }
 
-/** A bed through the engine or a command: one play that repeats the file, or a chain of plays for a player that cannot. */
 async function runBed($: EngineInterface, o: Out, file: string, gain: number, play: Play): Promise<void> {
   while (!play.stopped && !o.isDone) {
     const startedAt = await $.clock.now()
@@ -374,7 +345,6 @@ async function playThrough($: EngineInterface, o: Out, file: string, gain: numbe
   return false
 }
 
-/** Changes the bed: a cross-fade of fadeMs through the mixer, the new bed rising from `from`; a cut elsewhere. */
 function outBed($: EngineInterface, o: Out, file: string | undefined, gain: number, fadeMs: number, from?: number): void {
   if (o.mixer !== undefined) return mixerSend($, o, { verb: 'bed', name: file, gain, fadeMs, from })
   if (o.bedPlay !== undefined) stopPlay(o.bedPlay)
@@ -385,13 +355,11 @@ function outBed($: EngineInterface, o: Out, file: string | undefined, gain: numb
   void runBed($, o, file, gain, play).catch(error => fail($, `the bed failed: ${String(error)}`))
 }
 
-/** The bed's level: a fade of fadeMs through the mixer; elsewhere the bed starts again at it. */
 function outLevel($: EngineInterface, o: Out, file: string | undefined, gain: number, fadeMs: number): void {
   if (o.mixer !== undefined) return mixerSend($, o, { verb: 'level', gain, fadeMs })
   outBed($, o, file, gain, 0)
 }
 
-/** The last one-shot sent and when, for /bedroom sound. */
 let lastShot: { file: string; at: number } | undefined
 
 function outShot($: EngineInterface, o: Out, file: string, gain: number): void {
@@ -404,7 +372,6 @@ function outShot($: EngineInterface, o: Out, file: string, gain: number): void {
     .finally(() => o.shots.delete(play))
 }
 
-/** Ends everything: the mixer fades out over fadeMs and its child is ended just after; every other play stops at once. */
 function endOut($: EngineInterface, o: Out, fadeMs: number): void {
   if (o.isDone) return
   if (o.mixer !== undefined) {
@@ -421,7 +388,6 @@ function endOut($: EngineInterface, o: Out, fadeMs: number): void {
 
 export type Sky = { sun: number; weather: number }
 
-/** The phases by their number in the sun field (core/settings.ts PHASES). */
 const DUSK = 0
 const EVENING = 1
 const NIGHT = 2
@@ -477,16 +443,11 @@ export const AFTERNOON_STEPS = 12
 /** Evening lasts 75 minutes (pieces/time.ts rowStarts): the cicadas give way to the night insects across all of it. */
 export const EVENING_FADE_MS = 75 * 60_000
 
-/** A local clock time as minutes of its day, with the seconds as a fraction. */
 const minuteOfDay = (now: number): number => {
   const { hours, minutes } = local(now)
   return hours * 60 + minutes + (now % 60_000) / 60_000
 }
 
-/**
- * How far `now` is through the stretch of the day from the start of row `from` to the start of row `to`, 0 to 1, and
- * the ms left of it; undefined while a phase is held, when the clock does not move the room.
- */
 function stretchOf(ctx: Ctx, now: number, from: number, to: number): { share: number; leftMs: number } | undefined {
   if (ctx.setting('time') !== 'auto') return undefined
   const starts = rowStarts(...sunTimes(ctx))
@@ -528,11 +489,6 @@ export function shownOf(move: ReturnType<typeof worldMove>, fields: Sky, was: Sk
 let stepping: Promise<void> = Promise.resolve()
 let waitTimer: { at: number; cancel: () => void } | undefined
 
-/**
- * Brings what plays in line with the settings and the picture: called by each /bedroom sound word, after every other
- * /bedroom word, each minute, and every WATCH_MS while sound is on. Steps run one at a time.
- */
-/** Ends what plays, fading out over OFF_FADE_MS. */
 function silence($: EngineInterface): void {
   if (out !== undefined) endOut($, out, OFF_FADE_MS)
   out = undefined
@@ -643,7 +599,6 @@ async function stepBeds($: EngineInterface): Promise<void> {
   }
 }
 
-/** Follows again when the picture starts to move. */
 function waitUntil($: EngineInterface, at: number, now: number): void {
   if (waitTimer !== undefined && waitTimer.at === at) return
   waitTimer?.cancel()
@@ -660,7 +615,6 @@ function waitUntil($: EngineInterface, at: number, now: number): void {
  */
 export const WATCH_MS = 300
 let watching = false
-/** The minute chain this copy ticks under; a newer one held in $.state means this copy was reloaded. */
 let chain: number | undefined
 function watch($: EngineInterface): void {
   if (watching) return
@@ -684,10 +638,6 @@ async function reloaded($: EngineInterface): Promise<boolean> {
   return value !== undefined && value > chain
 }
 
-/**
- * Plays one file now, or after delayMs, at the volume times factor; nothing while sound is off or at volume 0, nor when
- * `still`, asked when it is due, says the sound no longer belongs.
- */
 function shoot($: EngineInterface, file: string, factor: number, delayMs = 0, still: () => boolean = () => true): void {
   const fire = (): void => {
     const ctx = ctxOf($)
@@ -716,7 +666,6 @@ function shoot($: EngineInterface, file: string, factor: number, delayMs = 0, st
  */
 export const COMMAND_LAG_MS = { direction: 510, screen: 510 + ACCEPT.screen * 1000 } as const
 
-/** Whether the room's things make their sounds: on unless /bedroom sound objects off. */
 const objectsOn = (saved: Saved): boolean => saved.objects !== false
 
 export function engineSwitched($: EngineInterface, ctx: Ctx, name: Switch, isOn: boolean, by: 'click' | 'command'): void {
@@ -777,7 +726,6 @@ export async function thunderFor($: EngineInterface, given: Strike, still: () =>
   })
 }
 
-/** Through the mixer, the bed dips under a roll of thunder for `ms` and comes back to its level; elsewhere it plays on. */
 function duck($: EngineInterface, ms: number): void {
   const o = out
   if (o?.mixer === undefined || o.isDone || bed === undefined) return
@@ -789,7 +737,6 @@ function duck($: EngineInterface, ms: number): void {
     if (ducks === 0 && out === o && bed !== undefined) mixerSend($, o, { verb: 'level', gain: bed.gain * bed.level, fadeMs: DUCK_FADE_MS.up })
   })
 }
-/** How many rolls of thunder are sounding: the bed comes back only when the last one ends. */
 let ducks = 0
 
 /**
@@ -806,10 +753,8 @@ export function strikeDelayS(minute: number): number {
 /** How far a strike asked for with /bedroom weather strike is, as its thunder's delay in seconds: 1 to 4, from its second. */
 export const forcedDelayS = (at: number): number => 1 + (Math.floor(at / 1000) % 4)
 
-/** When the strike asked for last brought its thunder, so each one brings one. */
 let heardForced: number | undefined
 
-/** The thunder of the strike /bedroom weather strike asked for, once, unless it has already rolled. */
 async function forcedThunder($: EngineInterface): Promise<void> {
   const at = forcedStrikeAt()
   if (at === undefined || at === heardForced) return
@@ -818,10 +763,6 @@ async function forcedThunder($: EngineInterface): Promise<void> {
   if ((await $.clock.now()) <= at + delayS * 1000) await thunderFor($, { at, delayS })
 }
 
-/**
- * In a storm, this minute's scheduled strike, if it has one, counted from when the shader takes the minute, and only
- * when the shader draws it: none in its first seconds, nor while it hurries after a command.
- */
 async function scheduledStrike($: EngineInterface, ctx: Ctx): Promise<void> {
   if (ctx.fields().weather !== 4) return
   const minute = minuteOfHalfDay(ctx.nowMs)
@@ -879,7 +820,6 @@ export async function engineTick($: EngineInterface, ctx: Ctx): Promise<void> {
   if (ctx.setting('sound')) void minute($, ctx).catch(error => fail($, `the minute's sound failed: ${String(error)}`))
 }
 
-/** /bedroom sound volume N: 0 to 100, saved; the bed fades to it. */
 async function setVolume(ctx: Ctx, word: string | undefined): Promise<string> {
   const amount = Number(word)
   if (word === undefined || word === '' || !Number.isInteger(amount) || amount < 0 || amount > 100) {
@@ -891,7 +831,6 @@ async function setVolume(ctx: Ctx, word: string | undefined): Promise<string> {
 
 const bankWords = (saved: Saved): string => KINDS.map(kind => `${kind} ${chosenName(saved, kind)}`).join(', ')
 
-/** /bedroom sound pick KIND NAME: which entry of the bank a kind plays, saved; the bed fades to it. */
 async function setPick(ctx: Ctx, kind: string | undefined, name: string | undefined): Promise<string> {
   const known = KINDS.includes(kind as Kind) ? (kind as Kind) : undefined
   const names = known === undefined ? [] : namesOf(known)
@@ -904,7 +843,6 @@ async function setPick(ctx: Ctx, kind: string | undefined, name: string | undefi
   return `${known} plays ${picked}`
 }
 
-/** The voices the running mixer reports, waited for VOICES_WAIT_MS; undefined when it does not answer in time. */
 function askVoices($: EngineInterface, o: Out, m: Mixer): Promise<MixerVoice[] | undefined> {
   return new Promise(resolve => {
     const timer = $.clock.after(VOICES_WAIT_MS, () => {
@@ -923,7 +861,6 @@ function askVoices($: EngineInterface, o: Out, m: Mixer): Promise<MixerVoice[] |
 const voiceWords = (v: MixerVoice): string =>
   `${v.name} volume ${v.volume.toFixed(4)} at ${Math.round(v.atMs)} ms, length ${v.lengthKnown ? 'known' : 'unknown'}${v.drop ? ', ending' : ''}`
 
-/** The end of /bedroom sound: the mixer's own report of its voices, how long since it last wrote, and the last file it could not open. */
 async function mixerWords($: EngineInterface): Promise<string> {
   const now = await $.clock.now()
   const failed = lastFailed === undefined ? '' : ` last open failure: ${lastFailed.name} ${Math.round((now - lastFailed.at) / 1000)} s ago: ${lastFailed.text}.`

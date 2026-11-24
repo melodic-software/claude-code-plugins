@@ -96,9 +96,7 @@ case "$home_rc" in
 *) die "the convention-home pointer in $ROOT does not resolve (resolve-convention-home.sh exit $home_rc)" ;;
 esac
 
-# q <value>: a single-quoted YAML scalar.
 q() { printf "'%s'" "${1//\'/\'\'}"; }
-# flow <item>...: a one-line flow list of single-quoted scalars.
 flow() {
   local s="" v
   for v in "$@"; do s+="${s:+, }$(q "$v")"; done
@@ -297,7 +295,6 @@ apply() {
   [[ ${#dirs[@]} -gt 0 ]] && y+="adapter_dirs: $(flow "${dirs[@]}")"$'\n'
   if [[ ${#ext[@]} -gt 0 ]]; then
     y+=$'extend:\n'
-    # One key per <id>.<field>, its items in flag order.
     declare -A items=()
     local keys=()
     for e in "${ext[@]}"; do
@@ -305,7 +302,6 @@ apply() {
       [[ -n "${items[${e%%=*}]+x}" ]] || keys+=("${e%%=*}")
       items[${e%%=*}]+="$(q "${e#*=}"), "
     done
-    # One mapping per <id>, in first-flag order, whatever order the flags take.
     declare -A done_id=()
     for e in "${keys[@]}"; do
       id="${e%%.*}"
@@ -339,22 +335,16 @@ apply() {
   chmod "$(printf '%o' $((0666 & ~0$(umask))))" "$tmp"
   # shellcheck disable=SC2016 # the fence lines are literal text
   if [[ "$f" == "$docs" ]]; then
-    # Replace the block's body; the rest of the file stays as it is.
     {
       sed -n "1,$((from - 1))p" "$f"
       printf '%s' "$y"
       sed -n "$((to + 1)),\$p" "$f"
     } >"$tmp"
   else
-    # run-e2e's and write's keys and check-visual-parity's pixel_tolerance
-    # map, with its indented lines, share testing.yaml; they are not setup's
-    # to drop.
     [[ "$f" != "$new" || ! -f "$f" ]] ||
       keep="$(plain_text "$f" |
         awk '/^[^ \t#]/ { k = /^pixel_tolerance[ \t]*:/ } k || /^(e2e_driver|reuse_running_instance|browser_driver|map_unit|map_entry_points|map_report_order|file_findings|file_findings_floor|tdd_refactor_step|first_test)[ \t]*:/')"
     printf '# Test-file scope and rule levels for the testing plugin (/testing:setup).\n%s%s' "$y" "${keep:+$keep$'\n'}" >"$tmp"
-    # feature_map_dir is retired; name a dropped value so a legacy map it
-    # pointed at still gets converted.
     [[ "$f" != "$new" || ! -f "$f" ]] ||
       plain_text "$f" | sed -n 's/^feature_map_dir[[:blank:]]*:[[:blank:]]*//p' |
         while IFS= read -r v; do
@@ -373,7 +363,6 @@ apply() {
   old_section
 }
 
-# --- check --------------------------------------------------------------------
 check() {
   local cfg findings=0 langs tracked lint_files f
   printf '== config ==\n'
@@ -385,9 +374,6 @@ check() {
   fi
   old_section
 
-  # Languages: the lexer language of every adapter whose files: glob matches a
-  # tracked file: the shipped adapters, the adapter_dirs ones and the
-  # extend.<id>.files globs.
   local k v extra=() ext_files=""
   while IFS=$'\t' read -r k v; do
     case "$k" in
@@ -420,7 +406,7 @@ check() {
     *) ;;
     esac
   done <<<"$tracked"
-  lint_text() { # lint_text <basename glob>...: the concatenated text of matching files
+  lint_text() {
     local g p
     for p in ${lint_files[@]+"${lint_files[@]}"}; do
       for g in "$@"; do
@@ -429,7 +415,7 @@ check() {
       done
     done
   }
-  report() { # report <lang> <rule> <PRESENT|FINDING> <detail>
+  report() {
     printf '%-7s %-40s %-8s %s\n' "$1" "$2" "$3" "$4"
     [[ "$3" == FINDING ]] && findings=$((findings + 1))
     return 0
@@ -441,7 +427,6 @@ check() {
   eslint="$(lint_text 'eslint.config.*' '.eslintrc*' package.json)"
   cs="$(lint_text '*.csproj' Directory.Packages.props Directory.Build.props)"
   cfgtxt="$(lint_text .editorconfig '*.globalconfig')"
-  # eslint_rule <lang> <framework dep> <plugin package> <rule>
   eslint_rule() {
     if grep -Eq "[\"']$4[\"'] *: *([\"']off[\"']|0)" <<<"$eslint"; then
       report "$1" "$4" FINDING "turned off in the ESLint config"
@@ -453,7 +438,6 @@ check() {
       report "$1" "$4" FINDING "add $3 and turn on $4 (it is in the plugin's recommended config)"
     fi
   }
-  # dotnet_rule <rule> <analyzer package> <brought in by>
   dotnet_rule() {
     if grep -Eqi "dotnet_diagnostic\.$1\.severity *= *(none|silent|suggestion)" <<<"$cfgtxt"; then
       report cs "$1" FINDING "lowered below warning in .editorconfig or a .globalconfig"
@@ -463,7 +447,6 @@ check() {
       report cs "$1" FINDING "reference $2 so $1 runs at build time"
     fi
   }
-  # ruff_rule <code> <on by default: 1|0>
   ruff_rule() {
     local sel ign s on=0
     sel="$(ruff_codes select)"
@@ -473,7 +456,6 @@ check() {
     for s in $ign; do [[ "$1" == "$s"* ]] && on=0; done
     if ((on)); then report python "ruff $1" PRESENT "selected in the ruff config"; else report python "ruff $1" FINDING "select $1 (or its prefix) in the ruff config"; fi
   }
-  # ruff_codes <select|extend-select|ignore>: the quoted codes of that array.
   ruff_codes() {
     lint_text pyproject.toml ruff.toml .ruff.toml | awk -v k="$1" '
       $0 ~ "^[ \t]*" k "[ \t]*=[ \t]*\\[" { on = 1 }

@@ -41,9 +41,6 @@ git -C "$REPO" archive "$base" "${paths[@]}" | tar -x -C "$WORK" || {
 BASE_SCAN="$WORK/$REL_SCRIPTS/cant-fail-scan.sh"
 NEW_SCAN="$SCRIPT_DIR/cant-fail-scan.sh"
 
-# Prints each engine regex as NAME=value for one language, from whichever
-# variable names the engine uses (the pre-adapter *_ERE literals, or the
-# adapter-driven names), so the two sides are compared field by field.
 cat >"$WORK/dump.awk" <<'EOF'
 function pick(a, b) { return a != "" ? a : b }
 BEGIN {
@@ -60,8 +57,6 @@ BEGIN {
 }
 EOF
 
-# dump_engine <scripts-dir> <lang> <out>: the pre-adapter engine takes
-# LANG_ID; the adapter engine takes an adapter id and the loaded table.
 dump_engine() {
   local dir="$1" lang="$2" out="$3" id table vars
   if [[ -r "$dir/adapter-load.awk" ]]; then

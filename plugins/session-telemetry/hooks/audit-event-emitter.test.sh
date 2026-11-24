@@ -45,8 +45,6 @@ for row in "${ROWS[@]}"; do
   n=$((n + 1))
   IFS=$'\t' read -r id switch payload hook_id event status subject missing <<<"$row"
   payload="${payload//%PROJ%/$PROJ}"
-  # Each row gets its own project root so the UserPromptExpansion second store
-  # cannot be confused with another case's.
   rowproj="$TEST_TMPDIR/rowproj-$id"
   mkdir -p "$rowproj/.claude/rules"
   : >"$rowproj/.claude/rules/x.md"
@@ -94,7 +92,6 @@ expect_no_envelope "no hook_event_name → no envelope" \
   "$HOOK" '{"session_id":"sess-1","error":"rate_limit"}' \
   "$TEST_TMPDIR/no-event.json" CLAUDE_PROJECT_DIR="$PROJ"
 
-# --- Privacy: the tool rows never carry a command body ----------------------
 for probe in "PostToolUseFailure tool-failure" "PermissionDenied permission-denied"; do
   read -r pev pid <<<"$probe"
   TELP="$TEST_TMPDIR/$pid.privacy.json"
@@ -121,7 +118,6 @@ for probe in "PostToolUseFailure tool-failure" "PermissionDenied permission-deni
   fi
 done
 
-# --- InstructionsLoaded: path reduction and the session_start filter --------
 TELB="$TEST_TMPDIR/il-outside.json"
 OUTSIDE="$TEST_TMPDIR/elsewhere/private-dir/CLAUDE.md"
 if emit_envelope "$HOOK" \
@@ -154,7 +150,6 @@ else
   bad "instructions-loaded: session_start opt-in did not emit"
 fi
 
-# --- UserPromptExpansion: the second store, written without a sink ----------
 EXP='{"hook_event_name":"UserPromptExpansion","command_name":"/research","expansion_type":"slash_command"}'
 
 PROJS="$TEST_TMPDIR/exp-store"
@@ -176,10 +171,6 @@ else
   bad "second store not written (unconditional, no sink)"
 fi
 
-# --- The emitter's envelope, through the sink, is a conforming record --------
-# The emitter produces envelopes, not records; the record shape is the sink's.
-# Run the pair end to end so a row this plugin's own producer causes is
-# asserted against the schema session-log-lib.sh documents, on both routes.
 PROJE="$TEST_TMPDIR/emitter-record"
 mkdir -p "$PROJE"
 env HOOK_TELEMETRY_SINK="$HOOK_DIR/hook-telemetry-sink.sh" CLAUDE_PROJECT_DIR="$PROJE" \
@@ -212,7 +203,6 @@ else
   bad "emitter envelope → sink wrote no shared-file record at $LEGACY_REC"
 fi
 
-# expansion_type is optional: recorded when present, never gated on.
 PROJX="$TEST_TMPDIR/exp-noexp"
 mkdir -p "$PROJX"
 env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJX" \
@@ -289,7 +279,6 @@ expect_no_envelope "skill-expansion: no command_name → no envelope" \
 assert_file_absent "skill-expansion: no command_name → no second store" \
   "$PROJN/.claude/observability/skill-usage.jsonl"
 
-# --- Every switch off: the emitter leaves before parsing the library --------
 PROJA="$TEST_TMPDIR/all-off"
 mkdir -p "$PROJA"
 expect_no_envelope "all switches off → no envelope" \

@@ -28,7 +28,6 @@ if (!/^[A-Za-z0-9._\/@^~:{}-]+$/.test(DIFF_BASE) || DIFF_BASE.startsWith('-')) {
   return { error: 'bad-diff-base', next: 'Pass the resolved ref or commit id as args.diffBase.' }
 }
 
-// lens: one named agent per concern. model: one prompt per distinct fan-out model tier.
 const DIVERSITY_IN = input.diversity == null ? 'lens' : input.diversity
 let DIVERSITY = typeof DIVERSITY_IN === 'string' ? DIVERSITY_IN.trim() : ''
 if (DIVERSITY !== 'lens' && DIVERSITY !== 'model') {
@@ -121,14 +120,14 @@ if (passedExtract && !isVariant(passedExtract)) log('roles.retrieval.single is n
 const EXTRACT = isVariant(passedExtract) ? passedExtract : { model: 'sonnet', effort: 'medium' }
 if (!input.roles) log('no roles in args: built-in fallbacks apply')
 
-// Model tiers: the distinct fan-out models in the role map, first seen first, deduped by the
+// Fan-out models: the distinct fan-out models in the role map, first seen first, deduped by the
 // model each resolves to. `inherit` is the session model, args.session's alias; with no known
 // alias it counts as frontier, as /multi-agent:route counts an unknown session. The frontier
 // aliases stay out, as every fan-out stage does: `fable`, and `best`, which names Fable on
 // Claude Code before v2.1.321 (https://code.claude.com/docs/en/model-config#version-history).
 const SESSION = typeof input.session === 'string' && MODELS.includes(input.session.trim()) &&
   input.session.trim() !== 'inherit' ? input.session.trim() : ''
-const TIERS = []
+const FANOUT_MODELS = []
 if (DIVERSITY === 'model') {
   for (const role of ['orchestrator', 'worker', 'verifier', 'retrieval']) {
     const f = passed[role] && passed[role].fanout
@@ -138,17 +137,17 @@ if (DIVERSITY === 'model') {
       log('roles.' + role + '.fanout is inherit and args.session names no model: an unknown session model is left out of model diversity')
     } else if (m === 'fable' || m === 'best') {
       log('roles.' + role + '.fanout is ' + m + ': a frontier tier is left out of model diversity')
-    } else if (!TIERS.includes(m)) {
-      TIERS.push(m)
+    } else if (!FANOUT_MODELS.includes(m)) {
+      FANOUT_MODELS.push(m)
     }
   }
-  if (TIERS.length < 2) {
-    log('diversity model found ' + TIERS.length + ' fan-out tier(s) in roles, fewer than two: the lens roster runs')
+  if (FANOUT_MODELS.length < 2) {
+    log('diversity model found ' + FANOUT_MODELS.length + ' fan-out model(s) in roles, fewer than two: the lens roster runs')
     DIVERSITY = 'lens'
   }
 }
 const vf = passed.verifier && passed.verifier.fanout
-const TIER_EFFORT = vf && EFFORTS.includes(vf.effort) ? vf.effort : 'high'
+const FANOUT_MODEL_EFFORT = vf && EFFORTS.includes(vf.effort) ? vf.effort : 'high'
 
 function opts(variant) {
   return variant.model === 'inherit' ? { effort: variant.effort } : { model: variant.model, effort: variant.effort }
@@ -213,18 +212,18 @@ function slicePrompt(slice) {
     COVERAGE_CLAUSE + SETTINGS_BLOCK + REASON_BLOCKS
 }
 
-const TIER_AGENT = 'review:lane-verifier'
-const TIER_PROMPT = 'Your role is hunter, across every concern rather than one lens. ' + AGENT_HEAD + AGENT_TAIL
+const FANOUT_MODEL_AGENT = 'review:lane-verifier'
+const FANOUT_MODEL_PROMPT = 'Your role is hunter, across every concern rather than one lens. ' + AGENT_HEAD + AGENT_TAIL
 
 phase('Review')
 
 let roster
 let outputs
 if (DIVERSITY === 'model') {
-  roster = TIERS.map(t => ({ label: 'model:' + t, tier: t }))
-  outputs = await inWaves(roster.map(leaf => () => agentRetry(TIER_PROMPT, {
-    agentType: TIER_AGENT, label: leaf.label, phase: 'Review',
-    ...opts({ model: leaf.tier === SESSION ? 'inherit' : leaf.tier, effort: TIER_EFFORT }),
+  roster = FANOUT_MODELS.map(m => ({ label: 'model:' + m, model: m }))
+  outputs = await inWaves(roster.map(leaf => () => agentRetry(FANOUT_MODEL_PROMPT, {
+    agentType: FANOUT_MODEL_AGENT, label: leaf.label, phase: 'Review',
+    ...opts({ model: leaf.model === SESSION ? 'inherit' : leaf.model, effort: FANOUT_MODEL_EFFORT }),
   })), MAX_CONCURRENT)
 } else {
   const leafPrompt = leaf => FINDINGS_PATHS[leaf.label]
@@ -328,5 +327,5 @@ return {
   roles: { extract: EXTRACT },
   loosened: { source: 'bundled', path: LOOSENED },
   diversity: DIVERSITY,
-  ...(DIVERSITY === 'model' ? { tiers: TIERS } : {}),
+  ...(DIVERSITY === 'model' ? { fanoutModels: FANOUT_MODELS } : {}),
 }

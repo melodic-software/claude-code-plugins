@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolveEffort } from './common.mjs'
+import { EFFORT_LADDER, raiseEffort, resolveEffort } from './common.mjs'
 
 const DEFAULT_PLUGIN_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -122,10 +122,14 @@ export function selectProvenOutcome({
   gatedVendors = new Set(),
   effectiveVendorOrder,
   taskType,
+  taskClass = 'everyday',
+  heavyEffort = new Map(),
   notes,
 }) {
-  const eligibleProven = provenOutcomes.filter((o) =>
-    isProvenEligible(o, modelsByVendor, skippedSilentVendors, unavailableInUseVendors, taskType, gatedVendors),
+  const eligibleProven = provenOutcomes.filter(
+    (o) =>
+      isProvenEligible(o, modelsByVendor, skippedSilentVendors, unavailableInUseVendors, taskType, gatedVendors) &&
+      (taskClass !== 'heavy' || coversHeavy(o.key, modelsByVendor.get(o.key.vendor), heavyEffort.get(o.key.vendor))),
   )
   if (eligibleProven.length === 0) return null
 
@@ -159,6 +163,8 @@ export function selectActiveTrial({
   effectiveVendorOrder,
   failedOutcomes,
   taskType,
+  taskClass = 'everyday',
+  heavyEffort = new Map(),
   notes,
 }) {
   const seen = new Set()
@@ -183,7 +189,7 @@ export function selectActiveTrial({
       vendor: vName,
       model,
       version: vInfo.versionByModel.get(model.toLowerCase()) || null,
-      effort: resolveEffort(vInfo, model, null),
+      effort: trialEffort(vInfo, model, taskClass, heavyEffort.get(vName)),
     }
     if (isPairFailed(failedOutcomes, cand)) {
       skippedFailedTrial++
@@ -196,4 +202,17 @@ export function selectActiveTrial({
     notes.push(`all candidate pairs failed trial for ${taskType}; keeping default claude`)
   }
   return null
+}
+
+function coversHeavy(key, vInfo, documented) {
+  const needed = trialEffort(vInfo, vInfo.idCanonical.get(key.model.toLowerCase()) || key.model, 'heavy', documented)
+  return EFFORT_LADDER.indexOf(key.effort) >= EFFORT_LADDER.indexOf(needed)
+}
+
+function trialEffort(vInfo, model, taskClass, documented) {
+  const base = resolveEffort(vInfo, model, null)
+  if (taskClass !== 'heavy') return base
+  const atLeastBase = EFFORT_LADDER.indexOf(documented) >= EFFORT_LADDER.indexOf(base)
+  if (documented && atLeastBase && resolveEffort(vInfo, model, documented) === documented) return documented
+  return resolveEffort(vInfo, model, raiseEffort(base))
 }

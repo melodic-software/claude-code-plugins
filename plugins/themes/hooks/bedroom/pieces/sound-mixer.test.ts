@@ -264,7 +264,6 @@ test('a mixer that stops by itself after its idle limit is started again with so
   await quiet(s)
 })
 
-/** The sound piece's own hooks, by event, as register adds them. */
 function soundHooks(): Map<string, ($: EngineInterface, e: unknown, next: (e: unknown) => unknown) => unknown> {
   const handlers = new Map<string, ($: EngineInterface, e: unknown, next: (e: unknown) => unknown) => unknown>()
   hooks(((name: string, fn: never) => void handlers.set(name, fn)) as never)

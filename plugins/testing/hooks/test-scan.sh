@@ -66,25 +66,15 @@ wtype="${HOOK_JQ_FIELDS[6]}" has_patch="${HOOK_JQ_FIELDS[7]}" lines="${HOOK_JQ_F
 
 testing::data_dir
 mkdir -p "$DATA/marks" 2>/dev/null
-# No -type: markers are files now, and directories the earlier mkdir scheme left.
 find "$DATA/marks" -mindepth 1 -maxdepth 1 -mtime +7 -delete 2>/dev/null
-# Session state and the judge's state, at every depth. An empty directory goes
-# only once it is an hour old, so a parallel run's fresh mkdir keeps its
-# directory until it writes.
 find "$DATA"/{sessions,verdicts,locks,relayed,attempts,slots,successors,pending,runs,findings,derive} -mindepth 1 \
   \( -type f -mtime +7 -o -type d -empty -mmin +60 \) -delete 2>/dev/null
 
 out_file="$(mktemp)"
 trap 'rm -f "$out_file"' EXIT
 
-# state_write blocks|null: record this write for the task-end judge, one file
-# per call so parallel writers never share one, renamed into place so a reader
-# never sees half of it. A block the lexer lost is never listed, so a scan that
-# lost one records null too. `lines` are the lines the patch wrote (null for a
-# create or when unknown), the judge's hint for a whole-file bash harness.
 state_write() {
   local repo="$REPO_ROOT" dir
-  # A temp or scratchpad copy is not an authored test: no judge record.
   testing::record_skip "$FILE" && return 0
   [[ "$session" =~ ^[A-Za-z0-9_-]+$ && "$call" =~ ^[A-Za-z0-9_-]+$ ]] || return 0
   testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$tpath" || return 0
@@ -121,8 +111,6 @@ mark() { (set -o noclobber && : >"$1") 2>/dev/null; }
 # reports.
 if [[ -n "$call" ]] && ! mark "$DATA/marks/call-$call"; then exit 0; fi
 
-# A deletion-only patch or an edit with no patch names no written line, so
-# no block can be scoped: its state says the whole file.
 scope=()
 if [[ "$create" == true ]]; then
   :
@@ -148,8 +136,6 @@ if ((rc != 0)); then
   state_write null
   why="scanner exited $rc"
   ((rc > 128)) && why="scanner timed out after ${scan_timeout}s"
-  # A config the scanner refuses is the agent's to fix: log the resolver's or
-  # loader's own message and name it, at its file and line, in the context.
   cfg_err=""
   if grep -q -e '^ERROR: the testing config did not resolve' -e '^ERROR: adapter load failed' "$out_file"; then
     cfg_err="$(grep -v -m1 '^resolve-config: warning: ' < <(grep -E '^(resolve-config|adapter-load): ' "$out_file"))"
@@ -161,8 +147,6 @@ if ((rc != 0)); then
   hook::finish error findings array '[]'
 fi
 
-# The scanner examined nothing: the testing config excluded the path or
-# disabled its adapter. No findings and no note.
 if grep -q '^  test files: 0 examined' "$out_file"; then
   hook::finish skipped findings array '[]'
 fi
@@ -172,9 +156,6 @@ findings="$(sed -n 's/^finding \[/[/p' "$out_file")"
 ctx=""
 FINDINGS_JSON='[]'
 if [[ -n "$findings" ]]; then
-  # The change-detector rules flag tests that fail on harmless changes, and a
-  # derived expectation, a snapshot, a weak oracle or a throw-only oracle can
-  # fail too; only the rest cannot fail.
   lead="has tests that cannot fail:"
   if ! grep -qv -e rule-constant-restatement -e rule-source-text-read -e rule-recomputed-derived -e rule-snapshot-only -e rule-weak-oracle -e rule-throw-only-oracle <<<"$findings"; then
     lead="has tests that check little (derived, weak, throw-only or snapshot-only oracles):"
@@ -183,7 +164,6 @@ if [[ -n "$findings" ]]; then
   fi
   hook::findings_to ctx "testing: $FILE_BASE $lead" "$findings" FINDINGS_JSON \
     --max 10 --more "/testing:audit lists the rest"
-  # One Action per rule, after the findings it covers.
   actions="$(sed -n 's/^action \[\([^]]*\)\] /Action [\1]: /p' "$out_file")"
   [[ -z "$actions" ]] || ctx+=$'\n'"$actions"
   # The skill pointer once per (session, agent, file), and only beside findings.
@@ -193,7 +173,6 @@ if [[ -n "$findings" ]]; then
     ctx+=$'\n'"/testing:test-value covers where expected values come from."
 fi
 
-# --max bounds the line count, not line length: a finding carries its test name.
 ((${#ctx} < 10000)) || ctx="${ctx:0:9800}"$'\n'"(truncated; /testing:audit lists the rest)"
 
 hook::finish --context "$ctx" ok findings array "$FINDINGS_JSON"

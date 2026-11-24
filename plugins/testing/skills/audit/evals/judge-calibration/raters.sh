@@ -112,7 +112,6 @@ Reply with one JSON object and nothing else: {\"label\": \"FLAG\", \"reason\": \
     printf '%s\t\tfailed: the transcript names labels.tsv, LABELS.md, the calibration directory or a case id\n' "$id"
     return 1
   fi
-  # The outermost {...} first: a reason quoting code braces defeats the flat scan.
   s="$(jq -Rrs '[(capture("(?s)(?<j>\\{.*\\})").j | fromjson?), (scan("\\{[^{}]*\\}") | fromjson?)] | map(objects | select(.label | IN("FLAG", "PASS", "UNKNOWN"))) | first
     | select(. != null) | [.label, (.reason // "" | tostring | gsub("[\t\n\r]"; " "))] | @tsv' <<<"$answer")"
   if [[ -z "$s" ]]; then
@@ -142,7 +141,6 @@ run() {
   fi
   TMPD="$(mktemp -d)" || return 2
   trap 'rm -rf "${TMPD:?}"' EXIT
-  # The guard's words: every case directory and row id.
   {
     find "$DIR/cases" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;
     awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next } { print $c["id"] }' "$labels"

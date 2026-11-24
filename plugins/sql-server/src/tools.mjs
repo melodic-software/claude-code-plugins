@@ -151,9 +151,6 @@ export class ToolInputError extends Error {
   }
 }
 
-// Every property of every tool is a non-empty string or a bounded
-// non-negative integer, so the check stays this small; a property of another
-// type needs its own branch here.
 function checkArguments(tool, args) {
   const given = args ?? {};
   if (typeof given !== 'object' || Array.isArray(given)) throw new ToolInputError('arguments must be an object');

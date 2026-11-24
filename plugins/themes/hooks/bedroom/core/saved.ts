@@ -51,17 +51,12 @@ export function current(): Saved {
 const number = (value: unknown, fallback: number): number => (typeof value === 'number' && Number.isFinite(value) ? value : fallback)
 const TITLE_KEYS = ['console', 'tape', 'pennant', 'pennant-top'] as const
 
-/** The stored titles that are text, under the four names a title has. */
 function titlesOf(value: unknown): Titles {
   if (typeof value !== 'object' || value === null) return {}
   const given = value as Record<string, unknown>
   return Object.fromEntries(TITLE_KEYS.filter(key => typeof given[key] === 'string').map(key => [key, given[key]]))
 }
 
-/**
- * The stored bank choices that are names. Version 0.3 stored `picks`, recording 1 or 2 of a kind: its second
- * cicadas recording is the entry `river` now, kept as the choice; any other pick plays the default.
- */
 function bankOf(value: unknown, picks: unknown): Saved['bank'] {
   const named = typeof value === 'object' && value !== null ? Object.entries(value).filter(([, name]) => typeof name === 'string' && /^[a-z-]+$/.test(name)) : []
   if (named.length > 0) return Object.fromEntries(named)
