@@ -119,8 +119,18 @@ topic
 printf '\nTopic.\n' >>"$f/$README"
 fragment "$PLAIN" 0000000a
 commit "$f" clean
+start=$(date +%s%N)
 run_hook
+ms=$((($(date +%s%N) - start) / 1000000))
 expect "a clean branch with its fragment passes all seven checks" 0
+tracer="$(awk '/^TracerPid:/ {print $2}' /proc/$$/status 2>/dev/null)"
+if [[ -n "$tracer" && "$tracer" != 0 ]]; then
+  ok "budget not judged: a tracer (pid $tracer) slows every syscall; ${ms} ms"
+elif ((ms <= 3000)); then
+  ok "the seven checks ran in ${ms} ms on this tree, within the 3 s pre-push budget"
+else
+  fail "the seven checks took ${ms} ms on this tree, over the 3 s pre-push budget"
+fi
 if [[ "$out" != *"left to CI"* && "$out" != *failed* ]]; then
   ok "the clean branch ran every check and none failed"
 else

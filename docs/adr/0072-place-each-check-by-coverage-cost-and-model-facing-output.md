@@ -152,8 +152,9 @@ This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
   `--check-required` against the remote's default branch, for a pushed branch whose tip is HEAD.
   On 2026-11-24 missing or malformed fragments caused 406 of the 962 PR-minutes that Check Plugins
   and Check Catalog spent red, all on causes these two gates catch.
-- **Budget unchanged.** The entry stays under the 3 s `pre-push` budget; its time is checked by
-  the hook budget gate (`scripts/check-git-hook-time-budget.sh`).
+- **Budget unchanged.** The entry stays under the 3 s `pre-push` budget; its suite
+  (`scripts/pre-push-branch-checks.test.sh`) times all seven checks on the repository's own tree
+  and fails over 3 s.
   The rest of the affected-files check (about 7.6 s plus 0.25 s per changed file, measured on 29
   red heads) stays in the pre-PR check and CI. A further gate joins `pre-push` only when it runs
   in 3 s.
