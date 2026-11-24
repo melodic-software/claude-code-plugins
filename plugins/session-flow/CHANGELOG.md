@@ -1,5 +1,12 @@
 # Changelog: session-flow plugin
 
+## [9.22.13] - 2026-11-24
+
+### Changed
+
+- `/session-flow:handoff` says what it always delivers: a copy-paste resume prompt, plus a
+  durable handoff file when the work needs one, in place of "a handoff file or a resume prompt".
+
 ## [9.22.12] - 2026-11-24
 
 ### Changed
