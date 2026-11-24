@@ -8,7 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 . "$(dirname "${BASH_SOURCE[0]}")/lib/gate-entry.sh" || exit 2
 base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=1000 ref_files=400
 parts_host_ms="307 46 40" share_commit="0.26 0.37 0.37" share_push="0 0.5 0.5"
-desk_commit_ms=1688 desk_push_ms=1470 zero=0000000000000000000000000000000000000000
+desk_commit_ms=1934 desk_push_ms=1207 zero=0000000000000000000000000000000000000000
 
 usage() {
   cat >&2 <<'EOF'
@@ -19,18 +19,20 @@ pre-commit runs on a throwaway fixture repository with 10 staged files. pre-push
 the real checkout, whose size its entries' cost grows with: HEAD pushed as a new
 non-default branch, ranged from origin/main.
 
-The budget is calibrated, so a slower runner does not flake: a reference workload that
-runs none of the hooks' code and does not grow with the repository is timed in the same
-run: git status over a generated 400-file tree, one node process reading and parsing it,
-then two rounds of one start of each interpreter the shipped entries use (pwsh compiling
-a one-line type with Add-Type, since a bare start misses the assembly load and JIT the
-hooks pay, without timing a tool the hooks run; bare python3, node, bash, git); median of 3.
-Its value on the host that set the budget is 815 ms (Linux on WSL2, 24 CPUs, 2026-11-24,
-median of five runs: 820, 815, 763, 764, 829 ms); the same runs put pre-commit at 1688 ms
-and pre-push at 1470 ms. The scaled budget
-is 3 s x this run's reference / 815 ms. Every run prints the hooks' own ratio (total / desk
-total) beside the reference ratio; in CI it warns when they differ by over 30%. Raw
-seconds, the ratio and the scaled budget all print; pass/fail is on the scaled budget.
+The budget is calibrated per hook, so a slower runner does not flake: three reference
+parts that run none of the hooks' code and do not grow with the repository are timed in
+the same run, median of 5 each: pwsh (one start compiling a one-line type with Add-Type,
+since a bare start misses the assembly load and JIT the hooks pay, without timing a tool
+the hooks run), starts (bare python3, node, bash, git) and files (git status over a
+generated 400-file tree, one node process reading and parsing it). Their values on the
+host that set the budget are 307, 46 and 40 ms (Linux on WSL2, 24 CPUs, 2026-11-24, median
+of five runs), which put pre-commit at 1934 ms and pre-push at 1207 ms, HEAD one commit
+past origin/main. A hook's reference ratio weights each part's ratio to that host by the
+share of the hook's own time that kind of work takes on it: pre-commit 0.26 pwsh, 0.37
+starts, 0.37 files; pre-push 0.5 starts, 0.5 files, no pwsh. Its scaled budget is 3 s x
+that ratio. Every run prints the hooks' own ratio (total / desk total) beside the
+reference ratio; in CI it warns when they differ by over 30%. Raw seconds, the ratio and
+the scaled budget all print; pass/fail is on the scaled budget.
 Under a tracer (TracerPid not 0) the times print and nothing is judged.
 
 The fixture sets checks.skipmissing (ADR 0072 item 4) to every tool the entries.json
@@ -51,8 +53,8 @@ the gate with the tool's name, since CI installs every hook tool first.
   --root <dir>     the repository whose hook entries are timed (default: this one)
   --runs <n>       runs per entry; an entry's time is the median (default 3)
   --budget-ms <ms> the budget of each hook on the reference host (default 3000)
-  --ref-ms <ms>    use this as the run's reference instead of timing it
-  --ref-host-ms <ms> the reference host's value (default 815)
+  --ref-ms <ms>    time no reference: both hooks' ratio is <ms> / --ref-host-ms
+  --ref-host-ms <ms> the divisor for --ref-ms (default 1000)
   --scope-only     time nothing: print applies=true or applies=false on stdout (the
                    form GITHUB_OUTPUT takes), every other line on stderr
 
