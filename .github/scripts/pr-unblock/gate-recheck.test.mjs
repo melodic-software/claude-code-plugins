@@ -1,7 +1,3 @@
-// Expected values come from report-escalation.sh (its label, then its comment)
-// and the review lanes' hold marker (docs/conventions/pr-pipeline/README.md,
-// "Review-lane holds"): the races between the select job's read and the write
-// runner's push.
 import assert from "node:assert/strict";
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -30,8 +26,6 @@ const ESCALATED = [labeled(APP, "2026-10-22T10:00:00Z"), escalation];
 const NOT_ADOPTED = { ownerIds: new Set(), idleHours: undefined };
 const ADOPTED = { ownerIds: new Set([PERSON.id]), idleHours: 24 };
 
-// A fake client answering the reads each select path makes from `timeline`:
-// the REST issue timeline, or its comments and label events apart.
 async function recheck(timeline, env = {}, { reviewComments = [], reviews = [], author = PERSON, adoption = NOT_ADOPTED } = {}) {
   const dir = tempDir("gate-recheck-");
   try {
@@ -96,8 +90,6 @@ test("a malformed head, PR number or missing variable throws before any read", a
   await assert.rejects(recheck(ESCALATED, { ACTIVITY: "Fix CI" }), /ACTIVITY/);
 });
 
-// laneEscalationAllows (gate-source.mjs), which every select but
-// address-feedback's on a PR no owner opened runs through prHold.
 const personComment = { event: "commented", user: PERSON, created_at: "2026-10-22T10:30:00Z", updated_at: "2026-10-22T10:30:00Z", body: "wait" };
 
 test("a person commenting since the label went on keeps the hold", async () => {
