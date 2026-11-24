@@ -7687,6 +7687,36 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertNotIn(["api", ours], gh.calls)
         self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
 
+    def test_an_unknown_or_non_scalar_source_raises_and_reads_neither_list(
+        self,
+    ) -> None:
+        listing = {"version": 1, "actors": [{"id": 5, "login": "p", "kind": "human"}]}
+        ours = f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref=trunk"
+        theirs = (
+            f"repos/{STANDARDS_REPO}/contents/"
+            f"{policy.STANDARDS_TRUSTED_ACTORS}?ref={STANDARDS_SHA}"
+        )
+        for team in (
+            "trusted_actors_source: elsewhere\n",
+            f"trusted_actors_source: [standards]\n{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n",
+            f"trusted_actors_source:\n  - standards\n{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n",
+            f"trusted_actors_source:\n  name: standards\n{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n",
+        ):  # fmt: skip
+            with self.subTest(team=team):
+                standards_cleared(self)
+                policy._TRUSTED_IDS.clear()
+                gh = GhFake().install(self)
+                gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref=trunk"] = file_payload(team)
+                gh.rest[ours] = file_payload(json.dumps(listing))
+                gh.rest[f"repos/{STANDARDS_REPO}/git/ref/heads/main"] = STANDARDS_HEAD
+                gh.rest[theirs] = file_payload(json.dumps(listing))
+                with self.assertRaises(policy.PolicyReadError):
+                    policy.opts_in_to_standards(team)
+                with self.assertRaises(policy.PolicyReadError):
+                    policy.trusted_listing(REPO, "trunk")
+                self.assertNotIn(["api", ours], gh.calls)
+                self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
+
     def test_one_standards_commit_and_read_serve_every_repository(self) -> None:
         standards_cleared(self)
         policy._TRUSTED_IDS.clear()
