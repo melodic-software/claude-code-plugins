@@ -7534,6 +7534,30 @@ jobs:
               # broker step's file pages count; any other file, status, line or
               # ref, a patch GitHub left out or cut short, or an unread tag
               # list keeps it.
+              # merge_verdict: whether the lanes App's newest review-dependency
+              # round marker names this head with verdict=merge.
+              merge_verdict() {
+                [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
+                  comments=$(read_api "the comments of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) &&
+                  jq -es --argjson app "$LANES_APP_ID" --arg head "$HEAD_SHA" '[add[] | select(.user.id == $app and .user.type == "Bot"
+                      and (.body | strings | startswith("<!-- pr-unblock:review-dependency-round ")))]
+                    | length > 0 and (max_by([.created_at, .id]).body | split("\n")[0] | sub("\r$"; "")
+                      | test("^<!-- pr-unblock:review-dependency-round head=\($head) verdict=merge run=[1-9][0-9]*-[1-9][0-9]* -->$"))' <<<"$comments" >/dev/null
+              }
+              # Owner decision Q154 A: a Dependabot CDN-pin bump whose one
+              # trust-gate path is lib/cdn-pins/pins.json, modified in place as
+              # the lanes App's pins sync commit leaves it (broker file pages
+              # only), clears on the review-dependency verdict=merge at this head.
+              if [ "$AUTHOR_ID" = 49699333 ] && [ "$held" = " lib/cdn-pins/pins.json" ] && [ -s "$RUNNER_TEMP/pr-files.json" ] &&
+                jq -ne '[inputs | arrays[] | select(.filename == "lib/cdn-pins/pins.json" or .previous_filename == "lib/cdn-pins/pins.json")]
+                  | length == 1 and .[0].status == "modified" and .[0].previous_filename == null' "$RUNNER_TEMP/pr-files.json" >/dev/null; then
+                if merge_verdict; then
+                  echo "#$PR_NUMBER by Dependabot changes only the CDN pins record on trust-gate paths:${held//%/%25}, and the lanes App's newest review-dependency round marker names $HEAD_SHA with verdict=merge, which clears the trust-gate hold (owner decision Q154 A); the review lanes are not required."
+                  exit 0
+                fi
+                echo "::error::#$PR_NUMBER by Dependabot changes only the CDN pins record on trust-gate paths:${held//%/%25}. The lanes App's review-dependency verdict=merge at this head clears it, as does a person on the trusted-actor list approving this head."
+                exit 1
+              fi
               if [ "$AUTHOR_ID" = 49699333 ]; then
                 conf=$BASE_CONFIG/docs/conventions/pr-pipeline.yaml
                 owners='[]'
@@ -7577,12 +7601,7 @@ jobs:
                     exit 0
                   fi
                   if [ -z "$untagged" ]; then
-                    if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
-                      comments=$(read_api "the comments of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) &&
-                      jq -es --argjson app "$LANES_APP_ID" --arg head "$HEAD_SHA" '[add[] | select(.user.id == $app and .user.type == "Bot"
-                          and (.body | strings | startswith("<!-- pr-unblock:review-dependency-round ")))]
-                        | length > 0 and (max_by([.created_at, .id]).body | split("\n")[0] | sub("\r$"; "")
-                          | test("^<!-- pr-unblock:review-dependency-round head=\($head) verdict=merge run=[1-9][0-9]*-[1-9][0-9]* -->$"))' <<<"$comments" >/dev/null; then
+                    if merge_verdict; then
                       echo "#$PR_NUMBER by Dependabot changes only the ref of actions, each to a tagged commit, on trust-gate paths:${held//%/%25}, and the lanes App's newest review-dependency round marker names $HEAD_SHA with verdict=merge, which clears the trust-gate hold (owner decision 2026-11-23, dependency review verdict for any owner); the review lanes are not required."
                       exit 0
                     fi

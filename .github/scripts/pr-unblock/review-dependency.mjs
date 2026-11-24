@@ -124,6 +124,7 @@ export const GATE_HOLD_SKIP = "gate-hold";
 const GATE_HOLDS = [
   ["person", /^#([1-9][0-9]*) is by an author no review lane reviews and changes trust-gate paths:/],
   ["verdict", /^#([1-9][0-9]*) by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths:/],
+  ["verdict", /^#([1-9][0-9]*) by Dependabot changes only the CDN pins record on trust-gate paths:/],
 ];
 export function gateHoldOnly(annotations, pr) {
   const failures = annotations.filter((note) => note?.annotation_level === "failure").map((note) => String(note.message ?? ""));

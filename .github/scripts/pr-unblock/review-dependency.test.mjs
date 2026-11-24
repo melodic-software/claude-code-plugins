@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { ciStatusOf, countRounds, main, newestRound, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
+import { ciStatusOf, countRounds, gateHoldOnly, main, newestRound, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // No registry reads in tests: the provenance gate finds nothing unless a test
@@ -234,6 +234,19 @@ test("select hands the model a trust-gate hold a merge verdict clears, and tells
   assert.equal(result.skipReason, undefined);
   assert.equal(result.file.merge_clears_gate_hold, true);
   assert.deepEqual(result.file.classification.reasons, ["major:x", "ci-status-red"]);
+});
+
+test("the CDN pins record hold is one a merge verdict clears (owner decision Q154 A)", async () => {
+  const pinsHold = (pr) => ({
+    annotation_level: "failure",
+    message: `#${pr} by Dependabot changes only the CDN pins record on trust-gate paths: lib/cdn-pins/pins.json. The lanes App's review-dependency verdict=merge at this head clears it, as does a person on the trusted-actor list approving this head.`,
+  });
+  assert.equal(gateHoldOnly([EXIT, pinsHold(7)], 7), "verdict");
+  assert.equal(gateHoldOnly([EXIT, pinsHold(8)], 7), false);
+  assert.equal(gateHoldOnly([EXIT, pinsHold(7), gateHold(7)], 7), "person");
+  const result = await majorBump({ 9: [EXIT, pinsHold(7)] });
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.file.merge_clears_gate_hold, true);
 });
 
 test("a merge-verdict hold for another pull request, or beside another failure, is not one the verdict clears", async () => {
