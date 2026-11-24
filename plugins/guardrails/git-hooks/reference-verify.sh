@@ -1,48 +1,4 @@
 #!/bin/sh
-# guardrails pre-push check: CLI flags, /plugin:skill references and cited
-# repository paths in the lines the pushed commits add.
-#
-#   reference-verify.sh <remote> <url>   the pushed ranges, refs on stdin (git
-#                                        runs it as pre-push)
-#   reference-verify.sh --worktree       the uncommitted changes against HEAD,
-#                                        untracked files included
-#
-# Runs the three verifiers that used to report after every Claude Code edit
-# (cli-flag-verify, skill-reference-verify, stale-path-verify) once per changed
-# .md, .sh, .bash, .ps1 or .psm1 file outside an evals/**/samples/ folder
-# (recorded model output), through the plugin's run-guards.sh
-# dispatcher, all installed beside this script as entry assets. Each file is
-# handed over the way the edit row handed it: a file new to the range as a
-# Write of its whole content, a changed file as an Edit whose new text is the
-# lines the range adds, so a finding is always about an added line; a file
-# renamed, or copied from a file the range also changes, counts as changed. The
-# verifiers' own scope gates hold (skill references are judged only in a
-# marketplace repository). It runs at pre-push, not pre-commit, because its
-# cost is over the commit budget (check-placement convention, measured rows).
-#
-# The ranges come from the check lib: one per pushed ref, a new branch from its
-# merge-base with the remote's default branch, a deletion skipped. A hook
-# manager that keeps stdin from this script leaves the lib's fallback: the
-# current branch against its upstream. Whichever way it came, a range's base
-# then moves up to the nearest of the remote's tracking refs between it and
-# the tip (nearest_pushed_base), so a new branch stacked on a pushed branch is
-# judged only on what it adds to that branch. A range whose tip merged a branch
-# one of the remote's tracking refs holds (the default branch or any other) is
-# narrowed to the lines the branch itself adds (narrow_to_branch).
-# Each range is checked on its own, in
-# that range's tip: the checkout when HEAD is the tip and the tree is clean,
-# else a temporary detached worktree of the tip, removed afterwards.
-#
-# A finding prints as "<path>:<line>: <message>" on stderr, the line being the
-# first judged line holding the text the finding names (see report); a tip it
-# could not check out names no file and prints as "<sha>: reference-verify:
-# <message>". A cli-flag or skill-reference finding, a file whose verifier
-# input or verifier run failed, or a tip it could not check out exits 1; a
-# stale-path finding is advisory, printed with exit 0. Missing jq follows the
-# check-placement contract: checks.skipmissing, else fail for an agent and a
-# notice for a person.
-#
-# POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
 */*) here="${0%/*}" ;;
@@ -384,7 +340,6 @@ else
   top="$PWD"
   tip_tree="$CHECKS_TMP/tip"
   mkdir -p "$CHECKS_TMP/no-hooks"
-  # The lib's EXIT trap, then the prune: a lib tool failure still fails the hook.
   # shellcheck disable=SC2064 # expand now: the path is fixed here
   trap "checks_finish \$?; s=\$?; git -C '$top' worktree prune 2>/dev/null; ((s == 0)) || exit 1" EXIT
   mv "$CHECKS_TMP/push-ranges" "$CHECKS_TMP/all-ranges"

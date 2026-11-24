@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for hooks/abort-boundary.sh (guardrails plugin, #3528).
-#
-# Black-box where it matters: every registered hook is run as a subprocess on
-# a COPY of the plugin with an abort injected, and the assertions are on exit
-# code, stderr, and the stdout document. The registered set is read from
-# hooks.json, never enumerated here, so a hook added without the boundary
-# fails this suite. Self-contained; no host-repo assertion library.
 # test-scope: plugins/guardrails/*
 
 set -uo pipefail
@@ -201,10 +194,6 @@ for name in "${REGISTERED[@]}"; do
   [[ " ${known//$'\n'/ } " == *" ${name%.sh} "* ]] || bad "deny_on_crash cannot name registered hook ${name%.sh}"
 done
 
-# Fixtures: the detector flags a competing EXIT trap terminated by `;` (and
-# the other statement terminators in the trailing-boundary class). A miss on
-# the then-fi one-liner is the hole: first-stage matches `then trap`, second
-# stage used to demand whitespace or EOL after EXIT and dropped the line.
 TRAP_FIXTURE="$TEST_TMPDIR/trap-fixtures"
 mkdir -p "$TRAP_FIXTURE"
 printf 'if true; then trap cleanup EXIT; fi\n' >"$TRAP_FIXTURE/semicolon-if.sh"
@@ -226,10 +215,6 @@ assert_exit_trap_detected "paren-terminated EXIT trap" \
   "$TRAP_FIXTURE/paren.sh"
 assert_no_exit_trap "trap on INT only" "$TRAP_FIXTURE/other-signal.sh"
 
-# --- Static: every guard::payload_verdict call exits on the verdict ---------
-# The helper decides and returns. A guard that called it without exiting on the
-# answer would read on past a payload it refused, so only the one exit form is
-# accepted: it blocks on every status but 0 and 3.
 # shellcheck disable=SC2016  # the exit form is matched as literal text
 PV_EXIT='guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))'
 verdict_unconsumed() {
@@ -260,10 +245,6 @@ else
   bad "a guard::payload_verdict call with no exit was not detected"
 fi
 
-# The dispatcher names the event by looking `.hook_event_name` up in its
-# primed filters, so the filter has to be there. (A positional index once put
-# the neighboring field into every notice when a filter was added ahead of
-# it; the rg-shift case below covers that shape.)
 if grep -Fq "'.hook_event_name'" < <(awk '/^PRIME_FILTERS=\(/,/^\)/' "$HOOK_DIR/run-guards.sh"); then
   ok "run-guards.sh primes .hook_event_name"
 else
@@ -340,11 +321,6 @@ merged_sys=$(json_field "$OUT" .systemMessage)
 assert_contains "dispatched: merged systemMessage names the first guard" "$merged_sys" "guardrails block-no-verify:"
 assert_contains "dispatched: merged systemMessage names the second guard" "$merged_sys" "guardrails block-dangerous-git:"
 
-# --- The dispatcher's own boundary ------------------------------------------
-# The notice is systemMessage only, before stdin and after. After priming the
-# dispatcher holds the event read from the payload (its telemetry names it);
-# the probe line injected before the abort prints it. A deliberate aggregated
-# status (a stub's 3) is released, not reported.
 # shellcheck disable=SC2016  # expands in the injected copy, not here
 EVENT_PROBE='printf "event=%s\n" "$_GAB_EVENT" >&2'
 RG_EARLY="$TEST_TMPDIR/rg-early"
@@ -367,10 +343,6 @@ assert_exit "dispatcher abort after priming fails open (declared posture)" 0 "$R
 assert_contains "dispatcher abort after priming holds the event from the payload" "$ERR" "event=PreToolUse"
 assert_eq "dispatcher abort after priming tells the user only" "" "$(json_field "$OUT" .hookSpecificOutput)"
 
-# A prime filter added AHEAD of `.hook_event_name` shifts every later slot. The
-# dispatcher resolves the event by name, so it still holds it. The positional
-# index this replaced read the neighboring slot instead (empty for this
-# payload).
 RG_SHIFT="$TEST_TMPDIR/rg-shift"
 cp -R "$PLUGIN_DIR" "$RG_SHIFT"
 inject_after "$RG_SHIFT/hooks/run-guards.sh" "^  '[.]tool_input[.]content' " "  '.tool_input.abort_boundary_test_probe'"
@@ -514,8 +486,7 @@ assert_contains "dispatched: the unnamed guard's notice says not checked" "$ERR"
 assert_eq "dispatched: an unknown name is reported once" 1 \
   "$(grep -c 'deny_on_crash names no guard that gates a tool call: nope' <<<"$ERR")"
 
-# --- The helper itself, through stubs -----------------------------------------
-stub() { # stub <name> <body...>: a script that sources the boundary first
+stub() {
   local name="$1"
   shift
   {
@@ -564,17 +535,13 @@ if printf '%s' "$OUT" | jq -e . >/dev/null 2>&1; then
 else
   bad "a quote in the hook name broke the document: $OUT"
 fi
-# Under set -u an unbound expansion is the realistic abort; the stub proves
-# the trap fires for it (not only for an explicit exit) and reports rc 1.
 # shellcheck disable=SC2016  # the stub body must carry a literal, unexpanded $
 stub "unbound.sh" 'guard::abort_boundary stub-unbound PreToolUse open 0 2' ': "$STUB_UNBOUND_VARIABLE"' 'exit 0'
 run_hook -- bash "$TEST_TMPDIR/unbound.sh"
 assert_exit "set -u abort in a stub fails open" 0 "$RC"
 assert_contains "set -u abort in a stub is named with rc=1" "$ERR" "guardrails stub-unbound: ${NOTICE}1); this call was not checked"
 
-# guard::payload_verdict <status> with HOOK_JQ_FIELDS_NUL: its return and what
-# it writes, for each field-read outcome.
-verdict_case() { # <label> <jq status> <nul flag> <expected return> <expected stderr>
+verdict_case() {
   stub "verdict.sh" "HOOK_JQ_FIELDS_NUL=$3" "guard::payload_verdict $2" 'exit $?'
   run_hook -- bash "$TEST_TMPDIR/verdict.sh"
   assert_exit "payload_verdict: $1" "$4" "$RC"
