@@ -239,15 +239,10 @@ run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git commit --no-verify -m x" "'@ fine'")" 2
 run_pwsh "PS: CRLF-line-ended copy of the commented opener (blocked)" \
   "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
-# The apostrophe-straddle spelling, which two per-style quote strips read as a
-# clean opener because the span they delete swallows the real `#`. The raw test
-# never looks at a quote.
 run_pwsh "PS: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "git commit --no-verify -m x" "\"@\"")" 2
-# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
 run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
-# The regression fence: the `#` has to be on the opener line before the suffix.
 run_pwsh "PS: a here-string body containing a # (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
 run_pwsh "PS: the canonical verbatim commit here-string (allowed)" \
@@ -321,10 +316,6 @@ assert_contains "PS: sink denial names block_dangerous_git_allow" "$GUARD_ERR" \
 assert_absent "PS: sink denial does not name the kill switch (a user lever)" "$GUARD_ERR" \
   "block_no_verify_enabled"
 
-# Obfuscation regressions (independent security review, sink-level fail-closed).
-# A construct that defeats the Bash tokenizer must not let an obfuscated git
-# invocation through — the sink blocks unless the command is provably git-free,
-# rather than trusting a negative shape match on the mangled scan.
 bt='`'
 run_pwsh "PS: backtick inside subcommand (git com\`mit, blocked)" "git com${bt}mit --no-verify" 2
 run_pwsh "PS: backtick inside push (git pu\`sh --force, blocked)" "git pu${bt}sh --force" 2
@@ -414,17 +405,6 @@ config set subcommand defines (blocked)|git config set alias.c 'commit -n'; git 
 alias loop terminates (allowed)|git config alias.c c; git c|0
 EOF
 
-# --- ps::git_command_is_readonly — the `readonly-ok` sink scope (SECURITY) -----
-# This guard is the ONLY caller that passes `readonly-ok`, so it is the only place
-# a wrongly-classified subcommand is observable. Every case below carries a SINK
-# TRIGGER (`& { … }`, a `{}` pipeline, or `()` grouping): without one the command
-# takes the Bash-parser path and never reaches ps::git_command_is_readonly at all,
-# which would make the assertion vacuous.
-#
-# The classifier is a blocklist, so a subcommand it omits classifies as READ-ONLY
-# and the whole guard skips. `git clean -fdx` and `git restore .` destroy
-# uncommitted work irrecoverably and were both omitted — hence one case per
-# mutating subcommand, so an accidental deletion from the alternation fails here.
 run_pwsh "PS: git clean -fdx in scriptblock (destructive, blocked)" "& { git clean -fdx }" 2
 run_pwsh "PS: git clean -fdx in a pipeline (destructive, blocked)" \
   "git clean -fdx | ForEach-Object { \$_ }" 2
@@ -538,9 +518,6 @@ run_pwsh "PS: git bundle create (artifact producer, allowed)" \
   "& { git bundle create out.bundle HEAD }" 0
 run_pwsh "PS: git ls-tree (interrogator, allowed)" "& { git ls-tree -r HEAD }" 0
 run_pwsh "PS: git shortlog (interrogator, allowed)" "& { git shortlog -sn }" 0
-# `--staged` must NOT match the newly-listed `stage`: the trailing `d` is
-# alphanumeric, so the token boundary refuses to close. Without this the `stage`
-# addition would silently over-block one of the most common read-only diffs.
 run_pwsh "PS: git diff --staged ('staged' is not 'stage', allowed)" "& { git diff --staged }" 0
 run_pwsh "PS: git fast-export (exports, does not mutate, allowed)" "& { git fast-export --all }" 0
 run_pwsh "PS: git merge-tree (create-only plumbing, allowed)" \
@@ -566,9 +543,6 @@ run_pwsh "PS: -v before a mutating remote verb (blocked)" "& { git remote -v ren
 run_pwsh "PS: read-only remote beside a mutating one (blocked)" \
   "& { git remote -v; git remote add x y }" 2
 run_pwsh "PS: stash list beside stash drop (blocked)" "& { git stash list; git stash drop }" 2
-# Dynamic-invocation regressions: iex / string-literal call run an opaque string,
-# so a construct-free form must still route to the fail-closed sink (it otherwise
-# reached the Bash parser, which sees `iex`, not git, and passed).
 run_pwsh "PS: iex of a literal git command (blocked)" "iex 'git commit --no-verify'" 2
 run_pwsh "PS: invoke-expression of a literal (blocked)" "invoke-expression 'git push --force'" 2
 run_pwsh "PS: iex of a here-string (blocked)" \

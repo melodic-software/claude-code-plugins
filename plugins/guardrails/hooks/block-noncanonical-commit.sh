@@ -154,8 +154,6 @@ COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[2]:-Bash}"
-# The command as written, before the PowerShell reduction below rewrites
-# COMMAND: msg_value_interpolates reads the quotes around a message from it.
 RAW_COMMAND="$COMMAND"
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
@@ -238,9 +236,6 @@ msg_value_interpolates() {
     return
   fi
   [[ "$v" == *['$`']* ]] || return 1
-  # Literal only when EVERY place the text appears in the command is that
-  # literal form right after a message option: one safe spelling elsewhere
-  # (`: m 'fix $x'; git commit -m "fix $x"`) proves nothing about the -m.
   msg_count_to n_all "$v"
   if ((n_all > 0)); then
     msg_count_to n_safe "m '$v'"
@@ -260,7 +255,6 @@ msg_value_interpolates() {
     n_safe=$((n_safe + n_all_q))
     ((n_all > 0 && n_safe == n_all)) && return 1
   fi
-  # The whole value is one variable (`-m "$msg"`): the expansion is the point.
   [[ "$v" =~ ^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$ ]] && return 1
   # `$(cat <<'EOF' ... EOF)`: a quoted heredoc expands nothing. Read from the
   # command as written, because the tokenizer ends a `"$(...)"` word at the
@@ -273,7 +267,6 @@ msg_value_interpolates() {
     hd="${BASH_REMATCH[0]}"
     rest="$RAW_COMMAND"
     [[ "$rest" == *"$hd"* ]] || return 0
-    # Every such heredoc in the command must close and end its substitution.
     while [[ "$rest" == *"$hd"* ]]; do
       pre="${rest%%"$hd"*}"
       close='^[[:space:]]*\)([[:space:];&|)]|$)'
@@ -690,8 +683,6 @@ persisted_alias_expansions() {
 # fail-closed posture for that edge. Accepted residual; revisit with an
 # in-hook wall-clock check if it is ever observed in a session record.
 HOOK_ALIAS_WORK_MAX=128
-# The work budget bounds time, not stack, so the walk's nesting depth has its own
-# cap, sized to the process's stack (guard::alias_depth_max).
 guard::alias_depth_max
 
 # Call as: alias_reexpand_admit <kind> <state-word>... — returns 1 when this
@@ -712,17 +703,10 @@ alias_reexpand_admit() {
 check_segment() {
   local -a w=()
   local gi sub sub_idx nseg k word next stdin_form=0 exempt=0
-  # Set when a `-m`/`--message` value is one the shell may rewrite
-  # (msg_value_interpolates), the hazard this guard blocks.
   local msg_interp=0
   local inline_alias_handled=0
-  # This segment's effective repo directory, resolved at most once per frame and
-  # only where a path is actually needed — a segment carrying no alias and no
-  # commit must not pay hook::git_effective_dir_to's composition.
   local seg_dir=""
-  # The explicit --git-dir the sequencer probe reads, assigned fork-free.
   local explicit_gd=""
-  # Locating globals this invocation carries, replayed onto the identity probe.
   local -a locating_globals=()
 
   # A shell -c wrapper (`bash -lc 'git commit -m x'`) executes its operand as a
@@ -804,8 +788,6 @@ check_segment() {
     saved_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
     saved_shell_seen=(${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"})
     saved_base="${HOOK_EFFECTIVE_BASE-}"
-    # Hard depth cap (guard::alias_depth_max): past it the guard cannot finish
-    # deciding on this stack, so it denies, as it does for an exhausted budget.
     if ((HOOK_ALIAS_DEPTH >= HOOK_ALIAS_DEPTH_MAX)); then
       guard::refuse_alias_chain
       emit_tel "blocked" "alias-depth-cap"
@@ -964,15 +946,11 @@ check_segment() {
       ((k++))
       ;;
     *)
-      # Any other word (paths, -a, -S, --cleanup) is not a message-source
-      # marker and needs no handling here.
       ;;
     esac
   done
 
   ((stdin_form || exempt)) && return 0
-  # Only a message the shell may rewrite is the hazard. A plain `-m`, single-
-  # or multi-line, a bare `git commit`, and repeated `-m` paragraphs all pass.
   ((msg_interp)) || return 0
   allowed "message-flag" && return 0
   # Both composed without a command substitution: each was a fork on every
