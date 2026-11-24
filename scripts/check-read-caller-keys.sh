@@ -67,7 +67,7 @@
 #
 # The work is in check-read-caller-keys.mjs beside this file. It parses YAML
 # with the `yaml` package installed by
-# `npm ci --prefix .github/standards/runner-policy`.
+# `npm ci --prefix scripts/ci-deps`.
 #
 # Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one `path:line: finding` per offender on stderr, the clean-run

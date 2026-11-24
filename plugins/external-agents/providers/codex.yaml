@@ -11,6 +11,7 @@ models:
   format: codex_catalog
 harness:
   tools: [file, shell, web, mcp, image_generation]
+  read_only_tools: [file, shell, web, mcp]
   image: true
 usage:
   kind: jsonrpc_stdio

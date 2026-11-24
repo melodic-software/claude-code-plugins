@@ -84,6 +84,11 @@ condition 1 and the actor and author parts of condition 2).
     not checked. Such a run reports the default branch and its tip at the time as `head_branch`
     and `head_sha` (pr-merge.yml run 38779143370, started by review run 38779135732 on a PR
     branch), so the branch, tag and ancestry checks apply unchanged;
+  - the ten-minute cap runs from the `started_at` of its one started job named `Dispatch` at its
+    `run_attempt`, read through `GET /actions/runs/{dispatcher-run-id}/jobs`, not from
+    `run_started_at`, so the job's wait for a runner does not count. `created_at` must still be no
+    earlier than `run_started_at` and no later than `updated_at`. A failed jobs read, or no such
+    job, stops the run;
   - its record is named `pr-feedback-dispatched-<upstream run id>-<this run's id>`, exactly two
     ids;
   - the upstream run, read through `GET /actions/runs/{upstream run id}`, has that `id`, a `path`

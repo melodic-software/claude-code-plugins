@@ -1576,9 +1576,10 @@ jobs:
   # patched onto this branch by compare-arms.sh from git objects; no script,
   # hook, workflow or manifest of either runs. Each arm runs on the credential
   # input's one secret: the API key, or the subscription token when
-  # compare-prepare found the pull request's author on the trusted-actor list
-  # (docs/review/evals.md). The record job is the only one that writes: it
-  # holds issues: write, checks out only this branch, and posts nothing unless
+  # compare-prepare found the pull request's author listed there as a human,
+  # never a bot (docs/review/evals.md). The record job is the only one that
+  # writes: it holds pull-requests: write, checks out only this branch, and
+  # posts nothing unless
   # every job before it passed and the head has not moved. A run whose jobs
   # all skipped (a dispatch on a tag, which compare-prepare's ref gate skips)
   # still concludes success, so release-eval-hold.mjs trusts the record only by
@@ -1718,6 +1719,28 @@ jobs:
         run: |
           echo "::error::${REASON:-unreadable}: the subscription token runs only for a pull request whose author is a trusted actor; no pass runs"
           exit 1
+
+      - name: Stop on a pull request a bot wrote
+        if: inputs.credential == 'subscription'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: |
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          api_budget_wrap_gh github-token
+          author=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .user.id) || author=
+          if ! [[ $author =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::read-fault: the pull request's author could not be read; no pass runs"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$author" '
+              .version == 1
+              and any(.actors[]; .id == $id and .kind == "human")
+            ' "$LIST" >/dev/null; then
+            echo "::error::bot-author: the subscription token runs only for a pull request a listed human wrote; no pass runs"
+            exit 1
+          fi
 
       - name: Fetch the pull request's commits as data
         uses: actions/checkout@v7
@@ -1924,8 +1947,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
-      issues: write
+      pull-requests: write
     env:
       API_BUDGET_TOKEN: github-token
     steps:
