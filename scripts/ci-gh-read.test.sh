@@ -146,6 +146,11 @@ net)
   printf 'error connecting to api.github.com\n' >&2
   exit 1
   ;;
+nm)
+  [[ -z $include ]] || printf 'HTTP/2.0 304 Not Modified\r\nEtag: "e1"\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4000\r\nX-Ratelimit-Resource: core\r\n\r\n'
+  echo 'gh: HTTP 304' >&2
+  exit 1
+  ;;
 *) echo "unscripted call $n" >&2; exit 1 ;;
 esac
 EOF
@@ -197,6 +202,15 @@ if [[ "$(cat "$TMP_ROOT/log")" == "api -i repos/o/r/pulls/1" ]]; then
   ok "gh_read passes its arguments to gh api through the wrapper and sends no probe"
 else
   fail "gh_read called '$(cat "$TMP_ROOT/log")'"
+fi
+
+fresh
+STUB_SCRIPT='nm' run 'gh_read -i -H "If-None-Match: W/\"e1\"" repos/o/r/actions/runs/1 >/dev/null || echo "rc=$?"'
+check "a 304 is sent once with no wait and returns 3" 0 1 "" "rc=3"
+if grep -q '^304 ' "$TMP_ROOT/api-budget/github-token" 2>/dev/null; then
+  ok "the api-budget wrapper records the 304 as a not-modified answer"
+else
+  fail "no 304 reading in the api-budget record: '$(cat "$TMP_ROOT/api-budget/github-token" 2>&1)'"
 fi
 
 fresh

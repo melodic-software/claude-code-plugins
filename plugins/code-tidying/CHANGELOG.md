@@ -3,6 +3,21 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.3] - 2026-11-24
+
+### Fixed
+
+- `/code-tidying:tidy` names Beck tidyings without a bare `#` (`Beck 8, Explaining Variables`) in its taxonomy, lanes, lane templates and deferred-issue body, and its PR body and audit comment say to, pointing at GitHub's autolinked-references docs for the reason, so GitHub no longer links the tidying number to an unrelated issue or PR.
+
+## [0.59.2] - 2026-11-24
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts.
+- The comment lint passes `--skip-reindent`, so it passes a pre-existing comment a formatter only reindented, and still fails a comment the change adds or rewords beside it.
+
+- `change-shape.py` now reads CODE-CHANGED (exit 20), not COMMENT-ONLY or DOCSTRING-ONLY, when an edit changes whitespace on a code line (`x = (` to `x =(`, a reindent, a line split or joined); deleting whole comments, trailing ones included, still passes.
+
 ## [0.59.1] - 2026-11-24
 
 ### Fixed

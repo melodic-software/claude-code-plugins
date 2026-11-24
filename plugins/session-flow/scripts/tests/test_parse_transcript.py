@@ -23,7 +23,6 @@ def _run_script(session_id: str, base_path: str) -> subprocess.CompletedProcess[
 
 
 def _run_events(tmp_path: Path, events: list[dict]) -> subprocess.CompletedProcess[str]:
-    """Write the events as this session's JSONL and run the script over them."""
     (tmp_path / f"{SESSION_ID}.jsonl").write_text(
         "\n".join(json.dumps(event) for event in events) + "\n"
     )
@@ -31,7 +30,6 @@ def _run_events(tmp_path: Path, events: list[dict]) -> subprocess.CompletedProce
 
 
 def _run_with_event(tmp_path: Path, event: dict) -> dict:
-    """Write a single JSONL event and return the parsed `data` dict from stdout."""
     result = _run_events(tmp_path, [event])
     result.check_returncode()
     return json.loads(result.stdout)["data"]
@@ -392,7 +390,6 @@ def test_output_contract_has_required_keys(tmp_path):
 def _write_assistant_event(
     tmp_path: Path, session_id: str, ts: str = "2026-05-23T00:00:00Z"
 ):
-    """Write a minimal valid JSONL for the given session."""
     event = {
         "type": "assistant",
         "timestamp": ts,
@@ -593,13 +590,6 @@ def test_multi_session_mixed_separators_and_empty_fragments(tmp_path):
 
 
 def test_multi_session_repeated_id_counts_once(tmp_path):
-    """A repeated session-id is parsed once, not once per mention.
-
-    Pasting a comma-joined list next to a space-separated one is the easy way
-    to name the same id twice. Counted twice, one transcript would inflate the
-    aggregate totals and push chain_coverage past its documented 0.0-1.0 range
-    (`found` 2, `available` 1, ratio 2.0).
-    """
     _write_assistant_event(tmp_path, "sid-a")
     result = _run_multi(["--sessions", "sid-a,sid-a", "sid-a", "--base", str(tmp_path)])
     result.check_returncode()
@@ -617,11 +607,6 @@ def test_multi_session_repeated_id_counts_once(tmp_path):
 
 
 def test_multi_session_dedupe_preserves_first_seen_order(tmp_path):
-    """Deduplication keeps the first occurrence, so role assignment survives.
-
-    Order carries meaning here — the first id is the current session — so a
-    dedupe that kept the LAST occurrence would silently re-label the chain.
-    """
     for sid in ("sid-curr", "sid-prev"):
         _write_assistant_event(tmp_path, sid)
     result = _run_multi(
@@ -770,7 +755,6 @@ def test_multi_session_subagent_per_session_tagging(tmp_path):
 
 
 def test_chain_from_walks_handoff_pointers(tmp_path):
-    # Subdir-prefixed layout: pointers keep a journal/ prefix
     slug = "test-slug"
     journal_dir = tmp_path / "work-notes" / slug / "journal"
     journal_dir.mkdir(parents=True)
@@ -941,7 +925,6 @@ def test_plugin_usage_counts_plugin_skills_only(tmp_path):
 
 def test_plugin_usage_counts_user_typed_commands(tmp_path):
     """A typed `/<plugin>:<skill>` never reaches the Skill tool but still counts."""
-
     def typed(name):
         return (
             f"<command-message>x</command-message>\n<command-name>{name}</command-name>"

@@ -51,14 +51,8 @@ SESSION_ID="$(input_field session_id)"
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# The memory root is the default .work. A headless hook CANNOT do retro's rung-2
-# prose inference (a memory_dir documented only in CLAUDE.md/rules) -- that needs an
-# in-session agent -- so a consumer relying on a prose-documented root should use the
-# manual `arm` (which resolves it in-session). Anchor the root to the project dir so
-# the detached observer (which will not share this cwd) resolves it.
 LEDGER_DIR="${CLAUDE_PROJECT_DIR:-$PWD}/.work/running-retros"
 
-# Transient observations are machine-local plugin state, never the consumer repo.
 WORK_DIR="${CLAUDE_PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
 
 # shellcheck source=../lib/python-probe.sh
@@ -71,7 +65,6 @@ python_probe::floor_interpreter_to PY
 ARM="$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py"
 [[ -f "$ARM" ]] || exit 0
 
-# An empty model or effort makes observer.py read the plugin.json userConfig default.
 args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$LEDGER_DIR"
   --session-id "$SESSION_ID" --plugin-root "$PLUGIN_ROOT"
   --model "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-}"
@@ -82,7 +75,5 @@ args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$LEDGER_DI
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED:-true}" == "true" ]] && args+=(--analysis)
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE:-false}" == "true" ]] && args+=(--bare)
 
-# The launcher self-detaches the observer and returns immediately; run it in the
-# foreground so the detached child is fully spawned before the hook exits.
 "$PY" "$ARM" "${args[@]}" >/dev/null 2>&1 || true
 exit 0

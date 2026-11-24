@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/setup-apply.mjs, the shared writer behind each plugin's
-# skills/setup/scripts/setup-apply.mjs. A fixture schema in a temp directory
-# stands in for a plugin's: mode (enum fast, slow), strict (boolean), workers
-# (integer, minimum 1, maximum 8), count (integer, no bounds), label (string,
-# minLength 1, pattern ^[a-z][a-z0-9-]*$), note (string), session (an object of
-# a boolean and an enum), sizes (an object of objects of non-empty strings),
-# extras (an object whose leaves are unchecked), tags (a list of 1 to 3
-# non-empty strings), rules (a list of maps, each a required name matching
-# ^[a-z]+$ and a when map of at least one key, nothing else), crew (a map keyed
-# ^[a-z]+$ of maps holding a required role) and weird (an array with
-# uniqueItems, a keyword the checker does not validate). Expected values come
-# from that schema, JSON Schema's meaning of each keyword, YAML's reading of a
-# plain true or 5 as a boolean or a number, and the library's stated rules and
-# exit codes.
-# Run directly: bash lib/setup-apply.test.sh
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 set -uo pipefail
@@ -41,7 +26,6 @@ if ! command -v node >/dev/null 2>&1; then
   exit 0
 fi
 
-# The fixture schema and two entry points, one with --ref enabled.
 FIX="$TEST_TMPDIR/fixture"
 mkdir -p "$FIX"
 cat >"$FIX/fixture.schema.json" <<'JSON'
@@ -121,7 +105,6 @@ run(${JSON.stringify({
 APPLY="$FIX/apply.mjs"
 APPLY_REF="$FIX/apply-ref.mjs"
 
-# A HOME outside every fixture root, so the root rule refuses only on purpose.
 FAKE_HOME="$TEST_TMPDIR/home"
 mkdir -p "$FAKE_HOME"
 run() { HOME="$FAKE_HOME" node "$APPLY" "$@" 2>&1; }
@@ -137,7 +120,6 @@ one_line() {
   assert_eq "$1: one line" "1" "$(printf '%s\n' "$2" | grep -c .)"
   assert_eq "$1: no stack trace" "0" "$(printf '%s\n' "$2" | grep -c '^    at ')"
 }
-# refused <label> <file body> <args...>: exit 1, one line, file byte for byte.
 refused() {
   local label="$1" body="$2" r f before out code
   shift 2
@@ -179,7 +161,6 @@ refused "an unknown key holding a block list" $'stray:\n  - a\n' mode=slow
 refused "an unknown key holding a flow list" $'stray: [a]\n' mode=slow
 refused "an unknown key holding an empty flow map" $'stray: {}\n' mode=slow
 
-# --- Symlinked root: resolved, then every check applies to it -----------------
 R="$(new_root linked-real)"
 ln -s "$R" "$TEST_TMPDIR/linked"
 out="$(run --root "$TEST_TMPDIR/linked" mode=slow)"
@@ -262,7 +243,6 @@ assert_contains "--ref names the commit read" "$out" "$SHA"
 out="$(HOME="$FAKE_HOME" node "$APPLY_REF" --root "$R" --check --ref 'origin/a..b' 2>&1)"
 assert_eq "--ref with a range: exits 2" "2" "$?"
 
-# --- No --root: the caller's repository, though git runs in the library's ----
 out="$(cd "$R/docs/conventions" && HOME="$FAKE_HOME" node "$APPLY" --check 2>&1)"
 assert_eq "no --root inside a repository: exits 0" "0" "$?"
 assert_contains "no --root reads the caller's repository root, not the library's" "$out" "PASS mode: fast"
@@ -304,7 +284,6 @@ for body in 'mode: medium' 'mode: "medium"' 'mode:' 'mode: null' 'mode: ~'; do
   assert_eq "apply over '$body': replaced" "0:mode: slow" "$?:$(cat "$(yaml_of "$R")")"
 done
 
-# --- Temp file: a name already taken, and one close of the descriptor ----------
 preload() {
   local p="$TEST_TMPDIR/$1.cjs"
   shift
@@ -328,8 +307,6 @@ assert_eq "a failed close: exits 1" "1" "$?"
 one_line "a failed close" "$out"
 assert_eq "a failed close: its temp file is removed" "0" "$(temps "$R")"
 
-# --- Strings: minLength and pattern, quoted or plain ---------------------------
-# check_ok <label> <body> <expected PASS line>: --check exits 0 and prints it.
 check_ok() {
   local r out code
   r="$(new_root "ok-$CASE_NUM")"
@@ -340,8 +317,6 @@ check_ok() {
   assert_contains "$1: --check prints its PASS line" "$out" "$3"
   assert_eq "$1: --check prints no WARN" "0" "$(printf '%s\n' "$out" | grep -c '^WARN')"
 }
-# check_warn <label> <body> <WARN text>: --check exits 1, warns, and keeps the
-# PASS line of the valid mode key beside it.
 check_warn() {
   local r out code
   r="$(new_root "warn-$CASE_NUM")"
@@ -380,8 +355,6 @@ done
 check_ok "a one-level object" $'session:\n  uploads: true\n  names: initials  # note\n' "PASS session:"
 check_warn "an object key with nothing under it" $'session:\n  # nothing yet\n' 'session is empty'
 check_ok "a two-level object" $'sizes:\n  small:\n    label: S\n    note: "tiny: one"\n  large:\n    label: L\n' "PASS sizes:"
-# A leaf shows its source text, never its YAML type's canonical form; an empty
-# leaf holds no scalar, so it shows nothing, unlike null and ~.
 check_ok "typed scalars in an object's leaves" \
   $'extras:\n  ratio: 1.0\n  octal: 075\n  exp: 1e3\n  flag: True\n  nul: null\n  blank:\n  tilde: ~\n  big: 9007199254740993\n' \
   "PASS extras: ratio=1.0, octal=075, exp=1e3, flag=True, nul=null, tilde=~, big=9007199254740993"
@@ -431,17 +404,12 @@ out="$(run --root "$R" --yes mode=fast)"
 assert_eq "apply beside a valid object: exits 0" "0" "$?"
 assert_eq "apply beside a valid object: the object is kept byte for byte" $'session:\n  uploads: true\nmode: fast' "$(cat "$(yaml_of "$R")")"
 refused "apply beside an invalid object" $'session:\n  uploads: maybe\n' mode=slow
-# A `#` right after a key's colon and its space starts a comment, as the
-# parser reads it.
 check_ok "a comment on a one-level object key's line" $'session: # guest defaults\n  uploads: true\n' "PASS session: uploads=true"
 check_ok "a comment on an inner object key's line" $'sizes:\n  small: # tiny\n    label: S\n' "PASS sizes: small.label=S"
 check_ok "a tab before the comment on an object key's line" $'session:\t# guest defaults\n  uploads: true\n' "PASS session: uploads=true"
 check_warn "a scalar key holding only a comment" $'strict: # pick later\n' 'strict is empty'
-# A key name is read the way the parser reads it: '' in single quotes is one
-# quote, \" in double quotes is a quote.
 check_warn "a single-quoted nested key holding a doubled quote" $'session:\n  uploads: true\n  \'guest\'\'s\': yes\n' "session.guest's is not in the schema"
 check_warn "a double-quoted nested key holding an escaped quote" $'session:\n  "a\\"b": 1\n' 'session.a"b is not in the schema'
-# A block sequence may sit at its key's own indent; it is a list either way.
 seq_case() {
   refused "a sequence at the indent of $1" "$2" "$3"
   assert_contains "a sequence at the indent of $1: named" "$OUT" "$4"
@@ -459,7 +427,6 @@ out="$(run --root "$(new_root pattern-cli)" code=a-b)"
 assert_eq "code=a-b on the command line: exits 1" "1" "$?"
 one_line "code=a-b on the command line" "$out"
 check_ok "a whitespace-only string" $'note: "  "\n' 'PASS note: "  "'
-# Control characters from the file are printed escaped, never raw.
 check_warn "an escape character in a nested key" $'session:\n  "a\x1bb": 1\n' 'session.a\x1bb is not in the schema'
 assert_eq "an escape character in a nested key: no raw ESC is printed" "0" "$(printf '%s' "$OUT" | grep -c $'\x1b')"
 for bad in $'a\x01b' $'a\x7fb' $'a\xc2\x85b' $'a\xe2\x80\xa8b' $'a\xe2\x80\xa9b'; do
@@ -475,11 +442,6 @@ for pair in session=x weird=1; do
   one_line "$pair on the command line" "$out"
 done
 
-# --- Convention home: a bound pointer, the offer, the decline (ADR 0075) -------
-# Expected values come from the ADR's fixes 2, 7, 8 and 15 and the region
-# grammar in lib/resolve-convention-home.sh: the first backticked token inside
-# the region is the home, a `declined` line stops the offer, the ignore line is
-# <home>/**/*.local.*, and a foreign home lists our file in an index.
 git_root() {
   local r="$TEST_TMPDIR/$1"
   mkdir -p "$r"
@@ -559,7 +521,6 @@ assert_contains "a repository bound by the writer: a second run is already confi
 assert_eq "a repository bound by the writer: the ignore line is not repeated" "1" "$(grep -cxF 'docs/conventions/**/*.local.*' "$R/.gitignore")"
 assert_eq "a repository bound by the writer: the region is not repeated" "1" "$(grep -cF 'BEGIN GENERATED: convention-home' "$R/CLAUDE.md")"
 
-# Neither instruction file exists: AGENTS.md is created. A bare shim does not count.
 R="$(git_root home-none)"
 out="$(run --root "$R" --yes mode=slow)"
 assert_eq "neither instruction file exists: exits 0" "0" "$?"
@@ -575,7 +536,6 @@ printf '# Claude\n' >"$R/CLAUDE.md"
 out="$(run --root "$R" --yes mode=slow)"
 assert_eq "both instruction files exist: the region goes into AGENTS.md" "docs/conventions:# Claude" "$(resolved_home "$R"):$(cat "$R/CLAUDE.md")"
 
-# --home names the home to offer; its grammar is the resolver's.
 R="$(git_root home-chosen)"
 out="$(run --root "$R" --yes --home Documentation mode=slow)"
 assert_eq "an unbound repository with --home: exits 0" "0" "$?"
@@ -612,7 +572,6 @@ region_text Documentation >"$R/AGENTS.md"
 out="$(run --root "$R" --decline)"
 assert_eq "--decline in a bound repository: exits 1" "1" "$?"
 
-# A region without a pointer line, a broken region, a symlinked instruction file.
 R="$(git_root home-empty-region)"
 printf '<!-- BEGIN GENERATED: convention-home -->\nno pointer here\n<!-- END GENERATED: convention-home -->\n' >"$R/AGENTS.md"
 before="$(cat "$R/AGENTS.md")"
@@ -679,16 +638,8 @@ assert_eq "an unbound repository: --check exits 0" "0" "$?"
 assert_contains "an unbound repository: --check reads docs/conventions" "$out" "INFO docs/conventions/fixture.yaml: absent"
 assert_eq "an unbound repository: --check writes nothing" "0:0" "$(exists "$R/docs"):$(exists "$R/AGENTS.md")"
 
-# --- Provenance: written_against and one entry per key -------------------------
-# A second entry point passes provenance: true; its manifest sits where the
-# writer looks by default, <schema dir>/../.claude-plugin/plugin.json.
-# Expected lines follow the library's "Provenance" rules: a <key>=<value> is
-# chosen and records the default it was written against, a --default key is
-# default, and at a later version with changed defaults a write updates the
-# default value and keeps the chosen one.
 PROV="$TEST_TMPDIR/prov"
 mkdir -p "$PROV/.claude-plugin" "$PROV/schemas"
-# prov_plugin <version> <mode default> <workers default>
 # shellcheck disable=SC2016 # JSON text; its $schema and $id are literal
 prov_plugin() {
   printf '{ "name": "fixture", "version": "%s" }\n' "$1" >"$PROV/.claude-plugin/plugin.json"
@@ -757,7 +708,6 @@ assert_eq "a file without provenance, written: its existing value is recorded as
   $'mode: slow\nworkers: 3\nwritten_against: fixture@1.1.0\nprovenance:\n  mode: chosen (default safe)\n  workers: chosen (default 4)' \
   "$(cat "$(yaml_of "$R")")"
 
-# Declared in the schema, both keys stay the writer's: neither is a setting.
 R="$(new_root prov-declared)"
 out="$(prun --root "$R" mode=slow)"
 out="$(prun --root "$R" --check)"
@@ -768,7 +718,6 @@ assert_contains "declared keys: the refusal names the key" "$out" "written_again
 out="$(prun --root "$R" --default provenance)"
 assert_eq "declared keys: --default refuses provenance (exit 1)" "1" "$?"
 
-# A closed schema that does not declare both keys would refuse the file written.
 R="$(new_root prov-undeclared)"
 sed -i.bak '/"written_against"/d;/"provenance"/d' "$PROV/schemas/fixture.schema.json"
 out="$(prun --root "$R" mode=slow)"
@@ -787,8 +736,6 @@ assert_eq "without provenance: apply keeps both keys as written" \
 out="$(run --root "$(new_root prov-off-default)" --default mode)"
 assert_eq "without provenance: --default is an unexpected argument (exit 2)" "2" "$?"
 refused "a provenance entry outside its three forms" $'mode: fast\nprovenance:\n  mode: picked\n' mode=slow
-# A scalar provenance key is a warning where the entry point does not record
-# provenance, as any key outside the schema was, and refused where it does.
 R="$(new_root prov-scalar-off)"
 printf 'mode: fast\nprovenance: chosen\n' >"$(yaml_of "$R")"
 out="$(run --root "$R" --yes mode=slow)"
@@ -805,12 +752,6 @@ assert_eq "an indented document: the provenance keys are appended at its base in
   "0:"$'  mode: slow\n  workers: 3\n  written_against: fixture@1.1.0\n  provenance:\n    mode: chosen (default safe)\n    workers: chosen (default 4)' \
   "$?:$(cat "$(yaml_of "$R")")"
 
-# --- States: init, migrate, configure -----------------------------------------
-# Entry points naming a retirements.yaml record, which sits where the writer
-# looks by default, <schema dir>/../retirements.yaml. Expected lines follow the
-# library's "States" rules: a migrate carries each value with its provenance
-# entry, the new location wins, and the retired file is removed only when every
-# value in it is in the settings file.
 printf '%s\n' '---' 'id: fixture-r001' 'retired: 2026-11-01' 'plugin_version: 1.1.0' 'kind: file' 'path: .claude/fixture.yaml' \
   'action: migrate' 'successor: "carried into docs/conventions/fixture.yaml by setup apply"' 'note: "retired settings location"' \
   '---' 'id: fixture-r002' 'retired: 2026-11-01' 'plugin_version: 1.1.0' 'kind: file' 'path: .claude/fixture.json' \
@@ -849,8 +790,6 @@ assert_eq "--state with a retired path whose content_match fails: prints init" "
 out="$(mrun --root "$R" --state mode=slow)"
 assert_eq "--state with a <key>=<value>: exits 2" "2" "$?"
 
-# A migrate carries every value and its provenance entry, then removes the
-# retired file; a second run in a committed fixture changes nothing.
 R="$(git_root mig-all)"
 mkdir -p "$R/docs/conventions"
 region_text docs/conventions >"$R/AGENTS.md"
@@ -887,9 +826,6 @@ assert_eq "a carried default value whose default changed: carried at the new def
   "0:$HEADER"$'\nwritten_against: fixture@1.1.0\nworkers: 4\nprovenance:\n  workers: default' "$?:$(cat "$(yaml_of "$R")")"
 assert_contains "a carried default value whose default changed: the change is printed" "$out" \
   "INFO .claude/fixture.yaml: workers=2 is marked default, written against fixture@1.0.0; it is carried at the plugin default now, 4"
-# A stale default carried while another key keeps the retired file: once that
-# key is removed, a rerun compares the settings file against the value the
-# carry wrote, the new default, so the retired file is removed.
 R="$(new_root mig-stale-rerun)"
 old_yaml "$R" $'written_against: fixture@1.0.0\nworkers: 2\nextra: x\nprovenance:\n  workers: default\n'
 out="$(mrun --root "$R" --yes)"
@@ -901,9 +837,6 @@ assert_eq "a stale default already carried, run again: exits 0" "0" "$?"
 assert_eq "a stale default already carried, run again: workers is not kept" "" "$(printf '%s\n' "$out" | grep -F 'workers=')"
 assert_eq "a stale default already carried, run again: the retired file is removed" "0" "$(exists "$R/.claude/fixture.yaml")"
 assert_eq "a stale default already carried, run again: the new default stays" "workers: 4" "$(grep -x 'workers: 4' "$(yaml_of "$R")")"
-# Both files hold the same stale default: the run updates the settings file to
-# the new default, so the retired value compares equal and the first run
-# removes the retired file.
 R="$(new_root mig-stale-both)"
 printf 'written_against: fixture@1.0.0\nworkers: 2\nprovenance:\n  workers: default\n' >"$(yaml_of "$R")"
 old_yaml "$R" $'written_against: fixture@1.0.0\nworkers: 2\nprovenance:\n  workers: default\n'
@@ -918,8 +851,6 @@ out="$(mrun --root "$R" --yes)"
 assert_contains "an empty value in the retired file: it is printed" "$out" "WARN .claude/fixture.yaml: mode is empty; not carried"
 assert_eq "an empty value in the retired file: the retired file is left in place" "1" "$(exists "$R/.claude/fixture.yaml")"
 
-# A value the schema does not allow, or a key outside it, is not carried: it
-# is printed and the retired file is left in place, and a rerun writes nothing.
 R="$(new_root mig-kept)"
 mkdir -p "$R/.claude"
 printf '{"mode": "slow", "workers": 12, "extra": true}\n' >"$R/.claude/fixture.json"
@@ -951,11 +882,6 @@ assert_eq "both locations: the new value wins and the other is carried" \
   "$(cat "$(yaml_of "$R")")"
 assert_eq "both locations: the retired file is left in place" $'mode: slow\nworkers: 3' "$(cat "$R/.claude/fixture.yaml")"
 
-# --- Long whitespace runs: the line scan is linear ----------------------------
-# Each line holds a 200,000-space run; all three together finish within 1 s.
-# The expected keys and values follow from the key and comment rules above:
-# a bare key runs to its colon, a value keeps inner spaces with no `#` after
-# them, and a line with no colon is not a key line.
 # shellcheck disable=SC2016 # JavaScript template literals, never expanded here
 out="$(timeout 10 node --input-type=module -e '
   const { topLevelLines } = await import(process.argv[1]);

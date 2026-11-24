@@ -175,8 +175,6 @@ class FrictionScan:
         self.denied_ids: set[str] = set()
         self.seen: set[tuple[str, str]] = set()
         self.duplicates = 0
-        # Hook-block denials of the current file still waiting for the next tool call, and the calls
-        # already taken as a next call whose result has not arrived: tool_use id -> denials it answers.
         self.awaiting_next: list[dict] = []
         self.next_calls: dict[str, list[dict]] = {}
         self.side = "main"
@@ -230,7 +228,6 @@ class FrictionScan:
             self._user(record, ts)
         elif kind == "result":
             for denial in transcript_reader.permission_denials(record):
-                # Keyed apart from tool-result denials, so a later tool-result record still keeps its richer event.
                 if denial["tool_use_id"] in self.denied_ids:
                     self.duplicates += 1
                     continue

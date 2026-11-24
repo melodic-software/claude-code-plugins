@@ -581,11 +581,6 @@ def main() -> int:
     exit_code = 0
     for entry in iter_worktrees(root):
         if isinstance(entry, UnrecognizedWorktree):
-            # Reported before the --pr filter below, because an unrecognized
-            # entry has no key and so could never match a target: leaving it to
-            # that filter would hide it from every scoped run forever. A
-            # recognized non-target entry is merely out of the caller's declared
-            # scope and still appears in an unscoped run.
             rows.append(
                 {
                     "path": str(entry.path),
@@ -601,9 +596,6 @@ def main() -> int:
         row: dict[str, object] = {"key": worktree.key, "path": str(worktree.path)}
         try:
             lease_path = leases.lease_path(state_dir, "worker", worktree.key)
-            # Hold the same lock used by acquire/heartbeat/release through the
-            # final removal. A worker can start after cleanup, but cleanup can
-            # never race past a newly acquired lease and delete its worktree.
             with state_lock(lease_path):
                 active_lease = active_worker_lease(lease_path)
                 if args.lease_token and not active_lease:
@@ -617,13 +609,6 @@ def main() -> int:
                     rows.append(row)
                     continue
                 if is_orphaned_entry(worktree.path):
-                    # Orphaned entry: the directory survives (matches the
-                    # naming convention, so iter_worktrees still lists it)
-                    # but is no longer this path's own git worktree. Self-heal
-                    # instead of erroring the whole prune on every run --
-                    # under --apply only, since self-healing unlinks a lease
-                    # record and deletes a directory, and the flagless run is
-                    # a report.
                     row["action"] = "drop_orphan"
                     if args.apply:
                         orphan_info = drop_orphaned_worktree(
@@ -633,13 +618,6 @@ def main() -> int:
                             preserve_lease=active_lease is not None,
                         )
                         row.update(orphan_info)
-                        # A non-empty orphan is deliberately never
-                        # force-deleted (`remove_empty_orphan_directory`), so
-                        # the entry survives at its deterministic one-per-PR
-                        # path and a replacement worktree cannot be created
-                        # there. Report that as unfinished, in the same
-                        # `residual_directory` vocabulary `remove_worktree`
-                        # uses for its own surviving directory.
                         registration = orphan_info["registration_pruned"]
                         row["dropped"] = bool(orphan_info["directory_removed"])
                         if not row["dropped"]:

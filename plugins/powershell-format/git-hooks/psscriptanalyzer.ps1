@@ -344,65 +344,108 @@ if ($sd.ContainsKey("CustomRulePath")) {
 }
 
 $settings = $env:PSSA_SETTINGS
-$failed = $false
-$found = $false
+$lintOut = if ($mode -eq "format") { $env:PSSA_LINT_OUT } else { "" }
 
 # Relative CustomRulePath entries in the settings file resolve from the current
 # PowerShell location, so anchor at the settings directory and the rule paths
 # resolve the way the repository intended.
 Set-Location -LiteralPath $settingsDir
 
+function readSource([string]$file) {
+    $sr = $null
+    try {
+        $strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
+        $detectBom = $true
+        $sr = [System.IO.StreamReader]::new($file, $strictUtf8, $detectBom)
+        $text = $sr.ReadToEnd()
+        if ($null -eq $text) { $text = "" }
+        return @{ Text = $text; Encoding = $sr.CurrentEncoding }
+    } catch [System.Text.DecoderFallbackException] {
+        return $null
+    } finally {
+        if ($sr) { $sr.Dispose() }
+    }
+}
+
+function formatFile([string]$file) {
+    $src = readSource $file
+    if ($null -eq $src) { return }
+    $formatted = Invoke-Formatter -ScriptDefinition $src.Text -Settings $settings
+    $changedEvenInCaseOnly = $formatted -cne $src.Text
+    if ($changedEvenInCaseOnly) {
+        if (-not $formatted.EndsWith("`n")) {
+            $formatted += "`n"
+        }
+        [System.IO.File]::WriteAllText($file, $formatted, $src.Encoding)
+    }
+}
+
+function lintFile([string]$file, [string]$rel) {
+    if ($null -eq (readSource $file)) { return }
+    $pathNotWildcard = [System.Management.Automation.WildcardPattern]::Escape($file)
+    foreach ($r in @(Invoke-ScriptAnalyzer -Path $pathNotWildcard -Settings $settings)) {
+        $text = ($r.Message -replace "\s+", " ").Trim()
+        "${rel}:$($r.Line): [$($r.Severity)] $($r.RuleName): $text"
+    }
+}
+
+function errorLine([string]$rel, $err) {
+    $oneLine = ($err.Exception.Message -replace "\s+", " ").Trim()
+    "PSSA_ERROR ${rel}: $oneLine"
+}
+
+$files = [System.Collections.Generic.List[object]]::new()
 foreach ($rel in $targets) {
     if ([string]::IsNullOrWhiteSpace($rel)) { continue }
     $file = $rel
     if (-not [System.IO.Path]::IsPathRooted($file)) { $file = Join-Path $runDir $rel }
-    try {
-        # Read with BOM detection and remember the encoding so the write-back
-        # keeps the original byte shape (UTF-8 with or without BOM, UTF-16).
-        # Strict UTF-8 is the BOM-less fallback: a file that fails it cannot be
-        # round-tripped safely, so it is skipped.
-        $sr = $null
+    $files.Add(@{ Rel = $rel; File = $file })
+}
+
+$formatFailed = $false
+if ($mode -eq "format") {
+    foreach ($t in $files) {
         try {
-            $strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
-            $sr = [System.IO.StreamReader]::new($file, $strictUtf8, $true)
-            $original = $sr.ReadToEnd()
-            $enc = $sr.CurrentEncoding
-        } catch [System.Text.DecoderFallbackException] {
-            continue
-        } finally {
-            if ($sr) { $sr.Dispose() }
+            formatFile $t.File
+        } catch {
+            Write-Output (errorLine $t.Rel $_)
+            $formatFailed = $true
         }
-        if ($null -eq $original) { $original = "" }
+    }
+    $settingsFull = [System.IO.Path]::GetFullPath($settings)
+    $settingsFormatted = @($files | Where-Object {
+            [string]::Equals([System.IO.Path]::GetFullPath($_.File), $settingsFull,
+                [System.StringComparison]::OrdinalIgnoreCase)
+        }).Count -gt 0
+    $gateSignedBytesFormatMayHaveChanged = $sd.ContainsKey("CustomRulePath") -or $settingsFormatted
+    if ($gateSignedBytesFormatMayHaveChanged) { $lintOut = "" }
+}
 
-        if ($mode -eq "format") {
-            $formatted = Invoke-Formatter -ScriptDefinition $original -Settings $settings
-            # -cne (case-SENSITIVE) is load-bearing: -ne is case-insensitive, so
-            # a casing-only reformat (get-childitem -> Get-ChildItem) would
-            # compare equal and never be written back.
-            if ($formatted -cne $original) {
-                if (-not $formatted.EndsWith("`n")) {
-                    $formatted += "`n"
-                }
-                [System.IO.File]::WriteAllText($file, $formatted, $enc)
-            }
-            continue
-        }
-
-        # Invoke-ScriptAnalyzer has no -LiteralPath; -Path treats wildcard
-        # metacharacters ([ ] * ?) in a filename as a pattern, so escape the
-        # path to match it literally.
-        $litFile = [System.Management.Automation.WildcardPattern]::Escape($file)
-        foreach ($r in @(Invoke-ScriptAnalyzer -Path $litFile -Settings $settings)) {
-            $text = ($r.Message -replace "\s+", " ").Trim()
-            Write-Output "${rel}:$($r.Line): [$($r.Severity)] $($r.RuleName): $text"
-            $found = $true
+$lintLines = [System.Collections.Generic.List[string]]::new()
+$lintFailed = $false
+$lintFound = $false
+foreach ($t in $files) {
+    if ($mode -eq "format" -and -not $lintOut) { break }
+    $rel = $t.Rel
+    $file = $t.File
+    try {
+        foreach ($line in @(lintFile $file $rel)) {
+            $lintLines.Add($line)
+            $lintFound = $true
         }
     } catch {
-        $oneLine = ($_.Exception.Message -replace "\s+", " ").Trim()
-        Write-Output "PSSA_ERROR ${rel}: $oneLine"
-        $failed = $true
+        $lintLines.Add((errorLine $rel $_))
+        $lintFailed = $true
     }
 }
-if ($failed) { exit 4 }
-if ($found) { exit 1 }
+$lintRc = if ($lintFailed) { 4 } elseif ($lintFound) { 1 } else { 0 }
+if ($mode -ne "format") {
+    $lintLines
+    exit $lintRc
+}
+if ($lintOut) {
+    [System.IO.File]::AppendAllLines($lintOut, $lintLines)
+    [System.IO.File]::AppendAllText("$lintOut.rc", "$lintRc`n")
+}
+if ($formatFailed) { exit 4 }
 exit 0

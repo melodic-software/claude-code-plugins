@@ -24,14 +24,13 @@ import refresh_pr_branch as refresh
 REAL_ROLE_LABEL = postmerge._role_label
 
 HEAD = "a" * 40
-# The base compare the freshness hold reads for an otherwise-ready PR.
 UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 STALE = "b" * 40
 LANE = "lane-bot"
 APPROVER = "approver-bot"
 PR_NUMBER = 476
 MERGE_DECISION = {"method": "merge", "reason": "no row calls for a rewrite"}
-LINKED_ISSUE = 999  # distinct from the PR so the two comment fetches are separable
+LINKED_ISSUE = 999
 LINKED_REF = f"owner/repo#{LINKED_ISSUE}"
 
 
@@ -73,7 +72,6 @@ def _queue_read(
     position: int | None = None,
     failed_ejections: int | None = 0,
 ) -> dict[str, Any]:
-    """A `read_merge_queue` answer; the default is a base with no merge queue."""
     return {
         "readError": None,
         "merged": False,
@@ -136,8 +134,6 @@ def _pr(**overrides: Any) -> dict[str, Any]:
     return pr
 
 
-# A branch rule requiring one approving review and no required status contexts:
-# the base is protected (so no unprotected hold) and needs reviewDecision APPROVED.
 RULES = [{"type": "pull_request", "parameters": {"required_approving_review_count": 1}}]
 
 
@@ -280,7 +276,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertTrue(any("pipeline lane" in b for b in result["blockers"]))
 
     def test_same_identity_approval_is_not_distinct(self) -> None:
-        # Author and approver are the same login: author != approver fails.
         result = self._evaluate(
             _pr(author={"login": f"{APPROVER}[bot]"}),
             reviews=[_approval(f"{APPROVER}[bot]", HEAD)],
@@ -356,8 +351,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertFalse(result["ready"])
 
     def test_inline_review_comment_veto_blocks(self) -> None:
-        # A human inline review comment on a since-resolved thread escapes the
-        # base unresolved-thread gate; the tier still catches it.
         row = {
             "user": {"login": "maintainer", "type": "User"},
             "body": "This is a blocking regression.",
@@ -391,14 +384,11 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
     def test_decision_default_fetch_error_holds(self) -> None:
-        # Fail closed: a comment-fetch failure holds the PR for the human list.
         result = self._evaluate(_pr(), linked_issue_error=True)
         self.assertFalse(result["ready"])
         self.assertTrue(any("could not verify" in b for b in result["blockers"]))
 
     def test_cross_repo_linked_issue_read_from_its_own_repo(self) -> None:
-        # A PR closing an issue in another repo must have the veto read from that
-        # repo, not the PR's repo where a same-numbered issue could lack the marker.
         cross = _pr(
             closingIssuesReferences=[
                 {
@@ -422,8 +412,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
     def test_unrelated_maintainer_comment_does_not_ratify(self) -> None:
-        # A later maintainer comment with no explicit ratification signal (a bare
-        # "thanks") must not clear the veto.
         chatter = _comment(
             "maintainer",
             "thanks, nice work here",
@@ -450,8 +438,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
     def test_negated_approval_does_not_ratify(self) -> None:
-        # A withheld/negated approval must not clear the veto even though it
-        # contains an approval token.
         negated = _comment(
             "maintainer",
             "not approved yet — hold this",
@@ -521,8 +507,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertEqual(result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [])
 
     def test_same_timestamp_ratify_and_revoke_holds(self) -> None:
-        # Ambiguity is fail-closed: a ratify/revoke tie at the same timestamp holds
-        # (ratification must be strictly newer than every revocation to clear).
         ratify = _comment(
             "maintainer",
             "Ratified — proceed.",
@@ -718,8 +702,6 @@ class PullRequestBodyHold(TierEvaluateHarness):
                     )
 
     def test_needs_human_label_does_not_block_an_attended_merge(self) -> None:
-        # The person the label asks for may merge; autonomous runs hold on it
-        # (test_babysit_merge_unattended.NeedsHumanHoldsOnlyAutonomous).
         result = self._evaluate(_pr(labels=[{"name": "needs-human"}]), tier=None)
         self.assertTrue(result["ready"], result["blockers"])
 
@@ -1109,8 +1091,6 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
         self.assertIn("'gpgverify_error'", blocker)
 
     def test_verification_read_failure_holds(self) -> None:
-        # Fail closed: over-report is the one allowed error direction, and the
-        # message says "could not be read", never a fabricated reason.
         result = self._evaluate(rules=self.SIGNED_RULES, commits_error=True)
         [blocker] = self._signature_blockers(result)
         self.assertFalse(result["ready"])
@@ -1967,9 +1947,7 @@ STRAY_MERGE = {
         "verification": {"verified": True},
     },
 }
-# A merge GitHub committed that also changes a file the base never touched.
 EDITED_MERGE = {**STRAY_MERGE, "sha": EDITED_SHA}
-# A person's one-parent fix commit.
 FIX_COMMIT = {
     "sha": "6" * 40,
     "parents": [{"sha": DEPENDABOT_PARENT}],
@@ -1982,11 +1960,8 @@ FIX_COMMIT = {
 _COMPARE = "repos/owner/repo/compare/"
 _BASE_FILE = {"filename": "docs/a.md", "status": "modified", "sha": "a1"}
 STRAY_MERGE_COMPARES = {
-    # The base parent is on main: main is ahead of it.
     f"{_COMPARE}{BASE_PARENT}...main": {"status": "ahead"},
-    # The merge brings in the base's file as the base has it...
     f"{_COMPARE}{DEPENDABOT_PARENT}...{STRAY_SHA}": {"files": [_BASE_FILE]},
-    # ...and the edited one also changes a file the base did not.
     f"{_COMPARE}{DEPENDABOT_PARENT}...{EDITED_SHA}": {
         "files": [
             _BASE_FILE,
@@ -2929,7 +2904,6 @@ class ForcePushedHeadsTests(unittest.TestCase):
         "pageInfo": {"hasNextPage": False, "endCursor": None},
         "nodes": [],
     }
-    # Nine items, one a force push:
     ONE_FORCE_PUSH = {
         "totalCount": 9,
         "filteredCount": 1,

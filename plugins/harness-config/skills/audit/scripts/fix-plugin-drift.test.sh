@@ -360,7 +360,6 @@ cat >"$case_dir/settings.json" <<'EOF'
   }
 }
 EOF
-# Named so the .bak glob cannot match it.
 cp "$case_dir/settings.json" "$case_dir/settings.pre"
 
 exit_code=0
@@ -1244,7 +1243,6 @@ else
   assert_not_contains "case-40: never applies" "$out" "Applied"
   assert_eq "case-40: settings byte-identical" "yes" "$(unchanged_since "$case_dir")"
 fi
-# Restored so the harness's recursive delete can enter it.
 chmod u+rwx "$case_dir/locked"
 
 

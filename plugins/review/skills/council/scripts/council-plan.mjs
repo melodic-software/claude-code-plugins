@@ -247,8 +247,6 @@ export function selectPanel({ config, changed, tier, tierReason, risk, riskReaso
       row.model = model;
       row.model_from = "member";
     } else {
-      // An agent always gets a named model at dispatch, so a frontier session never makes an
-      // unnamed member frontier; a script provider without one runs on its own setting.
       row.model = a.model_default === "provider" ? "provider setting" : a.model_default;
       row.model_from = a.model_default === "provider" ? "provider" : "adapter default";
     }

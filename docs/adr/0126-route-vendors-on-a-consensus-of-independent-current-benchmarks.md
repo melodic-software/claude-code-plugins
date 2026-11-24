@@ -62,8 +62,8 @@ source with a stated error range, plus trial results on this machine. A consensu
 independent sources is still used when it exists, but today's sources rarely provide one.
 
 - Route fetches and reads only registry rows that can lead; support-only and provider-own rows
-  stay in the registry as pointers, are listed unread, and are fetched only while trials are
-  active, since their records seed trial candidates.
+  stay in the registry as pointers and are listed unread. A trial runs the first model each vendor
+  lists, at its default effort, so trials need no board read.
 - The `vendors.tiebreak` setting, including the plan-usage step, is removed: a tie keeps the work
   on Claude unless one non-Claude vendor remains eligible.
 - Promotion of a support-only row to permanent was removed in

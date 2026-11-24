@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main } from "../../scripts/pr-unblock/fix-ci-context.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -32,6 +33,7 @@ test("with no FIX_CI_ROUNDS, main reads loop.fix-ci-rounds from the base config"
       APP_SENDER_ID: String(APP),
       CONTEXT_FILE: join(dir, "context.json"),
       BASE_PATH: ROOT,
+      STANDARDS_DIR: standardsCheckout(),
     };
     await main(env, { api, log: () => {} });
     assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^escalation-reason=ci-fix-round-cap$/m);

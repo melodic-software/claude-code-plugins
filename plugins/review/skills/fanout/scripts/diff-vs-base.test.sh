@@ -80,13 +80,11 @@ drop_origin_head() { git -C "$1" symbolic-ref -q -d refs/remotes/origin/HEAD >/d
 
 run_in() { (cd "$1" && git_env_reset && bash "$SCRIPT"); }
 
-# --- Case 1: --help ---
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# --- Case 2: origin/HEAD resolves (first branch of the chain) ---
 W2=$(make_fixture case2 trunk)
 git -C "$W2" remote set-head origin -a >/dev/null 2>&1
 add_commit_ahead "$W2"
@@ -96,7 +94,6 @@ assert_exit "origin/HEAD path exits 0" 0 "$rc"
 assert_contains "origin/HEAD path reports the changed file" "$OUT" "1 file changed"
 assert_contains "origin/HEAD path reports the insertions" "$OUT" "3 insertions"
 
-# --- Case 3: range resolves but is empty -> prints NOTHING, not "unavailable" ---
 W3=$(make_fixture case3 trunk)
 git -C "$W3" remote set-head origin -a >/dev/null 2>&1
 rc=0
@@ -104,8 +101,6 @@ OUT=$(run_in "$W3") || rc=$?
 assert_exit "empty range exits 0" 0 "$rc"
 assert_eq "empty range prints nothing" "" "$OUT"
 
-# --- Case 4: no origin/HEAD -> ls-remote --symref resolves the default branch ---
-# The default branch is `trunk`, so `origin/main` cannot satisfy this case.
 W4=$(make_fixture case4 trunk)
 drop_origin_head "$W4"
 add_commit_ahead "$W4"
@@ -114,7 +109,6 @@ OUT=$(run_in "$W4") || rc=$?
 assert_exit "ls-remote path exits 0" 0 "$rc"
 assert_contains "ls-remote path reports the changed file" "$OUT" "1 file changed"
 
-# --- Case 5: no origin/HEAD and an unreachable remote -> origin/main fallback ---
 W5=$(make_fixture case5 main)
 drop_origin_head "$W5"
 add_commit_ahead "$W5"
@@ -124,7 +118,6 @@ OUT=$(run_in "$W5") || rc=$?
 assert_exit "origin/main path exits 0" 0 "$rc"
 assert_contains "origin/main path reports the changed file" "$OUT" "1 file changed"
 
-# --- Case 6: nothing resolves -> "unavailable", still exit 0 ---
 W6="$TEST_TMPDIR/case6"
 init_work_repo "$W6"
 git -C "$W6" commit -q --allow-empty -m init

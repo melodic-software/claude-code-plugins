@@ -435,7 +435,6 @@ scan_malformed_rule() {
 
 scan_bare_tool() {
   local tool tokens
-  # Newline-framed, so each token is matched as a whole line.
   tokens=$'\n'"$(top_level_tokens "$1")"$'\n'
   for tool in Bash PowerShell; do
     if [[ "$tokens" == *$'\n'"$tool"$'\n'* ]]; then

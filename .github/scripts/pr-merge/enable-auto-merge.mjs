@@ -235,7 +235,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../lib/github-client.mjs";
-import { readRawTrustedActors, TRUSTED_ACTORS_PATH, trustedActorsPath, trustedListPath } from "../lib/trusted-actors.mjs";
+import { readRawTrustedActors, TRUSTED_ACTORS_PATH, trustedListPath } from "../lib/trusted-actors.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { laneChecker } from "../lib/lane-binding.mjs";
 import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
@@ -638,7 +638,7 @@ export function vetoLabelOwned(timeline, login, body = "") {
 
 function trustedHumans(env) {
   try {
-    const { actors } = readRawTrustedActors(trustedListPath(env, env.TRUSTED_ACTORS || trustedActorsPath()));
+    const { actors } = readRawTrustedActors(trustedListPath(env, env.TRUSTED_ACTORS));
     return humansOf(actors);
   } catch {
     return new Set();
@@ -945,6 +945,14 @@ export function pinMoved(comments, bot, head) {
 function priorRefusal(comments, bot, marker = REFUSAL_MARKER) {
   return newestAppComment(comments, bot, (c) => bodyLines(c.body).slice(0, 2).includes(marker));
 }
+
+export const supersededBody = (head, asyncMerge = false) =>
+  `Unattended merge: superseded. The pr-merge lane ${asyncMerge ? "requested the async merge of this stack layer" : "armed native auto-merge"} at head \`${head}\`, so the unarmed note this comment held no longer stands; its edit history keeps the reasons.`;
+
+export const supersededRefusals = (comments, bot, head, asyncMerge = false) =>
+  (comments ?? [])
+    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && Number.isInteger(c.databaseId) && bodyLines(c.body).slice(0, 2).includes(REFUSAL_MARKER))
+    .map((c) => ({ commentId: c.databaseId, body: supersededBody(head, asyncMerge) }));
 
 export function refusalWrites(pull, comments, { clears, reason, comment, partial = false, answered = false, record = null }, { bot, label, now = Date.now() }) {
   if (typeof comment === "string") {
@@ -1732,6 +1740,17 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       });
     const unlabeledTimeline = async (number) =>
       (await github("POST", "/graphql", { query: UNLABELED_QUERY, variables: { owner: repo[1], name: repo[2], number } }))?.data?.repository?.pullRequest?.timelineItems;
+    const supersede = async (pull, detail, asyncMerge) => {
+      const by = asyncMerge ? "the async merge request" : "the arm";
+      for (const stale of supersededRefusals(detail?.comments?.nodes, slug, pull.headRefOid, asyncMerge)) {
+        try {
+          await github("PATCH", `/repos/${repo[0]}/issues/comments/${stale.commentId}`, { body: stale.body });
+          console.log(`enable-auto-merge: #${pull.number} refusal comment ${stale.commentId} marked superseded by ${by} at ${pull.headRefOid}`);
+        } catch (error) {
+          console.log(`::warning title=enable-auto-merge::#${pull.number} refusal comment ${stale.commentId} not marked superseded: ${describe(error)}`);
+        }
+      }
+    };
     const note = async (pull, detail, refusal) => {
       if (!reads || stopped !== null || refusal.clears === undefined) {
         return;
@@ -2259,10 +2278,12 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           leave(pull, "merge requested");
           console.log(`enable-auto-merge: #${pull.number} stack bottom layer: async merge requested at ${pull.headRefOid} (${escapeCommand(result?.status ?? "no status")})`);
           statuses.push({ sha: pull.headRefOid, state: "success", description: "async merge requested for its stack's bottom layer" });
+          await supersede(pull, detail, true);
         } catch (error) {
           if (error instanceof GitHubError && error.status === 409) {
             leave(pull, "merge requested");
             console.log(`enable-auto-merge: #${pull.number} stack bottom layer: an async merge is already pending`);
+            await supersede(pull, detail, true);
           } else if (mergeRefused(error, answer?.limited)) {
             inFlight -= 1;
             const { said } = answer === null ? { said: "" } : await answerBody(answer.text);
@@ -2326,6 +2347,9 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         failed += 1;
         console.log(`::error title=enable-auto-merge::#${pull.number} ${action}: ${describe(error)}`);
         continue;
+      }
+      if (action === "arm") {
+        await supersede(pull, detail, false);
       }
       if (action === "disarm") {
         await note(pull, detail, { clears, reason, partial, answered });

@@ -1,8 +1,3 @@
-// The review-digest cascade concern (docs/conventions/review-digest.md): its defaults, the team
-// file read from a pull request's base commit, the layers per key, and the triggers that fire for a
-// pull request's facts. Shared by /review:explain-change (whether to offer a digest) and
-// /review:reviewer-media (whether a pull request crosses a review-digest trigger).
-
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
@@ -281,8 +276,6 @@ export function globMatcher(glob, { nocase = false } = {}) {
     }
   }
   const end = tokens.length;
-  // A state is a token index; `dirs` tokens also have an "inside" state at end + 1 + index,
-  // reached once `**/` has consumed a character and left only when it consumes a `/`.
   const inside = (t) => end + 1 + t;
   const close = (states) => {
     const stack = [...states];

@@ -226,8 +226,6 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     for repo, number in targets:
         key = f"{repo}#{number}"
         try:
-            # An unreadable repository config leaves the PR unclassified (never
-            # merge-ready) and is recorded like a hydration failure.
             pr_config = repo_classify_config(config, args, repo)
             trigger_config = pr_config.review_trigger
             pr = gh.view_pr(repo, number)
@@ -298,10 +296,6 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
             prs, complete=not errors, errors=errors, previous_prs=previous_prs
         )
 
-    # Persistent-error quarantine: a PR that has errored several consecutive
-    # cycles stops forcing the cadence to "active" (its errors stay visible)
-    # until its quarantine TTL lapses -- one broken PR must not pin the whole
-    # queue at the tightest cadence forever.
     pr_errors, quarantined = state_store.update_error_quarantine(
         state.get("pr_errors"), pr_error_keys, generated_at
     )

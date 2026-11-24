@@ -62,12 +62,6 @@ else
   fail "step is not inside ci-status between the human-gated step and the aggregate (lines: $order)"
 fi
 
-# The stub logs its arguments. A comments read fails when STUB_COMMENTS_FAIL is
-# set, else answers the STUB_COMMENTS array. An events read fails when STUB_EVENTS_FAIL is set, else prints
-# STUB_EVENTS (pages concatenated, as --paginate prints them). The base
-# commit's config is a fixture directory holding STUB_ACTORS as the
-# trusted-actor list; STUB_CHECKOUT_FAILED leaves BASE_CONFIG empty, as a
-# failed checkout does.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -104,11 +98,12 @@ EARLY_LIFT="$(unlabeled needs-human 2026-10-23T09:00:00Z 153232337 kyle-sexton)"
 
 # expect <label> <want-rc> [want-out] [refuse-out]; stubs come from the environment.
 expect() {
-  local label="$1" want_rc="$2" out rc config="$TMP_ROOT/base-config"
+  local label="$1" want_rc="$2" out rc config="$TMP_ROOT/base-config" standards="$TMP_ROOT/stub-standards"
   : >"$TMP_ROOT/log"
-  rm -rf "$config" "$TMP_ROOT/pr-reads"
-  mkdir -p "$config/.github/standards/trusted-actors"
-  printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  rm -rf "$config" "$standards" "$TMP_ROOT/pr-reads"
+  mkdir -p "$config/.github/standards/trusted-actors" "$standards/components/trusted-actors"
+  printf '%s\n' "$ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$standards/components/trusted-actors/trusted-actors.json"
   # The base commit's clear-escalations.mjs, stubbed: its recheckStaleHold
   # records what it was given and answers STUB_PREDICATE (pass, else the hold
   # stands); a run of the module as a script is recorded too. Absent when
@@ -160,7 +155,7 @@ JS
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" PR_NUMBER=6419 \
     GITHUB_REPOSITORY=o/r HUMAN_GATED="${HUMAN_GATED-needs-human}" BASE_SHA="${BASE_SHA-$BASE}" \
-    BASE_CONFIG="$config" STANDARDS_DIR="${STUB_STANDARDS:-}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="$config" STANDARDS_DIR="${STUB_STANDARDS-$standards}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if grep -q '/contents/' "$TMP_ROOT/log"; then
     fail "$label: the trusted-actor list was read through the API"
     return
@@ -327,7 +322,7 @@ expect "a hold naming this head keeps it beside a marker for an unheld head" 1 "
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 HEAD_SHA="$OTHER_SHA" expect "a later head no hold names passes after the App's clear of an earlier one" 0 \
   "melodic-automation-lanes[bot] cleared the review-lane hold on #6419 as stale"
-if grep -qxF "predicate pr=6419 head=$OTHER_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
+if grep -qxF "predicate pr=6419 head=$OTHER_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/stub-standards/components/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
   ok "at a later head the predicate judges the head the App's marker names"
 else
   fail "at a later head the predicate was not given the marker's head: '$(cat "$TMP_ROOT/log")'"
@@ -355,7 +350,7 @@ HEAD_SHA=main expect "a head that is not a commit SHA fails the App's removal cl
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 STUB_PREDICATE=stands expect "a valid marker whose predicate now finds the hold standing fails" 1 \
   "melodic-automation-lanes[bot] removed 'needs-human'"
-if grep -qxF "predicate pr=6419 head=$NEW_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
+if grep -qxF "predicate pr=6419 head=$NEW_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/stub-standards/components/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
   ok "the predicate runs at this head with the base commit's trusted-actor list and the resolved label"
   if grep -q 'clear-escalations main ran' "$TMP_ROOT/log"; then fail "importing the base module ran its sweep"; else ok "importing the base module runs no sweep"; fi
 else
@@ -370,18 +365,14 @@ unset LANES_APP_ID HEAD_SHA STUB_PREDICATE
 
 export STUB_EVENTS="[$OWNER_LIFT]"
 export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'
-expect "an id listed only as a bot is not a trusted person" 1 "the trusted-actor list at $TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json names no person"
+expect "an id listed only as a bot is not a trusted person" 1 "the trusted-actor list at $TMP_ROOT/stub-standards/components/trusted-actors/trusted-actors.json names no person"
 export STUB_ACTORS='{"actors":[{"id":1,"login":"someone","kind":"human"}]}'
 expect "a person missing from the base list is not trusted" 1 "kyle-sexton removed 'needs-human'"
 export STUB_ACTORS='{not json'
 expect "an unreadable trusted-actor list fails closed" 1 "names no person"
 unset STUB_ACTORS
-mkdir -p "$TMP_ROOT/standards/components/trusted-actors"
-printf '%s\n' "$ACTORS" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
-export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'
-STUB_STANDARDS="$TMP_ROOT/standards" expect "the standards checkout's list is read over the hold config's copy" 0 \
-  "kyle-sexton, a person on the trusted-actor list, lifted"
-unset STUB_ACTORS
+STUB_STANDARDS='' expect "with no standards checkout the hold config's copy is never read, and the hold stays" 1 \
+  "::error::could not read the trusted-actor list from the standards checkout; re-run this run." "lifted"
 STUB_STANDARDS="$TMP_ROOT/no-standards" expect "a standards checkout with no list fails closed" 1 "could not read the trusted-actor list"
 STUB_CHECKOUT_FAILED=1 expect "a hold with a failed base checkout fails closed" 1 "::error::could not read the base commit's config at $BASE to check the review-lane hold comments; re-run this run."
 export STUB_EVENTS_FAIL=1

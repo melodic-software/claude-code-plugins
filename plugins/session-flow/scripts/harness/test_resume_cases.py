@@ -1,7 +1,4 @@
 # test-scope: plugins/session-flow/evals/*/samples/*.json
-"""Tests for resume_cases.py. No test reaches the API or a model CLI; chains are built
-through the real save_point.py, and read slices are checked against `cat -n` and
-`grep` run on the generated file."""
 
 import copy
 import json
@@ -53,7 +50,6 @@ CHECKOUT_ARM = "after"
 
 @pytest.fixture(scope="session")
 def built(tmp_path_factory):
-    """Every case built once: {name: (spec, chain, history)}."""
     root = tmp_path_factory.mktemp("cases")
     out = {}
     for case_dir in CASE_DIRS:
@@ -149,8 +145,6 @@ def test_every_hop_validates_and_the_next_hop_builds_clean(built, name, tmp_path
         else:
             assert done.returncode == 0, done.stdout
         assert "secret-shaped" not in done.stdout
-    # A successor built on the newest file must not see a failed predecessor, which
-    # would stamp every carried entry UNVERIFIED and change the before arm.
     (projects / "seed" / "11111111-2222-4333-8444-555555555555.jsonl").write_text(
         "", encoding="utf-8"
     )
@@ -190,8 +184,6 @@ def test_sizes_follow_the_audit(built, name):
     pred = spec["seed"]["predecessor"]
     sizes = [p.stat().st_size for p in chain]
     assert len(chain) == pred["hops"]
-    # The audit's growth and cumulative-share figures describe shape-2 chains; a
-    # shape-3 hot file moves its history into hop files instead.
     if resume_cases.seed_shape(spec, SAVE_POINT) >= 3:
         return
     if pred.get("target_bytes"):
@@ -269,8 +261,6 @@ SHAPE3_TITLES = {
 
 
 def _landed_3(item: dict, chain: list[Path], newest: dict[str, str]) -> None:
-    """A shape-3 injection is in the newest hot file in its section's own form, or,
-    when retired, only in the retiring hop's file: the entry, then its reason."""
     title, prefix = SHAPE3_TITLES[item["section"]]
     retire = item.get("retire")
     if retire is None:
@@ -392,9 +382,6 @@ SAMPLE_KEYS = {
 
 
 def _sample_context(item: dict, repo: Path) -> resume_eval.GradeContext:
-    """A grading context from one sample: `answer` or `texts` (reader text), `commands`
-    (shell commands), `reads` (Read targets), `edits` (edited paths), `gh_calls`, `files` ({path: content} in
-    the workspace) and `handoff` (the produced handoff's text)."""
     blocks = [{"type": "text", "text": t} for t in item.get("texts", [])]
     if "answer" in item:
         blocks.append({"type": "text", "text": item["answer"]})
@@ -425,8 +412,6 @@ def _sample_context(item: dict, repo: Path) -> resume_eval.GradeContext:
 
 @pytest.mark.parametrize("case_dir", CASE_DIRS, ids=CASE_NAMES)
 def test_check_samples_grade_as_labeled(case_dir, tmp_path):
-    """Every text_regex probe has samples, and any other graded check may: each pass
-    sample passes the probe through the real grader and each fail sample fails it."""
     spec = resume_cases.load_case(case_dir)
     for probe in spec["probes"]:
         if probe["grade"] == "text":
@@ -448,8 +433,6 @@ def test_check_samples_grade_as_labeled(case_dir, tmp_path):
 
 @pytest.mark.parametrize("name", CASE_NAMES)
 def test_generated_lines_never_name_a_trap_number(built, name):
-    """A generic line naming a case's PR, issue or run (say `do-not-merge on #4231`)
-    could flip a trap, so only lines the spec wrote may carry one."""
     spec, chain, _ = built[name]
     reserved = resume_cases.reserved_numbers(spec)
     assert reserved

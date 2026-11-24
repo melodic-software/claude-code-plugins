@@ -31,7 +31,6 @@ for t in ivory slate clay-deep gray-300 gray-500; do
   check "--$t" "$(value "$t" "$CHROME")" "$(value "$t" "$TEMPLATE")"
 done
 
-# Dark-mode --focus is the reference's clay-soft; the template holds the literal.
 check "dark --focus" "$(value clay-soft "$CHROME")" "$(value focus "$TEMPLATE" dark)"
 
 rule() { tr '\n' ' ' <"$1" | grep -oE 'a:focus-visible[^}]*\}' | head -n1 | tr -s '[:space:]' ' ' | sed 's/ *}/ }/; s/; }/;}/'; }

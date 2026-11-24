@@ -199,14 +199,19 @@ function readJsonRetry(filePath) {
 }
 
 // A concurrent record can recreate dir and write a trial into it while it is being removed, so the
-// removal walks a unique name no writer opens rather than the live path.
+// removal walks a unique name no writer opens rather than the live path. Windows refuses the rename
+// while a writer holds a file open inside dir, so EPERM, EACCES and EBUSY are retried briefly.
 function removeTrialDir(dir) {
   const tombstone = `${dir}.${process.pid}-${crypto.randomBytes(6).toString('hex')}.removing`
-  try {
-    fs.renameSync(dir, tombstone)
-  } catch (err) {
-    if (err && err.code === 'ENOENT') return
-    throw err
+  for (let attempt = 0; ; attempt++) {
+    try {
+      fs.renameSync(dir, tombstone)
+      break
+    } catch (err) {
+      if (err && err.code === 'ENOENT') return
+      if (!err || !['EPERM', 'EACCES', 'EBUSY'].includes(err.code) || attempt >= 50) throw err
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10)
+    }
   }
   fs.rmSync(tombstone, { recursive: true, force: true })
 }

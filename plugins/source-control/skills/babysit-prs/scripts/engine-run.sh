@@ -17,7 +17,6 @@ if [[ ! "$part" =~ ^[a-d]$ ]]; then
   exit 2
 fi
 
-# A part with no wrapper would never run, so its modules would drop out of CI.
 for wrapper in engine.test.sh engine-b.test.sh engine-c.test.sh engine-d.test.sh; do
   if [[ ! -f "$wrapper" ]]; then
     echo "FAIL: $wrapper is missing, so its part of tests/ never runs" >&2

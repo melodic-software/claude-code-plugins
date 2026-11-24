@@ -8,6 +8,11 @@ pre_ready:
 dialect: posix-ere
 subject_pattern: '^((build|chore|ci|docs|feat|fix|perf|refactor|revert|security|style|test)(\(.+\))?!?: .+|Merge .+|Revert ".+)'
 pr_title_pattern: "Same as `subject_pattern`."
+pr_body_required_sections:
+  - Summary
+  - Fix
+  - Verification
+  - Related
 babysit_loop_stop_mode: standing
 babysit_loop_tier: worker
 babysit_loop_merge: c2-mechanical

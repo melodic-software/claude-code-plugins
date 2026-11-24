@@ -31,7 +31,6 @@
 #   CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_OS_TOAST_ENABLED=false   mute the OS toast
 #   CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_TERMINAL_ENABLED=false   mute bell + OSC 9
 
-# Guard against double-sourcing.
 [[ -n "${_LANE_NOTIFY_LOADED:-}" ]] && return 0
 readonly _LANE_NOTIFY_LOADED=1
 
