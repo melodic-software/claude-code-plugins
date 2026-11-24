@@ -58,7 +58,8 @@ it alone. An operator who genuinely wants twelve renames gives twelve answers,
 and each one is cheap because the presentation is already on screen.
 
 This is a gate on the acceptance, not on the operator. A finding they already
-accepted is applied without asking a second time.
+accepted is applied without asking a second time. It is still presented first, the
+recipe's step 1 in full, before `apply-rename.sh` runs; only the question is skipped.
 
 ## Find the plan, and check it belongs here
 
@@ -154,6 +155,11 @@ the plan reads `blocked`, and the re-audit that settles it has been named.
   never saw.
 - **Edit a `review` site.** An ambiguous bare stem is escalated with its line and
   left alone, whatever the operator says about the finding as a whole.
+- **Hand-edit a site the apply skipped, even on request.** A frozen-tier site stays as
+  written because its tier's declared form says so; changing that form is the operator's
+  configuration decision. A `review` site is shown with its file and line for the operator
+  to edit. Decline each such request separately, in plain words, and still apply the
+  accepted finding.
 - **Edit a generated file.** Its declared command rebuilds it.
 - **Re-audit, or patch a stale plan.** A plan whose tree moved under it is
   re-audited by the sibling.

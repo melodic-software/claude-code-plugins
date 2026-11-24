@@ -1,0 +1,4 @@
+captured 2026-11-24 from the public melodic-software/standards repository:
+  gh api repos/melodic-software/standards/git/ref/heads/main | jq -c 'del(.node_id)' > standards-ref-heads-main.json
+  gh api -H 'Accept: application/vnd.github.raw' 'repos/melodic-software/standards/contents/components/trusted-actors/trusted-actors.json?ref=<object.sha from the first file>' > standards-trusted-actors.json
+main is read by its full ref, so a tag named main cannot stand in for the branch; node_id is dropped: no reader consumes it

@@ -71,6 +71,7 @@ jobs:
     outputs:
       units: ${{ steps.collect.outputs.units }}
       next-leg: ${{ steps.credit.outputs.next-leg }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -82,6 +83,10 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -111,11 +116,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           OUT_DIR: ${{ runner.temp }}/lane-sweep
           CALL_BUDGET: "350"
           WINDOW_HOURS: "24"
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/maintenance-audit-lane-runs/collect.mjs
 
       # The key-credit gate (ci-workflows select-model-credential, its start
@@ -200,6 +206,8 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+    outputs:
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@v7
@@ -207,6 +215,12 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.collect.outputs.standards-sha }}
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -244,6 +258,7 @@ jobs:
         with:
           model-route: triage-issue
           output-path: ${{ runner.temp }}/lane-sweep-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secret is set reaches the action, never its value.
       - name: Check the credential
@@ -508,6 +523,7 @@ jobs:
     outputs:
       matrix: ${{ steps.route.outputs.matrix || steps.route-skipped.outputs.matrix }}
       count: ${{ steps.route.outputs.count || steps.route-skipped.outputs.count }}
+      standards-sha: ${{ needs.collect.outputs.standards-sha }}
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@v7
@@ -614,6 +630,8 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+    outputs:
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@v7
@@ -621,6 +639,12 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.collect-key-handoffs.outputs.standards-sha }}
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -658,6 +682,7 @@ jobs:
         with:
           model-route: triage-issue
           output-path: ${{ runner.temp }}/lane-sweep-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether each secret is set reaches the action, never its value.
       # matrix.reason is checked there against the closed list of fallback
@@ -923,6 +948,7 @@ jobs:
     outputs:
       matrix: ${{ steps.route.outputs.matrix }}
       count: ${{ steps.route.outputs.count }}
+      standards-sha: ${{ needs.assess-units-subscription.outputs.standards-sha }}
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@v7
@@ -983,6 +1009,8 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+    outputs:
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@v7
@@ -990,6 +1018,12 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.collect-subscription-handoffs.outputs.standards-sha }}
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -1027,6 +1061,7 @@ jobs:
         with:
           model-route: triage-issue
           output-path: ${{ runner.temp }}/lane-sweep-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secret is set reaches the action, never its value.
       # matrix.reason is checked there against the closed list of fallback
@@ -1240,6 +1275,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.collect.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1286,6 +1327,7 @@ jobs:
           COLLECT_STATUS_PATH: ${{ runner.temp }}/lane-sweep/collect-status.json
           OPEN_ITEMS_PATH: ${{ runner.temp }}/lane-sweep/open-items.json
           CALL_BUDGET: "50"
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$FINDINGS_DIR"
           node .base/.github/scripts/maintenance-audit-lane-runs/file-findings.mjs
@@ -1332,6 +1374,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1359,17 +1405,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           CALL_BUDGET: "120"
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs
 
       - name: List the issues parked for a done-check, on the daily run only
         if: ${{ !cancelled() && steps.kill.outputs.proceed == 'true' && github.event.schedule != '17 * * * *' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/maintenance-audit-lane-runs/done-check.mjs
 
       - name: Log the API budget at the end

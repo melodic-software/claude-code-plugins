@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# Behavior test for the eval-dispatch leg scripts and the pinned ffmpeg install:
-# each refusal prints its error line and exits 1, the accepting paths write the
-# step outputs, and install-pinned-ffmpeg.sh checks the archive's SHA-256 and
-# downloads into a cache dir only when the archive is missing. A stub curl
-# stands in for the network.
-# test-scope: .github/scripts/plugin-eval/check-bwrap.sh .github/scripts/plugin-eval/choose-plugins.sh .github/scripts/plugin-eval/stage-suites.sh .github/scripts/lib/install-pinned-ffmpeg.sh
+# test-scope: .github/scripts/plugin-eval/check-bwrap.sh .github/scripts/plugin-eval/choose-plugins.sh .github/scripts/plugin-eval/stage-suites.sh .github/scripts/lib/install-pinned-ffmpeg.sh .github/scripts/lib/install-pinned-goimports.sh
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -75,6 +70,22 @@ if [[ $rc -eq 1 && $out == *"usage: install-pinned-ffmpeg.sh <bin-dir> [cache-di
   ok "no bin dir is a usage error"
 else
   fail "no bin dir: exit $rc, output [$out]"
+fi
+
+asset=go1.27.4.linux-amd64.tar.gz
+expect "a downloaded Go archive with the wrong SHA-256 is refused" 1 "::error::$asset does not match GO_SHA256" \
+  PATH="$T/stub:$PATH" RUNNER_TEMP="$T/rt" GITHUB_PATH="$T/path" -- "$S/lib/install-pinned-goimports.sh" "$T/bin"
+printf x >"$T/cache/$asset"
+rm -f "$T/curl-ran"
+expect "a cached Go archive is checked too" 1 "::error::$asset does not match GO_SHA256" \
+  PATH="$T/stub:$PATH" RUNNER_TEMP="$T/rt" GITHUB_PATH="$T/path" -- "$S/lib/install-pinned-goimports.sh" "$T/bin" "$T/cache"
+if [[ ! -e "$T/curl-ran" ]]; then ok "a cached Go archive is not downloaded again"; else fail "curl ran with the Go archive cached"; fi
+out=$(env -i "$P" /bin/bash "$S/lib/install-pinned-goimports.sh" 2>&1)
+rc=$?
+if [[ $rc -eq 1 && $out == *"usage: install-pinned-goimports.sh <bin-dir> [cache-dir]" ]]; then
+  ok "no goimports bin dir is a usage error"
+else
+  fail "no goimports bin dir: exit $rc, output [$out]"
 fi
 
 test_harness::report

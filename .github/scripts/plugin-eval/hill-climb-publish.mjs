@@ -96,7 +96,6 @@ export function frontmatterRefusal(paths, show, baseRef, headRef) {
   return changed ? `a frontmatter change in ${changed}` : null;
 }
 
-// A backtick fence longer than any run of backticks in `text`, so the text cannot close it.
 const fenced = (text) => {
   const longest = Math.max(2, ...[...text.matchAll(/`+/g)].map(([run]) => run.length));
   const fence = "`".repeat(longest + 1);
@@ -246,7 +245,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       // A failed command's message quotes its stderr, which can hold file text.
       const message = (String(error.message).startsWith("Command failed") ? "a command failed" : String(error.message)).replace(/[\r\n]+/g, " ");
       console.log(`::error::${message}`);
-      // The win is in the summary already, so the stop that kept it from a pull request is too.
       if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `gate: ${process.argv[2]}: ${message}\n`);
       process.exit(1);
     });

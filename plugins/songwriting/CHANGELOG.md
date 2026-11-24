@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.1] - 2026-11-24
+
+### Fixed
+
+- `audit` runs the rubric's countable passes as commands; reporting only no longer reads as a reason to skip them.
+
 ## [3.0.0] - 2026-11-24
 
 ### Changed

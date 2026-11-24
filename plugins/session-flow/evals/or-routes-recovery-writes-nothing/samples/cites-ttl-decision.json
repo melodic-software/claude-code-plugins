@@ -11,6 +11,10 @@
     {
       "answer": "Decisions made: a lease TTL of ninety seconds.",
       "why": "spelled-out number states the decision"
+    },
+    {
+      "answer": "Decision in force: the lease TTL is 90s, renewed every 30s.",
+      "why": "unit joined to the number"
     }
   ],
   "fail": [
@@ -29,6 +33,10 @@
     {
       "answer": "Decisions made: a lease TTL of ninety minutes.",
       "why": "ninety minutes is a different value"
+    },
+    {
+      "answer": "Decisions made: lease TTL 90.5 s.",
+      "why": "a decimal is a different value"
     }
   ]
 }

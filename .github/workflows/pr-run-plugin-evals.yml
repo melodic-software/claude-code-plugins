@@ -272,6 +272,11 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        if: github.event_name != 'workflow_run' || steps.tip.outputs.sha != ''
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -317,7 +322,7 @@ jobs:
       - name: Check the dispatcher is a trusted human
         if: github.event_name == 'workflow_dispatch'
         env:
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
@@ -346,7 +351,7 @@ jobs:
         if: github.event_name == 'workflow_run'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
 
       # check-trusted-trigger accepts any listed actor; the label that spends
@@ -357,7 +362,7 @@ jobs:
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           ACTOR_ID: ${{ github.event.workflow_run.triggering_actor.id }}
           RUN_CREATED_AT: ${{ github.event.workflow_run.created_at }}
@@ -502,15 +507,36 @@ jobs:
         timeout-minutes: 3
         run: bash .base/.github/scripts/lib/install-pinned-ffmpeg.sh /opt/tools/bin
 
-      # The guardrails hooks read every Bash command through shfmt and refuse the
-      # call without it, so a guardrails eval needs it on PATH. The
-      # setup-pinned-shfmt action holds the pin; /opt/tools, since each eval run
-      # replaces HOME.
-      - name: Install pinned shfmt for guardrails
-        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
+      # Each plugin's prerequisites.json shfmt entry:
+      # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/repo-hygiene/prerequisites.json
+      - name: Install pinned shfmt for shell-reading plugins
+        if: >-
+          steps.stage.outputs.go == 'true' &&
+          (contains(steps.plugins.outputs.list, 'plugins/guardrails') ||
+          contains(steps.plugins.outputs.list, 'plugins/repo-hygiene') ||
+          contains(steps.plugins.outputs.list, 'plugins/bash-format') ||
+          contains(steps.plugins.outputs.list, 'plugins/source-control'))
         uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           bin-dir: /opt/tools/bin
+
+      - name: Install pinned goimports for go-format
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/go-format')
+        timeout-minutes: 5
+        run: bash .base/.github/scripts/lib/install-pinned-goimports.sh /opt/tools/bin
+
+      - name: Install pinned typos for spelling
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        uses: melodic-software/ci-workflows/.github/actions/typos@main
+        with:
+          config: .base/_typos.toml
+          paths: .base/_typos.toml
+          annotations: 'false'
+      - name: Put typos where eval runs can read it
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        run: |
+          install -D -m 0755 "$(command -v typos)" /opt/tools/bin/typos
+          echo /opt/tools/bin >>"$GITHUB_PATH"
 
       # run-claude-cli's classifier, at the ref every lane runs it, for
       # eval-handoff.mjs: its published contract, contract-files.txt and the
@@ -1031,6 +1057,11 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        if: github.event_name != 'workflow_run' || steps.tip.outputs.sha != ''
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1069,7 +1100,7 @@ jobs:
       - name: Check the dispatcher is a trusted human
         if: github.event_name == 'workflow_dispatch'
         env:
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
@@ -1098,7 +1129,7 @@ jobs:
         if: github.event_name == 'workflow_run'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
 
       - name: Stop on an untrusted pull request trigger
@@ -1106,7 +1137,7 @@ jobs:
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           ACTOR_ID: ${{ github.event.workflow_run.triggering_actor.id }}
           RUN_CREATED_AT: ${{ github.event.workflow_run.created_at }}
@@ -1214,11 +1245,34 @@ jobs:
         timeout-minutes: 3
         run: bash .base/.github/scripts/lib/install-pinned-ffmpeg.sh /opt/tools/bin
 
-      - name: Install pinned shfmt for guardrails
-        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
+      - name: Install pinned shfmt for shell-reading plugins
+        if: >-
+          steps.stage.outputs.go == 'true' &&
+          (contains(steps.plugins.outputs.list, 'plugins/guardrails') ||
+          contains(steps.plugins.outputs.list, 'plugins/repo-hygiene') ||
+          contains(steps.plugins.outputs.list, 'plugins/bash-format') ||
+          contains(steps.plugins.outputs.list, 'plugins/source-control'))
         uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           bin-dir: /opt/tools/bin
+
+      - name: Install pinned goimports for go-format
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/go-format')
+        timeout-minutes: 5
+        run: bash .base/.github/scripts/lib/install-pinned-goimports.sh /opt/tools/bin
+
+      - name: Install pinned typos for spelling
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        uses: melodic-software/ci-workflows/.github/actions/typos@main
+        with:
+          config: .base/_typos.toml
+          paths: .base/_typos.toml
+          annotations: 'false'
+      - name: Put typos where eval runs can read it
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        run: |
+          install -D -m 0755 "$(command -v typos)" /opt/tools/bin/typos
+          echo /opt/tools/bin >>"$GITHUB_PATH"
 
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'
@@ -1623,6 +1677,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1645,7 +1703,7 @@ jobs:
 
       - name: Check the dispatcher is a trusted human
         env:
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
@@ -1716,7 +1774,7 @@ jobs:
         if: inputs.credential == 'subscription'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           pr-number: ${{ inputs.pr }}
           triggering-actor: ${{ github.triggering_actor }}
 
@@ -1733,7 +1791,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ inputs.pr }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
         run: |
           . .base/.github/actions/log-api-budget/api-budget.bash
           api_budget_wrap_gh github-token

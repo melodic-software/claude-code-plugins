@@ -88,8 +88,6 @@ while IFS= read -r -d '' record; do
 done < <(g ls-files -u -z)
 ((${#paths[@]})) || die 'the merge has no unmerged path'
 
-# Path by path, each path's files together, so a cut at the total leaves out
-# whole later paths first.
 log=(g log -p --no-ext-diff --no-textconv --no-color --format='commit %H%nAuthor: %an%nDate: %aI%n%n%B')
 entries=()
 for i in "${!paths[@]}"; do

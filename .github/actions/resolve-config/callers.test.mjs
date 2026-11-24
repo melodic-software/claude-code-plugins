@@ -413,6 +413,7 @@ test("upstream-apply-changelog.yml: every resolve-config step resolves on schedu
       };
       for (const [key, value] of Object.entries(step.with)) {
         if (key === "base-path") env.BASE_PATH = root;
+        else if (key === "standards-path") assert.equal(value, "${{ steps.standards.outputs.path }}", step.id);
         else if (key !== "output-path") {
           assert.doesNotMatch(String(value), /\$\{\{/, `${step.id} ${key} is an expression this test cannot evaluate`);
           env[key.toUpperCase().replaceAll("-", "_")] = String(value);
@@ -1935,7 +1936,7 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   assert.deepEqual(check.permissions, { contents: "read", issues: "read", "pull-requests": "read" });
   const step = check.steps.find((s) => s.id === "check");
   assert.equal(step.run, "node .base/.github/scripts/work-resolve-issue/check-human-pull.mjs");
-  assert.equal(step.env.TRUSTED_ACTORS_PATH, ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(step.env.TRUSTED_ACTORS_PATH, "${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json");
   assert.equal(check.outputs.pull, "${{ steps.check.outputs.pull }}");
   const checked = (started, state, reuse) =>
     evaluate(check.if, {
@@ -2084,7 +2085,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
   assert.equal(blockers.if, "steps.gate.outputs.proceed == 'true'");
   assert.equal(blockers.run, "node .base/.github/scripts/work-resolve-issue/check-blockers.mjs");
   // Trusted closes and provenance are judged against the default branch's list, never the head's.
-  assert.equal(blockers.env.TRUSTED_ACTORS_PATH, ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(blockers.env.TRUSTED_ACTORS_PATH, "${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json");
   assert.equal(blockers.env.LANES_APP_ID, "${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}");
   // work-unblock never re-fires a run that reached this step.
   const final = admit.steps.find((s) => s.name === "Stop on untrusted provenance");
@@ -2155,6 +2156,7 @@ async function admitOn(sender, rerunner = sender) {
     const values = {
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
       "github.triggering_actor": rerunner.login,
+      "steps.standards.outputs.path": "",
     };
     // The event and run the runner would pass through the action's defaults.
     const env = {
@@ -7542,7 +7544,7 @@ test("pr-unblock.yml: check-conflict-scan-refusal escalates a refused resolve-co
   assert.equal(sub(script.env.SCAN_REFUSED_DIR, values), sub(download.with.path, values));
   assert.equal(script.env.SCAN_REFUSED_READ, `\${{ steps.${download.id}.outcome }}`);
   assert.equal(job.outputs["escalation-reason"], "${{ steps.refusal.outputs.escalation-reason }}");
-  assert.doesNotMatch(JSON.stringify(job.steps), /needs\./, "no step reads a leg output");
+  assert.doesNotMatch(JSON.stringify(job.steps), /needs\.(?!resolve-conflicts-select\.outputs\.standards-sha\b)/, "no step reads a leg output");
   // Its escalation reaches report-escalation and the conflict status.
   const escalation = jobs["report-escalation"];
   assert.ok(escalation.needs.includes("check-conflict-scan-refusal"));
@@ -11262,16 +11264,17 @@ test("pr-run-activity-write.yml: the script step passes apply-patch's test-scope
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "act-script");
   const root = mkdtempSync(join(tmpdir(), "act-script-"));
   try {
-    mkdirSync(join(root, "base-script"));
+    const script = ".github/scripts/apply-patch/apply-patch.mjs";
+    mkdirSync(join(root, "base-script", dirname(script)), { recursive: true });
     const resolved = join(root, "resolved.json");
     writeFileSync(resolved, JSON.stringify({ selected: { args: "" }, loop: { "review-rounds": 1 } }));
-    writeFileSync(join(root, "base-script", "apply-patch.mjs"), '#!/bin/bash\necho "$REASON" >"$ESCALATION_REASON_FILE"\n', { mode: 0o755 });
+    writeFileSync(join(root, "base-script", script), '#!/bin/bash\necho "$REASON" >"$ESCALATION_REASON_FILE"\n', { mode: 0o755 });
     const run = (reason) => {
       const output = join(root, "output");
       writeFileSync(output, "");
       const result = spawnSync("bash", ["-e", "-c", step.run], {
         encoding: "utf8",
-        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: ".github/scripts/apply-patch/apply-patch.mjs", TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
+        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: script, TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
       });
       return { status: result.status, output: readFileSync(output, "utf8") };
     };

@@ -15,6 +15,10 @@
     {
       "answer": "Searched three directories and twelve transcripts in this worktree for terms invoice, export, timeout.",
       "why": "spelled-out numbers still state the counts"
+    },
+    {
+      "answer": "- **Search terms:** `invoice export timeout`.\n- **Scope reached:** this worktree, then the repository's other worktrees. The directory listing came back empty at both levels, so nothing was scanned.",
+      "why": "zero directories stated as an empty directory listing"
     }
   ],
   "fail": [
@@ -45,6 +49,10 @@
     {
       "answer": "Searched this worktree: two directories, zero transcripts.",
       "why": "spelled-out number with no terms"
+    },
+    {
+      "answer": "Search terms: invoice export. In this worktree the transcript listing came back empty of matches.",
+      "why": "empty listing of matches, not of directories"
     }
   ]
 }

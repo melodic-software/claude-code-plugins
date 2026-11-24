@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/review/schemas/review.schema.json plugins/review/skills/setup/scripts/setup-apply.mjs plugins/review/lib/setup-apply.mjs plugins/review/lib/yaml-subset.mjs
+# test-scope: plugins/review/.claude-plugin/plugin.json plugins/review/lib/parse-concern-value.sh plugins/review/lib/resolve-convention-home.sh plugins/review/lib/yaml-subset.awk
+# test-scope: plugins/review/scripts/fixtures/standards-ref-heads-main.json plugins/review/scripts/fixtures/standards-trusted-actors.json
 # Tests for loosened-check-settings.mjs. Expected values come from the level
 # rules in reference/config.md: loosened_check_verdict is a policy floor (fail
 # in any valid layer wins, default fail) and loosened_check_patterns is the
@@ -207,6 +209,53 @@ assert_contains "case 7b: with no --ref the resolved default branch is read" "$o
 g "$R7" symbolic-ref -d refs/remotes/origin/HEAD
 out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --ref origin/main --spec-issue 42)"
 assert_contains "case 7b: a default branch that cannot be resolved gives no reason" "$out" "loosened_check_spec: no reason (the default branch could not be resolved)"
+
+STD_FIX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fixtures"
+STD_SHA="$(jq -r .object.sha "$STD_FIX/standards-ref-heads-main.json")"
+STD_HUMAN="$(jq -r '[.actors[] | select(.kind == "human")][0].id' "$STD_FIX/standards-trusted-actors.json")"
+STD_BIN="$TEST_TMPDIR/std-bin"
+mkdir -p "$STD_BIN"
+# shellcheck disable=SC2016 # the stub's own variables expand when it runs, not here
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"$FAKE_GH_CALLS"\ncase "$*" in\n"api repos/{owner}/{repo}/issues/$FAKE_GH_ISSUE") printf "%%s" "$FAKE_GH_REPLY" ;;\n"api repos/acme/standards/git/ref/heads/main --jq .object.sha") [[ -f "${FAKE_STD_COMMIT:-}" ]] || exit 1; jq -r .object.sha "$FAKE_STD_COMMIT" ;;\n"api repos/acme/standards/commits/main --jq .sha") printf "%%s\\n" ffffffffffffffffffffffffffffffffffffffff ;;\n"api -H Accept: application/vnd.github.raw repos/acme/standards/contents/components/trusted-actors/trusted-actors.json?ref=$FAKE_STD_SHA") cat "$FAKE_STD_LIST" ;;\n*) exit 1 ;;\nesac\n' >"$STD_BIN/gh"
+chmod +x "$STD_BIN/gh"
+R7S="$(new_repo c7s $'fanout_diversity: lens\n')"
+mkdir -p "$R7S/.github/standards/trusted-actors"
+printf '%s' '{"version": 1, "actors": [{"id": 999, "login": "stranger", "kind": "human"}]}' >"$R7S/.github/standards/trusted-actors/trusted-actors.json"
+printf 'pr_open_state: ready\ntrusted_actors_source: standards\nstandards_repository: acme/standards\n' >"$R7S/docs/conventions/source-control.yaml"
+g "$R7S" add .github docs
+g "$R7S" commit -q -m "opt in"
+g "$R7S" update-ref refs/remotes/origin/main HEAD
+std_at() { (cd "$R7S" && PATH="$STD_BIN:$PATH" FAKE_GH_CALLS="$TEST_TMPDIR/std-calls" FAKE_GH_ISSUE=42 FAKE_GH_REPLY="$1" FAKE_STD_COMMIT="${2-$STD_FIX/standards-ref-heads-main.json}" FAKE_STD_SHA="$STD_SHA" FAKE_STD_LIST="$STD_FIX/standards-trusted-actors.json" node "$RESOLVE" --root "$R7S" --ref origin/main --spec-issue 42 | grep '^loosened_check_spec: '); }
+: >"$TEST_TMPDIR/std-calls"
+out="$(std_at "{\"number\": 42, \"user\": {\"login\": \"owner-person\", \"id\": $STD_HUMAN, \"type\": \"User\"}}")"
+assert_contains "case 7c: opted in, a person on the standards list counts" "$out" "loosened_check_spec: counts (issue #42 by owner-person, id $STD_HUMAN, a trusted person at acme/standards@$STD_SHA)"
+assert_eq "case 7c: standards main is resolved once, by its full ref" "1" "$(grep -c 'standards/git/ref/heads/main' "$TEST_TMPDIR/std-calls")"
+assert_eq "case 7c: never commits/main, which a tag named main answers" "0" "$(grep -c 'standards/commits/' "$TEST_TMPDIR/std-calls")"
+out="$(std_at '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}')"
+assert_contains "case 7c: opted in, the repository's copy is not read" "$out" "loosened_check_spec: no reason"
+out="$(std_at "{\"number\": 42, \"user\": {\"login\": \"owner-person\", \"id\": $STD_HUMAN, \"type\": \"User\"}}" "$TEST_TMPDIR/no-such-commit.json")"
+assert_contains "case 7c: standards main unresolved gives no reason" "$out" "loosened_check_spec: no reason (acme/standards main could not be resolved)"
+for bad in '' 'standards_repository: not a repo\n' 'standards_repository: [acme/standards]\n'; do
+  printf 'trusted_actors_source: standards\n%b' "$bad" >"$R7S/docs/conventions/source-control.yaml"
+  g "$R7S" commit -q -a -m "standards repository: ${bad:-none}"
+  g "$R7S" update-ref refs/remotes/origin/main HEAD
+  : >"$TEST_TMPDIR/std-calls"
+  out="$(std_at "{\"number\": 42, \"user\": {\"login\": \"owner-person\", \"id\": $STD_HUMAN, \"type\": \"User\"}}")"
+  assert_contains "case 7c: standards with standards_repository '${bad:-unset}' gives no reason" "$out" "trusted_actors_source standards needs standards_repository as <owner>/<repo>"
+  assert_eq "case 7c: standards_repository '${bad:-unset}' makes no standards read" "0" "$(grep -c heads/main "$TEST_TMPDIR/std-calls")"
+done
+printf 'trusted_actors_source: repository\n' >"$R7S/docs/conventions/source-control.yaml"
+g "$R7S" commit -q -a -m "copy source"
+g "$R7S" update-ref refs/remotes/origin/main HEAD
+: >"$TEST_TMPDIR/std-calls"
+out="$(std_at '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}')"
+assert_contains "case 7c: trusted_actors_source repository reads the copy" "$out" "loosened_check_spec: counts"
+assert_eq "case 7c: the copy source makes no standards read" "0" "$(grep -c standards/ "$TEST_TMPDIR/std-calls")"
+printf 'trusted_actors_source: elsewhere\n' >"$R7S/docs/conventions/source-control.yaml"
+g "$R7S" commit -q -a -m "unknown source"
+g "$R7S" update-ref refs/remotes/origin/main HEAD
+out="$(std_at '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}')"
+assert_contains "case 7c: an unknown trusted_actors_source gives no reason" "$out" 'trusted_actors_source "elsewhere" is not one of repository, standards'
 
 # --- Case 8: with no trusted-actor list, a member human's issue gives a reason --
 spec_at() { (cd "$1" && PATH="$FAKE_BIN:$PATH" FAKE_GH_ISSUE=42 FAKE_GH_REPLY="$2" node "$RESOLVE" --root "$1" --ref origin/main --spec-issue 42 | grep '^loosened_check_spec: '); }

@@ -1,21 +1,21 @@
 {
   "pass": [
     {
-      "answer": "GATE: scripts/check-file-names.sh\nRULE-FILE: `/corrections:codify \"doc file names under docs/ are lower-kebab\"`",
+      "answer": "GATE: tools/check-file-names.sh\nRULE-FILE: `/corrections:codify \"doc file names under docs/ are lower-kebab\"`",
       "why": "the rule-file question is the named codify call"
     },
     {
-      "answer": "GATE: scripts/check-file-names.sh\n**RULE-FILE:** hand the question to `/corrections:codify`, which picks the strongest rung and proves the check; I did not add a rule file",
+      "answer": "GATE: tools/check-file-names.sh\n**RULE-FILE:** hand the question to `/corrections:codify`, which picks the strongest rung and proves the check; I did not add a rule file",
       "why": "bold label, codify picks the mechanism"
     }
   ],
   "fail": [
     {
-      "answer": "GATE: scripts/check-file-names.sh\nRULE-FILE: skip it: a path-scoped rule file is not a substitute, since it blocks nothing and never runs in CI; add it later with --rule if you want the guidance",
+      "answer": "GATE: tools/check-file-names.sh\nRULE-FILE: skip it: a path-scoped rule file is not a substitute, since it blocks nothing and never runs in CI; add it later with --rule if you want the guidance",
       "why": "the reply a faithful read of the Purpose before the follow-on gives: the skill settles the rule-file question itself"
     },
     {
-      "answer": "You could also run /corrections:codify later.\n\nGATE: scripts/check-file-names.sh\nRULE-FILE: rerun emit-gate.sh with --rule in a later change",
+      "answer": "You could also run /corrections:codify later.\n\nGATE: tools/check-file-names.sh\nRULE-FILE: rerun emit-gate.sh with --rule in a later change",
       "why": "codify only outside the RULE-FILE line"
     }
   ]

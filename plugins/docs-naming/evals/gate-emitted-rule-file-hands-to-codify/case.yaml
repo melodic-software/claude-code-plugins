@@ -11,7 +11,7 @@ graders:
     arm: with-only
   - name: checker-created
     type: file_exists
-    path: scripts/check-file-names.sh
+    path: tools/check-file-names.sh
     arm: both
   - name: rule-file-hands-to-codify
     type: regex

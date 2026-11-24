@@ -17,4 +17,5 @@ graders:
   - name: handoff-carries-content
     type: llm
     arm: both
+    focus: trace
     criteria: "PASS only if the run records, in a written file or in the reply, the confirmed problem (users drop off before finishing the setup wizard), the user's why in their own words (people pay and never see the product work), the vision (a first report on day one), candidates 2 and 3 as the chosen direction, candidates 1, 4 and 5 as rejected each with its stated reason (support sends reminders by hand; too big for this quarter), and the criteria the user gave (quick to try; users hate retyping), AND routes onward to /planning:interview. FAIL if any of those is missing, if the why is replaced by the agent's own paraphrase with no quote, or if the run starts the interview or writes a Brief itself."

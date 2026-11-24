@@ -3,6 +3,13 @@
 All notable changes to the `sql-server` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.16] - 2026-11-24
+
+### Changed
+
+- **Bump tedious from 20.3.9 to 20.4.0 in /plugins/sql-server in the npm-minor-patch group across 1 directory** (#18631).
+  - `tedious` 20.3.9→20.4.0
+
 ## [0.6.15] - 2026-11-21
 
 ### Changed

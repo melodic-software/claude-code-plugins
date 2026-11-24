@@ -58,7 +58,7 @@
     {
       "use": "table_verdict_cell",
       "with": {
-        "row": "(?:\\b(?:Config|config)\\b|ruff\\.toml|pyproject)"
+        "row": "(?:\\b(?:Config|config|Resolves?|resolves?|Resolution|resolution|format concern|lint concern)\\b|adapter:ruff|ruff\\.toml|pyproject)"
       }
     },
     {

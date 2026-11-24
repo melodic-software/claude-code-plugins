@@ -1,8 +1,3 @@
-// Expected values come from the owner's decision for this check: one neutral
-// `pr-merge / gate` check run per candidate head, titled with the top
-// refusal, rewritten only when the refusal or head changes, so an unchanged
-// sweep writes nothing; read from one listing, never one call per candidate.
-// The main ruleset requires only `ci-status`, so no write may carry that name.
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
@@ -166,7 +161,6 @@ test("a failed read writes nothing and fails the step", async () => {
   assert.deepEqual(w.writes(), []);
 });
 
-// Markdown outside a code span or fence, where a link or image would render.
 const rendered = (summary) => summary.replaceAll(/```text\n[\s\S]*?\n```/g, "").replaceAll(/`[^`\n]*`/g, "");
 
 test("refusal text cannot render as a link or image in the summary", async () => {

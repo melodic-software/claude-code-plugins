@@ -121,6 +121,7 @@ jobs:
       actions: read # the dispatcher run's file and head
     outputs:
       stale: ${{ steps.current.outputs.stale }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -139,6 +140,13 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Resolve the standards commit
+        id: standards
+        if: inputs.dispatcher-run-id != ''
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          checkout: 'false'
 
       - name: Compare the dispatcher file with the tip's
         id: current
@@ -205,6 +213,7 @@ jobs:
       # true when another lane's escalation put the human-gated label on, so
       # apply-conflict-patch pushes past it (lane-hold.mjs).
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -221,6 +230,12 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -294,6 +309,7 @@ jobs:
           head-sha: ${{ steps.head.outputs.sha }}
           prepare-supported: "true"
           applied-by-supported: patch
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # The human-gated label holds the PR unless another lane's escalation
       # put it on; do-not-merge stays with the slot's labels-absent. A GitHub
@@ -313,6 +329,7 @@ jobs:
           # A rate limit past the guard's budget refuses the read with a
           # notice, and the step holds.
           API_BUDGET_HOLD: "1"
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
 
       # The base every merge of this round uses: the default branch tip now,
@@ -814,6 +831,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.resolve-conflicts-select.outputs.standards-sha }}
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -836,6 +859,7 @@ jobs:
         env:
           SCAN_REFUSED_DIR: ${{ runner.temp }}/scan-refused
           SCAN_REFUSED_READ: ${{ steps.scan-refused.outcome }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/conflict-scan-refusal.mjs
 
       - name: Log the API budget at the end
@@ -920,6 +944,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -994,6 +1024,7 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           pr-number: ${{ inputs.pr-number }}
           head-sha: ${{ steps.head.outputs.sha }}
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # The human-gated label holds the PR unless pr-merge's shared-copy
       # refusal at this head put it on; with no such refusal
@@ -1013,6 +1044,7 @@ jobs:
           # A rate limit past the guard's budget refuses the read with a
           # notice, and the step holds.
           API_BUDGET_HOLD: "1"
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
 
       - name: Pin the base
@@ -1317,6 +1349,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -1371,6 +1409,7 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           pr-number: ${{ inputs.pr-number }}
           head-sha: ${{ steps.head.outputs.sha }}
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Find the failed selection trace
         id: locate
@@ -1380,6 +1419,7 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           HEAD_SHA: ${{ steps.head.outputs.sha }}
           BASE_DIR: ${{ github.workspace }}/.base
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/declare-test-scope.mjs locate
 
       - name: Download the selection trace
@@ -1410,6 +1450,7 @@ jobs:
           HEAD_DIR: ${{ github.workspace }}/head
           BASE_DIR: ${{ github.workspace }}/.base
           PATCH_OUT: ${{ runner.temp }}/declare-test-scope-patch/patch.diff
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$(dirname "$PATCH_OUT")"
           node .base/.github/scripts/pr-unblock/declare-test-scope.mjs build
@@ -1586,6 +1627,7 @@ jobs:
       # The artifact name's attempt, so a re-run of a later job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -1602,6 +1644,12 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -1664,6 +1712,7 @@ jobs:
           head-sha: ${{ steps.head.outputs.sha }}
           prepare-supported: "true"
           applied-by-supported: patch feedback-replies
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Select the review threads
         id: select
@@ -1677,7 +1726,7 @@ jobs:
           PULL_FILE: ${{ runner.temp }}/pr-head.json
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_DIR: ${{ runner.temp }}/feedback-context
-          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           TRACKER_CONFIG: .base/docs/conventions/work-items.yaml
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           # A pass-only round (address-feedback.mjs select), sent only by a
@@ -1688,6 +1737,7 @@ jobs:
           # refusal, read from their verdict artifacts (earlier-fail-notes.mjs).
           VERIFY_EARLIER_FAIL_HEADS: ${{ inputs.verify-earlier-fail-heads }}
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$FEEDBACK_DIR"
           REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
@@ -2211,6 +2261,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.address-feedback-select.outputs.standards-sha }}
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -2256,7 +2312,8 @@ jobs:
           # staged as contract.json: a quote from it may settle an intent or
           # design question.
           PR_NUMBER: ${{ inputs.pr-number }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           export LANE_IDENTITY
@@ -2272,6 +2329,7 @@ jobs:
           model-route: adjudicate-feedback
           base-path: .base
           output-path: ${{ runner.temp }}/adjudicate-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Which legs can run, never a secret's value (ci-workflows
       # select-model-credential, one call per leg for the whole job). The key
@@ -3161,6 +3219,7 @@ jobs:
         env:
           OUT_DIR: ${{ runner.temp }}/adjudicate
           VERDICTS_FILE: ${{ runner.temp }}/adjudication/verdicts.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$(dirname "$VERDICTS_FILE")"
           node .base/.github/scripts/pr-unblock/adjudicate-feedback.mjs collect
@@ -3373,6 +3432,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -3430,6 +3495,7 @@ jobs:
           head-sha: ${{ steps.head.outputs.sha }}
           prepare-supported: "true"
           applied-by-supported: patch dependency-verdict
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Select the dependency pull request
         id: select
@@ -3440,17 +3506,18 @@ jobs:
           HEAD_SHA: ${{ steps.head.outputs.sha }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           DEPENDENCY_DIR: ${{ runner.temp }}/dependency-context
-          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           # The content rule's ecosystems and directories, read from the base.
           DEPENDABOT_CONFIG: .base/.github/dependabot.yml
           # The review-only dependencies, read from the base.
-          DEPENDABOT_POLICY: .base/.github/standards/dependabot-policy/policy.json
+          DEPENDABOT_POLICY: ${{ steps.standards.outputs.path }}/components/dependabot-policy/policy.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           # A stale install-script pin's patch (install-script-pin.mjs).
           PIN_PATCH_FILE: ${{ runner.temp }}/dependency-pin/patch.diff
           RELOCK_DIR: ${{ runner.temp }}/dependency-relock
           BASE_DIR: .base
           CDN_SYNC_DIR: ${{ runner.temp }}/cdn-pins-request
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$DEPENDENCY_DIR" "$(dirname "$PIN_PATCH_FILE")" "$RELOCK_DIR" "$CDN_SYNC_DIR"
           DEPENDENCY_REVIEW_ROUNDS=$(jq -r '.loop["dependency-review-rounds"] // empty' "$RESOLVED")
@@ -4353,6 +4420,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -4384,6 +4457,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           CONTEXT_FILE: ${{ runner.temp }}/ci-context/context.json
           BASE_PATH: .base
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$RUNNER_TEMP/ci-context"
           # The listed review bots' ids (review-threads.reviewer-ids), one per line.

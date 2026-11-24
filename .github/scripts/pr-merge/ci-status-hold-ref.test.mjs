@@ -1,6 +1,3 @@
-// Runs ci-status's "Resolve the hold config's commit" step with a git stand-in
-// that answers ls-remote with the default branch tip, and checks which commit
-// the hold config is read from.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -13,7 +10,6 @@ const STEP = "Resolve the hold config's commit";
 const TIP = "1".repeat(40);
 const EVENT_BASE = "2".repeat(40);
 
-// The named step's `run: |` block, dedented.
 function runScript() {
   const lines = readFileSync(WORKFLOW, "utf8").split("\n");
   const named = lines.findIndex((line) => line.trim() === `- name: ${STEP}`);
@@ -31,7 +27,6 @@ function runScript() {
 
 const STACK_BASE = "3".repeat(40);
 
-// `tipFails` makes the git stand-in's ls-remote fail, as an outage would.
 function run(vars, { tipFails = false } = {}) {
   const root = tempDir("hold-ref-");
   const bin = path.join(root, "bin");

@@ -136,8 +136,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 
 ## Plugins with moved reads
 
-discovery, external-agents, harness-ops and session-flow. External-agents carries no
-`fetch-docs.sh` copy yet; the other three do.
+discovery, external-agents, harness-ops and session-flow. Each carries a `fetch-docs.sh` copy.
 
 ## Plugins with all reads kept
 

@@ -18,5 +18,5 @@ graders:
     arm: 'both'
   - name: 'gap-line-names-missing-gh'
     type: 'llm'
-    criteria: 'Records a gap: line naming the missing gh as the reason collision hotspots were not measured'
+    criteria: 'Pass if the reply or the ledger it writes records a gap, as a `gap:` line or an entry under a Gaps heading, saying collision hotspots were not measured and naming the missing gh as the reason. Fail if the run only mentions that gh is unavailable without saying the collision-hotspot measure was skipped.'
     focus: 'trace'
