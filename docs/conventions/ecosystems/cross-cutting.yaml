@@ -9,7 +9,7 @@ check-cmd: |
   # lychee-offline: on-disk link and anchor integrity, no network
   lychee --offline --no-progress './**/*.md'
 fix-cmd: null
-opt-in: "each tool's own config at the repository root (_typos.toml, .gitleaks.toml, .editorconfig, lychee.toml)"
+opt-in: "each tool's own config at the repository root (_typos.toml, .gitleaks.toml, .editorconfig)"
 install-hint: |
   typos: winget install Crate-CI.Typos | brew install typos-cli
   gitleaks: winget install Gitleaks.Gitleaks | brew install gitleaks
