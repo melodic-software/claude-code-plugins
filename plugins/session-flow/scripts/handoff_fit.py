@@ -1,14 +1,3 @@
-"""Write-time sizing for save_point.py: the byte budget of each size-classed
-slot, the shape-4 fit that moves whole movable sections to this hop's file
-behind a pointer, and the paged-Read directive for a hot file past one Read
-page. Stdlib only; this module imports nothing from `save_point`.
-
-Slot budgets are the 95th percentile of each slot over the 143 shape-3 hot
-files dated in the 7-day handoff audit window (2026-11-11T18:46Z to
-2026-11-18T18:46Z): the Resumption brief (979 bytes) and, over the 31 files
-that wrote one, the below-the-rails note (281 bytes).
-"""
-
 from __future__ import annotations
 
 import json
