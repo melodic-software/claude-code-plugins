@@ -1,15 +1,3 @@
-/**
- * Single source of truth for the `/video-digest watch` slice's concern-lane directory names.
- *
- * Every writer, consumer, eval gate, and lib validator joins lane paths through this
- * registry instead of inlining `context/` / `watching/` / `.bootstrap/` / `media/key-frames/`
- * literals — so the lane layout is enforced in one place and a rename is a one-file flip.
- *
- * The six lanes are an intentional, user-approved concern-layout — each owns its deliverable +
- * working trail + machine-state together (Common Closure Principle). `verification` is a
- * content-noun like the other five lanes.
- */
-
 import path from "node:path";
 
 /** @typedef {'source'|'research'|'keyFrames'|'recommendations'|'verification'|'runState'} LaneKey */

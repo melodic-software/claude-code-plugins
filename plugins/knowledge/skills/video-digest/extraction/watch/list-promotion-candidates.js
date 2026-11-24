@@ -85,8 +85,6 @@ export function listPromotionCandidates(sliceDir) {
     }
   }
 
-  // Snapshot BEFORE the backfill loop: top-ups added for one session must not
-  // count toward the per-session floor of a later session.
   const triaged = [...candidates.values()];
 
   for (const session of sessions) {

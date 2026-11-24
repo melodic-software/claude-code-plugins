@@ -1,8 +1,3 @@
-/**
- * Convert acquired captions (or the optional ASR rung's output) into cleaned
- * timestamped transcript.txt artifacts, per the resolved transcript strategy.
- */
-
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -107,9 +102,6 @@ function comparableRun(run) {
  * @param {readonly { startSec: number, endSec: number, text: string, carriedLineDropped?: boolean }[]} cues
  */
 function carriesOverFromPreviousCue(stamp, run, cues) {
-  // The paragraph stamp floors the opening cue's start to the second, so it
-  // identifies the opener only when exactly one cue starts in that second.
-  // With several, the evidence is ambiguous and the words stay.
   const openers = cues.flatMap((cue, at) =>
     `[${formatTimestamp(cue.startSec)}]` === stamp ? [at] : [],
   );
@@ -158,9 +150,6 @@ export function dropParagraphBoundaryRepeats(transcript, cues) {
     for (let length = longest; length >= BOUNDARY_REPEAT_MIN_WORDS; length--) {
       const run = currentWords.slice(0, length);
       if (comparableRun(previousWords.slice(-length)) !== comparableRun(run)) continue;
-      // Every match, whatever its length, needs cue-level carry-over evidence:
-      // a speaker may genuinely repeat several words ("I don't know." / "I
-      // don't know why.").
       if (!carriesOverFromPreviousCue(current[1].trim(), run, cues)) continue;
       const kept = [
         ...currentTokens.slice(0, wordAt[0]),
@@ -439,8 +428,6 @@ export async function writeEnvelopeTranscriptArtifacts(
         python: /** @type {string} */ (asrDetection?.python),
       });
       if (!asr.success || !asr.cues) {
-        // An ASR failure degrades the entry explicitly rather than failing the
-        // digest — same posture as capability absence, never silent.
         entryDegradations.push({
           entryIndex,
           reason: asr.error ?? "ASR transcription failed",

@@ -1,7 +1,3 @@
-/**
- * Interleave transcript cues and selected frames by timestamp for vision absorption.
- */
-
 /** @typedef {import('./models.js').TranscriptCue} TranscriptCue */
 /** @typedef {import('./models.js').SelectedFrame} SelectedFrame */
 /** @typedef {import('./models.js').InterleavedReadItem} InterleavedReadItem */
