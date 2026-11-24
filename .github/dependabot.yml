@@ -3,8 +3,7 @@
 # refs track `@main`, vendor actions `actions/*`, `github/*` and `anthropics/*` use major tags, and
 # other third-party actions stay hash-pinned and move by Dependabot:
 # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0129-reference-first-party-actions-at-main-and-vendor-actions-by-major-tag.md),
-# the root locked Node CI toolchain, the standards-managed runner-policy dependency root, the
-# hash-locked Python CI
+# the root locked Node CI toolchain, the hash-locked Python CI
 # toolchain, the lockfile-backed npm roots of the resolve-config action and the plugin skills and
 # evals, and the Node MCP servers of the miro and sql-server plugins. The plugin hooks
 # still use each consuming repository's tools; these manifests exist only to make this repository's
@@ -71,25 +70,6 @@ updates:
       exclude:
         - "@anthropic-ai/claude-code"
     # Batch minor + patch bumps into one reviewed PR; majors stay individual.
-    groups:
-      npm-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-  # The standards-distributed runner policy has its own package manifest and
-  # lockfile. Keep this as an independent dependency root so policy parser
-  # updates are reviewed and cannot drift behind the materialized component.
-  - package-ecosystem: npm
-    directory: /.github/standards/runner-policy
-    labels:
-      - dependencies
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 3
     groups:
       npm-minor-patch:
         patterns:
