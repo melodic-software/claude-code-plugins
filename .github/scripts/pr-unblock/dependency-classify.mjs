@@ -440,7 +440,17 @@ export const isFixFile = (entry) => entry?.type === "blob" && entry.mode === FIX
 
 export const SKIP_MARKER = "[dependabot skip]";
 
-export async function cdnSyncRefusal(detail, appId, paths, entry) {
+export const CDN_SYNC_TRAILER = "Lane-Activity: pr-unblock/review-dependency";
+export const cdnSyncSubject = (ref) => `Sync the CDN pins to the bumped manifest on ${ref} ${SKIP_MARKER}`;
+const REF_SAFE = /^(?!.*[~^:?*[\\])[!-~]+$/;
+
+export function cdnSyncMessageRefusal(message, headRef) {
+  const lines = String(message ?? "").replace(/\n+$/, "").split("\n");
+  if (typeof headRef !== "string" || !REF_SAFE.test(headRef) || lines[0] !== cdnSyncSubject(headRef)) return "cdn-sync-message";
+  return lines.length === 3 && lines[1] === "" && lines[2] === CDN_SYNC_TRAILER ? null : "cdn-sync-trailer";
+}
+
+export async function cdnSyncRefusal(detail, appId, paths, entry, headRef) {
   const verification = detail?.commit?.verification;
   if (
     !Number.isInteger(appId) ||
@@ -452,7 +462,8 @@ export async function cdnSyncRefusal(detail, appId, paths, entry) {
     return "cdn-sync-author";
   }
   if (!Array.isArray(detail.parents) || detail.parents.length !== 1) return "cdn-sync-parents";
-  if (!String(detail.commit?.message ?? "").includes(SKIP_MARKER)) return "cdn-sync-message";
+  const message = cdnSyncMessageRefusal(detail.commit?.message, headRef);
+  if (message) return message;
   if (!Array.isArray(detail.files) || detail.files.length === 0) return "cdn-sync-files";
   const scope = await paths();
   if (!(scope instanceof Set) || scope.size === 0) return "cdn-sync-base-unreadable";
@@ -778,6 +789,8 @@ export function contentStep({ commits = [], commitFiles = () => null, files, con
 
 // The standards-synced Dependabot policy, read at the base.
 export const POLICY_PATH = ".github/standards/dependabot-policy/policy.json";
+export const STANDARDS_POLICY_PATH = "components/dependabot-policy/policy.json";
+export const policyPath = (env, fallback) => (env.STANDARDS_DIR ? `${env.STANDARDS_DIR}/${STANDARDS_POLICY_PATH}` : fallback);
 export const POLICY_UNREADABLE = "dependabot-policy-unreadable";
 // The head branch's ecosystem segment in dependabot.yml spelling; any other
 // segment is the same in both.

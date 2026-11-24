@@ -298,7 +298,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
   `FROM`, without its digest and without `--platform` and other options. A last `FROM` that names an
   earlier stage takes that stage's image.
 - **The dialect key is `diagram_dialect.system`, and it has no default.** Every C4 view of the
-  code reads the key the authoring-formats convention assigns to C4 system views, the same key `/planning:design` reads for its design container view. It refuses
+  code reads the key the authoring-formats convention assigns to C4 system views, the same key `/planning:design` (if enabled) reads for its design container view. It refuses
   mermaid. Unset, `containers.md` carries the tables and no diagram,
   and the report says no view was emitted. The key is documented in
   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.

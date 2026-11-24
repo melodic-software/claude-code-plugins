@@ -19,10 +19,10 @@ This is not the same as:
 | Action | Volume | Output shape |
 |---|---|---|
 | `/songwriting:rhyme` / `rhyme-generation` | 8-15 rhyme candidates | rhyme-list per tier |
-| `/songwriting:diagnose variations` | 5-7 labeled line alternates | menu of polished alternates |
+| `/songwriting:revise variations` | 5-7 labeled line alternates | menu of polished alternates |
 | `/songwriting:co-write line-brainstorm` | 30-50+ across 5 columns | raw pre-revision dump |
-| `/songwriting:diagnose demo` | diagnosis of the line in song context | dominant-problem named |
-| `/songwriting:diagnose audit` | pre-lock checklist on a candidate line | go / no-go signal |
+| `/songwriting:revise demo` | diagnosis of the line in song context | dominant-problem named |
+| `/songwriting:revise audit` | pre-lock checklist on a candidate line | go / no-go signal |
 | `/songwriting:object-writing` | timed sense-bound write | raw-image generation |
 
 `line-brainstorm` is the *between* tool: the writer knows the line needs
@@ -46,7 +46,7 @@ Trigger phrases the AI should hear:
 - "what's the section saying, give me more ways to say it"
 
 If the writer says "the perfect alternative" or "the best one", that's
-`/songwriting:diagnose variations`, not `line-brainstorm`. Brainstorm is
+`/songwriting:revise variations`, not `line-brainstorm`. Brainstorm is
 volume; variations is curation.
 
 ## Two scope levels
@@ -146,8 +146,8 @@ Post-dump:
 - [ ] **No single winner imposed**: the writer picks
 - [ ] **Top-3 suggestions per column** offered separately as a suggestion,
       not a verdict, labeled with the craft reason
-- [ ] **Hand-off** to `/songwriting:diagnose variations` if the writer wants
-      5-7 polished alternates next, or `/songwriting:diagnose audit` for
+- [ ] **Hand-off** to `/songwriting:revise variations` if the writer wants
+      5-7 polished alternates next, or `/songwriting:revise audit` for
       pre-lock check
 
 ## Output format
@@ -250,8 +250,8 @@ Cliche flags to watch:
 - <phrase> in any whole-line variant
 
 Hand-off:
-- /songwriting:diagnose variations <line> — for 5-7 polished alternates
-- /songwriting:diagnose audit <line> — for pre-lock check on a chosen candidate
+- /songwriting:revise variations <line> — for 5-7 polished alternates
+- /songwriting:revise audit <line> — for pre-lock check on a chosen candidate
 - /songwriting:rhyme — for more rhyme tiers if Column 1 felt thin
 ```
 

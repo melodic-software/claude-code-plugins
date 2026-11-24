@@ -159,9 +159,9 @@ Paths skipped from sweeps automatically:
 
 When the pair comes from a domain glossary change (a term renamed, a word moved to the entry's
 `Avoid:` line, or a verb moved into the parentheses of an entity's `Actions:` line, usually handed
-over by `/domain-driven-design:ubiquitous-language`), code names
+over by `/domain-driven-design:ubiquitous-language` (if enabled)), code names
 follow the glossary too, and the sweep runs as its own reviewed change, never folded into the
-glossary edit. When `/domain-driven-design:ubiquitous-language` is among the available skills, the
+glossary edit. When the `domain-driven-design` plugin is enabled, the
 sweep also matches the term inside identifiers the way that skill's glossary contract counts a
 term ("Counting a term"), so `addLearner` is found for `learner`; when it is not, the report says the identifier-part pass
 did not run. Ordinary renames keep the `\b` anchor ("Word-boundary trap"). The report groups hits
@@ -180,7 +180,7 @@ by layer:
 - **Stored values and migrations** (an enum value or string persisted in a database, a migration,
   seed or fixture, a message schema, a public API field): never edited. The report names each as a
   decision, a phased migration or a mapping that keeps the stored name, recorded as an ADR through
-  `/architecture:adr`.
+  `/architecture:adr` (if enabled).
 
 ## What this skill does NOT do
 
@@ -188,7 +188,7 @@ by layer:
 - **Does not rename git branches**. Use `git branch -m`.
 - **Does not handle framework version migrations**. Use dedicated migration tooling: that is a behavioral upgrade, not a text rename.
 - **Does not auto-fix conversation history or memory entries**. Past mentions of the old name there are preserved as historical record. Future renames are the user's responsibility to invoke this skill for.
-- **Does not audit a whole tree against a casing rule**. If `docs-naming` is enabled, `/docs-naming:audit-file-names` does. Without it, list the tree with `git ls-files`, compare each name against the rule by hand, and run `audit` here once per pair you decide to rename.
+- **Does not audit a whole tree against a casing rule**. If `docs-naming` is enabled, `/docs-naming:audit-file-names` (if enabled) does. Without it, list the tree with `git ls-files`, compare each name against the rule by hand, and run `audit` here once per pair you decide to rename.
 - **Does not run builds or tests**. Hand off to the consuming repository's build/test/verification workflow after the rename completes.
 - **Does not perform general dead-reference scanning**. `audit orphans` is strictly pair-driven (post-rename hygiene only). For repo-wide dead-link / dead-reference checks unrelated to a specific rename, use a codebase-audit workflow or documentation link checker if your environment provides one.
 
@@ -197,6 +197,12 @@ by layer:
 - A whole tree to measure against a casing rule, not one pair swept after a rename:
   `/docs-naming:audit-file-names`.
 - The sweep edited code or config and the build must still pass: `/toolchain:check`.
+
+## Related
+
+- Curate domain glossary terms behind a rename: /domain-driven-design:ubiquitous-language.
+- Record ADR for persisted stored names left unchanged: /architecture:adr.
+- Sweep a changed config value rather than an identifier: /coupling:reduce.
 
 ## Gotchas
 

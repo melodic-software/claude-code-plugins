@@ -706,6 +706,12 @@ cache_fire
 assert_absent "cache: a whole file at this HEAD is trusted, not walked over" "$OUT" "deleted from this repo"
 assert_eq "cache: a whole file at this HEAD starts no history walk" 0 "$CACHE_WALKS"
 
+printf '%s\nok\nsome/other.md\ndocs/old-spec.md\nend 2\n' "$CACHE_HEAD" >"$CACHE_DEL"
+cache_fire
+assert_contains "cache: a path a whole file lists is reported from the file" "$OUT" \
+  "  docs/old-spec.md"
+assert_eq "cache: a path a whole file lists starts no history walk" 0 "$CACHE_WALKS"
+
 printf '%s\nok\n' "$CACHE_HEAD" >"$CACHE_DEL"
 cache_fire
 assert_contains "cache: a deleted-path file cut after its header is a miss, the finding stays" "$OUT" \

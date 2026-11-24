@@ -62,7 +62,7 @@ The two shapes:
 
 - **`change-prep`**: the handoff summary: what exists, the constraints and patterns a change must
   respect, the open questions with recommended defaults, and the next stage
-  (`/discovery:research` or `/planning:plan`).
+  (`/discovery:research` or `/planning:plan` (if enabled)).
 - **`explain`**: a walkthrough of how the scope works, in the order a request or call moves
   through it, each step citing the `path:line` it rests on, from files the run Read. Open
   questions are still surfaced. No next-stage recommendation unless the person asked for one.

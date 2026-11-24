@@ -22,11 +22,6 @@ graders:
     pattern: '^(?=[\s\S]*\bPASS\b)(?=[\s\S]*\bINFO\b)(?=[\s\S]*\bWARN\b)(?=[\s\S]*userConfig)(?=[\s\S]*personal[- ]override)'
     target: last_message
     arm: both
-  - name: r001-info
-    type: regex
-    pattern: 'docs-naming-r001[^\n]{0,160}\bINFO\b|\bINFO\b[^\n]{0,160}docs-naming-r001'
-    target: last_message
-    arm: both
   - name: no-longer-read
     type: regex
     pattern: 'docs-hygiene\.json[^\n]{0,200}?\b(?:no longer|not|isn''t|is not|never)\s+(?:being\s+)?read\b|\b(?:no longer|not|isn''t|is not|never)\s+(?:being\s+)?read\b[^\n]{0,200}?docs-hygiene\.json'

@@ -13,6 +13,7 @@ effort, turn budget) and the App token grant. The config's contract is the
 | `activity` | empty | The activity to select from the lane's slots |
 | `model-route` | empty | A run that is no lane activity (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`, `adjudicate-feedback`, and `resolve-issue` for the upkeep and release intake model jobs): resolve only its models profile. Set it or `lane`, not both |
 | `base-path` | `.base` | The base-SHA checkout; every config, schema and vocabulary read is under it |
+| `standards-path` | empty | A standards checkout (`download-standards`' `path`), made before head code ran; when set, the vocabulary and trusted-actor list are read from under it instead |
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | The config, relative to `base-path`; for test callers only |
 | `output-path` | required | Where the `ResolvedConfig` JSON file is written |
 | `event-name`, `event-path` | the run's event | Decide an `events` predicate |
@@ -23,7 +24,10 @@ effort, turn budget) and the App token grant. The config's contract is the
 | `github-token` | `${{ github.token }}` | Read-only; used only when a predicate needs the PR's labels, draft state, mergeability or changed files |
 
 It reads, all under `base-path`: the config, `docs/conventions/pr-pipeline/pr-pipeline.schema.json`
-and `.github/standards/github-actions-conventions/vocabulary.json`. The lane rules
+and `.github/standards/github-actions-conventions/vocabulary.json`. With `standards-path` set, it
+reads the vocabulary and the trusted-actor list from `components/github-actions-conventions/` and
+`components/trusted-actors/` under that checkout instead; a path there that resolves outside it is
+an error, as under `base-path`. The lane rules
 ([`lane-rules.json`](lane-rules.json)), per-leaf rules ([`activity-rules.json`](activity-rules.json))
 effect grants ([`effect-grants.json`](effect-grants.json)) and patch rules
 ([`patch-rules.json`](patch-rules.json), validated by
@@ -241,6 +245,8 @@ A job that uses this action:
 - Leaves it without `continue-on-error`. An invalid config fails red; it is never a skip and never
   `proceed=false`.
 - Passes `config-path` only from a test caller, never from a production dispatch input.
+- Passes `standards-path` only from a `download-standards` step that ran before any head code:
+  head code shares `$RUNNER_TEMP`, where that checkout sits.
 - Reads `args` from the file at `output-path`, never from a step output.
 
 ## Tests

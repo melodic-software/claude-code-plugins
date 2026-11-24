@@ -1,6 +1,3 @@
-// Writes one `<lane> / <activity>` check run for a pipeline activity from a
-// scripted job. Every fact except the verdict file comes from env the report
-// job sets; decide() validates the verdict and picks the conclusion.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -18,11 +15,6 @@ const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]*$/;
 
-// The run job's lane-outcome record as the `lane-outcome <json>` line, or
-// "" when it is absent, not JSON, out of shape, or names another lane. Only
-// its known, validated fields are written, with `activity` from this job's
-// own input, so nothing the model or a later emitter field wrote reaches
-// the check run.
 function laneOutcomeLine(raw, lane, activity) {
   let parsed;
   try {
@@ -45,8 +37,6 @@ function conflictLine(base, rawPaths) {
   return record ? recordLine(record) : "";
 }
 
-// null when there is no file; the raw text when it is not JSON, which decide
-// rejects as a malformed verdict.
 function readVerdict(verdictPath) {
   let text;
   try {
@@ -61,7 +51,6 @@ function readVerdict(verdictPath) {
   }
 }
 
-// An unreadable enum is an empty one, so every skip fails rather than passes.
 function readSkipReasons(basePath) {
   try {
     const reasons = JSON.parse(
@@ -73,9 +62,6 @@ function readSkipReasons(basePath) {
   }
 }
 
-// The signed-commit step runs unless can-commit is exactly 'false'; when it
-// should have run, anything but 'true' counts as unverified. An empty
-// unverified list means the check could not verify, not that a commit failed.
 const signedCommitsFrom = (env) =>
   env.CAN_COMMIT === "false"
     ? null

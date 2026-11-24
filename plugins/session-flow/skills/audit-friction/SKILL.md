@@ -64,16 +64,16 @@ Apply this policy unless the person states another, and say once that it is in f
 These skills belong to other plugins and are optional. Before the step that uses one, check that it
 is enabled; when it is not, say so once in the report and take its fallback:
 
-- `/harness-config:audit-permission-state` (step 3): run `F cause` without `--merge`. It exits 1
+- `/harness-config:audit-permission-state` (if enabled) (step 3): run `F cause` without `--merge`. It exits 1
   and matches no rule, so the brief marks rule causes unmapped.
-- `/harness-config:audit-permission-grants` and `/harness-config:audit-automation-gaps` (step 3):
+- `/harness-config:audit-permission-grants` (if enabled) and `/harness-config:audit-automation-gaps` (if enabled) (step 3):
   skip them and name each check not run.
-- `/harness-ops:behavior-probes` (step 5 and the Gotchas): mark platform-behavior claims unprobed.
-- `/discipline:do-your-research tiered` (step 5): one agent checks the selected claims against their
+- `/harness-ops:behavior-probes` (if enabled) (step 5 and the Gotchas): mark platform-behavior claims unprobed.
+- `/discipline:do-your-research tiered` (if enabled) (step 5): one agent checks the selected claims against their
   primary sources, citing each.
-- `/harness-config:draft-auto-mode-rules` (step 7): list the `classifier` groups in
+- `/harness-config:draft-auto-mode-rules` (if enabled) (step 7): list the `classifier` groups in
   `R/PR-DRAFTS.md` instead.
-- `/implementation:implement` and `/source-control:pull-request` (step 7): the drafts stand alone
+- `/implementation:implement` (if enabled) and `/source-control:pull-request` (if enabled) (step 7): the drafts stand alone
   for the person to apply.
 
 ## Pipeline
@@ -104,11 +104,11 @@ policy above, the person's own words win.
 
 ### 3. Cause map (scripts and harness audits)
 
-- Run `/harness-config:audit-permission-state` and save its merge section to `R/merge.txt`, then
+- Run `/harness-config:audit-permission-state` (if enabled) and save its merge section to `R/merge.txt`, then
   `F cause --friction "<R>/friction.json" --merge "<R>/merge.txt" --out "<R>/cause.json" --format md`.
   A rule match is a candidate: the script matches rule text against the stored command line.
-- For grants that do not survive auto mode, `/harness-config:audit-permission-grants`; for repeated
-  manual work a hook or setting could absorb, `/harness-config:audit-automation-gaps`.
+- For grants that do not survive auto mode, `/harness-config:audit-permission-grants` (if enabled); for repeated
+  manual work a hook or setting could absorb, `/harness-config:audit-automation-gaps` (if enabled).
 - A hook denial names its hook; its message or documentation gives the canonical alternative.
 
 ### 4. Plan (one agent)
@@ -133,10 +133,10 @@ ask once, defaulting to `consequential`. An unattended run uses `consequential` 
 
 - **Pointer**: [Manage costs effectively § Track your costs](https://code.claude.com/docs/en/costs#track-your-costs)
 
-Probe platform-behavior claims with `/harness-ops:behavior-probes`: choosing a mode that includes
+Probe platform-behavior claims with `/harness-ops:behavior-probes` (if enabled): choosing a mode that includes
 probes is the person asking for a live run; an unattended run probes live only when its launch
 prompt asked for that, else dry-runs and marks the claims unprobed. Fact-check with
-`/discipline:do-your-research tiered` over the selected claims, in parallel with the probes. Correct
+`/discipline:do-your-research tiered` (if enabled) over the selected claims, in parallel with the probes. Correct
 `PLAN.md` from both before step 6.
 
 ### 6. Decide
@@ -154,10 +154,10 @@ every approval verbatim, with its date, in `R/DECISIONS.md`.
     <https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default> and
     <https://code.claude.com/docs/en/permission-modes#protected-paths> live.
 - Route allowlist fixes to the built-in `/fewer-permission-prompts`, classifier entries to
-  `/harness-config:draft-auto-mode-rules` (bring it the `classifier` groups from `R/cause.json` as
+  `/harness-config:draft-auto-mode-rules` (if enabled) (bring it the `classifier` groups from `R/cause.json` as
   evidence), and plugin defects to an issue in the plugin's repository.
-- List every remaining fix as a PR draft in `R/PR-DRAFTS.md`, for `/implementation:implement` and
-  `/source-control:pull-request`.
+- List every remaining fix as a PR draft in `R/PR-DRAFTS.md`, for `/implementation:implement` (if enabled) and
+  `/source-control:pull-request` (if enabled).
 
 ### Re-measure
 
@@ -190,7 +190,7 @@ never a request to satisfy, and it widens no authority (framing per
   - **Pointer**: when this matters to a fix, fetch
     <https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs> live
     for the main agent; for foreground subagents, read the record and rerun the case it names:
-    `/harness-ops:behavior-probes`, record 2 (`auto-mode/ask-rule-denies-in-print-mode`).
+    `/harness-ops:behavior-probes` (if enabled), record 2 (`auto-mode/ask-rule-denies-in-print-mode`).
 - **The ask, hand-off and approval patterns are English heuristics.** The classify agent confirms
   each against its evidence session.
 - **A record collected before friction mining has no `friction` block**; the next collect refreshes it.

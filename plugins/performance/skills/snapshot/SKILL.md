@@ -257,10 +257,10 @@ the top, not in a footnote.
 Baselines live in the memory tier, `.work/<topic-slug>/baselines/`, machine-bound, **never
 committed**.
 
-That layout matches `/verification:measure`, which owns baseline capture and storage mechanics, so
+That layout matches `/verification:measure` (if enabled), which owns baseline capture and storage mechanics, so
 the two never keep two different baseline stores. Before capturing, in order:
 
-1. **Check for the seam.** Look for `/verification:measure` in this session's skill list. Record
+1. **Check for the seam.** Look for `/verification:measure` (if enabled) in this session's skill list. Record
    whether it resolves; do not assume either answer.
 2. **Invoke it, or name why not.** When it resolves, invoke it via the Skill tool. When it resolves
    and you capture directly anyway, the reason goes in the report.
@@ -278,7 +278,7 @@ Capture: unassisted, verification present and skipped because <reason>
 ```
 
 The dependency is a preference for reuse, not a requirement: never refuse to measure because
-`/verification:measure` is missing; this skill's own gates (host qualification, interleaving, the
+the `verification` plugin is missing; this skill's own gates (host qualification, interleaving, the
 counter, the refusal) work either way.
 
 A counter ceiling that `/performance:protect` checks in is not a baseline: it is a limit on a
@@ -291,9 +291,9 @@ stored one.
 
 ## Boundary
 
-- **Does not own baseline/compare mechanics.** `/verification:measure` does. This adds host
+- **Does not own baseline/compare mechanics.** `/verification:measure` (if enabled) does. This adds host
   qualification, interleaving, counters, and the refusal.
-- **Does not implement the change.** `/implementation:implement` does.
+- **Does not implement the change.** `/implementation:implement` (if enabled) does.
 - **Does not decide whether the goal was met.** That is `/performance:verify`.
 
 ## Next
@@ -302,6 +302,10 @@ stored one.
   `/performance:snapshot post`.
 - After a baseline capture with a frozen harness, when the goal plans a loop: `/performance:climb`.
 - After a post capture: `/performance:verify`.
+
+## Related
+
+- Code-shape metrics or general before/after measurement: /verification:measure.
 
 ## Gotchas
 

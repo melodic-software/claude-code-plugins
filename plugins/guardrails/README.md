@@ -168,12 +168,18 @@ names the way out: `git config checks.guardrails.reference-verify.declined true`
 checks.skipmissing=jq` skips it only while `jq` is missing. Given refs on stdin as git passes a
 pre-push hook, it judges only commits the remote's tracking refs lack.
 
-A clone that installed the retired `reference-verify` entry keeps running it at pre-push, and
-`/guardrails:setup check` no longer lists it. Remove the `pre-push.d/guardrails.reference-verify`
-marker and the `guardrails/reference-verify.sh` copy under `git rev-parse --git-path hooks` (local
-plain hooks), a `guardrails-reference-verify` job in `lefthook.yml` or `lefthook-local.yml`, a
-`.husky/pre-push` line that runs `reference-verify.sh`, and `.githooks/guardrails/reference-verify.sh`
-(shared). A lefthook remote drops the job on its next fetch.
+A clone that installed the retired `reference-verify` entry keeps running it at pre-push.
+`/guardrails:setup check` reports its files in `.git/hooks/` (from a linked worktree too) and in
+a shared `.githooks/` as retired conventions `guardrails-r005` to `guardrails-r024`, and
+`/guardrails:setup apply` removes each one you confirm; commit the `.githooks/` removals so other
+clones get them. Remove by hand what those records do not
+cover: a `guardrails-reference-verify` job in `lefthook.yml` or `lefthook-local.yml` and a
+`.husky/pre-push` line that runs `reference-verify.sh`, both before the script; and, under
+`.githooks/local/` or another `core.hooksPath`, the `pre-push.d/guardrails.reference-verify`
+marker, then `guardrails/reference-verify.sh` and the eight assets beside it: `run-guards.sh`,
+`abort-boundary.sh`, `hook-utils.sh`, `cli-flag-verify.sh`, `skill-reference-verify.sh`,
+`stale-path-verify.sh`, `verify-cli-flag.sh` and `cli-flag-cache.sh`. A lefthook remote drops the
+job on its next fetch.
 
 ### Settings-write ask
 

@@ -200,14 +200,14 @@ touch CI workflow files, hook or settings files, lint configs, database migratio
 any published contract surface (API shapes, message schemas, tool schemas). Those are route
 lane by definition.
 
-**F. Verify the batch.** Invoke `/toolchain:check` via the Skill tool for the affected
-ecosystems when the `toolchain` plugin is enabled; otherwise run the consuming project's
+**F. Verify the batch.** Invoke `/toolchain:check` (if enabled) via the Skill tool for the affected
+ecosystems; otherwise run the consuming project's
 own build, test, and lint commands (its CLAUDE.md or rules may name them). A reduction that
 breaks a test was secretly behavioral: revert that reduction, reclassify it as route lane,
 and continue. Never ship red.
 
 **G. Ship.** Present the verified diff, or when the session should open a pull request,
-invoke `/source-control:pull-request create` via the Skill tool when that plugin is enabled; otherwise use the
+invoke `/source-control:pull-request create` (if enabled) via the Skill tool; otherwise use the
 repo's own PR convention with a body listing each reduction as `edge → mechanism → why safe`.
 One coupling pass per PR; structure-only, no behavioral riders. A human merges. This skill
 never auto-merges.
@@ -215,13 +215,12 @@ never auto-merges.
 **H. Ledger update and report.** Update statuses (`applied`, `deferred`, `routed`,
 `rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). A cross-repository finding
 goes in the ledger, and is filed in the tracker, of the repository that owns the source. For route-lane
-candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is enabled), for
-design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool
-when that plugin is enabled, else the repo's own tracker, else present the list to the user. For each confirmed
+candidates: hand the top one to `/architecture:improve` (if enabled), invoked via the Skill tool, for
+design exploration, and file the rest by invoking `/work-items:track add` (if enabled) via the Skill tool, else the repo's own tracker, else present the list to the user. For each confirmed
 duplicate writer, write the ownership-rule findings file under `<memory_dir>/coupling/<branch-slug>/`
 per [`reference/remediations.md`](reference/remediations.md) "Duplicate writers", name it in the
-ledger entry's `outcome`, and offer `/corrections:codify findings <file>` when that skill is
-available; never invoke it unasked. Close by reporting
+ledger entry's `outcome`, and offer `/corrections:codify findings <file>` (if enabled);
+never invoke it unasked. Close by reporting
 what waits on the human first (the PR to merge, any candidate needing a decision), then the ledger
 path, what was applied, what was routed where, and the recommended next-run scope.
 
@@ -259,9 +258,9 @@ skill is ever extended to judge work its own session produced outside those gate
 - **Does not review a diff.** Pre-merge review is a review tool's job; this hunts standing
   coupling in existing artifacts.
 - **Does not deep-design one boundary.** A route-lane candidate needing interface
-  exploration goes to `/architecture:improve` (when enabled) or a design session.
+  exploration goes to `/architecture:improve` (if enabled) or a design session.
 - **Does not apply general tidyings.** Rename/inline/extract without a coupling edge is
-  `/code-tidying:tidy` territory.
+  `/code-tidying:tidy` (if enabled) territory.
 - **Does not enforce.** Blocking a new literal for a value that already has an owner is a
   write-time guard's job; `change` cleans up after a change, it does not prevent the next copy.
 - **Does not chase decoupling for its own sake.** A dependency on something stable and owned
@@ -275,12 +274,12 @@ is invoked via the Skill tool.
 
 | When | Then |
 |------|------|
-| Route-lane candidate needs design exploration | `/architecture:improve` when enabled; else summarize the candidate for a design session |
-| Deferred or route-lane items need tracking | `/work-items:track add` when enabled; else the repo's own tracker; else present the list |
-| Batch needs build/test verification | `/toolchain:check` when enabled; else the project's own commands |
-| Shipping a PR | `/source-control:pull-request create` when enabled; else the repo's own PR convention |
-| A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` when enabled owns the extraction; else apply per the remediation catalog |
-| A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` when enabled owns the sweep; else run `change` and review each row; records still stay |
+| Route-lane candidate needs design exploration | `/architecture:improve` (if enabled); else summarize the candidate for a design session |
+| Deferred or route-lane items need tracking | `/work-items:track add` (if enabled); else the repo's own tracker; else present the list |
+| Batch needs build/test verification | `/toolchain:check` (if enabled); else the project's own commands |
+| Shipping a PR | `/source-control:pull-request create` (if enabled); else the repo's own PR convention |
+| A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` (if enabled) owns the extraction; else apply per the remediation catalog |
+| A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` (if enabled) owns the sweep; else run `change` and review each row; records still stay |
 
 ## Next
 

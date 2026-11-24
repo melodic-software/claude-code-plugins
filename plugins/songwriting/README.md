@@ -16,7 +16,7 @@ the craft term.
 | `meter-prosody` | `/songwriting:meter-prosody <action>` | Sound and motion. Scansion/meter, prosody, phrasing, section stability, and lyric-melody alignment. |
 | `song-form` | `/songwriting:song-form <action>` | Structure. Form and song forms, hook placement, repetition/repainting, verse development, the box model, and bridges. |
 | `co-write` | `/songwriting:co-write <action>` | Collaboration and volume, the No-Free-Zone co-write protocol, the Title Game, title generation, and high-volume line/section dumps. |
-| `diagnose` | `/songwriting:diagnose <action>` | Review and revise. Demo review, full-draft diagnosis, the pre-lock audit checklist, variations, and rewrite. |
+| `revise` | `/songwriting:revise <action>` | Review and revise. Report-only full-draft diagnosis (the default), demo review and pre-lock audit checklist; variations and rewrite change the lyric. |
 | `practice` | `/songwriting:practice <action>` | Habit, the daily craft routine and numbered exercises across all four Pat Pattison books. |
 | `suno` | `/songwriting:suno <action>` | Suno v5.5 prompt engineering. Style prompts (6-layer formula), tagged lyrics with per-section overrides, 12 genre templates, genre research, troubleshooting, and feature guidance (Voices, Custom Models, Studio). |
 | `setup` | `/songwriting:setup` | `check` (default) inventories the project-level prompt-template overrides under `songwriting/templates/pat-pattison/` and reports the effective artifact layout; `apply scaffold <name>` copies a bundled default into an override, `apply remove <name>` clears one. Idempotent; scaffold only the templates you intend to customize. |
@@ -68,7 +68,7 @@ checked against [`schemas/songwriting.schema.json`](schemas/songwriting.schema.j
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/songwriting:co-write` and `/songwriting:diagnose` dispatch the skeptic refutation pass. `standard` keeps it a row the writer may skip with a reason; `strict` runs it on every batch; `light` and `off` skip it and name the skip `verification: skipped (<level>)`. The rubric's counted passes run at every level. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/songwriting:co-write` and `/songwriting:revise` dispatch the skeptic refutation pass. `standard` keeps it a row the writer may skip with a reason; `strict` runs it on every batch; `light` and `off` skip it and name the skip `verification: skipped (<level>)`. The rubric's counted passes run at every level. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 ## Requirements
 

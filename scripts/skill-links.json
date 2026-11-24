@@ -252,12 +252,16 @@
       "related": []
     },
     "autonomy:setup": {
-      "next": [],
+      "next": [
+        "After `apply`: /autonomy:setup check.",
+        "The binding checks clean: /work-items:work-loop, launched via /loop."
+      ],
       "related": []
     },
     "bash-format:setup": {
       "next": [
-        "/toolchain:setup apply bash, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+        "/toolchain:setup apply bash, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.",
+        "A hook stage over its time budget in `setup check inspect`: /performance:target."
       ],
       "related": []
     },
@@ -1085,7 +1089,8 @@
     },
     "go-format:setup": {
       "next": [
-        "/toolchain:setup apply go, with the drafted `lint-cmd`, when the repository lints Go; /toolchain:lint then runs it on request."
+        "/toolchain:setup apply go, with the drafted `lint-cmd`, when the repository lints Go; /toolchain:lint then runs it on request.",
+        "A hook stage over its time budget in `setup check inspect`: /performance:target."
       ],
       "related": []
     },
@@ -1490,7 +1495,8 @@
     },
     "javascript-format:setup": {
       "next": [
-        "/toolchain:setup apply <id>, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+        "/toolchain:setup apply <id>, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.",
+        "A hook stage over its time budget in `setup check inspect`: /performance:target."
       ],
       "related": []
     },
@@ -1586,7 +1592,8 @@
     },
     "markdown-format:setup": {
       "next": [
-        "/toolchain:setup apply markdown, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+        "/toolchain:setup apply markdown, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.",
+        "A hook stage over its time budget in `setup check inspect`: /performance:target."
       ],
       "related": []
     },
@@ -1923,10 +1930,9 @@
     "planning:wayfind": {
       "next": [
         "The map is charted: /planning:wayfind work.",
-        "The effort keeps the map but has no interview behind it yet: /planning:interview.",
-        "The map closed on a set of build items: /planning:plan.",
-        "The map closed on build items whose decisions already read as slices: /work-items:decompose #<map-number>.",
-        "The map closed on a PRD: /planning:prd."
+        "The map closed on a PRD: /planning:plan.",
+        "The map closed on a plan of build items: /work-items:decompose.",
+        "A prototype confirmed a provisional decision: /architecture:adr."
       ],
       "related": [
         "Map closed on a decision record: /architecture:adr"
@@ -2013,7 +2019,8 @@
     },
     "powershell-format:setup": {
       "next": [
-        "/toolchain:setup apply powershell, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+        "/toolchain:setup apply powershell, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.",
+        "A hook stage over its time budget in `setup check inspect`: /performance:target."
       ],
       "related": []
     },
@@ -2051,7 +2058,8 @@
     },
     "python-format:setup": {
       "next": [
-        "/toolchain:setup apply python, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+        "/toolchain:setup apply python, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.",
+        "A hook stage over its time budget in `setup check inspect`: /performance:target."
       ],
       "related": []
     },
@@ -2172,7 +2180,8 @@
     },
     "review:quality-gate": {
       "next": [
-        "`/verification:confirm`, when it is among the available skills, after an all-clear verdict, then PR creation; after fixes, a `self` re-run of this skill (Step 4)."
+        "All-clear verdict: /verification:confirm, then /source-control:pull-request create.",
+        "Findings fixed: /review:quality-gate self, the Step 4 re-run."
       ],
       "related": [
         "Multi-surface breadth review into one ranked report: /review:fanout",
@@ -2344,10 +2353,10 @@
     },
     "session-flow:retro": {
       "next": [
-        "/session-flow:audit-sessions trends: the score history session, quick and ci-runs modes write, across sessions and per lane, with delivery metrics.",
-        "/session-flow:audit-sessions sweep: checks whether what this retro found recurs across every session on the machine.",
-        "/session-flow:audit-sessions ticket --pattern '<regex>': every stored session for one work item. Session mode calls it when given `--pattern` ([context/session.md](context/session.md), \"Ticket section\").",
-        "/session-flow:recommend-skills: the installed skills that fit next, when the retro found a skill the session missed."
+        "A finding to turn into a check or an instruction line, a reviewer miss included: /corrections:codify \"<the mistake>\".",
+        "Check whether what this retro found recurs across every session on the machine, or see the score history with delivery metrics: /session-flow:audit-sessions sweep, or /session-flow:audit-sessions trends.",
+        "Every stored session for one work item: /session-flow:audit-sessions ticket --pattern '<regex>'. Session mode calls it when given `--pattern` ([context/session.md](context/session.md), \"Ticket section\").",
+        "The retro found a skill the session missed: /session-flow:recommend-skills."
       ],
       "related": [
         "Mid-session retro checkpoint before end of session: /session-flow:running-retro",
@@ -2417,7 +2426,7 @@
     },
     "songwriting:co-write": {
       "next": [
-        "/songwriting:diagnose"
+        "/songwriting:revise audit"
       ],
       "related": [
         "Sensory raw material before lines: /songwriting:object-writing",
@@ -2426,7 +2435,7 @@
         "Rhyme partners for swaps: /songwriting:rhyme"
       ]
     },
-    "songwriting:diagnose": {
+    "songwriting:revise": {
       "next": [],
       "related": [
         "Blank page, seed, or stuck fragment: /songwriting:workflow",
@@ -2446,7 +2455,7 @@
         "Sensory raw material feeding collisions or cliche repair: /songwriting:object-writing",
         "Rhyme partner for metaphor key word: /songwriting:rhyme",
         "Structural placement of image: /songwriting:song-form",
-        "Whole-draft diagnosis: /songwriting:diagnose"
+        "Whole-draft diagnosis: /songwriting:revise diagnose"
       ]
     },
     "songwriting:meter-prosody": {
@@ -2456,7 +2465,7 @@
       "related": [
         "Section identification, form-fit, and hook placement: /songwriting:song-form",
         "Rhyme position and stability: /songwriting:rhyme",
-        "Whole-draft diagnosis: /songwriting:diagnose"
+        "Whole-draft diagnosis: /songwriting:revise diagnose"
       ]
     },
     "songwriting:object-writing": {
@@ -2467,7 +2476,7 @@
       "related": [
         "Rhyme choice and rhyme cliche: /songwriting:rhyme",
         "Daily practice curriculum and numbered exercises: /songwriting:practice",
-        "Whole-draft diagnosis: /songwriting:diagnose",
+        "Whole-draft diagnosis: /songwriting:revise diagnose",
         "Section placement judgment: /songwriting:song-form",
         "Scansion or stress-map claim: /songwriting:meter-prosody"
       ]
@@ -2503,7 +2512,7 @@
         "Metaphor systems across a form: /songwriting:metaphor",
         "Stability and scansion of sections: /songwriting:meter-prosody",
         "Rhyme within sections: /songwriting:rhyme",
-        "Whole-draft diagnosis: /songwriting:diagnose"
+        "Whole-draft diagnosis: /songwriting:revise diagnose"
       ]
     },
     "songwriting:suno": {
@@ -2521,7 +2530,7 @@
         "Scansion, prosody, and melody fit: /songwriting:meter-prosody",
         "Song structure, hooks, and bridges: /songwriting:song-form",
         "Co-write rules, titles, and line dumps: /songwriting:co-write",
-        "Draft diagnosis, audit, and rewrites: /songwriting:diagnose",
+        "Draft diagnosis, audit, and rewrites: /songwriting:revise",
         "Daily practice curriculum: /songwriting:practice",
         "Suno v5.5 prompt formatting: /songwriting:suno"
       ]
@@ -2687,8 +2696,8 @@
     },
     "testing:write": {
       "next": [
-        "/testing:audit",
-        "Checks the new tests for assertions that cannot fail."
+        "New tests, their quality unchecked: /testing:audit.",
+        "Tests written for survivors a mutation run handed over: /mutation-testing:audit on that file, to confirm each kill."
       ],
       "related": [
         "Run the new tests across ecosystems: /toolchain:check",

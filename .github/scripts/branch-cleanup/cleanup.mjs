@@ -103,8 +103,6 @@ export async function evaluate(call, { repo, owner, defaultBranch }, branch) {
   return { verdict: "delete", rule, issue, pr };
 }
 
-// Right before the delete: the tip still at the listed SHA, and no open pull
-// request from it or into it.
 async function stillDeletable(call, { repo, owner }, { name, sha }) {
   const ref = await readTip(call, repo, name);
   if (ref?.object?.sha !== sha) return `the tip moved to ${ref?.object?.sha ?? "nothing"} since the listing`;
@@ -130,9 +128,6 @@ const deleteRef = (call, repositoryId, { name, sha }) =>
     variables: { repositoryId, name: `refs/heads/${name}`, beforeOid: sha, afterOid: ZERO_OID },
   });
 
-// Calls one delete takes: the tip and the open pull requests from and into
-// the branch re-read (stillDeletable), the delete, and a re-read of the tip
-// when the delete is refused. The delete stage also reads the repository once.
 const CALLS_PER_DELETE = 5;
 export const deleteBudget = (deletes) => 1 + deletes * CALLS_PER_DELETE;
 
@@ -172,12 +167,6 @@ export async function plan(env, { call, loadConfig, log = console.log }) {
   const context = { repo, owner, defaultBranch };
 
   const branches = await pages(read, `/repos/${repo}/branches`);
-  // Evaluation stops once the cap is filled or its share is spent, so each run
-  // starts at a point the run number moves by about a quarter of what one run
-  // can read (a branch takes up to about four reads), wrapping around: kept
-  // branches early in the listing cannot hide the later ones from every run.
-  // The step is the stride moved up to the nearest value coprime with the
-  // branch count, so successive runs start at every branch in turn.
   const stride = Number.isFinite(evalLimit) ? Math.max(1, Math.floor(evalLimit / 4)) : 0;
   const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
   let step = branches.length === 0 ? 0 : stride % branches.length;
@@ -312,7 +301,6 @@ export async function remove(env, { call, clock, loadConfig, append, list, log =
           ? `the tip moved to ${tip?.object?.sha ?? "nothing"} before the delete; GitHub refused it`
           : `the delete failed: ${error.message}`;
       skipped.push({ ...candidate, reason });
-      // The write-ahead line said deleted: record that the branch still stands.
       if (typeof tip?.object?.sha === "string") {
         append({ repo, branch: candidate.name, sha: candidate.sha, notDeletedAt: clock(), reason });
       }
@@ -344,7 +332,6 @@ async function main(env = process.env) {
     else console.log(text);
   };
   if (env.STAGE === "plan") {
-    // The plan stage never writes, dry-run or not.
     const result = await plan(env, { call: client(env, { dryRun: true }), loadConfig });
     writeFileSync(env.CANDIDATES_PATH, `${JSON.stringify(result.list)}\n`);
     if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `planned=${result.planned.length}\n`);

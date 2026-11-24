@@ -108,8 +108,7 @@ model leaves out. Give the command that makes the files again, with a new `--out
 
 When the model describes code, replay each bug path against the real code, as a test or a live
 repro, one step for each action. If a bug does not occur, think that the model is wrong until you
-show that it is not. A path that does occur is a bug: write it up with `/bugs:write` (if installed;
-otherwise as the five-field report that skill writes, in the hand-off).
+show that it is not. A path that does occur is a bug: write it up with `/bugs:write` (if enabled); otherwise as the five-field report that skill writes, in the hand-off.
 
 ## Next
 

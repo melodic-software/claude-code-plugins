@@ -6,7 +6,6 @@ import { apiLimits } from "../../actions/log-api-budget/rate-guard.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./lane-level.vectors.json", import.meta.url), "utf8"));
 
-// A vector's config overrides the base per block and per pool.
 function configOf(override = {}) {
   const base = VECTORS.config;
   const api = { ...base.api };

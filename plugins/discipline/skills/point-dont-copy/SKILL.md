@@ -111,7 +111,7 @@ matching path in each repository) for the findings above. A cross-repository
 copy is the second copy this skill pins at two, and one repository naming
 another's internal paths breaks the public-contracts pin: get both from the
 contract's "Cross-repository signals" by running
-`/coupling:reduce dry-run` with the same target forms (no edits, branches or
+`/coupling:reduce dry-run` (if enabled) with the same target forms (no edits, branches or
 PRs; it records its candidates in each repository's coupling ledger,
 `.work/coupling/coupling-ledger.md`, which is never committed). When that skill is
 not enabled, report `cross-repository copies: not measured` rather than a
@@ -138,6 +138,11 @@ misreads into working code, where the audit can no longer see them as findings:
 - **Confirmation gate.** Stop and wait for the user to confirm the map before port work
   proceeds. A reply of "semantics confirmed" is the recommended token, not a required
   one; any clear confirmation opens the gate.
+
+## Related
+
+- Measure cross-repository copied files: /coupling:reduce.
+- Extract repeated markdown into one named SSOT: /docs-hygiene:extract-ssot.
 
 ## Gotchas
 

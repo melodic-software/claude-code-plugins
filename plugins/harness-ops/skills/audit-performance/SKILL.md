@@ -32,7 +32,7 @@ walk that takes minutes is the cost the product's retention sweep pays on that t
 | What exactly is in the install tree, and is anything stale? | `/harness-ops:audit-install-state` |
 | Which plugins are enabled at which scope, and is the fleet current? | `/harness-ops:plugins-audit` |
 | Is this a known upstream bug? | `/harness-ops:known-issues` (compose: search the symptoms this report surfaces) |
-| Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
+| Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` (if enabled) |
 | Shed one project's `~/.claude.json` state | `claude purge <path>` |
 
 ## Boundary, the bundled `doctor` skill
@@ -316,8 +316,8 @@ If /doctor is available in your session (gate basis: **Boundary, the bundled `do
 ## Gotchas
 
 - **Do not convert this audit into a cleanup.** Big is not the finding; *unswept* is. A healthy
-  sweep bounds the tree by itself; route a paused sweep to `/harness-config:audit` (settings fix),
-  invoked via the Skill tool, and tell the user to run `/disk-hygiene:clean` for unmanaged
+  sweep bounds the tree by itself; route a paused sweep to `/harness-config:audit` (if enabled) (settings fix),
+  invoked via the Skill tool, and tell the user to run `/disk-hygiene:clean` (if enabled) for unmanaged
   leftovers.
 - **A number alone never convicts.** 100k files with `walk_seconds: 4` on an excluded NVMe volume
   is healthy; 20k files with `walk_seconds: 90` behind a scanning filter driver is the problem.

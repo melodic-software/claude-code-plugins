@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: su-check-retired-reference-verify-r005-r024
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'retirements-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:bash|sh)(?:\.exe)?(?:\s+-[^\s\"\\]+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?check-retirements\.sh(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--manifest(?:\s|\\\\\\n)+(?:\\\"|'')?[^\s\"\\;&|]*retirements\.yaml\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'local-copies-warn'
+    type: 'llm'
+    criteria: 'The reply reports guardrails-r005, guardrails-r006, guardrails-r007, guardrails-r008, guardrails-r009, guardrails-r010, guardrails-r011, guardrails-r012, guardrails-r013 and guardrails-r014 each as WARN, with apply as the remediation.'
+    focus: 'last_message'
+  - name: 'shared-copies-warn'
+    type: 'llm'
+    criteria: 'The reply reports guardrails-r015, guardrails-r016, guardrails-r017, guardrails-r018, guardrails-r019, guardrails-r020, guardrails-r021, guardrails-r022, guardrails-r023 and guardrails-r024 each as WARN, with apply as the remediation.'
+    focus: 'last_message'
+  - name: 'no-clean'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:bash|sh)(?:\.exe)?(?:\s+-[^\s\"\\]+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?check-retirements\.sh(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--clean\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-hook-removal'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:rm|mv|unlink|truncate)(?:\.exe)?(?:\\\"|'')?(?![\w.-])(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\.git/?hooks/'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

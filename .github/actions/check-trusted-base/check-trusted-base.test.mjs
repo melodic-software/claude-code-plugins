@@ -1,6 +1,3 @@
-// Runs the action's own `run:` script against a throwaway repository: a bare
-// origin whose main holds commits A, B, C (C the tip) and a side branch holding
-// D, cloned with full history the way the run job checks out `.base`.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -10,8 +7,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const ACTION = new URL("./action.yml", import.meta.url);
 
-// The step's `run: |` block, dedented: every line after it indented deeper
-// than the `run:` key, blank lines kept.
 function runScript() {
   const lines = readFileSync(ACTION, "utf8").split("\n");
   const start = lines.findIndex((line) => /^\s+run: \|$/.test(line));
@@ -26,7 +21,6 @@ function runScript() {
   return body.map((l) => l.slice(indent)).join("\n");
 }
 
-// No inherited git environment reaches the fixture.
 let root;
 let env;
 const sha = {};
@@ -133,10 +127,6 @@ test("default-tip reads the PR's base branch on a workflow_dispatch", () => {
   assert.equal(bad.status, 1);
   assert.equal(bad.output, "");
 });
-
-// A layer of a native stack targets the layer below; it runs only when its
-// stack's base is the default branch, and the gate passes the stack base's SHA,
-// so the trusted checkout is a default-branch commit, never the lower layer.
 
 test("pr-base accepts a stack layer whose stack targets the default branch and checks out the stack base SHA", () => {
   const r = run({ BASE_SHA: sha.B, EVENT_BASE_REF: "side", EVENT_STACK_BASE_REF: "main" });
