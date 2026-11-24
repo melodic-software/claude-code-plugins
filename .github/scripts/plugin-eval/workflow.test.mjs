@@ -234,7 +234,7 @@ test("a compare run records that compare mode refuses the pull request, after it
   const { stepNamed, steps, outputs, jobIf } = workflowText(text);
   const names = steps("compare-prepare").map((s) => s.name);
   const at = (name) => names.indexOf(name);
-  for (const check of ["Check the dispatcher is a trusted human", "Check the compare inputs", "Check the pull request head", "Stop on a pull request a bot wrote"]) {
+  for (const check of ["Check the dispatcher is a trusted human", "Check the compare inputs", "Check the pull request head", "Check a listed human wrote the pull request"]) {
     assert.ok(at(check) >= 0 && at(check) < at("Build the arm patches"), check);
   }
   assert.ok(!names.includes("Check the evals switch"), "compare-prepare stays behind the switch and records no evals-disabled cause");
