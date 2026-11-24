@@ -729,12 +729,12 @@ test('coding effort floor raises a consensus pick below model default with one n
   assert.equal(resTrial.json.notes.some((n) => /raised to default/i.test(n)), false)
 })
 
-test('a trial runs the vendor default model and effort, not the model a board record leads with', (t) => {
+test('a trial runs the first listed model at its default effort, not the model a board record leads with', (t) => {
   const models = {
     ...MODELS,
     codex: {
       status: 'ok',
-      default_model: 'sparrow-1',
+      unset_model: 'cli-default',
       models: [
         { id: 'sparrow-1', efforts: ['low', 'medium', 'high'], default_effort: 'medium' },
         { id: 'sparrow-2', efforts: ['low', 'medium', 'high'], default_effort: 'medium' },

@@ -4,7 +4,7 @@ bump: minor
 
 ### Changed
 
-- While trials run, `/multi-agent:route vendors` tries each vendor's default model and effort from `external-agents models` instead of the model and effort a benchmark board leads with, and fetches no support-only or provider-own board.
+- While trials run, `/multi-agent:route vendors` tries the first model each vendor's `external-agents models` lists, at that model's default effort, instead of the model and effort a benchmark board leads with, and fetches no support-only or provider-own board.
 
 ### Fixed
 

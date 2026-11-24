@@ -129,8 +129,8 @@ Without the external-agents plugin, route covers only Claude, so the step runs h
 Benchmark sources live as pointers only in [`benchmarks.json`](benchmarks.json) (closed schema:
 [`../schemas/benchmark-registry.schema.json`](../schemas/benchmark-registry.schema.json)).
 `fetch-boards` fetches only rows that can lead (`status` not `support-only`, `provider_own`
-false); a row it skips is listed as `not-read`. A trial runs each vendor's default model and
-effort from `external-agents models`, so no board record picks it. Each fetched
+false); a row it skips is listed as `not-read`. A trial runs the first model each vendor's
+`external-agents models` lists, at that model's default effort, so no board record picks it. Each fetched
 page goes through `fetch-boards` (wrapping the shared docs cache; default freshness window
 one day, overridable per row via `freshness_seconds`; a page without the row's `expect` marker is
 unread, and when the docs-cache `renderer` is `firecrawl` a blocked page or one drawn by script is
