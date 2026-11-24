@@ -11274,7 +11274,7 @@ test("pr-run-activity-write.yml: the script step passes apply-patch's test-scope
       writeFileSync(output, "");
       const result = spawnSync("bash", ["-e", "-c", step.run], {
         encoding: "utf8",
-        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: script, TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
+        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: script, STAGED_SCRIPT: join(root, "base-script", script), TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
       });
       return { status: result.status, output: readFileSync(output, "utf8") };
     };
