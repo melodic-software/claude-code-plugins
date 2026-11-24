@@ -379,32 +379,41 @@ function cmdRecord(argv) {
   )
 }
 
-// A proven pair keeps its newest trials_prove reviewed results and goes back to trial when
-// trials_fail of them are rejected.
+// A proven pair keeps its newest reviewed results (at least trials_fail of them, so a send-back
+// stays reachable) and goes back to trial when trials_fail of them are rejected. A concurrent
+// record may send the pair back and remove dir mid-read; that record's result stands.
 function recheckProven(dir, outcomePath, outcome, doc, settings) {
-  fs.mkdirSync(dir, { recursive: true })
-  writeExclusiveJson(
-    path.join(dir, `${Date.now()}-${process.pid}-${crypto.randomBytes(6).toString('hex')}.json`),
-    doc,
-  )
-  const names = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
-  const kept = names.slice(-settings.trials_prove)
-  for (const name of names.slice(0, -settings.trials_prove)) fs.rmSync(path.join(dir, name), { force: true })
+  const windowSize = Math.max(settings.trials_prove, settings.trials_fail)
+  const report = (fields) => process.stdout.write(`${JSON.stringify({ recorded: true, ...fields }, null, 2)}
+`)
   let accepted = 0
   let rejected = 0
-  for (const name of kept) {
-    const rec = readJsonRetry(path.join(dir, name))
-    if (rec && rec.verdict === 'accepted') accepted++
-    else if (rec && rec.verdict === 'rejected') rejected++
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    writeExclusiveJson(
+      path.join(dir, `${Date.now()}-${process.pid}-${crypto.randomBytes(6).toString('hex')}.json`),
+      doc,
+    )
+    const names = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
+    for (const name of names.slice(0, -windowSize)) fs.rmSync(path.join(dir, name), { force: true })
+    for (const name of names.slice(-windowSize)) {
+      const rec = readJsonRetry(path.join(dir, name))
+      if (rec && rec.verdict === 'accepted') accepted++
+      else if (rec && rec.verdict === 'rejected') rejected++
+    }
+  } catch (err) {
+    if (err && err.code === 'ENOENT' && !fs.existsSync(outcomePath)) {
+      report({ recheck: null, sent_back: true, outcome: null })
+      return
+    }
+    throw err
   }
   const sentBack = rejected >= settings.trials_fail
   if (sentBack) {
     fs.rmSync(outcomePath, { force: true })
     removeTrialDir(dir)
   }
-  process.stdout.write(
-    `${JSON.stringify({ recorded: true, recheck: { accepted, rejected }, sent_back: sentBack, outcome: sentBack ? null : outcome }, null, 2)}\n`,
-  )
+  report({ recheck: { accepted, rejected }, sent_back: sentBack, outcome: sentBack ? null : outcome })
 }
 
 function cmdOutcome(argv) {

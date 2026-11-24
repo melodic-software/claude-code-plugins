@@ -463,6 +463,52 @@ test('AC19: a proven pair goes back to trial when trials_fail of its last trials
   assert.deepEqual(listFilesRecursive(join(dataDir, 'vendor-state', 'trials')), [])
 })
 
+test('a recheck window smaller than trials_fail still sends a proven pair back', (t) => {
+  const dataDir = makeTempDir(t)
+  const cfgDir = makeTempDir(t)
+  const settingsPath = writeSettings(cfgDir, { routing: true, trials: true, trials_prove: 1, trials_fail: 2 })
+  const key = 'codex:sparrow-1:1:high:coding'
+  const record = (verdict) =>
+    runState(['record', '--key', key, '--verdict', verdict, '--settings', settingsPath, '--data-dir', dataDir])
+  assert.equal(record('accepted').json.outcome.result, 'proven')
+  assert.equal(record('rejected').json.sent_back, false)
+  const second = record('rejected')
+  assert.equal(second.json.sent_back, true)
+  assert.deepEqual(second.json.recheck, { accepted: 0, rejected: 2 })
+})
+
+const CONCURRENT_SEND_BACK_PRELOAD = `'use strict'
+const fs = require('node:fs')
+const realReaddirSync = fs.readdirSync
+let injected = false
+fs.readdirSync = function readdirWithConcurrentSendBack(target, ...rest) {
+  if (!injected && String(target).includes('rechecks')) {
+    injected = true
+    fs.rmSync(target, { recursive: true, force: true })
+    fs.rmSync(process.env.VENDOR_STATE_TEST_OUTCOME, { force: true })
+  }
+  return realReaddirSync.call(fs, target, ...rest)
+}
+`
+
+test('a recheck whose pair another record sends back mid-read reports sent_back instead of crashing', (t) => {
+  const dataDir = makeTempDir(t)
+  const cfgDir = makeTempDir(t)
+  const settingsPath = writeSettings(cfgDir, { routing: true, trials: true, trials_prove: 1, trials_fail: 2 })
+  const key = 'codex:sparrow-1:1:high:coding'
+  const args = (verdict) => ['record', '--key', key, '--verdict', verdict, '--settings', settingsPath, '--data-dir', dataDir]
+  assert.equal(runState(args('accepted')).json.outcome.result, 'proven')
+  const [outcomeFile] = listFilesRecursive(join(dataDir, 'vendor-state', 'outcomes'))
+  const preload = join(cfgDir, 'concurrent-send-back-preload.cjs')
+  writeFileSync(preload, CONCURRENT_SEND_BACK_PRELOAD)
+  const env = { ...process.env, NODE_OPTIONS: `--import ${pathToFileURL(preload).href}`, VENDOR_STATE_TEST_OUTCOME: outcomeFile }
+  delete env.CLAUDE_PLUGIN_DATA
+  const res = runState(args('rejected'), { env })
+  assert.equal(res.code, 0, res.stderr)
+  assert.equal(res.json.sent_back, true)
+  assert.equal(runState(['outcome', '--key', key, '--data-dir', dataDir]).json.result, 'none')
+})
+
 test('seen reports new model ids with one registry recheck due line and stores the union', (t) => {
   const dataDir = makeTempDir(t)
 

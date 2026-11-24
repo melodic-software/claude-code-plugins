@@ -212,7 +212,7 @@ its basename starts with `multi-agent-`. Outcome files are machine-neutral, one 
 `vendor:model:version:effort:work_type` key. Routine routing writes nothing.
 
 A proven pair keeps recording Claude's verdicts in `rechecks/`, holding only its newest
-`trials_prove` results, and goes back to trial when `trials_fail` of them are rejected. The user can
+`trials_prove` results (or `trials_fail`, when that is larger), and goes back to trial when `trials_fail` of them are rejected. The user can
 also send a pair back by hand:
 
 ```bash
