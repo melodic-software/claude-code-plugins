@@ -92,6 +92,10 @@ mistake, or the lessons in recent merged pull requests' review comments, go to
 plugin is enabled. Name that skill and stop; when it is not enabled, say that no enabled
 skill codifies one mistake or mines review comments, and stop.
 
+A retro of a standards or instruction file (which of its rules hold, which have checks) names no
+retro mode: stop and name `/corrections:codify rules <file>` when the `corrections` plugin is
+enabled; when it is not, say that no enabled skill turns a file's rules into checks, and stop.
+
 `--unattended`, anywhere in `$ARGUMENTS`, is the caller declaring that nobody is present: take it
 out first. It only gates the user-only built-ins (`/export`, `/insights`): an unattended run neither suggests nor runs them. The bare
 word `unattended` is neither this flag nor a mode: stop and name `--unattended`. A `--pattern '<regex>'` pair is taken out next and

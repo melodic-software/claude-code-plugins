@@ -2,9 +2,9 @@
 
 Owner doc for how a tracker reference is written inside a **code comment**. The rule is enforced
 in CI by the `check-comment-markers` composite action, which this repository consumes from
-`melodic-software/ci-workflows` at a SHA pinned in
-[`.github/workflows/pr-require-checks.yml`](../../../.github/workflows/pr-require-checks.yml). That pin is the version of the
-policy in force; this doc describes its shape, and the action remains the source of truth.
+`melodic-software/ci-workflows` at `main`, through
+[`.github/workflows/pr-require-checks.yml`](../../../.github/workflows/pr-require-checks.yml). ci-workflows' main is the version of
+the policy in force; this doc describes its shape, and the action remains the source of truth.
 
 The reason this convention needs a written home: **the lane cannot be run locally.** The action is
 not vendored here, so no local command reproduces it, and a violation is discoverable only after

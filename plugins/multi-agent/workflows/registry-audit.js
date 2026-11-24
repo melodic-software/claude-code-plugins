@@ -199,6 +199,7 @@ async function parseRaw(url, out) {
   const m = /^docs-raw: url=(\S+) state=(read|unread)((?: [a-z0-9_]+=\S*)*)$/.exec(nl < 0 ? text : text.slice(0, nl))
   if (!m || m[1] !== url) {
     if (out == null) return { ...base, state: 'unread', unchecked: true, reason: 'no result from the fetch stage' }
+    if (/^<\\?persisted-output>/.test(text)) return { ...base, state: 'unread', unchecked: true, reason: 'output-over-readback-limit' }
     return { ...base, state: 'unread', unchecked: true, reason: 'the fetch stage returned no docs-raw header for this URL' }
   }
   const f = Object.fromEntries([...m[3].matchAll(/ ([a-z0-9_]+)=(\S*)/g)].map(x => [x[1], x[2]]))
@@ -238,6 +239,7 @@ const slices = new Map()
 phase('Fetch')
 const uniqueUrls = []
 const seenUrl = new Set()
+const renderUrls = new Set(rows.filter(r => r.source === 'shipped').map(r => pageOf(r.link)))
 for (const r of rows) {
   const u = pageOf(r.link)
   if (seenUrl.has(u)) continue
@@ -249,7 +251,7 @@ for (const r of rows) {
   uniqueUrls.push(u)
 }
 
-const SECTION_BYTES = 60000
+const SECTION_BYTES = 27000
 const SECTION_IDS = 20
 
 function pickSections(mapBody, expects) {
@@ -279,7 +281,8 @@ async function fetchOne(url, sections) {
   fetchLabels.push(label)
   const r = await agentRetry(
     'Stage: fetch. Run docs-raw.sh once on the URL below, with the section ids listed after it (none when the ' +
-      'list is empty), and return its standard output verbatim.' + fence('url', url) + fence('sections', sections),
+      'list is empty) and --render when render is yes, and return its standard output verbatim.' +
+      fence('url', url) + fence('render', renderUrls.has(url) ? 'yes' : 'no') + fence('sections', sections),
     { label, phase: 'Fetch', schema: FETCH_SCHEMA, ...opts(R.worker.fanout, FETCHER) },
   ).catch(() => null)
   if (r == null) nulls.push(label)
@@ -346,9 +349,22 @@ function cleanNotes(raw) {
   return out
 }
 
+const UNREAD_FIX = {
+  'no-content': "the page loaded without the row's expect marker: check the marker against the page before any status change",
+  'redirected-off-path': 'the page moved: update the row link to where it redirects',
+  'redirected-off-origin': 'the page moved to another host: update the row link and the registry-fetcher hosts',
+  'http-403': 'the host blocked the fetch: set the docs-cache renderer to firecrawl',
+  'http-429': 'the host rate-limited the fetch: rerun later',
+  'fetch-failed': 'the fetch failed: rerun later',
+  'host not in the registry-fetcher allowlist': 'add the host to the registry-fetcher hosts in hooks.json and registry-audit.js',
+}
+const unreadFix = reason => UNREAD_FIX[reason] || (/^http-5\d\d$/.test(reason || '') ? 'the host failed: rerun later' : 'recheck the row link')
+
 const judged = await inWaves(rows.map(row => async () => {
   const slice = slices.get(pageOf(row.link)) || { url: pageOf(row.link), state: 'unread', unchecked: true, reason: 'missing fetch result' }
-  const partial = Boolean(slice.unchecked) || (slice.state === 'read' && (slice.kind === 'map' || slice.kind === 'too-large'))
+  const gone = slice.state === 'unread' && !slice.unchecked && /^http-(404|410)$/.test(slice.reason || '')
+  const partial = Boolean(slice.unchecked) || (slice.state === 'read' && (slice.kind === 'map' || slice.kind === 'too-large')) ||
+    (slice.state === 'unread' && !gone)
   if (slice.state !== 'read' || partial) {
     return {
       source_id: row.id,
@@ -365,8 +381,9 @@ const judged = await inWaves(rows.map(row => async () => {
       tests_current_models: 'unclear',
       notes: cleanNotes([
         slice.unchecked ? slice.reason + '; no change proposed'
-          : partial ? 'page returned kind=' + slice.kind + ' and no sections could be read; no change proposed'
-            : slice.reason || 'unread',
+          : slice.state === 'read' ? 'page returned kind=' + slice.kind + ' and no sections could be read; no change proposed'
+            : gone ? slice.reason
+              : (slice.reason || 'unread') + '; ' + unreadFix(slice.reason) + '; no change proposed',
       ]),
     }
   }
