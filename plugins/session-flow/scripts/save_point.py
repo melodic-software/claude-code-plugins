@@ -141,6 +141,7 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     HOP_FILE_SHAPES,
     RETIRED_PREFIX,
     SHAPES,
+    STANDING_INLINE_OK,
     STANDING_PREFIX,
     STANDING_SECTIONS,
     IdSpec,
@@ -397,6 +398,11 @@ DIRECTIVE_TAIL = (
 STANDING_THEN = " then @"
 STANDING_PAGED = " in pages with the Read tool's offset and limit (over one Read page)"
 STANDING_TYPE = "handoff-standing-rules"
+POINTER_PREFIX = "- Retired entries: "
+INDEX_FILE = "retired-index.md"
+INDEX_PREFIX = "- Retired entries index: "
+INDEX_TYPE = "handoff-retired-index"
+INDEX_NOTE = "Each line names a hop file and the heading in it that lists retired entries, each with its reason."
 PRIOR_SESSION_RE = re.compile(r"^Prior session: ([0-9A-Fa-f-]{36})\.$")
 THEN_RE = re.compile(r"^Then: /[A-Za-z0-9_:.-]+$")
 THIS_SESSION_RE = re.compile(r"^did: .+ · left: .+$")
@@ -1087,6 +1093,7 @@ def validate_doc(
     shallow: bool = False,
     hop_text: str | None = None,
     standing: str | None = None,
+    index: str | None = None,
 ) -> tuple[Findings, int]:
     f = Findings()
     fm = doc.frontmatter
@@ -1178,7 +1185,7 @@ def validate_doc(
     content = doc
     if shape in HOP_FILE_SHAPES:
         content = _validate_shape3(
-            doc, f, previous, pred, projects_root, hop_text, standing
+            doc, f, previous, pred, projects_root, hop_text, standing, index
         )
     else:
         _validate_shape2(doc, f, previous, pred, projects_root)
@@ -2073,12 +2080,15 @@ def _check_standing(doc: Doc, f: Findings, root: str, standing: str | None) -> D
         )
         return doc
     for title in STANDING_SECTIONS:
-        if title in doc.titles and pointed.get(title) != (held, title):
-            f.fail(
-                f"{title}: standing_rules is set, so this section holds only '{STANDING_PREFIX}{held}#{title}'",
-                CheckKind.POINTER,
-            )
-            return doc
+        if title not in doc.titles or pointed.get(title) == (held, title):
+            continue
+        if title not in pointed and title in STANDING_INLINE_OK:
+            continue
+        f.fail(
+            f"{title}: standing_rules is set, so this section holds only '{STANDING_PREFIX}{held}#{title}'",
+            CheckKind.POINTER,
+        )
+        return doc
     if standing is not None:
         text, rel = standing, held
     else:
@@ -2086,11 +2096,135 @@ def _check_standing(doc: Doc, f: Findings, root: str, standing: str | None) -> D
     resolved = _standing_doc(doc, text) if text is not None else None
     if resolved is None:
         f.fail(
-            f"standing rules: {rel} is not on disk or lacks '## {STANDING_SECTIONS[0]}' and '## {STANDING_SECTIONS[1]}'",
+            f"standing rules: {rel} is not on disk or lacks {' or '.join(f'## {t}' for t in pointed)}",
             CheckKind.POINTER,
         )
         return doc
     return resolved
+
+
+def index_rel(chain_root: str) -> str:
+    """`archive/<chain-root-stem>/retired-index.md`: a role chain's
+    retired-entries index, relative to the handoffs directory."""
+    return f"{ARCHIVE_DIR}/{_stem(chain_root)}/{INDEX_FILE}"
+
+
+def _is_pointer(line: str) -> bool:
+    """A line naming an archive file and a retire heading."""
+    return bool(HOP_NAME_RE.search(line)) and any(h in line for h in RETIRE_HEADINGS)
+
+
+def _index_lines(text: str) -> list[str]:
+    """The retire pointers an index's text holds, in file order."""
+    return [line for line in text.splitlines() if line.startswith(POINTER_PREFIX)]
+
+
+def _index_pointer(doc: Doc) -> str | None:
+    """The index file Review before you continue names, or None."""
+    return next(
+        (
+            line[len(INDEX_PREFIX) :].strip()
+            for line in doc.section("Review before you continue") or []
+            if line.startswith(INDEX_PREFIX)
+        ),
+        None,
+    )
+
+
+def _read_index(doc: Doc) -> tuple[str | None, str | None]:
+    """The index `doc` names and its text (None when unreadable or not this
+    chain's index); `(None, None)` when it names none."""
+    rel = _index_pointer(doc)
+    if rel is None:
+        return None, None
+    if rel != index_rel(doc.frontmatter.get("chain_root", "")):
+        return rel, None
+    try:
+        return rel, (doc.path.parent / rel).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return rel, None
+
+
+def _index_doc(doc: Doc, text: str) -> Doc:
+    """`doc` with its index line replaced by the index's pointers."""
+    lines = list(doc.lines)
+    for i, line in enumerate(lines):
+        if line.startswith(INDEX_PREFIX):
+            lines[i : i + 1] = _index_lines(text)
+            return replace(_doc_from_lines(doc.path, lines), size=doc.size)
+    return doc
+
+
+def _index_header(root: str) -> list[str]:
+    return ["---", f"type: {INDEX_TYPE}", f"chain_root: {root}", "---", "", INDEX_NOTE]
+
+
+def _split_index(
+    hot: list[str], rel: str, term: str, prior: str | None, header: list[str]
+) -> tuple[list[str], str | None]:
+    """Move each retire pointer line out of Review before you continue into
+    the index's text: the prior text kept verbatim, then each pointer it does
+    not hold appended once, verbatim, leaving one index
+    line where the first pointer stood. Returns the hot lines unchanged and
+    `prior` when neither holds a pointer."""
+    content = [_line_parts(line)[0] for line in hot]
+    span = next(
+        (
+            (at, end)
+            for name, at, end in section_spans(content, 0)
+            if name == "Review before you continue"
+        ),
+        None,
+    )
+    if span is None:
+        return hot, prior
+    found = [
+        i
+        for i in range(span[0] + 1, span[1])
+        if content[i].startswith(INDEX_PREFIX)
+        or (content[i].startswith(POINTER_PREFIX) and _is_pointer(content[i]))
+    ]
+    known = set(_index_lines(prior or ""))
+    added: list[str] = []
+    for i in found:
+        line = content[i]
+        if not line.startswith(INDEX_PREFIX) and line not in known:
+            known.add(line)
+            added.append(line)
+    if not known:
+        return hot, prior
+    out = list(hot)
+    for i in reversed(found):
+        del out[i]
+    at = found[0] if found else _section_end(_content_doc(out), "Review before you continue")
+    out.insert(at, f"{INDEX_PREFIX}{rel}{term}")
+    if prior is None:
+        return out, "\n".join([*header, "", *added]) + "\n"
+    if not added:
+        return out, prior
+    return out, prior.rstrip("\n") + "\n" + "\n".join(added) + "\n"
+
+
+def _index_split(
+    hot: list[str], handoffs: Path, doc: Doc, term: str
+) -> tuple[list[str], Path, str | None, bytes | None] | int:
+    """`_split_index` against the chain's index on disk: the hot lines, the
+    index path, its new text (None when nothing is indexed) and its prior
+    bytes (None when absent); an exit code when it cannot be read."""
+    root = doc.frontmatter.get("chain_root", "")
+    rel = index_rel(root)
+    target = handoffs / rel
+    try:
+        prior: bytes | None = target.read_bytes()
+        prior_text = prior.decode("utf-8")
+    except FileNotFoundError:
+        prior, prior_text = None, None
+    except (OSError, UnicodeDecodeError) as exc:
+        return _die(
+            1, f"cannot read the retired-entries index {rel} ({exc}); nothing written"
+        )
+    out, text = _split_index(hot, rel, term, prior_text, _index_header(root))
+    return out, target, text, prior
 
 
 def _validate_shape3(
@@ -2101,6 +2235,7 @@ def _validate_shape3(
     projects_root: Path | None,
     hop_text: str | None = None,
     standing: str | None = None,
+    index: str | None = None,
 ) -> Doc:
     fm = doc.frontmatter
     for key in ("chain_root", "hop", "archive", "archive_from", "repo"):
@@ -2225,13 +2360,13 @@ def _validate_shape3(
             held = _standing_doc(pred, archived)
             if held is None:
                 f.fail(
-                    f"standing rules: {rel} holds no copy of the predecessor's {' and '.join(STANDING_SECTIONS)}, so its carried rules cannot be checked",
+                    f"standing rules: {rel} holds no copy of the predecessor's {' and '.join(_standing_pointed(pred))}, so its carried entries cannot be checked",
                     CheckKind.POINTER,
                 )
                 held = pred
         _check_carry_3(doc, f, held, start, hop == start, rel, archived, report)
         _check_hop_path(f, pred, start)
-    _check_retire_pointers(doc, f, pred, rel, archived, report)
+    _check_retire_pointers(doc, f, pred, rel, archived, report, index)
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
     slots = _check_slot_sizes(raw, f)
@@ -2393,26 +2528,57 @@ def _retire_pointers(doc: Doc) -> list[str]:
     return [
         line
         for line in doc.section("Review before you continue") or []
-        if HOP_NAME_RE.search(line) and any(h in line for h in RETIRE_HEADINGS)
+        if _is_pointer(line)
     ]
 
 
 def _check_retire_pointers(
-    doc: Doc, f: Findings, pred: Doc | None, rel: str, archived: str | None, report
+    doc: Doc,
+    f: Findings,
+    pred: Doc | None,
+    rel: str,
+    archived: str | None,
+    report,
+    index: str | None = None,
 ) -> None:
+    """A role chain's pointers may sit in its retired-entries index (`index`
+    stands in for it on disk); when this file or the predecessor names an
+    index, the predecessor's pointers include the ones this hop's file copied
+    from it, each compared verbatim."""
     review = doc.section("Review before you continue") or []
+    reach = list(review)
+    held = _index_pointer(doc)
+    if held is not None:
+        want = index_rel(doc.frontmatter.get("chain_root", ""))
+        if held != want:
+            f.fail(
+                f"Review before you continue: the retired-entries index is {want} (got {held!r})",
+                CheckKind.POINTER,
+            )
+        elif (text := index if index is not None else _read_index(doc)[1]) is None:
+            f.fail(
+                f"Review before you continue: the retired-entries index {held} is not on disk",
+                CheckKind.POINTER,
+            )
+        else:
+            reach += _index_lines(text)
     name = rel.rsplit("/", 1)[-1]
     for heading in POINTED_HEADINGS:
         listed = retired_listings(archived or "", heading)
-        if listed and not any(name in line and heading in line for line in review):
+        if listed and not any(name in line and heading in line for line in reach):
             f.fail(
                 f"Review before you continue: {rel} retires entries under '## {heading}'; add a line naming {name} and '{heading}'",
                 CheckKind.POINTER,
             )
     if pred is None or pred.shape not in HOP_FILE_SHAPES:
         return
-    for line in _retire_pointers(pred):
-        if line not in review:
+    carried = _retire_pointers(pred)
+    indexed = held is not None or _index_pointer(pred) is not None
+    if indexed:
+        copy = section_of(archived or "", "Review before you continue") or []
+        carried = list(dict.fromkeys([*carried, *filter(_is_pointer, copy)]))
+    for line in carried:
+        if line not in reach:
             report(
                 f"Review before you continue: the predecessor's retire pointer is missing; carry it verbatim: {line[:60]!r}"
             )
@@ -3129,6 +3295,12 @@ def cmd_fill(args: argparse.Namespace) -> int:
                         f"cannot read the standing-rules file {standing_key} ({exc}); nothing written",
                     )
                 writes.append((target, standing, prior))
+                indexed = _index_split(out, path.parent, doc, term)
+                if isinstance(indexed, int):
+                    return indexed
+                out, index_path, index_text, index_prior = indexed
+                if index_text is not None and index_text.encode() != index_prior:
+                    writes.append((index_path, index_text, index_prior))
             out, hop_lines, _ = handoff_fit.fit(
                 out,
                 hop_lines,
@@ -3621,13 +3793,26 @@ def cmd_amend(args: argparse.Namespace) -> int:
                 *(line + hop_term for line in old),
             ]
     new_standing = standing_text
+    index_path: Path | None = None
+    index_prior: bytes | None = None
+    new_index: str | None = None
     if standing_key:
         hot, new_standing = _split_standing(
             hot, standing_key, term, _standing_header(doc)
         )
+        indexed = _index_split(hot, path.parent, doc, term)
+        if isinstance(indexed, int):
+            return indexed
+        hot, index_path, new_index, index_prior = indexed
         hot = _page_standing(hot, len(new_standing.encode("utf-8")))
+    index_changed = new_index is not None and new_index.encode() != index_prior
     new_hot, new_hop = "".join(hot), "".join(hop)
-    if new_hot == text and new_hop == hop_text and new_standing == standing_text:
+    if (
+        new_hot == text
+        and new_hop == hop_text
+        and new_standing == standing_text
+        and not index_changed
+    ):
         return _die(1, f"nothing to amend: {_posix(path)} would not change")
 
     old_findings, _ = validate_doc(doc, None, False)
@@ -3639,6 +3824,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
         False,
         hop_text=_universal(new_hop),
         standing=_universal(new_standing) if new_standing is not None else None,
+        index=new_index,
     )
     introduced = _fail_keys(findings) - _fail_keys(old_findings)
     if introduced:
@@ -3655,6 +3841,9 @@ def cmd_amend(args: argparse.Namespace) -> int:
     if standing_path is not None and new_standing is not None:
         originals[standing_path] = standing_before
         changed.append((standing_path, new_standing, standing_text))
+    if index_path is not None and index_changed and new_index is not None:
+        originals[index_path] = index_prior
+        changed.append((index_path, new_index, None))
     changed.append((path, new_hot, text))
     writes = [
         (target, payload.encode("utf-8"))
@@ -3685,6 +3874,8 @@ def cmd_amend(args: argparse.Namespace) -> int:
                 original = originals[written]
                 if original is not None:
                     _write_atomic(written, original)
+                else:
+                    written.unlink(missing_ok=True)
             _unstage(staged[index:])
             return _die(2, f"cannot write {target} ({exc}); nothing written")
     _print_verdict(built, findings, code)
@@ -4605,6 +4796,15 @@ def cmd_new(args: argparse.Namespace) -> int:
                 f"predecessor's standing rules are unreadable: {rel} is not on disk or lacks a section the predecessor points at; restore it, then re-run",
             )
         pred = resolved
+    if pred is not None and pred.shape in HOP_FILE_SHAPES:
+        rel, text = _read_index(pred)
+        if rel is not None and text is None:
+            return _die(
+                1,
+                f"predecessor's retired-entries index {rel} is not on disk or is not its chain's; restore it, then re-run",
+            )
+        if text is not None:
+            pred = _index_doc(pred, text)
 
     if repo_root is not None:
         origin = origin_identity(_git_origin(repo_root), repo_root.name)
@@ -4687,6 +4887,7 @@ def cmd_new(args: argparse.Namespace) -> int:
             split, _ = _split_standing(
                 content.splitlines(keepends=True), standing_rel(root), "\n", []
             )
+            split, _ = _split_index(split, index_rel(root), "\n", None, [])
             skeleton = "".join(split)
         print(_budget_line(skeleton), file=sys.stderr)
     return 0
@@ -4769,7 +4970,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument(
         "--standing-rules",
         action="store_true",
-        help="role chain: `fill` keeps Current rules and Standing preferences in the chain's archive/<chain>/standing-rules.md, the hot file holds a pointer to each, and the resume prompt loads that file first; a successor of such a hop keeps it without the flag (shape 4 only)",
+        help="role chain: `fill` keeps Current rules, Standing preferences and Decisions in force in the chain's archive/<chain>/standing-rules.md and the retire pointers in archive/<chain>/retired-index.md, the hot file holds a pointer to each, and the resume prompt loads the standing-rules file first; a successor of such a hop keeps it without the flag (shape 4 only)",
     )
     p_new.set_defaults(func=cmd_new)
 

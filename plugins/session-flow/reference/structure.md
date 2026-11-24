@@ -133,27 +133,50 @@ prints the verdict and the rails.
 
 #### Role chains: the standing-rules file
 
-A role chain is a long-running session for an ongoing role, such as a monitor, whose rules
-outgrow the handoff file. Start one with `new --standing-rules`; every later hop keeps it, flag or
-not, because `new` reads the predecessor's `standing_rules` key.
+A role chain is a long-running session for an ongoing role, such as a monitor, whose rules and
+decisions outgrow the handoff file. Start one with `new --standing-rules`; every later hop keeps
+it, flag or not, because `new` reads the predecessor's `standing_rules` key. Its handoff file
+holds what the next action needs and one pointer line for each body that lives elsewhere, so it
+fits one Read page.
 
-- **Where the rules live.** `fill` moves Current rules and Standing preferences into
-  `archive/<chain-root-stem>/standing-rules.md`, one file per chain beside its archive files, so it is
-  gitignored with the rest of the memory tier. Each section stays in its usual place in the handoff
-  file as one line, `- Standing rules: archive/<chain-root-stem>/standing-rules.md#<section>`. The
-  binding order and the rule mechanics (ids, rewrite in place, `retire`) do not change.
-- **How a resume loads them.** The directive reads `Read @<standing-rules file> then @<handoff file>,
-  …`, so the rules load before the handoff file. A standing-rules file over one Read page makes the
-  directive say to page it.
-- **History.** Each hop's `fill` rewrites the file, and `new` copies the predecessor's rules into
-  the new archive file as usual. `validate` therefore reads an older handoff file's rules from its
-  successor's archive file, and fails a rule that leaves the file without a retirement, as in the handoff
-  file. `read --section`, `chain` and other readers that follow a pointer read the file as it is
-  now, the tip's rules.
-- **Changing rules after emit.** `amend` reads the file, applies `sections` and `retire` to the
-  rules there, and writes the file, the archive file and the handoff file together.
+- **Where the rules and decisions live.** `fill` moves Current rules, Standing preferences and
+  Decisions in force into `archive/<chain-root-stem>/standing-rules.md`, one file per chain beside
+  its archive files, so it is gitignored with the rest of the memory tier. Each section stays in
+  its usual place in the handoff file as one line,
+  `- Standing rules: archive/<chain-root-stem>/standing-rules.md#<section>`. The binding order and
+  the entry mechanics (ids, rewrite in place, `retire`) do not change: a decision leaves only
+  through `retire`, listed with its reason under `## Retired decisions` in the archive file. A
+  handoff file that still holds Decisions in force inline validates; its next `fill` moves them.
+- **How a resume loads them.** The directive reads
+  `Read @<standing-rules file> then @<handoff file>, …`, so the rules and decisions load before
+  the handoff file. A standing-rules file over one Read page makes the directive say to page it.
+- **History.** Each hop's `fill` rewrites the file, and `new` copies the predecessor's rules and
+  decisions into the new archive file as usual. `validate` therefore reads an older handoff
+  file's entries from its successor's archive file, and fails a rule or decision that leaves the
+  file without a retirement, as in the handoff file. `read --section`, `chain` and other readers
+  that follow a pointer read the file as it is now, the tip's entries.
+- **Changing entries after emit.** `amend` reads the file, applies `sections` and `retire` to
+  the entries there, and writes the file, the archive file and the handoff file together.
 - **No forks.** One file serves one line of hops, so `fill` and `amend` refuse a hop when another
   session's handoff follows the same predecessor. A retry by the same session is not a fork.
+
+#### The retired-entries index
+
+A role chain's `- Retired entries: <archive file> § <heading>` lines live in one index,
+`archive/<chain-root-stem>/retired-index.md`, beside the standing-rules file. Review before you
+continue holds one line in their place,
+`- Retired entries index: archive/<chain-root-stem>/retired-index.md`; read the index, then the
+archive file it names, only when an earlier entry's history matters.
+
+- **Writing.** `fill` and `amend` move every retire pointer out of Review before you continue
+  into the index: the lines already there first, each new one appended once, none removed. `new`
+  copies the predecessor's index lines into its Review section and its archive file, and `fill`
+  collapses them again.
+- **Validation.** `validate` reads the index with Review before you continue: each heading this
+  hop retired under is named there, and every pointer the predecessor held, in its handoff file or
+  in the copy of its index in this hop's file, is still in one of the two. A missing index fails.
+- **Ordinary chains.** A chain without `standing_rules` keeps its pointers in Review before you
+  continue, as below.
 
 ## Body sections (shape 2)
 
@@ -866,7 +889,7 @@ interpreter there is no `fill` either, so the hand-written file needs no slots J
 | 9 | Pending commands | every command waiting on the user, verbatim |
 | 10 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
 | 11 | This session | the `did: … · left: …` line and its `Re-scan: …` line |
-| 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; every `- Retired entries:` line the predecessor holds, carried forward verbatim, plus one per archive file and retire heading this hop used |
+| 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; every `- Retired entries:` line the predecessor holds, carried forward verbatim, plus one per archive file and retire heading this hop used (a role chain holds them in its retired-entries index and one line naming it) |
 | 13 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, a remaining action that serves no recorded goal or detour flagged `DRIFT`; copied off disk each hop with the predecessor's `- Folded:` line kept verbatim; a superseded line leaves only as a retire listing |
 | 14 | Observations | session-wide observations, summarized |
 | 15 | Suggested skills | which skills to invoke for the remaining work |
@@ -896,7 +919,11 @@ Without a script, the hand-writer owns the carry that `new`, `fill` and `retire`
 - **Point at every retirement.** For each retire heading but `## Retired rules` that this hop used,
   add `- Retired entries: <archive file> § <heading>` to Review before you continue, and keep every
   such line the predecessor holds: a dropped one leaves earlier retirements unreachable, and no
-  check runs without an interpreter to catch it.
+  check runs without an interpreter to catch it. On a role chain, append the new lines to
+  `archive/<chain-root-stem>/retired-index.md` instead, each once, removing none, and keep its one
+  `- Retired entries index:` line in Review before you continue.
+- **Role chains keep their split.** Current rules, Standing preferences and Decisions in force
+  stay in the standing-rules file, edited there, and the handoff file keeps their pointer lines.
 - **Carry each id floor, and raise it.** Copy `next_rule_id`, `next_question_id` and
   `next_decision_id` from the predecessor's frontmatter, then raise each past every id this hop
   added. Never lower one, even when the highest id was retired: the next hop would offer that id
