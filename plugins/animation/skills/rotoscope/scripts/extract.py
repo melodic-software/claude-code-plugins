@@ -59,7 +59,6 @@ def load_overrides(path):
 
 
 def overrides_for(ovr, k):
-    """Merge every entry whose k range holds k, in file order; later entries win, `brush` merges key by key."""
     o = {}
     for e in ovr:
         k0, k1 = e['k'] if isinstance(e['k'], list) else (e['k'], e['k'])
@@ -163,7 +162,6 @@ def npoints(paths):
 
 
 def source_images(work, k):
-    """Drawing k's source image as (RGB, gray)."""
     rgb = cv2.cvtColor(cv2.imread(str(workdir.source(work, k))), cv2.COLOR_BGR2RGB)
     return rgb, cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
 

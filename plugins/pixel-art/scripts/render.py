@@ -232,7 +232,6 @@ def render(spec, out_dir, scale=8, spec_path=None):
 
 
 def snap_image(source, palette_value, out_path, dither=False, emit_frames=False, base_dir=None):
-    """Read a PNG, snap it, and write either a PNG or a one-frame spec JSON."""
     _width, _height, rows = palette_mod.read_png(source)
     base = pathlib.Path(base_dir) if base_dir is not None else pathlib.Path.cwd()
     resolved = palette_mod.resolve_palette(palette_value, base)

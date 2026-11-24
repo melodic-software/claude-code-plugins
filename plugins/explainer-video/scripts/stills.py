@@ -57,7 +57,6 @@ def fail(code, message):
 
 
 def sidecars(board, base):
-    """{moment id: sidecar text} for screenshot moments; FileNotFoundError naming the moment when one is missing."""
     out = {}
     for m in board['moments']:
         if m['template'] == 'screenshot':
@@ -79,7 +78,6 @@ def scan_texts(board, chapters, side):
 
 
 def published(path, out):
-    """{path relative to out, bytes, sha256} of the file as it sits on disk now; call it after the last write."""
     with open(path, 'rb') as f:
         digest = hashlib.file_digest(f, 'sha256').hexdigest()
         size = f.tell()
@@ -87,7 +85,6 @@ def published(path, out):
 
 
 def place_screenshots(board, base, side, out):
-    """Copy each screenshot and write the sidecar text the scan read into out/screenshots; their manifest entries."""
     folder = out / 'screenshots'
     entries = []
     for k, m in enumerate(board['moments'], 1):
@@ -112,8 +109,6 @@ def html(board, chapters, k, m, stylesheet, base, entries=None, part=None):
 
 
 def paginate(board, chapters, stylesheet, base):
-    """Per moment, the entry ranges of its frames: [None] for one frame showing everything. A candidate frame is
-    measured with the longest continuation label, so the label the frame finally gets never makes it taller."""
     import media_capture
     jobs, at = [], []
     for k, m in enumerate(board['moments'], 1):
@@ -163,7 +158,6 @@ def frames_of(board, chapters, out, stylesheet, base):
 
 
 def visible_words(moment, board_title):
-    """Whitespace-separated words of the strings a frame draws from its data (keys and file paths excluded)."""
     words = len(board_title.split()) if moment['template'] == 'title' else 0
     hidden = ('image', 'sidecar', 'alt') if moment['template'] == 'screenshot' else ()
 
@@ -185,13 +179,10 @@ def minimum(moment, board_title):
 
 
 def moment_minimums(board, frames):
-    """Per moment, the seconds its frames need together; media_timeline.timeline extends a shorter hold."""
     return [round(sum(f['minimum'] for f in frames if f['id'] == m['id']), 3) for m in board['moments']]
 
 
 def silent_holds(board, tl, needs, over):
-    """Narrated moments held more than `over` seconds past their paragraph's slice of the narration, because their
-    frames need longer: [{'id', 'past_s', 'needs_s', 'narration_s'}]. A report, never a defect."""
     spans = iter(e for e in tl['audio'] if e[0] == 'narration')
     out = []
     for m, h, need in zip(board['moments'], tl['holds'], needs):
@@ -205,9 +196,6 @@ def silent_holds(board, tl, needs, over):
 
 
 def frame_holds(holds, frames):
-    """Each frame's span of its moment's hold: its minimum, plus the hold's spare time shared by entry count. A
-    hold shorter than its frames' minimums (never made by timeline) is split by entry count alone, and quality()
-    reports the frames it leaves short."""
     out = []
     for h in holds:
         mine = [f for f in frames if f['id'] == h['id']]
@@ -225,7 +213,6 @@ def frame_holds(holds, frames):
 
 
 def narration_audio(tl, ndir, out, steps):
-    """The narration rebuilt in video time and loudness-normalized; (path, loudness report)."""
     assembled, normalized = out / 'narration.assembled.wav', out / 'narration.normalized.wav'
     record = json.loads((ndir / 'words.json').read_text(encoding='utf-8'))
     media_encode.assemble_audio(ndir / record.get('audio', 'narration.wav'), tl['audio'], assembled)
@@ -253,9 +240,6 @@ def encode(frames, out, audio, srt, ass, stitcher, steps):
 
 
 def quality(video, frames):
-    """Per frame: the fit check, its time on screen against its reading minimum (one video frame of slack for
-    rounding), then luma SSIM of the frame shown mid-hold against its source PNG, above the caption band, and blank
-    frames."""
     rows, defects = [], []
     check = video.parent / 'check.png'
     for f in frames:

@@ -287,7 +287,6 @@ def load(d):
 
 
 def plugin_version():
-    """The planning plugin's version from its manifest, or None when the manifest is not beside this file."""
     try:
         manifest = HERE.parent / ".claude-plugin" / "plugin.json"
         return json.loads(manifest.read_text(encoding="utf-8")).get("version")
@@ -296,13 +295,11 @@ def plugin_version():
 
 
 def save(d, doc, touched=()):
-    """Bump rev, stamp the schema version and, on a file's first write, the plugin version that wrote it, validate, then write; a schema failure writes nothing."""
     prepare(doc, touched)
     save_json(d / "questions.json", doc)
 
 
 def prepare(doc, touched=()):
-    """Everything `save` does but the write: stamp, bump rev, and refuse a schema failure."""
     doc["schemaVersion"] = SCHEMA_VERSION
     version = None if doc.get("rev") else plugin_version()
     if version:
@@ -316,14 +313,12 @@ def prepare(doc, touched=()):
 
 
 def capped(field, text, cap):
-    """`text` unchanged, or a refusal when it runs over `cap` characters."""
     if isinstance(text, str) and len(text) > cap:
         sys.exit(f"refused: {field} is {len(text)} characters; the cap is {cap}")
     return text
 
 
 def checked_short(qid, short):
-    """Refuse a `short` the shared question shape does not allow; stored ones are not rechecked."""
     err = schema.first_error(short, SHORT_SHAPE, f"{qid} short")
     if err:
         sys.exit(f"refused: {err}")
@@ -349,7 +344,6 @@ def split_alt(s):
 
 
 def check_rec_alts(qid, rec, alts, fix):
-    """Refuse an alternative that restates the recommendation (question_shape.restates)."""
     for i, alt in enumerate(alts or [], 1):
         key = alt.get("key") if isinstance(alt, dict) else None
         if restates(alt.get("text") if isinstance(alt, dict) else alt, rec):
@@ -360,7 +354,6 @@ def check_rec_alts(qid, rec, alts, fix):
 
 
 def parse_affects(v):
-    """None when absent; `none` is an empty list; a list or comma-joined ids otherwise."""
     if v is None:
         return None
     if isinstance(v, list):
@@ -371,7 +364,6 @@ def parse_affects(v):
 
 
 def mark_handled(doc, seqs):
-    """Per-event handled set. handledSeq advances only over a gap-free run, so it never hides an unhandled event."""
     done = set(doc.get("handled") or []) | {s for s in seqs if s}
     hs = doc.get("handledSeq") or 0
     while hs + 1 in done:
@@ -381,8 +373,6 @@ def mark_handled(doc, seqs):
 
 
 def guard_revision(d, doc, qid, seq, force):
-    """Refuse a revision when the user acted on the question after the event being answered, and return the responses it read.
-    Without `seq`, only an unhandled user event on the question blocks it."""
     snapshot = load_json(d / "responses.json", EMPTY_RESPONSES)
     if force:
         return snapshot
@@ -419,8 +409,6 @@ def require_affects(qid, affects):
 
 
 def require_alt_review(qid, alts, keep):
-    """A recommendation change states its alternatives: new ones, or that the current ones were
-    checked against it (R-I)."""
     if alts is not None and keep:
         sys.exit(
             f"refused: {qid} takes `alternatives` or `keepAlternatives`, not both"
@@ -434,13 +422,10 @@ def require_alt_review(qid, alts, keep):
 
 
 def min_alts(q):
-    """2, or 1 for a yes/no question flagged `binary: true` (R-I)."""
     return 1 if q.get("binary") is True else 2
 
 
 def check_alt_count(qid, n, q):
-    """The R-I refusal for a question left with `n` alternatives: fewer than it needs, or more
-    than one on a binary question."""
     if min_alts(q) == 2 and n < 2:
         sys.exit(
             f"refused: {qid} has {n} alternatives; every question needs at least 2 genuine "
@@ -455,7 +440,6 @@ def check_alt_count(qid, n, q):
 
 
 def checked_alts(q, alts):
-    """`alts` parsed and capped, or a refusal when their count does not fit question `q` (R-I)."""
     alts = [split_alt(s) for s in alts]
     for alt in alts:
         capped(f"{q['id']} alternative {alt['key']}", alt["text"], LINE_CAP)
@@ -465,10 +449,6 @@ def checked_alts(q, alts):
 
 
 def set_aside_answer(r, doc, q, rec):
-    """A recommendation revision to `rec` sets aside the counted decision it outdates (the same
-    stamps as a user hold, without the hold): an `own` answer, which the revision answers, and an
-    accept or hedged accept of a different recommendation, which records the text it accepted in
-    asideRecommendation. Alt and defer stay."""
     latest = exporters.latest_decision(q, r.get("responses", {}))
     said = (latest or {}).get("decision")
     old = q.get("recommendation") or ""
@@ -484,8 +464,6 @@ def set_aside_answer(r, doc, q, rec):
 
 
 def revise_recommendation(r, doc, q, rec, why):
-    """Replace q's recommendation with `rec`, setting aside the answer it outdates and keeping
-    the old recommendation, with `why`, for the page."""
     set_aside_answer(r, doc, q, rec)
     if q.get("recommendation") or not q.get("proposed"):
         q["previousRecommendation"] = q.get("recommendation", "")
@@ -494,7 +472,6 @@ def revise_recommendation(r, doc, q, rec, why):
 
 
 def checked_list(doc, ids):
-    """`ids` as a stored `checkedAgainst` list; refuses one the constraint ledger does not hold."""
     known = {c["id"] for c in doc.get("constraints") or []}
     if not isinstance(ids, list) or not set(map(str, ids)) <= known:
         sys.exit(f"refused: checkedAgainst {ids!r} names no recorded constraint")
@@ -502,11 +479,6 @@ def checked_list(doc, ids):
 
 
 def add_question(doc, q, repoint=False, latest=None, earlier=None):
-    """Validate and append one question; returns (the questions whose rev must bump, notes about
-    the dependents of a question it supersedes). `latest` is the newest round before the write
-    began (default: now), so questions added in one write date against the same round; `earlier`
-    is the question ids that existed before it (default: now), which `reconciles` may name.
-    Exits before any write."""
     q["checkedAgainst"] = (
         [c["id"] for c in doc.get("constraints") or []]
         if q.get("checkedAgainst") is None
@@ -594,8 +566,6 @@ def add_question(doc, q, repoint=False, latest=None, earlier=None):
 
 
 def check_reconciles(q, known):
-    """Refuse a `reconciles` that is not a list of question ids already in the register: the
-    earlier answers the page shows beside a question that reconciles them."""
     ids = q.get("reconciles")
     if ids is None:
         return
@@ -613,8 +583,6 @@ def check_reconciles(q, known):
 
 
 def require_depends(d):
-    """The resolved requireDepends: planning's team and personal files, the user file the server
-    recorded, then the data dir's settings.json."""
     try:
         s = json.loads((d / bridge.session_files(NAME)[0]).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -625,9 +593,6 @@ def require_depends(d):
 
 
 def check_depends(d, doc, qs):
-    """Warn, or refuse under requireDepends, when a new question omits dependsOn (`[]` declares
-    it independent) or names a question still open in its own round. Run after the adds, so a
-    prerequisite added in the same write counts as open."""
     strict = require_depends(d)
     r = load_json(d / "responses.json", EMPTY_RESPONSES)
     view = json.loads(json.dumps(doc))
@@ -656,9 +621,6 @@ def check_depends(d, doc, qs):
 
 
 def repoint_dependents(doc, new, old, repoint):
-    """(notes, moved questions): the live questions whose dependsOn names `old`, which `new`
-    supersedes. With `repoint` each moves to `new`; one that `new` itself depends on, directly or
-    not, only loses `old` (moving it would make a cycle). Without it they are only named."""
     users = [
         x
         for x in doc["questions"]
@@ -715,7 +677,6 @@ def repoint_dependents(doc, new, old, repoint):
 
 
 def strings(v):
-    """Every string inside a JSON value."""
     if isinstance(v, str):
         yield v
     elif isinstance(v, dict):
@@ -727,7 +688,6 @@ def strings(v):
 
 
 def warn_bare_issue_refs(doc, label, value):
-    """Warn once when any text in value carries a bare #N (outside code spans) and meta.repo is not an owner/repo slug, so the page cannot link it."""
     if not REPO_SLUG.fullmatch(str(doc["meta"].get("repo") or "")) and any(
         BARE_ISSUE_REF.search(CODE_SPAN.sub("", s)) for s in strings(value)
     ):
@@ -738,7 +698,6 @@ def warn_bare_issue_refs(doc, label, value):
 
 
 def warn_branch_source_links(label, facts, field="facts"):
-    """Warn once when facts or context links a repo file by branch (blob/<branch>), which stops landing on the quoted lines once the branch moves."""
     if facts and BRANCH_SOURCE_LINK.search(facts):
         warn(
             f"{label} {field} links a repo file by branch (blob/<branch>); "
@@ -747,7 +706,6 @@ def warn_branch_source_links(label, facts, field="facts"):
 
 
 def rec_asks_user(rec):
-    """True when a recommendation asks the user something: a question mark, or a request to tell, confirm or choose."""
     return bool(ASKS_USER.search(CODE_SPAN.sub("", str(rec or ""))))
 
 
@@ -760,9 +718,6 @@ def warn_rec_asks(qid, rec):
 
 
 def warn_rec_visual(doc, q, rec, commits):
-    """Warn when a recommendation points at a table or visual and has no commitments while the
-    file holds a visual or the question's facts a table: the Brief carries the recommendation and
-    its commitments, never a visual or the facts."""
     shown = any(not v.get("archived") for v in doc.get("visuals") or []) or (
         FACTS_TABLE.search(q.get("facts") or "")
     )
@@ -796,18 +751,15 @@ CHECKED_AGAINST = re.compile(r"^\s*\**checked against:.*$", re.IGNORECASE | re.M
 
 
 def sentence_count(text):
-    """The sentences in `text`, split after each `.`, `!` or `?` that whitespace follows."""
     return len([s for s in re.split(r"(?<=[.!?])\s+", text) if s])
 
 
 def basis_label(basis):
-    """The outcome label (verified or judgment) leading or trailing a basis, lowercased, or None."""
     m = BASIS_LABEL.search(basis or "")
     return (m.group(1) or m.group(2)).lower() if m else None
 
 
 def warn_bare_file_ref(qid, field, text):
-    """Warn when a field names a local file or says "see X" with no quote, list or link in the same field."""
     text = text or ""
     if (
         LOCAL_FILE_REF.search(text)
@@ -821,8 +773,6 @@ def warn_bare_file_ref(qid, field, text):
 
 
 def warn_unreferenced_facts(qid, facts, field="facts"):
-    """Warn when a facts or context field holding more than its `Checked against:` line carries
-    no link, file:line or judgment label, so no claim in it can be checked."""
     rest = CHECKED_AGAINST.sub("", facts or "")
     if rest.strip() and not FACTS_REFERENCE.search(rest):
         warn(
@@ -832,7 +782,6 @@ def warn_unreferenced_facts(qid, facts, field="facts"):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something or points at a table or visual it does not carry, facts with no reference, bare Q<N> and C<N> ids that name no question here, bare #N with no meta.repo, and a one-for-one mass supersede. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
@@ -878,9 +827,6 @@ def lint_questions(doc, qs):
 
 
 def warn_mass_supersede(qs):
-    """Warn when one write supersedes MASS_SUPERSEDE or more questions one for one: a re-issued
-    round starts each question over under a new id, where `revise` keeps the id, thread and
-    answer (G6)."""
     pairs = [f"{q['supersedes']} by {q['id']}" for q in qs if q.get("supersedes")]
     if len(pairs) >= MASS_SUPERSEDE:
         shown = ", ".join(pairs[:5]) + (f" and {len(pairs) - 5} more" if len(pairs) > 5 else "")
@@ -892,12 +838,10 @@ def warn_mass_supersede(qs):
 
 
 def group_members(doc, gid):
-    """Ids of every question in the group, archived and superseded included: the page lists them all."""
     return sorted(q["id"] for q in doc["questions"] if q.get("group") == gid)
 
 
 def find_group(doc, gid):
-    """The group with id `gid`, or None."""
     return next((x for x in doc["groups"] if x["id"] == gid), None)
 
 
@@ -906,7 +850,6 @@ def record_summary_of(doc, gid):
 
 
 def warn_stale_summaries(doc, qs):
-    """One warning per group whose summary was written for a different set of questions."""
     for gid in dict.fromkeys(q.get("group") for q in qs):
         g = find_group(doc, gid)
         if g is None or "summaryOf" not in g:
@@ -944,7 +887,6 @@ ROUND_KINDS = ("sweep",)
 
 
 def set_meta(doc, m):
-    """Merge title, eyebrow, stages, next, repo and commit into questions.json meta; any other key, or a commit that is neither empty nor a full SHA, is refused."""
     if not isinstance(m, dict):
         sys.exit("refused: meta is an object")
     extra = sorted(set(m) - set(META_KEYS))
@@ -961,12 +903,10 @@ def newest_round(doc):
 
 
 def newest_stage(doc):
-    """The newest question's stage, or "interview" when there is none."""
     return (doc["questions"][-1] if doc["questions"] else {}).get("stage", "interview")
 
 
 def stage_round(doc, stage):
-    """The highest round among the questions in `stage`, or 1."""
     return max([x.get("round", 1) for x in doc["questions"] if x.get("stage") == stage] or [1])
 
 
@@ -975,7 +915,6 @@ def stamp_meta(doc):
 
 
 def warn_stale_meta(doc, before):
-    """Warn when a write opened a round above every earlier one while meta was last set in an older one."""
     now_round = newest_round(doc)
     stamp = doc["meta"].get("setInRound", 0)
     if before and now_round > before and stamp < now_round:
@@ -1044,7 +983,6 @@ def op_propose(d, doc, a):
 
 
 def require_accepted(d, q, what):
-    """Refuse `what` on a proposed question until the user accepts or edits the proposal."""
     answer = proposal_answer(
         q, load_json(d / "responses.json", EMPTY_RESPONSES).get("events")
     )
@@ -1067,8 +1005,6 @@ def require_on_path(doc, q):
 
 
 def checked_round_restate(restate):
-    """The round's restate, or a refusal: markdown of at most RESTATE_SENTENCES sentences plus the
-    `decided` and `open` question id lists (G7, as R1 does for `commits`)."""
     if not isinstance(restate, dict):
         sys.exit(
             "refused: a round with questions needs a restate: "
@@ -1097,8 +1033,6 @@ def checked_round_restate(restate):
 
 
 def round_kind(meta, questions):
-    """(the meta to merge, the round's kind): `meta.kind` describes this round, not the
-    interview, so it is taken out of the meta merge and stored on the round's entry."""
     if not isinstance(meta, dict) or "kind" not in meta:
         return meta, None
     kind = meta["kind"]
@@ -1113,8 +1047,6 @@ def round_kind(meta, questions):
 
 
 def store_round_restate(doc, qs, restate, kind=None):
-    """Record the restate, and the kind when given, for the round the new questions open,
-    replacing an earlier one for it; with no kind given, the earlier entry's kind stays."""
     known = {q["id"] for q in doc["questions"]}
     for key in ("decided", "open"):
         unknown = [i for i in restate[key] if i not in known]
@@ -1200,7 +1132,6 @@ def op_add_round(d, doc, a):
 
 
 def warn_stage(doc, qs):
-    """One warning per stage a new question introduces with no meta.stages label."""
     labels = doc["meta"].get("stages") or {}
     for st in dict.fromkeys(q.get("stage") for q in qs):
         if st and st not in labels and st != "interview":
@@ -1211,7 +1142,6 @@ def warn_stage(doc, qs):
 
 
 def check_primaries(doc):
-    """Refuse a second live `primary` visual in one group of one scope; a question's inline visuals are in its own scope."""
     seen = {}
     inline = [
         (f"question:{q['id']}", v)
@@ -1291,8 +1221,6 @@ def op_group_order(d, doc, a):
 
 
 def set_resolution(d, q, text):
-    """Record `text` as the accepted reading of the question's counted `own` answer; exits unless
-    one counts."""
     text = " ".join(text.split())
     if not text:
         sys.exit("refused: a reply `resolution` needs text")
@@ -1385,8 +1313,6 @@ def op_reply(d, doc, a):
 
 
 def checked_depends(doc, qid, deps):
-    """`deps` without repeats, or a refusal: every id must be a known question, none the question
-    itself, and none may already depend on it (a cycle). ["none"] alone is the empty list."""
     deps = list(dict.fromkeys([] if deps == ["none"] else deps))
     by_id = {x["id"]: x for x in doc["questions"]}
     unknown = [p for p in deps if p not in by_id]
@@ -1885,8 +1811,6 @@ RESTATE_SECTIONS = (
 
 
 def restated_lines(s, key):
-    """A restate section's non-blank lines, each without its bullet, checkbox, AC<N> id or tag,
-    its whitespace runs one space as the export writes them."""
     text = s.get(key) if isinstance(s.get(key), str) else ""
     return [
         CRITERION_LEAD.sub("", " ".join(x.split()), count=1)
@@ -1896,9 +1820,6 @@ def restated_lines(s, key):
 
 
 def check_restated_lines(s):
-    """Refuse an acceptance line that asks the user something (the Brief would carry a question
-    as a criterion) and a tldr line wearing a label the --brief gate reads; warn on a tldr over
-    the Brief template's bullet budget."""
     for line in restated_lines(s, "acceptance"):
         if rec_asks_user(line) or ASKS_USER_LEAD.match(line):
             sys.exit(
@@ -1973,8 +1894,6 @@ def op_activity(d, doc, a):
 
 
 def log_activity(doc, text, ids, **marks):
-    """Append one feed entry, keeping the newest ACTIVITY_CAP; a falsy mark is left out. `seq`
-    is one above the highest kept, so it names the entry even when time and text repeat."""
     kept = doc.get("activity") or []
     seq = max((e.get("seq", 0) for e in kept), default=0) + 1
     entry = {"at": now(), "seq": seq, "text": text}
@@ -1985,8 +1904,6 @@ def log_activity(doc, text, ids, **marks):
 
 
 def summarize(doc, logged, asks=False):
-    """One feed entry for the (op name, message, touched) of one write's logged ops; none when
-    there are none. `notes`, `added`, `revised`, `waits`, `asks` (a Notes reply that needs an answer), `finished` and `restate` (the new rev) mark what the page links to."""
     if not logged:
         return
     names = {name for name, _, _ in logged}
@@ -2009,8 +1926,6 @@ def summarize(doc, logged, asks=False):
 
 
 def write_op(fn, name):
-    """A CLI command: lock, load, run op `name`, save once, then report."""
-
     def cmd(d, a):
         with sidecar_lock(d):
             doc = load(d)
@@ -2036,7 +1951,6 @@ def op_add_round_linted(d, doc, a):
 
 
 def read_input(path, kind, as_json=False, newline=None):
-    """Read an input file named on the command line; refuse cleanly when it is missing or malformed."""
     try:
         with open(path, encoding="utf-8", newline=newline) as f:
             text = f.read()
@@ -2255,7 +2169,6 @@ def cmd_apply(d, a):
 
 
 def apply_ops_file(d, name, claimed):
-    """Validate and apply the claimed ops file; the caller holds the sidecar lock."""
     try:
         spec = json.loads(claimed.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
@@ -2477,13 +2390,11 @@ def seconds(stamp):
 
 
 def percentile(values, p):
-    """Nearest-rank percentile of a non-empty list."""
     v = sorted(values)
     return v[max(0, math.ceil(p / 100 * len(v)) - 1)]
 
 
 def print_latency(d, as_json=False):
-    """p50 and p95 seconds: save to Delivered (deliveredAt - at), save to the first Claude reply."""
     doc = load(d)
     events = load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
     replies = {}
@@ -2642,7 +2553,6 @@ def write_text(path, text):
 
 
 def replace_text(path, text, tag):
-    """Write `text` to a hidden `.<name>.<tag>` file beside `path`, then rename it over `path`."""
     tmp = path.with_name(f".{path.name}.{tag}")
     write_text(tmp, text)
     os.replace(tmp, path)
@@ -2678,14 +2588,10 @@ def report_notes(notes, kinds):
 
 
 def last_recap_path(ledger):
-    """The file beside the ledger that holds the last recap's rows, one per ledger, overwritten by
-    each recap: `<ledger stem>.last-recap.json`."""
     return Path(ledger).with_suffix(".last-recap.json")
 
 
 def read_last_recap(path):
-    """The rows the last recap saved at path, or None when there is none yet (the first
-    confirmation) or the file cannot be read, so the recap lists every row."""
     if not path.exists():
         return None
     try:
@@ -2739,10 +2645,6 @@ def cmd_export_ledger(d, a):
 
 
 def record_ledger_sync(d, doc, ledger, force=False):
-    """Compare the page with `ledger` as `export-ledger --diff` does and record the result in
-    doc's meta.ledgerSync for the page header, for the caller to save; `force` records it even when
-    it is unchanged. A change in which rows disagree adds an Activity Log line. Return (drift
-    lines, disagreeing rows, whether doc changed)."""
     notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
     drift = [line for kind, line in notes if kind in ("change", "conflict")]
     leads = (re.match(r"Q\d+\b", line) for line in drift)
@@ -2793,12 +2695,10 @@ def cmd_ledger_check(d, a):
 
 
 def capped_text(text, cap):
-    """`text` cut to `cap` characters, with an ellipsis when it was cut."""
     return text if len(text) <= cap else text[: cap - 1] + "…"
 
 
 def write_synced_ledger(d, ledger):
-    """Rewrite only the register rows of ledger from page state; return the merge notes."""
     path = Path(ledger)
     # Read untranslated so a CRLF ledger keeps its line endings.
     text, notes = exporters.sync_ledger(
@@ -2810,8 +2710,6 @@ def write_synced_ledger(d, ledger):
 
 
 def record_synced_ledger(d, ledger):
-    """Name `ledger` in meta.syncedLedger, the one ledger-check reads, and record its check in
-    meta.ledgerSync, so the page header shows the ledger line on a page not seeded from one."""
     with sidecar_lock(d):
         doc = load(d)
         path = str(Path(ledger).resolve())
@@ -2828,8 +2726,6 @@ def cmd_sync_ledger(d, a):
 
 
 def edit_ledger(a, edit):
-    """Rewrite the register row `edit` changes, behind a timestamped backup, then print the
-    check-open-questions verdict (a verdict that still counts open rows does not fail this command)."""
     path = Path(a.ledger)
     text = read_input(path, "ledger", newline="")
     new = edit(text, str(path))
@@ -2966,7 +2862,6 @@ def fence_step(fence, bare):
 
 
 def question_id(bare):
-    """The Q<N> a question line opens, or None; a list item never opens a question."""
     if LIST_ITEM.match(bare):
         return None
     q = QUESTION_LINE.match(bare)
@@ -2974,11 +2869,6 @@ def question_id(bare):
 
 
 def round_segments(lines):
-    """[(label, qid, lines)] of a round file's lines: the header (label "header"), then per
-    question its title, each labeled field with the lines that continue it up to the next blank
-    line or label, and each blank or other line on its own. A line that starts with a protected
-    label word in any form starts a segment of its own, kept at every level. Fenced lines stay in
-    their segment."""
     segs, qid, fence = [["header", None, []]], None, None
     for line in lines:
         bare = line.rstrip("\r\n")
@@ -3009,12 +2899,6 @@ def eol_of(line):
 
 
 def render_round(text, level):
-    """The round file `text` at `level`: full is the text itself; standard drops Origin:,
-    Basis:, Checked against: and the Source: quote's body (keeping its links) and puts each
-    alternative on one line; minimal also drops Context: and Source: and replaces listed
-    alternatives with their count and `say "more Q<N>"` (inline ones stay as written). The
-    header, every other line and the blank lines are kept, each run of blank lines collapsed
-    to one."""
     if level == "full":
         return text
     out = []
@@ -3063,7 +2947,6 @@ def cmd_show(d, a):
 
 
 def shown_rounds(rounds_dir):
-    """{round number: path} of the round-<N>.md files in `rounds_dir`."""
     try:
         names = os.listdir(rounds_dir)
     except OSError as e:
@@ -3076,8 +2959,6 @@ def shown_rounds(rounds_dir):
 
 
 def scope_counts(text, a, new=0):
-    """The counts half of round a.round's Scope check: line, counting `new` rows the round is
-    about to register beside the register's own."""
     if a.round < 1:
         sys.exit(f"refused: --round must be 1 or more, not {a.round}")
     if a.limit < 0:
@@ -3188,7 +3069,6 @@ def sidecar_lock(d, seconds=None):
 
 
 def start_server(d, port, nonce):
-    """interview_server.py for the data dir, started apart from this process."""
     cmd = [bridge.interpreter(), str(HERE / "interview_server.py"), "--dir", str(d)]
     return bridge.spawn([*cmd, "--port", str(port), "--nonce", nonce])
 
@@ -3205,7 +3085,6 @@ def read_user_settings(path):
 
 
 def open_browser(url, cmd):
-    """Open the page: browserCommand (a program or an argv list) gets the URL, else the default browser."""
     if cmd:
         argv = [cmd] if isinstance(cmd, str) else cmd
         if not isinstance(argv, list) or not all(
@@ -3228,14 +3107,10 @@ def open_browser(url, cmd):
 
 
 def emoji_flag(value):
-    """false, 0, no and off (any case) mean false; anything else, an empty value or an unexpanded
-    token included, means true, the option's default."""
     return value.strip().lower() not in ("false", "0", "no", "off")
 
 
 def record_emoji_markers(d, want):
-    """meta.emojiMarkers through the normal write path; writes only on a change or a new file.
-    want None keeps the recorded value, and a new file records true."""
     doc = load(d)
     if not (d / "questions.json").exists():
         want = want is not False
@@ -3246,13 +3121,10 @@ def record_emoji_markers(d, want):
 
 
 def pacing_value(value):
-    """single (any case) means single; anything else, an unexpanded token included, means round."""
     return "single" if value.strip().lower() == "single" else "round"
 
 
 def record_question_pacing(d, want):
-    """meta.questionPacing through the normal write path; writes only on a change.
-    want None keeps the recorded value, and a file without one reads as round."""
     if want is None:
         return
     doc = load(d)
@@ -3320,7 +3192,6 @@ def cmd_ensure_running(d, a):
 
 
 def clear_finished(d):
-    """A new server means a resumed interview: drop the finish, context badge and handoff an earlier run left."""
     if not (d / "questions.json").exists():
         return
     try:
@@ -3333,7 +3204,6 @@ def clear_finished(d):
 
 
 def finish_on_stop(d):
-    """Post a finish when the skill posted none, then wait so open tabs receive it before the server goes."""
     if (d / "questions.json").exists():
         try:
             doc = load(d)
@@ -3367,7 +3237,6 @@ def cmd_stop(d, a):
 
 
 def end_server(d, s, watcher):
-    """End the lease's watcher and the running server `s` records, then clear the session files."""
     end_watcher(d, watcher)
     os.kill(s["pid"], signal.SIGTERM)
     deadline = time.monotonic() + START_SECONDS

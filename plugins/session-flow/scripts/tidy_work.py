@@ -495,12 +495,6 @@ def _mentions(text: str, name: str, is_dir: bool) -> bool:
 
 
 def keep_finished(members: list[Item], tip: Item, root: str) -> None:
-    """A finished shape-3 or shape-4 chain shrinks without losing what retro
-    reads: its newest hot file stays, and with it the chain's hop files, which
-    hold every older hot file's sections; its older hot files are then judged
-    without the newest one's references to them. No hop file holds a shape-2
-    hop's sections, so a shape-2 chain never shrinks and a mixed chain keeps
-    its shape-2 hot files."""
     if tip.shape not in save_point.HOP_FILE_SHAPES:
         return
     tip.reasons.append(
@@ -516,10 +510,6 @@ def keep_finished(members: list[Item], tip: Item, root: str) -> None:
 
 
 def mark_open_chains(items: list[Item]) -> None:
-    """Keep every handoff of a chain whose newest hot file (by its `<TS>` name)
-    does not close it, whatever its age or PR state. A chain's handoffs are those
-    naming its root, and those any of them links to by name (a shape-1 root or
-    predecessor names no chain root itself)."""
     handoffs = [i for i in items if i.kind == "handoff"]
     chains: dict[tuple[str, str], list[Item]] = {}
     for item in handoffs:
@@ -848,8 +838,6 @@ def _guard(label: str, root: Path) -> Guard:
 
 
 def plan_moves(root: Path) -> list[tuple[Path, Path]]:
-    """(source, target) for each handoff (with its sidecar) or running-retro file
-    outside its directory."""
     layout = (
         ("handoffs", save_point.HANDOFF_NAME_RE),
         ("running-retros", RETRO_NAME_RE),

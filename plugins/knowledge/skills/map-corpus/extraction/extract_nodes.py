@@ -70,7 +70,6 @@ class Line:
 
 
 def split_lines(data: bytes, base: int) -> list:
-    """Split into lines; offsets are raw-snapshot offsets starting at `base`."""
     lines = []
     pos = base
     n = len(data)
@@ -213,7 +212,6 @@ def html_boundaries(data: bytes):
 
 
 def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
-    """Assemble the non-overlapping node partition covering [0, len(data))."""
     n = len(data)
     spans = []
 
@@ -262,7 +260,6 @@ def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
 
 
 def self_check(nodes, data: bytes) -> None:
-    """Partition invariants; violation is a bug, fail loudly."""
     n = len(data)
     if not nodes:
         fail(3, "self-check: empty node list")

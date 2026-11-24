@@ -87,7 +87,6 @@ def frontmatter_stage(text: str) -> str | None:
 
 
 def next_section(text: str) -> str | None:
-    """Body of the first `## Next` section outside a fence, or None."""
     body: list[str] = []
     inside = False
     fence = None
@@ -145,7 +144,6 @@ def read_ladder(root: Path) -> tuple[list[str], set[str]]:
 
 
 def ladder_index(stage: str | None, ladder: list[str]) -> int | None:
-    """Position of a frontmatter stage on the ladder; None when it is off the ladder."""
     if not stage:
         return None
     word = STAGE_ALIASES.get(stage, stage)

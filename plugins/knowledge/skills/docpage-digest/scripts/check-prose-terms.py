@@ -48,7 +48,6 @@ PREAMBLE = "(before the first ## heading)"
 
 
 def prose_lines(text: str):
-    """Yield (line_number, section_title, line) for each line outside a fence."""
     section = PREAMBLE
     in_fence = False
     open_ticks = 0
@@ -71,7 +70,6 @@ def prose_lines(text: str):
 
 
 def check_digest(path: str, failures: Failures) -> int:
-    """Return the number of prose lines scanned on this digest."""
     text = read_text(path, PROG, "digest")
     try:
         lines = list(prose_lines(text))
