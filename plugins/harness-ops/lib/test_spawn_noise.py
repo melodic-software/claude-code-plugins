@@ -67,7 +67,6 @@ class TestModuleStandsAlone(unittest.TestCase):
 class TestBimodalPredicateIsTwoPart(unittest.TestCase):
     """A wide ratio alone is not the contention signature; the slow mode must be slow too."""
 
-    #: Same spread ratio (~7.7x), opposite absolute scale. Only the slow one is contended.
     FAST_WIDE_SPREAD = [18.0, 120.0, 140.0]
     SLOW_WIDE_SPREAD = [180.0, 1200.0, 1400.0]
 
@@ -75,8 +74,6 @@ class TestBimodalPredicateIsTwoPart(unittest.TestCase):
         return spawn_noise.summarize_spawn_samples(durations, 0, 300)["findings"]
 
     def test_the_two_arms_share_a_spread_ratio_so_only_the_absolute_scale_can_differ(self):
-        # Precondition. If the arms did not share a ratio, this suite would be
-        # comparing two unrelated inputs and its verdict would mean nothing.
         fast = spawn_noise.summarize_spawn_samples(self.FAST_WIDE_SPREAD, 0, 300)
         slow = spawn_noise.summarize_spawn_samples(self.SLOW_WIDE_SPREAD, 0, 300)
         self.assertGreaterEqual(fast["spread_ratio"], spawn_noise.BIMODAL_SPREAD_RATIO)
@@ -124,8 +121,6 @@ class TestMeasurabilityVerdict(unittest.TestCase):
         _, why = spawn_noise.is_measurable(
             spawn_noise.summarize_spawn_samples(self.CONTENDED, 0, 900)
         )
-        # An unexplained refusal gets overridden reflexively, so the reason has to
-        # carry the evidence rather than just naming the finding.
         self.assertIn("180.0", why)
         self.assertIn("1400.0", why)
 

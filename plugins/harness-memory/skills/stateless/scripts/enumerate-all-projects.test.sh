@@ -7,8 +7,6 @@ SCRIPT="$SCRIPT_DIR/enumerate-all-projects.sh"
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# CLAUDE_CONFIG_DIR is dropped so the scan never reports the host's real project
-# stores. Case 6 sets it deliberately on the bash call itself.
 run_isolated() { env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT"; }
 
 
@@ -63,7 +61,6 @@ OUT=$(run_isolated "$H5") || rc=$?
 assert_exit "no memory dirs exits 0" 0 "$rc"
 assert_contains "no memory dirs reported" "$OUT" "No per-project memory directories"
 
-# --- Case 6: CLAUDE_CONFIG_DIR relocates the tree ---
 
 CFG="$TEST_TMPDIR/cfg"
 M6="$CFG/projects/C--proj-relocated/memory"

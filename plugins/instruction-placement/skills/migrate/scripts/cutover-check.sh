@@ -54,15 +54,8 @@ FLAG_NAME="tengu_agents_md_mod"
 FETCH_DOCS="$SCRIPT_DIR/../../../scripts/fetch-docs.sh"
 ENV_VARS_SLUG="env-vars"
 ENV_VARS_HEADING="## Features that need feature-flag fetching"
-# A heading the page carries AFTER the feature-flag list. Its presence is what
-# says the body arrived whole: without it, "the AGENTS.md bullet is gone" and
-# "the download stopped early" are the same observation.
 ENV_VARS_TAIL_MARKER="First session after an install or upgrade"
 
-# Bytes read either side of a flag-string occurrence. The declaration and the
-# export sit within a few hundred bytes of it on the builds seen so far; the
-# window is wide enough to survive a re-minification that moves them apart and
-# small enough that every occurrence is cheap to scan.
 BUNDLE_WINDOW=2000
 
 BUNDLE=""
@@ -310,13 +303,6 @@ condition_1() {
       ((start < 0)) && start=0
       window="$(tail -c "+$((start + 1))" "$bundle" | head -c $((BUNDLE_WINDOW * 2)) |
         tr -c '[:print:]' ' ')"
-      # The identifier is taken from the REGISTRATION, `Gl("<flag>",<id>)`, not
-      # from the first `isOnByDefault` in the window. Those are the same symbol
-      # on the builds seen so far, and nothing in a minified bundle guarantees
-      # it: a window holding two plugins would otherwise resolve this flag's
-      # default from a neighbor's variable. The export is still required, and
-      # required to name the SAME identifier, so a window where the two cannot
-      # be tied together answers nothing.
       id="$(printf '%s' "$window" |
         grep -oE "\"${FLAG_NAME}\",[A-Za-z_\$][A-Za-z0-9_\$]*" | head -n 1)"
       id="${id##*,}"
@@ -331,8 +317,6 @@ condition_1() {
       [[ -n "$val" ]] || continue
       note "bundle $bundle offset $off: \"$FLAG_NAME\",$id with isOnByDefault:()=>$id, var $id=$val"
       case "$val" in
-      # Agreeing occurrences are one answer, not a disagreement: the same
-      # declaration is reachable from more than one offset on some builds.
       '!0') case "$seen" in *true*) ;; *) seen="${seen}true " ;; esac ;;
       '!1') case "$seen" in *false*) ;; *) seen="${seen}false " ;; esac ;;
       *) ;;
@@ -377,10 +361,6 @@ condition_1() {
     return 0
   fi
   if ((heading_found == 1 && bullet_found == 0)); then
-    # The bullet leaving THIS list is not the dependency ending if the page
-    # still ties AGENTS.md to a flag somewhere else: a moved bullet and a
-    # deleted one look identical from inside one section.
-    # Case-sensitive and bounded, so a sub-agents.md link is not a match.
     if grep -qiE 'flag' < <(grep -E '(^|[^[:alnum:]_.-])AGENTS\.md' "$ev" 2>/dev/null); then
       unreach "the AGENTS.md bullet left the list, but the page still ties AGENTS.md to a flag elsewhere; a moved bullet reads the same as a removed one"
       return 2
@@ -398,7 +378,6 @@ condition_1() {
 
 action_cli_version() {
   local ref="$1" tag commit ver
-  # An empty ref would prefix-match the map's first row and borrow its version.
   [[ -n "$ref" ]] || return 1
   while IFS=$'\t' read -r tag commit ver; do
     [[ -n "$tag" ]] || continue

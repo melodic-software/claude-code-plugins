@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for glob-tools.sh (self-contained — no external test lib).
-#
-# Every case runs against a deterministic throwaway git fixture under mktemp, so
-# the tracked-file universe is known exactly and match counts are assertable.
-#
 # fixture-isolation-scope: this suite builds git fixtures and clears the
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.
@@ -48,8 +43,6 @@ row_field() {
     '$1=="PATTERN" && $3==ENVIRON["IP_ROW_PAT"] {print $f}' <<<"$1"
 }
 
-# Asserted as a COUNT: which of a rule's globs trips a shared budget is not part
-# of the contract, only that the rule trips it and a separate rule does not.
 over_budget_rows() {
   printf '%s\n' "$1" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true
 }
@@ -211,7 +204,6 @@ EOF
 commit_all "$rules_repo" rules
 
 out="$(run rules --root "$rules_repo")"
-# `*.ts` must not match `b.tsx` — the extension boundary is anchored.
 assert_eq "block-sequence paths are extracted" "1" "$(row_field "$out" 'src/**/*.ts' 5)"
 assert_eq "quoted single-quote entries are extracted" "1" "$(row_field "$out" 'src/**/*.tsx' 5)"
 assert_eq "inline flow-sequence paths are extracted" "1" "$(row_field "$out" 'docs/**/*.md' 5)"

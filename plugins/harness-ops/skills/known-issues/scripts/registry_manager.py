@@ -84,8 +84,6 @@ def load_registry(data_dir: Path) -> dict[str, Any]:
 
 def save_registry(data_dir: Path, data: dict[str, Any]) -> None:
     """Atomic write: temp file, fsync, close, os.replace."""
-    # A freshly configured registry dir must be writable on first `add`; reads
-    # and dry runs never create it.
     data_dir.mkdir(parents=True, exist_ok=True)
     target = data_dir / REGISTRY_FILENAME
     with tempfile.NamedTemporaryFile(
