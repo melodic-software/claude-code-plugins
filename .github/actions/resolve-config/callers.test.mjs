@@ -11262,16 +11262,17 @@ test("pr-run-activity-write.yml: the script step passes apply-patch's test-scope
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "act-script");
   const root = mkdtempSync(join(tmpdir(), "act-script-"));
   try {
-    mkdirSync(join(root, "base-script"));
+    const script = ".github/scripts/apply-patch/apply-patch.mjs";
+    mkdirSync(join(root, "base-script", dirname(script)), { recursive: true });
     const resolved = join(root, "resolved.json");
     writeFileSync(resolved, JSON.stringify({ selected: { args: "" }, loop: { "review-rounds": 1 } }));
-    writeFileSync(join(root, "base-script", "apply-patch.mjs"), '#!/bin/bash\necho "$REASON" >"$ESCALATION_REASON_FILE"\n', { mode: 0o755 });
+    writeFileSync(join(root, "base-script", script), '#!/bin/bash\necho "$REASON" >"$ESCALATION_REASON_FILE"\n', { mode: 0o755 });
     const run = (reason) => {
       const output = join(root, "output");
       writeFileSync(output, "");
       const result = spawnSync("bash", ["-e", "-c", step.run], {
         encoding: "utf8",
-        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: ".github/scripts/apply-patch/apply-patch.mjs", TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
+        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: script, TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
       });
       return { status: result.status, output: readFileSync(output, "utf8") };
     };

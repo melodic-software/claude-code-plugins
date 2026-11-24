@@ -1,4 +1,5 @@
 // test-scope: .github/scripts/lib/* .github/scripts/apply-patch/*
+// test-scope: .github/scripts/pr-merge/* .github/scripts/pr-unblock/*
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
