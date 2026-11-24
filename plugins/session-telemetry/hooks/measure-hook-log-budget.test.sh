@@ -95,7 +95,8 @@ assert_exit "a failed hook row exits 3" 3 "$?"
 assert_contains "the failure names the probe" "$OUT" "parallel wall (log off) probe job exited non-zero"
 
 APPEND_COPY="$TEST_TMPDIR/append-fail"
-cp -r "${SCRIPT_DIR%/*}" "$APPEND_COPY"
+mkdir -p "$APPEND_COPY/hooks"
+cp "$SUT" "$SCRIPT_DIR/session-event-log.sh" "$SCRIPT_DIR/session-log-lib.sh" "$SCRIPT_DIR/exec-bash.mjs" "$APPEND_COPY/hooks/"
 mv "$APPEND_COPY/hooks/session-log-lib.sh" "$APPEND_COPY/hooks/session-log-lib.real.sh"
 cat >"$APPEND_COPY/hooks/session-log-lib.sh" <<'EOF'
 source "${BASH_SOURCE[0]%/*}/session-log-lib.real.sh"
