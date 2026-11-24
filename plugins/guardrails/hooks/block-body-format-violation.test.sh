@@ -79,6 +79,8 @@ deny "--body, no opener" "gh pr create --title t --body $(q "$NOOPEN")" "$FULL" 
 assert_contains "the opener refusal names its source" "$OUT_D" "linkage_gate_uses_pattern in docs/conventions/source-control.yaml, matched by .github/workflows/ci.yml"
 assert_contains "the refusal names the off switch" "$OUT_D" "pr_body_format_gate: false"
 assert_contains "the refusal names the target repository" "$OUT_D" "acme/widgets"
+deny "--body, a bare Refs without its colon" "gh pr create --title t --body $(q $'Refs #12\n\n## Summary\nx\n\n## Fix\ny')" "$FULL" 'does not open with a linkage line'
+pass "--body, Fixed: and an owner/repo reference" "gh pr create --title t --body $(q $'Fixed: acme/widgets#12\n\n## Summary\nx\n\n## Fix\ny')" "$FULL"
 deny "--body, a heading only inside a fence" "gh pr create --title t --body $(q "$FENCED")" "$FULL" 'Missing a "## Fix" section'
 pass "--body-file, compliant" "gh pr create --title t --body-file good.md" "$FULL"
 deny "--body-file, a section missing" "gh pr create --title t --body-file nofix.md" "$FULL" 'Missing a "## Fix" section'

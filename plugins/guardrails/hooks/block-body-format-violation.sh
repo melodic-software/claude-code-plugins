@@ -313,7 +313,7 @@ if [[ -n "$_BFV_OPENER_SRC" ]]; then
     [[ -n "$_bfv_first" ]] && break
   done
   _bfv_ref='(([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#[0-9]+|https?://[^[:space:]]+/(issues|pull)/[0-9]+)'
-  _bfv_re_open="^((closes|fixes|resolves):?[[:space:]]+$_bfv_ref|(refs|relates to):?[[:space:]]+$_bfv_ref|(no related issue|no linked issue):[[:space:]]*[^[:space:]])"
+  _bfv_re_open="^((close[sd]?|fix(es|ed)?|resolve[sd]?):?[[:space:]]+$_bfv_ref|(refs|relates to):[[:space:]]*$_bfv_ref|(no related issue|no linked issue):[[:space:]]*[^[:space:]])"
   if [[ ! "${_bfv_first,,}" =~ $_bfv_re_open ]]; then
     _BFV_PROBLEMS+=("The body does not open with a linkage line ($_BFV_OPENER_SRC). Make its first line one of: \`Closes #<issue>\` (or Fixes, Resolves), \`Refs: #<issue>\`, or \`No related issue: <reason>\`.")
   fi
