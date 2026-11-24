@@ -551,7 +551,7 @@ expect_both 'rm -rf "$X$Y" blocks (expansions only)' 2 --command 'rm -rf "$X$Y"'
 expect_both 'rm -rf "${X:?}${Y}" blocks' 2 --command 'rm -rf "${X:?}${Y}"'
 
 assert_contains "the suite runs from a git checkout (toplevel found)" "$RDT_TOP" "/"
-rdt_phys() { # fixture check only: a physical, long-name, lower-case spelling
+rdt_phys() {
   local p="${1//\\//}" q
   q=$(realpath -m -- "$p" 2>/dev/null) && p="$q"
   if command -v cygpath >/dev/null 2>&1; then
@@ -1121,7 +1121,7 @@ msys* | cygwin* | win32)
 *) rdt_skip "8.3 and /tmp mount cases need a Windows host (5 cases)" ;;
 esac
 
-rdt_timed_payload() { # <label> <want> <payload>
+rdt_timed_payload() {
   local via rc
   local -a argv
   for via in direct dispatched; do

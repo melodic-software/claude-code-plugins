@@ -302,7 +302,6 @@ function views(page, CFG) {
     "compare-formats": async () => { await mode("compare"); return page.evaluate(() => { const b = document.querySelector(".vf-board"); if (!b) return false; b.scrollLeft = b.scrollWidth; return true; }); },
     "bell": async () => { if (!(await clickIn(".vf-bell"))) return false; await W(120); return clickIn(".vf-ixtabs .vf-seg-btn", "Notifications"); },
     "bell-mute": async () => { await clickIn(".vf-bell"); await W(120); await clickIn(".vf-ixtabs .vf-seg-btn", "Notifications"); await W(120);
-      // from 1100 px the switches sit open beside the messages with no button (follow-up 51); below, the button opens them
       return (await clickIn(".vf-mutebtn")) || page.evaluate(() => document.querySelector(".vf-ibside > .vf-mutebox")?.getClientRects().length > 0); },
     "mention": async () => {
       await gotoQ("Q9"); await page.click("#vf-answer"); await page.keyboard.type("Ask @");
@@ -512,8 +511,6 @@ const check = (page, theme) => page.evaluate(theme => {
     }
   } else if (pill && vis(pill)) fail("live-pill", `${name(pill)} shows with no title row beside it`);
   const toast = app.querySelector(".vf-toast.vf-on");
-  // the modal chat covers the page (on a phone the whole screen): the toast sits inside it, centered on it, in a slot
-  // clear of its head, messages, typing line and message box
   const modalChat = app.querySelector('.vf-chat[aria-modal="true"]');
   if (toast && vis(toast) && modalChat && vis(modalChat)) {
     const tb = toast.getBoundingClientRect(), mb = modalChat.getBoundingClientRect(), mid = (tb.left + tb.right) / 2;
@@ -541,7 +538,6 @@ const check = (page, theme) => page.evaluate(theme => {
       if (b.left < tb.right && b.right > tb.left && b.top < tb.bottom && b.bottom > tb.top) fail("toast", `toast overlaps ${name(el)}`);
     }
     if (tb.top < 0 || tb.bottom > innerHeight) fail("toast", "toast is outside the viewport");
-    // a dock is a composer or tab bar pinned to the viewport's bottom (on wide screens the composer sits in the page)
     const dock = [...app.querySelectorAll(".vf-composer, .vf-tabs")].filter(vis).map(e => e.getBoundingClientRect())
       .filter(b => b.left < tb.right && b.right > tb.left && b.bottom >= innerHeight - 2).sort((a, b) => a.top - b.top)[0];
     const topBar = app.querySelector(".vf-top").getBoundingClientRect();

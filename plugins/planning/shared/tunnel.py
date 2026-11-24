@@ -12,6 +12,7 @@ start. A named tunnel (`hostname` and `tokenFile`, the planning plugin's `tunnel
 runs a remotely-managed tunnel the owner set up, so its address is `https://<hostname>` on every
 start. Switching between them, or between two hostnames, keeps the old tunnel running as `retired`
 for RETIRE_SECONDS, so a page still open on the old address can learn the new one (server.py).
+Its 600 s is by judgment, not an outside limit: long enough for open pages to move after a switch.
 
 How a quick tunnel starts and where it prints its address, as of 2026-10-16:
 https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/
@@ -61,11 +62,11 @@ READY = re.compile(r"Registered tunnel connection")  # a named tunnel's first co
 # (prepareTunnelConfig in cmd/cloudflared/tunnel/configuration.go, as of 2026-10-29; recheck when a release changes it).
 CONNECTOR = re.compile(r"Generated Connector ID: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
 HOSTNAME = re.compile(r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]")
-START_SECONDS = 30.0  # how long a new tunnel may take to print its address
-RETIRE_SECONDS = 600.0  # judgment: how long the old address keeps answering after a switch, so open pages move
+START_SECONDS = 30.0
+RETIRE_SECONDS = 600.0
 # cloudflared reads the first two; the last two are Cloudflare API tokens. No child of this plugin inherits any of them.
 TOKEN_ENV = ("TUNNEL_TOKEN", "TUNNEL_TOKEN_FILE", "CLOUDFLARE_API_TOKEN", "CF_API_TOKEN")
-EXE = "cloudflared.exe" if detached.WINDOWS else "cloudflared"  # the program file an adopted pid must run
+EXE = "cloudflared.exe" if detached.WINDOWS else "cloudflared"
 MISSING = "missing prerequisite: cloudflared (not on PATH; see the planning plugin's prerequisites.json)"
 
 
@@ -324,7 +325,7 @@ def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verif
     if start is not None and verify:
         try:
             problem = verify(url)
-        except Exception as exc:  # a check that could not run is no proof: never switch on it
+        except Exception as exc:
             problem = f"the tunnel check did not run: {exc}"
     if start is None or problem:
         if proc.poll() is None:
@@ -372,13 +373,13 @@ def ensure(data_dir, port, hostname="", token_file="", verify=None, fields=None)
                 _write(d, rec)
             return rec
         if hostname and rec and rec.get("port") == port and rec["url"] == f"https://{hostname}":
-            _end(rec)  # the same address with another token file: nothing to move to
+            _end(rec)
             rec = None
         old = (rec or read(d) or {}).get("retired")
         keep = rec if rec and rec.get("port") == port else None
         if rec and not keep:
             _end(rec)
-        if not keep:  # a restart at the same address: the tunnel retired before keeps its grace time
+        if not keep:
             return _start(d, port, hostname, token_file, retired_entry=old, fields=fields)
         if verify is None:
             _end(keep)
@@ -387,7 +388,7 @@ def ensure(data_dir, port, hostname="", token_file="", verify=None, fields=None)
             entry = {k: keep[k] for k in ("pid", "url", "marker", "processStart", "adopted") if k in keep} | {"until": time.time() + _retire_seconds()}
             new = _start(d, port, hostname, token_file, retired_entry=entry, verify=verify, fields=fields)
         if old and detached.alive(*_identity(old)):
-            _end(old)  # one retired tunnel at a time, ended only once the switch has landed
+            _end(old)
         return new
 
 
@@ -419,7 +420,7 @@ def retired(data_dir):
 def sweep(data_dir):
     """Stop a retired tunnel whose grace time is up and drop it from the record; True when one was stopped."""
     d = Path(data_dir)
-    if "retired" not in (read(d) or {}) or retired(d):  # most passes: nothing to take the lock for
+    if "retired" not in (read(d) or {}) or retired(d):
         return False
     with detached.locked(d / LOCK):
         rec = read(d)
@@ -586,7 +587,7 @@ def start_live(path, port, server=None, fresh=False):
             detached.stop(*_identity(rec))
         fields = {k: rec[k] for k in ("id", "server") if k in rec} | ({"server": server} if server else {})
         new = _start(path.parent, port, path=path, log_name=f"{path.stem}.cloudflared.log", fields=fields)
-    if not URL.fullmatch(new["url"]):  # the banner pattern takes only this: never hand on another address
+    if not URL.fullmatch(new["url"]):
         end_live(path, "failed")
         raise TunnelDown(f"{new['url']} is not a trycloudflare.com address")
     return new

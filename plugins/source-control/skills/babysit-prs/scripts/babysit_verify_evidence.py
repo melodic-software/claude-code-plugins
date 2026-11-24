@@ -1984,6 +1984,12 @@ def _read(args: list[str], label: str) -> Any:
         raise _Unreadable(str(exc)) from exc
 
 
+def git_blob(data: bytes) -> str:
+    """`data`'s git blob id, as `git rev-parse HEAD:<path>` names it
+    (write-verdict.mjs `trusted_actors_blob`)."""
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()  # noqa: S324 -- git's object id, not a security hash
+
+
 @dataclass
 class Reader:
     repo: str
@@ -2084,6 +2090,9 @@ class Reader:
     # Every login on the trusted list, lowercased, to its id, and when read.
     _logins: dict[str, int] | None = None
     _logins_at: datetime | None = None
+    _list_blob: str | None = None
+    _list_read: bool = False
+    _list_copy: bool | None = None
     # Admission's `task-list` (`_task_list`), once read.
     _task_list_value: Any = None
     _task_list_read: bool = False
@@ -5363,6 +5372,8 @@ class Reader:
             record.get("spec_kind", "closes") == "refs"
         ):
             return SPEC_CHANGED
+        if self._list_changed(record):
+            return SPEC_CHANGED
         # No closing issue, then and now: the verdict judged the pull
         # request's own title and body, which only a trusted author's adopted
         # pull request reaches the gate with (`lane_eligibility`).
@@ -5374,6 +5385,49 @@ class Reader:
             live_digest = hashlib.sha256(text.encode()).hexdigest()
             return None if record.get("intent_sha256") == live_digest else SPEC_CHANGED
         return None if self._trusted_spec(record, pr, head) else UNTRUSTED_SPEC
+
+    def _list_changed(self, record: dict[str, Any]) -> bool:
+        """Whether the trusted list changed since the pass judged it, for a
+        repository whose team YAML at the branch tip opts in to the standards
+        list (`merge_policy.opts_in_to_standards`, the list
+        `_read_trusted_list` reads): the `trusted_actors_blob` it records
+        (write-verdict.mjs) is not the git blob id of that list now. A
+        record without one judged
+        the list the `.github/standards/` copy mirrors, so it stands while
+        that copy is at the branch tip and is stale once it is gone
+        (resolve-pr.mjs `specChanged` weighs the list's commit time instead).
+        A failed read raises `_Unreadable`."""
+        tip = self._tip(self.branch)
+        owner, _, name = self.repo.partition("/")
+        try:
+            if not self._list_read:
+                standards = merge_policy.opts_in_to_standards(
+                    merge_policy.team_yaml_at(owner, name, tip)
+                )
+                text = (
+                    merge_policy.standards_file(
+                        standards, merge_policy.STANDARDS_TRUSTED_ACTORS
+                    )
+                    if standards
+                    else None
+                )
+                if standards and text is None:
+                    raise _Unreadable("the standards trusted-actor list is absent")
+                self._list_blob = None if text is None else git_blob(text.encode())
+                self._list_read = True
+            if self._list_blob is None:
+                return False
+            if "trusted_actors_blob" in record:
+                return record["trusted_actors_blob"] != self._list_blob
+            if self._list_copy is None:
+                self._list_copy = (
+                    merge_policy.checkout_file_at(TRUSTED_ACTORS_PATH, tip) is not None
+                    or merge_policy._file_at(owner, name, TRUSTED_ACTORS_PATH, tip)
+                    is not None
+                )
+            return not self._list_copy
+        except merge_policy.PolicyReadError as exc:
+            raise _Unreadable(f"trusted-actor list: {exc}") from exc
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live
