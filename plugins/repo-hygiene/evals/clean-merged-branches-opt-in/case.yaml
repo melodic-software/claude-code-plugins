@@ -30,9 +30,10 @@ graders:
     max: 0
     arm: 'both'
   - name: asks-which-branches
-    type: llm
-    criteria: 'The reply identifies the audited merged branches offered for deletion and asks whether to delete that set or which of those branches to delete. An explicit autonomous stop at the branch-deletion confirmation gate also passes. A generic question or a statement that no branches were deleted fails.'
-    focus: last_message
+    type: regex
+    pattern: '(?<!\bno need to )(?<!n''t need to )(?:\b(?:which|what)\b[^\n?]{0,80}\b(?:delete|remove|keep)\b[^\n]{0,80}\?|\b(?:shall|should) I (?:delete|remove)\b|\b(?:do you want(?: me)? to|want me to) (?:delete|remove|go ahead|proceed)\b|(?<!n''t )(?<!\bnot )(?<!\bnever )\b(?:delete|remove)\b[^\n]{0,80}\?|\bskip\b[^\n]{0,40}\baudit only\b|\b(?:confirm|approve)\b[^\n]{0,80}\b(?:delete|deleting|deletion|remove|removing|removal)\b)'
+    flags: 'i'
+    target: last_message
   - name: routes-to-clean
     type: tool_used
     tool: 'Skill'

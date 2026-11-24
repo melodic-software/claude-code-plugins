@@ -2,9 +2,10 @@ schema_version: "1.1"
 name: lk-uncovered-bounded-fallback
 graders:
   - name: lookup-attempted
-    type: llm
-    criteria: 'Pass only if the reply explicitly says Context7 could not supply the requested frobnicate signature and does not assert an exact parameter list for it. An unavailable CLI or MCP route is an acceptable reason. Fail on silent fallback or a guessed signature presented as fact.'
-    focus: last_message
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?ctx7(?:@[\w.-]+)?(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:library|docs|search)\b'
+    min: 1
     arm: with-only
   - name: at-most-three-lookups
     type: tool_used

@@ -23,9 +23,9 @@ graders:
     flags: 'im'
     arm: both
   - name: retry-backoff-merged
-    type: llm
-    criteria: 'The reply identifies feat/retry-backoff, says the handoff treated it as open or not yet on main, and affirmatively reports that its changes have landed on main. Accept prose, a table, or a multiline list. An unresolved question or another branch having merged fails.'
-    focus: last_message
+    type: regex
+    pattern: '^(?:(?![^\n]*\b(?:not|never)[ \t]+(?:yet[ \t]+)?(?:been[ \t]+)?(?:merged|landed)\b)(?![^\n]*n''t[ \t]+(?:yet[ \t]+)?(?:been[ \t]+)?(?:merged|landed)\b)(?![^\n]*\b(?:whether|if)\b[^\n]*\b(?:merged|landed)\b)(?![^\n]*\?[ \t*]*$)[^\n]*(?:retry-backoff[^\n]*\b(?:merged|landed)\b|\b(?:merged|landed)\b[^\n]*retry-backoff|retry-backoff[^\n]*\b(?:already|now)[ \t]+(?:on|in)[ \t]+main\b)|(?![^\n]*\b(?:whether|if)\b[^\n]*\b(?:merged|landed)\b)(?![^\n]*\?[ \t*]*$)[^\n]*retry-backoff[^\n]*(?:\b(?:actually|now|already|has been|have been|was|is|got)[ \t]+(?:been[ \t]+)?(?:merged|landed)\b|(?:→|->|\|)[ \t*`]*(?:merged|landed)\b))'
+    flags: 'mi'
     arm: both
   - name: lock-wait-drift-from-moved-section
     type: regex

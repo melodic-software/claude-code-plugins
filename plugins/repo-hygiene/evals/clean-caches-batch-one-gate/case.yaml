@@ -53,9 +53,10 @@ graders:
     match: not_contains
     target: last_message
   - name: names-batch-plan
-    type: llm
-    criteria: 'The reply shows the dry-run removal set by repository. If it reports a capped listing, it also says entries were omitted and gives the plan file path. A bare plan label, aggregate total, or confirmation request fails.'
-    focus: last_message
+    type: regex
+    pattern: '\bbatch[- ]plan\b|\bBatchPlan\b|--batch-plan\b|\bplan\b[^\n]{0,60}`[^`\n]*/plan`'
+    flags: 'i'
+    target: last_message
   - name: batch-dry-run-ran
     type: tool_used
     tool: 'Bash'
