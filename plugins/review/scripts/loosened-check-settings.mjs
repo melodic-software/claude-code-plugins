@@ -43,6 +43,10 @@ function parseArgs(argv) {
 }
 
 const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
+const SOURCE_CONTROL = "docs/conventions/source-control.yaml";
+const SOURCES = ["repository", "standards"];
+const STANDARDS = "melodic-software/standards";
+const STANDARDS_LIST = "components/trusted-actors/trusted-actors.json";
 const ACTOR_KEYS = "id,kind,login";
 const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -65,9 +69,24 @@ function defaultBranch(git, root) {
 }
 
 /**
+ * The trusted-actor list STANDARDS holds at its main commit, resolved once, as [where, text]. Read
+ * only for a repository whose source-control.yaml sets trusted_actors_source: standards.
+ */
+function standardsList(root) {
+  const api = (...args) => spawnSync("gh", ["api", ...args], { cwd: root, encoding: "utf8", timeout: 30000 });
+  const main = api(`repos/${STANDARDS}/commits/main`, "--jq", ".sha");
+  const sha = main.status === 0 ? main.stdout.trim() : "";
+  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`${STANDARDS} main could not be resolved`);
+  const read = api("-H", "Accept: application/vnd.github.raw", `repos/${STANDARDS}/contents/${STANDARDS_LIST}?ref=${sha}`);
+  if (read.status !== 0) throw new Error(`${STANDARDS_LIST} is not readable at ${STANDARDS}@${sha}`);
+  return [`${STANDARDS}@${sha}`, read.stdout];
+}
+
+/**
  * The human ids of the trusted-actor list on the default branch, schema-checked as loadTrustedList
  * does; null when the default branch has no list; throws on any other failure, and when --ref names
- * another commit, so a run pointed at a head branch never reads a list that branch edited.
+ * another commit, so a run pointed at a head branch never reads a list that branch edited. The list
+ * comes from STANDARDS instead when the default branch's source-control.yaml opts in.
  */
 function trustedHumans(opts, root) {
   const git = (...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
@@ -82,21 +101,34 @@ function trustedHumans(opts, root) {
     if (!/^(origin\/[A-Za-z0-9._/-]+|[0-9a-f]{40})$/.test(opts.ref)) throw new Error(`--ref ${opts.ref} names no branch or commit`);
     if (commit(opts.ref) !== head) throw new Error(`--ref ${opts.ref} is not the default branch ${ref}, so its trusted-actor list is not read`);
   }
-  if (git("cat-file", "-e", `${head}:${TRUSTED_ACTORS}`).status !== 0) return { ref, humans: null };
-  const shown = git("show", `${head}:${TRUSTED_ACTORS}`);
-  if (shown.status !== 0) throw new Error(`${TRUSTED_ACTORS} is not readable at ${ref}`);
-  const list = JSON.parse(shown.stdout);
+  let source = "repository";
+  if (git("cat-file", "-e", `${head}:${SOURCE_CONTROL}`).status === 0) {
+    const conf = git("show", `${head}:${SOURCE_CONTROL}`);
+    if (conf.status !== 0) throw new Error(`${SOURCE_CONTROL} is not readable at ${ref}`);
+    source = parse(conf.stdout)?.trusted_actors_source ?? "repository";
+    if (!SOURCES.includes(source)) throw new Error(`${SOURCE_CONTROL} at ${ref}: trusted_actors_source ${JSON.stringify(source)} is not one of ${SOURCES.join(", ")}`);
+  }
+  let where = ref;
+  let text;
+  if (source === "standards") [where, text] = standardsList(root);
+  else {
+    if (git("cat-file", "-e", `${head}:${TRUSTED_ACTORS}`).status !== 0) return { ref, humans: null };
+    const shown = git("show", `${head}:${TRUSTED_ACTORS}`);
+    if (shown.status !== 0) throw new Error(`${TRUSTED_ACTORS} is not readable at ${ref}`);
+    text = shown.stdout;
+  }
+  const list = JSON.parse(text);
   if (!isObject(list) || Object.keys(list).sort().join() !== "actors,version" || list.version !== 1 || !Array.isArray(list.actors)) {
-    throw new Error(`${TRUSTED_ACTORS} at ${ref} does not match its schema`);
+    throw new Error(`the trusted-actor list at ${where} does not match its schema`);
   }
   const humans = new Set();
   for (const a of list.actors) {
     if (!isObject(a) || Object.keys(a).sort().join() !== ACTOR_KEYS || !Number.isInteger(a.id) || a.id < 1 || typeof a.login !== "string" || !["human", "bot"].includes(a.kind)) {
-      throw new Error(`${TRUSTED_ACTORS} at ${ref} has an entry that does not match its schema`);
+      throw new Error(`the trusted-actor list at ${where} has an entry that does not match its schema`);
     }
     if (a.kind === "human") humans.add(a.id);
   }
-  return { ref, humans };
+  return { ref: where, humans };
 }
 
 /** Whether the spec issue's text may give a loosening its reason: [counts, why]. */

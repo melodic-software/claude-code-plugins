@@ -141,6 +141,40 @@ touch "$FIX/contents_error"
 run "pr-verify: a scope read that fails with an error other than 404 fails open" 'gh pr merge 42 --auto' 0
 assert_contains "failed scope read -> runs unchecked" "$OUT" "for its pr-verify verdict"
 
+STD_SHA=0123456789abcdef0123456789abcdef01234567
+pv_std() {
+  pv_scenario
+  jq --arg s "$1" '.data.repository.s = {text: $s} | .data.repository.t.text = "{\"actors\":[{\"id\":5}]}"' \
+    "$FIX/graphql_scope.json" >"$FIX/scope.next" && mv "$FIX/scope.next" "$FIX/graphql_scope.json"
+  printf '{"sha":"%s"}\n' "$STD_SHA" >"$FIX/commits_main.json"
+  echo '{"actors":[{"id":9}]}' >"$FIX/contents_trusted-actors.json"
+}
+pv_std $'pr_open_state: ready\ntrusted_actors_source: standards # opt in\n'
+run "pr-verify: opted in, the standards list judges the author" 'gh pr merge 42 --auto' 2
+assert_contains "opted in -> resolves standards main once" "$(calls)" "repos/melodic-software/standards/commits/main"
+assert_contains "opted in -> reads the list at that commit" "$(calls)" "repos/melodic-software/standards/contents/components/trusted-actors/trusted-actors.json?ref=$STD_SHA"
+pv_std $'trusted_actors_source: repository\n'
+run "pr-verify: trusted_actors_source repository keeps the copy" 'gh pr merge 42 --auto' 0
+assert_absent "repository source -> no standards read" "$(calls)" "melodic-software/standards"
+pv_std ''
+run "pr-verify: no opt-in keeps the copy" 'gh pr merge 42 --auto' 0
+assert_absent "no opt-in -> no standards read" "$(calls)" "melodic-software/standards"
+pv_std $'trusted_actors_source: elsewhere\n'
+run "pr-verify: an unknown trusted_actors_source fails open" 'gh pr merge 42 --auto' 0
+assert_contains "unknown source -> runs unchecked, naming it" "$OUT" "trusted_actors_source elsewhere is not repository or standards"
+pv_std $'trusted_actors_source: standards\n'
+rm -f "$FIX/commits_main.json"
+run "pr-verify: standards main unreadable fails open" 'gh pr merge 42 --auto' 0
+assert_contains "standards unreadable -> runs unchecked" "$OUT" "for its pr-verify verdict"
+pv_std $'trusted_actors_source: standards\n'
+touch "$FIX/graphql_refused"
+printf 'merge:\n  verify-authors: lane-or-owner\n' >"$FIX/contents_pr-pipeline.yaml"
+printf 'trusted_actors_source: "standards"\n' >"$FIX/contents_source-control.yaml"
+echo '{"path":".github/workflows/pr-verify.yml"}' >"$FIX/contents_pr-verify.yml"
+run "pr-verify: GraphQL refused, the opt-in read over REST" 'gh pr merge 42 --auto' 2
+assert_contains "REST opt-in -> the base branch's source-control.yaml" "$(calls)" "contents/docs/conventions/source-control.yaml?ref=main"
+assert_contains "REST opt-in -> the standards list at one commit" "$(calls)" "trusted-actors.json?ref=$STD_SHA"
+
 for c in 'gh pr edit 42 --remove-label pr-verify-failed' 'gh pr edit 42 --remove-label bug,PR-Verify-Failed' \
   'gh pr edit 42 --remove-label=pr-verify-failed' 'gh issue edit 42 -R acme/widgets --remove-label pr-verify-failed' \
   'gh pr edit 42 --remove-label pr-verify-failed && gh pr merge 42 --auto' \

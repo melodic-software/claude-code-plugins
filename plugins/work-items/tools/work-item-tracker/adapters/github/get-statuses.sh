@@ -67,6 +67,19 @@ fetch_repo_file() {
   fi
 }
 
+fetch_standards_file() {
+  local errfile="$TRUST_TMP/err" sha
+  if [[ ! -s "$TRUST_TMP/standards.sha" ]]; then
+    if ! gh api repos/melodic-software/standards/commits/main --jq .sha >"$TRUST_TMP/standards.sha" 2>"$errfile"; then
+      trust_fail "$(wit_map_gh_error "$(<"$errfile")")" "status_trust: melodic-software/standards main unread: $(head -n 1 "$errfile")"
+    fi
+  fi
+  sha="$(<"$TRUST_TMP/standards.sha")"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || trust_fail "$EX_CONFIG" "status_trust: melodic-software/standards main is not a commit"
+  [[ -s "$TRUST_TMP/standards.json" ]] || fetch_repo_file melodic-software/standards "$1?ref=$sha" "$TRUST_TMP/standards.json"
+  cp "$TRUST_TMP/standards.json" "$2"
+}
+
 # trust_context <repo>: set CONTEXT to {field, states, ready, people, bots} from <repo>'s
 # trust list and model: field the Work status field id, states the mapped option names, ready
 # the one state a bot-setters value never counts for (the model's ready-state, else
@@ -78,7 +91,11 @@ trust_context() {
   actors_path="$(jq -r '.trusted_actors' <<<"$WIT_GH_STATUS_TRUST")"
   model_path="$(jq -r '.model' <<<"$WIT_GH_STATUS_TRUST")"
   lanes="$(jq -r '.lanes_app' <<<"$WIT_GH_STATUS_TRUST")"
-  fetch_repo_file "$repo" "$actors_path" "$TRUST_TMP/actors.json"
+  if [[ "$actors_path" == standards:* ]]; then
+    fetch_standards_file "${actors_path#standards:}" "$TRUST_TMP/actors.json"
+  else
+    fetch_repo_file "$repo" "$actors_path" "$TRUST_TMP/actors.json"
+  fi
   fetch_repo_file "$repo" "$model_path" "$TRUST_TMP/model.yaml"
   actors="$(jq -ce '(if (.actors | type) == "array" then .actors else [] end) as $a
     | select(.version == 1 and all($a[]; type == "object" and (.id | type) == "number"

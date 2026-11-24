@@ -95,8 +95,12 @@ user options, and prints each value with the layers that set it. Given `--spec-i
 also prints `loosened_check_spec: counts` only when the issue's author is trusted. It reads the
 trusted-actor list from the default branch it resolves itself (`refs/remotes/origin/HEAD`, else the
 default branch `gh api` reports), and a `--ref` naming another commit prints `no reason`,
-so a run pointed at a head branch never reads a list that branch edited. Where
-`.github/standards/trusted-actors/trusted-actors.json` exists on the default branch, it decides
+so a run pointed at a head branch never reads a list that branch edited. Where the default
+branch's `docs/conventions/source-control.yaml` sets `trusted_actors_source: standards`, the list
+is `components/trusted-actors/trusted-actors.json` in `melodic-software/standards` at its main
+commit, resolved once, instead; `repository` or no key keeps the copy, and any other value prints
+`no reason`. Where the list (that one, or
+`.github/standards/trusted-actors/trusted-actors.json` on the default branch) exists, it decides
 alone: the author must be a User whose id is a human entry. Where the default branch has no such
 file, the author must be a User whose `author_association` on the issue is `OWNER`, `MEMBER` or
 `COLLABORATOR`. Any other author, a list that exists but does not parse, a default branch that

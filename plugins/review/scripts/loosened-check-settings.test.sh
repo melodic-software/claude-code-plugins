@@ -208,6 +208,41 @@ g "$R7" symbolic-ref -d refs/remotes/origin/HEAD
 out="$(spec_line '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' --ref origin/main --spec-issue 42)"
 assert_contains "case 7b: a default branch that cannot be resolved gives no reason" "$out" "loosened_check_spec: no reason (the default branch could not be resolved)"
 
+STD_BIN="$TEST_TMPDIR/std-bin"
+STD_SHA=0123456789abcdef0123456789abcdef01234567
+mkdir -p "$STD_BIN"
+# shellcheck disable=SC2016 # the stub's own variables expand when it runs, not here
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"$FAKE_GH_CALLS"\ncase "$*" in\n"api repos/{owner}/{repo}/issues/$FAKE_GH_ISSUE") printf "%%s" "$FAKE_GH_REPLY" ;;\n"api repos/melodic-software/standards/commits/main --jq .sha") [[ -n "${FAKE_STD_SHA:-}" ]] || exit 1; echo "$FAKE_STD_SHA" ;;\n"api -H Accept: application/vnd.github.raw repos/melodic-software/standards/contents/components/trusted-actors/trusted-actors.json?ref=$FAKE_STD_SHA") printf "%%s" "$FAKE_STD_LIST" ;;\n*) exit 1 ;;\nesac\n' >"$STD_BIN/gh"
+chmod +x "$STD_BIN/gh"
+R7S="$(new_repo c7s $'fanout_diversity: lens\n')"
+mkdir -p "$R7S/.github/standards/trusted-actors"
+printf '%s' '{"version": 1, "actors": [{"id": 999, "login": "stranger", "kind": "human"}]}' >"$R7S/.github/standards/trusted-actors/trusted-actors.json"
+printf 'pr_open_state: ready\ntrusted_actors_source: standards\n' >"$R7S/docs/conventions/source-control.yaml"
+g "$R7S" add .github docs
+g "$R7S" commit -q -m "opt in"
+g "$R7S" update-ref refs/remotes/origin/main HEAD
+std_at() { (cd "$R7S" && PATH="$STD_BIN:$PATH" FAKE_GH_CALLS="$TEST_TMPDIR/std-calls" FAKE_GH_ISSUE=42 FAKE_GH_REPLY="$1" FAKE_STD_SHA="${2-$STD_SHA}" FAKE_STD_LIST="$TRUST_LIST" node "$RESOLVE" --root "$R7S" --ref origin/main --spec-issue 42 | grep '^loosened_check_spec: '); }
+: >"$TEST_TMPDIR/std-calls"
+out="$(std_at '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}')"
+assert_contains "case 7c: opted in, a person on the standards list counts" "$out" "loosened_check_spec: counts (issue #42 by owner-person, id 101, a trusted person at melodic-software/standards@$STD_SHA)"
+assert_eq "case 7c: standards main is resolved once" "1" "$(grep -c 'standards/commits/main' "$TEST_TMPDIR/std-calls")"
+out="$(std_at '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}')"
+assert_contains "case 7c: opted in, the repository's copy is not read" "$out" "loosened_check_spec: no reason"
+out="$(std_at '{"number": 42, "user": {"login": "owner-person", "id": 101, "type": "User"}}' '')"
+assert_contains "case 7c: standards main unresolved gives no reason" "$out" "loosened_check_spec: no reason (melodic-software/standards main could not be resolved)"
+printf 'trusted_actors_source: repository\n' >"$R7S/docs/conventions/source-control.yaml"
+g "$R7S" commit -q -a -m "copy source"
+g "$R7S" update-ref refs/remotes/origin/main HEAD
+: >"$TEST_TMPDIR/std-calls"
+out="$(std_at '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}')"
+assert_contains "case 7c: trusted_actors_source repository reads the copy" "$out" "loosened_check_spec: counts"
+assert_eq "case 7c: the copy source makes no standards read" "0" "$(grep -c standards/ "$TEST_TMPDIR/std-calls")"
+printf 'trusted_actors_source: elsewhere\n' >"$R7S/docs/conventions/source-control.yaml"
+g "$R7S" commit -q -a -m "unknown source"
+g "$R7S" update-ref refs/remotes/origin/main HEAD
+out="$(std_at '{"number": 42, "user": {"login": "stranger", "id": 999, "type": "User"}}')"
+assert_contains "case 7c: an unknown trusted_actors_source gives no reason" "$out" 'trusted_actors_source "elsewhere" is not one of repository, standards'
+
 # --- Case 8: with no trusted-actor list, a member human's issue gives a reason --
 spec_at() { (cd "$1" && PATH="$FAKE_BIN:$PATH" FAKE_GH_ISSUE=42 FAKE_GH_REPLY="$2" node "$RESOLVE" --root "$1" --ref origin/main --spec-issue 42 | grep '^loosened_check_spec: '); }
 out="$(spec_at "$R4" '{"number": 42, "author_association": "MEMBER", "user": {"login": "member", "id": 7, "type": "User"}}')"

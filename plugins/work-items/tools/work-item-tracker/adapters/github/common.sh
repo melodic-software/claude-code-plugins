@@ -361,14 +361,14 @@ wit_gh_load_status_trust() {
     | def text: type == "string" and length > 0;
     def relative: text and (startswith("/") | not) and (split("/") | index("..") | not);
     if ($g | type) != "object" or ($g | has("status_trust") | not) then null
-    elif ($g.status_trust | type) == "object" and ($g.status_trust.trusted_actors | relative)
+    elif ($g.status_trust | type) == "object" and ($g.status_trust.trusted_actors | text and (ltrimstr("standards:") | relative))
       and ($g.status_trust.model | relative) and ($g.status_trust.lanes_app | text)
     then $g.status_trust | {trusted_actors, model, lanes_app}
     else "bad" end' <<<"$_WIT_GH_BINDING_JSON")"
   case "$WIT_GH_STATUS_TRUST" in
   null) WIT_GH_STATUS_TRUST="" ;;
   '"bad"')
-    echo "github: config.github.status_trust must set trusted_actors and model (repo-relative paths) and lanes_app (a login)" >&2
+    echo "github: config.github.status_trust must set trusted_actors (a repo-relative path or standards:<path>), model (a repo-relative path) and lanes_app (a login)" >&2
     exit "$EX_CONFIG"
     ;;
   *) ;;
