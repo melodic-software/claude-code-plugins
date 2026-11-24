@@ -502,19 +502,19 @@ _bfv_add_ref() {
 }
 
 _bfv_collect_refs() {
-  local l t m
+  local l t m refs=""
   local kw='(close[sd]?|fix(es|ed)?|resolve[sd]?)'
   local repo='([a-z0-9_.-]+/[a-z0-9_.-]+)'
   local re_close="(^|[^a-z0-9_])$kw:?[[:space:]]+$repo?#([0-9]+)"
-  local re_refs="(^|[^a-z0-9_])(refs|relates to):[[:space:]]*$repo?#([0-9]+)"
-  local re_url="(^|[^a-z0-9_])($kw|refs|relates to):?[[:space:]]+https?://github\\.com/$repo/issues/([0-9]+)"
+  local re_url="(^|[^a-z0-9_])$kw:?[[:space:]]+https?://github\\.com/$repo/issues/([0-9]+)"
+  local re_refs=$'^Refs:[ \t]*#([1-9][0-9]{0,8})[ \t]*$'
   _BFV_LREFS=()
   _bfv_lseen=$'\n'
   for l in "${_BFV_LINES[@]}"; do
     t="${l,,}"
     while [[ "$t" =~ $re_url ]]; do
       m="${BASH_REMATCH[0]}"
-      _bfv_add_ref "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
+      _bfv_add_ref "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
       t="${t#*"$m"}"
     done
     t="${l,,}"
@@ -523,13 +523,15 @@ _bfv_collect_refs() {
       _bfv_add_ref "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
       t="${t#*"$m"}"
     done
-    t="${l,,}"
-    while [[ "$t" =~ $re_refs ]]; do
-      m="${BASH_REMATCH[0]}"
-      _bfv_add_ref "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}"
-      t="${t#*"$m"}"
-    done
   done
+  ((${#_BFV_LREFS[@]})) && return 0
+  for l in "${_BFV_LINES[@]}"; do
+    [[ "$l" == [Rr][Ee][Ff][Ss]:* ]] || continue
+    [[ "$l" =~ $re_refs ]] || return 0
+    [[ -z "$refs" || "$refs" == "${BASH_REMATCH[1]}" ]] || return 0
+    refs="${BASH_REMATCH[1]}"
+  done
+  [[ -z "$refs" ]] || _bfv_add_ref "" "$refs"
 }
 
 _bfv_issue_body_to() {
@@ -562,7 +564,7 @@ _bfv_loosened_check() {
   local -a found=() refs=("${_BFV_LREFS[@]:0:3}") pids=()
   local dir
   dir=$(mktemp -d 2>/dev/null) || {
-    _bfv_note "could not make a temporary directory, so the \"$h\" authorization is not checked here; pr-verify still checks it."
+    _bfv_note "could not make a temporary directory, so the \"$h\" authorization is not checked here."
     return 0
   }
   for ref in "${refs[@]}"; do
@@ -581,7 +583,7 @@ _bfv_loosened_check() {
   for ref in "${refs[@]}"; do
     if [[ ! -f "$dir/$n" ]]; then
       rm -rf "${dir:?}"
-      _bfv_note "could not read issue $ref, so the \"$h\" authorization is not checked here; pr-verify still checks it."
+      _bfv_note "could not read issue $ref, so the \"$h\" authorization is not checked here."
       return 0
     fi
     body=$(<"$dir/$n")
@@ -600,6 +602,10 @@ _bfv_loosened_check() {
     found+=("Issue $ref does not authorize the \"$h\" section: its body lacks $missing. Add it to the issue's body, not the PR body.")
   done
   rm -rf "${dir:?}"
+  if ((${#_BFV_LREFS[@]} > ${#refs[@]})); then
+    _bfv_note "none of the first ${#refs[@]} linked issues authorizes the \"$h\" section and the other $((${#_BFV_LREFS[@]} - ${#refs[@]})) were not read, so the authorization is not checked here."
+    return 0
+  fi
   _BFV_PROBLEMS+=("${found[@]}")
 }
 

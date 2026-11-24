@@ -242,12 +242,13 @@ reads the file itself, through a script where the key names one below.
   `pr_body_loosened_checks_verbatim_marker`: where a pull request body records the checks it
   loosens, and what authorizes one. With all three set, the guardrails
   `block-body-format-violation` hook refuses a body whose `## <heading>` section is not empty
-  unless an issue the body links (a closing keyword such as `Closes #N`, or `Refs: #N`) has a body
-  holding a match for the record pattern (a POSIX ERE, such as a line link into an
-  owner-decisions record) and the owner's words after the marker in double quotes. It reads at
-  most three linked issues, one `gh api` call each, only when the section is present and not
-  empty and the pull request's repository is the checkout's; an issue it cannot read passes with
-  a warning. No skill here reads the keys. The hook reads them like `pr_body_format_gate`, which
+  unless an issue the body links has a body holding a match for the record pattern (a POSIX ERE,
+  such as a line link into an owner-decisions record) and the owner's words after the marker in
+  double quotes. The linked issues are those of its closing keywords (such as `Closes #N`), or,
+  with none, the one issue that its first-column `Refs: #N` lines name. It reads at most three
+  linked issues, one `gh api` call each, only when the section is present and not empty and the
+  pull request's repository is the checkout's; an issue it cannot read, or a fourth it did not
+  read, passes with a warning. No skill here reads the keys. The hook reads them like `pr_body_format_gate`, which
   turns this rule off too. A repository that sets none, or only some, of the three is not judged.
 - `evidence_inline_max_captures` and `evidence_record_fields`: how
   `/source-control:pull-request evidence` lays out its comment

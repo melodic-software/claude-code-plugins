@@ -264,6 +264,11 @@ printf '%s\n' 'Closes #9002' '' '## Summary' 'x' '' '## Loosened checks' '' '- A
 printf '%s\n' 'Refs: #4040' '' '## Summary' 'x' '' '## Loosened checks' '' '- A check.' >"$LOOSE/unreadable.txt"
 printf '%s\n' 'Closes #9001' '' '## Summary' 'x' '' '## Loosened checks' '' '## Related' 'x' >"$LOOSE/empty-section.txt"
 printf '%s\n' 'Closes #9003' '' '## Loosened checks' '' '- A check.' >"$LOOSE/hostile-issue.txt"
+printf '%s\n' 'Closes #9002' 'Refs: #18909' '' '## Loosened checks' '' '- A check.' >"$LOOSE/closes-and-refs.txt"
+printf '%s\n' 'Relates to: #18909' '' '## Loosened checks' '' '- A check.' >"$LOOSE/relates-to.txt"
+printf '%s\n' 'Refs: #18909' 'Refs: #9002' '' '## Loosened checks' '' '- A check.' >"$LOOSE/two-refs.txt"
+printf '%s\n' 'See refs: #18909' '' '## Loosened checks' '' '- A check.' >"$LOOSE/midline-refs.txt"
+printf '%s\n' 'Closes #9001' 'Closes #9002' 'Closes #9003' 'Closes #18909' '' '## Loosened checks' '' '- A check.' >"$LOOSE/four-closes.txt"
 
 OLDPATH="$PATH"
 PATH="$LBIN:$PATH"
@@ -295,6 +300,13 @@ assert_contains "a partial declaration is named" "$OUT_D" "without both pr_body_
 pass "-R naming another repository reads no issue" "gh pr create -R other/repo --title t --body-file pr-18797-at-fail.txt" "$LOOSE"
 deny "an issue body holding shell text is read as data" "gh pr create --title t --body-file hostile-issue.txt" "$LOOSE" 'Issue acme/loose#9003 does not authorize'
 if [[ -e "$PWNED" ]]; then bad "shell text in an issue body ran"; else ok "shell text in an issue body runs nothing (direct, dispatched)"; fi
+deny "a Refs: line beside a closing keyword is not read" "gh pr create --title t --body-file closes-and-refs.txt" "$LOOSE" 'Issue acme/loose#9002 does not authorize'
+assert_absent "only the closing issue is reported" "$OUT_D" "18909"
+deny "Relates to: links no issue" "gh pr create --title t --body-file relates-to.txt" "$LOOSE" 'the body links no issue'
+deny "two Refs: lines link no issue" "gh pr create --title t --body-file two-refs.txt" "$LOOSE" 'the body links no issue'
+deny "a refs: not in the first column links no issue" "gh pr create --title t --body-file midline-refs.txt" "$LOOSE" 'the body links no issue'
+pass "four closing issues, the authorizing one not read" "gh pr create --title t --body-file four-closes.txt" "$LOOSE"
+assert_contains "the unread issues are named on stderr" "$OUT_D" "the other 1 were not read"
 mcp_loose() {
   jq -n --rawfile b "$LFIX/$1" --arg d "$LOOSE" '{tool_name:"mcp__plugin_github_github__create_pull_request",cwd:$d,tool_input:{owner:"acme",repo:"loose",title:"t",body:$b,head:"h",base:"main"}}'
 }
