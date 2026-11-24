@@ -23,7 +23,6 @@ run_ab() { capture bash "$AB" "$@"; }
 # when every comparison-arm sample is zero milliseconds.
 NOOP="sleep 0.01"
 
-# --- 1. a serial run reports both arms and the paired ratio ---
 run_ab --a "$NOOP" --b "$NOOP" --iterations 4 --warmup 1 --min-pairs 4 \
   --label-a "A (baseline)" --label-b "B (candidate)"
 assert_eq "a serial run exits 0" "0" "$RUN_RC"
@@ -75,14 +74,10 @@ else
   fail "both arms report a clean exit-code census" "two rc={0: 4} lines" "$RUN_OUT"
 fi
 
-# --- 4. an arm that cannot run is refused before anything is timed ---
 run_ab --a "$NOOP" --b "/nonexistent/definitely-not-here" --iterations 2 --warmup 0
 assert_eq "an arm exiting 127 is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the false-green shape" "classic false green" "$RUN_OUT"
 
-# --- 5. a missing high-resolution clock FAILS, it never falls back to date ---
-# PERF_AB_SIMULATE_NO_CLOCK can only force the failure, never suppress it, so
-# it cannot turn a genuinely broken host green.
 capture env PERF_AB_SIMULATE_NO_CLOCK=1 bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2
 assert_eq "a missing EPOCHREALTIME is refused" "2" "$RUN_RC"
 assert_contains "the refusal rejects a date(1) fallback" "Refusing to fall back" "$RUN_OUT"
@@ -95,17 +90,11 @@ assert_contains "the refusal rejects a date(1) fallback" "Refusing to fall back"
 # separator, and the simulate seam can only force the failure, never hide one.
 capture env PERF_AB_SIMULATE_COMMA_CLOCK=1 bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2
 assert_eq "the simulated comma clock is refused" "2" "$RUN_RC"
-# The forced branch must say it is SIMULATING, not assert a locale defect the
-# host does not have. A false observation in a test log sends the next reader
-# chasing a locale that is working correctly.
 assert_contains "the simulated branch declares itself" "SIMULATED:" "$RUN_OUT"
 assert_contains "the simulated branch denies a real observation" "No real defect was observed" "$RUN_OUT"
 assert_not_contains "the simulated branch does not blame LC_NUMERIC" \
   "is rendering it with a comma" "$RUN_OUT"
 
-# The REAL branch, exercised under an actual comma-decimal locale rather than
-# through the seam, so the operator-facing wording is covered by something other
-# than the simulation that deliberately does not produce it.
 COMMA_LOCALE=""
 for candidate in de_DE.UTF-8 de_DE.utf8 de_DE fr_FR.UTF-8 fr_FR.utf8 fr_FR; do
   if [[ "$(LC_ALL="$candidate" bash -c 'printf %s "$EPOCHREALTIME"' 2>/dev/null)" == *,* ]]; then
@@ -145,7 +134,6 @@ else
   printf 'SKIP: no comma-decimal locale on this host; the real-locale arm of the clock check did not run\n' >&2
 fi
 
-# --- 6. argument preconditions ---
 run_ab --a "$NOOP" --b "$NOOP" --iterations 0
 assert_eq "zero iterations is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains the empty sample set" "no percentile to report" "$RUN_OUT"
@@ -160,7 +148,6 @@ run_ab --a "bash D:/repo/hook.sh" --b "$NOOP" --iterations 2
 assert_eq "a drive-letter path inside an arm command is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the 127 shape" "exits 127 in both arms" "$RUN_OUT"
 
-# --- 7. --percentiles reaches both per-arm summaries ---
 run_ab --help
 assert_contains "--help lists --percentiles" "--percentiles <list>" "$RUN_OUT"
 
@@ -190,8 +177,6 @@ ORDER_DIR="$(mktemp -d)"
 ORDER_FIXTURE="$ORDER_DIR/order-bytes"
 ORDER_LOG="$ORDER_DIR/arm-log"
 trap 'rm -f "$ORDER_FIXTURE" "$ORDER_LOG"; rmdir "$ORDER_DIR" 2>/dev/null' EXIT
-# Bytes 0 1 1 0 3 3 2 4 5 6 7 7 8 10 9 11 12 13 14 14: more than 16, so the
-# multi-line read path runs, and with repeats, so a collapsed read would show.
 printf '\000\001\001\000\003\003\002\004\005\006\007\007\010\012\011\013\014\015\016\016' >"$ORDER_FIXTURE"
 EXPECTED_ORDER="arm_order=AB BA BA AB BA BA AB AB BA AB BA BA AB AB BA BA AB BA AB AB"
 # shellcheck disable=SC2016  # $AB_TEST_LOG belongs to the inner `bash -c`, not to this shell
@@ -209,9 +194,6 @@ run_ordered
 assert_eq "a run with an order source exits 0" "0" "$RUN_RC"
 assert_eq "the order follows the source's bytes, not parity alternation" \
   "$EXPECTED_ORDER" "$(printf '%s\n' "$RUN_OUT" | grep '^arm_order=')"
-# The probes run A then B once before any iteration; with no warmup the rest of
-# the log is the iterations themselves, so this proves every iteration ran each
-# arm exactly once, in the recorded order.
 assert_eq "each iteration runs each arm once, in the recorded order" \
   "AB$(printf '%s' "${EXPECTED_ORDER#arm_order=}" | tr -d ' ')" "$(cat "$ORDER_LOG")"
 
@@ -219,7 +201,6 @@ run_ordered
 assert_eq "the same order source reproduces the same order" \
   "$EXPECTED_ORDER" "$(printf '%s\n' "$RUN_OUT" | grep '^arm_order=')"
 
-# Too few bytes for the iterations is refused, never padded with a fixed order.
 printf '\000\001' >"$ORDER_FIXTURE"
 run_ordered
 assert_eq "an order source shorter than the iterations is refused" "2" "$RUN_RC"
