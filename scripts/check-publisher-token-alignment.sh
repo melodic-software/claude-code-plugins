@@ -15,8 +15,6 @@ PORT_FILE="${PUBLISHER_TOKEN_PORT_FILE:-scripts/skill-portability-tokens.txt}"
   exit 2
 }
 
-# Lines go through the portability gate's parser (read_list, `leading`
-# comments), so both sides compare with surrounding whitespace trimmed.
 # shellcheck source=lib/read-list.sh
 source "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
@@ -45,7 +43,6 @@ while IFS= read -r line; do
 done <"$PORT_FILE"
 read_list::into_text port_active "$active_text" --comments leading || exit 2
 
-# An input the gate cannot use must not read as a clean pass: nothing was compared.
 ((saw_active == 1)) || {
   printf 'ERROR: no "# --- ACTIVE" marker in %s\n' "$PORT_FILE" >&2
   exit 2

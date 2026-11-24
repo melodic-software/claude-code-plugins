@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-standards-contract-bump.sh. Builds a tiny synthetic repo
-# tree per scenario in a temp dir, git-initialized for the base ref, with the
-# generator and a registry that names two carrying plugins, and invokes the
-# gate against it directly.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,8 +14,6 @@ SCRIPT="$SELF_DIR/check-standards-contract-bump.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-# Every case runs once per contract home: docs/conventions/ before the
-# contracts move, docs/contracts/ after it.
 CANONICAL="" CHANGELOG="" SCHEMA=""
 
 canonical_v1() {
@@ -38,13 +32,11 @@ changelog_v1_1() {
   printf -- '# Changelog\n\n## 1.1.0 — 2026-07-18\n\n- additive\n\n## 1.0.0 — 2026-07-17\n\n- initial\n'
 }
 
-# new_fixture <out-var> → fresh tree with the gate and the generator copied in.
 new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --sut sync-shared-copies.sh --plugins || return 1
   mkdir -p "${!1}/${CANONICAL%/*}"
 }
 
-# carrying_plugin <fixture> <plugin> <version> → manifest and registry entry.
 carrying_plugin() {
   local fixture="$1" plugin="$2" version="$3"
   mkdir -p "$fixture/plugins/$plugin/reference" "$fixture/plugins/$plugin/.claude-plugin"
@@ -54,9 +46,7 @@ carrying_plugin() {
     >>"$fixture/scripts/shared-copies.txt"
 }
 
-# base_fixture → the starting state most cases mutate from: the v1 canonical,
-# its changelog, and two carrying plugins at 0.1.0 with generated copies.
-base_fixture() { # <out-var>
+base_fixture() {
   local dir
   new_fixture "$1" || return 1
   dir="${!1}"
@@ -68,7 +58,6 @@ base_fixture() { # <out-var>
   (cd "$dir" && bash scripts/sync-shared-copies.sh >/dev/null)
 }
 
-# git_fixture <fixture> → init repo + commit everything as the base ref; prints base sha
 git_fixture() {
   local fixture="$1"
   # On refusal (e.g. TMPDIR inside the checkout) stop before add/commit can
@@ -85,10 +74,8 @@ run_gate() (
   cd "$fixture" && bash scripts/check-standards-contract-bump.sh "$@"
 )
 
-# regen <fixture> → rewrite the generated copies after a canonical edit.
 regen() { (cd "$1" && bash scripts/sync-shared-copies.sh >/dev/null); }
 
-# bump <fixture> <plugin> <version>
 bump() { printf '{"name":"%s","version":"%s"}\n' "$2" "$3" >"$1/plugins/$2/.claude-plugin/plugin.json"; }
 
 run_cases() {
@@ -136,7 +123,6 @@ else
   fail "the gate should pass when frontmatter, changelog, and manifests all moved, got: $out"
 fi
 
-# --- a fragment stands in for a carrier's bump only in fragment mode ----------
 printf 'planning\n' >"$f/scripts/fragment-plugins.txt"
 bump "$f" planning 0.1.0
 bump "$f" review 0.1.0
@@ -156,7 +142,6 @@ if [[ "$out" == *"and bump every carrying plugin."* && "$out" != *"new-changelog
 else
   fail "expected the legacy bump message and no fragment command, got: $out"
 fi
-# A fragment-mode carrier with no fragment is told to add one, not to bump.
 git -C "$f" rm -q --cached .changes/planning/sync-0123abcd.md
 rm "$f/.changes/planning/sync-0123abcd.md"
 out="$(run_gate "$f" "$base" 2>&1)"
@@ -176,7 +161,7 @@ base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
 changelog_v1_1 >"$f/$CHANGELOG"
 regen "$f"
-bump "$f" planning 0.2.0 # review not bumped
+bump "$f" planning 0.2.0
 if out="$(run_gate "$f" "$base" 2>&1)"; then
   fail "the gate should fail when a carrying plugin kept its version, got success: $out"
 elif [[ "$out" == *"STALE VERSION: $CANONICAL changed vs $base but plugins/review/.claude-plugin/plugin.json"* ]]; then
@@ -224,8 +209,8 @@ rm -rf "$f"
 
 base_fixture f
 base="$(git_fixture "$f")"
-canonical_v1_edited >"$f/$CANONICAL"       # content moved, frontmatter did not
-printf -- '# Changelog\n' >"$f/$CHANGELOG" # entry for the head version removed
+canonical_v1_edited >"$f/$CANONICAL"
+printf -- '# Changelog\n' >"$f/$CHANGELOG"
 regen "$f"
 if out="$(run_gate "$f" "$base" 2>&1)"; then
   fail "the gate should fail when every bump is missing, got success: $out"
@@ -258,7 +243,7 @@ regen "$f"
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
 changelog_v1_1 >"$f/$CHANGELOG"
-carrying_plugin "$f" review 0.1.0 # new plugin, absent at base
+carrying_plugin "$f" review 0.1.0
 regen "$f"
 bump "$f" planning 0.2.0
 if out="$(run_gate "$f" "$base" 2>&1)"; then

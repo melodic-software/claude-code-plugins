@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-skill-leaf-names.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway plugins/ tree with
-# fixture skills, runs the checker against it, and asserts on exit code +
-# output. Mutates only its own mktemp dir. The SUT resolves its paths relative
-# to its own location, so the fixture tree carries a copy of it.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,7 +32,6 @@ make_skill alpha shared
 make_skill beta shared
 make_skill gamma shared
 
-# 1. discover lists a collision with all its owners.
 out="$(run)"
 if grep -q 'shared' <<<"$out" && grep -q '3 plugins' <<<"$out"; then
   ok "discover lists a collision with its owner count"
@@ -46,21 +39,18 @@ else
   fail "discover should list shared across 3 plugins: $out"
 fi
 
-# 2. A leaf name owned by only one plugin is not a collision.
 if ! grep -q 'solo' <<<"$out"; then
   ok "single-owner leaf name is not reported"
 else
   fail "solo should not be reported as a collision: $out"
 fi
 
-# 3. A directory without SKILL.md is not counted as a skill.
 if ! grep -q 'not-a-skill' <<<"$out"; then
   ok "directory without SKILL.md is not counted"
 else
   fail "not-a-skill should be ignored: $out"
 fi
 
-# 4. --check fails on an unregistered collision.
 : >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -70,8 +60,6 @@ else
   fail "unregistered collision should fail (rc=$rc): $out"
 fi
 
-# 5. --check passes once the collision is registered with its owner set, and
-#    comments/blank lines in the registry are ignored.
 printf '# a comment\n\n  shared alpha,beta,gamma  # trailing comment\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -81,7 +69,6 @@ else
   fail "registered collision should pass (rc=$rc): $out"
 fi
 
-# 5b. Owner order in the registry does not matter — sets are compared, not lists.
 printf 'shared gamma,alpha,beta\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -91,8 +78,6 @@ else
   fail "reordered owner set should pass (rc=$rc): $out"
 fi
 
-# 5c. A registered name whose owner set GREW fails — the first registration must
-#     not pre-authorize later owners joining on the original grounds.
 printf 'shared alpha,beta\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -102,8 +87,6 @@ else
   fail "grown owner set should fail (rc=$rc): $out"
 fi
 
-# 5d. A bare name with no owner field is rejected, so the old format cannot
-#     silently keep passing as an open registration.
 printf 'shared\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -136,8 +119,6 @@ else
   fail "duplicate registry entry should fail (rc=$rc): $out"
 fi
 
-# 5g. Entries out of leaf-name order fail, so parallel additions land on
-#     different lines instead of both appending at the end.
 printf 'zeta *\nshared alpha,beta,gamma\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -176,8 +157,6 @@ else
   fail "unterminated final entry should be loaded (rc=$rc): $out"
 fi
 
-# 7. A NEW collision on an unregistered name fails even when others are
-#    registered — the regression-critical path this gate exists for.
 printf 'shared\n' >"$REGISTRY"
 make_skill alpha newdupe
 make_skill beta newdupe
@@ -215,7 +194,6 @@ else
 fi
 rm -rf "$CLEAN"
 
-# 8. Unknown mode is a usage error, not a silent pass.
 bash "$SUT" --bogus >/dev/null 2>&1
 rc=$?
 if [[ $rc -eq 2 ]]; then

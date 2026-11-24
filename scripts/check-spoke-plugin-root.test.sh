@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-spoke-plugin-root.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway tree with fixture
-# spokes and a baseline, runs the checker against it, and asserts on exit code
-# and output. Mutates only its own mktemp dir. The SUT resolves the repository
-# root relative to its own location, so the fixture tree carries a copy of it
-# under scripts/.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,8 +11,6 @@ SUT_SRC="$SCRIPT_DIR/check-spoke-plugin-root.sh"
 
 SKILL=plugins/alpha/skills/audit
 
-# mk_tree <out-var>: a tree with one baselined offender, one clean spoke that
-# cites <skill-dir>, and a SKILL.md that legitimately holds the token.
 mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --label spoke-plugin-root || return 1
@@ -35,9 +26,6 @@ mk_tree() {
     >"$dir/scripts/spoke-plugin-root-baseline.txt"
 }
 
-# run_case <label> <expected-rc> <setup> [<must-name>...]
-# <setup> runs inside the fixture root; each <must-name> must appear in the
-# output of a failing run.
 run_case() { test_harness::check_case mk_tree check-spoke-plugin-root.sh "$@"; }
 
 run_case "clean tree with a baselined spoke passes" 0 ":"

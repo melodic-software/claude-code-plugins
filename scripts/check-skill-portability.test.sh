@@ -28,8 +28,6 @@ fx=""
 REAL_TOKENS="$REPO_ROOT/scripts/skill-portability-tokens.txt"
 . "$SELF_DIR/test-git-helpers.sh"
 
-# Minimal token list: just the active branch class, so a synthetic case is not
-# coupled to the shipping list's staged entries.
 TEST_TOKENS="$(mktemp)"
 printf 'origin/(main|master)\n' >"$TEST_TOKENS"
 trap 'rm -f "$TEST_TOKENS"' EXIT
@@ -37,14 +35,10 @@ trap 'rm -f "$TEST_TOKENS"' EXIT
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
 
-# scan_paths <file>... — run the gate over explicit paths with the test tokens.
 scan_paths() {
   SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash "$SCRIPT" --paths "$@"
 }
 
-# scan_with <token-file> <file>... — run the gate over explicit paths with a
-# caller-supplied token list, for the staged Stage-2 classes whose patterns are
-# not in the default single-pattern list above.
 scan_with() {
   local tokens="$1"
   shift
@@ -58,7 +52,6 @@ tmpfile() {
   printf '%s' "$f"
 }
 
-# tokenfile <pattern> — a one-pattern token list, the caller's to remove.
 tokenfile() {
   local f
   f="$(mktemp)"
@@ -158,8 +151,6 @@ printf '# only comments\n#\n\n' >"$EMPTY_TOKENS"
 f="$(tmpfile 'diff against origin/main here')"
 SKILL_PORTABILITY_TOKENS="$EMPTY_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
 rc=$?
-# Discriminating control: the SAME file must flag under a real token list, so a
-# green result above cannot come from the fixture being clean.
 scan_paths "$f" >/dev/null 2>&1
 control=$?
 if [[ "$rc" -eq 2 && "$control" -eq 1 ]]; then
@@ -181,7 +172,6 @@ else
 fi
 rm -rf "$scan_tmp" "$f"
 
-# --- same-line portability-ok annotation passes ----------------------------
 f="$(tmpfile 'reset --hard origin/main <!-- portability-ok: fixture asserts the hardcode on purpose -->')"
 if scan_paths "$f" >/dev/null 2>&1; then
   ok "same-line portability-ok passes"
@@ -201,7 +191,6 @@ else
 fi
 rm -f "$f"
 
-# --- portability-ok in the comment block above passes ----------------------
 f="$(tmpfile '<!-- portability-ok: this reference is intentionally pinned -->
 The base branch is origin/main here.')"
 if scan_paths "$f" >/dev/null 2>&1; then
@@ -275,7 +264,6 @@ else
 fi
 rm -f "$f"
 
-# --- blockquote-nested whole-file portability-scope declaration passes ------
 f="$(tmpfile '> <!-- portability-scope: forge=github — inherent, declared boundary -->
 This skill diffs origin/main and pushes with origin/master.')"
 if scan_paths "$f" >/dev/null 2>&1; then
@@ -285,7 +273,6 @@ else
 fi
 rm -f "$f"
 
-# --- whole-file portability-scope declaration passes -----------------------
 f="$(tmpfile '<!-- portability-scope: forge=github — inherent, declared boundary -->
 This skill diffs origin/main and pushes with origin/master.')"
 if scan_paths "$f" >/dev/null 2>&1; then
@@ -356,8 +343,6 @@ if [[ "$rc" -eq 1 ]] && grep -q 'COUPLING: plain\.md:1:' <<<"$out"; then
 else
   fail "an identifier=value-shaped token list must not silently disable the gate (rc=$rc): $out"
 fi
-# The discriminating half: prove the same fixture DOES flag through an ordinary
-# token path, so a green assertion above cannot come from the file being clean.
 cp "$TEST_TOKENS" "$fx/plain-tokens.txt"
 out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="plain-tokens.txt" bash scripts/check-skill-portability.sh --paths "plain.md" 2>&1)"
 if [[ "$?" -eq 1 ]] && grep -q 'COUPLING: plain\.md:1:' <<<"$out"; then
@@ -438,10 +423,6 @@ else
 fi
 rm -f "$f"
 
-# The option run is not a blanket matcher: it may only span options between
-# `git` and a remote-taking subcommand. A different subcommand whose line
-# merely mentions the word origin later must stay clean, or widening the anchor
-# would have traded a false negative for a false-positive class.
 f="$(tmpfile 'Run `git -C "$WT" status`, then push to the origin remote you resolved.')"
 if scan_with "$rt" "$f" >/dev/null 2>&1; then
   ok "remote class: global options on a non-remote subcommand are not false-positives"
@@ -450,10 +431,6 @@ else
 fi
 rm -f "$f"
 
-# The compliant shape: the remote is resolved into a variable first, so no
-# literal `origin` sits in the remote-argument position at all.
-# Paired with the global-option cases above: widening the anchor must leave the
-# fix direction passing under a global option too, not only under bare `git`.
 f="$(tmpfile 'REMOTE="$(bash scripts/resolve-remote.sh --push)"; git push "$REMOTE" HEAD
 Re-fetch with `git -C "$WT" fetch "$REMOTE" "$BASE"` before merging.')"
 if scan_with "$rt" "$f" >/dev/null 2>&1; then
@@ -463,9 +440,6 @@ else
 fi
 rm -f "$f"
 
-# The word `origin` appears in ordinary English and in unrelated compounds
-# without asserting a remote NAME; the class is anchored to the
-# remote-argument position precisely so none of these fire.
 f="$(tmpfile 'The lane requires cross-origin reads to succeed.
 Each finding records its origin, and the origin of a default is what this gate tests.')"
 if scan_with "$rt" "$f" >/dev/null 2>&1; then
@@ -490,7 +464,6 @@ else
 fi
 rm -f "$f"
 
-# A per-site escape works on this class exactly as on the active one.
 f="$(tmpfile 'Run `git fetch origin` here. <!-- portability-ok: this lane documents a single-remote reset -->')"
 if scan_with "$rt" "$f" >/dev/null 2>&1; then
   ok "remote class: a per-site portability-ok escape is honored"
@@ -516,8 +489,6 @@ else
 fi
 rm -f "$f"
 
-# The compliant shape: the grammar is READ from the consuming repo rather
-# than shipped, so no enumeration appears at all.
 f="$(tmpfile "Read the branch convention from the project's CLAUDE.md or rules index; do not assume one.")"
 if scan_with "$gt" "$f" >/dev/null 2>&1; then
   ok "branch-grammar class: deferring to the consumer's convention is not flagged"
@@ -526,8 +497,6 @@ else
 fi
 rm -f "$f"
 
-# Ordinary prose paths share the type words and must not fire — the reason
-# this class ships as the narrow enumeration shape, not a bare alternation.
 f="$(tmpfile 'Screenshots land under `build/shots/` and the contract under `docs/conventions/`.')"
 if scan_with "$gt" "$f" >/dev/null 2>&1; then
   ok "branch-grammar class: ordinary prose paths are not false-positives"
@@ -578,8 +547,6 @@ else
 fi
 rm -f "$f"
 
-# The compliant shape: the contract is bundled with the plugin, so resolution
-# needs no network and no publisher repo name.
 f="$(tmpfile 'Read the bundled contract at `${CLAUDE_PLUGIN_ROOT}/reference/contract.md`.')"
 if scan_with "$ft" "$f" >/dev/null 2>&1; then
   ok "forge class: a bundled CLAUDE_PLUGIN_ROOT reference is not flagged"
@@ -618,10 +585,6 @@ else
 fi
 rm -f "$declared" "$undeclared"
 
-# Reach asymmetry: a per-site annotation is NOT a whole-file declaration.
-# Line 1 is excused by its own annotation; line 3's identical coupling is a
-# separate site and must still fail. Conflating the two would turn every
-# single-site exemption into a silent file-wide opt-out.
 f="$(tmpfile 'Run `git fetch origin` here. <!-- portability-ok: single-remote reset lane -->
 Then review the result.
 Finally run `git push origin HEAD` with no annotation at all.')"
@@ -646,10 +609,6 @@ rm -f "$rt"
 BOTH_TOKENS="$(mktemp)"
 printf '%s\n%s\n' 'origin/(main|master)' "$REMOTE_TOKEN" >"$BOTH_TOKENS"
 
-# One line, both couplings. `merge-base` is a branch-class guard marker, so
-# the co-located `origin/main` is legitimately excused as a detection-ladder
-# fallback. The `git fetch origin` on the same line is a DIFFERENT coupling
-# with no guard of its own and must still be reported.
 f="$(tmpfile 'Use `git merge-base origin/main HEAD` for the base, then `git fetch origin` to refresh.')"
 out="$(scan_with "$BOTH_TOKENS" "$f" 2>&1)"
 if grep -q 'origin/(main|master)' <<<"$out"; then
@@ -759,10 +718,6 @@ else
 fi
 rm -f "$f"
 
-# --- a userConfig seam declares the stack and is honored --------------------
-# The acceptance criterion for this stage: the class is honored where a
-# `userConfig` seam supplies the ecosystem, because that is the seam the class
-# exists to force. The skill names the stack only as what it is NOT assuming.
 f="$(tmpfile 'Run `${user_config.build_command}` — never assume dotnet build.')"
 if scan_with "$et" "$f" >/dev/null 2>&1; then
   ok "ecosystem class: a userConfig seam read on the line is honored"
@@ -771,9 +726,6 @@ else
 fi
 rm -f "$f"
 
-# --- prose ABOUT a userConfig seam is not a seam ----------------------------
-# Anchored to the read syntax: a sentence mentioning userConfig supplies nothing
-# to the consumer and must not buy a bare hardcode past the gate.
 f="$(tmpfile 'This skill has a userConfig seam, so run dotnet build here.')"
 if scan_with "$et" "$f" >/dev/null 2>&1; then
   fail "prose mentioning userConfig must NOT guard a bare stack default"
@@ -782,7 +734,6 @@ else
 fi
 rm -f "$f"
 
-# --- placeholder PLUS illustration is the portable idiom and passes --------
 f="$(tmpfile 'Run `<build-command>` — e.g. `dotnet build`, `npm run build`, `cargo build`.')"
 if scan_with "$et" "$f" >/dev/null 2>&1; then
   ok "ecosystem class: a placeholder with an explicit illustration lead is honored"
@@ -791,9 +742,6 @@ else
 fi
 rm -f "$f"
 
-# The guard accepts three illustration leads, so all three are exercised: a
-# later edit dropping one from the regex has to fail here rather than pass a
-# suite that only ever tried `e.g.`.
 f="$(tmpfile 'Run `<build-command>` — for example `dotnet build` or `npm run build`.')"
 if scan_with "$et" "$f" >/dev/null 2>&1; then
   ok "ecosystem class: 'for example' is accepted as an illustration lead"
@@ -810,8 +758,6 @@ else
 fi
 rm -f "$f"
 
-# --- each half of that guard alone is NOT enough ---------------------------
-# A placeholder alone parameterizes the PATH while still shipping the stack.
 f="$(tmpfile 'Run dotnet build from <repo-root> before continuing.')"
 if scan_with "$et" "$f" >/dev/null 2>&1; then
   fail "a placeholder alone must NOT guard a shipped stack default"
@@ -820,7 +766,6 @@ else
 fi
 rm -f "$f"
 
-# An illustration lead alone is the bare hardcode wearing a hedge.
 f="$(tmpfile 'Build the project, e.g. run dotnet build at the repository root.')"
 if scan_with "$et" "$f" >/dev/null 2>&1; then
   fail "an 'e.g.' hedge alone must NOT guard a shipped stack default"
@@ -846,11 +791,6 @@ else
 fi
 rm -f "$f"
 
-# --- guard markers are CLASS-SCOPED, proven in both directions -------------
-# This is the failure the token file staged-class preamble warns about: without
-# scoping, the first additional class to activate inherits the branch class's
-# evidence as a blanket excuse. Branch-resolution evidence proves which BRANCH
-# was resolved and says nothing about which ECOSYSTEM the skill assumes.
 f="$(tmpfile 'Resolve the base with `git symbolic-ref refs/remotes/origin/HEAD`, then run dotnet build.')"
 if scan_with "$et" "$f" >/dev/null 2>&1; then
   fail "branch-resolution evidence must NOT excuse an ecosystem hardcode"
@@ -859,7 +799,6 @@ else
 fi
 rm -f "$f"
 
-# And the converse: a consumer-seam read proves nothing about the branch.
 f="$(tmpfile 'Read `${user_config.build_command}`, then diff against origin/main.')"
 if scan_paths "$f" >/dev/null 2>&1; then
   fail "a userConfig seam read must NOT excuse a bare branch default"
@@ -870,18 +809,6 @@ rm -f "$f"
 
 rm -f "$et"
 
-# --- every staged ecosystem literal is COVERED by the class-membership test -
-# assert_staged below pins the pattern TEXT; this pins that is_ecosystem_pattern
-# still recognizes that text. The two are separate failures: a ninth literal
-# staged with no matching fragment in the function flags correctly and is
-# silently UNGUARDED, so activating it would reject the very consumer seam the
-# class exists to force — a false red that assert_staged cannot see.
-#
-# Each literal is asserted twice, because the guarded case alone is vacuous: a
-# fixture that never matched its pattern also produces a clean scan. The control
-# proves the hit exists, then the guarded line proves the fragment covers it.
-# Flat pattern/sample pairs rather than delimited records: every ERE here is
-# free to contain any delimiter a split would need, `|` included.
 STAGED_COVERAGE=(
   '[Dd]otnet' 'dotnet build'
   '(^|[^a-zA-Z0-9_])\.NET([^a-zA-Z0-9_]|$)' 'the .NET SDK'
@@ -908,9 +835,6 @@ for ((i = 0; i < ${#STAGED_COVERAGE[@]}; i += 2)); do
   rm -f "$tf" "$control" "$guarded"
 done
 
-# --- the Clean-Architecture token is ACTIVE in the shipped list ------------
-# Activated at 0 hits / 0 files against the corpus, so this asserts the shipped
-# list enforces it rather than leaving it staged like the ecosystem literals.
 f="$(tmpfile 'Place the handler in the Application layer per Clean Architecture.')"
 if out="$(SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" 2>&1)"; then
   fail "Clean Architecture vocabulary should be enforced by the shipped list: $out"
@@ -921,8 +845,6 @@ else
 fi
 rm -f "$f"
 
-# The same phrase under a declared scope is the intended escape, so the active
-# token cannot strand a skill whose subject genuinely is that architecture.
 f="$(tmpfile '<!-- portability-scope: this skill teaches Clean Architecture itself -->
 Place the handler in the Application layer per Clean Architecture.')"
 if SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1; then
@@ -932,8 +854,6 @@ else
 fi
 rm -f "$f"
 
-# The illustration shape is the other escape the token file names, so a skill
-# presenting one architecture among several is not stranded either.
 f="$(tmpfile 'Organize by `<architecture-style>` — e.g. Clean Architecture, vertical slices.')"
 if SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1; then
   ok "Clean-Architecture vocabulary is excused by placeholder-plus-illustration"
@@ -942,10 +862,6 @@ else
 fi
 rm -f "$f"
 
-# An UNRELATED userConfig read is not evidence about the architecture. The
-# ecosystem literals take a `${user_config.*}` read as their consumer seam; the
-# architecture token must not inherit it, or any skill reading any setting on the
-# line buys a hardcoded architecture past the gate.
 f="$(tmpfile 'Read `${user_config.test_command}`, then place handlers per Clean Architecture.')"
 if SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1; then
   fail "an unrelated userConfig read must NOT excuse a hardcoded architecture"
@@ -954,10 +870,6 @@ else
 fi
 rm -f "$f"
 
-# --- the architecture token is PHRASE-DELIMITED ----------------------------
-# The boundaries are load-bearing, not decoration: without them the token begins
-# inside a preceding word and its optional suffix stops short, so ordinary prose
-# is reported as a portability violation.
 f="$(tmpfile 'Move the tarball to the Clean Archive directory before pruning.')"
 if SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1; then
   ok "architecture token: 'Clean Archive' is not a Clean-Architecture hit"

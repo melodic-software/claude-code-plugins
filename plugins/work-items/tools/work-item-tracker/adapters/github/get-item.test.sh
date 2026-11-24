@@ -10,8 +10,6 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S" --nope
-# Foreign-provider ID is well-formed by the shared grammar but must be rejected
-# by the GitHub adapter (offline: fails before any gh call).
 assert_usage_error "$S" "local-markdown:o/r#1"
 assert_usage_error "$S" "github:o/r#1" --nope
 assert_usage_error "$S" "github:o/r#1" --history --history

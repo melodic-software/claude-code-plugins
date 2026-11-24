@@ -154,7 +154,7 @@ EOF
   assert_contains "create-item on gh 2.94 calls issue create" "$(<"$STUB/calls.log")" "issue create"
   assert_not_contains "create-item without --parent reads no sub-issues" "$(<"$STUB/calls.log")" "api graphql"
 
-  siblings() { # <state> <closedAt or null> <title>
+  siblings() {
     printf '{"data":{"repository":{"issue":{"subIssues":{"nodes":[{"number":7,"title":%s,"state":"%s","closedAt":%s,"repository":{"nameWithOwner":"O/R"}}]}}}}}' \
       "$(jq -cn --arg t "$3" '$t')" "$1" "$2"
   }
@@ -216,7 +216,6 @@ EOF
   assert_contains "create-item on a refused gh 2.94 create POSTs over REST" "$CALLS" \
     "api --method POST repos/o/r/issues"
 
-  # The refused native create degrades --type to a label, which the REST POST must carry.
   GH_STUB_REFUSE=1 GH_STUB_VERSION=2.94.0 run_create --title t --type Task --labels a --repo o/r >/dev/null 2>&1
   rc=$?
   assert_eq "create-item --type on a refused gh 2.94 create falls back → exit 0" "0" "$rc"

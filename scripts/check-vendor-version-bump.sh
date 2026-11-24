@@ -151,10 +151,6 @@ trap 'rm -f "$base_manifest_file"' EXIT
 
 stale=0
 stale_fragment=0
-# A Dependabot-only change set needs no fragment, as in
-# check-changelog-fragments.sh --check-required: scripts/dependabot-fragments.sh
-# writes it after the merge. Asked once, and only when a fragment-mode plugin
-# would otherwise fail, because the answer costs an API call per commit.
 dependabot=""
 for plugin in "${changed_plugins[@]}"; do
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
@@ -185,10 +181,6 @@ for plugin in "${changed_plugins[@]}"; do
     exit 2
   fi
   head_version=$(jq -r '.version // empty' "$manifest" 2>/dev/null || true)
-  # A manifest gone (or versionless) at head while vendor/ files still changed
-  # is not a bump either; fail rather than skip, so deleting the manifest can
-  # never double as this gate's off switch. A fragment-mode plugin may carry the
-  # bump as a changelog fragment instead (the shared predicate's other branch).
   rc=1
   if [[ -n "$head_version" ]]; then
     rc=0

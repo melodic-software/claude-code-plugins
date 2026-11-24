@@ -8,10 +8,6 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 assert_help "$S"
 assert_usage_error "$S" --state bogus
 
-# --- the envelope reports truncation at the declared ceiling ---
-# Runs a fixture copy of the adapter whose manifest declares a ceiling of 2, so a
-# three-row listing is past it. The stub logs gh's argv: the adapter must ask for
-# one row past the ceiling, or it cannot tell "exactly 2" from "more than 2".
 if command -v jq >/dev/null 2>&1; then
   FIX="$(mktemp -d)"
   trap 'rm -rf "$FIX"' EXIT
@@ -95,13 +91,13 @@ EOF
     CLAUDE_CODE_REMOTE=true WORK_ITEM_TRACKER_BINDING="$REST/binding.json" PATH="$REST/bin:$PATH" \
       GH_STUB_ARGV="$REST/argv" GH_STUB_REST="$REST" bash "$FIX/adapters/github/list-items.sh" --repo o/r "$@"
   }
-  issue() { # <number> <total_blocked_by>
+  issue() {
     jq -cn --argjson n "$1" --argjson b "$2" '{number: $n, title: "t\($n)", state: "open",
       assignees: [{login: "a"}], labels: [{name: "l"}], type: {name: "Bug"},
       html_url: "https://github.com/o/r/issues/\($n)", created_at: "2026-03-01T10:00:00Z",
       issue_dependencies_summary: {blocked_by: 0, total_blocked_by: $b}}'
   }
-  blocker() { # <state> <state_reason or null> [<label>]
+  blocker() {
     jq -cn --arg s "$1" --argjson r "$2" --arg l "${3:-}" \
       '{state: $s, state_reason: $r, labels: (if $l == "" then [] else [{name: $l}] end)}'
   }

@@ -56,7 +56,6 @@ if [[ ${#POSITIONAL[@]} -eq 0 ]]; then
   usage
 fi
 
-# precompute_block <file> — print the ## Pre-computed context section body.
 precompute_block() {
   awk '
     /^## Pre-computed context[[:space:]]*$/ { in_block = 1; next }
@@ -71,7 +70,6 @@ precompute_block() {
 INJECTION_RE='!`[^`]+`'
 GIT_RE='(^|[[:space:]|`])git([[:space:]]|$|[|;&])'
 
-# scan_skill <skill_md> — print violation message on stdout when found.
 scan_skill() {
   local skill_md="$1"
   local block line_count=0 has_git=0

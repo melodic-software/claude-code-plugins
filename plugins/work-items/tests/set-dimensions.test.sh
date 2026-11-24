@@ -124,7 +124,6 @@ run "$ID" size=tiny complexity=easy uncertainty=clear
 assert_eq "no dimension map → exit 3" "3" "$RC"
 mv "$TMP_ROOT/away.yaml" "$REPO/docs/conventions/pr-pipeline.yaml"
 
-# A flow mapping is outside the parser's subset: the error names the file and the line.
 cp "$REPO/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/kept.yaml"
 printf 'models:\n  issue-dimensions: { fields: {} }\n' >"$REPO/docs/conventions/pr-pipeline.yaml"
 run "$ID" size=tiny complexity=easy uncertainty=clear
@@ -133,7 +132,6 @@ assert_eq "a flow mapping → the error names the file and line" \
   "set-dimensions: docs/conventions/pr-pipeline.yaml does not parse: line 2: flow mapping ({...}) is outside the subset; use block style" "$ERR"
 mv "$TMP_ROOT/kept.yaml" "$REPO/docs/conventions/pr-pipeline.yaml"
 
-# Two option ids for one key would make the write a guess.
 CFG="$REPO/docs/conventions/pr-pipeline.yaml"
 text="$(<"$CFG")"
 printf '%s\n' "${text/\"102\": huge/\"102\": tiny}" >"$CFG"

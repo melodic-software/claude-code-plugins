@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# change-link: offline, so no gh mock is needed.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/change-link.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"

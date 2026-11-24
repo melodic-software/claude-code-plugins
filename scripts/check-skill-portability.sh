@@ -73,8 +73,6 @@ cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
-# Active patterns are resolved HERE, before any scan, so a missing list or one
-# with no active patterns fails the gate closed with the path in the diagnostic.
 TOKENS_SRC="${SKILL_PORTABILITY_TOKENS:-scripts/skill-portability-tokens.txt}"
 # shellcheck disable=SC2034 # TOKENS_ACTIVE is set by load_active and read by its EXIT trap
 TOKENS_ACTIVE='' TOKENS=''
@@ -85,7 +83,6 @@ usage() {
   exit 2
 }
 
-# is_scannable <path> — a skill file the gate authors are responsible for.
 is_scannable() {
   local f="$1"
   case "$f" in
@@ -123,7 +120,7 @@ base)
     *) continue ;;
     esac
     is_scannable "$f" || continue
-    [[ -f "$f" ]] || continue # a rename-away/deletion leaves nothing to scan
+    [[ -f "$f" ]] || continue
     files+=("$f")
   done
   ;;
