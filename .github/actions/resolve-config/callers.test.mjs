@@ -1289,7 +1289,7 @@ async function postNotRunChecks(job, context) {
 test("work-unblock.yml: publish-lane-level runs on main's schedule only, mints only live, and only publish and revoke see the token", () => {
   const { jobs } = workflow("work-unblock.yml");
   const job = jobs["publish-lane-level"];
-  assert.equal(job.if, "${{ !cancelled() && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}");
+  assert.equal(job.if, "${{ !cancelled() && github.event_name == 'schedule' && github.event.schedule == '49 * * * *' && github.ref == 'refs/heads/main' }}");
   assert.deepEqual(job.needs, "label-unblocked");
   assert.deepEqual(job.permissions, { actions: "read", contents: "read", "id-token": "write" });
   const mint = job.steps.find((step) => step.id === "lane-token");
