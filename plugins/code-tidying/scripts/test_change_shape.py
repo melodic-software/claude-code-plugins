@@ -255,7 +255,47 @@ class PythonVerdicts(unittest.TestCase):
         after = before.replace('"""Module summary."""\n', "")
         code, out, _ = run(before, after, ".py", "--json")
         self.assertEqual(code, 20, out)
-        self.assertIn("read docstrings at run time", out)
+        self.assertIn("reads this docstring through __doc__", out)
+        self.assertIn('"line": 1', out)
+
+    def test_bare_dunder_doc_does_not_hold_function_docstrings(self):
+        before = (
+            '"""Tool summary."""\n\n\ndef _f():\n    """Return one."""\n    return 1\n\n\n'
+            "def main():\n"
+            '    parser = argparse.ArgumentParser(description=__doc__.split("\\n")[0])\n'
+            "    return _f()\n"
+        )
+        after = before.replace('    """Return one."""\n', "")
+        code, out, _ = run(before, after, ".py")
+        self.assertEqual(code, 11, out)
+
+    def assert_doc_attribute_refused(self, use: str, at: str):
+        before = (
+            '"""Tool summary."""\n\n\ndef _f():\n    """Return one."""\n    return 1\n\n\n'
+            f"x = _f()\nprint({use})\n"
+        )
+        after = before.replace('    """Return one."""\n', "")
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn(f'"at": "{at}"', out)
+
+    def test_owner_dot_dunder_doc_is_code_changed(self):
+        self.assert_doc_attribute_refused("_f.__doc__", "_f")
+
+    def test_other_name_dot_dunder_doc_is_code_changed(self):
+        self.assert_doc_attribute_refused("obj.__doc__", "obj.__doc__")
+
+    def test_dotted_owner_dunder_doc_is_code_changed(self):
+        self.assert_doc_attribute_refused("mod._f.__doc__", "_f.__doc__")
+
+    def test_call_result_dunder_doc_is_code_changed(self):
+        self.assert_doc_attribute_refused("make().__doc__", ").__doc__")
+
+    def test_getattr_dunder_doc_string_is_code_changed(self):
+        self.assert_doc_attribute_refused('getattr(obj, "__doc__")', "__doc__")
+
+    def test_bare_dunder_doc_beside_vars_is_code_changed(self):
+        self.assert_doc_attribute_refused("__doc__, vars()", "vars")
 
     def test_docstring_removal_plus_code_change_is_code_changed(self):
         after = PY_DOCS.replace('"""Module summary."""\n', "").replace(
