@@ -424,7 +424,7 @@ check is always wrong for two of the three:
 | team | must be tracked | hard STOP: teammates would never receive the shared convention |
 | personal override | must be gitignored, never staged | FAIL: a personal deviation can reach team history |
 
-The `userConfig` row is not an omission. `git check-ignore` and `git status` against a path outside
+The table has no `userConfig` row because `git check-ignore` and `git status` against a path outside
 the repository return a meaningless verdict, or a confidently wrong one when the operator's home
 directory is itself a git repository. The same holds for a surface that still reads a legacy
 `~/.claude/<name>` file until its migration lands.
@@ -440,8 +440,8 @@ the user-global file layer and the fixed-root team path with the four layers abo
 
 ## Deviations
 
-Recorded here whether or not ratified. Listing a deviation documents that it exists and diverges; it
-does not by itself bless it. Ratifying one, as #649 did for the policy-floor precedence-inversion
+Recorded here whether or not ratified. Listing a deviation records that it exists and diverges, and does
+not by itself ratify it. Ratifying one, as #649 did for the policy-floor precedence-inversion
 class above and [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) did for the layer locations below, moves it from observed to sanctioned. Ruling
 on each remaining deviation (correct the surface, or amend this contract) is a separate human-gated
 decision.
@@ -677,7 +677,7 @@ conformance.
 
 ## Implementers
 
-Conformance is tracked, not assumed. A surface is listed here whether or not it conforms, so the gap
+A surface is listed here whether or not it conforms, so the gap
 stays visible. Each row states the surface's conformance **as it exists on `main`**, never as a
 migration intends it to be; a row written ahead of the code would show a gap as closed while it is still
 open. Every row fills `Who wins` and `Merge form` with one short phrase each, never blank, and
