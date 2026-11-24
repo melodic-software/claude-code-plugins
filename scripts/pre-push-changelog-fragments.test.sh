@@ -72,7 +72,12 @@ expect "a malformed fragment stops the push" 1 "fix the fragment finding" "$f" "
 fragment "$f" topic-0123abcd "### Fixed
 
 - A fix."
+expect "an uncommitted repair leaves the committed fragment's format to CI" 0 "left to CI" "$f" "refs/heads/topic $h refs/heads/topic $ZERO"
 commit "$f" good-fragment
+h="$(head_of "$f")"
+fragment "$f" topic-89abcdef "Unfinished."
+expect "an untracked unfinished fragment does not block a valid push" 0 "left to CI" "$f" "refs/heads/topic $h refs/heads/topic $ZERO"
+rm -f "$f/.changes/alpha/topic-89abcdef.md"
 h="$(head_of "$f")"
 expect "a valid fragment lets the push through" 0 "" "$f" "refs/heads/topic $h refs/heads/topic $ZERO"
 

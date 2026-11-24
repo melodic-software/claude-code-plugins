@@ -33,7 +33,11 @@ if ! changed_files::verify_base "$default"; then
 fi
 
 status=0
-"$gate" --check || status=$?
+if [[ -n "$(git status --porcelain --untracked-files=all -- .changes 2>/dev/null)" ]]; then
+  echo "$self: .changes/ has uncommitted edits, so the pushed fragments' format is left to CI." >&2
+else
+  "$gate" --check || status=$?
+fi
 if ((status != 1)); then
   "$gate" --check-required "$default" || status=$?
 fi
