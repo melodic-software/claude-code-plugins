@@ -133,6 +133,7 @@ jobs:
       judged: ${{ steps.judged.outputs.judged }}
       held: ${{ steps.select.outputs.held }}
       main-sha: ${{ steps.main.outputs.main-sha }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -152,6 +153,11 @@ jobs:
       - name: Record the main commit
         id: main
         run: echo "main-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -375,7 +381,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -609,6 +615,7 @@ jobs:
       pr-number: ${{ steps.hash.outputs.pr-number }}
       head-sha: ${{ steps.hash.outputs.head-sha }}
       read-at: ${{ steps.hash.outputs.read-at }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Check out the trigger job's main commit
         uses: actions/checkout@v7
@@ -617,6 +624,13 @@ jobs:
           ref: ${{ needs.check-trigger.outputs.main-sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-trigger.outputs.standards-sha }}
 
       - name: Set up Node
         id: node
@@ -663,7 +677,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ needs.check-trigger.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ runner.temp }}/pr-review-main-text/context.json
           github-token: ${{ github.token }}
 
@@ -790,6 +804,13 @@ jobs:
         env:
           LANE: ${{ matrix.lane }}
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-trigger.outputs.standards-sha }}
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -847,7 +868,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -1072,7 +1093,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.trigger.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
@@ -1107,6 +1128,7 @@ jobs:
         with:
           model-route: ${{ matrix.route }}
           output-path: ${{ runner.temp }}/pr-review-main-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secrets are set reaches this step, never a value
       # (ci-workflows select-model-credential). An empty credential with a
@@ -1731,6 +1753,13 @@ jobs:
         env:
           LANE: ${{ matrix.lane }}
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.collect-trusted-text.outputs.standards-sha }}
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -1788,7 +1817,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -2007,7 +2036,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.trigger.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
@@ -2042,6 +2071,7 @@ jobs:
         with:
           model-route: ${{ matrix.route }}
           output-path: ${{ runner.temp }}/pr-review-main-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secrets are set reaches this step, never a value
       # (ci-workflows select-model-credential). An empty credential with a
@@ -2639,6 +2669,13 @@ jobs:
         env:
           LANE: ${{ matrix.lane }}
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.collect-trusted-text.outputs.standards-sha }}
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -2696,7 +2733,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -2915,7 +2952,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.trigger.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
@@ -2950,6 +2987,7 @@ jobs:
         with:
           model-route: ${{ matrix.route }}
           output-path: ${{ runner.temp }}/pr-review-main-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secrets are set reaches this step, never a value
       # (ci-workflows select-model-credential). An empty credential with a

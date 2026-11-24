@@ -117,6 +117,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -200,7 +204,8 @@ jobs:
           # Read as the review callers read them: only `true`, in any case, stops the lane.
           CLAUDE_REVIEW_DISABLED: ${{ vars.CLAUDE_REVIEW_DISABLED }}
           CLAUDE_SECURITY_REVIEW_DISABLED: ${{ vars.CLAUDE_SECURITY_REVIEW_DISABLED }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$RUNNER_TEMP/reconcile-record" "$RUNNER_TEMP/reconcile-settled"
           # pr-verify.yml's resolver inputs, for the spec-changed re-runs.
@@ -519,6 +524,7 @@ jobs:
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
 
       # The runs this pass settled for good, which the next pass skips

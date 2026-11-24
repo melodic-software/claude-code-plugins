@@ -124,6 +124,7 @@ jobs:
       # For wake-pr-merge: the pull request, and the verdict once it uploaded.
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -136,6 +137,10 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -177,7 +182,8 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$(dirname "$SPEC_FILE")"
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
@@ -201,7 +207,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -279,7 +285,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
           github-token: ${{ github.token }}
 
@@ -338,6 +344,7 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
       # The reads the subscription job would repeat, from the files and
@@ -415,6 +422,7 @@ jobs:
         with:
           model-route: verify-pr
           output-path: ${{ runner.temp }}/pr-verify-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Read by the next runs' gates: the probing marker the gate names
       # (gate.cjs probeName) when this run tries the key first after a credit
@@ -2203,6 +2211,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-intent.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -2235,7 +2249,8 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           # check-intent's reads, taken only when they hold (resolve-pr.mjs takeReads).
           CARRIED: ${{ needs.check-intent.outputs.reads }}
@@ -2263,7 +2278,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -2302,7 +2317,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
           github-token: ${{ github.token }}
 
@@ -2346,6 +2361,7 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
       - name: Resolve the verifier's model
@@ -2357,6 +2373,7 @@ jobs:
         with:
           model-route: verify-pr
           output-path: ${{ runner.temp }}/pr-verify-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether each secret is set reaches the action, never a value.
       - name: Check the credential
@@ -3994,6 +4011,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-intent.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -4026,7 +4049,8 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           CARRIED: ${{ needs.check-intent.outputs.reads }}
         run: |
@@ -4050,7 +4074,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -4088,7 +4112,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
           github-token: ${{ github.token }}
 
@@ -4132,6 +4156,7 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
       - name: Resolve the verifier's model
@@ -4143,6 +4168,7 @@ jobs:
         with:
           model-route: verify-pr
           output-path: ${{ runner.temp }}/pr-verify-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the fallback token is set reaches the action, as both
       # inputs, never its value.

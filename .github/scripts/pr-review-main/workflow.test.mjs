@@ -784,6 +784,7 @@ test("the key leg takes the check-trigger job's gate only from this attempt, and
       "judged=${{ steps.judged.outputs.judged }}",
       "held=${{ steps.select.outputs.held }}",
       "main-sha=${{ steps.main.outputs.main-sha }}",
+      "standards-sha=${{ steps.standards.outputs.sha }}",
     ],
   );
   assert.doesNotMatch(trigger, /head-ref/);

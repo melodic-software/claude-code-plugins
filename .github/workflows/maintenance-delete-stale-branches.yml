@@ -65,6 +65,7 @@ jobs:
       # it: re-running only a failed delete job keeps this job's outputs, so
       # the delete job still finds the list select-stale-branches uploaded.
       candidates: branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -81,6 +82,10 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -127,6 +132,7 @@ jobs:
           CALL_BUDGET: "600"
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.dry-run) || 'false' }}
           CANDIDATES_PATH: ${{ runner.temp }}/branch-cleanup-candidates.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/branch-cleanup/cleanup.mjs
 
       - name: Upload the candidate list
@@ -173,6 +179,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-stale-branches.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -217,6 +229,7 @@ jobs:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.dry-run) || 'false' }}
           CANDIDATES_PATH: ${{ runner.temp }}/branch-cleanup-candidates/branch-cleanup-candidates.json
           LEDGER_PATH: ${{ runner.temp }}/branch-cleanup-ledger.jsonl
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           : > "$LEDGER_PATH"
           node .base/.github/scripts/branch-cleanup/cleanup.mjs
