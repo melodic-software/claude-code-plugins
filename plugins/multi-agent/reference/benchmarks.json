@@ -61,6 +61,106 @@
       "status": "support-only",
       "task_set": "aa-image-t2i",
       "expect": "AA-Image"
+    },
+    {
+      "id": "vals-terminal-bench",
+      "workloads": ["coding"],
+      "link": "https://www.vals.ai/benchmarks/terminal-bench-4",
+      "publisher": "vals.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "terminal-bench",
+      "expect": "Terminal-Bench 4.0 leaderboard"
+    },
+    {
+      "id": "arena-agent-code",
+      "workloads": ["coding"],
+      "link": "https://arena.ai/leaderboard/agent/code",
+      "publisher": "arena.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "arena-agent-code",
+      "expect": "Agent Arena"
+    },
+    {
+      "id": "vals-vibe-code",
+      "workloads": ["web-ui"],
+      "link": "https://www.vals.ai/benchmarks/vibe-code",
+      "publisher": "vals.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "vibe-code",
+      "expect": "Vibe Code Bench leaderboard"
+    },
+    {
+      "id": "designarena-code",
+      "workloads": ["web-ui"],
+      "link": "https://www.designarena.ai/leaderboard/code",
+      "publisher": "designarena.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "designarena-code",
+      "expect": "W / "
+    },
+    {
+      "id": "vals-finance-agent",
+      "workloads": ["knowledge"],
+      "link": "https://www.vals.ai/benchmarks/fabv2-1",
+      "publisher": "vals.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "finance-agent",
+      "expect": "Finance Agent leaderboard"
+    },
+    {
+      "id": "arena-agent-work",
+      "workloads": ["knowledge"],
+      "link": "https://arena.ai/leaderboard/agent/work",
+      "publisher": "arena.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "arena-agent-work",
+      "expect": "Agent Arena"
+    },
+    {
+      "id": "arena-text-to-image",
+      "workloads": ["image"],
+      "link": "https://arena.ai/leaderboard/image/text-to-image",
+      "publisher": "arena.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "arena-text-to-image",
+      "expect": "Text-to-Image"
+    },
+    {
+      "id": "designarena-image",
+      "workloads": ["image"],
+      "link": "https://www.designarena.ai/leaderboard/image",
+      "publisher": "designarena.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "designarena-image",
+      "expect": "W / "
+    },
+    {
+      "id": "aa-intelligence-index",
+      "workloads": ["coding", "knowledge"],
+      "link": "https://artificialanalysis.ai/leaderboards/models",
+      "publisher": "artificialanalysis.ai",
+      "provider_own": false,
+      "status": "support-only",
+      "task_set": "aa-intelligence-index",
+      "expect": "Intelligence Index score"
+    },
+    {
+      "id": "aa-coding-agent-index",
+      "workloads": ["coding"],
+      "link": "https://artificialanalysis.ai/agents/coding-agents",
+      "publisher": "artificialanalysis.ai",
+      "provider_own": false,
+      "status": "support-only",
+      "task_set": "aa-coding-agent-index",
+      "expect": "Coding Agent Index"
     }
   ]
 }
