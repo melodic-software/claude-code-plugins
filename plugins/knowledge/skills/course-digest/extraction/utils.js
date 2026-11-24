@@ -1,10 +1,3 @@
-/**
- * Provider-agnostic utilities for course-extraction scripts.
- *
- * Platform-specific code (transcript extraction, resource detection,
- * HLS URL capture, landing URL derivation) lives in adapters/{platform}.js.
- */
-
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";

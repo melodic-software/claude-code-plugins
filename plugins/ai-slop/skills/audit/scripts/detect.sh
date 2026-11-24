@@ -25,7 +25,6 @@ DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscores boasts intri
 
 MODEL_PHRASES=("the part most people skip" "(the|my) honest take" "that.s the unlock")
 
-# --- Rule registry ---------------------------------------------------------------
 PATTERN_RULES=(
   "rule-em-dash|zero-tolerance|0|0|typography|${EM_DASH}"
   "rule-emoji-formatting|formatting emoji|0|0|typography|$(printf '\t')[ ]?[ ]?[ ]?(>[ ]?)*(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
@@ -241,8 +240,6 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   exit 0
 fi
 
-# --- Target list -----------------------------------------------------------------
-
 resolve_targets TARGETS "$REPO_ROOT" "$PATHS_FILE" "$OFFSET" "$LIMIT" "$LIST_TARGETS" ${TARGETS[@]+"${TARGETS[@]}"} || exit $?
 
 matches_glob() {
@@ -265,7 +262,6 @@ if [[ "$LIST_TARGETS" -eq 1 ]]; then
   exit 0
 fi
 
-# --- Prose extraction ------------------------------------------------------------
 # shellcheck disable=SC2016 # awk program text, not shell expansions
 EXTRACT_AWK='
   function fence_char(s) {
@@ -478,8 +474,6 @@ FINDING_AWK='
     print k "\t" lineno "\t" excerpt(text)
   }
 '
-
-# --- Scan ------------------------------------------------------------------------
 
 ALL_RULES=()
 for entry in "${PATTERN_RULES[@]}" "${DENSITY_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done

@@ -83,6 +83,18 @@
         }
       ],
       "why": "script path in a variable, run through bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/x/scripts/datamuse.sh; timeout 60 bash \"$S\" syllables harmony 2>&1 | head -20",
+            "description": "count syllables"
+          }
+        }
+      ],
+      "why": "script path in a variable, run through timeout and bash"
     }
   ],
   "fail": [

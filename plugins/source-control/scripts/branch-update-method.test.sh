@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for branch-update-method.sh, black-box over stdin and stdout.
-# Every expected method and rule is written by hand, never read back from the script.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +12,6 @@ source "$SCRIPT_DIR/test-helpers.sh"
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
-# Reaches keeps-commits; each case flips only the signals it is about.
 BASE='{"head_sha":"abc123","setting":"auto","setting_level":"default","behind":"yes","conflict":"no","up_to_date_required":"yes","base_change_needed":"no","native_stack":"no","managed_head":"no","rewrite":"allowed","other_authors":"no","dependents":"no","base_merged":"no","human_review":"no","landing":"keeps-commits"}'
 TRI_STATE="behind conflict up_to_date_required base_change_needed native_stack managed_head other_authors dependents base_merged human_review"
 OTHER_SIGNALS="head_sha setting setting_level rewrite landing"
@@ -42,7 +39,6 @@ assert_decision() {
   COVERED+="$rule"$'\n'
 }
 
-# check <label> <method> <rule> [signal=value ...]
 check() {
   local label="$1" method="$2" rule="$3"
   shift 3
@@ -50,7 +46,6 @@ check() {
   assert_decision "$label" "$method" "$rule"
 }
 
-# check_setting <label> <setting> <method> <rule> <applied> [signal=value ...]
 check_setting() {
   local label="$1" setting="$2" method="$3" rule="$4" applied="$5"
   shift 5
@@ -59,7 +54,6 @@ check_setting() {
   assert_eq "$label: applied" "$applied" "$(field .setting.applied)"
 }
 
-# malformed <label> <stdin>
 malformed() {
   local out rc
   out="$(printf '%s' "$2" | bash "$ENGINE" 2>/dev/null)"

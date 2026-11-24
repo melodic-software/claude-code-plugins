@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.0] - 2026-11-24
+
+### Added
+
+- `comment_lint_exclude`, a team-file list of repository-relative path globs the comment lint skips, each skip named on stderr. `*` and `?` match within one path segment and `**` spans segments; the plugin ships no entries.
+
 ## [0.58.2] - 2026-11-24
 
 ### Changed

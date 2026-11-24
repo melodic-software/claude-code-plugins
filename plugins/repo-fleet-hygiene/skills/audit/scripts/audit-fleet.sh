@@ -665,8 +665,6 @@ FINDING_ROW_BRANCH_ACTION=""
 FINDING_ROW_WORKTREE_ACTION=""
 FINDING_ROW_DISPOSITION=""
 
-# Fill FINDING_ROW_* for one kind. Non-zero when the kind has no row: an emitter for an
-# unregistered kind is a defect in this file, not a finding about a fleet.
 finding_registry_lookup() {
   local want="$1" line rest
   while IFS= read -r line; do
@@ -714,8 +712,6 @@ F_EVIDENCE=()
 F_DISP=()
 F_HANDOFF=()
 F_REPO_IDX=()
-# Structured fields of each unmerged-remote-branch candidate, keyed by its finding target (which
-# embeds the canonical path). Kept apart from F_* because withhold_medium_findings compacts F_*.
 RB_TARGET=()
 RB_REMOTE=()
 RB_BRANCH=()
@@ -793,7 +789,6 @@ withhold_medium_findings() {
   done
 }
 
-# The ordinary emitter: the kind decides the tier and the disposition.
 emit_finding() {
   local kind="$1" target="$2" evidence="$3" handoff="${4:-}"
   finding_registry_lookup "$kind" || fail "unregistered finding kind: $kind"
@@ -826,8 +821,6 @@ emit_finding_as() {
   record_finding "$confidence" "$kind" "$target" "$evidence" "$disposition" "$handoff"
 }
 
-# Actionable fleet-batch handoff kinds. Manual-review and informational findings stay in the
-# rollup but do not produce a skill invocation in the action plan.
 branch_action_kind() {
   finding_registry_lookup "$1" && [[ "$FINDING_ROW_BRANCH_ACTION" == "yes" ]]
 }
@@ -836,8 +829,6 @@ worktree_action_kind() {
   finding_registry_lookup "$1" && [[ "$FINDING_ROW_WORKTREE_ACTION" == "yes" ]]
 }
 
-# branch_family <branch>: where the branch name says it came from; empty when it names no known
-# family. Information only.
 branch_family() {
   case "$1" in
   claude/*) printf claude ;;
@@ -880,7 +871,6 @@ physical_path() {
   printf '%s' "$1"
 }
 
-# Comparison key for the physical path: symlink aliases and case/separator spellings collapse.
 physical_path_key() {
   path_key "$(physical_path "$1")"
 }
@@ -902,8 +892,6 @@ FLEET_WT_TOOL_OWNED=0
 FALLBACK_WORKTREE_ROOT=""
 FALLBACK_WORKTREE_ROOT_ORIGIN=""
 FALLBACK_WORKTREE_ROOT_SOURCE="unset"
-# Distinct roots that linked worktrees were classified against, with repository counts, for the
-# fleet summary. Keys are physical path_key spellings so symlink aliases collapse.
 FLEET_WT_ROOT_KEYS=()
 FLEET_WT_ROOT_LABELS=()
 FLEET_WT_ROOT_REPOS=()
@@ -1082,7 +1070,6 @@ classify_worktrees() {
       if [[ -n "$creation_slug" ]]; then
         expected_dirname="${layout_prefix}${creation_slug}"
       else
-        # Non-create-shaped names: recreate guidance uses the same slug rules as create.
         expected_dirname="$(expected_worktree_dirname "$wt_owner" "$wt_repo" "$wt_branch")"
       fi
       if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
@@ -1144,7 +1131,6 @@ classify_worktrees() {
       record_fleet_worktree_root "$CONFIGURED_WORKTREE_ROOT"
       print_field 'Worktree conformance' \
         "$repo_wt_conforming conforming, $repo_wt_nonconforming outside/wrong-layout, $repo_wt_tool_owned tool-owned of $repo_wt_linked linked (root $CONFIGURED_WORKTREE_ROOT)"
-      # Emit even when every linked worktree conforms: the fleet headline this check exists for.
       emit_finding worktree-root-conformance "$canonical" \
         "$repo_wt_nonconforming of $repo_wt_linked linked worktrees are outside the configured root or wrong layout ($repo_wt_conforming conforming, $repo_wt_tool_owned tool-owned); root $CONFIGURED_WORKTREE_ROOT from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN" \
         "Migrate non-conforming worktrees with /source-control:worktree create at the configured root"
@@ -1297,9 +1283,6 @@ PLAN_FILE_EXPLICIT=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  # An empty value is rejected rather than accepted-and-skipped: the discovery loops ignore an
-  # empty entry, so accepting one would let the header's scope count claim an argument that
-  # contributed nothing. A CLI typo stops the run, as everywhere else in this grammar.
   --root)
     [[ $# -ge 2 && -n "$2" ]] || fail "--root requires a directory"
     ROOT_ARGS+=("$(normalize_discovery_root "$2")")
@@ -1382,9 +1365,6 @@ while [[ $# -gt 0 ]]; do
     fail "unknown argument: $1"
     ;;
   *)
-    # Bare positional path ≡ --root. An empty value is rejected rather than
-    # accepted-and-skipped so the header cannot claim a scope that contributed
-    # nothing.
     [[ -n "$1" ]] || fail "bare path requires a directory"
     ROOT_ARGS+=("$(normalize_discovery_root "$1")")
     shift
@@ -1534,8 +1514,6 @@ else
 fi
 if [[ -n "$CONFIG_FILE" ]]; then
   CONFIG_FILE="$(cd "$(dirname "$CONFIG_FILE")" 2>/dev/null && pwd -P)/$(basename "$CONFIG_FILE")"
-  # An invalid config fails loud regardless of how it was found — an
-  # auto-probed file never silently falls back to a narrower scope.
   run_git_probe config --file "$CONFIG_FILE" --list >/dev/null 2>&1 || fail "invalid Git config: $CONFIG_FILE"
   CONFIG_DIR="$(dirname "$CONFIG_FILE")"
 else
@@ -1544,10 +1522,6 @@ fi
 
 fleet_resolve_max_depth "$MAX_DEPTH" "$CONFIG_FILE"
 
-# Entries before these counts came from the command line; entries appended from config below sit
-# at or past them. The failure unit differs by origin: a CLI typo should stop the run, but a
-# config-sourced path that has since been deleted degrades per-entry (stale-config-entry UNKNOWN)
-# so removing five repos right after an audit cannot abort every subsequent fleet run.
 CLI_ROOT_COUNT=${#ROOT_ARGS[@]}
 CLI_REPO_COUNT=${#REPO_ARGS[@]}
 if [[ -n "$CONFIG_FILE" ]]; then
@@ -1590,8 +1564,6 @@ is_acked() {
 UNRESOLVED_SCOPE=false
 FALLBACK_PROVENANCE=""
 SCOPE_FALLBACK_NOTE="so no repository scope resolved"
-# Count config scope before the no-scope ladder appends repos. Otherwise a cwd
-# or ghq hit is reported as a config entry.
 PRE_FALLBACK_ROOTS=${#ROOT_ARGS[@]}
 PRE_FALLBACK_REPOS=${#REPO_ARGS[@]}
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
@@ -1614,11 +1586,6 @@ if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   rm -f "$fallback_file"
 fi
 
-# Scope provenance: which rung actually supplied the audited roots/repos. This is a different
-# question from which config FILE was consumed. Config-supplied scope is ADDITIVE to any
-# CLI-supplied scope, so both contributions are named rather than one masking the other. Bare
-# positional paths are snapshotted into CLI_ROOT_COUNT (same as --root), so the command-line
-# segment attributes them as --root/bare-path rather than conflating with --repo.
 config_scope_count=$((PRE_FALLBACK_ROOTS - CLI_ROOT_COUNT + PRE_FALLBACK_REPOS - CLI_REPO_COUNT))
 cli_scope_label=""
 [[ "$CLI_REPO_COUNT" -gt 0 ]] && cli_scope_label="${CLI_REPO_COUNT} --repo"
@@ -1746,8 +1713,6 @@ use_fallback_worktree_root() {
   CONFIGURED_WORKTREE_ROOT_SOURCE="$FALLBACK_WORKTREE_ROOT_SOURCE"
 }
 
-# Header root: the first TARGET whose worktreeroot.path resolves (discovery order), else the
-# fallback. Conformance does not use it; analyze_repo resolves each canonical checkout's own root.
 resolve_configured_worktree_root() {
   local probe
   if resolve_fallback_worktree_root; then
@@ -1818,7 +1783,6 @@ classify_bare_live_tree() {
   [[ "$bare" == "true" ]] || return 1
   wt_count="$(count_worktree_registrations "$dir")"
   directory_has_non_git_entries "$dir" && has_content="true"
-  # Pure bare hub (no checkout debris, no linked registrations): not this finding.
   if [[ "$has_content" != "true" && "$wt_count" -le 1 ]]; then
     return 1
   fi
@@ -1833,9 +1797,6 @@ classify_bare_live_tree() {
     "core.bare=true coincides with $detail; linked worktrees keep working -- only the main worktree is disabled"
 }
 
-# record_bare_live_tree <path> <evidence> <common_key>: defer a bare-repo-with-working-tree finding.
-# Dedup is by common-dir among anomaly records only — a linked worktree already queued for audit
-# must not suppress the anomaly finding for the misconfigured main path.
 record_bare_live_tree() {
   local path="$1" evidence="$2" common_key="$3" existing
   for existing in "${BARE_LIVE_TREE_COMMON_KEYS[@]:-}"; do
@@ -1846,9 +1807,6 @@ record_bare_live_tree() {
   BARE_LIVE_TREE_COMMON_KEYS+=("$common_key")
 }
 
-# record_rejected_target <origin> <candidate> <config_reason> <discovery_reason>: after reject_target
-# returned (config/discovery), append the matching per-entry skip record. CLI/default never reach
-# here — reject_target exits for those origins.
 record_rejected_target() {
   local origin="$1" candidate="$2" config_reason="$3" discovery_reason="$4"
   if [[ "$origin" == "config" ]]; then
@@ -1865,8 +1823,6 @@ record_rejected_target() {
   fi
 }
 
-# discovery_skip_reason <candidate> <fallback>: prefer an unreadable classification when the path
-# cannot be entered; otherwise the caller-supplied non-repository reason.
 discovery_skip_reason() {
   local candidate="$1" fallback="$2"
   if [[ ! -r "$candidate" || ! -x "$candidate" ]]; then
@@ -1878,12 +1834,8 @@ discovery_skip_reason() {
 
 TARGETS=()
 TARGET_COMMON_KEYS=()
-# Candidates that resolved to a different main worktree than the path reached, reported in the
-# header so the substitution is never silent.
 RETARGETED_FROM=()
 RETARGETED_TO=()
-# Stale config-sourced entries collected during argument processing; the report header has not
-# printed yet, so they are emitted as per-entry UNKNOWN findings once it has.
 STALE_CONFIG_PATHS=()
 STALE_CONFIG_REASONS=()
 
@@ -1917,10 +1869,6 @@ reject_target() {
   display_value "$message" >&2
   printf '\n' >&2
   if [[ "$origin" == "default" ]]; then
-    # A config can be consumed yet carry no scope: valid entries like maxDepth or
-    # acknowledgments without any fleet.root/fleet.repo. Claiming --config was
-    # omitted would send the operator to create a file that already exists, so
-    # the remedy names the consumed config and directs scope INTO it.
     if [[ -n "$CONFIG_FILE" ]]; then
       cat >&2 <<EOF
 
@@ -1992,8 +1940,6 @@ add_target() {
     return 0
   fi
   capture_text top run_git_probe -C "$candidate" rev-parse --show-toplevel || {
-    # Git repository that is not a work tree: classify the bare+live-tree anomaly before treating
-    # the path as an ordinary rejection. Common-dir still resolves on these repositories.
     if bare_live_evidence="$(classify_bare_live_tree "$candidate")" &&
       capture_text common run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir &&
       [[ -n "$common" ]]; then
@@ -2030,10 +1976,6 @@ add_target() {
     # to its main worktree and retargets.
     capture_text main_resolved run_git_probe -C "$main_top" rev-parse --show-toplevel || main_resolved=""
     if [[ -n "$main_resolved" && "$(path_key "$main_resolved")" != "$(path_key "$top")" ]]; then
-      # Disclose the retarget. The operator supplied or discovered one path and the report is about
-      # another, so substituting it silently would be the same class of defect as a header asserting
-      # a scope the run's own inputs contradict. A config may name one path twice; record each
-      # distinct source once so the grouped header line cannot list the same path repeatedly.
       if ! array_contains "$top" "${RETARGETED_FROM[@]:-}"; then
         RETARGETED_FROM+=("$top")
         RETARGETED_TO+=("$main_resolved")
@@ -2083,8 +2025,6 @@ for ((root_index = 0; root_index < ${#ROOT_ARGS[@]}; root_index++)); do
   root="${ROOT_ARGS[$root_index]}"
   [[ -n "$root" ]] || continue
   if [[ ! -d "$root" ]]; then
-    # Same per-entry degradation as add_target: a configured root that has since been deleted
-    # is a stale-config-entry finding, not a run abort; a CLI --root typo still stops the run.
     [[ "$root_index" -ge "$CLI_ROOT_COUNT" ]] || fail "discovery root not found: $root"
     STALE_CONFIG_PATHS+=("$root")
     STALE_CONFIG_REASONS+=("configured fleet.root path is not a directory")
@@ -2105,9 +2045,6 @@ for ((root_index = 0; root_index < ${#ROOT_ARGS[@]}; root_index++)); do
     STALE_CONFIG_REASONS+=("configured fleet.root path is not readable/executable")
     continue
   fi
-  # Per-root visibility: attribute newly discovered repositories to this root so a root that
-  # contributed none is still reported. Deduplication credits a repo shared by nested/overlapping
-  # roots to the first root that reaches it, keeping sum(root counts) + explicit --repo == discovered.
   root_before=${#TARGETS[@]}
   fleet_discover_root "$root"
   ROOT_LABELS+=("$root")
@@ -2123,11 +2060,7 @@ if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SK
   fail "no Git working trees found in the requested scope"
 fi
 
-# Resolve the worktree convention root once for the fleet. Never invent a default: unset stays
-# unset and the report describes placement without asserting conformance.
 resolve_configured_worktree_root || true
-# Header root, kept so a repository whose own root differs can be named in the fleet summary.
-# Classification does not read it back: each repository uses its own key or the fallback.
 FLEET_WORKTREE_ROOT="$CONFIGURED_WORKTREE_ROOT"
 PER_REPOSITORY_WORKTREE_ROOTS=""
 
@@ -2154,8 +2087,6 @@ select_remote() {
     SELECTED_REMOTE="origin"
   else
     capture_text remotes run_git_probe -C "$repo" remote
-    # Sole-remote fallback. Collecting the non-empty lines answers both "how many" and
-    # "which one" from one pass, in place of two sed/wc/tr pipelines over the same text.
     while IFS= read -r name; do
       if [[ -n "$name" ]]; then
         remote_names+=("$name")
@@ -2264,7 +2195,6 @@ github_identity() {
 }
 
 REPOS_AUDITED=0
-# Per-repo GitHub identity observations for the cross-repo duplicate-checkout pass after the loop.
 IDENT_KEYS=()
 IDENT_PATHS=()
 
@@ -2300,10 +2230,6 @@ json_escape() {
 }
 
 repo_verdict() {
-  # Candidate counts follow actionable plan kinds (branch_action_kind / worktree_action_kind),
-  # not mere HIGH/MEDIUM confidence. Manual-review findings such as locked-worktree or
-  # merged-pr-tip-drift stay visible in kind counts but do not inflate "N candidates" when the
-  # action plan correctly lists "Actions: none".
   local repo_idx="$1"
   local i conf kind target
   local unknown=0
@@ -2342,7 +2268,6 @@ repo_kind_counts_text() {
     printf '%s' 'none'
     return 0
   fi
-  # Stable alphabetical kind order keeps the rollup table diffable.
   while read -r count kind; do
     [[ -n "$kind" ]] || continue
     text+="${text:+, }$kind=$count"
@@ -2626,9 +2551,6 @@ analyze_repo() {
     expected_default="$GH_ID_DEFAULT"
     expected_reason="$GH_ID_REASON"
     if [[ "$GH_ID_STATUS" == "OK" ]]; then
-      # Resolved identity is the PR/query authority even when the configured remote is stale.
-      # Do not return after github-remote-moved: local branch/worktree facts do not depend on the
-      # remote URL matching full_name, and a silent stop here would look identical to a clean repo.
       github_repo="$expected_actual"
       if [[ "$(lower "$expected_actual")" != "$(lower "$discovered_slug")" ]]; then
         emit_finding github-remote-moved "$discovered_remote ($discovered_slug -> $expected_actual)" \
@@ -2885,7 +2807,6 @@ analyze_repo() {
       printf '\0__repo_fleet_ref_status__ %s\0' "$?"
     )
     if [[ "$remote_branch_status" != "0" ]]; then
-      # Partial producer output is discarded so tip-drift push-state never trusts a half-built list.
       REMOTE_BRANCH_NAMES=()
       REMOTE_BRANCH_TIPS=()
       REMOTE_BRANCH_DATES=()
@@ -3060,9 +2981,6 @@ analyze_repo() {
 
   classify_unmerged_remote_branches
 
-  # Remote branches in a known family that no merged-remote-branch finding covers. Everything
-  # here reads the last-fetched inventory above plus local ancestry; no remote probe runs, and
-  # nothing here names a deletion.
   if [[ "$remote_inventory_failed" == "false" && -n "$canonical_remote" ]]; then
     printf -v now_epoch '%(%s)T' -1
     for ((ri = 0; ri < ${#REMOTE_BRANCH_NAMES[@]}; ri++)); do
@@ -3125,13 +3043,7 @@ elif [[ "$GH_READY" == "true" ]]; then
 else
   printf 'GitHub evidence: unavailable\n'
 fi
-# Two different quantities: this one counts discovery targets, the Summary line counts
-# repositories that completed a local audit. Both are qualified so a reader cannot read a
-# shortfall as a discrepancy.
 printf 'Repositories discovered (audit targets after deduplication): %s\n' "${#TARGETS[@]}"
-# One line per repository of record, listing every path that resolved into it. A separate line per
-# retargeted path would print N lines for a repository the count above reports once, which reads as
-# N repositories.
 RT_REPORTED=()
 for ((rt_index = 0; rt_index < ${#RETARGETED_TO[@]}; rt_index++)); do
   rt_to="${RETARGETED_TO[$rt_index]}"
@@ -3156,17 +3068,11 @@ for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
   printf ': %s repositories\n' "${ROOT_COUNTS[$root_index]}"
 done
 
-# Discovery walks directories that are mostly not repositories; when a .git marker fails validation
-# (or a directory is unreadable), the path is skipped rather than aborting. Report the counts so
-# silence is not mistaken for a complete walk.
 if [[ ${#ROOT_LABELS[@]} -gt 0 ]]; then
   printf 'Discovery skips: %s non-repository, %s unreadable, %s symlink\n' \
     "$DISCOVERY_NONREPO_COUNT" "$DISCOVERY_UNREADABLE_COUNT" "${#DISCOVERY_SYMLINK_PATHS[@]}"
 fi
 
-# Config-sourced entries that failed per-entry validation during argument processing (the header
-# had not printed yet); each is a visible finding, never a silent skip. Fleet-scoped: no repository
-# record owns them, so CURRENT_REPO_IDX stays -1 and the rollup lists them under Fleet-level.
 CURRENT_REPO_IDX=-1
 for ((stale_index = 0; stale_index < ${#STALE_CONFIG_PATHS[@]}; stale_index++)); do
   emit_finding stale-config-entry "${STALE_CONFIG_PATHS[$stale_index]}" \
@@ -3174,7 +3080,6 @@ for ((stale_index = 0; stale_index < ${#STALE_CONFIG_PATHS[@]}; stale_index++));
     "Remove or correct the entry via /repo-fleet-hygiene:setup apply, or restore the path, then rerun"
 done
 
-# Discovery-sourced husks/unreadable paths with a .git marker; same visibility rule as stale config.
 for ((skip_index = 0; skip_index < ${#DISCOVERY_SKIP_PATHS[@]}; skip_index++)); do
   printf '\n'
   skip_remedy="$(skip_setup_remedy "${DISCOVERY_SKIP_PATHS[$skip_index]}")"
@@ -3207,9 +3112,6 @@ for target in "${TARGETS[@]}"; do
   analyze_repo "$target"
 done
 
-# Cross-repository view: multiple independent checkouts of the same normalized GitHub identity are
-# each audited on their own local state (correct), but the coincidence itself gets one LOW
-# informational line per identity -- never more, since same-identity clones legitimately diverge.
 CURRENT_REPO_IDX=-1
 DUP_REPORTED=()
 for ((di = 0; di < ${#IDENT_KEYS[@]}; di++)); do
@@ -3313,10 +3215,6 @@ for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
   printf '%s\n' '---'
 done
 
-# Fleet-level findings (stale config, discovery skips/symlinks, duplicate-checkout)
-# get their own rollup row. Their evidence gaps (all UNKNOWN kinds except the disclosed
-# discovery skips) must also move the overall Fleet verdict off CLEAN — repo_verdict -1
-# already classifies them; count that here.
 fleet_level_count=0
 for ((i = 0; i < ${#F_KIND[@]}; i++)); do
   [[ "${F_REPO_IDX[$i]}" == "-1" ]] && fleet_level_count=$((fleet_level_count + 1))
@@ -3420,7 +3318,6 @@ for ((i = 0; i < ${#F_KIND[@]}; i++)); do
   fi
 done
 
-# Index of the unmerged-remote-branch candidate for a target, or non-zero when there is none.
 rb_index() {
   local j
   for ((j = 0; j < ${#RB_TARGET[@]}; j++)); do
@@ -3429,7 +3326,6 @@ rb_index() {
   return 1
 }
 
-# Stable order: phase (branch=1 before worktree=2), then canonical path, then original index.
 ACTION_ORDER=()
 for ((i = 0; i < ${#ACTION_SKILL[@]}; i++)); do
   ACTION_ORDER+=("$i")
@@ -3481,7 +3377,6 @@ if [[ ${#RB_TARGET[@]} -gt 0 ]]; then
   printf 'Remote branches: delete-remote-branches runs only when apply-plan.sh gets --apply --remote-branches in an interactive terminal, one confirmation per branch at its expected_oid; a session without a terminal only previews, and apply never runs it by default\n'
 fi
 
-# --- Machine-readable plan artifact ----------------------------------------
 if [[ -z "$PLAN_FILE" ]]; then
   PLAN_FILE="$(mktemp "${TMPDIR:-/tmp}/repo-fleet-hygiene-plan.XXXXXX.json")"
 fi
@@ -3512,11 +3407,8 @@ fi
     printf '      "remote": "%s",\n' "$(json_escape "${R_REMOTE[$ri]}")"
     printf '      "verdict": "%s",\n' "$(json_escape "$verdict")"
     printf '      "kind_counts_text": "%s",\n' "$(json_escape "$kinds")"
-    # R_COUNTED holds the JSON literal already: "false" at begin_repo_record, "true" at
-    # mark_repo_counted. Re-deriving it through a subshell test emitted the same two strings.
     printf '      "audited": %s,\n' "${R_COUNTED[$ri]}"
     printf '      "targets": [\n'
-    # Collapse findings by target for this repository.
     target_list=()
     for ((fi = 0; fi < ${#F_KIND[@]}; fi++)); do
       [[ "${F_REPO_IDX[$fi]}" == "$ri" ]] || continue
@@ -3608,7 +3500,6 @@ printf 'Apply dry-run: %s --apply-plan ' "$0"
 display_value "$plan_file_display"
 printf '\n'
 
-# --- Optional detail: collapsed per-target blocks + confidence groups -------
 if [[ "$DETAIL" == "true" ]]; then
   printf '\n'
   printf 'Detail (targets collapsed; one entry per path/branch)\n'

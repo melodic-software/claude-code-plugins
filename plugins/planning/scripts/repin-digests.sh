@@ -101,8 +101,6 @@ find_pins() {
   ' "$test_file"
 }
 
-# Resolve every label before any write, reporting each one that does not name exactly one
-# new pin.
 call_lines=()
 sha_lines=()
 refused=0
@@ -128,7 +126,6 @@ for label in "${labels[@]}"; do
 done
 [[ $refused -eq 0 ]] || exit 3
 
-# var_raw <name>: the text inside the quotes of the test file's one column-0 NAME="..." line.
 var_raw() {
   local name="$1" line raw="" n=0
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -225,7 +222,6 @@ for i in "${!call_lines[@]}"; do
   call="${call_lines[$i]}"
   old="$(sed -n "${sha_lines[$i]}p" "$test_file" | tr -d ' \t"')"
   call_text="$(sed -n "${call}p" "$test_file")"
-  # The label is the call's first argument, backslashes dropped; it ends at the line's last quote.
   pin_label="${call_text//\\/}"
   [[ "$pin_label" =~ $label_re ]] && pin_label="${BASH_REMATCH[1]}"
   kind="$call_text"
@@ -234,7 +230,6 @@ for i in "${!call_lines[@]}"; do
   pin_labels+=("$pin_label")
   news+=("")
 
-  # Every line between the call line and the sha literal is one plain quoted argument.
   args=()
   why=""
   for ((n = call + 1; n < sha_lines[i]; n++)); do

@@ -7,7 +7,6 @@ snapshot<->lease scope-pairing validation. The lease CLI and every sibling
 script that coordinates through leases import this module; none reimplement
 any of it.
 """
-
 from __future__ import annotations
 
 import hashlib
@@ -24,14 +23,8 @@ from babysit_util import parse_timestamp
 DEFAULT_QUEUE_TTL_SECONDS = 3600
 DEFAULT_WORKER_TTL_SECONDS = 5400
 
-# The holder promises to heartbeat at least this often (see
-# reference/orchestration.md). It matches the skill's tightest "active" cadence.
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 300
-# A held-but-unexpired lease is reclaimable only after this many seconds without
-# a heartbeat -- three missed intervals of margin, far below the TTL backstop, so
-# a live run always refreshes before it can be mistaken for dead.
 DEFAULT_STALE_TAKEOVER_SECONDS = 900
-# Refuse a takeover threshold small enough to race a legitimately slow heartbeat.
 MIN_STALE_TAKEOVER_SECONDS = 300
 
 
@@ -190,14 +183,10 @@ def acquire(
     reclaimed_stale = False
     if current and lease_expiry(current) > now:
         if token and current.get("token") == token:
-            # Re-acquiring our own live lease: keep its identity, extend the TTL.
             started_at = str(current.get("started_at") or now.isoformat())
             lease_token = token
             effective_run_id = run_id or current.get("run_id") or ""
         elif steal_stale and lease_is_stale(current, now, stale_after_seconds):
-            # Provably dead holder: take over with a fresh token. Rotating the
-            # token fences the evicted run -- its next heartbeat or release fails
-            # the ownership check instead of mutating a scope it no longer holds.
             started_at = now.isoformat()
             lease_token = generate_lease_token()
             effective_run_id = run_id or ""
@@ -301,12 +290,10 @@ def reap(
         with state_lock(path):
             current = load_lease(path)
             if current is None:
-                # Already released or reaped by a concurrent run.
                 continue
             try:
                 expiry = lease_expiry(current)
             except RuntimeError:
-                # Never guess at an unparsable expiry; leave it for a human.
                 results.append(_reap_row(path, current, "invalid expires_at"))
                 continue
             if expiry > (now or datetime.now(UTC)):
@@ -331,7 +318,6 @@ def _reap_row(
     *,
     with_holder: bool = True,
 ) -> dict[str, Any]:
-    """One `reap` result: reaped unless a `skip_reason` says why not."""
     row: dict[str, Any] = {"path": str(path), "reaped": skip_reason is None}
     if skip_reason is not None:
         row["reason"] = skip_reason

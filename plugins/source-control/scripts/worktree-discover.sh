@@ -69,8 +69,6 @@ fail() {
   exit 2
 }
 
-# Read-only: with this wrapper defined the resolver's retired-alias peel only
-# reads, as in the fleet audit.
 _worktree_root_git() { command git "$@"; }
 # shellcheck source=worktree-root-resolve.sh
 source "$SCRIPT_DIR/worktree-root-resolve.sh"
@@ -118,7 +116,6 @@ remove_input_files_on_exit() {
 named=()
 fallback_root=""
 data_root=""
-# Unset until the flag appears, so an empty value is still read, and refused.
 unset fallback_root_file data_root_file
 project_dir="${CLAUDE_PROJECT_DIR:-}"
 while [[ $# -gt 0 ]]; do
@@ -173,7 +170,6 @@ done
 if [[ -n "$conf" ]]; then
   git config --file "$conf" --list >/dev/null 2>&1 || fail "invalid Git config: $conf"
   fleet_load_config_skip "$conf"
-  # Named repositories replace the configured scope rather than adding to it.
   [[ ${#named[@]} -gt 0 ]] || fleet_load_config_scope "$conf" "${conf%/*}"
 fi
 fleet_finalize_skip_names
@@ -213,7 +209,6 @@ owner_of() {
     printf '%s' "$common"
   fi
 }
-# tsv_safe <path>: false, with a warning, when <path> cannot be a TSV field.
 tsv_safe() {
   [[ "$1" != *$'\t'* && "$1" != *$'\n'* ]] && return 0
   printf '%s: skipped a path holding a tab or newline: %q\n' "$PROG" "$1" >&2
@@ -243,7 +238,6 @@ add_root() {
   roots+=("$p")
   rungs+=("$2")
 }
-# The chain worktree-create.sh applies, below its explicit --root rung.
 machine_key=""
 while IFS= read -r line; do
   machine_key="${line%$'\r'}"
@@ -257,8 +251,6 @@ rest_of_chain() {
 }
 if [[ -n "$machine_key" ]]; then add_root "$machine_key" git-config; else rest_of_chain; fi
 
-# --- Resolve each repository's root and scan each root, until neither grows --
-# A root scan can find an owner discovery missed, whose own root may differ.
 wt_rows=""
 wt_seen=$'\n'
 resolved=0
@@ -290,16 +282,10 @@ while [[ $resolved -lt ${#repos[@]} || $scanned -lt ${#roots[@]} ]]; do
   done
 done
 
-# --- Registered worktrees the scan cannot see -------------------------------
-# The scan reads only a root's direct children, so a worktree nested deeper
-# (inside another worktree's .work/, or under a per-repository directory) is
-# found through its repository's own registration instead.
 roots_phys=()
 for i in ${roots[@]+"${!roots[@]}"}; do
   roots_phys[i]="$(cd -P -- "${roots[$i]}" 2>/dev/null && pwd)" || roots_phys[i]=""
 done
-# under_root <path>: true when a root holds <path>, which is put into UNDER
-# in that root's spelling, so it matches the scan's rows.
 under_root() {
   local i phys
   for i in ${roots[@]+"${!roots[@]}"}; do

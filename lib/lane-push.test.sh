@@ -37,7 +37,6 @@ BIN="$TMP/bin"
 LOG="$TMP/log"
 mkdir -p "$BIN" "$LOG" "$TMP/home"
 
-# The git shim: a push is recorded, never sent; everything else is real git.
 cat >"$BIN/git" <<EOF
 #!/usr/bin/env bash
 is_push=0 cflags=()
@@ -55,7 +54,6 @@ printf 'protocol=https\nhost=github.com\n\n' |
 exit "\${LP_PUSH_EXIT:-0}"
 EOF
 
-# The gh shim: the acting-login, default-branch and pull-request head reads.
 cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$LP_LOG/gh.calls"
@@ -111,7 +109,6 @@ new_repo() {
     commit -q --allow-empty -m init
 }
 
-# run <repo-dir> <args...>: run the script there, leaving RC, OUT, ERR.
 run() {
   local dir=$1
   shift
@@ -123,7 +120,6 @@ run() {
 pushed() { [[ -f "$LOG/push.argv" ]]; }
 gh_called() { [[ -f "$LOG/gh.calls" ]]; }
 
-# expect_refused <name> <code>: exit 2, the code named, nothing pushed.
 expect_refused() {
   if [[ $RC == 2 && $ERR == *"refused: $2"* ]] && ! pushed; then
     pass "$1"
@@ -150,15 +146,12 @@ expected_argv() {
 
 new_repo main
 
-# 1. A same-repository push: the constructed URL, refspec and -c options.
 run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch feat/x-1
 assert_eq "case 1: exit 0" 0 "$RC"
 assert_eq "case 1: argv is the constructed push" \
   "$(expected_argv https://github.com/example-org/example-repo.git HEAD:refs/heads/feat/x-1)" \
   "$(cat "$LOG/push.argv" 2>/dev/null)"
 
-# 2. The scrubbed environment: no caller git variable reaches git, and the
-# script's own four are set.
 HOSTILE_VARS=(GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_SSH
   GIT_SSH_COMMAND GIT_ASKPASS SSH_ASKPASS GIT_PROXY_COMMAND GIT_TRACE GIT_TRACE_CURL
   GIT_ALLOW_PROTOCOL GIT_SSL_NO_VERIFY GIT_TERMINAL_PROMPT BASH_ENV)
@@ -207,7 +200,6 @@ for spec in \
   expect_refused "case 3: local $key is refused" "$code"
 done
 
-# 4. Worktree config is read when the extension is on.
 new_repo wt
 "$REAL_GIT" -C "$REPO_DIR" config extensions.worktreeConfig true
 "$REAL_GIT" -C "$REPO_DIR" config --worktree url.ssh://git@github.com/.pushInsteadOf https://github.com/
@@ -235,8 +227,6 @@ expect_refused "case 6: an unreadable login is refused" login-unreadable
 LP_LOGIN="" run "$REPO_DIR" --login "example-lane[bot]" --repo example-org/example-repo --branch main
 expect_refused "case 6: an empty login is refused" login-unreadable
 
-# 7. Owner, repository, branch, login and number outside the allowlist are
-# refused before any gh call.
 for spec in \
   "--repo|ex;ample/r|bad-repo" "--repo|-x/r|bad-repo" "--repo|o/..|bad-repo" "--repo|o/r/x|bad-repo" \
   "--repo|o/r x|bad-repo" "--repo|o|bad-repo" "--repo|o/\$(id)|bad-repo" \
@@ -258,7 +248,6 @@ for spec in \
   if gh_called; then fail "case 7: $flag '$value' made no gh call" "$(cat "$LOG/gh.calls")"; fi
 done
 
-# 8. A fork head: the target comes from the pull request's head repository.
 LP_HEAD_REPO="someone/example-fork" LP_HEAD_REF="fix/y" \
   run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --pr 12
 assert_eq "case 8: fork head exit 0" 0 "$RC"
@@ -277,14 +266,12 @@ expect_refused "case 8: a head branch outside the allowlist is refused" bad-bran
 run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --pr 12 --branch main
 expect_refused "case 8: --pr and --branch together are refused" usage
 
-# 9. --check runs every refusal but the push.
 run "$REPO_DIR" --login "$LP_LOGIN" --check
 assert_eq "case 9: check passes" 0 "$RC"
 if pushed; then fail "case 9: check pushes nothing" "pushed"; else pass "case 9: check pushes nothing"; fi
 LP_LOGIN="operator-example" run "$REPO_DIR" --login "example-lane[bot]" --check
 expect_refused "case 9: check refuses a login mismatch" login-mismatch
 
-# 10. A missing gh is refused; a failed push exits 1.
 mkdir -p "$TMP/nogh"
 ln -s "$BIN/git" "$TMP/nogh/git"
 ln -s "$BASH_BIN" "$TMP/nogh/bash"
@@ -296,13 +283,11 @@ expect_refused "case 10: a missing gh is refused" gh-missing
 LP_PUSH_EXIT=1 run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
 assert_eq "case 10: a failed push exits 1" 1 "$RC"
 
-# 11. --dir pushes another checkout's HEAD; a missing one is refused.
 run "$TMP" --dir "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
 assert_eq "case 11: --dir pushes from that checkout" 0 "$RC"
 run "$TMP" --dir "$TMP/missing" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
 expect_refused "case 11: a missing --dir is refused" bad-dir
 
-# 12. Not a checkout: the config read fails closed.
 mkdir -p "$TMP/plain"
 run "$TMP/plain" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
 expect_refused "case 12: outside a checkout is refused" config-unreadable
@@ -346,9 +331,6 @@ else
 fi
 rm -rf "$REPO_DIR/planted"
 
-# 15. A lane never pushes the base repository's default branch, by --branch or
-# by an in-repository pull request whose head is that branch. A fork's own
-# default branch is a fork PR's head, so it pushes.
 run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch trunk
 expect_refused "case 15: --branch on the default branch is refused" default-branch
 assert_eq "case 15: the default branch is read from the repository" \
@@ -373,8 +355,6 @@ expect_refused "case 15: a default branch outside the branch allowlist is refuse
 LP_HEAD_REPO="example-org/example-repo" LP_HEAD_REF="trunk" \
   run "$REPO_DIR" --login "$LP_LOGIN" --repo old-org/old-repo --pr 12
 expect_refused "case 15: an in-repository default-branch head under the base's old name is refused" default-branch
-# Only a fork of the base may be pushed on its own default branch: another
-# repository's head (the base's upstream, when the base is itself a fork) is not.
 LP_PARENT="" LP_HEAD_REPO="upstream-org/upstream" LP_HEAD_REF="trunk" \
   run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --pr 12
 expect_refused "case 15: a non-fork head repository's default branch is refused" default-branch

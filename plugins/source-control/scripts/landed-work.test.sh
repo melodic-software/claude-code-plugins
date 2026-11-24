@@ -62,12 +62,10 @@ commit_in() {
   git -C "$1" commit -qm "$4" >/dev/null 2>&1
 }
 
-# row <output> <path-substring> — the TSV row whose path contains the substring.
 row() {
   awk -F'\t' -v pat="$2" 'index($1, pat) { print; exit }' <<<"$1"
 }
 
-# col <row> <n>
 col() {
   awk -F'\t' -v c="$2" '{ print $c; exit }' <<<"$1"
 }
@@ -122,8 +120,6 @@ assert_eq "squash: seen by the range patch-id, which per-commit cannot see" \
   "range-patchid" "$(col "$R" $C_METHOD)"
 assert_eq "squash: risk is landed, not stranded" "landed" "$(col "$R" $C_RISK)"
 
-# The base advances over a path the branch touched — the exact condition that
-# decays a path-scoped two-dot verdict to a false `no`.
 commit_in "$W" a.txt "alpha
 gamma" "base advances over a.txt"
 git -C "$W" push -q origin main >/dev/null 2>&1
@@ -156,8 +152,6 @@ R="$(row "$OUT" "wt-stranded")"
 assert_eq "negative control: not landed" "no" "$(col "$R" $C_LANDED)"
 assert_eq "negative control: risk is STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
 
-# Same fixture, with the branch named as a merged PR head ref: landed=no plus a
-# merged PR is a superseded draft, a different disposition from stranded.
 MERGED_REFS="$TEST_TMPDIR/merged-refs.txt"
 printf 'feat-stranded\n' >"$MERGED_REFS"
 OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers --merged-refs-file "$MERGED_REFS")"
@@ -165,7 +159,6 @@ R="$(row "$OUT" "wt-stranded")"
 assert_eq "merged head ref reclassifies landed=no as superseded" \
   "superseded" "$(col "$R" $C_RISK)"
 
-# The main checkout itself has nothing unpushed and must not be classified.
 R="$(row "$OUT" "$(basename "$W")")"
 assert_eq "nothing unpushed skips the landed computation" "n/a" "$(col "$R" $C_LANDED)"
 assert_eq "nothing unpushed is ok" "ok" "$(col "$R" $C_RISK)"
@@ -188,11 +181,6 @@ R="$(row "$OUT" "wt-delete-only")"
 assert_eq "a delete-only branch is NOT landed" "no" "$(col "$R" $C_LANDED)"
 assert_eq "a delete-only branch is STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
 
-# The base takes the branch's content AND more of the same file, so its commit is
-# a different patch — no patch-id matches, and the two-dot is non-empty. With no
-# direction test this reports `no`: over-cautious by exactly one
-# confirmation prompt, and indistinguishable-from-data-loss if it said otherwise.
-# The genuinely landed shapes are caught by the range patch-id above instead.
 W="$(mkfixture)"
 WT_BEHIND="$TEST_TMPDIR/wt-behind"
 git -C "$W" worktree add -q -b feat-behind "$WT_BEHIND" main >/dev/null 2>&1
@@ -336,7 +324,6 @@ assert_eq "detached HEAD is reported as such" "(detached)" "$(col "$R" $C_BRANCH
 assert_eq "detached HEAD reports THIS worktree's own commit" "1" "$(col "$R" $C_UNPUSHED)"
 assert_eq "detached HEAD with unlanded work is STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
 
-# A second detached worktree at the same commit: the commits are held elsewhere.
 WT_PEER="$TEST_TMPDIR/wt-peer"
 DETACHED_OID="$(git -C "$WT_DETACHED" rev-parse HEAD)"
 git -C "$W" worktree add -q --detach "$WT_PEER" "$DETACHED_OID" >/dev/null 2>&1
@@ -405,7 +392,6 @@ assert_eq "notgit risk lands in the risk column under IFS-tab read" "notgit" "$n
 assert_eq "notgit reason lands in the reason column under IFS-tab read" \
   "path-absent" "$notgit_reason"
 
-# Same contract on the other head-less row class: a bare hub.
 BARE_HUB2="$(mktemp -d "$TEST_TMPDIR/hub2XXXXXX")/hub2.bare"
 git init -q --bare -b main "$BARE_HUB2" >/dev/null 2>&1
 OUT="$(bash "$ENGINE" --repo-dir "$BARE_HUB2" --no-peers)"
@@ -434,10 +420,6 @@ assert_eq "no resolvable base yields ? and never no" "?" "$(col "$R" $C_LANDED)"
 assert_eq "no resolvable base is UNKNOWN, which a guard treats as stranded" \
   "UNKNOWN" "$(col "$R" $C_RISK)"
 assert_contains "the degradation carries a reason" "$(col "$R" $C_REASON)" "no-base-ref"
-
-# --------------------------------------------------------------------------
-# A paused merge inflates the staged tree with the merge's own result
-# --------------------------------------------------------------------------
 
 W="$(mkfixture)"
 WT_MERGE="$TEST_TMPDIR/wt-merge"
@@ -600,9 +582,6 @@ jq -Rn '[inputs | split(" ")] as $l
 STUB
 chmod +x "$PR_BIN/gh"
 
-# A branch whose two commits were never squashed onto the base by content the
-# engine can see: the base holds an unrelated later commit and the PR is the only
-# record of the merge.
 W="$(mkfixture)"
 WT_PR="$TEST_TMPDIR/wt-pr"
 git -C "$W" worktree add -q -b feat-pr "$WT_PR" main >/dev/null 2>&1
@@ -624,7 +603,6 @@ run_pr() {
 
 printf 'pr feat-pr main\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-head-equal"
 printf 'pr feat-pr feat-stack-base\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-stacked"
-# Another branch's PR in the same listing proves nothing for this one.
 printf 'pr feat-other main\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-other-branch"
 R="$(row "$(run_pr "$TEST_TMPDIR/pr-head-equal")" "wt-pr")"
 assert_eq "pr proof: HEAD equal to the merged PR head is landed" "yes" "$(col "$R" $C_LANDED)"
@@ -632,7 +610,6 @@ assert_eq "pr proof: method names the PR head" "merged-pr-head" "$(col "$R" $C_M
 assert_eq "pr proof: risk is landed" "landed" "$(col "$R" $C_RISK)"
 assert_not_contains "pr proof: the reason carries no stale not-landed text" "$(col "$R" $C_REASON)" "head-differs"
 
-# A PR merged into another feature branch never reached the base.
 R="$(row "$(run_pr "$TEST_TMPDIR/pr-stacked")" "wt-pr")"
 assert_eq "pr proof: a PR merged into a non-base branch is not landed" "no" "$(col "$R" $C_LANDED)"
 
@@ -641,7 +618,6 @@ assert_eq "pr proof: another branch's merged PR is not landed" "no" "$(col "$R" 
 assert_contains "pr proof: the reason names the missing PR" "$(col "$R" $C_REASON)" "no-merged-pr-into-main-for-branch"
 assert_not_contains "pr proof: a short listing is not called full" "$(col "$R" $C_REASON)" "in-newest-"
 
-# A listing that filled --merged-pr-limit may have cut off this branch's PR.
 R="$(row "$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-other-branch" \
   bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof --merged-pr-limit 1)" "wt-pr")"
 assert_contains "pr proof: a full listing says so" "$(col "$R" $C_REASON)" "no-merged-pr-into-main-for-branch-in-newest-1"
@@ -651,14 +627,11 @@ R="$(row "$(run_pr "$TEST_TMPDIR/pr-commits-only")" "wt-pr")"
 assert_eq "pr proof: every local commit in the PR commit list is landed" "yes" "$(col "$R" $C_LANDED)"
 assert_eq "pr proof: method names the commit list" "merged-pr-commits" "$(col "$R" $C_METHOD)"
 
-# A later local commit that is not in the PR stays unproven, so a reused branch
-# name does not read as landed.
 commit_in "$WT_PR" p3.txt "three" "later commit not in the PR"
 R="$(row "$(run_pr "$TEST_TMPDIR/pr-commits-only")" "wt-pr")"
 assert_eq "pr proof: a later commit not in the PR is not landed" "no" "$(col "$R" $C_LANDED)"
 assert_contains "pr proof: the reason says why" "$(col "$R" $C_REASON)" "local-commits-not-all-in-merged-pr"
 
-# A failed PR read keeps the prior verdict and names the failed read.
 R="$(row "$(run_pr "$TEST_TMPDIR/pr-commits-only" 1)" "wt-pr")"
 assert_eq "pr proof: a failed read keeps the prior verdict" "no" "$(col "$R" $C_LANDED)"
 assert_contains "pr proof: the failed read is named" "$(col "$R" $C_REASON)" "merged-pr-read-failed:gh-pr-list"
@@ -670,7 +643,6 @@ assert_eq "pr proof: the error text adds no column" \
   "$(head -n 1 <<<"$OUT" | awk -F'\t' '{print NF}')" "$(awk -F'\t' '{print NF}' <<<"$R")"
 OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 
-# Bare-name invocation from the scripts directory still loads the library.
 BARE_OUT="$(cd "${ENGINE%/*}" && bash "${ENGINE##*/}" --repo-dir "$W" --no-peers)"
 assert_eq "bare-name invocation emits the same rows" "$OUT" "$BARE_OUT"
 
@@ -709,7 +681,6 @@ assert_eq "pr listing: the second branch is proven from the shared listing" \
 assert_eq "pr listing: a branch with no PR in the listing is not landed" \
   "no" "$(col "$(row "$OUT" "wt-many-3")" $C_LANDED)"
 
-# A failed listing is cached too: a rate-limited read is not retried per worktree.
 : >"$GH_LOG"
 OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-many" GH_STUB_LOG="$GH_LOG" GH_STUB_FAIL=1 \
   bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof 2>"$MANY_ERR")"
@@ -717,8 +688,6 @@ assert_eq "pr listing: a failed listing is read once" "1" "$(grep -c . "$GH_LOG"
 assert_contains "pr listing: a later row still names the failed read" \
   "$(col "$(row "$OUT" "wt-many-3")" $C_REASON)" "merged-pr-read-failed:gh-pr-list"
 
-# Each repository gets its own listing: a worktree of a second repository never
-# reads the first one's PRs.
 W2="$(mkfixture)"
 git -C "$W2" worktree add -q -b feat-many-1 "$TEST_TMPDIR/wt-other-repo" main >/dev/null 2>&1
 commit_in "$TEST_TMPDIR/wt-other-repo" other1.txt "other repo" "other repo commit"
@@ -730,8 +699,6 @@ OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-many" GH_STUB_LOG="$GH_
 assert_eq "pr listing: two repositories make two gh calls" "2" "$(grep -c . "$GH_LOG")"
 assert_contains "pr listing: the count covers both repositories" "$(cat "$MANY_ERR")" "merged-pr-proof made 2 gh call(s)"
 
-# Paging: the listing follows the cursor, each page is one gh call, and it stops
-# at --merged-pr-limit.
 printf 'next c1\npr feat-many-1 main\nhead %s\ncommit %s\npr feat-gone main\nhead %s\ncommit %s\n' \
   "$MANY1" "$MANY1" "$MANY1" "$MANY1" >"$TEST_TMPDIR/pr-paged"
 printf 'pr feat-many-2 main\nhead %s\ncommit %s\n' "$MANY2" "$MANY2" >"$TEST_TMPDIR/pr-paged.c1"
@@ -760,7 +727,6 @@ assert_eq "pr paging: a PR past the limit proves nothing" \
 OUT="$(run_paged --merged-pr-limit 3)"
 assert_contains "pr paging: the last page asks only for what the limit leaves" "$(sed -n 2p "$GH_LOG")" "-F first=1 "
 
-# An empty page that still claims more ends the listing.
 printf 'next c1\n' >"$TEST_TMPDIR/pr-empty"
 printf 'pr feat-many-2 main\nhead %s\ncommit %s\n' "$MANY2" "$MANY2" >"$TEST_TMPDIR/pr-empty.c1"
 : >"$GH_LOG"
@@ -769,7 +735,6 @@ OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-empty" GH_STUB_LOG="$GH
 assert_eq "pr paging: an empty page stops the listing" "1" "$(grep -c . "$GH_LOG")"
 assert_eq "pr paging: nothing past an empty page is read" "no" "$(col "$(row "$OUT" "wt-many-2")" $C_LANDED)"
 
-# A failed later page fails the whole listing: the first page proves nothing.
 OUT="$(GH_STUB_FAIL_AFTER=c1 run_paged)"
 assert_eq "pr paging: a failed page proves nothing" "no" "$(col "$(row "$OUT" "wt-many-1")" $C_LANDED)"
 assert_contains "pr paging: the failed page is named" \
@@ -781,9 +746,6 @@ for BAD_LIMIT in 0 x; do
   assert_eq "pr listing: --merged-pr-limit $BAD_LIMIT is a usage error" "2" "$rc"
 done
 
-# wt-window-a branches at the seed and lands as a squash (range-patchid);
-# wt-window-b branches after that squash and lands as two twin commits
-# (per-commit-patchid); wt-window-c branches later still and never lands (no).
 W="$(mkfixture)"
 WT_WA="$TEST_TMPDIR/wt-window-a"
 WT_WB="$TEST_TMPDIR/wt-window-b"
@@ -806,8 +768,6 @@ commit_in "$WT_WC" wc1.txt "window c one" "wc1"
 commit_in "$W" wmain.txt "main moves on" "main advances"
 git -C "$W" push -q origin main >/dev/null 2>&1
 
-# The shim logs the commit list each base-window render reads on stdin, so the
-# test counts how often each base commit was hashed.
 REAL_GIT="$(command -v git)"
 SHIM_BIN="$TEST_TMPDIR/git-shim"
 WINDOW_LOG="$TEST_TMPDIR/window-renders"
@@ -823,9 +783,6 @@ chmod +x "$SHIM_BIN/git"
 
 BASE_TOTAL="$(git -C "$W" rev-list --count --no-merges "$SEED..origin/main")"
 
-# Newest merge-base first grows the window one range at a time; oldest first
-# hashes every base commit in the first worktree's turn, so the later verdicts
-# rest only on ids another worktree hashed.
 for ORDER in newest-first oldest-first; do
   : >"$WINDOW_LOG"
   if [[ "$ORDER" == "newest-first" ]]; then
@@ -846,8 +803,6 @@ for ORDER in newest-first oldest-first; do
   assert_eq "window ($ORDER): no base commit is hashed twice across the worktrees" \
     "$BASE_TOTAL" "$(grep -c . "$WINDOW_LOG")"
 
-  # A run over one worktree renders only that worktree's own range, which is
-  # what every worktree got before the window, so each row must match it.
   for WT in "$WT_WA" "$WT_WB" "$WT_WC"; do
     ALONE="$(bash "$ENGINE" --worktree "$WT" --no-peers | sed -n 2p)"
     assert_eq "window ($ORDER): ${WT##*/} classifies the same alone as beside the others" \

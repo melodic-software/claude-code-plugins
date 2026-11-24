@@ -33,9 +33,6 @@ assert_eq() {
 
 g() { git -c user.email=t@example.invalid -c user.name=t -c commit.gpgsign=false "$@"; }
 
-# fixture <name> <default-branch file text, or - for none>: a clone of a local
-# bare origin whose default branch commits that text as
-# docs/conventions/verification.yaml. Prints the clone's path.
 fixture() {
   local dir="$TEST_TMPDIR/$1"
   mkdir -p "$dir/work/docs/conventions"
@@ -186,8 +183,6 @@ rc=0
 CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_eq "a usage error still exits 0" 0 "$rc"
 
-# No default-branch text selects the working-tree read: a team file holding only `--worktree` beside a
-# working-tree copy set to off still resolves from the team text, which does not parse.
 repo=$(fixture selector $'--worktree\n')
 printf 'verification: off\n' >"$repo/$F"
 assert_eq "team file text cannot select the working-tree copy" \

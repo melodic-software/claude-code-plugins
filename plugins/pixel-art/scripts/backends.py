@@ -161,8 +161,6 @@ def _run_aseprite(spec, out_dir, scale, spec_path, env):
         if problem:
             return fallback(f"Aseprite sheet rejected ({problem})")
         gif_dir = work / "gif"
-        # The native render into out_dir drops GIFs of removed animations using the previous
-        # sheet.json; do the same here, since this path only copies the new GIFs.
         previous = out_dir / "sheet.json"
         if previous.is_file():
             try:

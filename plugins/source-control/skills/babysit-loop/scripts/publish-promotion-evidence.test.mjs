@@ -26,7 +26,6 @@ test("the demotion marker finds every demotion record vector and no post-merge-f
 });
 
 const queued = (at, enqueuer, actor = enqueuer) => ({ __typename: "AddedToMergeQueueEvent", createdAt: at, actor: actorOf(actor), enqueuer: actorOf(enqueuer) });
-// Every promotable cell: what a merge with no rung has its contrary events counted against.
 const ALL = ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"];
 
 const labelEvent = (event, name, at, login = "kyle-sexton", type = "User") => ({ ...REC.issueEvent, event, label: { name }, actor: { login, type }, created_at: at });
@@ -38,10 +37,6 @@ function run(fixture, extra = {}) {
 const termOf = (result, cell, name) => result.cells[cell].terms.find((t) => t.term === name);
 
 const gateEvents = (at, ...cells) => cells.map((cell) => ({ cell, event: "gate-failure", at }));
-// A green lane dispatch run and a green canary run on `tip`: check() calls each merge they contain
-// verified.
-// Each merge gets them on its own merge commit `minutes` after merging (within the 6-hour dispatch
-// deadline by default).
 const verifiedEach = (pulls, minutes = 60) => ({
   [FULL]: pulls.map((p) => wfRun(900000 + p.graph.number, "workflow_dispatch", p.graph.mergeCommit.oid, later(p.graph.mergedAt, minutes), { actor: LANE })),
   [CANARY]: pulls.map((p) => wfRun(800000 + p.graph.number, "push", p.graph.mergeCommit.oid, later(p.graph.mergedAt, minutes))),
@@ -80,7 +75,6 @@ test("a red run on a commit off the branch is not charged, as in _Context.on_bra
       },
     });
   assert.deepEqual(red([off]).events, []);
-  // The same run with its commit on the branch is a gate failure.
   assert.deepEqual(red([]).gateFailures.map((g) => [g.number, g.check]), [[1601, `${FULL} workflow_dispatch`]]);
 });
 
@@ -174,7 +168,6 @@ test("a lane-enqueued merge passes only when its unedited lane pin names headRef
   assert.deepEqual(gateOf(withComments([pinComment(head, "C2")])), PASSED);
   const filler = Array.from({ length: 120 }, () => REC.commentsPage.data.repository.pullRequest.comments.nodes[0]);
   assert.deepEqual(gateOf(withComments([...filler, pinComment(head, "C2")])), PASSED);
-  // With no pin at its head the merge has no rung, so its gate failure counts against every cell.
   const noPin = gateEvents("2026-09-01T06:00:00Z", ...ALL);
   for (const list of [[], [{ ...pinComment(head, "C2"), lastEditedAt: "2026-09-01T00:30:00Z" }], [{ ...pinComment(head, "C2"), author: actorOf("kyle-sexton") }]]) {
     const result = withComments(list);
@@ -182,19 +175,15 @@ test("a lane-enqueued merge passes only when its unedited lane pin names headRef
   }
   const mismatch = withComments([pinComment(shaOf(0xbad), "C2")]);
   assert.deepEqual([gateOf(mismatch).total, mismatch.events], [0, gateEvents("2026-09-01T00:00:00Z", ...ALL)]);
-  // Before the deadline a missing pin is pending, as in check(): no event, and no credit yet.
   const fresh = [pr(1502, "2026-10-04T22:00:00Z")];
   const pending = run({ pulls: fresh, workflowRuns: verifiedEach(fresh, 30), comments: { 1502: [] } });
   assert.deepEqual([gateOf(pending).total, pending.events], [0, []]);
-  // A merge another bot enqueued is autonomous but not the lane's: it has no pin, so no rung.
   const bot = [pr(1503, "2026-09-01T00:00:00Z", { merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] })];
   const byBot = run({ pulls: bot, workflowRuns: verifiedEach(bot), comments: { 1503: [] } });
   assert.deepEqual([gateOf(byBot).total, byBot.events, byBot.noRungAutonomous], [0, [], [{ number: 1503, reason: "not enqueued by a lane identity: no pin" }]]);
 });
 
 test("a merge counts toward the cells of the rung its pin names, whatever its work-class labels", () => {
-  // A class-less, a structural and a mechanical item, each at c2-mechanical (pin C2)
-  // and at c3-autonomous or full-autonomy (both pin C3), count by the rung alone.
   const labelSets = [[], ["work-class: structural"], ["work-class: mechanical"]];
   const pulls = ["C2", "C3"].flatMap((rung, r) => labelSets.map((labels, i) => pr(1520 + 10 * r + i, `2026-09-0${1 + i}T00:00:00Z`, { rung, labels })));
   const result = run({ pulls, workflowRuns: verifiedEach(pulls) });
@@ -215,7 +204,6 @@ test("a lane identity's native auto-merge owes no pin, as in native_auto_merge",
   const armed = (kind, at, login = LANE) => ({ nodes: [{ __typename: kind, createdAt: at, actor: actorOf(login) }] });
   const enqueue = [queued("2026-08-31T23:50:00Z", LANE)];
   const pulls = (autoMerge, extra = {}, timeline = enqueue) => [pr(1505, "2026-09-01T00:00:00Z", { timeline, patch: { autoMerge, ...extra } })];
-  // A native merge owes no pin; with none it has no rung either: no credit, and contrary events on every cell.
   const judge = (autoMerge, extra, lanes = [LANE], timeline = enqueue) => {
     const result = run({ pulls: pulls(autoMerge, extra, timeline), workflowRuns: verifiedEach(pulls(autoMerge, extra, timeline)), comments: { 1505: [] } }, { laneLogins: lanes });
     return result.events;
@@ -223,23 +211,17 @@ test("a lane identity's native auto-merge owes no pin, as in native_auto_merge",
   const noPin = gateEvents("2026-09-01T06:00:00Z", ...ALL);
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z")), []);
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:50:00Z")), []);
-  // The gate's disarm, an arm after the enqueue, a person's arm, or no events: the pin stays owed.
   assert.deepEqual(judge(armed("AutoMergeDisabledEvent", "2026-08-31T23:40:00Z")), noPin);
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:55:00Z")), noPin);
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z", "kyle-sexton")), noPin);
-  // Unreadable auto-merge events refuse the publish, as the check reads them unreadable.
   assert.throws(() => judge(undefined), (error) => error instanceof PublishError && /no auto-merge events/.test(error.message));
-  // One lane identity opened and armed it, another enqueued it: not one identity's native merge.
   const lanes = [LANE, "other-lane[bot]"];
   const byOther = [queued("2026-08-31T23:50:00Z", "other-lane[bot]")];
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), {}, lanes, byOther), noPin);
-  // One lane identity opened it and another armed it: not one identity's native merge.
   const other = "other-lane[bot]";
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z", other), {}, [LANE, other]), noPin);
-  // A lane arm on a pull request the lane did not open from this repository is off the gate.
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), { author: actorOf("kyle-sexton") }), noPin);
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), { isCrossRepository: true }), noPin);
-  // A red full run after a native merge is still its gate failure.
   const native = pulls(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"));
   const red = run({ pulls: native, workflowRuns: { [FULL]: [wfRun(9, "schedule", shaOf(1505), "2026-09-01T02:00:00Z", { conclusion: "failure" })] }, comments: { 1505: [] } });
   assert.deepEqual(red.gateFailures.map((g) => [g.number, g.check]), [[1505, `${FULL} schedule`]]);
@@ -255,7 +237,6 @@ test("a native auto-merge credits the rung its lane's unedited pin at the merged
     assert.equal(termOf(result, `${rung}-auto-merge`, `autonomous ${rung} completions`).value, 1, rung);
     assert.deepEqual(result.noRungAutonomous, [], rung);
   }
-  // No pin, an old-shape pin, an edited pin, a pin at another head or by another author: no rung.
   const noRung = [
     [[], "no unedited lane pin"],
     [[pinComment(head)], "the pin names no rung"],
@@ -267,7 +248,6 @@ test("a native auto-merge credits the rung its lane's unedited pin at the merged
     const result = judge(list);
     assert.deepEqual(result.noRungAutonomous, [{ number: 1506, reason }], reason);
     assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0, reason);
-    // A native merge owes no pin, so a missing one is no gate failure.
     assert.deepEqual(result.events, [], reason);
   }
 });
@@ -540,7 +520,6 @@ test("advisory reviews are counted from the named AI reviewers and reported unme
   const fixture = { pulls: [pr(701, "2026-09-01T00:00:00Z", { rung: "C3" })], reviews: { 701: [REC.review] } };
   assert.equal(termOf(run(fixture, { aiReviewers: [REC.review.user.login] }), "C3-ai-review-blocking", "advisory AI reviews on C3").value, 1);
   assert.equal(termOf(run(fixture), "C3-ai-review-blocking", "advisory AI reviews on C3").value, null);
-  // Positive evidence comes from autonomous rung-C3 merges only: a human, C2 or no-rung merge's review does not count.
   const reviewed = (number) => [number, [REC.review]];
   const mixed = {
     pulls: [
@@ -588,7 +567,6 @@ test("a missed-blocking label a human applied and someone later removed still co
     issueEvents: { 904: [labelEvent("labeled", MISSED, "2026-09-04T00:00:00Z"), labelEvent("unlabeled", MISSED, "2026-09-05T00:00:00Z", LANE, "Bot")] },
   });
   assert.deepEqual(result.events, [{ cell: "C3-ai-review-blocking", event: "verification-divergence", at: "2026-09-04T00:00:00Z" }]);
-  // A human merge's confirmed miss still counts against the AI-review cell, and fails the term.
   const missed = termOf(result, "C3-ai-review-blocking", "human-confirmed missed-blocking findings");
   assert.equal(missed.value, 1);
   assert.equal(missed.pass, false);
@@ -626,7 +604,6 @@ test("a lane pin at another head names no rung for the merge, and its contrary e
     comments: { 1103: [pinComment(shaOf(0xbad), "C2")] },
   });
   assert.deepEqual(result.noRungAutonomous, [{ number: 1103, reason: "the pin names another head" }]);
-  // The pin read-back fails at the merge, and the check run ten minutes later.
   assert.deepEqual(result.events, [...gateEvents("2026-09-01T00:00:00Z", ...ALL), ...gateEvents("2026-09-01T00:10:00Z", ...ALL)]);
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
 });
@@ -650,7 +627,6 @@ test("lane logins match case-insensitively", () => {
 });
 
 test("a merge a bot or nobody enqueued is autonomous even under a human merged_by; a human enqueue is not", () => {
-  // Autonomous, the bot-enqueued merge is listed with no rung (it has no lane pin); the human ones are not.
   const result = run({
     pulls: [
       pr(1107, "2026-09-01T00:00:00Z", { rung: "C2", merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] }),
@@ -700,7 +676,6 @@ test("a later publish that finds an earlier revert of a published reverted merge
   const second = run(revertOf909(true)).events;
   publish(out, stamped(second), THROUGH);
   assert.deepEqual(JSON.parse(readFileSync(join(out, "evidence.json"), "utf8")), stamped(revertedAt("2026-09-01T23:55:00Z", "2026-09-02T00:00:00Z")));
-  // A set that really lacks the published event is still refused.
   assert.throws(() => publish(out, stamped(revertedAt("2026-09-01T23:55:00Z")), THROUGH), (error) => error instanceof PublishError && /refusing.*drop 1/.test(error.message));
 });
 
@@ -716,7 +691,6 @@ const UNSTAMPED = { cell: "C2-auto-merge", event: "reverted-merge", at: "2026-09
 const A = { ...UNSTAMPED, discovered: "2026-09-02T00:00:01Z" };
 const B = { cell: "C3-auto-merge", event: "gate-failure", at: "2026-09-03T00:00:00Z", discovered: "2026-09-03T00:00:01Z" };
 const hash = (text) => createHash("sha256").update(text).digest("hex");
-// A file from before `discovered`, which publish() no longer writes, with its matching sidecar.
 const writeLegacy = (out, events, generatedAt) => {
   const text = `${JSON.stringify(events, null, 2)}\n`;
   writeFileSync(join(out, "evidence.json"), text);
@@ -865,8 +839,6 @@ test("a repeat-failure comment inside the window counts; an issue filed before t
   assert.deepEqual(run({ demotionIssues: [old] }).events, gateEvents("2026-09-12T00:00:00Z", ...ALL));
 });
 
-// The repository is public, so anyone can comment on a record: only a filer's comment is a repeat
-// failure, as the alert workflow reads only its own. Every comment is read, however many.
 test("only a filer's repeat-failure comment counts, past the first hundred comments too", () => {
   const spam = Array.from({ length: 150 }, (_, i) => AGAIN(later("2026-09-12T00:00:00Z", i), "someone"));
   const record = demotionIssue(7008, "2026-07-01T00:00:00Z", { updatedAt: "2026-09-20T00:00:00Z", comments: [...spam, AGAIN("2026-09-20T00:00:00Z")] });
@@ -903,13 +875,9 @@ test("an issue number missing inside the window refuses with issue-deleted on 41
   assert.throws(() => run({ issueList: listed, discussions: { 7102: "github-actions[bot]" } }), refusesWith("issue-missing: #7102"));
   assert.throws(() => run({ issueList: listed, discussions: { 7102: LANE } }), refusesWith("issue-missing: #7102"));
   assert.throws(() => run({ issueList: listed, missingIssues: [7102] }), refusesWith("issue-missing: #7102"));
-  // Only numbers between items created inside the window are read.
   assert.deepEqual(run({ issueList: [issueItem(7100, "2026-07-01T00:00:00Z"), ...listed.slice(1)], goneIssues: [7101, 7102] }).events, []);
 });
 
-// Re-earn after a demotion: the C2 predicate (work-classes.md "Suggested default predicates") is
-// >= 20 autonomous C2 completions over >= 14 days, all gates passed, none reverted, counted only
-// over merges after the latest contrary event, here the demotion record filed 2026-08-10.
 const c2Merges = (count, day0) => Array.from({ length: count }, (_, i) => pr(900 + day0 + i, `2026-09-${String(day0 + i).padStart(2, "0")}T00:00:00Z`, { rung: "C2" }));
 const DEMOTED = "2026-08-10T00:00:00Z";
 const reearnRun = (pulls) => run({ pulls, workflowRuns: verifiedEach(pulls), demotionIssues: [demotionIssue(7301, DEMOTED)] });
@@ -918,7 +886,6 @@ test("a cell whose predicate passes again over the merges after its demotion get
   const pulls = c2Merges(20, 1);
   const result = reearnRun(pulls);
   assert.deepEqual(result.events, [...gateEvents(DEMOTED, ...ALL), { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: DEMOTED }]);
-  // The C3 cells' predicates do not pass, and the re-earn is not counted as a C2 demotion event.
   assert.equal(termOf(result, "C3-auto-merge", "C2 demotion events").value, 1);
   assert.deepEqual(reearnRun(pulls).events, result.events);
 });
@@ -946,7 +913,6 @@ test("a published re-earn the next run no longer derives is kept; a dropped cont
   assert.throws(() => publish(out, [reearn, later], THROUGH), (error) => error instanceof PublishError && /refusing.*drop 1/.test(error.message));
 });
 
-// A revert found late, dated before the window: the next run restarts the window at that run.
 const runAt = (now, pulls, extra = {}, prior = [], priorGeneratedAt = null) =>
   run({ pulls, workflowRuns: verifiedEach(pulls), demotionIssues: [demotionIssue(7301, DEMOTED)], ...extra }, { now: new Date(now), prior, priorGeneratedAt, through: "2026-10-31T00:00:00Z" });
 const fileOf = (out) => JSON.parse(readFileSync(join(out, "evidence.json"), "utf8"));
@@ -956,16 +922,13 @@ test("a contrary event found after a re-earn, dated before its since, restarts t
   const out = mkdtempSync(join(base, "out-"));
   const early = pr(960, "2026-08-05T00:00:00Z", { rung: "C2" });
   const first = c2Merges(20, 1);
-  // The run that publishes the demotion: its events are discovered then.
   const r1 = runAt("2026-08-10T00:04:30.500Z", [early]);
   assert.deepEqual(r1.events, gateEvents(DEMOTED, ...ALL).map((e) => ({ ...e, discovered: "2026-08-10T00:04:31Z" })));
   publish(out, r1.events, r1.through, new Date("2026-08-10T00:04:30.500Z"));
-  // Twenty merges after that run re-earn C2, counted from the demotion's discovery.
   const r2 = runAt("2026-09-21T00:00:00Z", [early, ...first], {}, fileOf(out), generatedOf(out));
   const reearn = { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: "2026-08-10T00:04:31Z" };
   assert.deepEqual(r2.events.filter((e) => e.event === "re-earned"), [reearn]);
   publish(out, r2.events, r2.through, new Date("2026-09-21T00:00:00Z"));
-  // A git revert of the early merge, committer-dated 2026-08-06, appears on the next run.
   const revert = {
     history: [early, ...first].map((p) => p.graph.mergeCommit.oid).concat(shaOf(999)),
     commits: [{ ...REC.commit, sha: shaOf(999), commit: { message: `Revert "x"\n\nThis reverts commit ${early.graph.mergeCommit.oid}.`, committer: { date: "2026-08-06T00:00:00Z" } } }],
@@ -974,9 +937,7 @@ test("a contrary event found after a re-earn, dated before its since, restarts t
   assert.deepEqual(r3.events.find((e) => e.event === "reverted-merge"), { cell: "C2-auto-merge", event: "reverted-merge", at: "2026-08-06T00:00:00Z", discovered: "2026-09-22T00:00:00Z" });
   assert.equal(r3.events.some((e) => e.event === "re-earned"), false);
   publish(out, r3.events, r3.through, new Date("2026-09-22T00:00:00Z"));
-  // The old re-earn is kept, and its since now precedes the revert's discovery: the checker voids it.
   assert.deepEqual(fileOf(out).filter((e) => e.event === "re-earned"), [reearn]);
-  // Twenty merges after 2026-09-22 re-earn C2 again from there.
   const second = Array.from({ length: 20 }, (_, i) => pr(1001 + i, new Date(Date.UTC(2026, 8, 23 + i)).toISOString().replace(".000Z", "Z"), { rung: "C2" }));
   const all = [early, ...first, ...second];
   const r4 = runAt("2026-10-20T00:00:00Z", all, { ...revert, history: all.map((p) => p.graph.mergeCommit.oid).concat(shaOf(999)) }, fileOf(out), generatedOf(out));
@@ -996,7 +957,6 @@ test("a contrary event with a missing or unparsable discovered time is refused a
   assert.throws(() => publish(out, [UNSTAMPED], THROUGH), refused);
   assert.throws(() => publish(out, [{ ...UNSTAMPED, discovered: "not a time" }], THROUGH), refused);
   assert.deepEqual(readdirSync(out), []);
-  // An event a file from before `discovered` holds cannot stay unstamped either.
   writeLegacy(out, [UNSTAMPED], "2026-09-10T00:00:00.200Z");
   assert.throws(() => publish(out, [UNSTAMPED], THROUGH, new Date("2026-09-11T00:00:00Z")), refused);
 });
@@ -1015,18 +975,14 @@ test("a run whose clock is behind the previous publish is refused, and its stamp
     () => publish(out, [A, B], THROUGH, new Date("2026-09-09T00:00:00Z")),
     (error) => error instanceof PublishError && /refusing.*before the previous publish's generated_at/.test(error.message),
   );
-  // Stamped one second past the previous publish's whole-second stamp (00:00:01Z), not at the
-  // behind clock's 2026-08-10.
   const behind = runAt("2026-08-10T00:00:00Z", [], {}, [], "2026-09-10T00:00:00.200Z");
   assert.deepEqual(behind.events.map((e) => e.discovered), ["2026-09-10T00:00:02Z", "2026-09-10T00:00:02Z", "2026-09-10T00:00:02Z"]);
 });
 
 test("a published event with no discovered time is stamped with that file's generated_at", () => {
-  // A file from before `discovered`: the demotion's three events, last published 2026-08-15.
   const result = runAt("2026-09-21T00:00:00Z", c2Merges(20, 1), {}, gateEvents(DEMOTED, ...ALL), "2026-08-15T00:00:00.400Z");
   assert.deepEqual(result.events.filter((e) => e.event !== "re-earned"), gateEvents(DEMOTED, ...ALL).map((e) => ({ ...e, discovered: "2026-08-15T00:00:01Z" })));
   assert.deepEqual(result.events.filter((e) => e.event === "re-earned"), [{ cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: "2026-08-15T00:00:01Z" }]);
-  // Without that bound the window would start at the demotion's at.
   assert.equal(runAt("2026-09-21T00:00:00Z", c2Merges(20, 1), {}, gateEvents(DEMOTED, ...ALL)).events.find((e) => e.event === "re-earned").since, DEMOTED);
 });
 
@@ -1048,14 +1004,11 @@ test("daily publishes over a file from before discovered keep its stamp fixed, s
 test("only the one upgrade stamp is allowed: a stamped discovered cannot move, and no other first stamp passes", () => {
   const out = mkdtempSync(join(base, "out-"));
   writeLegacy(out, [UNSTAMPED], "2026-09-10T00:00:00.200Z");
-  // A first stamp other than the file's generated_at, rounded up, is refused.
   assert.throws(() => publish(out, [{ ...A, discovered: "2026-09-10T00:00:00Z" }], THROUGH, new Date("2026-09-11T00:00:00Z")), (error) => error instanceof PublishError && /refusing.*discovered time of 1/.test(error.message));
   assert.throws(() => publish(out, [{ ...A, discovered: "2026-09-11T00:00:00Z" }], THROUGH, new Date("2026-09-11T00:00:00Z")), (error) => error instanceof PublishError && /refusing.*discovered time of 1/.test(error.message));
   publish(out, [{ ...A, discovered: "2026-09-10T00:00:01Z" }], THROUGH, new Date("2026-09-11T00:00:00Z"));
-  // Once stamped, a later run moving it to that run's previous generated_at, or dropping it, is refused.
   assert.throws(() => publish(out, [{ ...A, discovered: "2026-09-11T00:00:00Z" }], THROUGH, new Date("2026-09-12T00:00:00Z")), (error) => error instanceof PublishError && /refusing.*discovered time of 1/.test(error.message));
   assert.throws(() => publish(out, [UNSTAMPED], THROUGH, new Date("2026-09-12T00:00:00Z")), (error) => error instanceof PublishError && /refusing.*no parsable discovered time/.test(error.message));
-  // collect() keeps the stamp rather than re-deriving it from the newer generated_at.
   const r = runAt("2026-09-12T00:00:00Z", [], {}, [...fileOf(out), ...gateEvents(DEMOTED, ...ALL).map((e) => ({ ...e, discovered: "2026-08-10T00:00:01Z" }))], generatedOf(out));
   assert.deepEqual(r.events.map((e) => e.discovered), ["2026-08-10T00:00:01Z", "2026-08-10T00:00:01Z", "2026-08-10T00:00:01Z"]);
   assert.deepEqual(fileOf(out), [{ ...A, discovered: "2026-09-10T00:00:01Z" }]);

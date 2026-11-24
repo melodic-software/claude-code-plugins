@@ -200,7 +200,7 @@ class Launcher(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             fake, log = Path(tmp) / 'bin', Path(tmp) / 'log'
             fake.mkdir()
-            (fake / 'python3').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')   # below the floor
+            (fake / 'python3').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')
             (fake / 'python').write_text(f'#!/bin/sh\n[ "$1" = -I ] && exit 0\necho "$@" > {log}\n', encoding='utf-8')
             for f in fake.iterdir():
                 f.chmod(0o755)
@@ -358,7 +358,7 @@ class ReadyStamp(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)
             self.assertFalse(self.stamp.exists())
-            self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)   # no stamp to drop
+            self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)
         self.install_here()
         self.stamped()
         self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 0)
