@@ -5,7 +5,30 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 
 import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL } from "../work-resolve-issue/report-outcome.mjs";
-import { citedRun, decide, EVAL_GATED_LABEL, evalGatedIssue, holdDecision, LABEL, main, markers, mayRelease, onDefaultBranch, ownLines, RELEASES_PER_RUN, runVouches } from "./release-eval-hold.mjs";
+import {
+  CANNOT_START_CAUSES,
+  CANNOT_START_JOB,
+  cannotStartCause,
+  cannotStartMarker,
+  citedRun,
+  COMPARE_RUN_PAGES,
+  COMPARE_RUNS_LIST,
+  decide,
+  EVAL_GATED_LABEL,
+  evalGatedIssue,
+  evalPlugins,
+  holdDecision,
+  LABEL,
+  main,
+  markers,
+  mayRelease,
+  onDefaultBranch,
+  ownLines,
+  RELEASES_PER_RUN,
+  VERDICT_JOB,
+  verdictFailed,
+  runVouches,
+} from "./release-eval-hold.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
@@ -30,13 +53,15 @@ const comment = (body, { user = PERSON, at = "2026-11-06T11:00:00Z", app = null 
   body,
 });
 
-const pull = ({ labels = [LABEL], head = HEAD, body = "Closes #1", user = APP } = {}) => ({
+const SKILL_FILE = { filename: "plugins/alpha/skills/x/SKILL.md" };
+const pull = ({ labels = [LABEL], head = HEAD, body = "Closes #1", user = APP, changedFiles = 1 } = {}) => ({
   number: 7,
   user,
   state: "open",
   head: { sha: head },
   base: { repo: { default_branch: "main" } },
   body,
+  changed_files: changedFiles,
   labels: labels.map((name) => ({ name })),
 });
 
@@ -165,13 +190,18 @@ const RAN = { total_count: 2, jobs: [
   { name: "Compare Prepare", status: "completed", conclusion: "success" },
   { name: "Compare Record", status: "completed", conclusion: "success" },
 ] };
-function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, jobs = {}, compareStatus = "ahead", tip = TIP } = {}) {
+function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, jobs = {}, compareStatus = "ahead", tip = TIP, listed = [], timeline = events } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    if (method === "GET" && path.startsWith(`/repos/${REPO}${COMPARE_RUNS_LIST}&page=`)) {
+      if (listed === null) throw new Error("HTTP 502");
+      const page = Number(path.slice(`/repos/${REPO}${COMPARE_RUNS_LIST}&page=`.length));
+      return { total_count: listed.length, workflow_runs: listed.slice((page - 1) * 100, page * 100) };
+    }
     const jobsPath = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/jobs\?/.exec(path);
     if (method === "GET" && jobsPath) {
-      if (!(jobsPath[1] in runs)) throw new Error("HTTP 404");
+      if (!(jobsPath[1] in runs) && !(listed ?? []).some((run) => String(run.id) === jobsPath[1])) throw new Error("HTTP 404");
       return jobs[jobsPath[1]] ?? RAN;
     }
     if (method === "GET" && path === `/repos/${REPO}/git/ref/heads/main`) {
@@ -202,8 +232,12 @@ function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(p
     const match = /^\/repos\/[^/]+\/[^/]+\/(pulls|issues)\/([0-9]+)(\/[a-z]+)?/.exec(path);
     const entry = pulls[match?.[2]];
     if (method === "GET" && match[1] === "pulls" && !match[3]) return entry.pull;
+    if (method === "GET" && match[1] === "pulls" && match[3] === "/files") {
+      if (entry.files === null) throw new Error("HTTP 502");
+      return entry.files ?? [SKILL_FILE];
+    }
     if (method === "GET" && match[3] === "/comments") return entry.comments;
-    if (method === "GET" && match[3] === "/events") return events;
+    if (method === "GET" && match[3] === "/events") return timeline;
     if (method === "GET" && match[3] === "/reviews") return [];
     if (method === "POST" || method === "DELETE") return null;
     throw new Error(`unexpected ${method} ${path}`);
@@ -533,4 +567,365 @@ test("a failed read of the open pull requests fails the run and still runs the r
   const { code } = await quiet(() => main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED }, github }));
   assert.equal(code, 1);
   assert.ok(calls.some((call) => call.method === "DELETE" && call.path === `/repos/${REPO}/issues/7/labels/${LABEL}`));
+});
+
+const CANNOT_RUN_ID = "44900000002";
+const CAPTURED_JOBS = JSON.parse(readFileSync(new URL("./fixtures/release-eval-hold-compare-jobs.json", import.meta.url), "utf8"));
+const withJob = (answer, job) => ({ ...answer, total_count: answer.total_count + 1, jobs: [...answer.jobs, job] });
+const cannotStartJob = (cause, overrides = {}) => {
+  const prepare = CAPTURED_JOBS.jobs.find((job) => job.name === "Compare Prepare");
+  return { ...prepare, id: prepare.id + 1, name: `${CANNOT_START_JOB}: ${cause}`, conclusion: "success", ...overrides };
+};
+const cannotStartJobs = (cause = "compare-refused", overrides = {}) =>
+  withJob(
+    { ...CAPTURED_JOBS, jobs: CAPTURED_JOBS.jobs.map((job) => (job.name === "Compare Prepare" ? { ...job, conclusion: "success" } : job)) },
+    cannotStartJob(cause, overrides),
+  );
+const recordedToo = (answer) => ({ ...answer, jobs: answer.jobs.map((job) => (job.name === "Compare Record" ? { ...job, conclusion: "success" } : job)) });
+const listedRun = (overrides = {}) =>
+  compareRun({
+    id: Number(CANNOT_RUN_ID),
+    html_url: `https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}`,
+    created_at: "2026-11-06T10:30:00Z",
+    display_title: `eval-compare pr=7 head=${HEAD} target=plugins/alpha`,
+    ...overrides,
+  });
+const cannotStart = (head = HEAD, cause = "compare-refused") => ({
+  head,
+  cause,
+  runs: [{ plugin: "alpha", cause, id: CANNOT_RUN_ID, html_url: `https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}` }],
+});
+
+test("cannotStartCause reads the one Compare Cannot Start job's cause, and only a listed cause that succeeded", () => {
+  for (const cause of CANNOT_START_CAUSES) {
+    assert.equal(cannotStartCause(cannotStartJobs(cause)), cause);
+  }
+  const cases = {
+    "a cause not on the list": cannotStartJobs("credit-stop"),
+    "an evals-disabled job, a cause no run records any more": cannotStartJobs("evals-disabled"),
+    "a job that failed": cannotStartJobs("compare-refused", { conclusion: "failure" }),
+    "a job that skipped": cannotStartJobs("compare-refused", { conclusion: "skipped" }),
+    "a job still going": cannotStartJobs("compare-refused", { status: "in_progress", conclusion: null }),
+    "a name with text after the cause": cannotStartJobs("compare-refused x"),
+    "two such jobs": withJob(cannotStartJobs(), cannotStartJob("compare-refused")),
+    "a run whose record job succeeded too": recordedToo(cannotStartJobs()),
+    "no such job, as in the captured run": CAPTURED_JOBS,
+    "no such job in a run that recorded": RAN,
+    "a jobs list past one page": { ...cannotStartJobs(), total_count: 101 },
+    "an unreadable answer": {},
+  };
+  for (const [name, answer] of Object.entries(cases)) {
+    assert.equal(cannotStartCause(answer), null, name);
+  }
+});
+
+test("a compare run that recorded it cannot start at the current head releases an eval hold with no record", () => {
+  for (const cause of CANNOT_START_CAUSES) {
+    const result = run({ comments: [holdComment()], cannotStart: cannotStart(HEAD, cause) });
+    assert.equal(result.release, true, cause);
+    assert.equal(result.head, HEAD);
+    assert.equal(result.cannotStart.cause, cause);
+    assert.equal(result.record, undefined);
+  }
+});
+
+test("a missing record alone, or a cannot-start record for another head or with an unknown cause, keeps the hold", () => {
+  assert.equal(run({ comments: [holdComment()] }).reason, "no-record");
+  assert.equal(run({ comments: [holdComment()], cannotStart: cannotStart(OLD) }).reason, "no-record");
+  assert.equal(run({ comments: [holdComment(), recordComment(OLD)], cannotStart: cannotStart(OLD) }).reason, "record-head-mismatch");
+  assert.equal(run({ comments: [holdComment()], cannotStart: { ...cannotStart(), cause: "credit-stop" } }).reason, "no-record");
+  assert.equal(run({ comments: [holdComment()], cannotStart: { ...cannotStart(), cause: "evals-disabled" } }).reason, "no-record");
+});
+
+test("a cannot-start record lifts only an eval hold: another reason, a body hold or a veto still keeps it", () => {
+  const superseded = comment(holdLine("superseded"), { at: "2026-11-06T10:02:00Z" });
+  assert.equal(run({ comments: [holdComment(), superseded], cannotStart: cannotStart() }).reason, "hold-reason-superseded");
+  const split = comment(holdLine("eval-split"), { at: "2026-11-06T10:02:00Z" });
+  assert.equal(run({ comments: [holdComment(), split], cannotStart: cannotStart() }).reason, "hold-reason-eval-split");
+  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }), comments: [holdComment()], cannotStart: cannotStart() }).reason, "body-hold");
+  const veto = comment("Do not merge yet.", { at: "2026-11-06T10:05:00Z" });
+  assert.match(run({ comments: [holdComment(), veto], cannotStart: cannotStart() }).reason, /^member-veto-/);
+});
+
+test("a VALID no-loss record at the head still wins over a cannot-start record", () => {
+  const record = recordComment();
+  const result = run({ comments: [holdComment(), record], cannotStart: cannotStart() });
+  assert.equal(result.record, record);
+  assert.equal(result.cannotStart, undefined);
+});
+
+test("main lists the compare runs, reads the newest one naming the pull request and its head, and releases on its cannot-start cause", async () => {
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment()] } },
+    { listed: [listedRun(), listedRun({ id: 1, display_title: `eval-compare pr=8 head=${HEAD}` })], jobs: { [CANNOT_RUN_ID]: cannotStartJobs("compare-refused") } },
+  );
+  const { code, lines } = await quietMain(github);
+  assert.equal(code, 0);
+  assert.ok(calls.some((call) => call.path === `/repos/${REPO}/actions/runs/${CANNOT_RUN_ID}/jobs?filter=all&per_page=100`), "reads the run's jobs");
+  assert.ok(calls.some((call) => call.path === `/repos/${REPO}/compare/${"e".repeat(40)}...${TIP}`), "compares the run's commit against the branch tip");
+  const writes = calls.filter(isWrite);
+  assert.deepEqual(
+    writes.map((call) => `${call.method} ${call.path}`),
+    [`POST /repos/${REPO}/issues/7/comments`, `DELETE /repos/${REPO}/issues/7/labels/${LABEL}`],
+  );
+  const body = writes[0].body.body;
+  assert.deepEqual([...ownLines(body)][0], cannotStartMarker(HEAD, cannotStart(HEAD, "compare-refused")));
+  assert.match(body, /merges first/);
+  assert.match(body, /a FAIL reverts it/);
+  assert.ok(body.includes(`https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}`));
+  assert.ok(lines.includes(`release-eval-hold: #7 released head=${HEAD} cannot-start=compare-refused run=https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}`));
+});
+
+test("main does not comment twice for a cannot-start release it already explained", async () => {
+  const explained = comment(cannotStartMarker(HEAD, cannotStart()), { user: APP, at: "2026-11-06T10:40:00Z", app: { id: 1, slug: "lanes" } });
+  const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), explained] } }, { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } });
+  await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite).map((call) => call.method), ["DELETE"]);
+});
+
+test("main keeps the hold when no compare run names the pull request, reading nothing past its comments and the one run list", async () => {
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment()] }, 8: { pull: pull(), comments: [holdComment()] } },
+    { listed: [listedRun({ display_title: `eval-compare pr=9 head=${HEAD}` }), listedRun({ display_title: "PR Run Plugin Evals" })] },
+  );
+  const { lines } = await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite), []);
+  assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
+  assert.ok(lines.includes("release-eval-hold: #8 kept: no-record"));
+  assert.equal(calls.filter((call) => call.path.includes(COMPARE_RUNS_LIST)).length, 1, "one list serves every held pull request");
+  assert.ok(!calls.some((call) => /\/pulls\/[78]$|\/jobs\?/.test(call.path)));
+});
+
+test("main keeps the hold when the newest compare run at the head started, or the cannot-start run does not vouch", async () => {
+  const started = listedRun({ id: 2, created_at: "2026-11-06T10:45:00Z", conclusion: "failure" });
+  const going = listedRun({ id: 3, created_at: "2026-11-06T10:45:00Z", status: "in_progress", conclusion: null });
+  const cases = {
+    "a newer run that failed": { listed: [started, listedRun()] },
+    "a newer run still going": { listed: [going, listedRun()] },
+    "a newer run that recorded": { listed: [listedRun({ id: 2, created_at: "2026-11-06T10:45:00Z" }), listedRun()], jobs: { 2: RAN, [CANNOT_RUN_ID]: cannotStartJobs() } },
+    "a run for another head": { listed: [listedRun({ display_title: `eval-compare pr=7 head=${OLD}` })] },
+    "a re-run attempt": { listed: [listedRun({ run_attempt: 2 })] },
+    "a branch other than the default": { listed: [listedRun({ head_branch: "feature" })] },
+    "another repository's run": { listed: [listedRun({ head_repository: { full_name: "someone/fork" } })] },
+    "a run that recorded no cause": { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: RAN } },
+    "a cause off the list": { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs("credit-stop") } },
+    "an evals-disabled job": { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs("evals-disabled") } },
+    "a commit off the default branch": { listed: [listedRun()], compareStatus: "diverged" },
+    "a tip that does not read": { listed: [listedRun()], tip: null },
+    "a run list that does not read": { listed: null },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()] } }, { jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, ...options });
+    const { code, lines } = await quietMain(github);
+    assert.equal(code, 0, name);
+    assert.deepEqual(calls.filter(isWrite), [], name);
+    assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), name);
+  }
+});
+
+const RELABELED_AT = "2026-11-06T12:00:00Z";
+const relabeled = [
+  ...events,
+  { event: "unlabeled", label: { name: LABEL }, created_at: "2026-11-06T11:00:00Z" },
+  { event: "labeled", label: { name: LABEL }, created_at: RELABELED_AT },
+];
+const reHold = () => comment(`Held again.\n${holdLine("eval")}`, { at: "2026-11-06T12:01:00Z" });
+
+test("a hold put back after a cannot-start release waits for a compare run started since", async () => {
+  const before = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), reHold()] } }, { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, timeline: relabeled });
+  const { lines } = await quietMain(before.github);
+  assert.deepEqual(before.calls.filter(isWrite), []);
+  assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
+  assert.ok(!before.calls.some((call) => call.path.includes("/jobs?")), "the run before the label is not read");
+  const after = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment(), reHold()] } },
+    { listed: [listedRun({ created_at: "2026-11-06T12:30:00Z" })], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, timeline: relabeled },
+  );
+  await quietMain(after.github);
+  assert.deepEqual(after.calls.filter(isWrite).map((call) => call.method), ["POST", "DELETE"]);
+});
+
+test("the newest compare run at the head decides even when a record comment vouches for it", async () => {
+  const recorded = listedRun({ id: Number(RUN_ID), created_at: "2026-11-06T10:45:00Z" });
+  const laterOld = recordComment(OLD, { at: "2026-11-06T11:30:00Z" });
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment(), ciRecord(), laterOld] } },
+    { runs: { [RUN_ID]: compareRun() }, listed: [recorded, listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } },
+  );
+  const { lines } = await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite), []);
+  assert.ok(lines.includes("release-eval-hold: #7 kept: record-head-mismatch"));
+  assert.ok(!calls.some((call) => call.path.startsWith(`/repos/${REPO}/actions/runs/${CANNOT_RUN_ID}/jobs?`)), "the older cannot-start run is not read");
+});
+
+const otherRuns = (count, at) => Array.from({ length: count }, (_, i) => listedRun({ id: 900000 + i, created_at: at, display_title: `eval-compare pr=8 head=${HEAD}` }));
+
+test("main pages the compare runs back to the hold's start", async () => {
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment()] } },
+    { listed: [...otherRuns(100, "2026-11-06T10:50:00Z"), listedRun(), ...otherRuns(100, "2026-11-06T09:00:00Z")], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } },
+  );
+  await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite).map((call) => call.method), ["POST", "DELETE"]);
+  assert.deepEqual(
+    calls.filter((call) => call.path.includes(COMPARE_RUNS_LIST)).map((call) => call.path.slice(-7)),
+    ["&page=1", "&page=2"],
+    "stops at the first page that reaches back past the label",
+  );
+});
+
+test("a compare run list cut off before the hold's start releases nothing", async () => {
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment()] } },
+    { listed: [listedRun({ created_at: "2026-11-06T10:50:00Z" }), ...otherRuns(COMPARE_RUN_PAGES * 100, "2026-11-06T10:40:00Z")], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } },
+  );
+  const { code, lines } = await quietMain(github);
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter(isWrite), []);
+  assert.equal(calls.filter((call) => call.path.includes(COMPARE_RUNS_LIST)).length, COMPARE_RUN_PAGES);
+  assert.ok(lines.includes(`release-eval-hold: #7 the compare runs since ${LABELED_AT} run past ${COMPARE_RUN_PAGES} pages; no cannot-start run counts`));
+  assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
+});
+
+const LOSS_RUN_ID = 44900000003;
+const lossJobs = () => ({
+  ...CAPTURED_JOBS,
+  jobs: CAPTURED_JOBS.jobs.map((job) =>
+    job.name === "Compare Prepare" ? { ...job, conclusion: "success" } : job.name === VERDICT_JOB ? { ...job, conclusion: "failure" } : job,
+  ),
+});
+const lossRun = (overrides = {}) => listedRun({ id: LOSS_RUN_ID, created_at: "2026-11-06T10:20:00Z", conclusion: "failure", ...overrides });
+
+test("verdictFailed reads a failed Compare Verdict, and counts an unreadable or partial answer", () => {
+  assert.equal(verdictFailed(lossJobs()), true);
+  assert.equal(verdictFailed({ ...lossJobs(), total_count: 101 }), true);
+  assert.equal(verdictFailed({}), true);
+  assert.equal(verdictFailed(CAPTURED_JOBS), false, "a run whose arms never started measured nothing");
+  assert.equal(verdictFailed(RAN), false);
+});
+
+test("an older run at the head that measured a loss keeps the hold a newer cannot-start run would lift", async () => {
+  const cases = {
+    "an older run whose Compare Verdict failed": { listed: [listedRun(), lossRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs(), [LOSS_RUN_ID]: lossJobs() } },
+    "an older run still going": { listed: [listedRun(), lossRun({ status: "in_progress", conclusion: null })] },
+    "an older run re-run": { listed: [listedRun(), lossRun({ conclusion: "success", run_attempt: 2 })] },
+    "an older failed run whose jobs answer is unreadable": { listed: [listedRun(), lossRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs(), [LOSS_RUN_ID]: {} } },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()] } }, { jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, ...options });
+    const { code, lines } = await quietMain(github);
+    assert.equal(code, 0, name);
+    assert.deepEqual(calls.filter(isWrite), [], name);
+    assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), name);
+    assert.ok(lines.some((line) => line.startsWith(`release-eval-hold: run ${CANNOT_RUN_ID} cannot start, but run ${LOSS_RUN_ID} `)), name);
+  }
+});
+
+test("an older run at the head whose arms never started, or one from before the hold, does not keep the hold", async () => {
+  for (const [name, older] of Object.entries({
+    "failed before its arms": lossRun(),
+    "measured a loss before the label": lossRun({ created_at: "2026-11-06T09:00:00Z" }),
+  })) {
+    const jobs = { [CANNOT_RUN_ID]: cannotStartJobs(), [LOSS_RUN_ID]: name === "failed before its arms" ? CAPTURED_JOBS : lossJobs() };
+    const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()] } }, { listed: [listedRun(), older], jobs });
+    await quietMain(github);
+    assert.deepEqual(calls.filter(isWrite).map((call) => call.method), ["POST", "DELETE"], name);
+  }
+});
+
+const BETA_RUN_ID = "44900000004";
+const betaRun = (overrides = {}) =>
+  listedRun({ id: Number(BETA_RUN_ID), html_url: `https://github.com/${REPO}/actions/runs/${BETA_RUN_ID}`, display_title: `eval-compare pr=7 head=${HEAD} target=plugins/beta`, ...overrides });
+
+test("evalPlugins names each plugin whose skill, agent or context text changes, else each plugin changed at all, and nothing from a list cut short", () => {
+  const files = [
+    { filename: "plugins/beta/agents/a.md" },
+    { filename: "plugins/alpha/skills/x/SKILL.md" },
+    { filename: "plugins/gamma/evals/case/prompt.md" },
+    { filename: "plugins/delta/reference/r.md" },
+    { filename: "plugins/zeta/context/new.md", previous_filename: "plugins/eta/context/old.md" },
+  ];
+  assert.deepEqual(evalPlugins(files, files.length), ["alpha", "beta", "eta", "zeta"]);
+  assert.deepEqual(evalPlugins([{ filename: "plugins/gamma/evals/case/prompt.md" }], 1), ["gamma"]);
+  assert.deepEqual(evalPlugins([{ filename: "plugins/delta/reference/r.md" }, { filename: "plugins/gamma/.claude-plugin/plugin.json" }], 2), ["delta", "gamma"]);
+  assert.deepEqual(evalPlugins([{ filename: "docs/review/evals.md" }], 1), []);
+  assert.equal(evalPlugins(files, files.length + 1), null);
+  assert.equal(evalPlugins(undefined, 1), null);
+  assert.equal(evalPlugins(files, undefined), null);
+});
+
+test("a refusal for a plugin whose text the pull request does not change keeps the hold over another plugin's cut", async () => {
+  const files = [SKILL_FILE, { filename: "plugins/beta/evals/case/prompt.md" }];
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull({ changedFiles: 2 }), comments: [holdComment()], files } },
+    { listed: [betaRun()], jobs: { [BETA_RUN_ID]: cannotStartJobs() } },
+  );
+  const { code, lines } = await quietMain(github);
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter(isWrite), []);
+  assert.ok(lines.includes(`release-eval-hold: no compare run at ${HEAD} since the hold names alpha as its target`));
+  assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
+});
+
+test("a refused run for every plugin whose text the pull request changes releases the hold, and the comment names each", async () => {
+  const files = [SKILL_FILE, { filename: "plugins/beta/agents/a.md" }];
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull({ changedFiles: 2 }), comments: [holdComment()], files } },
+    { listed: [betaRun({ created_at: "2026-11-06T10:40:00Z" }), listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs(), [BETA_RUN_ID]: cannotStartJobs() } },
+  );
+  await quietMain(github);
+  const writes = calls.filter(isWrite);
+  assert.deepEqual(writes.map((call) => call.method), ["POST", "DELETE"]);
+  const body = writes[0].body.body;
+  assert.equal([...ownLines(body)][0], `<!-- eval-hold-released head=${HEAD} cannot-start=compare-refused run=${CANNOT_RUN_ID},${BETA_RUN_ID} -->`);
+  assert.ok(body.includes(`\`alpha\` https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}`));
+  assert.ok(body.includes(`\`beta\` https://github.com/${REPO}/actions/runs/${BETA_RUN_ID}`));
+  assert.match(body, /affected cases run in a suite run on the default branch/);
+});
+
+test("one plugin refused and the other without a refused run keeps the hold", async () => {
+  const files = [SKILL_FILE, { filename: "plugins/beta/agents/a.md" }];
+  const cases = {
+    "no run for beta": { listed: [listedRun()] },
+    "beta's newest run recorded no cause": { listed: [betaRun(), listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs(), [BETA_RUN_ID]: RAN } },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const { github, calls } = fakeGitHub({ 7: { pull: pull({ changedFiles: 2 }), comments: [holdComment()], files } }, { jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, ...options });
+    const { lines } = await quietMain(github);
+    assert.deepEqual(calls.filter(isWrite), [], name);
+    assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), name);
+  }
+});
+
+test("a pull request that changes no skill, agent or context text releases on a refused run for each plugin it changes", async () => {
+  const files = [{ filename: "plugins/alpha/reference/r.md" }];
+  const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()], files } }, { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } });
+  await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite).map((call) => call.method), ["POST", "DELETE"]);
+});
+
+test("a files read that fails or is cut short, a pull request that changes no plugin, or a run name without a target keeps the hold", async () => {
+  const cases = {
+    "a files read that fails": [{ pull: pull(), comments: [holdComment()], files: null }, { listed: [listedRun()] }],
+    "a files list cut short": [{ pull: pull({ changedFiles: 2 }), comments: [holdComment()] }, { listed: [listedRun()] }],
+    "no plugin file": [{ pull: pull(), comments: [holdComment()], files: [{ filename: "docs/review/evals.md" }] }, { listed: [listedRun()] }],
+    "a run name without a target": [{ pull: pull(), comments: [holdComment()] }, { listed: [listedRun({ display_title: `eval-compare pr=7 head=${HEAD}` })] }],
+  };
+  for (const [name, [entry, options]] of Object.entries(cases)) {
+    const { github, calls } = fakeGitHub({ 7: entry }, { jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, ...options });
+    const { code, lines } = await quietMain(github);
+    assert.equal(code, 0, name);
+    assert.deepEqual(calls.filter(isWrite), [], name);
+    assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), name);
+  }
+});
+
+test("an older loss for another plugin at the head does not keep a refused plugin's release, and one for the same plugin does", async () => {
+  const betaLoss = lossRun({ display_title: `eval-compare pr=7 head=${HEAD} target=plugins/beta` });
+  const other = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()] } }, { listed: [listedRun(), betaLoss], jobs: { [CANNOT_RUN_ID]: cannotStartJobs(), [LOSS_RUN_ID]: lossJobs() } });
+  await quietMain(other.github);
+  assert.deepEqual(other.calls.filter(isWrite).map((call) => call.method), ["POST", "DELETE"]);
+  const same = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()] } }, { listed: [listedRun(), lossRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs(), [LOSS_RUN_ID]: lossJobs() } });
+  await quietMain(same.github);
+  assert.deepEqual(same.calls.filter(isWrite), []);
 });
