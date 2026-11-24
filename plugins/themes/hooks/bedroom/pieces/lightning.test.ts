@@ -8,10 +8,6 @@ import { LIGHTNING, SLOT_S, extraStrikes } from './weather.js'
 const STRIKE_CODE = WORLD.top + CUES.strike
 const BUILT_IN = BUILT.includes('weather') && !WITHOUT.includes('weather.lightning')
 
-/**
- * Reads the Shader element every READ_MS for `ms`: the times a strike cue first shows, in ms from the start of the read.
- * A cue's code holds CUE_HOLD_MS (12 s), so a read every 3 s sees each one.
- */
 const READ_MS = 3000
 async function strikes(room: Room, ms: number): Promise<number[]> {
   const start = room.clock.now()

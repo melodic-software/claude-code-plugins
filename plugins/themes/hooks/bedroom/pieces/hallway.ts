@@ -4,14 +4,11 @@ import { cueRefusal, scheduledEventShows, shaderStartedAt } from '../core/schedu
 import { CUES } from '../core/signals.gen.js'
 import { worldMove } from '../core/values.js'
 
-/** How soon a cue shows once it is sent: the app's delay and ease, then the shader's 2.5 s hold. */
 const SHOWS_S = 4.5
 /** How long the hall light stays on, as the shader holds it. */
 export const HALL_LIGHT_MS = 180_000
-/** From the minute's tick to the shader turning its own hall light on: the clock taken about 0.9 s in, then 20 s. */
 const OWN_LIGHT_MS = 910 + 20_000
 
-/** When the hall light is on, as far as the mod can tell: from the door's presses and the shader's own schedule. */
 let lit: { from: number; until: number } | undefined
 
 /** Whether the hall light is on at `now`. A shader that started since it came on starts with it off. */
@@ -31,7 +28,6 @@ export function ownHallLight(minute: number, sun: number): boolean {
   return (sun < 1.5 && hash < 3) || (late && hash < 1)
 }
 
-/** /bedroom hall pass and /bedroom hall light: the hallway's events at once, while the hallway is on. */
 async function now(ctx: Ctx, word: 'pass' | 'light'): Promise<string> {
   if (!ctx.setting('hall')) return 'the hallway is off: say /bedroom hall on first'
   const refused = cueRefusal(ctx.nowMs)

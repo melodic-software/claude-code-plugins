@@ -4,7 +4,6 @@ import { bedroomSvg } from '../scene.js'
 import { DEFAULT_STATE } from '../scene/lib.ts'
 import { QUIET, startRoom } from './testing.js'
 
-/** The room under the shader: the television and computer on, the ceiling light on, the console's title card on every screen. */
 const LIT = { tv: true, tape: false, console: false, pc: true, light: true, lamp: false, lava: false, underShader: true } as const
 
 test('with the shader on, the room sent is the lit one whatever the switches', { timeoutMs: 20000, options: QUIET }, async ($, on) => {

@@ -17,7 +17,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# A gh stand-in: the head read answers STUB_BRANCH and STUB_OID, and fails when STUB_FAIL is set.
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
@@ -29,11 +28,6 @@ STUB_EOF
 chmod +x "$STUB_DIR/gh"
 export PATH="$STUB_DIR:$PATH"
 
-# Fixture: the main checkout on main, and the PR's branch in a linked worktree with one more
-# commit. Each tree's scripts/check-affected.sh prints the files the checked tree changed since
-# main and which tree it checked, so the gate output shows whose tree was checked. The stub takes
-# that tree from CHECK_DATA_ROOT, else from the working directory, never from its own location, so
-# the gate assertions fail unless the gate itself names the PR's tree.
 MAIN="$TEST_TMPDIR/main"
 git init -q -b main "$MAIN"
 mkdir -p "$MAIN/scripts"
@@ -101,7 +95,6 @@ assert_exit "--pr given twice is a usage error" 1 "$?"
 bash "$SCRIPT" --bogus >/dev/null 2>&1
 assert_exit "an unknown argument is a usage error" 1 "$?"
 
-# --dir names the checkout, so a shell outside every checkout finds the PR's worktree.
 OUTSIDE="$TEST_TMPDIR/outside"
 mkdir -p "$OUTSIDE"
 out=$(cd "$OUTSIDE" && bash "$SCRIPT" --pr 7 --dir "$MAIN")
@@ -119,8 +112,6 @@ assert_exit "--dir naming no directory is a usage error" 1 "$?"
 bash "$SCRIPT" --pr 7 --dir "$MAIN" --dir "$PR_WT" >/dev/null 2>&1
 assert_exit "--dir given twice is a usage error" 1 "$?"
 
-# The verify gate command of the ready reference (2.5.3), with <checkout> naming the main checkout,
-# run from that checkout and from outside every checkout.
 GATE=$(grep -F 'pr-worktree.sh" --pr' "$REF" | grep -F 'check-affected.sh" --tests' | sed -e 's/^ *//' -e "s#<skill-dir>#$SKILL_DIR#g" -e "s#<checkout>#$MAIN#g")
 if [[ -z "$GATE" ]]; then
   echo "FAIL: the verify gate command was not found in $REF" >&2

@@ -43,14 +43,12 @@ source "$SCRIPT"
 SHA_CHECK_CSS=6fa72714ba18cf02f698fa8015f63df043b3af85
 SHA_LICENSE=66a325d82e56f2f41ebd14812517d6c50f5b66da
 
-# A plugin root whose vendored copies are the shipped ones.
 REAL_PLUGIN_DIR="$PLUGIN_DIR"
 PLUGIN_DIR="$TMP/plugin"
 mkdir -p "$PLUGIN_DIR/skills/write-css/vendor"
 cp "$REAL_PLUGIN_DIR/skills/write-css/vendor/check-css.mjs" "$REAL_PLUGIN_DIR/skills/write-css/vendor/LICENSE" \
   "$PLUGIN_DIR/skills/write-css/vendor/"
 
-# 1. Upstream and vendored copies at the pin.
 out=$(run_check 2>&1)
 code=$?
 assert_eq "same SHAs: exit 0" 0 "$code"
@@ -59,7 +57,6 @@ assert_contains "same SHAs: names check-css.mjs" "$out" "unchanged  skills/write
 assert_eq "shipped copy of check-css.mjs hashes to its pin" "$SHA_CHECK_CSS" "$(git hash-object "$PLUGIN_DIR/skills/write-css/vendor/check-css.mjs")"
 assert_eq "shipped copy of LICENSE hashes to its pin" "$SHA_LICENSE" "$(git hash-object "$PLUGIN_DIR/skills/write-css/vendor/LICENSE")"
 
-# 1b. The check reads only the vendored copies: it runs with no curl on PATH.
 mkdir -p "$TMP/bin"
 for tool in bash dirname git; do ln -s "$(command -v "$tool")" "$TMP/bin/$tool"; done
 out=$(env PATH="$TMP/bin" bash "$SCRIPT" --check 2>&1)
@@ -67,21 +64,18 @@ code=$?
 assert_eq "no curl on PATH: exit 0" 0 "$code"
 assert_not_contains "no curl on PATH: no upstream read" "$out" "Upstream"
 
-# 4. A vendored copy edited locally.
 printf '\n// local edit\n' >>"$PLUGIN_DIR/skills/write-css/vendor/check-css.mjs"
 out=$(run_check 2>&1)
 code=$?
 assert_eq "modified vendored file: exit 1" 1 "$code"
 assert_contains "modified vendored file: names the copy" "$out" "MODIFIED   skills/write-css/vendor/check-css.mjs"
 
-# 5. A vendored copy missing.
 rm "$PLUGIN_DIR/skills/write-css/vendor/LICENSE"
 out=$(run_check 2>&1)
 code=$?
 assert_eq "missing vendored file: exit 1" 1 "$code"
 assert_contains "missing vendored file: names the copy" "$out" "MISSING    skills/write-css/vendor/LICENSE"
 
-# 6. Command line.
 bash "$SCRIPT" --help >/dev/null 2>&1
 assert_eq "--help: exit 0" 0 "$?"
 bash "$SCRIPT" --bogus >/dev/null 2>&1

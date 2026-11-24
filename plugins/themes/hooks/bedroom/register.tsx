@@ -19,12 +19,9 @@ export { TITLE_CAPS, withTitle } from './core/commands.js'
 
 /** Whether session.start has run: a desktop attaching before it leaves the start to session.start. */
 let isSessionUp = false
-/** Whether the room started in this session: it starts only once a desktop surface is attached. */
 let started = false
-/** Set once a desktop window detaches, until one attaches: /bedroom says so while the roster holds no desktop. */
 let desktopGone = false
 
-/** Registers /bedroom and starts the room, once a session: at session.start with a desktop attached, or on the first desktop attach or above-prompt render. */
 async function start($: EngineInterface): Promise<void> {
   if (started) return
   started = true
