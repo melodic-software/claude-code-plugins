@@ -1740,7 +1740,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       });
     const unlabeledTimeline = async (number) =>
       (await github("POST", "/graphql", { query: UNLABELED_QUERY, variables: { owner: repo[1], name: repo[2], number } }))?.data?.repository?.pullRequest?.timelineItems;
-    const supersede =async (pull, detail, asyncMerge) => {
+    const supersede = async (pull, detail, asyncMerge) => {
       const by = asyncMerge ? "the async merge request" : "the arm";
       for (const stale of supersededRefusals(detail?.comments?.nodes, slug, pull.headRefOid, asyncMerge)) {
         try {
