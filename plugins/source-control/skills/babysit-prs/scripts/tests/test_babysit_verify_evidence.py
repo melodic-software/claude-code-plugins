@@ -3322,6 +3322,7 @@ class TheSpecMustBeTrusted(unittest.TestCase):
             ("trusted_actors_source: standards\n", valid, valid, "verify:unreadable"),
             ("trusted_actors_source: standards\nstandards_repository: x\n", valid, valid, "verify:unreadable"),
             ("trusted_actors_source: repository\n", valid, {"version": 2}, None),
+            (f"standards_repository: {STANDARDS_REPO}\n", valid, {"version": 2}, None),
             ("trusted_actors_source: elsewhere\n", valid, valid, "verify:unreadable"),
         ):  # fmt: skip
             with self.subTest(team=team, ours=ours):
