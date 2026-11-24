@@ -139,10 +139,6 @@ def run_check(check: dict[str, object]) -> subprocess.CompletedProcess[str]:
             check=False,
         )
     except FileNotFoundError as error:
-        # A check that could not be LAUNCHED is a broken harness, not a failing
-        # arm. Letting the OSError escape as a traceback would strand the caller
-        # with no verdict at all, and the restore still runs either way because
-        # the caller wraps this in a finally.
         raise HarnessError(
             f"the check command could not be launched: {argv[0]!r} ({error}). Nothing was "
             f"measured. On a mixed MSYS and native-Windows host, remember that argv is "

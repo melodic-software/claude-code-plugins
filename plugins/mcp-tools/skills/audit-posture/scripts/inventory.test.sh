@@ -48,7 +48,6 @@ assert_not_contains() {
   esac
 }
 
-# Fixture root contains a space so every path flag is exercised with one.
 FIX="$TEST_TMPDIR/fix dir"
 mkdir -p "$FIX/home" "$FIX/proj" "$FIX/plugin dir" "$FIX/empty bin" \
   "$FIX/managed one/managed-settings.d" "$FIX/managed two"
@@ -58,7 +57,6 @@ OUT=""
 ERR=""
 RC=0
 ALL=""
-# run_inv <args...>: run the script, capturing stdout, stderr, and exit code.
 run_inv() {
   OUT="$(bash "$INV" "$@" 2>"$FIX/stderr.txt")"
   RC=$?
@@ -85,12 +83,10 @@ find_row() {
     fi
   done
 }
-# cell <scope> <name> <column>: one field of the first row matching scope and name.
 cell() {
   find_row "$1" "$2"
   printf '%s' "${FIELDS[$(($3 - 1))]:-}"
 }
-# check_row <name> <launcher> <package> <pin> <publisher>: a file-scope row's classification.
 check_row() {
   find_row file "$1"
   assert_eq "$1 launcher" "$2" "${FIELDS[4]:-}"
@@ -98,8 +94,6 @@ check_row() {
   assert_eq "$1 pin" "$4" "${FIELDS[6]:-}"
   assert_eq "$1 publisher" "$5" "${FIELDS[7]:-}"
 }
-
-# --- Fixtures ---------------------------------------------------------------
 
 cat >"$FIX/claude.json" <<'JSON'
 {
@@ -240,7 +234,6 @@ cat >"$FIX/managed two/managed-mcp.json" <<'JSON'
 {"mcpServers": {"corpstdio": {"command": "npx", "args": ["corp-mcp@1.0.0"]}}}
 JSON
 
-# Review probe: wrappers, URL versions, unknown value flags, non-string args, bidi.
 cat >"$FIX/probe cases.json" <<'JSON'
 {"mcpServers": {
   "a-bash-env": {"command": "bash", "args": ["-c", "API_KEY=LEAK1 npx -y p@1.0.0"]},
@@ -272,8 +265,6 @@ cat >"$FIX/probe cases.json" <<'JSON'
 }}
 JSON
 
-# --- Run 1: every source, no managed-mcp.json -------------------------------
-
 run_inv --claude-json "$FIX/claude.json" --project "c:/work/proj" --mcp-json "$FIX/proj/.mcp.json" \
   --managed-dir "$FIX/managed one" --config "$FIX/servers a.json" --config "$FIX/plugin dir/plugin.json" \
   --config "$FIX/nope.json" --config "$FIX/probe cases.json" --date 2026-01-02
@@ -291,7 +282,6 @@ assert_eq "every row has ten fields and a known scope" "" \
 assert_eq "no comment line between rows" "" \
   "$(printf '%s\n' "$OUT" | sed -n '3,$p' | awk '/^#/ { seen = 1; next } seen { print }')"
 
-# Effective states.
 assert_eq "local shared wins" "yes" "$(cell local shared 3)"
 assert_eq "project shared shadowed by local" "shadowed-by:local" "$(cell project shared 3)"
 assert_eq "user shared shadowed by local" "shadowed-by:local" "$(cell user shared 3)"
@@ -327,7 +317,6 @@ assert_eq "plugin.json inline mcpServers read" "plug-mcp@1.0.0" "$(cell file plu
 # managed-settings.d: later file wins per name.
 assert_eq "managed-settings.d later file wins" "https://c.example.com" "$(cell managed-settings override 6)"
 
-# Footer.
 assert_contains "not read: MDM" "$OUT" "# not read: MDM/registry/plist policy"
 assert_contains "not read: server-managed settings" "$OUT" "# not read: server-managed settings"
 assert_contains "not read: claude.ai connectors" "$OUT" "# not read: claude.ai connectors"
@@ -342,7 +331,6 @@ assert_contains "file-scope precedence not evaluated line" "$OUT" \
 assert_contains "drop-in merge not evaluated line" "$OUT" \
   "# not evaluated: managed-settings.d drop-ins are merged by whole entry per name; key-level merging is not modeled"
 
-# Review probe classifications.
 check_row a-bash-env npx p@1.0.0 exact unscoped
 check_row b-npx-authtok npx - unparsed -
 check_row c-npm-giturl npx p@git+https://github.com/o/r.git git-ref github.com
@@ -376,7 +364,6 @@ assert_contains "source with a server map is found" "$OUT" "# source file $FIX/p
 assert_not_contains "no ESC byte in output" "$OUT" $'\e'
 assert_eq "control-char name redacted by raw length" "ctl@1.0.0" "$(cell user 'redacted-name(15)' 6)"
 
-# Transport and sandboxed columns.
 assert_eq "stdio transport" "stdio" "$(cell file npx-bare 4)"
 assert_eq "stdio sandboxed no" "no" "$(cell file npx-bare 9)"
 assert_eq "http transport" "http" "$(cell file remote-http 4)"
@@ -385,7 +372,6 @@ assert_eq "sse transport" "sse" "$(cell file remote-sse 4)"
 assert_eq "streamable-http maps to http" "http" "$(cell file remote-streamable 4)"
 assert_eq "url without type is http" "http" "$(cell file remote-notype 4)"
 
-# Pin rules and launchers.
 check_row npx-bare npx bare-mcp floating-unversioned unscoped
 check_row npx-latest npx tag-mcp@latest floating-tag unscoped
 check_row npx-next npx tag-mcp@next floating-tag unscoped
@@ -446,8 +432,6 @@ check_row remote-http remote https://mcp.example.com:8443 n/a mcp.example.com
 check_row remote-sse remote https://sse.example.com n/a sse.example.com
 check_row remote-oauth remote https://o.example.com n/a o.example.com
 
-# --- Run 2: managed-mcp.json present suppresses user/local/project/file ------
-
 run_inv --claude-json "$FIX/claude.json" --project "c:/work/proj" --mcp-json "$FIX/proj/.mcp.json" \
   --managed-dir "$FIX/managed two" --config "$FIX/servers a.json" --date 2026-01-02
 
@@ -460,8 +444,6 @@ assert_eq "file suppressed by managed" "suppressed-by-managed" "$(cell file npx-
 assert_contains "managed-mcp.json found" "$OUT" "# source managed $FIX/managed two/managed-mcp.json found"
 assert_contains "managed-settings.json absent" "$OUT" \
   "# source managed-settings $FIX/managed two/managed-settings.json absent"
-
-# --- Run 2b: managedMcpServers rows still load beside managed-mcp.json ---------
 
 mkdir -p "$FIX/managed three"
 printf '%s\n' '{"managedMcpServers": {"corp": {"type": "http", "url": "https://corp.example.com/mcp"},
@@ -479,8 +461,6 @@ assert_eq "managed-settings row shadowed by a managed-mcp.json row" "shadowed-by
   "$(cell managed-settings both 3)"
 assert_eq "managed-mcp.json row wins over managed-settings" "yes" "$(cell managed both 3)"
 
-# --- Run 2d: a file-scope row is never shadowed by a same-named scope row ------
-
 printf '%s\n' '{"mcpServers": {"shared": {"command": "npx", "args": ["unpinned-plugin-mcp"]}}}' \
   >"$FIX/plugin collide.json"
 run_inv --claude-json "$FIX/claude.json" --project "c:/work/proj" --mcp-json "$FIX/proj/.mcp.json" \
@@ -488,8 +468,6 @@ run_inv --claude-json "$FIX/claude.json" --project "c:/work/proj" --mcp-json "$F
 assert_eq "file row with a user/local/project name stays effective" "yes" "$(cell file shared 3)"
 assert_eq "colliding file row still classified" "floating-unversioned" "$(cell file shared 7)"
 assert_eq "user row unaffected by a same-named file row" "shadowed-by:local" "$(cell user shared 3)"
-
-# --- Run 2e: an sdk entry reads skipped-by-client and still shadows as before ----
 
 mkdir -p "$FIX/sdk shadow"
 printf '%s\n' '{"mcpServers": {"dup": {"command": "npx", "args": ["pkg@1.0.0"]}}}' >"$FIX/sdk shadow/claude.json"
@@ -500,13 +478,9 @@ assert_eq "project sdk entry is skipped by the client" "skipped-by-client" "$(ce
 assert_eq "user row under a same-named unapproved project sdk entry stays shadowed" \
   "shadowed-by:project-if-approved" "$(cell user dup 3)"
 
-# --- Run 2c: enableAllProjectMcpServers approves every project server ----------
-
 run_inv --claude-json "$FIX/claude.json" --project "d:/all" --mcp-json "$FIX/proj/.mcp.json" \
   --managed-dir "$FIX/no managed" --date 2026-01-02
 assert_eq "enableAllProjectMcpServers approves a project server" "yes" "$(cell project projonly 3)"
-
-# --- Run 3: path-keyed local scope with a space and a trailing slash ---------
 
 space_key="$FIX/my proj"
 if command -v cygpath >/dev/null 2>&1; then
@@ -521,14 +495,10 @@ assert_eq "run 3 exits 0 with absent files" 0 "$RC"
 assert_eq "path key with space and trailing slash matched" "yes" "$(cell local spaceproj 3)"
 assert_contains "absent .mcp.json reported" "$OUT" "# source project $FIX/my proj/.mcp.json absent"
 
-# --- Run 4: unmatched project key --------------------------------------------
-
 run_inv --claude-json "$FIX/claude.json" --project "$FIX/unmatched" --mcp-json "$FIX/unmatched/.mcp.json" \
   --managed-dir "$FIX/no managed" --date 2026-01-02
 assert_contains "unmatched project reports local absent" "$OUT" "# source local $FIX/claude.json absent"
 assert_eq "unmatched project yields no local rows" "" "$(cell local shared 3)"
-
-# --- Run 5: the same name in two --config files keeps both file rows -----------
 
 printf '%s\n' '{"mcpServers": {"dup": {"command": "npx", "args": ["dup-a@1.0.0"]}}}' >"$FIX/dup a.json"
 printf '%s\n' '{"mcpServers": {"dup": {"command": "npx", "args": ["dup-b@1.0.0"]}}}' >"$FIX/dup b.json"
@@ -536,8 +506,6 @@ run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/no
   --managed-dir "$FIX/no managed" --config "$FIX/dup a.json" --config "$FIX/dup b.json" --date 2026-01-02
 assert_eq "duplicate file-scope names both listed" 2 \
   "$(printf '%s\n' "$OUT" | awk -F'\t' '$1 == "file" && $2 == "dup"' | wc -l | tr -d ' ')"
-
-# --- Run 6: merge-gate adversarial fixture ------------------------------------
 
 cat >"$FIX/gate adv.json" <<'JSON'
 {"mcpServers": {
@@ -751,8 +719,6 @@ assert_eq "valid drop-in managedMcpServers entry loads" "yes" "$(cell managed-se
 assert_eq "drop-in remote url prints host only" "https://h.example.com" "$(cell managed-settings s 6)"
 assert_eq "non-ASCII name redacted by raw length" "https://h.example.com" "$(cell file 'redacted-name(10)' 6)"
 
-# --- Run 8: managed validity, conditional shadowing, names, transports ---------
-
 mkdir -p "$FIX/managed four" "$FIX/seven"
 cat >"$FIX/managed four/managed-settings.json" <<'JSON'
 {"managedMcpServers": {
@@ -908,7 +874,6 @@ assert_eq "secret-shaped name with spaces redacted" "node" "$(cell file 'redacte
 assert_eq "digit-letter name redacted" "node" "$(cell file 'redacted-name(28)' 6)"
 assert_eq "AKIA glued to a letter prints (accepted residual)" "node" \
   "$(cell file 'prod RSDAKIAIOSFODNN7EXAMPLE' 6)"
-# Residuals: short values that are not secret-shaped under the value filter still print.
 check_row N08-py-url uvx 'pkg @ git+https://h.example.com/RSDsecret/r.git' git-ref h.example.com
 check_row N14-uvx-ver uvx pkg==RSDsecret0123456789 exact pypi
 check_row N17-bash-c-basename local RSDsecret_token_0123456789abcdef not-a-package local
@@ -918,8 +883,6 @@ check_row N43-lower docker \
   rsdns/img@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef digest rsdns
 assert_eq "dictionary-word name prints (accepted residual)" "node" "$(cell file 'RSD correct horse battery staple' 6)"
 assert_eq "short drop-in entry name prints (accepted residual)" "yes" "$(cell managed-settings RSDsecret123 3)"
-
-# --- Run 10: availability limits and source paths ----------------------------
 
 jq -n '{mcpServers: {big: {command: "bash", args: ["-c", ("npx \"" + ("a" * 1048576))]}}}' >"$FIX/big wrapper.json"
 jq -n '{mcpServers: {many: {command: "npx", args: ([range(0; 257)] | map("pkg"))}}}' >"$FIX/many args.json"
@@ -1094,8 +1057,6 @@ check_row a64-pipx pipx tool==1.0 exact index:x
 check_row a17-url-ipv6 remote 'https://[::1]:8443' n/a '[::1]'
 check_row a21-url-query remote https://h.example.com n/a h.example.com
 
-# --- Run 12: managed validity (type, invisible characters) and precedence -------
-
 mkdir -p "$FIX/gate pm1" "$FIX/gate pm2x" "$FIX/gate proj"
 cat >"$FIX/gate pm1/managed-settings.json" <<'JSON'
 {"managedMcpServers": {
@@ -1229,7 +1190,6 @@ JSON
 reattack4="$(<"$FIX/reattack4 cases.json")"
 printf '%s\n' "${reattack4//T@K@N/TO""KEN}" >"$FIX/reattack4 cases.json"
 
-# Safe-but-wrong parses: a dropped assignment hiding shell syntax, or an odd program name.
 cat >"$FIX/wrapper rules.json" <<'JSON'
 {"mcpServers": {
   "sw-semi": {"command": "bash", "args": ["-c", "X=1; node s.js --t LEAKSW1"]},
@@ -1346,7 +1306,6 @@ for wrapped in d01 d02 d03 d04 d05 d06 d07 d08 d09 d10 d11 d12 d13 d14 v-pw-tab 
   check_row "$wrapped" local - unparsed -
 done
 check_row d15 npx okpkg floating-unversioned unscoped
-# An unknown runner flag before the package leaves the row unparsed, even when -- follows it.
 check_row c73 npx - unparsed -
 check_row u-uvx uvx - unparsed -
 check_row dd-ok npx pkg@1.0.0 exact unscoped
@@ -1421,7 +1380,6 @@ run_inv --help
 assert_eq "--help exits 0" 0 "$RC"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# jq missing: PATH holds only an empty directory, so no jq resolves.
 OUT="$(PATH="$FIX/empty bin" "$BASH" "$INV" --claude-json "$FIX/claude.json" --project "$FIX/proj" \
   --mcp-json "$FIX/proj/.mcp.json" --managed-dir "$FIX/no managed" --date 2026-01-02 2>"$FIX/stderr.txt")"
 RC=$?

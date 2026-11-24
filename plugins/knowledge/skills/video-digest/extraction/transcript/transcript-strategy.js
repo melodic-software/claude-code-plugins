@@ -1,23 +1,3 @@
-/**
- * Transcript-strategy seam: the adapter declares a per-source default
- * (`transcriptStrategy`), the pipeline may override it explicitly, and the
- * resolution below picks what actually runs per media entry given what exists —
- * a selected caption, a media file, and the optional local ASR capability.
- *
- * Selection rule (binding):
- * - caption present → the requested caption-based strategy runs unchanged;
- * - caption absent → `asr` WHENEVER the ASR capability is available and the
- *   media file exists;
- * - otherwise → explicit degradation: the digest proceeds without a transcript
- *   and the reason travels in the named provenance field
- *   (`transcriptDegradation`), never silently.
- *
- * An explicit pipeline override always wins over the adapter default; when the
- * override cannot run (no captions for a caption strategy, no ASR for `asr`),
- * the resolution degrades or falls back EXPLICITLY — the unmet override is
- * always named in the degradation reason.
- */
-
 import { TRANSCRIPT_STRATEGIES } from "../adapters/adapter-contract.js";
 
 /** @import { TranscriptStrategy } from '../adapters/adapter-contract.js' */
@@ -128,9 +108,6 @@ export function resolveTranscriptStrategy({
       return { strategy: "asr", degradation: null };
     }
     if (captionPresent) {
-      // ASR cannot run but a caption exists: fall back to the adapter's
-      // caption-based strategy rather than discarding a usable transcript —
-      // explicitly, never silently.
       const fallback = adapterDefault === "asr" ? "captions" : adapterDefault;
       return {
         strategy: fallback,
@@ -145,8 +122,6 @@ export function resolveTranscriptStrategy({
   }
 
   if (override !== null) {
-    // An explicit caption-based override with no caption is honored as a
-    // degradation, never silently escalated to ASR against the request.
     return {
       strategy: null,
       degradation: `transcript strategy "${override}" was explicitly requested but no captions were selected — digest proceeds without a transcript`,

@@ -129,7 +129,6 @@ for f in "$INSTALLED_JSON" "$MARKETPLACES_JSON" "$USER_SETTINGS"; do
     [[ "$f" == "$USER_SETTINGS" ]] && continue
     die "not found: $f"
   fi
-  # An unreadable file would snapshot as empty before and after and compare equal.
   jq empty "$f" >/dev/null 2>&1 || die "not valid JSON: $f"
 done
 
@@ -210,7 +209,6 @@ esac
 [[ -z "$pids" ]] || refuse "a claude process is running (pid ${pids//$'\n'/ }); close every session first"
 
 if [[ -z "${RESET_REFRESH_RUN_DIR:-}" ]]; then
-  # Judged on the nearest existing ancestor, so a refused root is never created.
   probe="$JOURNAL_ROOT"
   while [[ ! -d "$probe" ]]; do probe=$(dirname "$probe"); done
   plugins_real=$(cd "$PLUGINS_DIR" && pwd -P)
@@ -226,7 +224,6 @@ fi
 RUN_DIR="$RESET_REFRESH_RUN_DIR"
 JOURNAL="$RUN_DIR/journal.log"
 : >>"$JOURNAL"
-# Out of the caller's directory, which can be inside the cache this run moves.
 cd "$RUN_DIR" || exit 2
 
 PARTS="marketplaces installs enabled"
@@ -251,8 +248,6 @@ snapshot() {
     | sort_by(.id, .scope, .projectPath)' "$INSTALLED_JSON" >"$RUN_DIR/$tag.projects.json"
 }
 
-# The settings files clean compares byte for byte: user settings, and the shared
-# and local settings of each existing project a project or local record names.
 settings_files() {
   [[ -f "$USER_SETTINGS" ]] && echo "$USER_SETTINGS"
   jqr -r '[.plugins // {} | .[][]? | select(.scope != "user") | .projectPath // empty]
@@ -285,7 +280,6 @@ compare_settings() {
 
 FAILURES=0
 CLI_OUT=""
-# The call and its output go to the journal; the CLI's own exit status is kept.
 run_cli() {
   echo "\$ claude $*" >>"$JOURNAL"
   CLI_OUT=$(claude "$@" 2>&1 </dev/null)
@@ -357,9 +351,6 @@ else
 fi
 
 TARGETS=()
-# The rebuilt copies go to the run directory first, so a backup part never
-# nests inside its rebuilt namesake, and a target absent before is absent
-# again; then the emptied backup is removed.
 move_back() {
   local rebuilt="$RUN_DIR/rebuilt" rel ok=1
   mkdir -p "$rebuilt/marketplaces" "$PLUGINS_DIR/marketplaces" || return 1

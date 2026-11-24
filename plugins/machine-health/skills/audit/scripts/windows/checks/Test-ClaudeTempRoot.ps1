@@ -313,7 +313,6 @@ function Find-LargestTaskOutput {
                         if ($largest.Count -gt $Top) { $largest.RemoveAt($Top) }
                     }
                 } catch [System.IO.IOException] {
-                    # A session removed mid-listing takes its outputs with it.
                     continue
                 }
             }
@@ -385,9 +384,6 @@ $CheckBody = {
     $root = Resolve-ClaudeTempRoot
 
     if (-not $root.Exists) {
-        # Not applicable exits quietly and successfully (docs/plugin-philosophy.md
-        # "Prerequisites and failure behavior"). Same shape as the battery check on a
-        # desktop: OK with a negative detail flag, never UNKNOWN.
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'OK' -Summary 'Claude Code temp root not present.' -Commands $commands `
             -Detail @{
@@ -450,24 +446,6 @@ $CheckBody = {
         }
 
         if ($truncated -or $unreadable -gt 0 -or $taskOutputs.Truncated) {
-            # Partial figures are an undercount by an unbounded amount, so they cannot
-            # clear a threshold in either direction -- an inaccessible multi-gigabyte
-            # session would otherwise read as OK. Both ways a walk comes back
-            # incomplete take the rubric's timeout row: UNKNOWN, with the partial
-            # detail still shipped so the human sees the floor.
-            #
-            # A cut-off task-output listing is the same kind of floor for the per-file
-            # arm: a completed walk proves the totals, not that no output reached the
-            # threshold, so it takes the same row.
-            #
-            # ran_successfully = false is also what keeps the run out of history's
-            # checks_ran, and so keeps an undercounted total_gb from becoming a trend
-            # baseline. Left in, the recovered difference on the next complete walk
-            # reads as growth and upgrades that WARN to CRIT on nothing.
-            #
-            # The schema pins a failed run to UNKNOWN, so an oversized task output
-            # cannot lift this verdict to WARN; it is named in the summary instead,
-            # which is what the human reads when the walk could not finish.
             $reason = if ($truncated) {
                 "Walk budget of ${budgetSeconds}s exceeded after $sessionCount " +
                 'session directories; figures are a partial undercount.'
@@ -488,19 +466,6 @@ $CheckBody = {
                 ' Task-output listing complete.'
             } else { '' }
         } else {
-            # Severity ladder (most severe first). This check never emits CRIT: the
-            # tree is reclaimable cache with no data-loss or security consequence, and
-            # severity-rubric.md reserves CRIT for imminent-failure and security
-            # conditions while directing ambiguity to the lower level. Sustained growth
-            # still reaches CRIT through the orchestrator's trend upgrade.
-            #   WARN -- >=5 GB accumulated, nothing reclaimed for >=14 days, or one
-            #           background-task output file >=1 GB
-            #   INFO -- >=1 GB, still within a plausible working set
-            #   OK   -- <1 GB
-            # The age arm is independent of size on purpose: a small tree that never
-            # loses its oldest entry is the unpruned-growth signal this check exists for.
-            # The per-file arm is independent too: one runaway task output is the
-            # file to remove, and a total-size verdict alone never names it.
             $outcome = @{ RanSuccessfully = $true }
             $severity = if ($totalGb -ge 5 -or $oldestAgeDays -ge 14 -or $taskOutputOver) {
                 'WARN'

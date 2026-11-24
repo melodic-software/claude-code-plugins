@@ -340,12 +340,6 @@ def main() -> int:
             checked += 1
             base_code, base_out, base_err = outcome["baseline"]
             cand_code, cand_out, cand_err = outcome["candidate"]
-            # stderr is COUNTED but not compared for parity. Diagnostics carry
-            # timings, paths and warnings that legitimately differ between two
-            # copies, so failing on them would drown the signal. Reporting the
-            # count is what keeps the verdict honest: "byte-identical stdout and
-            # exit code" is a narrower claim than "behavior did not change", and a
-            # reader cannot tell the difference if the gap is invisible.
             if base_err != cand_err:
                 stderr_differences += 1
             if base_code != cand_code or base_out != cand_out:

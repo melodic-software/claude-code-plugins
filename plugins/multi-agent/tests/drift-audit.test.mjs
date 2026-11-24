@@ -506,7 +506,6 @@ test('areas past the cap are skipped by name, and large areas are split', async 
 
 const HOOKS = 'https://code.claude.com/docs/en/hooks'
 const SETTINGS = 'https://code.claude.com/docs/en/settings'
-// The default stub cites WF, so the one source is its page.
 const WF_PAGE = WF.split('#')[0]
 const ONE_AREA = { mode: 'repo', targets: [{ area: 'a', files: ['docs/a.md'] }], upstream: [WF_PAGE] }
 

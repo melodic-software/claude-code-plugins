@@ -63,11 +63,6 @@ new_case_dir() {
 
 write() { printf '%s' "$2" >"$1"; }
 
-# A catalog entry with its own manifest, so `catalog_versions` resolves and the
-# equality pre-filter and the downgrade guard are the production ones. Under
-# FLEET_STATE_CATALOG_DIR the manifests live at
-# <catalog dir>/<marketplace>/<source>/.claude-plugin/plugin.json, mirroring
-# production's <installLocation>/<source>/.claude-plugin/plugin.json.
 catalog_plugin() {
   local case_dir="$1" mp="$2" name="$3" version="$4"
   mkdir -p "$case_dir/catalog/$mp/$name/.claude-plugin"
@@ -75,9 +70,6 @@ catalog_plugin() {
     "{\"name\":\"$name\",\"version\":\"$version\"}"
 }
 
-# fleet-state.sh normalizes a project root to the platform's own spelling, so a
-# fixture that records a projectPath has to record it the same way or the record
-# never reads as `currentProject: true`.
 norm_path() {
   if command -v cygpath >/dev/null 2>&1; then
     cygpath -m "$1"
@@ -277,8 +269,6 @@ STUB
   chmod +x "$case_dir/stubs/claude"
 }
 
-# The cache-content-check.sh stub. Counts calls so the once-per-marketplace
-# contract is asserted directly, and emits the JSON shape the real script emits.
 write_cache_stub() {
   local case_dir="$1"
   cat >"$case_dir/stubs/cache-content-check.sh" <<'STUB'
@@ -347,9 +337,6 @@ setup_case() {
   [[ -f "$case_dir/user_settings.json" ]] || write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
 }
 
-# Runs sync-run.sh against a case fixture. Extra args are sync-run.sh's own.
-# CLAUDE_CODE_REMOTE is dropped so a run under a remote session tests the same
-# script; a case that wants it sets it through EXTRA_ENV.
 run_sync() {
   local case_dir="$1"
   shift
@@ -370,9 +357,6 @@ run_sync() {
     bash "$SCRIPT" "$@" 2>"$case_dir/stderr.txt"
 }
 
-# ============================================================================
-# Case: audit issues ZERO mutating CLI calls, and still takes every read
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.3.0
@@ -385,9 +369,6 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
 setup_case "$case_dir"
 EXTRA_ENV=()
-# The policy argument is deliberately the unset placeholder token here: it is the
-# one value a caller can pass by mistake, and it must fall back to `ask` and be
-# named rather than swallowed.
 # shellcheck disable=SC2016  # the unrendered placeholder token is the literal input under test
 out=$(run_sync "$case_dir" --marketplace market1 --audit --install-new '${user_config.install_new}')
 rc=$?
@@ -405,21 +386,13 @@ assert_eq "audit: nothing recorded as updated" "0" \
   "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
 assert_eq "audit: the scratch run directory is removed on exit" "absent" \
   "$([[ -d "$(jq -r '.run_dir' <<<"$out")" ]] && echo present || echo absent)"
-# The other half of the `In-repo:` row's input: no project context, so no
-# project/local record belongs to the root the run stands in.
 assert_eq "audit: a run with no project context reports zero in-repo records" "0" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
-# A predicted step did not run, so its timing is null, never 0; the reads it
-# still took are timed.
 assert_eq "audit: the predicted marketplace update has no timing" "null" \
   "$(jq -c '.marketplaces[0].timings.marketplace_update' <<<"$out")"
 assert_eq "audit: the pre-refresh read it did take is timed" "number" \
   "$(jq -r '.marketplaces[0].timings.pre_refresh_read | type' <<<"$out")"
 
-# ============================================================================
-# Case: sync calls the cache checker exactly ONCE per marketplace, and reads the
-# stale ids out of that call's own JSON
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.3.0
@@ -442,8 +415,6 @@ assert_eq "sync: stale ids came from the JSON" "alpha@market1" \
   "$(jq -r '.marketplaces[0].cache_content.stale_ids[0]' <<<"$out")"
 assert_eq "sync: cache source is the JSON" "json" \
   "$(jq -r '.marketplaces[0].cache_content.source' <<<"$out")"
-# The per-id row the `Cache content:` section renders: only the stale install, its
-# version, and one file count summing all three directions of disagreement.
 assert_eq "sync: only the stale install gets a per-id row" "1" \
   "$(jq -r '.marketplaces[0].cache_content.stale | length' <<<"$out")"
 assert_eq "sync: that row carries the id, its version, and the file count" "alpha@market1 0.1.0 4" \
@@ -461,10 +432,6 @@ assert_eq "sync: the journal recorded the mutating call" "1" \
 assert_eq "sync: the digest is also written to the run directory" "market1" \
   "$(jq -r '.marketplaces[0].name' "$(jq -r '.run_dir' <<<"$out")/digest.json")"
 
-# ============================================================================
-# Case: a failing `claude plugin update` lands in `failed`, never in `updated`
-# (the rc=${PIPESTATUS[0]} guarantee — tee succeeds whenever it can write the log)
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.3.0
@@ -491,11 +458,6 @@ assert_contains "failed update: the bullet carries the failure reason" "$bullet"
 assert_eq "failed update: the progress line is not the reported reason" "0" \
   "$(printf '%s\n' "$bullet" | grep -c 'Checking for updates' || true)"
 
-# ============================================================================
-# Case: a first-pass update failure survives an `--only-install` re-entry. The
-# replacement digest is the whole-run report; dropping the failure would let a
-# plugin that never moved render as a successful sync.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.3.0
@@ -527,10 +489,6 @@ assert_eq "ask+fail re-entry: refresh output from the first pass is kept" \
   "$(jq -r '.marketplaces[0].refresh.output' <<<"$out")" \
   "$(jq -r '.marketplaces[0].refresh.output' <<<"$out2")"
 
-# ============================================================================
-# Case: a proven downgrade is WITHHELD by default and acted on only with
-# --allow-downgrade, where it renders as downgraded and never as updated
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -572,9 +530,6 @@ assert_eq "--allow-downgrade: never as updated" "0" \
 assert_eq "--allow-downgrade: recorded in the digest" "true" \
   "$(jq -r '.allow_downgrade' <<<"$out")"
 
-# The flag belongs to the RUN. A re-entry that does not repeat it must not rebuild
-# the withheld list from the run's own downgrade projection and report a rollback
-# the first pass already applied.
 run_dir2=$(jq -r '.run_dir' <<<"$out")
 out2=$(run_sync "$case_dir2" --only-install '' --run-dir "$run_dir2")
 assert_exit "--only-install after --allow-downgrade: exit 0" 0 $?
@@ -585,12 +540,6 @@ assert_eq "--only-install: it still renders as downgraded" "1" \
 assert_eq "--only-install: and the run's flag is carried into the second digest" "true" \
   "$(jq -r '.allow_downgrade' <<<"$out2")"
 
-# ============================================================================
-# Case: an install gap under the `ask` policy stops before Step 4, and the narrow
-# --only-install re-entry then installs and enables against the SAME run directory.
-# The first pass skips the cache check; the re-entry runs it once the installs
-# have landed.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.2.0
@@ -617,8 +566,6 @@ assert_eq "ask: stopping before Step 4 leaves the cache check null" "null" \
   "$(jq -c '.marketplaces[0].timings.cache_content_check' <<<"$out")"
 
 run_dir=$(jq -r '.run_dir' <<<"$out")
-# The documented form carries no marketplace argument: the re-entry takes its
-# marketplaces from the run directory's own snapshots.
 out2=$(run_sync "$case_dir" --only-install beta@market1 --run-dir "$run_dir")
 assert_exit "--only-install: exit 0" 0 $?
 assert_eq "--only-install: it covers the run's marketplace without being told" "market1" \
@@ -634,9 +581,6 @@ assert_eq "--only-install: the checker runs once, after the installs" "1" \
   "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
 assert_eq "--only-install: the cache finding is from that check" "alpha@market1" \
   "$(jq -r '.marketplaces[0].cache_content.stale_ids[0]' <<<"$out2")"
-# Timings follow what each invocation actually ran: the first pass stopped before
-# Step 4 and skipped the cache check, the re-entry ran Steps 4 and 5, the cache
-# check, and the post read, and none of Steps 1-3.
 assert_eq "ask: stopping before Step 4 leaves install_enable null, not 0" "null" \
   "$(jq -c '.marketplaces[0].timings.install_enable' <<<"$out")"
 assert_eq "--only-install: the steps the first pass ran read null" "null null null" \
@@ -656,9 +600,6 @@ assert_eq "--only-install: the normalizer wrote user scope once after the instal
 assert_eq "--only-install: and only INSPECTED the project-scope map" "1" \
   "$(grep -c -- '--report-project' "$case_dir/normalize.log")"
 
-# ============================================================================
-# Case: `none` reports the gap and installs nothing; `all` installs it
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -693,9 +634,6 @@ assert_eq "all: the normalizer heals the key order the install disturbed" "1" \
 assert_eq "all: Steps 4 and 5 ran, so install_enable is timed" "number" \
   "$(jq -r '.marketplaces[0].timings.install_enable | type' <<<"$out")"
 
-# ============================================================================
-# Case: an empty projection that EXITED 2 is an error, never "nothing to do"
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -707,8 +645,6 @@ write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
 write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
 setup_case "$case_dir"
-# A fleet-state wrapper that answers reads normally and rejects every projection
-# the way the real script rejects a malformed report: exit 2, EMPTY stdout.
 cat >"$case_dir/stubs/fleet-state.sh" <<STUB
 #!/usr/bin/env bash
 for a in "\$@"; do
@@ -729,10 +665,6 @@ assert_eq "exit-2 projection: the sweep is not reported as done" "0" \
 assert_eq "exit-2 projection: no update was issued off an empty list" "0" \
   "$(grep -c 'plugin update' "$case_dir/claude.log")"
 
-# ============================================================================
-# Case: --all loops every marketplace, and one marketplace's failure does not
-# abort the sweep for the rest
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -800,9 +732,6 @@ assert_eq "autoUpdate: a literal true is true" "true" \
 assert_eq "autoUpdate: neither marketplace is reported as unreadable" "0" \
   "$(jq -r '[.marketplaces[] | select(.auto_update == null)] | length' <<<"$out")"
 
-# ============================================================================
-# Case: an enable gap is filled at user scope and REPORTED at project scope
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -827,8 +756,6 @@ assert_eq "no-op update: an already-current id is NOT an Updated row" "0" \
   "$(jq -r '.marketplaces[0].in_repo.updated | length' <<<"$out")"
 assert_eq "no-op update: and is not a downgrade either" "0" \
   "$(jq -r '.marketplaces[0].downgraded | length' <<<"$out")"
-# The fixture's marketplace record carries no autoUpdate key; fleet-state.sh
-# normalizes that to `false`, and the digest must carry the boolean, not null.
 assert_eq "report inputs: the marketplace's autoUpdate rides the digest as a boolean" "false" \
   "$(jq -c '.marketplaces[0].auto_update' <<<"$out")"
 assert_eq "report inputs: the stale-project-record count rides the digest" "0" \
@@ -837,9 +764,6 @@ zero_list=absent
 [[ -e "$(jq -r '.run_dir' <<<"$out")/stale-project-records.market1.json" ]] && zero_list=present
 assert_eq "report inputs: no stale records means no list file is written" "null absent" \
   "$(jq -r '.marketplaces[0].stale_project_records.list_file' <<<"$out") $zero_list"
-# The `In-repo:` row's own input. This root HAS a project-scope install and the
-# run moved none of it, which is exactly the case an intersection with the
-# divergences cannot tell from "this root has no project/local installs".
 assert_eq "report inputs: the in-repo record count rides the digest" "1" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
 assert_eq "report inputs: and names the id" "delta@market1" \
@@ -853,10 +777,6 @@ assert_eq "enable gap: no project-scope enable is ever issued" "0" \
 assert_eq "enable gap: the project-scope row is reported with its path" "$ppath" \
   "$(jq -r '.marketplaces[0].project_enable_rows[0].project_path' <<<"$out")"
 
-# ============================================================================
-# Case: a sibling worktree's record of the same id, listed first, does not
-# stand in for the record keyed on the run's own project
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.2.0
@@ -880,7 +800,6 @@ out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-ro
 assert_eq "sibling worktree: the old version is the run's own record, not the first in file order" "0.1.0" \
   "$(jq -r '.marketplaces[0].in_repo.updated[0].old' <<<"$out")"
 
-# The same fleet, but the CLI moves the sibling's record and leaves the run's own.
 write "$case_dir/installed_plugins.json" "{
   \"version\": 1,
   \"plugins\": {
@@ -942,10 +861,6 @@ out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-ro
 assert_eq "no-op update: a record already at the catalog is not a failure" "0" \
   "$(jq -r '[.marketplaces[0].in_repo.failed[] | select(.id == "beta@market1")] | length' <<<"$out")"
 
-# ============================================================================
-# Case: an in-repo record for the plugin providing this skill is a self-update
-# too, and the stale-project-record rows carry a count PER PATH
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 delta 0.2.0
@@ -954,9 +869,6 @@ catalog_plugin "$case_dir" market1 beta 0.1.0
 ppath=$(norm_path "$case_dir")
 gone_a=$(norm_path "$case_dir/gone-a")
 gone_b=$(norm_path "$case_dir/gone-b")
-# The manifest `own_plugin_name` reads. Naming the fixture's own plugin here is
-# what makes the assertion about the mechanism rather than about this
-# repository's plugin name.
 mkdir -p "$case_dir/self/.claude-plugin"
 write "$case_dir/self/.claude-plugin/plugin.json" '{"name":"delta","version":"0.1.0"}'
 write "$case_dir/installed_plugins.json" "{
@@ -990,16 +902,9 @@ assert_eq "stale project records: each row carries its own count" "2" \
   "$(jq -r --arg p "$gone_a" 'first(.[] | select(.path == $p) | .count)' "$stale_list" 2>/dev/null)"
 assert_eq "stale project records: and the single-record path reads 1" "1" \
   "$(jq -r --arg p "$gone_b" 'first(.[] | select(.path == $p) | .count)' "$stale_list" 2>/dev/null)"
-# An absent path is not "here": those records must not inflate the In-repo row.
 assert_eq "stale project records: they are not counted as in-repo records" "1" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
 
-# ============================================================================
-# Case: a project record keyed to a user home is not a divergence. The user-scope
-# sweep moves alpha to 0.2.0 and leaves the home-keyed record at 0.1.0, which
-# would be one actionable divergence were that record a project. It is reported
-# in its own digest field instead.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.2.0
@@ -1046,9 +951,6 @@ esac
 "
   chmod +x "$case_dir/stubs/date"
 }
-# Every non-null timing is a non-negative number, the marketplace total is at
-# least the sum of its steps, and the steps plus the named remainder account for
-# every second of it, at both levels.
 assert_timings_shape() {
   local label="$1" digest="$2" t
   t=$(jq -c '.marketplaces[0].timings' <<<"$digest")
@@ -1103,9 +1005,6 @@ assert_eq "timings: cli counts the refresh and the one update, timed within the 
 assert_eq "timings: the journal times each call on the line after its output" "2" \
   "$(grep -cE '^# elapsed [0-9]+\.[0-9]{3}s, exit 0$' "$(jq -r '.run_dir' <<<"$out")/journal.log")"
 if [[ -n "${EPOCHREALTIME:-}" ]]; then
-  # The run clock stops before the digest is assembled, so the total leaves out at
-  # least that jq, the report write and the print, which the wall clock around the
-  # whole invocation includes.
   assert_eq "timings: the run total stops short of the whole invocation (it excludes the digest assembly)" "true" \
     "$(jq -rn --arg ws "$wall_s" --arg we "$wall_e" --argjson total "$(jq '.timings.total' <<<"$out")" \
       '$total < (($we | tonumber) - ($ws | tonumber))')"
@@ -1113,7 +1012,6 @@ if [[ -n "${EPOCHREALTIME:-}" ]]; then
     "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
 fi
 
-# A `date` whose %N is a literal N: the fallback is whole seconds, labeled.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir2=$(new_case_dir)
 cp -r "$case_dir"/. "$case_dir2"/
@@ -1129,8 +1027,6 @@ assert_eq "literal-N date: the run falls back to whole seconds and says so" "sec
   "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
 assert_timings_shape "literal-N date" "$out"
 
-# A `date` that prints a real fraction, with EPOCHREALTIME withheld: the
-# nanosecond rung, on a host whose date has %N; whole seconds otherwise.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir3=$(new_case_dir)
 cp -r "$case_dir"/. "$case_dir3"/
@@ -1150,10 +1046,6 @@ assert_eq "date rung: without EPOCHREALTIME the run reports the date rung the ho
   "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
 assert_timings_shape "date rung" "$out"
 
-# The default-marketplace path: the resolving read runs in main, before the
-# loop body, and it is that marketplace's pre_refresh_read. A wrapper slows only
-# that zero-argument read, so a block window that opened after it would report
-# a total below the sum of its own steps.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.2.0
@@ -1182,13 +1074,6 @@ assert_eq "default path: the resolving read is timed as pre_refresh_read" "true"
   "$(jq -r '.marketplaces[0].timings.pre_refresh_read >= 1' <<<"$out")"
 assert_timings_shape "default path" "$out"
 
-# ============================================================================
-# Cases: the Step 6 report is rendered by the script. Golden files under
-# fixtures/render/ hold the whole fixed-section report for each shape; a case
-# runs with --render, takes the report that follows the digest line, replaces
-# the run-specific paths, elides the timing figures, and diffs it against the
-# golden. A missing golden prints the actual report so a reviewer can freeze it.
-# ============================================================================
 GOLDEN_DIR="$SCRIPT_DIR/fixtures/render"
 normalize_report() {
   sed -e "s|$1|<run_dir>|g" -e "s|$(norm_path "$2")|<case>|g" -e "s|$2|<case>|g" \
@@ -1230,7 +1115,6 @@ golden_fixture() {
   setup_case "$case_dir"
 }
 
-# --- a clean, current fleet: the shortest report -----------------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -1249,8 +1133,6 @@ assert_eq "render: a run without --render prints only the digest line" "1" \
 # shellcheck disable=SC2016  # the literal placeholder token is the thing searched for
 assert_eq "render: the renderer carries no user_config placeholder token" "0" \
   "$(grep -c -F '${user_config' "$SCRIPT_DIR/render-report.jq")"
-# The Timing rows' shape, asserted here because the golden elides their figures:
-# each figure on its own line under the row.
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --render)
 assert_eq "render: the marketplace Timing row names the slowest step, the remainder and the clock" "4" \
   "$(printf '%s\n' "$out" | grep -A3 -E '^Timing: [0-9.]+s this marketplace$' | head -n 4 |
@@ -1261,7 +1143,6 @@ assert_eq "render: the run Timing row names the run total, its remainder and the
 assert_eq "render: a clean run opens with its verdict" "Result: clean, nothing changed and nothing under Action needed" \
   "$(printf '%s\n' "$out" | sed -n 3p)"
 
-# --- a withheld downgrade, with the source named as the likely cause --------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.5.0 false
@@ -1270,9 +1151,6 @@ report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$
 assert_exit "render withheld: exit 0" 0 "$REPORT_RC"
 assert_golden "render withheld: the report matches the golden" withheld-downgrade.txt "$REPORT_TEXT"
 
-# --- autoUpdate off, with the enable-it suggestion silenced -----------------
-# The slot still says off; only the suggestion goes, and only for a named
-# marketplace. Without the option the suggestion stays, as in the golden above.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 false
@@ -1292,13 +1170,11 @@ assert_contains "quiet autoUpdate: unset, the suggestion shows" "$REPORT_TEXT" \
   $'(autoUpdate: off)\n  remedy: enable autoUpdate so the catalog refreshes automatically'
 assert_eq "quiet autoUpdate: unset, the digest carries an empty list" "[]" \
   "$(jq -c '.quiet_auto_update' <<<"$REPORT_DIGEST")"
-# An --only-install re-entry renders the same slot from the run's saved flags.
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" \
   --quiet-auto-update market1)
 out=$(run_sync "$case_dir" --only-install "" --run-dir "$(head -n 1 <<<"$out" | jq -r '.run_dir')" --render)
 assert_contains "quiet autoUpdate: the re-entry keeps the silenced slot" "$out" \
   "Marketplace: market1: current (autoUpdate: off)"
-# The pull policy takes ask or never; anything else runs as ask and is named.
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" \
   --source-pull sometimes
 assert_eq "source pull policy: an invalid value runs as ask and is named" '["ask","sometimes"]' \
@@ -1306,9 +1182,6 @@ assert_eq "source pull policy: an invalid value runs as ask and is named" '["ask
 assert_contains "source pull policy: the invalid value renders under Action needed" "$REPORT_TEXT" \
   $'directory_source_pull value "sometimes" is not ask or never\n    this run used ask'
 
-# --- a self-update whose row is not the first moved row ------------------------
-# alpha sorts ahead of zeta, and zeta is the plugin running the sync, so the note
-# has to name zeta's own row rather than the first update.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.2.0
@@ -1336,10 +1209,6 @@ assert_eq "render self-update: the digest names this plugin's own row" \
   "$(jq -c '.marketplaces[0].self_update' <<<"$REPORT_DIGEST")"
 assert_golden "render self-update: the note names this plugin" self-update-not-first.txt "$REPORT_TEXT"
 
-# --- the --json result decides, not its sentence -------------------------------
-# The update's message is reworded, so only `updateOutcome` and `newVersion` say
-# what happened: an applied update is an Updated row at the CLI's version, and an
-# up-to-date result for an id something else moved is a moved-during-run row.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.2.0 0.1.0 true
@@ -1358,7 +1227,6 @@ out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-ro
 assert_eq "json result: up_to_date for an id that moved is a moved-during-run row" \
   '[{"id":"alpha@market1","scope":"user","kind":"user_sweep","old":"0.1.0","new":"0.2.0","direction":"forward"}]' \
   "$(jq -c '.marketplaces[0].moved_during_run' <<<"$out")"
-# A CLI older than the flag prints text only; the sentences still classify.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.2.0 0.1.0 true
@@ -1406,11 +1274,6 @@ assert_contains "recorded shape: the unset-options sentence the stub copies" \
   "$(jq -r 'select(.probe == "install") | .result.message' "$SCRIPT_DIR/fixtures/cli-json-results.jsonl")" \
   "2 userConfig options not yet set (1 required)"
 
-# --- an id the CLI calls current while the snapshots show it moved -------------
-# The stub prints "already at the latest version (X)" for alpha after something
-# else moved it. X differs from the mid snapshot's version, so the id is a
-# moved-during-run row, not a noop; the same line with X equal to the installed
-# version is a true noop.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.2.0 0.1.0 true
@@ -1438,7 +1301,6 @@ assert_eq "true noop: and nothing is unverified" "0" \
 assert_eq "true noop: and nothing is updated" "0" \
   "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
 
-# A concurrent move to a LOWER version lands under Downgraded, flagged.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.3.0 0.2.0 true
@@ -1451,7 +1313,6 @@ assert_eq "moved backward: the downgraded row carries the concurrent flag" \
 assert_contains "moved backward: the report qualifies the downgrade" "$REPORT_TEXT" \
   "  - alpha@market1 (user): 0.2.0 -> 0.1.0 (moved during this run)"
 
-# A snapshot version that cannot be read leaves the id a noop and counts it.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.2.0 0.1.0 true
@@ -1474,13 +1335,6 @@ assert_eq "unverified noop: no moved row is invented" "0" \
 assert_eq "unverified noop: the id is counted as unverified" "1" \
   "$(jq -r '.marketplaces[0].noop_unverified' <<<"$out")"
 
-# --- this plugin's own install moved during the run -----------------------------
-# zeta is the plugin running the sync. The CLI calls it current, but its install
-# moved on disk: the flag is set and the note names zeta, not the first moved row.
-# beta is updated by the sweep and alpha moved during the run, each with a project
-# record elsewhere, so each creates a new divergence: the split credits the sweep
-# for beta and the concurrent move for alpha. alpha and beta carry no catalog
-# version, so the other path's records are not ones sync forward-updates.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 zeta 0.2.0
@@ -1512,7 +1366,6 @@ assert_eq "moved self: the digest names this plugin's own row" \
 assert_eq "moved self: the divergence split credits concurrent and sweep separately" \
   '{"in_repo":0,"user_sweep":1,"concurrent":1}' \
   "$(jq -c '.marketplaces[0].divergences.new_by_interval' <<<"$REPORT_DIGEST")"
-# Sync keeps the per-record detail in the run directory and only counts it in the digest.
 div_file=$(jq -r '.marketplaces[0].divergences.records_file' <<<"$REPORT_DIGEST")
 assert_eq "moved self: the digest counts the diverging records and does not carry them" "false 2" \
   "$(jq -r '.marketplaces[0].divergences | "\(has("records")) \(.record_count)"' <<<"$REPORT_DIGEST")"
@@ -1522,7 +1375,6 @@ assert_eq "moved self: the records file names every diverging id" '["alpha@marke
   "$(jq -c '[.records[].id] | unique' "$div_file" 2>/dev/null)"
 assert_golden "render moved during run: moved rows, self-update note and the split's own cause" moved-during-run.txt "$REPORT_TEXT"
 
-# --- stale project records plus a cache-content finding ----------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 delta 0.2.0
@@ -1555,11 +1407,6 @@ report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$
 assert_exit "render stale+cache: exit 0" 0 "$REPORT_RC"
 assert_golden "render stale+cache: the report matches the golden" stale-records-cache-content.txt "$REPORT_TEXT"
 
-# --- many stale paths: grouped by parent, capped, full list kept in the run dir
-# Twelve parent directories under the case dir, none of them present. g01 holds
-# three paths with a project and a local record each (6 records), g02 one path
-# with both (2), and g03 to g12 one project record each. So 18 records across
-# 14 paths and 12 parents; the cap of 10 rows leaves g11 and g12 off the report.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -1598,14 +1445,12 @@ assert_eq "stale many: the full list keeps a path past the cap with its count" "
     "$stale_run_dir/stale-project-records.market1.json" 2>/dev/null)"
 assert_eq "stale many: the printed digest carries no per-path array" "false" \
   "$(jq '[.marketplaces[].stale_project_records | .. | objects | has("by_path")] | any' <<<"$REPORT_DIGEST")"
-# Audit's scratch directory is removed on exit, so the render names no file there.
 report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_contains "stale many audit: the header still counts every record" "$REPORT_TEXT" \
   "Stale project records (market1): 18 record(s) across 14 path(s) not present on this machine"
 assert_contains "stale many audit: the render says the full list is not kept" "$REPORT_TEXT" \
   "  Full per-path list: not kept, the audit scratch directory is removed on exit"
 
-# --- an ask-policy run that stopped before Step 4 ----------------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.3.0 0.1.0 true
@@ -1617,16 +1462,12 @@ assert_exit "render ask-stop: exit 0" 0 "$REPORT_RC"
 assert_eq "render ask-stop: the digest still says it stopped" "true" \
   "$(jq -r '.marketplaces[0].stopped_before_install' <<<"$REPORT_DIGEST")"
 assert_golden "render ask-stop: the report matches the golden" ask-stopped-before-install.txt "$REPORT_TEXT"
-# The re-entry re-renders the whole run, superseding the first report.
 run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
 report_of "$case_dir" --only-install beta@market1 --run-dir "$run_dir"
 assert_exit "render re-entry: exit 0" 0 "$REPORT_RC"
 assert_golden "render re-entry: the superseding report matches the golden" ask-reentry-installed.txt "$REPORT_TEXT"
 
-# --- a re-entry keeps the first pass's invalid install_new and its timings -----
-# The re-entry takes no --install-new, so the superseding report would otherwise
-# drop the warning, and its run total would cover only the re-entry.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.3.0 0.1.0 true
@@ -1661,7 +1502,6 @@ assert_eq "invalid policy re-entry: the run Timing row names both passes" "6" \
   "$(printf '%s\n' "$out2" | grep -A5 -E '^Timing: [0-9.]+s run total over both passes$' |
     grep -c -E '^(Timing: [0-9.]+s run total over both passes|  first pass: [0-9.]+s|  --only-install re-entry: [0-9.]+s|  the wait between the passes is not counted|  outside the marketplace blocks: [0-9.]+s|  clock resolution: (microseconds|nanoseconds|seconds))$')"
 
-# --- an ask-policy re-entry where the human picked none of the offered plugins
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.3.0 0.1.0 true
@@ -1675,7 +1515,6 @@ assert_exit "render ask none picked: exit 0" 0 "$REPORT_RC"
 assert_eq "render ask none picked: nothing was installed" "0" "$(grep -c 'plugin install' "$case_dir/claude.log")"
 assert_golden "render ask none picked: the report names the declined gap" ask-reentry-none-picked.txt "$REPORT_TEXT"
 
-# --- an ask-policy re-entry where the human picked one of three offered plugins
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.3.0 0.1.0 true
@@ -1694,7 +1533,6 @@ assert_contains "render ask partial pick: the declined plugin is named" "$REPORT
 assert_eq "render ask partial pick: the installed plugin is not in the gap bullet" "0" \
   "$(grep -c 'offered and not installed.*beta@market1' <<<"$REPORT_TEXT")"
 
-# --- an --only-install id that no marketplace in the run claims is reported ----
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.3.0 0.1.0 true
@@ -1710,7 +1548,6 @@ assert_contains "render unclaimed id: the id is named as an error row" "$REPORT_
 assert_eq "render unclaimed id: the claimed id raises no error" "0" \
   "$(grep -c 'matches no marketplace.*beta@market1' <<<"$REPORT_TEXT" || true)"
 
-# --- an id the second marketplace claims raises no error from the first ---------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -1737,11 +1574,6 @@ assert_eq "render second-marketplace id: no error row" "0" \
 assert_eq "render second-marketplace id: it was installed" "1" \
   "$(grep -c 'plugin install gamma@market2' "$case_dir/claude.log")"
 
-# --- every header status carries evidence of what needs doing ------------------
-# A minimal digest per header cause, rendered directly. `needs update` is refresh,
-# update and failure state; a pending action reads `current, 1 action(s) pending`.
-# Sync mode: an `Action needed` bullet must name it. Audit mode renders some
-# predictions as rows (`would run:`, `Would withhold`) instead of bullets.
 CASE_NUM=$((CASE_NUM + 1))
 needs_policy=none
 needs_digest() {
@@ -1803,8 +1635,6 @@ needs_check "audit would update" audit '{"in_repo":{"would_update":[{"id":"a@m",
   "would run: claude plugin update a@m" row
 pending_check "audit withheld downgrade" audit \
   '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "Would withhold: 1 downgrade(s)" row
-# The verdict: an audit withheld downgrade is a prediction, never clean, and an
-# audit predicting nothing says its prediction is a lower bound.
 assert_eq "needs: an audit whose only finding is a withheld downgrade does not read as clean" \
   "Result: see the predictions below, nothing under Action needed" \
   "$(needs_digest audit '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' |
@@ -1818,8 +1648,6 @@ needs_check "audit would install" audit '{"install_gap":["b@m"]}' "would run: cl
 needs_check "audit would enable" audit '{"enable_gap":["b@m"],"enabled":[{"id":"b@m","scope":"user","predicted":true}]}' \
   "would run: claude plugin enable b@m -s user" row
 needs_policy=none
-# The normalizer's line renders as the Normalized row: moved of total, a missing
-# settings file as its own row, and a digest from before `moved=` as it always did.
 norm_render() { needs_digest "$1" "{\"normalize\":{\"output\":\"$2\"}}" | jq -r -f "$SCRIPT_DIR/render-report.jq"; }
 assert_contains "normalize render: the row counts moved keys of the total" \
   "$(norm_render sync 'normalized moved=1 keys=101')" "Normalized: user enabledPlugins key order (1 of 101 keys moved)"
@@ -1833,68 +1661,53 @@ assert_eq "normalize render: a missing file never reads as a reorder" "0" \
   "$(norm_render sync 'missing-file keys=0' | grep -c 'key order' || true)"
 assert_contains "normalize render: a digest without moved= keeps its old row" \
   "$(norm_render sync 'normalized keys=3')" "Normalized: user enabledPlugins key order (3 keys reordered)"
-# A sync run whose list file could not be written must not claim audit's reason.
 stale_unwritten='{"stale_project_records":{"total":1,"paths":1,"by_parent":[{"parent":"/g/","count":1,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_contains "stale render: a sync run with no list file says it was not written" \
   "$(needs_digest sync "$stale_unwritten" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "  Full per-path list: not written this run"
-# A digest saved before 3.8.1 carries only `by_path`; re-rendering it still lists each path.
 stale_legacy='{"stale_project_records":{"total":3,"by_path":[{"path":"/g/a","count":2},{"path":"/h/b","count":1}]}}'
 assert_contains "stale render: a pre-3.8.1 digest still renders its per-path rows" \
   "$(needs_digest sync "$stale_legacy" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
   $'Stale project records (m): 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
-# Every absent record local-scope: the worktree audit has nothing to classify, so no pointer.
 stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"local":2,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_not_contains "stale render: local-scope records only name no worktree audit" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
 assert_contains "stale render: local-scope records are counted and named as unreaped" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" \
   "  2 local-scope record(s), which nothing reaps yet"
-# Records keyed to a user home get their own row, and a digest with none omits it.
 assert_contains "user-home render: the records get a row of their own" \
   "$(needs_digest sync '{"user_home_records":{"total":1,"paths":["/mnt/c/Users/someone"]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
   $'User-home project records: 1 record(s) keyed to a user home directory\n  - /mnt/c/Users/someone'
 assert_not_contains "user-home render: no records, no row" \
   "$(needs_digest sync '{"user_home_records":{"total":0,"paths":[]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")" "User-home project records"
 pending_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
-# A digest written before `self_update` existed: the note names no plugin rather
-# than the first moved row.
 assert_contains "self-update render: a digest without the row names no plugin" \
   "$(needs_digest sync '{"self_updated":true,"user_sweep":{"updated":[{"id":"a@m","scope":"user","old":"1","new":"2"}]}}' |
     jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" $'Note: this plugin moved during this run\n  the algorithm'
 
-# --- the Divergences section splits its count by what can be done about each part
-# Rendered straight from a digest. Each fixture carries the attribution fields the
-# section has always read, so only the split decides the text. div_row_of prints
-# the `Divergences:` row and the indented lines under it.
 div_row_of() {
   needs_digest sync "$1" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r' |
     awk '/^Divergences:/ { on = 1; print; next } on && /^ / { print; next } { on = 0 }'
 }
 div_attr='"pre_existing":4,"new_total":1,"new_by_interval":{"in_repo":1,"user_sweep":0}'
 div_attr_lines=$'  4 pre-existing\n  1 newly created by this run\n    1 by the in-repo update\n    0 by the user-scope sweep'
-# Under the class split the same lines sit under their own heading.
 div_origin_lines=$'  by origin:\n    4 pre-existing\n    1 newly created by this run\n      1 by the in-repo update\n      0 by the user-scope sweep'
-# All actionable, a project resolved: converge is the only pointer, once for both parts.
 div_row=$(div_row_of "{\"project_root\":\"/w\",\"divergences\":{\"post\":5,$div_attr,\"actionable_here\":2,\"actionable_elsewhere\":3,\"in_worktrees\":0,\"blocked\":0}}")
 assert_eq "divergences split: all actionable points at converge only" \
   $'Divergences: 5 in all\n  5 actionable\n    2 here\n    3 elsewhere on this machine\n    remedy: run `/harness-ops:plugins converge`\n'"$div_origin_lines" \
   "$div_row"
 assert_not_contains "divergences split: all actionable has no worktree pointer" "$div_row" "/source-control:worktree"
 assert_not_contains "divergences split: all actionable has no blocked part" "$div_row" "blocked"
-# Mixed: three parts, and converge is named once, on the actionable part.
 div_row=$(div_row_of "{\"divergences\":{\"post\":10,$div_attr,\"actionable_here\":0,\"actionable_elsewhere\":2,\"in_worktrees\":3,\"blocked\":5}}")
 assert_eq "divergences split: mixed names each non-zero part" \
   $'Divergences: 10 in all\n  2 actionable\n    2 elsewhere on this machine\n    remedy: run `/harness-ops:plugins converge`\n  3 in linked worktrees\n    remedy: remove the worktree\n    remedy: /source-control:worktree audit (if installed) classifies them\n  5 blocked, path not present\n    remedy: see Stale project records below\n'"$div_origin_lines" \
   "$div_row"
 assert_eq "divergences split: mixed points at converge exactly once" "1" "$(grep -o 'plugins converge' <<<"$div_row" | wc -l | tr -d ' ')"
 assert_eq "divergences split: no line joins two parts with a semicolon" "0" "$(grep -c ';' <<<"$div_row" || true)"
-# Only blocked: no converge pointer at all.
 div_row=$(div_row_of "{\"divergences\":{\"post\":7,$div_attr,\"actionable_here\":0,\"actionable_elsewhere\":0,\"in_worktrees\":0,\"blocked\":7}}")
 assert_eq "divergences split: only blocked names the stale-records note" \
   $'Divergences: 7 in all\n  7 blocked, path not present\n    remedy: see Stale project records below\n'"$div_origin_lines" \
   "$div_row"
 assert_not_contains "divergences split: only blocked has no converge pointer" "$div_row" "converge"
-# A digest written before the split: its count, its interval lines and one converge remedy.
 div_old="\"post\":5,$div_attr"
 assert_eq "divergences split: an old digest without split fields renders its count and the remedy" \
   $'Divergences: 5 actionable\n'"$div_attr_lines"$'\n  remedy: run `/harness-ops:plugins converge`' \
@@ -1905,9 +1718,6 @@ assert_eq "divergences split: an old digest with a project names the here count 
 assert_eq "divergences split: zero stays zero" 'Divergences: 0 actionable' \
   "$(div_row_of '{"divergences":{"post":0,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":0}}')"
 
-# --- the Divergences row names its project paths --------------------------------
-# No project root resolved, and the skewed records sit in two other paths: one
-# sub-line per path, the busier one capped at three ids with the rest counted.
 div_by_path='{"post":6,"pre_existing":6,"new_total":0,"new_by_interval":{"in_repo":0,"user_sweep":0},
   "actionable_here":0,"actionable_elsewhere":6,"in_worktrees":0,"blocked":0,
   "by_path":[{"path":"/w/a","count":5,"ids":["a@m","b@m","c@m"],"more":2},
@@ -1918,8 +1728,6 @@ assert_eq "divergence by path: one sub-line per path" "2" \
   "$(grep -c '^    - /w/' <<<"$div_text")"
 assert_eq "divergence by path: exactly one sub-line is capped" "1" \
   "$(tr -d '\r' <<<"$div_text" | grep -c '^    - /w/.*, +[0-9][0-9]* more$')"
-# A digest written before `blocked_paths` lists an absent path in by_path; the
-# render counts it on one line rather than listing it.
 div_legacy='{"post":2,"pre_existing":2,"new_total":0,"new_by_interval":{"in_repo":0,"user_sweep":0},
   "actionable_here":0,"actionable_elsewhere":1,"in_worktrees":0,"blocked":1,
   "by_path":[{"path":"/w/a","class":"actionable","count":1,"ids":["a@m"],"more":0},
@@ -1928,14 +1736,6 @@ assert_contains "divergence by path: an older digest's absent path becomes a cou
   "$(needs_digest sync "{\"divergences\": $div_legacy}" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
   $'  by project path:\n    - /w/a: 1 diverging record(s): a@m\n    - 1 path(s) not present: 2 diverging record(s), counted under Stale project records'
 
-# --- the split computed from a real fleet ---------------------------------------
-# alpha carries one pin per class beside its user record, all behind the user
-# version: a plain directory (actionable), a linked worktree (.git is a file naming
-# a /worktrees/ entry), and a path that is not present (blocked). beta is pinned
-# only in the worktree, gamma only in the missing path, and delta's pin is a
-# directory holding a submodule-style .git file, which is not a worktree. No
-# catalog version resolves, so no pin is one sync could forward-update and each
-# stays counted.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 mkdir -p "$case_dir/plain/.git" "$case_dir/wt" "$case_dir/sub" "$case_dir/sep" "$case_dir/current"
@@ -1988,9 +1788,6 @@ assert_contains "divergences real: the section names the worktree part" "$REPORT
   $'  1 in linked worktrees\n    remedy: remove the worktree\n    remedy: /source-control:worktree audit (if installed) classifies them'
 assert_contains "divergences real: the section names the blocked part" "$REPORT_TEXT" \
   $'  2 blocked, path not present\n    remedy: see Stale project records below'
-# delta (a submodule .git file), epsilon (a separate git dir under a directory
-# named worktrees) are plain checkouts; zeta's present pin already sits at the
-# highest version, so only its absent pin is the skew and the row is blocked.
 assert_eq "divergences real: every diverging record carries id, scope, version and projectPath" "true" \
   "$(jq '.marketplaces[0].divergences.records | length > 0
     and all(.[]; has("id") and has("scope") and has("version") and has("projectPath"))' <<<"$REPORT_DIGEST")"
@@ -2004,8 +1801,6 @@ assert_eq "divergences real: a pin already at the highest version is not a diver
   "$(jq --arg p "$p_gone" '[.marketplaces[0].divergences.records[] | select(.id == "zeta@market1") | .projectPath] == [$p]' <<<"$REPORT_DIGEST")"
 assert_eq "divergences real: audit keeps the records inline and names no records file" "null 8" \
   "$(jq -r '.marketplaces[0].divergences | "\(.records_file) \(.record_count)"' <<<"$REPORT_DIGEST")"
-# The path that is not present leaves by_path for a count, since the stale
-# project records section counts it.
 assert_eq "divergences real: by_path puts converge-actionable paths first, then worktrees" \
   '["actionable","actionable","actionable","worktree"]' \
   "$(jq -c '[.marketplaces[0].divergences.by_path[].class]' <<<"$REPORT_DIGEST")"
@@ -2025,9 +1820,6 @@ assert_contains "divergences real: a worktree path's sub-line says it is a linke
 assert_eq "divergences real: one by_path entry per present project path" "4" \
   "$(jq '.marketplaces[0].divergences.by_path | length' <<<"$REPORT_DIGEST")"
 
-# The run stands in a linked worktree whose own pin is skewed: that pin is
-# converge-actionable here, never classed `worktree`, while a sibling worktree's
-# skewed pin in the same fleet stays `worktree`.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 for name in alpha beta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
@@ -2058,9 +1850,6 @@ assert_eq "divergences current worktree: its own pin is actionable here, the sib
   '{"post":2,"actionable_here":1,"actionable_elsewhere":0,"in_worktrees":1,"blocked":0}' \
   "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
 
-# A pin keyed to a user home is in no class. beta's skew exists only because of
-# its home pin, so the row is not counted; alpha's home pin is present and not a
-# worktree, yet only its absent pin classes the row, so it is blocked.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 for name in alpha beta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
@@ -2090,7 +1879,6 @@ assert_eq "divergences user home: a home pin neither counts a row nor makes one 
   '{"post":1,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":1}' \
   "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
 
-# --- an install that left userConfig options unset ---------------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2103,7 +1891,6 @@ assert_exit "render unset config: exit 0" 0 "$REPORT_RC"
 assert_eq "render unset config: the digest carries the field" '[{"id":"beta@market1","options_unset":2,"required":1}]' \
   "$(jq -c '.marketplaces[0].installed_with_unset_user_config' <<<"$REPORT_DIGEST")"
 assert_golden "render unset config: the report matches the golden" installed-unset-user-config.txt "$REPORT_TEXT"
-# One option and no required clause: the singular form parses too.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir2=$(new_case_dir)
 cp -r "$case_dir"/. "$case_dir2"/
@@ -2138,7 +1925,6 @@ CASE_NUM=$((CASE_NUM + 1))
 assert_eq "render unset config: the field with the sentence keeps the required count" '[{"id":"beta@market1","options_unset":2,"required":1}]' \
   "$(unset_field_case 2 "2 userConfig options not yet set (1 required)")"
 
-# --- audit: every mutating line is a prediction, Would withhold beside Would update
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.3.0 0.1.0 true
@@ -2169,7 +1955,6 @@ assert_eq "render audit: every claude plugin line in the report carries the woul
 assert_contains "render audit: Would withhold sits beside Would update" \
   "$(printf '%s\n' "$REPORT_TEXT" | grep -A2 '^Would update:' | tr '\n' '|')" "Would withhold: 1 downgrade(s)"
 
-# --- an updated plugin whose installed build declares a monitor --------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.3.0 0.1.0 true
@@ -2183,7 +1968,6 @@ assert_eq "monitors: a nested experimental.monitors array on the updated build i
   "$(jq -c '.marketplaces[0].updated_with_monitors' <<<"$REPORT_DIGEST")"
 assert_contains "monitors: the report calls the restart out under Action needed" "$REPORT_TEXT" \
   $'  - monitor(s) declared by updated plugin(s): alpha@market1 (1)\n    remedy: restart the session to run the updated monitors, /reload-plugins does not switch them'
-# The directory convention, and a manifest path string, count the same way.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir2=$(new_case_dir)
 golden_fixture "$case_dir2" 0.3.0 0.1.0 true
@@ -2204,7 +1988,6 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir3" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB
 out=$(run_sync "$case_dir3" --marketplace market1 --install-new none --journal-root "$case_dir3/journal")
 assert_eq "monitors: a manifest path string under nested experimental.monitors is followed" "1" \
   "$(jq -r '.marketplaces[0].updated_with_monitors[0].monitors' <<<"$out")"
-# No monitor anywhere: the field is empty and the report carries no call-out.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir4=$(new_case_dir)
 golden_fixture "$case_dir4" 0.3.0 0.1.0 true
@@ -2216,7 +1999,6 @@ assert_eq "monitors: a build with no monitor is not listed" "[]" \
   "$(jq -c '.marketplaces[0].updated_with_monitors' <<<"$REPORT_DIGEST")"
 assert_eq "monitors: and the report has no Action needed section for it" "0" \
   "$(printf '%s\n' "$REPORT_TEXT" | grep -c 'monitor' || true)"
-# A top-level monitors key counts, and a nested empty array replaces the default file.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir5=$(new_case_dir)
 golden_fixture "$case_dir5" 0.3.0 0.1.0 true
@@ -2240,7 +2022,6 @@ out=$(run_sync "$case_dir6" --marketplace market1 --install-new none --journal-r
 assert_eq "monitors: a nested empty array replaces the default file" "[]" \
   "$(jq -c '.marketplaces[0].updated_with_monitors' <<<"$out")"
 
-# --- errors[] render under Action needed, exit status unchanged --------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2311,8 +2092,6 @@ assert_eq "large fleet: the run records no error" "[]" "$(jq -c '.errors' <<<"$R
 assert_not_contains "large fleet: the report does not read as if no marketplace resolved" "$REPORT_TEXT" \
   "Marketplace: none resolved for this run"
 
-# --- a block whose assembly fails is named, not dropped silently ------------
-# A jq on PATH that fails only the block assembly, the one call passing t_fn_s.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2374,8 +2153,6 @@ assert_eq "render behind: HEAD, the remote-tracking ref and the index are untouc
 assert_eq "render behind: a dirty checkout is not offered a fast-forward" \
   '{"status":"skipped","reason":"tracked files modified"}' \
   "$(jq -c '.marketplaces[0].source_pull' <<<"$REPORT_DIGEST")"
-# The states that cannot say how fresh the checkout is: each renders its own
-# row and never the behind status or its Action needed bullet.
 checkout_case() {
   local label="$1" state="$2" row="$3" out
   out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --render)
@@ -2391,9 +2168,6 @@ checkout_case "detached" detached $'    a git checkout at a detached HEAD, fresh
 rm -rf "$case_dir/mkt/.git"
 checkout_case "not a repo" not_a_repo "    not a git work tree, freshness not checked"
 
-# --- a requested fast-forward of a directory source's checkout ---------------
-# ff_fixture <case_dir>: the fleet above with a clean clone two commits behind
-# its origin as of its last fetch.
 ff_fixture() {
   local case_dir="$1" src_path
   golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2409,11 +2183,8 @@ ff_fixture() {
   command -v cygpath >/dev/null 2>&1 && src_path=$(cygpath -w "$src_path")
   write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"directory\", \"path\": \"${src_path//\\/\\\\}\"}, \"installLocation\": \"${src_path//\\/\\\\}\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
 }
-# The checkout's HEAD, index and tracked file, to show a refused pull left them.
 ff_state() { printf '%s %s %s' "$(git -C "$case_dir/mkt" rev-parse HEAD)" "$(cksum <"$case_dir/mkt/.git/index")" "$(cksum <"$case_dir/mkt/f")"; }
 
-# A clean, behind-only checkout the caller asked for is fast-forwarded before
-# the refresh, and the run goes on with the refreshed catalog.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 ff_fixture "$case_dir"
@@ -2441,7 +2212,6 @@ ff_refresh_line=$(grep -n -F '$ claude plugin marketplace update market1' "$ff_j
 assert_eq "fast-forward: the pull is journaled before the marketplace refresh" "true" \
   "$([[ -n "$ff_pull_line" && -n "$ff_refresh_line" ]] && ((ff_pull_line < ff_refresh_line)) && echo true || echo false)"
 
-# The guard refuses every other checkout, says why, and changes nothing in it.
 ff_refused() {
   local label="$1" reason="$2" before out journal
   shift 2
@@ -2476,8 +2246,6 @@ ff_refused "no upstream" "no upstream branch"
 git -C "$case_dir/mkt" checkout -q --detach
 ff_refused "detached" "detached HEAD"
 
-# Policy never, and an autonomous session, refuse before reading the checkout and
-# turn the offer into a skip.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 ff_fixture "$case_dir"
@@ -2496,8 +2264,6 @@ assert_eq "autonomous: no offer, and the run's policy reads never" \
   '["never",{"status":"skipped","reason":"autonomous session (CLAUDE_CODE_REMOTE set)"}]' \
   "$(head -n 1 <<<"$out" | jq -c '[.source_pull, .marketplaces[0].source_pull]')"
 
-# A pull that fails leaves the checkout and the behind bullet as they were, and
-# the run goes on.
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
 mv "$case_dir/origin" "$case_dir/origin-gone"
 before=$(ff_state)
@@ -2514,7 +2280,6 @@ assert_eq "failed pull: the checkout is untouched" "$before" "$(ff_state)"
 assert_contains "failed pull: the refresh still ran" \
   "$(cat "$(head -n 1 <<<"$out" | jq -r '.run_dir')/journal.log")" '$ claude plugin marketplace update market1'
 
-# A source that is not a directory is refused by name and nothing is pulled.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2523,16 +2288,12 @@ out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-ro
 assert_eq "pull source: a github source is refused" '{"status":"refused","reason":"not a directory source"}' \
   "$(head -n 1 <<<"$out" | jq -c '.marketplaces[0].source_pull')"
 
-# --pull-source is a sync request, and a name outside the run is reported.
 out=$(run_sync "$case_dir" --marketplace market1 --audit --pull-source market1)
 assert_exit "pull source: audit refuses the request" 2 $?
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --pull-source nope)
 assert_contains "pull source: a name outside the run is a run error" \
   "$(head -n 1 <<<"$out" | jq -r '.errors[]')" "--pull-source names no marketplace in this run: nope"
 
-# ============================================================================
-# Case: sync mode without --journal-root is a usage error, not a silent scratch run
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 setup_case "$case_dir"
@@ -2542,10 +2303,6 @@ rc=$?
 assert_exit "no journal root: exit 2" 2 "$rc"
 assert_contains "no journal root: names the flag" "$(cat "$case_dir/stderr.txt")" "--journal-root"
 
-# ============================================================================
-# Case: the claude CLI never inherits the caller's stdin, so a confirmation
-# prompt cannot block a run
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.3.0
@@ -2572,9 +2329,6 @@ else
   pass "stdin: claude sees no caller stdin"
 fi
 
-# ============================================================================
-# Case: --help and a usage error work on a machine with no jq
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 nojq_bin="$case_dir/nojq-bin"
@@ -2598,9 +2352,6 @@ else
   printf 'SKIP: no-jq cases — ln -s cannot make a runnable link on this host (Windows without the symlink privilege)\n' >&2
 fi
 
-# ============================================================================
-# Case: version_direction reads every segment in base 10
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 version_direction_of() {
@@ -2617,9 +2368,6 @@ got=$(version_direction_of $'2026.10.08\t2026.10.08')
 assert_eq "version_direction: 2026.10.08 -> 2026.10.08 is same" "same" "$got"
 assert_eq "version_direction: 2026.10.08 -> 2026.10.08 writes nothing to stderr" "" "$(cat "$case_dir/vd.err")"
 
-# ============================================================================
-# Case: an install the CLI reports as disabled by default is not a plain install
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2639,13 +2387,8 @@ assert_contains "disabled install: the enable command is in the report" "$REPORT
   $'beta@market1: installed but not enabled\n    remedy: claude plugin enable beta@market1 -s user'
 assert_eq "disabled install: policy all enables nothing the publisher left off" "0" \
   "$(grep -c 'plugin enable' "$case_dir/claude.log" || true)"
-# Every install is already not enabled, so the policy clause does not tell the
-# user to disable it.
 assert_golden "disabled install: the report matches the golden" installed-all-disabled.txt "$REPORT_TEXT"
 
-# The real normalizer after an install: one out-of-place key in a four-key map
-# reads 1 of 4 moved. The stub install writes no settings key, so the map carries
-# the unsorted tail already; keys at another marketplace stay out of market1's rows.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2662,7 +2405,6 @@ assert_eq "normalized one key: the user map is sorted" '["alpha@market1","beta@o
   "$(jq -c '.enabledPlugins | keys_unsorted' "$case_dir/user_settings.json")"
 assert_golden "normalized one key: the report matches the golden" normalized-one-key-moved.txt "$REPORT_TEXT"
 
-# One install left off and one loading: the clause gives the disable remedy.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2676,10 +2418,6 @@ report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$c
 assert_contains "mixed disabled install: the row gives the disable remedy beside the disabled id" "$REPORT_TEXT" \
   $'Installed: 2 new catalog plugin(s): beta@market1, gamma@market1\n  policy install_new: all, so the next sync reinstalls any of these you uninstall\n    remedy: to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling\n  installed but not enabled: beta@market1'
 
-# What the policy clause promises under install_new: all. beta is installed and
-# disabled, so it stays installed. gamma was uninstalled, which leaves neither a
-# record nor a key, so it is installed again. delta has a user-scope false and no
-# record, so it stays out.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2700,11 +2438,6 @@ assert_exit "recurrence: exit 0" 0 "$REPORT_RC"
 assert_eq "recurrence: only the uninstalled plugin is installed again" "plugin install gamma@market1 -s user --json" \
   "$(grep 'plugin install' "$case_dir/claude.log")"
 
-# An `ask` pick is the user's choice, so a pick the CLI installs disabled is then
-# enabled at user scope. The CLI notice decides, not the catalog: beta prints the
-# notice under a catalog default of true, gamma prints none under a catalog
-# default of false, and only beta is enabled. The settings-state stub fails an
-# enable of an already-enabled plugin, so enabling every pick would show a failure.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2728,7 +2461,6 @@ assert_eq "ask disabled pick: it is not reported as installed but not enabled" '
   "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
 assert_golden "ask disabled pick: the report matches the golden" ask-reentry-disabled-enabled.txt "$REPORT_TEXT"
 
-# A pick whose enable fails stays installed but not enabled, beside the failure.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2744,7 +2476,6 @@ assert_contains "ask failed enable: the failure is reported" "$REPORT_TEXT" "ena
 assert_eq "ask failed enable: the pick stays installed but not enabled" '["beta@market1"]' \
   "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
 
-# A failed install that printed the notice installed nothing, so it is not installed_disabled.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2760,9 +2491,6 @@ assert_contains "failed disabled install: reported as a failed install" "$REPORT
 assert_eq "failed disabled install: no enable remedy" "0" \
   "$(grep -c 'installed but not enabled' <<<"$REPORT_TEXT" || true)"
 
-# ============================================================================
-# Case: a user-scope install absent from the catalog is delisted, in sync and audit
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -2819,9 +2547,6 @@ assert_contains "delisted audit: the settings-only key is a prediction too" "$RE
 assert_eq "delisted audit: no unqualified uninstall command" "0" \
   "$(grep -c 'claude plugin uninstall' <<<"$REPORT_TEXT" || true)"
 
-# ============================================================================
-# Case: an in-repo install absent from the catalog is not swept by Step 2
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -2856,10 +2581,6 @@ assert_contains "delisted in-repo audit: the report names it as a prediction" "$
 assert_eq "delisted in-repo audit: not a would-update" "0" \
   "$(jq -r '[.marketplaces[0].in_repo.would_update[]?.id] | map(select(. == "stale@market1")) | length' <<<"$REPORT_DIGEST")"
 
-# ============================================================================
-# Case: catalog_last_updated is the stamp after Step 1's refresh, on the first
-# pass and on the `--only-install` re-entry
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2878,10 +2599,6 @@ assert_exit "catalog stamp re-entry: exit 0" 0 $?
 assert_eq "catalog stamp re-entry: the re-emitted digest keeps the post-refresh stamp" "2026-02-02T00:00:00Z" \
   "$(jq -r '.marketplaces[0].catalog_last_updated' <<<"$out")"
 
-# ============================================================================
-# Case: the cache-content check names the scope it covered, in the digest and
-# in every rendered row
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.1.0 0.1.0 true
@@ -2905,8 +2622,6 @@ assert_contains "cache scope: the stale row names user scope" "$cache_text" \
   "Cache content: 1 user-scope install(s) whose cache files disagree"
 assert_contains "cache scope: the tally lines name user scope" "$cache_text" \
   $'  10 user-scope install(s) checked\n    7 match\n    2 unverifiable, which is not a pass'
-# A record at a commit other than the clone's HEAD is not compared, and the row
-# says so in its own words rather than counting it unverifiable.
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 86, "match": 2, "stale_content": 0,
   "unverifiable": 0, "not_checked": 84, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')
 assert_contains "cache content: not-checked-only row" "$cache_text" \
@@ -2920,9 +2635,6 @@ assert_contains "cache content: the tally lines under a finding name both counts
 assert_contains "cache content: a row without pending fragments keeps the repair" "$cache_text" \
   "  remedy: remove that version's directory"
 
-# A plugin whose clone holds changelog fragments is labeled a pending release,
-# and its row gets no delete-cache repair; a mixed finding keeps the repair for
-# the other rows only.
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 9, "stale_content": 1,
   "unverifiable": 0, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2, "unreleased_changes": true}],
   "stale_ids": ["a@m"]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
@@ -2939,10 +2651,6 @@ assert_contains "cache content: mixed, the repair names the rows it covers" "$ca
 assert_not_contains "cache content: mixed, the other row is not labeled" "$cache_text" \
   "  - b@m 2.0.0: 1 file(s) differ (unreleased"
 
-# ============================================================================
-# Case: the Divergences split follows the total it sums to, with and without a
-# project root
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 split_divergences='{"post": 67, "pre_existing": 24, "new_total": 43, "new_by_interval": {"in_repo": 5, "user_sweep": 38}}'
 div_text=$(needs_digest sync "{\"divergences\": $split_divergences}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
@@ -2950,7 +2658,6 @@ assert_golden "divergence split, no project root: the report matches the golden"
 div_text=$(needs_digest sync "{\"divergences\": $split_divergences, \"project_root\": \"/w/repo\",
   \"in_repo_records\": 4, \"divergences_here\": 3}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
 assert_golden "divergence split, project root: the report matches the golden" divergence-split-project-root.txt "$div_text"
-# The number each split follows is the sum of its parts, in both variants.
 for variant in no-root project-root; do
   assert_eq "divergence split, $variant: the split sums to the count it follows" "true" \
     "$(tr -d '\r' <"$GOLDEN_DIR/divergence-split-$variant.txt" | awk '
@@ -2962,10 +2669,6 @@ for variant in no-root project-root; do
       END { print (t != "" && t == p + n && n == r + s) ? "true" : "false" }')"
 done
 
-# ============================================================================
-# Case: in audit, `would run:` marks the calls sync would make; a remedy sync
-# never runs itself reads as it does in sync, and the header says which is which
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 remedy_text=$(needs_digest audit '{"source_checkout": {"path": "/src", "state": "tracking", "branch": "main",
   "upstream": "origin/main", "ahead": 0, "behind": 2, "dirty": false},
@@ -2978,11 +2681,6 @@ assert_contains "audit remedies: the git pull remedy is unprefixed" "$remedy_tex
 assert_contains "audit remedies: the project-scope enable remedy is unprefixed" "$remedy_text" \
   $'  - project-scope enable gap: p@m in /w/repo\n    remedy: (cd "/w/repo" && claude plugin enable p@m -s project)'
 
-# ============================================================================
-# Case: the pending-enable record. An `ask` pick is journaled before its install
-# and cleared after its enable, so a run cut off in between is finished by the
-# next sync, and a `false` the user set (no record) is never re-enabled.
-# ============================================================================
 pending_fixture() {
   local case_dir="$1"
   catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -2997,7 +2695,6 @@ pending_fixture() {
   setup_case "$case_dir"
 }
 
-# A pick whose install landed and whose enable never ran: recorded, installed, off.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 pending_fixture "$case_dir"
@@ -3019,7 +2716,6 @@ assert_eq "pending-enable: the settings entry is now true" "true" \
   "$(jq -r '.enabledPlugins["beta@market1"]' "$case_dir/user_settings.json")"
 assert_eq "pending-enable: the record is cleared" "0" "$(wc -c <"$case_dir/pending-enable.txt" | tr -d ' ')"
 
-# The same state with no record is the user's own opt-out: left alone.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 pending_fixture "$case_dir"
@@ -3037,7 +2733,6 @@ assert_eq "opt-out: the digest reports no recovery" "0" "$(jq -r '.marketplaces[
 assert_eq "opt-out: the user's false stays" "false" \
   "$(jq -r '.enabledPlugins["beta@market1"]' "$case_dir/user_settings.json")"
 
-# A record for a pick whose install never landed is dropped, not enabled.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 pending_fixture "$case_dir"
@@ -3047,8 +2742,6 @@ out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-ro
 assert_eq "pending-enable: an uninstalled pick is not enabled" "0" "$(grep -c 'plugin enable' "$case_dir/claude.log")"
 assert_eq "pending-enable: and its record is cleared" "0" "$(wc -c <"$case_dir/pending-enable.txt" | tr -d ' ')"
 
-# End to end: the re-entry journals the pick, the enable fails (the cut-off),
-# the record survives, and the next sync finishes the pick.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 pending_fixture "$case_dir"
@@ -3073,11 +2766,6 @@ assert_eq "interrupted: now true in settings" "true" \
   "$(jq -r '.enabledPlugins["beta@market1"]' "$case_dir/user_settings.json")"
 assert_eq "interrupted: the record is cleared" "0" "$(wc -c <"$case_dir/pending-enable.txt" | tr -d ' ')"
 
-# ============================================================================
-# Case: audit, in-repo record of a marketplace whose directory source is the
-# repo the run stands in: read live, so no update is predicted. A git-sourced
-# marketplace with the same record still predicts one.
-# ============================================================================
 for self_source in directory github; do
   CASE_NUM=$((CASE_NUM + 1))
   case_dir=$(new_case_dir)
@@ -3124,12 +2812,6 @@ for self_source in directory github; do
   fi
 done
 
-# ============================================================================
-# Case: sync forward-updates the project/local records of every other present
-# path, a home included, from that path, and reads each one back. Records at or
-# above the catalog, with no catalog version, or in an absent path take no call.
-# A linked worktree's record that does not move keeps its worktree class.
-# ============================================================================
 paths_fixture() {
   CASE_NUM=$((CASE_NUM + 1))
   case_dir=$(new_case_dir)
@@ -3203,8 +2885,6 @@ report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
 assert_contains "other paths: the report names the moved records" "$report" "Updated in other paths: 5 record(s)"
 assert_contains "other paths: and the worktree record that did not move" "$report" "did not move"
 
-# Off by default: no call from any other path, the count and remedy in the report,
-# and nothing the flag would move left for converge or the user-home row.
 paths_fixture
 EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_NEW_VERSION=2.0.0 CLAUDE_STUB_KEY_CWD=1 CC_STUB_CLEAN=1)
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
@@ -3221,7 +2901,6 @@ report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
 assert_contains "other paths off: the report gives the count" "$report" "Behind in other paths: 6 record(s) in 4 path(s), not updated"
 assert_contains "other paths off: and the remedy" "$report" "remedy: /harness-ops:plugins sync --update-other-paths"
 
-# A catalog that changed between the pre and post reads is named; an unchanged one is not.
 catalog_move_fixture() {
   case_dir=$(new_case_dir)
   catalog_plugin "$case_dir" market1 alpha 0.3.0
@@ -3250,7 +2929,6 @@ assert_eq "catalog moved: counts the id whose catalog version changed during the
 assert_contains "catalog moved: the report names it" \
   "$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")" "Catalog moved during this run: 1 plugin(s)"
 
-# Audit predicts the same calls and stops counting what sync could update.
 paths_fixture
 EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_KEY_CWD=1 CC_STUB_CLEAN=1)
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --audit --update-other-paths)
@@ -3264,8 +2942,6 @@ assert_eq "audit: the worktree and the absent path keep their own counts" "1 1" 
 assert_eq "audit: a home record sync could update is not listed" "0" \
   "$(jq -r '.marketplaces[0].user_home_records.total' <<<"$out")"
 
-# A change under .claude/ stops that path: git status in a repository, a hash of
-# the two settings files elsewhere. The untried records stay counted.
 paths_fixture
 EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_NEW_VERSION=2.0.0 CLAUDE_STUB_KEY_CWD=1
   CLAUDE_STUB_DIRTY_PATHS="$case_dir/repoA $case_dir/plain" CC_STUB_CLEAN=1)
@@ -3280,8 +2956,6 @@ assert_eq "guard: an untried present pin stays counted for converge" "1" \
 report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
 assert_contains "guard: the failure is under Action needed" "$report" "update stopped in"
 
-# The same check in the run's own project: a settings change after Step 2's first
-# call stops further in-repo calls there.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 2.0.0
@@ -3350,11 +3024,6 @@ assert_eq "ignored local settings: one local update call, then the path stops" "
 assert_eq "ignored local settings: the stop and the untried record are failures" "2" \
   "$(jq -r '[.marketplaces[0].in_repo.failed[] | select(.stopped == true)] | length' <<<"$out")"
 
-# ============================================================================
-# Case: Step 1 skips the marketplace refresh when `git ls-remote` shows the
-# source's ref at the clone's HEAD, and runs it when a pinned ref is another
-# branch, a tracked file is modified, or the remote has moved on
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.3.0
@@ -3442,16 +3111,6 @@ assert_eq "refresh skip: a remote that moved on runs the refresh" "1" \
 assert_eq "refresh skip: and its exit status is recorded" "0" \
   "$(jq -c '.marketplaces[0].refresh.rc' <<<"$out")"
 
-# ============================================================================
-# Cases: snapshot reuse. A read whose inputs (every path fleet-state.sh read) keep
-# their mtime, ctime and size reuses the stored report; a changed or newly created
-# input makes the next read run fleet-state.sh again. A current fleet takes five
-# reads (pre-refresh, pre, mid, pre-install, post) and the stub refresh is the only
-# CLI call, so the stub's refresh knobs are the only thing that changes a file. A
-# report is stored only from a read after the first whose inputs predate it by the
-# store margin, so the pre read is the first that can be stored. Runs here set the
-# margin to 0, except the case that pins its 2 s default.
-# ============================================================================
 reuse_case() {
   CASE_NUM=$((CASE_NUM + 1))
   case_dir=$(new_case_dir)
@@ -3465,7 +3124,6 @@ reuse_case() {
   write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
   mkdir -p "$case_dir/.claude"
   setup_case "$case_dir"
-  # Inputs written a minute ago, so the first read's report can be stored.
   find "$case_dir" -exec touch -d "@$(($(date +%s) - 60))" {} +
   write "$case_dir/stubs/fleet-state.sh" "#!/usr/bin/env bash
 printf '%s\n' \"\$*\" >>\"$case_dir/fs.log\"
@@ -3481,7 +3139,6 @@ reuse_run() {
   run_dir=$(jq -r '.run_dir' <<<"$out")
   reads=$(grep -vc -- '--from' "$case_dir/fs.log")
 }
-# What the journal says the pre read's report was: stored for reuse, or not stored.
 pre_stored() { grep '^# fleet-state read pre: ' "$run_dir/journal.log" | sed 's/.*, exit [0-9]*, //'; }
 
 reuse_case
@@ -3516,7 +3173,6 @@ assert_eq "reuse: a created settings file runs fleet-state.sh again" "2" "$reads
 assert_eq "reuse: and the read after it sees the new scope" "false" \
   "$(jq -r '.enabled["alpha@market1"]' "$run_dir/pre.market1.json")"
 
-# A write through a symlinked input moves the target, not the link.
 reuse_case
 mv "$case_dir/user_settings.json" "$case_dir/user_settings.target.json"
 ln -s "$case_dir/user_settings.target.json" "$case_dir/user_settings.json"
@@ -3526,9 +3182,6 @@ assert_eq "reuse: a write through a symlinked input runs fleet-state.sh again" "
 assert_eq "reuse: and the read after it sees the target's new content" "false" \
   "$(jq -r '.enabled["alpha@market1"]' "$run_dir/pre.market1.json")"
 
-# An `ask` pass stops on the install gap; a re-entry that installs nothing reads
-# nothing new, so it reuses the first pass's last report.
-# ask_case: a fleet with an install gap, run through one `ask` pass.
 ask_case() {
   reuse_case
   catalog_plugin "$case_dir" market1 beta 0.1.0
@@ -3552,8 +3205,6 @@ assert_contains "reuse: the re-entry journals its gate read as a reuse of the fi
   "$(tail -n +$((journal_lines + 1)) "$run_dir/journal.log")" \
   "# fleet-state reuse pre-install: inputs unchanged since the pre read"
 
-# An input changed between the passes: the re-entry's gate read runs again, and its
-# report is stored, so the re-entry reads once.
 ask_case
 assert_eq "reuse: the ask pass stored its pre read" "stored for reuse" "$(pre_stored)"
 write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": false}}'
@@ -3564,10 +3215,6 @@ assert_eq "reuse: a re-entry after an input changed runs one fleet-state.sh read
 assert_eq "reuse: and its pre-install snapshot sees the change" "false" \
   "$(jq -r '.enabled["alpha@market1"]' "$run_dir/pre-install.market1.json")"
 
-# Cases: an input that changes during a read. The fleet-state stub runs the real
-# read, then changes $1 on the run's second live read (pre), the first that can be
-# stored; the refresh moves user_settings.json's mtime, so pre is a live read.
-# mutate_stub <command>
 mutate_stub() {
   write "$case_dir/stubs/fleet-state.sh" "#!/usr/bin/env bash
 printf '%s\n' \"\$*\" >>\"$case_dir/fs.log\"
@@ -3608,7 +3255,6 @@ reuse_run CLAUDE_STUB_REFRESH_TOUCH="$case_dir/user_settings.json" \
   CLAUDE_STUB_REFRESH_PAUSE=3
 assert_contains "reuse: a read of an input whose ctime is under 2 s old is not stored" "$(pre_stored)" "not stored"
 
-# ============================================================================
 if ((FAILED > 0)); then
   printf '\n%d test(s) failed\n' "$FAILED" >&2
   exit 1

@@ -1,11 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/checks/Test-BrowserExtensions.ps1, with the three
-adapters mocked. Expected severities follow the rubric in check-catalog.md
-section 23 (owner-approved judgment rules).
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-BrowserExtensions' `

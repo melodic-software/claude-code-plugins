@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for prune-otel-store.sh.
-# Drives the script as a subprocess against a FIXTURE store with the Collector service
-# stop/running/start and verify/compact hooks stubbed (CC_OTEL_*_CMD seams) — it never
-# touches the real machine Collector or the real store.
-#
-# Two fixture grades:
-#   - log_line/metric_line: minimal lines for trim-mechanics cases (lock, verify, dry-run, …).
-#     These run with the compact seam stubbed (COMPACT_STUB) so they stay hermetic — no duckdb.
-#   - real_log_line/real_metric_line: realistic OTLP/JSON shapes (resource+scope envelope,
-#     typed attributes, traceId/spanId) for the cold-compaction cases, which run the REAL
-#     duckdb COPY path and assert on cold Parquet CONTENT (state-based). Those cases gate on
-#     `command -v duckdb` -> skip_case (CI installs duckdb in ci.yml test-linux).
 
 set -uo pipefail
 
@@ -29,18 +17,12 @@ fail() {
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-# A test must never reach a real OTEL store: drop any inherited store path, and have the prune
-# refuse a store outside this run's temp dir.
 unset CC_OTEL_STORE CLAUDE_PROJECT_DIR
 export CC_OTEL_TEST_ROOT="$TMP"
 
-# Hermeticity: the developer's environment must not leak retention knobs into the cases
-# (RETENTION_DAYS guard would trip every run if RETENTION_DAYS were exported machine-wide).
 unset RETENTION_DAYS CC_OTEL_RETENTION_DAYS CC_OTEL_BODY_RETENTION_DAYS CC_OTEL_COLD_KEEP_USER_PROMPTS \
   CC_OTEL_HOT_MAX_MB CC_OTEL_HOT_TOTAL_MAX_MB
 
-# Stubs: stop hook + restart script touch markers so invocation is assertable; the compact
-# stub mimics a successful duckdb COPY by creating the cold temp it is handed ($2).
 STOP_STUB="$TMP/stop-stub.sh"
 START_STUB="$TMP/start-stub.sh"
 QUERY_ERROR_STUB="$TMP/query-error-stub.sh"
@@ -57,41 +39,37 @@ printf '#!/usr/bin/env bash\n: >"$2"\n' >"$COMPACT_STUB"
 chmod +x "$STOP_STUB" "$START_STUB" "$QUERY_ERROR_STUB" "$COMPACT_STUB"
 
 NOW="$EPOCHSECONDS"
-mk_nano() { printf '%s000000000' "$1"; } # 10-digit seconds -> 19-digit nanoseconds
-RECENT="$(mk_nano "$((NOW - 3600))")"    # 1h ago  -> kept  (within default 2d body window)
-MID="$(mk_nano "$((NOW - 4 * 86400))")"  # 4d ago  -> inside structure window (7d), past body window (2d)
-OLD="$(mk_nano "$((NOW - 30 * 86400))")" # 30d ago -> dropped
+mk_nano() { printf '%s000000000' "$1"; }
+RECENT="$(mk_nano "$((NOW - 3600))")"
+MID="$(mk_nano "$((NOW - 4 * 86400))")"
+OLD="$(mk_nano "$((NOW - 30 * 86400))")"
 
-log_line() { # <timeUnixNano> <observedTimeUnixNano>
+log_line() {
   printf '{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"timeUnixNano":"%s","observedTimeUnixNano":"%s","body":{"stringValue":"x"}}]}]}]}\n' "$1" "$2"
 }
-metric_line() { # <timeUnixNano> <startTimeUnixNano>
+metric_line() {
   printf '{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"name":"m","sum":{"dataPoints":[{"timeUnixNano":"%s","startTimeUnixNano":"%s","asInt":"1"}]}}]}]}]}\n' "$1" "$2"
 }
 
-# Realistic OTLP/JSON building blocks mirroring real Collector file-exporter output.
-# log_record_json emits ONE logRecord object (no envelope) so multi-record batch lines can
-# be composed; real_log_batch wraps 1+ comma-joined record objects in the resource/scope
-# envelope. <extra> is a (possibly empty) comma-prefixed JSON fragment of extra attributes.
-log_record_json() { # <timeUnixNano> <event.name> <body> <extra_attrs_fragment>
+log_record_json() {
   printf '{"timeUnixNano":"%s","observedTimeUnixNano":"%s","body":{"stringValue":"%s"},"attributes":[{"key":"session.id","value":{"stringValue":"sess-1"}},{"key":"event.name","value":{"stringValue":"%s"}},{"key":"event.sequence","value":{"intValue":"7"}},{"key":"prompt.id","value":{"stringValue":"prompt-1"}}%s],"flags":1,"traceId":"63e3a31084d9ef0b979eac79605c0447","spanId":"fdba34d3c48541c2"}' \
     "$1" "$1" "$3" "$2" "$4"
 }
-real_log_batch() { # <logRecords_json: one or more comma-joined record objects>
+real_log_batch() {
   printf '{"resourceLogs":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"claude-code"}}]},"scopeLogs":[{"scope":{"name":"com.anthropic.claude_code.events","version":"2.1.167"},"logRecords":[%s]}]}]}\n' "$1"
 }
-real_log_line() { # <timeUnixNano> <event.name> <body> <extra_attrs_fragment>
+real_log_line() {
   real_log_batch "$(log_record_json "$@")"
 }
-real_metric_line() { # <timeUnixNano> <metric_name> <value_fragment e.g. "asInt":"123">
+real_metric_line() {
   printf '{"resourceMetrics":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"claude-code"}}]},"scopeMetrics":[{"scope":{"name":"com.anthropic.claude_code","version":"2.1.167"},"metrics":[{"name":"%s","unit":"tokens","sum":{"dataPoints":[{"attributes":[{"key":"session.id","value":{"stringValue":"sess-1"}},{"key":"type","value":{"stringValue":"input"}}],"startTimeUnixNano":"%s","timeUnixNano":"%s",%s}],"aggregationTemporality":1,"isMonotonic":true}}]}]}]}\n' \
     "$2" "$1" "$1" "$3"
 }
-trace_line() { # <startTimeUnixNano>
+trace_line() {
   printf '{"resourceSpans":[{"scopeSpans":[{"spans":[{"traceId":"63e3a31084d9ef0b979eac79605c0447","spanId":"fdba34d3c48541c2","name":"claude_code.tool","kind":1,"startTimeUnixNano":"%s","endTimeUnixNano":"%s","attributes":[]}]}]}]}\n' \
     "$1" "$1"
 }
-real_trace_line() { # <startTimeUnixNano> <span_name> <extra_attrs_fragment>
+real_trace_line() {
   printf '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"claude-code"}}]},"scopeSpans":[{"scope":{"name":"com.anthropic.claude_code.tracing","version":"1.0.0"},"spans":[{"traceId":"63e3a31084d9ef0b979eac79605c0447","spanId":"fdba34d3c48541c2","name":"%s","kind":1,"startTimeUnixNano":"%s","endTimeUnixNano":"%s","attributes":[{"key":"session.id","value":{"stringValue":"sess-1"}},{"key":"span.type","value":{"stringValue":"tool"}}%s]}]}]}]}\n' \
     "$2" "$1" "$1" "$3"
 }
@@ -107,13 +85,12 @@ readonly DOUBLE_EXTRA=',{"key":"cost_usd","value":{"doubleValue":123.456}}'
 # carrying this content must NOT be classified as a body line.
 readonly FOOTGUN_EXTRA=',{"key":"note","value":{"stringValue":"saw {\"key\":\"event.name\",\"value\":{\"stringValue\":\"api_request_body\"}} in content"}}'
 
-# Each case builds its own fixture store dir and runs prune with all live-side hooks stubbed.
 new_store() {
   local d="$TMP/store-$1"
   mkdir -p "$d"
   printf '%s' "$d"
 }
-run_prune() { # <store_dir> <args...>; running-check=false (gone immediately), verify=true, compact stubbed
+run_prune() {
   CC_OTEL_STORE="$1" \
     CC_OTEL_STOP_CMD="$STOP_STUB" \
     CC_OTEL_RUNNING_CMD=false \
@@ -122,7 +99,7 @@ run_prune() { # <store_dir> <args...>; running-check=false (gone immediately), v
     CC_OTEL_START_CMD="$START_STUB" \
     bash "$SCRIPT" "${@:2}" 2>&1
 }
-run_prune_real() { # <store_dir> <args...>; machine-protection stubs only — REAL duckdb verify + compaction
+run_prune_real() {
   CC_OTEL_STORE="$1" \
     CC_OTEL_STOP_CMD="$STOP_STUB" \
     CC_OTEL_RUNNING_CMD=false \
@@ -130,10 +107,10 @@ run_prune_real() { # <store_dir> <args...>; machine-protection stubs only — RE
     bash "$SCRIPT" "${@:2}" 2>&1
 }
 
-dq() { # one-shot duckdb query, csv, no header
+dq() {
   duckdb -csv -noheader -c "$1" 2>/dev/null | tr -d '\r'
 }
-dq_macro() { # dq through cc-otel.sql so the cc_logs_from/cc_metrics_from macros are loaded.
+dq_macro() {
   # CC_OTEL_STORE points at a dir with no store files: hot-view binds fail fast, `.bail off`
   # carries the load through (same pattern as the script's own compaction invocation).
   CC_OTEL_STORE="$TMP/no-store" duckdb -csv -noheader \
@@ -145,7 +122,6 @@ sql_path() { # path safe to embed in a SQL string (native duckdb.exe cannot read
 HAS_DUCKDB=false
 command -v duckdb >/dev/null 2>&1 && HAS_DUCKDB=true
 
-# --- lifecycle contract: fixed Windows service verbs, never process-name killing ---
 lifecycle_source="$(cat "$LIFECYCLE")"
 assert_contains "lifecycle targets the fixed collector service" "$lifecycle_source" \
   "COLLECTOR_SERVICE_NAME='otelcol-contrib'"
@@ -155,19 +131,16 @@ assert_contains "lifecycle polls service status" "$lifecycle_source" "Get-Servic
 assert_not_contains "lifecycle no longer kills processes" "$lifecycle_source" "Stop-Process"
 assert_not_contains "lifecycle no longer matches process command lines" "$lifecycle_source" "Win32_Process"
 
-# --- 1. --help: exit 0, prints usage ---
 out="$(bash "$SCRIPT" --help 2>&1)"
 rc=$?
 assert_eq "--help exits 0" "0" "$rc"
 assert_contains "--help prints Usage" "$out" "Usage:"
 
-# --- 2. unknown arg: exit 2 ---
 out="$(bash "$SCRIPT" --bogus 2>&1)"
 rc=$?
 assert_eq "unknown arg exits 2" "2" "$rc"
 assert_contains "unknown arg reported" "$out" "unknown argument"
 
-# --- 2a. test-root guard: a store outside CC_OTEL_TEST_ROOT is refused before anything runs ---
 outside="$(dirname "$TMP")/cc-otel-guard-probe-$$"
 for store in "$outside" "$TMP/../cc-otel-guard-probe-$$" "$TMP/missing/../../cc-otel-guard-probe-$$"; do
   out="$(CC_OTEL_STORE="$store" bash "$SCRIPT" --dry-run 2>&1)"
@@ -179,7 +152,6 @@ assert_eq "guard: outside store never created" "no" "$([[ -e "$outside" ]] && ec
 out="$(CC_OTEL_STORE="$TMP/guard-inside" bash "$SCRIPT" --dry-run 2>&1)"
 assert_contains "guard: a store inside the root runs" "$out" "action=dry-run"
 
-# --- 3. --dry-run: reports counts, mutates nothing, creates no cold/ ---
 S="$(new_store dry)"
 {
   log_line "$RECENT" "$RECENT"
@@ -201,13 +173,11 @@ else
 fi
 if [[ -e "$S/.last-prune" ]]; then fail "--dry-run writes no last-prune stamp" "absent" "present"; else pass "--dry-run writes no last-prune stamp"; fi
 
-# --- 4. footgun: OLD timeUnixNano + RECENT observedTimeUnixNano -> counted DROPPED ---
 S="$(new_store footgun-log)"
 log_line "$OLD" "$RECENT" >"$S/cc-logs.json"
 out="$(run_prune "$S" --dry-run)"
 assert_contains "anchored regex keys on timeUnixNano not observedTimeUnixNano" "$out" "cc-logs.json: kept=0 dropped=1 total=1"
 
-# --- 5. real run: old dropped, recent kept; stop+restart fired; sentinel gone ---
 S="$(new_store real)"
 rm -f "$TMP/stopped.marker" "$TMP/restarted.marker"
 {
@@ -233,7 +203,6 @@ if [[ -d "$S/.prune-in-progress" ]]; then fail "sentinel removed after run" "abs
 stamp="$(cat "$S/.last-prune" 2>/dev/null)"
 if [[ "$stamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then pass "real run writes an ISO-8601 UTC last-prune stamp"; else fail "real run writes an ISO-8601 UTC last-prune stamp" "ISO-8601 Z" "$stamp"; fi
 
-# --- 5a. stop denial/failure: abort before mutation and do not attempt a start ---
 S="$(new_store stopfail)"
 rm -f "$TMP/restarted.marker"
 {
@@ -250,7 +219,6 @@ assert_eq "stop failure leaves the store byte-identical" "$before" "$(cat "$S/cc
 if [[ -d "$S/.prune-in-progress" ]]; then fail "stop failure removes sentinel" "absent" "present"; else pass "stop failure removes sentinel"; fi
 assert_not_contains "stop failure does not start a service it never stopped" "$(ls "$TMP")" "restarted.marker"
 
-# --- 5b. start failure: trim lands, restart is attempted under lock, then failure is visible ---
 S="$(new_store startfail)"
 {
   log_line "$RECENT" "$RECENT"
@@ -266,7 +234,6 @@ assert_eq "start failure occurs after the verified trim" "1" "$(wc -l <"$S/cc-lo
 if [[ -d "$S/.prune-in-progress" ]]; then fail "start failure removes sentinel" "absent" "present"; else pass "start failure removes sentinel"; fi
 assert_eq "start failure writes no last-prune stamp" "absent" "$([[ -e "$S/.last-prune" ]] && echo present || echo absent)"
 
-# --- 5c. service-query error: fail closed before mutation, then recover + release lock ---
 S="$(new_store querystatusfail)"
 rm -f "$TMP/restarted.marker" "$TMP/concurrent-blocked.marker"
 {
@@ -285,7 +252,6 @@ if [[ -f "$TMP/restarted.marker" ]]; then pass "service-query error restarts the
 if [[ -f "$TMP/concurrent-blocked.marker" ]]; then pass "service-query recovery restart remains under lock"; else fail "service-query recovery restart remains under lock" "concurrent-blocked.marker" "absent"; fi
 if [[ -d "$S/.prune-in-progress" ]]; then fail "service-query error removes sentinel last" "absent" "present"; else pass "service-query error removes sentinel last"; fi
 
-# --- 5d. all-stale: every record older than cutoff -> file emptied (kept==0 path) ---
 S="$(new_store allstale)"
 rm -f "$TMP/stopped.marker"
 {
@@ -300,7 +266,6 @@ assert_eq "all-stale file emptied to 0 lines" "0" "$(wc -l <"$S/cc-logs.json" | 
 if [[ -f "$S/cc-logs.json.prune.tmp" ]]; then fail "all-stale cleaned up temp" "absent" "temp left behind"; else pass "all-stale cleaned up temp"; fi
 if [[ -d "$S/.prune-in-progress" ]]; then fail "all-stale sentinel removed" "absent" "present"; else pass "all-stale sentinel removed"; fi
 
-# --- 6. all-recent: dry-check short-circuits (no stop, no mutation, no cold/) ---
 S="$(new_store allrecent)"
 rm -f "$TMP/stopped.marker"
 {
@@ -317,16 +282,14 @@ else
   pass "all-recent noop creates no cold dir"
 fi
 
-# --- 7. partial trailing line (no timeUnixNano) is dropped ---
 S="$(new_store partial)"
 log_line "$RECENT" "$RECENT" >"$S/cc-logs.json"
-printf '{"truncatedBatchNoTimestamp' >>"$S/cc-logs.json" # truncated, no newline, no timeUnixNano
+printf '{"truncatedBatchNoTimestamp' >>"$S/cc-logs.json"
 out="$(run_prune "$S")"
 assert_contains "partial line dropped" "$out" "action=pruned"
 assert_eq "only the complete recent line survives" "1" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
 assert_not_contains "partial fragment removed" "$(cat "$S/cc-logs.json")" "truncatedBatchNoTimestamp"
 
-# --- 8. lock: pre-existing sentinel => noop-locked, no stop, no mutation ---
 S="$(new_store locked)"
 mkdir -p "$S/.prune-in-progress"
 rm -f "$TMP/stopped.marker"
@@ -362,9 +325,6 @@ assert_eq "every racing prune exits 0" "0" "$race_failed"
 assert_eq "racing prunes hold the sentinel one at a time" "ok" \
   "$(awk '$1=="in"{if(h!="")bad=1;h=$2;n++} $1=="out"{if(h!=$2)bad=1;h=""} END{print (bad||!n||h!="")?"overlap":"ok"}' "$race_log")"
 
-# --- 8b. stale-lock and Collector recovery, against a stateful service mock ---
-# The state file is the service: stop writes stopped, start writes running, the query reads it.
-# With kill-once present, the stop also hard-kills the prune (no EXIT trap).
 SVC="$TMP/svc-state"
 SVC_STOP="$TMP/svc-stop.sh"
 SVC_START="$TMP/svc-start.sh"
@@ -376,12 +336,12 @@ printf '#!/usr/bin/env bash\necho running >"%s"\n' "$SVC" >"$SVC_START"
 # shellcheck disable=SC2016  # the stub expands its own $(cat)
 printf '#!/usr/bin/env bash\n[[ "$(cat "%s")" == running ]]\n' "$SVC" >"$SVC_RUNNING"
 chmod +x "$SVC_STOP" "$SVC_START" "$SVC_RUNNING"
-run_svc() { # <store_dir> <args...>
+run_svc() {
   CC_OTEL_STORE="$1" CC_OTEL_STOP_CMD="$SVC_STOP" CC_OTEL_START_CMD="$SVC_START" \
     CC_OTEL_RUNNING_CMD="$SVC_RUNNING" CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD="$COMPACT_STUB" \
     bash "$SCRIPT" "${@:2}" 2>&1
 }
-aged_store() { # <name>: one recent + one aged line, so a real run has work
+aged_store() {
   local s
   s="$(new_store "$1")"
   {
@@ -394,7 +354,7 @@ aged_store() { # <name>: one recent + one aged line, so a real run has work
 S="$(aged_store killed)"
 echo running >"$SVC"
 touch "$TMP/kill-once"
-(run_svc "$S" >/dev/null) 2>/dev/null # the kill notice is expected
+(run_svc "$S" >/dev/null) 2>/dev/null
 assert_eq "killed prune: Collector left stopped" "stopped" "$(cat "$SVC")"
 assert_eq "killed prune: sentinel left behind" "yes" "$([[ -d "$S/.prune-in-progress" ]] && echo yes || echo no)"
 out="$(run_svc "$S")"
@@ -406,7 +366,6 @@ assert_eq "after a killed prune: Collector running again" "running" "$(cat "$SVC
 assert_eq "after a killed prune: sentinel released" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
 assert_eq "after a killed prune: aged line trimmed" "1" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
 
-# A live holder is respected while young, and fails the run once it outlasts the bound.
 S="$(aged_store liveholder)"
 echo stopped >"$SVC"
 # The holder exits on the release file without releasing the sentinel, leaving a dead owner.
@@ -446,7 +405,6 @@ out="$(run_svc "$S")"
 assert_contains "holder gone: its lock is taken over" "$out" "took over a stale sentinel"
 assert_eq "holder gone: Collector running" "running" "$(cat "$SVC")"
 
-# The dry-check path (nothing to prune) restores a stopped Collector.
 S="$(new_store drycheck-restore)"
 log_line "$RECENT" "$RECENT" >"$S/cc-logs.json"
 echo stopped >"$SVC"
@@ -459,7 +417,6 @@ assert_eq "dry-check restore: sentinel released" "no" "$([[ -e "$S/.prune-in-pro
 out="$(run_svc "$S")"
 assert_not_contains "dry-check, Collector running: no start" "$out" "starting it"
 
-# A sentinel with no owner token is stale only past the bound.
 mkdir "$S/.prune-in-progress"
 echo stopped >"$SVC"
 out="$(run_svc "$S")"
@@ -470,8 +427,6 @@ assert_contains "old ownerless sentinel: taken over" "$out" "took over a stale s
 assert_eq "old ownerless sentinel: Collector running" "running" "$(cat "$SVC")"
 assert_eq "old ownerless sentinel: released" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
 
-# CC_OTEL_SENTINEL_MAX_AGE_MINUTES moves the bound: an ownerless sentinel two minutes old is young
-# under the default hour and stale under a one-minute bound; a bad value is rejected.
 mkdir "$S/.prune-in-progress"
 touch -t "$(printf '%(%Y%m%d%H%M.%S)T' $((NOW - 120)))" "$S/.prune-in-progress"
 echo stopped >"$SVC"
@@ -485,7 +440,6 @@ rc=$?
 assert_eq "bound override 0: rejected with exit 2" "2" "$rc"
 assert_contains "bound override 0: reported" "$out" "must be a positive integer"
 
-# --scrub-cold takes the same sentinel and restores the Collector the same way.
 echo stopped >"$SVC"
 out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_svc "$S" --scrub-cold)"
 assert_contains "scrub-cold no-op: reported" "$out" "action=noop-scrub-cold-keep-user-prompts"
@@ -496,8 +450,6 @@ out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_svc "$S" --scrub-cold --dry-run)"
 assert_contains "scrub-cold dry-run no-op: reported" "$out" "action=noop-scrub-cold-keep-user-prompts"
 assert_eq "scrub-cold dry-run no-op: Collector left alone" "stopped" "$(cat "$SVC")"
 
-# Takeover runs under a guard token: while another recoverer holds it, a stale sentinel is left
-# alone; a guard left by a killed recoverer (over a minute old) is cleared and recovery proceeds.
 mkdir -p "$S/.prune-in-progress" "$S/.prune-in-progress.takeover"
 : >"$S/.prune-in-progress.takeover/owner"
 touch -t 200001010000 "$S/.prune-in-progress"
@@ -512,7 +464,6 @@ assert_eq "old takeover guard: Collector running" "running" "$(cat "$SVC")"
 assert_eq "old takeover guard: guard and sentinel released" "no no" \
   "$([[ -e "$S/.prune-in-progress.takeover" ]] && echo yes || echo no) $([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
 
-# The store-absent paths restore it too, with or without a store directory.
 for S in "$TMP/store-absent-missing" "$(new_store absent-empty)"; do
   echo stopped >"$SVC"
   out="$(run_svc "$S")"
@@ -526,7 +477,6 @@ echo stopped >"$SVC"
 out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_svc "$TMP/store-absent-missing" --scrub-cold)"
 assert_eq "scrub-cold no-op, no store dir: Collector running" "running" "$(cat "$SVC")"
 
-# A failed recovery start fails the run and leaves no sentinel behind.
 S="$(new_store restore-startfail)"
 log_line "$RECENT" "$RECENT" >"$S/cc-logs.json"
 echo stopped >"$SVC"
@@ -538,7 +488,6 @@ assert_eq "failed recovery start: exits 1" "1" "$rc"
 assert_contains "failed recovery start: reported" "$out" "failed to start Collector service"
 assert_eq "failed recovery start: no sentinel left" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
 
-# --- 9. verify-before-mv: failed verify aborts, original untouched, exit 1 ---
 S="$(new_store verifyfail)"
 {
   log_line "$RECENT" "$RECENT"
@@ -554,13 +503,11 @@ assert_eq "verify-fail leaves original untouched" "2" "$(wc -l <"$S/cc-logs.json
 if [[ -f "$S/cc-logs.json.prune.tmp" ]]; then fail "verify-fail cleaned up temp" "absent" "temp left behind"; else pass "verify-fail cleaned up temp"; fi
 if [[ -d "$S/.prune-in-progress" ]]; then fail "verify-fail removed sentinel (trap)" "absent" "present"; else pass "verify-fail removed sentinel (trap)"; fi
 
-# --- 10. metrics footgun: RECENT timeUnixNano + OLD startTimeUnixNano -> kept ---
 S="$(new_store footgun-metric)"
 metric_line "$RECENT" "$OLD" >"$S/cc-metrics.json"
 out="$(run_prune "$S" --dry-run)"
 assert_contains "metrics regex keys on timeUnixNano not startTimeUnixNano" "$out" "cc-metrics.json: kept=1 dropped=0 total=1"
 
-# --- 11. knob validation: CC_OTEL_* windows + RETENTION_DAYS guard (all exit 2 pre-store) ---
 out="$(CC_OTEL_RETENTION_DAYS=abc bash "$SCRIPT" --dry-run 2>&1)"
 rc=$?
 assert_eq "non-integer CC_OTEL_RETENTION_DAYS exits 2" "2" "$rc"
@@ -577,7 +524,6 @@ out="$(CC_OTEL_RETENTION_DAYS=3 CC_OTEL_BODY_RETENTION_DAYS=5 bash "$SCRIPT" --d
 rc=$?
 assert_eq "body window exceeding structure window exits 2" "2" "$rc"
 assert_contains "body>structure rejection message" "$out" "must not exceed"
-# RETENTION_DAYS set alongside CC_OTEL_RETENTION_DAYS: CC_OTEL wins; equal windows are allowed.
 S="$(new_store knobboth)"
 log_line "$RECENT" "$RECENT" >"$S/cc-logs.json"
 out="$(RETENTION_DAYS=99 CC_OTEL_RETENTION_DAYS=0 CC_OTEL_BODY_RETENTION_DAYS=0 \
@@ -586,7 +532,6 @@ rc=$?
 assert_eq "RETENTION_DAYS ignored when CC_OTEL_RETENTION_DAYS set" "0" "$rc"
 assert_contains "new knob wins (1h-old line below 0d cutoff)" "$out" "cc-logs.json: kept=0 dropped=1 total=1"
 
-# --- 12. compact failure (seam): abort BEFORE the hot trim — exit 1, hot byte-unchanged ---
 S="$(new_store compactfail)"
 rm -f "$TMP/stopped.marker" "$TMP/restarted.marker"
 {
@@ -613,7 +558,6 @@ assert_eq "compact-fail leaks no temps" "" "$leaked"
 if [[ -d "$S/.prune-in-progress" ]]; then fail "compact-fail removed sentinel (trap)" "absent" "present"; else pass "compact-fail removed sentinel (trap)"; fi
 if [[ -f "$TMP/restarted.marker" ]]; then pass "compact-fail restarted the Collector (trap)"; else fail "compact-fail restarted the Collector (trap)" "restarted.marker" "absent"; fi
 
-# --- 13. real compaction (duckdb): aged records land in cold Parquet, B1 boundary holds ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store coldreal)"
   {
@@ -643,7 +587,6 @@ else
   skip_case "duckdb not found — skipping real cold-compaction case"
 fi
 
-# --- 14. prompt-keep toggle: CC_OTEL_COLD_KEEP_USER_PROMPTS=1 keeps prompt + body in cold ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store coldtoggle)"
   {
@@ -661,7 +604,6 @@ else
   skip_case "duckdb not found — skipping prompt-keep toggle case"
 fi
 
-# --- 15. metrics compaction (duckdb): aged metric lines land in cold, no exclusions ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store coldmetrics)"
   {
@@ -730,7 +672,6 @@ else
   skip_case "duckdb not found — skipping schema-thin logs case"
 fi
 
-# --- 15d. compaction failure surfaces the tool's stderr instead of a bare abort ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store coldbadjson)"
   {
@@ -759,7 +700,6 @@ else
   skip_case "not Windows — skipping backslash store path case"
 fi
 
-# --- 16. window knobs honored at runtime (structure + body) ---
 S="$(new_store knobstructure)"
 real_log_line "$MID" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
 out="$(CC_OTEL_STORE="$S" bash "$SCRIPT" --dry-run 2>&1)"
@@ -773,7 +713,6 @@ assert_contains "1h-old body line untouched by default 2d body window" "$out" "c
 out="$(CC_OTEL_BODY_RETENTION_DAYS=0 CC_OTEL_STORE="$S" bash "$SCRIPT" --dry-run 2>&1)"
 assert_contains "1h-old body line routed to surgery by 0d body window" "$out" "cc-logs.json: kept=0 dropped=0 total=1 surgery=1"
 
-# --- 17. record surgery: mixed line past the body window keeps structure records in hot ---
 S="$(new_store surgery)"
 {
   real_log_batch "$(log_record_json "$MID" tool_decision claude_code.tool_decision "$TOOL_EXTRA"),$(log_record_json "$MID" api_request_body claude_code.api_request_body "$API_EXTRA")"
@@ -803,7 +742,6 @@ else
   skip_case "duckdb not found — skipping surgery event_name counts"
 fi
 
-# --- 18. pure-body line past the body window is removed entirely (zero-record batch) ---
 S="$(new_store purebody)"
 {
   real_log_line "$MID" api_request_body claude_code.api_request_body "$API_EXTRA"
@@ -821,7 +759,6 @@ else
   pass "surgered body records do not reach cold"
 fi
 
-# --- 19. body-bearing line NEWER than the body window stays byte-identical through a prune ---
 S="$(new_store bodyrecent)"
 real_log_batch "$(log_record_json "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA"),$(log_record_json "$RECENT" api_request_body claude_code.api_request_body "$API_EXTRA")" >"$TMP/bodyrecent-expected.line"
 cat "$TMP/bodyrecent-expected.line" >"$S/cc-logs.json"
@@ -835,19 +772,17 @@ else
   fail "recent body line byte-identical after prune" "byte-identical" "differs"
 fi
 
-# --- 20. footgun: literal escaped marker text inside a string value is NOT a body line ---
 S="$(new_store footgun-content)"
 real_log_line "$MID" tool_decision claude_code.tool_decision "$FOOTGUN_EXTRA" >"$S/cc-logs.json"
 out="$(CC_OTEL_STORE="$S" bash "$SCRIPT" --dry-run 2>&1)"
 assert_contains "escaped marker content stays a kept structure line" "$out" "cc-logs.json: kept=1 dropped=0 total=1 surgery=0"
 
-# --- 21. dry-run per-class counts: structure kept/dropped, body surgery/dropped, would-compact ---
 S="$(new_store dryclass)"
 {
-  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA"      # whole-line drop -> cold
-  real_log_line "$OLD" api_request_body claude_code.api_request_body "$API_EXTRA" # body line past structure window -> whole-line drop
+  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
+  real_log_line "$OLD" api_request_body claude_code.api_request_body "$API_EXTRA"
   real_log_batch "$(log_record_json "$MID" tool_decision claude_code.tool_decision "$TOOL_EXTRA"),$(log_record_json "$MID" api_request_body claude_code.api_request_body "$API_EXTRA")"
-  real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA" # kept verbatim
+  real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
 } >"$S/cc-logs.json"
 before="$(cat "$S/cc-logs.json")"
 out="$(run_prune "$S" --dry-run)"
@@ -864,7 +799,6 @@ fi
 leaked="$(find "$S" -name '*.tmp' 2>/dev/null)"
 assert_eq "per-class dry-run writes no temps" "" "$leaked"
 
-# --- 22. jq round-trip: surgered line re-parses via duckdb; double literal preserved exactly ---
 S="$(new_store roundtrip)"
 real_log_batch "$(log_record_json "$MID" tool_decision claude_code.tool_decision "$DOUBLE_EXTRA"),$(log_record_json "$MID" api_request_body claude_code.api_request_body "$API_EXTRA")" >"$S/cc-logs.json"
 out="$(run_prune "$S")"
@@ -877,7 +811,6 @@ else
   skip_case "duckdb not found — skipping surgered round-trip parse"
 fi
 
-# --- 23. Traces: age routing keys on startTimeUnixNano (not timeUnixNano) ---
 S="$(new_store traces-age)"
 trace_line "$OLD" >"$S/cc-traces.json"
 out="$(run_prune "$S")"
@@ -886,7 +819,6 @@ assert_eq "traces-age run exits 0" "0" "$rc"
 assert_contains "traces route by startTimeUnixNano" "$out" "cc-traces.json: kept=0 dropped=1 total=1"
 assert_eq "stale trace line removed" "0" "$(wc -l <"$S/cc-traces.json" | tr -d ' \r')"
 
-# --- 24. Traces cold compaction: user_prompt scrubbed (real duckdb path) ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store traces-cold)"
   real_trace_line "$OLD" claude_code.interaction "$SPAN_PROMPT_EXTRA" >"$S/cc-traces.json"
@@ -903,7 +835,6 @@ else
   skip_case "duckdb not found — skipping traces cold compaction"
 fi
 
-# --- 25. cc_logs_from promotes tool_decision `source` (official) and tool_result `decision_source` ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store source-projection)"
   real_log_line "$RECENT" tool_decision tool_decision "$TOOL_DECISION_SOURCE_EXTRA" >"$S/cc-logs.json"
@@ -919,8 +850,6 @@ else
   skip_case "duckdb not found — skipping source projection"
 fi
 
-# --- 26. size cap: hot file over CC_OTEL_HOT_MAX_MB is pruned though every line is young ---
-# 1400 lines of ~1.5KB (~2MB) between 3d and 2.8h ago: inside the 7d window, over a 1 MiB cap.
 BIG_SRC="$TMP/big-cc-logs.json"
 big_pad="$(printf 'p%.0s' $(seq 1 900))"
 : >"$BIG_SRC"
@@ -953,7 +882,6 @@ if ((hot_bytes <= CAP_BYTES && hot_bytes > 0)); then pass "hot file fits under t
 assert_contains "newest line survives" "$(cat "$S/cc-logs.json")" "$BIG_NEWEST"
 assert_not_contains "oldest line dropped" "$(cat "$S/cc-logs.json")" "\"$BIG_OLDEST\""
 
-# Lines the Collector appends between the preflight and its stop still count toward the cap.
 S="$(new_store sizecap-late)"
 {
   log_line "$OLD" "$OLD"
@@ -969,7 +897,6 @@ hot_bytes="$(wc -c <"$S/cc-logs.json" | tr -d ' \r')"
 if ((hot_bytes <= CAP_BYTES && hot_bytes > 0)); then pass "cap holds for lines appended before the Collector stopped"; else fail "cap holds for lines appended before the Collector stopped" "0 < bytes <= $CAP_BYTES" "$hot_bytes"; fi
 rm -f "$TMP/stopped.marker"
 
-# Same fixture through the REAL compaction: the size-dropped lines land in cold Parquet.
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store sizecap-cold)"
   cp "$BIG_SRC" "$S/cc-logs.json"
@@ -984,7 +911,6 @@ else
   skip_case "duckdb not found — skipping size-cap cold compaction"
 fi
 
-# Compaction failure on a size drop still aborts before the trim (same posture as age drops).
 S="$(new_store sizecap-compactfail)"
 cp "$BIG_SRC" "$S/cc-logs.json"
 out="$(CC_OTEL_HOT_MAX_MB=1 CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD="$STOP_STUB" CC_OTEL_RUNNING_CMD=false CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD=false CC_OTEL_START_CMD="$START_STUB" bash "$SCRIPT" 2>&1)"
@@ -992,7 +918,6 @@ rc=$?
 assert_eq "size-drop compaction failure exits 1" "1" "$rc"
 assert_eq "size-drop compaction failure leaves hot byte-identical" "$(cksum <"$BIG_SRC")" "$(cksum <"$S/cc-logs.json")"
 
-# --- 27. size cap: under-cap file with young lines is untouched (no-op short-circuit holds) ---
 S="$(new_store sizecap-under)"
 cp "$BIG_SRC" "$S/cc-logs.json"
 rm -f "$TMP/stopped.marker"
@@ -1007,16 +932,12 @@ assert_eq "under-cap run never stopped the Collector" "no" "$([[ -e "$TMP/stoppe
 out="$(CC_OTEL_HOT_MAX_MB=0 run_prune "$S")"
 assert_contains "cap 0 disables the size prune" "$out" "action=noop-nothing-to-prune"
 
-# --- 28. CC_OTEL_HOT_MAX_MB validation: non-integer exits 2 pre-store ---
 out="$(CC_OTEL_HOT_MAX_MB=abc bash "$SCRIPT" --dry-run 2>&1)"
 rc=$?
 assert_eq "non-integer CC_OTEL_HOT_MAX_MB exits 2" "2" "$rc"
 assert_contains "CC_OTEL_HOT_MAX_MB validation message" "$out" "CC_OTEL_HOT_MAX_MB must be"
 
-# --- 28a. total cap: three files each under the per-file cap, together over the total cap ---
-# 400 lines of ~1.4KB per file (~0.55MB each, ~1.7MB together) between 3d and 2.9d ago,
-# interleaved across files: each under a 1 MiB per-file cap, together over a 1 MiB total cap.
-total_store() { # <store>
+total_store() {
   local i t
   for ((i = 0; i < 400; i++)); do
     t=$((NOW - 3 * 86400 + i * 10))
@@ -1066,7 +987,6 @@ assert_not_contains "oldest log line dropped" "$(cat "$S/cc-logs.json")" "\"${ol
 assert_not_contains "oldest metric line dropped" "$(cat "$S/cc-metrics.json")" "\"$((oldest + 3))000000000\""
 assert_not_contains "oldest trace line dropped" "$(cat "$S/cc-traces.json")" "\"$((oldest + 6))000000000\""
 
-# --- 28b. total cap stays quiet: files that together fit are not pruned for size ---
 S="$(new_store totalcap-under)"
 total_store "$S"
 cat "$S"/cc-*.json | cksum >"$TMP/totalcap-under.sum"
@@ -1116,11 +1036,8 @@ assert_eq "leading-zero caps read as base 10" "0" "$rc"
 assert_contains "leading-zero per-file cap reported in base 10" "$out" "hot_max_mb=8"
 assert_contains "leading-zero total cap reported in base 10" "$out" "hot_total_max_mb=9"
 
-# --- 29. --scrub-cold: dirty cold files rewritten in place, clean ones untouched, notice fires ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store scrubcold)"
-  # Dirty cold files: compacted with the keep knob on, so prompt, prompt_text and the
-  # user_prompt body/column all reach cold (a superset of a pre-fix pruner's output).
   {
     real_log_line "$OLD" user_prompt claude_code.user_prompt "$PROMPT_EXTRA"
     real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
@@ -1129,7 +1046,6 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   real_trace_line "$OLD" claude_code.interaction "$SPAN_PROMPT_EXTRA" >"$S/cc-traces.json"
   CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$S" >/dev/null
   dirty_logs="$(find "$S/cold" -name 'cc-logs-*.parquet')"
-  # A clean cold file: a later default-scrub compaction of a structure-only line.
   real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >>"$S/cc-logs.json"
   out="$(run_prune_real "$S")"
   assert_contains "prune notices cold files holding prompt content" "$out" "notice: 2 cold file(s) still hold prompt content; run prune-otel-store.sh --scrub-cold"
@@ -1172,11 +1088,9 @@ else
   skip_case "duckdb not found — skipping --scrub-cold case"
 fi
 
-# --- 30. cold scan: one duckdb call per glob, clean marker skips it, keep-on compaction voids it ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store coldmarker)"
   marker="$S/cold/.prompt-scrub-clean"
-  # PATH wrapper counting duckdb invocations.
   WRAP="$TMP/duckdb-wrap"
   mkdir -p "$WRAP"
   printf '#!/usr/bin/env bash\nprintf x >>"%s"\nexec "%s" "$@"\n' "$TMP/duckdb-calls" "$(command -v duckdb)" >"$WRAP/duckdb"
@@ -1220,7 +1134,6 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   assert_contains "scrub rewrites the dirty file" "$out" "action=scrubbed-cold scrubbed_files=1"
   assert_eq "completed scrub writes the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
 
-  # No-op path (nothing aged out): a clean scan still writes the marker under a brief sentinel.
   rm -f "$marker"
   real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
   : >"$S/cc-traces.json"
@@ -1244,7 +1157,6 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   assert_eq "held sentinel left in place" "yes" "$([[ -d "$S/.prune-in-progress" ]] && echo yes || echo no)"
   rmdir "$S/.prune-in-progress"
 
-  # Cold-only store (no hot files): the absent-hot return still writes the marker.
   C="$(new_store coldonly)"
   cp -R "$S/cold" "$C/cold"
   rm -f "$C/cold/.prompt-scrub-clean"
@@ -1271,7 +1183,7 @@ sentinel() {
   local c="${1^^}"
   printf 'SECRET_%s_SENTINEL' "$c"
 }
-content_attrs() { # <items>: comma-prefixed attribute fragment, one sentinel per item
+content_attrs() {
   local item col key out=""
   for item in $1; do
     col="${item%%:*}" key="${item#*:}"
@@ -1283,7 +1195,7 @@ content_attrs() { # <items>: comma-prefixed attribute fragment, one sentinel per
   done
   printf '%s' "$out"
 }
-content_store() { # <store>: aged logs, spans and metrics carrying every content sentinel plus prompts
+content_store() {
   local s="$1" span_attrs event_attrs
   {
     real_log_line "$OLD" user_prompt claude_code.user_prompt "$PROMPT_EXTRA"
@@ -1300,14 +1212,13 @@ content_store() { # <store>: aged logs, spans and metrics carrying every content
   real_metric_line "$OLD" claude_code.token.usage '"asInt":"5"' |
     sed "s/{\"key\":\"type\"/{\"key\":\"user.email\",\"value\":{\"stringValue\":\"$(sentinel user_email)\"}},&/" >"$s/cc-metrics.json"
 }
-# Count rows of one cold glob through the cold macro (a file without a column reads it NULL).
-cold_q() { # <store> <logs|metrics|spans> <predicate>
+cold_q() {
   local glob
   case "$2" in logs) glob=cc-logs ;; metrics) glob=cc-metrics ;; spans) glob=cc-traces ;; *) return 1 ;; esac
   dq_macro "SELECT count(*) FROM cc_${2}_cold('$(sql_path "$1")/cold/$glob-*.parquet') WHERE $3;"
 }
 raw_col() { case "$1" in logs) printf log_attributes_raw ;; metrics) printf metric_attributes_raw ;; spans) printf span_attributes_raw ;; *) return 1 ;; esac }
-each_content() { # <callback>: calls <callback> <table> <column> <in raw: yes|no> per content column
+each_content() {
   local item
   for item in $LOG_CONTENT; do "$1" logs "${item%%:*}" yes; done
   for item in $SPAN_CONTENT; do "$1" spans "${item%%:*}" yes; done
@@ -1315,7 +1226,6 @@ each_content() { # <callback>: calls <callback> <table> <column> <in raw: yes|no
   for item in $METRIC_CONTENT; do "$1" metrics "${item%%:*}" yes; done
 }
 
-# --- 31. content class, default keep: every non-prompt content column survives, prompts scrubbed ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store content-keep)"
   content_store "$S"
@@ -1335,7 +1245,6 @@ else
   skip_case "duckdb not found — skipping content default-keep case"
 fi
 
-# --- 32. CC_OTEL_COLD_KEEP_CONTENT=0: every promoted content column NULL and gone from raw ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store content-scrub)"
   content_store "$S"
@@ -1359,12 +1268,10 @@ else
   skip_case "duckdb not found — skipping content scrub case"
 fi
 
-# --- 33. --scrub-cold with CC_OTEL_COLD_KEEP_CONTENT=0 cleans content already in cold ---
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store content-scrub-cold)"
   content_store "$S"
   run_prune_real "$S" >/dev/null
-  # A cold file written before this change: the old logs column set, no content columns.
   dq_macro "COPY (SELECT event_time, session_id, event_name, tool_name, hook_name, decision, duration_ms, success, source, prompt_id, tool_use_id, terminal_type, event_sequence, trace_id, span_id, body, to_json(list_filter(attributes_list, lambda x: x.key NOT IN ('prompt', 'prompt_text'))) AS log_attributes_raw FROM cc_logs_from('$(sql_path "$S/cc-logs.json")')) TO '$(sql_path "$S/cold/cc-logs-00000000T000000Z.parquet")' (FORMAT PARQUET);" >/dev/null
   old_sum="$(cksum <"$S/cold/cc-logs-00000000T000000Z.parquet")"
 
@@ -1393,7 +1300,6 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   out="$(CC_OTEL_COLD_KEEP_CONTENT=0 run_prune_real "$S" --scrub-cold --dry-run)"
   assert_contains "after scrub: zero dirty files remain" "$out" "action=dry-run-scrub-cold affected_files=0"
 
-  # Prompts kept, content scrubbed: the scrub runs and leaves prompt content alone.
   P="$(new_store content-scrub-prompts-kept)"
   content_store "$P"
   CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$P" >/dev/null

@@ -90,8 +90,6 @@ function Get-RuleField {
 
 $FailureSummary = 'Firewall rule inventory failed.'
 $PassThru = $false
-# The envelope turns a throw into a failed UNKNOWN result, which this check
-# never reports: any failure becomes the informational result with read_state error.
 $CheckBody = {
     try {
         $inventory = Get-FirewallRuleInventory
@@ -105,7 +103,6 @@ $CheckBody = {
                 $items.Add((New-FindingItem -Kind 'firewall' -Identity @($r.Name) -MutedKeys $MutedKeys `
                             -Severity $infoLevel -Title $title -Fields (Get-RuleField -Rules @($r))))
             } elseif (-not $r.PortRead) {
-                # A grouped key needs the protocol and port; no key is computed from missing data.
                 $items.Add((New-FindingItem -NoKey -NoKeyReason 'protocol and local port unread without elevation' `
                             -Severity $infoLevel -Title $title -Fields (Get-RuleField -Rules @($r))))
             } else {

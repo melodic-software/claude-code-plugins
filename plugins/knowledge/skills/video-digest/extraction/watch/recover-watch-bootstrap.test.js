@@ -122,7 +122,6 @@ describe("recovery maximum frame gap", () => {
     expect((await readSliceJson("run-state", "watch.json")).maxFrameGapSec).toBe(30);
   });
 
-  // The seeded slice is a 120s video (captions end at 2:00, no probe), the medium tier: 6s.
   it("falls back to the medium-tier 6s default when the run recorded no value", async () => {
     expect(await recoverSeededSlice()).toBe(0);
 
@@ -254,7 +253,6 @@ describe("recovery of a ranged slice", () => {
     await fs.rm(sliceDir, { recursive: true, force: true });
   });
 
-  // The ranged media runs 125s for a 30s-150s range: 5s of it sits before the range's start.
   it("adds the recorded range's start to every frame time and keeps the range", async () => {
     captured.probedDurationSec = 125;
 
