@@ -404,10 +404,10 @@ The bullets below are the steps.
 
 **Criteria proof (advisory).** When the pull request body has an `## Acceptance criteria` section
 and the diff is not docs-only, run `/verification:confirm` (if enabled) on the PR worktree's HEAD
-after the commit below and before the gate, so each criterion's row names the test or check that
-proves it, or reads `Not tested: <why>` in that cell. Fix a criterion with neither, committing the
-fix and running confirm again on the new head before the gate, or name it in the 2.5.7 report. It
-never holds the flip.
+after the commit below and before the **CI's test lanes** read and the gate, so each criterion's
+row names the test or check that proves it. For a row whose test-or-check cell reads `none ran`,
+add the test, commit it and run confirm again on the new head, or name the criterion in the 2.5.7
+report with why it cannot be tested. It never holds the flip.
 
 **Commit, then record the verify result.** Both run in every repository and every run, whatever
 `pre_ready` or `--skip` says. First commit whatever the reviews changed, so the gate and the record
@@ -671,7 +671,7 @@ recorded for that head on the improvement claim it judged, `CANNOT QUANTIFY` whe
 captured before the change; a head with no measure verdict prints no measure line. Print both with
 the command below and report its output as written: the confirm verdict (`CONFIRMED`, `NEEDS WORK`
 or `NOT VERIFIED`) with each `MISSING` or `PARTIAL` item and each criterion the criteria proof
-(2.5.3) left with neither a test or check nor `Not tested: <why>`, or that no verdict is recorded
+(2.5.3) left at `none ran`, with why it cannot be tested, or that no verdict is recorded
 for this head, then any measure verdict with its `CLAIM`. A verdict recorded for an earlier head does not
 count. Both lines are advisory: read after the flip, no verdict, present or missing, ever holds the
 PR in draft, and the `verify` gate's record for the head is a separate file this command never
