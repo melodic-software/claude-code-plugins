@@ -157,8 +157,6 @@ BODY_DIR=""
 APP_SLUG=""
 while (($#)); do
   case "$1" in
-  # Normalize `--opt=value` to `--opt value` for the next pass. Known options only,
-  # so an unknown `--bogus=x` still reaches the catch-all intact.
   --lane=* | --instance=* | --repo=* | --issue=* | --body-file=* | --body-dir=* | --app-slug=*)
     set -- "${1%%=*}" "${1#*=}" "${@:2}"
     ;;
@@ -207,7 +205,6 @@ for bin in gh jq node; do
   }
 done
 
-# --- Body-file containment ---------------------------------------------------
 # telemetry-body-gate.sh (a generated copy of lib/telemetry-body-gate.sh) holds
 # the rule every lane telemetry upsert shares: the safe body dir must be this
 # plugin's data dir, the body must resolve under it, and it is read once into a
@@ -276,7 +273,6 @@ fi
 MARKER="work-items:$LANE@$INSTANCE"
 SENT="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
 
-# --- Pre-write body gate -----------------------------------------------------
 if [[ ! -s "$BODY_FILE" ]]; then
   err "body is missing or empty - nothing written; fix the body composition, do not re-run blind"
   exit 9
@@ -302,7 +298,6 @@ if ! sentinel_ok "$BODY_TEXT"; then
   exit 10
 fi
 
-# --- Leak scan ---------------------------------------------------------------
 # The comment is public. scanLeak and findMachine (this plugin's generated copy of
 # lib/publish-gate.mjs) judge the body; a hit withholds all of it, never a masked
 # copy, and the message names only the rule. A plain assignment, which scanLeak
@@ -317,7 +312,6 @@ if [[ -n "$leak" ]]; then
   exit 17
 fi
 
-# --- Write identity ----------------------------------------------------------
 # A User login is the identity; a failed call or a Bot means an App token, whose
 # writes land as <slug>[bot]. Validated before it enters a jq program.
 if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
@@ -338,7 +332,6 @@ if [[ ! "$WRITER" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*(\[bot\])?$ ]]; then
   exit 15
 fi
 
-# --- Singleton lookup --------------------------------------------------------
 # Without `--paginate` a comment past page 1 is invisible and a duplicate posts every
 # cycle. `startswith` on the FULL sentinel, never `contains`: a quoted sibling is not adopted.
 # Only the writer's own comments count, because anyone can paste the sentinel.
@@ -357,13 +350,10 @@ fi
 
 if [[ -z "${LIST//[[:space:]]/}" ]]; then
   POSTED_AS="$(gh api --method POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" --jq '.user.login' 2>/dev/null)" || POSTED_AS=""
-  # A wrong --app-slug would otherwise post a fresh, never-found comment every cycle.
   if [[ -n "$POSTED_AS" && "$POSTED_AS" != "$WRITER" ]]; then
     err "the comment was posted as '$POSTED_AS', not the resolved write identity '$WRITER'; fix --app-slug before the next cycle - treat the lane as UNREPORTED"
     exit 15
   fi
-  # A failure re-listing here is not fatal: the create may have landed, and the
-  # next cycle's ordinary upsert performs the same reconcile.
   LIST="$(lookup)" || LIST=""
 fi
 
@@ -380,7 +370,6 @@ if ! gh api --method PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_
   exit 13
 fi
 
-# --- Post-write read-back ----------------------------------------------------
 # The stored body must equal the body file, not merely look like telemetry: a write
 # that reported success while the comment kept an earlier cycle's well-formed body
 # would otherwise verify. CR is dropped on both sides and `$( )` drops trailing
@@ -397,7 +386,6 @@ if ! verify "$CANON"; then
   exit 14
 fi
 
-# --- Duplicate supersede (only after a verified canonical write) -------------
 # `-f body=` here, not `-F body=@`: the tombstone is a literal string, not a file.
 for dup in "${IDS[@]:1}"; do
   gh api --method PATCH "repos/$REPO/issues/comments/$dup" \

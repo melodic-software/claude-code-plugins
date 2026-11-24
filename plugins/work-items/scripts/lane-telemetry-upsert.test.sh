@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# A fake `gh` on PATH stores comments and logs every argv, so the suite asserts
-# each write's flag FORM (-F body=@ vs -f body=), not only its effect.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UPSERT="$SCRIPT_DIR/lane-telemetry-upsert.sh"
-# The safe body dir must be the plugin's data dir, so the work dir's last segment
-# names work-items.
 ROOT="$(mktemp -d)"
 WORK="$ROOT/work-items"
 mkdir -p "$WORK"
@@ -18,7 +14,7 @@ fail() {
   FAILED=$((FAILED + 1))
   printf 'FAIL: %s\n' "$1" >&2
 }
-check_rc() { # $1 expected $2 actual $3 label
+check_rc() {
   if [[ "$2" == "$1" ]]; then
     pass "$3"
   else
@@ -26,7 +22,6 @@ check_rc() { # $1 expected $2 actual $3 label
   fi
 }
 
-# --- fake gh -----------------------------------------------------------------
 BIN="$WORK/bin"
 mkdir -p "$BIN"
 cat >"$BIN/gh" <<'FAKE'
@@ -166,8 +161,6 @@ FAKE
 chmod +x "$BIN/gh"
 PATH="$BIN:$PATH"
 export PATH
-# A passwd lookup stub: the home dir the safe-dir check reads, so a test can put
-# it under the work dir without touching HOME.
 cat >"$BIN/getent" <<'GETENT'
 #!/usr/bin/env bash
 printf 'tester:x:1000:1000::%s:/bin/sh\n' "${STUB_PASSWD_HOME:-/nonexistent-home}"
@@ -180,7 +173,7 @@ REPO=melodic-software/example-repo
 ISSUE=42
 SENT="<!-- harness-ops:lane-telemetry marker=work-items:$LANE@$INSTANCE -->"
 
-run() { # sets RC, STDERR, STDOUT; args after the fixed five
+run() {
   STDERR="$WORK/stderr.txt"
   STDOUT="$(bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
     --issue "$ISSUE" --body-file "$1" --body-dir "$WORK" "${@:2}" 2>"$STDERR")"
@@ -197,14 +190,13 @@ fresh_state() {
   export FAKE_GH_STATE FAKE_GH_ARGV
 }
 
-write_body() { # $1 = path, $2 = marker sentinel to use
+write_body() {
   printf '%s\ncycle=7 clean_streak=1 item_cap=2\n' "$2" >"$1"
 }
 
 GOOD="$WORK/body.md"
 write_body "$GOOD" "$SENT"
 
-# --- 1. fresh insert ---------------------------------------------------------
 fresh_state
 run "$GOOD"
 check_rc 0 "$RC" "fresh insert exits 0"
@@ -224,7 +216,6 @@ else
   fail "fresh insert stdout: $STDOUT"
 fi
 
-# --- 2. update of an existing row -------------------------------------------
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
 run "$GOOD"
@@ -245,7 +236,6 @@ else
   fail "update flag form"
 fi
 
-# --- 3. creation-race reconcile ---------------------------------------------
 fresh_state
 printf '%s\nracer one body\n' "$SENT" >"$FAKE_GH_STATE/c-9.body"
 printf '%s\nracer two body\n' "$SENT" >"$FAKE_GH_STATE/c-31.body"
@@ -267,7 +257,6 @@ else
   fail "tombstone flag form"
 fi
 
-# --- 4. a sibling instance's comment is never adopted or tombstoned ---------
 fresh_state
 printf '%s\nsibling lane body\n' "<!-- harness-ops:lane-telemetry marker=work-items:$LANE@laptop-b -->" \
   >"$FAKE_GH_STATE/c-5.body"
@@ -279,7 +268,6 @@ else
   fail "sibling instance comment was written to"
 fi
 
-# --- 5. a body quoting the sentinel mid-text is not matched -----------------
 fresh_state
 printf 'chatter above\n%s\nquoted, not a telemetry comment\n' "$SENT" >"$FAKE_GH_STATE/c-6.body"
 run "$GOOD"
@@ -290,7 +278,6 @@ else
   fail "a comment merely quoting the sentinel was adopted"
 fi
 
-# --- 5b. a sentinel comment another login wrote is never adopted -------------
 # Anyone can paste the public sentinel. A foreign comment with a LOWER id would
 # otherwise win the lowest-id canonical rule and take this cycle's state.
 fresh_state
@@ -335,7 +322,6 @@ else
   fail "--app-slug did not adopt the bot-authored comment"
 fi
 
-# A Bot reported with no slug: the reported login plus [bot].
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
 printf 'lane-app[bot]' >"$FAKE_GH_STATE/c-77.author"
@@ -363,7 +349,6 @@ else
   fail "an underscore login did not adopt its own comment"
 fi
 
-# Resolution order: a User login wins over --app-slug; a Bot report yields to it.
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
 run "$GOOD" --app-slug lane-app
@@ -399,8 +384,6 @@ fresh_state
 run "$GOOD" --app-slug 'Not_A_Slug'
 check_rc 15 "$RC" "a malformed --app-slug exits 15"
 
-# A surviving userConfig placeholder is an unset key: it resolves exactly as if
-# no slug were given (here, an unresolved identity under a refused gh api user).
 fresh_state
 FAKE_GH_FAIL=user
 export FAKE_GH_FAIL
@@ -419,7 +402,6 @@ export FAKE_GH_FAIL FAKE_GH_LOGIN FAKE_GH_TYPE
 run "$GOOD" --app-slug '${user_config.lane_app_slug}'
 check_rc 0 "$RC" "a placeholder --app-slug with a User login exits 0 as if no slug were given"
 
-# A wrong --app-slug: the create lands under the token's real login.
 fresh_state
 FAKE_GH_FAIL=user FAKE_GH_POST_AS='real-app[bot]'
 export FAKE_GH_FAIL FAKE_GH_POST_AS
@@ -431,7 +413,6 @@ else
   pass "a mismatched create writes nothing further"
 fi
 
-# --- 6. usage refusals ------------------------------------------------------
 fresh_state
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
   --body-file "$GOOD" --body-dir "$WORK" --bogus >/dev/null 2>"$WORK/e.txt"
@@ -454,7 +435,6 @@ bash "$UPSERT" --lane babysit --instance "$INSTANCE" --repo "$REPO" --issue "$IS
   --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
 check_rc 3 "$?" "an unknown lane exits 3"
 
-# --- 7. lane-instance refusals ----------------------------------------------
 for bad in "Laptop-A" "-leading" "has_underscore" "has.dot"; do
   bash "$UPSERT" --lane "$LANE" --instance "$bad" --repo "$REPO" --issue "$ISSUE" \
     --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
@@ -469,9 +449,6 @@ bash "$UPSERT" --lane "$LANE" --instance "aaaaaaaaaabbbbbbbbbbccccccccccddd" --r
   --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
 check_rc 5 "$?" "a 33-character lane instance exits 5"
 
-# A surviving userConfig placeholder means the key is unset, so it takes the
-# stored random-id fallback rather than being validated as a literal id. The
-# marker is public, so the fallback is never the hostname.
 fresh_state
 IDDIR="$WORK/iddir/work-items"
 mkdir -p "$IDDIR"
@@ -501,7 +478,6 @@ else
   fail "the stored id changed or the hostname reached the API"
 fi
 
-# --- 8. repo and issue refusals ---------------------------------------------
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "owner/repo/../../other/target" \
   --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
 check_rc 6 "$?" "a traversal-shaped --repo exits 6 before any API call"
@@ -512,7 +488,6 @@ bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "4a2
   --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
 check_rc 7 "$?" "a non-numeric --issue exits 7"
 
-# --- 9. missing prerequisites ------------------------------------------------
 MINBIN="$WORK/minbin"
 mkdir -p "$MINBIN"
 # The wrappers take an ABSOLUTE-path shebang: a `#!/usr/bin/env bash` wrapper for
@@ -542,7 +517,6 @@ else
   check_rc 8 "$?" "jq absent from PATH exits 8"
 fi
 
-# --- 10. malformed body files ------------------------------------------------
 fresh_state
 run "$WORK/does-not-exist.md"
 check_rc 9 "$RC" "a missing body file exits 9"
@@ -578,7 +552,6 @@ printf '%s\r\ncycle=7 clean_streak=1 item_cap=2\r\n' "$SENT" >"$WORK/crlf.md"
 run "$WORK/crlf.md"
 check_rc 0 "$RC" "a CRLF body clears the sentinel gate"
 
-# --- 11. lookup failures are fail-closed ------------------------------------
 fresh_state
 FAKE_GH_FAIL=list
 export FAKE_GH_FAIL
@@ -601,7 +574,6 @@ else
   pass "unparsable JSON never takes the insert path"
 fi
 
-# --- 12. a create that cannot be re-found -----------------------------------
 fresh_state
 FAKE_GH_POST_DROP=1
 export FAKE_GH_POST_DROP
@@ -613,7 +585,6 @@ else
   fail "not-re-found stderr: $(cat "$STDERR")"
 fi
 
-# --- 13. a failed write ------------------------------------------------------
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
 FAKE_GH_FAIL="patch"
@@ -626,7 +597,6 @@ else
   fail "failed PATCH mutated the comment"
 fi
 
-# --- 14. a write that verifies badly ----------------------------------------
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
 printf '%s\nsibling duplicate body\n' "$SENT" >"$FAKE_GH_STATE/c-88.body"
@@ -640,9 +610,6 @@ else
   fail "duplicates were superseded on an unverified write"
 fi
 
-# A PATCH that reports success while the comment keeps the previous cycle's body:
-# that body is well-formed telemetry, so only a comparison with THIS cycle's body
-# file catches it.
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
 printf '%s\nsibling duplicate body\n' "$SENT" >"$FAKE_GH_STATE/c-88.body"
@@ -672,9 +639,6 @@ export FAKE_GH_FAIL
 run "$GOOD"
 check_rc 14 "$RC" "a read-back that cannot be performed exits 14"
 
-# --- 15. body-file containment and the leak scan ----------------------------
-# A path outside the safe dir is refused before any read: the file is mode 000,
-# so a read would fail differently, and the refusal makes zero API calls.
 fresh_state
 OUTSIDE="$ROOT/outside"
 mkdir -p "$OUTSIDE"
@@ -726,9 +690,6 @@ printf '%s\ncycle=7 password="hunter2hunter2"\n' "$SENT" >"$WORK/assign.md"
 run "$WORK/assign.md"
 check_rc 17 "$RC" "a body carrying a plain secret assignment is withheld too (exit 17)"
 
-# A caller-chosen --body-dir must be the plugin's data dir: one whose last
-# segment does not name work-items, or that is the home dir or an ancestor of it,
-# contains nothing, so it is refused before the body is read.
 fresh_state
 mkdir -p "$ROOT/elsewhere"
 cp "$GOOD" "$ROOT/elsewhere/body.md"
@@ -754,7 +715,6 @@ cp "$GOOD" "$WORK/sub/body.md"
   --issue "$ISSUE" --body-file sub/body.md --body-dir "$WORK" >/dev/null 2>"$STDERR")
 check_rc 16 "$?" "CDPATH cannot make an outside relative body path pass (exit 16)"
 
-# A symlinked or malformed stored lane-instance is refused and never echoed.
 fresh_state
 LIDIR="$ROOT/lid/work-items"
 mkdir -p "$LIDIR"
@@ -775,7 +735,6 @@ else
   fail "malformed-id refusal: $(cat "$STDERR")"
 fi
 
-# A home path in the body is withheld like a credential: the comment is public.
 fresh_state
 # A fake home path, assembled at run time so no user path is tracked.
 FAKE_HOME="/ho""me/alice"
@@ -788,9 +747,6 @@ else
   fail "home-path refusal: $(cat "$STDERR")"
 fi
 
-# A fleet-hostname-shaped instance passes the shape check but would publish the
-# hostname in the marker, so it is refused up front with its own code, before
-# any API call, and the message never echoes it.
 fresh_state
 FLEET_INSTANCE="melo-""lap-001"
 FLEET_SENT="<!-- harness-ops:lane-telemetry marker=work-items:$LANE@$FLEET_INSTANCE -->"
@@ -812,8 +768,6 @@ printf '%s\ncycle=7 log=/ho''me/runner/work/app/app/run.log\n' "$SENT" >"$WORK/r
 run "$WORK/runner.md"
 check_rc 0 "$RC" "a body naming only the hosted-runner home path is posted"
 
-# The plugin name is checked again on the canonical dir: a symlink named for the
-# plugin that points at another dir is refused.
 fresh_state
 mkdir -p "$ROOT/config"
 cp "$GOOD" "$ROOT/config/body.md"

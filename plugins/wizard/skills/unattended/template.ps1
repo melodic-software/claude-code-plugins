@@ -145,7 +145,6 @@ function Get-UnattendedStoreSecret {
     return Get-UnattendedNativeSecret -Name $Name
 }
 
-# The ladder both paths share: environment, file, store. $null when nothing resolves.
 function Find-UnattendedSecret {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -201,8 +200,6 @@ function Resolve-UnattendedSecret {
     return $value
 }
 
-# Every declared name resolves before the first stage. In run mode the unresolved
-# ones are prompted together; a dry run records the prompt and caches a placeholder.
 function Initialize-UnattendedSecrets {
     param([hashtable[]] $Secrets = @())
     $script:DeclaredSecrets = @()
@@ -334,7 +331,6 @@ function Wait-ForState {
         [int] $TimeoutSeconds = 300,
         [double] $IntervalSeconds = 5
     )
-    # The state it waits for follows a mutation a dry run skipped, so polling would only time out.
     if ($script:Mode -ne 'run') {
         Add-UnattendedStep "wait $Name" 'would-run' "would poll for up to ${TimeoutSeconds}s"
         return $true
@@ -360,7 +356,6 @@ function Wait-ForState {
         Start-Sleep -Seconds ([Math]::Min($IntervalSeconds, $TimeoutSeconds - $elapsed))
     }
     Add-UnattendedStep "wait $Name" 'ok' ('reached after {0:N1}s' -f $clock.Elapsed.TotalSeconds)
-    # Emitting $true lets Wait-ForState stand alone as a Use-GuardedResource Prove block.
     $true
 }
 
@@ -380,7 +375,6 @@ function Use-GuardedResource {
     # Listed before Take runs: a Take that fails partway may already hold the resource.
     $script:Held.Add($Name) | Out-Null
     if ($TolerateTakeExit) {
-        # A thrown exception still fails; only the native exit code is deferred to Prove.
         $global:LASTEXITCODE = 0
         & $Take
         if ($LASTEXITCODE -ne 0) {
@@ -472,7 +466,6 @@ function Complete-UnattendedResult {
     }
     if ($dry) {
         $payload['planned'] = $planned
-        # The synthetic 'run' step records the throw; a failed preflight is the finding.
         $payload['delta'] = @($script:Steps | Where-Object { $_.status -eq 'would-run' -or ($_.status -eq 'failed' -and $_.name -ne 'run') })
     }
     $json = $payload | ConvertTo-Json -Depth 6

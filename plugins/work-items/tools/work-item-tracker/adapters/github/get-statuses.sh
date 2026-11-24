@@ -50,14 +50,11 @@ TRUST_TMP=""
   trap 'rm -rf "$TRUST_TMP"' EXIT
 }
 
-# trust_fail <exit> <message>: one stderr line, nothing on stdout.
 trust_fail() {
   printf 'get-statuses: %s\n' "$2" >&2
   exit "$1"
 }
 
-# fetch_repo_file <repo> <path> <dest>: <path> on <repo>'s default branch into <dest>. A file
-# that is not there exits 3 (configuration); any other failure exits with its mapped code.
 fetch_repo_file() {
   local errfile="$TRUST_TMP/err" code
   if ! gh api -H "Accept: application/vnd.github.raw" "repos/$1/contents/$2" >"$3" 2>"$errfile"; then
@@ -147,7 +144,6 @@ trust_context() {
   fi
 }
 
-# One JSON object per id: {id, repo, number}, grouped by repository.
 rows="$(for id in "${ids[@]+"${ids[@]}"}"; do
   wit_require_github_id "$id"
   jq -nc --arg id "$id" --arg repo "$WIT_ID_OWNER/$WIT_ID_REPO" --argjson n "$WIT_ID_NUMBER" \

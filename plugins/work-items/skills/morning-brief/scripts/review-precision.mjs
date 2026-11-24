@@ -34,7 +34,6 @@ export const LANES = Object.freeze(["claude-review", "claude-security-review"]);
 // (#9307) and its code lane in 0aca16f268 (#9348), both 2026-10-23, so the first full UTC day
 // both lanes ran it is 2026-10-24.
 export const EARLIEST_SUPPORTED = "2026-10-24T00:00:00Z";
-// The round cap: docs/conventions/pr-pipeline.yaml `loop.review-rounds`, read at fetch time.
 const CAP_SOURCE = "docs/conventions/pr-pipeline.yaml loop.review-rounds";
 const CAP_DEFAULT = 3;
 // pr-unblock's round record (.github/scripts/pr-unblock/gate-source.mjs ROUND_MARKER).
@@ -114,8 +113,6 @@ export function labelOf(text) {
   return FIX_SHA.test(text) ? "valid" : null;
 }
 
-// The item numbers an answer cites in this repository: a bare `#N`, and this repository's
-// `owner/repo#N` and issue or pull URLs; another repository's never count.
 function citedItems(text, repo) {
   const out = [...String(text).matchAll(/(?<![\w./-])#(\d+)\b/g)].map((m) => Number(m[1]));
   if (repo) {
@@ -140,8 +137,6 @@ export function bucketOf(text, prNumber, repo = null) {
   return { bucket: label };
 }
 
-// A reply's label-bearing text: the first table row whose verdict column carries a label, else
-// the whole reply.
 function replyText(body) {
   for (const { header, body: rows } of tables(body)) {
     const col = verdictColumn(header);
@@ -157,11 +152,6 @@ export const answerBucket = (body, prNumber, repo = null) => bucketOf(replyText(
 const lanesNamed = (text) => LANES.filter((lane) => new RegExp(`(?<![\\w-])${lane}(?![\\w-])`).test(text));
 const botLogin = (login) => String(login ?? "").replace(/\[bot\]$/, "");
 
-// The summary-answer rows an issue comment carries: { lane|null, sha|null, login|null, text } per
-// row. Two shapes: a `<lane> finding (<sha>)` header, and the D5 table
-// (`| # | Finding | Classification | ...`, review-discipline.md), whose lane is the one a row or the
-// comment names (null when neither names exactly one) and whose `<!-- d5 finding=N ... lane=L -->`
-// marker gives the login of the reviewer it answers.
 function summaryRows(body) {
   const out = [];
   for (const { header, body: rows } of tables(body)) {
@@ -206,13 +196,10 @@ export function normalizeFirstLine(body) {
 const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
 const byTime = (a, b) => cmp(a.at, b.at) || cmp(String(a.key), String(b.key));
 const zeros = (keys) => Object.fromEntries(keys.map((key) => [key, 0]));
-// The answered outcomes per answer author kind; an unanswered finding has no answerer.
 const emptyByAuthor = () => Object.fromEntries(AUTHOR_KINDS.map((kind) => [kind, { outcomes: zeros(ANSWERED) }]));
 const emptyStats = () => ({ findings: 0, reposts: 0, outcomes: zeros(BUCKETS), by_author_kind: emptyByAuthor(), defer_unlinked: 0, resolved_unanswered: 0 });
 
 function laneRounds(reviews) {
-  // Heads in order, up to and including the first clean one after the last head with findings;
-  // 0 when the lane reviewed no head, null when it never came clean before the merge.
   if (!reviews.length) return 0;
   const lastDirty = reviews.findLastIndex((r) => r.findings > 0);
   const clean = reviews.findIndex((r, i) => i > lastDirty && r.findings === 0);
@@ -231,7 +218,6 @@ function computePr(pr, until, repo, roundAuthor) {
     reviews[lane] = [...seen.values()].sort(byTime);
   }
 
-  // Inline findings: lane-footed thread roots, answered by the replies before `until`.
   const findings = [];
   const rootOf = new Map();
   for (const thread of pr.threads ?? []) {
@@ -248,9 +234,6 @@ function computePr(pr, until, repo, roundAuthor) {
     findings.push({ lane, sha: root.commit ?? null, at: root.createdAt, key: root.id, id: String(root.id), path: thread.path ?? "", first: normalizeFirstLine(root.body), resolved: thread.resolved === true, answers: replies.map((c) => ({ body: c.body, kind: authorKind(c.author_type, c.body) })) });
   }
 
-  // Summary-only findings: N-K per review, answered by the lane's finding table rows in order. A
-  // D5 row naming no lane answers the only lane whose latest head before it has summary-only
-  // findings; a row whose marker names a reviewer other than the lanes' comment author is skipped.
   const comments = [...(pr.comments ?? [])].filter((c) => c.createdAt < until).map((c) => ({ ...c, at: c.createdAt, key: c.body })).sort(byTime);
   const laneLogins = new Set(comments.filter((c) => REVIEWED_HEAD.test(c.body)).map((c) => botLogin(c.author)));
   const latest = (lane, at) => reviews[lane].filter((r) => r.at <= at).at(-1);
@@ -280,8 +263,6 @@ function computePr(pr, until, repo, roundAuthor) {
     }
   }
 
-  // Reposts: the same lane flagged it on an earlier head (same path and first line), or the
-  // answer cites an earlier finding of that lane.
   findings.sort(byTime);
   const byId = new Map(findings.filter((f) => f.id).map((f) => [f.id, f]));
   const isRepost = (f) => {
@@ -494,7 +475,6 @@ export async function bindComments(nodes, check) {
   );
 }
 
-// lane-binding.mjs's readers through gh, for one repository.
 function actionsReaders(repo) {
   return {
     getPull: (pr) => ghJson(["api", `repos/${repo}/pulls/${pr}`]),
@@ -561,7 +541,6 @@ async function fetchPrs(repo, since, until, truncated) {
 
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 
-// The round cap and the lanes App login from docs/conventions/pr-pipeline.yaml, read once.
 function fetchPipeline(repo) {
   let yaml = "";
   try {

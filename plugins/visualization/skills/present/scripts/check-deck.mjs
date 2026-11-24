@@ -19,8 +19,6 @@ import { publishGate } from "../../../lib/publish-gate.mjs";
 import { mediumOf, reportLines } from "../../../lib/view-registry.mjs";
 import { findRoot, gateExplicit, resolveMedium } from "../../../lib/view-settings.mjs";
 
-// ------------------------------------------------------------ K2 allowlist
-
 const UNPARSED = "markup the gate cannot parse cleanly";
 const TAGS = new Set(
   "section div p span h1 h2 h3 h4 h5 h6 ul ol li strong em b i u s small sub sup br hr blockquote aside header footer figure figcaption img table thead tbody tr th td code pre mark".split(" "),
@@ -28,7 +26,6 @@ const TAGS = new Set(
 const ATTRS = new Set("class id style alt title lang dir colspan rowspan width height aria-label aria-hidden src".split(" "));
 const NAMED_ELEMENTS = { "x-embed": "a live embed", script: "a script", svg: "inline SVG", a: "a link" };
 const FENCED = new Set("style link iframe frame object embed form meta base".split(" "));
-/** The two image sources a K2 slide may use: an asset this session uploaded, or a design-system file. */
 const UPLOADED = /^(?:\/_blob\/[A-Za-z0-9_-]+|project\/ds\/[A-Za-z0-9_/-]+\.[a-z0-9]+)$/;
 const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 const WS = /[\t\n\f\r ]/;
@@ -66,7 +63,6 @@ function elementRefusal(tag) {
   return null;
 }
 
-/** The text a sticky pattern matches at `at`, or null. */
 const matchAt = (pattern, html, at) => {
   pattern.lastIndex = at;
   return pattern.exec(html)?.[0] ?? null;
@@ -217,14 +213,12 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
   if (!mediumOf(medium)?.publishes) {
     return { exit: 0, result: { medium, publishes: false, class: cls, reason: `${decidedBy} sets medium: ${medium}`, report: reportLines(resolution) } };
   }
-  // The lane reads hosted as artifact: a deck is many files on a Slides type, never one page, so it is never sent to a page host.
   const explicit = gateExplicit(resolution);
   const text = files.map(([p, t]) => `${p}\n${t}`).join("\n");
   const gate = publishGate({ explicit, visibility, text, subject: "deck" });
   if (explicit) gate.reason = `${decidedBy} sets medium: ${preferred === "hosted" ? "hosted, treated as artifact" : "artifact"}`;
   // The title is printed only for a create call; a deck kept local never echoes it.
   const named = gate.medium === "artifact" ? { title } : {};
-  // The report names the medium the deck goes to: when the gate keeps it local, the gate decided.
   const report = reportLines(gate.medium === medium ? resolution : { ...resolution, medium: gate.medium, decidedBy: `publish gate: ${gate.reason}` });
   return { exit: 0, result: { class: cls, files: files.length, ...named, ...gate, publishes: Boolean(mediumOf(gate.medium)?.publishes), report } };
 }
