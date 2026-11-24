@@ -36,7 +36,6 @@ hash shfmt jq 2>/dev/null || {
 segs=()
 collect() { segs+=("$*"); }
 
-# segs_are <desc> <command> <segment>...: every segment, in source order.
 segs_are() {
   local desc=$1 cmd=$2 got want
   shift 2
@@ -47,8 +46,6 @@ segs_are() {
   if [[ "$got" == "$want" ]]; then ok "$desc"; else fail "$desc: got [$got], want [$want]"; fi
 }
 
-# parses_with <desc> <command> <segment>: in a child, the reader exits 0 and
-# hands <segment> to the callback (a refusal would end this shell).
 parses_with() {
   local out rc=0
   out=$(
@@ -58,7 +55,6 @@ parses_with() {
   ) || rc=$?
   if ((rc == 0)) && [[ $'\n'"$out"$'\n' == *$'\n'"$3"$'\n'* ]]; then ok "$1"; else fail "$1: exit $rc, [$out]"; fi
 }
-# has_seg <desc> <command> <segment>: that segment is among them.
 has_seg() {
   local desc=$1 cmd=$2 want=$3 s
   segs=()
@@ -74,7 +70,6 @@ has_seg() {
 
 # shellcheck disable=SC2016  # the substitutions are the command text under test
 {
-  # --- every simple command in the tree reaches the callback ------------------
   has_seg 'command substitution' 'echo $(git reset --hard)' 'git reset --hard'
   has_seg 'command substitution in double quotes' 'echo "x $(git reset --hard)"' 'git reset --hard'
   has_seg 'backtick substitution' 'echo `git reset --hard`' 'git reset --hard'
@@ -114,7 +109,6 @@ has_seg() {
   segs_are 'a redirect with no command calls no callback' '> f'
 }
 
-# --- word text and quoting provenance ---------------------------------------
 wq_seen=""
 wq_collect() {
   [[ -n "$wq_seen" ]] || wq_seen="$(printf '%s|' "$@")${HOOK_SEG_WORD_QUOTED[*]}"
@@ -151,7 +145,6 @@ else
 fi
 words_are 'a CR and LF in words decode as written' $'x $\'a\\nb\\rc\' "d\ne"' $'x|a\nb\rc|d\ne|0 2 2'
 
-# --- the redirection half of a segment --------------------------------------
 redirs_seen=()
 redirs_collect() {
   local rec="ARGV:$*" j
@@ -184,7 +177,6 @@ redirs_are '&> writes the file as > does' 'echo x &>f' 'ARGV:echo x R:>||f|0|0'
 redirs_are 'a redirected block reports its target' '{ a; } >f' 'ARGV:} R:>||f|0|0' 'ARGV:a'
 redirs_are 'a redirected subshell reports its target' '(a) >f' 'ARGV:) R:>||f|0|0' 'ARGV:a'
 
-# --- HOOK_HEREDOC_BODIES ------------------------------------------------------
 hd_are() {
   local desc=$1 cmd=$2 want=$3 got
   segs=()
@@ -201,7 +193,6 @@ hd_are 'a multibyte body is counted in bytes' $'cat <<\'E\'\né\nE\n' '10 15 1 1
 hd_are 'a closing parenthesis ends the delimiter' $'(cat <<\'E\')\nx\nE\necho done' '12 16 1 1 E'
 hd_are 'an opener inside double quotes is not one' $'echo "<<\'EOF\'"\nx\nEOF' ''
 hd_are 'an empty body' $'cat <<E\nE\nx' '8 10 0 1 E'
-# Offsets by hand: the body starts on the line after its own opener.
 hd_are 'an empty body whose opener is on line 2' $'echo hi\ncat <<\'E\'\nE' '18 19 1 1 E'
 hd_are 'an empty body after an earlier body' $'cat <<A\na\nA\necho y\ncat <<B\nB' '8 12 0 1 A|27 28 0 1 B'
 # Source order, a substitution's and a body's own here-docs included (offsets
@@ -212,7 +203,6 @@ hd_are 'a body-nested here-doc is listed in source order' \
   $'cat <<E\n$(cat <<F\nf\nF\n)\nE\nbash <<G\ngit reset --hard\nG' '8 26 0 1 E|18 22 0 1 F|35 53 0 1 G'
 hd_are 'a backslash-quoted delimiter' $'cat <<\\E\nx\nE\n' '9 13 1 1 E'
 
-# --- the caller's locale is put back -----------------------------------------
 (
   # shellcheck disable=SC2030,SC2031
   declare -x LC_ALL=C.UTF-8
@@ -248,37 +238,31 @@ refused_with() {
     fail "$desc: exit $rc, output [$out]"
   fi
 }
-stub_dir() { # <name> -> creates $_T_TMP/<name> holding links to the tools it is given
+stub_dir() {
   local d="$_T_TMP/$1" t
   shift
   mkdir -p "$d"
   for t in "$@"; do ln -s "$(type -P "$t")" "$d/$t"; done
   printf '%s' "$d"
 }
-stub_shfmt() { # <dir> <body>
+stub_shfmt() {
   printf '#!%s\n%s\n' "$BASH_BIN" "$2" >"$1/shfmt"
   chmod +x "$1/shfmt"
 }
 
-# Missing: jq resolves, shfmt does not.
 refused_with 'refused when shfmt is missing' "$(stub_dir no-shfmt jq)"
-# The fail-open switch is the library's own: an inherited one turns nothing off.
 export HOOK_BPS_FAIL_OPEN=1
 refused_with 'refused when shfmt is missing, HOOK_BPS_FAIL_OPEN=1 inherited' "$(stub_dir no-shfmt jq)"
 export -n HOOK_BPS_FAIL_OPEN
 HOOK_BPS_FAIL_OPEN=0
-# Missing the other way: shfmt resolves, jq does not.
 d=$(stub_dir no-jq shfmt)
 refused_with 'refused when jq is missing' "$d"
-# Exits non-zero, with no syntax error to blame.
 d=$(stub_dir fails jq timeout)
 stub_shfmt "$d" 'exit 3'
 refused_with 'refused when shfmt exits non-zero' "$d"
-# Exits zero with output jq cannot read.
 d=$(stub_dir garbage jq timeout)
 stub_shfmt "$d" 'printf "not json"'
 refused_with 'refused when shfmt prints no JSON' "$d"
-# Runs past the stated bound.
 d=$(stub_dir slow jq sleep)
 stub_shfmt "$d" 'exec sleep 30'
 refused_with 'refused when shfmt exceeds the timeout' "$d" 1
@@ -291,8 +275,6 @@ if ((rc == 2)) && [[ "$out" == *BLOCKED* ]]; then
 else
   fail "a syntax error: exit $rc, [$out]"
 fi
-# The refusal names its cause, which is what the model can act on.
-# reason_is <desc> <expected text> <PATH> [timeout] [HOME]
 reason_is() {
   local out
   out=$(HOME=${5:-$HOME} "$BASH_BIN" -c "$reader_child" -- "$_T_ROOT" "${4:-5}" "$3" 2>&1)
@@ -345,7 +327,7 @@ fi
 # read inside a quote, `${…}` or `$[…]`, and bash reads the same text as
 # commands with extglob off. Every extglob form is refused, whatever its text,
 # so these rows need no bash check (bash 5.2 does not run `${ cmd; }`).
-extglob_refused() { # <desc> <command>
+extglob_refused() {
   local out rc=0
   # shellcheck disable=SC2016  # the child shell expands these
   out=$("$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; hook::bash_parse_segments_shfmt "$2" :' -- "$_T_ROOT" "$2" 2>&1) || rc=$?
@@ -374,7 +356,6 @@ extglob_refused() { # <desc> <command>
   extglob_refused 'a ) inside ${…} in a pattern is refused' $'( echo @(${x:-) #$(git reset --hard)})\n)'
   extglob_refused 'a ) inside $[…] in a pattern is refused' $'( echo @($[ ) ] #$(git reset --hard))\n)'
 }
-# The paired pass: a command with no extglob form parses.
 parses_with 'a command with no extglob form parses' 'ls a* b?; echo x' 'echo x'
 
 # --- the parse budget ---------------------------------------------------------
@@ -401,7 +382,7 @@ form_bash_hit() {
   done
   return 1
 }
-form() { # <handled|refused> <command>
+form() {
   local want=$1 cmd=$2 out rc=0
   form_bash_hit "$cmd" || {
     fail "doc form: bash does not run HIT in [$cmd], so the row proves nothing"
@@ -419,13 +400,11 @@ form() { # <handled|refused> <command>
 hit_print() { printf '%s\n' "$*"; }
 # shellcheck disable=SC2016  # the substitutions are the command text under test
 {
-  # Extglob.
   form refused '!(x)#; echo HIT >&2'
   form refused '@(x)#; echo HIT >&2'
   form refused 'echo @(a|b)#; echo HIT >&2'
   form refused 'echo @(x;y)#; echo HIT >&2'
   form refused '!(echo HIT >&2)'
-  # A substitution inside a pattern is refused outright, however the pattern reads.
   form refused 'echo @(`echo HIT >&2`)'
   form refused 'echo @(<(echo HIT >&2))'
   form refused 'f@()#; echo HIT >&2'
@@ -448,25 +427,20 @@ hit_print() { printf '%s\n' "$*"; }
   # A here-doc inside a `!(…)` at a command's start: shfmt keeps the pattern as
   # one literal, so only the extglob-off reading sees the body.
   form refused $'!(bash <<A\necho HIT >&2\nA\n)'
-  # Nested: the extglob-off rewrite applies its edits in offset order.
   form refused $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
-  # The extglob-off reading runs a here-doc before its open quote's error.
   form refused $'!(x)#\'\ncat <<B\n$(echo HIT >&2)\nB\n\' ; cat <<C\nc\nC'
   # case patterns.
   form handled 'echo $(case x in a|esac) :;; esac)#; echo HIT >&2'
   form handled 'echo $(case x in esac)#; echo HIT >&2'
   form handled 'echo $(case x in (a) :;; esac)#; echo HIT >&2'
-  # [[ =~ ]].
   form handled '[[ x =~ (a|b) ]]; echo HIT >&2'
   form handled '[[ x =~ k=(a|b) ]]; echo HIT >&2'
   form handled '[[ x =~ (a b) ]]; echo HIT >&2'
   form handled '[[ x =~ a|b ]]; echo HIT >&2'
-  # A # after ).
   form handled 'a=(x)#; echo HIT >&2'
   form handled $'a=(x\ny)#; echo HIT >&2'
   form handled 'echo $(echo ${x/)/})#; echo HIT >&2'
   form handled 'echo $(echo ${x/(/})#; echo HIT >&2'
-  # Arithmetic.
   form refused '((a|b) ); echo HIT >&2'
   form refused 'echo $((a|b) ); echo HIT >&2'
   form refused '((:)); echo HIT >&2'
@@ -475,7 +449,6 @@ hit_print() { printf '%s\n' "$*"; }
   form refused 'echo `case`; echo HIT >&2'
   form refused $'echo HIT >&2\nit\'s'
   form refused $'echo HIT >&2\necho (('
-  # Other forms.
   form refused 'x[1]=2 echo HIT >&2'
   form refused $'echo HIT >&2\nprintf \xff'
   # Backticks: bash ends them at the first unescaped backtick.
@@ -500,12 +473,12 @@ segs_are 'doc form handled: a CR before a newline is dropped' $'git reset --hard
 # --- block-dangerous-git refuses the bypasses the old reader missed ----------
 # An attended session turns a refusal into an ask (refuse.sh).
 unset CLAUDE_CODE_SESSION_ATTENDED
-guard_rc() { # <guard path> <command> -> its exit status under the shfmt reader
+guard_rc() {
   local payload
   payload=$(jq -cn --arg c "$2" --arg d "$_T_ROOT" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d,session_id:"t",hook_event_name:"PreToolUse"}')
   (cd "$_T_ROOT" && "$BASH_BIN" "$1" <<<"$payload" >/dev/null 2>&1)
 }
-guard_blocks() { # <desc> <guard path> <command>
+guard_blocks() {
   guard_rc "$2" "$3"
   local rc=$?
   if ((rc == 2)); then ok "$1"; else fail "$1: exit $rc"; fi
@@ -535,7 +508,6 @@ ROOT_GUARD="$_T_ROOT/plugins/guardrails/hooks/block-root-delete-target.sh"
   guard_blocks 'apostrophes around $( ) after $(cat <<X …) in a here-doc body' "$GIT_GUARD" \
     $'cat <<E\n$(cat <<X\nx\nX\n) it\'s $(git reset --hard) ok\'\nE'
 }
-# The paired allow: a clean command stays allowed under the same reader.
 guard_rc "$GIT_GUARD" 'git status'
 rc=$?
 if ((rc == 0)); then ok 'a clean git command is allowed'; else fail "a clean git command: exit $rc"; fi
@@ -546,7 +518,7 @@ if ((rc == 0)); then ok 'a clean git command is allowed'; else fail "a clean git
 # kind of call site with text shfmt rejects (`x[1]=2 cmd`, which bash runs) and
 # wants exit 2 with the reader's refusal; its pair, the same text with a plain
 # assignment, wants exit 0, so the refusal is what denied it.
-refuses_at() { # <desc> <hook> <tool> <refused command> <allowed command>
+refuses_at() {
   local payload rc err
   for c in "$4" "$5"; do
     payload=$(jq -cn --arg t "$3" --arg c "$c" --arg d "$_T_ROOT" '{tool_name:$t,tool_input:{command:$c},cwd:$d,session_id:"t",hook_event_name:"PreToolUse"}')

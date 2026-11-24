@@ -1,16 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Write-HealthResult.ps1 (New-HealthResult +
-Write-HealthResult) with schema enforcement via Assert-CheckResult.
-
-.DESCRIPTION
-The emit pipeline is the contract between every check script and the
-orchestrator. Bugs here silently corrupt the report; we validate both shape
-(field names, types, defaults) and behavior (JSON round-trip, schema
-enforcement at emit time, human-readable fallback).
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Write-HealthResult.ps1'

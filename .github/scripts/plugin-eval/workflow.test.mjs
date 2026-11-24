@@ -150,25 +150,26 @@ test("compare mode reads the pull request's commits only as git objects for the 
   assert.doesNotMatch(armsScript, /\b(?:source|\.)\s+"?\$REPO|bash "?\$REPO|node "?\$REPO|checkout|worktree|apply/);
 });
 
-test("compare mode hands each arm only the credential input's secret and stops without a cost cap", () => {
+test("compare mode hands each arm the evals key, and the token only for a trusted human's pull request, and stops without a cost cap", () => {
   for (const name of ["compare-before", "compare-after"]) {
     const arm = job(name);
     const secrets = /\n {4}secrets:\n((?: {6}.*\n?)+)/.exec(arm)[1];
     const passed = Object.fromEntries([...secrets.matchAll(/^ {6}([\w-]+): (.*)$/gm)].map((m) => [m[1], m[2]]));
-    assert.deepEqual(Object.keys(passed), ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"], name);
-    for (const credential of ["api-key", "subscription"]) {
-      const ctx = { "inputs.credential": credential, "secrets.MAINTENANCE_CLAUDE_API_KEY": "key", "secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN": "token" };
-      assert.equal(evaluate(passed.MAINTENANCE_CLAUDE_API_KEY, ctx), credential === "api-key" ? "key" : "", `${name} ${credential}`);
-      assert.equal(evaluate(passed.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN, ctx), credential === "subscription" ? "token" : "", `${name} ${credential}`);
+    assert.deepEqual(Object.keys(passed), ["EVALS_CLAUDE_API_KEY", "EVALS_CLAUDE_CODE_OAUTH_TOKEN"], name);
+    const allow = /\n {6}allow-subscription: (.*)\n/.exec(arm)[1];
+    for (const subscription of ["true", "false", ""]) {
+      const ctx = { "needs.compare-prepare.outputs.subscription": subscription, "secrets.EVALS_CLAUDE_API_KEY": "key", "secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN": "token" };
+      assert.equal(evaluate(passed.EVALS_CLAUDE_API_KEY, ctx), "key", `${name} subscription=${subscription}`);
+      assert.equal(evaluate(passed.EVALS_CLAUDE_CODE_OAUTH_TOKEN, ctx), subscription === "true" ? "token" : "", `${name} subscription=${subscription}`);
+      assert.equal(evaluate(allow, ctx), subscription === "true", `${name} subscription=${subscription}`);
     }
-    assert.match(arm, /\n {6}credential: \$\{\{ inputs\.credential \}\}\n/, name);
     assert.match(arm, /max-cost-usd: \$\{\{ fromJSON\(inputs\.cost-cap-usd\) \}\}/, name);
     assert.match(arm, /\n {6}cases: \$\{\{ inputs\.cases \}\}\n/, name);
     assert.match(arm, /\n {6}ablation: none\n/, name);
     assert.match(job(name), /\n {4}needs: compare-prepare\n {4}if: >-\n {6}needs\.compare-prepare\.result == 'success'\n/, `${name} runs only after compare-prepare passed`);
   }
   assert.doesNotMatch(compare, /FALLBACK_CLAUDE_CODE_OAUTH_TOKEN|secrets: inherit/);
-  assert.match(text, /\n {6}credential:\n(?: {8}[^\n]*\n)*? {8}type: choice\n {8}options: \[api-key, subscription\]\n {8}default: api-key\n/);
+  assert.doesNotMatch(text, /\n {6}credential:\n|inputs\.credential/, "no input chooses the credential: the key runs first");
   assert.match(text, /cost-cap-usd:\n(?: {8}[^\n]*\n)*? {8}default: ""\n/);
   const guard = /if ! \[\[ \$COST_CAP .*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
   const passes = (value) => spawnSync("bash", ["-c", guard], { env: { COST_CAP: value } }).status === 0;
@@ -349,26 +350,27 @@ test("stage-suites.sh stages evals-selected when CASES is set on a non-determini
   }
 });
 
-test("a subscription compare refuses a pull request whose author is not a trusted actor, before any pass", async () => {
-  const { step, steps } = workflowText(text);
+test("a compare moves to the subscription token only when its pull request's author is a trusted actor and a listed human", async () => {
+  const { step, steps, outputs } = workflowText(text);
   const gate = step("compare-prepare", "author");
-  const stop = workflowText(text).stepNamed("compare-prepare", "Stop on an untrusted pull request author");
+  const human = step("compare-prepare", "human");
   assert.match(gate.text, /uses: \.\/\.base\/\.github\/actions\/check-trusted-trigger /);
+  assert.equal(gate.if, "", "the author check runs on every compare");
   assert.equal(gate.inputs["pr-number"], "${{ inputs.pr }}");
   assert.equal(gate.inputs["standards-path"], "${{ steps.standards.outputs.path }}");
-  assert.match(stop.text, /\n {10}exit 1\n/);
   const names = steps("compare-prepare").map((s) => s.name);
-  assert.ok(names.indexOf("Stop on an untrusted pull request author") < names.indexOf("Build the arm patches"), "the refusal comes before any arm is built");
+  assert.ok(names.indexOf("Check a listed human wrote the pull request") < names.indexOf("Build the arm patches"), "the author is settled before any arm is built");
   assert.match(job("compare-prepare"), /\n {6}actions: read\n/, "check-trusted-trigger reads this run's re-runner");
-  for (const [credential, proceed, stops] of [
-    ["api-key", "", false],
-    ["subscription", "true", false],
-    ["subscription", "false", true],
-    ["subscription", "", true],
+  const subscription = outputs("compare-prepare").subscription;
+  for (const [proceed, humanOutcome, moves] of [
+    ["true", "success", true],
+    ["true", "failure", false],
+    ["false", "skipped", false],
+    ["", "skipped", false],
   ]) {
-    const ctx = { "inputs.credential": credential, "steps.author.outputs.proceed": proceed };
-    assert.equal(evaluate(gate.if, ctx), credential === "subscription", `${credential}: the author check runs`);
-    assert.equal(evaluate(stop.if, ctx), stops, `${credential} proceed=${proceed}`);
+    const ctx = { "steps.author.outputs.proceed": proceed, "steps.human.outcome": humanOutcome };
+    assert.equal(evaluate(human.if, ctx), proceed === "true", `proceed=${proceed}: the human check runs`);
+    assert.equal(evaluate(subscription, ctx), moves, `proceed=${proceed} human=${humanOutcome}`);
   }
 
   const { evaluateTrigger, loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
@@ -398,15 +400,12 @@ test("a subscription compare refuses a pull request whose author is not a truste
   assert.deepEqual(await verdict(12345), { proceed: "false", reason: "untrusted-author" }, "anyone else's pull request");
 });
 
-test("a subscription compare refuses a pull request a bot wrote, before any pass", () => {
+test("a compare on a pull request a bot wrote stays on the key", () => {
   const { stepNamed, steps } = workflowText(text);
-  const stop = stepNamed("compare-prepare", "Stop on a pull request a bot wrote");
-  for (const credential of ["api-key", "subscription"]) {
-    assert.equal(evaluate(stop.if, { "inputs.credential": credential }), credential === "subscription", credential);
-  }
+  const stop = stepNamed("compare-prepare", "Check a listed human wrote the pull request");
+  assert.match(stop.text, /\n {8}continue-on-error: true\n/, "a bot's pull request still compares on the key");
   const names = steps("compare-prepare").map((s) => s.name);
-  assert.ok(names.indexOf("Stop on an untrusted pull request author") < names.indexOf("Stop on a pull request a bot wrote"));
-  assert.ok(names.indexOf("Stop on a pull request a bot wrote") < names.indexOf("Build the arm patches"), "the refusal comes before any arm is built");
+  assert.ok(names.indexOf("Check the pull request author") < names.indexOf("Check a listed human wrote the pull request"));
 
   const script = /\n {8}run: \|\n((?: {10}.*\n|\n)+)/.exec(stop.text)[1].replace(/^ {10}/gm, "");
   const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
@@ -425,10 +424,10 @@ test("a subscription compare refuses a pull request a bot wrote, before any pass
     assert.equal(run("echo 153232337").status, 0, "our own login's pull request");
     const bot = run("echo 337595936");
     assert.equal(bot.status, 1, "our lanes bot's pull request");
-    assert.match(bot.stdout, /::error::bot-author:/);
+    assert.match(bot.stdout, /::notice::bot-author:/);
     const unread = run("exit 1");
     assert.equal(unread.status, 1, "an unread author");
-    assert.match(unread.stdout, /::error::read-fault:/);
+    assert.match(unread.stdout, /::notice::read-fault:/);
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

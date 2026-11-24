@@ -75,6 +75,9 @@ check 'the allow list is read from the team file, one item per line' \
   '^test-scope:'$'\n''^shellcheck ' "$(bash "$SUT" --list comment_lint_allow "$repo")"
 check 'the allow list is no key line' '' "$(lines_for "$repo" comment_lint_allow)"
 
+repo="$(repo_with $'comment_lint_exclude:\n  - "vendor/**"\n' $'comment_lint_exclude:\n  - "mine/**"\n')"
+check 'the exclude list is read from the team file only' 'vendor/**' "$(bash "$SUT" --list comment_lint_exclude "$repo")"
+
 repo="$(repo_with $'comment_lint_allow:\n  - a\ncomment_lint_allow:\n  - b\n' -)"
 check 'an allow list in a file that does not parse is empty' '' "$(bash "$SUT" --list comment_lint_allow "$repo" 2>/dev/null)"
 bash "$SUT" --list comment_posture "$repo" >/dev/null 2>&1

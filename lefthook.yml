@@ -7,3 +7,9 @@ remotes:
     configs:
       - plugins/guardrails/git-hooks/lefthook-remote.yml
       - plugins/code-tidying/git-hooks/lefthook-remote.yml
+
+pre-push:
+  jobs:
+    - name: changelog-fragments
+      run: scripts/pre-push-changelog-fragments.sh {1}
+      use_stdin: true

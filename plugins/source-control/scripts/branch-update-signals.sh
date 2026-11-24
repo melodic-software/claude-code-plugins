@@ -95,7 +95,6 @@ paged() {
 }
 pull() { [[ -n "$PULL" ]] && jq -r "$1" <<<"$PULL" 2>/dev/null | tr -d '\r'; }
 answer() { printf '%s\n' "${1:-unknown}"; }
-# count_answer <n>: yes above zero, no at zero, unknown when <n> is not a count.
 count_answer() {
   [[ "$1" =~ ^[0-9]+$ ]] || { answer ""; return; }
   if (($1 > 0)); then answer yes; else answer no; fi
@@ -208,7 +207,6 @@ signal_managed_head() {
     | if ($managers | split(" ") | index($l)) then "yes" else "no" end' <<<"$PULL" 2>/dev/null | tr -d '\r')"
 }
 
-# rewrite has no unknown: anything unread is blocked.
 signal_rewrite() {
   if [[ -n "$PR" ]]; then
     local head_repo
@@ -305,14 +303,12 @@ signal_landing() {
 
 signal_overlap() {
   history_ready && [[ "$CHECKOUT_HEAD" == "$HEAD_SHA" ]] || { answer ""; return; }
-  # Only a base shown to be the default branch may run its own overlap rule.
   local out flags=(--paths-only)
   [[ -z "$DEFAULT_BRANCH" || "$BASE" != "$DEFAULT_BRANCH" ]] || flags=()
   out=$(bash "$OVERLAP" ${flags[@]+"${flags[@]}"} "$PWD" "$BASE_TIP" 2>/dev/null)
   answer "${out%% *}"
 }
 
-# signal_base_change_needed <conflict> <native_stack> <behind> <overlap>
 signal_base_change_needed() {
   if [[ "$BASE_FIXED" == 1 || "$1" == yes || "$4" == yes ]]; then
     answer yes
@@ -323,9 +319,6 @@ signal_base_change_needed() {
   fi
 }
 
-# Sets SETTING and SETTING_LEVEL. The base branch is read, never the head, and
-# only a default-branch base counts: any other is a branch the author may have
-# pushed unreviewed.
 read_setting() {
   SETTING=auto SETTING_LEVEL=default
   if [[ -z "$BASE" || -z "$DEFAULT_BRANCH" ]]; then

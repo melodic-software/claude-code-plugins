@@ -226,8 +226,6 @@ size_cut() {
   sort -rn | awk -v cap="$1" '!cut { acc += $2; if (acc > cap) { print $1 + 1; cut = 1 } }'
 }
 
-# Print the total cap's cutoff (epoch seconds) across the given store files, or nothing when
-# they total at most cap_bytes. cap_bytes 0 = off.
 total_cutoff() {
   local cap_bytes="$1" src total=0
   shift
@@ -241,9 +239,6 @@ total_cutoff() {
   done | size_cut "$cap_bytes"
 }
 
-# Print the structure cutoff (epoch seconds) for one store file: the latest of the age cutoff,
-# the total cap's cutoff (total_cut, empty = none) and, when the file exceeds cap_bytes, the
-# per-file cap's cutoff. cap_bytes 0 = off.
 effective_cutoff() {
   local src="$1" cutoff_seconds="$2" cap_bytes="$3" total_cut="${4:-}"
   local cut="" best="$cutoff_seconds" size
@@ -289,7 +284,6 @@ real_path() {
   printf '%s%s\n' "${p%/}" "$tail"
 }
 
-# True when path is root or inside it.
 under_root() {
   local path root
   path="$(real_path "$1")"
@@ -314,7 +308,6 @@ take_lock_or_report() {
   return "$rc"
 }
 
-# The probe reads this stamp to show the scheduled prune is firing.
 stamp_last_prune() { date -u +%Y-%m-%dT%H:%M:%SZ >"$1/.last-prune"; }
 
 main() {
@@ -368,7 +361,6 @@ main() {
   # Base 10, so a leading zero (08) is not read as octal.
   hot_max_mb=$((10#$hot_max_mb))
   hot_total_max_mb=$((10#$hot_total_max_mb))
-  # Reject, don't clamp: body records cannot outlive the lines that carry them.
   if ((body_retention_days > retention_days)); then
     err "CC_OTEL_BODY_RETENTION_DAYS ($body_retention_days) must not exceed CC_OTEL_RETENTION_DAYS ($retention_days)"
     return 2
@@ -406,8 +398,6 @@ main() {
       scrub_cold "$store_dir" true
       return
     fi
-    # The Collector writes only the hot files, so the scrub leaves it running; the sentinel
-    # alone keeps a concurrent prune from compacting into cold/ mid-scrub.
     mkdir -p "$store_dir"
     # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
     take_lock_or_report || return $(($? == 3))
@@ -456,7 +446,6 @@ main() {
     src="$store_dir/$f"
     file_cutoff="$(effective_cutoff "$src" "$cutoff_seconds" "$hot_max_bytes" "$total_cut")"
     file_cutoffs["$f"]="$file_cutoff"
-    # A shared total cutoff can sit before a file's oldest line; size-pruned means it drops more.
     age_dropped=0
     if ((file_cutoff > cutoff_seconds)); then
       counts="$(filter_file "$src" "" "$cutoff_seconds" "" "$body_cutoff_seconds" "")"
@@ -479,7 +468,6 @@ main() {
     printf 'action=dry-run total_dropped=%s total_surgery=%s size_pruned_files=%s\n' "$total_dropped" "$total_surgery" "$size_pruned"
     return 0
   fi
-  # Every non-dry-run return below passes here first, so none can skip the clean marker.
   mark_cold_clean_briefly "$store_dir"
 
   if ((${#present_files[@]} == 0)); then
@@ -488,7 +476,6 @@ main() {
     return
   fi
 
-  # Dry-check short-circuit: nothing below either cutoff => no Collector churn.
   if ((total_dropped == 0 && total_surgery == 0)); then
     stamp_last_prune "$store_dir"
     printf 'action=noop-nothing-to-prune\n'
@@ -496,13 +483,11 @@ main() {
     return
   fi
 
-  # Acquire the sentinel (lock + revival-race signal). Failure => another prune holds it.
   mkdir -p "$store_dir"
   # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
   take_lock_or_report || return $(($? == 3))
   OWN_SENTINEL=true
   trap cleanup EXIT
-  # The first prune of a store had no cold/ for mark_cold_clean_briefly; it gets one here.
   mark_cold_clean "$store_dir"
 
   # Sweep stale cold temps left by a previous hard-killed run (safe: we hold the lock, so no
@@ -528,15 +513,9 @@ main() {
     return 1
   fi
 
-  # One timestamp per run: the logs + metrics cold files of the same prune share it.
   local cold_ts
   cold_ts="$(date -u +%Y%m%dT%H%M%SZ)"
 
-  # Trim each present file: route -> kept/dropped/surgery temps (same dir) -> compact dropped
-  # lines to cold Parquet -> surgery body-aged lines (survivors re-append to the kept temp)
-  # -> verify kept temp -> atomic mv. Compact-before-trim: the cold mv lands BEFORE the hot
-  # mv, so every failure path (compact, surgery, verify) leaves the original hot file intact.
-  # The preflight cutoffs predate the Collector stop; batches it appended since count toward the caps.
   total_cut="$(total_cutoff "$hot_total_max_bytes" "${present_paths[@]}")"
   local temp dropped surgery_tmp surgery_counts surgery_kept surgery_dropped
   for f in "${present_files[@]}"; do
@@ -552,8 +531,6 @@ main() {
     # on restart), and this keeps surgery_file + verify_temp + mv operating on a real path.
     [[ -f "$temp" ]] || : >"$temp"
     parse_counts "$counts"
-    # Compact BEFORE the hot trim. The dropped temp can be absent/empty even when DROPPED > 0
-    # (unparsable partial lines count as dropped but are not routed) — nothing to compact then.
     if [[ -s "$dropped" ]]; then
       # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
       if ! compact_dropped "$f" "$dropped" "$store_dir" "$cold_ts"; then
@@ -594,7 +571,6 @@ main() {
 
   STAMP_DIR="$store_dir"
   printf 'action=pruned total_dropped=%s total_surgery=%s\n' "$total_dropped" "$total_surgery"
-  # cleanup (EXIT trap) removes the sentinel and starts the Collector service.
 }
 
 main "$@"

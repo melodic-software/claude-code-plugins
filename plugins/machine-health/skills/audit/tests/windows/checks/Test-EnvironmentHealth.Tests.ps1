@@ -33,7 +33,6 @@ BeforeAll {
             $padTo = [int]$Spec.pad_to
         }
         if ($padTo -gt $value.Length) {
-            # Appending ';' plus (padTo - len - 1) filler lands on exactly padTo.
             $value = $value + ';' + ('x' * ($padTo - $value.Length - 1))
         }
         return $value

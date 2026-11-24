@@ -306,15 +306,15 @@ test("work-unblock marks a paced run, and the sweep after it reaches back past a
   const at = (name) => steps.findIndex((step) => step.name === name);
   assert.ok(at(PACED_STEP) > at(PACE_STEP), "after the pacer");
   assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(PACED_STEP)].text)?.[1], "steps.pace.outputs.paced == 'true'");
-  const crons = [...text.matchAll(/\n {4}- cron: "([0-9]+) ([0-9,-]+) \* \* \*"(?=\n)/g)];
+  const crons = [...text.matchAll(/\n {4}- cron: "([0-9,]+) ([0-9,-]+|\*) \* \* \*"(?=\n)/g)];
   assert.ok(crons.length > 0, "the schedule is read");
-  const hours = (field) => field.split(",").flatMap((part) => {
+  const values = (field) => (field === "*" ? "0-23" : field).split(",").flatMap((part) => {
     const [from, to = from] = part.split("-").map(Number);
     return Array.from({ length: to - from + 1 }, (_, i) => from + i);
   });
-  const fires = crons.flatMap(([, minute, hour]) => hours(hour).map((h) => h * 60 + Number(minute))).sort((a, b) => a - b);
+  const fires = crons.flatMap(([, minute, hour]) => values(hour).flatMap((h) => values(minute).map((m) => h * 60 + m))).sort((a, b) => a - b);
   const period = Math.max(...fires.map((at, i) => (i === 0 ? at + 1440 : at) - fires.at(i - 1)));
-  assert.equal(period, 60, "hourly");
+  assert.equal(period, 15, "every 15 minutes");
   const wait = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(jobOf("work-unblock.yml", "label-unblocked"))?.[1]);
   assert.equal(wait, 10);
   const reach = 3 * period + wait + SWEEP_MARGIN_MIN;

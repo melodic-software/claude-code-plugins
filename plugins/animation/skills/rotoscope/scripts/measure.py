@@ -32,7 +32,7 @@ import workdir  # noqa: E402
 from decode import MID  # noqa: E402
 
 FLOOR_GRAY, FLOOR_X, SSIM_MIN, SSIME_MIN = 4, 1.2, 0.980, 0.980
-BRUSH = json.load(open(HERE / 'brush.json', encoding='utf-8'))   # roto.js's mode (b) defaults: bias, blur, grain
+BRUSH = json.load(open(HERE / 'brush.json', encoding='utf-8'))
 
 
 def replicas(work, ks, rep_dir, query='', workers=render.WORKERS, playwright_core=None):

@@ -7,11 +7,11 @@ therefore (HALO - 0.5) strokes inside the line, and the gap keeps CLEAR px more 
 """
 from collections import namedtuple
 
-HALO = 1.8              # halo width, in strokes
-CLEAR = 1.0             # output px kept between the halo and the box, for resampling bleed
-SMALL_TARGET = 120      # page px at zoom 1.0: a box whose longer side is below this is small
-SMALL_SCALE = 2.5       # gap and stroke multiplier for a small box at zoom 1.0
-SMALL_ZOOM_END = 1.1    # the smallest zoomed shot; the multiplier eases to 1 between zoom 1.0 and this
+HALO = 1.8
+CLEAR = 1.0
+SMALL_TARGET = 120
+SMALL_SCALE = 2.5
+SMALL_ZOOM_END = 1.1
 
 Ring = namedtuple('Ring', 'stroke gaps line outer bbox')
 

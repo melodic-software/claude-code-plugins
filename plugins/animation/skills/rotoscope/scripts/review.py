@@ -27,9 +27,9 @@ import numpy as np
 from measure import paper, render, workdir
 
 LONG_EDGE = 2576           # the image long-edge limit: reference/method.md, "Reviewing images"
-CROP = (min(500, LONG_EDGE // 3), 400)   # w, h of each panel; three panels side by side stay within LONG_EDGE
+CROP = (min(500, LONG_EDGE // 3), 400)
 TILE, TILE_BLUR, TILE_MAX = 32, 3, 8
-PAPER_MAX = 5.0            # judgment: the reviewed 239/239 shfred0 replica runs 0.2-5.0
+PAPER_MAX = 5.0
 EDGE = 2
 
 
@@ -62,7 +62,7 @@ def one(job):
     pe, pd = paper(src, rep, d['T'])
     cw, ch = min(CROP[0], x.shape[1]), min(CROP[1], x.shape[0])
     s = cv2.boxFilter(x.astype(np.float32), -1, (cw, ch), normalize=False, anchor=(0, 0), borderType=cv2.BORDER_CONSTANT)
-    starts = (x.shape[0] - ch + 1, x.shape[1] - cw + 1)   # every top-left corner a full crop window fits at
+    starts = (x.shape[0] - ch + 1, x.shape[1] - cw + 1)
     y0, x0 = np.unravel_index(np.argmax(s[:starts[0], :starts[1]]), starts)
     heat = np.full(src.shape, 255, np.uint8)
     heat[ms & mr] = (200, 200, 200)

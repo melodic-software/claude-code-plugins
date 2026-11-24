@@ -169,7 +169,6 @@ def _body(canvas, lay, direction, step):
     if direction == "up":
         canvas.rect(tx, ty, tw, th + lh // 2, "cape")
     if side:
-        # behind the tunic's trailing edge, so the tunic drawn next does not cover it
         canvas.rect(tx + tw // 4 + tw // 2 + 2, ty, max(2, tw // 4), th, "cape")
     gap = lay["gap"]
     if side:

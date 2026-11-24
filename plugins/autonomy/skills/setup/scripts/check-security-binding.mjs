@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-// Exit 0 = valid (verdicts printed); 1 = findings; 2 = usage/environment error.
-
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, posix, relative, resolve, sep } from "node:path";
 import process from "node:process";

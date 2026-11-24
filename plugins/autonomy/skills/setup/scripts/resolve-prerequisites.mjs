@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-// Exit 0 = resolution emitted; 1 = usage / internal failure.
-
 import {
   readdirSync,
   readFileSync,

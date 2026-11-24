@@ -40,7 +40,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 
 SCRIPTS = Path(__file__).resolve().parent
 VERIFIED = "verified"
@@ -56,7 +56,6 @@ VERDICT_LINE = re.compile(
 COUNTS_LINE = re.compile(
     r"^\W*findings?(?:\s+counts?)?\W+high\W+(\d+)\W+medium\W+(\d+)\W+low\W+(\d+)", re.I | re.M
 )
-# Read loosely on purpose: a false match leaves a page unverified, a miss would hide a high finding.
 HIGH_FINDING = re.compile(
     r"severity[^\w\n]+high\b|\bhigh[^\w\n]+severity\b|\bfinding[^\w\n]+high\b|\[high\]|\(high\)"
     r"|\|[ \t]*high[ \t]*\||^[ \t]*(?:[-*][ \t]*)?\**high\**[ \t]*[:|]|\bhigh[^\w\n]*[1-9]",

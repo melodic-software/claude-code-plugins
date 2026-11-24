@@ -1,4 +1,3 @@
-"""The character kit renders a 4-direction walker and keeps presets apart."""
 import json
 import pathlib
 import struct

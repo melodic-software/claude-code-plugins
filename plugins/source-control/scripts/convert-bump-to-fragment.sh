@@ -123,9 +123,6 @@ convert() {
     left "$name" "version moved $b -> $w but CHANGELOG.md gained no heading"
     return
   fi
-  # Split the changelog into the added sections' bodies and everything else;
-  # an added section's text ahead of its first ### section goes under Changed.
-  # A ## line inside a code fence is text, not a section boundary.
   awk -v heads="$tmp/added.h" -v body="$tmp/body.raw" -v rest="$tmp/cl.rest" '
     BEGIN { while ((getline h < heads) > 0) added[h] = 1; printf "" > body }
     /^[ \t]*(```|~~~)/ { fence = !fence }
@@ -141,7 +138,6 @@ convert() {
       next
     }
     { print > rest }' "$changelog"
-  # Trim blank edges.
   awk '{ line[NR] = $0; if ($0 ~ /[^ \t]/) { if (!first) first = NR; last = NR } }
     END { for (i = first; first && i <= last; i++) print line[i] }' "$tmp/body.raw" >"$tmp/body"
   if [[ ! -s $tmp/body ]]; then
@@ -154,8 +150,6 @@ convert() {
   }
   cat "$tmp/body" >>"$path" || return 2
   set_version "$b" <"$manifest" >"$tmp/pj" || return 2
-  # All three files change together or not at all: on any failure, put the
-  # manifest and changelog back and drop the fragment, so a re-run sees the bump.
   cp "$manifest" "$tmp/pj.orig" && cp "$changelog" "$tmp/cl.orig" || return 2
   if ! { cp "$tmp/pj" "$manifest" && cp "$tmp/cl.rest" "$changelog" &&
     git add -- "$manifest" "$changelog" "$path"; }; then

@@ -268,11 +268,6 @@ ip_discover_rules() {
   done < <(find -L "$root" -type d -name rules -path '*/.claude/rules' \
     -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null)
 
-  # One entry per REAL file. When a symlink loop or a duplicate link exposes the
-  # same file under several paths, keep the shallowest, then the lexically first
-  # — so a loop reports `.claude/rules/ok.md`, never `.claude/rules/loop/ok.md`.
-  # Fixture paths drop before that choice, so a shallower fixture alias of a real
-  # rule cannot win and then take the real rule out with it.
   LC_ALL=C sort "$seen_file" | awk -F'\t' -v fixture="$IP_FIXTURE_ERE" '
     $2 ~ fixture { next }
     {

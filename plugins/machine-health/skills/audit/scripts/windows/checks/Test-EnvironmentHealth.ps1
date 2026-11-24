@@ -273,9 +273,6 @@ $CheckBody = {
     $userEntries = @(Split-PathEntries $userPathRaw)
     $machineEntries = @(Split-PathEntries $machinePathRaw)
 
-    # One pass per scope builds the persisted-entry rows and the per-scope
-    # normalized lookup Get-PathScope reads, so each entry is expanded and
-    # normalized once.
     $userNorm = @{}
     $machineNorm = @{}
     $persistedEntries = [System.Collections.Generic.List[pscustomobject]]::new()

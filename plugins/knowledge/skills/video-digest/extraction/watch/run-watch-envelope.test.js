@@ -137,13 +137,11 @@ describe("runWatchCli envelope consumption", () => {
     workRoot = await fs.mkdtemp(path.join(os.tmpdir(), "watch-envelope-root-"));
     fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "watch-envelope-fix-"));
     previousTmpdir = process.env.TMPDIR;
-    process.env.TMPDIR = fixtureDir; // run-watch keeps its temp dirs, so they land in a dir removed below
+    process.env.TMPDIR = fixtureDir;
     process.env.VIDEO_DIGEST_WORK_ROOT = workRoot;
     captured.stderr.length = 0;
     captured.stdout.length = 0;
     vi.mocked(acquireMedia).mockReset();
-    // Call history only — the vi.mock factory above owns the default resolved
-    // value; the duration-mismatch tests override it once per call.
     vi.mocked(orchestrateWatching).mockClear();
   });
 

@@ -221,7 +221,6 @@ while IFS= read -r path; do
   paths+="P"$'\t'"$path"$'\t'"$kind"$'\t'"$count"$'\n'
 done < <(printf '%s\n' "$citations" | cut -s -f3 | LC_ALL=C sort -u)
 
-# The path rows come first in one stream, so every citation row finds its path.
 report="$(
   printf '%s%s\n' "$paths" "$citations" | LC_ALL=C awk -F'\t' '
     $1 == "P" { kind[$2] = $3; count[$2] = $4; next }

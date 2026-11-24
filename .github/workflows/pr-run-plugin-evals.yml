@@ -131,7 +131,7 @@ on:
           suite runs the target's suite as above. compare runs the target's
           deterministic cases that case, cases or tag selects (one is required) on pull request pr's
           merge base and on head-sha, each as plugin text on this branch's
-          harness, with-plugin arm only, on the credential input, and posts the eval-pair record on a
+          harness, with-plugin arm only, and posts the eval-pair record on a
           PASS; runs, allow-tools and the inputs after them do not apply.
         required: false
         type: choice
@@ -152,17 +152,6 @@ on:
         required: false
         type: string
         default: ""
-      credential:
-        description: >-
-          api-key runs on the maintenance API key. subscription runs on the
-          maintenance subscription token with no fallback: a suite run only
-          on the default branch and with case, cases or tag set; a compare
-          run only when the pull request's author is a trusted actor
-          (docs/review/evals.md).
-        required: false
-        type: choice
-        options: [api-key, subscription]
-        default: api-key
   # The label starts pr-run-plugin-evals-label.yml, which holds no secret; its
   # completion runs this file from main, never the PR's copy
   # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
@@ -192,7 +181,7 @@ jobs:
     name: Check Key Credit
     if: >-
       vars.CLAUDE_EVALS_DISABLED == 'false' && ((github.event_name == 'workflow_dispatch' && inputs.mode != 'compare'
-      && inputs.credential != 'subscription' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+      && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
       || (github.event_name == 'workflow_run'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
@@ -213,7 +202,7 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: start
-          role: maintenance
+          role: evals
           key-job: eval
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
@@ -227,14 +216,10 @@ jobs:
           outcome: skipped
           lane: eval-browser-dispatch
           lane-id: eval-browser-dispatch
-          credential: MAINTENANCE_CLAUDE_API_KEY
+          credential: EVALS_CLAUDE_API_KEY
           known-failure-class: credit-stop
           handoff: "false"
 
-  # The key leg, on the maintenance role's API key alone. A dispatch on any
-  # ref but the default branch skips before any step runs, so every case it
-  # runs has merged through review. An empty key, or one the gate skipped,
-  # runs nothing.
   run-eval:
     name: Run Eval
     needs: check-key-credit
@@ -253,6 +238,9 @@ jobs:
       pull-requests: read # check-trusted-trigger reads the pull request
       issues: read # check-label-sender.sh reads https://docs.github.com/en/rest/issues/events
       actions: read # check-trusted-trigger reads this run's re-runner
+    outputs:
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
@@ -380,8 +368,8 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: key
-          role: maintenance
-          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
+          role: evals
+          credential-set: ${{ secrets.EVALS_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-key-credit.outputs.next-leg }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
@@ -587,7 +575,7 @@ jobs:
         id: probe
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
         env:
-          LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+          LANE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
           LEG: key
@@ -679,7 +667,7 @@ jobs:
         id: eval
         if: steps.stage.outputs.go == 'true' && steps.probe.outputs.handoff != 'true'
         env:
-          LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+          LANE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
           # Strips credentials from Bash subprocesses inside each eval run.
           # The env-scrub input set false gives "0", the opt-out value Claude
           # Code's own messages name.
@@ -984,7 +972,7 @@ jobs:
       # so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-MAINTENANCE_CLAUDE_API_KEY' && steps.judge.outputs.handoff-reason == 'credit-stop'
+        if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-EVALS_CLAUDE_API_KEY' && steps.judge.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -1008,7 +996,7 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@v7
         with:
-          name: key-credit-stop-MAINTENANCE_CLAUDE_API_KEY
+          name: key-credit-stop-EVALS_CLAUDE_API_KEY
           overwrite: true
           path: ${{ runner.temp }}/key-credit-stop/run-id
           if-no-files-found: error
@@ -1023,10 +1011,21 @@ jobs:
           execution-file: ${{ steps.judge.outputs.leg-result }}
           lane: eval-browser-dispatch
           lane-id: eval-browser-dispatch
-          credential: MAINTENANCE_CLAUDE_API_KEY
+          credential: EVALS_CLAUDE_API_KEY
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           fallback-reason: ""
+
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.judge.outputs.handoff }}
+          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
 
       - name: Stop at the key's stop
         id: stop
@@ -1034,7 +1033,28 @@ jobs:
         timeout-minutes: 1
         env:
           REASON: ${{ steps.judge.outputs.handoff-reason || needs.check-key-credit.outputs.next-reason || 'no-key' }}
-        run: echo "::warning::The API key stopped ($REASON), so no case ran; evals never fall back to subscription tokens (docs/review/evals.md)"
+          EVENT: ${{ github.event_name }}
+          NEXT: ${{ steps.next.outputs.next-leg }}
+          CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
+          TAGS: ${{ inputs.tag }}
+        run: |
+          if [ "$EVENT" != workflow_dispatch ]; then
+            echo "::warning::EVALS_CLAUDE_API_KEY stopped ($REASON), so no case ran; a pull request run never moves to the subscription token (docs/review/evals.md)"
+            exit 0
+          fi
+          read -ra cases <<<"$CASES"
+          read -ra tags <<<"$TAGS"
+          if [ "$NEXT" = subscription ] && [ -z "${CASE//[*?[:space:]]/}" ] && [ "${#cases[@]}" -eq 0 ] && [ "${#tags[@]}" -eq 0 ]; then
+            echo "::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped ($REASON), and the EVALS subscription token runs only a suite that names case, cases or tag, so no case ran; name the cases, or reassign the EVALS key through the account rotation tool (docs/review/evals.md)"
+            exit 1
+          fi
+          if [ "$NEXT" = subscription ]; then
+            echo "::notice::EVALS_CLAUDE_API_KEY stopped ($REASON), so the subscription leg runs the suite"
+            exit 0
+          fi
+          echo "::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped ($REASON), so no case ran; reassign the EVALS role through the account rotation tool (docs/review/evals.md)"
+          exit 1
 
       - name: Log the API budget at the end
         if: always()
@@ -1046,9 +1066,10 @@ jobs:
 
   run-eval-subscription:
     name: Run Eval Subscription
+    needs: run-eval
     if: >-
-      vars.CLAUDE_EVALS_DISABLED == 'false' && github.event_name == 'workflow_dispatch'
-      && inputs.mode != 'compare' && inputs.credential == 'subscription'
+      ${{ !cancelled() && vars.CLAUDE_EVALS_DISABLED == 'false' && github.event_name == 'workflow_dispatch'
+      && inputs.mode != 'compare' && needs.run-eval.result == 'success' && needs.run-eval.outputs.next-leg == 'subscription' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -1187,8 +1208,9 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: subscription
-          role: maintenance
-          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          role: evals
+          credential-set: ${{ secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.run-eval.outputs.next-reason }}
 
       - name: Check out the pull request head
         if: steps.credential.outputs.present == 'true' && github.event_name == 'workflow_run'
@@ -1335,7 +1357,7 @@ jobs:
         id: probe
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
           LEG: subscription
@@ -1401,7 +1423,7 @@ jobs:
         id: eval
         if: steps.stage.outputs.go == 'true' && steps.probe.outputs.handoff != 'true'
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'workflow_run' || inputs.env-scrub) && '1' || '0' }}
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
@@ -1678,10 +1700,10 @@ jobs:
           execution-file: ${{ steps.judge.outputs.leg-result }}
           lane: eval-browser-dispatch
           lane-id: eval-browser-dispatch
-          credential: MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN
+          credential: EVALS_CLAUDE_CODE_OAUTH_TOKEN
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          fallback-reason: ""
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Stop at the token's stop
         id: stop
@@ -1689,8 +1711,9 @@ jobs:
         timeout-minutes: 1
         env:
           REASON: ${{ steps.judge.outputs.handoff-reason || 'no-token' }}
+          KEY_REASON: ${{ needs.run-eval.outputs.next-reason }}
         run: |
-          echo "::error::The subscription token stopped ($REASON), so no case ran; no fallback leg runs (docs/review/evals.md)"
+          echo "::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped ($KEY_REASON) and EVALS_CLAUDE_CODE_OAUTH_TOKEN stopped ($REASON), so no case ran; no fallback leg runs, so reassign the EVALS role through the account rotation tool (docs/review/evals.md)"
           exit 1
 
       - name: Log the API budget at the end
@@ -1705,10 +1728,11 @@ jobs:
   # https://github.com/melodic-software/claude-code-plugins/issues/17854): the
   # pull request's merge base and head reach the eval only as plugin text,
   # patched onto this branch by compare-arms.sh from git objects; no script,
-  # hook, workflow or manifest of either runs. Each arm runs on the credential
-  # input's one secret: the API key, or the subscription token when
-  # compare-prepare found the pull request's author listed there as a human,
-  # never a bot (docs/review/evals.md). The record job is the only one that
+  # hook, workflow or manifest of either runs. Each arm runs on the evals API
+  # key and moves to the evals subscription token when the key stops, only
+  # when compare-prepare found the pull request's author listed there as a
+  # human, never a bot; no other arm receives the token
+  # (docs/review/evals.md). The record job is the only one that
   # writes: it holds pull-requests: write, checks out only this branch, and
   # posts nothing unless
   # every job before it passed and the head has not moved. A run whose jobs
@@ -1737,6 +1761,7 @@ jobs:
       after-artifact-id: ${{ steps.after.outputs.artifact-id }}
       after-sha256: ${{ steps.arms.outputs.after-sha256 }}
       cannot-start: ${{ steps.arms.outputs.cannot-start }}
+      subscription: ${{ steps.author.outputs.proceed == 'true' && steps.human.outcome == 'success' }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -1841,23 +1866,23 @@ jobs:
 
       - name: Check the pull request author
         id: author
-        if: inputs.credential == 'subscription'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           standards-path: ${{ steps.standards.outputs.path }}
           pr-number: ${{ inputs.pr }}
           triggering-actor: ${{ github.triggering_actor }}
 
-      - name: Stop on an untrusted pull request author
-        if: inputs.credential == 'subscription' && steps.author.outputs.proceed != 'true'
+      - name: Note an untrusted pull request author
+        if: steps.author.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.author.outputs.reason }}
         run: |
-          echo "::error::${REASON:-unreadable}: the subscription token runs only for a pull request whose author is a trusted actor; no pass runs"
-          exit 1
+          echo "::notice::${REASON:-unreadable}: the subscription token runs only for a pull request whose author is a trusted actor, so the arms run on the API key alone"
 
-      - name: Stop on a pull request a bot wrote
-        if: inputs.credential == 'subscription'
+      - name: Check a listed human wrote the pull request
+        id: human
+        if: steps.author.outputs.proceed == 'true'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ inputs.pr }}
@@ -1867,14 +1892,14 @@ jobs:
           api_budget_wrap_gh github-token
           author=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .user.id) || author=
           if ! [[ $author =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::read-fault: the pull request's author could not be read; no pass runs"
+            echo "::notice::read-fault: the pull request's author could not be read, so the arms run on the API key alone"
             exit 1
           fi
           if ! jq -e --argjson id "$author" '
               .version == 1
               and any(.actors[]; .id == $id and .kind == "human")
             ' "$LIST" >/dev/null; then
-            echo "::error::bot-author: the subscription token runs only for a pull request a listed human wrote; no pass runs"
+            echo "::notice::bot-author: the subscription token runs only for a pull request a listed human wrote, so the arms run on the API key alone"
             exit 1
           fi
 
@@ -1974,7 +1999,7 @@ jobs:
       case: ${{ inputs.case }}
       cases: ${{ inputs.cases }}
       pass: compare-before
-      credential: ${{ inputs.credential }}
+      allow-subscription: ${{ needs.compare-prepare.outputs.subscription == 'true' }}
       base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
       edit-artifact-id: ${{ needs.compare-prepare.outputs.before-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.before-sha256 }}
@@ -1982,8 +2007,8 @@ jobs:
       ablation: none
       lane: eval-compare
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY: ${{ inputs.credential != 'subscription' && secrets.MAINTENANCE_CLAUDE_API_KEY || '' }}
-      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.credential == 'subscription' && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}
+      EVALS_CLAUDE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
+      EVALS_CLAUDE_CODE_OAUTH_TOKEN: ${{ needs.compare-prepare.outputs.subscription == 'true' && secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN || '' }}
 
   compare-after:
     name: Compare After
@@ -2003,7 +2028,7 @@ jobs:
       case: ${{ inputs.case }}
       cases: ${{ inputs.cases }}
       pass: compare-after
-      credential: ${{ inputs.credential }}
+      allow-subscription: ${{ needs.compare-prepare.outputs.subscription == 'true' }}
       base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
       edit-artifact-id: ${{ needs.compare-prepare.outputs.after-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.after-sha256 }}
@@ -2011,8 +2036,8 @@ jobs:
       ablation: none
       lane: eval-compare
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY: ${{ inputs.credential != 'subscription' && secrets.MAINTENANCE_CLAUDE_API_KEY || '' }}
-      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.credential == 'subscription' && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}
+      EVALS_CLAUDE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
+      EVALS_CLAUDE_CODE_OAUTH_TOKEN: ${{ needs.compare-prepare.outputs.subscription == 'true' && secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN || '' }}
 
   compare-cannot-start:
     name: "Compare Cannot Start: ${{ needs.compare-prepare.outputs.cannot-start }}"

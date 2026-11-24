@@ -56,7 +56,6 @@ function parseTranscript(transcriptPath) {
   }));
 }
 
-/** First segment closest to `targetTimestamp` (earliest wins a tie), or null when none. */
 function nearestSegment(segments, targetTimestamp) {
   if (segments.length === 0) return null;
   const distance = (seg) => Math.abs(seg.timestamp - targetTimestamp);

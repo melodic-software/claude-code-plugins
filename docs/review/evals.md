@@ -76,8 +76,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   the PR, where a FAIL of the run that follows reverts it (owner decision,
   [owner-decisions.md#L400](https://github.com/melodic-software/architecture/blob/5e9bdfd176c86f3ce17d0659b4121fdcb0bc6c04/docs/owner-decisions.md#L400)).
   Any other cut keeps its compare run before merge. One suite run
-  on the default branch, scoped to the affected cases, follows; a rename's run uses
-  `credential: subscription` and `runs: 3`. For a judged case, the dispatching session posts the
+  on the default branch, scoped to the affected cases, follows; a rename's run uses `runs: 3`.
+  For a judged case, the dispatching session posts the
   record by hand under [Graders](#graders).
 - Only the compare run's own record that it cannot start counts. A run that passes its
   dispatcher, input and head checks and then finds `compare-arms.sh` refusing the PR
@@ -93,20 +93,25 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   follow-up does (Q57); a search for `eval-hold-released` with `cannot-start=` finds the merged
   PRs that owe their run.
 - An eval-pair record names one head. A push before the hold releases needs a new compare run (Q58).
-- Every run uses the maintenance API key and stops at its credit stop, except a compare run
-  dispatched with `credential: subscription`: both its passes run on the maintenance subscription
-  token, and only for a PR whose author is a human on the trusted-actor list; `compare-prepare`
-  refuses any other, a listed bot included, since a bot's PR can start from public issue text. A
-  suite run dispatched with `credential: subscription` also runs on that token, only on
-  the default branch and only with `case`, `cases` or `tag` set; `run-eval-subscription` refuses
-  any other. Each keeps the affected cases, the per-run ceiling (a list-price estimate, not a
-  plan-usage cap), `--no-publish`, the kill switch and the `CLAUDE_EVALS_DISABLED` switch. No
-  fallback token follows either: a limit stop ends the run. The label run and every other eval run
-  use no subscription token (Q14, Q53, as amended by the owner decision "Eval runs on a
-  subscription token, case pruning, and how #18356 lands", 2026-11-23, in
+- Every eval run reads only the `EVALS` role's secrets, `EVALS_CLAUDE_API_KEY` and
+  `EVALS_CLAUDE_CODE_OAUTH_TOKEN`, never another role's and never the fallback token. A dispatched
+  run spends the API key's credit first and moves to the subscription token when the key stops
+  (unassigned, empty, or at its credit stop), with no input to choose. A compare run moves both its
+  passes only for a PR whose author is a human on the trusted-actor list; for any other, a listed
+  bot included (a bot's PR can start from public issue text), `compare-prepare` passes no token and
+  the arms stay on the key. A suite run moves only on the default branch and only with `case`,
+  `cases` or `tag` set; `run-eval-subscription` refuses any other. Each keeps the affected cases,
+  the per-run ceiling (a list-price estimate, not a plan-usage cap), `--no-publish`, the kill switch
+  and the `CLAUDE_EVALS_DISABLED` switch. A limit stop on the token ends the run. When both halves
+  are unassigned or used up, the run fails with an `::error::` naming the `EVALS` role; the owner
+  reassigns it through the account rotation tool. The label run and the hill climb run on the key
+  alone (Q14, Q53, as amended by the owner decision "Eval runs on a subscription token, case
+  pruning, and how #18356 lands", 2026-11-23, in
   [owner-decisions.md](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md),
-  and extended to suite runs by
-  [owner-decisions.md#L370](https://github.com/melodic-software/architecture/blob/9fecf3f103380aa38f9a7936c4209330f9ab4bcd/docs/owner-decisions.md#L370)).
+  extended to suite runs by
+  [owner-decisions.md#L370](https://github.com/melodic-software/architecture/blob/9fecf3f103380aa38f9a7936c4209330f9ab4bcd/docs/owner-decisions.md#L370),
+  and moved to the `EVALS` role, key first, by the owner decision "Dedicated eval lane
+  credentials", [melodic-software/architecture#235](https://github.com/melodic-software/architecture/pull/235)).
 
 ## Budget
 

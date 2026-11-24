@@ -496,11 +496,12 @@ rm -rf "$f"
 # A gh stub answers the verified-signature lookup: it prints $GH_ANSWER and exits
 # $GH_RC. dependabot_commit makes a commit with Dependabot's author and GitHub's
 # committer, which a pusher can forge; only the signature lookup tells them apart.
-dependabot_commit() (
-  export GIT_AUTHOR_NAME='dependabot[bot]' GIT_AUTHOR_EMAIL='49699333+dependabot[bot]@users.noreply.github.com'
+bot_commit() (
+  export GIT_AUTHOR_NAME="$3" GIT_AUTHOR_EMAIL="$4"
   export GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com
   commit "$1" "$2"
 )
+dependabot_commit() { bot_commit "$1" "$2" 'dependabot[bot]' '49699333+dependabot[bot]@users.noreply.github.com'; }
 run_dependabot() { # <label> <want-rc> <needle> <author> <answer> <gh-rc>
   local out rc
   out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER="$5" GH_RC="$6" CHANGELOG_PR_AUTHOR="$4" \
@@ -554,6 +555,23 @@ fi
 printf 'v3\n' >"$f/plugins/alpha/skills/a.md"
 commit "$f" "a commit pushed onto the Dependabot branch"
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying another author's commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
+rm -rf "$f"
+
+base_fixture f alpha
+mkdir -p "$f/.git/stub"
+# shellcheck disable=SC2016  # the stub expands these when it runs
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$GH_ANSWER"\nexit "${GH_RC:-0}"\n' >"$f/.git/stub/gh"
+chmod +x "$f/.git/stub/gh"
+git_test_config "$f" checkout -qb chore/standards-sync
+printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
+bot_commit "$f" "chore: sync standards components" 'melodic-standards-sync[bot]' '300666570+melodic-standards-sync[bot]@users.noreply.github.com'
+run_dependabot "--check-required exempts a pull request of verified standards-sync commits" 0 "Standards-sync-only change to plugins/alpha/" 'melodic-standards-sync[bot]' true 0
+run_dependabot "--check-required does not exempt standards-sync commits in a pull request another author opened" 1 "MISSING FRAGMENT" kyle-sexton true 0
+run_dependabot "--check-required does not exempt a standards-sync commit whose signature GitHub did not verify" 1 "MISSING FRAGMENT" 'melodic-standards-sync[bot]' false 0
+run_dependabot "--check-required does not exempt Dependabot's login on standards-sync commits" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
+printf 'v3\n' >"$f/plugins/alpha/skills/a.md"
+commit "$f" "a commit pushed onto the standards-sync branch"
+run_dependabot "--check-required does not exempt a standards-sync pull request carrying another author's commit" 1 "MISSING FRAGMENT" 'melodic-standards-sync[bot]' true 0
 rm -rf "$f"
 
 # A verified github-actions[bot] commit, even one touching only a plugin outside

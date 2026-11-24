@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the instruction-placement pre-commit entry
-# (git-hooks/index-check.sh): a commit that touches a rules file or the index
-# file fails when the generated index is stale and prints the regenerate command,
-# stays silent when the index is current, and does no work for any other commit;
-# a repository with no index block is never failed; --worktree reports the same
-# drift for uncommitted changes; and the plugin's own vendored installer wires
-# the entry so `git commit` runs it from a flat installed copy.
-# Expected values come from the requirement: a path-scoped rule the index block
-# does not list is drift, and the block `render-index.sh write` produces is not.
 # test-scope: plugins/instruction-placement/git-hooks/entries.json plugins/instruction-placement/scripts/render-index.sh plugins/instruction-placement/scripts/lib/discover.sh plugins/instruction-placement/lib/git-hooks/check-lib.sh plugins/instruction-placement/lib/git-hooks/install.mjs plugins/instruction-placement/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
@@ -99,6 +90,18 @@ add_rule "$REPO"
 printf 'x\n' >"$REPO/src/b.cs"
 git -C "$REPO" add src/b.cs
 expect "a commit touching neither a rules file nor the index does no work, even with a stale index" "0||" "$(check "$REPO")"
+mkdir -p "$WORK/gitlog"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"%s/git.log"\nexec "%s" "$@"\n' "$WORK" "$(command -v git)" >"$WORK/gitlog/git"
+chmod +x "$WORK/gitlog/git"
+: >"$WORK/git.log"
+(cd "$REPO" && PATH="$WORK/gitlog:$PATH" bash "$CHECK" >/dev/null 2>&1)
+expect "a commit touching neither a rules file nor the index copies no instruction file out of the index" no \
+  "$(grep -q checkout-index "$WORK/git.log" && echo yes || echo no)"
+git -C "$REPO" add .claude/rules/csharp.md
+: >"$WORK/git.log"
+(cd "$REPO" && PATH="$WORK/gitlog:$PATH" bash "$CHECK" >/dev/null 2>&1)
+expect "a staged rule still copies the staged instruction files to render from" yes \
+  "$(grep -q checkout-index "$WORK/git.log" && echo yes || echo no)"
 
 new_repo
 add_rule "$REPO"

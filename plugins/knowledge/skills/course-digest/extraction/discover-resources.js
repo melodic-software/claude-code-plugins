@@ -176,8 +176,6 @@ async function main() {
 
   const videoSelector = platformCfg.videoPlayerSelector ?? "video";
 
-  // Verify auth against the first video lesson to avoid false "not authenticated" errors
-  // when course.modules[0].lessons[0] is a non-video intro or announcement with no player.
   const firstVideoLesson = findFirstVideoLesson(course.modules);
   if (!firstVideoLesson) {
     log.error("  ✗ No video lessons found in course.json. Cannot verify authentication.");

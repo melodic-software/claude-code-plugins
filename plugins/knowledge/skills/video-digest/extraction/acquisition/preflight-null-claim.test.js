@@ -1,12 +1,3 @@
-/**
- * Queue-preflight fail-closed branch: an adapter that ACCEPTS a URL for
- * enqueue but then DECLINES to claim it (`matchUrl` → null) must reject the
- * row without ever spawning a probe — mirroring registry dispatch, a raw URL
- * the adapter did not positively claim is never probed. No real adapter can
- * reach this branch (their gates share one grammar), so the resolver is
- * mocked with a deliberately inconsistent fixture adapter.
- */
-
 import { describe, expect, it, vi } from "vitest";
 
 import { preflightVideo } from "./preflight-metadata.js";

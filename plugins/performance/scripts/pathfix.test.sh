@@ -44,13 +44,11 @@ else
   fail "a working spelling is left alone" "note=None" "$RUN_OUT"
 fi
 
-# --- 3. a nonexistent path fails and names every spelling it tried ---
 run_pathfix "/d/definitely/not/here/at/all.txt"
 assert_eq "a nonexistent path fails" "1" "$RUN_RC"
 assert_contains "the failure lists the spellings tried" "tried=" "$RUN_OUT"
 assert_contains "the failure explains the two-spelling hazard" "two spellings" "$RUN_OUT"
 
-# --- 4. the conversion itself is correct in both directions ---
 conversions="$(
   cd "$SCRIPT_DIR" && "$HARNESS_PYTHON" - 2>&1 <<'PY'
 import pathfix

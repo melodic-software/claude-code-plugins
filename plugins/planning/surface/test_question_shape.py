@@ -1,11 +1,3 @@
-"""Tests for question_shape.py: the one definition both servers use for a restating alternative
-and a withheld recommendation.
-
-Expected values come from the interview's written rules: an alternative never restates the
-recommendation (whole-word containment either way, after case, spacing, trailing punctuation and a
-(recommended) marker are folded), and a recommendation that opens `Withheld:` is no recommendation.
-"""
-
 from __future__ import annotations
 
 import sys

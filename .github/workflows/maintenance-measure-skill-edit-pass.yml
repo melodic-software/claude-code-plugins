@@ -81,21 +81,21 @@ on:
         required: false
         type: string
         default: ""
-      credential:
+      allow-subscription:
         description: >-
-          api-key runs the pass on MAINTENANCE_CLAUDE_API_KEY behind the
-          key-credit gate; subscription runs it on
-          MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN with no credit gate and no
-          fallback.
+          The pass runs on EVALS_CLAUDE_API_KEY behind the key-credit gate.
+          true moves it to EVALS_CLAUDE_CODE_OAUTH_TOKEN, with no fallback,
+          when the key stops; set it only where the subscription limits hold
+          (docs/review/evals.md).
         required: false
-        type: string
-        default: api-key
+        type: boolean
+        default: false
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY:
-        description: The maintenance role's Console API key, the api-key leg's credential.
+      EVALS_CLAUDE_API_KEY:
+        description: The evals role's Console API key, the key leg's credential.
         required: false
-      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN:
-        description: The maintenance role's subscription token, the subscription leg's credential.
+      EVALS_CLAUDE_CODE_OAUTH_TOKEN:
+        description: The evals role's subscription token, the subscription leg's credential.
         required: false
     outputs:
       artifact-id:
@@ -114,7 +114,7 @@ env:
 jobs:
   check-key-credit:
     name: Check Key Credit
-    if: vars.CLAUDE_EVALS_DISABLED == 'false' && inputs.credential != 'subscription'
+    if: vars.CLAUDE_EVALS_DISABLED == 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -131,7 +131,7 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: start
-          role: maintenance
+          role: evals
           key-job: pass
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
@@ -145,7 +145,7 @@ jobs:
           outcome: skipped
           lane: ${{ inputs.lane }}
           lane-id: ${{ inputs.lane }}
-          credential: MAINTENANCE_CLAUDE_API_KEY
+          credential: EVALS_CLAUDE_API_KEY
           known-failure-class: credit-stop
           handoff: "false"
 
@@ -161,6 +161,8 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       manifest-sha256: ${{ steps.read.outputs.manifest-sha256 }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
@@ -199,8 +201,8 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: key
-          role: maintenance
-          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
+          role: evals
+          credential-set: ${{ secrets.EVALS_CLAUDE_API_KEY != '' }}
           selected: ${{ needs.check-key-credit.outputs.next-leg }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
@@ -351,7 +353,7 @@ jobs:
         id: probe
         if: steps.credential.outputs.present == 'true'
         env:
-          LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+          LANE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
           LEG: key
@@ -401,7 +403,7 @@ jobs:
         id: eval
         if: steps.probe.outcome == 'success' && steps.probe.outputs.handoff != 'true'
         env:
-          LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+          LANE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           DIR: .base/plugins/${{ inputs.plugin }}
           TAGS: ${{ inputs.tags }}
@@ -519,7 +521,7 @@ jobs:
       # upload it in one run, so a failed upload never fails the job.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-MAINTENANCE_CLAUDE_API_KEY' && steps.judge.outputs.handoff-reason == 'credit-stop'
+        if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-EVALS_CLAUDE_API_KEY' && steps.judge.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -543,7 +545,7 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@v7
         with:
-          name: key-credit-stop-MAINTENANCE_CLAUDE_API_KEY
+          name: key-credit-stop-EVALS_CLAUDE_API_KEY
           overwrite: true
           path: ${{ runner.temp }}/key-credit-stop/run-id
           if-no-files-found: error
@@ -558,11 +560,21 @@ jobs:
           execution-file: ${{ steps.judge.outputs.leg-result }}
           lane: ${{ inputs.lane }}
           lane-id: ${{ inputs.lane }}
-          credential: MAINTENANCE_CLAUDE_API_KEY
+          credential: EVALS_CLAUDE_API_KEY
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           fallback-reason: ""
 
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.judge.outputs.handoff }}
+          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
 
       - name: Stop at the key's stop
         id: stop
@@ -570,13 +582,21 @@ jobs:
         timeout-minutes: 1
         env:
           REASON: ${{ steps.judge.outputs.handoff-reason || needs.check-key-credit.outputs.next-reason || 'no-key' }}
+          NEXT: ${{ inputs.allow-subscription && steps.next.outputs.next-leg || '' }}
         run: |
-          echo "::error::The API key stopped ($REASON), so the pass ran no case; evals never fall back to subscription tokens (docs/review/evals.md)"
+          if [ "$NEXT" = subscription ]; then
+            echo "::notice::EVALS_CLAUDE_API_KEY stopped ($REASON), so the subscription leg runs the pass"
+            exit 0
+          fi
+          echo "::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped ($REASON) and this pass may not move to the subscription token, so it ran no case; reassign the EVALS role through the account rotation tool (docs/review/evals.md)"
           exit 1
 
   run-eval-subscription:
     name: Run Eval Subscription
-    if: vars.CLAUDE_EVALS_DISABLED == 'false' && inputs.credential == 'subscription'
+    needs: run-eval
+    if: >-
+      ${{ !cancelled() && vars.CLAUDE_EVALS_DISABLED == 'false' && inputs.allow-subscription
+      && needs.run-eval.result == 'success' && needs.run-eval.outputs.next-leg == 'subscription' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -623,8 +643,9 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: subscription
-          role: maintenance
-          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          role: evals
+          credential-set: ${{ secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.run-eval.outputs.next-reason }}
 
       - name: Download the edit
         if: steps.credential.outputs.present == 'true' && inputs.edit-artifact-id != ''
@@ -754,7 +775,7 @@ jobs:
         id: probe
         if: steps.credential.outputs.present == 'true'
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
           LEG: subscription
@@ -802,7 +823,7 @@ jobs:
         id: eval
         if: steps.probe.outcome == 'success' && steps.probe.outputs.handoff != 'true'
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           DIR: .base/plugins/${{ inputs.plugin }}
           TAGS: ${{ inputs.tags }}
@@ -912,11 +933,10 @@ jobs:
           execution-file: ${{ steps.judge.outputs.leg-result }}
           lane: ${{ inputs.lane }}
           lane-id: ${{ inputs.lane }}
-          credential: MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN
+          credential: EVALS_CLAUDE_CODE_OAUTH_TOKEN
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          fallback-reason: ""
-
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Stop at the token's stop
         id: stop
@@ -924,6 +944,7 @@ jobs:
         timeout-minutes: 1
         env:
           REASON: ${{ steps.judge.outputs.handoff-reason || 'no-token' }}
+          KEY_REASON: ${{ needs.run-eval.outputs.next-reason }}
         run: |
-          echo "::error::The subscription token stopped ($REASON), so the pass uploads no result; no fallback leg runs (docs/review/evals.md)"
+          echo "::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped ($KEY_REASON) and EVALS_CLAUDE_CODE_OAUTH_TOKEN stopped ($REASON), so the pass uploads no result; no fallback leg runs, so reassign the EVALS role through the account rotation tool (docs/review/evals.md)"
           exit 1

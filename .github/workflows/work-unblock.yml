@@ -29,53 +29,7 @@ name: Work Unblock
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false". The first steps check that switch.
 #
-# An issue a bot closes (the lanes App, or a PR merge a bot ran) starts no
-# close run; the broker would refuse that mint. The hourly sweep covers it: a
-# scheduled run applies the same rules to every issue a listed human or a
-# merge (a merged pull request or a commit) closed in the last three hours,
-# so one missed run loses nothing.
-# Each work-resolve-issue run that finishes, unless it ran no job, runs the
-# same sweep at once, so a freed slot admits the next deferred issue then,
-# unless a full sweep finished under limits.sweep-gap-minutes ago.
-# After an outage or a kill switch, the next of these sweeps is the probe:
-# nothing re-arms it.
-#
-# The hourly sweep also restarts an issue the usage limit stopped: once the
-# limit has reset, the App removes and re-adds agent-ready (at most five a run);
-# after limits.limit-stops-per-issue limit or funding stops since a person added
-# agent-ready it stops restarting the issue, removes agent-ready and adds no label.
-# It re-fires the same way an issue whose work-resolve-issue run did no work and
-# left no report: a crash, a rerun the token broker refused as workflow-modified
-# (a rerun keeps its first event's workflow files), a run that waited in its
-# slot past a lane workflow change and stopped at `Stop on stale workflow
-# files` (its own report-outcome re-fires it at once, until its mint is refused
-# or limits.limit-stops-per-issue re-fires; then this sweep does), or a run
-# cancelled after check-admission and before resolve-issue started (pick-slot's timeout); a
-# run a newer agent-ready run replaced is not. It does that once per issue
-# per version of the lane's two workflow files on main, recorded in a comment,
-# and after that on a backoff (its cause's limits.stranded-backoff-hours,
-# doubling each time, at most 24), recorded in one comment it edits; it
-# never adds needs-human for it. An open
-# pull request of a listed human's for the issue counts as work running on it.
-# When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
-# or was closed unmerged, the App sets its Work status to needs-triage and
-# takes agent-ready off, after a comment, so the hourly triage sweep sends it
-# back to intake triage. A Refs PR merging or closing unmerged also lifts a
-# needs-human refs-hold already on the issue for it; report-outcome does not
-# set that hold, so only an existing one is lifted.
-# It also relabels a red-main fix issue post-merge-file-demotion-issues.yml reopened
-# on a repeat failure: that reopen keeps agent-ready but, made with the
-# workflow's GITHUB_TOKEN, starts no run. Matched by the issue's
-# `<!-- post-merge-fix check=... -->` first line and the workflow's
-# recurrence comment, the App removes and re-adds agent-ready once per such
-# comment, unless the issue is held, has an open lane PR or a lane run in
-# flight. These share the five-a-run cap.
-#
-# New agent-ready labels are paced by the issue lane's queued cap
-# (check-wip-cap): past its room an issue's Work status becomes deferred, and
-# each hourly sweep admits the deferred issues oldest first. Restarts,
-# re-fires and relabels are never paced. Its label-unblocked job runs one at
-# a time, so two runs cannot each admit the whole room.
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-work-unblock-sweep
 #
 # A blocked issue admission parked at Work status confirmed is never labeled: when
 # a blocker closes after it parked, the App sets its Work status to
@@ -102,25 +56,14 @@ on:
   issues:
     # labeled and unlabeled start only the sync-status job.
     types: [closed, labeled, unlabeled]
-  # Off the top of the hour, at a minute no other schedule here uses, and
-  # after the GITHUB_TOKEN core window resets (observed at :40-:50), so the
-  # sweep and publish-lane-level start on a fresh window instead of inside a
-  # late-window kill switch.
   schedule:
-    - cron: "54 0-3,5-23 * * *"
-    - cron: "54 4 * * *"
-  # A finished issue lane run may free a slot, so the sweep runs at once and
-  # admits the next deferred issue instead of waiting for the hour. It runs
-  # main's code only, for a same-repository run, and reads no artifact of the
-  # triggering run; it reads only the work-unblock-verdicts artifact of main's
-  # own last successful sweep (verdict-carry.mjs, sweepRun).
+    - cron: "13,43,58 * * * *"
+    - cron: "28 * * * *"
+  # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-work-unblock-sweep
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [Work Resolve Issue]
     types: [completed]
-  # A hand-started sweep, run exactly as the schedule's: after an outage ends
-  # it re-fires the runs the upstream-status stop skipped without waiting for
-  # the hour. It mints only where the token broker lists workflow_dispatch
-  # among work-unblock.yml's events, and then only for a listed human.
+  # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-work-unblock-sweep
   workflow_dispatch:
 
 permissions: {}
@@ -457,7 +400,7 @@ jobs:
   publish-lane-level:
     name: Publish Lane Level
     needs: label-unblocked
-    if: ${{ !cancelled() && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}
+    if: ${{ !cancelled() && github.event_name == 'schedule' && github.event.schedule == '28 * * * *' && github.ref == 'refs/heads/main' }}
     concurrency:
       group: work-unblock-publish-lane-level
       cancel-in-progress: false

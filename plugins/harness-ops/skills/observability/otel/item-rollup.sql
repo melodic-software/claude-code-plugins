@@ -61,7 +61,6 @@ FROM (
 WHERE COALESCE(ccr_session_id, '') <> '' AND COALESCE(item_url, '') <> ''
 GROUP BY ccr_session_id;
 
--- A row's own item wins; the map fills only a row that carries none.
 CREATE OR REPLACE MACRO resolved_item(own, mapped, items) AS
   COALESCE(NULLIF(own, ''), CASE WHEN items = 1 THEN mapped END, '');
 

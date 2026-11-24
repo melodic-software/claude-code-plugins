@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Tests for clean-batch.sh — the selective-tier fleet orchestrator.
-#
-# Covers the field-observed requirements: one gate over many repos; the batch
-# plan IS the gated set (apply consumes it, tolerating a vanished repo); a
-# skip-listed repo is skipped and an unmatched skip is surfaced; the git tier
-# prunes each shared object store once (worktrees deduped).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

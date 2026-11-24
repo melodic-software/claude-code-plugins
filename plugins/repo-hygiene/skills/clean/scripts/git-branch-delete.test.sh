@@ -123,7 +123,6 @@ assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
 }
 
-# ---- No capture: refused, nothing deleted -----------------------------------
 out="$(run_delete feat/safe1 2>&1)"
 rc=$?
 assert_exit "no --capture exits 3" 3 "$rc"
@@ -143,7 +142,6 @@ rc=$?
 assert_exit "bad header exits 3" 3 "$rc"
 assert_contains "bad header refused" "$out" "bad header"
 
-# ---- Audit produces the capture --------------------------------------------
 audit_out="$(cd "$REPO" && bash "$AUDIT")"
 CAP="$(printf '%s\n' "$audit_out" | sed -n 's/^TipCapture: //p')"
 assert_file_exists "audit wrote a capture" "$CAP"
@@ -166,7 +164,6 @@ Tip: $hash_tip
 Tier: SAFE"
 assert_contains "capture row for #42-hash" "$(cat "$CAP")" "#42-hash	$hash_tip	SAFE	"
 
-# ---- Dry-run plans, deletes nothing ------------------------------------------
 out="$(run_delete --capture "$CAP" feat/safe1 feat/safe2 feat/likely '#42-hash' 2>&1)"
 rc=$?
 assert_exit "dry-run exits 0" 0 "$rc"
@@ -180,7 +177,6 @@ assert_branch "dry-run: feat/safe1 intact" present feat/safe1
 assert_branch "dry-run: feat/likely intact" present feat/likely
 assert_file_absent "dry-run writes no ledger" "${CAP%.tsv}.deleted.tsv"
 
-# ---- Tier gates ---------------------------------------------------------------
 out="$(run_delete --capture "$CAP" feat/review 2>&1)"
 rc=$?
 assert_exit "REVIEW without --force-review exits 3" 3 "$rc"
@@ -190,10 +186,6 @@ rc=$?
 assert_exit "REVIEW with --force-review plans" 0 "$rc"
 assert_contains "forced REVIEW is a force delete" "$out" "(REVIEW, force delete)"
 
-# ---- LOSSY tier gate ------------------------------------------------------------
-# feat/lossy carries one commit that exists on no remote ref and no tag. The
-# audit classifies it LOSSY and lists it in the loss block; the delete script
-# admits it only under --accept-loss, and neither flag admits the other's tier.
 lossy_tip="$(git -C "$REPO" rev-parse refs/heads/feat/lossy)"
 assert_contains "audit classifies feat/lossy LOSSY" "$audit_out" "Branch: feat/lossy
 Tip: $lossy_tip
@@ -227,11 +219,6 @@ assert_exit "LOSSY with --accept-loss plans" 0 "$rc"
 assert_contains "LOSSY plan states the loss in numbers" "$out" "Planned: feat/lossy $lossy_tip (LOSSY, force delete, loses 1 commits only on this branch)"
 assert_branch "LOSSY dry-run deletes nothing" present feat/lossy
 
-# The recorded near-miss, reproduced: a branch carrying work that landed nowhere
-# is offered alongside the plainly safe set, and the operator's "yes" covers
-# only the safe set. The batch must not carry the lossy branch through on that
-# acknowledgement: nothing is deleted, not even the safe sibling, and the
-# refusal names the separate decision the lossy branch needs.
 out="$(run_delete --capture "$CAP" --apply feat/safe1 feat/lossy 2>&1)"
 rc=$?
 assert_exit "near-miss: SAFE + LOSSY on the SAFE confirmation exits 3" 3 "$rc"
@@ -275,14 +262,12 @@ assert_contains "protected pattern refused" "$out" "Refused: release/1 (protecte
 assert_contains "current branch refused" "$out" "Refused: main (current branch)"
 assert_contains "worktree branch refused" "$out" "Refused: feat/parked (checked out in a linked worktree"
 
-# ---- One bad branch refuses the whole batch ---------------------------------
 out="$(run_delete --capture "$CAP" --apply feat/safe1 feat/review 2>&1)"
 rc=$?
 assert_exit "mixed batch exits 3" 3 "$rc"
 assert_not_contains "mixed batch deletes nothing" "$out" "Deleted:"
 assert_branch "mixed batch: deletable feat/safe1 untouched" present feat/safe1
 
-# ---- Tip moved between capture and delete: batch stops ----------------------
 git -C "$REPO" checkout -q feat/moved
 echo more >>"$REPO/mv"
 git -C "$REPO" add mv
@@ -298,7 +283,6 @@ assert_not_contains "moved tip: nothing deleted" "$out" "Deleted:"
 assert_branch "moved tip: unmoved sibling feat/still untouched" present feat/still
 assert_branch "moved tip: feat/moved untouched" present feat/moved
 
-# ---- Branch absent from the capture: refused --------------------------------
 grep -v $'^feat/still\t' "$CAP" >"$TEST_TMPDIR/short.tsv"
 out="$(run_delete --capture "$TEST_TMPDIR/short.tsv" --apply feat/still 2>&1)"
 rc=$?
@@ -306,7 +290,6 @@ assert_exit "missing row exits 3" 3 "$rc"
 assert_contains "missing row refused" "$out" "Refused: feat/still (no captured tip in"
 assert_branch "missing row: feat/still untouched" present feat/still
 
-# ---- Capture from another repository: refused -------------------------------
 OTHER="$TEST_TMPDIR/other"
 git init -q -b main "$OTHER"
 git -C "$OTHER" config user.email "t@example.com"
@@ -331,7 +314,6 @@ assert_contains "unknown common_dir refused" "$out" "capture has no resolvable c
 assert_not_contains "unknown common_dir: nothing deleted" "$out" "Deleted:"
 assert_branch "unknown common_dir: feat/still untouched" present feat/still
 
-# ---- Apply: capture before delete, ledger, backup ref, restore --------------
 out="$(run_delete --capture "$CAP" --apply feat/safe1 feat/safe2 feat/likely '#42-hash' 2>&1)"
 rc=$?
 assert_exit "apply exits 0" 0 "$rc"
@@ -431,7 +413,6 @@ assert_branch "abort: feat/blocked untouched" present feat/blocked
 assert_branch "abort: feat/ok2 untouched" present feat/ok2
 git -C "$REPO" update-ref -d refs/repo-hygiene/deleted/feat/blocked/child
 
-# ---- Ledger unwritable: nothing deleted -------------------------------------
 CAP3="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/cap3.tsv" | sed -n 's/^TipCapture: //p')"
 mkdir -p "$TEST_TMPDIR/cap3.deleted.tsv" # a directory where the ledger must go
 out="$(run_delete --capture "$CAP3" --apply feat/ok2 2>&1)"
@@ -441,7 +422,6 @@ assert_contains "unwritable ledger aborts" "$out" "Aborted: cannot write ledger"
 assert_not_contains "unwritable ledger deletes nothing" "$out" "Deleted:"
 assert_branch "unwritable ledger: feat/ok2 untouched" present feat/ok2
 
-# ---- Ledger follows the capture's real location -----------------------------
 mkdir -p "$TEST_TMPDIR/real" "$TEST_TMPDIR/lnk"
 CAP_SYM="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/real/cap-sym.tsv" | sed -n 's/^TipCapture: //p')"
 # `MSYS=winsymlinks:nativestrict` asks MSYS for a real symlink instead of the
@@ -496,7 +476,6 @@ drain_fd3() { # whatever the script appended after the FIFO reader left
 pin_of() { git -C "$REPO" rev-parse --verify --quiet "refs/repo-hygiene/deleted/$1" || echo none; }
 
 if command -v mkfifo >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
-  # Window B: the tip moves between the pin and the delete.
   CAP_B="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/race-b.tsv" | sed -n 's/^TipCapture: //p')"
   FIFO_B="$TEST_TMPDIR/race-b.deleted.tsv"
   mkfifo "$FIFO_B"
@@ -531,7 +510,6 @@ if command -v mkfifo >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
     fail "window B: script pins feat/win-b before opening the ledger" "pin present" "no pin within 10s: $(cat "$TEST_TMPDIR/race-b.out")"
   fi
 
-  # Window A: the tip moves after the batch check and before the per-branch re-check.
   CAP_A="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/race-a.tsv" | sed -n 's/^TipCapture: //p')"
   FIFO_A="$TEST_TMPDIR/race-a.deleted.tsv"
   mkfifo "$FIFO_A"

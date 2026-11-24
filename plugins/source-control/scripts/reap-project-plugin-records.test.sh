@@ -23,8 +23,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# Resolved once; the platform cannot change mid-suite, and three of the cases
-# below branch on it.
 UNAME_S="$(uname -s 2>/dev/null || true)"
 
 STUB_DIR="$TEST_TMPDIR/stub"
@@ -33,7 +31,6 @@ mkdir -p "$STUB_DIR"
 STATE="$TEST_TMPDIR/state.json"
 LOG="$TEST_TMPDIR/calls.log"
 
-# The stub reproduces the measured contract, not a convenience fiction.
 cat >"$STUB_DIR/claude" <<'STUB'
 #!/usr/bin/env bash
 set -uo pipefail
@@ -105,7 +102,6 @@ chmod +x "$STUB_DIR/claude"
 
 native_of() { (cd "$1" && { pwd -W 2>/dev/null || pwd -P; }); }
 
-# run <cwd> [args...] — one reap invocation with the stub on PATH.
 RC=0
 OUT=""
 run() {
@@ -131,11 +127,6 @@ help_out="$(bash "$REAP" --help 2>&1)"
 help_rc=$?
 assert_exit "--help exits 0" 0 "$help_rc"
 assert_contains "--help documents the usage line" "$help_out" "--worktree-path"
-# usage() derives the header block (shebang to first non-comment line) rather
-# than extracting a hardcoded line range, so a header edit cannot silently
-# truncate the help. The usage line sits early; the exit-code taxonomy and the
-# last header line sit at the end, exactly where a hardcoded range would
-# truncate first.
 assert_contains "--help includes the exit-code taxonomy near the header's end" \
   "$help_out" "prerequisite missing (claude CLI, jq)"
 assert_contains "--help reaches the end of the header, not a truncated range" \
@@ -225,10 +216,6 @@ assert_not_contains "never escalates to user scope" "$(cat "$LOG")" "-s user"
 assert_not_contains "never passes --prune" "$(cat "$LOG")" "--prune"
 assert_contains "always passes --keep-data" "$(cat "$LOG")" "--keep-data"
 
-# --- local-scope records are reaped with their own scope -------------------------
-# A dead path can hold a project and a local record side by side, and a user
-# record for the same plugin must survive.
-
 seed_state "$(jq -n --arg wt "$WT_NATIVE" --arg o "$OTHER_NATIVE" '[
   {id:"a@m",scope:"project",projectPath:$wt},
   {id:"a@m",scope:"local",projectPath:$wt},
@@ -270,9 +257,6 @@ SHIM
     "a@m": true
   }
 }'
-  # new_linked <dir> [tracked] — a linked worktree at <dir> (the reap refuses a
-  # main working tree) of a throwaway main repo. With `tracked`, the commit it
-  # branches from carries .claude/settings.json.
   new_linked() {
     local main="$1.main"
     mkdir -p "$main"
@@ -287,7 +271,6 @@ SHIM
   }
   new_repo() { new_linked "$1" tracked; }
 
-  # Tracked and clean before the pass: restored byte-for-byte, tree clean.
   GWT="$TEST_TMPDIR/gwt-clean"
   new_repo "$GWT"
   cp "$GWT/.claude/settings.json" "$TEST_TMPDIR/settings.orig"
@@ -303,7 +286,6 @@ SHIM
   assert_contains "the restore does not change the survivor result" "$OUT" "surviving 0"
   assert_eq "the restore brings no install record back" "0" "$(jq 'length' "$STATE")"
 
-  # Tracked but already modified before the pass: left alone, warned about.
   GWT="$TEST_TMPDIR/gwt-modified"
   new_repo "$GWT"
   printf '{"edited": true}\n' >"$GWT/.claude/settings.json"
@@ -352,7 +334,6 @@ SHIM
     assert_contains "a $flag settings file is warned about" "$OUT" "assume-unchanged or skip-worktree is set"
   done
 
-  # Untracked: left alone, warned about.
   GWT="$TEST_TMPDIR/gwt-untracked"
   new_linked "$GWT"
   mkdir -p "$GWT/.claude"
@@ -365,8 +346,6 @@ SHIM
   assert_contains "an untracked settings file is warned about" "$OUT" "git does not track it here"
   assert_not_contains "no git restore runs on an untracked file" "$(cat "$GIT_LOG")" "restore"
 
-  # Outside any git work tree (the orphaned-directory case): nothing restored,
-  # no error. The only git call allowed is the work-tree probe itself.
   NOGIT="$TEST_TMPDIR/nogit"
   mkdir -p "$NOGIT/.claude"
   printf '%s\n' "$ORIGINAL_SETTINGS" >"$NOGIT/.claude/settings.json"
@@ -384,7 +363,6 @@ SHIM
       "--no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null rev-parse --is-inside-work-tree" "$(cat "$GIT_LOG")"
   fi
 
-  # --dry-run: no uninstall, so no git call and no restore at all.
   GWT="$TEST_TMPDIR/gwt-dry"
   new_repo "$GWT"
   seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
@@ -408,8 +386,6 @@ if [[ "$UNAME_S" == MINGW* || "$UNAME_S" == MSYS* || "$UNAME_S" == CYGWIN* ]]; t
   reset_log
   run "$WT" --worktree-path "$WT"
   assert_exit "a case/separator variant of the same path still reaps" 0 "$RC"
-  # Asserting the exit code alone would pass on the "nothing to reap" path too,
-  # which is exactly how a backslash-blind matcher hides.
   assert_contains "the backslash-spelled record was matched, not skipped" "$OUT" "reaped a@m"
   assert_eq "the variant record is gone" "0" "$(jq 'length' "$STATE")"
 else
@@ -435,7 +411,6 @@ assert_not_contains "--dry-run issues no uninstall" "$(cat "$LOG")" "uninstall"
 
 seed_state '[]'
 reset_log
-# Enumeration is stubbed to report a record the uninstall path will not honor.
 cat >"$STUB_DIR/claude" <<'STUB2'
 #!/usr/bin/env bash
 set -uo pipefail
@@ -469,12 +444,6 @@ run "$WT" --worktree-path "$WT"
 assert_exit "an enumeration failure degrades with exit 3" 3 "$RC"
 assert_contains "the degrade is visible, not silent" "$OUT" "warn:"
 
-# --- a POST-reap enumeration failure is UNVERIFIED, never success ---------------
-# The pre-reap enumeration failure already degrades (exit 3). The post-reap one
-# is the pass's only proof that anything was actually removed, so absorbing it
-# into "zero survivors" would report a confirmed clean reap having confirmed
-# nothing — and the caller acts on that by deleting the directory.
-
 cat >"$STUB_DIR/claude" <<'STUB4'
 #!/usr/bin/env bash
 set -uo pipefail
@@ -502,8 +471,6 @@ run "$WT" --worktree-path "$WT"
 assert_exit "a failed post-reap enumeration degrades with exit 3, not 0" 3 "$RC"
 assert_contains "the pass is called unverified" "$OUT" "UNVERIFIED"
 assert_contains "the survivor count is reported as unknown, not zero" "$OUT" "surviving UNKNOWN"
-# The needle is the success SENTENCE, not the phrase — the degrade text itself
-# legitimately contains "gone" while denying it ("nothing confirmed any record is gone").
 assert_not_contains "never emits the clean-reap line" "$OUT" "ok: every project- and local-scope"
 assert_contains "the uninstall that did run is still reported" "$OUT" "reaped 1"
 
