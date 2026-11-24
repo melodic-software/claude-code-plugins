@@ -1,6 +1,12 @@
 # 0025. Adopt the rendered-views doctrine with a cascade-carried preference
 
-Date: 2026-09-01. Status: accepted.
+Date: 2026-09-01. Status: accepted; superseded in part by
+[ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)
+for the preference's location (`.claude/rendered-views.md` is retired; the settings are
+`docs/conventions/rendered-views.yaml` and its personal override, per
+[the rendered-views contract](../contracts/rendered-views/README.md#the-rendered-views-settings)),
+and by [ADR 0019's 2026-10-02 amendment](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md#amendment-2026-10-02-one-canonical-source-every-copy-generated)
+for the in-plugin canonical chrome copy (the canonical is `lib/html-chrome.html`).
 
 ## Context
 

@@ -2,6 +2,13 @@
 
 - Status: accepted
 - Date: 2026-09-27
+- Superseded in part by
+  [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md):
+  the `.claude/source-control.md` cascade is retired, and the repository keys resolve from
+  `docs/conventions/source-control.yaml`. Decision 3's key list is narrowed by
+  `plugins/source-control/reference/config-resolution.md` ("babysit-prs repository-policy keys"):
+  seven keys moved, and `babysit_review_bot_logins`, `babysit_review_settle_minutes` and
+  `babysit_review_trigger_phrase` stay `userConfig`-only.
 
 ## Context
 

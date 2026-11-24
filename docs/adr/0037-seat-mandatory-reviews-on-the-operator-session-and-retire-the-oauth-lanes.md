@@ -27,6 +27,9 @@
   (`docs/conventions/pr-pipeline.yaml`). "Blocking-only after the first review" is implemented
   ([#13163](https://github.com/melodic-software/claude-code-plugins/pull/13163)) and set by
   `loop.findings-after-first-review` (default `blocking-only`, `docs/conventions/pr-pipeline.yaml`).
+- Superseded in part by `docs/conventions/source-control.yaml` (`pre_ready` step `verify`,
+  `enabled: false`): the "What stands" entry's verify gate on the merged head no longer runs at
+  ready in this repository.
 
 ## Context
 
