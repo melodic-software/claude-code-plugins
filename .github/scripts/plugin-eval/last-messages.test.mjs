@@ -24,6 +24,29 @@ function suite(...replies) {
   return dir;
 }
 
+const CAPTURED = join(HERE, "fixtures", "dispatched-results.json");
+const CAPTURED_TRACE = join(HERE, "..", "..", "..", "plugins", "evals", "skills", "plugin-eval", "scripts", "fixtures", "run-validity", "traces", "axyiOf.jsonl");
+
+test("a captured dispatched result reads each absolute tracePath, and a deleted trace is a null reply", () => {
+  const dir = tempDir("last-messages-");
+  const result = JSON.parse(readFileSync(CAPTURED, "utf8"));
+  const [withRun] = result.cases[0].arms.with;
+  const [withoutRun] = result.cases[0].arms.without;
+  assert.match(withRun.tracePath, /^\/home\/runner\/\.ev\/claude-eval-\w+\/out\/trace\.jsonl$/);
+  const lines = readFileSync(CAPTURED_TRACE, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+  lines.at(-1).result = "The wizard is ready.";
+  withRun.tracePath = join(dir, "with-trace.jsonl");
+  writeFileSync(withRun.tracePath, jsonl(...lines));
+  withoutRun.tracePath = join(dir, "deleted", "trace.jsonl");
+  writeFileSync(join(dir, "results.json"), JSON.stringify(result));
+  const out = join(dir, "last-messages.jsonl");
+  assert.equal(run(join(dir, "results.json"), out).status, 0);
+  assert.deepEqual(readFileSync(out, "utf8").trim().split("\n").map((line) => JSON.parse(line)), [
+    { case: "una-author-elevated", arm: "with", run: 1, last_message: "The wizard is ready." },
+    { case: "una-author-elevated", arm: "without", run: 1, last_message: null },
+  ]);
+});
+
 test("the result event's text is the reply, ahead of any assistant text", () => {
   assert.equal(lastMessage([said("first"), { type: "result", result: "final" }, said("after")]), "final");
 });
