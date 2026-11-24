@@ -41,7 +41,6 @@ cd "$SCRIPT_DIR/.."
 
 registry="scripts/skill-leaf-name-registry.txt"
 
-# leaf name -> space-separated owning plugin names
 declare -A leaf_owners
 
 for plugin_dir in plugins/*/; do
@@ -70,8 +69,6 @@ for leaf in "${!leaf_owners[@]}"; do
   collision_leaves+=("$leaf")
 done
 
-# leaf name -> accepted owner set: a sorted comma-separated plugin list, or `*`
-# for a name whose owner set is open by contract (see the registry header).
 declare -A registered
 registered_leaves=()
 duplicate_leaves=()
@@ -97,7 +94,6 @@ if [[ -f "$registry" ]]; then
   done
 fi
 
-# Sorted comma-separated owner set, so the comparison is order-independent.
 owner_set() {
   printf '%s\n' "$@" | sort | paste -sd, -
 }
@@ -157,8 +153,6 @@ for leaf in ${duplicate_leaves[@]+"${duplicate_leaves[@]}"}; do
   failed=1
 done
 
-# Entries stay sorted by leaf name, so two branches adding different names
-# insert at different lines instead of both appending at the end.
 prev=""
 for leaf in ${registered_leaves[@]+"${registered_leaves[@]}"}; do
   if [[ -n "$prev" ]] && [[ "$(printf '%s\n%s\n' "$prev" "$leaf" | LC_ALL=C sort | head -n1)" != "$prev" ]]; then
@@ -185,17 +179,11 @@ for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | so
     continue
   fi
 
-  # The entry is doing its job: it names a collision that is live right now. An
-  # owner-set mismatch below is a different failure and does not make the entry
-  # stale, so the mark is taken here rather than after the comparison.
   read_list::mark_used "$leaf"
 
   accepted="${registered[$leaf]}"
-  # An open owner set is accepted by contract; only the name is registered.
   [[ "$accepted" == "*" ]] && continue
 
-  # Normalize the registry side too, so the comparison is genuinely set-vs-set
-  # and a hand-edited entry does not fail on ordering alone.
   if [[ -n "$accepted" ]]; then
     # shellcheck disable=SC2310  # owner_set_field only sorts strings; nothing inside can fail
     accepted="$(owner_set_field "$accepted")"

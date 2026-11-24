@@ -26,8 +26,6 @@ cd "$script_dir/.."
 # shellcheck source=lib/changelog-fragments.sh
 . "$script_dir/lib/changelog-fragments.sh" || exit 2
 
-# The contract moved from docs/conventions/, which keeps a stub; the old home is
-# read only when the new one has no README.
 home="docs/contracts/standards"
 [[ -f "$home/README.md" ]] || home="docs/conventions/standards"
 src="$home/README.md"
@@ -69,8 +67,6 @@ if [[ -n "$base_contract" && "$head_contract" == "$base_contract" ]]; then
   stale=1
 fi
 
-# A heading count could be satisfied by any unrelated '## ' section, so match the
-# entry for the version the frontmatter now names.
 head_contract_re=${head_contract//./\\.}
 if ! grep -Eq "^## ${head_contract_re}( |$)" "$changelog" 2>/dev/null; then
   echo "STALE CHANGELOG: $src changed vs $base but $changelog has no '## $head_contract' entry" >&2
@@ -90,8 +86,6 @@ for copy in "${carriers[@]}"; do
   rest="${copy#plugins/}"
   plugin="${rest%%/*}"
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
-  # A plugin absent at the base ref is new in this change set; its initial
-  # release already carries the new contract.
   base_version=$(git show "$mb:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
   [[ -n "$base_version" ]] || continue
   head_version=$(jq -r '.version // empty' "$manifest")

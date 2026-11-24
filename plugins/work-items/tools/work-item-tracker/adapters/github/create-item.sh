@@ -125,7 +125,6 @@ if ((native)); then
   for label in ${label_list[@]+"${label_list[@]}"}; do
     args+=(--label "$label")
   done
-  # The sibling dedupe above validated --parent and set parent_url.
   [[ -z "$parent" ]] || args+=(--parent "$parent_url")
 
   if [[ -n "$blocked_by" ]]; then

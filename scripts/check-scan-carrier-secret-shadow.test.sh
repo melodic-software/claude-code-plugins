@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Black-box test for check-scan-carrier-secret-shadow.sh, with a stub gh on
-# PATH: it answers the two secret listings from STUB_* variables and records
-# each call. Never reaches the live API. Mutates only its own mktemp dir.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,7 +20,6 @@ esac
 EOF
 chmod +x "$STUB_DIR/gh"
 
-# check <label> <expected-rc> <must-name> [VAR=value...]
 check() {
   local label=$1 expected=$2 must=$3 out rc
   shift 3

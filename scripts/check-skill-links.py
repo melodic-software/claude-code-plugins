@@ -23,7 +23,6 @@ def die(message):
 
 
 def body_lines(text):
-    """(line number, line) pairs after the frontmatter."""
     lines = text.splitlines()
     start = 0
     if lines and lines[0].strip() == "---":
@@ -39,7 +38,6 @@ def targets(text):
 
 
 def sections(lines):
-    """Target sets of ## Next and ## Related, and the lines outside both."""
     found = {"Next": set(), "Related": set()}
     outside = []
     current = None
@@ -76,7 +74,6 @@ def dependencies(manifest):
 
 
 def unguarded(line, own, plugins, declared):
-    """Optional-plugin targets on the line not followed by "(if enabled)"."""
     for match in TARGET.finditer(line):
         plugin = match.group(1)
         if plugin == own or plugin in declared or plugin not in plugins:

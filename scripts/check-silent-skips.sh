@@ -161,9 +161,6 @@ scan_hook() {
   ' "$@"
 }
 
-# Shape 3: a self-test that scores a skip as PASS. Message must start with
-# "skip " / 'skip ' (space-delimited) so descriptions like
-# `ok "skip-named-helper ... fails"` are not flagged.
 scan_test_skip_pass() {
   awk "$AWK_SITE_LIB"'
     function is_skip_ok(l) {

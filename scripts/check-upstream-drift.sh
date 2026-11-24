@@ -105,10 +105,6 @@ NEAR_RE='`[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9A-Fa-f]+`'
 UNDER_RE='^ under `([^`]+)/`( .*)?$'
 URL_RE="https://github\\.com/[^]()<>[:space:]\`\"'|[]+"
 
-# --- page parsing ------------------------------------------------------------
-
-# Set by parse_page: P_OWNER P_REPO P_PIN P_SCOPE, and per link L_LINE L_PATH
-# L_REF L_MAP L_FORM (ok or bad-form), indexed together.
 P_OWNER="" P_REPO="" P_PIN="" P_SCOPE=""
 L_LINE=() L_PATH=() L_REF=() L_MAP=() L_FORM=() L_URL=()
 
@@ -124,7 +120,6 @@ parse_marker() {
   local line rest
   line="$(grep -m1 -F -- "$MARKER_PREFIX" "$1")" || return 1
   if [[ "$line" != "$MARKER_PREFIX"* ]]; then
-    # An indented or quoted marker that names a pin is a malformed record.
     [[ "$line" =~ $NEAR_RE ]] && return 2
     return 1
   fi
@@ -145,7 +140,6 @@ parse_marker() {
   return 1
 }
 
-# add_link <line> <map> <url>: records a link to the page's repository.
 add_link() {
   local n="$1" map="$2" url="$3" rest owner repo kind ref path
   url="${url%%#*}"
@@ -179,7 +173,7 @@ add_link() {
   L_PATH+=("$(url_decode "$path")")
 }
 
-parse_links() { # <page>
+parse_links() {
   local n=0 in_map=0 line
   L_LINE=() L_PATH=() L_REF=() L_MAP=() L_FORM=() L_URL=()
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -194,14 +188,12 @@ parse_links() { # <page>
   done <"$1"
 }
 
-# --- reading upstream --------------------------------------------------------
-
 declare -A HEADS=() TREES=() FIXTURE_FILES=() ANON=()
 OUT_SHA=""
 OUT_TREE=""
 OUT_API=""
 API_STATUS=""
-PAGE_UNREACH="" # set when a read for the current page stays refused
+PAGE_UNREACH=""
 
 api() {
   local o="$1" url="$2"
@@ -281,8 +273,6 @@ anon_tree() {
   return 0
 }
 
-# check_tree_lines <text> <source>: dies on a truncated mark, a malformed line,
-# or a path with a control character.
 check_tree_lines() {
   local line path
   while IFS= read -r line; do
@@ -294,7 +284,7 @@ check_tree_lines() {
   done <<<"$1"
 }
 
-head_sha() { # <owner> <repo>: sets OUT_SHA
+head_sha() {
   local key="$1/$2" sha
   if [[ -n "${HEADS[$key]:-}" ]]; then
     OUT_SHA="${HEADS[$key]}"
@@ -326,7 +316,6 @@ head_sha() { # <owner> <repo>: sets OUT_SHA
   OUT_SHA="$sha"
 }
 
-# filter_under <tree-text> <path>: lines whose path is <path> or under it.
 filter_under() {
   local p="$2"
   [[ -z "$p" ]] && {
@@ -374,8 +363,6 @@ gh_tree() {
   return 0
 }
 
-# tree_list <o> <r> <sha> <path>: sets OUT_TREE to `<blob> <path>` lines for
-# every file at or under <path> at <sha>; empty when the path is absent.
 tree_list() {
   local o="$1" r="$2" sha="$3" p="$4" key="$1/$2@$3:$4" file rc dir
   if [[ -n "${TREES[$key]+set}" ]]; then
@@ -444,8 +431,6 @@ diff_trees() {
     sort | awk -F '\t' '{ print $2 " " $1 }'
 }
 
-# --- pages -------------------------------------------------------------------
-
 EXPLICIT=$((${#PAGES[@]} > 0))
 if ((!EXPLICIT)) && [[ -d "$ROOT/docs/upstream" ]]; then
   while IFS= read -r path; do
@@ -453,7 +438,7 @@ if ((!EXPLICIT)) && [[ -d "$ROOT/docs/upstream" ]]; then
   done < <(find "$ROOT/docs/upstream" -type f -name '*.md' | sort)
 fi
 
-page_file() { # <page>: resolves a page argument to a readable file
+page_file() {
   if [[ "$1" == /* || -f "$1" ]]; then printf '%s' "$1"; else printf '%s' "$ROOT/$1"; fi
 }
 
@@ -473,8 +458,6 @@ FINDINGS=()
 REPORT=()
 UNREACHABLE=()
 
-# unreachable_page: records the current page as unreachable; its other results
-# are dropped.
 unreachable_page() {
   UNREACHABLE+=("$page: $o/$r refused the token (IP allow list) and an anonymous git read failed ($PAGE_UNREACH); not checked")
   REPORT+=("page repo=$o/$r pin=${pin:0:12} head=unknown status=unreachable path=$page")
@@ -488,8 +471,6 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   parse_links "$file"
   o="$P_OWNER" r="$P_REPO" pin="$P_PIN" scope="$P_SCOPE"
   PAGE_UNREACH=""
-  # Without this, an unknown pin reads as every path absent. The fixture seam
-  # already exits 2 on a missing <pin>.tree file.
   if [[ -z "$FIXTURE" ]]; then
     rc=6
     [[ -n "${ANON[$o]:-}" ]] || {
@@ -511,8 +492,6 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
     esac
   fi
 
-  # A scope absent at the pin is a malformed record, not drift: both trees
-  # would read empty and new-unit detection would be silently off.
   if [[ -n "$scope" ]]; then
     tree_list "$o" "$r" "$pin" "$scope"
     if [[ -n "$PAGE_UNREACH" ]]; then
@@ -626,8 +605,6 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
     done
   done
 done
-
-# --- output ------------------------------------------------------------------
 
 if ((${#UNREACHABLE[@]} > 0)); then
   printf '%s: %s\n' "$SELF" "${UNREACHABLE[@]}" >&2

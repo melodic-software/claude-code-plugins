@@ -12,9 +12,6 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-sub-items.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
-# write_gh_stub <dir>: install a gh stub in <dir> that answers --version, routes
-# `issue view` to $GH_STUB_VIEW and `issue list` to $GH_STUB_LIST, and treats any
-# other call as unhandled. Each case below supplies only those two payloads.
 write_gh_stub() {
   cat >"$1/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -55,8 +52,6 @@ assert_usage_error "$S" "local-markdown:o/r#1"
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   write_gh_stub "$STUB"
-  # #12 is a genuine cross-repo sub-issue whose number also exists in o/r, so
-  # dropping it is what the same-repo filter is for.
   VIEW='{"subIssues":{"nodes":[
     {"id":"a","number":11,"title":"one","url":"https://github.com/o/r/issues/11","state":"OPEN"},
     {"id":"b","number":12,"title":"foreign","url":"https://github.com/x/y/issues/12","state":"OPEN"}
@@ -77,8 +72,6 @@ if command -v jq >/dev/null 2>&1; then
     "github:o/r#99" "$(jq -r '.items[0].parent_id' <<<"$OUT")"
   assert_eq "the intersect carries list-items' truncated flag" \
     "false" "$(jq -c '.truncated' <<<"$OUT")"
-  # The cross-repo drop is a documented truncation, not a fault, so a well-formed
-  # node set must stay silent or the diagnostic below is noise on every read.
   assert_eq "well-formed nodes emit no derivable-repo warning" \
     "0" "$(grep -c 'no derivable repo' "$ERRFILE")"
 
@@ -96,8 +89,6 @@ fi
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   write_gh_stub "$STUB"
-  # #21 is well-formed. #22 carries no url at all and #23 a url that is not an
-  # issue path: the two ways a narrowed projection could go unattributable.
   VIEW='{"subIssues":{"nodes":[
     {"id":"a","number":21,"title":"one","url":"https://github.com/o/r/issues/21","state":"OPEN"},
     {"id":"b","number":22,"title":"no url","state":"OPEN"},
@@ -134,7 +125,6 @@ fi
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   write_gh_stub "$STUB"
-  # Canonical casing from the API differs from the casing used in the id.
   VIEW='{"subIssues":{"nodes":[
     {"id":"a","number":31,"title":"one","url":"https://github.com/Acme/Widgets/issues/31","state":"OPEN"},
     {"id":"b","number":32,"title":"foreign","url":"https://github.com/Other/Repo/issues/32","state":"OPEN"}
@@ -150,7 +140,6 @@ if command -v jq >/dev/null 2>&1; then
   assert_eq "case-differing repo → exit 0" "0" "$rc"
   assert_eq "case-differing same-repo child is kept, not read as foreign" \
     "github:acme/widgets#31" "$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
-  # Case-folding widens the match on case alone, never across repos.
   assert_eq "case-folding does not pull in a cross-repo node" \
     "1" "$(jq -r '.items | length' <<<"$OUT")"
   assert_eq "case-differing nodes are attributable, so no warning" \
