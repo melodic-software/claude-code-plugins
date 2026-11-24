@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # docs/adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 base="" force=0 runs=3 budget_ms=3000
