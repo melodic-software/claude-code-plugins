@@ -291,7 +291,6 @@ function Set-ApprovalState {
         throw "Set-ApprovalState: '$(Join-Path $stateDir 'approvals.lock')' is held by another writer; gave up after $LockTimeoutSeconds s."
     }
     try {
-        # Stamped once the lock is held, so a writer that waited records when its change landed.
         $now = (Get-Date).ToString('o')
         $schemaPath = Join-Path $catalogRoot "schemas\$($spec.File.Schema)"
         $jsonOptions = [System.Text.Json.JsonSerializerOptions]@{

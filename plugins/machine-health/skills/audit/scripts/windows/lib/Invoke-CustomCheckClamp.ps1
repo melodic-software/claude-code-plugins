@@ -55,7 +55,6 @@ function Invoke-CustomCheckClamp {
         $note = ("custom check clamp: CRIT capped at WARN until it reports clean in " +
             "$RequiredCleanRuns runs ($cleanRuns so far)")
         $r.notes = $r.notes ? "$($r.notes); $note" : $note
-        # A trend upgrade the clamp undid leaves no net adjustment to report.
         if ($r.PSObject.Properties['trend'] -and $r.trend -and $r.trend.adjusted_from -eq 'WARN') {
             $r.trend.adjusted_from = $null
         }

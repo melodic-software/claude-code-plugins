@@ -262,7 +262,6 @@ source "$_HOOK_SELF/abort-boundary.sh"
 # only chosen status: this guard never blocks by exit code.
 guard::abort_boundary block-cross-domain PreToolUse open 0
 
-# Empty when there is no map: then no domain, and only the identity-write rule.
 BCD_MAP=""
 if [[ -n "${CLAUDE_PLUGIN_DATA:-}" && -f "${CLAUDE_PLUGIN_DATA%/}/identity-domains.json" ]]; then
   BCD_MAP="${CLAUDE_PLUGIN_DATA%/}/identity-domains.json"
@@ -1528,7 +1527,7 @@ for BCD_REC in ${BCD_RECORDS[@]+"${BCD_RECORDS[@]}"}; do
     BCD_IDFILES+=("$BCD_VAL")
     BCD_IDFILE_NAMES+=("${BCD_VAL##*/}")
     ;;
-  *) ;; # a kind a newer guard writes: CACHE is keyed by BCD_FORMAT, so none reaches here
+  *) ;;
   esac
 done
 
@@ -1546,7 +1545,6 @@ if [[ -n "$BCD_CWD_DOMAIN" ]] && ((${#BCD_CONF_KIND[@]})); then
   *[!a-z0-9_-]gh[!a-z0-9_-]* | *[!a-z0-9_-]az[!a-z0-9_-]*) BCD_CONFIG=1 ;;
   *) ;;
   esac
-  # AUTH SWITCHES: only from a domain with a gh config directory.
   for ((BCD_I = 0; BCD_I < ${#BCD_CONF_KIND[@]}; BCD_I++)); do
     [[ "${BCD_CONF_KIND[BCD_I]}" == gh && "${BCD_CONF_DOMAIN[BCD_I]}" == "$BCD_CWD_DOMAIN" ]] || continue
     case " $BCD_SUBJECT " in
@@ -1558,7 +1556,6 @@ if [[ -n "$BCD_CWD_DOMAIN" ]] && ((${#BCD_CONF_KIND[@]})); then
 fi
 bcd::write_prefilter && BCD_WRITES=1
 if ((BCD_PATHS == 0 && BCD_CONFIG == 0 && BCD_AUTH == 0 && BCD_WRITES == 0)); then
-  # With no map this is nearly every call on every host: it leaves untraced.
   [[ -n "$BCD_MAP" ]] || exit 0
   bcd::trace prefilter-miss
   bcd::emit_tel prefilter-miss
@@ -1569,8 +1566,6 @@ fi
 ((BCD_AUTH)) && bcd::trace auth-hit
 ((BCD_WRITES)) && bcd::trace write-hit
 
-# Identity positions are read only from a cwd in a domain, and only when the
-# text names another domain's marker.
 if [[ -n "$BCD_CWD_DOMAIN" ]] && ((BCD_FOREIGN_MARKER)); then
   BCD_IDENTITY=1
   for ((BCD_I = 0; BCD_I < ${#BCD_NEEDLE[@]}; BCD_I++)); do

@@ -1,15 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Read-HistoryJsonl.ps1.
-
-.DESCRIPTION
-Read-HistoryJsonl is the trend-context loader used by the orchestrator on every
-run. Must tolerate: missing file (first run), empty file, blank/whitespace lines,
-malformed lines mixed with valid ones, and respect the -Tail window without
-throwing. JSONL is append-only so read-side robustness is the correctness bar.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Read-HistoryJsonl.ps1' -MockHelpers

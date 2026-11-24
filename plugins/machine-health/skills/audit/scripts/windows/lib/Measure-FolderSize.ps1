@@ -316,10 +316,6 @@ function Measure-FolderSize {
             continue
         }
 
-        # The root's own level, listed for every root before any walk: loose
-        # files count toward the root, each directory becomes one folder entry,
-        # and a sync root directly under a root is recorded whatever the budget
-        # does later.
         $listed = [pscustomobject]@{
             Record   = $record
             Bytes    = [long]0

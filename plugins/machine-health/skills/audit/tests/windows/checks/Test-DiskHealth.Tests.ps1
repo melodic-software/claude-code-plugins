@@ -88,7 +88,6 @@ Describe 'Test-DiskHealth -- volume filter' -Tag 'check' {
 
         It 'does not inherit the unlettered partition''s low-free-space severity' {
             $result = Invoke-DiskHealthAsObject
-            # Recovery partition is 80% used. If it leaked in, severity would be CRIT.
             $result.severity | Should -Be 'OK'
         }
 
@@ -141,8 +140,8 @@ Describe 'Test-DiskHealth -- trend scalar' -Tag 'check' {
     It 'hoists the worst-volume used_pct to a top-level scalar for history flattening' {
         Mock Get-Volume {
             @(
-                (New-MockVolume -DriveLetter C -SizeGB 500 -FreeGB 50)    # 90% used
-                (New-MockVolume -DriveLetter D -SizeGB 1000 -FreeGB 800)  # 20% used
+                (New-MockVolume -DriveLetter C -SizeGB 500 -FreeGB 50)
+                (New-MockVolume -DriveLetter D -SizeGB 1000 -FreeGB 800)
             )
         }
         $result = Invoke-DiskHealthAsObject
@@ -186,7 +185,6 @@ Describe 'Test-DiskHealth -- device-relative temperature thresholds' -Tag 'check
             New-MockReliabilityCounter -Temperature 60 -TemperatureMax 85
         }
         $result = Invoke-DiskHealthAsObject
-        # 60 C is under both the WARN threshold (0.9*85=76.5) and CRIT (85).
         $result.severity | Should -Be 'OK'
     }
 
@@ -195,7 +193,6 @@ Describe 'Test-DiskHealth -- device-relative temperature thresholds' -Tag 'check
             New-MockReliabilityCounter -Temperature 80 -TemperatureMax 85
         }
         $result = Invoke-DiskHealthAsObject
-        # 80 C > 76.5 (WARN) but <= 85 (CRIT).
         $result.severity | Should -Be 'WARN'
     }
 
@@ -218,7 +215,6 @@ Describe 'Test-DiskHealth -- device-relative temperature thresholds' -Tag 'check
             }
         }
         $result = Invoke-DiskHealthAsObject
-        # Fallback path: 60 > 55 WARN, 60 < 65 CRIT.
         $result.severity | Should -Be 'WARN'
     }
 }
@@ -232,8 +228,6 @@ Describe 'Test-DiskHealth -- failure modes' -Tag 'check' {
 
         $result = Invoke-DiskHealthAsObject
         { Assert-CheckResult $result } | Should -Not -Throw
-        # Both data sources failing currently yields empty results with ran_successfully = true;
-        # accept UNKNOWN (preferred) or OK so future hardening can tighten this.
         @($result.detail.volumes).Count | Should -Be 0
         @($result.detail.physical_disks).Count | Should -Be 0
     }

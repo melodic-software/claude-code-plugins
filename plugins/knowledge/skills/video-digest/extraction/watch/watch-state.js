@@ -1,10 +1,3 @@
-/**
- * Phase-map state for interrupted `/video-digest watch` sessions.
- *
- * Mirrors course-digest `course.json` phase tracking — stored at
- * `.work/<watch-epic>/<video-slug>/watch.json`.
- */
-
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -98,12 +91,6 @@ import {
 export const WATCH_STATE_FILENAME = "watch.json";
 export const CONTINUATION_PROMPT_FILENAME = "continuation-prompt.md";
 
-/**
- * Every phase, in `watch.json` key order; also the phases the CLI may mark, which guards
- * against typo'd phase keys. `companion` is an optional Phase 0b side-marker (not in the
- * sequential {@link findNextPhase} order): markable when `source/companion-sources.md`
- * exists, absent from the next-phase walk so a no-companion watch is unaffected.
- */
 const MARKABLE_PHASES = /** @type {(keyof WatchPhases)[]} */ ([
   "acquire",
   "transcript",
@@ -579,7 +566,6 @@ export async function runClose(
     return 1;
   }
 
-  // README first: a failed write here leaves watch.json open, so a re-run retries both.
   await markReadmeComplete(sliceDir, readFile, writeFile);
   await writeWatchState(sliceDir, { ...closing, status: "complete" }, writeFile, mkdir);
   writeStdout("close: outcome checks passed, status complete\n");

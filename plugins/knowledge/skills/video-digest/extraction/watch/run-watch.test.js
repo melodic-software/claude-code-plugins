@@ -27,10 +27,6 @@ describe("runWatchCli --recover argv alignment", () => {
 
     expect(recoverSpy).toHaveBeenCalledOnce();
     const argv = recoverSpy.mock.calls[0][0];
-    // recover-watch-bootstrap.js reads sliceDir/workDir/framesDir/contactSheetsDir
-    // from argv[2..5]. Before the fix the synthetic array started at the first
-    // real arg, shifting everything one position left and leaving argv[5]
-    // undefined (a TypeError in path.resolve there).
     expect(argv[2]).toBe("/tmp/slice");
     expect(argv[3]).toBe("/tmp/work");
     expect(argv[4]).toBe("/tmp/frames");

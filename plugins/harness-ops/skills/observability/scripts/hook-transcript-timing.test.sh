@@ -33,7 +33,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 printf 'Stop\tbash a.sh\n# a comment\nPreToolUse\tbash guard.sh\nPostToolUse\tbash fmt.sh\n\nSessionStart\tbash never.sh\n' >"$TMP/enabled.tsv"
 
-run() { # <args...>, run from $TMP so a hook that executed would leave hook-ran there
+run() {
   out="$(cd "$TMP" && bash "$SCRIPT" "$@" 2>&1)"
   rc=$?
 }

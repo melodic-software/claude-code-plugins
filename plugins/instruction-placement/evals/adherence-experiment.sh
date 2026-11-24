@@ -127,16 +127,11 @@ fi
   printf 'VERDICT\tUNKNOWN\tno Claude Code CLI available\n'
   exit 3
 }
-# Each trial runs inside the arm's directory, so a relative CLI path would
-# resolve against the wrong root and every trial would fail identically.
 CLAUDE_BIN="$(cd "$(dirname "$CLAUDE_BIN")" && pwd)/$(basename "$CLAUDE_BIN")"
 
 WORK="$(mktemp -d)"
 [[ $KEEP -eq 1 ]] || trap 'rm -rf "$WORK"' EXIT
 
-# ---------------------------------------------------------------------------
-# The convention under test, written once and used verbatim by both arms.
-# ---------------------------------------------------------------------------
 # shellcheck disable=SC2016 # markdown code spans; the backticks are literal
 CONVENTION='## C# class conventions
 
@@ -144,8 +139,6 @@ Every public class in this repository is declared `sealed` unless it is
 explicitly designed for inheritance. Private fields are named with a leading
 underscore, in `_camelCase`.'
 
-# Filler that makes the control arm a realistically large always-loaded file.
-# Deliberately plausible and non-conflicting: it must add length, not confusion.
 write_filler() {
   local out="$1" i
   for i in $(seq 1 "$FILLER_SECTIONS"); do
@@ -184,13 +177,10 @@ EOF
   printf '# Engineering handbook\n' >"$dir/AGENTS.md"
 
   if [[ "$arm" == "control" ]]; then
-    # Convention buried mid-file, with filler on both sides.
     write_filler "$dir/AGENTS.md"
     printf '\n%s\n' "$CONVENTION" >>"$dir/AGENTS.md"
     write_filler "$dir/AGENTS.md"
   else
-    # Identical filler, identical total practice content, but the convention
-    # moves to a path-scoped rule. Only the DELIVERY differs between arms.
     write_filler "$dir/AGENTS.md"
     write_filler "$dir/AGENTS.md"
     {
@@ -209,44 +199,10 @@ EOF
 
 TASK='Add a public class named InvoiceTotal to src/Billing.cs. It needs a private field holding a running total as a decimal, a constructor, and a public method Add(decimal amount) that adds to the running total and a public property Total that exposes it. Edit the existing file. Reply with DONE when finished.'
 
-# Compliance, defined before any run.
-#   sealed:     the produced class is declared sealed
-#   underscore: the new private field uses a leading-underscore name
-#
-# The underscore check is SCOPED to the InvoiceTotal body. The seeded file
-# already declares `private readonly decimal _unitPrice`, so a whole-file search
-# scores 1 before the model has written anything: the criterion becomes a
-# constant, and a run reports a number that is not a measurement.
-#
-# The scanner below biases toward UNDER-crediting. Every way of failing to
-# delimit the body ends at the declaration line alone, scoring 0, rather than
-# running on into a later class and crediting a field that is not the one the
-# task asked for. For an instrument whose numbers get published, a false 1 is
-# the unrecoverable error and a false 0 is a visible one.
-#
-# Three shapes a model can plausibly produce, and what happens to each:
-#   `class InvoiceTotal(decimal x);`  a body-less primary constructor. No brace
-#                                    body opens before the next declaration, so
-#                                    the region stops at the declaration line.
-#   `"unbalanced { brace"`           a brace inside a string, char literal or
-#                                    line comment. Stripped before counting, so
-#                                    the depth counter stays in sync.
-#   anything else that desyncs       a block comment holding a lone brace, say.
-#                                    Depth never returns to zero, the body is
-#                                    treated as undelimited, and the region
-#                                    stops at the declaration line.
-#
-# Both class matches are ANCHORED on a non-identifier boundary. `InvoiceTotal`
-# is a prefix of `InvoiceTotals` and of `InvoiceTotalizer`, so an unanchored
-# match scores full compliance for a trial that produced the wrong class. The
-# boundary is `[^A-Za-z0-9_]` or end of line, which still admits the three
-# shapes that occur here: `InvoiceTotal` alone, `InvoiceTotal {`, and
-# `InvoiceTotal(decimal seed);`.
 score_trial() {
   local file="$1" sealed=0 underscore=0 body
   grep -qE 'sealed[[:space:]]+class[[:space:]]+InvoiceTotal([^A-Za-z0-9_]|$)' \
     "$file" 2>/dev/null && sealed=1
-  # The new class, from its declaration to its matching closing brace.
   body="$(awk '
     # Brace characters that are data, not structure.
     function scrub(s,   q) {
@@ -280,19 +236,6 @@ score_trial() {
       for (i = 1; i <= n; i++) print buf[i]
     }
   ' "$file" 2>/dev/null)"
-  # A private FIELD declaration in the new class whose name starts with `_`.
-  #
-  # "Field" is the load-bearing word. The convention is about field naming, so
-  # a member that merely carries an underscore name does not satisfy it: an
-  # auto-property (`private decimal _total { get; set; }`), an expression-bodied
-  # property (`private decimal _Total => x;`) and a method
-  # (`private decimal _GetTotal() => x;`) all have to score 0. The trailing
-  # group is what separates them: a field declaration ends at `;` or continues
-  # into an initializer `=`, and `=[^>]` rejects the `=>` of an
-  # expression-bodied member. The leading `[^;{(=]*` cannot cross a `{`, a `(`
-  # or an `=`, so no later token on the line can be reached to stand in for the
-  # field. A multi-declarator line (`private decimal _a, _b;`) credits on its
-  # first name only, which is the documented under-crediting bias.
   grep -qE 'private[^;{(=]*[[:space:]]_[A-Za-z][A-Za-z0-9]*[[:space:]]*(;|=[^>])' <<<"$body" &&
     underscore=1
   printf '%d\t%d' "$sealed" "$underscore"
@@ -314,14 +257,12 @@ printf 'CONTROL AGENTS.md is %s lines; treatment AGENTS.md is %s lines.\n\n' \
   "$(wc -l <"$WORK/treatment/AGENTS.md" | tr -d ' ')"
 printf 'ARM\tTRIAL\tSEALED\tUNDERSCORE\tBOTH\n'
 
-# Tallies per arm: scored trials, and how many of them met each criterion.
 declare -A n_ok n_sealed n_under n_both
 for arm in control treatment; do
   n_ok[$arm]=0 n_sealed[$arm]=0 n_under[$arm]=0 n_both[$arm]=0
 done
 
 for ((n = 1; n <= TRIALS; n++)); do
-  # Interleaved, so any drift in service conditions hits both arms alike.
   for arm in control treatment; do
     dir="$WORK/$arm"
     (cd "$dir" && run_trial "$arm" "$n") >/dev/null 2>&1

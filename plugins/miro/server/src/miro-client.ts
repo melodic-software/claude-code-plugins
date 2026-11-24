@@ -18,8 +18,6 @@ export function isTokenUnset(token: string | undefined): boolean {
   return !value || value.startsWith("${user_config.");
 }
 
-// Every method access throws, so each tool call fails with the guidance instead of the
-// server exiting at startup.
 function unavailable<T extends object>(): T {
   return new Proxy({} as T, {
     get: () => () => {

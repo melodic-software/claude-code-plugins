@@ -92,9 +92,9 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | knowledge | `skills/map-corpus/discovery/link-map-format.md:31` | WebFetch or curl of discovery snapshots | kept | Sitemaps and forge tree listings that a deterministic parser reads byte for byte; the pages themselves are read by the fetch route (line 35) |
 | machine-health | `skills/audit/scripts/windows/lib/Invoke-AllowlistedWeb.ps1:92` | `Invoke-WebRequest` behind a host allowlist | kept | Microsoft Update, winget and CISA KEV data endpoints, logged per call; not docs pages |
 | machine-health | `skills/audit/scripts/windows/lib/Get-CisaKevCache.ps1:141` | CISA KEV feed download | kept | JSON data feed with its own cache; not a page |
-| miro | `server/src/miro-client.ts:35` | Miro REST API through the `@mirohq/miro-api` SDK | kept | Authenticated API, not a page |
+| miro | `server/src/miro-client.ts:33` | Miro REST API through the `@mirohq/miro-api` SDK | kept | Authenticated API, not a page |
 | multi-agent | `agents/drift-checker.md:4` | WebFetch grant | kept | WebFetch-only judge by design, held to first-party docs hosts by a hook; pages reach it as slices read through the cache |
-| multi-agent | `workflows/drift-audit.js:310` | Checkers WebFetch a page the slices do not cover, also at line 312 | kept | The checkers have no shell; every page the slices hold came through the cache |
+| multi-agent | `workflows/drift-audit.js:300` | Checkers WebFetch a page the slices do not cover, also at line 302 | kept | The checkers have no shell; every page the slices hold came through the cache |
 | multi-agent | `skills/audit-defaults/SKILL.md:110` | WebFetch when the cached read fails | kept | Fallback for when the cached read fails |
 | performance | `agents/go-faster-sweeper.md:4` | WebFetch grant | kept | Fallback for a pointer `fetch-docs.sh` records unread |
 | performance | `skills/go-faster/reference/areas.md:53` | WebFetch when the manifest records a page unread | kept | Fallback; the primary read is already on the cache |

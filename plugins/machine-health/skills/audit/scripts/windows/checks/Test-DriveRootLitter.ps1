@@ -154,16 +154,12 @@ $CheckBody = {
     if (-not $BaselinePath) {
         $BaselinePath = Join-Path (Resolve-SkillRoot) 'reference\windows\drive-root-baseline.jsonc'
     }
-    # No baseline means no way to tell residue from a legitimate entry, so the
-    # check cannot answer -- UNKNOWN, never a guess.
     $baseline = Get-Content -LiteralPath $BaselinePath -Raw -ErrorAction Stop | ConvertFrom-Jsonc
 
     $systemRoot = if ($SystemRootPath) { $SystemRootPath } else { "$env:SystemDrive\" }
     $dataRoots = if ($CheckBoundParameters.ContainsKey('DataRootPath')) {
         @($DataRootPath)
     } else {
-        # Fixed, lettered volumes only: removable media and network drives hold
-        # user-managed content with no OS-imposed root layout to diff against.
         $systemLetter = $systemRoot.TrimEnd('\').TrimEnd(':')
         @(Get-Volume -ErrorAction SilentlyContinue |
                 Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter } |
@@ -176,8 +172,6 @@ $CheckBody = {
     $residue = [System.Collections.Generic.List[pscustomobject]]::new()
     $failedRoots = [System.Collections.Generic.List[string]]::new()
 
-    # Trailing separator so detail.residue "volume + name" concatenations read
-    # as real paths ("C:\tmp"), for drive roots and override paths alike.
     $normalize = { param($p) ($p.EndsWith('\') -or $p.EndsWith('/')) ? $p : "$p\" }
     $systemRoot = & $normalize $systemRoot
     $dataRoots = @($dataRoots | ForEach-Object { & $normalize $_ })
@@ -215,9 +209,6 @@ $CheckBody = {
     }
 
     if ($failedRoots.Count -gt 0) {
-        # An unlistable root can hide any amount of litter, so a threshold
-        # verdict on the volumes that did scan would overstate what is known.
-        # Partial residue still ships so the human sees what was found.
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'UNKNOWN' `
             -Summary ("Drive-root scan incomplete: $($failedRoots.Count) root(s) could not be " +
@@ -226,13 +217,6 @@ $CheckBody = {
             -RanSuccessfully $false `
             -ErrorMessage ($failedRoots -join '; ')
     } else {
-        # Severity ladder (most severe first). This check never emits CRIT:
-        # root litter is tidiness with no data-loss or security consequence,
-        # and severity-rubric.md reserves CRIT for imminent-failure and
-        # security conditions while directing ambiguity to the lower level.
-        #   WARN -- >=10 residue entries: something is actively dumping at a root.
-        #   INFO -- 1-9 residue entries.
-        #   OK   -- none.
         $severity = if ($residueSorted.Count -ge 10) { 'WARN' } elseif ($residueSorted.Count -ge 1) { 'INFO' } else { 'OK' }
 
         $summary = if ($residueSorted.Count -eq 0) {
