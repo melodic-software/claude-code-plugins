@@ -148,6 +148,10 @@ command and needs no mutation tool installed.
 - A seed survived and the killing test is due: `/testing:write`.
 - Survivors on the changed lines themselves: `/mutation-testing:audit`.
 
+## Related
+
+- Understanding fault seeding vs mutation theory: /mutation-testing:principles.
+
 ## Gotchas
 
 - **Seeds tuned to dodge the tests measure the planter, not the suite.** The planter reads the

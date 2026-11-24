@@ -95,6 +95,13 @@ is not, do the part this skill can, say the plugin is not enabled and print
 - A consolidate or migrate verdict that builds or extends a CLI: /developer-experience:build-cli.
 - A retire verdict to justify first: /overengineering:justify <artifact>.
 
+## Related
+
+- User or local MCP config posture: /mcp-tools:audit-posture.
+- Machine-level plugin and skill inventory: /harness-ops:inventory.
+- Sweep references after a rename or move: /docs-hygiene:rename-references.
+- Evaluate whether harness automation should exist: /harness-config:audit-automation-gaps.
+
 ## Gotchas
 
 - A finding without a file reference is a guess: its item gets `keep`, marked unverified, with

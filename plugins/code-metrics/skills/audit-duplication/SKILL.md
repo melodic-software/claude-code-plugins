@@ -173,6 +173,10 @@ overrides are validated against the ladder file and an unknown name is dropped w
 - The numbers feed a before-and-after comparison: `/verification:measure metrics`.
 - A surviving clone is about to be called debt: `/code-metrics:principles`.
 
+## Related
+
+- Files copied across repositories: /coupling:reduce.
+
 ## Gotchas
 
 - Change scope needs a merge-base with the default branch; outside a git repository, or on a

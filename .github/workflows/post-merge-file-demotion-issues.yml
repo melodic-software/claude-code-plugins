@@ -225,21 +225,21 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       # main's tip, for babysit_postmerge.py --judge-run and the plan script it
       # runs in a worktree of the last green SHA, and for a canary run's push
       # and the commits it reverts; full history for both.
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -423,7 +423,7 @@ jobs:
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.file-demotion-issue.outputs.tip }}
           path: .base
@@ -592,12 +592,12 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       # Full history, so the revert's fit to main's tip is checked in memory.
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
@@ -605,7 +605,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -683,18 +683,18 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       # main's tip, for babysit_lift.py close; no code from outside main runs.
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control

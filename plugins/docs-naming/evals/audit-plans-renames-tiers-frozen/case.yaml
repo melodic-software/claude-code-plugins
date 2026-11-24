@@ -72,6 +72,6 @@ graders:
     arm: with-only
   - name: rows-and-tiers
     type: llm
-    criteria: 'Pass only if all of these legacy expectations hold. "The three bundled scripts are run rather than the tree being read and judged by hand" (inventory.sh, sweep.sh, emit-findings.sh in the trace). "The findings artifact path is resolved through the binding, never composed as a hardcoded default." "Every site''s form, tier, and action is quoted from the sweep rather than inferred." "The form table is shown before the findings." "Released-tier sites are reported as untouched rather than silently omitted." "The historical tier is described as links and paths only, with the narrative left alone." "The count of sites that will NOT be edited is stated, not buried." "The response states that nothing was renamed or edited." "review sites are surfaced individually with their lines, not folded into a total."'
+    criteria: 'Pass only if the trace shows inventory.sh, sweep.sh and emit-findings.sh ran and the plan path came from the configured binding. The reply puts the form table first, then gives each finding''s old and new paths, site count, tier breakdown and generated-file involvement. It lists each review site separately with its location and excerpt and quotes any cited sweep rows verbatim. It gives the report-site total, says released sites stay untouched and historical edits cover links and paths only, and states that nothing was renamed or edited.'
     focus: trace
     arm: both

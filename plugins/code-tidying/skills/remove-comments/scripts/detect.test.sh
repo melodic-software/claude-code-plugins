@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
-# Self-contained tests for detect.sh (no external test lib — ships with the
-# plugin; fixtures are built inline in a tmpdir).
 # test-scope: plugins/code-tidying/skills/remove-comments/actions/audit.md plugins/code-tidying/scripts/generated-marker.ere
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -22,10 +18,6 @@ pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
 }
-# A case whose FIXTURE this filesystem cannot hold is neither a pass nor a
-# failure of the detector. It prints its own visible line and carries its own
-# counter, and never routes through pass(), so a proof this host could not run
-# can never be read off the summary as one that did.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
@@ -51,9 +43,6 @@ assert_not_contains() {
   esac
 }
 
-# Several cases name a file with a byte v1 porcelain escapes. Windows reserves `"`, `>` and
-# a tab (MSYS substitutes them silently) and a backslash is a separator, so ask git itself
-# whether the host can hold the name: `--porcelain -z` emits raw bytes with no C-quoting.
 NAME_PROBE_REPO="$TEST_TMPDIR/nameprobe"
 mkdir -p "$NAME_PROBE_REPO"
 git -C "$NAME_PROBE_REPO" init -q
@@ -86,9 +75,6 @@ digest = hashn()  # encode as UTF-8 and take the SHA-256 digest
 # TODO(#123): tighten the upper bound
 EOF
 
-# String-aware comment extraction: a comment leader inside a string literal is not a comment,
-# but a real leader after a closed string still is, and apostrophes in comment prose must not
-# swallow the comment.
 STRINGS="$TEST_TMPDIR/strings.js"
 cat >"$STRINGS" <<'EOF'
 const url = "https://example.com/used to do X; now does Y";
@@ -96,7 +82,6 @@ const s = "text";  // used to return null
 // it's no longer used
 EOF
 
-# Bare hyphenated tracker key (advertised JIRA-123 form) is ticket-pr-residue.
 TICKET="$TEST_TMPDIR/ticket.js"
 cat >"$TICKET" <<'EOF'
 // JIRA-123 tracks the original design
@@ -132,19 +117,16 @@ assert_not_contains "code identifier 'previously' (no comment) not flagged" "$cl
 assert_not_contains "UTF-8 / SHA-256 not a ticket ref" "$clean_out" "Finding shape: ticket-pr-residue"
 assert_not_contains "sanctioned TODO(#123) not flagged" "$clean_out" "Finding line: 5"
 
-# --- 3b. String-aware extraction: leader inside a string is not a comment -------------
 
 strings_out="$(bash "$DETECT" "$STRINGS")"
 assert_not_contains "residue words inside a quoted URL are not flagged" "$strings_out" "Finding line: 1"
 assert_contains "real comment after a closed string is still flagged" "$strings_out" "Finding line: 2"
 assert_contains "apostrophe in comment prose does not suppress residue" "$strings_out" "Finding line: 3"
 
-# --- 3c. Bare hyphenated tracker key (JIRA-123) is ticket-pr-residue -------------------
 
 ticket_out="$(bash "$DETECT" "$TICKET")"
 assert_contains "bare JIRA-123 key detected" "$ticket_out" "Finding shape: ticket-pr-residue"
 
-# --- 4. Opt-out markers suppress wrapped content; control still detected -------------
 
 opt_out="$(bash "$DETECT" "$OPTOUT")"
 assert_contains "control residue still detected" "$opt_out" "Finding shape: plan-reference"
@@ -170,15 +152,10 @@ printf '%s\n' "$CLEAN" >"$PATHS"
 pf_out="$(bash "$DETECT" --paths-file "$PATHS")"
 assert_contains "paths-file target audited" "$pf_out" "Summary file: $CLEAN"
 
-# --paths-file with no value must fail fast (exit 2), not spin the arg loop forever.
 missing_val_exit=0
 timeout 10 bash "$DETECT" --paths-file >/dev/null 2>&1 || missing_val_exit=$?
 assert_exit "--paths-file with missing value exits 2" 2 "$missing_val_exit"
 
-# --- 8. Relative targets stay anchored to the caller cwd, not the repo root -----------
-# Invoked from a repo SUBDIRECTORY with a relative target (or relative --paths-file), the audit
-# must still find the file — it cd's to the repo root internally, so unanchored relatives miss.
-# The invocation dir must live inside a git repo for repo_root to differ from the caller cwd.
 REPO8="$TEST_TMPDIR/repo8"
 SUBDIR="$REPO8/sub/nested"
 mkdir -p "$SUBDIR"
@@ -192,12 +169,7 @@ printf '%s\n' "rel.py" >"$SUBDIR/rel-paths.txt"
 relpf_out="$(cd "$SUBDIR" && bash "$DETECT" --paths-file rel-paths.txt)"
 assert_contains "relative --paths-file target audited from subdir cwd" "$relpf_out" "Finding shape: history-narration"
 
-# --- 9. Default-target discovery parses porcelain, not whitespace fields (#3126) --------
-# A spaced path arrives C-quoted, and whitespace splitting made it vanish behind a
-# reassuring files=0, so the fixture name must contain a space. The arms use separate
-# repos so one correctly parsed file cannot keep files= above zero and mask the other.
 
-# 9a. Spaced path is the whole tree — the broken parse reports the misleading files=0.
 REPO9="$TEST_TMPDIR/repo9"
 mkdir -p "$REPO9"
 git -C "$REPO9" init -q
@@ -209,7 +181,6 @@ assert_not_contains "spaced default target does not claim a clean tree" "$spaced
 assert_contains "spaced default target audited" "$spaced_out" "Summary file: my helper.py"
 assert_contains "spaced default target finds shapes" "$spaced_out" "Finding shape: history-narration"
 
-# 9b. Rename arm: porcelain emits "old -> new"; the new path is the one to audit.
 REPO10="$TEST_TMPDIR/repo10"
 mkdir -p "$REPO10"
 git -C "$REPO10" init -q
@@ -222,8 +193,6 @@ rename_out="$(cd "$REPO10" && bash "$DETECT")"
 assert_contains "renamed default target resolves to the new path" "$rename_out" "Summary file: renamed.py"
 assert_not_contains "renamed default target does not audit the old path" "$rename_out" "Summary file: original.py"
 
-# 9c. A spaced path that is ALSO renamed exercises quote-stripping and the " -> " split
-# together — the combination the two arms above each cover only half of.
 REPO11="$TEST_TMPDIR/repo11"
 mkdir -p "$REPO11"
 git -C "$REPO11" init -q
@@ -236,11 +205,6 @@ spaced_rename_out="$(cd "$REPO11" && bash "$DETECT")"
 assert_not_contains "spaced rename is not reported as files=0" "$spaced_rename_out" "files=0"
 assert_contains "spaced rename resolves to the new path" "$spaced_rename_out" "Summary file: new name.py"
 
-# 9d. Porcelain is XY: X is the index status, Y the worktree status, and a rename can be
-# recorded in EITHER. An intent-to-add rename (`mv old new && git add -N new`) emits
-# " R old -> new" — the R is in Y, with X blank. Gating the arrow-split on X alone left
-# the record unsplit, so the whole "old -> new" string became the path and resolved to
-# nothing. Regression guard for that half of the rename case.
 REPO12="$TEST_TMPDIR/repo12"
 mkdir -p "$REPO12"
 git -C "$REPO12" init -q
@@ -254,18 +218,12 @@ worktree_rename_out="$(cd "$REPO12" && bash "$DETECT")"
 assert_not_contains "worktree-column rename is not reported as files=0" "$worktree_rename_out" "files=0"
 assert_contains "worktree-column rename resolves to the new path" "$worktree_rename_out" "Summary file: new.py"
 
-# --- 10. The audit action's default file list stays at parity with detect.sh (#3126) ----
-# A divergence between the listed files and the audit is a false negative, so this
-# runs the shared script itself after asserting the action still calls it. Fixture names
-# force C-quoting with a quote and backslash, since quote-stripping alone passes a space.
 
 SKILL_MD="$SCRIPT_DIR/../actions/audit.md"
 PREVIEW_SCRIPT="$SCRIPT_DIR/../../../scripts/changed-code-files.sh"
 if [[ ! -f "$SKILL_MD" || ! -f "$PREVIEW_SCRIPT" ]]; then
   fail "preview surfaces located for parity check" "actions/audit.md and scripts/changed-code-files.sh" "missing"
 else
-  # The action names the skill-local exec wrapper (repo grant convention, see
-  # allowed-tools-pairing.test.sh); it execs the same shared script, so parity holds.
   if ! grep -qF '<skill-dir>/scripts/changed-code-files.sh' "$SKILL_MD"; then
     fail "audit action lists files with the shared script" "a call through <skill-dir>/scripts/changed-code-files.sh" "line shape changed"
   else
@@ -274,15 +232,9 @@ else
     REPO13="$TEST_TMPDIR/repo13"
     mkdir -p "$REPO13"
     git -C "$REPO13" init -q
-    # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
     if host_can_name 'quote".py'; then : >"$REPO13/quote\".py"; fi
-    # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
     if host_can_name 'back\-slash.py'; then : >"$REPO13/back\\-slash.py"; fi
     : >"$REPO13/plain space.py"
-    # A non-ASCII name is the case the v1 parse could not decode: the é arrives octal-escaped as
-    # \303\251, which a quote-strip alone leaves naming no file. The ASCII fixtures above
-    # all pass either parse, so without this one the parity check stays green while the two
-    # parsers diverge on exactly the path detect.sh was moved to -z to reach.
     : >"$REPO13/café.py"
     cp "$ALL_SHAPES" "$REPO13/renamed-src.py"
     git -C "$REPO13" add renamed-src.py
@@ -294,14 +246,12 @@ else
 
     assert_contains "preview script reads a non-ASCII path undecoded" "$skill_out" 'café.py'
     assert_not_contains "preview script leaks no octal escape" "$skill_out" '\303'
-    # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
     if host_can_name 'quote".py'; then
       assert_contains "preview script unescapes an embedded quote" "$skill_out" 'quote".py'
     else
       skip "preview script unescapes an embedded quote" \
         'a double quote does not survive into a filename git can see here'
     fi
-    # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
     if host_can_name 'back\-slash.py'; then
       assert_contains "preview script unescapes an embedded backslash" "$skill_out" 'back\-slash.py'
     else
@@ -313,9 +263,6 @@ else
     assert_not_contains "preview script leaves no rename arrow" "$skill_out" ' -> '
     assert_not_contains "preview script leaves no escaped quote" "$skill_out" '\"'
 
-    # Parity in BOTH directions: a forward-only check misses an over-reporting preview (drop
-    # the awk rename skip and a prefix-offset path naming no file still passes forward). REPO13
-    # holds only code files, so the two sets must match exactly.
     detect_out="$(cd "$REPO13" && bash "$DETECT")"
     mapfile -t audited_paths < <(printf '%s\n' "$detect_out" | sed -n 's/^Summary file: \(.*\) | T1=.*$/\1/p')
     parity_ok=1
@@ -358,11 +305,6 @@ else
   fi
 fi
 
-# --- 11. Paths v1 porcelain escapes or renders ambiguously (#3126) ---------------------
-# The v1 record cannot be parsed back reliably: git wraps and C-style-escapes any path holding a
-# non-ASCII byte, a tab, or a backslash, and its "old -> new" rename rendering is byte-identical
-# to an ordinary file literally named "left -> right.py". Reading -z instead removes the encoding
-# entirely. Kept in its own repo so REPO13's parity fixture stays untouched.
 REPO14="$TEST_TMPDIR/repo14"
 mkdir -p "$REPO14"
 git -C "$REPO14" init -q
@@ -407,9 +349,6 @@ assert_not_contains "why-comment is not an origin note" "$origin_out" "Must stay
 assert_not_contains "bare date is not an origin note" "$origin_out" "Finding excerpt: # 2026-08-10"
 assert_not_contains "sanctioned TODO is not an origin note" "$origin_out" "TODO(#123)"
 
-# The control goes FIRST: cr_line_skipped suppresses a line when the marker is on it
-# OR on the line before it, so a control placed after the inline-marker line would be
-# swallowed and the case would pass for the wrong reason.
 ORIGIN_OPTOUT="$TEST_TMPDIR/origin-optout.py"
 cat >"$ORIGIN_OPTOUT" <<'EOF'
 # Merged 2026-07-24 from dot_bashrc
@@ -422,14 +361,6 @@ assert_contains "origin-note control still detected" "$origin_optout_out" "Findi
 assert_not_contains "origin-note marker opt-out (previous line)" "$origin_optout_out" "ported from the dotfiles"
 assert_not_contains "origin-note marker opt-out (same line)" "$origin_optout_out" "Copied from upstream"
 
-# The cue must open the comment or a clause inside it, and it must be a whole word.
-# Without both, `exported from` matches `ported from` and `padded <date>` matches
-# `added <date>`, and an ordinary description of runtime behavior becomes a finding.
-#
-# The last line is the portability pin. `[[ =~ ]]` rejects a bare `;` at parse time, so
-# the clause class has to be spelled `[,\;:]`; bash strips that backslash before regcomp
-# rather than passing it through as a bracket member. Were a bash version to pass it
-# through, a backslash would become a clause opener and this line would fire.
 ORIGIN_NEG="$TEST_TMPDIR/origin-negatives.py"
 cat >"$ORIGIN_NEG" <<'EOF'
 # helpers exported from index.ts
@@ -443,11 +374,6 @@ EOF
 origin_neg_out="$(bash "$DETECT" "$ORIGIN_NEG")"
 assert_contains "origin-note word and clause boundaries hold" "$origin_neg_out" "T1=0 T2=0 T3=0"
 
-# origin-note is tier 1, which reads "remove". A license or attribution header carries
-# text the reader may be legally required to keep, and a marker comment is tracked work,
-# so neither is an origin note however it opens. The marker test reuses
-# cr_is_sanctioned_todo verbatim rather than redefining which markers count, so a marker
-# in the TODO(#n) or TODO: form is exempt here exactly as it is for ticket-pr-residue.
 ORIGIN_EXEMPT="$TEST_TMPDIR/origin-exempt.py"
 cat >"$ORIGIN_EXEMPT" <<'EOF'
 # TODO(#123): ported from lib/x
@@ -470,10 +396,6 @@ origin_exempt_out="$(bash "$DETECT" "$ORIGIN_EXEMPT")"
 assert_contains "an ordinary origin note still fires beside the exempt lines" "$origin_exempt_out" "Finding excerpt: # Ported from lib/x"
 assert_contains "marker and license comments are exempt from origin-note" "$origin_exempt_out" "T1=1 T2=0 T3=0"
 
-# The exemption is BLOCK-scoped: a contiguous comment run carrying a license cue anywhere
-# in it is exempt whole, because the canonical NOTICE header does not repeat the cue on
-# the attribution line. The run ends at a blank line or at code, so the same sentence in
-# the next comment run is an ordinary origin note again.
 ORIGIN_BLOCK="$TEST_TMPDIR/origin-block.js"
 cat >"$ORIGIN_BLOCK" <<'EOF'
 /*
@@ -492,7 +414,6 @@ assert_contains "the same sentence after a blank line still fires" "$origin_bloc
 assert_contains "the same sentence after a code line still fires" "$origin_block_out" "Finding excerpt: // BLK2: Copied from the reference implementation."
 assert_contains "only the NOTICE block is exempt" "$origin_block_out" "T1=2 T2=0 T3=0"
 
-# The hash-comment run form, and the run ending at code rather than a blank line.
 ORIGIN_BLOCK_HASH="$TEST_TMPDIR/origin-block-hash.sh"
 cat >"$ORIGIN_BLOCK_HASH" <<'EOF'
 # Copyright 2019 Acme Corp.
@@ -505,11 +426,6 @@ assert_not_contains "a hash NOTICE run is exempt whole" "$origin_block_hash_out"
 assert_contains "a hash run after code still fires" "$origin_block_hash_out" "Finding excerpt: # HASH1: Ported from the reference implementation."
 assert_contains "only the hash NOTICE run is exempt" "$origin_block_hash_out" "T1=1 T2=0 T3=0"
 
-# The license cues are narrow: `copyright` counts beside a (c), a year, or at the start of
-# the comment, and `(c)` counts only in front of a year. Otherwise these two ordinary
-# comments would be silently exempted.
-# A doc-comment leader is decoration, not comment text. Left in place it occupies the
-# clause-opening position, so the cue right behind it never anchors.
 ORIGIN_LEADER="$TEST_TMPDIR/origin-leader.cs"
 cat >"$ORIGIN_LEADER" <<'EOF'
 /// Ported from the reference implementation.
@@ -520,8 +436,6 @@ assert_contains "a /// doc-comment leader does not block the anchor" "$origin_le
 assert_contains "a //! doc-comment leader does not block the anchor" "$origin_leader_out" "Finding excerpt: //! Ported from the reference implementation."
 assert_contains "both doc-comment forms are findings" "$origin_leader_out" "T1=2 T2=0 T3=0"
 
-# The cue needs a terminator at its end, or `from` matches inside `fromage` and a date
-# matches inside a longer run of characters.
 ORIGIN_TERM="$TEST_TMPDIR/origin-terminator.js"
 cat >"$ORIGIN_TERM" <<'EOF'
 // ported fromage is a cheese
@@ -532,8 +446,6 @@ EOF
 origin_term_out="$(bash "$DETECT" "$ORIGIN_TERM")"
 assert_contains "the cue must end on a boundary" "$origin_term_out" "T1=0 T2=0 T3=0"
 
-# The boundary must not swallow an ISO-8601 datetime: the `T` is alphanumeric, so a
-# terminator alone would stop a timestamped origin note from matching.
 ORIGIN_DT="$TEST_TMPDIR/origin-datetime.js"
 cat >"$ORIGIN_DT" <<'EOF'
 // Added 2026-09-01T12:00 from the vendor feed
@@ -554,8 +466,6 @@ assert_contains "a bare copyright mention does not exempt" "$origin_narrow_out" 
 assert_contains "a yearless (c) token does not exempt" "$origin_narrow_out" "Finding excerpt: // NAR2: Copied from the legacy fork"
 assert_contains "both narrowed cases are findings again" "$origin_narrow_out" "T1=2 T2=0 T3=0"
 
-# One line can carry two shapes with opposite tiers; both are reported, neither masks
-# the other.
 ORIGIN_BOTH="$TEST_TMPDIR/origin-both.py"
 cat >"$ORIGIN_BOTH" <<'EOF'
 # Merged 2026-07-24 from branch feature/x
@@ -565,7 +475,6 @@ assert_contains "origin-note reports the branch-bearing line" "$origin_both_out"
 assert_contains "ticket-pr-residue reports the same line" "$origin_both_out" "Finding shape: ticket-pr-residue"
 assert_contains "double-fire is one T1 and one T2" "$origin_both_out" "T1=1 T2=1 T3=0"
 
-# --- 9. Ticket-pr negatives: plain prose must not fire (#4530) -----------------------
 
 PROSE_NEG="$TEST_TMPDIR/prose-neg.yml"
 cat >"$PROSE_NEG" <<'EOF'
@@ -584,10 +493,7 @@ EOF
 feature_branch_out="$(bash "$DETECT" "$FEATURE_BRANCH")"
 assert_contains "from the feature branch is ticket-pr-residue" "$feature_branch_out" "Finding shape: ticket-pr-residue"
 
-# --- 10. Cue coverage, word boundaries, bare repo#N, anchored marker exemption ---------
 
-# Each case is one comment line in a throwaway file, so a finding cannot be blamed on a
-# neighbor. `expect_shape` wants the shape reported; `expect_clean` wants no finding at all.
 CUE_N=0
 cue_file() {
   CUE_N=$((CUE_N + 1))
@@ -606,7 +512,6 @@ expect_clean() {
   assert_contains "$1" "$out" "T1=0 T2=0 T3=0"
 }
 
-# Every example in SKILL.md's shapes table is a finding.
 expect_shape "example: used to" "used to buffer writes" history-narration
 expect_shape "example: no longer" "no longer needed after the rewrite" history-narration
 expect_shape "example: previously" "previously a linked list" history-narration
@@ -629,8 +534,6 @@ expect_shape "example: org/repo#N" "melodic-software/dotfiles#647" ticket-pr-res
 expect_shape "example: from the feature branch" "from the feature branch" ticket-pr-residue
 expect_shape "example: JIRA-123" "JIRA-123" ticket-pr-residue
 
-# Every tier-1 cue is a whole phrase. The negatives sit one character off the cue: a longer
-# word behind it, or a longer word in front of it.
 expect_clean "used tokens is not used to" "used tokens are cached"
 expect_clean "reformerly is not formerly" "reformerly"
 expect_clean "previouslyx is not previously" "previouslyx"
@@ -659,21 +562,14 @@ expect_clean "you wantedly is not you wanted" "you wantedly"
 expect_clean "like you saidx is not like you said" "like you saidx"
 expect_clean "pull request in plain prose" "runs on every pull request before merge"
 
-# The end boundary is a boundary, not a space: punctuation after the cue still fires.
 expect_shape "cue followed by punctuation" "used to, until the rewrite" history-narration
 
-# Bare name#N needs a name of at least three characters and a non-alphanumeric character
-# before it, so language names with a sharp and a section number are not references. A
-# bare (#3126) stays uncounted.
 expect_clean "C#7 is not a reference" "C#7 records need the newer compiler"
 expect_clean "F# 3 is not a reference" "F# 3 supports type providers"
 expect_clean "A#5 is not a reference" "A#5 is a note name"
 expect_clean "see section #3 is not a reference" "see section #3"
 expect_clean "bare (#3126) is not counted" "fixes the loop (#3126)"
 
-# The marker exemption is anchored: a whole word that opens the comment or a clause and is
-# followed by `(` or `:`. A marker mentioned mid-sentence exempts nothing. A marker inside a
-# longer word (`TODOS`, `XXXL`) is no marker.
 expect_clean "TODO(#n) exempts its ticket ref" "TODO(#123): see PR #45"
 expect_clean "TODO: exempts its ticket ref" "TODO: see PR #45"
 expect_clean "clause-opening FIXME: exempts" "note; FIXME: from branch x"
@@ -681,8 +577,6 @@ expect_shape "marker mentioned mid-sentence exempts nothing" "see PR #45 and the
 expect_shape "bare TODO without ( or : exempts nothing" "TODO fix, see PR #45" ticket-pr-residue
 expect_shape "marker inside a longer word exempts nothing" "TODOS: see PR #45" ticket-pr-residue
 
-# history-narration-weak (tier 2): cues that also open ordinary prose. Each whole-word cue
-# fires, the shape is Tier 2, and a longer word on either side of the cue does not.
 expect_no_shape() {
   local out
   out="$(bash "$DETECT" "$(cue_file "$2")")"
@@ -720,8 +614,6 @@ expect_shape "replaces the old stays plan-reference" "Task 2 replaces the old to
 expect_shape "the old after replaces the old still counts" "replaces the old tokenizer; the old shared group" history-narration-weak
 expect_no_shape "identifier is not a comment" 'the_old_shared = 1' history-narration-weak
 
-# A comment line that continues a comment on the previous line is also read joined to it. The
-# wrapped finding is reported once, at the first line's number.
 wrap_fixture() {
   local f="$TEST_TMPDIR/wrap-$1.py"
   cat >"$f"
@@ -784,7 +676,6 @@ assert_eq "two lines with own findings give three findings" "3" "$(wrap_count "$
 first_line="$(grep -m1 '^Finding line:' <<<"$wrap_out")"
 assert_eq "own findings keep line order" "Finding line: 1" "$first_line"
 
-# No join across code, a blank comment line, or a gap.
 wrap_out="$(bash "$DETECT" "$(wrap_fixture nojoin <<'EOF'
 # grouped (ci-perf Phase
 value = 6
@@ -797,7 +688,6 @@ EOF
 )")"
 assert_contains "no join across code or a blank comment line" "$wrap_out" "T1=0 T2=0 T3=0"
 
-# A trailing comment on a code line does not continue a comment.
 wrap_out="$(bash "$DETECT" "$(wrap_fixture trailing <<'EOF'
 # grouped (ci-perf Phase
 value = 6  # 6b) ends here
@@ -805,7 +695,6 @@ EOF
 )")"
 assert_contains "code line with a trailing comment starts no join" "$wrap_out" "T1=0 T2=0 T3=0"
 
-# Opt-out markers still hold for a joined finding, on either line and on the line before.
 wrap_out="$(bash "$DETECT" "$(wrap_fixture ignore <<'EOF'
 # grouped (ci-perf Phase
 # 6b) ends here comment-residue-ignore
@@ -818,7 +707,6 @@ EOF
 )")"
 assert_contains "opt-out marker suppresses a joined finding" "$wrap_out" "T1=0 T2=0 T3=0"
 
-# A license block stays exempt from origin-note when the cue wraps.
 wrap_out="$(bash "$DETECT" "$(wrap_fixture license <<'EOF'
 # SPDX-License-Identifier: MIT
 # vendored: ported
@@ -833,7 +721,6 @@ EOF
 )")"
 assert_contains "wrapped origin cue outside a license block is found" "$wrap_out" "Finding shape: origin-note"
 
-# --- Upstream labels and --exclude-from ---------------------------------------------------
 
 REPOUP="$TEST_TMPDIR/repoup"
 mkdir -p "$REPOUP/gen"
@@ -875,7 +762,6 @@ ex_noval_exit=0
 timeout 10 bash "$DETECT" --exclude-from >/dev/null 2>&1 || ex_noval_exit=$?
 assert_exit "--exclude-from with no value exits 2" 2 "$ex_noval_exit"
 
-# --- unjustified-workaround: a workaround comment with no link and no removal condition ---
 
 WORK="$TEST_TMPDIR/workaround.sh"
 cat >"$WORK" <<'EOF'
@@ -927,7 +813,6 @@ assert_not_contains "'until upstream fixes' justifies the workaround" "$work_out
 assert_not_contains "'until fixed' justifies the workaround" "$work_out" "$(wk_at 20)"
 assert_contains "the file counts exactly the three unjustified workarounds" "$work_out" "Summary file: $WORK | T1=0 T2=3 T3=0"
 
-# tidy's #14 example: the old form is flagged, the reconciled form carries its removal condition.
 TIDY_OLD="$TEST_TMPDIR/tidy-old.cs"
 printf '%s\n' '// Workaround: the IDE locks analyzer DLLs; output to bin/cli/ when not building inside it' >"$TIDY_OLD"
 assert_contains "tidy's old #14 example is flagged" "$(bash "$DETECT" "$TIDY_OLD")" "$(wk_at 1)"
@@ -935,7 +820,6 @@ TIDY_NEW="$TEST_TMPDIR/tidy-new.cs"
 printf '%s\n' '// Workaround: the IDE locks analyzer DLLs; output to bin/cli/ when not building inside it, and remove when the IDE releases the lock after a build' >"$TIDY_NEW"
 assert_contains "tidy's new #14 example is not flagged" "$(bash "$DETECT" "$TIDY_NEW")" "T1=0 T2=0 T3=0"
 
-# --- --added-since <base>: only comments on lines the branch adds --------------------------
 
 REPOADD="$TEST_TMPDIR/repoadd"
 mkdir -p "$REPOADD"
@@ -955,9 +839,6 @@ assert_contains "--added-since counts only the changed file" "$add_out" "Summary
 add_out="$(cd "$REPOADD" && bash "$DETECT" --added-since HEAD old.py untouched.py)"
 assert_contains "--added-since with targets still filters to added lines" "$add_out" "Summary total: files=1 T1=0 T2=1 T3=0"
 
-# git names the root in one spelling and the shell resolves targets in another (Git for
-# Windows: C:/... against /c/...). A git wrapper reports the root through a symlink, so the
-# spellings differ on any host; an explicit target must still match its added lines.
 ln -s "$REPOADD" "$TEST_TMPDIR/repoadd-alias"
 ALTGIT="$TEST_TMPDIR/altgit"
 mkdir -p "$ALTGIT"
@@ -975,8 +856,6 @@ add_rc=0
 timeout 10 bash "$DETECT" --added-since >/dev/null 2>&1 || add_rc=$?
 assert_exit "--added-since with no value exits 2" 2 "$add_rc"
 
-# A wrapped pair is reported at its first line whichever of its two lines is added, and a
-# marker on an unchanged line still suppresses the added line after it.
 REPOWRAP="$TEST_TMPDIR/repowrap"
 mkdir -p "$REPOWRAP"
 git -C "$REPOWRAP" init -q
@@ -999,9 +878,6 @@ assert_contains "--added-since: a marker on an unchanged line suppresses the add
 assert_contains "--added-since: the marker's control line is still found" \
   "$wrap_add_out" $'File: ignore.py\nFinding tier: 1\nFinding shape: history-narration\nFinding line: 6\n'
 
-# Under --added-since, detection runs only on lines an added line can reach, so its cost
-# tracks the added lines, not the file length. bash -x traces each detection call; a count
-# holds on a shared runner where a wall-clock bound would flake.
 REPOCOST="$TEST_TMPDIR/repocost"
 mkdir -p "$REPOCOST"
 git -C "$REPOCOST" init -q

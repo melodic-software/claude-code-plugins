@@ -164,18 +164,18 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -379,7 +379,7 @@ jobs:
         if: always() && steps.label.outputs.verdicts == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/work-unblock-verdicts.json
@@ -387,7 +387,7 @@ jobs:
       - name: Upload the verdicts for the next sweep
         if: (always() && steps.label.outputs.verdicts == 'true') && steps.scan-verdicts.outputs.clean == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: work-unblock-verdicts
           path: ${{ runner.temp }}/work-unblock-verdicts.json
@@ -399,7 +399,7 @@ jobs:
       - name: Keep the lane hold marker
         if: steps.label.outcome == 'success'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: lane-hold-work-unblock
           path: ${{ runner.temp }}/lane-hold/work-unblock
@@ -467,18 +467,18 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -591,7 +591,7 @@ jobs:
         if: always() && steps.publish.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/lane-level-state.json
@@ -601,7 +601,7 @@ jobs:
       - name: Upload the decision for the next hour
         if: (always() && steps.publish.outcome == 'success') && steps.scan-state.outputs.clean == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: lane-level-state
           path: ${{ runner.temp }}/lane-level-state.json
@@ -651,18 +651,18 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 

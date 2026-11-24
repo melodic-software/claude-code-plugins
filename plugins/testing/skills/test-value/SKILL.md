@@ -135,6 +135,11 @@ https://jestjs.io/docs/snapshot-testing.
 - The suite needs checking for the shapes in the taxonomy below: /testing:audit.
 - A folder of low-value tests needs rewriting or pruning: /testing:cleanup <folder>.
 
+## Related
+
+- Broader Beck and Khorikov TDD doctrine: /tdd:principles.
+- Dynamic surviving-mutant checks: /mutation-testing:audit.
+
 ## 5. Taxonomy, keyed to `/testing:audit` rule ids
 
 **Cannot fail** (green whatever the code does):

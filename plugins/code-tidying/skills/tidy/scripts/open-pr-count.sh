@@ -1,17 +1,9 @@
 #!/usr/bin/env bash
-# Open chore/tidy-* PR count for the backlog throttle.
-#
-# -e omitted: fact-gatherer must capture gh's exit code, not abort on it.
-# -o pipefail omitted: graceful degradation when gh fails mid-pipeline.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# In this repository's CI, the job's api-budget notice counts the gh call below.
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 IFS=$'\t' read -r THROTTLE_LIMIT LIMIT_SOURCE < <(bash "$SCRIPT_DIR/upkeep-setting.sh" upkeep_max_open)
-# Open PRs are listed without a search and filtered by head branch here: a
-# degraded search can answer a false empty with no signal gh passes on. A
-# listing that fills its limit may be missing tidy PRs, so it throttles.
 LIST_LIMIT=1000
 
 usage() {

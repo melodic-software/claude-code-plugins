@@ -3,6 +3,16 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.2] - 2026-11-24
+
+### Fixed
+
+- `/corrections:codify` on a person's invocation now writes the proposal file under
+  `.work/codify/` before the report, instead of sometimes only showing the proposal in the reply.
+  A run counts as a person's invocation when their own message runs `/corrections:codify` as a
+  command, whether the slash command loaded the skill or the model loaded it through the Skill
+  tool.
+
 ## [1.10.1] - 2026-11-23
 
 ### Changed

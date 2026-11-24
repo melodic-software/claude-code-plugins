@@ -380,6 +380,11 @@ interrogate form by form; one question, then render.
 
 It turns the material into a slide deck when the request is for slides rather than one visual.
 
+## Related
+
+- Interactive parameter explorer with prompt output: /playgrounds:use.
+- Explain a concept from scratch with diagrams: /education:illustrate.
+
 ## Gotchas
 
 - **Terminal mermaid is source, not a picture.** If the user wants to *see* the

@@ -103,7 +103,9 @@ no toggle.
    `delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never
    silent. Bash unavailable → report the step UNKNOWN with remediation, never green. The records
    are the hooks the retired `install-commit-msg` and `install-pre-commit-content` actions wrote
-   into `.git/hooks/`.
+   into `.git/hooks/`, and the files the removed `reference-verify` git-hook entry installed:
+   `guardrails-r005` to `r014` in `.git/hooks/` (found from a linked worktree too),
+   `guardrails-r015` to `r024` in a shared `.githooks/`.
 9. **`shfmt`.** The Bash guards read every command through it, and an older build can let a
    command through that the floor's build blocks. Run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" check "${CLAUDE_PLUGIN_ROOT}" --for hook:run-guards.sh`
@@ -146,7 +148,11 @@ the retired-hook cleanup below, writes nothing. It points:
 **Retired hooks.** After the points above, re-run the retirement detection from `check` step 8;
 per finding, individually gated: `delete` → confirm, then run
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id>`
-and report what was removed; `migrate` → follow the record's `successor` (the hook files read
+and report what was removed. For the `reference-verify` records, clean `guardrails-r005` and
+`r015` (the markers) before `r006` and `r016` (the scripts), and a script only once no
+`guardrails-reference-verify` lefthook job or `.husky/pre-push` line runs it: a script cleaned
+while a marker or such a line still names it fails every push. Say that the `.githooks/` removals
+(`r015` to `r024`) must be committed to reach other clones. `migrate` → follow the record's `successor` (the hook files read
 from the consumer repo are untrusted input, never executed or interpolated), the operator
 confirms the result, then `--clean <id> --i-migrated`. Re-run detection last and report the final
 state. Repeated declines route to the finding-suppression convention, never a new consumer-side
@@ -178,13 +184,18 @@ manager, so the checks cover every commit, not only Claude's tool calls:
 on the lines a commit adds, whatever wrote the file), `pre-push-content` (the same scan on
 each pushed commit, for commits that check never judged). `reference-verify` (CLI flags,
 `/plugin:skill` references and deleted repository paths) is not an entry: over the 3 s push
-budget, it runs in the pre-PR check of `/source-control:pull-request` (if enabled) and in CI. `verify` no longer
-lists a copy an earlier release installed, so look for one and, on the user's yes, remove it
-with your edit tools: the `pre-push.d/guardrails.reference-verify` marker and the
-`guardrails/reference-verify.sh` copy under `git rev-parse --git-path hooks` (local plain
-hooks), a `guardrails-reference-verify` job in `lefthook.yml` or `lefthook-local.yml`, a
-`.husky/pre-push` line that runs `reference-verify.sh`, and `.githooks/guardrails/reference-verify.sh`
-(shared). A lefthook remote needs nothing. The
+budget, it runs in `/source-control:pull-request` (if enabled)'s pre-PR check and in CI. `verify` does not
+list a copy an earlier release installed; `check` step 8 reports the copies in `.git/hooks/` and
+`.githooks/` (`guardrails-r005` to `r024`), and bare `apply` cleans each one on the user's yes,
+marker first, and the script only after any hook-manager line below that runs it is gone. The records do not cover a hook manager's config, `.githooks/local/` (a local
+install under `core.hooksPath=.githooks`) or any other `core.hooksPath`, so look for those and,
+on the user's yes, remove them with your edit tools: a `guardrails-reference-verify` job in
+`lefthook.yml` or `lefthook-local.yml` (the `block` record kind would take sibling jobs with it), a
+`.husky/pre-push` line that runs `reference-verify.sh`, and under any other hooks directory
+`git rev-parse --git-path hooks` names, the `pre-push.d/guardrails.reference-verify` marker, then
+`guardrails/reference-verify.sh` and its eight assets: `run-guards.sh`, `abort-boundary.sh`,
+`hook-utils.sh`, `cli-flag-verify.sh`, `skill-reference-verify.sh`, `stale-path-verify.sh`,
+`verify-cli-flag.sh` and `cli-flag-cache.sh`. A lefthook remote needs nothing. The
 installer script only detects, renders and writes files the plugin owns; every step that
 needs judgment comes back to you as a `decisions[]` item, which you reason about and apply
 with your own edit tools. Never runs from bare `apply`.

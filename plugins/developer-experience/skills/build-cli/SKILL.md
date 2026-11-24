@@ -116,6 +116,13 @@ yourself against the same fifteen rules, the secrets rule and correctness, and l
 - Other tooling in the repository to take stock of: /developer-experience:audit-tools.
 - The change needs a general code review: /review:quality-gate.
 
+## Related
+
+- CLI help text and error layout: /user-interface:design.
+- Research ecosystem parser or layout: /discovery:research.
+- Build and test checks: /toolchain:check.
+- End-to-end smoke test: /testing:run-e2e.
+
 ## Gotchas
 
 - A conventions file can describe a team rule ("new commands accept `--yes`") that existing

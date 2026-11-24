@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [9.22.7] - 2026-11-24
+
+### Changed
+
+- `/session-flow:retro` routes a retro of a standards or instruction file to `/corrections:codify rules <file>` and stops.
+
+- Adds an eval case for the retro route of a standards file to `/corrections:codify rules`.
+
 ## [9.22.6] - 2026-11-23
 
 ### Changed

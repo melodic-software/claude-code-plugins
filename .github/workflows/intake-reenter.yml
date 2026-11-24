@@ -122,18 +122,18 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 

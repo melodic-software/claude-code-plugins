@@ -1,10 +1,4 @@
 {
-  "resolve-attempted": [
-    {
-      "use": "command_position"
-    },
-    "ctx7(?:@[\\w.-]+)?(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+library\\b"
-  ],
   "no-update-action": [
     {
       "use": "command_anywhere"

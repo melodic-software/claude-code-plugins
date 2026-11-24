@@ -73,8 +73,11 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
   picks another conversation, its start notice says which profile it now runs in. Tell them both
   forms.
 - **reopen with an off plugin**: in a one-session profile, the session-start hook gives the model
-  the reopen line as context, at start and again after compaction (the notice the user sees does
-  not carry it): `claude --resume <id>` with `--profile-add <plugin or plugin:skill>` added.
+  the reopen line as context, at start and again after compaction: `claude --resume <id>` with
+  `--profile-add <plugin or plugin:skill>` added. A typed `/plugin:skill` from an off plugin gets
+  `Unknown command` before any hook runs, so the user's start notice says plugins outside the
+  profile are off and gives the line with `--profile-add <plugin>`: the user may ask for the
+  plugin in words or copy that line.
   When the work needs a plugin or skill the profile switched off (a `## Next` pointer into it, or
   the user asking for it), offer that line with the session's id: it reopens this conversation in its profile with the
   plugin and its dependencies on, for this conversation only, and a later `claude --resume <id>`

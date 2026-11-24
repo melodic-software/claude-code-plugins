@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "guardrails-r015 to guardrails-r024 (.githooks/, the shared reference-verify marker, script and assets): each WARN, delete; run /guardrails:setup apply, then commit the removals."
+    },
+    {
+      "answer": "| guardrails-r015 | WARN | apply |\n| guardrails-r016 | WARN | apply |\n| guardrails-r017 | WARN | apply |\n| guardrails-r018 | WARN | apply |\n| guardrails-r019 | WARN | apply |\n| guardrails-r020 | WARN | apply |\n| guardrails-r021 | WARN | apply |\n| guardrails-r022 | WARN | apply |\n| guardrails-r023 | WARN | apply |\n| guardrails-r024 | WARN | apply |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "guardrails-r015 to guardrails-r024: INFO.",
+      "why": "wrong verdict, no remediation"
+    },
+    {
+      "answer": "guardrails-r015 and guardrails-r016: WARN; run apply.",
+      "why": "near miss: the shared assets are missing"
+    }
+  ]
+}

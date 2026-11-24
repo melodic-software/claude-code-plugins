@@ -76,14 +76,14 @@ jobs:
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the run's main commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -131,7 +131,7 @@ jobs:
 
       - name: Upload the candidate list
         if: steps.plan.outputs.planned != '' && steps.plan.outputs.planned != '0'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/branch-cleanup-candidates.json
@@ -167,14 +167,14 @@ jobs:
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the run's main commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -202,7 +202,7 @@ jobs:
       # list over the cap or with an entry it does not expect.
       - name: Download the candidate list
         if: steps.kill.outputs.proceed == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.select-stale-branches.outputs.candidates }}
           path: ${{ runner.temp }}/branch-cleanup-candidates
@@ -225,7 +225,7 @@ jobs:
       # delete survives.
       - name: Upload the ledger
         if: always() && steps.kill.outputs.proceed == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: branch-cleanup-ledger-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/branch-cleanup-ledger.jsonl

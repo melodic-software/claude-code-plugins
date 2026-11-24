@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for the lever catalogue (reference/levers.json).
-#
-# The catalogue's honesty rule made mechanical: every lever carries a category
-# from the declared vocabulary, at least one official citation, a posture, a
-# verified date, and a recheck trigger; net-negative levers are never
-# recommendable; and no row smuggles in a token figure (the engine measures,
-# the catalogue never asserts values).
-#
-# Self-contained: defines its own assertion helpers — installed plugins are
-# cache-isolated with no shared test lib.
 
 set -uo pipefail
 
@@ -79,7 +69,6 @@ console.log(problems.length ? problems.join("\n") : "CLEAN");
 report_clean "$out" \
   "catalogue: every lever categorized, cited, postured, dated, with a recheck trigger; no shipped token figures"
 
-# Keys that left the settings overview page for settings-reference (#3198).
 citeout="$(node -e '
 const cat = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 const problems = [];
@@ -120,7 +109,6 @@ console.log(problems.length ? problems.join("\n") : "CLEAN");
 report_clean "$citeout" \
   "moved settings keys cite settings-reference anchors; disableArtifact is user-scope"
 
-# #3200 — env measurement route + resolvable simple-system-prompt condition.
 routeout="$(node -e '
 const cat = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 const problems = [];
@@ -162,10 +150,6 @@ console.log(problems.length ? problems.join("\n") : "CLEAN");
 report_clean "$routeout" \
   "include-git-instructions names the env route; simple-system-prompt points at the lean-prompt probe record and describes =0 without emitting it"
 
-# #17836: the probe record keeps the unrecognized-name rule and the =0 setting,
-# and never brings back the legacy model-id fallback claim. The record lives
-# in the repository's docs/, absent from an installed plugin copy: skip there.
-# https://github.com/melodic-software/claude-code-plugins/issues/17836
 RECORD="$SCRIPT_DIR/../../../../../docs/upstream/claude-code-lean-prompt-selector.md"
 if [[ -f "$RECORD" ]]; then
   recordout="$(node -e '

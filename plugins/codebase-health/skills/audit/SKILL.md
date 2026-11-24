@@ -410,6 +410,14 @@ the deliverable.
 - Findings to fix: /implementation:implement.
 - Fixes applied: /verification:confirm.
 
+## Related
+
+- Session assumptions drifted: /session-flow:reanchor.
+- Upstream vendor docs drift: /discipline:recheck-against-upstream.
+- Unattributed claims or stale stamps: /attribution:audit.
+- Harness config or instruction drift: /harness-config:audit.
+- Cross-repo duplicated files: /coupling:reduce.
+
 ## Remediation (delegated to other plugins)
 
 The audit ends at the Phase 3 report: the findings table, verified-non-issues proof, drift patterns,

@@ -215,6 +215,12 @@ Routine, a scheduled workflow, a loop lane). Never inferred from the environment
 - Draft PR opened, unattended run whose caller authorizes the flip: /source-control:pull-request ready --unattended.
 - Improvement too big for one PR: /planning:plan.
 
+## Related
+
+- Ranking multiple improvement candidates first: /improvement:find.
+- Structure-only code tidying sweep: /code-tidying:tidy.
+- Diagnosing an observed failure: /debugging:debug.
+
 ## Gotchas
 
 - **Asking is the step that pays.** With no arguments, an improvement built on a guessed target is

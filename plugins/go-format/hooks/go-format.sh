@@ -58,7 +58,6 @@ while IFS= read -r path; do
   seen+="$path"$'\n'
   escaped=""
   hook::json_escape_to escaped "$path"
-  # Existence, symlink and project membership, as for a single-file hook.
   hook::read_file_path_to file "{\"tool_input\":{\"file_path\":\"$escaped\"}}" || continue
   [[ "$file" == */.githooks/* ]] && continue
   hook::dirname_to dir "$file"

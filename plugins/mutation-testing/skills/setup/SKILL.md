@@ -324,12 +324,6 @@ For the `team` layer, a tracked `docs/conventions/mutation-testing.yaml` and
 `/plugin configure` line. Each ends with a one-paragraph summary of what was written and how to
 re-run this setup to reconfigure; `team` and `local` also give the measured baseline suite time.
 
-## Next
-
-/mutation-testing:audit
-
-Runs the first mutation analysis against the configuration this setup wrote.
-
 ## What this skill does NOT do
 
 - Run a mutation analysis. That is `/mutation-testing:audit`. `check` runs the *unmutated* suite

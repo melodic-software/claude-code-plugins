@@ -29,17 +29,6 @@
 // unparsable (the degradation path — stdout carries a context-budget.error/1
 // record with a remediation); 4 `snapshot --measure-only` found the Agent SDK
 // absent (no cli-parse fallback, no install offer).
-//
-// Comparability rules the engine enforces (measured, see the plugin's
-// reference/engine.md):
-//   - Prefix `System tools` deltas are only meaningful between runs whose
-//     skill listing is identical (listed skill-frontmatter tokens are
-//     subtracted from that bucket). The deferred bucket is a separate pool
-//     and listing drift does not poison it. Every record carries a
-//     skill-listing signature; compare/attribute mark
-//     `systemToolsComparable: false` on mismatch.
-//   - Deltas are computed within one mode and one binary version only. Those
-//     shared checks apply to both attributed buckets.
 
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -62,14 +51,8 @@ const DEFAULT_CATALOGUE = join(SCRIPT_DIR, '..', 'reference', 'levers.json');
 const INTERACTIVE_ONLY_LISTING = join(SCRIPT_DIR, '..', 'reference', 'interactive-only-tools.json');
 const INTERACTIVE_ONLY_SCHEMA = 'context-budget.interactive-only/1';
 
-// Settings keys and env names the catalogue cites. Env vars are the CLAUDE_CODE_
-// / ENABLE_ / DISABLE_ family; settings keys are camelCase identifiers in the
-// row's prose fields. A row may override with `binaryTokens`.
 const ENV_TOKEN_RE = /\b(?:CLAUDE_CODE|ENABLE|DISABLE)_[A-Z0-9_]+\b/g;
 
-// Linear camelCase scan — no nested quantifiers. The regex spelling of this,
-// /\b[a-z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]*)+\b/g, is ReDoS-vulnerable on a long
-// same-case run that then fails \b (e.g. "a" + "A"*n + "_").
 function extractCamelKeys(text) {
   const out = [];
   const s = String(text);
@@ -99,8 +82,6 @@ function extractCamelKeys(text) {
 
 const SPAWN_TIMEOUT_MS = 180000;
 
-// The two /context buckets a bare-name tool deny moves — the buckets the
-// attribute pipeline sums per-tool and for the additivity check.
 const SYSTEM_TOOL_BUCKETS = ['System tools', 'System tools (deferred)'];
 const [PREFIX_BUCKET, DEFERRED_BUCKET] = SYSTEM_TOOL_BUCKETS;
 
@@ -115,8 +96,6 @@ function degrade(error, detail, remediation, code = 3) {
   process.exit(code);
 }
 
-// Exit code of `snapshot --measure-only` when the Agent SDK is absent; distinct
-// from 3 (measurement unavailable) so a read-only caller can tell the two apart.
 const EXIT_SDK_ABSENT = 4;
 
 function nowUtc() {
@@ -127,7 +106,6 @@ function sha12(text) {
   return createHash('sha256').update(text).digest('hex').slice(0, 12);
 }
 
-// Flags that take no value; everything else consumes the next argv element.
 const FLAG_ONLY = ['help', 'verify-additivity', 'list', 'find-unstored', 'measure-only'];
 
 function parseArgs(argv) {
@@ -179,8 +157,6 @@ function resolveBinary(explicit) {
     }
     return realpathSync(explicit);
   }
-  // .exe before .cmd: a real executable spawns everywhere, while a .cmd shim
-  // needs a shell (see spawnBinary); prefer the form that works unaided.
   const exts = process.platform === 'win32' ? ['.exe', '.cmd', ''] : [''];
   for (const dir of (process.env.PATH || '').split(delimiter)) {
     if (!dir) continue;
@@ -194,9 +170,6 @@ function resolveBinary(explicit) {
   return null;
 }
 
-// Node cannot execute Windows command shims (.cmd/.bat) directly — they need
-// a shell. Route those through spawnSync's shell mode; real executables spawn
-// unaided on every platform.
 function spawnBinary(bin, args, opts) {
   const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
   return spawnSync(bin, args, { ...opts, ...(needsShell ? { shell: true } : {}) });
@@ -233,17 +206,9 @@ function sdkVersionFromEntry(entry) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// /context markdown parsing (cli-parse mode and the offline parse-context
-// subcommand). Version-aware: refuses to guess when the expected sections are
-// absent — the format has materially changed several times and carries no
-// stability guarantee.
-// ---------------------------------------------------------------------------
 
 class ParseError extends Error {}
 
-// "11.4k" -> {tokens: 11400, rounded: true}; "8" -> {tokens: 8, rounded: false}
-// "~90" -> {tokens: 90, rounded: true}; "< 20" -> {tokens: 20, rounded: true}
 function parseTokenCell(cell) {
   const t = cell.trim();
   let m = t.match(/^~?\s*([\d.]+)k$/i);
@@ -256,8 +221,6 @@ function parseTokenCell(cell) {
 }
 
 function tableRows(lines, startIdx) {
-  // startIdx points at the header row `| a | b | ... |`; skip it and the
-  // divider, then collect until the first non-row line.
   const rows = [];
   for (let i = startIdx + 2; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -278,14 +241,11 @@ function findSection(lines, heading) {
   return null;
 }
 
-// The disclosure phrase the parser writes into a caveat and compare reads back.
 function absentRowPhrase(bucket) {
   return `"${bucket}" row absent`;
 }
 
 function parseContextMarkdown(text, { binaryVersion: version = null } = {}) {
-  // Trap: unredirected stdin prepends a warning line; anything before the
-  // first markdown heading is not /context output.
   const firstHeading = text.search(/^#/m);
   if (firstHeading < 0) throw new ParseError('no markdown heading found in output');
   const lines = text.slice(firstHeading).split(/\r?\n/);
@@ -304,9 +264,6 @@ function parseContextMarkdown(text, { binaryVersion: version = null } = {}) {
     categories[cells[0]] = tokens;
     anyRounded = anyRounded || rounded;
   }
-  // No system-tool bucket at all is format drift: refuse. One bucket alone is a
-  // shape headless /context has been observed to print; the absent bucket stays
-  // absent (unmeasured, never zero-filled) and a caveat names it.
   const missingBuckets = SYSTEM_TOOL_BUCKETS.filter((b) => !(b in categories));
   if (missingBuckets.length === SYSTEM_TOOL_BUCKETS.length) {
     throw new ParseError('category table parsed but carries neither a "System tools" nor a '
@@ -337,10 +294,6 @@ function parseContextMarkdown(text, { binaryVersion: version = null } = {}) {
     }
   }
 
-  // Optional `Caveat:` lines are not part of /context's table. The hermetic
-  // fake binary uses them so a deny run can carry a disclosure the baseline
-  // does not. A real /context render has none, and unknown lines elsewhere
-  // stay ignored.
   const caveats = [...absenceCaveats];
   for (const line of lines) {
     const match = /^Caveat:\s+(.+)$/.exec(line);
@@ -386,8 +339,6 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
     pathToClaudeCodeExecutable: bin,
     ...(deny.length ? { disallowedTools: deny } : {}),
   };
-  // "/context" is handled by the CLI itself, so the spawned session makes no
-  // model API call; the structured usage arrives over the control protocol.
   const q = query({ prompt: '/context', options });
 
   const { init, usage } = await new Promise((resolvePromise, rejectPromise) => {
@@ -410,15 +361,6 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
 
   const categories = {};
   for (const c of usage.categories ?? []) categories[c.name] = c.tokens;
-  // A deny that empties a bucket makes the SDK omit it rather than report 0.
-  // sdk mode's numbers are exact and its category vocabulary is known, so for
-  // the attributed buckets that absence IS a measured zero — record it, or a
-  // combined deny that empties a bucket yields a null delta downstream where
-  // a real one was measured. cli-parse absence stays genuinely ambiguous
-  // (format drift vs emptied bucket) and is deliberately not zero-filled.
-  // The fill is shared snapshot plumbing (snapshot/compare/ledger see it too);
-  // a caveat names every synthesized zero so a raw consumer can tell a real
-  // reported 0 from a filled-in omission.
   const caveats = [];
   const synthesizedZeroBuckets = [];
   for (const bucket of SYSTEM_TOOL_BUCKETS) {
@@ -481,15 +423,10 @@ function cliSnapshot({ bin, deny, label }) {
   const version = binaryVersion(bin);
   const parsed = parseContextMarkdown(r.stdout, { binaryVersion: version });
   const synthesizedZeroBuckets = [];
-  // Harness-only marker; contract in the cli-parse paragraph of reference/engine.md.
   for (const match of r.stdout.matchAll(/<!--\s*synthesized-zero:\s*([^>]+?)\s*-->/g)) {
     const name = match[1].trim();
     if (name && !synthesizedZeroBuckets.includes(name)) synthesizedZeroBuckets.push(name);
   }
-  // Match the SDK/renderer headline semantics: deferred pools (any
-  // "... (deferred)" category — built-in and MCP alike) are excluded from the
-  // context-usage total (they ship in the request but sit outside the context
-  // window), as are the free-space and buffer rows.
   const payloadTotal = Object.entries(parsed.categories)
     .filter(([name]) => !name.endsWith('(deferred)') && !['Free space', 'Autocompact buffer'].includes(name))
     .reduce((sum, [, v]) => sum + v, 0);
@@ -554,8 +491,6 @@ async function takeSnapshot(args) {
     label: args.label,
   });
   if (args['measure-only']) {
-    // Read-only consumer mode: exact SDK measurement or nothing. No cli-parse
-    // rung, no install offer; main() rejects --out, so no file is written.
     if (!found) {
       process.stderr.write('measure-only: @anthropic-ai/claude-agent-sdk is not installed; nothing was measured or installed.\n');
       degrade('sdk-absent',
@@ -575,8 +510,6 @@ async function takeSnapshot(args) {
     try {
       return await sdkRun();
     } catch (e) {
-      // SDK resolved but the measurement failed — fall through to cli-parse,
-      // carrying the reason so the record stays honest about the downgrade.
       try {
         const snap = cliSnapshot({ bin, deny, label: args.label });
         snap.caveats.push(`sdk mode failed and was degraded to cli-parse: ${String(e).slice(0, 200)}`);
@@ -616,11 +549,6 @@ function summarize(snap) {
   };
 }
 
-// Mode and binary have to match for any attributed delta: a cross-mode
-// comparison mixes precisions, and a cross-binary comparison measures the
-// upgrade, not the lever. Skill-listing tokens are subtracted from the
-// prefix `System tools` bucket, so listing or Skills-token drift poisons
-// that bucket only; the deferred pool is separate and stays measurable.
 function compareSnapshots(before, after, { lever = null, emittedConfig = null } = {}) {
   const reasons = [];
   const modeMatch = before.mode === after.mode;
@@ -647,15 +575,10 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
     if (typeof b === 'number' && typeof a === 'number') {
       delta[name] = a - b;
     } else {
-      // Present in one run only: never invent a number, and say why it is null.
       delta[name] = null;
       unmeasured[name] = `"${name}" present in only one run, so its delta is unmeasured, not zero`;
     }
   }
-  // The prefix bucket is the one every /context table was expected to carry,
-  // so when a run's parser disclosed its row as absent it went unmeasured,
-  // even if absent from both runs. A deferred bucket absent from both runs
-  // stays a non-event (a binary without that pool).
   const caveats = [...(before.caveats || []), ...(after.caveats || [])];
   if (!names.has(PREFIX_BUCKET)
     && caveats.some((c) => typeof c === 'string' && c.includes(absentRowPhrase(PREFIX_BUCKET)))) {
@@ -681,29 +604,13 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
     totalDelta,
     comparability: {
       ok: reasons.length === 0,
-      // Every recorded mismatch poisons the prefix predicate — a reason the
-      // caller could read but a `true` flag would let it ignore is how an
-      // acknowledged-incomparable run gets published as attribution.
       systemToolsComparable: listingOk && sharedOk,
-      // Shared mode/binary checks only: listing drift does not apply.
       modeBinaryComparable: sharedOk,
       reasons,
     },
   };
 }
 
-// Saving across the attributed buckets of one comparison, honoring the
-// three states a bucket delta can be in:
-//   number     measured in both runs — use it;
-//   null       present in one run only (a deny can empty a bucket out of the
-//              snapshot entirely) — a missing measurement, NEVER zero;
-//   undefined  absent from both runs. For the deferred bucket that is a
-//              non-event (no deferred pool at this binary) contributing
-//              nothing. For the prefix bucket a parser-disclosed absent row
-//              lands in cmp.unmeasured and is unmeasured like the null case.
-// `saved` is null when any needed bucket is unmeasured; the record is then
-// published as incomparable with the unmeasured buckets named in `reasons`,
-// never coerced to 0.
 function systemBucketSaving(cmp) {
   const unmeasured = cmp.unmeasured || {};
   const vanished = SYSTEM_TOOL_BUCKETS.filter((b) => b in unmeasured
@@ -722,33 +629,20 @@ function vanishedReason(bucket) {
     + 'snapshot, so its delta is unmeasured, not zero';
 }
 
-// Per-bucket additivity, read off the deltas the per-tool rows already carry:
-// no extra measurement pass, just the rows this run produced. The two sides
-// do not compose alike — the deferred side sums to the token while the prefix
-// side double-counts — so one verdict over the pair hides which column an
-// operator can price a basket from.
 const BUCKET_ROW_FIELD = {
   [PREFIX_BUCKET]: 'prefixDelta',
   [DEFERRED_BUCKET]: 'deferredDelta',
 };
 
-// Off-by-one is not a verdict. Larger gaps, including a prefix side that
-// double-counts, stay false.
 const ADDITIVITY_EPSILON = 1;
 
 function withinAdditivityEpsilon(combinedSaved, sumOfParts) {
   return Math.abs(combinedSaved - sumOfParts) <= ADDITIVITY_EPSILON;
 }
 
-// A verdict is `true`/`false` only when the bucket was measured on both sides
-// of the comparison; anything unmeasured is `null` — "not measurable" is not
-// the same answer as "measured, and not additive".
 function bucketAdditivity(rows, cmp, synthesized) {
   const perBucket = {};
   for (const bucket of SYSTEM_TOOL_BUCKETS) {
-    // A bucket absent from BOTH runs gets no verdict row at all: for the
-    // deferred bucket a non-event, for the prefix bucket unmeasured (the
-    // per-tool rows already carry that as savedTokens null).
     if (!(bucket in cmp.delta)) continue;
     const parts = rows.map((r) => r[BUCKET_ROW_FIELD[bucket]]);
     const sumOfParts = parts.some((d) => typeof d !== 'number')
@@ -756,8 +650,6 @@ function bucketAdditivity(rows, cmp, synthesized) {
       : -parts.reduce((sum, d) => sum + d, 0);
     const combinedDelta = cmp.delta[bucket];
     const combinedSaved = typeof combinedDelta === 'number' ? -combinedDelta : null;
-    // Skill-listing / Skills-token drift poisons only the prefix bucket; the
-    // deferred bucket stays measurable under the shared mode/binary checks.
     const runComparable = bucket === PREFIX_BUCKET
       ? cmp.comparability.systemToolsComparable
       : cmp.comparability.modeBinaryComparable;
@@ -846,9 +738,6 @@ async function runAttribute(args) {
     const { saved, comparable, reasons } = systemBucketSaving(cmp);
     perTool.push({
       tool,
-      // A deny that saves prints as a NEGATIVE delta (after minus before);
-      // savedTokens flips the sign for ranking and readability. A vanished
-      // bucket makes it null — an unmeasured saving, never a zero.
       prefixDelta: cmp.delta[PREFIX_BUCKET] ?? null,
       deferredDelta: cmp.delta[DEFERRED_BUCKET] ?? null,
       savedTokens: saved,
@@ -865,9 +754,6 @@ async function runAttribute(args) {
       const combined = await takeSnapshot({ ...args, deny: savers.join(','), label: 'deny:combined' });
       measured.push(combined);
       const cmp = compareSnapshots(baseline, combined, { lever: `deny:${savers.join('+')}` });
-      // Denying every saver at once can empty a bucket out of the combined
-      // snapshot; its delta is then null and the combined saving is
-      // unmeasured — published as incomparable, never coerced to zero.
       const { saved: combinedSaved, comparable, reasons: savingReasons } = systemBucketSaving(cmp);
       const saverRows = perTool.filter((t) => savers.includes(t.tool));
       const sumOfParts = saverRows.reduce((s, t) => s + t.savedTokens, 0);
@@ -882,10 +768,6 @@ async function runAttribute(args) {
         tools: savers,
         sumOfParts,
         combinedSaved,
-        // Tri-state: true/false are measured verdicts, null means the run
-        // could not be measured. A boolean here would publish an unmeasured
-        // reading as a definite "not additive". A synthesized zero is the
-        // saturated case: the numeric comparison is not a verdict.
         additive: comparable && !saturated && typeof combinedSaved === 'number'
           ? withinAdditivityEpsilon(combinedSaved, sumOfParts) : null,
         comparable: comparable && !saturated,
@@ -912,8 +794,6 @@ async function runAttribute(args) {
       loadInteractiveOnly(),
       splitCsv(args['operator-deny']),
     ),
-    // Baseline-only caveats dropped every deny run's disclosures, including the
-    // synthesized-zero note sdk mode writes when it fills an omitted bucket.
     caveats: mergeCaveats(measured),
   };
 }
@@ -946,8 +826,6 @@ function ledgerAppend(dir, rowFile) {
   const base = `${(row.timestampUtc || nowUtc()).replace(/[:-]/g, '')}-${slug}`;
   const runsDir = join(dir, 'runs');
   mkdirSync(runsDir, { recursive: true });
-  // One file per run is the contract: a same-second rerun of the same lever
-  // must not overwrite the earlier point, so collide into a numbered suffix.
   let runId = base;
   let runPath = join(runsDir, `${runId}.json`);
   for (let n = 2; existsSync(runPath); n++) {
@@ -971,11 +849,6 @@ function ledgerList(dir) {
   process.stdout.write(`${JSON.stringify({ rows }, null, 2)}\n`);
 }
 
-// ---------------------------------------------------------------------------
-// verify-catalogue — binary-strings existence check (no network).
-// Docs fetch remains the authority on semantics; this is the authority on
-// whether each catalogue key/env name exists in the measured binary.
-// ---------------------------------------------------------------------------
 
 function catalogueTokens(lever) {
   if (Array.isArray(lever.binaryTokens) && lever.binaryTokens.length) {
@@ -1000,8 +873,6 @@ function catalogueTokens(lever) {
   return [...tokens];
 }
 
-// Prefer a sibling .exe over a Windows command shim so the scan reads the
-// payload the consumer actually runs, not the wrapper script.
 function binaryScanPath(bin) {
   if (!/\.(cmd|bat)$/i.test(bin)) return { path: bin, viaShim: false };
   const exe = bin.replace(/\.(cmd|bat)$/i, '.exe');
@@ -1110,8 +981,6 @@ function runVerifyCatalogue(args) {
 function emit(record, outFile) {
   const text = `${JSON.stringify(record, null, 2)}\n`;
   if (outFile) {
-    // A fresh audit's derived data dir does not exist yet; failing ENOENT
-    // after an expensive measurement would discard the result.
     mkdirSync(dirname(resolve(outFile)), { recursive: true });
     writeFileSync(outFile, text);
   }
