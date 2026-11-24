@@ -25,7 +25,7 @@ the naming rule is a separate choice: when `/corrections:codify` (if enabled) is
 available skills, hand it the choice of mechanism; it picks the strongest rung
 of the enforcement ladder that can decide the rule and proves the check. Name
 the call, `/corrections:codify "<the naming rule>"` (if enabled), for the operator to run;
-never make it. Otherwise, propose the strongest mechanism that can decide the
+never make it. When the `corrections` plugin is not enabled, propose the strongest mechanism that can decide the
 rule: a change that makes the mistake impossible first, then a check that blocks
 it, then a test, and an instruction only when nothing a machine runs can decide
 it. Say that the `corrections` plugin was not available, so the proposal is

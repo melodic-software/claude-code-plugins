@@ -286,7 +286,8 @@ Each round:
 4. For each project-wide principle discussion surfaces, when `/corrections:codify` (if enabled) is among the
    available skills, hand it the choice of mechanism; it picks the strongest rung of the
    enforcement ladder that can decide the rule and proves the check. Call it as
-   `/corrections:codify "<the principle>"` (if enabled). Otherwise, propose the strongest mechanism that can
+   `/corrections:codify "<the principle>"` (if enabled). When the `corrections` plugin is not
+   enabled, propose the strongest mechanism that can
    decide the rule: a change that makes the mistake impossible first, then a check that blocks it,
    then a test, and an instruction only when nothing a machine runs can decide it. Say that
    the `corrections` plugin was not available, so the proposal is unproven. When codify stops with no
@@ -422,10 +423,10 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 - **Codify rules when discovered.** When discussion surfaces a project-wide principle, route it
   immediately: hand `/corrections:codify` (if enabled) the choice of
   mechanism; it picks the strongest rung of the enforcement ladder that can decide the rule and
-  proves the check. Call it as `/corrections:codify "<the principle>"` (if enabled). Otherwise, propose the
+  proves the check. Call it as `/corrections:codify "<the principle>"` (if enabled). When the `corrections` plugin is not enabled, propose the
   strongest mechanism that can decide the rule: a change that makes the mistake impossible first,
   then a check that blocks it, then a test, and an instruction only when nothing a machine runs
-  can decide it. Say that the `corrections` plugin was not available, so the proposal is unproven.
+  can decide it. Say that the `corrections` plugin is not enabled, so the proposal is unproven.
   When codify stops with no proposal, as it does below its recurrence threshold, propose the same
   way and say that it stopped
 - **Incremental artifacts.** Build artifacts as discussion progresses and update them as decisions

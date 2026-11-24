@@ -212,7 +212,7 @@ both with their labels, and point to `/session-flow:reanchor` to settle which st
    none recorded, say so.
 
 A session timeline (a Gantt chart) or a phase-status diagram is optional: offer it in one line
-above the open decisions, and on a yes hand the rows to `/visualization:visualize` (if enabled), which owns the form and the medium, including a shareable page; otherwise write the
+above the open decisions. On a yes, hand the rows to `/visualization:visualize` (if enabled), which owns the form and the medium, including a shareable page; when the `visualization` plugin is not enabled, write the
 rows as a mermaid block in the reply. Unattended, record the offer in the output instead of asking.
 
 ## Boundaries. Pick the right sibling

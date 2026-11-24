@@ -120,10 +120,10 @@ Ask about one entry at a time. For each, you need four things, and the fourth is
    `/corrections:codify` (if enabled) the choice of mechanism; it picks
    the strongest rung of the enforcement ladder that can decide the rule and proves the check.
    Name the call, `/corrections:codify "<the rule>"` (if enabled), for the user to run; never make it.
-   Otherwise, propose the strongest mechanism that can decide the rule: a change that
-   makes the mistake impossible first, then a check that blocks it, then a test, and an instruction
-   only when nothing a machine runs can decide it. Say that `/corrections:codify` (if enabled) was not
-   available, so the proposal is unproven. Before recommending a deny rule for a Bash action, read
+   When the `corrections` plugin is not enabled, propose the strongest mechanism that can decide the
+   rule: a change that makes the mistake impossible first, then a check that blocks it, then a test,
+   and an instruction only when nothing a machine runs can decide it. Say that the `corrections`
+   plugin was not available, so the proposal is unproven. Before recommending a deny rule for a Bash action, read
    what it matches in [permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax).
 2. **A short label**: the subject, two or three words. It is what a reader scans for.
 3. **What is covered, and what is explicitly not.** Both. An entry with no stated exclusions is one

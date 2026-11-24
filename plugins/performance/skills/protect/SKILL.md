@@ -200,10 +200,10 @@ must keep true:
 
 For each case that applies, hand `/corrections:codify` (if enabled) the
 choice of mechanism; it picks the strongest rung of the enforcement ladder that can decide the rule
-and proves the check. Call it as `/corrections:codify "<what must not drift>"` (if enabled). Otherwise, propose
+and proves the check. Call it as `/corrections:codify "<what must not drift>"` (if enabled). When the `corrections` plugin is not enabled, propose
 the strongest mechanism that can decide the rule: a change that makes the mistake impossible first,
 then a check that blocks it, then a test, and an instruction only when nothing a machine runs can
-decide it. Say that the `corrections` plugin was not available, so the proposal is unproven.
+decide it. Say that the `corrections` plugin is not enabled, so the proposal is unproven.
 
 When codify stops with no proposal, as it does below its recurrence threshold, propose the same
 way and say that it stopped, in place of saying it was not available.
