@@ -532,11 +532,12 @@ done
 # merge of main (#17872 prescribed-solution Stance line) with this PR: against main the section differs only by "at most one contradiction pass"; the no-silent-resolve rule is byte-identical
 # the edit adds the recommendation gain-and-cost sentence to the question template and to "Alternatives carry their tradeoffs"; no-silent-resolve is unchanged
 # only the quality-bar title rule and the discovery-only shape of the rethink question changed; the no-silent-resolve and auto-guard text is untouched
+# Only optional-plugin guards changed in the Stance section; the in-round no-silent-resolve rule and both defenses are unchanged.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "0de6cf255c385bb2394c675090b43537c81a948f2a0222a3263f352f7d7299b6"
+  "da00ce1da1f6eae9bf57e362b92b83ba296d72ecc7315e529d93a9fe428864b5"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
