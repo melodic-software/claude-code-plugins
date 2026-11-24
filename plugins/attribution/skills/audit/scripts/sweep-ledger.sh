@@ -126,11 +126,6 @@ TOPIC="${OPT[topic]:-}"
 CMD="${ARGS[0]:-}"
 ARGS=(${ARGS[@]+"${ARGS[@]:1}"})
 
-# --- Roots and config ------------------------------------------------------------
-#
-# The ledger lives in the checkout; the config is read from CLAUDE_PROJECT_DIR,
-# falling back to the checkout, as the sibling scripts do.
-
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 cfg_layers_init "$CONFIG_ROOT"
@@ -141,7 +136,6 @@ if cfg_have_unread_layer; then
   echo "sweep-ledger.sh: jq not found; JSON config layers present but unread, using defaults" >&2
 fi
 
-# The last layer that defines a whole-number ceiling wins.
 CEILING=200
 CEILING_RAW=""
 cfg_scalar CEILING_RAW budgets.corpus_fetch_ceiling '^[0-9]+$'
@@ -156,8 +150,6 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   exit 0
 fi
 
-# --- Inputs ----------------------------------------------------------------------
-
 [[ -n "$CMD" ]] || {
   usage >&2
   exit 2
@@ -168,12 +160,10 @@ fi
 LEDGER="$REPO_ROOT/.work/$TOPIC/sweep-ledger.md"
 NO_LEDGER="no ledger here: this is a new sweep (no closures, no spend, no cache)"
 
-# want <count> <what>: the subcommand's positional arguments.
 want() {
   [[ "${#ARGS[@]}" -eq "$1" ]] || die 2 "$CMD takes $2"
 }
 
-# plain <name> <value>: a ledger line is one line of ' | ' separated fields.
 plain() {
   [[ "$2" != *[$'\n\r|']* ]] || die 2 "$1 may not contain a newline or '|'"
 }
@@ -189,9 +179,6 @@ SWEEP_AT=""
 declare -A CLOSED=()
 declare -A CACHE=()
 
-# load_ledger: one pass over the ledger, filling SWEEP_*, SPEND, CLOSED (file set)
-# and CACHE (URL to "sha256 | fetch time", the newest line winning). A ledger that
-# does not record this checkout is refused: a copy carried here is not this sweep.
 load_ledger() {
   local line rest n
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -223,7 +210,6 @@ load_ledger() {
     die 3 "$LEDGER is not this checkout's sweep (${SWEEP_ID:-no sweep line}, started in ${SWEEP_ROOT:-no checkout recorded}): this is a new sweep; move the file aside to start one here"
 }
 
-# need_ledger: every subcommand but init and a bare status refuses without one.
 need_ledger() {
   [[ -f "$LEDGER" ]] || die 3 "$NO_LEDGER; run init to start one"
   load_ledger
