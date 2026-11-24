@@ -58,7 +58,12 @@ const OWN_FILES = {
   "./patch-rules.json": new URL("./patch-rules.json", import.meta.url),
   "./patch-rules.schema.json": new URL("./patch-rules.schema.json", import.meta.url),
 };
-const readOwn = (name) => JSON.parse(readFileSync(OWN_FILES[name], "utf8"));
+const readOwn = (name) => {
+  if (!Object.hasOwn(OWN_FILES, name)) {
+    throw new Error(`${name} is not in OWN_FILES, the literal URLs collect-base-activity's stager follows`);
+  }
+  return JSON.parse(readFileSync(OWN_FILES[name], "utf8"));
+};
 
 function readUnder(root, relative, name = "base-path") {
   let real;

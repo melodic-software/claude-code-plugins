@@ -254,6 +254,29 @@ test("every runner .mjs entry imports from its staged tree", () => {
   }
 });
 
+test("every self-relative path in a runner shell entry's staged scripts is one the stager follows", () => {
+  const entries = runnerScripts().filter((script) => script.endsWith(".sh"));
+  assert.ok(entries.length > 0);
+  const unfollowed = [];
+  for (const script of entries) {
+    const dest = mkdtempSync(path.join(root, "closure-"));
+    stageClosure(REPO_ROOT, script, dest);
+    const reached = new Set();
+    const walk = (file) => {
+      if (reached.has(file) || !existsSync(file) || !statSync(file).isFile()) return;
+      reached.add(file);
+      for (const next of loads(file)) walk(next);
+    };
+    walk(path.join(dest, script));
+    for (const file of [...reached].filter((file) => /\.(sh|bash)$/.test(file))) {
+      const code = readFileSync(file, "utf8").replace(/^\s*#.*$/gm, "");
+      const selfRefs = code.match(/BASH_SOURCE\[0\]|dirname "?\$0"?/g)?.length ?? 0;
+      if (selfRefs !== loads(file).length) unfollowed.push(`${path.relative(dest, file)}: ${selfRefs} self-relative, ${loads(file).length} followed`);
+    }
+  }
+  assert.deepEqual(unfollowed, []);
+});
+
 test("a script path outside the base is refused before anything is read or copied", () => {
   const dest = mkdtempSync(path.join(root, "closure-"));
   for (const script of ["../outside/run.sh", ".github/../../outside/run.sh", path.join(REPO_ROOT, ".github/scripts/pr-unblock/report-escalation.sh")]) {
