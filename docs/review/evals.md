@@ -79,9 +79,23 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   on the default branch, scoped to the affected cases, follows; a rename's run uses `runs: 3`.
   For a judged case, the dispatching session posts the
   record by hand under [Graders](#graders).
+- Only the compare run's own record that it cannot start counts. A run that passes its
+  dispatcher, input and head checks and then finds `compare-arms.sh` refusing the PR
+  (`compare-refused`) runs no arm and succeeds its `Compare Cannot Start: compare-refused` job.
+  pr-merge's release step lifts the eval hold only when, for every plugin whose skill, agent or
+  context text the PR changes (or, when it changes none, every plugin it changes), the newest compare run at the current head since the label was last
+  added that names that plugin as its target is such a run, read back under the same checks as a
+  compare record; a refusal for one plugin never lifts a hold over another plugin's cut. It comments
+  `<!-- eval-hold-released head=<sha> cannot-start=compare-refused run=<run ids> -->`. A missing
+  record alone keeps the hold, and so do a PR file list that does not read in full and, for a
+  plugin, an older run at that head since the label that failed its `Compare Verdict` (a LOSS or
+  VOID), is still going, or was re-run
+  ([`release-eval-hold.mjs`](../../.github/scripts/pr-merge/release-eval-hold.mjs)).
 - The session that merged the PR dispatches that run, states its cost first and watches it; it
   fixes or reverts a failing case. With no live session, the next session that takes up the PR's
-  follow-up does (Q57).
+  follow-up does (Q57). The merged PRs that owe their run are those whose comments contain the
+  text `cannot-start=compare-refused`; read comment bodies for it, since GitHub search splits the
+  marker into words and matches far more.
 - An eval-pair record names one head. A push before the hold releases needs a new compare run (Q58).
 - Every eval run reads only the `EVALS` role's secrets, `EVALS_CLAUDE_API_KEY` and
   `EVALS_CLAUDE_CODE_OAUTH_TOKEN`, never another role's and never the fallback token. A dispatched
