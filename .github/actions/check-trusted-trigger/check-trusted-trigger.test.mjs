@@ -2645,6 +2645,18 @@ for (const [label, routes] of [
     created: "2026-10-11T12:11:08Z",
     jobs: jobsListing(dispatchJob({ run_attempt: 2, started_at: "2026-10-11T12:10:26Z" })),
   }],
+  ["the dispatcher run lists two started Dispatch jobs at its attempt", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ started_at: "2026-10-11T12:10:26Z" }), dispatchJob({ id: 2, started_at: "2026-10-11T12:10:26Z" })),
+  }],
+  ["the Dispatch job listed is of another run", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ run_id: 1, started_at: "2026-10-11T12:10:26Z" })),
+  }],
+  ["the Dispatch job has no start time", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ started_at: null })),
+  }],
   ["the dispatch came after the dispatcher run's last update", { created: "2026-10-11T12:11:08Z", updated: "2026-10-11T12:11:07Z" }],
 ]) {
   test(`workflow_run dispatcher: refused with untrusted-actor when ${label}`, async () => {
