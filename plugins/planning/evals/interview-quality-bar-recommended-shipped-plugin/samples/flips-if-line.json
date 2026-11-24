@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\nContext:\n- The marketplace manifest publishes notes-export to users (.claude-plugin/marketplace.json:5).\n\n➡️ My recommendation: **production**. It ships to users who run it on their own machines (verified, README.md:3).\nFlips if: the --dry-run flag stays off the published release.\n\nAlternatives:\n- (a) internal tool. Less depth, but users still run it.",
+      "why": "a Flips if: line under the recommendation"
+    },
+    {
+      "answer": "Q2: **Which quality bar?**\n**Flips if:** you only run this flag yourself.",
+      "why": "a bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\n➡️ My recommendation: **production**. It ships to users (verified, README.md:3).",
+      "why": "a recommendation with no Flips if: line"
+    },
+    {
+      "answer": "Q2: **Which quality bar?**\nThis flips if you never publish it.",
+      "why": "the words mid-sentence are not the label"
+    },
+    {
+      "answer": "Q2: **Which quality bar?**\nFlips if:",
+      "why": "an empty label"
+    }
+  ]
+}

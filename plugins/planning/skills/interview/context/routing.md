@@ -35,7 +35,7 @@ stays the entry either way:
   user's words. Round 1's other questions go out in the same message; never hold them for this
   answer, and never switch on your own. In an intake round it goes out instead as the one-line
   routing suggestion [`lookups.md`](lookups.md) "The intake round" shapes, still registered at
-  ask-time, since an intake round shows no `My recommendation:` block.
+  ask-time, since an intake round shows a `My recommendation:` block only for the quality bar.
 - Accepted: write the ledger as "The handoff to wayfind" below says, and name
   `/planning:wayfind chart` with the ledger path for the user to run.
 - Declined: record the decline as the row's resolution and carry on with the rounds. Raise wayfind
