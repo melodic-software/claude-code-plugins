@@ -170,7 +170,8 @@ say(runDownload?.with?.name === "feedback-context-${{ inputs.review-run-attempt 
   && replyDownload?.with?.name === "feedback-replies-${{ inputs.lane }}-address-feedback-${{ inputs.review-replies-attempt }}",
   "the reply job downloads run.json and the replies by their writers' attempts, so a re-run of it alone still finds them");
 const actors = at((s) => s.id === "reply-actors");
-say(actors >= 0 && actors < checkout && at((s) => s.id === "standards") < actors && byId("reply-actors").run === 'cp "$TRUSTED_ACTORS_PATH" "$COPY"'
+const standards = at((s) => s.id === "standards");
+say(actors >= 0 && actors < checkout && standards >= 0 && standards < actors && byId("reply-actors").run === 'cp "$TRUSTED_ACTORS_PATH" "$COPY"'
   && byId("reply-actors").env?.TRUSTED_ACTORS_PATH === "${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json",
   "the reply script's trusted-actors list is copied from the standards checkout before the head checkout");
 say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invalid\)/.test(byId("act-script").run ?? "")
