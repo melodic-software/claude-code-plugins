@@ -54,7 +54,8 @@ too. The main session keeps only briefs, verdicts and state in its own context, 
 through compaction:
 
 - Invoke `/session-flow:orchestrate` at the first work turn, and again whenever a hook note says
-  its imperatives are not in context.
+  its imperatives are not in context. While helpers run, the Stop note stays silent and the note
+  on each arriving message, a helper's report included, carries the posture.
 - Take each subagent's model and effort, and any outside vendor for a brief, from
   `/multi-agent:route` (if enabled), and record each reviewed result as its verdict step says;
   otherwise subagents use the session's default model and effort and no work leaves Claude. Keep

@@ -65,3 +65,13 @@ def test_hook_notes_name_the_posture_only_when_on(ctx):
     on_prompt = json.loads(ctx.hook("UserPromptSubmit", "user_prompt_typed"))["hookSpecificOutput"]["additionalContext"]
     assert "session-flow:orchestrate" in on_stop
     assert "session-flow:orchestrate" in on_prompt
+
+
+def test_helper_reports_carry_the_posture_while_stop_stays_silent(ctx):
+    task = ctx.repo / "tasks.md"
+    task.write_text("- [ ] write the docs\n", encoding="utf-8")
+    ctx.start("--kind", "trip", "--task-file", str(task), "--setting", "away_orchestrate=true")
+    fill_report(ctx.report())
+    assert ctx.hook("Stop", "stop", background_tasks=[{"id": "b1"}]) == ""
+    report = json.loads(ctx.hook("UserPromptSubmit", "user_prompt_subagent_report"))
+    assert "session-flow:orchestrate" in report["hookSpecificOutput"]["additionalContext"]
