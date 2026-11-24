@@ -139,6 +139,11 @@ Close every explanation with this single line; only the starting-rung report fol
 - The reader wants to keep learning the topic across sessions: `/education:teach`.
 - The reader wants a diagram instead of prose: `/education:illustrate`.
 
+## Related
+
+- Faithful restructure keeping original precision: /adhd:clarify.
+- Re-pitch a missed message in Simplified Technical English: /discipline:wait-what.
+
 ## Gotchas
 
 - **Don't climb unasked.** Under a `plain` start, delivering the peer-level version first defeats

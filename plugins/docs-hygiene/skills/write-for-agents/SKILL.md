@@ -218,6 +218,14 @@ stronger word: a more precise one, and a firm one only for a hard limit
   sibling via the Skill tool (`/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`,
   `/docs-hygiene:audit-progressive-disclosure`) rather than expanding this write into an audit.
 
+## Related
+
+- Repeated prose across files: /docs-hygiene:extract-ssot.
+- Grade split or pointer quality: /docs-hygiene:audit-progressive-disclosure.
+- Rule must hold deterministically: /corrections:codify.
+- Authoring a skill structure rather than prose: /playbooks:skill-authoring.
+- Writing human-facing documentation instead: /docs-hygiene:write-for-humans.
+
 ## What this skill does not do
 
 - **Does not author skills.** Whether a skill should exist, what it triggers on, its frontmatter,

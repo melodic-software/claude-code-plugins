@@ -1,8 +1,3 @@
-// The burn-rate pacer's rules (pace.mjs): a timer-driven run is paced when
-// the GITHUB_TOKEN pool's remaining at its reset, projected at the burn rate
-// the window has shown so far, falls under `pace` of the header's limit, the
-// share the breaker is also stated in (pr-pipeline.schema.json api-pool).
-// Expected values are worked by hand from limit, remaining and reset.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -23,7 +18,6 @@ test("the pace share is a config value: rate-limits.json's github-token default,
   const resolved = join(dir, "resolved.json");
   writeFileSync(resolved, JSON.stringify({ limits: { api: { "github-token": { pace: 0.35 } } } }));
   assert.equal(apiLimits({ resolvedPath: resolved })["github-token"].pace, 0.35);
-  // The schema lets limits.api set it, in the same range as the breaker.
   const schema = JSON.parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url), "utf8"));
   assert.deepEqual(
     { ...schema.$defs["api-pool"].properties.pace, description: undefined },
@@ -32,16 +26,11 @@ test("the pace share is a config value: rate-limits.json's github-token default,
 });
 
 test("a run is paced when the projected remaining at reset falls under the share", () => {
-  // 30 minutes in: 2,000 of 5,000 used, so 2,000 more by the reset leaves 1,000, 20%.
   const half = { limit: 5000, remaining: 3000, reset: NOW + 1800 };
   assert.deepEqual(paceDecision(half, 0.2, NOW), { paced: false, projected: 0.2 });
-  // 2,100 used: 2,100 more leaves 800, 16%.
   assert.deepEqual(paceDecision({ ...half, remaining: 2900 }, 0.2, NOW), { paced: true, projected: 0.16 });
-  // The evidence window's reading: used 4,289, remaining 711, about 4 minutes to reset.
   assert.equal(paceDecision({ limit: 5000, remaining: 711, reset: NOW + 252 }, 0.2, NOW).paced, true);
-  // A slow burn early in the window: 100 used in 10 minutes projects 500 more, 4,400 left.
   assert.deepEqual(paceDecision({ limit: 5000, remaining: 4900, reset: NOW + 3000 }, 0.2, NOW), { paced: false, projected: 0.88 });
-  // A projection under zero is clamped to it.
   assert.deepEqual(paceDecision({ limit: 1000, remaining: 100, reset: NOW + 1800 }, 0.2, NOW), { paced: true, projected: 0 });
 });
 
@@ -57,10 +46,6 @@ test("a reading that cannot project, or a share of 0, never paces", () => {
   assert.equal(paceDecision({ limit: 5000, remaining: 10, reset: NOW + 1800 }, 0, NOW).paced, false);
 });
 
-// A fake GitHub for main: the workflow's scheduled-run listing, whose headers
-// are the pool reading, and each listed run's jobs. `runs` is newest first;
-// `steps[id]` is the conclusion of the lane's work step in run `id`
-// (undefined: the run has no such step).
 const HOT = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "2900", "x-ratelimit-reset": String(NOW + 1800) };
 const COLD = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4900", "x-ratelimit-reset": String(NOW + 3000) };
 const WORK_STEP = "Do the sweep";
@@ -80,7 +65,6 @@ function github({ headers = HOT, runs = [], steps = {}, listStatus = 200, jobsSt
   };
   return { fetchImpl, urls };
 }
-// This run (id 9) and the scheduled run before it (id 8), created an hour apart.
 const LANE = { GITHUB_RUN_ID: "9", GITHUB_WORKFLOW_REF: "o/r/.github/workflows/lane.yml@refs/heads/main", PACE_WORK_STEP: WORK_STEP };
 const PAIR = [
   { id: 9, created_at: minutesAgo(1) },
@@ -139,12 +123,6 @@ test("a cold tick reads only the listing and runs", async () => {
   assert.equal(gh.urls.length, 1, "no jobs read while the projection does not pace");
 });
 
-// The guarantee: whatever other events do to the run counter, two scheduled
-// ticks in a row are never both paced, and a pool that stays hot paces every
-// other one. Each tick's listing holds the runs before it; a paced run's
-// work step is skipped, an unpaced one's succeeds. The run numbers are
-// pr-merge's real consecutive scheduled pair 12822 and 12826 (both even, so
-// run-number parity paced both) and more of the same kind.
 test("hot ticks alternate, paced and not, however the run numbers fall", async () => {
   const numbers = [12822, 12826, 12830, 12834, 12836, 12840, 12841, 12850];
   const runs = [];
@@ -175,7 +153,6 @@ test("a previous scheduled run that did not finish its work, or none, keeps the 
   }
   const alone = await run({}, github({ runs: [PAIR[0]] }).fetchImpl);
   assert.match(alone.lines[0], /paced=false; this tick runs: no earlier scheduled run$/);
-  // A newer scheduled run listed ahead of this one is not its previous run.
   const newer = [{ id: 10, created_at: minutesAgo(0) }, ...PAIR];
   assert.equal((await run({}, github({ runs: newer, steps: { 10: "success", 8: "skipped" } }).fetchImpl)).output, "paced=false\n");
   const unnamed = await run({ PACE_WORK_STEP: "" }, github({ runs: PAIR, steps: { 8: "success" } }).fetchImpl);
@@ -185,7 +162,6 @@ test("a previous scheduled run that did not finish its work, or none, keeps the 
 // The previous run is the highest id below this one, whatever created_at
 // says: on 2026-11-01 runs were stamped an hour ahead (rotation.mjs runOrder).
 test("the previous scheduled run is found by run id, not by its creation time", async () => {
-  // Run 8 is stamped later than this run; run 7, stamped between, came before 8.
   const skewed = [
     { id: 8, created_at: minutesAgo(-60) },
     { id: 9, created_at: minutesAgo(1) },
@@ -226,14 +202,9 @@ test("any other event, an unreadable answer or a failed read is never paced", as
   assert.match(failed.lines.join("\n"), /::warning::/);
 });
 
-// The step that hands the base config's limits.api to the pacer, in
-// resolve-config's output shape, which apiLimits reads.
 const READ_STEP = "Read the pace override from the base config";
 const READ_RUN = `yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"`;
 
-// The documented off switch, limits.api github-token pace: 0 in
-// pr-pipeline.yaml, through that step to main: a pool burning toward the
-// breaker after a tick that did its work runs, with no pace notice.
 test("pace: 0 in the base config turns the pacer off", async () => {
   const dir = tempDir("pace-off-");
   mkdirSync(join(dir, ".base/docs/conventions"), { recursive: true });
@@ -247,7 +218,6 @@ test("pace: 0 in the base config turns the pacer off", async () => {
   const off = await run({ RESOLVED_CONFIG: read("limits:\n  api:\n    github-token:\n      pace: 0\n") }, low);
   assert.equal(off.output, "paced=false\n");
   assert.deepEqual(off.lines, []);
-  // With no api entry the rate-limits.json default paces the same reading.
   assert.equal((await run({ RESOLVED_CONFIG: read("limits:\n  wip-cap: 12\n") }, low)).output, "paced=true\n");
   assert.equal(apiLimits({ resolvedPath: read("lanes: {}\n") })["github-token"].pace, 0.2, "no limits section");
 });
@@ -258,13 +228,9 @@ const workflow = (file) => readFileSync(new URL(`../../workflows/${file}`, impor
 const jobOf = (file, job) => workflowText(workflow(file)).job(job);
 const stepsOf = (file, job) => workflowText(workflow(file)).steps(job);
 
-// The pacer step and the override read before it, in the one shape every
-// paced lane uses.
 function assertPaceSteps(file, steps) {
   const at = (name) => steps.findIndex((step) => step.name === name);
   const pace = steps[at(PACE_STEP)]?.text ?? "";
-  // The base config's limits.api reaches the pacer, so its pace (0 for off)
-  // overrides rate-limits.json.
   assert.ok(at(READ_STEP) >= 0 && at(READ_STEP) < at(PACE_STEP), `${file}: the override is read before the pacer`);
   assert.equal(steps[at(READ_STEP)].text.replace(/^[\s\S]*?\n {8}run: \|\n {10}/, ""), `${READ_RUN}\n`, file);
   assert.match(steps[at(READ_STEP)].text, /\n {8}continue-on-error: true\n/, file);
@@ -278,12 +244,6 @@ function assertPaceSteps(file, steps) {
   return { at, work: /\n {10}PACE_WORK_STEP: (.*)\n/.exec(pace)?.[1] };
 }
 
-// Each lane's marker, the step whose success in the previous scheduled run
-// lets a tick pace: named once in the workflow, so no other step stands in
-// for it; run only on the lane's clean outcome (`clean`), with no status
-// function, so any earlier failed step skips it; and the step that writes
-// that outcome waits on the pacer, through `chain` (each link's `if:` reads
-// the one before it, the first reads the pacer), so a paced tick skips it.
 function assertMarker(file, steps, work, clean, chain) {
   const at = (name) => steps.findIndex((step) => step.name === name);
   assert.equal(work, WORK_DONE, file);
@@ -314,7 +274,6 @@ test("each paced timer lane reads the pacer before its work and gates every spen
       clean: "steps.dispatch.outputs.listed == 'true'",
       chain: [[dispatch]],
     },
-    // Every later spending step waits on the config step's lane token.
     "work-unblock.yml": {
       job: "label-unblocked",
       gated: ["Resolve the config"],
@@ -337,20 +296,10 @@ test("each paced timer lane reads the pacer before its work and gates every spen
   }
 });
 
-// The monitoring lane reads a fixed window (WINDOW_MINUTES, 65) and its
-// signals count what falls inside it (signals.mjs throttleFindings counts
-// rate-limited holds by windowStart), so a skipped hour would never be read,
-// and in the hot hours pacing acts in. It stays unpaced.
 test("the monitoring lane reads no pacer", () => {
   assert.doesNotMatch(workflow("maintenance-monitor-signals.yml"), /pace\.mjs|steps\.pace\./);
 });
 
-// A paced work-unblock run marks itself (PACED_STEP), and the sweep after it
-// reads back from the clean sweep before it, up to PACED_LOOKBACK_HOURS
-// (label-unblocked.test.mjs drives that window). With the clean sweep S, the
-// paced tick one cron period later and the tick after it dropped, the next
-// sweep starts three periods after S, plus its wait in the job's concurrency
-// group, and reads from SWEEP_MARGIN_MIN before S: that must fit.
 test("work-unblock marks a paced run, and the sweep after it reaches back past a dropped tick", () => {
   const text = workflow("work-unblock.yml");
   const steps = stepsOf("work-unblock.yml", "label-unblocked");
@@ -372,17 +321,10 @@ test("work-unblock marks a paced run, and the sweep after it reaches back past a
   assert.ok(reach <= PACED_LOOKBACK_HOURS * 60, `${reach} minutes inside ${PACED_LOOKBACK_HOURS} h`);
 });
 
-// pr-merge's sweep jobs skip at job level: a step-level skip would leave a
-// paced run's job waiting in its group, and superseded.mjs would let an
-// earlier run hand its work to it. dispatch-post-merge-runs reads the pacer and
-// never waits on it, so the post-merge check and cover dispatch run on every
-// tick.
 test("pr-merge reads the pacer in dispatch-post-merge-runs and skips only the sweep jobs on it", () => {
   const file = "pr-merge.yml";
   const steps = stepsOf(file, "dispatch-post-merge-runs");
   const { work } = assertPaceSteps(file, steps);
-  // The merge job, which a paced tick skips whole, marks a sweep that listed
-  // (a held listing writes held, never listed) and gated.
   assertMarker(file, stepsOf(file, "merge"), work, "steps.candidates.outputs.listed == 'true' && steps.gate.outcome == 'success'", []);
   const merge = stepsOf(file, "merge");
   const index = (name) => merge.findIndex((step) => step.name === name);

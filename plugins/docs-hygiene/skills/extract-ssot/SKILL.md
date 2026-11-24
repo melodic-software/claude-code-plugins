@@ -250,6 +250,13 @@ The `actions/` and `context/` files write this skill's directory as `<skill-dir>
 `${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or
 writing it into a brief; never hand a `${…}` token from those files to the Bash tool.
 
+## Related
+
+- Sweep references after renaming a heading: /docs-hygiene:rename-references.
+- Check skill-boundary violations: /docs-hygiene:audit-encapsulation.
+- Whole files copied across repositories: /coupling:reduce.
+- Run repository verification after execute: /toolchain:check.
+
 ## Recheck triggers
 
 | Condition | Action |

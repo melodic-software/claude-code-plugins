@@ -237,6 +237,13 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
   `/docs-hygiene:audit-derivability`.
 - What is left is flavor rather than noise: `/docs-hygiene:compress`.
 
+## Related
+
+- Same residue shapes in source-code comments: /code-tidying:remove-comments.
+- Prose duplicated across multiple files: /docs-hygiene:extract-ssot.
+- Rewrite agent instructions positively: /docs-hygiene:write-for-agents.
+- Residue inside SKILL.md files: /skill-quality:check.
+
 ## Sources
 
 - [Diataxis Explanation](https://diataxis.fr/explanation/), the Diataxis classifier behind the preamble treatment

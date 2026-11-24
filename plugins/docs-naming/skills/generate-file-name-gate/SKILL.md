@@ -121,6 +121,11 @@ exits 0, the checker has been run once and its verdict reported, and every
 
 For the rule itself, once the gate is wired and green.
 
+## Related
+
+- REINDEX row emitted for rules index: /instruction-placement:check.
+- Choosing whether a rule file should accompany the gate: /corrections:codify.
+
 ## Gotchas
 
 - **A rule file is a pointer surface a repository may deliberately not carry.**

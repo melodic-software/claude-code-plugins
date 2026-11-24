@@ -38,12 +38,6 @@ const pr = ({ labels = [], body = "", ageHours = 1, number } = {}) => ({
   created_at: new Date(NOW - ageHours * HOUR).toISOString(),
 });
 
-// A search API that answers by query: the open listing pages through `open`,
-// the merged and opened counts answer `merged` and `admitted`; an Error
-// answer throws. The repository issues listing pages through `queued` (issues
-// as { number, labels?, pull_request? }); null answers no list, and page
-// `failQueuedPage` throws. A pull request read answers `heads[number]` as its
-// head ref. Each path is recorded.
 function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false, heads = {}, blockedBy = {}, failQueuedPage = null } = {}) {
   const paths = [];
   const github = async (method, path) => {
@@ -104,8 +98,6 @@ test("each hold signal holds a PR: needs-human, do-not-merge, or the exact hold 
   assert.equal(isHeld(pr({ body: "Refs: #8211\r\nHold: a human merges this\r\n" })), true);
 });
 
-// pr-merge's holdReason matches hold labels ignoring case, so the WIP count
-// does too; the body line stays exact.
 test("a hold label holds a PR in any case", () => {
   assert.equal(isHeld(pr({ labels: ["Needs-Human"] })), true);
   assert.equal(isHeld(pr({ labels: ["Do-Not-Merge"] })), true);
@@ -167,8 +159,6 @@ test("the queued listing leaves out pull requests and hold labels in any case, i
   assert.equal(status(reads).queued_issues, 3);
 });
 
-// The Work status field a trusted account set (read-status.mjs): with a status
-// label on the issue it only adds a hold; with none it decides; unset, the labels decide.
 const fieldRead = (fields, queued) => {
   const { github } = searchApi({ merged: 24, queued });
   const fielded = withFields(github, fields);
@@ -189,8 +179,6 @@ test("a field that mirrors the labels changes no queued answer", async () => {
     { number: 9, labels: [{ name: "agent-ready" }, { name: "needs-spec" }] },
   ];
   const reads = await read({ merged: 24, queued }, { statusOf: mirroredStatusOf });
-  // #9's labels collapse to needs-spec, a hold state, and a field at a state
-  // other than agent-ready drops the agent-ready label.
   assert.deepEqual(reads.queued, [1, 7, 8]);
 });
 
@@ -204,8 +192,6 @@ test("a hold in the Work status field the labels lack keeps an issue out of the 
   assert.deepEqual(reads.queued, [3]);
 });
 
-// The listing names only agent-ready issues, so every listed one carries a
-// status label: the field never decides alone here.
 test("a queued issue whose Work status field is unset, or set by another account, is judged by its labels", async () => {
   const queued = [
     { number: 1, labels: [{ name: "agent-ready" }] },
@@ -226,11 +212,6 @@ test("a queued issue whose Work status field read fails counts as queued", async
   assert.equal(reads.queuedUnlisted, 0);
 });
 
-// The Work status listing (resolve-config.mjs issuesByStatus) as listedStatusOf
-// reads it: `issues` as {number, createdAt, labels, field?: {state, setter?}},
-// the setter defaulting to the listed human, `field.named` the state its event
-// names when that differs from the value. `fields` answers each issue's own
-// read (withFields). The label listing must not be read.
 const fieldListing = (issues, { fail = false, fields = {} } = {}) => {
   const { github, paths } = searchApi({ merged: 24, queued: new Error("the label listing was read") });
   const field = { fullDatabaseId: String(STATUS_CONFIG["field-id"]) };
@@ -326,7 +307,6 @@ test("the open listing pages until a short page", async () => {
 
 test("a search that answers incomplete results is an unknown read", async () => {
   const reads = await read({ open: [pr()], merged: 0, admitted: 3, incomplete: true });
-  // The queued listing is no search, so it still reads.
   assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: [], queuedUnlisted: 0, blocked: [], searchIncomplete: true });
 });
 
@@ -347,9 +327,6 @@ test("an incomplete search answer closes new admissions with pause-from unset, f
   }
 });
 
-// A broken dependency or config file leaves the default limits, so the caps
-// are unknown: admissions close whatever pause-from says, as on an incomplete
-// search, and the run pause is unchanged.
 test("an unreadable base config closes new admissions with pause-from unset, future or past", async () => {
   const reads = await read({ open: [pr()], merged: 24, admitted: 0, queued: [] });
   for (const pauseFrom of ["", "2026-10-19", "2026-10-01"]) {
@@ -389,7 +366,6 @@ test("countable PRs are the open ones not held; held ones are counted apart", as
 });
 
 test("the cap is compared against countable PRs only", async () => {
-  // 24 merged in 24 h at a 2-hour target: a cap of 2.
   const held = Array.from({ length: 10 }, () => pr({ labels: ["needs-human"] }));
   const under = status(await read({ open: [pr(), ...held], merged: 24 }));
   assert.equal(under.wip_cap, 2);
@@ -456,7 +432,6 @@ test("admissions may reach the admission factor times the merges, no more", asyn
 // admissions pause; runs never pause on it.
 const issues = (...numbers) => numbers.map((number) => ({ number }));
 
-// A blocker as GET .../dependencies/blocked_by lists it.
 const blocker = (number, { state = "open", reason = null, repo = REPO, pull } = {}) => ({
   number,
   state,
@@ -474,7 +449,6 @@ test("an agent-ready issue a blocker still blocks is not queued work; one whose 
     5: [],
   };
   const reads = await read({ merged: 24, queued: issues(1, 2, 3, 4, 5), blockedBy });
-  // #3's blocker closed as not planned counts as done (admission's rule).
   assert.deepEqual(reads.blocked, [1, 2]);
   assert.equal(status(reads).queued_issues, 3);
 });
@@ -489,7 +463,6 @@ test("blocker reads skip issues a lane PR names, stop at BLOCKER_READS, and a fa
   assert.equal(depReads.length, BLOCKER_READS);
   assert.ok(!depReads.some((path) => path.includes("/issues/1/")), "a named issue costs no read");
   assert.ok(!reads.blocked.includes(2));
-  // Read and blocked: 3..31; unread past the bound, and #2, stay queued.
   assert.equal(reads.blocked.length, BLOCKER_READS - 1);
   assert.equal(status(reads).queued_issues, many.length - 1 - (BLOCKER_READS - 1));
 });
@@ -542,16 +515,11 @@ test("a head branch outside the lane's shape names no issue, and a failed pull r
 
 test("the queued cap is max(factor x merges per hour, the floor) x the merge-rate window", async () => {
   const cases = [
-    // 48 merged in 24 h: 2/h x 0.8 = 1.6/h over the floor of 1; x 24 h.
     [{ merged: 48 }, {}, {}, 38.4],
-    // No merges: the floor of 1/h x 24 h.
     [{ merged: 0 }, {}, {}, 24],
     [{ merged: 48 }, { "admission-factor": 1, "admission-min-per-hour": 0 }, {}, 48],
-    // The target lead time does not size it.
     [{ merged: 48 }, {}, { "target-lead-time-hours": 8 }, 38.4],
-    // 48 merged in 12 h: 4/h x 0.5 = 2/h; x 12 h.
     [{ merged: 48 }, { "admission-factor": 0.5 }, { "merge-rate-window-hours": 12 }, 24],
-    // No merged count: the floor alone.
     [{ merged: null }, { "admission-factor": 1 }, {}, 24],
   ];
   for (const [answers, limits, wip, cap] of cases) {
@@ -561,7 +529,6 @@ test("the queued cap is max(factor x merges per hour, the floor) x the merge-rat
 });
 
 test("over the queued cap new admissions pause only on or after pause-from, and runs do not", async () => {
-  // No merges over a 3-hour window: the floor of 1/h x 3 h, a queued cap of 3.
   const short = { "merge-rate-window-hours": 3 };
   const over = await read({ open: [pr({ labels: ["needs-human"] })], merged: 0, queued: issues(1, 2) }, { windowHours: 3 });
   for (const [pauseFrom, open] of [["", true], ["2026-10-19", true], ["2026-10-18", false]]) {
@@ -578,9 +545,7 @@ test("over the queued cap new admissions pause only on or after pause-from, and 
   const under = status(await read({ merged: 0, queued: issues(1, 2) }, { windowHours: 3 }), { ...short, "pause-from": "2026-10-01" });
   assert.equal(under.queued_over, false);
   assert.equal(under.admission_open, true);
-  // 2 queued under 3: room for one more.
   assert.equal(under.admission_room, 1);
-  // 48 merged in 24 h: a cap of 38.4, so 3 queued leave room for 36.
   assert.equal(status(await read({ merged: 48, queued: issues(1, 2, 3) }), { "pause-from": "2026-10-01" }).admission_room, 36);
 });
 
@@ -685,9 +650,6 @@ test("reads that fail never cap or pause on their own", async () => {
   assert.equal(result.pause_reason, null);
 });
 
-// main against a base checkout; with no `config` it holds no schema, so the
-// defaults apply. With `config` it holds this repository's files the resolver
-// reads, with that pr-pipeline.yaml text.
 const CONFIG = "docs/conventions/pr-pipeline.yaml";
 const BASE_FILES = [
   "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
@@ -712,10 +674,6 @@ async function runMain(answers, extraEnv = {}, config) {
   writeFileSync(summary, "");
   const logs = [];
   const { github, paths } = searchApi(answers);
-  // The one open-issues listing the Work status states and the queued issues
-  // come from answers `answers.listed` (issue nodes), by default the issues of
-  // `answers.queued` with the agent-ready label and no field value (an Error
-  // fails it), and stays out of `paths`.
   const fromQueued = () =>
     (Array.isArray(answers.queued) ? answers.queued : [])
       .filter((item) => !item.pull_request)
@@ -736,7 +694,6 @@ async function runMain(answers, extraEnv = {}, config) {
 
 test("main publishes the status as one flat JSON object in the output, the step summary and the log", async (t) => {
   const { capped, wip, summary, logs } = await runMain({ open: [pr(), pr({ labels: ["needs-human"], ageHours: 30 })], merged: 36, admitted: 2 });
-  // No base config here, so the pause is unknown and the run holds.
   assert.equal(capped, "true");
   for (const [key, value] of Object.entries({
     countable_lane_prs: 1,
@@ -759,13 +716,10 @@ test("main publishes the status as one flat JSON object in the output, the step 
 });
 
 test("main writes capped=true only when paused", async () => {
-  // With pause-from empty, over the cap (its min-cap floor of 12) it alerts, never caps.
   const over = await runMain({ open: Array.from({ length: 25 }, () => pr()), merged: 24 }, {}, unsetConfig());
   assert.equal(over.wip.wip_over, true);
   assert.equal(over.capped, "false");
   assert.equal((await runMain({ open: [pr()], merged: 24 }, {}, unsetConfig())).capped, "false");
-  // The base config's past pause-from: over the cap (its min-cap floor of 12
-  // here, since 24 merged would compute 2) it pauses, under it it runs.
   const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
   const config = repoConfig.replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
   assert.notEqual(config, repoConfig.replace(/^( +pause-from: ).*$/m, '$1""'));
@@ -773,7 +727,6 @@ test("main writes capped=true only when paused", async () => {
   assert.equal(paused.wip.pause_from, "2026-10-01");
   assert.equal(paused.wip.wip_min_cap, 12);
   assert.equal(paused.capped, "true");
-  // A pause that was read is no hold, so pick-slot still reads the dimensions.
   assert.equal(paused.held, "false");
   assert.ok(paused.logs.some((line) => line.includes("25 countable lane PRs are at or over the WIP cap of 12")));
   const line = "admission paused: reason=wip countable=25 wip_cap=12 held=0 held_cap=10";
@@ -834,9 +787,6 @@ test("a read the pause depends on that fails holds the run with one notice", asy
   }
 });
 
-// A merged count that cannot be read is no hold: the cap is this
-// repository's limits.wip-cap of 12, so 12 countable PRs past pause-from
-// pause and 11 run, both read.
 test("a failed merged count decides the pause from limits.wip-cap, with no hold", async () => {
   for (const [count, capped] of [[12, "true"], [11, "false"]]) {
     const result = await runMain({ open: Array.from({ length: count }, () => pr()), merged: failed }, {}, pastConfig());
@@ -861,9 +811,6 @@ test("reads that succeed decide the pause and name no hold", async () => {
   }
 });
 
-// Outage posture element 3: no earlier run's state decides the pause. A state
-// file left where the action used to restore one changes nothing either way,
-// and the check never writes it.
 test("a stored state decides nothing and is never written", async () => {
   const path = join(tempDir("check-wip-cap-state-"), "state.json");
   for (const [prior, answers, capped] of [
@@ -915,9 +862,6 @@ test("main's warning before pause-from says the pause date is not reached", asyn
 });
 
 test("main pauses new admissions over this repository's queued cap past pause-from, and not the run", async () => {
-  // This repository's limits (factor 0.8, floor 1/h) and 24-hour window: 24
-  // merged is 0.8/h under the floor, so the cap is 24. Twenty-three queued
-  // issues and one held PR make 24.
   const open = [pr({ labels: ["needs-human"], body: "Closes #9" })];
   const queued = issues(...Array.from({ length: 23 }, (_, i) => 100 + i));
   const over = await runMain({ open, merged: 24, queued }, {}, pastConfig());
@@ -972,7 +916,6 @@ test("main closes new admissions and warns when the base config cannot be read, 
   assert.equal(result.wip.pause_basis, "unknown");
 });
 
-// The queued listing feeds admission-open alone, so its failure is no hold.
 test("a queued read that fails keeps the run's read basis and leaves admissions open", async () => {
   const failed = new Error("GET /search/issues failed with status 502");
   const result = await runMain({ open: [pr()], merged: 24, queued: failed }, {}, pastConfig());
@@ -982,10 +925,6 @@ test("a queued read that fails keeps the run's read basis and leaves admissions 
   assert.equal(result.wip.admission_basis, "fail-open");
 });
 
-// pick-slot reads only `capped`, which the open listing and the merged count
-// decide; the admitted count, the queued listing, its pull request reads and
-// its blocker reads feed admission-open alone. With WIP_READS=pause the check
-// makes those two searches and nothing else, whatever the queue holds.
 const queuedIssues = (n) => Array.from({ length: n }, (_, i) => ({ number: 500 + i }));
 
 test("pause reads make exactly two searches however many issues are queued", async () => {
@@ -999,14 +938,11 @@ test("pause reads make exactly two searches however many issues are queued", asy
       paused.paths.map((path) => new URL(path.slice("GET ".length), "https://api.github.com").searchParams.get("q")),
       [`repo:${REPO} is:pr is:open ${AUTHOR}`, `repo:${REPO} is:pr is:merged ${AUTHOR} merged:>=2026-10-17T12:00:00Z`],
     );
-    // Full reads: three searches (the Work status listing stays out of `paths`), one pull request
-    // read when issues are queued, and one blocker read per queued issue no lane PR names, at most BLOCKER_READS.
     const named = n === 0 ? 0 : 2;
     assert.equal(full.paths.length, 3 + (n === 0 ? 0 : 1) + Math.min(Math.max(n - named, 0), BLOCKER_READS));
   }
 });
 
-// A listing node whose Work status a listed human (trusted-actors.json) set.
 const listedNode = (number, state) => ({
   number,
   createdAt: "2026-10-01T00:00:00Z",
@@ -1017,8 +953,6 @@ const listedNode = (number, state) => ({
   },
 });
 
-// One listing gives every queued issue its Work status, so a queue longer
-// than any per-issue read limit has no tail read as unheld or as queued.
 test("a field-only hold keeps each of 60 queued issues out of the count, the last as the first", async () => {
   const queued = queuedIssues(60);
   const listed = queued.map(({ number }) => listedNode(number, number % 2 === 0 ? "needs-human" : "agent-ready"));
@@ -1065,15 +999,9 @@ test("pick-slot reads only what the pause needs; admitting jobs read everything"
   assert.equal(action.runs.steps.find((step) => step.id === "check").env.WIP_READS, "${{ inputs.reads }}");
   const pickSlot = yamlAt(".github/workflows/work-resolve-issue.yml").jobs["pick-slot"];
   assert.equal(pickSlot.steps.find(usesWip).with?.reads, "pause");
-  // Only capped leaves pick-slot; nothing downstream reads admission-open or wip from it.
   assert.deepEqual(Object.keys(pickSlot.outputs).filter((key) => /wip|admission/.test(pickSlot.outputs[key])), ["capped"]);
 });
 
-// A spec container (the tracker binding's container label, `spec-container` by
-// default), or a map or map item (a label starting with its wayfind prefix,
-// `wayfind:` by default) is never built, re-fired or handed off by the lanes: its filing
-// skill routes it. Carrying agent-ready, it is no queued work, so it takes no
-// admission room; an ordinary agent-ready issue still does.
 test("a routed agent-ready issue takes no queued room on the label listing; an ordinary one still does", async () => {
   const room = async (queued) => status(await read({ merged: 24, queued }), { "pause-from": "2026-10-01" });
   const none = await room([]);

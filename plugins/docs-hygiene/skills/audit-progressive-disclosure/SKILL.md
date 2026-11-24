@@ -154,6 +154,13 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 - The file is long on flavor rather than structure: `/docs-hygiene:compress`.
 - A pointer no longer resolves: `/docs-hygiene:rename-references`.
 
+## Related
+
+- Skill frontmatter and description QA: /skill-quality:check.
+- In-page noise shapes: /docs-hygiene:audit-noise.
+- Whole-document derivability check: /docs-hygiene:audit-derivability.
+- Cross-file markdown deduplication: /docs-hygiene:extract-ssot.
+
 ## Gotchas
 
 - Ownership is usually stated outside the audited targets. A file that looks local may be synced

@@ -168,6 +168,11 @@ comment-hygiene tool fits those.
 When a claim needs a new multi-source research pass rather than a check of
 what the session already said.
 
+## Related
+
+- Ground local code and consumers for pending recommendations: /discovery:explore.
+- Run all core discipline correctors together: /discipline:sweep-all.
+
 ## Gotchas
 
 - "Verifying" a claim against the same recall that produced it is not

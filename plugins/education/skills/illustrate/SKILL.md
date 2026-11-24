@@ -190,18 +190,18 @@ unavailable because the explainer-video plugin is not enabled. Never install it.
   code-shape sketch) is `/visualization:visualize` (if enabled) via the Skill tool.
 - **Ongoing coaching** is `/education:teach`.
 
-## Related
-
-- `/review:explain-change` explains one pull request as a digest; it never posts.
-- `/explainer-video:produce` renders the storyboard Step 5 writes into the narrated video.
-- `/playwright:demo-video` records a live UI flow of a web change for a pull request.
-- `/source-control:pull-request` places a finished video in a pull request description.
-- `/review:reviewer-media` builds the walkthrough video of a pull request with the same producer.
-
 ## Next
 
 - The reader wants to learn the topic over several sessions: /education:teach topic <subject>.
 - The topic was a completed change the reader must understand: /education:quiz-me.
+
+## Related
+
+- Explain one pull request as a digest: /review:explain-change.
+- Render storyboard into narrated video: /explainer-video:produce.
+- Record live UI flow for a PR: /playwright:demo-video.
+- Place finished video in a PR: /source-control:pull-request.
+- Build PR walkthrough video: /review:reviewer-media.
 
 ## Gotchas
 

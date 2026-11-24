@@ -137,6 +137,12 @@ repository's tracker.
   divergence audits clean; the duty is to classify, not to force every
   difference back to the default.
 
+## Related
+
+- Interrogate internal precedent rather than vendor docs: /discipline:reason-dont-recite.
+- Audit against org engineering standards: /discipline:follow-our-standards.
+- Read one named upstream docs page verbatim: /discovery:read-docs.
+
 ## Gotchas
 
 - **"Still functions" is not "still current".** A deprecated flag or a

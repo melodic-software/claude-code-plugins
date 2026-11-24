@@ -114,6 +114,12 @@ the listing overflowed its budget, that is the routed territory above.
   preload and hook options are recommendations routed to the user, not changes
   the skill makes.
 
+## Related
+
+- Skill description quality or frontmatter QA: /skill-quality:check.
+- Machine-level skill listing budget: /harness-config:audit.
+- Ranked skill menu for the current task: /session-flow:recommend-skills.
+
 ## Gotchas
 
 - A skill whose description looks absent from the listing may be

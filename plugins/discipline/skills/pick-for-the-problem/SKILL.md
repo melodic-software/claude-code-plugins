@@ -117,6 +117,12 @@ which carves tool/dependency selection out to this skill.
 - **Does not audit a whole repository's dependency graph.** The audit covers the
   selection in flight; a repo-wide coupling-risk inventory is out of scope.
 
+## Related
+
+- Load-bearing field survey and vendor evaluation: /discovery:research.
+- Challenge inherited precedent generally: /discipline:reason-dont-recite.
+- Idiom or structure consistency without dependency choice: /discipline:reuse-or-replace.
+
 ## Gotchas
 
 - **The reflex hides as a reason.** "We use X here" and "X is what I know"

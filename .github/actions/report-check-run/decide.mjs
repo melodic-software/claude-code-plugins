@@ -1,11 +1,3 @@
-// Pure check-run decision for a pipeline activity. Lane, activity, run result,
-// act outcome, gate reason, run failure, not-run reason, head SHA and the
-// signed-commit result are the report job's own inputs or the run job's
-// runner-computed outputs. The verdict
-// was written after head code ran: it is validated, its lane, activity, gate
-// reason and head SHA must match those inputs, and it is never the source of
-// the name, the head SHA, the outcome or any text in the check.
-
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const RESERVED_NAME = "ci-status";
 const SHA = /^[0-9a-f]{40}$/;
@@ -13,7 +5,6 @@ const ROUND_COUNT = /^round [1-9][0-9]{0,3} of max [1-9][0-9]{0,3}$/;
 const GATES = ["kill-switch", "trigger"];
 const CONFIG = new Set(["valid", "invalid", "not-read"]);
 const OUTCOME = new Set(["success", "failure", "skipped", "not-run"]);
-// The read file's patch output mode. The title is fixed text per value.
 const PATCH = {
   written: ["Passed: patch written", "The activity ran and wrote its changes to a patch artifact."],
   empty: ["Passed: no changes", "The activity ran and changed nothing, so it wrote no patch."],
@@ -28,7 +19,6 @@ const isGateResult = (gate) =>
     typeof gate.proceed === "string" &&
     typeof gate.reason === "string");
 
-// Required fields and their types from contract-spec Verdict.
 function isVerdict(verdict) {
   return (
     isPlainObject(verdict) &&
@@ -73,7 +63,6 @@ export function decide(verdict, inputs) {
     },
   });
   const failure = (summary) => post("failure", "Failed", summary);
-  // Every neutral passes this one check against the base schema's enum.
   const neutral = (reason) =>
     skipReasons.includes(reason)
       ? post("neutral", `Skipped: ${reason}`, `Skip reason: ${reason}`)
@@ -88,12 +77,8 @@ export function decide(verdict, inputs) {
       ? neutral("superseded-sha")
       : failure("The run was cancelled and no newer head superseded it.");
   }
-  // A caller whose activity job never ran (its precondition was not met)
-  // names the skip itself; there is no run job and so no verdict.
   if (runResult === "skipped" && notRunReason) {
     const skip = neutral(notRunReason);
-    // The one detail line a caller may add: the round count a PR stopped at.
-    // Any other text is left out of the check.
     if (skip.report.conclusion === "neutral" && ROUND_COUNT.test(notRunDetail ?? "")) {
       skip.report.output.summary += `\n\n${notRunDetail}`;
     }
@@ -130,7 +115,6 @@ export function decide(verdict, inputs) {
     }
     return neutral(gateSkipReasons[gateReason]);
   }
-  // No skip reason can neutralize these.
   if (signedCommits && signedCommits.all_verified !== true) {
     return failure(
       signedCommits.unverified?.length > 0
@@ -144,11 +128,6 @@ export function decide(verdict, inputs) {
   if (verdict["dirty-tree"] === true) {
     return failure("A read activity left the working tree dirty.");
   }
-  // A skip reason counts only in a run job that succeeded, with an act
-  // outcome of success or skipped: a script that exited 0 with one, or a
-  // skip before the act step ran. The verdict is still
-  // written after head code may have run, so a forged reason can only turn a
-  // success neutral; the act outcome and run result come from the runner.
   if (verdict["skip-reason"] != null) {
     return runResult === "success" &&
       (actOutcome === "success" || actOutcome === "skipped")
@@ -169,8 +148,6 @@ export function decide(verdict, inputs) {
       "The activity step did not run and no skip reason explains it.",
     );
   }
-  // Written after head code ran, so a forged value changes only which fixed
-  // title a success carries; the patch's consumer checks the patch itself.
   if (verdict.patch != null) {
     return post("success", ...PATCH[verdict.patch]);
   }

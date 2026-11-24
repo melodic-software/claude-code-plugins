@@ -277,6 +277,12 @@ and review against the invariant.
 - A FAIL or WARN to fix in a skill being authored: /playbooks:skill-authoring.
 - All checks pass and the change is ready to ship: /verification:confirm.
 
+## Related
+
+- Validate new case.yaml eval suites: /evals:validate.
+- Run model-graded plugin evals: /evals:plugin-eval.
+- Fix flagged agent-doc completion criteria: /docs-hygiene:write-for-agents.
+
 ## Gotchas
 
 - `measure-invocation`'s default `listing-overlap` method is a lexical floor. A 1.0 positive
