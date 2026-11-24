@@ -6,9 +6,6 @@ SCRIPT="$SCRIPT_DIR/remove-shims.sh"
 REAL_SOURCES="$SCRIPT_DIR/../reference/sources.md"
 VERSION_LIB="$SCRIPT_DIR/../../../scripts/lib/version.sh"
 
-# A stub copy of the script sources the plugin's shared version comparator
-# from three levels up, so a stub keeps the plugin's layout:
-# <root>/skills/migrate/{scripts,reference} beside <root>/scripts/lib.
 make_stub() {
   mkdir -p "$1/skills/migrate/scripts" "$1/skills/migrate/reference" "$1/scripts/lib"
   cp "$VERSION_LIB" "$1/scripts/lib/version.sh"

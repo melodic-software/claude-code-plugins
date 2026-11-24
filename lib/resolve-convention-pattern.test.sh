@@ -47,18 +47,14 @@ CC_ERE='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?
 TEAM_YAML="docs/conventions/source-control.yaml"
 WELL_KNOWN="docs/conventions/source-control/commit-convention.yml"
 
-# addfile <repo> <repo-relative path> <body>: write a file inside the repo.
 addfile() {
   local d="$1" path="$2" body="$3"
   mkdir -p "$d/$(dirname "$path")"
   printf '%s\n' "$body" >"$d/$path"
 }
-# Both team files count only while git tracks them, so a case stages each one.
 track() {
   git -C "$1" add -- "$2" 2>/dev/null || true
 }
-# newrepo [team yaml body]: an isolated git repo; a body becomes the tracked
-# team file.
 newrepo() {
   local d
   d="$(mktemp -d "$TEST_TMPDIR/repo.XXXXXX")"
@@ -69,17 +65,14 @@ newrepo() {
   fi
   printf '%s' "$d"
 }
-# addyaml <repo> <body>: write the team file into an existing repo and track it.
 addyaml() {
   addfile "$1" "$TEAM_YAML" "$2"
   track "$1" "$TEAM_YAML"
 }
-# addfolder <repo> <body>: write the folder-form file and track it.
 addfolder() {
   addfile "$1" "$WELL_KNOWN" "$2"
   track "$1" "$WELL_KNOWN"
 }
-# sp <pattern>: a single-quoted subject_pattern line, the pattern as written.
 sp() { printf "subject_pattern: '%s'" "$1"; }
 run() { "$SH" "$SCRIPT" "$1" "${2:-subject_pattern}"; }
 layer() { "$SH" "$SCRIPT" --layer "$1" "${2:-subject_pattern}"; }
@@ -149,7 +142,6 @@ r="$(newrepo "$(sp '^\tJIRA-[0-9]+: .+')")"
 run "$r" >/dev/null 2>&1
 assert_exit "\\t -> exit 1" 1 $?
 
-# --- an escaped backslash (\\d = literal, not the class) -> no enforcement ---
 r="$(newrepo "$(sp '^foo\\d: .+')")"
 run "$r" >/dev/null 2>&1
 assert_exit "escaped backslash -> exit 1" 1 $?
@@ -164,7 +156,6 @@ rc=$?
 assert_exit "uncompilable ERE -> exit 1" 1 "$rc"
 assert_eq "uncompilable ERE -> empty stdout" "" "$out"
 
-# --- unresolved: no team file at all -> exit 1, NEVER the CC default ---
 r="$(newrepo "")"
 out="$(run "$r")"
 rc=$?
@@ -181,9 +172,6 @@ assert_eq "pr deferral -> subject" '^ABC-[0-9]+: .+' "$(run "$r" pr_title_patter
 r="$(newrepo "$(sp '^X: .+')"$'\npr_title_pattern: \047^PR: .+\047')"
 assert_eq "pr explicit value" '^PR: .+' "$(run "$r" pr_title_pattern)"
 
-# --- the retired markdown team file is not read ---
-# Neither its `## <key>` H2 nor a `## convention_source` pointer enforces
-# anything, even while git tracks the file and the file it points at.
 r="$(newrepo "")"
 addfile "$r" ".claude/source-control.md" $'## convention_source\nconventions.yml\n\n## subject_pattern\n^MD-[0-9]+: .+\n\n## pr_title_pattern\n^MDPR: .+'
 addfile "$r" "conventions.yml" "$(sp '^POINTED-[0-9]+: .+')"
@@ -196,11 +184,6 @@ assert_eq "markdown: a tracked H2 and pointer are not enforced -> exit 1, silent
 run "$r" pr_title_pattern >/dev/null 2>&1
 assert_exit "markdown: a tracked pr_title_pattern H2 is not enforced" 1 $?
 
-# =====================================================================
-# The folder-form file (docs/conventions/source-control/commit-convention.yml):
-# flat-scalar YAML, read for a key the team file lacks, only while git
-# tracks it.
-# =====================================================================
 
 r="$(newrepo "")"
 addfolder "$r" $'# team commit convention\n'"$(sp '^SW2-[0-9]+: .+')"
@@ -293,7 +276,6 @@ addfolder "$r" $'subject_pattern:'
 run "$r" >/dev/null 2>&1
 assert_exit "folder form: bare empty key -> exit 1" 1 $?
 
-# --- POLICY FLOOR: an untracked folder form is not a layer ---
 r="$(newrepo "")"
 addfile "$r" "$WELL_KNOWN" "$(sp '^untracked: .+')"
 out="$(run "$r" 2>"$TEST_TMPDIR/untracked.err")"
@@ -330,12 +312,6 @@ else
   echo "SKIP: symlink cases (ln -s unavailable on this filesystem)"
 fi
 
-# =====================================================================
-# Team YAML (docs/conventions/source-control.yaml) ahead of the folder form.
-# Precedence, per key:
-#   1. docs/conventions/source-control.yaml   (git-tracked)
-#   2. docs/conventions/source-control/commit-convention.yml   (git-tracked)
-# =====================================================================
 
 r="$(newrepo "")"
 addfolder "$r" "$(sp '^old-folder: .+')"
@@ -357,7 +333,6 @@ out="$(layer "$r")"
 rc=$?
 assert_eq "team yaml and folder form lack the key: exit 1, no layer" "1|" "$rc|$out"
 
-# --- POLICY FLOOR: an untracked YAML is not a layer ---
 r="$(newrepo "")"
 addfolder "$r" "$(sp '^tracked-folder: .+')"
 addfile "$r" "$TEAM_YAML" "$(sp '^untracked-yaml: .+')"
@@ -385,7 +360,6 @@ assert_eq "team yaml: a broken folder form does not disable a key the yaml carri
 run "$r" pr_title_pattern >/dev/null 2>&1
 assert_exit "team yaml lacks the key: the broken folder form still fails closed" 1 $?
 
-# --- fail closed: a YAML the parser rejects, never a folder-form fallback ---
 r="$(newrepo $'subject_pattern: \047^unclosed: .+')"
 addfolder "$r" "$(sp '^stale: .+')"
 out="$(run "$r" 2>"$TEST_TMPDIR/yaml.err")"
@@ -455,12 +429,6 @@ else
   echo "SKIP: symlinked team yaml (ln -s unavailable on this filesystem)"
 fi
 
-# =====================================================================
-# The personal layer (docs/conventions/source-control.local.yaml): one
-# operator's subject_pattern, read only while git ignores the file and only
-# when the team layer supplies no subject_pattern. Never merged with a team
-# pattern.
-# =====================================================================
 
 PERSONAL="docs/conventions/source-control.local.yaml"
 # addpersonal <repo> <body> [gitignore|exclude|none]: write the personal file,
@@ -506,8 +474,6 @@ r="$(newrepo "")"
 addfolder "$r" "$(sp '^FOLDER-[0-9]+: .+')"
 addpersonal "$r" "$P_BODY"
 assert_eq "personal: a folder-form team pattern wins over the personal one" '^FOLDER-[0-9]+: .+' "$(run "$r")"
-# A team value that cannot be enforced disables the gate; the personal pattern
-# never stands in for it.
 r="$(newrepo "")"
 addpersonal "$r" "$P_BODY"
 addyaml "$r" "$(sp '^(?:feat|fix): .+')"
@@ -565,7 +531,6 @@ rc=$?
 assert_exit "personal: a tracked personal file -> exit 1 though .gitignore matches it" 1 "$rc"
 assert_eq "personal: a tracked personal file -> empty stdout" "" "$out"
 
-# --- fail closed: the personal file gets the team file's checks ---
 r="$(newrepo "")"
 addpersonal "$r" $'subject_pattern: \047^unclosed: .+'
 out="$(run "$r" 2>"$TEST_TMPDIR/personal.err")"
@@ -603,7 +568,6 @@ if [[ -L "$r/$PERSONAL" ]]; then
   rc=$?
   assert_exit "personal: a symlinked file -> exit 1" 1 "$rc"
   assert_eq "personal: a symlinked file -> empty stdout" "" "$out"
-  # The symlink check, not the ignore check, refused it.
   assert_eq "personal: a symlinked file -> the symlink diagnostic" yes \
     "$(grep -q "the personal file '$PERSONAL' is a symlink" "$TEST_TMPDIR/personal.err" && echo yes || echo no)"
 else

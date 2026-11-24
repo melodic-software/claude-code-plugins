@@ -38,8 +38,8 @@ the reviewer to confirm the description still names that intent, or to restore t
   `name` length cap (FAIL) and WARNs when it carries `anthropic` or `claude`, a Skills API upload
   rule rather than a spec rule. Claude Code enforces neither name rule, so both are portability
   findings.
-  - **Record**: the pointer for parse-failure behavior is in the unquoted-description comment under
-    the `# --- Check 1` header of `scripts/check-skill.sh`, and the name cap in the comment above
+  - **Record**: the pointer for parse-failure behavior is in the unquoted-description comment in
+    `scripts/check-skill.sh`, and the name cap in the comment above
     `NAME_MAX_LEN=` there (a script, so no section anchor).
   - **Pointer**: when a `compatibility`, `name`, or reserved-word finding is in doubt, fetch
     <https://agentskills.io/specification#compatibility-field>,

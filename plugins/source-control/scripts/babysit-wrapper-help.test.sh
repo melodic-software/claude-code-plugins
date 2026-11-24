@@ -25,8 +25,6 @@ source "$SCRIPT_DIR/test-helpers.sh"
 command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 ||
   skip_suite "no python interpreter; the wrappers cannot run"
 
-# A gh stub that fails loudly stands in for the network: --help must never reach
-# it, so any invocation at all is the regression this suite exists to catch.
 NO_NET_BIN="$(mktemp -d)"
 trap 'rm -rf "$NO_NET_BIN"' EXIT
 cat >"$NO_NET_BIN/gh" <<'STUB'
@@ -36,7 +34,6 @@ exit 90
 STUB
 chmod +x "$NO_NET_BIN/gh"
 
-# --- Case: merge wrapper --help is the non-mutating canary -------------------
 merge_out=$(PATH="$NO_NET_BIN:$PATH" bash "$BIN/source-control-babysit-merge" --help 2>&1)
 assert_exit "merge --help exit 0 (canary is a PASS when reachable)" 0 "$?"
 assert_contains "merge --help prints usage" "$merge_out" "usage: babysit_merge.py"
@@ -59,16 +56,10 @@ assert_exit "review-threads --help exit 0" 0 "$?"
 assert_contains "review-threads --help prints usage" "$threads_out" "usage: pr_review_threads.py"
 assert_not_contains "review-threads --help never reaches gh" "$threads_out" "gh must not be invoked"
 
-# A gh failure is UNPROVEN, never a pass: the read that did not happen is not
-# evidence of zero threads.
 threads_out=$(PATH="$NO_NET_BIN:$PATH" bash "$BIN/source-control-review-threads" owner/repo#7 2>/dev/null)
 assert_exit "review-threads gh failure exits 2" 2 "$?"
 assert_contains "review-threads gh failure is UNPROVEN" "$threads_out" "THREADS_UNPROVEN reason=fetch-failed pr=owner/repo#7"
 
-# --- Case: the wrapper's own refusal is not weakened by --help ---------------
-# --allow-unpinned-head is refused BEFORE the interpreter runs, so pairing it
-# with --help must still refuse (exit 2) rather than printing usage -- the guard
-# is not a help-time nicety.
 unpinned_out=$(bash "$BIN/source-control-babysit-merge" --help --allow-unpinned-head 2>&1)
 assert_exit "unpinned-head refused even alongside --help" 2 "$?"
 assert_contains "unpinned-head refusal names the flag" "$unpinned_out" "--allow-unpinned-head"

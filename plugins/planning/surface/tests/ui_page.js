@@ -1,4 +1,4 @@
-async page => { // the question page itself: choices, chips, banners, header and layout; the shell writes as Claude between phases
+async page => {
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   const errors = [];
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -170,7 +170,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     // #7970: expanding Why leaves the Details control where it was
     await pick("Q8");
     const moreBox = () => page.$eval("#moreBtn", b => { const r = b.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); }).catch(() => "");
-    await page.$eval("#whyBtn", b => b.scrollIntoView({block: "nearest"})).catch(() => {}); // the click would otherwise scroll the pane between the two measures
+    await page.$eval("#whyBtn", b => b.scrollIntoView({block: "nearest"})).catch(() => {});
     const b0 = await moreBox();
     await page.click("#whyBtn"); await page.waitForTimeout(200);
     const why = await page.evaluate(() => ({expanded: document.getElementById("whyBtn").getAttribute("aria-expanded"), shown: !document.getElementById("why").hidden, text: document.getElementById("why").innerText}));
@@ -228,9 +228,9 @@ async page => { // the question page itself: choices, chips, banners, header and
     const recAlone = await recFit();
     await tab.click('.strip [data-panel="terms"]'); await tab.waitForTimeout(300);
     const unpinned = (await tab.getAttribute("#pinBtn", "aria-pressed")) !== "true";
-    if (unpinned) { await tab.click("#pinBtn"); await tab.waitForTimeout(250); } // pinned, the panel narrows the Decide pane
+    if (unpinned) { await tab.click("#pinBtn"); await tab.waitForTimeout(250); }
     const recPanel = await recFit();
-    if (unpinned) { await tab.click("#pinBtn"); await tab.waitForTimeout(150); } // the stored Unpin the rest of the run expects
+    if (unpinned) { await tab.click("#pinBtn"); await tab.waitForTimeout(150); }
     await tab.click("#flyClose"); await tab.waitForTimeout(150);
     ok("#11649: at 1280x720 a Rec row at the 500-character cap fits the Decide list, with or without a side panel, and offers Read all", recAlone.clamped && recAlone.readAll && recAlone.row <= recAlone.list && recPanel.readAll && recPanel.row <= recPanel.list, JSON.stringify({recAlone, recPanel}));
     await tab.click("#recAll"); await tab.waitForTimeout(150);
@@ -243,7 +243,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("#11649: at 1280x720 a Decide list with no hidden row shows no fade", none.rows > 0 && !none.hidden && none.mask === "none", JSON.stringify(none));
     await tab.close();
   }
-  if (PHASE === 2) { // the shell revised Q1's recommendation with no why while Q8 was not open
+  if (PHASE === 2) {
     const banner = () => page.$$eval("#dscroll .banner", els => els.map(e => e.textContent).join(" | "));
     await pick("Q1");
     const first = await banner();
@@ -252,7 +252,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("a later visit shows a Revised chip in its place, with Previous kept", !/Recommendation revised/.test(await banner()) && /Revised/.test(await text("#dscroll .revchip")) && /Previous/.test(await text("#dscroll .revchip")), await banner() + " / " + await text("#dscroll .revchip"));
     await pick("Q8");
   }
-  if (PHASE === 3) { // the shell revised Q1 again
+  if (PHASE === 3) {
     await pick("Q1");
     ok("a further revision brings the full banner back on the next open", /Recommendation revised\./.test(await text("#dscroll .banner")) && !(await page.$("#dscroll .revchip")), await text("#dscroll .banner"));
   }
@@ -282,7 +282,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.click("#revBtn"); await page.waitForTimeout(150);
     ok("#5908: the meter's review count opens Show: Review", await page.$eval("#filter", el => el.value) === "review");
   }
-  if (PHASE === 5) { // the shell revised Q3's recommendation after its kept accept
+  if (PHASE === 5) {
     await page.waitForTimeout(600);
     // #11584: the revision set the accept aside, so Q3 reads open, under Show: Open and no longer under Review.
     const inShow = async v => { await page.selectOption("#filter", v); await page.waitForTimeout(150); return !!(await page.$('.rail-list .qbtn[data-q="Q3"]')); };
@@ -296,7 +296,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.click("#qhead"); await page.keyboard.press("a"); await page.waitForTimeout(150);
     ok("#5910: a arms Rec", /pinned by digest/.test(await text("#choices .choice.armed")), await text("#choices .choice.armed"));
   }
-  if (PHASE === 6) { // the user asks Claude on Q8; the shell replies between phases
+  if (PHASE === 6) {
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q8"); await page.fill("#note", "Who reads the notes first?"); await page.click("#note"); await page.keyboard.press("Control+Shift+Enter"); await page.waitForTimeout(700);
   }
@@ -336,7 +336,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     const back = await body();
     ok("with a short note and no conflict the body keeps the space it had", Math.abs(back.share - short.share) <= 0.02, JSON.stringify({short, back}));
   }
-  if (PHASE === 9) { // the page decides Q8; the shell then adds Q9 on Q8 and records Q9's decision from the terminal
+  if (PHASE === 9) {
     await post({id: "Q8", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(900);
   }
   if (PHASE === 10) {
@@ -362,7 +362,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("#7751: the Needs you heading counts only the entries listed under it", split.count === split.rows, JSON.stringify(split));
     ok("#7751: the Activity badge equals the unseen entries listed under Needs you", badge === split.unseen, badge + " badge / " + split.unseen + " unseen of " + split.count + " listed");
   }
-  if (PHASE === 11) { // the note boxes run the shared composer (question-shape.js), and a phone page is pinned to the visual viewport
+  if (PHASE === 11) {
     const events = async () => (await (await page.request.get(base + "api/state")).json()).responses.events;
     await page.setViewportSize({width: 1440, height: 900});
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
@@ -395,7 +395,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("at 390 px the page is pinned to the visual viewport and scrolls inside it, not the document", pin.pos === "fixed" && Math.abs(pin.h - pin.vv) <= 1 && pin.page <= 1 && pin.scrolls, JSON.stringify(pin));
     const kb = await page.evaluate(async () => {
       const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      Object.defineProperty(visualViewport, "height", {configurable: true, get: () => 400}); // a 444 px keyboard
+      Object.defineProperty(visualViewport, "height", {configurable: true, get: () => 400});
       window.QuestionShape.fitViewport(); await frame();
       const a = document.querySelector(".app").getBoundingClientRect(), n = document.getElementById("note").getBoundingClientRect();
       const out = {kb: getComputedStyle(document.documentElement).getPropertyValue("--kb").trim(), dataKb: "kb" in document.documentElement.dataset, app: Math.round(a.height), noteTop: Math.round(n.top), noteBottom: Math.round(n.bottom), focused: document.activeElement.id};
@@ -409,7 +409,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("each question keeps its own note draft across a switch and a reload", kept === "draft on Q1" && await page.inputValue("#note") === "draft on Q1", kept);
     await page.fill("#note", ""); await page.setViewportSize({width: 1440, height: 900});
   }
-  if (PHASE === 12) { // gap G8: the shell recorded two constraints with the constraint op; the header lists them
+  if (PHASE === 12) {
     await page.setViewportSize({width: 1440, height: 900});
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     const sum = await text("#consSum");

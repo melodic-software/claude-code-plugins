@@ -44,7 +44,6 @@ def canary_lines(repo_dir: str, commits: list[str]) -> list[tuple[str, bytes]]:
     attributes to a culprit in `commits`, scanned one at a time. Raises when a
     scan cannot run (exit 2) or the sink names a line it cannot parse."""
     lines: list[tuple[str, bytes]] = []
-    # Absolute: the scan runs with `repo_dir` as its working directory.
     script = str(Path(repo_dir).resolve() / "scripts/check-silent-revert.sh")
     bash = policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
     if bash is None:
@@ -177,8 +176,6 @@ def close_lifted(repo: str, identity: str | None) -> int:
                 + f"This record lifted: {lift.why}. The lane closed it by the merge "
                 "gate's own rule (babysit_merge_policy.py `_lift`).",
             )
-            # The comment is the lift's evidence pin: without it the record
-            # stays open and labeled for the next run to retry.
             if comment.returncode:
                 print(f"::warning::could not comment on #{number}: left open")
                 continue

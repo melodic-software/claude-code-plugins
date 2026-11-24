@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-create-gate.sh (WorktreeCreate hook).
-# Black-box: feed the hook a real WorktreeCreate payload against throwaway git
-# fixtures and assert on its stdout contract, its placement, and its refusals.
-# No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,7 +62,6 @@ assert_exit "a configured root creates the worktree" 0 "$STATUS"
 assert_contains "the path is under the configured root" "$OUT" "external-root"
 assert_eq "stdout is the path and nothing else" "1" "$(printf '%s\n' "$OUT" | grep -c .)"
 
-# The whole point: the worktree is registered, and it is NOT inside the repo.
 assert_contains "git registered the worktree at the printed path" \
   "$(git -C "$REPO" worktree list)" "external-root"
 assert_not_contains "nothing landed in the in-repo default" \
@@ -93,14 +88,12 @@ OUT="$(payload "feat/gate-fallback" "$REPO2" |
 assert_contains "an unconfigured root falls back to the plugin data dir" "$OUT" "worktrees"
 assert_not_contains "the fallback is not inside the repository" "$OUT" "$(basename "$REPO2")/"
 
-# An unexpanded placeholder is an unset value, not a directory name.
 REPO3="$(mkrepo)"
 OUT="$(payload "feat/gate-token" "$REPO3" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT='${user_config.worktree_root}' \
     CLAUDE_PLUGIN_DATA="$DATA_DIR_NATIVE" bash "$HOOK" 2>/dev/null)"
 assert_not_contains "an unexpanded placeholder is not used as a directory" "$OUT" 'user_config'
 assert_contains "an unexpanded placeholder falls through to the data dir" "$OUT" "worktrees"
-
 # --------------------------------------------------------------------------
 # The plugin option rides the FALLBACK rung: a repository carrying the
 # worktreeroot.path git config key wins over it (#2610/#2612). This is the
@@ -120,11 +113,6 @@ assert_contains "worktreeroot.path wins over the plugin option" "$OUT" "gate-key
 assert_not_contains "the plugin option's root is not used when the key is set" \
   "$OUT" "external-root"
 
-# --------------------------------------------------------------------------
-# Branch naming: an isolated Agent spawn's agent-<id> name takes the
-# repository's worktree_branch_naming rule, read from the payload's cwd.
-# --------------------------------------------------------------------------
-
 REPO_NAMED="$(mkrepo)"
 mkdir -p "$REPO_NAMED/docs/conventions"
 printf 'worktree_branch_naming: conventional-commits\n' >"$REPO_NAMED/docs/conventions/source-control.yaml"
@@ -136,11 +124,6 @@ assert_exit "a repository with a branch-naming rule creates the worktree" 0 "$?"
 assert_eq "stdout is still the path alone" "1" "$(printf '%s\n' "$OUT" | grep -c .)"
 assert_eq "the agent name takes the repository's default type" "chore/agent-a1b2c3" \
   "$(git -C "$OUT" rev-parse --abbrev-ref HEAD 2>/dev/null)"
-
-# --------------------------------------------------------------------------
-# Re-entry: the same payload twice (a relaunched `claude -w <name>`) returns the
-# worktree the first run made; another live session's worktree still refuses.
-# --------------------------------------------------------------------------
 
 REPO_AGAIN="$(mkrepo)"
 GATE_CFG="$TEST_TMPDIR/gate-config"
@@ -160,10 +143,6 @@ ERR="$(printf '{"session_id":"s2","transcript_path":"t","cwd":"%s","hook_event_n
 assert_contains "another live session's worktree is named in the refusal" "$ERR" "session s1 since"
 assert_contains "the exit-4 text covers a held target" "$ERR" "held by another worktree or session"
 
-# --------------------------------------------------------------------------
-# Refusals — every one fails the creation rather than falling through
-# --------------------------------------------------------------------------
-
 REPO4="$(mkrepo)"
 # CLAUDE_PLUGIN_DATA is unset explicitly, not merely left alone: in a general
 # subprocess it is NOT scoped to the invoking plugin — this machine's carries an
@@ -181,7 +160,6 @@ STATUS=$?
 assert_exit "a payload with no .name refuses rather than guessing" 1 "$STATUS"
 assert_silent "a nameless payload prints no path" "$OUT"
 
-# A name git rejects as a branch must fail here, not land a half-made worktree.
 REPO5="$(mkrepo)"
 OUT="$(payload "feat/bad..name" "$REPO5" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>/dev/null)"
@@ -189,16 +167,6 @@ STATUS=$?
 assert_exit "an illegal branch name fails the creation" 1 "$STATUS"
 assert_silent "an illegal name prints no path" "$OUT"
 
-# --------------------------------------------------------------------------
-# The failure message: taxonomy, real exit status, and a remedy on every line 1
-#
-# Every refusal fails the creation identically (any non-zero exit does), so the
-# exit code is not a channel and the TEXT is the whole product. These cases lock
-# in that the three helper failure modes are distinguishable and that each leads
-# with something the reader can do.
-# --------------------------------------------------------------------------
-
-# exit 4: not a git repository.
 NOTREPO="$(mktemp -d "$TEST_TMPDIR/notrepoXXXXXX")"
 ERR="$(payload "feat/gate-nonrepo" "$NOTREPO" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
@@ -208,14 +176,12 @@ assert_contains "a non-repository names the harness-side stand-down as the remed
   "$ERR" 'worktree.bgIsolation'
 assert_not_contains "the constant-zero exit status is gone" "$ERR" "exited 0"
 
-# exit 3 — no usable root. Distinguishable from exit 4 above and exit 2 below.
 REPO8="$(mkrepo)"
 ERR="$(payload "feat/gate-noroot2" "$REPO8" | env -u CLAUDE_PLUGIN_DATA bash "$HOOK" 2>&1 >/dev/null)"
 assert_contains "a missing root names worktree_root as the remedy" "$ERR" "worktree_root"
 assert_not_contains "a missing root is not reported as a non-repository" \
   "$ERR" "not a git repository"
 
-# exit 2 — a name git rejects as a branch.
 REPO9="$(mkrepo)"
 ERR="$(payload "feat/bad..name" "$REPO9" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
@@ -223,7 +189,6 @@ assert_contains "an illegal branch name is reported as a name problem" "$ERR" "w
 assert_not_contains "an illegal name is not reported as a missing root" \
   "$ERR" "refused with exit 3"
 
-# An empty payload is its own cause, not "carried no .name".
 ERR="$(printf '' | CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
 STATUS=$?
 assert_exit "an empty payload refuses" 1 "$STATUS"
@@ -232,14 +197,11 @@ assert_contains "an empty payload is reported as an empty payload" \
 assert_not_contains "an empty payload is NOT misreported as a missing .name field" \
   "$ERR" "parsed but carried no .name"
 
-# A payload that parses but lacks .name keeps its own distinct message.
 ERR="$(printf '{"session_id":"s1","cwd":"%s","hook_event_name":"WorktreeCreate"}' "$REPO9" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
 assert_contains "a nameless payload is reported as a nameless payload" \
   "$ERR" "parsed but carried no .name"
 
-# Field order must not matter, and the reader must not be defeated by another
-# field whose value happens to contain the string it looks for.
 REPO7="$(mkrepo)"
 OUT="$(printf '{"name":"feat/gate-order","hook_event_name":"WorktreeCreate","cwd":"%s","transcript_path":"x-name-cwd-y"}' "$REPO7" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>/dev/null)"

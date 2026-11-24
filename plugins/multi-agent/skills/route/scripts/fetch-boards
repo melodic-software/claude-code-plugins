@@ -3,7 +3,10 @@
 # with --profile generic --cache --public-only, per-row --max-age and the row's
 # --expect marker, and --render-fallback, so a blocked page or one drawn by
 # script renders through the Firecrawl CLI when docs-cache.sh's renderer is
-# firecrawl. Writes pages and one combined manifest that stamps source_id and
+# firecrawl. Fetches only rows that can lead (status not support-only,
+# provider_own false); when trials are active in --settings it also fetches
+# support-only and provider-own rows, because their records seed trial
+# candidates. Writes pages and one combined manifest that stamps source_id and
 # page_date per row.
 set -uo pipefail
 
@@ -15,6 +18,9 @@ DEFAULT_REGISTRY="$PLUGIN_ROOT/reference/benchmarks.json"
 usage() {
   cat <<'EOF'
 fetch-boards: fetch enabled benchmark registry pages via scripts/fetch-docs.sh.
+Fetches only rows that can lead (status not support-only, provider_own false);
+when trials are active in --settings it also fetches support-only and
+provider-own rows, because their records seed trial candidates.
 
 Usage:
   fetch-boards --out <dir> [--manifest <file>] [--registry <file>]
@@ -222,14 +228,17 @@ else
 fi
 
 SOURCES_JSON="$WORK/sources.json"
+TRIALS_ACTIVE="false"
 if [[ -n "$SETTINGS" ]]; then
   jq '(.vendors // .) | (.sources // {})' "$SETTINGS" >"$SOURCES_JSON" || die "failed to read settings: $SETTINGS"
+  TRIALS_ACTIVE="$(jq -r '(.vendors // .) | ((.trials == true) and ((.trials_prove | type) == "number") and ((.trials_fail | type) == "number"))' "$SETTINGS")" || die "failed to read settings: $SETTINGS"
+  TRIALS_ACTIVE="${TRIALS_ACTIVE%$'\r'}"
 else
   printf '{}\n' >"$SOURCES_JSON"
 fi
 
 ROWS_TSV="$WORK/rows.tsv"
-jq -r --arg wt "$TASK_TYPE" --slurpfile src "$SOURCES_JSON" '
+jq -r --arg wt "$TASK_TYPE" --argjson trials_active "$TRIALS_ACTIVE" --slurpfile src "$SOURCES_JSON" '
   ($src[0] // {}) as $overrides
   | .rows[]
   | . as $row
@@ -239,6 +248,7 @@ jq -r --arg wt "$TASK_TYPE" --slurpfile src "$SOURCES_JSON" '
      end) as $en
   | select($en == true)
   | select($wt == "" or ((.workloads | index($wt)) != null))
+  | select($trials_active or (((.status // "permanent") != "support-only") and ((.provider_own // false) != true)))
   | [.id, .link, ((.freshness_seconds // 86400) | tostring), (.expect // "")]
   | @tsv
 ' "$MERGED_REGISTRY" >"$ROWS_TSV" || die "failed to read rows from $REGISTRY"

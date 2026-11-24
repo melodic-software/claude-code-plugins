@@ -153,7 +153,6 @@ function realGh(path, graphql) {
 
 // A reference a lane can write (a PR number, a commit SHA) that names nothing: listed, never fatal.
 export class UnresolvableError extends PublishError {}
-// A page that is unreadable or has another page: the merge's autonomy and rung are unknown.
 class IncompleteError extends PublishError {}
 
 // A failed `gh api` call. Only two answers are not read failures: GraphQL NOT_FOUND on the pull
@@ -181,7 +180,6 @@ export function ghFailure(path, graphql, stdout, stderr) {
   throw new PublishError(`gh api ${path} failed: ${String(stderr).trim()}`);
 }
 
-// A date GitHub returned; one that does not parse refuses the publish.
 function ms(value, what) {
   const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
   if (Number.isNaN(parsed)) throw new PublishError(`refusing to publish: ${what} has an unreadable date ${JSON.stringify(value)}`);
@@ -265,7 +263,6 @@ function isoSeconds(msValue) {
 }
 
 const ceilSecond = (msValue) => Math.ceil(msValue / 1000) * 1000;
-// The one `discovered` an event published without one may gain: its file's generated_at.
 const legacyDiscovered = (generatedMs) => isoSeconds(ceilSecond(generatedMs));
 
 // babysit_postmerge.py read_pin: the newest comment by the identity whose first line is the pin
@@ -366,8 +363,6 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
     return outcomes.get(key);
   };
 
-  // Compares run only where the answer can change the verdict: a red or pending run, a green lane
-  // dispatch run, and a green canary run once a lane dispatch has verified half the merge.
   return (merge) => {
     const mergedMs = ms(merge.mergedAt, `#${merge.number} mergedAt`);
     const after = (runs) => runs.filter((run) => run.createdMs >= mergedMs);
@@ -574,15 +569,12 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   };
   const [owner, name] = repo.split("/");
 
-  // Each lane pin read once: the read-back and the rung share it.
   const pins = new Map();
   const pinOf = (number) => {
     if (!pins.has(number)) pins.set(number, readPin(gh, owner, name, number, lane));
     return pins.get(number);
   };
 
-  // The rung an autonomous merge ran under, from the lane pin at its head; a human merge has none.
-  // A native auto-merge owes no pin, but the pr-merge lane posts one when it arms, read the same way.
   const rungOf = (g, { autonomous, byIdentity }) => {
     if (!autonomous) return { rung: null, reason: null };
     if (!byIdentity) return { rung: null, reason: "not enqueued by a lane identity: no pin" };
@@ -622,13 +614,11 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
       if (!g?.mergedAt) throw new UnresolvableError(`#${number} is not a merged pull request`);
       ms(g.mergedAt, `#${number} mergedAt`);
       const base = { number, mergedAt: g.mergedAt, sha: g.mergeCommit?.oid, head: g.headRefOid, reverted: false };
-      // A page a lane can make incomplete or unreadable leaves the merge autonomous with no rung.
       let timeline;
       try {
         timeline = onePage(g.timelineItems, `timeline of #${number}`);
       } catch (error) {
         if (!(error instanceof IncompleteError)) throw error;
-        // Who enqueued it is unknown too, so it also owes a pin.
         details.set(number, { ...base, rung: null, reason: "the timeline page is unreadable or incomplete: rung unknown", autonomous: true, byIdentity: true });
       }
       if (timeline) {
@@ -639,13 +629,10 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     return details.get(number);
   };
   const all = merged.map((pr) => record(pr.number));
-  // Tracked: autonomous merges. One with no rung is never counted toward a positive term, and its
-  // contrary events go against every cell.
   const tracked = all.filter((r) => r.autonomous);
   const cellsOf = (r) => (r.rung ? [`${r.rung}-auto-merge`] : CELLS);
   const bySha = new Map(tracked.map((r) => [r.sha, r]));
 
-  // Reverts, from merged PR bodies and default-branch commit messages; every date per target.
   const own = repo.toLowerCase();
   const revertsOf = (text) => {
     const targets = [];
@@ -714,7 +701,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
 
   const judgeWorkflows = postMergeRuns(gh, repo, branch, tracked, { lane, throughMs });
 
-  // check()'s read-back for a merge a lane identity enqueued.
   const readBack = (r) => {
     const deadline = ms(r.mergedAt, `#${r.number} mergedAt`) + DISPATCH_DEADLINE_MS;
     const pinned = pinOf(r.number);
@@ -762,7 +748,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     for (const status of [...statuses].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))) {
       if (!latest.has(status.context)) latest.set(status.context, status.state);
     }
-    // Passed only where check() would call the merge verified, with nothing pending.
     const settled =
       wf.verified &&
       !wf.unsettled &&
@@ -771,9 +756,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     r.gate = failures.length + wf.failures.length > 0 ? "failed" : settled ? "passed" : "unsettled";
   }
 
-  // Human-confirmed missed-blocking AI-review findings, from the label timeline.
-  // On every merge in the window: a human merge ran under no rung, so its finding is the AI
-  // review's alone.
   for (const r of all) {
     const confirmed = eventsOf(r.number).filter(
       (e) => e.event === "labeled" && e.label?.name === missedBlockingLabel && e.actor?.type === "User" && !lane.has(loginKey(e.actor.login)) && inWindow(e.created_at),
@@ -789,7 +771,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     }
   }
 
-  // Which merges a record's SHA contains is not read: it is contrary for every cell.
   for (const record of demotionRecords(gh, owner, name, filers, new Date(sinceMs).toISOString())) {
     if (!inWindow(record.at)) continue;
     for (const cell of CELLS) addEvent(cell, "gate-failure", record.at);
@@ -797,8 +778,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   }
 
   const sorted = [...events.values()].sort(byInstant);
-  // The previous publish's generated_at: a stamp is never at or before one the prior file holds,
-  // even when this run's clock is behind (publish() then refuses).
   const priorGeneratedMs = priorGeneratedAt === null ? Number.NaN : instant(priorGeneratedAt, "the previous generated_at");
   if (Array.isArray(prior)) {
     const floor = Number.isNaN(priorGeneratedMs) ? -Infinity : ceilSecond(priorGeneratedMs) + 1000;
@@ -808,8 +787,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
       const before = published.get(eventKey(e));
       if (!before) e.discovered = found;
       else if (before.discovered !== undefined) e.discovered = before.discovered;
-      // An event a file from before `discovered` holds was first published no later than that
-      // file's generated_at: stamped with it once, which publish() allows only on that upgrade.
       else if (!Number.isNaN(priorGeneratedMs)) e.discovered = legacyDiscovered(priorGeneratedMs);
     }
   }
@@ -849,9 +826,6 @@ function cell(window, terms) {
   return { window, pass: terms.every((t) => t.pass), terms };
 }
 
-// C3-ai-review-blocking's populations: its positive evidence (reviews, window) comes from
-// autonomous rung-C3 merges only; a confirmed miss counts against it from those and from human
-// merges. Autonomous C2 and no-rung merges are in neither.
 const aiReviewCredited = (r) => r.autonomous && r.rung === "C3";
 const aiReviewMissCounted = (r) => !r.autonomous || r.rung === "C3";
 
@@ -970,8 +944,6 @@ export function publish(outDir, derived, through, now = new Date(), { rename = r
     if (priorMeta?.sha256 !== sha256(previous)) {
       throw new PublishError(`refusing to publish: ${file} does not match the sha256 in its sidecar ${metaFile} (missing, unreadable or different)`);
     }
-    // A clock behind the previous publish could stamp a `discovered` at or before a published
-    // re-earn's `since`.
     const previousAt = typeof priorMeta.generated_at === "string" ? Date.parse(priorMeta.generated_at) : Number.NaN;
     if (Number.isNaN(previousAt) || now.getTime() < previousAt) {
       throw new PublishError(`refusing to publish: this run's time ${now.toISOString()} is before the previous publish's generated_at ${JSON.stringify(priorMeta.generated_at)} in ${metaFile}, or that value does not parse`);
@@ -982,8 +954,6 @@ export function publish(outDir, derived, through, now = new Date(), { rename = r
     if (dropped.length > 0) {
       throw new PublishError(`refusing to publish: the new events drop ${dropped.length} previously published event(s): ${dropped.map(eventKey).join(", ")}`);
     }
-    // The one change allowed: a contrary event the previous file holds with no `discovered` gains
-    // that file's generated_at, the upgrade collect() makes.
     const upgrade = (event, next) => event?.discovered === undefined && event?.event !== "re-earned" && next.discovered === legacyDiscovered(previousAt);
     const redated = prior.filter((event) => {
       const next = byKey.get(eventKey(event));
@@ -992,9 +962,6 @@ export function publish(outDir, derived, through, now = new Date(), { rename = r
     if (redated.length > 0) {
       throw new PublishError(`refusing to publish: the new events change the discovered time of ${redated.length} published event(s): ${redated.map(eventKey).join(", ")}`);
     }
-    // A re-earn the run no longer derives (a later contrary event moved its window) is kept: the
-    // checker honors one only while every in-epoch contrary event's `at` and `discovered` are at
-    // or before its `since`.
     if (missing.length > 0) events = [...events, ...missing].sort(byInstant);
   }
   const text = `${JSON.stringify(events, null, 2)}\n`;
@@ -1013,8 +980,6 @@ export function publish(outDir, derived, through, now = new Date(), { rename = r
   try {
     rename(metaTemp, metaFile);
   } catch (error) {
-    // Put the pair back as it was. An interruption before this point still leaves a pair the
-    // next run refuses on the sha256 check: fail closed.
     if (backup) rename(backup, file);
     else rmSync(file, { force: true });
     rmSync(metaTemp, { force: true });
@@ -1024,8 +989,6 @@ export function publish(outDir, derived, through, now = new Date(), { rename = r
   return meta;
 }
 
-// The published events, for their discovered times: [] when there is none yet or it cannot be
-// read as an array (publish() then refuses on its own checks).
 function publishedEvents(outDir) {
   try {
     const events = JSON.parse(readIfPresent(join(outDir, "evidence.json")) ?? "[]");

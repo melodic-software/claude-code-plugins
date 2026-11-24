@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for refresh-sink-launcher.sh (session-telemetry plugin). Black-box.
-# The SessionStart hook keeps ${CLAUDE_PLUGIN_DATA}/hook-telemetry-sink.sh, a
-# launcher for this install's sink, which HOOK_TELEMETRY_SINK=@session-telemetry
-# resolves to (docs/contracts/hook-telemetry "Sink path resolution").
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,16 +9,12 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=session-telemetry-test-helpers.sh
 source "$HOOK_DIR/session-telemetry-test-helpers.sh"
 
-# A plugin root whose path carries a space and a quote, holding the files the
-# sink needs, so the launcher's quoting and the sink's sibling sourcing are
-# both exercised.
 ROOT="$TEST_TMPDIR/plugin root's v1"
 mkdir -p "$ROOT/hooks"
 cp "$HOOK_DIR/hook-telemetry-sink.sh" "$HOOK_DIR/hook-utils.sh" "$HOOK_DIR/session-log-lib.sh" "$ROOT/hooks/"
 DATA="$TEST_TMPDIR/cfg/plugins/data/session-telemetry-mkt"
 LAUNCHER="$DATA/hook-telemetry-sink.sh"
 
-# refresh [env assignments...] → run the hook as SessionStart does; prints its output.
 refresh() {
   env -u CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR -u CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES \
     CLAUDE_PLUGIN_DATA="$DATA" CLAUDE_PLUGIN_ROOT="$ROOT" "$@" bash "$HOOK" </dev/null 2>&1
@@ -47,7 +39,6 @@ ln "$LAUNCHER" "$TEST_TMPDIR/keep"
 refresh >/dev/null
 if [[ "$LAUNCHER" -ef "$TEST_TMPDIR/keep" ]]; then ok "an unchanged launcher is left in place"; else bad "an unchanged launcher was rewritten"; fi
 
-# --- an unchanged launcher is still touched, so producers pick the newest ------
 touch -t 200001010000 "$LAUNCHER"
 : >"$TEST_TMPDIR/before-refresh"
 touch -t 200101010000 "$TEST_TMPDIR/before-refresh"
@@ -100,8 +91,6 @@ OUT=$(env CLAUDE_PLUGIN_DATA="$DATA_DIR" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$HOOK"
 assert_exit "a directory at the launcher path: exit 0" 0 "$?"
 assert_eq "a directory at the launcher path: nothing written inside it" "" "$(ls -A "$DATA_DIR/hook-telemetry-sink.sh")"
 
-# --- options.json: the options this session's hooks run with, for readers -------
-# docs/contracts/session-telemetry-data: readers find the record roots from it.
 DATA_OPT="$TEST_TMPDIR/optdata"
 OPTS="$DATA_OPT/options.json"
 env -u CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES CLAUDE_PLUGIN_DATA="$DATA_OPT" CLAUDE_PLUGIN_ROOT="$ROOT" \
