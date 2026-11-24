@@ -36,7 +36,9 @@ the gate with the tool's name, since CI installs every hook tool first.
 Each entry runs the way lefthook runs a remote's job: the remote's root is linked under
 the fixture's .git/info/lefthook-remotes/, and the entry's script runs from there with
 its runner and the fixture as the working directory. A pre-push entry gets the remote
-name and URL as arguments and one pushed ref on stdin, and every run starts from the
+name and URL as arguments and one new feature branch on stdin, ranged from the
+fixture's origin/main; a run: command gets lefthook's {1} and {2} filled and a relative
+command resolved against the repository, and every run starts from the
 same staged files, so a formatter's rewrite does not carry over. Times print in seconds
 and in S, one no-op `bash -c :` spawn measured in the same run (docs/contracts/hook-budget/README.md), so a
 slow runner shows as a larger S; the pass/fail line is the budget in seconds.
@@ -156,6 +158,8 @@ done
 printf 'fixture\n' >"$fx/README.md"
 g add -A && g commit -q -m base || exit 2
 base_sha="$(g rev-parse HEAD)"
+g update-ref refs/remotes/origin/main "$base_sha"
+g symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 
 write_file() {
   mkdir -p "$fx/${1%/*}"
@@ -183,6 +187,12 @@ run_entry() {
   local cfg=$1 runner=$2 kind=$3 val=$4 ev=$5 dir path
   shift 5
   if [[ "$kind" == run ]]; then
+    local i=1 a first=${val%% *}
+    for a in "$@"; do
+      val=${val//"{$i}"/$a}
+      i=$((i + 1))
+    done
+    [[ "$first" != /* && -e "$ROOT/$first" ]] && val="$ROOT/$val"
     sh -c "$val" "$ev" "$@"
     return
   fi
@@ -207,7 +217,7 @@ time_hook() {
   shift 2
   tree="$(g write-tree)"
   local push_ref
-  push_ref="refs/heads/main $(g rev-parse HEAD) refs/heads/main $base_sha"
+  push_ref="refs/heads/feature $(g rev-parse HEAD) refs/heads/feature 0000000000000000000000000000000000000000"
   echo
   echo "$ev ($what), median of $runs run(s) per entry:"
   for line in "${jobs[@]}"; do
