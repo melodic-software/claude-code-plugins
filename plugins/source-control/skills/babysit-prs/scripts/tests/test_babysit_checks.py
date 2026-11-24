@@ -173,8 +173,8 @@ class PersistedIdentityValidationTests(unittest.TestCase):
 
 
 GEN = "2026-07-10T00:00:00Z"
-OLD_TS = "2026-07-09T00:00:00Z"  # 24h before GEN -> aged out
-NOW_TS = "2026-07-10T00:00:00Z"  # age 0 -> not aged out
+OLD_TS = "2026-07-09T00:00:00Z"
+NOW_TS = "2026-07-10T00:00:00Z"
 THRESHOLD = 1800.0
 
 

@@ -21,7 +21,6 @@ class GhCaptureTests(unittest.TestCase):
     (`babysit_util.run_command`); with none the child inherits it as is."""
 
     def setUp(self) -> None:
-        # The limits are read before the subprocess seam is faked.
         gh.warm_rate_guard()
 
     def capture(self, **kwargs: Any) -> tuple[Any, Any]:
@@ -600,8 +599,6 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
                 self.assertFalse(gh.is_graphql_unavailable(RuntimeError(message)))
 
     def test_the_refusal_is_still_recognized_alongside_that_argv(self) -> None:
-        # The other side of the rule: narrowing to the parsed status must not
-        # lose the real refusal when the same argv is present.
         self.assertTrue(
             gh.is_graphql_unavailable(
                 RuntimeError("gh api graphql -F n=403 failed: gh: Forbidden (HTTP 403)")
@@ -851,8 +848,6 @@ class ViewPrBaseCompareTests(unittest.TestCase):
         self.assertIs(data["_base_merge_queue"], True)
 
     def test_an_unreadable_rules_answer_leaves_the_queue_unknown(self) -> None:
-        # Unknown, not "no queue": the snapshot then reports the head not
-        # behind, so a transient failure cannot refresh a queue-base head.
         for rules in (RuntimeError("gh: Server Error (HTTP 502)"), {"message": "x"}):
             with self.subTest(rules=rules):
                 data, _ = self._view("CLEAN", self.BEHIND, rules)
@@ -1091,8 +1086,6 @@ class RestBundleReviewsAreNotRefetchedTests(unittest.TestCase):
             gh.rest_hydrate_reviews(pr, "owner/repo", 1)
         gh_json.assert_not_called()
         self.assertEqual(pr["reviews"], [{"id": 1, "author": {"login": "reviewer"}}])
-        # The `latestReviews` drop is the other half of the contract and must
-        # still happen on this path.
         self.assertNotIn("latestReviews", pr)
 
     def test_a_graphql_sourced_bundle_is_still_hydrated(self) -> None:
@@ -1103,8 +1096,6 @@ class RestBundleReviewsAreNotRefetchedTests(unittest.TestCase):
         self.assertEqual(pr["reviews"], [])
 
     def test_an_unflagged_bundle_is_still_hydrated(self) -> None:
-        # Callers that pass a bundle without the flag (a stored snapshot
-        # record) must keep the refetch: absence is not proof of REST.
         pr: dict[str, Any] = {"reviews": [{"author": {"login": "x"}}]}
         with mock.patch.object(gh, "gh_json", return_value=[]) as gh_json:
             gh.rest_hydrate_reviews(pr, "owner/repo", 1)
@@ -1409,7 +1400,6 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
             {"claude-review": [head], "claude-security-review": [head, old, head]},
             calls,
         )
-        # One read per (head, lane) listed: 1 + 2, the repeated head once.
         self.assertEqual(len(calls), 3)
         self.assertEqual(
             counts,
@@ -1483,7 +1473,7 @@ class CollectLaneRunsTests(unittest.TestCase):
             base: {"id": 7, "run_attempt": fresh_attempts},
         }
         for n in range(1, fresh_attempts + 1):
-            if n < fresh_attempts:  # the run read stands in for the latest
+            if n < fresh_attempts:
                 answers[f"{base}/attempts/{n}"] = {"id": 7, "run_attempt": n}
             answers[f"{base}/attempts/{n}/jobs?per_page=100"] = [
                 {
@@ -1626,8 +1616,6 @@ class CollectLaneRunsTests(unittest.TestCase):
 
         with mock.patch.object(gh, "gh_json", side_effect=fake):
             gh.collect_lane_runs(self.REPO, 5, "feat/x", self.LANES, env_overrides=env)
-        # The listing, the run, attempt 1's record, and both attempts' jobs and
-        # annotations; the run read is attempt 2's record.
         self.assertEqual(sorted(e for e, _ in reads), sorted(answers))
         return reads
 

@@ -119,7 +119,6 @@ read_page() {
   [[ -f "$FETCH_DOCS" ]] || die "shared fetcher not found: $FETCH_DOCS"
   local fetch_env=(-u FETCH_DOCS_FIXTURE_DIR FETCH_DOCS_CLAUDE_BIN='')
   [[ -z "$FIXTURE_DIR" ]] || fetch_env=(FETCH_DOCS_FIXTURE_DIR="$FIXTURE_DIR" FETCH_DOCS_CLAUDE_BIN='')
-  # --max-age 0: a drift check compares fresh bytes, never a cached copy.
   env "${fetch_env[@]}" bash "$FETCH_DOCS" --out "$WORK/docs" --cache --max-age 0 --mode search "$SLUG" >/dev/null ||
     die "the shared fetcher failed"
   local state reason entry
@@ -140,7 +139,6 @@ adjust_section() {
   id="$(bash "$DOCS_CACHE" map "${src[@]}")" || die "the docs cache could not map the page"
   id="$(awk -F'\t' '$2 == 3 { n = split($7, p, " > "); if (p[n] == "Adjust effort level") { print $1; exit } }' <<<"$id")"
   [[ -n "$id" ]] || return 1
-  # A whole-page threshold no page passes: a configured escalation limit never widens the slice.
   bash "$DOCS_CACHE" --whole-page-bytes 999999999999999999 slice "${src[@]}" "$id" >"$1" ||
     die "the docs cache could not slice the page"
 }

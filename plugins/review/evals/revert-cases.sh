@@ -35,7 +35,7 @@ die() {
   exit 2
 }
 
-pr_number() { # <commit>: the pull request number its subject ends with
+pr_number() {
   git log -1 --format=%s "$1" | sed -nE 's/.* \(#([0-9]+)\)$/\1/p'
 }
 
@@ -54,7 +54,7 @@ original_of() { # <revert>: the commit it reverts; nothing when <revert> is not 
   return 0
 }
 
-named_originals() { # <revert>: the merged commit of each other non-revert pull request its message names
+named_originals() {
   local ref commit own
   own="$(pr_number "$1")"
   while IFS= read -r ref; do
@@ -68,14 +68,14 @@ named_originals() { # <revert>: the merged commit of each other non-revert pull 
   done < <(git log -1 --format=%B "$1" | grep -oE '#[0-9]+' | tr -d '#' | sort -un)
 }
 
-is_revert() { # <commit>: its subject or body has a revert form
+is_revert() {
   [[ "$(git log -1 --format=%s "$1")" =~ $REVERT_SUBJECT ]] ||
     grep -qE '^This reverts commit [0-9a-f]{7,40}' <<<"$(git log -1 --format=%b "$1")"
 }
 
 changed() { git diff --name-only --no-renames "$1^" "$1" | sort; }
 
-caught_lines() { # <original> <revert> <path>: lines of <path> at <original> it added and <revert> removed
+caught_lines() {
   awk '
     FNR == 1 { hunk = 0 }
     /^diff --git / { hunk = 0; next }
@@ -95,7 +95,7 @@ pair_lines() { # <original> <revert>: "<path><TAB><n>,<n>..." per file holding a
   done < <(comm -12 <(changed "$2") <(changed "$1"))
 }
 
-reverses_cleanly() { # <original> <revert> <path>...
+reverses_cleanly() {
   local dir status
   dir="$(mktemp -d)"
   GIT_INDEX_FILE="$dir/index" git read-tree "$2^" &&
@@ -268,7 +268,7 @@ MD
   echo "$case_dir"
 }
 
-place() { # <fixture dir>: copy each <path>.txt under it to <path> in the workspace
+place() {
   [[ -d "$1" ]] || return 0
   local file rel
   while IFS= read -r -d '' file; do

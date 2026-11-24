@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for resolve-clean-action.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -73,7 +72,6 @@ assert_action "wipe all repos stays tree-batch (reset intent)" "wipe all repos" 
 assert_action "no-token non-reset fleet phrase -> all-batch" "tidy up across all repos" "all-batch"
 assert_action "all-my-repos phrase beats bare all token" "reset all my repos" "tree-batch"
 assert_action "reset-all phrase -> tree-batch" "reset all" "tree-batch"
-# Regression guard: bare "all" with no fleet phrase is still the single-repo tier.
 assert_action "bare all -> single-repo all" "all" "all"
 assert_action "everything alias -> single-repo all" "everything" "all"
 assert_action "scan + fleet phrase -> menu" "scan all repos" "menu"

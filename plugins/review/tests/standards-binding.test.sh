@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tripwire contract test: the review plugin's standards-grounding markers are
-# load-bearing (the standards convention's acceptance criteria grep for them) —
-# this test fails loudly if a future prose edit drops one.
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,8 +30,6 @@ if grep -q "Resolution ladder" "$CRITERIA"; then
 else
   fail "criteria.md lost its pointer to the binding's Resolution ladder section"
 fi
-# Distinctive contract-only phrasings; their presence means a rung or the setup
-# procedure got restated into plugin prose (single-home violation).
 for phrase in "present at the resolution root" "exit without interview"; do
   hits=$(grep -l "$phrase" "$GATE" "$CRITERIA" "$SETUP" 2>/dev/null || true)
   if [[ -z "$hits" ]]; then
