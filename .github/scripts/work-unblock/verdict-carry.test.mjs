@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/work-unblock/*
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
