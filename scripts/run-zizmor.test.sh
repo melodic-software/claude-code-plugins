@@ -18,6 +18,9 @@ SCRIPT="$ROOT/scripts/run-zizmor.sh"
 scratch=""
 fixture_tree::build scratch --label run-zizmor
 mkdir -p "$scratch/bin"
+standards="$scratch/standards"
+mkdir -p "$standards/.github"
+printf 'rules: checkout\n' >"$standards/.github/zizmor.yml"
 
 # A fatal online-audit error, as zizmor 1.30 prints it, with <cause> as the
 # innermost lines.
@@ -51,7 +54,7 @@ EOF
 }
 
 run() {
-  OUT=$(PATH="$scratch/bin:$PATH" bash "$SCRIPT" 2>&1) && RC=0 || RC=$?
+  OUT=$(PATH="$scratch/bin:$PATH" STANDARDS_DIR="$standards" bash "$SCRIPT" 2>&1) && RC=0 || RC=$?
 }
 
 check() { # check <name> <condition-result>
@@ -176,9 +179,6 @@ run_in "$bare" "$bare_sha"
 check "an unreadable standards config fails closed before zizmor runs" \
   "$([[ $RC -eq 2 && ! -s "$scratch/calls" ]] && echo yes)"
 
-standards="$scratch/standards"
-mkdir -p "$standards/.github"
-printf 'rules: checkout\n' >"$standards/.github/zizmor.yml"
 run_in "$bare" "$bare_sha" "$standards"
 check "a base with no config reads the run's standards checkout, with no API read" \
   "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: checkout\nrules: checkout' && ! -s "$scratch/gh.calls" ]] && echo yes)"
@@ -196,6 +196,12 @@ check 'a base commit missing from the checkout fails closed' \
 run_in "$repo" ""
 check 'outside a pull request zizmor gets no --config and discovers its own' \
   "$([[ $RC -eq 0 && "$(grep -c -- '--config' "$scratch/calls")" -eq 0 && ! -s "$scratch/gh.calls" ]] && echo yes)"
+
+none=""
+fixture_tree::build none --label run-zizmor-none
+run_in "$none" "" "$standards"
+check "outside a pull request a checkout with no config falls back to standards' config" \
+  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: checkout\nrules: checkout' && ! -s "$scratch/gh.calls" ]] && echo yes)"
 
 step=$(grep -n -A9 -- '- name: Run zizmor$' "$ROOT/.github/workflows/pr-require-checks.yml")
 check 'the lint-repo zizmor step runs scripts/run-zizmor.sh' \
