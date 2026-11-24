@@ -788,7 +788,7 @@ class FilterThenRecordEndToEnd(unittest.TestCase):
 
     def test_an_opted_in_clone_keys_on_the_standards_list(self) -> None:
         (self.base / "docs/conventions/source-control.yaml").write_text(
-            "trusted_actors_source: standards\n"
+            "trusted_actors_source: standards\nstandards_repository: example-org/standards\n"
         )
         _git(self.base, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
         _git(self.base, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "c")
@@ -797,7 +797,9 @@ class FilterThenRecordEndToEnd(unittest.TestCase):
         for text in ('{"version": 1}', '{"version": 1, "actors": []}'):
             with mock.patch.object(read, "standards_file", return_value=text) as standards:
                 seen.append(skip.main_inputs(self.base)[skip.STANDARDS_INPUT])
-            standards.assert_called_once_with(read.STANDARDS_TRUSTED_ACTORS)
+            standards.assert_called_once_with(
+                "example-org/standards", read.STANDARDS_TRUSTED_ACTORS
+            )
         self.assertRegex(seen[0], r"^[0-9a-f]{64}$")
         self.assertNotEqual(seen[0], seen[1])
         failed = read.PolicyReadError("standards main could not be resolved")
@@ -805,6 +807,13 @@ class FilterThenRecordEndToEnd(unittest.TestCase):
             mock.patch.object(read, "standards_file", side_effect=failed),
             self.assertRaisesRegex(RuntimeError, "standards main"),
         ):
+            skip.main_inputs(self.base)
+        (self.base / "docs/conventions/source-control.yaml").write_text(
+            "trusted_actors_source: standards\n"
+        )
+        _git(self.base, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+        _git(self.base, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "c")
+        with self.assertRaisesRegex(RuntimeError, "standards_repository"):
             skip.main_inputs(self.base)
 
 

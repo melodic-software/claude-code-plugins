@@ -98,9 +98,7 @@ DEFAULT_MAX_MINUTES = 60
 DEFAULT_MAX_SKIPS = 3
 # Candidates per GraphQL query.
 CHUNK = 20
-STANDARDS_INPUT = (
-    f"{merge_policy.STANDARDS_REPO}:{merge_policy.STANDARDS_TRUSTED_ACTORS}"
-)
+STANDARDS_INPUT = f"standards:{merge_policy.STANDARDS_TRUSTED_ACTORS}"
 MAIN_PATHS = (
     "docs/conventions/pr-pipeline.yaml",
     "docs/conventions/source-control.yaml",
@@ -208,11 +206,14 @@ def standards_input(base: Path, head: str) -> str:
         check=False,
     )
     try:
-        if not merge_policy.opts_in_to_standards(
+        standards = merge_policy.opts_in_to_standards(
             proc.stdout if proc.returncode == 0 else None
-        ):
+        )
+        if not standards:
             return "unread"
-        text = merge_policy.standards_file(merge_policy.STANDARDS_TRUSTED_ACTORS)
+        text = merge_policy.standards_file(
+            standards, merge_policy.STANDARDS_TRUSTED_ACTORS
+        )
     except merge_policy.PolicyReadError as exc:
         raise RuntimeError(f"standards trusted list: {exc}") from exc
     return hashlib.sha256(text.encode()).hexdigest() if text is not None else "absent"

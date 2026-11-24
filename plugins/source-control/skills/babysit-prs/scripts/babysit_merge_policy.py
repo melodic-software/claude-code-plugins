@@ -156,7 +156,7 @@ MAX_ADOPTION_IDLE_HOURS = 720
 # Whose pull requests the pr-merge lane adopts: every account on this list,
 # by id (`trusted_actor_ids`).
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
-STANDARDS_REPO = "melodic-software/standards"
+STANDARDS_REPO_KEY = "standards_repository"
 STANDARDS_TRUSTED_ACTORS = "components/trusted-actors/trusted-actors.json"
 STANDARDS_SOURCE_KEY = "trusted_actors_source"
 STANDARDS_SOURCES = ("repository", "standards")
@@ -5038,33 +5038,46 @@ def trusted_actors(
     return _TRUSTED_IDS[key]
 
 
-_READS_STANDARDS: dict[tuple[str, str, str], bool] = {}
-_STANDARDS_SHA: list[str] = []
-_STANDARDS_TEXT: dict[str, str | None] = {}
+_READS_STANDARDS: dict[tuple[str, str, str], str | None] = {}
+_STANDARDS_SHA: dict[str, str] = {}
+_STANDARDS_TEXT: dict[tuple[str, str], str | None] = {}
 
 
-def opts_in_to_standards(text: str | None) -> bool:
-    """Whether a team YAML sets `trusted_actors_source: standards`. Raises
-    `PolicyReadError` when the shared reader rejects it or the value is not
-    one of `STANDARDS_SOURCES`, so nothing is read from either source."""
+def opts_in_to_standards(text: str | None) -> str | None:
+    """The `standards_repository` a team YAML names when it sets
+    `trusted_actors_source: standards`, else None. Raises `PolicyReadError`
+    when the shared reader rejects it, the source is not one of
+    `STANDARDS_SOURCES`, or an opted-in YAML names no owner/repo pair, so
+    nothing is read from either source."""
     if text is None:
-        return False
-    values = _concern_values(text, [(STANDARDS_SOURCE_KEY, False)])
+        return None
+    keys = (STANDARDS_SOURCE_KEY, STANDARDS_REPO_KEY)
+    values = _concern_values(text, [(k, False) for k in keys])
     if values is None:
         raise PolicyReadError(
             f"{repo_config.YAML_CONFIG_PATH}: the shared YAML reader rejects it"
         )
+    for key in keys:
+        if not values[key] and repo_config._yaml_writes(text, key):
+            raise PolicyReadError(
+                f"{repo_config.YAML_CONFIG_PATH}: {key} is not a scalar value"
+            )
     found = values[STANDARDS_SOURCE_KEY]
-    if not found and repo_config._yaml_writes(text, STANDARDS_SOURCE_KEY):
-        raise PolicyReadError(
-            f"{repo_config.YAML_CONFIG_PATH}: {STANDARDS_SOURCE_KEY} is not a scalar value"
-        )
     if found and found[0] not in STANDARDS_SOURCES:
         raise PolicyReadError(
             f"{repo_config.YAML_CONFIG_PATH}: {STANDARDS_SOURCE_KEY} "
             f"{found[0]!r} is not one of {STANDARDS_SOURCES}"
         )
-    return found[:1] == ["standards"]
+    if found[:1] != ["standards"]:
+        return None
+    repo = (values[STANDARDS_REPO_KEY] or [""])[0]
+    try:
+        _split_repo(repo)
+    except PolicyReadError as exc:
+        raise PolicyReadError(
+            f"{repo_config.YAML_CONFIG_PATH}: {STANDARDS_REPO_KEY}: {exc}"
+        ) from exc
+    return repo
 
 
 def team_yaml_at(owner: str, name: str, ref: str) -> str | None:
@@ -5077,45 +5090,48 @@ def team_yaml_at(owner: str, name: str, ref: str) -> str | None:
     return _file_at(owner, name, repo_config.YAML_CONFIG_PATH, ref, probe=False)
 
 
-def reads_standards(owner: str, name: str, ref: str) -> bool:
-    """Whether the repository's team YAML at `ref` opts in to the standards
-    source (`opts_in_to_standards`), read once a process per ref."""
+def reads_standards(owner: str, name: str, ref: str) -> str | None:
+    """The standards repository the repository's team YAML at `ref` opts in
+    to (`opts_in_to_standards`), read once a process per ref."""
     key = (owner, name, ref)
     if key not in _READS_STANDARDS:
         _READS_STANDARDS[key] = opts_in_to_standards(team_yaml_at(owner, name, ref))
     return _READS_STANDARDS[key]
 
 
-def standards_sha() -> str:
-    """`STANDARDS_REPO`'s main at its first read in this process, so every
-    standards file a process reads comes from one commit."""
-    if not _STANDARDS_SHA:
-        status, payload = _get(f"repos/{STANDARDS_REPO}/commits/main")
+def standards_sha(repo: str) -> str:
+    """The standards repository `repo`'s main at its first read in this
+    process, so every file a process reads from it comes from one commit."""
+    if repo not in _STANDARDS_SHA:
+        status, payload = _get(f"repos/{repo}/commits/main")
         sha = json_object(payload).get("sha") if status == 200 else None
         if not SHA_RE.fullmatch(str(sha or "")):
             raise PolicyReadError(
-                f"{STANDARDS_REPO} main could not be resolved (status {status})"
+                f"{repo} main could not be resolved (status {status})"
             )
-        _STANDARDS_SHA.append(str(sha))
-    return _STANDARDS_SHA[0]
+        _STANDARDS_SHA[repo] = str(sha)
+    return _STANDARDS_SHA[repo]
 
 
-def standards_file(path: str) -> str | None:
-    """`path` in `STANDARDS_REPO` at `standards_sha`, or None when absent;
-    each path read once a process."""
-    if path not in _STANDARDS_TEXT:
-        owner, name = _split_repo(STANDARDS_REPO)
-        _STANDARDS_TEXT[path] = _file_at(owner, name, path, standards_sha())
-    return _STANDARDS_TEXT[path]
+def standards_file(repo: str, path: str) -> str | None:
+    """`path` in the standards repository `repo` at `standards_sha`, or None
+    when absent; each path read once a process."""
+    key = (repo, path)
+    if key not in _STANDARDS_TEXT:
+        owner, name = _split_repo(repo)
+        _STANDARDS_TEXT[key] = _file_at(owner, name, path, standards_sha(repo))
+    return _STANDARDS_TEXT[key]
 
 
 def synced_file(
     owner: str, name: str, copy: str, component: str, ref: str
 ) -> str | None:
-    """A standards-synced file: `component` in `STANDARDS_REPO` when the
-    repository opts in at `ref` (`reads_standards`), else its copy at `ref`."""
-    if reads_standards(owner, name, ref):
-        return standards_file(component)
+    """A standards-synced file: `component` in the standards repository the
+    repository opts in to at `ref` (`reads_standards`), else its copy at
+    `ref`."""
+    standards = reads_standards(owner, name, ref)
+    if standards:
+        return standards_file(standards, component)
     return _file_at(owner, name, copy, ref)
 
 

@@ -216,6 +216,8 @@ def zipped(record: Any) -> bytes:
 
 TEAM_YAML = "docs/conventions/source-control.yaml"
 STANDARDS_SHA = "5" * 40
+STANDARDS_REPO = "example-org/standards"
+OPTED_IN = f"trusted_actors_source: standards\nstandards_repository: {STANDARDS_REPO}\n"
 
 
 def file_payload(text: str) -> dict[str, Any]:
@@ -606,10 +608,10 @@ class FakeGitHub:
             return ok(file_payload(self.team_yaml))
         if path == f"repos/{REPO}/contents?ref={MAIN_SHA}":
             return ok([])
-        if path == f"repos/{policy.STANDARDS_REPO}/commits/main":
+        if path == f"repos/{STANDARDS_REPO}/commits/main":
             return ok({"sha": STANDARDS_SHA})
         standards = (
-            f"repos/{policy.STANDARDS_REPO}/contents/"
+            f"repos/{STANDARDS_REPO}/contents/"
             f"{policy.STANDARDS_TRUSTED_ACTORS}?ref={STANDARDS_SHA}"
         )
         if path == standards:
@@ -3315,21 +3317,23 @@ class TheSpecMustBeTrusted(unittest.TestCase):
     def test_an_opted_in_repository_reads_the_standards_list(self) -> None:
         valid = {"version": 1, "actors": [MAINTAINER, LANES]}
         for team, ours, theirs, expected in (
-            ("trusted_actors_source: standards\n", {"version": 2}, valid, None),
-            ("trusted_actors_source: standards\n", valid, {"version": 2}, "verify:unreadable"),
+            (OPTED_IN, {"version": 2}, valid, None),
+            (OPTED_IN, valid, {"version": 2}, "verify:unreadable"),
+            ("trusted_actors_source: standards\n", valid, valid, "verify:unreadable"),
+            ("trusted_actors_source: standards\nstandards_repository: x\n", valid, valid, "verify:unreadable"),
             ("trusted_actors_source: repository\n", valid, {"version": 2}, None),
             ("trusted_actors_source: elsewhere\n", valid, valid, "verify:unreadable"),
         ):  # fmt: skip
             with self.subTest(team=team, ours=ours):
-                self.enterContext(mock.patch.object(policy, "_STANDARDS_SHA", []))
+                self.enterContext(mock.patch.object(policy, "_STANDARDS_SHA", {}))
                 self.enterContext(mock.patch.object(policy, "_STANDARDS_TEXT", {}))
                 fake = passing()
                 fake.team_yaml, fake.actors, fake.standards_actors = team, ours, theirs
                 self.assertEqual(read(fake).refusal, expected)
                 read_standards = any(
-                    policy.STANDARDS_REPO in " ".join(c) for c in fake.calls
+                    STANDARDS_REPO in " ".join(c) for c in fake.calls
                 )
-                self.assertEqual(read_standards, team.endswith(" standards\n"))
+                self.assertEqual(read_standards, team == OPTED_IN)
 
 
 class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):

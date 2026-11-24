@@ -40,9 +40,9 @@ or a parse failed, so no hold was ruled out. Exit 1: a bad argument. Exit 5: `gh
 missing. The script reads the title, body, labels, URL and closing issue
 references with `gh pr view`, and each closing issue's state over REST. On a `do-not-merge` label
 it also reads, over REST, the PR's label events, its comments, the trusted list on the base
-repository's default branch (the `melodic-software/standards` component at the commit its `main`
-names, when the base repository's `docs/conventions/source-control.yaml` sets
-`trusted_actors_source: standards`; else its `.github/standards/trusted-actors/trusted-actors.json`)
+repository's default branch (the component in the repository `standards_repository` names, at
+the commit its `main` names, when the base repository's `docs/conventions/source-control.yaml`
+sets `trusted_actors_source: standards`; else its `.github/standards/trusted-actors/trusted-actors.json`)
 and the lanes App's
 login from the `issue_status_app_login` setting, to tell an eval-only hold from any other. A failed
 read leaves the label holding.

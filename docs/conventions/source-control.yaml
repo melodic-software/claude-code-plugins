@@ -20,5 +20,6 @@ runner_policy_paths:
   - .github/standards/runner-policy/policy.json
   - docs/ci-runner-routing.md
 trusted_actors_source: standards
+standards_repository: melodic-software/standards
 org_settings_repo: melodic-software/github-iac
 review_lane_producer_repo: melodic-software/ci-workflows

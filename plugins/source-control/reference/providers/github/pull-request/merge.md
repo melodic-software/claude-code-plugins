@@ -92,8 +92,9 @@ A base repository runs pr-verify when its base commit has `.github/workflows/pr-
 pr-verify judges the PR's author by `merge.verify-authors` in that commit's
 `docs/conventions/pr-pipeline.yaml`: `lane` (the default) judges only the lanes App
 (`merge.agent-identity`), `lane-or-owner` also an author on the trusted list (the
-`melodic-software/standards` component `components/trusted-actors/trusted-actors.json` when the
-base's `docs/conventions/source-control.yaml` sets `trusted_actors_source: standards`, else the
+component `components/trusted-actors/trusted-actors.json` in the repository `standards_repository`
+names, when the base's `docs/conventions/source-control.yaml` sets
+`trusted_actors_source: standards`, else the
 repository's `.github/standards/trusted-actors/trusted-actors.json`), and `any` every author
 (`.github/scripts/pr-verify/resolve-pr.mjs`). Before that setting, the resolver skips a PR whose
 base is not the default branch, whose head is in a fork, or whose author is a dependency-manager
@@ -133,8 +134,10 @@ LANE=$(sed -n 's/^  agent-identity: *\([^ #]*\).*/\1/p' <<<"$CONF" | head -n 1)
 TEAM=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/source-control.yaml?ref=$BASE_SHA" 2>/dev/null)
 LIST="repos/$REPO/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA"
 if grep -Eq '^trusted_actors_source: *standards *$' <<<"$TEAM"; then
-  STD=$(gh api repos/melodic-software/standards/commits/main --jq .sha) || exit 1
-  LIST="repos/melodic-software/standards/contents/components/trusted-actors/trusted-actors.json?ref=$STD"
+  SREPO=$(sed -n 's/^standards_repository: *\([A-Za-z0-9_.-]*\/[A-Za-z0-9_.-]*\) *$/\1/p' <<<"$TEAM")
+  [ -n "$SREPO" ] || exit 1
+  STD=$(gh api "repos/$SREPO/commits/main" --jq .sha) || exit 1
+  LIST="repos/$SREPO/contents/components/trusted-actors/trusted-actors.json?ref=$STD"
 fi
 TRUSTED=$(gh api -H 'Accept: application/vnd.github.raw' "$LIST" | jq -r '.actors[].id') || exit 1
 JUDGED=no

@@ -31,7 +31,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRUSTED_ACTORS_PATH=".github/standards/trusted-actors/trusted-actors.json"
 TEAM_YAML="docs/conventions/source-control.yaml"
-STANDARDS_REPO="melodic-software/standards"
 STANDARDS_TRUSTED_ACTORS="components/trusted-actors/trusted-actors.json"
 PARSER="$SCRIPT_DIR/../../../lib/parse-concern-value.sh"
 
@@ -88,7 +87,7 @@ lanes_app_login_from_settings() {
 }
 
 trusted_list() {
-  local host=$1 path=$2 err team found src sha
+  local host=$1 path=$2 err team found src std sha
   err=$(mktemp) || return 1
   team=$(gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$path/contents/$TEAM_YAML" 2>"$err")
   found=$?
@@ -108,10 +107,13 @@ trusted_list() {
     gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$path/contents/$TRUSTED_ACTORS_PATH"
     ;;
   standards)
-    sha=$(gh api --hostname "$host" "repos/$STANDARDS_REPO/commits/main" --jq .sha) || return 1
+    std=$(printf '%s\n' "$team" | bash "$PARSER" --strict - standards_repository) || return 1
+    std=${std//$'\r'/}
+    [[ "$std" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || return 1
+    sha=$(gh api --hostname "$host" "repos/$std/commits/main" --jq .sha) || return 1
     sha=${sha//$'\r'/}
     [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || return 1
-    gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$STANDARDS_REPO/contents/$STANDARDS_TRUSTED_ACTORS?ref=$sha"
+    gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$std/contents/$STANDARDS_TRUSTED_ACTORS?ref=$sha"
     ;;
   *) return 1 ;;
   esac

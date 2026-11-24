@@ -3221,7 +3221,9 @@ class Reader:
             team = merge_policy.team_yaml_at(owner, name, tip)
             standards = merge_policy.opts_in_to_standards(team)
             text = (
-                merge_policy.standards_file(merge_policy.STANDARDS_TRUSTED_ACTORS)
+                merge_policy.standards_file(
+                    standards, merge_policy.STANDARDS_TRUSTED_ACTORS
+                )
                 if standards
                 else None
             )

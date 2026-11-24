@@ -91,6 +91,8 @@ TRACKER_YAML = policy.tracker_binding.YAML_PATH
 # The YAML files `GhFake` answers absent when a test sets none.
 UNSET_YAML = (TEAM_YAML, policy.tracker_binding.YAML_PATH)
 STANDARDS_SHA = "5" * 40
+STANDARDS_REPO = "example-org/standards"
+OPTED_IN = f"trusted_actors_source: standards\n{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n"
 dependabot = policy.dependabot
 
 
@@ -7642,14 +7644,17 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         listing = {"version": 1, "actors": [{"id": 5, "login": "p", "kind": "human"}]}
         ours = f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref=trunk"
         theirs = (
-            f"repos/{policy.STANDARDS_REPO}/contents/"
+            f"repos/{STANDARDS_REPO}/contents/"
             f"{policy.STANDARDS_TRUSTED_ACTORS}?ref={STANDARDS_SHA}"
         )
-        head = f"repos/{policy.STANDARDS_REPO}/commits/main"
+        head = f"repos/{STANDARDS_REPO}/commits/main"
         none: tuple[tuple[int, ...], tuple[int, ...]] = ((), ())
         for team, main, expected in (
-            ("trusted_actors_source: standards\n", {"sha": STANDARDS_SHA}, ((5,), (5,))),
-            ("trusted_actors_source: standards\n", 502, none),
+            (OPTED_IN, {"sha": STANDARDS_SHA}, ((5,), (5,))),
+            (OPTED_IN, 502, none),
+            ("trusted_actors_source: standards\n", {"sha": STANDARDS_SHA}, none),
+            ("trusted_actors_source: standards\nstandards_repository: nope\n", {"sha": STANDARDS_SHA}, none),
+            (f"trusted_actors_source: standards\nstandards_repository: [{STANDARDS_REPO}]\n", {"sha": STANDARDS_SHA}, none),
             ("trusted_actors_source: other\n", {"sha": STANDARDS_SHA}, none),
             ("trusted_actors_source: [standards]\n", {"sha": STANDARDS_SHA}, none),
         ):  # fmt: skip
@@ -7669,17 +7674,15 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         policy._TRUSTED_IDS.clear()
         gh = GhFake().install(self)
         listing = {"version": 1, "actors": [{"id": 5, "login": "p", "kind": "human"}]}
-        head = f"repos/{policy.STANDARDS_REPO}/commits/main"
+        head = f"repos/{STANDARDS_REPO}/commits/main"
         theirs = (
-            f"repos/{policy.STANDARDS_REPO}/contents/"
+            f"repos/{STANDARDS_REPO}/contents/"
             f"{policy.STANDARDS_TRUSTED_ACTORS}?ref={STANDARDS_SHA}"
         )
         gh.rest[head] = {"sha": STANDARDS_SHA}
         gh.rest[theirs] = file_payload(json.dumps(listing))
         for repo in (REPO, "owner/other"):
-            gh.rest[f"repos/{repo}/contents/{TEAM_YAML}?ref=trunk"] = file_payload(
-                "trusted_actors_source: standards\n"
-            )
+            gh.rest[f"repos/{repo}/contents/{TEAM_YAML}?ref=trunk"] = file_payload(OPTED_IN)
             self.assertEqual(policy.trusted_actors(repo, "trunk"), ((5,), (5,)))
         self.assertEqual(gh.calls.count(["api", head]), 1)
         self.assertEqual(gh.calls.count(["api", theirs]), 1)
@@ -7700,7 +7703,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 )
                 gh.rest[f"repos/{REPO}/contents?ref=trunk"] = []
                 self.assertEqual(policy.trusted_actors(REPO, "trunk"), ((7,), ()))
-                self.assertFalse(any(policy.STANDARDS_REPO in c[1] for c in gh.calls))
+                self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
 
     def test_the_default_branch_head_decides_idle_hours(self) -> None:
         base = policy.PipelineConfig(SHA, "C2", None, IDENTITY, None, (), None)
@@ -11027,7 +11030,7 @@ class DependabotEligibility(unittest.TestCase):
                 )
 
     def test_an_opted_in_repository_reads_the_standards_policy(self) -> None:
-        standards = f"repos/{policy.STANDARDS_REPO}/contents/"
+        standards = f"repos/{STANDARDS_REPO}/contents/"
         for theirs, eligible in (
             (json.dumps({"autoMerge": {"reviewOnly": []}}), True),
             ("{not json", False),
@@ -11036,10 +11039,8 @@ class DependabotEligibility(unittest.TestCase):
                 standards_cleared(self)
                 gh = self.fake()
                 gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = 500
-                gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = file_payload(
-                    "trusted_actors_source: standards\n"
-                )
-                gh.rest[f"repos/{policy.STANDARDS_REPO}/commits/main"] = {
+                gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = file_payload(OPTED_IN)
+                gh.rest[f"repos/{STANDARDS_REPO}/commits/main"] = {
                     "sha": STANDARDS_SHA
                 }
                 path = f"{dependabot.STANDARDS_POLICY}?ref={STANDARDS_SHA}"
