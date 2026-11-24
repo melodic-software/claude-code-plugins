@@ -4106,6 +4106,7 @@ jobs:
           const inputs = {
             ...request.files,
             "lib/cdn-pins/package.json": request.manifest,
+            "lib/cdn-pins/package-lock.json": request.lock,
             "lib/cdn-pins/sync.mjs": request.script,
           };
           for (const [path, text] of Object.entries(inputs)) {
