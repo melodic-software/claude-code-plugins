@@ -228,7 +228,7 @@ reads the file itself, through a script where the key names one below.
   those two keys from the tracked team file and the git-ignored personal override, which wins per
   key, so one person can turn it off in one repository; another value is reported and leaves it
   on. A repository that declares neither key is never judged
-  ([pr-body convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/pr-body-convention/README.md)).
+  ([pr-body convention](../../../docs/contracts/pr-body-convention/README.md)).
 - `evidence_inline_max_captures` and `evidence_record_fields`: how
   `/source-control:pull-request evidence` lays out its comment
   ([evidence.md](../skills/pull-request/reference/evidence.md) step 4).
