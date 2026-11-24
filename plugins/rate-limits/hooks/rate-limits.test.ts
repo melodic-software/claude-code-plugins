@@ -1442,7 +1442,6 @@ test(
   },
 )
 
-// A bad option value: the module still loads, the option reads as its default, and one line says so.
 const optionLogs = (w: World) => w.logs.filter(l => l.text.startsWith('rate-limits: option '))
 
 for (const value of [101, 0, -5, 1e9]) {

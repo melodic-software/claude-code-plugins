@@ -384,7 +384,6 @@ remote_audit() {
       ! rows="$(printf '%s' "$raw" | jq -r 'if type == "array" then .[] | [.number, .headRefOid] | @tsv else error("not an array") end' 2>/dev/null | tr -d '\r')"; then
       tier=UNKNOWN reason="merged-PR lookup failed (unauthenticated, no GitHub remote, or API error)"
     else
-      # A tip equal to any merged PR's head is current; otherwise compare with the newest merged PR.
       pick="$(awk -F'\t' -v tip="$tip" '$2 == tip { print $1 "\t" $2; found = 1; exit } $1 + 0 > best { best = $1 + 0; bo = $2 } END { if (!found && best) print best "\t" bo }' <<<"$rows")"
       if [[ -z "$pick" ]]; then
         tier=NO-MERGED-PR reason="no merged PR has this branch as its head"
@@ -470,8 +469,6 @@ if [[ -f "$PR_MAP_FILE" ]]; then
   done <"$PR_MAP_FILE"
 fi
 
-# branch_family <branch>: where the branch name says it came from. Information
-# only; no local tier reads it.
 branch_family() {
   case "$1" in
   claude/*) printf claude ;;
@@ -671,7 +668,6 @@ capture_line "# captured_at: $CAPTURED_AT"
 capture_line "# restore: git branch <branch> <tip>"
 capture_line $'# columns: branch\ttip\ttier\tpr\tupstream\tahead\tbehind\tnot_on_default\tlanded\tcaptured_at'
 
-# The checkout the audit runs from: HEAD, dirty count, in-progress operations.
 MAIN_HEAD_LINE="$CURRENT_BRANCH"
 [[ -n "$MAIN_HEAD_LINE" ]] || MAIN_HEAD_LINE="detached at $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null | tr -d '\r')"
 printf 'MainCheckout: %s\n' "$MAIN_HEAD_LINE"
@@ -686,8 +682,6 @@ for op_name in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD
 done
 [[ -n "$OP_PATH" ]] && printf 'OperationInProgress: %s\n' "$OP_PATH"
 
-# Membership sets, each read once. WORKTREE_PATH maps a branch to the worktree
-# that has it checked out.
 declare -A WORKTREE_PATH=() GONE_SET=() MERGED_SET=()
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
@@ -811,8 +805,6 @@ fi
 prot=0 wt=0 safe=0 likely=0 lossy=0 review=0
 NOW=$(date +%s)
 
-# The LOSSY set, collected during classification and printed as its own block
-# after the per-branch records. Parallel arrays indexed by position.
 LOSSY_BRANCHES=()
 LOSSY_COUNTS=()
 LOSSY_REASONS=()
