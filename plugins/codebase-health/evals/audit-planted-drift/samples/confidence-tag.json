@@ -10,6 +10,10 @@
     },
     {
       "answer": "Confidence: likely."
+    },
+    {
+      "answer": "| 1 | warning | doc-drift | `README.md:4` | README names `npm run dev`, which package.json does not define. | Read `package.json:6-9`. Unverified (verification: skipped, light). |",
+      "why": "light level: unverified with the skipped line"
     }
   ],
   "fail": [
@@ -20,6 +24,10 @@
     {
       "answer": "Confidence is high.",
       "why": "no tag value"
+    },
+    {
+      "answer": "I could not get the validator to run, so this stays unverified for now.",
+      "why": "unverified as an ordinary word, no skipped line"
     }
   ]
 }

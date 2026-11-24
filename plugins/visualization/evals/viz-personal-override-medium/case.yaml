@@ -40,6 +40,6 @@ graders:
     arm: 'with-only'
   - name: source-fence-notice
     type: 'regex'
-    pattern: '^(?=[\s\S]*?```mermaid[ \t]*\n)(?=[\s\S]*?(?:unrendered|not rendered|isn''t rendered|is not rendered|won''t render|will not render|doesn''t render|does not render|cannot render|can''t render|couldn''t render|could not render|not be rendered|no (?:mermaid[- ]?)?renderer|source (?:is )?kept|kept (?:as|the) (?:mermaid )?source|mmdc is not installed|(?:mermaid[ \t]+)?source(?:[ \t]+(?:fence|code|text|only))?[^\n]{0,40}?(?:paste|render(?:s|ed)? (?:it )?(?:in|at|with|on))))'
+    pattern: '^(?=[\s\S]*?```mermaid[ \t]*\n)(?=[\s\S]*?(?:unrendered|not rendered|isn''t rendered|is not rendered|won''t render|will not render|doesn''t render|does not render|cannot render|can''t render|couldn''t render|could not render|not be rendered|no (?:mermaid[- ]?)?renderer|source (?:is )?kept|kept (?:as|the) (?:mermaid )?source|has(?:n''t| not) been rendered|`?mmdc`?[ \t]+(?:is not|isn''t)[ \t]+installed|(?:mermaid[ \t]+)?source(?:[ \t]+(?:fence|code|text|only))?[^\n]{0,40}?(?:paste|render(?:s|ed)? (?:it )?(?:in|at|with|on))))'
     flags: 'i'
     target: 'last_message'
