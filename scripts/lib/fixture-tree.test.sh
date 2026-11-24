@@ -38,8 +38,7 @@ run_child() {
   return "$rc"
 }
 
-# The root a child printed, recovered from its output.
-child_value() { # <output> <key>
+child_value() {
   local v="${1#*"$2"=}"
   printf '%s' "${v%%$'\n'*}"
 }
@@ -48,8 +47,6 @@ child_value() { # <output> <key>
 # declaring each out-var here is what tells it (SC2154) the name is written.
 root_outside="" root_plugins="" probe_home="" root_sut="" root_nolib="" root_closure="" root_alllib=""
 root_git="" poison_root=""
-
-# --- sourced-only ----------------------------------------------------------
 
 if bash "$LIB" >/dev/null 2>&1; then
   fail "executing the library exited 0"
@@ -61,8 +58,6 @@ else
     fail "executing the library exited $rc, expected 2"
   fi
 fi
-
-# --- the root is outside the checkout --------------------------------------
 
 fixture_tree::build root_outside
 case "$root_outside" in
@@ -78,9 +73,6 @@ case "$root_outside" in
   ;;
 esac
 
-# A root that would land inside the checkout is refused rather than built. The
-# child moves the repo-root marker over $TMPDIR instead of writing into the real
-# checkout: the same comparison with none of the litter.
 out="$(
   run_child "
     . \"$LIB\"
@@ -98,8 +90,6 @@ else
   fail "inside-the-checkout root should be refused, got rc=$rc out='$out'"
 fi
 
-# --- --plugins and the default tree ----------------------------------------
-
 fixture_tree::build root_plugins --plugins
 if [[ -d "$root_plugins/plugins" && -d "$root_plugins/scripts" ]]; then
   ok "--plugins creates the plugins tree alongside scripts/"
@@ -111,8 +101,6 @@ if [[ -d "$root_plugins/scripts/lib" ]]; then
 else
   ok "scripts/lib is not staged when there is no script under test"
 fi
-
-# --- a copied SUT resolves its own SCRIPT_DIR and its sibling lib -----------
 
 fixture_tree::build probe_home
 cat >"$probe_home/probe-gate.sh" <<'PROBE'
@@ -152,8 +140,6 @@ else
   ok "the staged lib carries no *.test.sh of its own"
 fi
 
-# Only the libs the scripts under test reach are staged: each is a file the
-# suite reads, and one no copied script uses is a read the selection cannot see.
 if [[ -f "$root_sut/scripts/lib/read-list.sh" && ! -e "$root_sut/scripts/lib/awk-probe.sh" ]]; then
   ok "a lib no script under test names is not staged"
 else
@@ -175,7 +161,6 @@ else
   fail "--lib should stage every lib, got: $(ls -A "$root_alllib/scripts/lib" 2>&1)"
 fi
 
-# --no-lib is the escape for a suite whose SUT walks the fixture's scripts/.
 fixture_tree::build root_nolib --sut "$probe_home/probe-gate.sh" --no-lib
 if [[ -d "$root_nolib/scripts/lib" ]]; then
   fail "--no-lib should leave scripts/lib unstaged"
@@ -183,14 +168,12 @@ else
   ok "--no-lib leaves scripts/lib unstaged"
 fi
 
-# A script under test that does not exist is an error, not an empty fixture.
 if fixture_tree::build root_missing --sut "$probe_home/not-a-script.sh" 2>/dev/null; then
   fail "a missing script under test should fail the build"
 else
   ok "a missing script under test fails the build"
 fi
 
-# An unknown option is a usage error (2), not a silently ignored flag.
 fixture_tree::build root_badopt --wat 2>/dev/null && rc=0 || rc=$?
 if [[ "$rc" -eq 2 ]]; then
   ok "an unknown option exits 2"
@@ -199,7 +182,6 @@ else
 fi
 
 # --- --git writes the FULL throwaway identity ------------------------------
-
 fixture_tree::build root_git --git
 identity_ok=1
 for pair in "user.email=t@t.test" "user.name=test" "commit.gpgsign=false" "core.autocrlf=false"; do
@@ -245,8 +227,6 @@ else
   fail "inherited git env leaked: child out='$out' rc=$rc caller user.email='$poisoned'"
 fi
 
-# --- the inherited git environment is cleared, all seven variables ---------
-
 out="$(
   run_child "
     . \"$LIB\"
@@ -270,8 +250,6 @@ if ((${#still_set[@]} == 0)); then
 else
   fail "git variables survived the source: ${still_set[*]} (rc=$rc)"
 fi
-
-# --- the trap removes the tree on every exit path --------------------------
 
 for path_case in normal explicit-exit set-e-failure; do
   case "$path_case" in
@@ -299,7 +277,6 @@ for path_case in normal explicit-exit set-e-failure; do
   fi
 done
 
-# Several roots from several builds all go, not just the last one.
 out="$(
   run_child "
     . \"$LIB\"
@@ -323,7 +300,6 @@ fi
 #
 # The prior trap must still run, and it must run BEFORE the tree is removed so
 # a suite's own cleanup can still read out of its fixture.
-
 out="$(
   run_child "
     trap 'printf \"PRIOR_TRAP_RAN\n\"; if [[ -d \"\${r:-}\" ]]; then printf \"TREE_STILL_THERE\n\"; fi' EXIT
@@ -358,8 +334,6 @@ else
   fail "multi-line prior trap was mangled: out='$out' root='$child_root' rc=$rc"
   [[ -n "$child_root" ]] && rm -rf "$child_root"
 fi
-
-# --- re-sourcing does not drop registered roots ----------------------------
 
 out="$(
   run_child "

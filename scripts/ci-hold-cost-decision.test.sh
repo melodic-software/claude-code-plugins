@@ -79,13 +79,6 @@ else
   fail "the hold-lift step does not read cost_hold's cleared output: '$lift'"
 fi
 
-# The stub logs its arguments and answers from STUB_* variables; a read whose
-# name is in STUB_FAIL fails. The base commit's config is a fixture directory:
-# STUB_TRACKER (absent when unset) and STUB_ACTORS; a `tracker` failure leaves
-# BASE_CONFIG empty, as a failed checkout does, and an `actors` failure leaves
-# the trusted-actor list out of it. Runs, jobs and annotations come from JSON maps
-# keyed by workflow file, run id and check-run id; the head branch's push
-# history comes from STUB_ACTIVITY, listed newest first.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -156,7 +149,6 @@ OWNER="{\"login\":\"owner\",\"id\":$OWNER_ID,\"type\":\"User\"}"
 STRANGER='{"login":"someone","id":42,"type":"User"}'
 CODE_CHECK='PR Review / Status'
 SEC_CHECK='PR Review Security / Status'
-# The names a head tested before the rename shows: the caller job ids.
 OLD_CODE_CHECK='pr-review / review-status'
 OLD_SEC_CHECK='pr-review-security / review-status'
 
@@ -175,19 +167,13 @@ decision() {
 }
 note() { jq -cn --arg m "$1" '{annotation_level: "notice", message: $m}'; }
 hold_note() { note "claude-lane-hold lane=${2:-claude-review} sha=$HEAD criteria=$1 label=needs-human"; }
-# marker <sha> [at]: a review lane's hold comment on the pull request, which
-# decides no head.
 marker() {
   comment "$LANE" "${2:-2026-10-23T13:10:00Z}" "<!-- claude-lane-hold lane=claude-review sha=$1 criteria=cost -->
 Held for a person."
 }
 TF='{"filename":"infra/main.tf","status":"modified","patch":"@@ -1 +1 @@\n-a\n+b"}'
 MORE='{"filename":"scripts/run.sh","status":"modified","patch":"+y"}'
-# nets <old-files> <head-files> [head-commits]: the compare answers at OLD
-# and HEAD, HEAD a merge of the base into OLD unless [head-commits] lists
-# its history.
 MAIN_SHA=5555555555555555555555555555555555555555
-# The base branch's tip commit, which its full ref resolves to.
 TIP_SHA=3333333333333333333333333333333333333333
 export MAIN_SHA TIP_SHA
 nets() {
@@ -199,10 +185,7 @@ nets() {
 # push <sha> <timestamp>: a push to the head branch, as the repository
 # activity API lists it.
 push() { jq -cn --arg a "$1" --arg t "$2" '{after: $a, timestamp: $t, activity_type: "push", ref: "refs/heads/fix/cost"}'; }
-# job <id> <name> <completed_at>
 job() { jq -cn --argjson id "$1" --arg name "$2" --arg at "$3" '{id: $id, name: $name, completed_at: $at}'; }
-# lanes <code-notes> <security-notes>: one run per lane, its status job done
-# at 13:20:30 and 13:21:00, and the decided run (decided "$HEAD").
 lanes() {
   STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:00Z","updated_at":"2026-10-23T13:20:40Z","head_repository":{"full_name":"o/r"}}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:30Z","updated_at":"2026-10-23T13:21:10Z","head_repository":{"full_name":"o/r"}}]}}')"
   STUB_JOBS="$(jq -cn --argjson a "$(job 11 "$CODE_CHECK" 2026-10-23T13:20:30Z)" --argjson b "$(job 21 "$SEC_CHECK" 2026-10-23T13:21:00Z)" \
@@ -213,10 +196,6 @@ lanes() {
   nodecided
   decided "$HEAD"
 }
-# decided <sha> [completed_at] [criteria] [workflow] [job] [notice-sha]: a run
-# on <sha>, started at 13:00, whose job (the code lane's status job unless
-# named) recorded a hold notice naming [notice-sha] (default <sha>), and a
-# push of <sha> five minutes before that job finished.
 decided() {
   local id=$((DECIDED += 1)) at="${2:-2026-10-23T13:10:00Z}"
   STUB_RUNS="$(jq -c --arg f "${4:-pr-review-hosted.yml}" --argjson id "$id" --arg sha "$1" --arg at "$at" \
@@ -227,23 +206,16 @@ decided() {
   STUB_ACTIVITY="$(jq -c --arg sha "$1" --arg at "$at" '. + [{after: $sha, timestamp: ($at | fromdateiso8601 - 300 | todateiso8601), activity_type: "push"}]' <<<"$STUB_ACTIVITY")"
   export STUB_RUNS STUB_JOBS STUB_NOTES STUB_ACTIVITY
 }
-# nodecided: drops every run and push decided added, leaving the push of
-# HEAD that lanes' runs ran on.
 nodecided() {
   DECIDED=100
   STUB_RUNS="$(jq -c 'map_values(.workflow_runs |= map(select(.id <= 100)))' <<<"$STUB_RUNS")"
   STUB_ACTIVITY="[$(push "$HEAD" 2026-10-23T13:18:30Z)]"
   export STUB_RUNS STUB_ACTIVITY
 }
-# pushed <sha> [at]: a push of <sha> at [at] (13:08, between the decided
-# run's notice and the decision).
 pushed() {
   STUB_ACTIVITY="$(jq -c --argjson p "$(push "$1" "${2:-2026-10-23T13:08:00Z}")" '. + [$p]' <<<"$STUB_ACTIVITY")"
   export STUB_ACTIVITY
 }
-# ran <sha> <workflow> <job>: a run on <sha> started at 13:09, before the
-# decision, whose status job noticed nothing; its head changes no file unless
-# a compare already names it.
 ran() {
   local id=$((DECIDED += 1))
   STUB_RUNS="$(jq -c --arg f "$2" --argjson id "$id" --arg sha "$1" \
@@ -271,20 +243,17 @@ reset() {
   lanes "[$(hold_note cost),$(note "claude-lane-review-complete lane=claude-review sha=$HEAD findings=0")]" '[]'
   unset STUB_TRACKER
 }
-# The owner lifted an earlier hold at 13:15, so the 05:39 escalation is outside the window.
 lifted() {
   STUB_EVENTS="[$(event labeled "$APP" 2026-10-23T05:39:30Z),$(event unlabeled "$OWNER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
   STUB_COMMENTS="[$(comment "$APP" 2026-10-23T05:39:35Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
   export STUB_EVENTS STUB_COMMENTS
 }
 
-# expect <label> <want-cleared: yes|no> <want-delete: yes|no> <want-post: yes|no> [want-out]
 expect() {
   local label="$1" out rc cleared deleted posted config="$TMP_ROOT/base-config"
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/output"
   rm -rf "$config" "$TMP_ROOT/standards" "$TMP_ROOT/pr-reads"
-  # STALE_EVENTS stands for an events answer an earlier step kept (pr_read).
   [[ -z "${STALE_EVENTS:-}" ]] || RUNNER_TEMP="$TMP_ROOT" bash -c '. "$RUNNER_TEMP/gh-read.sh"; pr_read_put "$1" "repos/o/r/issues/6419/events?per_page=100" --paginate' _ "$STALE_EVENTS"
   mkdir -p "$TMP_ROOT/standards/components/trusted-actors" "$config/.github/standards/trusted-actors"
   printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
@@ -389,9 +358,6 @@ expect "a decision posted through an App clears nothing" no no no
 reset
 export STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T13:30:00Z"}}}'
 expect "an edited decision clears nothing" no no no
-# The row link and the verbatim quote: both clear, either missing holds and
-# the message names what is missing.
-# body_is <body>: the decision comment's whole body, with no PROOF appended.
 body_is() {
   STUB_DECISIONS="$(PROOF='' decision 9306 "$OWNER" 2026-10-23T13:14:57Z "$1" | jq -c '{"111": .}')"
   export STUB_DECISIONS
@@ -427,7 +393,6 @@ $ROW
 $quote"
   expect "a decision whose quote reads '$quote' clears nothing" no no no "lacks the owner's words"
 done
-# Both present still need every older condition.
 STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z "$LINE")" '{"111": ($c | .performed_via_github_app = {slug: "x"})}')"
 expect "a decision with both, posted through an App, clears nothing" no no no
 reset
@@ -471,9 +436,6 @@ $CREDENTIAL_HOLD")]"
 export STUB_COMMENTS
 expect "the marker below a first line keeps nothing" yes yes yes
 
-# A decision binds to one pull request: one on the linked issue counts only
-# when it names the pull request, and with no closing issue the linked issue is the one
-# plain Refs: issue.
 with_body() {
   STUB_PR="$(jq -cn --arg body "$1" '{number: 6419, created_at: "2026-10-23T05:00:00Z", head: {ref: "fix/cost", sha: "0123456789abcdef0123456789abcdef01234567"}, body: $body}')"
   export STUB_PR
@@ -616,8 +578,6 @@ decided "$OLD"
 STUB_ACTIVITY="[$(push "$NEW" 2026-10-23T13:08:00Z)]"
 export STUB_ACTIVITY
 expect "a push history with no push of the decided head before the decision carries nothing" no no no "no push of $OLD"
-# The decided head pushed back after the decision is the current head; the
-# deleted run before the decision still keeps the hold.
 reset
 nodecided
 decided "$HEAD"
@@ -638,8 +598,6 @@ expect "a later notice before the decision whose criteria include cost decides i
 nodecided
 decided "$OLD"
 decided "$HEAD" 2026-10-23T13:16:00Z
-# Every lane ran on HEAD, pushed before the decision, so the push history
-# keeps nothing here.
 ran "$HEAD" pr-review-security-hosted.yml "$SEC_CHECK"
 expect "a notice after the decision decides nothing" no no no "covering this head"
 nodecided
@@ -677,9 +635,6 @@ for lane in "pr-review-hosted.yml $OLD_CODE_CHECK" "pr-review-security-hosted.ym
   decided "$HEAD" 2026-10-23T13:12:00Z cost "${lane%% *}" "${lane#* }"
   expect "a cost notice from a head tested before the rename, under '${lane#* }', decides its head" yes yes yes
 done
-# pr-review-cli.yml's status job before its Title Case name, under the callers'
-# display names, its Title Case name under the caller job ids, and its planned
-# name `Publish Review` under both.
 for lane in 'pr-review-hosted.yml PR Review / review-status' 'pr-review-security-hosted.yml PR Review Security / review-status' \
   'pr-review-hosted.yml pr-review / Status' 'pr-review-security-hosted.yml pr-review-security / Status' \
   'pr-review-hosted.yml PR Review / Publish Review' 'pr-review-security-hosted.yml PR Review Security / Publish Review' \
@@ -691,8 +646,6 @@ done
 nodecided
 decided "$HEAD" 2026-10-23T13:12:00Z cost pr-review-hosted.yml "$OLD_SEC_CHECK"
 expect "the other lane's status job id in this lane's workflow decides nothing" no no no "covering this head"
-# The status job names pr-review-cli.yml gave before it named both review-status,
-# and the Title Case name pr-review.yml and pr-review-security.yml give theirs.
 for lane in 'pr-review-hosted.yml pr-review / claude-review-status' 'pr-review-security-hosted.yml pr-review-security / security-review' \
   'pr-review-hosted.yml pr-review / Claude' 'pr-review-security-hosted.yml pr-review-security / Claude'; do
   nodecided
@@ -754,7 +707,6 @@ for base in '-main' 'a..b' 'a b' ''; do
 done
 STUB_PR="$(jq -c '.base.ref = "release/2.x"' <<<"$STUB_PR")"
 STUB_BASE_REF=release/2.x expect "a base merge on a base branch with a slash carries" yes yes yes
-# The decision is the newest on the pull request, else the newest on the issue.
 reset
 PULL_LINK=https://github.com/o/r/pull/6419#issuecomment
 STUB_PR="$(jq -c --arg body "Closes #9306
@@ -773,8 +725,6 @@ decided "$HEAD" 2026-10-23T12:00:00Z
 decided "$OLD" 2026-10-23T13:11:00Z
 nets "[$TF]" "[$TF,$MORE]"
 expect "only the chosen decision may carry, so an older one at this head does not" no no no "covering this head"
-# A newer decision on the pull request lacking the row and quote is still the
-# one judged: the complete one on the issue does not stand in for it.
 reset
 STUB_PR="$(jq -c --arg body "Closes #9306
 $LINK
@@ -840,14 +790,12 @@ export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"fil
 expect "a comment deleted before the window does not keep the label" yes yes yes
 export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":101,"nodes":[]}}}}}'
 expect "more deletions than one page shows keeps the label" no no no "was deleted"
-# Deleting a hold comment moves no decided head: the notices decide it.
 reset
 lifted
 STUB_COMMENTS="[$(marker "$OLD" 2026-10-23T13:12:00Z)]"
 export STUB_COMMENTS
 export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:11:00Z"}]}}}}}'
 expect "a comment deleted before the window, after the decided notice, does not stop the carry" yes yes yes
-# A late event for an older head lifts nothing off the live one.
 reset
 STUB_PR="$(jq -c --arg o "$OLD" '.head.sha = $o' <<<"$STUB_PR")"
 expect "a pull request whose head moved since the event clears nothing" no no no "the head moved since this event"

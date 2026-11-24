@@ -167,7 +167,6 @@ export class PullError extends Error {}
 // One artifact's call that still failed: the pull counts it and goes on. Its
 // message is the call's kind, so the failed call's own text goes no further.
 class FetchFailed extends Error {}
-// The pull's gh call budget is spent: it stops fetching and keeps what it has.
 class BudgetSpent extends Error {}
 
 export function parseArgs(argv) {
@@ -228,16 +227,8 @@ function fetched(kind, call) {
   }
 }
 
-/**
- * A second sealed file the writer may add beside the transcript, such as the
- * leg's telemetry; the pull opens only the telemetry.
- */
 const EXTRA_SEALED = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\.sealed$/;
 
-/**
- * The sealed records inside one artifact zip: the sealed transcript, and the
- * telemetry when it is the one other sealed file.
- */
 function sealedRecords(deps, sink, zip) {
   const dir = mkdtempSync(path.join(paths(sink).tmp, "zip-"));
   try {
@@ -351,7 +342,6 @@ function pullWithin({ sink, repo, recipient, deps, log }) {
   return tally;
 }
 
-/** What taking an artifact reads and counts: the rows and outcomes held, the runs read, the tally. */
 function takeContext(sink, recipient, repo, deps, now) {
   return {
     sink,
@@ -517,11 +507,6 @@ function openTelemetry(recipient, record, runId, jobId, traceId) {
   }
 }
 
-/**
- * Each completed run of every lane workflow created since the cutoff, newest
- * first per workflow, starting at `at.workflow` (where a budget-stopped pull
- * stopped) and wrapping round.
- */
 function* listedRuns(deps, repo, cutoff, at) {
   const created = encodeURIComponent(`>=${new Date(cutoff).toISOString()}`);
   const start = Math.max(0, LANE_WORKFLOWS.indexOf(at.workflow));
@@ -595,7 +580,6 @@ function copyRunOutcomes({ sink, repo, deps, run, known, tally }) {
   }
 }
 
-/** The outcome rows held, first removing any job that has fewer rows than its `job_records`. */
 function heldOutcomes(sink) {
   const held = readOutcomes(sink);
   const perJob = new Map();
@@ -605,11 +589,6 @@ function heldOutcomes(sink) {
   return whole;
 }
 
-/**
- * Rewrites the metrics rows through `fill`, which sets fields on one row, and
- * each row's trace_id and failure class from the outcomes held. The file is
- * written only when a row changed; returns how many did.
- */
 function refreshRows(sink, fill = () => {}) {
   const rows = readRows(sink);
   const byTrace = outcomesByTrace(readOutcomes(sink));
@@ -824,8 +803,6 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     }
   }
   try {
-    // A complete pull is fresh; one that missed an artifact or stopped at its
-    // budget is stale once its kept window is.
     pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
     const after = status(sink, d.now());
     alertIfStale(after);
@@ -835,7 +812,6 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     try {
       writeState(sink, { ...readState(sink), last_error: kind });
     } catch {
-      // The sink itself may be the failure.
     }
     io.err(`pull failed: ${kind}\n`);
     alertIfStale(status(sink, d.now()));

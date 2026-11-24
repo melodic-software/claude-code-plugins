@@ -50,8 +50,6 @@ if ((RC == 0)) && grep -q 'usage:' <<<"$OUT"; then
 else
   fail "--help should exit 0 with usage: rc=$RC out=$OUT"
 fi
-# Every accepted option must appear in the banner: an option the header comment
-# documents but the banner omits is how a caller concludes it does not exist.
 for opt in -m --mixed -w --backslash; do
   if grep -q -- "$opt" <<<"$OUT"; then
     ok "the usage banner documents $opt"
@@ -59,7 +57,6 @@ for opt in -m --mixed -w --backslash; do
     fail "usage banner omits an accepted option ($opt): $OUT"
   fi
 done
-# ... and each must actually be accepted, not merely advertised.
 for opt in -m --mixed; do
   run linux-gnu "$opt" /srv/build/out.zip
   if ((RC == 0)) && [[ "$OUT" == "/srv/build/out.zip" ]]; then
@@ -84,7 +81,6 @@ else
   fail "POSIX multi-arg pass-through failed: rc=$RC out=$OUT"
 fi
 
-# A path that merely LOOKS like an option, after `--`, is a path.
 run linux-gnu -- -w
 if ((RC == 0)) && [[ "$OUT" == "-w" ]]; then
   ok "-- ends option parsing so an option-shaped path is treated as a path"
@@ -150,8 +146,6 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
       fail "multi-arg conversion wrong: rc=$RC out=$OUT"
     fi
 
-    # A relative path stays relative — the convention's preferred shape must
-    # survive the helper rather than being silently absolutized.
     run "$OSTYPE" "sub/dir/out.zip"
     if ((RC == 0)) && [[ "$OUT" == "sub/dir/out.zip" ]]; then
       ok "a relative path survives conversion as a relative path"

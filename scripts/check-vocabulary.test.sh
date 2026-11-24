@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the vocabulary checker's test suite.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The Python floor has one origin: MIN_PYTHON in the checker itself.
 # shellcheck source=lib/python-probe.sh
 . "$SCRIPT_DIR/lib/python-probe.sh"
 

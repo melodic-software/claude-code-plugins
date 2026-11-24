@@ -147,7 +147,6 @@ test("a failed pull still logs its gh call count", () => {
 
 // The job-id each upload-lane-transcript step passes, read from the workflow
 // text: the enclosing job's key stands in for github.job.
-
 function uploadJobIds() {
   const found = {};
   for (const [file, lines] of workflowLines()) {
@@ -320,7 +319,6 @@ for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }
     const cursor = iso(NOW - 12 * 3600_000);
     seedState(sink, { last_success_at: previous, cursors: { "lane-transcript-check-intent-1": cursor } });
     const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
-    // Older than OVERLAP (6 hours) at the failed pull, so a cutoff taken from that pull would miss it.
     const failing = artifact(51, { runId: 51, createdAt: NOW - 10 * 3600_000, record: sealed(publicLine, { runId: 51 }) });
     const healthy = artifact(52, { jobId: "rate-merge-risk", runId: 52, record: sealed(publicLine, { runId: 52, jobId: "rate-merge-risk" }) });
 
@@ -382,7 +380,6 @@ test("a listing page that fails past its retries fails the pull and keeps the la
   const sink = sinkDir();
   const last = iso(NOW - 3 * 86400_000);
   seedState(sink, { last_success_at: last });
-  // Fork artifacts, so none is downloaded.
   const full = Array.from({ length: 100 }, (_, i) => artifact(6000 - i, { fork: true, record: sealed(publicLine) }));
   const second = "name=lane-transcript-check-intent-1&per_page=100&page=2";
   const deps = fakeDeps(full, { failures: { [second]: FOREVER } });
@@ -717,10 +714,6 @@ const laneRecord = (fields) => ({ v: 1, lane: "pr-verify", outcome: "failure", c
 const laneRun = (id, { attempt = 1, fork = false, path: workflowPath = ".github/workflows/pr-verify.yml" } = {}) => ({ id, run_attempt: attempt, name: "pr-verify", path: workflowPath, repository: { id: REPO_ID }, head_repository: { id: fork ? 1 : REPO_ID }, created_at: iso(NOW - 3600_000) });
 const laneJob = (id, { attempt = 1, conclusion = "failure", name = "check-intent" } = {}) => ({ id, run_attempt: attempt, name, conclusion, completed_at: iso(NOW - 3600_000) });
 
-/**
- * `runs` maps a workflow file to its runs, `jobs` a run id to its jobs, and
- * `annotations` a job id to its annotations.
- */
 function outcomeDeps({ runs = {}, jobs = {}, annotations = {} } = {}) {
   const calls = [];
   return {

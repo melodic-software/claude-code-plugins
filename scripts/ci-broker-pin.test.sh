@@ -51,8 +51,6 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 
-# The stub logs its arguments, fails the first STUB_FAILS calls, then prints
-# STUB_JSON, one page.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -74,7 +72,6 @@ files() {
   printf '%s]' "${out%,}"
 }
 
-# expect <label> <want-rc> <want-gh-calls> <STUB_JSON> <PR_BODY> <STUB_FAILS> [want-out]
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
