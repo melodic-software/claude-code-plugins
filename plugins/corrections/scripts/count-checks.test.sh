@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Tests for count-checks.mjs over fixture repositories: the squash shape, a list-item line, trailing
-# prose, a malformed and a placeholder line, a guidance rung, the semgrep-rule alias, the two 3.1.0
-# rung ids, promotion by the advisory record's landing pull request, a repeated promoting line, a
-# promoted advisory record later reverted, the task-list and code-span forms, prose mentions that
-# are not records, first-parent history, reverts by hash and by pull request scoped to origin's
-# repository, --since and --bucket, an empty history, usage that stops before history is read, and
-# no file written.
 # test-scope: plugins/corrections/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
@@ -168,8 +161,6 @@ check "--bucket week: one row per ISO week, from its Monday" has_line '| week of
 DETAIL="out: $OUT"
 check "--bucket week: an empty week keeps the cumulative" has_line '| week of 2026-01-12 | 0 | 0 | 1 | 1 | 0 | 0 |'
 
-# 3a. Promotion identity: a blocking record promotes the advisory record landed by the pull request
-# it names as its source, whatever that advisory record's own source was.
 new_repo
 commit 2026-04-01 "feat: advisory from a session (#200)
 
@@ -196,8 +187,6 @@ DETAIL="out: $OUT"
 check "promotion: with no advisory record reverted, no line is listed as origin-reverted" \
   has_line "blocking, its advisory origin reverted, counted as a new blocking check: 0"
 
-# 3b. Every other line holding an attempted record is listed with its reason, the task-list form
-# included; a mention of Codifies: with no record after it is not listed.
 new_repo
 # shellcheck disable=SC2016 # the backticks are literal Markdown code spans
 commit 2026-05-01 'feat: issue form (#300)
@@ -227,8 +216,6 @@ DETAIL="out: $OUT"
 # shellcheck disable=SC2016 # literal code spans
 check "placement: a bare mention inside prose is not listed" test "$(grep -c 'Adds a `Codifies:` line' <<<"$OUT")" -eq 0
 
-# 3b-1. A squash message whose subject and prose mention Codifies: without a record adds nothing to
-# not counted and does not open the window.
 new_repo
 commit 2026-08-01 "feat(corrections): count Codifies: records (#600)
 
@@ -250,8 +237,6 @@ run "$R" --since 2026-08-01 --until 2026-10-31
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "mentions: inside the window, the mentions are still not listed" has_line "not counted: 0"
 
-# 3b-1a. A malformed line at column 0, older than every record, opens the default window and is
-# listed.
 new_repo
 commit 2026-03-01 "feat: analyzer (#11)
 
@@ -271,8 +256,6 @@ check "malformed at column 0: with its reason" \
 DETAIL="out: $OUT"
 check "malformed at column 0: the later record is counted in June" has_line '| 2026-06 | 1 | 0 | 1 | 0 | 1 |'
 
-# 3b-1b. A record written with emphasis on the key is listed; a quoted grammar with placeholders is
-# not; a harmless repeat of an advisory line carries no promotion hint.
 new_repo
 # shellcheck disable=SC2016 # the backticks are literal Markdown code spans
 commit 2026-04-01 'docs: explain the record line (#16)
@@ -301,8 +284,6 @@ check "forms: the repeat is listed as a repeat" \
 DETAIL="out: $OUT"
 check "forms: an advisory repeat carries no promotion hint" test "$(grep -c 'two promotions' <<<"$OUT")" -eq 0
 
-# 3b-2. Two same-rung advisory records landed by one pull request: one promoting line promotes one,
-# its repeat in the same message is listed, and a second commit promotes the other.
 new_repo
 commit 2026-08-03 "feat: two analyzers (#700)
 
@@ -329,8 +310,6 @@ check "repeat: a promotion in its own commit promotes the second check" has_line
 DETAIL="out: $OUT"
 check "repeat: two promotions" has_line "promoted from advisory to blocking: 2"
 
-# 3b-3. An advisory record reverted after its promotion: the promoting line stands as a new blocking
-# check and is listed with the reverted advisory record.
 new_repo
 commit 2026-09-01 "feat: analyzer (#800)
 
@@ -356,7 +335,6 @@ check "origin reverted: one such line" has_line "blocking, its advisory origin r
 DETAIL="out: $OUT"
 check "origin reverted: the advisory record is listed as reverted" has_line "reverted, not counted: 1"
 
-# 3c. First-parent history: a branch commit and its merge commit both carrying the line count once.
 new_repo
 commit 2026-06-01 "chore: start"
 git -C "$R" switch -q -c topic
@@ -370,7 +348,6 @@ run "$R" --since 2026-06-01 --until 2026-06-30
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "first parent: the merged line is counted once" has_line '| window | 1 | 0 | 1 | 0 | 1 |'
 
-# 3d. Reverts owner/repo#n reverts only when owner/repo is origin's (compared without case).
 new_repo
 git -C "$R" remote add origin git@github.com:Example/Repo.git
 commit 2026-07-01 "feat: guard (#500)
@@ -396,8 +373,6 @@ check "reverts by repository: one record is reverted" has_line "reverted, not co
 DETAIL="out: $OUT"
 check "reverts by repository: with origin read, no number-only note" test "$(grep -c 'no owner/repo read' <<<"$OUT")" -eq 0
 
-# 3e. An origin URL with no owner/repo in it is treated like no origin: a qualified Reverts line is
-# matched by number and the output says so.
 new_repo
 git -C "$R" remote add origin not-a-url
 commit 2026-07-10 "feat: guard (#900)
@@ -426,7 +401,6 @@ run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "empty history, no window given: exits 0 with a zero window row" test "$RC" -eq 0 -a -n "$(grep -xF '| window | 0 | 0 | 0 | 0 |' <<<"$OUT")"
 
-# 5. A bad value stops before history is read: outside a repository it still exits 2, not 1.
 mkdir -p "$TEST_TMPDIR/not-a-repo"
 for args in "--since 2026-02-30" "--since yesterday" "--until 2026-13-01" "--bucket day" \
   "--since 2026-02-02 --until 2026-02-01" "--since 2999-01-01" "--bogus" "extra" "--since"; do

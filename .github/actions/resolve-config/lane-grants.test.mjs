@@ -29,18 +29,13 @@ const THIS_REPOSITORY = "1277265216";
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const ACTORS_SCHEMA = json("../../standards/trusted-actors/trusted-actors.schema.json");
 
-test("each row is keyed by a repository id and holds exactly the repository label, lanes, trusted-actor additions and ci-workflows commits", () => {
+test("each row is keyed by a repository id and holds exactly the repository label, lanes and trusted-actor additions", () => {
   assert.ok(Object.keys(GRANTS).length > 0);
   for (const [id, row] of Object.entries(GRANTS)) {
     assert.match(id, /^[1-9][0-9]{0,19}$/, id);
-    assert.deepEqual(Object.keys(row).sort(), ["ci-workflows-commits", "lanes", "repository", "trusted-actors"], id);
+    assert.deepEqual(Object.keys(row).sort(), ["lanes", "repository", "trusted-actors"], id);
     assert.match(row.repository, /^melodic-software\/[A-Za-z0-9._-]+$/, id);
     assert.ok(Array.isArray(row["trusted-actors"]), id);
-    assert.ok(Array.isArray(row["ci-workflows-commits"]), id);
-    for (const sha of row["ci-workflows-commits"]) {
-      assert.match(sha, /^[0-9a-f]{40}$/, `${id} ${sha}`);
-    }
-    assert.equal(new Set(row["ci-workflows-commits"]).size, row["ci-workflows-commits"].length, `${id} lists a commit twice`);
   }
   const labels = Object.values(GRANTS).map((row) => row.repository);
   assert.equal(new Set(labels).size, labels.length, "two rows carry one repository label");

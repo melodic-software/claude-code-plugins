@@ -264,8 +264,6 @@ fi
 rm -f "$RESOLVED.err"
 
 FIXTURES="$SCRIPTS/fixtures/sources"
-# Tools that resolve from the project's ./node_modules and need its own
-# configuration; a temporary directory carries neither.
 PROJECT_BOUND=" eslint-complexity sonarjs type-coverage "
 
 fixture_files() {

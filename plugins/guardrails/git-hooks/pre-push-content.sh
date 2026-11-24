@@ -1,32 +1,4 @@
 #!/bin/sh
-# guardrails pre-push check: secrets and machine-specific paths in the lines
-# each pushed commit adds.
-#
-#   pre-push-content.sh <remote> <url>   the pushed commits, refs on stdin (git
-#                                        runs it as pre-push)
-#   pre-push-content.sh --worktree       the uncommitted changes against HEAD,
-#                                        untracked files included
-#
-# pre-commit-content judges a commit as it is made; a push also carries
-# commits that check never judged: made before the hooks were installed, by a
-# tool or clone without them, or rebased or cherry-picked in. This entry runs
-# the same scan (content-scan.sh, installed beside it as an asset with the
-# pattern libraries) on every pushed ref, whatever its name.
-#
-# The pushed ranges come from the check lib: one per pushed ref, a new branch
-# from its merge-base with the remote's default branch, a deletion skipped.
-# Each commit in a range is judged on its own, on the lines it adds to its
-# parent (commit_ranges), so a secret one commit adds and a later commit of the
-# same push removes still blocks: the push would publish it in history. A merge
-# is judged on the lines it adds against every parent, which are its conflict
-# resolution. A commit one of the remote's tracking refs holds is on the remote
-# already and is not judged again.
-#
-# Findings print as "<path>:<line>: <message> (commit <id>)" on stderr and
-# exit 1; the fix is to rewrite the named commit. A text tool or git command
-# that fails mid-scan also exits 1, since the scan is incomplete.
-#
-# POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
 */*) here="${0%/*}" ;;

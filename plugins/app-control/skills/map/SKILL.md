@@ -290,6 +290,11 @@ In refresh, a placed lesson is doc drift and ships with the pass's other correct
   /app-control:drive <app> <feature>.
 - The app changed after the control skill was written: /app-control:map refresh.
 
+## Related
+
+- Refresh found a product regression: /bugs:write.
+- Non-driving repo lesson surfaced: /corrections:codify.
+
 ## Gotchas
 
 - Map runs repository code before asking anything: step 2 launches the app through drive. Read the

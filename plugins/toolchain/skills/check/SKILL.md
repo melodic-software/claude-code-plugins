@@ -190,6 +190,11 @@ The plugin's Stop hook reads it when the turn ends and warns when the line is no
 - Overall `PASS`: /verification:confirm before committing.
 - Overall `FAIL`: /testing:fix-failing.
 
+## Related
+
+- Lint and format checks only without build or tests: /toolchain:lint.
+- Persist ecosystem commands: /toolchain:setup.
+
 ## Gotchas (cross-ecosystem)
 
 - **CWD drift**, the most common source of false failures. Always use absolute paths.

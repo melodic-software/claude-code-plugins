@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for cluster-clones.py at its command line.
-
-The post-pass is a pure function from a document to a document, so every case
-drives the script through subprocess with a small document on stdin (design
-T13, the one seam per script). The committed captures
-scripts/fixtures/tool-output/jscpd-aligned3.json and jscpd-offset3.json cover
-the shapes jscpd itself reports for three copies; these cases cover the rule.
-"""
 
 from __future__ import annotations
 
@@ -73,8 +65,6 @@ C = "plugins/x/c/shared/shared-utils.sh"
 
 class ClusterClonesTests(unittest.TestCase):
     def test_three_aligned_copies_collapse_to_one_class(self) -> None:
-        # jscpd pairs every later copy with the first, so two rows name the
-        # same instance of the first copy.
         result = run(
             document(pair((A, 1, 41), (B, 1, 41)), pair((A, 1, 41), (C, 1, 41)))
         )

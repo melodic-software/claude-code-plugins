@@ -641,6 +641,21 @@ spv_git_common_to() {
 
 declare -A DELETED=()
 DELETED_BUILT=0
+IFS= read -r -d '' SPV_CACHE_LOOKUP <<'EOF' || true
+
+FNR == NR { want[$0] = 1; next }
+FNR == 1 && $0 "" != sha "" { bad = 1; exit }
+FNR == 2 && $0 != "ok" { bad = 1; exit }
+FNR <= 2 { next }
+after_end { bad = 1; exit }
+/^end [0-9]/ { after_end = 1; last = $0; next }
+$0 in want { hit[++h] = $0 }
+END {
+  if (bad || !after_end || last != ("end " (FNR - 3))) exit 1
+  for (i = 1; i <= h; i++) print hit[i]
+}
+EOF
+SPV_CACHE_LOOKUP=${SPV_CACHE_LOOKUP%$'\n'}
 SHALLOW=0
 WALK_FAILED=0
 
@@ -654,7 +669,7 @@ build_deleted_set() {
   # An unborn HEAD has no history to walk. The sha keys the on-disk set so a
   # later edit at the same commit does not walk again. The redirect sits on the
   # group: inside the substitution it would bill a second process for one git.
-  local head_sha="" git_dir="" common="" cache="" p n torn
+  local head_sha="" git_dir="" common="" cache="" p cands hits
   local -a cached_lines=()
   { head_sha=$(hook::git_untrusted -C "$REPO_ROOT" rev-parse --verify -q HEAD); } 2>/dev/null || return 0
   head_sha=${head_sha//$'\r'/}
@@ -679,23 +694,15 @@ build_deleted_set() {
     # the lines read, and a second sentinel-shaped line marks a mix. Anything
     # else is a miss and the walk below rebuilds it.
     if [[ -f "$cache" ]]; then
-      mapfile -t cached_lines <"$cache"
-      n=$((${#cached_lines[@]} - 3))
-      if [[ "${cached_lines[0]-}" == "$head_sha" && "${cached_lines[1]-}" == ok ]] &&
-        ((n >= 0)) && [[ "${cached_lines[n + 2]}" == "end $n" ]]; then
-        torn=0
-        if ((n > 0)); then
-          for p in "${cached_lines[@]:2:n}"; do
-            if [[ "$p" == "end "[0-9]* ]]; then
-              torn=1
-              break
-            fi
-            [[ -n "$p" ]] || continue
+      printf -v cands '%s\n' "$@"
+      if hits=$(LC_ALL=C awk -v sha="$head_sha" "$SPV_CACHE_LOOKUP" - "$cache" <<<"${cands%$'\n'}" 2>/dev/null); then
+        if [[ -n "$hits" ]]; then
+          mapfile -t cached_lines <<<"$hits"
+          for p in "${cached_lines[@]}"; do
             DELETED["$p"]=1
           done
         fi
-        ((torn)) || return 0
-        DELETED=()
+        return 0
       fi
     fi
   elif [[ "$(git --no-pager -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
@@ -756,6 +763,7 @@ moved_hint() {
 }
 
 declare -A CHECKED=()
+ABSENT_CANDS=()
 MISSING=()
 ABSENT=0
 
@@ -788,10 +796,14 @@ for raw in "${RAW_TOKENS[@]}"; do
   # there, only its target is not — from reading as a removal.
   [[ -e "$REPO_ROOT/${cand%/}" || -L "$REPO_ROOT/${cand%/}" ]] && continue
   ABSENT=1
+  ABSENT_CANDS+=("$cand")
+done
 
+((${#ABSENT_CANDS[@]})) && build_deleted_set "${ABSENT_CANDS[@]}"
+
+for cand in ${ABSENT_CANDS[@]+"${ABSENT_CANDS[@]}"}; do
   # PROVENANCE GATE: adjudicate only a path this repository demonstrably once
   # had. Anything else is somebody else's tree, an example, or a plan.
-  build_deleted_set
   [[ -n "${DELETED[$cand]:-}" ]] || continue
 
   # Deleted once, tracked again now. Under a sparse checkout such a path is absent

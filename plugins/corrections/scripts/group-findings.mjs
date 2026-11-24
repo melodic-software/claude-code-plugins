@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// Grouped view of the findings buffer, for a person to read instead of raw JSONL.
-//   group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]
-// Runs tools/findings-buffer/buffer.sh read from the current directory and groups its rows by the
-// named top-level fields (default `producer`). It prints the grouping keys, the occurrence rule and
-// the totals, then each group: its value for every key, its row count and its occurrence count
-// (distinct `source_id`; a row without one is its own occurrence), then each member's obs_id, ts
-// and source_id, oldest first; --rows adds the member row itself. Groups come most occurrences
-// first, then most rows. With --since, only rows whose ts is at or after it are grouped, since
-// buffer.sh read may return older rows.
-// Row values are data: control, format and separator characters are printed escaped.
 // Exit: 0 ok (no rows prints `no rows`), 2 usage, 1 a row that is not a JSON object or a read that
 // does not fit in memory, else buffer.sh read's own exit.
 import { spawnSync } from "node:child_process";
@@ -33,15 +23,12 @@ const usage = (why) => {
 };
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-/** JSON text with every control, format (bidirectional and zero-width included) and separator character escaped. */
 function show(value) {
-  // split("") yields UTF-16 code units, so an astral character becomes its two \u escapes.
   return JSON.stringify(value).replace(UNSAFE, (c) =>
     c.split("").map((unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`).join(""),
   );
 }
 
-/** -1, 0 or 1 comparing two UTC ISO-8601 timestamps that match TS, fraction included. */
 function compareTs(a, b) {
   const [, secA, fracA = ""] = TS.exec(a);
   const [, secB, fracB = ""] = TS.exec(b);

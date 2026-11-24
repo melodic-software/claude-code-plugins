@@ -15,7 +15,6 @@ const isMode = (value: unknown): value is LiveMode => MODES.includes(value as Li
 
 const live = atom({ plugin: 'context-budget', key: 'live' } as const, { view: null, error: null })
 
-// The header alone, from the window figures; none before a response is measured.
 const figures = (context: SessionContextUsage): LiveView | null =>
   context.tokens === undefined ? null : { used: context.tokens, window: context.window, percent: context.percent ?? 0, categories: [] }
 
@@ -38,7 +37,6 @@ const toView = (context: SessionContextUsage): LiveView | null => {
   }
 }
 
-// Each refresh takes a number; one that resolves after a newer one started writes nothing.
 let latest = 0
 
 const refresh = async ($: EngineInterface) => {
@@ -51,7 +49,6 @@ const refresh = async ($: EngineInterface) => {
         ? { view: null, error: null }
         : { view: toView(context), error: context.breakdown === undefined ? 'no breakdown in this session' : null }
   } catch (err) {
-    // The breakdown failed: the plain figures still give the header, when they answer.
     const plain = await $.session.usage().catch(() => undefined)
     state = { view: plain === undefined ? null : figures(plain.context), error: err instanceof Error ? err.message : String(err) }
   }
@@ -85,7 +82,6 @@ const registerCommand = ($: EngineInterface) =>
   })
 
 export const register: Register = (on, options) => {
-  // Unwritten, mode reads the option; a /context-budget live write outlasts a hot reload.
   const mode = atom({ plugin: 'context-budget', key: 'mode' } as const, isMode(options.live_display) ? options.live_display : 'pane')
 
   on('session.start', async ($, e, next) => {
@@ -93,11 +89,8 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // No session.start fires after /clear, /resume or /branch, so the next prompt registers the command
-  // again; registering again is harmless when the command survived.
   let reregister = false
 
-  // The old conversation's figures go with it; a refresh still in flight writes nothing.
   on('session.end', async ($, e, next) => {
     reregister = true
     latest++
@@ -113,7 +106,6 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // Answers with no text: the pane or band is the output, and nothing lands in the transcript Claude reads.
   on('command.run', { command: COMMAND }, async ($, e) => {
     const [sub, arg, ...rest] = e.args.trim().split(/\s+/)
     if (sub !== 'live' || rest.length > 0 || (arg !== undefined && !isMode(arg))) {
@@ -140,7 +132,6 @@ export const register: Register = (on, options) => {
     return {}
   }).catch(($, e, next) => next(e))
 
-  // The breakdown is asked for only while it is shown and only when the context fill moved.
   on('session.measure', async ($, e, next) => {
     if (e.changed.includes('context') && ((await read($, mode)) === 'band' || (await paneOpen($)))) await refresh($)
     return next(e)

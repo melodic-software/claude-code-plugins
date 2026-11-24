@@ -303,6 +303,10 @@ stored one.
 - After a baseline capture with a frozen harness, when the goal plans a loop: `/performance:climb`.
 - After a post capture: `/performance:verify`.
 
+## Related
+
+- Code-shape metrics or general before/after measurement: /verification:measure.
+
 ## Gotchas
 
 - **The refusal must always name the counter it can still report.** A dead-end refusal gets
