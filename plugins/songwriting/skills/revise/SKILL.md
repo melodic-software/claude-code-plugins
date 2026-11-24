@@ -34,7 +34,8 @@ checked here. *(Plugin-authored, not Pat Pattison's.)*
 
 The `diagnose`, `demo` and `audit` actions report and change nothing: they name problems and
 stop. Only `variations` and `rewrite` produce changed lines. Reporting only never skips the
-rubric's countable passes: `audit` still runs them as commands.
+countable passes: `audit` still runs them as commands on the lines it audits (syllables via
+`datamuse.sh syllables <word>`, repeats from a word-frequency count), per Handlers.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
 author's method plugs in at `context/<author>/` without changing this skill, the author seam per
