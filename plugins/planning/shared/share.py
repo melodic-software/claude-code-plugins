@@ -60,19 +60,19 @@ NAME = "shared"  # matches server.py and session-bridge.conf
 SECRETS = ".shared-secrets.json"
 PORTS = ".shared-ports.json"
 OWNER_LINK = ".owner-link"
-REPORTED = ".shared-reported"  # the guest link the last ensure-running printed
+REPORTED = ".shared-reported"
 SERVER_ERR = ".shared-server.err"
 LOCK = ".shared.lock"
 OPS_MAX = 1024 * 1024
-START_SECONDS = float(os.environ.get("SHARED_START_SECONDS") or 15.0)  # tests shorten it
+START_SECONDS = float(os.environ.get("SHARED_START_SECONDS") or 15.0)
 NAMED_PORT = 8765  # judgment: a named tunnel's guest port when none is given and no API token routes it; its ingress rule names this port
-LEASE_SECONDS = 5.0  # judgment: how long the lease probe waits for the tunnel's hostname to answer
-SYNC_SECONDS = 5.0  # how long the server may take to pick up a new tunnel record
+LEASE_SECONDS = 5.0
+SYNC_SECONDS = 5.0
 SERVER_MARKER = "python" if detached.WINDOWS else "server.py"
-OPEN_PAGE = ".owner-open-{}.html"  # the page --open hands the browser; it holds the owner link
-OPEN_SECONDS = 30.0  # judgment: a browser started cold has read the page well within this
+OPEN_PAGE = ".owner-open-{}.html"
+OPEN_SECONDS = 30.0
 LOG = "server.log"
-LOG_TAIL = 200  # judgment: the most lines `logs` prints, the newest
+LOG_TAIL = 200
 FORGET_PAGE = "import contextlib, os, sys, time\ntime.sleep(float(sys.argv[2]))\nwith contextlib.suppress(OSError):\n    os.unlink(sys.argv[1])\n"
 
 
@@ -186,7 +186,7 @@ def stop_server(d, s):
     deadline = time.monotonic() + START_SECONDS
     while asked and time.monotonic() < deadline and detached.alive(pid, SERVER_MARKER):
         time.sleep(0.05)
-    detached.stop(pid, SERVER_MARKER)  # nothing to end once it has exited
+    detached.stop(pid, SERVER_MARKER)
     deadline = time.monotonic() + START_SECONDS
     while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
         time.sleep(0.05)
@@ -535,8 +535,8 @@ def bring_up(d, a):
         resumed = (d / "state.json").exists()
         hostname, token_file, api_file, fallback = named_config(d, a)
         before = tunnel.read(d) if hostname else None
-        before = before if before and tunnel.config(before)[0] == hostname else None  # its last record for the link
-        own = tunnel.alive(d) if before else None  # this session already serves the link
+        before = before if before and tunnel.config(before)[0] == hostname else None
+        own = tunnel.alive(d) if before else None
         settled = bool(own and fallback)
         if settled:  # its files matter only at cloudflared's next start, so the running link stays
             print(f"named tunnel {hostname}: {fallback}; its running tunnel keeps serving this session", file=sys.stderr)
@@ -556,13 +556,13 @@ def bring_up(d, a):
             raise Refused(1, f"this session's guest port is {ports['guest']}; --guest-port applies only when a session is created")
         s = live(d)
         stale = s and bridge.stale_build(s)
-        if stale:  # a server started before a plugin update runs the old code: restart it on its ports, as `restart` does
+        if stale:
             stop_server(d, s)
             s = start_server(d, ports.get("guest", 0), ports.get("control", s["port"]))
             print(f"restarted the {NAME} server: {stale}", file=sys.stderr)
         if s is None:
             over = ended_session(d)
-            for rec in tunnel.sweep_live(d, every=over, reason="session-ended" if over else "failed"):  # after a reboot or a crash
+            for rec in tunnel.sweep_live(d, every=over, reason="session-ended" if over else "failed"):
                 print(f"live prototype {rec['id']}: nothing of it was running any more, so it has ended", file=sys.stderr)
             if wanted is not None and not bridge.port_free(wanted):
                 raise Refused(2, f"port {wanted} is busy: the guest listener cannot start there")
@@ -583,11 +583,11 @@ def bring_up(d, a):
             try:
                 s = start_server(d, guest, control, defaults_file=a.defaults_file)
             except BaseException:
-                if adopt:  # forget the adopted tunnel, never stop it: it still serves whoever ran it
+                if adopt:
                     (d / tunnel.RECORD).unlink(missing_ok=True)
                 raise
         port = (bridge.ping(s["port"]) or {}).get("guestPort")
-        if type(port) is not int:  # a tunnel to no port would replace one that works
+        if type(port) is not int:
             raise Refused(2, "the server did not name its guest port; run ensure-running again")
         if api_file and not settled and not (own and own.get("port") == port):
             fallback = route(hostname, token_file, api_file, port, own, before)[0]
@@ -603,7 +603,7 @@ def bring_up(d, a):
                     rec = tunnel.fall_back(d, port)
         except (tunnel.TunnelDown, TimeoutError) as exc:
             down = str(exc)
-            rec = kept = tunnel.alive(d)  # a refused switch leaves the running tunnel, and its link, in place
+            rec = kept = tunnel.alive(d)
         if fallback:
             print(f"named tunnel {requested}: {fallback}; a quick tunnel serves this session instead", file=sys.stderr)
         if fixed and hostname:
@@ -633,7 +633,7 @@ def cmd_stop(d, a):
     stopped = []
     with detached.locked(d / LOCK):
         s = bridge.read_session(d, NAME)
-        lives, ports = end_lives(d, s if s and bridge.running(d, s) else None)  # every live prototype ends with the session's server
+        lives, ports = end_lives(d, s if s and bridge.running(d, s) else None)
         if lives:
             stopped.append("lives")
         if s and bridge.running(d, s):
@@ -645,7 +645,7 @@ def cmd_stop(d, a):
                 stopped.append("server")
         bridge.clear_session(d, NAME)
         keep = read_json(d / SECRETS) or {}
-        if "control" in keep:  # a stopped session's next start gets a new control token
+        if "control" in keep:
             keep.pop("control")
             detached.write_private(d / SECRETS, json.dumps(keep) + "\n")
         adopted = (tunnel.read(d) or {}).get("adopted") and tunnel.alive(d)
@@ -841,12 +841,11 @@ def cmd_logs(d, a):
     return {"ok": True, "lines": lines[-LOG_TAIL:]}
 
 
-# ---------- logs --summary: what the pages' telemetry adds up to (README "Logs") ----------
 FIELD = re.compile(r' (\w+)=(?:"([^"]*)"|(\S*))')
 ESCAPE = re.compile(r"\\x([0-9a-f]{2})|\\u([0-9a-f]{4})")
 LAT_EDGES = (100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000)  # ms; web/core.js LAT_EDGES, plus one bucket above the last
-SLOW_GAP = 10000  # ms: a reconnect gap the summary counts as slow
-TOP = 10  # judgment: the most error fingerprints the summary lists
+SLOW_GAP = 10000
+TOP = 10
 
 
 def entry_of(line):
@@ -946,7 +945,7 @@ def summarize(lines):
             try:
                 items = json.loads(line.split(" data=", 1)[1])
             except (IndexError, ValueError):
-                continue  # cut short: not a batch this can read
+                continue
             sm["batches"] += 1
             sm["dropped"] += int(f.get("dropped", "0")) if _digits(f.get("dropped", "")) else 0
             with contextlib.suppress(ValueError):
@@ -959,7 +958,7 @@ def summarize(lines):
                     fold(*item, line[:19])
         elif kind == "client" and f.get("kind") in ("error", "rejection", "api", "layout"):
             if f["kind"] == "layout" and not f.get("message", "").startswith("anomaly="):
-                continue  # a keyboard readout, not an anomaly
+                continue
             fp = f.get("fp") or "|".join((f["kind"], f.get("message", ""), f.get("source", ""), f.get("route", "") if f["kind"] == "api" else ""))
             g = faults.setdefault(fp, {"fp": f.get("fp", ""), "kind": f["kind"], "message": f.get("message", ""), "source": f.get("source", ""), "route": f.get("route", ""), "code": f.get("code", ""),
                                        "count": 0, "firstSeen": line[:19], "lastSeen": line[:19], "devices": collections.Counter(), "browsers": collections.Counter()})
@@ -992,7 +991,7 @@ def summarize(lines):
         t = tokens(g["message"])
         for dev, n in g["devices"].items():
             anomalies[(t.get("anomaly", ""), t.get("at", ""), dev)] += n
-        if g["count"] > sum(g["devices"].values()):  # repeats: on the device of the first entry
+        if g["count"] > sum(g["devices"].values()):
             anomalies[(t.get("anomaly", ""), t.get("at", ""), next(iter(g["devices"])))] += g["count"] - sum(g["devices"].values())
     return {
         "errors": [{k: g[k] for k in ("fp", "kind", "message", "source", "count", "firstSeen", "lastSeen", "devices", "browsers")} for g in group(("error", "rejection"))][:TOP],

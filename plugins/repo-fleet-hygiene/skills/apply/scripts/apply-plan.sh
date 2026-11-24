@@ -871,7 +871,6 @@ if [[ "$remote_mutable" -gt 0 ]] && ! is_tty_stdin; then
   exit 3
 fi
 
-# --- One batch-wide confirmation gate (local actions) ------------------------
 if [[ "$mutable" -eq 0 ]]; then
   :
 elif [[ "$YES" -eq 0 ]]; then
@@ -894,7 +893,6 @@ else
   printf '\nConfirmation: --yes supplied; proceeding with %s mutable action(s).\n' "$mutable"
 fi
 
-# --- Execute in decision order (already plan-ordered) -----------------------
 failures=0
 applied=0
 for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
@@ -908,7 +906,6 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
     printf 'SKIP: %s (%s)\n' "${D_TARGET[$i]}" "${D_REASON[$i]}"
     ;;
   prune-worktrees)
-    # Re-check nothing OID-sensitive; prune is metadata-only.
     if git_mutate -C "$canonical" worktree prune; then
       printf 'APPLIED: worktree prune in %s\n' "$canonical"
       applied=$((applied + 1))
