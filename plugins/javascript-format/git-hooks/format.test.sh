@@ -6,6 +6,8 @@
 # test-scope: plugins/javascript-format/git-hooks/entries.json plugins/javascript-format/git-hooks/adapters.sh
 # test-scope: plugins/javascript-format/lib/git-hooks/check-lib.sh plugins/javascript-format/lib/git-hooks/install.mjs
 # test-scope: plugins/javascript-format/lib/git-hooks/resolve-tool.sh
+# test-scope: plugins/javascript-format/.claude-plugin/plugin.json
+# test-scope: plugins/javascript-format/git-hooks/lint.sh
 # shellcheck disable=SC2016 # record commands are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT BIOME_CONFIG_PATH
