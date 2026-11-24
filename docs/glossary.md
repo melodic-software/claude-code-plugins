@@ -177,7 +177,7 @@ A work item cut through every layer is a **vertical slice**.
 A work item cut as a narrow but complete path through every layer, verifiable on its own and small
 enough to finish in one fresh context window.
 
-Avoid: slice
+Avoid: slice (bare **slice** is the topic folder)
 
 **canonical role**
 
