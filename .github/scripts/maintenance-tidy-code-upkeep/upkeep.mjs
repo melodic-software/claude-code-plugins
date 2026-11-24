@@ -47,7 +47,7 @@ export function areaOf(path) {
 }
 
 // The <slug> tidy's ad hoc branch carries: the glob's literal directory prefix in kebab case.
-export const slugOf =(area) => area.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+export const slugOf = (area) => area.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 export function detectAreas(paths) {
   const names = paths.map((path) => areaOf(path)?.area).filter(Boolean);

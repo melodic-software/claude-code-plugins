@@ -62,7 +62,7 @@ const CASE_DEFINITION = /(?:^|\/)(?:prompt\.md|case\.yaml)$/;
 // plugins, whose every entry caseLoadRefusals checks. A change to any other
 // key (allowed_tools, env, context, growthbook_overrides, artifact_publish, an
 // unknown key) is refused.
-export const CASE_SAFE_KEYS =new Set([
+export const CASE_SAFE_KEYS = new Set([
   "append_system_prompt",
   "description",
   "expected_outcome",
@@ -81,11 +81,11 @@ export const CASE_SAFE_KEYS =new Set([
 // granted whatever a case lists (plugins/evals/skills/plugin-eval/SKILL.md,
 // the read-only suites paragraph); keeping allowed_tools unchanged keeps a
 // changed case from asking for one at all.
-export const CASE_SAFE_EXECUTION_KEYS =new Set(["max_turns", "prompt", "timeout_seconds"]);
+export const CASE_SAFE_EXECUTION_KEYS = new Set(["max_turns", "prompt", "timeout_seconds"]);
 
 // Frontmatter keys that only describe or route a skill or agent. A change to
 // any other key is refused.
-export const SAFE_KEYS =new Set([
+export const SAFE_KEYS = new Set([
   "argument-hint",
   "color",
   "description",

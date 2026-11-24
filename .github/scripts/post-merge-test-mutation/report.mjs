@@ -23,7 +23,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, createGitHub, graphQLReader } from "../lib/github-client.mjs";
 
 // The first line of the lane's comment on a merged pull request.
-export const MARKER ="<!-- post-merge-test-mutation -->";
+export const MARKER = "<!-- post-merge-test-mutation -->";
 export const SCHEMA = JSON.parse(readFileSync(new URL("./result.schema.json", import.meta.url), "utf8"));
 const SHA = /^[0-9a-f]{40}$/;
 const STATES = SCHEMA.properties.mutants.items.properties.state.enum;

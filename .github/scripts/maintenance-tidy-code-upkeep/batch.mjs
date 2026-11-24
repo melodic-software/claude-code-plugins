@@ -185,12 +185,12 @@ export function sortSweeps(sweeps, areas, { rawOf, binary }) {
 }
 
 // The sweep record: the areas, and the committer time of the commit the model swept.
-export const sweepRecord =(slugs, committedAt) => JSON.stringify({ at: Number(committedAt), slugs });
+export const sweepRecord = (slugs, committedAt) => JSON.stringify({ at: Number(committedAt), slugs });
 
 // How many new branches push may create: the cap, read again because a batch can take an hour, and
 // before any branch exists, so none is left with no pull request. A sweep past it is not recorded,
 // so its area stays due for the next run.
-export const slotsLeft =({ open, limit, throttled }) => (throttled ? 0 : Math.max(0, limit - open));
+export const slotsLeft = ({ open, limit, throttled }) => (throttled ? 0 : Math.max(0, limit - open));
 
 // What push does with one sweep. A branch handed to publish uses a slot like a new push: it has no
 // pull request yet, so the open count missed it.

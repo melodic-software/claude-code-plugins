@@ -1887,7 +1887,7 @@ const PASS_RUN = 701;
 const PASS_STARTED = "2026-10-19T19:30:00Z";
 const PASS_EXPIRES = "2026-10-20T19:30:00.000Z";
 // The first 16 hex digits of `printf %s fix/1 | sha256sum`, pr(1)'s head ref.
-const FIX_1_DIGEST ="fe65f143bd3d5845";
+const FIX_1_DIGEST = "fe65f143bd3d5845";
 // The pre-filter's batched answer holds the issues' comment pages only when its
 // query asks for them, as GitHub answers only the fields a query names.
 const COMMENT_PAGE = "comments(first: 100)";

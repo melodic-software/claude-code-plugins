@@ -54,7 +54,7 @@ export function fragmentOf(plugin, skill, branch, patch) {
 }
 
 // The change lines of a `git diff --raw` output.
-const rawLines =(raw) => raw.split("\n").filter((line) => line.startsWith(":"));
+const rawLines = (raw) => raw.split("\n").filter((line) => line.startsWith(":"));
 
 // Why the net raw diff may not be pushed, or null: only regular-file edits to the skill's markdown
 // outside evals/, the one fragment added, and no hold path.

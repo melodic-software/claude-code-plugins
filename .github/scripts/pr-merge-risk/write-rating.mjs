@@ -33,7 +33,7 @@ const iso = (seconds) => new Date(Number(seconds) * 1000).toISOString();
 // Tools the blind checker's agent file declares (review:brief-reviewer) that
 // the cage withholds: a denial of one reached nothing. A denial of any other
 // tool, a Read outside the data directory above all, refuses the rating.
-export const WITHHELD =Object.freeze(["Bash", "Glob", "Grep"]);
+export const WITHHELD = Object.freeze(["Bash", "Glob", "Grep"]);
 
 export function buildRating({ output, messages, pr, head, rubric, cliVersion, startedAt, endedAt }) {
   const result = Array.isArray(messages) ? messages.findLast((message) => message?.type === "result") : undefined;

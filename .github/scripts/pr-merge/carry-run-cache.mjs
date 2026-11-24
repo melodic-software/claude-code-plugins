@@ -159,7 +159,7 @@ function laneRun(key, value, repo) {
 }
 
 // The sections of `data` kept for the next run, each entry as saved.
-export function carry(data,{ repo, branch, now }) {
+export function carry(data, { repo, branch, now }) {
   const out = Object.fromEntries(CARRIED.map((section) => [section, {}]));
   if (!isObject(data)) return out;
   const take = (section, keep, { shape = (value) => value, days = RETENTION_DAYS } = {}) => {
