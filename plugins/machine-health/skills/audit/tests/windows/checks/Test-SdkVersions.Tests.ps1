@@ -35,8 +35,6 @@ Describe 'Test-SdkVersions -- oldest label' -Tag 'check' {
     }
 
     It 'labels oldest by EOL date, not detection order' {
-        # INFO needs no eol / eol_soon findings. dotnet is detected first but node gets the
-        # earlier EOL, so a `$findings[0]` regression would name dotnet 8.0.
         Mock Get-Command {
             param($Name)
             if ($Name -eq 'dotnet' -or $Name -eq 'node') {

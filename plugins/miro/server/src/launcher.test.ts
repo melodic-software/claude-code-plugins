@@ -79,7 +79,6 @@ describe("first launch that cannot install", () => {
   });
 
   it("delivers a diagnostic longer than a pipe buffer whole, then exits 1", () => {
-    // A data path too long to create makes the diagnostic repeat it several times.
     const longData = join(dataDir(), "a/".repeat(20_000));
     const run = launch({ PATH: process.env["PATH"] ?? "", CLAUDE_PLUGIN_DATA: longData });
     expect(run.status).toBe(1);

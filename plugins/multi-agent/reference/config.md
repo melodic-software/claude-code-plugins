@@ -60,8 +60,6 @@ after a preview and an explicit yes.
 | `vendors.tiebreak` | ordered list (no duplicates) from `vendor-order`, `fewest-tokens`, `most-usage-left` | unset (caller keeps its vendor on a tie) |
 | `vendors.trials_prove` | integer >= 1 | unset |
 | `vendors.trials_fail` | integer >= 2 (`1` is rejected) | unset |
-| `vendors.promotion_audits` | integer >= 1 | `3` |
-| `vendors.promotion_days` | integer >= 1 | `30` |
 | `vendors.<vendor>.in_use` | `true`, `false` (`<vendor>` is `claude`, `codex` or `antigravity`) | unset |
 | `vendors.<vendor>.rank` | integer (lower rank wins `vendor-order` tiebreak) | unset |
 | `vendors.sources.<id>.enabled` | `true`, `false` (`<id>` matches `^[a-z0-9][a-z0-9-]*$`) | unset (uses the row's `enabled`, default `true`) |
@@ -203,10 +201,6 @@ tiebreak list, or `vendors.tiebreak=` to clear it.
   `unavailable` reading falls back to `vendor-order` with one note.
 - `vendors.sources.<id>.enabled: false`: disables a shipped or team benchmark
   row during fetch and decision.
-- `vendors.promotion_audits` and `vendors.promotion_days`: `/multi-agent:audit-defaults registry`
-  proposes a shipped `support-only` row `permanent` once its most recent audits, at least
-  `promotion_audits` of them spanning at least `promotion_days` days, all passed the four checks
-  in `vendors.md` "Benchmarks and trust model". A failed check in that run resets the count.
 
 A repository may append team benchmark rows in
 `<repo>/docs/conventions/multi-agent/benchmarks.json` (resolved from
@@ -230,19 +224,6 @@ A proven pair stays proven until the user sends it back to trial:
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/route/scripts/vendor-state send-back --key <vendor>:<model>:<version>:<effort>:<work_type>
 ```
-
-## Registry audit history
-
-Each completed `/multi-agent:audit-defaults registry` run writes one record per audited row to
-`<data>/registry-history/<row id>.json`, `<data>` resolved as under Trial state: the audit date,
-the row id, and the outcome of each promotion check (`live`, `dated`, `error_range`,
-`current_models`). One record is kept per row per date, the later run winning. Writes go through
-`${CLAUDE_PLUGIN_ROOT}/skills/audit-defaults/scripts/registry-history.mjs record`.
-
-Retention: a row keeps only its newest records back to the first point where they number
-`promotion_audits + 1` and span `promotion_days + 7` days; older records go. A row file whose
-newest record is more than 365 days older than the current audit is deleted, so rows that left the
-registry do not linger.
 
 ## Example team file
 

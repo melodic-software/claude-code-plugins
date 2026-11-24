@@ -7,7 +7,8 @@ import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall
 
 export const pluginRoot = join(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..", "..");
 
-const USER_OPTIONS = ["antigravity_uses_task_mode"];
+/** The userConfig options plugin.json declares, each named after its schema leaf. */
+export const USER_OPTIONS = ["antigravity_uses_task_mode", "antigravity_uses_investigate_mode", "codex_uses_task_mode", "codex_uses_investigate_mode"];
 
 /**
  * The plugin's userConfig options from the operator's own user and managed settings (pluginConfigs),

@@ -145,4 +145,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 
 - The org variable `CLAUDE_EVALS_DISABLED` stops every eval path; an eval job runs only while it
   reads exactly `false` (Q52).
-- A session may set it to `false` for a decided, costed run and back to `true` after (Q52, Q55).
+- It stays `false`: every eval workflow is started deliberately (dispatch or the `eval: run`
+  label), none runs on a schedule. `true` is the owner's emergency kill switch; sessions never
+  change it (owner decision 2026-11-24, replacing the reset to `true` after a run). Scoping is
+  unchanged: run only the cases the change affects (Q52, Q55).

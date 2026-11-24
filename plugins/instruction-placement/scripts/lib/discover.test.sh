@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# Regression tests for lib/discover.sh — the shared discovery layer.
-#
 # fixture-isolation-scope: this suite builds git fixtures and clears the
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.
-#
 # shellcheck disable=SC2016 # fixtures contain literal markdown code fences and
 # @import tokens; the backticks are file content, never command substitution.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG

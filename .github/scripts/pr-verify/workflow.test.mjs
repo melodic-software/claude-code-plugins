@@ -719,6 +719,13 @@ test("the subscription and fallback jobs take check-intent's pre-judge reads and
   assert.doesNotMatch(jobText(KEY), /CARRIED|outputs\.carried/);
 });
 
+test("every leg's resolver reads the standards commit and its writer records the list it judged with", () => {
+  for (const job of [KEY, SUB, FB]) {
+    assert.ok(step("Resolve the pull request", job).split("\n").includes("          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}"), job);
+    assert.ok(step("Write the verdict", job).split("\n").includes("          STANDARDS_DIR: ${{ steps.standards.outputs.path }}"), job);
+  }
+});
+
 test("the subscription and fallback resolvers take check-intent's bundle in its own attempt and refuse it in another", async (t) => {
   t.mock.method(console, "log", () => {});
   const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -743,6 +750,7 @@ test("the subscription and fallback resolvers take check-intent's bundle in its 
       "github.event.workflow_run.id": "123",
       "needs.check-intent.outputs.reads": bundle,
       "steps.standards.outputs.path": standardsCheckout(),
+      "steps.standards.outputs.sha": "5".repeat(40),
     };
     const env = { GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: path.join(dir, "out") };
     const block = /^ {8}env:\n((?: {10}.*\n)+)/m.exec(step("Resolve the pull request", job))[1];

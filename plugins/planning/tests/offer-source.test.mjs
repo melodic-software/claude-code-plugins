@@ -21,8 +21,6 @@ const made = []
 const dataDir = () => made[made.push(mkdtempSync(join(tmpdir(), 'offer-source-'))) - 1]
 after(() => made.forEach(d => rmSync(d, { recursive: true, force: true })))
 
-// Hand-computed: 2026-11-03 is day 307 of 2026, so 30, 120 and 200 days earlier are
-// 2026-10-04, 2026-07-06 and 2026-04-17.
 const NOW = new Date('2026-11-03T00:00:00Z')
 const HTML_PLAN = {
   name: 'html-plan',

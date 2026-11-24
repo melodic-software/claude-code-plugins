@@ -1,7 +1,3 @@
-/**
- * Derive durable `.work/<watch-epic>/<video-slug>/` directory names from video metadata.
- */
-
 import path from "node:path";
 
 export const YOUTUBE_WATCH_EPIC_DIR = "youtube-watch";

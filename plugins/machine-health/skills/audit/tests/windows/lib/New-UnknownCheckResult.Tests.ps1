@@ -1,11 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/New-UnknownCheckResult.ps1. The required fields
-and the ran_successfully/error rule come from catalog/schemas/check-result.schema.json,
-enforced by Assert-CheckResult.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'New-UnknownCheckResult.ps1', 'Assert-CheckResult.ps1'

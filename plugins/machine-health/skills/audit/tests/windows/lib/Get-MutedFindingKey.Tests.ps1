@@ -1,16 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Get-MutedFindingKey.ps1 -- the read-only
-mutes.json reader and the per-check muted key lookup -- and for
-catalog/schemas/mutes.schema.json.
-
-.DESCRIPTION
-Get-MuteState runs in modes that must leave the state folder alone, so these
-tests pin that it creates nothing, migrates nothing, and falls back to no
-mutes on a missing or broken file.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-MutedFindingKey.ps1'

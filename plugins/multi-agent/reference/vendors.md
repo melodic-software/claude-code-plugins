@@ -161,14 +161,7 @@ Trust-model rules enforced by `vendor-decide`:
 - **Freshness and page dates**: a page must be dated within 6 months (a dated row, release column
   or changelog entry counts as the page date). Undated or older pages are ineligible.
 - **Source maturity**: new sources start `support-only` and become `permanent` once they pass
-  longevity, accuracy and coverage: every check below in each of at least
-  `vendors.promotion_audits` registry audits (default 3) spanning at least
-  `vendors.promotion_days` days (default 30), with no failed check in between. Per audit, the page
-  reads live (reachable, not partial), is dated within 6 months, states an error range, and tests
-  a current model of every vendor the row's work types need (for image, only the vendors that make
-  images). `/multi-agent:audit-defaults registry` runs the checks, keeps their history per machine
-  ([`config.md`](config.md) "Registry audit history") and proposes the promotion; it ships only
-  through that skill's reviewed apply step.
+  longevity, accuracy and coverage.
 - **Degradation on fetch failure**: a cached copy served after a failed fetch is flagged stale
   with its age and shown as support-only. A gone page (404, 410, off-site redirect) is unread,
   named as unread in the reply, and its work type stays on its default.

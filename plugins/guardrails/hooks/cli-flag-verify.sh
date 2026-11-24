@@ -162,7 +162,6 @@ hook::repo_root_to REPO_ROOT "$FILE_DIR" || REPO_ROOT_RESOLVED=0
 # exhaustive flag list.
 DEFAULT_BINS="claude gh dotnet docker kubectl terraform az aws"
 BINS_RAW="${CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS:-$DEFAULT_BINS}"
-# Normalize: comma OR space separated → space separated.
 BINS="${BINS_RAW//,/ }"
 
 # Per-binary opt-outs. Comma-separated. Common case: gh extensions, docker plugin
@@ -198,8 +197,6 @@ emit_fragments() {
     # Inline-code spans (strip the delimiting backticks).
     # shellcheck disable=SC2016  # backticks are literal ERE/sed data, not expansions
     printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null | sed -E 's/^`+//; s/`+$//'
-    # Fenced code-block bodies, skipping in-fence comment lines (a backtick-
-    # wrapped example inside a `#` comment would otherwise split into a segment).
     printf '%s' "$SCAN_CONTENT" | awk '
       /^[[:space:]]*```/ { f = !f; next }
       /^[[:space:]]*~~~/ { f = !f; next }
@@ -236,7 +233,6 @@ extract_candidates() {
     read -ra toks <<<"$seg"
     ((${#toks[@]})) || continue
 
-    # Skip leading command wrappers + env-assignment prefixes to reach the bin.
     local idx=0 lead
     while ((idx < ${#toks[@]})); do
       lead="${toks[idx]#[\`\'\"\(\!]}"
@@ -256,7 +252,6 @@ extract_candidates() {
     done
     ((idx < ${#toks[@]})) || continue
 
-    # Candidate bin: strip surrounding quotes/parens/backticks/bang.
     local bin="${toks[idx]}"
     bin="${bin#[\`\'\"\(\!]}"
     bin="${bin%[\`\'\"\):;,]}"
@@ -291,7 +286,6 @@ extract_candidates() {
       dq="${bare//[^\"]/}"
       sq="${bare//[^\']/}"
       if [[ "$tk" == [\"\']* ]]; then
-        # Opens with a quote: the whole token is (part of) a quoted argument.
         if [[ "$tk" == \"* ]]; then
           ((${#dq} % 2)) && q='"'
         else
@@ -299,7 +293,6 @@ extract_candidates() {
         fi
         continue
       fi
-      # A quote opened mid-token (`--x="a`) swallows the tokens up to its close.
       if ((${#dq} % 2)); then
         q='"'
       elif ((${#sq} % 2)); then
@@ -311,7 +304,7 @@ extract_candidates() {
         ;;
       --*)
         chain_done=1
-        fl="${tk%%=*}" # drop =VALUE
+        fl="${tk%%=*}"
         if [[ "$fl" =~ ^(--[a-zA-Z][a-zA-Z0-9-]*) ]]; then
           fl="${BASH_REMATCH[1]}"
           case "$fl" in
@@ -321,8 +314,6 @@ extract_candidates() {
         fi
         ;;
       -?*)
-        # short option: before the subcommand, skip it (chain keeps looking);
-        # after the subcommand, options have begun → chain ends.
         ((chain_done == 0 && ${#chain[@]} > 0)) && chain_done=1
         ;;
       *)
@@ -350,24 +341,9 @@ extract_candidates() {
   done < <(emit_fragments | split_segments)
 }
 
-# CHEAP PRE-GATE, ahead of every process this hook spends on scanning. A
-# candidate is a (bin, chain, flag) triple and a flag token always carries a
-# `-`, so content with no `-` anywhere cannot yield one, and the fragment
-# pipeline (grep plus sed, or awk) would run three processes to build an empty set. The
-# same holds for the Edit reconstruction below, whose anchor IS a flag token
-# from the hunk. What is skipped is the scan, never the report: telemetry and
-# the exit path below are reached exactly as before.
 HAS_FLAG_SHAPE=0
 [[ "$SCAN_CONTENT" == *-* ]] && HAS_FLAG_SHAPE=1
 
-# SECOND PRE-GATE, same cost class. A candidate also names one of the scanned
-# bins, and ordinary prose is full of hyphens ("well-known", "re-run") that pass
-# the `-` test alone, so on a markdown Write the scan ran for nothing on nearly
-# every paragraph. Substring, not word-bounded: a superset of every real
-# candidate (extract_candidates matches the whole token), so it skips only
-# content that could not have yielded one, and it spawns nothing. The Edit
-# reconstruction below keeps its own gate: a bare-flag hunk names no bin by
-# definition, and the bin it belongs to is on disk.
 HAS_BIN=0
 for cfv_bin in $BINS; do
   if [[ "$SCAN_CONTENT" == *"$cfv_bin"* ]]; then
@@ -392,8 +368,6 @@ done
 # there too; only a DIFFERENT pre-existing flag is excluded.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
-  # Trigger only when the hunk produced no command candidate; a full-command hunk
-  # already scans correctly and must not re-scan from disk.
   ((${#CANDIDATES[@]} == 0)) || return 0
   local -a hunk_flags=()
   mapfile -t hunk_flags < <(
@@ -465,10 +439,6 @@ split_candidate_key() {
 CFV_CACHE_DIR=""
 declare -A CFV_FRESH=()
 CFV_FRESH_INDEXED=0
-# Runs once, on the first candidate whose bin is installed: sources the shared
-# definitions, resolves the cache directory, and indexes with one find every
-# cache file inside the freshness window. A write that yields no candidate, or
-# only cites bins this machine lacks, never pays any of it.
 cfv_index_fresh_cache() {
   local f
   ((CFV_FRESH_INDEXED)) && return 0
@@ -493,8 +463,6 @@ verify_candidate() {
   if [[ -n "${CFV_FRESH[$cache_file]:-}" && -s "$cache_file" ]]; then
     help=$(<"$cache_file")
     cfv_flag_in_help "$help" "$flag" && return 0
-    # The verifier's global-arguments lookup, answered the same way: absent
-    # unless that help, hit or miss, carries the flag.
     cfv_global_chain_to global "$bin"
     [[ -n "$global" && "$chainstr" != "$global" ]] && verify_candidate "$bin" "$global" "$flag" && return 0
     return 1
@@ -510,7 +478,6 @@ verify_candidate() {
   return "$rc"
 }
 
-# Verify each unique (bin, chain, flag). Collect failures (keys, formatted later).
 FAILURES=()
 for key in "${!CANDIDATES[@]}"; do
   split_candidate_key "$key"
@@ -528,14 +495,9 @@ for key in "${!CANDIDATES[@]}"; do
   fi
 done
 
-# Build the telemetry findings array + repo-relative file path, both gated on a
-# wired sink so the unwired default path spawns no telemetry-only subprocess.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # The helper carries the redaction: a path it could not make repo-relative
-  # comes back as the basename, never an absolute path (which would embed the
-  # developer's username).
   local findings_json="[]" file_rel
   file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
@@ -555,9 +517,6 @@ emit_tel() {
 }
 
 if ((${#FAILURES[@]} > 0)); then
-  # The file as the model names it: repo-relative when it sits under the root
-  # spelled the same way, else as given. Outside a repo the root is the file's
-  # own directory, and a bare name would name a different file.
   show_file="$FILE"
   ((REPO_ROOT_RESOLVED)) && [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
   lines=""

@@ -1,6 +1,3 @@
-// Identity, polling, heartbeat and actions: the only code that talks to the server. The page (app.js)
-// reads the prototype's state names; toView() builds them from the contract snapshot, and each action
-// below sends the contract route's body. The map: plugins/planning/shared/snapshot-map.md.
 (() => {
   const { OTHER } = window.QuestionShape;
   const memory = new Map();
@@ -8,14 +5,11 @@
   const store = local || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
   const get = k => { try { return store.getItem(k); } catch { return memory.get(k) ?? null; } };
   const put = (k, v) => { try { store.setItem(k, v); } catch { memory.set(k, v); } };
-  const drop = k => { try { store.removeItem(k); } catch { /* storage gone */ } memory.delete(k); };
-  /** A record's upload ids as the page's attachment list, and what a write sends of one (nothing for none). */
+  const drop = k => { try { store.removeItem(k); } catch {} memory.delete(k); };
   const attOf = x => (x.attachments ? { att: x.attachments.map(id => ({ kind: "file", upload: id })) } : {});
   const withAtt = extra => (extra?.attachments?.length ? { attachments: extra.attachments } : {});
   const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, "0")).join("");
 
-  // The guest secret lives under the prototype's key ("secret"), so a guest the import carried over
-  // keeps their identity after the cutover reload. It leaves this browser only as a header.
   let secret = get("secret") || "";
   const hashParams = new URLSearchParams(location.hash.slice(1));
   const unhash = key => {
@@ -23,10 +17,8 @@
     history.replaceState(null, "", location.pathname + location.search + (hashParams.toString() ? "#" + hashParams : ""));
   };
   const joinKey = hashParams.get("join") || "";
-  // The host's one-time code for signing this device in as the host ("Sign in on another device"), from its QR code.
   const pairCode = hashParams.get("pair") || "";
   if (pairCode) unhash("pair");
-  // A personal link ("Use on another device") carries the person's secret in the fragment.
   let adopt = hashParams.get("me") || "";
   // The owner link carries the owner token in the fragment. This tab keeps it in sessionStorage and takes it out of
   // the address bar, so a reload or Back in this tab finds it again; a page opened fresh without it is a guest's.
@@ -35,28 +27,26 @@
     const tab = (() => { try { return window.sessionStorage; } catch { return null; } })();
     const fromHash = hashParams.get("owner") || "";
     if (fromHash) {
-      try { tab.setItem("owner", fromHash); if (tab.getItem("owner") === fromHash) unhash("owner"); } catch { /* no storage: it stays in the address */ }
+      try { tab.setItem("owner", fromHash); if (tab.getItem("owner") === fromHash) unhash("owner"); } catch {}
       return fromHash;
     }
     if (adopt) return "";
     const nav = performance.getEntriesByType?.("navigation")?.[0]?.type;
     let kept = "";
-    if (nav === "reload" || nav === "back_forward") try { kept = tab.getItem("owner") || ""; } catch { /* no storage */ }
+    if (nav === "reload" || nav === "back_forward") try { kept = tab.getItem("owner") || ""; } catch {}
     return kept || get("ownerDevice") || "";
   })();
-  // A personal link for someone else never replaces who this browser already is without a yes (askSwitch): a link
-  // handed over must not sign this device in as its sender. With no secret stored, the link is adopted at once.
   const switchTo = adopt && !ownerToken && secret && secret !== adopt ? adopt : "";
   if (adopt && !ownerToken) {
     if (switchTo) adopt = "";
     else { secret = adopt; put("secret", adopt); drop("pid"); drop("name"); }
     unhash("me");
   }
-  if (ownerToken) secret = ""; // the owner link is the owner's only credential
+  if (ownerToken) secret = "";
   const ownerDevice = !!ownerToken && ownerToken === get("ownerDevice");
 
   const listeners = new Set(), reloadHooks = new Set();
-  const AVATARS = new Map(); // profile picture upload id -> its data: URL, the read in flight, or when to try again
+  const AVATARS = new Map();
   let focusQ = "", typingUntil = 0, chatTypingUntil = 0, lastOk = 0, shownAt = null, joining = null;
   let snap = null, rev = 0, etag = "", build = "";
   const DEFAULTS = {
@@ -67,22 +57,17 @@
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true, prototypeTiers: ["screenshot", "snapshot"] },
   };
 
-  // C40: a person's color is one of ten ids (Person.color); core.css draws each per theme (--pc-c1..--pc-c10).
   const COLORS = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"];
   const hash = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
-  // ---------- the contract snapshot as the prototype's state ----------
-  // Confirm options are "yes"/"no" in the contract and "opt-yes"/"opt-no" on the page.
   const optIn = o => (o === "yes" || o === "no" ? "opt-" + o : o);
   const optOut = o => (o === "opt-yes" || o === "opt-no" ? o.slice(4) : o);
   const CLAUDE_CID = { rec: "claude", a: "claude-a", b: "claude-b", c: "claude-c" };
   const CLAUDE_KEY = Object.fromEntries(Object.entries(CLAUDE_CID).map(([k, v]) => [v, k]));
-  /** The page's id for a card: a person's pid, Claude's "claude" or "claude-<key>", an option's id. */
   function cidOf(ref) {
     const [kind, id] = ref.split(":");
     return kind === "p" ? id : kind === "c" ? CLAUDE_CID[id] : optIn(id);
   }
-  /** The contract's card ref for the page's id on question qid; a ref passes through. */
   function refOf(qid, target) {
     if (/^[pco]:/.test(target)) return target;
     if (CLAUDE_KEY[target]) return "c:" + CLAUDE_KEY[target];
@@ -90,15 +75,12 @@
     return opts.includes(target) ? "o:" + optOut(target) : "p:" + target;
   }
   const qOf = (qs, id) => qs.find(q => q.id === id);
-  /** A pick's fields with the page's option ids turned back into the contract's. */
   const contractPick = f => ("option" in f ? { option: f.option ? optOut(f.option) : "" } : "options" in f ? { options: f.options.map(optOut) }
     : "order" in f ? { order: f.order.map(optOut) } : f);
   const isOther = c => c.pick === OTHER || (c.picks || []).includes(OTHER) || (c.order || []).includes(OTHER);
 
-  // ---------- mentions: the server stores <@pid>; the page only ever shows and sends "@Name" ----------
   const TOKEN = /<@([A-Za-z0-9_-]{1,32})>/g;
   const initialsOf = name => ((name || "").match(/[\p{L}\p{N}]+/gu) || ["?"]).map(w => [...w][0]).join("").slice(0, 2).toUpperCase();
-  /** "@Name" text of the people a label map holds ([[label, pid]], longest first), as a pattern; null for none. */
   const labelRe = labels => (labels.length ? new RegExp(`(^|[^\\p{L}\\p{N}])@(${labels.map(([l]) => l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}\\p{N}_])`, "giu") : null);
   let MENTIONS = { live: [], all: [], label: () => "someone" };
 
@@ -109,8 +91,6 @@
     const live = (s.people || []);
     const rounds = s.rounds || [], last = rounds[rounds.length - 1];
     const settings = s.settings || {};
-    // How a mention reads: the name as the page shows names (initials unless names are full; "someone" where the
-    // server hides them), a removed person's last name, and "someone" for anyone else.
     const shown = n => (settings.names === "full" ? n : n === "Someone" ? "someone" : initialsOf(n));
     const label = pid => (people[pid] ? shown(people[pid].name) : s.mentions?.[pid] ? shown(s.mentions[pid]) : "someone");
     const labels = pids => {
@@ -121,10 +101,8 @@
     MENTIONS = { live: labels(live.map(p => p.pid)), all: labels([...Object.keys(people), ...Object.keys(s.mentions || {})]), label };
     const plain = t => (typeof t === "string" && t.includes("<@") ? t.replace(TOKEN, (_, p) => "@" + label(p)) : t);
     const view = {
-      ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
+      ...structuredClone(DEFAULTS),
       rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", repo: s.repo || "", commit: s.commit || "", ended: !!s.ended, serverTime: s.serverTime,
-      // reviewAnswers: absent (a session from before the setting) reviews every answer, as those sessions always did.
-      // prototypeTiers: absent offers screenshots and HTML snapshots, as the server does (session.py prototype_tiers).
       settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false,
         prototypeTiers: settings.prototypeTiers || DEFAULTS.settings.prototypeTiers },
       people, ownerPid: "host",
@@ -135,19 +113,15 @@
         ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), cid: last.status.ready.by, ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
       requestCounts: s.requestCounts || DEFAULTS.requestCounts, behind: s.behind || {}, aboutYou: s.aboutYou || {}, myAbout: s.me?.aboutYou || null,
       shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, shareTunnel: s.share?.tunnel || "", guestKey: s.guestKey || "", ownerDevices: s.ownerDevices || [],
-      // Live prototypes (session.py _lives_view): a guest gets only the ones a question links, with a url only while one runs.
       lives: s.lives || [],
     };
     const proposals = s.proposals || [];
     const reqText = new Map([...(s.requests || []), ...(s.myRequests || [])].map(r => [r.id, r]));
     view.questions = (s.questions || []).map(q => {
-      // the newest flag, except that a change not yet reviewed outranks a later possibly-reopened on the same question (as the digest)
       const f = q.format || { kind: "text" }, nr = q.needsReview || [], last = nr.at(-1);
       const flag = last?.why?.kind === "possibly-reopened" ? nr.findLast(x => x.because === last.because && x.why?.kind !== "possibly-reopened") || last : last;
       const { format: _, ...rest } = q, out = { ...rest, text: plain(q.text), purpose: q.purpose || "decide" };
       if (f.kind === "choice") { out.format = "choice"; out.options = f.options; }
-      // Q98: a prototype's variants pick like options here; the question links its own page (/proto/<qid>) to try them.
-      // lookAt: where to look (the area the variants change, the step that shows it); a question from before it has none.
       else if (f.kind === "prototype") {
         out.format = "choice"; out.options = f.variants.map(v => ({ id: v.id, label: v.label })); out.variants = f.variants;
         if (f.lookAt) out.lookAt = f.lookAt;
@@ -158,7 +132,7 @@
         out.format = "scale"; out.min = f.min; out.max = f.max; out.labels = f.labels || {};
         out.options = Array.from({ length: f.max - f.min + 1 }, (_, i) => ({ id: String(f.min + i), label: String(f.min + i) }));
       }
-      if (q.context) out.context = plain(q.context); // a mention in it reads as @Name, as the question's text does
+      if (q.context) out.context = plain(q.context);
       out.formatKind = f.kind;
       out.needsReview = flag ? { because: flag.because, ts: flag.at, why: flag.why?.kind, ...(flag.why?.suggestion ? { suggestion: flag.why.suggestion } : {}) } : null;
       if (!flag) delete out.needsReview;
@@ -167,9 +141,6 @@
       return out;
     });
     const details = s.cardDetails || {};
-    // Who stands behind an option of a multi, scale or rank question: the people whose pick holds it (ranked
-    // first, on a rank), masked the way the server masks votes for this viewer. Rank options also carry their
-    // Borda points (n options: first n-1, last 0; a person's own option is left out).
     const masked = settings.names !== "full" && !["owner", "leader"].includes(s.me?.role);
     const shownPid = pid => (masked && pid !== s.me?.pid ? "" : pid);
     function backers(q, cards) {
@@ -199,15 +170,11 @@
           return { ...base, option: true, claude: false, name: "Option", text: o?.label || "", ts: 0, ...extra };
         }
         const d = details[qid]?.[c.ref], info = d?.deviceInfo;
-        // `other`: their pick, picks or order holds their own "Something else…" option, and their text is it.
         return { ...base, name: nameOf(c.pid), text: plain(c.text || ""), ts: c.at, cites: c.cites || [], device: c.device,
-          // C44: the files an answer or pick carries, each an upload the owner accepted.
           ...attOf(c),
           ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.picks ? { picks: c.picks.map(optIn) } : {}), ...("value" in c ? { value: c.value } : {}),
           ...(c.order ? { order: c.order.map(optIn) } : {}), ...(isOther(c) ? { other: true } : {}),
           ...(c.editedAfterVotes ? { editedAfter: c.editedAfterVotes } : {}), ...(c.late ? { late: c.late } : {}),
-          // Phase 4c: hidden by the owner (only its author and the owner get it), edited by the owner, and how many
-          // earlier versions it has (the owner's snapshot only; Core.cardHistory fetches them).
           ...(c.hidden ? { hidden: { ts: c.hidden.at, reason: c.hidden.reason || "" } } : {}), ...(c.edited ? { hostEdited: { ts: c.edited.at } } : {}),
           ...(c.versions ? { versions: c.versions } : {}),
           ...(d ? { ctx: { view: d.view, ...(info ? { device: info.kind, browser: info.browser, vw: info.screen?.w, vh: info.screen?.h } : {}) } } : {}) };
@@ -227,31 +194,25 @@
     view.ideas = proposals.map(p => ({ id: p.id, cid: p.pid, name: nameOf(p.pid), text: plain(p.text), ts: p.at,
       status: p.status.kind === "not-placed" ? "notplaced" : p.status.kind, qid: p.status.question || "", reason: p.status.reason || "",
       ...(p.via?.kind === "chat" ? { via: nameOf(p.via.by) } : {}), ...attOf(p) }));
-    // Claude's shared answer to a request about the whole session is the host's message marked `claude`: it shows as Claude's.
     const byClaude = new Set((s.chat || []).filter(m => m.claude).map(m => m.id));
     const who = (pid, claude) => (claude ? { cid: "claude", name: "Claude" } : { cid: pid, name: nameOf(pid) });
     view.chat = (s.chat || []).map(m => ({ id: m.id, ...who(m.pid, m.claude), text: plain(m.text), ts: m.at, ...(m.gapAbove ? { gapAbove: true } : {}),
       ...(m.replyTo ? { replyTo: { id: m.replyTo.id, ...who(m.replyTo.pid, m.replyTo.claude || byClaude.has(m.replyTo.id)), text: plain(m.replyTo.excerpt) } } : {}),
       ...(m.proposed ? { forwarded: m.proposed } : {}), ...(m.claude ? { claude: true, result: m.claude.result } : {}), ...(m.request ? { request: m.request } : {}),
       reactions: m.reactions || {}, ...attOf(m) }));
-    // Each question's Discussion, oldest first; `seen` is when I last opened it, so others' comments after it are new.
     view.discussions = Object.fromEntries(Object.entries(s.discussions || {}).map(([qid, lst]) => [qid, lst.map(c => ({ id: c.id, cid: c.pid, name: nameOf(c.pid),
       text: plain(c.text), ts: c.at, edited: !!c.edited, hidden: !!c.hidden, request: c.request || "", reactions: c.reactions || {}, ...attOf(c) }))]));
     view.discussionSeen = s.me?.discussionSeen || {};
-    // Q98: notes pinned on prototype variants, oldest first.
     view.annotations = (s.annotations || []).map(a => ({ id: a.id, cid: a.pid, name: nameOf(a.pid), qid: a.qid, variant: a.variant, text: plain(a.text), ts: a.at,
       selector: a.anchor?.selector || "", rect: a.anchor?.rect || null }));
     view.joinRequests = (s.joinRequests || []).map(j => ({ pid: j.pid, name: j.name, ts: j.at, n: j.n, device: j.device || "", browser: j.browser || "" }));
-    // Answers their authors cleared after the owner hid or edited them (owner only); Core.cardHistory reads one.
     view.cleared = Object.entries(s.cleared || {}).flatMap(([qid, lst]) => lst.map(t => ({ qid, ref: t.ref, cid: t.pid, name: nameOf(t.pid), ts: t.clearedAt, hidden: t.hidden })));
     for (const [qid, lst] of Object.entries(s.results || {})) {
       view.research[qid] = lst.map(x => {
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
         return { id: x.id, kind: x.kind, summary: x.summary, msg: x.msg || "", sources: x.sources || [], report: x.report || "", ts: x.at, requestId: x.request || "",
-          // A guest's own Claude names its own tools in `used`; the label never repeats them.
           skill: x.by?.kind === "guest-claude" ? "their own Claude" : (x.used || []).map(u => u.name).join(", "), why: x.why || "", published: x.published !== false,
-          own: x.by?.kind === "guest-claude", // the requester's own Claude answered it (Connect your Claude), not the host's
-          // Unshared and out to its asker (a Just me answer, or one the owner took down), and taken down by the owner.
+          own: x.by?.kind === "guest-claude",
           private: !!x.private, takenDown: !!x.takenDown, ...(r?.audience === "me" ? { justMe: true } : {}),
           ...(r ? { ask: plain(r.text) } : {}), ...(by ? { byCid: by, by: nameOf(by) } : {}) };
       });
@@ -260,35 +221,23 @@
       status: r.status.kind, runner: r.runner, ...(r.audience === "me" ? { justMe: true } : {}), ...(r.status.reason ? { reason: r.status.reason } : {}), ...attOf(r) });
     view.requests = (s.requests || []).map(req);
     view.myRequests = (s.myRequests || []).map(req);
-    // The Inbox: my own requests with the status I see, and for the owner what waits on them; the server decides both.
-    // A person asking to join is not in people yet: their name comes from joinRequests.
     const joinName = pid => (s.joinRequests || []).find(j => j.pid === pid)?.name;
     view.inbox = (s.inbox || []).map(i => ({ ...i, ts: i.at, changedTs: i.changed, ...(i.by ? { byCid: i.by, by: people[i.by] ? nameOf(i.by) : joinName(i.by) || nameOf(i.by) } : {}) }));
     view.mergeRequests = (s.mergeRequests || []).map(m => ({ id: m.id, from: m.from, to: m.to, fromName: nameOf(m.from), toName: nameOf(m.to), ts: m.at, status: m.status.kind }));
-    // Claude's merge and admit proposals (owner only), each with the names it was made under, which are still the names.
     view.claudeProposals = (s.claudeProposals || []).map(p => ({ id: p.id, kind: p.kind, cid: p.from || p.pid, name: p.names[p.from || p.pid],
       ...(p.to ? { to: p.to, toName: p.names[p.to] } : {}), reasons: p.reasons, note: p.note || "", ts: p.at }));
     view.myMergeRequests = (s.myMergeRequests || []).map(m => ({ id: m.id, status: m.status.kind, toName: nameOf(m.to) }));
-    // Uploads: my own files, everyone's for the owner (with a picture's preview), and what everyone reads of the
-    // files answers carry. No path ever reaches the page.
     const upView = u => ({ id: u.id, cid: u.pid, by: nameOf(u.pid), qid: u.qid || "", file: u.file, ext: u.ext, size: u.size, ts: u.at,
       total: u.chunks, chunkSize: u.chunkSize, status: u.status.kind, received: u.status.received || 0, bytes: u.status.bytes || 0,
       ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}), ...(u.shown ? { shown: true } : {}), ...(u.carried ? { carried: true } : {}), ...(u.avatar ? { avatar: true } : {}) });
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
-    // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
     view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, images: r.images || 0, status: r.status, asked: !!r.asked, ts: r.ts, adds: r.adds || [] }));
-    // My own problem reports (Your reports): their words, additions and status, never the page context.
     view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, images: r.images || 0, status: r.status, ts: r.ts, adds: r.adds || [] }));
     view.files = { ...held.files, ...(s.files || {}) };
-    // Follow-up 32: qid -> received pictures offered on it that nothing carries, as far as this viewer may see them.
     view.questionPics = s.questionPics || {};
-    // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
-    // The decision log, the owner's alone: locks, changes, unlocks, closed and reopened polls, late Disagrees on a
-    // lock and Keep decision, oldest first.
     view.decisions = (s.decisions || []).map(e => ({ ...e, ts: e.at, cid: e.by, by: nameOf(e.by), ...(e.text ? { text: plain(e.text) } : {}) }));
-    // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
     view.presence = (s.presence || []).map(p => ({ cid: p.pid, name: nameOf(p.pid), q: p.q, typing: p.typing, chatTyping: p.chatTyping,
       away: p.state === "away", ...(p.state === "away" ? { awaySince: p.since } : {}),
       owner: p.pid === "host", leader: roles[p.pid]?.role === "leader", trusted: !!roles[p.pid]?.trusted }));
@@ -303,7 +252,6 @@
     return view;
   }
 
-  // ---------- error codes: the page shows these sentences, never a bare code ----------
   const MESSAGES = {
     "bad-json": "The page sent something the session could not read. Reload and try again.",
     empty: "Write something first.",
@@ -365,7 +313,6 @@
     "not-found": "That is gone. The page shows what is there now.",
     "not-agreed": "Not everyone here has voted for that answer yet.",
   };
-  // A few codes read better with the field they name.
   const FIELD_MESSAGES = {
     "empty:other": "Write your own option first.",
     "empty:reason": "Say why you disagree first.",
@@ -378,21 +325,18 @@
     "too-long:attachments": "An answer carries four files at most.",
     "file-type:file": "That file's contents are not what its name says.",
   };
-  // Codes whose sentence above only says the page sent something wrong: a 4xx carrying the server's own message shows
-  // that instead, since it says what was refused (bad-field: "The owner's own role, trust and presence cannot change.").
   const GENERIC = new Set(["bad-json", "bytes-required", "bad-field", "bad-request", "json-required"]);
   const errorText = e => FIELD_MESSAGES[`${e?.error}:${e?.field}`]
     || (GENERIC.has(e?.error) && e?.status < 500 && e?.message) || MESSAGES[e?.error] || e?.message
     || (e?.status ? "The session refused that." : "The session is out of reach. Check your connection.");
 
-  const OPPOSITE = { thumbs: "down", down: "thumbs" }; // one person never holds both on one answer
+  const OPPOSITE = { thumbs: "down", down: "thumbs" };
   const ownRecord = a => a.cid === Core.me.cid && !a.claude && !a.option;
   const afterTyping = p => p.then(r => { typingUntil = 0; return r; });
   const shareBase = () => (Core.state.shareUrl || location.origin).replace(/\/$/, "");
   const Core = {
     /** A request about the whole session has no question: the page files it, and finds its results, under this key. */
     GENERAL: "session",
-    // cid holds the public pid (the prototype's name for it).
     me: { cid: secret ? get("pid") || "" : ownerToken ? "host" : "", name: get("name") || "", isOwner: !!ownerToken, isLeader: false, isTrusted: false },
     state: structuredClone(DEFAULTS),
     live: false,
@@ -530,7 +474,7 @@
         if (v.previous) next.set(key(v.previous.qid, v.previous.variant), key(q.id, v.id));
       }
       if (!at.has(key(qid, vid))) return [];
-      const line = [key(qid, vid)], seen = new Set(line); // the server keeps the links a line; seen stops a loop anyway
+      const line = [key(qid, vid)], seen = new Set(line);
       for (let p = at.get(line[0]).previous; p && at.has(key(p.qid, p.variant)) && !seen.has(key(p.qid, p.variant)); p = at.get(line[0]).previous) {
         line.unshift(key(p.qid, p.variant)); seen.add(line[0]);
       }
@@ -632,7 +576,7 @@
       const before = new Set((withChat(snap)?.chat || []).map(m => m.id)), id = `sending-${++sends}`, body = { text, ...(replyTo ? { replyTo } : {}), ...withAtt(extra) };
       return act("/api/chat", body, { key: "chat:" + id, patch: (s, pid) => {
         s.chat ||= [];
-        const chat = s.chat, text = body.text; // as act sent it: its mentions as tokens
+        const chat = s.chat, text = body.text;
         if (chat.some(m => m.pid === pid && m.text === text && !before.has(m.id))) return;
         const to = replyTo && chat.find(m => m.id === replyTo);
         chat.push({ id, pid, text, at: s.serverTime, ...(to ? { replyTo: { id: to.id, pid: to.pid, excerpt: to.text } } : {}), ...withAtt(extra) });
@@ -804,12 +748,10 @@
     guestLink: () => `${shareBase()}/${Core.state.guestKey ? "#join=" + Core.state.guestKey : ""}`,
   };
 
-  // ---------- where an answer was made (Q99): the view, and the device, never more ----------
   const BROWSERS = [[/SamsungBrowser\//, "samsung"], [/Edg\//, "edge"], [/(FBAN|FBAV|Instagram|Line\/|; wv\))/, "in-app"], [/Firefox\/|FxiOS\//, "firefox"], [/Chrome\/|CriOS\//, "chrome"], [/Safari\//, "safari"]];
   // A touch screen's short side, which a rotation leaves alone, tells a phone from a tablet: a phone in landscape is still a phone.
   const deviceKind = () => (matchMedia("(pointer: coarse)").matches ? (Math.min(screen.width, screen.height) < 600 ? "phone" : "tablet") : "computer");
   const browserKind = () => BROWSERS.find(([re]) => re.test(navigator.userAgent))?.[1] || "other";
-  /** A question asked once per device (answerScope device) takes the device kind with each answer and pick. */
   const scopeOf = qid => (qOf(Core.state.questions, qid)?.answerScope === "device" ? { device: deviceKind() } : {});
   /** Follow-up 45: {app, open}, the social app whose built-in browser shows this page and the browser to open it in
    *  instead; null in any other browser. */
@@ -827,7 +769,6 @@
 
   const json = (body, headers) => ({ method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
   const ident = () => (ownerToken ? { "X-Owner-Token": ownerToken } : secret ? { "X-Session-Secret": secret } : {});
-  /** The server's JSON answer, or a rejection with {status, ...that answer} when it refused. */
   async function answered(r) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw { status: r.status, ...j };
@@ -853,32 +794,25 @@
   document.addEventListener("click", followAsOwner);
   document.addEventListener("auxclick", followAsOwner);
 
-  /** Get a fresh {pid, secret}. Concurrent callers share one request. The owner never joins: the link is the identity. */
   function join(name = Core.me.name) {
     const req = json({ name: name || "", key: joinKey, device: deviceKind(), browser: browserKind() });
     return joining ||= fetch("/api/join", req).then(answered).then(j => {
       secret = j.secret; Core.me.cid = j.pid;
       put("secret", secret); put("pid", j.pid);
-      // the server makes a name unique ("Ivy 2"): the page says so, so nobody is renamed silently
       Core.renamedFrom = name && j.name && j.name !== name.trim() ? name.trim() : null;
       if (j.name) { Core.me.name = j.name; put("name", j.name); }
-      Core.joinedAs = j.was || null; // someone offline already used this name
+      Core.joinedAs = j.was || null;
       return j;
     }).finally(() => { joining = null; });
   }
 
-  // The server takes one write a second per person on each of these routes (session.py _throttle, WRITE_INTERVAL;
-  // a chat reaction per message) and answers a faster one 429. Writes to one route go out one at a time, the next a
-  // second after the last answer came back: the server stamps a write before it answers, so that gap is never shorter
-  // than a second there. The limit is per person and this spacing per page, so a write the same person just made from
-  // another tab or device can still refuse one: send() tries that once more a gap later.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree", "/api/pass",
     "/api/go-with", "/api/notifications/read", "/api/inbox/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
     "/api/upload/offer", "/api/upload/act", "/api/upload/chunk", "/api/discussion", "/api/discussion/edit", "/api/discussion/delete",
     "/api/discussion/hide", "/api/discussion/react", "/api/discussion/read", "/api/result/share"]);
-  const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
-  const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
+  const GAP = 1050;
+  const lanes = new Map();
   const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));
   function spaced(path, run) {
     if (!SPACED.has(path)) return run();
@@ -889,7 +823,6 @@
     return mine;
   }
 
-  /** POST as me: the owner token or secret goes in a header, never the body. Re-joins once if the server forgot me. */
   function send(path, body) {
     return spaced(path, async () => {
       if (!ownerToken && !secret && merged) throw { status: 401, error: "merged-into-owner" };
@@ -915,8 +848,7 @@
     });
   }
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
-  let redeeming = false; // a code being traded: an old credential's 401 meanwhile must not drop the new one
-  /** Trade the host's one-time code for this device's own host credential, then reload as the host. */
+  let redeeming = false;
   async function redeemPair(code) {
     // A browser that keeps no site data would lose the credential on the reload below, after the code was spent.
     if (!local) throw { error: "no-site-data" };
@@ -927,10 +859,7 @@
     } catch (x) { redeeming = false; throw x; }
     location.reload();
   }
-  /** This device's host credential is gone: forget it, and the reloaded page asks to join, saying why. */
   function signedOut() { if (redeeming) return; drop("ownerDevice"); drop("ownerDeviceId"); put("signedOut", "1"); location.reload(); }
-  /** A merge into the owner ended this browser's guest identity: forget it and say so, never joining again (owner
-   *  rights come only with the owner link). Kept across reloads; the owner link clears it. */
   let merged = !ownerToken && get("merged") === "1";
   if (ownerToken) drop("merged");
   function markMerged() {
@@ -957,7 +886,7 @@
   const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
   const tel = {
     seen: new Set(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
-    pv: hex(4), // this page view, no one's id
+    pv: hex(4),
     inp: "", lcp: "", sentInp: "", sentLcp: "", missing: "", sentMissing: false, vitals: false,
   };
   const joined = () => !!(ownerToken || secret);
@@ -973,8 +902,6 @@
     recentErrors.push(cut(`${kind}${code ? " " + code : ""}: ${message}`, 300));
     recentErrors.splice(0, recentErrors.length - 5);
   }
-  /** A fault, sent the first time its fingerprint (`key`, else kind, message, source and an API route) shows; after
-   *  that each repeat is a count in the next summary. One that did not arrive is sent again the next time. */
   function fault(kind, message, extra = {}, key = "") {
     const body = { kind, message: cut(message || kind, 500), route: cut(location.pathname, 200), ua: ua(), ...extra };
     if (kind !== "layout" && !extra.noted) noteError(kind, extra.code, body.message);
@@ -985,13 +912,11 @@
     tel.seen.add(fp);
     post({ ...body, fp }).catch(() => tel.seen.delete(fp));
   }
-  /** An action's tap-to-answer time on its route, in LAT_EDGES buckets. */
   function timed(route, ms) {
     const b = tel.lat.get(route) || Array(LAT_EDGES.length + 1).fill(0), i = LAT_EDGES.findIndex(e => ms <= e);
     b[i < 0 ? LAT_EDGES.length : i]++;
     tel.lat.set(route, b);
   }
-  /** One summary line of what waited, as `name=value` tokens; whatever does not fit in SUMMARY_MAX stays for the next. */
   function flush() {
     if (!joined()) return;
     const base = `pv=${tel.pv}${ownerToken ? " owner=1" : ""}`, items = [];
@@ -1012,7 +937,6 @@
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
   addEventListener("pagehide", flush);
 
-  /** The component an element belongs to: its nearest vf- or core- class, never its text. */
   function componentOf(node) {
     for (let el = node?.nodeType === 1 ? node : node?.parentElement; el && el !== document.body; el = el.parentElement) {
       const c = [...el.classList].find(x => /^(?:vf|core)-[\w-]+$/.test(x));
@@ -1020,17 +944,10 @@
     }
     return node ? String(node.nodeName || "node").toLowerCase() : "none";
   }
-  // A person's taps on controls, by the control's name (tapName), never its text: each tap is `use`; the RAGE_TAPS-th
-  // tap on one control within RAGE_MS of the first is a `rage` tap; a tap the page shows no change for (no DOM change,
-  // no scroll) within DEAD_MS is a `dead` tap, unless it opens a link elsewhere. A disabled control gets no click.
-  // The render of a timed poll (unprompted) answers no tap: the page made it on its own, so a tap answered only by the
-  // next timed poll counts as dead. A poll a tap's action waits on still answers it.
   const TAPPABLE = "button, a[href], [role=button], summary, input[type=button], input[type=submit]";
-  const STYLE = /^(?:vf|core)-(?:btn|tbtn|lbtn|icon-btn|toggle|chip)(?:-[a-z-]+)?$/; // looks, not what the control is
-  const RAGE_TAPS = 3, RAGE_MS = 1000; // judgment: three taps within a second on one control is impatience, not use
-  const DEAD_MS = 1000; // judgment: the page answers a tap at once
-  /** A control's name: the first vf- or core- class (letters and hyphens only) that is not a style class, on it or
-   *  its nearest ancestor with one (state classes such as vf-vote-back are added after it); null when there is none. */
+  const STYLE = /^(?:vf|core)-(?:btn|tbtn|lbtn|icon-btn|toggle|chip)(?:-[a-z-]+)?$/;
+  const RAGE_TAPS = 3, RAGE_MS = 1000;
+  const DEAD_MS = 1000;
   function tapName(el) {
     for (; el && el !== document.body; el = el.parentElement) {
       const c = [...el.classList].find(x => /^(?:vf|core)-[a-z-]+$/.test(x) && !STYLE.test(x));
@@ -1038,10 +955,8 @@
     }
     return null;
   }
-  // A rage streak is one control's: its name and its place among the controls of that name, so a control drawn again
-  // between taps is the same one, and three of one kind (the reaction buttons) are three.
   const rages = new Map(), waiting = new Set();
-  let quiet = false; // between two frame callbacks that bracket the ones an unprompted change scheduled
+  let quiet = false;
   const changed = () => { waiting.clear(); seer.disconnect(); };
   const seer = new MutationObserver(() => quiet || changed());
   /** Run fn, a change no tap asked for: what it changes, at once or in the animation frame callbacks it schedules (a
@@ -1060,7 +975,7 @@
     const key = `${name}#${[...document.getElementsByClassName(name)].indexOf(el.closest(`.${name}`))}`;
     const now = performance.now(), r = rages.get(key);
     if (r && now - r.at <= RAGE_MS) { if (++r.n === RAGE_TAPS) bump(tel.rage, name); } else rages.set(key, { at: now, n: 1 });
-    if (el.matches("a[target], a[download]")) return; // it opens elsewhere: this page need not change
+    if (el.matches("a[target], a[download]")) return;
     const tap = { name };
     if (!waiting.size) seer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
     waiting.add(tap);
@@ -1070,8 +985,6 @@
     }, DEAD_MS);
   }, true);
 
-  /** INP and LCP from the vendored web-vitals attribution build (web/web-vitals.attribution.iife.js), on this origin;
-   *  a page without it, or without the browser APIs it reads, says which is missing. */
   function loadVitals() {
     if (tel.vitals || tel.loading) return;
     tel.loading = true;
@@ -1094,8 +1007,6 @@
     document.head.append(s);
   }
 
-  // Layout anomalies, each logged when it appears: a page wider than the screen or a vertical pane that scrolls
-  // sideways, a focused field outside what the keyboard leaves visible, the header pushed off screen.
   const FIELD = "input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea, select, [contenteditable=true]";
   function layoutNow() {
     const out = new Map(), vv = window.visualViewport, bandTop = vv ? vv.offsetTop : 0, bandBottom = bandTop + (vv ? vv.height : innerHeight);
@@ -1129,8 +1040,6 @@
   let layoutTimer = 0, layoutAt = -Infinity;
   function checkLayout() {
     layoutTimer = 0;
-    // A finite animation still running (the chat button's bump, a sheet sliding in) is a passing frame, not the layout:
-    // the bump scales the phone's chat button past the screen's edge. Check again once it has settled.
     if (document.getAnimations().some(a => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity)) return layoutSoon();
     layoutAt = performance.now();
     if (!joined()) return;
@@ -1138,8 +1047,6 @@
     for (const [key, message] of now) if (!tel.layout.has(key)) fault("layout", message, {}, key);
     tel.layout = new Set(now.keys());
   }
-  /** Check the layout soon after a change (a new snapshot, a tap, a resize, the keyboard, a focused field): 800 ms
-   *  after it, at most every 2 s. */
   function layoutSoon() {
     if (!layoutTimer) layoutTimer = setTimeout(checkLayout, Math.max(800, layoutAt + 2000 - performance.now()));
   }
@@ -1159,11 +1066,9 @@
   Core.reportLayout = fields => post({ kind: "layout", message: cut(Object.entries(fields).map(([k, v]) => `${k}=${String(v).replace(/\s+/g, "")}`).join(" "), 500),
     route: cut(location.pathname, 200), ua: ua() }).catch(() => {});
   addEventListener("error", e => fault("error", e.message, e.filename ? { source: cut(`${new URL(e.filename, location.href).pathname}:${e.lineno}`, 200) } : {}));
-  // A server refusal ({status, error, message}) sends its code and status only: its message can quote typed text.
   addEventListener("unhandledrejection", e => { const r = e.reason;
     fault("rejection", r && !(r instanceof Error) && r.error ? `${r.error} ${r.status ?? ""}`.trim() : r?.message || String(r)); });
 
-  // The notice in Help: one line and a "What this page records" link to the plain list.
   const REC_LINE = "This page records errors, slow or failed actions, layout problems and how often its controls are tapped on this device, so the host can fix them. It never records what you type.";
   const RECORDED = ["Script errors on this page, and actions that never reached the host", "How long each action takes to get an answer, and how often one is undone",
     "How long the page takes to catch up when you come back to it", "Layout problems: something too wide for the screen, a field the keyboard covers, the header pushed off screen",
@@ -1196,15 +1101,8 @@
   Core.telemetry = { notice, openRecords };
   loadVitals();
 
-  // ---------- optimistic actions: shown at once, reconciled with the server in the background ----------
-  // An action given a patch shows before its request goes out: patch(snapshot, myPid) edits a copy of the server's
-  // last snapshot, and every snapshot after it, until a poll that started after the server accepted the action
-  // returns (that snapshot holds the change). A refusal or a network error drops the patch, so the page shows the
-  // server's state again, and the caller's catch shows the error. A patch sets state, never toggles it, so applying
-  // it to a snapshot that already holds the change changes nothing. One key holds one pending action: a newer
-  // action under the same key replaces the older one's patch, and the older one's answer no longer touches it.
-  const pending = new Map(); // key -> {patch, after: the poll count when the server accepted it, or null}
-  let polls = 0; // polls started so far
+  const pending = new Map();
+  let polls = 0;
   function withPending(s) {
     if (!pending.size || !s?.me) return s;
     const out = structuredClone(s);
@@ -1213,15 +1111,13 @@
   }
   const view = () => toView(withPending(withChat(snap)));
   const repaint = () => { if (snap) { Core.state = view(); emit(); } };
-  // The routes whose text can mention people: their "@Name" go out as <@pid> (Core.tokenize); the server does the same
-  // for full names, so a name the page shows masked still reaches the person it names.
   const MENTION_ROUTES = new Set(["/api/answer", "/api/pick", "/api/card/edit", "/api/suggest", "/api/lock/edit", "/api/propose", "/api/chat", "/api/annotate", "/api/request", "/api/request/act",
     "/api/discussion", "/api/discussion/edit"]);
   function act(path, body, opt) {
     if (MENTION_ROUTES.has(path)) for (const k of ["text", "comment", "other", "note"]) if (typeof body[k] === "string") body[k] = Core.tokenize(body[k]);
     const entry = opt?.patch && { patch: opt.patch, after: null }, t0 = performance.now();
     const mine = () => !!entry && pending.get(opt.key) === entry;
-    const drop = () => { if (mine()) { pending.delete(opt.key); repaint(); bump(tel.rb, path); } }; // a rollback
+    const drop = () => { if (mine()) { pending.delete(opt.key); repaint(); bump(tel.rb, path); } };
     if (entry) { pending.delete(opt.key); pending.set(opt.key, entry); repaint(); }
     return send(path, body).then(async r => {
       if (r.headers.has("X-Shared-Build")) timed(path, performance.now() - t0);
@@ -1240,19 +1136,16 @@
   }
   const without = (list, x) => (list || []).filter(v => v !== x);
   const fmtOf = (s, qid) => qOf(s.questions || [], qid)?.format || {};
-  /** My vote on card `ref` of qid, on or off. Off a multi question a person holds one vote per question. */
   function patchVote(s, pid, qid, ref, on) {
     const cards = cardsOf(s, qid), multi = fmtOf(s, qid).kind === "multi";
     if (on && !multi) for (const c of cards) c.votes = without(c.votes, pid);
     const c = cards.find(x => x.ref === ref);
     if (c) c.votes = on ? [...without(c.votes, pid), pid] : without(c.votes, pid);
-    // On choice, backing someone's own option moves my one pick there (session.py vote).
     if (on && fmtOf(s, qid).kind === "choice") {
       s.cards[qid] = cards.filter(x => !(x.kind === "person" && x.pid === pid && (x.pick === OTHER || !(x.text || x.attachments))));
       for (const x of s.cards[qid]) if (x.kind === "person" && x.pid === pid) delete x.pick;
     }
   }
-  /** My pick on qid as /api/pick takes it (contract option ids), the way session.py pick writes my card and vote. */
   function patchPick(s, pid, qid, body) {
     const kind = fmtOf(s, qid).kind, cards = cardsOf(s, qid), device = body.device;
     const ids = (fmtOf(s, qid).options || []).map(o => o.id).filter(id => id !== OTHER);
@@ -1283,11 +1176,7 @@
     location.reload();
   }
 
-  // ---------- chat beyond the snapshot's window: the snapshot carries the newest 50, GET /api/chat the rest ----------
-  // Every message this page has read stays while it is open, so one that leaves the window stays under a reader
-  // scrolled up to it. `linked` holds the ids whose next older message is loaded too (or that have none); a message
-  // outside it shows a Load earlier control above it. A change of name masking or role starts over.
-  const held = { chat: new Map(), linked: new Set(), key: "", touched: 0, files: {} }; // files: what held older messages carry
+  const held = { chat: new Map(), linked: new Set(), key: "", touched: 0, files: {} };
   const seqOf = id => Number(String(id).replace(/\D+/g, "")) || 0;
   function keepChat(run, before, below) {
     run.forEach((m, i) => { held.chat.set(m.id, m); if (i || !before) held.linked.add(m.id); });
@@ -1298,7 +1187,6 @@
     Object.assign(held.files, j.files || {});
     return j;
   }
-  /** held.files keeps only what the held messages still carry (a removed upload leaves them when they are read again). */
   function pruneFiles() {
     const carried = new Set([...held.chat.values()].flatMap(m => m.attachments || []));
     for (const id of Object.keys(held.files)) if (!carried.has(id)) delete held.files[id];
@@ -1313,7 +1201,6 @@
     if (skipped) fillChat(win[0].id).catch(() => {});
     else if (touched && win.length) refreshChat(win[0].id).catch(() => {});
   }
-  /** Someone reacted to or forwarded a message older than the window: read the held ones again, back to the oldest. */
   async function refreshChat(id) {
     const oldest = Math.min(...[...held.chat.keys()].map(seqOf));
     for (let n = 0; n < 20 && id; n++) {
@@ -1324,7 +1211,6 @@
     pruneFiles();
     repaint();
   }
-  /** More than a window arrived between two polls: read back to the messages this page already holds. */
   async function fillChat(id) {
     for (let n = 0; n < 20 && id; n++) {
       const j = await chatPage({ before: id, limit: 100 }), joined = j.chat.some(m => held.chat.has(m.id));
@@ -1333,7 +1219,6 @@
     }
     repaint();
   }
-  /** The snapshot with every message this page holds, oldest first, from people still in. */
   function withChat(s) {
     if (!s?.me || !held.chat.size) return s;
     const live = new Set((s.people || []).map(p => p.pid)), win = new Map((s.chat || []).map(m => [m.id, m]));
@@ -1357,20 +1242,14 @@
     }
     return held.chat.has(id);
   };
-  /** An action on a message outside the window: its copy here takes the change, as no snapshot will carry it. */
   function patchKept(id, fn) {
     const m = held.chat.get(id);
     if (m && !(snap?.chat || []).some(x => x.id === id)) { const c = structuredClone(m); fn(c); held.chat.set(id, c); }
   }
 
-  /** The state poll always carries ?since=<rev>: in a session imported from the prototype a poll with
-   *  identity and no query is an old page, which gets only a reload notice. */
-  // A poll asked for while one runs runs once more after it, so an action's poll always starts after its answer.
-  // A timed poll (the interval's) renders unprompted; the poll after one that anything else asked for does not.
   let polling = null, pollNext = null, nextTimed = true;
   let waitPolled = 0;
   function poll(timed = false) {
-    // waiting to be let in, the page asks every 5 s, not every 1.5 s: each ask is a 403 the console logs (sweep S31)
     if (Core.state.youWaiting && !polling) { if (Date.now() - waitPolled < 5000) return Promise.resolve(); waitPolled = Date.now(); }
     if (!polling) {
       polling = pollOnce(timed).finally(() => { polling = null; });
@@ -1380,13 +1259,11 @@
     pollNext ||= polling.then(() => { const t = nextTimed; pollNext = null; nextTimed = true; return poll(t); });
     return pollNext;
   }
-  /** Drop the patches of actions the server accepted before poll number `seq` started: its snapshot holds them. */
   function settle(seq) {
     const n = pending.size;
     for (const [k, e] of pending) if (e.after != null && seq > e.after) pending.delete(k);
     return pending.size !== n;
   }
-  /** A poll the server answered; the first after the page shows again ends a reconnect gap (performance.now). */
   function good() {
     lastOk = Date.now();
     if (shownAt != null) { tel.gaps.push(Math.round(performance.now() - shownAt)); tel.gaps.splice(0, tel.gaps.length - 20); shownAt = null; }
@@ -1417,7 +1294,6 @@
       const s = await r.json().catch(() => ({}));
       if (r.ok && s.moved) { good(); moveTo(s.moved); return; }
       if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; good(); return; }
-      // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
       if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: s.title ?? Core.state.title, intro: s.intro || "", youWaiting: true }; good(); return; }
       if (r.status === 401 && !ownerToken && s.error === "merged-into-owner") { etag = ""; markMerged(); return; }
       if (r.status === 401 && !ownerToken) { forget(); etag = ""; askName(errorText(s)); return; }
@@ -1426,7 +1302,6 @@
       if (s.build) { if (build && s.build !== build) return reload("build"); build = s.build; }
       etag = r.headers.get("ETag") || "";
       good();
-      // Only presence or the clock moved: the rest of my last snapshot still holds.
       if (s.presenceOnly) {
         if (!snap) { etag = ""; return; }
         snap = { ...snap, serverTime: s.serverTime, presence: s.presence, lastSeen: s.lastSeen };
@@ -1434,20 +1309,20 @@
         Core.state = view();
         return;
       }
-      if (!s.me) { // anonymous: only what the join dialog needs
+      if (!s.me) {
         Core.state = { ...structuredClone(DEFAULTS), title: s.title || "", ended: !!s.ended, joinNeedsKey: !!s.joinNeedsKey, youMerged: merged };
         return;
       }
       snap = s; rev = s.rev;
       layoutSoon();
-      if (merged) { merged = false; drop("merged"); } // a working identity again (a personal link of someone else)
+      if (merged) { merged = false; drop("merged"); }
       keepWindow(s);
       settle(seq);
       Core.state = view();
       Core.me.cid = s.me.pid; Core.me.name = s.me.name;
       takeRole(s.me);
       if (!ownerToken) { put("pid", s.me.pid); put("name", s.me.name); }
-    } catch { /* offline: the live dot says so */ } finally {
+    } catch {} finally {
       Core.live = Date.now() - lastOk < 5000;
       if (timed) unprompted(emit); else emit();
     }
@@ -1455,27 +1330,17 @@
   Core.snapshot = () => snap;
   function takeRole({ role, trusted }) { Core.me.isOwner = role === "owner"; Core.me.isLeader = role === "leader"; Core.me.isTrusted = !!trusted; }
 
-  // ---------- heartbeat: where I am, whether the tab is visible, how long since my last input, Away by hand ----------
-  // The server takes one beat a second (HEARTBEAT_INTERVAL) and answers a faster one 429. A beat that changes `visible`
-  // or `away` skips that limit, under its own one a second. So beats never overlap: each waits a GAP after the last
-  // one answered (a change beat, after the last change beat only), and many asks in that wait send one beat, built
-  // from the state when it goes out.
-  // Each tab beats under its own id (kept across reloads of the tab), so the server keeps one presence per tab and a
-  // person's other tabs and devices never take their beats: the person is Away only when every tab is. Each beat also
-  // says how long ago this tab gained focus or was shown (lastFocus), so the server names the person's question from
-  // the tab they used last rather than whichever tab beat last.
   const TAB = (() => {
     const fresh = hex(12);
-    try { const t = sessionStorage.getItem("tab"); if (/^[0-9a-f]{24}$/.test(t || "")) return t; sessionStorage.setItem("tab", fresh); } catch { /* storage off */ }
+    try { const t = sessionStorage.getItem("tab"); if (/^[0-9a-f]{24}$/.test(t || "")) return t; sessionStorage.setItem("tab", fresh); } catch {}
     return fresh;
   })();
   const HB = { busy: false, timer: 0, wanted: false, done: -Infinity, changeDone: -Infinity, visible: null, away: null };
   let away = false, lastInputAt = Date.now();
   const visibleNow = () => document.visibilityState !== "hidden";
-  let focusAt = visibleNow() ? Date.now() : null; // loaded in view counts as shown; loaded in the background, not yet
+  let focusAt = visibleNow() ? Date.now() : null;
   function beat() { HB.wanted = true; pumpBeat(); }
   function pumpBeat() {
-    // a person still waiting to be let in has no presence to send: the server refuses it (403) every beat (sweep S31)
     if (HB.busy || !HB.wanted || (!ownerToken && !secret) || Core.state.youWaiting) return;
     const visible = visibleNow(), change = HB.visible !== null && (visible !== HB.visible || away !== HB.away);
     // A change beat skips the plain beat's gap, so it does not wait on that gap's timer either: in a hidden tab that
@@ -1487,8 +1352,6 @@
     HB.wanted = false; HB.busy = true;
     const body = { q: focusQ, typing: Date.now() < typingUntil, chatTyping: Date.now() < chatTypingUntil,
       visible, lastInput: Math.max(0, Math.round((Date.now() - lastInputAt) / 1000)), away, tab: TAB };
-    // unrounded: it orders tabs. focusId names this focus, so the server keeps its first estimate of when it was
-    // rather than one a late beat would move later.
     if (focusAt !== null) { body.lastFocus = Math.max(0, (Date.now() - focusAt) / 1000); body.focusId = focusAt; }
     send("/api/heartbeat", body).then(r => {
       if (r.ok) { HB.visible = visible; HB.away = away; }
@@ -1511,7 +1374,6 @@
     if (away) { away = false; emit(); beat(); }
   };
   for (const ev of ["keydown", "pointerdown", "touchstart"]) window.addEventListener(ev, input, { capture: true, passive: true });
-  // Set before the beat goes out, so the beat that says "visible" carries the new time.
   const focused = () => { if (visibleNow()) focusAt = Date.now(); beat(); };
   document.addEventListener("visibilitychange", focused);
   window.addEventListener("focus", focused);
@@ -1528,8 +1390,6 @@
   document.addEventListener("resume", catchUp); // Page Lifecycle: a frozen tab thawed (Chrome on Android)
   window.addEventListener("focus", catchUp);
 
-  /** Ask before a personal link replaces this browser's own secret: Keep (the default, and Escape) leaves it; Switch
-   *  stores the link's secret and reloads as that person. */
   function askSwitch(other) {
     const dlg = Core.el("dialog", "core-switch"), h = Core.el("h2", null, "This link signs you in as someone else on this device. Switch?");
     h.id = "core-switch-h"; dlg.setAttribute("aria-labelledby", h.id); dlg.setAttribute("role", "alertdialog");
@@ -1545,14 +1405,11 @@
     keep.focus();
   }
 
-  // Name prompt. It stays open until the join succeeds; Escape does not close it. `codeErr`, when given, opens it on
-  // the host's code entry with that error.
   function askName(notice = "", codeErr = null) {
     if (document.querySelector("dialog.core-name")) return;
     const dlg = Core.el("dialog", "core-name");
     dlg.setAttribute("aria-labelledby", "core-name-h");
     const form = Core.el("form"), h = Core.el("h2", null, "Join the session"); h.id = "core-name-h";
-    // The session's title, so a guest arriving from a bare link knows what they were invited to.
     const sub = Core.el("p", "core-sub"); sub.id = "core-name-sub";
     const paintSub = () => { sub.textContent = Core.state.title ? `You are invited to answer a few questions: ${Core.state.title}` : ""; };
     paintSub();
@@ -1577,7 +1434,6 @@
       f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
     });
     const done = () => { unsub(); dlg.close(); dlg.remove(); beat(); poll(); };
-    /** The host's code entry: the code from "Sign in on another device" signs this device in as the host. */
     function askCode(msg) {
       const f = Core.el("form"), h2 = Core.el("h2", null, "Sign in as the host"); h2.id = "core-name-h";
       const p = Core.el("p", "core-note", "On the device where you opened your owner link, open your menu and choose Sign in on another device. Type the code it shows.");
@@ -1595,7 +1451,6 @@
       form.replaceWith(f);
       code.focus();
     }
-    /** "Were you here before as <name>?" Yes asks the host to merge; either way the person continues now. */
     function askWas(was) {
       form.replaceChildren();
       const h2 = Core.el("h2", null, `Were you here before as ${was.name}?`); h2.id = "core-name-h";
@@ -1633,12 +1488,8 @@
   }
 
   window.Core = Core;
-  /** A secret with no name beside it (a personal link, or a guest the import carried over): ask the server who it is.
-   *  Only the server's refusal of the secret (401) forgets it, rejecting with 401; a removed person (403) keeps it and
-   *  rejects with 403. Anything else (429, a server error, no network, as when every tab reloads at once) keeps the
-   *  secret and asks again, waiting longer each time. */
   async function adoptIdentity() {
-    HB.busy = true; // this is a beat too: the next one waits its turn
+    HB.busy = true;
     try {
       for (let tries = 0; ; tries++) {
         const visible = visibleNow();
@@ -1661,11 +1512,11 @@
   window.addEventListener("DOMContentLoaded", () => {
     const wasSignedOut = get("signedOut") === "1";
     drop("signedOut");
-    if (pairCode && (!ownerToken || ownerDevice)) { // a device signed in before takes the new code, replacing its own
+    if (pairCode && (!ownerToken || ownerDevice)) {
       redeemPair(pairCode).catch(x => { askName("", errorText(x)); if (secret) beat(); });
     } else if (!ownerToken && secret && (adopt || !Core.me.name || !Core.me.cid)) {
       adoptIdentity().then(beat).catch(status => {
-        if (status !== 401) return; // removed: the state poll shows it, and the owner can restore the same secret
+        if (status !== 401) return;
         forget(); drop("name"); Core.me.name = "";
         askName(adopt ? "That personal link no longer works. Join with your name; the host can merge you with your earlier self." : "");
       });

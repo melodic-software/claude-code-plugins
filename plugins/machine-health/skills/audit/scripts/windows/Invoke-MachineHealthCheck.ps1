@@ -165,7 +165,6 @@ $logsDir = Join-Path $StateBase 'logs'
 # runs the elevation-matrix checks, fills the pre-created result file and exits. It
 # creates no directory and writes nothing else, so it branches before every write below.
 if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
-    # Write-ElevatedResult loads the no-follow file P/Invoke, which only this branch needs.
     . (Join-Path $libRoot 'Write-ElevatedResult.ps1')
     $passLog = [System.Collections.Generic.List[string]]::new()
     $passResults = [System.Collections.Generic.List[object]]::new()
@@ -272,8 +271,6 @@ function Initialize-Directory {
 
 if ($stateWritable) { Initialize-Directory -Path @($StateBase, $stateDir) }
 
-# One run at a time per state folder: a second run reports the held lock and
-# writes nothing. The short wait covers a run that is just releasing it.
 $runLock = $null
 if ($stateWritable) {
     $runLock = Enter-RunLock -StateDir $stateDir -Name 'run' -TimeoutSeconds 2
@@ -300,7 +297,6 @@ foreach ($k in $logDefaultKeys) {
     if ($PSDefaultParameterValues.ContainsKey($k)) { $savedLogDefaults[$k] = $PSDefaultParameterValues[$k] }
 }
 
-# Everything below runs while run.lock is held; the finally releases it on every exit path.
 try {
     Initialize-Directory -Path @($OutputBase, $reportsDir)
     if ($stateWritable) {
@@ -311,7 +307,6 @@ try {
     } else {
         $runLog = $null
         $remedLog = $null
-        # Nothing is written under a synced StateBase, so run log lines go to stderr.
         $PSDefaultParameterValues['Write-MachineHealthLog:ToStderr'] = $true
     }
 
@@ -331,11 +326,6 @@ try {
                     'Restore the stub from source control, or reinstall/update the plugin.')
                 Write-MachineHealthLog "kev_seed_contaminated size=$seedSize mode=$RunMode"
                 Write-StderrBanner -Line "[machine-health] WARNING: machine-specific state leaked: $msg"
-                # weekly and on-demand runs must not silently proceed past a
-                # contaminated seed -- CI or a scheduled task would bury the
-                # stderr banner. first-run keeps the soft warning so a new
-                # operator can see the banner and repair before the first
-                # real run.
                 if ($RunMode -ne 'first-run') {
                     Write-Output "[machine-health] FATAL: $msg"
                     exit 2
@@ -382,10 +372,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         $userLoaded = $false
     }
 
-    # Load catalog: JSONC parse (comment-aware) + per-entry schema validation.
-    # Invalid entries are skipped for dispatch so a single typo does not block the
-    # rest of the catalog, but each skip is synthesized as an UNKNOWN CheckResult
-    # so the report / latest.json / severity_counts surface it (not only the run log).
     $catalogPath = Join-Path $skillRoot 'catalog\checks.jsonc'
     try {
         $catalog = ConvertFrom-Jsonc -InputText (Get-Content -LiteralPath $catalogPath -Raw -ErrorAction Stop)
@@ -417,8 +403,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 
     $validatedChecks = [System.Collections.Generic.List[object]]::new()
     $invalidCatalogResults = [System.Collections.Generic.List[object]]::new()
-    # Seed occupied ids so synthetic fallbacks never collide with a real catalog id
-    # (e.g. invalid DiskSpace at index 2 vs a custom check named invalid-catalog-entry-2).
     $occupiedResultIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($seedEntry in @($catalog.checks)) {
         if ($null -eq $seedEntry -or -not $seedEntry.PSObject.Properties['id']) { continue }
@@ -478,9 +462,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     $historyTail = @(Read-HistoryJsonl -Path $historyPath -Tail $historyDepth)
     $historyRecent = @($historyTail | Select-Object -Last 8)
 
-    # Cadence-aware selection: a weekly run defers monthly-cadence checks that ran
-    # within the monthly interval (per-check last run from history.jsonl checks_ran).
-    # on-demand / first-run run everything.
     $selection = Get-CheckSelection -Checks $windowsChecks -RunMode $RunMode -HistoryTail $historyTail -Now $runStart
     foreach ($sk in @($selection.skipped)) {
         Write-MachineHealthLog ("check_skipped id=$($sk.id) reason=cadence cadence=$($sk.cadence) " +
@@ -491,8 +472,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     $batteryReportPath = if ($stateWritable) { Join-Path $logsDir "battery-report-$runStamp.html" } else { $null }
 
     $checkResults = [System.Collections.Generic.List[object]]::new()
-    # Surface Assert-CatalogEntry failures through the normal reporting path first
-    # so a registered-but-invalid check cannot silently vanish from the report.
     $checkResults.AddRange($invalidCatalogResults)
     if (-not $stateWritable) {
         $checkResults.Add((New-UnknownCheckResult `
@@ -505,8 +484,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     foreach ($entry in $windowsChecks) {
         $scriptPath = Join-Path $skillRoot $entry.script
         if (-not (Test-Path -LiteralPath $scriptPath)) {
-            # Overlay-registered custom checks keep the same scripts/<os>/checks/
-            # shape but live under the state base (reference/shared/catalog-overlay.md).
             $stateScriptPath = Join-Path $StateBase $entry.script
             if (Test-Path -LiteralPath $stateScriptPath) { $scriptPath = $stateScriptPath }
         }
@@ -539,8 +516,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         }
     }
 
-    # An elevated pass's results replace this run's own per check id, before trend
-    # analysis, so the trend and the report read the elevated reading.
     $elevatedChecks = @()
     if ($ElevatedResultPath) {
         $import = Import-ElevatedResult -Path $ElevatedResultPath -CheckResults $checkResults.ToArray() -RunStart $runStart
@@ -554,8 +529,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     $ranCheckIds = @(Get-RanCheckId -CheckResults $checkResults.ToArray() `
             -DispatchedIds @($windowsChecks | ForEach-Object { [string]$_.id }) -ImportedIds $elevatedChecks)
 
-    # Trend-aware severity adjustment + annotation per severity-rubric.md. Trend
-    # reads the recent slice (last ~8 runs); cadence uses the full depth above.
     try {
         $checkResults = @(Invoke-TrendAnalysis -CheckResults $checkResults -HistoryTail $historyRecent)
     } catch {
@@ -568,7 +541,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         Write-MachineHealthLog "correlation_failed $($_.Exception.Message)"
     }
 
-    # Get-ApprovalState creates the state folder, so a synced StateBase skips it.
     $approvalState = if ($stateWritable) {
         Get-ApprovalState -StateDir $stateDir -LogPath $runLog
     } else {
@@ -603,8 +575,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         $scriptPath = Join-Path $PSScriptRoot $Script
         if (-not (Test-Path -LiteralPath $scriptPath)) { return $null }
         try {
-            # Remediations that take -Finding accept the JSON via that parameter;
-            # remediations that don't need findings run with no arguments.
             $remArgs = $ExtraArgs.Clone()
             if ($FindingJson) { $remArgs['Finding'] = $FindingJson }
             $out = & $scriptPath @remArgs -InformationVariable remInfo
@@ -740,8 +710,6 @@ modules. Harmless to ignore.
         }
     }
 
-    # Per-run (not per-day) filename: a same-day rerun must not overwrite the
-    # earlier report, since each run also writes a distinct history entry.
     $reportPath = Join-Path $reportsDir "health-$runStamp.md"
     $latestPath = Join-Path $stateDir 'latest.json'
     $discovery = @{}
@@ -767,8 +735,6 @@ modules. Harmless to ignore.
     # top_metrics so subsequent runs can detect trend context. Keys use the
     # "{checkId}.{detailKey}" convention documented in reference/shared/output-schema.md.
     $topMetrics = ConvertTo-TopMetric -CheckResults $checkResults
-    # Final (post-trend, post-clamp) severity per successfully-run check: the
-    # custom-check clamp counts clean runs from this map.
     $checkSeverities = [ordered]@{}
     foreach ($r in $checkResults) {
         if ($ranCheckIds -contains $r.id) { $checkSeverities[$r.id] = $r.severity }

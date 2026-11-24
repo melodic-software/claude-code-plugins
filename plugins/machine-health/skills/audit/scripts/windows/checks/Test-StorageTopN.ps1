@@ -141,8 +141,6 @@ $CheckBody = {
         items                = $items
     }
 
-    # Every item is INFO, so an unmuted item makes the check INFO. With every
-    # item muted, a scan the budget cut cannot vouch for OK.
     $severity = Get-UnmutedSeverity -Items $items
     if ($severity -eq 'OK' -and -not $scan.scan_complete) { $severity = 'UNKNOWN' }
 

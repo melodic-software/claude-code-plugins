@@ -244,7 +244,7 @@ PERMISSION_PROMPTS_MIN_VERSION="2.1.259"
 # Compared component by component in awk — deliberately NOT `sort -V`, which is a
 # GNU-only construct this repo's portability lane rejects. Missing components
 # compare as 0, so "2.2" reads as 2.2.0.
-version_at_least() { # <candidate> <minimum>
+version_at_least() {
   [[ "$1" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
   awk -F. -v a="$1" -v b="$2" 'BEGIN {
     na = split(a, x, "."); nb = split(b, y, ".")
@@ -401,7 +401,7 @@ probe_machine_mods() {
 # can turn hooks off for that lane alone, and an explicit false in it may undo a
 # lower scope's true, which the machine check cannot see. The probe covers the
 # repo checkout on this machine, so a lane placed anywhere else reads unknown.
-print_lane_mods() { # <settings JSON or ""> [execution target]
+print_lane_mods() {
   local settings="${1:-}" target="${2:-}" overlay=""
   [[ -n "$settings" ]] && overlay="$(jq -r 'if type == "object" and has("disableAllHooks") then (.disableAllHooks | tostring) else "" end' <<<"$settings" 2>/dev/null)"
   if [[ "$overlay" == "true" ]]; then
@@ -445,7 +445,6 @@ declare -a TARGET_LANES=()
 # (/tr row). As of 2026-10-04; recheck when that row changes.
 SCHTASKS_TR_MAX=262
 
-# --- Small emitters -----------------------------------------------------------
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
 info() { printf '%s\n' "$*"; }
@@ -461,12 +460,9 @@ check_optarg() {
   return 1
 }
 
-# Print the leading comment header (everything after the shebang up to the first
-# non-comment line), stripped of the leading '# '. Robust to header length so a
-# reformat never bleeds code into --help.
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
 
-set_valued_opt() { # <flag> <value>
+set_valued_opt() {
   case "$1" in
   --config) CONFIG="$2" ;;
   --repo) REPO="$2" ;;
@@ -478,9 +474,6 @@ set_valued_opt() { # <flag> <value>
   esac
 }
 
-# --- Argument parse -----------------------------------------------------------
-# First non-option token is the action; remaining non-option tokens are lane
-# names (targets for restart/stop).
 parse_args() {
   local seen_action=0
   while (($#)); do
@@ -520,7 +513,6 @@ parse_args() {
       exit 3
       ;;
     *)
-      # A bare token before the action is an unknown action; after it, a lane.
       if ((seen_action)); then TARGET_LANES+=("$1"); else
         err "unknown action: $1 (want: start restart status stop run-once print-schedule)"
         exit 3
@@ -531,7 +523,6 @@ parse_args() {
   done
 }
 
-# --- Prerequisites ------------------------------------------------------------
 require_jq() {
   command -v jq >/dev/null 2>&1 || {
     err "jq not found (required)"
@@ -539,14 +530,8 @@ require_jq() {
   }
 }
 
-# `claude` is only needed for real mutating/reading calls. Dry runs and
-# fixture-fed (--agents-json) reads must work with no CLI installed.
 require_claude() {
   ((DRY_RUN)) && return 0
-  # A fixture-fed status read (--agents-json) needs no claude CLI, so it works
-  # fully offline as documented (its mods probe reads unknown when the CLI is
-  # absent, and runs `claude plugin test` when it is); only the paths that actually shell out to
-  # claude (launch / stop / marketplace update, or a live agents list) need it.
   [[ "$ACTION" == "status" && -n "$AGENTS_JSON_FILE" ]] && return 0
   [[ "$ACTION" == "print-schedule" ]] && return 0
   command -v claude >/dev/null 2>&1 || {
@@ -555,7 +540,6 @@ require_claude() {
   }
 }
 
-# --- Repo + config resolution -------------------------------------------------
 resolve_repo() {
   if [[ -n "$REPO" ]]; then
     [[ -d "$REPO" ]] || {
@@ -572,24 +556,12 @@ resolve_repo() {
     }
 }
 
-# The lanes concern home under the memory root, and the pre-move path it
-# superseded. `lanes/` is a reserved first-level concern name, so the config and
-# the lane prompts live inside it; the pre-move layout leaves them as bare files
-# AT the memory root, outside any reserved name.
 LANES_CONFIG_REL=".work/lanes/lanes.json"
 LEGACY_LANES_CONFIG_REL=".work/lanes.json"
 
-# Set when the resolved config IS the pre-move `<repo>/.work/lanes.json` —
-# however it was resolved, not only through the fallback below. A config sitting
-# at the old path was authored against the old prompt-dir default, so
-# resolve_prompt_dir keeps giving it that default; otherwise a config that never
-# named a `prompt_dir` would start looking for its prompts one directory deeper
-# than it left them and skip every lane with "prompt file not found".
 LEGACY_CONFIG_HOME=0
 
-# Runs a validation filter over the config into <var>. A failed query rejects
-# the config instead of passing on empty output.
-config_query() { # <var> <what> <filter>
+config_query() {
   local out
   out="$(jq -r "$3" "$CONFIG")" || {
     err "lane config validation query failed ($2): $CONFIG"
@@ -628,10 +600,6 @@ resolve_config() {
     err "lane config has no lanes: $CONFIG"
     exit 3
   }
-  # Lane names are the safety key: stop/restart resolve a sessionId by name and
-  # every action snapshots sessions once, so a duplicated name would launch two
-  # same-named sessions while stop reaches only the most-recent one. Reject it at
-  # config time rather than silently acting on an ambiguous set.
   local dupes traversal mistyped badstage badsched line
   config_query dupes "duplicate lane names" \
     '[.lanes[].name | select(. != null)] | group_by(.) | map(select(length > 1) | .[0]) | join(", ")'
@@ -690,8 +658,6 @@ resolve_config() {
   while IFS= read -r line; do
     [[ -n "$line" ]] && warn "$CONFIG: $line is not a <plugin>:<skill> string (lowercase, digits, '-'); ignoring it, so the lane has no stage"
   done <<<"$badstage"
-  # An invalid `schedule` is warned about and dropped: _schedule_one reads the
-  # same predicate and treats that lane as unscheduled.
   config_query badsched "lane schedule" "$JQ_SCHEDULE_MINUTES"'
     .lanes[] | select(.schedule != null and (.schedule | schedule_minutes) == null)
     | "lane \(.name // "?" | @sh | gsub("\n"; "\\n")): schedule \(.schedule | tojson)"'
@@ -709,7 +675,6 @@ JQ_SCHEDULE_MINUTES='def schedule_minutes:
     and .every_minutes >= 1 and .every_minutes <= 999
   then .every_minutes | floor else null end;'
 
-# jq definition: true for a stage that is a <plugin>:<skill> string.
 JQ_VALID_STAGE='def valid_stage:
   type == "string" and test("^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$");'
 
@@ -723,11 +688,6 @@ path_under() { # <base> <path>
   esac
 }
 
-# The one prompt-storage seam — repoint here when a durable prompt home exists.
-# Default: the `lanes/` concern home under the memory root. A config resolved at
-# the pre-move path keeps the pre-move default (see LEGACY_CONFIG_HOME); an
-# explicit `prompt_dir` wins over both, so a moved config that still names
-# ".work" keeps reading prompts from there until its author moves them too.
 resolve_prompt_dir() {
   local d default=".work/lanes"
   ((LEGACY_CONFIG_HOME)) && default=".work"
@@ -812,12 +772,6 @@ capture_launch_commit() {
   LAUNCH_COMMIT="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || LAUNCH_COMMIT=""
 }
 
-# A launch that cannot record its own commit must not leave the PREVIOUS
-# launch's marker on disk: the refresh probe would read that older commit as
-# this session's launch point and keep reporting merges the session already
-# consumed — indefinitely, since nothing later rewrites it. Removing it degrades
-# the probe to its honest "no marker → skip" branch instead. Best-effort like
-# the write itself: a failed removal only warns.
 invalidate_launch_commit_marker() {
   local path="$1"
   [[ -e "$path" ]] || return 0
@@ -828,11 +782,6 @@ invalidate_launch_commit_marker() {
   fi
 }
 
-# Writes the captured launch commit to <data-dir>/lanes/<name>-launch-commit.
-# Best-effort and always returns 0: a marker write failure must never fail a
-# lane that has already (or would already) launch — only warn on stderr. The
-# caller passes the already-resolved marker path (launch_lane resolves it
-# once per lane).
 write_launch_commit_marker() {
   local path="$1"
   if [[ -z "$LAUNCH_COMMIT" ]]; then
@@ -908,8 +857,6 @@ running_session_id() {
 # keeps "" here meaning exactly one thing: the field is absent.
 lane_field() { jq -r --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // ""' "$CONFIG"; }
 
-# A lane's stage, or "" when it is absent or fails valid_stage (validate_config
-# has warned about that one).
 lane_stage() { jq -r --argjson i "$1" "$JQ_VALID_STAGE"'.lanes[$i].stage | if valid_stage then . else "" end' "$CONFIG"; }
 
 # Structured (non-string) lane field, emitted as compact JSON; empty ONLY when
@@ -1033,7 +980,6 @@ arm_stop_gate() {
     bash "$script" "${args[@]}" >&2 || failed=1
   done < <(find_gate_arm_scripts)
   if ((found == 0)); then
-    # Normally unreachable: validate_launch_inputs preflights helper presence.
     err "lane '$name': lane-stop gate requested but no autonomy gate-arm helper was found (install/update the autonomy plugin, or pass --gate-arm-script) — skipped"
     return 1
   fi
@@ -1062,7 +1008,6 @@ ET_TEXT=""
 ET_SHA=""
 ET_REF=""
 ET_NOTE=""
-# Set by resolve_lane_target for the lane being launched.
 LANE_TARGET=""
 LANE_TARGET_KEY=""
 LANE_WORKTREE=""
@@ -1131,15 +1076,11 @@ stage_required_plugins() {
   esac
 }
 
-# Records why the policy was not read and prints it through <emitter>.
-et_note() { # <emitter> <note>
+et_note() {
   ET_NOTE="$2"
   "$1" "execution-target: $ET_NOTE"
 }
 
-# Fetch origin's default branch once per run and keep the file text from that
-# commit. Any failure leaves ET_TEXT empty, which resolves every lane to
-# local-worktree; the reason is printed once.
 load_execution_target() {
   ((ET_LOADED)) && return 0
   ET_LOADED=1
@@ -1195,8 +1136,6 @@ load_execution_target() {
   info "execution-target: read $ET_FILE at $ET_REF $ET_SHA"
 }
 
-# status reads the policy without fetching: from the commit the local
-# origin/HEAD already names, or not at all.
 peek_execution_target() {
   ((ET_LOADED)) && return 0
   ET_LOADED=1
@@ -1207,7 +1146,6 @@ peek_execution_target() {
   bash "$ET_READER" --strict - default >/dev/null 2>&1 <<<"$ET_TEXT" || ET_TEXT=""
 }
 
-# Sets LANE_TARGET and LANE_TARGET_KEY for a lane's stage (may be empty).
 resolve_lane_target() {
   local stage="$1" key v
   LANE_TARGET="local-worktree" LANE_TARGET_KEY="built-in default"
@@ -1229,25 +1167,16 @@ resolve_lane_target() {
   done
 }
 
-# This repository's directory under the plugin data dir, keyed like the
-# launch-commit marker.
 repo_data_dir() { printf '%s/%s' "$(resolve_data_dir)" "$(repo_marker_key)"; }
 
-# The lane's linked worktree.
 lane_worktree_path() { printf '%s/worktrees/%s' "$(repo_data_dir)" "$1"; }
 
-# The folder a restart's profile check resolves for: the linked worktree a
-# local-background relaunch starts in (lane_worktree_path, as
-# ensure_lane_worktree uses) once it exists, else the repo root.
 lane_launch_folder() {
   local path
   path="$(lane_worktree_path "$1")"
   if [[ "$LANE_TARGET" == local-background && -d "$path" ]]; then printf '%s' "$path"; else printf '%s' "$REPO"; fi
 }
 
-# Prepare the lane's linked worktree at <sha>. With <require_clean> set, a
-# worktree holding any change refuses (return 1); without it, a dirty
-# worktree is used as it stands (a local lane's own work in progress).
 ensure_lane_worktree() {
   local name="$1" sha="$2" require_clean="$3" path common_repo common_wt status
   path="$(lane_worktree_path "$name")"
@@ -1302,7 +1231,6 @@ claude_app_covers_repo() {
   return 1
 }
 
-# A lane's `telemetry.<key>` as raw text; "" when absent.
 lane_telemetry_field() { jq -r --argjson i "$1" --arg k "$2" '(.lanes[$i].telemetry // {})[$k] // ""' "$CONFIG"; }
 
 # Bodies of the comments on the lane's telemetry issue written by an authorized
@@ -1364,9 +1292,6 @@ lane_telemetry_bodies() {
   }
 }
 
-# Prints the newest `execution_target_fallback` value (compact JSON, `null`
-# when the lane's state block carries none) from the lane's authorized
-# telemetry comments; on failure prints the reason and returns 1.
 lane_fallback_value() {
   local idx="$1" name="$2" bodies marker
   bodies="$(lane_telemetry_bodies "$idx" "$name")" || {
@@ -1386,7 +1311,6 @@ lane_fallback_value() {
     | last // null | tojson' <<<"$bodies" 2>/dev/null || return 1
 }
 
-# The preamble a cloud-session lane's prompt opens with: the stage-start probe.
 stage_probe_preamble() {
   local name="$1" stage="$2" plugins
   plugins="$(stage_required_plugins "${stage:-unknown:unknown}")"
@@ -1403,14 +1327,12 @@ Stage-start probe (execution target cloud-session; lane $name; stage ${stage:-un
 PREAMBLE
 }
 
-# Per-lane fallback record: the hash of the fallback value already honored, so
-# one fallback moves exactly one launch to the local host.
 lane_fallback_record_path() { printf '%s/%s-execution-target-fallback' "$(repo_data_dir)" "$1"; }
 # Per-lane cloud launch record: `claude agents --json` does not list cloud
 # sessions, so `start` reads this to avoid a second cloud session per run.
 lane_cloud_record_path() { printf '%s/%s-cloud-launch' "$(repo_data_dir)" "$1"; }
 
-write_record() { # <path> <content>
+write_record() {
   ((DRY_RUN)) && {
     printf 'DRY-RUN: write %s\n' "$1"
     return 0
@@ -1421,7 +1343,6 @@ write_record() { # <path> <content>
   return 0
 }
 
-# Print the setup steps for a host the launcher does not start.
 print_setup_steps() {
   local name="$1" stage="$2" target="$3" prompt_path="$4"
   info "  lane '$name': $target is set by $LANE_TARGET_KEY ($ET_REF $ET_SHA); the launcher starts nothing for it."
@@ -1440,8 +1361,6 @@ print_setup_steps() {
   info "    A local session of this lane is left as it is; stop it with \`stop $name\` once the new host runs."
 }
 
-# --- Command runner -----------------------------------------------------------
-# Echoes the command; runs it unless --dry-run.
 run() {
   if ((DRY_RUN)); then
     printf 'DRY-RUN:'
@@ -1452,9 +1371,7 @@ run() {
   "$@"
 }
 
-# Previews a lane command under --dry-run, keeping the seeded prompt out of the
-# echoed command: a size placeholder stands in for it.
-print_dry_run_lane() { # <cwd> <prompt_path> <cmd...>
+print_dry_run_lane() {
   local cwd="$1" prompt_path="$2" bytes
   shift 2
   bytes="$(wc -c <"$prompt_path" | tr -d ' ')"
@@ -1464,11 +1381,6 @@ print_dry_run_lane() { # <cwd> <prompt_path> <cmd...>
   printf ' %q\n' "<prompt: $prompt_path (${bytes}B)>"
 }
 
-# --- Lane launch --------------------------------------------------------------
-# Validates a lane's launch inputs (prompt present + non-empty, effort set + allowed);
-# returns 1 with a per-lane error on the first failure. Split out from launch_lane
-# so restart can preflight these BEFORE stopping a running lane — a recoverable
-# prompt/effort error must not take a healthy session down and fail to relaunch it.
 validate_launch_inputs() {
   local name="$1" effort="$2" prompt_path="$3" settings="${4:-}"
   if [[ ! -f "$prompt_path" ]]; then
@@ -1488,11 +1400,6 @@ validate_launch_inputs() {
     return 1
   fi
   if [[ "$effort" == "ultracode" ]]; then
-    # The same exemption require_claude documents: a dry run must preview with no
-    # CLI installed. With no binary to probe the gate cannot be evaluated, so the
-    # preview says so rather than refusing a lane a real run may well launch. Keyed
-    # on the binary's absence, not on an "unknown" version — a CLI whose --version
-    # is unparsable is installed, and stays refused.
     if ((DRY_RUN)) && ! command -v claude >/dev/null 2>&1; then
       info "  lane '$name': effort 'ultracode' version gate not evaluated (no claude CLI to probe)"
     else
@@ -1543,19 +1450,9 @@ find_profiles_script() {
   [[ "$PROFILES_SCRIPT" != "none" ]]
 }
 
-# Sets LANE_CLAUDE to the words that start a lane's claude command and
-# PROFILE_APPLIED to 1 when they carry the lane's profile, whose session file
-# then holds <settings> too. With no profile applied the words still clear an
-# inherited PLUGIN_PROFILES_SESSION: a lane started from a profiled session's
-# shell must not carry its marker. A launch refusal (a required tool missing, or
-# <settings> arming the lane-stop gate while the merged settings leave autonomy
-# off) returns 1 with the reason as a per-lane error. Under --dry-run nothing is
-# written; a placeholder stands in for the session file. With <mode> check it
-# only asks whether the launch would refuse: launch --dry-run writes no file,
-# and an absent plugin-profiles is left for the launch itself to warn about.
 LANE_CLAUDE=()
 PROFILE_APPLIED=0
-lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or ""> [check]
+lane_claude_prefix() {
   local name="$1" profile="$2" cwd="$3" settings="$4" mode="${5:-}" out errfile rc=0 line
   LANE_CLAUDE=(env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude)
   PROFILE_APPLIED=0
@@ -1612,14 +1509,6 @@ lane_claude_prefix() { # <name> <profile> <cwd> <settings JSON or ""> [check]
   return 1
 }
 
-# Sets LANE_FLAGS to the flags every lane run shares, `--bg` launch and
-# `run-once` pass alike, arming the lane-stop gate first when the settings ask
-# for it (fail closed — see header). Under --dry-run nothing is written; the
-# preview line stands in for the arming.
-#
-# Also sets LANE_CLAUDE to the words that start the claude command (see
-# lane_claude_prefix). LANE_PROFILE is the lane's `profile` field, set by
-# for_each_lane; <cwd> is the folder the lane starts in.
 LANE_FLAGS=()
 LANE_PROFILE=""
 build_lane_flags() {
@@ -1628,8 +1517,6 @@ build_lane_flags() {
     if ((DRY_RUN)); then
       printf 'DRY-RUN: arm lane-stop gate for %s (arm id injected into --settings)\n' "$name"
     else
-      # Check the profile before arming, as restart's preflight does, so a
-      # refusal leaves no armed gate and no session file.
       if [[ -n "$LANE_PROFILE" ]]; then
         lane_claude_prefix "$name" "$LANE_PROFILE" "$cwd" "$settings" check || return 1
       fi
@@ -1637,8 +1524,6 @@ build_lane_flags() {
     fi
   fi
   lane_claude_prefix "$name" "$LANE_PROFILE" "$cwd" "$settings" || return 1
-  # The profile's session file carries the lane's settings, so the lane's own
-  # --settings is dropped.
   ((PROFILE_APPLIED)) && settings=""
   # Explicit auto: a Manual defaultMode would stall an unattended lane at its
   # first prompt. Never bypassPermissions. --permission-prompts none is added
@@ -1674,7 +1559,6 @@ launch_lane() {
   prompt="$(cat "$prompt_path")"
   cmd+=("$prompt")
   (cd "$cwd" && "${cmd[@]}") || return 1
-  # Best-effort: a marker write failure must not fail an already-launched lane.
   write_launch_commit_marker "$marker_path"
 }
 
@@ -1688,9 +1572,6 @@ stop_lane_if_running() {
   run claude stop "$sid"
 }
 
-# Launch one lane on the host its execution target names (LANE_TARGET, already
-# resolved). <action> is start or restart: `start` leaves a lane already sent to
-# the cloud alone, `restart` sends a new one.
 launch_on_target() {
   local idx="$1" name="$2" model="$3" effort="$4" prompt_path="$5" settings="$6" stage="$7" action="$8"
   case "$LANE_TARGET" in
@@ -1713,7 +1594,7 @@ launch_on_target() {
 # except for a stage whose input is always untrusted: it is not run locally.
 # The error a lane whose stage may read untrusted input gets in place of a
 # cloud or local launch. It names the escalation route; it files nothing.
-untrusted_skip() { # <name> <stage> <why>
+untrusted_skip() {
   err "lane '$1': $3; stage ${2:-unset} may read untrusted input, so it does not run on a cloud host or fall back to a local one: skipped. Nothing was filed; escalate it through /work-items:attend-queue."
   return 1
 }
@@ -1793,7 +1674,6 @@ launch_cloud_lane() {
   write_record "$cloud_record" "$(date -u +%Y-%m-%dT%H:%M:%SZ) at $ET_SHA"
 }
 
-# --- Refresh step (pull + marketplace update) --------------------------------
 refresh_repo_and_plugins() {
   local rc=0
   if ((NO_PULL)); then
@@ -1814,9 +1694,6 @@ refresh_repo_and_plugins() {
     info "claude plugin marketplace update"
     run claude plugin marketplace update || rc=1
   fi
-  # A skipped step (--no-pull/--no-update) leaves rc=0, so this only fires on an
-  # UNEXPECTED failure of a step that actually ran — the intentional-bypass path
-  # stays clean. Callers abort the launch on non-zero (see action_start/restart).
   ((rc)) && err "refresh failed (pass --no-pull/--no-update to skip refresh intentionally)"
   return "$rc"
 }
@@ -1838,11 +1715,6 @@ validate_target_lanes() {
   done
 }
 
-# --- Lane iteration helper ----------------------------------------------------
-# Runs `callback <name> <model> <effort> <prompt_path> <settings>` for every
-# lane, or only the lanes named in TARGET_LANES. Target names are validated up
-# front by validate_target_lanes (called from main), so every name here is
-# already known.
 for_each_lane() {
   local callback="$1" pdir count
   pdir="$(resolve_prompt_dir)"
@@ -1864,15 +1736,11 @@ for_each_lane() {
     settings="$(lane_json_field "$i" settings)"
     stage="$(lane_stage "$i")"
     LANE_PROFILE="$(lane_field "$i" profile)"
-    # A per-lane callback failure must not abort the sweep (other lanes still
-    # get their turn) but must surface in the aggregate exit status.
     "$callback" "$name" "$model" "$effort" "$prompt_path" "$settings" "$i" "$stage" || failures=1
   done
   return "$failures"
 }
 
-# --- Actions ------------------------------------------------------------------
-# Resolve the lane's execution target and say which key supplied it.
 plan_lane_target() {
   local name="$1" stage="$2"
   load_execution_target
@@ -1899,9 +1767,7 @@ plan_lane_target() {
   return 0
 }
 
-# For a host the launcher does not start, prints its setup steps and the lane's
-# mods line and returns 0; returns 1 for a host the launcher starts.
-print_unlaunched_target() { # <name> <stage> <prompt_path> <settings>
+print_unlaunched_target() {
   case "$LANE_TARGET" in
   cloud-routine | cloud-project) ;;
   *) return 1 ;;
@@ -1930,15 +1796,9 @@ _start_one() {
 
 _restart_one() {
   local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" idx="${6:-0}" stage="${7:-}"
-  # Preflight the launch inputs BEFORE stopping: a recoverable prompt/effort
-  # error must not take down a healthy running lane we would then fail to relaunch.
   validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
-  # A host the launcher does not start leaves the running lane up as well.
   plan_lane_target "$name" "$stage" || return 1
   print_unlaunched_target "$name" "$stage" "$prompt_path" "$settings" && return 0
-  # A profile the relaunch would refuse (a required tool missing, or autonomy
-  # off under an armed lane-stop gate) leaves the running lane up too. A cloud
-  # lane carries no profile.
   if [[ -n "$LANE_PROFILE" ]] && ! ((DRY_RUN)) && [[ "$LANE_TARGET" != cloud-session ]]; then
     lane_claude_prefix "$name" "$LANE_PROFILE" "$(lane_launch_folder "$name")" "$settings" check || return 1
   fi
@@ -1990,18 +1850,12 @@ warn_effort_env_override() {
   warn "CLAUDE_CODE_EFFORT_LEVEL=$CLAUDE_CODE_EFFORT_LEVEL is set and every lane inherits it; it may override lane --effort values and agent effort pins, so those may not hold"
 }
 
-# scope suffix for the header line, e.g. " (work babysit)" when lanes are named.
 lane_scope() { ((${#TARGET_LANES[@]})) && printf ' (%s)' "${TARGET_LANES[*]}"; }
 
 action_start() {
   info "== lanes: start =="
   warn_effort_env_override
-  # A failed refresh aborts BEFORE launching: never seed lanes from stale
-  # repo/plugin state the user did not sign off on (--no-pull/--no-update is the
-  # intentional-skip path, which leaves the refresh status 0).
   refresh_repo_and_plugins || return 1
-  # Probe mods once, after the refresh and before the first launch, so a slow
-  # probe never sits between two lane launches.
   probe_machine_mods
   info "lanes:"
   for_each_lane _start_one
@@ -2011,7 +1865,7 @@ action_restart() {
   info "== lanes: restart$(lane_scope) =="
   warn_effort_env_override
   refresh_repo_and_plugins || return 1
-  probe_machine_mods # once, before the first relaunch (see action_start)
+  probe_machine_mods
   info "lanes:"
   for_each_lane _restart_one
 }
@@ -2023,14 +1877,13 @@ action_stop() {
 
 action_status() {
   info "== lanes: status =="
-  probe_machine_mods # once, before the table
+  probe_machine_mods
   printf '  %-12s %-8s %-8s %-8s %s\n' "LANE" "MODEL" "EFFORT" "STATE" "SESSION"
   for_each_lane _status_one
 }
 
-# --- run-once -------------------------------------------------------------------
 RUN_ONCE_LOCK=""
-remove_run_once_lock() { # <lock>: every file a holder writes, then the directory
+remove_run_once_lock() {
   rm -f "$1/pid" "$1/boot-id" "$1/acquired-at" "$1"/pid.tmp.* 2>/dev/null
   rmdir "$1" 2>/dev/null
 }
@@ -2057,22 +1910,19 @@ run_once_boot_id() {
     return 1
   fi
 }
-lock_uint() { # <file>: its non-negative integer, else 0
+lock_uint() {
   local v
   v="$(tr -d '\r\n' <"$1" 2>/dev/null)" || v=""
   [[ "$v" =~ ^[0-9]+$ ]] || v=0
   printf '%s' "$v"
 }
 
-# 0 when the lock at <lock> has an owner that may still be running.
 run_once_lock_live() {
   local lock="$1" now pid stamp recorded current
   now="$(date +%s)"
   pid="$(lock_uint "$lock/pid")"
   stamp="$(lock_uint "$lock/acquired-at")"
   if ((stamp == 0)); then
-    # Undated (a holder from before this scheme, or one still starting): date it
-    # now so a dead one ages out, and treat it as held this time.
     printf '%s\n' "$now" >"$lock/acquired-at" 2>/dev/null
     stamp="$now"
   fi
@@ -2112,7 +1962,6 @@ take_run_once_lock() {
   if boot="$(run_once_boot_id)"; then
     printf '%s\n' "$boot" >"$lock/boot-id" 2>/dev/null || return 2
   fi
-  # The pid goes in last and whole: a reader sees no pid or the complete one.
   printf '%s\n' "$$" >"$lock/pid.tmp.$$" 2>/dev/null && mv -f "$lock/pid.tmp.$$" "$lock/pid" 2>/dev/null || return 2
 }
 
@@ -2195,9 +2044,6 @@ sha256_of() {
   printf '%s' "$out"
 }
 
-# Writes <script> calling run-once for <name>, atomically, executable, beside a
-# snapshot of the config taken now. The script runs only while the snapshot's
-# sha256 matches the one recorded here.
 write_schedule_script() {
   local name="$1" script="$2" self snapshot data_base tmp sum prompt_default=".work/lanes"
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
@@ -2212,8 +2058,6 @@ write_schedule_script() {
     err "lane '$name': cannot create $(dirname "$script")"
     return 1
   }
-  # Outside the repository the snapshot cannot be recognized as a pre-move
-  # config, so it names the prompt directory that config would default to.
   ((LEGACY_CONFIG_HOME)) && prompt_default=".work"
   tmp="$snapshot.tmp.$$"
   if ! { jq --arg d "$prompt_default" '.prompt_dir //= $d' "$CONFIG" >"$tmp" 2>/dev/null &&
@@ -2315,7 +2159,6 @@ action_print_schedule() {
   for_each_lane _schedule_one
 }
 
-# --- Main ---------------------------------------------------------------------
 main() {
   parse_args "$@"
   if [[ "$ACTION" == "run-once" ]] && ((${#TARGET_LANES[@]} != 1)); then
@@ -2330,8 +2173,6 @@ main() {
   require_claude
   resolve_repo
   resolve_config
-  # Validate explicit targets up front — before session load and, crucially,
-  # before any action's refresh step mutates the repo/plugin state.
   validate_target_lanes
   [[ -z "$AGENTS_JSON_FILE" || -f "$AGENTS_JSON_FILE" ]] || {
     err "agents-json file not found: $AGENTS_JSON_FILE"

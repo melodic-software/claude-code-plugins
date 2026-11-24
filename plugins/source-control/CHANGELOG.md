@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.16.0] - 2026-11-24
+
+### Added
+
+- The pr-verify evidence reader refuses a pass `verify:spec-changed` when the repository reads its trusted-actors list from standards (`trusted_actors_source: standards`) and the list changed since the pass judged it: the verdict's `trusted_actors_blob` is not the git blob id of the live standards list. A pass that records no blob still counts while the repository's `.github/standards/trusted-actors/` copy is at the branch tip, and is refused once that copy is gone. A repository that reads its copy compares no blob.
+
+## [13.15.0] - 2026-11-24
+
+### Changed
+
+- The babysit merge gate reads the Dependabot policy (`components/dependabot-policy/policy.json`) from the repository `standards_repository` names in `docs/conventions/source-control.yaml` whenever that key is set, whatever `trusted_actors_source` says; the trusted-actors list still moves there only with `trusted_actors_source: standards`. A repository with neither key reads its `.github/standards/` copies as before, and a `standards_repository` that is not an `owner/repo` pair fails the policy read, so the lane merges no Dependabot update.
+- `config-resolution.md` and the `trusted_actors_source` schema description state that setting `standards` widens which pull requests the babysit lane adopts and merges unattended, so a repository sets it only once its owner has approved that.
+
 ## [13.14.0] - 2026-11-24
 
 ### Added

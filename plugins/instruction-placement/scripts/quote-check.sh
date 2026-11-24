@@ -193,8 +193,6 @@ END {
   print "drift\t" best
 }'
 
-# The heading the anchor names: its text and the anchor, each reduced to ASCII
-# letters and digits, are equal.
 # shellcheck disable=SC2016 # awk source, not shell
 SECTION_AWK='
 function squash(s) { s = tolower(s); gsub(/[^a-z0-9]/, "", s); return s }
@@ -224,8 +222,6 @@ for i in "${!IDS[@]}"; do
       drift "$id" "$url" "$quote" "(the page has no section #$anchor)"
       continue
     fi
-    # The escalation limits are raised so a large section prints alone, never
-    # the whole page: a quote that moved to another section is drift.
     section="$(bash "$DOCS_CACHE" --escalate-percent 100 --escalate-bytes 999999999999999999 \
       slice --file "$file" "$sid" 2>/dev/null)"
   fi

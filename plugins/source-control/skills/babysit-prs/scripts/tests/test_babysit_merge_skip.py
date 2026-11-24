@@ -819,6 +819,7 @@ class FilterThenRecordEndToEnd(unittest.TestCase):
     def test_a_repository_or_unknown_source_keys_unread_or_raises(self) -> None:
         for team, expected in (
             ("trusted_actors_source: repository\n", "unread"),
+            ("standards_repository: example-org/standards\n", "unread"),
             ("trusted_actors_source: elsewhere\n", None),
             ("trusted_actors_source: [standards]\n", None),
         ):
