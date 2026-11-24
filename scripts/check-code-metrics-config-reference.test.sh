@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the code-metrics config reference gate's
-# test suite.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

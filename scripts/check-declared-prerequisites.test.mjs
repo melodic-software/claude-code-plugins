@@ -76,7 +76,6 @@ const jqEntry = {
   check: "/alpha:check",
 };
 
-// repo({ plugins: { name: { manifest, files } }, shared, baseline }) -> root
 function repo({ plugins, shared = [], baseline = [] }) {
   const root = path.join(work, `repo${++n}`);
   mkdirSync(path.join(root, "scripts"), { recursive: true });

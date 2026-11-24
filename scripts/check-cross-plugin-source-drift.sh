@@ -95,9 +95,6 @@ load_cluster() {
   for entry in "${entries[@]}"; do
     plugins_list+=("${entry%%:*}")
   done
-  # Lexicographic plugin order matches `plugins/*/` glob order so discover
-  # lines stay comparable to the per-directory find. Insertion sort: a cluster
-  # is a handful of plugin names, not worth a `sort` exec per load.
   if ((${#plugins_list[@]} > 1)); then
     local -a __pl_sorted=()
     local __p __i __j
@@ -229,8 +226,6 @@ done
 for rel in ${registry_entries[@]+"${registry_entries[@]}"}; do
   status="${cluster_status[$rel]:-}"
   [[ -n "$status" ]] || continue
-  # The entry still names a live cluster, so it is not stale. Drift is a
-  # different failure and does not retire the registration.
   read_list::mark_used "$rel"
   if [[ "$status" != "IDENTICAL" ]]; then
     echo "DRIFTED: $rel is registered as a shared-copy cluster but its copies no longer match." >&2
@@ -238,8 +233,6 @@ for rel in ${registry_entries[@]+"${registry_entries[@]}"}; do
   fi
 done
 
-# scripts/lib/read-list.sh owns the consumed-set and the one STALE BASELINE
-# diagnostic every list gate here prints.
 stale_registry=()
 read_list::stale_to stale_registry registry_entries
 for rel in ${stale_registry[@]+"${stale_registry[@]}"}; do

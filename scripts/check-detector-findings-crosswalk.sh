@@ -25,8 +25,6 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# The contract moved from docs/conventions/, which keeps a stub; the old path is
-# read only when the new one is absent.
 default_doc=docs/contracts/detector-findings/README.md
 [[ -f "$default_doc" ]] || default_doc=docs/conventions/detector-findings/README.md
 doc="${CROSSWALK_DOC:-$default_doc}"

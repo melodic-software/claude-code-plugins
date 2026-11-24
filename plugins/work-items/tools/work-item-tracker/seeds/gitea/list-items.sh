@@ -47,9 +47,6 @@ esac
 
 wit_need_gitea_config
 
-# With no --repo, the single declared scope is the target. Two or more declared scopes
-# make the target ambiguous, and picking the first would quietly list the wrong
-# repository — so it is a usage error naming the fix, not a guess.
 if [[ -z "$REPO" ]]; then
   if [[ "$(jq 'length' <<<"$WIT_GITEA_SCOPES")" != "1" ]]; then
     wit_usage_error "--repo is required when config.gitea.scopes declares more than one repository"
@@ -98,9 +95,6 @@ while :; do
     printf 'list-items.sh: gitea returned a non-array issue list for %s\n' "$REPO" >&2
     exit "$EX_INTERNAL"
   }
-  # Belt and braces: `type=issues` should mean gitea sends no PRs, but a PR arriving as a work
-  # item would be claimed and worked like one, so the filter stays. A page that will not
-  # append is fatal: continuing would report a partial list as complete.
   printf '%s' "$WIT_GITEA_BODY" | jq -c '.[] | select(.pull_request == null)' >>"$ROWS" || {
     printf 'list-items.sh: could not accumulate page %s for %s — refusing to report a partial list as complete\n' \
       "$PAGE" "$REPO" >&2
@@ -117,11 +111,6 @@ while :; do
     ((GOT < WIT_GITEA_PAGE_SIZE)) && break
   fi
   PAGE=$((PAGE + 1))
-  # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED truncation, not
-  # an error (CONTRACT.md "Adapter contract") — but it is never silent: stderr says so and the
-  # envelope carries `truncated: true`. Measured against rows
-  # ACTUALLY RETURNED, not `PAGE * page_size`: under the server clamp those diverge and the
-  # walk would announce a ceiling it never reached.
   if ((SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
     printf 'list-items.sh: reached the declared ceiling of %s items for %s; results are truncated\n' \
       "$WIT_GITEA_LIST_ITEMS_MAX" "$REPO" >&2

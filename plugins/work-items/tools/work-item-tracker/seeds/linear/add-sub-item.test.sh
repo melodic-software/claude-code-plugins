@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# add-sub-item: offline contract tests.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/add-sub-item.sh"
 D="$(dirname "$S")"

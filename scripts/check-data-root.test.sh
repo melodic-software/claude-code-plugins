@@ -21,8 +21,6 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 tmp="$(mktemp -d)" || exit 2
 trap 'rm -rf "$tmp"' EXIT
 
-# run_in <root> <command...>: sets RC and OUT (stdout and stderr), from a
-# working directory that is neither the script's tree nor <root>.
 run_in() {
   local root="$1"
   shift
@@ -35,7 +33,6 @@ check() {
   if eval "$cond"; then ok "$name"; else bad "$name" "rc=$RC out=$OUT"; fi
 }
 
-# check-spoke-plugin-root.sh
 spoke_bad="$tmp/spoke-bad"
 spoke_ok="$tmp/spoke-ok"
 mkdir -p "$spoke_bad/plugins/p/skills/s/reference" "$spoke_bad/scripts" "$spoke_ok/scripts"
@@ -48,7 +45,6 @@ check "spoke-plugin-root reads the tree CHECK_DATA_ROOT names" \
 run_in "$spoke_ok" bash "$SELF_DIR/check-spoke-plugin-root.sh" --check
 check "spoke-plugin-root passes a clean tree CHECK_DATA_ROOT names" '[[ $RC == 0 ]]'
 
-# sync-plugin-options-docs.py
 opts_bad="$tmp/opts-bad"
 opts_ok="$tmp/opts-ok"
 for root in "$opts_bad" "$opts_ok"; do
@@ -99,7 +95,6 @@ check "plugin-options-docs withholds the install fallback when every option is s
 check "plugin-options-docs offers no by-hand route when every option is sensitive" \
   '[[ $block != *"**By hand:**"* ]]'
 
-# check-changelog-parity.sh
 parity_bad="$tmp/parity-bad"
 parity_ok="$tmp/parity-ok"
 for root in "$parity_bad" "$parity_ok"; do
@@ -116,7 +111,6 @@ RC=0
 OUT="$(cd "$tmp" && CHECK_DATA_ROOT="$parity_bad" CHANGELOG_PARITY_ROOT="$parity_ok" bash "$SELF_DIR/check-changelog-parity.sh" --check 2>&1)" || RC=$?
 check "changelog-parity still prefers CHANGELOG_PARITY_ROOT when both are set" '[[ $RC == 0 ]]'
 
-# check-cross-plugin-source-drift.sh
 drift_bad="$tmp/drift-bad"
 drift_ok="$tmp/drift-ok"
 for root in "$drift_bad" "$drift_ok"; do

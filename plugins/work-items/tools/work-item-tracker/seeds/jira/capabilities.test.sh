@@ -7,9 +7,6 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 assert_help "$S"
 assert_usage_error "$S" extra-arg
 
-# Emits the manifest as compact JSON, offline (no binding, no network). The manifest
-# must declare the consume-only posture: reads on, every write verb + list-sub-items
-# off (the consume-only hard constraint — no code path mutates a Jira ticket by default).
 out="$(bash "$S" 2>/dev/null)"
 assert_eq "capabilities exit 0" "0" "$?"
 assert_eq "provider is jira" "jira" "$(jq -r '.provider' <<<"$out")"

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-cost-figures.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway tree with fixture
-# skill, doc and upstream files plus a baseline and an exempt list, runs the
-# checker against it, and asserts on exit code and output. Mutates only its own
-# mktemp dir.
 # shellcheck disable=SC2016  # every $<digit> here is literal fixture text
 set -uo pipefail
 
@@ -22,8 +16,6 @@ EX=scripts/cost-figures-exempt.txt
 BODY=$SKILL/reference/body.md
 FIXED='FIX: delete the figure and link the page that owns it, https://code.claude.com/docs/en/costs#track-your-costs'
 
-# mk_tree <out-var>: one baselined offender, one exempt file, and a clean file
-# holding each passing shape.
 mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --label cost-figures || return 1
@@ -61,11 +53,8 @@ EOF
   printf '%s/reference/format.md  # a formatting example\n' "$SKILL" >"$dir/$EX"
 }
 
-# run_case <label> <expected-rc> <setup> [<must-name>...]
 run_case() { test_harness::check_case mk_tree check-cost-figures.sh "$@"; }
 
-# add <text> [<file>]: a new last paragraph in a skill file (default a fresh
-# reference file, outside SKILL.md's list-price section).
 add() { printf "printf '\\\\n%%s\\\\n' %q >>%s" "$1" "${2:-$SKILL/reference/body.md}"; }
 
 run_case "every passing shape, a baselined offender and an exempt file pass" 0 ":" \
@@ -121,8 +110,6 @@ run_case "a labeled section whose prose wraps onto a #<issue> line passes" 0 \
 run_case "an upstream paragraph that wraps onto a #<issue> line keeps its vendor-reported label" 0 \
   "printf 'The post prices Opus at \$4 input (see\n#12), vendor-reported.\n' >docs/upstream/wrap.md"
 
-# The canonical source sits outside the scanned roots, so only the mapping can
-# put it in the output.
 run_case "a generated copy is reported at its canonical source" 1 \
   "mkdir -p shared/c && printf 'A run costs \$1.20.\n' >shared/c/README.md && cp shared/c/README.md $SKILL/reference/copy.md && printf 'shared/c/README.md %s/reference/copy.md\n' $SKILL >scripts/shared-copies.txt" \
   "shared/c/README.md:1: FIX:"
@@ -147,7 +134,6 @@ run_case "a baseline entry without a count is an environment error" 2 \
 run_case "a missing baseline is an environment error" 2 "rm $BL"
 run_case "a missing exempt list is an environment error" 2 "rm $EX"
 
-# Findings on stderr only; the clean statement on stdout only.
 tree=""
 if mk_tree tree; then
   printf 'A run costs $2.\n' >"$tree/$SKILL/reference/new.md"
