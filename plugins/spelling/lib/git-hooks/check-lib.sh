@@ -426,22 +426,34 @@ checks_added_ranges() {
   shift 2
   checks_diff "$@" -U0 --text --diff-filter="$filter" --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 2>/dev/null |
     LC_ALL=C awk '
+      function bare(s) { s = substr(s, 2); gsub(/[[:space:]]+/, "", s); return s }
+      function flush(i, k, lo, hi) {
+        for (i = 1; i <= na; i++) {
+          k = key[i]
+          if (gone[k] > 0) { gone[k]--; continue }
+          if (lo && at[i] == hi + 1) { hi++; continue }
+          if (lo) printf "%s\t%d\t%d\n", path, lo, hi
+          lo = at[i]; hi = lo
+        }
+        if (lo) printf "%s\t%d\t%d\n", path, lo, hi
+        na = 0; split("", gone)
+      }
       left > 0 || right > 0 {
         c = substr($0, 1, 1)
-        if (c == " ") { left--; right--; next }
-        if (c == "-") { left--; next }
-        if (c == "+") { right--; next }
+        if (c == " ") { left--; right--; line++; next }
+        if (c == "-") { left--; gone[bare($0)]++; next }
+        if (c == "+") { right--; if (path != "") { na++; at[na] = line; key[na] = bare($0) } line++; next }
         if (c == "\\") next
       }
-      /^\+\+\+ / { path = substr($0, 5); sub(/\t$/, "", path); if (path ~ /^b\//) path = substr(path, 3); else path = ""; next }
+      /^\+\+\+ / { flush(); path = substr($0, 5); sub(/\t$/, "", path); if (path ~ /^b\//) path = substr(path, 3); else path = ""; next }
       /^@@ / {
         split($2, o, ",")
         left = (o[2] == "") ? 1 : o[2] + 0
         split($3, n, ",")
-        start = substr(n[1], 2) + 0
+        line = substr(n[1], 2) + 0
         right = (n[2] == "") ? 1 : n[2] + 0
-        if (path != "" && right > 0) printf "%s\t%d\t%d\n", path, start, start + right - 1
-      }' >>"$raw"
+      }
+      END { flush() }' >>"$raw"
   # Short ranges would drop findings, so a failed diff or awk fails the hook.
   # A diff stopped by SIGPIPE (141) means awk stopped first, and awk reports.
   local -a st=("${PIPESTATUS[@]}")

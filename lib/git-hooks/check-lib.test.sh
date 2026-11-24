@@ -90,6 +90,22 @@ expect "pre-commit ranges: a diff.interHunkContext setting fuses no hunks" \
   $'f.txt\t2\t2\nf.txt\t5\t5\ng.txt\t1\t1' \
   "$(in_repo "$H" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
 
+new_repo; W="$REPO"
+printf 'if x; then\n# keep\nrun  a\nfi\nlast\n' >"$W/f.sh"
+printf '# from g\n' >"$W/g.sh"
+git -C "$W" add f.sh g.sh
+git -C "$W" commit -q -m seed
+printf 'if x; then\n    # keep\n    run a\nfi\n' >"$W/f.sh"
+git -C "$W" add f.sh
+expect "pre-commit ranges: a whitespace-only reindent adds no line" '' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+printf 'last\nif x; then\n    # keep\n    # keep\n    # new\n    run b\nfi\n# from g\n' >"$W/f.sh"
+: >"$W/g.sh"
+git -C "$W" add f.sh g.sh
+expect "pre-commit ranges: a copy, a new or reworded line and a line from another file are added" \
+  $'f.sh\t4\t6\nf.sh\t8\t8' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+
 # --- partly-staged --------------------------------------------------------------
 printf 'one\nTWO\nthree\nfour\nfive\n' >"$R/a.txt"
 expect "partly-staged: a file with unstaged changes is detected" yes \

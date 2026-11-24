@@ -87,6 +87,18 @@ git -C "$REPO" add notes.md
 expect "a token on an unchanged line does not block" "0|" "$(check "$REPO")"
 
 new_repo
+printf 'if x; then\nsee %s here\ntoken=%s\nfi\n' "$FAKE_LINUX" "$FAKE_GHP" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+git -C "$REPO" commit -q -m old --no-verify
+printf 'if x; then\n  see %s here\n  token=%s\nfi\n' "$FAKE_LINUX" "$FAKE_GHP" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+expect "a formatter-only reindent of a path and a token does not block" "0|" "$(check "$REPO")"
+printf 'if x; then\n  see %s here\n  token=%s\n  cd %s\nfi\n' "$FAKE_LINUX" "$FAKE_GHP" "$FAKE_LINUX" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+expect "a path added beside reindented lines blocks, naming only that line" "1|run.sh:4: machine-specific path (Linux user path detected)
+$HINT" "$(check "$REPO")"
+
+new_repo
 printf 'brand new token=%s\n' "$FAKE_GHP" >"$REPO/new.txt"
 git -C "$REPO" add new.txt
 expect "a new file is judged whole" 1 "$(rc_of "$REPO")"
