@@ -55,7 +55,7 @@ class ProduceTest(unittest.TestCase):
             again = run(['init', str(prod)])
             self.assertEqual(again.returncode, 0)
             self.assertIn('already has brief.md', again.stdout)
-            (prod / 'boards/vibe.md').unlink()   # an interrupted init: brief.md exists, a board file does not
+            (prod / 'boards/vibe.md').unlink()
             (prod / 'brief.md').write_text('# Mine\n', encoding='utf-8')
             run(['init', str(prod)])
             self.assertTrue((prod / 'boards/vibe.md').is_file())
