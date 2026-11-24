@@ -8,8 +8,13 @@
 // request and the record's head, and whose Compare Record job ran to success. The comment's author alone counts for
 // nothing, since any workflow can post as github-actions[bot] (owner decision
 // Q136: https://github.com/melodic-software/claude-code-plugins/issues/17854).
-// No model. The hold convention is in docs/contracts/loop-lane/README.md
-// (Cross-lane PR hold).
+// With no record at the head, the newest compare run naming this pull request
+// and its head also releases the hold when that run, trusted the same way,
+// ran its Compare Cannot Start job to success: the run itself recorded that it
+// cannot start (CANNOT_START_CAUSES), so the pull request merges first and its
+// affected cases run on the default branch after (docs/review/evals.md). A
+// missing record alone never releases. No model. The hold convention is in
+// docs/contracts/loop-lane/README.md (Cross-lane PR hold).
 //
 // The head and the label are read again before the comment and before the
 // removal. The comment comes first, carrying RELEASED_MARKER, so a failed
@@ -21,8 +26,8 @@
 //
 // Environment:
 //   GH_TOKEN             the lane token (reads, the comment, the label)
-//   RUNS_TOKEN           a token with actions: read for the cited runs
-//                        (default GH_TOKEN), which
+//   RUNS_TOKEN           a token with actions: read for the cited and listed
+//                        compare runs (default GH_TOKEN), which
 //                        https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run
 //                        requires
 //   GITHUB_REPOSITORY    owner/repo
@@ -167,6 +172,28 @@ export function recordJobRan(answer) {
   return named.length === 1 && named[0].status === "completed" && named[0].conclusion === "success";
 }
 
+export const CANNOT_START_JOB = "Compare Cannot Start";
+export const CANNOT_START_CAUSES = Object.freeze(["evals-disabled", "compare-refused"]);
+
+/**
+ * The cause a compare run recorded for not starting, from one complete page
+ * of GET actions/runs/{id}/jobs, or null. The workflow names its one
+ * `${CANNOT_START_JOB}: <cause>` job from compare-prepare's own output, so
+ * only the run itself writes the cause.
+ */
+export function cannotStartCause(answer) {
+  const jobs = Array.isArray(answer?.jobs) ? answer.jobs : null;
+  if (jobs === null || !Number.isSafeInteger(answer.total_count) || answer.total_count > jobs.length) {
+    return null;
+  }
+  const named = jobs.filter((job) => typeof job?.name === "string" && job.name.startsWith(CANNOT_START_JOB));
+  if (named.length !== 1 || named[0].status !== "completed" || named[0].conclusion !== "success" || recordJobRan(answer)) {
+    return null;
+  }
+  const cause = named[0].name.slice(`${CANNOT_START_JOB}: `.length);
+  return named[0].name === `${CANNOT_START_JOB}: ${cause}` && CANNOT_START_CAUSES.includes(cause) ? cause : null;
+}
+
 const counts =(comment, humans, vouched, number) => {
   if (byHuman(comment, humans)) {
     return true;
@@ -181,11 +208,7 @@ export function heldAt(events) {
   return times.length === 0 ? null : times.sort().at(-1);
 }
 
-// Whether to release one pull request: { release: true, record, head } or
-// { release: false, reason }. `pull` is GET pulls/{n}; `comments` the issue
-// comments, `reviews` the reviews and `events` the issue events, each every
-// page; `humans` the listed humans' ids (numbers).
-export function decide({ pull, comments, reviews = [], events, humans, vouched = new Map() }) {
+export function decide({ pull, comments, reviews = [], events, humans, vouched = new Map(), cannotStart = null }) {
   const keep = (reason) => ({ release: false, reason });
   if (pull?.state !== "open") {
     return keep("not-open");
@@ -226,17 +249,22 @@ export function decide({ pull, comments, reviews = [], events, humans, vouched =
     return keep(`member-veto-${vetoing.join(",")}`);
   }
   const newest = newestRecord(recent, humans, vouched, pull.number);
-  if (newest === undefined) {
-    return keep("no-record");
+  if (newest !== undefined && newest.heads[0] === head) {
+    return { release: true, record: newest.comment, head };
   }
-  if (newest.heads[0] !== head) {
-    return keep("record-head-mismatch");
+  if (cannotStart?.head === head && CANNOT_START_CAUSES.includes(cannotStart.cause)) {
+    return { release: true, cannotStart, head };
   }
-  return { release: true, record: newest.comment, head };
+  return keep(newest === undefined ? "no-record" : "record-head-mismatch");
 }
 
 export const releasedComment = (head, record) =>
   `${releasedMarker(head, record.id)}\nThe \`${LABEL}\` hold waited only on eval evidence (\`reason=${EVAL_REASON}\`), and a VALID no-loss eval-pair record for \`${head}\` was posted ${citedRun(record) === null ? "by a listed human" : `by compare run ${citedRun(record)}, read back as this pull request's`}: ${record.html_url}. pr-merge removed \`${LABEL}\`. To hold again, add the label back with a new \`pr-hold\` reason line.`;
+
+export const cannotStartMarker = (head, { cause, run }) => `<!-- eval-hold-released head=${head} cannot-start=${cause} run=${run.id} -->`;
+
+export const cannotStartComment = (head, cannotStart) =>
+  `${cannotStartMarker(head, cannotStart)}\nThe \`${LABEL}\` hold waited only on eval evidence (\`reason=${EVAL_REASON}\`), and compare run ${cannotStart.run.id} for \`${head}\`, read back as this pull request's, recorded that it cannot start (\`${cannotStart.cause}\`): ${cannotStart.run.html_url}. Such a pull request merges first: after it merges, its affected cases run in a suite run on the default branch, and a FAIL reverts it (docs/review/evals.md). pr-merge removed \`${LABEL}\`. To hold again, add the label back with a new \`pr-hold\` reason line.`;
 
 /**
  * A reason to stop before the remaining reads, or null. A cited run is read
@@ -299,7 +327,7 @@ export function holdDecision({ pull, comments, humans }) {
 }
 
 export const evalHoldComment = (issueNumber) =>
-  `Held for the before-and-after eval that #${issueNumber} needs: this pull request closes #${issueNumber}, which carries \`${EVAL_GATED_LABEL}\`. The pr-merge release step lifts this hold when a listed human posts an eval-pair record for the current head.\n\n<!-- pr-hold reason=${EVAL_REASON} -->`;
+  `Held for the before-and-after eval that #${issueNumber} needs: this pull request closes #${issueNumber}, which carries \`${EVAL_GATED_LABEL}\`. The pr-merge release step lifts this hold when an eval-pair record for the current head is posted, or when a compare run for the current head records that it cannot start.\n\n<!-- pr-hold reason=${EVAL_REASON} -->`;
 
 async function evalGatedPulls(github, repo) {
   const [owner, name] = repo.split("/");
@@ -359,18 +387,82 @@ async function holdEvalGated(github, repo, humans) {
   return counts;
 }
 
-async function readAll(github, repo, number, humans, runsGitHub = github) {
+export const COMPARE_RUNS_LIST = `/actions/workflows/${COMPARE_WORKFLOW.split("/").at(-1)}/runs?event=workflow_dispatch&per_page=100`;
+
+const namedPull = (run) => {
+  const title = COMPARE_TITLE.exec(String(run?.display_title ?? ""));
+  return title === null ? null : Number(title[1]);
+};
+
+function compareRunLister(github, repo) {
+  let listed;
+  return () => {
+    listed ??= github("GET", `/repos/${repo}${COMPARE_RUNS_LIST}`).then(
+      (answer) => (Array.isArray(answer?.workflow_runs) ? answer.workflow_runs : []),
+      (error) => {
+        console.log(`release-eval-hold: the compare runs did not list: ${escapeCommand(error?.message ?? error)}`);
+        return [];
+      },
+    );
+    return listed;
+  };
+}
+
+async function readAll(github, repo, number, humans, runsGitHub = github, listRuns = compareRunLister(runsGitHub, repo)) {
   const base = `/repos/${repo}/issues/${number}`;
   const comments = await paginate(github, `${base}/comments`);
   const early = mayRelease(comments, humans);
-  if (early !== null) {
+  if (early === "no-eval-hold") {
+    return { early };
+  }
+  const named = (await listRuns()).filter((run) => namedPull(run) === number);
+  if (early !== null && named.length === 0) {
     return { early };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
   const events = await paginate(github, `${base}/events`);
   const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
-  const vouched = await readRuns(runsGitHub, repo, comments, pull?.base?.repo?.default_branch);
-  return { pull, comments, events, reviews, vouched };
+  const defaultBranch = pull?.base?.repo?.default_branch;
+  const vouched = await readRuns(runsGitHub, repo, comments, defaultBranch);
+  const cannotStart = await readCannotStart(runsGitHub, repo, named.filter((run) => !vouched.has(String(run.id))), pull?.head?.sha, defaultBranch);
+  return { pull, comments, events, reviews, vouched, cannotStart };
+}
+
+async function readTip(github, repo, defaultBranch) {
+  try {
+    const tip = (await github("GET", `/repos/${repo}/git/ref/heads/${encodeURIComponent(defaultBranch)}`))?.object?.sha;
+    return /^[0-9a-f]{40}$/.test(String(tip)) ? tip : null;
+  } catch (error) {
+    console.log(`release-eval-hold: the ${defaultBranch} tip did not read: ${escapeCommand(error?.message ?? error)}`);
+    return null;
+  }
+}
+
+async function readBack(github, repo, run, defaultBranch, tip, judge, missing) {
+  const vouch = runVouches(run, repo, defaultBranch);
+  if (vouch === null) {
+    return null;
+  }
+  let jobs;
+  try {
+    jobs = await github("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=${JOBS_PER_RUN}`);
+  } catch (error) {
+    console.log(`release-eval-hold: run ${run.id}'s jobs did not read: ${escapeCommand(error?.message ?? error)}`);
+    return null;
+  }
+  const verdict = judge(jobs);
+  if (verdict === null) {
+    console.log(`release-eval-hold: run ${run.id} ${missing}`);
+    return null;
+  }
+  let compare;
+  try {
+    compare = await github("GET", `/repos/${repo}/compare/${run.head_sha}...${tip}`);
+  } catch (error) {
+    console.log(`release-eval-hold: run ${run.id}'s commit did not compare with ${defaultBranch}: ${escapeCommand(error?.message ?? error)}`);
+    return null;
+  }
+  return onDefaultBranch(compare) ? { ...vouch, verdict } : null;
 }
 
 async function readRuns(github, repo, comments, defaultBranch) {
@@ -379,14 +471,8 @@ async function readRuns(github, repo, comments, defaultBranch) {
   if (ids.length === 0 || typeof defaultBranch !== "string") {
     return vouched;
   }
-  let tip;
-  try {
-    tip = (await github("GET", `/repos/${repo}/git/ref/heads/${encodeURIComponent(defaultBranch)}`))?.object?.sha;
-  } catch (error) {
-    console.log(`release-eval-hold: the ${defaultBranch} tip did not read: ${escapeCommand(error?.message ?? error)}`);
-    return vouched;
-  }
-  if (!/^[0-9a-f]{40}$/.test(String(tip))) {
+  const tip = await readTip(github, repo, defaultBranch);
+  if (tip === null) {
     return vouched;
   }
   for (const id of ids) {
@@ -397,33 +483,27 @@ async function readRuns(github, repo, comments, defaultBranch) {
       console.log(`release-eval-hold: run ${id} did not read: ${escapeCommand(error?.message ?? error)}`);
       continue;
     }
-    const vouch = runVouches(run, repo, defaultBranch);
-    if (vouch === null) {
-      continue;
-    }
-    let jobs;
-    try {
-      jobs = await github("GET", `/repos/${repo}/actions/runs/${id}/jobs?filter=all&per_page=${JOBS_PER_RUN}`);
-    } catch (error) {
-      console.log(`release-eval-hold: run ${id}'s jobs did not read: ${escapeCommand(error?.message ?? error)}`);
-      continue;
-    }
-    if (!recordJobRan(jobs)) {
-      console.log(`release-eval-hold: run ${id} did not run ${RECORD_JOB} to success`);
-      continue;
-    }
-    let compare;
-    try {
-      compare = await github("GET", `/repos/${repo}/compare/${run.head_sha}...${tip}`);
-    } catch (error) {
-      console.log(`release-eval-hold: run ${id}'s commit did not compare with ${defaultBranch}: ${escapeCommand(error?.message ?? error)}`);
-      continue;
-    }
-    if (onDefaultBranch(compare)) {
-      vouched.set(id, vouch);
+    const vouch = await readBack(github, repo, { ...run, id }, defaultBranch, tip, (jobs) => (recordJobRan(jobs) ? true : null), `did not run ${RECORD_JOB} to success`);
+    if (vouch !== null) {
+      vouched.set(id, { pr: vouch.pr, head: vouch.head });
     }
   }
   return vouched;
+}
+
+async function readCannotStart(github, repo, named, head, defaultBranch) {
+  if (!/^[0-9a-f]{40}$/.test(String(head)) || typeof defaultBranch !== "string") {
+    return null;
+  }
+  const newest = named
+    .filter((run) => COMPARE_TITLE.exec(String(run.display_title))?.[2] === head)
+    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0];
+  if (newest === undefined || !/^[1-9][0-9]{0,19}$/.test(String(newest.id))) {
+    return null;
+  }
+  const tip = await readTip(github, repo, defaultBranch);
+  const vouch = tip === null ? null : await readBack(github, repo, newest, defaultBranch, tip, cannotStartCause, `recorded no cause it cannot start`);
+  return vouch === null || vouch.head !== head ? null : { head, cause: vouch.verdict, run: { id: String(newest.id), html_url: newest.html_url } };
 }
 
 async function stands(github, repo, number, head) {
@@ -458,6 +538,7 @@ export async function main({ env = process.env, github, runsGitHub, now = Date.n
     );
     const counts = { kept: 0, failed: 0 };
     const released = [];
+    const listRuns = compareRunLister(runsGitHub, repo);
     for (const { number } of held) {
       if (released.length >= RELEASES_PER_RUN) {
         console.log(`release-eval-hold: #${number} kept: ${RELEASES_PER_RUN} released this run`);
@@ -465,20 +546,18 @@ export async function main({ env = process.env, github, runsGitHub, now = Date.n
         continue;
       }
       try {
-        const read = await readAll(github, repo, number, humans, runsGitHub);
+        const read = await readAll(github, repo, number, humans, runsGitHub, listRuns);
         const result = read.early === undefined ? decide({ ...read, humans }) : { release: false, reason: read.early };
         if (!result.release) {
           console.log(`release-eval-hold: #${number} kept: ${result.reason}`);
           counts.kept += 1;
           continue;
         }
-        const { head, record } = result;
+        const { head, record, cannotStart } = result;
+        const marker = record ? releasedMarker(head, record.id) : cannotStartMarker(head, cannotStart);
         const since = heldAt(read.events);
         const explained = read.comments.some(
-          (comment) =>
-            comment?.user?.login === bot &&
-            String(comment.created_at ?? "") >= since &&
-            [...ownLines(comment.body)].includes(releasedMarker(head, record.id)),
+          (comment) => comment?.user?.login === bot && String(comment.created_at ?? "") >= since && [...ownLines(comment.body)].includes(marker),
         );
         const base = `/repos/${repo}/issues/${number}`;
         if (!explained) {
@@ -487,7 +566,7 @@ export async function main({ env = process.env, github, runsGitHub, now = Date.n
             counts.kept += 1;
             continue;
           }
-          await github("POST", `${base}/comments`, { body: releasedComment(head, record) });
+          await github("POST", `${base}/comments`, { body: record ? releasedComment(head, record) : cannotStartComment(head, cannotStart) });
         }
         if (!(await stands(github, repo, number, head))) {
           console.log(`release-eval-hold: #${number} kept: moved-before-removal`);
@@ -496,6 +575,10 @@ export async function main({ env = process.env, github, runsGitHub, now = Date.n
         }
         await github("DELETE", `${base}/labels/${LABEL}`);
         released.push(number);
+        if (!record) {
+          console.log(`release-eval-hold: #${number} released head=${head} cannot-start=${cannotStart.cause} run=${cannotStart.run.html_url}`);
+          continue;
+        }
         const wait = Math.round((now() - Date.parse(record.created_at)) / 60000);
         console.log(`release-eval-hold: #${number} released head=${head} record=${record.html_url} wait-minutes=${Number.isFinite(wait) ? wait : "unknown"}`);
       } catch (error) {

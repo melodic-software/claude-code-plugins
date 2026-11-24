@@ -1646,12 +1646,16 @@ jobs:
   # all skipped (a dispatch on a tag, which compare-prepare's ref gate skips)
   # still concludes success, so release-eval-hold.mjs trusts the record only by
   # reading this run back and finding its Compare Record job (that name,
-  # RECORD_JOB there) succeeded.
+  # RECORD_JOB there) succeeded. Past its dispatcher, input and head checks,
+  # compare-prepare runs no arm when CLAUDE_EVALS_DISABLED is not false or
+  # compare-arms.sh refuses the pull request (exit 3); it writes that cause to
+  # its cannot-start output instead, and compare-cannot-start names itself
+  # after it, which release-eval-hold.mjs reads back (CANNOT_START_JOB there).
+  # compare-prepare holds no model credential.
   compare-prepare:
     name: Compare Prepare
     if: >-
-      vars.CLAUDE_EVALS_DISABLED == 'false'
-      && github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
+      github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -1667,6 +1671,7 @@ jobs:
       before-sha256: ${{ steps.arms.outputs.before-sha256 }}
       after-artifact-id: ${{ steps.after.outputs.artifact-id }}
       after-sha256: ${{ steps.arms.outputs.after-sha256 }}
+      cannot-start: ${{ steps.switch.outputs.cannot-start || steps.arms.outputs.cannot-start }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -1808,7 +1813,18 @@ jobs:
             exit 1
           fi
 
+      - name: Check the evals switch
+        id: switch
+        env:
+          DISABLED: ${{ vars.CLAUDE_EVALS_DISABLED }}
+        run: |
+          if [ "$DISABLED" != false ]; then
+            echo "::notice::cannot-start=evals-disabled: CLAUDE_EVALS_DISABLED is not false, so no arm runs"
+            echo "cannot-start=evals-disabled" >>"$GITHUB_OUTPUT"
+          fi
+
       - name: Fetch the pull request's commits as data
+        if: steps.switch.outputs.cannot-start == ''
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.head-sha }}
@@ -1818,13 +1834,22 @@ jobs:
 
       - name: Build the arm patches
         id: arms
+        if: steps.switch.outputs.cannot-start == ''
         env:
           REPO: .head
           MAIN_SHA: ${{ github.sha }}
           HEAD_SHA: ${{ inputs.head-sha }}
           PLUGIN: ${{ steps.inputs.outputs.plugin }}
           OUT: ${{ runner.temp }}/arms
-        run: bash .base/.github/scripts/plugin-eval/compare-arms.sh
+        run: |
+          status=0
+          bash .base/.github/scripts/plugin-eval/compare-arms.sh || status=$?
+          if [ "$status" = 3 ]; then
+            echo "::notice::cannot-start=compare-refused: compare mode refuses this pull request, so no arm runs"
+            echo "cannot-start=compare-refused" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit "$status"
 
       - name: Scan the before patch for credentials
         id: scan-before
@@ -1883,6 +1908,7 @@ jobs:
     needs: compare-prepare
     if: >-
       needs.compare-prepare.result == 'success'
+      && needs.compare-prepare.outputs.cannot-start == '' && vars.CLAUDE_EVALS_DISABLED == 'false'
       && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
     cache-mode: read
     permissions:
@@ -1911,6 +1937,7 @@ jobs:
     needs: compare-prepare
     if: >-
       needs.compare-prepare.result == 'success'
+      && needs.compare-prepare.outputs.cannot-start == '' && vars.CLAUDE_EVALS_DISABLED == 'false'
       && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
     cache-mode: read
     permissions:
@@ -1933,6 +1960,22 @@ jobs:
     secrets:
       MAINTENANCE_CLAUDE_API_KEY: ${{ inputs.credential != 'subscription' && secrets.MAINTENANCE_CLAUDE_API_KEY || '' }}
       MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.credential == 'subscription' && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}
+
+  compare-cannot-start:
+    name: "Compare Cannot Start: ${{ needs.compare-prepare.outputs.cannot-start }}"
+    needs: compare-prepare
+    if: >-
+      needs.compare-prepare.result == 'success'
+      && (needs.compare-prepare.outputs.cannot-start == 'evals-disabled' || needs.compare-prepare.outputs.cannot-start == 'compare-refused')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Record the cause
+        env:
+          CAUSE: ${{ needs.compare-prepare.outputs.cannot-start }}
+        run: |
+          echo "::notice::cannot-start=${CAUSE}: this compare run ran no arm and posts no record (docs/review/evals.md)"
 
   compare-verdict:
     name: Compare Verdict

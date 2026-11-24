@@ -5,7 +5,26 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 
 import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL } from "../work-resolve-issue/report-outcome.mjs";
-import { citedRun, decide, EVAL_GATED_LABEL, evalGatedIssue, holdDecision, LABEL, main, markers, mayRelease, onDefaultBranch, ownLines, RELEASES_PER_RUN, runVouches } from "./release-eval-hold.mjs";
+import {
+  CANNOT_START_CAUSES,
+  CANNOT_START_JOB,
+  cannotStartCause,
+  cannotStartMarker,
+  citedRun,
+  COMPARE_RUNS_LIST,
+  decide,
+  EVAL_GATED_LABEL,
+  evalGatedIssue,
+  holdDecision,
+  LABEL,
+  main,
+  markers,
+  mayRelease,
+  onDefaultBranch,
+  ownLines,
+  RELEASES_PER_RUN,
+  runVouches,
+} from "./release-eval-hold.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
@@ -165,13 +184,17 @@ const RAN = { total_count: 2, jobs: [
   { name: "Compare Prepare", status: "completed", conclusion: "success" },
   { name: "Compare Record", status: "completed", conclusion: "success" },
 ] };
-function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, jobs = {}, compareStatus = "ahead", tip = TIP } = {}) {
+function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, jobs = {}, compareStatus = "ahead", tip = TIP, listed = [] } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    if (method === "GET" && path === `/repos/${REPO}${COMPARE_RUNS_LIST}`) {
+      if (listed === null) throw new Error("HTTP 502");
+      return { total_count: listed.length, workflow_runs: listed };
+    }
     const jobsPath = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/jobs\?/.exec(path);
     if (method === "GET" && jobsPath) {
-      if (!(jobsPath[1] in runs)) throw new Error("HTTP 404");
+      if (!(jobsPath[1] in runs) && !(listed ?? []).some((run) => String(run.id) === jobsPath[1])) throw new Error("HTTP 404");
       return jobs[jobsPath[1]] ?? RAN;
     }
     if (method === "GET" && path === `/repos/${REPO}/git/ref/heads/main`) {
@@ -533,4 +556,140 @@ test("a failed read of the open pull requests fails the run and still runs the r
   const { code } = await quiet(() => main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED }, github }));
   assert.equal(code, 1);
   assert.ok(calls.some((call) => call.method === "DELETE" && call.path === `/repos/${REPO}/issues/7/labels/${LABEL}`));
+});
+
+const CANNOT_RUN_ID = "44900000002";
+const cannotStartJobs = (cause = "evals-disabled", overrides = {}) => ({
+  total_count: 3,
+  jobs: [
+    { name: "Compare Prepare", status: "completed", conclusion: "success" },
+    { name: `${CANNOT_START_JOB}: ${cause}`, status: "completed", conclusion: "success", ...overrides },
+    { name: "Compare Record", status: "completed", conclusion: "skipped" },
+  ],
+});
+const listedRun = (overrides = {}) =>
+  compareRun({ id: Number(CANNOT_RUN_ID), html_url: `https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}`, created_at: "2026-11-06T10:30:00Z", ...overrides });
+const cannotStart = (head = HEAD, cause = "evals-disabled") => ({ head, cause, run: { id: CANNOT_RUN_ID, html_url: `https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}` } });
+
+test("cannotStartCause reads the one Compare Cannot Start job's cause, and only a listed cause that succeeded", () => {
+  for (const cause of CANNOT_START_CAUSES) {
+    assert.equal(cannotStartCause(cannotStartJobs(cause)), cause);
+  }
+  const cases = {
+    "a cause not on the list": cannotStartJobs("credit-stop"),
+    "a job that failed": cannotStartJobs("evals-disabled", { conclusion: "failure" }),
+    "a job that skipped": cannotStartJobs("evals-disabled", { conclusion: "skipped" }),
+    "a job still going": cannotStartJobs("evals-disabled", { status: "in_progress", conclusion: null }),
+    "a name with text after the cause": cannotStartJobs("evals-disabled x"),
+    "two such jobs": { total_count: 2, jobs: [cannotStartJobs().jobs[1], cannotStartJobs("compare-refused").jobs[1]] },
+    "a run whose record job succeeded too": { total_count: 2, jobs: [cannotStartJobs().jobs[1], { name: "Compare Record", status: "completed", conclusion: "success" }] },
+    "no such job": RAN,
+    "a jobs list past one page": { ...cannotStartJobs(), total_count: 101 },
+    "an unreadable answer": {},
+  };
+  for (const [name, answer] of Object.entries(cases)) {
+    assert.equal(cannotStartCause(answer), null, name);
+  }
+});
+
+test("a compare run that recorded it cannot start at the current head releases an eval hold with no record", () => {
+  for (const cause of CANNOT_START_CAUSES) {
+    const result = run({ comments: [holdComment()], cannotStart: cannotStart(HEAD, cause) });
+    assert.equal(result.release, true, cause);
+    assert.equal(result.head, HEAD);
+    assert.equal(result.cannotStart.cause, cause);
+    assert.equal(result.record, undefined);
+  }
+});
+
+test("a missing record alone, or a cannot-start record for another head or with an unknown cause, keeps the hold", () => {
+  assert.equal(run({ comments: [holdComment()] }).reason, "no-record");
+  assert.equal(run({ comments: [holdComment()], cannotStart: cannotStart(OLD) }).reason, "no-record");
+  assert.equal(run({ comments: [holdComment(), recordComment(OLD)], cannotStart: cannotStart(OLD) }).reason, "record-head-mismatch");
+  assert.equal(run({ comments: [holdComment()], cannotStart: { ...cannotStart(), cause: "credit-stop" } }).reason, "no-record");
+});
+
+test("a cannot-start record lifts only an eval hold: another reason, a body hold or a veto still keeps it", () => {
+  const superseded = comment(holdLine("superseded"), { at: "2026-11-06T10:02:00Z" });
+  assert.equal(run({ comments: [holdComment(), superseded], cannotStart: cannotStart() }).reason, "hold-reason-superseded");
+  const split = comment(holdLine("eval-split"), { at: "2026-11-06T10:02:00Z" });
+  assert.equal(run({ comments: [holdComment(), split], cannotStart: cannotStart() }).reason, "hold-reason-eval-split");
+  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }), comments: [holdComment()], cannotStart: cannotStart() }).reason, "body-hold");
+  const veto = comment("Do not merge yet.", { at: "2026-11-06T10:05:00Z" });
+  assert.match(run({ comments: [holdComment(), veto], cannotStart: cannotStart() }).reason, /^member-veto-/);
+});
+
+test("a VALID no-loss record at the head still wins over a cannot-start record", () => {
+  const record = recordComment();
+  const result = run({ comments: [holdComment(), record], cannotStart: cannotStart() });
+  assert.equal(result.record, record);
+  assert.equal(result.cannotStart, undefined);
+});
+
+test("main lists the compare runs, reads the newest one naming the pull request and its head, and releases on its cannot-start cause", async () => {
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment()] } },
+    { listed: [listedRun(), listedRun({ id: 1, display_title: `eval-compare pr=8 head=${HEAD}` })], jobs: { [CANNOT_RUN_ID]: cannotStartJobs("compare-refused") } },
+  );
+  const { code, lines } = await quietMain(github);
+  assert.equal(code, 0);
+  assert.ok(calls.some((call) => call.path === `/repos/${REPO}/actions/runs/${CANNOT_RUN_ID}/jobs?filter=all&per_page=100`), "reads the run's jobs");
+  assert.ok(calls.some((call) => call.path === `/repos/${REPO}/compare/${"e".repeat(40)}...${TIP}`), "compares the run's commit against the branch tip");
+  const writes = calls.filter(isWrite);
+  assert.deepEqual(
+    writes.map((call) => `${call.method} ${call.path}`),
+    [`POST /repos/${REPO}/issues/7/comments`, `DELETE /repos/${REPO}/issues/7/labels/${LABEL}`],
+  );
+  const body = writes[0].body.body;
+  assert.deepEqual([...ownLines(body)][0], cannotStartMarker(HEAD, cannotStart(HEAD, "compare-refused")));
+  assert.match(body, /merges first/);
+  assert.match(body, /a FAIL reverts it/);
+  assert.ok(body.includes(`https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}`));
+  assert.ok(lines.includes(`release-eval-hold: #7 released head=${HEAD} cannot-start=compare-refused run=https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}`));
+});
+
+test("main does not comment twice for a cannot-start release it already explained", async () => {
+  const explained = comment(cannotStartMarker(HEAD, cannotStart()), { user: APP, at: "2026-11-06T10:40:00Z", app: { id: 1, slug: "lanes" } });
+  const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), explained] } }, { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } });
+  await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite).map((call) => call.method), ["DELETE"]);
+});
+
+test("main keeps the hold when no compare run names the pull request, reading nothing past its comments and the one run list", async () => {
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull(), comments: [holdComment()] }, 8: { pull: pull(), comments: [holdComment()] } },
+    { listed: [listedRun({ display_title: `eval-compare pr=9 head=${HEAD}` }), listedRun({ display_title: "PR Run Plugin Evals" })] },
+  );
+  const { lines } = await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite), []);
+  assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
+  assert.ok(lines.includes("release-eval-hold: #8 kept: no-record"));
+  assert.equal(calls.filter((call) => call.path.endsWith(COMPARE_RUNS_LIST)).length, 1, "one list serves every held pull request");
+  assert.ok(!calls.some((call) => /\/pulls\/[78]$|\/jobs\?/.test(call.path)));
+});
+
+test("main keeps the hold when the newest compare run at the head started, or the cannot-start run does not vouch", async () => {
+  const started = listedRun({ id: 2, created_at: "2026-11-06T10:45:00Z", conclusion: "failure" });
+  const going = listedRun({ id: 3, created_at: "2026-11-06T10:45:00Z", status: "in_progress", conclusion: null });
+  const cases = {
+    "a newer run that failed": { listed: [started, listedRun()] },
+    "a newer run still going": { listed: [going, listedRun()] },
+    "a newer run that recorded": { listed: [listedRun({ id: 2, created_at: "2026-11-06T10:45:00Z" }), listedRun()], jobs: { 2: RAN, [CANNOT_RUN_ID]: cannotStartJobs() } },
+    "a run for another head": { listed: [listedRun({ display_title: `eval-compare pr=7 head=${OLD}` })] },
+    "a re-run attempt": { listed: [listedRun({ run_attempt: 2 })] },
+    "a branch other than the default": { listed: [listedRun({ head_branch: "feature" })] },
+    "another repository's run": { listed: [listedRun({ head_repository: { full_name: "someone/fork" } })] },
+    "a run that recorded no cause": { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: RAN } },
+    "a cause off the list": { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs("credit-stop") } },
+    "a commit off the default branch": { listed: [listedRun()], compareStatus: "diverged" },
+    "a tip that does not read": { listed: [listedRun()], tip: null },
+    "a run list that does not read": { listed: null },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()] } }, { jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, ...options });
+    const { code, lines } = await quietMain(github);
+    assert.equal(code, 0, name);
+    assert.deepEqual(calls.filter(isWrite), [], name);
+    assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), name);
+  }
 });

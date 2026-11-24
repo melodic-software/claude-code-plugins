@@ -5,6 +5,17 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [20.4.0] - 2026-11-24
+
+Minor. The Cross-lane PR hold gains a release reason; no topology, escalation-contract mechanism,
+capability-tier or §4 invariant changed.
+
+- **Eval hold, compare run cannot start.** With no record at the head, pr-merge's release step also
+  lifts an eval hold when the newest compare run naming the PR and its head reads back as trusted
+  and ran its `Compare Cannot Start: <cause>` job (`evals-disabled` or `compare-refused`) to
+  success. The PR merges first and owes the default-branch run in `docs/review/evals.md`. A
+  missing record alone still releases nothing.
+
 ## [20.3.0] - 2026-11-22
 
 Minor. One posting-lanes row gains an effect; no topology, escalation-contract mechanism,
