@@ -93,8 +93,9 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   ([`release-eval-hold.mjs`](../../.github/scripts/pr-merge/release-eval-hold.mjs)).
 - The session that merged the PR dispatches that run, states its cost first and watches it; it
   fixes or reverts a failing case. With no live session, the next session that takes up the PR's
-  follow-up does (Q57); a search for `eval-hold-released` with `cannot-start=` finds the merged
-  PRs that owe their run.
+  follow-up does (Q57). The merged PRs that owe their run are those whose comments contain the
+  text `cannot-start=compare-refused`; read comment bodies for it, since GitHub search splits the
+  marker into words and matches far more.
 - An eval-pair record names one head. A push before the hold releases needs a new compare run (Q58).
 - Every eval run reads only the `EVALS` role's secrets, `EVALS_CLAUDE_API_KEY` and
   `EVALS_CLAUDE_CODE_OAUTH_TOKEN`, never another role's and never the fallback token. A dispatched
