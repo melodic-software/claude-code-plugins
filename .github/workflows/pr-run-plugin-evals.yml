@@ -1747,7 +1747,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ inputs.pr }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
         run: |
           . .base/.github/actions/log-api-budget/api-budget.bash
           api_budget_wrap_gh github-token

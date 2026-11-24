@@ -148,6 +148,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           FOLLOWUP_PATH: ${{ runner.temp }}/reconcile-followup.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/maintenance-reconcile-lost-runs/recent-pass.mjs
 
       - name: Check the kill switch
