@@ -1,7 +1,3 @@
-// The paths a lane patch may not change, as apply-patch.mjs refuses them.
-// deny-rules.mjs builds the lane model's Edit deny rules from the same
-// PATH_RULES.
-
 // A path's segments in lower case with `.`, `..` and empty segments resolved,
 // so `.GitHub/x` and `a/../.github/x` read as `.github/x`.
 export function segments(path) {
@@ -83,13 +79,11 @@ export const PATH_RULES = {
   // as of 2026-10-22; recheck when that page names another location).
   codeowners: (s) => s.at(-1) === "codeowners" && (s.length === 1 || (s.length === 2 && [".github", "docs"].includes(s[0]))),
   gitmodules: (s) => s.at(-1) === ".gitmodules",
-  // A settings file outside plugins/, whose files are this repository's product.
   settings: (s) => s[0] !== "plugins" && /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
   // The central lane grant file and the trusted-actor list, which decide what
   // every admitted repository's lanes may mint and who may start them (ADR 0085
   // Decision 6).
   "lane-grants": (s) => LANE_GRANT_FILES.includes(s.join("/")),
-  // Optional: only a row whose model writes the patch names it.
   "claude-protected": claudeProtected,
 };
 const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
@@ -97,7 +91,6 @@ const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
 // own changes, which may rename into a path Claude Code protects.
 const pathRefused = (path) => Object.entries(PATH_RULES).some(([name, rule]) => name !== "claude-protected" && rule(segments(path))) || path.includes("\\");
 
-// The protected-path rows of apply-patch.mjs REFUSALS, which spreads them in.
 export const PROTECTED_REFUSALS = {
   // A backslash reads as a directory separator on Windows checkouts.
   backslash: { kind: "protected-path", test: (entry) => entry.path.includes("\\") },
