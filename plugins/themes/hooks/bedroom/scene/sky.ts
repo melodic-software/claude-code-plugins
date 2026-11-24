@@ -11,21 +11,15 @@ export const DUSK_SKY: Stop[] = [
 /** The dusk clouds, lit from below. */
 export const DUSK_CLOUD: Stop[] = [[0, '#2a2650', 0.35], [0.55, '#6a4462', 0.55], [1, '#d08a6c', 0.9]]
 
-/** Far treeline top and foot, field top and foot, the near trees, the pole. */
 type Land = [string, string, string, string, string, string]
 type Row = {
-  /** The sky, top to horizon, at offsets 0, 0.3, 0.6, 0.85 and 1; the dusk row keeps its own. */
   sky: string[]
-  /** The clouds' top, middle and lit underside, each with its opacity. */
   cloud: Stop[]
-  /** The warm glow along the horizon (the afterglow and the bloom over the sill), as a share of the dusk's. */
   glow: number
   land: Land
-  /** Stars, fireflies and the yard light: the night's own things. */
   night: boolean
 }
 
-/** The rows in order: dusk, evening, night, predawn, dawn, morning, midday, golden. The day colors follow the shader's sky, so the room shows the same hour with the shader and without it. */
 const ROWS: Row[] = [
   { sky: [], cloud: DUSK_CLOUD, glow: 1, land: ['#3a2c4c', '#1e1a32', '#171426', '#08090f', '#06070c', '#07080e'], night: true },
   { sky: ['#050a20', '#0a1234', '#141a42', '#221c44', '#2e2040'], cloud: [[0, '#141832', 0.3], [0.55, '#2a2448', 0.4], [1, '#4a3050', 0.5]], glow: 0.3, land: ['#221c32', '#141224', '#100e1c', '#06070c', '#05060a', '#05060b'], night: true },
@@ -37,7 +31,6 @@ const ROWS: Row[] = [
   { sky: ['#5a7eb8', '#7c94b8', '#b8a8a0', '#e8aa78', '#f2a86b'], cloud: [[0, '#b8a8b8', 0.4], [0.55, '#f0c4a0', 0.6], [1, '#ffcc90', 0.8]], glow: 1.4, land: ['#7a6a5a', '#4a4036', '#5a5a28', '#30301a', '#1c1c10', '#2a2018'], night: false },
 ]
 
-/** How each weather grays and darkens the outside: share toward gray, brightness kept, the rain's strength. */
 const WEATHER: [share: number, keep: number, rain: number][] = [
   [0, 1, 0],
   [0.75, 0.86, 0],
@@ -45,12 +38,10 @@ const WEATHER: [share: number, keep: number, rain: number][] = [
   [1, 0.58, 2],
   [1, 0.5, 2],
 ]
-/** The share of daylight in each row. */
 const DAY = [0, 0, 0, 0, 0.35, 0.85, 1, 0.65]
 
 const hex = (c: string): number[] => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16))
 const toHex = (v: number[]): string => '#' + v.map(x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join('')
-/** A color grayed by `share` toward a cool gray of its own brightness, then scaled by `keep`. */
 function weathered(c: string, share: number, keep: number): string {
   const rgb = hex(c)
   const y = 0.3 * rgb[0]! + 0.59 * rgb[1]! + 0.11 * rgb[2]!

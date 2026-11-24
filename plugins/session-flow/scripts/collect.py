@@ -59,8 +59,6 @@ CENSUS_SCHEMA = "audit-sessions.census/v1"
 DRIFT_SCHEMA = "audit-sessions.drift/v1"
 RECORD_SCHEMA = "session-record/v1"
 STATE_KEY = PLUGIN_ROOT / "lib" / "state-key.sh"
-# Every file that shapes a stored record, relative to PLUGIN_ROOT: a change to any of them
-# re-ingests every session, and a change elsewhere in the plugin (its version) does not.
 COLLECTOR_INPUTS = (
     "scripts/collect.py",
     "scripts/census.py",
@@ -71,7 +69,6 @@ COLLECTOR_INPUTS = (
     "lib/state-key.sh",
 )
 HEAD_BYTES = 4096
-# A gap between records longer than this is idle time: it ends the active stretch.
 IDLE_CUTOFF_S = 300
 
 COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
@@ -82,7 +79,6 @@ COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
 # As of: 2026-10-13
 # Recheck trigger: that section stops naming MultiEdit, or moves.
 EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
-# Tool names whose calls `invariant:subagent_files_missing` expects a subagent transcript for.
 AGENT_TOOLS = frozenset({"Agent", "Task"})
 # System subtypes seen on current versions; any other is counted in `unknown.system_subtypes`.
 SYSTEM_SUBTYPES = frozenset(
@@ -99,7 +95,6 @@ SYSTEM_SUBTYPES = frozenset(
     }
 )
 
-# Correction lexicon: high precision, low recall, so it only adds a flag to a turn already kept.
 CORRECTION_RE = re.compile(
     r"^(no\b|nope\b|wrong\b|stop\b|wait\b|hold on\b|undo\b|revert\b|don'?t\b|do not\b|not that\b|hmm+,? no)"
     r"|\b(that'?s not|that is not|this is not|isn'?t what|not what i|i said|i asked|i told you|i meant|"
@@ -528,7 +523,6 @@ class SessionScan:
 
     def time_block(self) -> dict:
         block = self._time_block()
-        # Both values are rounded, so a .5 boundary can differ by 1 without a real format break.
         if block["active_gap_s"] > block["wall_clock_s"] + 1 and self.bucket in self.census:
             self.census[self.bucket]["invariant:active_over_wall"] += 1
         return block
@@ -536,7 +530,6 @@ class SessionScan:
     def _time_block(self) -> dict:
         stamps = sorted(self.timestamps)
         gaps = [later - earlier for earlier, later in zip(stamps, stamps[1:])]
-        # The gap before a typed turn: time since the previous activity record.
         human_gaps = []
         for human in self.human_timestamps:
             index = bisect.bisect_left(stamps, human - 0.5)
@@ -669,7 +662,6 @@ class Scrubber:
         return self.redactor.redact(text) if self._fits(text) else TOO_LONG
 
     def keys(self, counts: Counter) -> dict:
-        # Redaction can fold two keys into one, so their counts add up.
         out: Counter = Counter()
         for text, n in counts.items():
             out[self.key(text)] += n
@@ -717,9 +709,9 @@ def build_record(
     stop_ms = scan.stop_hook_ms
     wait_ms = scan.stop_hook_wait_ms
     scrub = Scrubber(redactor, excerpt_chars)
-    time_block = scan.time_block()  # counts the invariant, so call it once per session
-    scan.usage_regressions()  # likewise
-    scan.subagent_gap(len(subagents))  # likewise
+    time_block = scan.time_block()
+    scan.usage_regressions()
+    scan.subagent_gap(len(subagents))
     # Repo identity above used the raw cwd; every string below is stored, so each goes through scrub.
     # The dict is built in order, so the closing redaction block sees every scrub call's count.
     return {
@@ -788,7 +780,6 @@ def build_record(
         },
         "branches": sorted({scrub.key(branch) for branch in scan.branches}),
         "prs": [{"repo": repo, "number": number} for repo, number in sorted({(scrub.key(r), n) for r, n in scan.prs})],
-        # Subagent links stay apart, so ticket keys and per-PR churn keep counting the main session only.
         "branches_sub": sorted({scrub.key(branch) for branch in scan.branches_sub}),
         "prs_sub": [{"repo": repo, "number": number} for repo, number in sorted({(scrub.key(r), n) for r, n in scan.prs_sub})],
         "permission": {"modes": dict(scan.permission_modes), "changes": scan.permission_changes},
@@ -874,12 +865,10 @@ def cmd_collect(args: argparse.Namespace) -> int:
     redactor = redact.load_redactor()
     identity = RepoIdentity()
     index = load_store(store)
-    # A record stored under other settings is re-ingested, so a lowered excerpt limit reaches old records.
     policy = (digest, {"chars": args.excerpt_chars, "words": args.excerpt_words}, redactor.fail_closed)
     scanned = ingested = skipped = expired = orphaned = purged = too_long = 0
     failed: list[dict] = []
     unknown_types: Counter = Counter()
-    # Earlier collectors stored a set-aside transcript as a session, and its source may since be gone.
     for path in [p for p in index if ORPHANED in p.stem]:
         try:
             path.unlink(missing_ok=True)
@@ -899,7 +888,6 @@ def cmd_collect(args: argparse.Namespace) -> int:
             if since is not None and mtime < since:
                 continue
             scanned += 1
-            # A file last written before the window cannot hold a session that ended inside it.
             if cutoff is not None and mtime < cutoff:
                 expired += 1
                 continue
@@ -924,7 +912,6 @@ def cmd_collect(args: argparse.Namespace) -> int:
             if cutoff is not None and end is not None and end < cutoff:
                 expired += 1
                 continue
-            # A concurrent collector holding the target wrote the same session: a skip, not a failure.
             if not census.write_atomic(target, record):
                 skipped += 1
                 continue

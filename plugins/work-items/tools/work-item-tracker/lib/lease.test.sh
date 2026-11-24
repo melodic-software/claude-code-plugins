@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/lease.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -70,8 +69,6 @@ assert_live "boundary: expiry-1s is live" "$BOUNDARY_LEASE" "$((BOUNDARY_EXPIRY 
 assert_not_live "boundary: exact expiry is dead" "$BOUNDARY_LEASE" "$BOUNDARY_EXPIRY"
 assert_not_live "boundary: expiry+1s is dead" "$BOUNDARY_LEASE" "$((BOUNDARY_EXPIRY + 1))"
 
-# Active-lease selection: newest NON-superseded lease wins; a superseded higher-id
-# back-off must not mask the earlier active lease (renew-lease and reclaim depend on it).
 mk() { printf '<!-- work-item-lease v1 %s -->' "$1"; }
 BODY_A="$(mk "$(jq -cn '{holder:"a"}')")"
 BODY_B="$(mk "$(jq -cn '{holder:"b"}')")"

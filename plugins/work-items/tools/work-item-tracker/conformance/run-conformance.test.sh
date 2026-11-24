@@ -16,8 +16,6 @@ assert_eq "no --binding → usage exit 2" "2" "$?"
 bash "$S" --binding no-such-binding >/dev/null 2>&1
 assert_eq "unknown binding → exit 2" "2" "$?"
 
-# The not-found diagnostic names the search, not just one path, so a consumer sees
-# both roots were tried.
 err="$(bash "$S" --binding no-such-binding 2>&1 >/dev/null)"
 assert_contains "unknown binding names the search order" "$err" "consumer-local then plugin-bundled"
 
@@ -33,15 +31,10 @@ traverse_err="$(bash "$S" --binding "../../etc/passwd" 2>&1 >/dev/null)"
 assert_contains "traversing name rejected as invalid, not as not-found" \
   "$traverse_err" "invalid binding name"
 
-# --- WIT_CONFORMANCE_BINDINGS_DIR override ---
-# An explicit bindings root replaces the search outright; a marker binding in it
-# proves it was the root sourced.
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 mkdir -p "$TMP_ROOT/bindings"
 
-# write_marker_binding <file> <marker> <exit-code>: a stub binding whose cb_setup
-# announces itself on stderr and exits.
 write_marker_binding() {
   printf '# shellcheck shell=bash\ncb_setup() {\n  echo "%s" >&2\n  exit %s\n}\ncb_teardown() { :; }\n' \
     "$2" "$3" >"$1"
@@ -54,14 +47,9 @@ override_rc=$?
 assert_contains "override root is the one sourced" "$override_err" "MARKER-BINDING-SOURCED"
 assert_eq "override binding's own exit propagates" "42" "$override_rc"
 
-# A name absent from the override root is not silently backfilled from the
-# bundled set — the override is a replacement, not an additional search step.
 WIT_CONFORMANCE_BINDINGS_DIR="$TMP_ROOT/bindings" bash "$S" --binding local-markdown >/dev/null 2>&1
 assert_eq "override root does not fall back to bundled" "2" "$?"
 
-# --- consumer-local-first resolution ---
-# A consumer-local binding wins over the bundled copy. CLAUDE_PROJECT_DIR lets a temp
-# root stand in for a consuming repo without a git fixture.
 CONSUMER_ROOT="$TMP_ROOT/consumer"
 mkdir -p "$CONSUMER_ROOT/tools/work-item-tracker/conformance/bindings"
 write_marker_binding \
@@ -73,8 +61,6 @@ shadow_rc=$?
 assert_contains "consumer-local binding shadows the bundled one" "$shadow_err" "CONSUMER-LOCAL-SHADOW"
 assert_eq "shadowing binding's own exit propagates" "43" "$shadow_rc"
 
-# With no local bindings dir the bundled set is the fallback: the not-found path names
-# the BUNDLED directory.
 EMPTY_ROOT="$TMP_ROOT/empty"
 mkdir -p "$EMPTY_ROOT"
 fallback_err="$(CLAUDE_PROJECT_DIR="$EMPTY_ROOT" bash "$S" --binding no-such-binding 2>&1 >/dev/null)"

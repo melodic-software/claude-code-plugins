@@ -179,11 +179,6 @@ export function touchesOriginal(diff, start, end) {
 
 const stripFooter = (body, lane) => body.replace(new RegExp(`\\s*\`?claude-lane: ${lane}\`?\\s*$`, "u"), "").trim();
 
-// One inline thread's verdict. Anything the job cannot judge answers yes, so it
-// never suppresses a finding. So does a resolved thread: only an unresolved
-// lane thread is sure to keep holding the merge when the lane stays silent
-// (babysit_review_evidence.py reads a clean review as clearing a resolved one),
-// and the settled-threads file already decides a resolved thread's point.
 function judge(thread, posted, head, diff) {
   const end = thread.originalLine;
   if (thread.diffSide !== "RIGHT" || !Number.isSafeInteger(end)) {
@@ -259,8 +254,6 @@ export function readAfterFirstReview(yaml) {
   return m ? m[2] : AFTER_FIRST_REVIEW_DEFAULT;
 }
 
-// An unread file is the default, never a failure: a failure would drop every
-// prior finding.
 const afterFirstReviewOf = (path) => {
   if (!path) return AFTER_FIRST_REVIEW_DEFAULT;
   try {

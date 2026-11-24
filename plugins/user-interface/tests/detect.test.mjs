@@ -21,30 +21,24 @@ after(() => rmSync(scratch, { recursive: true, force: true }));
 const HOME = join(scratch, "home");
 mkdirSync(join(HOME, ".claude/skills/vercel-react-view-transitions"), { recursive: true });
 
-/** The convention-home resolver applies only inside a git work tree, so a scratch project that binds a home is one. */
 function gitInit(dir) {
   const r = spawnSync("git", ["init", "-q", dir], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
 }
 
-/** Runs detect.mjs as a CLI; `env` replaces the child's environment when given. */
 function detect(args, env, cwd) {
   const r = spawnSync(process.execPath, [DETECT, ...args], { encoding: "utf8", env, cwd });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
-/** A `claude plugin list --json` record, enabled at user scope unless `fields` says otherwise. */
 const record = (id, fields) => ({ id, scope: "user", enabled: true, projectEnabled: false, ...fields });
-/** This plugin's own record: its installPath is this checkout's plugin root. */
 const self = (id = "user-interface@fixture-market", installPath = PLUGIN) => record(id, { installPath });
 let lists = 0;
-/** Writes `records` as a plugin list file and returns its path. */
 function pluginList(records) {
   const file = join(scratch, `plugin-list-${++lists}.json`);
   writeFileSync(file, JSON.stringify(records));
   return file;
 }
-/** detect.mjs output for the no-ds project with `records` as the plugin list. */
 const detectWith = (records) => detect(["--project", join(FIX, "no-ds"), "--home", HOME, "--plugin-list-json", pluginList(records), "--mcp-list", MCP]);
 const PLUGINS = pluginList([...JSON.parse(readFileSync(join(FIX, "plugin-list.json"), "utf8")), self()]);
 const seams = ["--home", HOME, "--plugin-list-json", PLUGINS, "--mcp-list", MCP];
@@ -156,9 +150,6 @@ describe("--config", () => {
     assert.ok(!("config" in detect(["--project", PROJECT, ...seams])));
   });
 
-  // Expected values: the shipped defaults file for every key the fixtures leave unset, and the
-  // fixture layers' own values (config-project's conventions files and the userConfig above) for the
-  // keys they set. A list is one leaf; a `*.disable` list names every layer that added to it.
   const OVERRIDES = {
     css: { browser_target: "last 2 versions", rules: { disable: ["hover", "motion"] }, important: "utilities-only", layer: META, token_fallback: "literal" },
     animation: { duration_ms: { large: 400 } },
@@ -445,7 +436,6 @@ describe("--config team routing applied to routes", () => {
     assert.equal(out.routes.length, JSON.parse(readFileSync(join(PLUGIN, "reference/routing.json"), "utf8")).rows.length);
   });
 
-  // A plugin list where the team row's own plugin is installed.
   const withBrand = ["--project", PROJECT, "--home", HOME, "--plugin-list-json", pluginList([...JSON.parse(readFileSync(join(FIX, "plugin-list.json"), "utf8")), self(), record("brand-tool@brand-market")]), "--mcp-list", MCP, "--config"];
 
   test("a team row whose id matches no bundled row and no installed plugin or skill is not applied and the note names it", () => {

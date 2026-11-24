@@ -1,7 +1,4 @@
 async page => {
-  // A manifest the Controls tab refuses whole (one that is not JSON, or whose control cannot hold its
-  // default) says why, renders no manifest control, keeps the data controls, and the page opened
-  // alone draws no panel from it either.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + JSON.stringify(detail) + "]" : ""));
   try {
     await page.goto("http://127.0.0.1:__PORT__/");

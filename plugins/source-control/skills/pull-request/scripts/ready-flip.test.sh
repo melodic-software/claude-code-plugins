@@ -109,10 +109,6 @@ new_state() {
   [[ -z "${1:-}" ]] || READY_VERIFY_DIR="$STATE/verify" bash "$SKILL_DIR/scripts/verify-gate.sh" record --head "$1" --result pass
 }
 
-# run_flow <stale-head> <head-before> [<later-forge-head>], in the state new_state made, from
-# $FLOW_CWD (default: the PR's checkout), with pr-worktree.sh reading STUB_OID (default: the
-# pre-push head, as a lagging read returns it), and GH_REPO exported as the reference's "Find the
-# PR for the branch" block exports it (FLOW_GH_REPO, default acme/tool; empty leaves it unset).
 STUB_BRANCH=$(git -C "$REPO" branch --show-current)
 run_flow() {
   (unset GH_REPO
@@ -140,9 +136,6 @@ new_state "$BEFORE"
 out=$(run_flow "$BEFORE" "$BEFORE")
 assert_contains "a record for the pre-push commit only: the guard refuses" "$out" "FLIP_EXIT=2"
 
-# The /verification:confirm verdict: recorded per head, named in the 2.5.7 report for the PR
-# worktree's HEAD, and advisory, so neither NEEDS WORK nor a missing verdict stops the flip or
-# changes the verify gate's result for that head.
 confirm_record() { CONFIRM_VERDICT_DIR="$STATE/confirm" bash "$SKILL_DIR/scripts/confirm-verdict.sh" record "$@"; }
 run_report() {
   (cd "$REPO" && PATH="$STUB_DIR:$PATH" GH_REPO=acme/tool STUB_STATE="$STATE" STUB_BRANCH="$STUB_BRANCH" STUB_OID="$PUSHED" \
@@ -180,8 +173,6 @@ assert_exit "the report's confirm verdict line exits 0 with no verdict for the h
 assert_eq "a verdict for an earlier head only: the report says none is recorded for this head" \
   "confirm: no verdict recorded for head $PUSHED" "$out"
 
-# The /verification:measure verdict: recorded per head in the same store, named in the report only
-# when one is recorded for the head, and advisory, so no verdict word stops the flip.
 measure_record() { CONFIRM_VERDICT_DIR="$STATE/confirm" bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --of measure "$@"; }
 
 for verdict in 'CANNOT QUANTIFY' DEGRADED 'NOT CONFIRMED' INCONCLUSIVE MIXED CONFIRMED; do

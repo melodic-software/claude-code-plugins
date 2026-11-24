@@ -68,6 +68,12 @@ and what reaches the model.
 - A format and lint plugin keeps the two concerns apart: a `format` entry that rewrites and a `lint`
   entry that reports, each resolved on its own ([Hooks run the shipped adapter](#hooks-run-the-shipped-adapter)). Formatting includes
   import ordering; no lint autofix runs in the batch row or at `pre-commit`.
+- The two entries may share one tool start at `pre-commit` (owner decision, 2026-11-24, to keep the
+  hook within its [duration budget](#duration-budgets)): the `format` entry may lint the files it
+  just formatted and leave that result for the `lint` entry, keyed by the files' bytes and the
+  tool's config. Each entry stays separately resolvable, declinable and skippable under its own
+  name: a declined or skipped `lint` makes the `format` entry lint nothing, and a `lint` entry
+  that finds no matching result runs the tool itself, with the same exit codes and messages.
 
 Pointer: for `PostToolBatch` (no matcher, no `if`, one firing per batch of parallel tool calls),
 see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-15, Claude Code

@@ -116,10 +116,8 @@ SHORT = "hun" + "ter2"
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        # A JSON-quoted key puts a closing quote between the key and the separator.
         ('{"password": "' + SHORT + '"}', '{"password": <redacted:generic-assignment>}'),
         ("{'api_key':'" + SHORT + "'}", "{'api_key':<redacted:generic-assignment>}"),
-        # A quoted value with spaces is redacted to its closing quote, not to the first space.
         (
             'password="correct horse ' + 'battery staple" ok',
             "password=<redacted:generic-assignment> ok",
@@ -178,7 +176,6 @@ def test_url_credential_password_runs_to_the_last_at_before_the_host(password: s
     ids=["at-slash-dense", "schemes-without-at"],
 )
 def test_url_credential_pass_stays_fast_on_long_tokens(text: str) -> None:
-    # Retrying the run to the last `@` from every scheme in an `@`-free token is quadratic.
     started = time.monotonic()
     redact.load_redactor().redact(text)
     assert time.monotonic() - started < 1.0
@@ -190,7 +187,6 @@ def test_url_credential_pass_stays_fast_on_long_tokens(text: str) -> None:
         ("my password is " + SHORT, "my password is <redacted:prose-credential>"),
         ("the password " + SHORT + " works", "the password <redacted:prose-credential> works"),
         ("password - " + SHORT, "password - <redacted:prose-credential>"),
-        # A value with no digit or symbol reads as prose and stays.
         ("the password is wrong", "the password is wrong"),
         ("token count is high", "token count is high"),
     ],
@@ -200,7 +196,6 @@ def test_prose_credential_with_digit_or_symbol_is_redacted(raw: str, expected: s
 
 
 def test_url_credential_pass_stays_fast_on_a_long_hyphenated_token() -> None:
-    # An unbounded scheme rescanned this token from every offset: 40 KB took seconds.
     text = "a-" * 20_000
     started = time.monotonic()
     assert redact.load_redactor().redact(text) == text
@@ -223,7 +218,6 @@ PEM_BODY = "\n".join(["Q" * 64] * 3)
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        # No END marker: everything from BEGIN on is key material.
         (f"here it is\n{PEM_BEGIN}\n{PEM_BODY}\nand more", "here it is\n<redacted:private-key>"),
         (f"{PEM_BEGIN}\n{PEM_BODY}\n{PEM_END} then done", "<redacted:private-key> then done"),
     ],

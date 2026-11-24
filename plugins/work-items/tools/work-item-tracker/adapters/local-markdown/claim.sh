@@ -57,7 +57,6 @@ file="$(wit_item_file "$WIT_ID_NUMBER")"
   exit "$EX_NOT_FOUND"
 }
 
-# Pre-write race check: a live lease already present means an established claim.
 active="$(wit_active_lease_json "$file")"
 if [[ -n "$active" ]] && wit_lease_is_live "$active" "$(date -u +%s)"; then
   printf 'claim: item already claimed by %s\n' "$(jq -r '.holder // "unknown"' <<<"$active")" >&2

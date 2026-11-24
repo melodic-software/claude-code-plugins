@@ -14,6 +14,7 @@ import { GitHubError } from "../lib/github-client.mjs";
 import { ADMIT_MARKER, heldRefusalText, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, titleLine, validateOutput } from "./refine.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
@@ -548,7 +549,7 @@ describe("applyRefinement", () => {
       }
       return answer;
     }, fields);
-    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname }, github: fielded, repository: "o/r" });
+    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname, STANDARDS_DIR: standardsCheckout() }, github: fielded, repository: "o/r" });
     const result = await applyRefinement({ github: fielded, repository: "o/r", number: 7, appId: APP, humans, rules, output: validateOutput(EXACT, new Set([3])), context, setStatus: set, statusOf: fake.statusOf, log: () => {} });
     assert.deepEqual(result, { outcome: "skipped", redispatch: false });
     assert.deepEqual(writes(fake.calls), [], "no field write, no label removal, no comment");

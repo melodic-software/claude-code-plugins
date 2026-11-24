@@ -40,7 +40,6 @@ function check(stops, direction) {
   }
 }
 
-/** True when b comes before a in reading order, a being the previous stop. */
 function isBackward(a, b, direction) {
   const sameRow = a.y === b.y || (b.y < a.y + a.height && a.y < b.y + b.height);
   if (!sameRow) return b.y < a.y;

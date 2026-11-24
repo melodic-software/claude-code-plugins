@@ -3,6 +3,18 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.3] - 2026-11-24
+
+### Changed
+
+- At pre-commit, PowerShell starts once per commit instead of twice: the `format` entry also lints the files it just formatted and leaves the result for the `lint` entry, keyed by each file's bytes and the settings file. The `lint` entry reports it with the same exit codes and messages, and starts `pwsh` itself when no matching result is waiting. A declined `lint` entry, or a `powershell-format-remote-lint` job skipped in `lefthook-local.yml`, makes `format` lint nothing. Format then lint on a 120-line file went from 0.759 s to 0.465 s (median of 5, one Linux host).
+
+## [2.3.2] - 2026-11-24
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts, so this plugin's checks judge the same lines as before.
+
 ## [2.3.1] - 2026-11-24
 
 ### Changed

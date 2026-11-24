@@ -5093,6 +5093,13 @@ jobs:
                 return 0
               fi
               cat "$err" >&2
+              # A 304 answers a read sent with If-None-Match: the object has
+              # not changed since that ETag. gh exits 1 on it; gh_read sends it
+              # once and returns 3.
+              if grep -qE '(^|[^0-9])HTTP 304([^0-9]|$)' "$err"; then
+                rm -f "$err"
+                return 3
+              fi
               until=
               ! declare -F api_budget_stop_until >/dev/null || until=$(api_budget_stop_until "$pool")
               # A 4xx that is no rate limit (404, 422, a 403 the token lacks)
@@ -5194,17 +5201,12 @@ jobs:
           pr_read_forget() {
             [ -z "${RUNNER_TEMP:-}" ] || rm -rf "$RUNNER_TEMP/pr-reads"
           }
-          # trusted_list prints the trusted-actor list's path: under the run's
-          # standards checkout ($STANDARDS_DIR) when the step has one, else the
-          # hold config's copy under $BASE_CONFIG; it fails with neither.
+          # trusted_list prints the trusted-actor list's path under the run's
+          # standards checkout ($STANDARDS_DIR), and fails without one: the hold
+          # config's synced copy can still name an actor standards removed.
           trusted_list() {
-            if [ -n "${STANDARDS_DIR:-}" ]; then
-              printf '%s\n' "$STANDARDS_DIR/components/trusted-actors/trusted-actors.json"
-            elif [ -d "${BASE_CONFIG:-}" ]; then
-              printf '%s\n' "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"
-            else
-              return 1
-            fi
+            [ -n "${STANDARDS_DIR:-}" ] || return 1
+            printf '%s\n' "$STANDARDS_DIR/components/trusted-actors/trusted-actors.json"
           }
           # trusted_humans sets actors to the trusted-actor list (trusted_list)
           # and humans to its `human` entries' numeric ids, space-separated, or
@@ -5212,7 +5214,7 @@ jobs:
           trusted_humans() {
             local list
             if ! list=$(trusted_list) || ! actors=$(cat "$list"); then
-              echo "::error::could not read the trusted-actor list (standards, else the hold config at ${BASE_SHA:-}); re-run this run."
+              echo "::error::could not read the trusted-actor list from the standards checkout; re-run this run."
               return 1
             fi
             # shellcheck disable=SC2034 # read by the steps that source this
@@ -6592,7 +6594,7 @@ jobs:
             exit 0
           fi
           if ! list=$(trusted_list) || ! humans=$(jq -ec '[.actors[] | select(.kind == "human" and (.id | type) == "number") | .id]' "$list"); then
-            echo "::error::could not read trusted-actors.json (standards, else the hold config at $BASE_SHA); re-run this run."
+            echo "::error::could not read trusted-actors.json from the standards checkout; re-run this run."
             exit 1
           fi
           while read -r number names; do
@@ -6952,10 +6954,14 @@ jobs:
           # here and the trust hold's link rule. This step runs on every pull
           # request and in the queue, so a mismatch turns ci-status red.
           if [ ! -d "${BASE_CONFIG:-}" ] ||
-            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml"); then
+            echo "::error::cannot read merge.agent-identity from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+            exit 1
+          fi
+          if ! list=$(trusted_list) ||
             ! want=$(jq -er --arg login "$identity" '[.actors[] | select(.login == $login) | .id | numbers]
-              | if length == 1 then .[0] else error("not one entry") end' "$(trusted_list)"); then
-            echo "::error::cannot read merge.agent-identity's trusted-actor id from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+              | if length == 1 then .[0] else error("not one entry") end' "$list"); then
+            echo "::error::cannot read $identity's trusted-actor id from the standards checkout's trusted-actor list; re-run this run."
             exit 1
           fi
           if [ "$want" != "$LANES_APP_ID" ]; then
@@ -7015,7 +7021,7 @@ jobs:
                     elif $authors == "lane-or-owner" then $lane or $owner
                     elif $authors == "lane" then $lane
                     else false end' <<<"$pull") || [[ ! $judged =~ ^(true|false)$ ]]; then
-                echo "::error::cannot read whether pr-verify judges the author of #$pr from merge.verify-authors and the trusted-actor list in the hold config; re-run this run."
+                echo "::error::cannot read whether pr-verify judges the author of #$pr from merge.verify-authors in the hold config and the standards checkout's trusted-actor list; re-run this run."
                 exit 1
               fi
             fi
@@ -7072,7 +7078,7 @@ jobs:
             fi
           done
           if ! list=$(trusted_list) || [ ! -s "$list" ] || ! cp "$list" "$RUNNER_TEMP/trusted-actors.json"; then
-            echo "::error::could not read the trusted-actor list (standards, else the hold config); re-run this run."
+            echo "::error::could not read the trusted-actor list from the standards checkout; re-run this run."
             exit 1
           fi
           jq -r '.body // ""' <<<"$pull" >"$RUNNER_TEMP/pr-body.txt"
@@ -7952,9 +7958,12 @@ jobs:
           # head's runs: the loop reuses the wait's when nothing waited, and
           # reads it again after a wait. A review still running at the cap
           # fails, and rerun-ci-status re-runs ci-status when it finishes.
+          # Each read after a lane's first sends If-None-Match with the ETag
+          # of its last 200; a 304 is that same unfinished run, which GitHub
+          # does not count against the rate limit.
           poll=${REVIEW_POLL_SECONDS:-60} polls=$((${REVIEW_WAIT_SECONDS:-480} / ${REVIEW_POLL_SECONDS:-60}))
           stop_at=$(($(cat "$RUNNER_TEMP/gh-read.deadline" 2>/dev/null || echo 120) - 120))
-          declare -A waiting=()
+          declare -A waiting=() etags=()
           while [ "$polls" -gt 0 ] && read -r file lane checks; do
             run=$(lane_run "$HEAD_SHA") || { waiting=(); break; }
             if [ -n "$run" ] && [ "$(jq -r .status <<<"$run")" != completed ]; then
@@ -7966,8 +7975,13 @@ jobs:
             sleep "$poll"
             polls=$((polls - 1)) waited=$((waited + poll))
             for file in "${!waiting[@]}"; do
-              run=$(read_api "run ${waiting[$file]}" "repos/$GITHUB_REPOSITORY/actions/runs/${waiting[$file]}") || { waiting=(); break 2; }
-              [ "$(jq -r .status <<<"$run")" != completed ] || unset "waiting[$file]"
+              cond=() rc=0
+              [ -z "${etags[$file]:-}" ] || cond=(-H "If-None-Match: ${etags[$file]}")
+              run=$(gh_read -i "${cond[@]}" "repos/$GITHUB_REPOSITORY/actions/runs/${waiting[$file]}") || rc=$?
+              [[ $rc -ne 3 || ${#cond[@]} -eq 0 ]] || continue
+              [ "$rc" -eq 0 ] || { echo "::error::could not read run ${waiting[$file]}; re-run this run." >&2; waiting=(); break 2; }
+              etags[$file]=$(sed '/^\r\?$/q' <<<"$run" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
+              [ "$(sed '1,/^\r\?$/d' <<<"$run" | jq -r .status)" != completed ] || unset "waiting[$file]"
             done
           done
           [ "$waited" -eq 0 ] || { echo "Waited ${waited}s for the review lanes on $HEAD_SHA."; rm -f "$head_runs_dir/$HEAD_SHA"; }

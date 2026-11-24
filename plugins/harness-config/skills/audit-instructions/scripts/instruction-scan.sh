@@ -178,8 +178,6 @@ done
 # against multibyte neighbors: their first byte is non-alnum.
 WB_L="(^|[^[:alnum:]_])"
 WB_R='([^[:alnum:]_]|$)'
-# Rationale markers: a prohibition sentence carrying one of these is not an I6
-# candidate.
 RATIONALE_ERE="because|${WB_L}since${WB_R}|${WB_L}so that${WB_R}|${WB_L}so it${WB_R}|${WB_L}so the${WB_R}|${WB_L}to avoid${WB_R}|${WB_L}otherwise${WB_R}|${WB_L}in order to${WB_R}|${WB_L}rationale${WB_R}|${WB_L}reason${WB_R}"
 # I6's sentence-level gates. Lowercase spellings throughout: the awk program
 # folds each sentence to lowercase before testing it, so `do NOT` reads as
@@ -190,54 +188,28 @@ I6_CUE_ALT="never|do not|don('|’)?t|must ?not|mustn('|’)?t|should ?not|shoul
 I6_PAIRED_ERE="${WB_L}(instead|rather than|prefer(s|red|ring)?|in place of|in favou?r of)${WB_R}"
 I6_CLAUSE_STOPWORDS=" the a an and or but nor so yet if unless until when while where which who whose that this these those it its they their them we our us you your he she his her i is are was were be been being as at by for from in into of on onto to with without not no never nor don't do does did doing ever even because since though although however therefore thus hence per via plus minus other others such same both all any each every more most less least than there here what how why "
 I6_CLAUSE_TRANSPARENT=" just simply always then also still only first next now again finally "
-# I10 reasoning-echo phrasing.
 I10_ERE="(show|explain|reproduce|echo|transcribe|verbalize|narrate|share|describe) (your |the )?(thinking|reasoning|thought process|chain of thought)"
 I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning)|reasoning_extraction|chain[- ]of[- ]thought"
-# Scratchpad in the reasoning sense only: the tag (not a `<scratchpad>/` path
-# placeholder), or the word within one sentence of a think/reason/work-out verb.
 I10_ERE="${I10_ERE}|<scratchpad>([^/]|\$)|(think|reason|work (it |this |things )?out|work through)[^.]{0,40}scratchpad|scratchpad[^.]{0,40}(think|reason|work (it |this |things )?out|work through)"
-# I38 progress-update suppressors. Same apostrophe handling as I8-b.
 I38_ERE="hold (all |any |your |the )?(findings|results|updates|output)( until| for)|(don('|’)?t|do not|never) narrate"
 I38_ERE="${I38_ERE}|no (interim|intermediate|progress) (updates|messages|output|status|notes)|(stay|remain|work) silent(ly)? until"
 I38_ERE="${I38_ERE}|(don('|’)?t|do not|never) (send|give|post|write) (any )?(interim|intermediate|progress) (updates|messages|notes|status)"
-# I8 model-era candidate families (I8-a/I8-c Opus-5-scoped, I8-b unscoped;
-# scanner is model-blind; per-family ids I8-a/I8-b/I8-c). Stem forms
-# (`re[- ]?verif`) deliberately catch inflections; over-production is the contract.
 I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
 I8_F_ERE="think (very |really )?(carefully|hard|harder|deeply|thoroughly|step[- ]by[- ]step)|${WB_L}ultrathink${WB_R}"
-# I8-g ends the keep-going arm at a sentence end or a vague finish word, so
-# "keep going until the tests pass" (a check, the row's own remediation),
-# "keep going, with status notes" (the P6 statement) and a heading or wrapped
-# line ending on the phrase are never rows.
 I8_G_DONE="(it('|’)?s |you('|’)?re |everything is |the (task|work) is )?(done|finished|complete)${WB_R}"
 I8_G_ERE="(keep going|keep working|continue|loop) until ${I8_G_DONE}|keep going( no matter what|[.!])|(don('|’)?t|do not|never) (be lazy|give up)"
-# I23 self-estimated context-budget phrasing. Deliberately anchored to
-# BUDGET-AS-TRIGGER forms, never to the bare term "context window" — that term
-# is ordinary vocabulary in any instruction surface discussing sessions, and
-# matching it would return the whole corpus rather than a candidate set.
 I23_ERE="context (is |gets |getting |grows )?(heavy|tight|saturated|exhausted)|heavy context"
 I23_ERE="${I23_ERE}|(running|runs|run) (out of|low on) context|low on context"
 I23_ERE="${I23_ERE}|remaining[- ](context|window|tokens)|context[- ](budget|percentage|occupancy|countdown)|token[- ](budget|countdown)"
 I23_ERE="${I23_ERE}|(check|checking|watch|watching|monitor|monitoring) (the |your )?/context|/context output"
 I23_ERE="${I23_ERE}|(final|last) (third|quarter|half) of (the|your|its) window|window position"
 I23_ERE="${I23_ERE}|(nearing|approaching) (the )?(context|token)[- ](limit|cap|budget|window)"
-# I27 effort-for-brevity: both patterns must hit the SAME line — the AND lives
-# in scan_file. Stem forms catch inflections (decrease/decreasing via the bare
-# stem, drop/dropped/dropping via the doubled-p form; verbos carries no left
-# boundary so compounds match too); over-production is the contract, as with I8.
 I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|es|ing|s)? (the |your )?effort" # spellchecker:disable-line
 I27_BREVITY_ERE="${WB_L}short|${WB_L}brief|${WB_L}concise|${WB_L}terse|${WB_L}length|verbos|${WB_L}wordy"
-# I28 trigger-emphasis / blanket-default candidates (criteria fences decide:
-# a document about the pattern is not a finding; a marker set on a stated
-# hard precondition still is). Case-sensitive arm: the all-caps markers themselves. "use even
-# when" is an attested blanket-default form ("Use even when you think you know
-# the answer"), not a quoted guide example — over-production by design.
 I28_A_ERE="CRITICAL:|IMPORTANT:|(You|you) MUST|MANDATORY|ALWAYS use|NEVER skip"
 I28_B_ERE="${WB_L}default to (using|running|calling)${WB_R}|if in doubt,? use|${WB_L}always use${WB_R}|use even when"
-# I25 retired sampling parameters (model range is a criteria-owned Detect
-# condition; the scanner is model-blind and marks every prescription).
 I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 # I40 this repository's history references, agent definitions only. Matched on
 # the lowercased line after code spans and tracked-work marker links are removed, outside fenced

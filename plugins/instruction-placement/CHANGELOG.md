@@ -3,6 +3,16 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.9] - 2026-11-24
+
+### Changed
+
+- The `index-check` pre-commit entry checks whether a rules file or the index file is staged before it copies the instruction files out of the index, so a commit that touches neither copies nothing.
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts, so this plugin's checks judge the same lines as before.
+
 ## [1.10.8] - 2026-11-24
 
 ### Changed

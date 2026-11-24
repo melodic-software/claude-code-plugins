@@ -171,7 +171,6 @@ def load_case(cases_dir: Path, case_dir: Path) -> dict:
         raise CaseError(f"{case_id}: expect.json unreadable: {exc}") from exc
     shared = expect.get("tool_rules")
     if shared is not None:
-        # A list set shared by several cases, kept once in cases/lib/.
         if not isinstance(shared, str) or Path(shared).name != shared:
             raise CaseError(f"{case_id}: tool_rules names a file in cases/lib/")
         try:
@@ -574,7 +573,6 @@ def verdict(case: dict, obs: dict) -> dict:
         seen = seen[:1]
     shape = target.get("result_match")
     if shape and not all(re.search(shape, s["text"]) for s in seen):
-        # Not the output the case reads, such as a denial or a broken tool call.
         return with_verdict(
             row,
             "inconclusive",
@@ -619,7 +617,6 @@ def print_verdict(case: dict, obs: dict, row: dict) -> dict:
             + ("; a model turn answered instead" if obs["model_turn"] else ""),
         )
     if not re.search(case["target"].get("printed_match") or "", line):
-        # Not the output the case reads, such as an error or a dialog's text.
         return with_verdict(
             row,
             "inconclusive",

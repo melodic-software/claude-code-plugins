@@ -33,7 +33,6 @@ export function forcedStrikeAt(): number | undefined {
   return forced
 }
 
-/** When the shader started, or will start once the room's hold ends; undefined while none runs or is due. */
 let shaderFrom: number | undefined
 /** Notes when the shader starts or is due to start (milliseconds on the mod's clock), or that none is. */
 export function noteShaderStart(at: number | undefined): void {

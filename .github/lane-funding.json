@@ -131,18 +131,7 @@
       "keySecret": "MAINTENANCE_CLAUDE_API_KEY",
       "keyed": true,
       "category": "maintenance",
-      "lanes": [
-        { "id": "run-eval", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "run-eval-subscription", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "compare-before", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "compare-after", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "measure-baseline", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "measure-baseline-again", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "generate-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "measure-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "run-eval", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "run-eval-subscription", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] }
-      ]
+      "lanes": []
     },
     {
       "id": "evals",
@@ -151,7 +140,18 @@
       "keySecret": "EVALS_CLAUDE_API_KEY",
       "keyed": true,
       "category": "evals",
-      "lanes": []
+      "lanes": [
+        { "id": "run-eval", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "run-eval-subscription", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["EVALS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "compare-before", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["EVALS_CLAUDE_API_KEY", "EVALS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "compare-after", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["EVALS_CLAUDE_API_KEY", "EVALS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "measure-baseline", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "measure-baseline-again", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "generate-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "measure-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "run-eval", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "run-eval-subscription", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["EVALS_CLAUDE_CODE_OAUTH_TOKEN"] }
+      ]
     }
   ]
 }

@@ -56,7 +56,6 @@ function disabledRules(values) {
   return new Set(disable);
 }
 
-/** animation.duration_ms.large from --config, else from the plugin's bundled defaults. */
 function durationCeiling(values) {
   const passed = values?.animation?.duration_ms?.large;
   const ceiling =
@@ -65,8 +64,6 @@ function durationCeiling(values) {
   return ceiling;
 }
 
-/* Comments and strings become spaces, and so does everything outside <style>
-   in a non-CSS file, so every line number stays where it was. */
 const blank = (text) => text.replace(/[^\n]/g, " ");
 const isCss = (path) => /\.css$/i.test(path);
 function cssOf(path, text) {
@@ -78,14 +75,12 @@ function cssOf(path, text) {
   return css.replace(/\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, blank);
 }
 
-/* Splits on commas outside parentheses. */
 const items = (value) => value.split(/,(?![^(]*\))/).map((item) => item.trim());
 const milliseconds = (word) => {
   const time = word.match(/^(\d*\.?\d+)(ms|s)$/i);
   return time ? Number(time[1]) * (time[2].toLowerCase() === "s" ? 1000 : 1) : null;
 };
 
-/** `{ line, rule, message }` for each transition and transition-duration longer than the ceiling. */
 function checkDurations(path, ceiling) {
   const found = [];
   let line = 1;

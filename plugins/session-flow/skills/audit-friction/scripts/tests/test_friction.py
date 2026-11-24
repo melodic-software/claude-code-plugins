@@ -1,15 +1,4 @@
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-friction/scripts/tests/fixtures/*
-"""Contract tests for friction.py, and for the `friction` block collect.py writes, by subprocess.
-
-Fixture `fixtures/friction/` is synthetic. `proj-f/sess-f1` (interactive, 2026-09-10) holds, in its
-main transcript: a classifier denial ([Git Destructive]), a hook denial from the `shellguard` plugin,
-one prompt the person approved, an ask answered "yes, go with recommended", a hand-off answered
-"done", one `!` command, a correction, a 400 s `gh run watch`, a `sleep 30` and an interrupt, with
-900 s of turn time. Its subagent (`general-purpose`) holds a deny-rule denial and a classifier denial
-([Self-Modification]). `proj-f/sess-f2` (headless, 2026-09-12) holds two rule denials, one of them
-also listed in the closing `result` record's `permission_denials`. `proj-g/sess-g1` (2026-08-01)
-holds one approved prompt and two stops, each running two Stop hooks in parallel.
-"""
 
 from __future__ import annotations
 
@@ -46,7 +35,6 @@ def data_of(result: subprocess.CompletedProcess[str]) -> dict:
 
 
 def copy_projects(dest: Path, tmp_path: Path, *projects: str) -> Path:
-    """Copy fixture projects under `dest`, pointing each project's `__CWD__` at its own directory."""
     for name in projects:
         shutil.copytree(FIXTURES / name, dest / name)
         cwd = tmp_path / "work" / {"proj-f": "alpha", "proj-g": "beta"}[name]
@@ -166,7 +154,6 @@ def test_mine_project_and_session_filters(store):
 
 
 def test_mine_reports_the_stop_hook_wait_beside_the_parallel_sum(store):
-    # sess-g1's two stops each run two hooks in parallel: 300 and 100 ms, then 50 and 200 ms.
     args = ("mine", "--data-dir", str(store), "--since", "2026-07-01", "--project", "beta")
     perf = data_of(friction(*args))["perf"]
     assert (perf["stop_hook_wait_ms"], perf["stop_hook_ms"]) == (500, 650)
@@ -213,7 +200,6 @@ def test_mine_warns_about_an_unread_sibling_projects_tree(store, tmp_path):
     data = data_of(result)
     assert data["sibling_roots_unread"] == [str(sibling)]
     assert f'add it with --source "{sibling}"' in data["warnings"][0]
-    # The store does not record the root it was collected from, so the row says it is the collector's default.
     assert [r["via"] for r in data["projects_roots"]] == [
         "machine store, collector default root; the store does not record the root it was collected from"
     ]
@@ -389,8 +375,6 @@ def test_estimate_sizes_each_mode(tmp_path):
     inventory.write_text(json.dumps({"claims": claims}), encoding="utf-8")
     data = data_of(friction("estimate", "--inventory", str(inventory), "--probes", "3"))
     assert (data["claims"], data["consequential"]) == (25, 13)
-    # Hand-computed from the constants: tokens = agents x (100K, 125K) + 320K + probes x (6K, 9K); minutes = the
-    # larger of (waves + 2) x (12, 18) and probes x (3, 5).
     assert data["modes"]["probes"] == {
         "claims_checked": 0, "verifier_agents": 0, "waves": 0, "probe_cases": 3, "tokens": [18_000, 27_000], "minutes": [9, 15],
     }
@@ -405,8 +389,6 @@ def test_estimate_sizes_each_mode(tmp_path):
 
 
 def test_estimate_ranges_hold_the_measured_run(tmp_path):
-    # The measured fact-check: 32 verify batches of 12 claims and 16 challenge agents of 3 recommendations,
-    # 5.53M tokens in 119 min; the probe agent: 17 cases, 0.12M tokens in 64 min.
     claims = [{"id": f"c{i}", "type": "fact"} for i in range(32 * 12 - 16 * 3)]
     claims += [{"id": f"r{i}", "type": "recommendation"} for i in range(16 * 3)]
     inventory = tmp_path / "inventory.json"

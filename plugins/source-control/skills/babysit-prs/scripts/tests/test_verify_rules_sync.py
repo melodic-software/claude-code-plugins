@@ -193,7 +193,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         js = json.loads(proc.stdout)
         self.assertEqual(js["query"], ve.RELINK_QUERY)
         since = postmerge._time(gate.OLDER_START)
-        # The resolver judges up to now; the gate up to a pass's start.
         until = postmerge._time("2100-01-01T00:00:00Z")
         for answer, judged in zip(answers, js["judged"], strict=True):
             fake = gate.FakeGitHub([], {})
@@ -213,7 +212,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         human, app = gate.HUMAN, gate.LANES_ACTOR
         at, before = gate.RELINK_AT, "2026-10-13T00:00:00Z"
         cases = [
-            # A person's edit alone re-opens the head; a connect alone does not.
             (gate.relink_answer([(at, human)]), True),
             (gate.relink_answer([], [(at, human)]), False),
             (gate.relink_answer([(at, human)], [(at, human)]), True),
@@ -430,12 +428,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         self.assertEqual(js[:2], [True, False])
 
     def test_a_fail_outlives_the_look_back_and_a_pass_its_held_head(self) -> None:
-        # A FAIL the gate still counts must not expire before the pull
-        # request turns too old (TOO_OLD_DAYS), or verify:earlier-fail and the
-        # FAIL cap stop refusing. So must a pass judged after a relink: it may
-        # supersede a FAIL at its head (`_superseded`), which a later head of
-        # the same change still reads. Any other pass is read only at the open
-        # head, and 7 days is the window .github/artifact-retention.json records.
         writer = RESOLVER.parent / "write-verdict.mjs"
         script = (
             f"import {{ retentionDays }} from {json.dumps(writer.as_uri())};"
@@ -455,9 +447,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             self.assertGreater(days, ve.TOO_OLD_DAYS)
         self.assertEqual((passed, notes), (7, 7))
 
-    # Each FAIL-shaped name, and the issues its name carries read off by hand,
-    # or None for a name no reader takes. One verdict has one name: a PASS
-    # carries no issues, and issues are ascending and listed once.
     SHA = "a" * 40
     BASE = f"pr-verify-41-{SHA}-fail"
     DIGEST = "79b4cc554b80dca6"
@@ -486,16 +475,13 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         f"pr-verify-41-{SHA}-pass-i7": None,
         f"pr-verify-41-{SHA}-pass-notes-i7": None,
         f"pr-verify-41-{SHA}-pass-{DIGEST}-i7": None,
-        # The pull request number is 1 to 10 digits in every reader.
         f"pr-verify-9999999999-{SHA}-fail": set(),
         f"pr-verify-10000000000-{SHA}-fail": None,
         f"pr-verify-041-{SHA}-fail": None,
-        # The longest name the grammar allows, NAME_MAX (194) characters.
         f"pr-verify-9999999999-{SHA}-fail-{DIGEST}-i"
         + ".".join(str(9999999990 + n) for n in range(10)): set(
             range(9999999990, 10000000000)
         ),
-        # A trailing line feed is no part of a name.
         f"{BASE}\n": None,
         f"{BASE}-i7\n": None,
     }
@@ -508,10 +494,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         self.assertIsNotNone(ve.verdict_name(longest))
 
     def test_every_script_reader_takes_the_same_names(self) -> None:
-        # The gate (`verdict_name`), the resolver (`isVerdictName`, the
-        # pattern it checks names against; `judged` builds exact names and
-        # reads none) and the notes poster (`readVerdict`, given a verdict
-        # file that records what the name names).
         notes = RESOLVER.parents[1] / "pr-unblock/verify-notes.mjs"
         script = (
             f"import {{ isVerdictName, NAME }} from {json.dumps(RESOLVER.as_uri())};"
@@ -543,9 +525,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 self.assertEqual(notes_take, issues is not None)
 
     def test_pr_feedback_dispatch_selects_the_same_names(self) -> None:
-        # Its listing keeps every verdict-shaped name, a pass's included; its
-        # strict filter keeps the ones the readers take, and any other fails
-        # the run.
         if not shutil.which("jq"):
             self.skipTest("jq not installed")
         workflow = (
@@ -570,8 +549,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             f"[{listing[0]}]",
             {"artifacts": [{"expired": False, "name": n} for n in names]},
         )
-        # Any digits for the number, so an 11-digit one is listed and fails
-        # the strict filter, as the gate holds on it.
         self.assertEqual(listed, names)
         self.assertEqual(
             jq(f"[.[] | {strict[0]}]", names),
@@ -579,8 +556,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         )
 
     def test_the_gate_reads_the_issues_the_writer_names(self) -> None:
-        # Each FAIL write-verdict.mjs names parses to the issues it records;
-        # a pass's name carries none.
         writer = RESOLVER.parent / "write-verdict.mjs"
         sha = "a" * 40
         cases = [
@@ -656,7 +631,6 @@ REFS_BODIES = [
     "Refs: #5\u2028Refs: #6",
     "Refs: #5\x0bRefs: #6",
     "Closes #4\nRefs: #5",
-    # An off-form line beside a plain one still names none.
     "Refs: #5\nrefs: #6",
     "Refs: #5\nRefs: o/r#6",
 ]
@@ -689,7 +663,6 @@ class TheGateAndTheResolverReadRefsAlike(unittest.TestCase):
         for body, js in zip(REFS_BODIES, named, strict=True):
             with self.subTest(body=body):
                 self.assertEqual(merge_policy.refs_issue(body)[0], js)
-        # Hand-read: the table holds both kinds of answer.
         self.assertEqual(named[2], 5)
         self.assertIn(None, named)
 
@@ -759,8 +732,6 @@ def queue_counts(runs: list[dict[str, Any]]) -> list[bool]:
 
 
 def queue_should_count(label: str) -> bool:
-    # Only the head SHA differs: the gate's compare decides, which the queue
-    # check skips.
     return set(RUNS[label]) <= HEAD_ONLY or gate_counts(
         gate.run(1, **RUNS[label]), "pass"
     )
@@ -824,9 +795,6 @@ def listed(name: str, run: int, expired: bool = False) -> dict[str, Any]:
 def queue_lookup(
     artifacts: list[dict[str, Any]], runs: dict[int, dict[str, Any]]
 ) -> tuple[list[dict[str, Any]], str, int]:
-    """Run the lookup for PR 41 at the gate's head over `artifacts` as the
-    reader's listing, each run read answering `runs`. Returns the records it
-    kept, the counted pass's artifact id ('' for none) and its run reads."""
     bash = merge_policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
     if bash is None:
         raise unittest.SkipTest("bash not installed")
@@ -891,7 +859,6 @@ class TheQueueCheckAndTheGateAgree(unittest.TestCase):
         self.assertIn(False, allowed)
 
     def test_the_lookup_stops_only_at_a_pass_the_gate_counts(self) -> None:
-        # The run record under the first name, a counted pass under a later one.
         first, later = (
             f"pr-verify-{gate.PR}-{gate.HEAD}-{verdict}"
             for verdict in ("pass", "pass-notes")

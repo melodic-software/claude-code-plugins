@@ -408,8 +408,6 @@ class StuckCheckSignalTests(unittest.TestCase):
             ),
             result["material_findings"],
         )
-        # The stuck signal must never introduce a blocker string: a blocker
-        # would re-pin the PR active and re-dispatch a worker every cycle.
         self.assertFalse(
             any(
                 "UNSTABLE without completing" in blocker or "orphan" in blocker.lower()
@@ -417,7 +415,6 @@ class StuckCheckSignalTests(unittest.TestCase):
             ),
             result["blockers"],
         )
-        # The pre-existing pending-check blocker is left untouched.
         self.assertTrue(
             any("pending check" in blocker for blocker in result["blockers"]),
             result["blockers"],
@@ -471,7 +468,6 @@ class ApprovalHeldCheckTests(unittest.TestCase):
         self.assertFalse(
             any("failing check" in b for b in result["blockers"]), result["blockers"]
         )
-        # The rollup still counts it failing, so the merge gate keeps holding.
         self.assertEqual(result["checks"]["failing"], ["test"])
 
     def test_a_real_failure_beside_it_is_still_one_blocker(self) -> None:
@@ -608,9 +604,6 @@ class LegacyCheckIdentityMigrationTests(unittest.TestCase):
         self.assertNotIn("checks_changed", quiet["needs_worker_reasons"])
 
     def test_one_identity_array_without_its_partner_is_refused(self) -> None:
-        # Half-migrated state is unreadable, not merely legacy: taking the
-        # display-name path with one array present would compare this cycle's
-        # identities against names and report phantom movement on every check.
         half = self._legacy_prev()
         half["checks_failing_identities"] = []
         with self.assertRaises(ValueError):
@@ -680,10 +673,6 @@ class SelfLoginHumanFeedbackExclusionTests(unittest.TestCase):
     }
 
     def test_self_login_reply_does_not_manufacture_dispatch(self) -> None:
-        # A recent worker check-in suppresses the bounded `quiet_recheck_due`
-        # fallback, so the only signal that could still dispatch is the
-        # (unsuppressible) new_human_blocking_feedback delta. Filtered out for a
-        # self-authored comment, it must leave the PR needing no worker.
         result = classify(
             make_pr(comments=[self.SELF_BLOCKING]),
             make_prev(last_worker_checkin_at=OBS),
@@ -702,9 +691,6 @@ class SelfLoginHumanFeedbackExclusionTests(unittest.TestCase):
         self.assertFalse(result["needs_worker"])
 
     def test_self_login_item_is_still_classified_human_blocking(self) -> None:
-        # Deliberate scope: the comment is excluded only from the dispatch
-        # delta, not from classification -- so a genuine "do not merge" comment
-        # the maintainer posts under their own login still halts the merge gate.
         result = classify(
             make_pr(comments=[self.SELF_BLOCKING]),
             make_prev(last_worker_checkin_at=OBS),
@@ -717,9 +703,6 @@ class SelfLoginHumanFeedbackExclusionTests(unittest.TestCase):
         self.assertFalse(result["pr_clean_ready_for_direct_gate"])
 
     def test_other_login_still_fires_under_same_config(self) -> None:
-        # The filter is login-specific, not a blanket human-feedback mute:
-        # genuine feedback from any other login must still dispatch a worker,
-        # even with a recent check-in that suppresses the quiet-recheck fallback.
         result = classify(
             make_pr(comments=[self.OTHER_BLOCKING]),
             make_prev(last_worker_checkin_at=OBS),
@@ -729,11 +712,6 @@ class SelfLoginHumanFeedbackExclusionTests(unittest.TestCase):
         self.assertTrue(result["needs_worker"])
 
     def test_self_login_nonblocking_excluded_from_new_feedback_human(self) -> None:
-        # The self-login filter over the new-human-feedback delta also covers the
-        # non-blocking `human` arm surfaced in new_feedback["human"]: a self-authored
-        # non-blocking comment stays classified human -- so it never hollows out the
-        # maintainer's own signal -- but must not be re-surfaced to the orchestrator
-        # as new feedback every cycle.
         result = classify(
             make_pr(comments=[self.SELF_NONBLOCKING]),
             make_prev(last_worker_checkin_at=OBS),
@@ -745,9 +723,6 @@ class SelfLoginHumanFeedbackExclusionTests(unittest.TestCase):
         self.assertEqual(result["new_feedback"]["human"], [])
 
     def test_other_login_nonblocking_still_surfaces_as_new_feedback(self) -> None:
-        # The non-blocking-arm filter is login-specific, not a blanket mute: a
-        # non-blocking comment from any other login must still surface as new
-        # human feedback for the orchestrator to relay.
         result = classify(
             make_pr(comments=[self.OTHER_NONBLOCKING]),
             make_prev(last_worker_checkin_at=OBS),
@@ -876,9 +851,6 @@ class AdvisoryRoundCompositionTests(unittest.TestCase):
         )
 
     def test_unclassifiable_records_are_unknown(self) -> None:
-        # Pre-adoption records carry no classes at all; the rest are records a
-        # hand edit or a partial write could produce. None of them may read as
-        # "no (c) findings" -- the tripwire fails closed on unknown.
         for record in (
             None,
             "not-an-object",
@@ -895,8 +867,6 @@ class AdvisoryRoundCompositionTests(unittest.TestCase):
 
 class AdvisoryRoundOrderingTests(unittest.TestCase):
     def test_rounds_are_ordered_by_write_ahead_timestamp(self) -> None:
-        # Insertion order deliberately disagrees with chronology: a dict keyed
-        # by head SHA carries no ordering the tripwire could trust.
         rounds = advisory_rounds(
             ("b" * 40, "2026-07-10T02:00:00Z", ALL_C),
             ("a" * 40, "2026-07-10T01:00:00Z", MIXED),
@@ -907,9 +877,6 @@ class AdvisoryRoundOrderingTests(unittest.TestCase):
         )
 
     def test_tied_timestamps_fall_back_to_write_order(self) -> None:
-        # The head SHA carries no chronology, so a lexicographic tiebreak would
-        # order these arbitrarily -- here, exactly backwards. Pre-sequence
-        # records have nothing better than the mapping's current order.
         rounds = advisory_rounds(
             ("b" * 40, "2026-07-10T01:00:00Z", MIXED),
             ("a" * 40, "2026-07-10T01:00:00Z", ALL_C),
@@ -920,9 +887,6 @@ class AdvisoryRoundOrderingTests(unittest.TestCase):
         )
 
     def test_an_explicit_sequence_outranks_timestamps_and_key_order(self) -> None:
-        # The ledger reloads with sorted keys and timestamps can tie, so only
-        # the persisted sequence carries write order across a rollover. Both
-        # the mapping order and the timestamps here disagree with it.
         rounds = {
             "a" * 40: {
                 "recorded_at": "2026-07-10T01:00:00Z",
@@ -941,9 +905,6 @@ class AdvisoryRoundOrderingTests(unittest.TestCase):
         )
 
     def test_pre_sequence_rounds_sort_before_sequenced_ones(self) -> None:
-        # A record without a sequence predates sequence persistence, so it was
-        # written before every record that has one -- whatever its timestamp
-        # says relative to theirs.
         rounds = {
             "a" * 40: {"recorded_at": "2026-07-10T09:00:00Z", "finding_classes": MIXED},
             "b" * 40: {
@@ -987,9 +948,6 @@ class NonConvergenceTripwireTests(unittest.TestCase):
         self.assertEqual(tripwire["latest"]["head_sha"], "b" * 40)
 
     def test_an_unclassified_predecessor_fails_closed(self) -> None:
-        # A round recorded before classes were persisted is UNKNOWN rather than
-        # (a)/(b), so a current all-(c) round still arms rather than silently
-        # resetting the count.
         tripwire = delta.advisory_non_convergence_tripwire(
             advisory_rounds(
                 ("a" * 40, "2026-07-10T01:00:00Z", None),
@@ -1076,7 +1034,6 @@ class GraphQLProvenanceTests(unittest.TestCase):
         )
 
     def test_a_record_with_no_marker_reads_as_graphql(self) -> None:
-        # The key postdates the fallback; every earlier hydration was GraphQL.
         self.assertTrue(classify(make_pr(), None)["graphql_available"])
 
 

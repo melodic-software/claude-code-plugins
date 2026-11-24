@@ -334,8 +334,6 @@ elif [[ "$WORKTREE_COUNT" -gt 1 ]]; then
   BLOCKED="linked-worktrees ($((WORKTREE_COUNT - 1)) registered — remove them first)"
   EXIT=3
 elif [[ "$SKILLDATA_COUNT" -gt 0 ]]; then
-  # Skill-owned data/ is irreplaceable user synthesis the clean skill always
-  # preserves with no removal flag — deliberately no override here either.
   BLOCKED="skill-data ($SKILLDATA_COUNT skill-owned data file(s) — irreplaceable; move them out first, no override)"
   EXIT=3
 elif [[ "$SECRETS_COUNT" -gt 0 && "$INCLUDE_SECRETS" -eq 0 ]]; then

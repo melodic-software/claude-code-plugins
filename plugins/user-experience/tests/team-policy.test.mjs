@@ -1,5 +1,3 @@
-// Team-row admission rules: one describe per rule, named by the rule, so a change to a rule fails
-// the test that carries its name.
 import { strict as assert } from "node:assert";
 import { dirname, join } from "node:path";
 import { describe, test } from "node:test";
@@ -8,7 +6,6 @@ import { fileURLToPath } from "node:url";
 const { rules, rejections } = await import(join(dirname(fileURLToPath(import.meta.url)), "../scripts/lib/team-policy.mjs"));
 const rule = (name) => rules.find((r) => r.name === name);
 
-// Hand-written rows in the routing.json shape; the rules see only these, never the shipped file.
 const bundled = [
   { job: "synthesis", rank: 1, id: "/product-management:synthesize-research", kind: "skill", detect: "product-management@knowledge-work-plugins" },
   { job: "synthesis", rank: 3, id: "dovetail", kind: "mcp", detect: "dovetail" },

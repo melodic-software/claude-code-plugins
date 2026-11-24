@@ -262,6 +262,11 @@ base_config() {
   [[ -n "${STUB_NO_ACTORS:-}" ]] || cp "$STUB_ACTORS" "$dir/.github/standards/trusted-actors/trusted-actors.json"
   [[ -n "${STUB_NO_MODULE:-}" ]] || cp "${STUB_MODULE:-$MODULE}" "$dir/.github/scripts/pr-merge/merge-holds.mjs"
 }
+standards_stub() {
+  rm -rf "$TMP_ROOT/standards"
+  mkdir -p "$TMP_ROOT/standards/components/trusted-actors"
+  [[ -n "${STUB_NO_ACTORS:-}" ]] || cp "$STUB_ACTORS" "$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
+}
 
 # expect <label> <want-rc> <want-discussion-calls> [want-out]
 # The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
@@ -271,6 +276,7 @@ expect() {
   : >"$TMP_ROOT/log"
   rm -rf "$TMP_ROOT/verify-listing.json" "$TMP_ROOT/pr-files.json"
   [[ -n "${STUB_BASE_CONFIG+x}" ]] || base_config
+  standards_stub
   # STUB_KEEP_READS keeps the pr_read answers an earlier step left.
   [[ -n "${STUB_KEEP_READS:-}" ]] || rm -rf "$TMP_ROOT/pr-reads"
   # The broker step's file pages (STUB_PR_FILES, as that step saved them).
@@ -295,7 +301,7 @@ expect() {
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" PR_HEAD_SHA="$head_sha" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" BABYSIT_VERIFY_LEGACY_FAILS="$TMP_ROOT/base/.github/verify-legacy-fails.json" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
-    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 MERGE_GROUP_WAIT_SECONDS="$budget" QUEUED_PR_WAITED="${STUB_WAITED-0}" BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 MERGE_GROUP_WAIT_SECONDS="$budget" QUEUED_PR_WAITED="${STUB_WAITED-0}" BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" STANDARDS_DIR="${STUB_STANDARDS-$TMP_ROOT/standards}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -553,9 +559,10 @@ author_run() {
   : >"$TMP_ROOT/author-output"
   rm -rf "$TMP_ROOT/pr-reads"
   [[ -n "${STUB_BASE_CONFIG+x}" ]] || base_config
+  standards_stub
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REF="${REF:-$QUEUE}" GITHUB_REPOSITORY=o/r \
     GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/author-output" \
-    BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" bash -e "$TMP_ROOT/author.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" STANDARDS_DIR="${STUB_STANDARDS-$TMP_ROOT/standards}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" bash -e "$TMP_ROOT/author.sh" 2>&1)" && rc=0 || rc=$?
   got="$(sed -n 's/^lanes=//p' "$TMP_ROOT/author-output")"
   judged="$(sed -n 's/^verify_judged=//p' "$TMP_ROOT/author-output")"
   if [[ "$rc" -ne 0 ]]; then
@@ -809,9 +816,12 @@ expect "an approval by a person off the trusted-actor list does not lift it" 1 3
 STUB_REVIEWS="[$KYLE_OK]" STUB_PULL="$(pull $'Hold: x')"
 expect "an approval lifts the hold path, and the body's hold text holds nothing" 0 3 "lifts its hold path"
 STUB_PULL="$(pull 'Closes #1')"
+NO_IDENTITY="::error::cannot read merge.agent-identity from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+NO_IDENTITY_ID="::error::cannot read $identity's trusted-actor id from the standards checkout's trusted-actor list; re-run this run."
 export STUB_NO_ACTORS=1
-expect "an unreadable trusted-actor list fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
+expect "an unreadable trusted-actor list fails closed" 1 0 "$NO_IDENTITY_ID"
 unset STUB_NO_ACTORS
+STUB_STANDARDS='' expect "with no standards checkout the hold config's copy is never read, and it fails closed" 1 0 "$NO_IDENTITY_ID"
 STUB_REVIEWS=''
 STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
 expect "a config with no denied paths holds no path" 0 3 "no hold path"
@@ -832,7 +842,7 @@ STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a file list shorter than changed_files fails closed before the discussion" 1 0 "::error::GitHub listed fewer files than #7 changes"
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_NO_CONFIG=1
-expect "an unreadable config fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
+expect "an unreadable config fails closed" 1 0 "$NO_IDENTITY"
 unset STUB_NO_CONFIG
 
 # verifier runs: run <id> [path] [event] [branch] [status] [conclusion]
@@ -1209,12 +1219,12 @@ expect "a LANES_APP_ID other than merge.agent-identity's fails any pull request 
 STUB_PULL="$(pull 'Closes #1')"
 unset STUB_APP_ID
 export STUB_BASE_CONFIG=''
-expect "an unreadable base config fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+expect "an unreadable base config fails closed" 1 0 "$NO_IDENTITY"
 export STUB_BASE_CONFIG="$TMP_ROOT/no-identity"
 mkdir -p "$STUB_BASE_CONFIG/docs/conventions" "$STUB_BASE_CONFIG/.github/standards/trusted-actors"
 printf 'merge:\n  diff-check: {}\n' >"$STUB_BASE_CONFIG/docs/conventions/pr-pipeline.yaml"
 cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$STUB_BASE_CONFIG/.github/standards/trusted-actors/"
-expect "a base config with no merge.agent-identity fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+expect "a base config with no merge.agent-identity fails closed" 1 0 "$NO_IDENTITY"
 unset STUB_BASE_CONFIG
 
 test_harness::report

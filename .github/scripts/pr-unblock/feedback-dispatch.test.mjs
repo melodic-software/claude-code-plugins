@@ -12,6 +12,7 @@ import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
 // its top-level run-name scalar as YAML reads it (a double-quoted string, or a
@@ -3624,14 +3625,15 @@ test("the sweep clears an idle owner PR's failing stop once no thread is left, p
   assert.equal(await ownerSweep(open), null);
 });
 
-test("ownerAdoption reads the base adoption section and the trusted list's people; an unreadable base adopts no owner", async () => {
+test("ownerAdoption reads the base adoption section and the standards list's people; an unreadable base, or no standards checkout, adopts no owner", async () => {
   const root = new URL("../../../", import.meta.url).pathname;
-  const adoption = await ownerAdoption({ BASE_PATH: root });
+  const adoption = await ownerAdoption({ BASE_PATH: root, STANDARDS_DIR: standardsCheckout() });
   assert.ok(Number.isInteger(adoption.idleHours));
   assert.ok(adoption.ownerIds.has(KYLE.databaseId));
   const lines = [];
-  assert.equal(await ownerAdoption({ BASE_PATH: "/nonexistent-base" }, (line) => lines.push(line)), NO_ADOPTION);
+  assert.equal(await ownerAdoption({ BASE_PATH: "/nonexistent-base", STANDARDS_DIR: standardsCheckout() }, (line) => lines.push(line)), NO_ADOPTION);
   assert.match(lines[0], /no owner PR is served this run/);
+  assert.equal(await ownerAdoption({ BASE_PATH: root }, () => {}), NO_ADOPTION, "the base's synced copy is never read");
 });
 
 // A fix request on a head an earlier round handled: the reviewer bot's thread,

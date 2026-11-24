@@ -13,8 +13,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$SCRIPT_DIR/../run-conformance.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 
-# Mirror the runner's CB_REPO="" default so the assertion below proves this binding
-# leaves it untouched.
 CB_REPO=""
 # shellcheck source=local-markdown.sh
 source "$SCRIPT_DIR/local-markdown.sh"

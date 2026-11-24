@@ -92,7 +92,7 @@ test("the gap is sweep-gap-minutes: a sweep exactly 15 minutes ago skips, one 15
 
 test("a scheduled or red full sweep counts; a newer run with no verdicts artifact does not", async () => {
   const scheduled = fakeGitHub([runAt(42897000002, "2026-11-10T20:47:30Z", { event: "schedule" })], { 42897000002: [verdicts(2)] });
-  assert.equal((await run({}, scheduled.github)).output, "skip=true\n", "the hourly sweep");
+  assert.equal((await run({}, scheduled.github)).output, "skip=true\n", "a scheduled sweep");
   const red = fakeGitHub([runAt(42897000003, "2026-11-10T20:50:00Z", { conclusion: "failure" })], { 42897000003: [verdicts(3)] });
   assert.equal((await run({}, red.github)).output, "skip=true\n", "a sweep that ended red still spent its calls");
   const held = runAt(42897900000, "2026-11-10T20:52:00Z");

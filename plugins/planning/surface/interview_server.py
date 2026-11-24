@@ -88,12 +88,10 @@ RUNTIME_SUFFIXES = (".lock", ".tmp")
 
 
 def page_build():
-    """plugin_build() of the files on disk, as attribute-safe text ("" for an unreadable part)."""
     return {k: html.escape(v or "") for k, v in plugin_build(HERE).items()}
 
 
 def runtime_path(rel):
-    """True when any part of the data-dir-relative path is a dotfile, a lock or a temp file."""
     return any(
         p.startswith(".") or p.lower().endswith(RUNTIME_SUFFIXES) for p in rel.parts
     )
@@ -157,7 +155,6 @@ USER_ONLY = {"browserCommand"}
 
 
 def setting_error(key, value):
-    """None when value is valid for key, else the reason."""
     kind, *rule = SETTING_RULES[key]
     if kind == "bool":
         ok = isinstance(value, bool)
@@ -184,7 +181,6 @@ def setting_error(key, value):
 
 
 def token_map(value):
-    """A {light: {token: value}, dark: {...}} map with string tokens and values, or None."""
     if not isinstance(value, dict) or not set(value) <= {"light", "dark"}:
         return None
     for tokens in value.values():
@@ -208,7 +204,6 @@ def repo_root(data_dir):
 
 
 def run_quiet(cmd):
-    """(exit code, stdout, stderr) of a short command with no window; None when it cannot run."""
     try:
         p = subprocess.run(
             cmd,
@@ -252,7 +247,6 @@ def convention_home(repo):
 
 
 def yaml_section(path, label, note):
-    """The interview_page mapping of a planning YAML file; {} when absent, noted when unusable."""
     if path is None:
         return {}
     shown = f"{label} file {path}"
@@ -437,14 +431,10 @@ class Settings:
 
 
 def question_states(doc, r):
-    """Per question id: (state, revising); see derive_states."""
     return derive_states(doc, r)[0]
 
 
 def supersede_chains(doc):
-    """Per question id that supersedes another: every earlier question of its supersede chain as
-    {id, round, stage}, the chain's first question first (G6: a question re-issued twice keeps
-    its history). A cycle or an unknown id ends the walk. Never written to questions.json."""
     by_id = {
         q["id"]: q
         for q in doc.get("questions") or []
@@ -467,10 +457,6 @@ def supersede_chains(doc):
 
 
 def decision_value(e, recs):
-    """What a decision settles, compared to tell a changed answer from a repeated one: an alt's
-    key; an accept's or hedged accept's count of recommendation changes so far (accepting a
-    revised recommendation is a new answer), with a hedged condition; an own or defer text,
-    whitespace folded. An accept's note is not part of it."""
     kind, text = e["kind"], " ".join((e.get("text") or "").split())
     if kind == "alt":
         return (kind, e.get("alt"))
@@ -503,12 +489,6 @@ def unchecked_constraints(doc):
 
 
 def answer_order(questions, threshold):
-    """The recommended answering order of the open questions (on the path, and held or not
-    answered, as frontierLock reads a prerequisite), or [] while there are `threshold` or fewer.
-    Prerequisites come first (topological by dependsOn); among the questions ready next, the
-    larger blast radius (the count of transitive dependents through dependsOn) goes first, then
-    the lower id. A dependsOn cycle is broken by the same keys. Advisory: it changes no state and
-    no frontierLock check."""
     from exporters import natural  # exporters imports this module at its top
 
     path = [
@@ -774,7 +754,6 @@ def load_json(path, default):
 
 
 def find_visual(doc, vid):
-    """The visual with id vid: top-level visuals first, then inline visuals inside questions."""
     inline = [
         v
         for q in doc.get("questions") or []
@@ -788,7 +767,6 @@ def find_visual(doc, vid):
 
 
 def visual_format(v):
-    """The visual's format, with `kind` as its alias; the page reads a missing one as html."""
     return v.get("format") or v.get("kind") or "html"
 
 
@@ -899,9 +877,6 @@ def proposal_answer(q, events):
 
 
 def check_proposal(q, alt, text, events):
-    """ValueError (400) or Conflict (409) for a proposal event on q: `alt` is accept, edit or
-    decline, an edit carries the reworded question in `text` (one line), and q is a proposed
-    question no proposal event has answered yet."""
     answer = proposal_answer(q, events)
     if answer is None:
         raise ValueError("not a proposed question")
@@ -926,8 +901,6 @@ def chain_end(qs, q):
 
 
 def check_retired(qs, q):
-    """Conflict (409) for a decision on a question off the path: `superseded`, with `by` naming
-    the end of its supersededBy chain (chain_end), wins over `archived`."""
     if q.get("supersededBy"):
         raise Conflict({"error": "superseded", "by": chain_end(qs, q)})
     if q.get("archived"):
@@ -935,8 +908,6 @@ def check_retired(qs, q):
 
 
 def round_complete(doc, r, qid):
-    """True when every live question in qid's round has a decision in r (this accept included);
-    a proposed question the user has not accepted or edited is not a question yet."""
     qs = [q for q in doc.get("questions") or [] if isinstance(q, dict)]
     rnd = next((q.get("round") for q in qs if q.get("id") == qid), None)
     return not any(
@@ -977,7 +948,6 @@ def release_user_holds(doc, r):
 
 
 def content_rev(q, events):
-    """Bumped by round.py on wording or recommendation changes, plus one per decision or undo. Replies never bump it."""
     qid = q.get("id")
     return (q.get("contentRev") or 0) + sum(
         1
@@ -987,7 +957,6 @@ def content_rev(q, events):
 
 
 def decision_view(event, prev_text=""):
-    """The responses[id] entry one decision event produces; a reopen without text keeps the note."""
     kind, text = event["kind"], event.get("text") or ""
     return {
         "decision": None if kind == "reopen" else kind,
@@ -999,7 +968,6 @@ def decision_view(event, prev_text=""):
 
 
 def history_line(event):
-    """The history[id] line one user event adds; an undo also names the seq it withdrew."""
     line = {
         "at": event["at"],
         "by": "user",
@@ -1014,7 +982,6 @@ def history_line(event):
 
 
 def fold_decisions(events):
-    """The responses[id] entry after a run of live decision events in seq order (a reopen keeps the note)."""
     view = None
     for e in events:
         view = decision_view(e, view["text"] if view else "")
@@ -1065,8 +1032,6 @@ def rebuild_responses(events):
 
 
 def check_accept_audit(msg):
-    """ValueError (400) unless msg is a well-formed accept-audit: a round id in `alt` and a
-    non-empty `items` list of {id, contentRev} pairs with no repeated id. Returns the items."""
     if not (isinstance(msg.get("alt"), str) and msg["alt"].strip()):
         raise ValueError("accept-audit needs alt: the round id")
     items = msg.get("items")
@@ -1116,7 +1081,6 @@ def open_prereqs(doc, r, q):
 
 
 def check_out_of_order(msg):
-    """ValueError (400) unless msg's `outOfOrder`, when present, is a list of question ids."""
     ooo = msg.get("outOfOrder")
     if ooo is not None and not (
         isinstance(ooo, list) and all(isinstance(p, str) for p in ooo)
@@ -1126,11 +1090,6 @@ def check_out_of_order(msg):
 
 
 def split_accept_audit(doc, r, items):
-    """(accepted, skipped) of an accept-audit: the items the server accepts now, and an
-    {id, reason} for each it refuses. `changed` is a contentRev that no longer matches;
-    `ineligible` is an unknown, closed, superseded, held or recommendation-less question, one
-    whose state is not open (stale, upstream-changed, upstream-pending), or one with a
-    prerequisite still open (open_prereqs: an archived or superseded prerequisite is met)."""
     release_user_holds(doc, r)
     qs = {q.get("id"): q for q in doc.get("questions") or []}
     states = question_states(doc, r)
@@ -1174,7 +1133,6 @@ def check_alt(q, kind, alt):
 
 
 def check_understanding(doc, alt, text, rev):
-    """ValueError (400) or Conflict (409 stale) for a confirm-understanding event."""
     if alt not in UNDERSTANDING:
         raise ValueError("confirm-understanding needs alt: confirm or off")
     if alt == "off" and not text.strip():
@@ -1192,9 +1150,6 @@ READ_BACK = re.compile(r"^\s*Understood as:", re.I)
 
 
 def check_reading(q, response, answer_seq, read_rev):
-    """ValueError (400) or Conflict (409 stale) for a confirm-reading event: it names the answer
-    (its seq) and the read-back it confirms (readRev, the count of Claude's `Understood as:` replies
-    to that answer up to the one shown), so a reading Claude replaced after the tab drew it is refused."""
     if not isinstance(answer_seq, int) or not isinstance(read_rev, int):
         raise ValueError(
             "confirm-reading needs answerSeq and readRev: the read-back it confirms"
@@ -1212,10 +1167,6 @@ def check_reading(q, response, answer_seq, read_rev):
 
 
 def repeat_of(events, event, since_seq=None):
-    """The event a repeated Confirm duplicates, or None; the server answers a repeat with that
-    event's seq. A commitment's confirm repeats any live confirm of it after `since_seq` (the
-    question's commitsSinceSeq: a commitments revise retires earlier confirms); an understanding
-    Confirm repeats only when the newest answer to that restatement rev is a Confirm."""
     kind = event["kind"]
     if kind == "confirm":
         same = [

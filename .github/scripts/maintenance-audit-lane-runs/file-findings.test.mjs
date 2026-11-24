@@ -12,6 +12,7 @@ import { MAX_FIELD, planDigest, renderDigest, renderEntry } from "./findings.mjs
 import { parseJudgeOutput } from "./write-findings.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const finding = (over = {}) => ({
   slice: "D",
@@ -435,7 +436,7 @@ function workStatus(state, setter, postError) {
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
-  return { written, writer: () => statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r" }) };
+  return { written, writer: () => statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github, repository: "o/r" }) };
 }
 const run = async (s, items, extra = {}) => {
   const plan = planDigest({ items, existing: s.issues, openNumbers: new Set(), ...extra });

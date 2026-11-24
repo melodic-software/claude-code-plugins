@@ -9,14 +9,9 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S" --nope
-# Foreign-provider edge id is well-formed by the shared grammar but rejected here
-# (offline: fails before any storage access).
 assert_usage_error "$S" --title x --parent "github:o/r#1"
 assert_usage_error "$S" --title x --type
 
-# create-item is the verb that writes a whole item, so assert what reaches the
-# store, not just the exit code. `type` is additive: supplied it round-trips,
-# omitted it projects as JSON null rather than an empty string.
 STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 TYPED="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title "typed item" --type bug)"
 assert_eq "--type reaches the emitted record" "bug" "$(jq -r '.type' <<<"$TYPED")"
@@ -25,17 +20,13 @@ assert_contains "--type reaches the stored file" \
 assert_eq "an item created without --type projects null" "null" \
   "$(WIT_STORAGE_DIR="$STORE" bash "$S" --title untyped | jq -r '.type')"
 
-# A parent or blocker that does not exist is refused rather than persisted as a
-# dead edge that get-item and the frontier would silently ignore.
 WIT_STORAGE_DIR="$STORE" bash "$S" --title orphan --parent "local-markdown:local/markdown#999" >/dev/null 2>&1
 assert_eq "a missing --parent is not-found (5), not a dead edge" "5" "$?"
 WIT_STORAGE_DIR="$STORE" bash "$S" --title orphan --blocked-by "local-markdown:local/markdown#999" >/dev/null 2>&1
 assert_eq "a missing --blocked-by is not-found (5), not a dead edge" "5" "$?"
 rm -rf "$STORE"
 
-# Sibling dedupe under --parent: an open child with the same trimmed title, or one
-# closed within 24 hours by its closed_at, is returned; one closed earlier is not.
-close_child() { # <file> <closed_at JSON, or empty for none>
+close_child() {
   awk -v c="$2" '$0 == "state: \"open\"" { print "state: \"closed\""; if (c != "") print "closed_at: " c; next } { print }' \
     "$1" >"$1.new" && mv "$1.new" "$1"
 }

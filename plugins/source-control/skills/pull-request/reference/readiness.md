@@ -2,6 +2,8 @@
 
 Single source of truth for merge readiness. Both monitor.md (Phase 3.4) and merge.md (Phase 4.1) reference this file. **Every item must be satisfied before suggesting merge. No exceptions, regardless of PR type or `full` mode.**
 
+Ownership: the mechanical conditions (hold labels, unresolved review threads, changes-requested reviews, failed and pending checks, the pr-verify verdict) are decided by `scripts/merge-readiness.sh`, the script the guardrails merge guard also runs, which [merge.md](merge.md) §4.1 step 3 runs at the pinned head. The gates below own judgment and process: investigating failures, security triage, comments, the cooldown and reviewer waits. GitHub rulesets are the server-side backstop.
+
 ## Expected PR actors
 
 Monitor must discover and track every PR actor. Actors fall into three categories by how they report:
@@ -87,10 +89,10 @@ Pagination and the completeness assertion are required: see [Reading GitHub list
 For every check run with `bucket == "fail"`, listed from the PR's checks ([GitHub](../../../reference/providers/github/pull-request/readiness.md#gate-2-list-failing-checks)):
 
 - [ ] Each failure has been **investigated**: logs read via the monitor §3.1 tiered fetch chain (bundled `fetch-annotations.sh` → `fetch-failed-logs.sh` full untruncated ZIP; the CLI's failed-log view only as a last-resort eyeball, since it truncates at the CLI display layer; [GitHub](../../../reference/providers/github/pull-request/readiness.md#gate-2-list-failing-checks))
-- [ ] Each failure is **classified**: real failure (fix required) or informational (document why safe to proceed)
-- [ ] Informational failures explicitly documented in monitoring report with exact error message
-- [ ] A review lane that failed on a usage or rate limit is never informational: it reviewed nothing, so it is ABSENT and Gate 5's lane-substitution item applies to it
-- [ ] **No unclassified failures**: every `FAILURE` state must have an explicit disposition
+- [ ] Each failure is **dispositioned**: fixed and re-run until it passes, or, when the check gates nothing for this repository, named in the guardrails `merge_guard_ignored_checks` setting by the person who owns that setting. No failure is judged informational here: the readiness script blocks every failed check the setting does not name, and so does the merge guard
+- [ ] A check that setting names is listed in the monitoring report with its exact error message
+- [ ] A review lane that failed on a usage or rate limit is ABSENT: it reviewed nothing, so Gate 5's lane-substitution item applies to it
+- [ ] **No undispositioned failures**: every `FAILURE` state must be fixed or named in the setting
 
 ### Gate 3: Security scans evaluated
 
@@ -145,6 +147,8 @@ An unresolved review thread can hold the merge while every check is green, and G
 bash "<scripts-dir>/source-control-review-threads" <owner>/<repo>#<pr_number>
 ```
 
+This gate lists the threads to settle while monitoring. At merge, the readiness script in [merge.md](merge.md) §4.1 step 3 reads them again, every page, falling back to the Claude Code cloud route where GraphQL is refused, and its verdict decides.
+
 - [ ] The first line reads `THREADS_OK unresolved=0`
 - [ ] On `THREADS_BLOCKED`, name every listed thread (path, first commenter, URL) in the verdict as a blocker. Settle each through D7.5 in [monitor.md](monitor.md)'s per-iteration checklist: resolve a bot thread whose findings all carry a disposition; a human-opened thread, or one with an open finding, is the user's to close, so lead the verdict with it
 - [ ] `THREADS_UNPROVEN`, or exit 3 (no Python 3.11+ on PATH), is a held gate, never a pass: a read that did not happen is not evidence of zero threads. Report the reason and the PR's conversation tab as the place to check
@@ -157,16 +161,16 @@ Only when all gates pass, present:
 ## PR Ready for Merge
 
 **PR:** #N: title
-**Check runs:** X passed, Y skipped, Z failed-informational
+**Check runs:** X passed, Y skipped, Z named in merge_guard_ignored_checks
+**Readiness script:** READY at <head sha> [each NOTICE line]
 **Security:** GitGuardian [evaluated, N findings: X false positive, Y not applicable]
 **Comments:** X from N reviewers: Y fixed, Z deferred, W incorrect
 **Review threads:** 0 unresolved
 **Cooldown:** 2+ min since last activity
 **Reviewers:** [each discovered reviewer: responded, no-findings signal, or not yet responded at the bound with its missing artifacts named]
 **Review lanes:** [each lane on the checks roster: productive, or ABSENT with what was run locally in its place]
-**Failures classified:**
-- `review`: FAILURE, usage limit (no review happened: the lane is ABSENT on `Review lanes:`, with its local substitute named there)
-- [any other failures with classification]
+**Failures dispositioned:**
+- [each failure: fixed and passing on a re-run, or named in merge_guard_ignored_checks; a review lane that failed on a usage limit is also ABSENT on `Review lanes:`, with its local substitute named there]
 
 **All readiness gates passed. Recommend merge.**
 ```
@@ -181,7 +185,7 @@ In `full` mode, readiness gates are not relaxed: the only difference is that mon
 
 The five failures the gates above exist to prevent:
 
-1. **Merging with FAILURE check runs.** Never suggest merge while any check shows FAILURE without explicit classification (Gate 2)
+1. **Merging with FAILURE check runs.** Never suggest merge while any check shows FAILURE that has not passed on a re-run or been named in `merge_guard_ignored_checks` (Gate 2)
 2. **Ignoring security scan results.** A security actor's check run and comment are both evaluated before merge (Gate 3)
 3. **Not waiting for comment-only actors.** A review bot can post minutes after PR creation; the cooldown gives it time (Gate 5)
 4. **Treating "no comments" as "ready".** An empty comment list may mean reviewers have not posted yet (Gate 5)

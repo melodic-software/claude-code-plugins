@@ -3,6 +3,16 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.0] - 2026-11-24
+
+### Changed
+
+- While trials run, `/multi-agent:route vendors` tries the first model each vendor's `external-agents models` lists, at that model's default effort, instead of the model and effort a benchmark board leads with, and fetches no support-only or provider-own board.
+
+### Fixed
+
+- `vendor-state record` no longer fails on Windows when a concurrent record holds a file open in the trial folder it is removing; the rename is retried briefly.
+
 ## [5.0.0] - 2026-11-24
 
 ### Changed

@@ -13,10 +13,10 @@ Hosting infrastructure: startup wiring, service registration, logging configurat
 
 ## Watch-for patterns
 
-- **Beck #2, Dead Code**: registrations for services that no longer exist, stale feature-flag branches
-- **Beck #9, Explaining Constants**: inline connection-string keys, header names, timeout literals → named constants
-- **Beck #12, Extract Helper**: repeated registration blocks across hosts → one shared helper (only when call sites are truly identical)
-- **Beck #14, Explaining Comments**: a non-obvious ordering constraint, when #14's posture rule allows a comment
+- **Beck 2, Dead Code**: registrations for services that no longer exist, stale feature-flag branches
+- **Beck 9, Explaining Constants**: inline connection-string keys, header names, timeout literals → named constants
+- **Beck 12, Extract Helper**: repeated registration blocks across hosts → one shared helper (only when call sites are truly identical)
+- **Beck 14, Explaining Comments**: a non-obvious ordering constraint, when Beck 14's posture rule allows a comment
 - **<config-consolidation-pattern>**: duplicated configuration keys/sections across host projects
 
 ## Lane-specific extra exclusions

@@ -27,28 +27,32 @@ test("the list path is the one under .github/standards, under .base unless a bas
   assert.equal(fileURLToPath(SAME_TREE_LIST), join(ROOT, TRUSTED_ACTORS_PATH));
 });
 
-test("a standards checkout named in STANDARDS_DIR wins over the fallback; none, or an empty one, keeps it", () => {
+test("the list is read from the standards checkout STANDARDS_DIR names, else the path the workflow gives; with neither it throws", () => {
   assert.equal(STANDARDS_LIST_PATH, "components/trusted-actors/trusted-actors.json");
-  assert.equal(trustedListPath({ STANDARDS_DIR: "/s" }, "/fallback"), "/s/components/trusted-actors/trusted-actors.json");
-  assert.equal(trustedListPath({}, "/fallback"), "/fallback");
-  assert.equal(trustedListPath({ STANDARDS_DIR: "" }, SAME_TREE_LIST), SAME_TREE_LIST);
+  assert.equal(trustedListPath({ STANDARDS_DIR: "/s" }, "/given"), "/s/components/trusted-actors/trusted-actors.json");
+  assert.equal(trustedListPath({}, "/given"), "/given");
+  for (const [env, given] of [[{}, undefined], [{ STANDARDS_DIR: "" }, ""], [{ BASE_PATH: "/b" }, undefined]]) {
+    assert.throws(() => trustedListPath(env, given), /STANDARDS_DIR is unset/, JSON.stringify(env));
+  }
 });
 
-test("read-status reads the list from STANDARDS_DIR before TRUSTED_ACTORS_PATH and BASE_PATH", () => {
+test("read-status reads the list from STANDARDS_DIR, else TRUSTED_ACTORS_PATH, and never the BASE_PATH copy", () => {
   const standards = tempDir("trusted-actors-standards-");
   mkdirSync(dirname(join(standards, STANDARDS_LIST_PATH)), { recursive: true });
   writeFileSync(join(standards, STANDARDS_LIST_PATH), '{"marker":2}');
   assert.deepEqual(statusList({ STANDARDS_DIR: standards, TRUSTED_ACTORS_PATH: "/missing", BASE_PATH: "/missing" }), { marker: 2 });
+  assert.deepEqual(statusList({ TRUSTED_ACTORS_PATH: join(standards, STANDARDS_LIST_PATH), BASE_PATH: "/missing" }), { marker: 2 });
+  const copy = tempDir("trusted-actors-copy-");
+  mkdirSync(dirname(join(copy, TRUSTED_ACTORS_PATH)), { recursive: true });
+  writeFileSync(join(copy, TRUSTED_ACTORS_PATH), '{"marker":1}');
+  assert.throws(() => statusList({ BASE_PATH: copy }), /STANDARDS_DIR is unset/);
+  assert.throws(() => statusList({}), /STANDARDS_DIR is unset/, "the default .base copy is not read either");
 });
 
-test("merge-holds, read-status and resolve-config, which import nothing from scripts/lib, name the same path", () => {
+test("merge-holds and resolve-config, which import nothing from scripts/lib, name the same paths", () => {
   assert.equal(HOLDS_PATH, TRUSTED_ACTORS_PATH);
-  const base = tempDir("trusted-actors-base-");
-  mkdirSync(dirname(join(base, TRUSTED_ACTORS_PATH)), { recursive: true });
-  writeFileSync(join(base, TRUSTED_ACTORS_PATH), '{"marker":1}');
-  assert.deepEqual(statusList({ BASE_PATH: base }), { marker: 1 });
   const source = readFileSync(join(ROOT, ".github/actions/resolve-config/resolve-config.mjs"), "utf8");
-  assert.match(source, new RegExp(`\\nconst TRUSTED_ACTORS_PATH = "${TRUSTED_ACTORS_PATH.replaceAll(".", "\\.")}";\\n`));
+  assert.match(source, new RegExp(`\\nconst STANDARDS_TRUSTED_ACTORS_PATH = "${STANDARDS_LIST_PATH.replaceAll(".", "\\.")}";\\n`));
 });
 
 test("check-trusted-trigger hands out this module's validated list", () => {
@@ -131,26 +135,37 @@ function gateSourceCopyBesideFixture() {
     copyFileSync(join(SCRIPTS, rel), join(tree, ".github/scripts", rel));
   }
   mkdirSync(dirname(join(tree, TRUSTED_ACTORS_PATH)), { recursive: true });
+  mkdirSync(dirname(join(tree, STANDARDS_LIST_PATH)), { recursive: true });
   return tree;
 }
 
 async function readers(path, text, tree, n) {
   if (text === null) {
-    rmSync(join(tree, TRUSTED_ACTORS_PATH), { force: true });
+    rmSync(join(tree, STANDARDS_LIST_PATH), { force: true });
   } else {
-    writeFileSync(join(tree, TRUSTED_ACTORS_PATH), text);
+    writeFileSync(join(tree, STANDARDS_LIST_PATH), text);
   }
   const gate = await import(`${pathToFileURL(join(tree, ".github/scripts/pr-unblock/gate-source.mjs")).href}?case=${n}`);
-  return [
-    cell(() => view(loadTrustedList(path))),
-    cell(() => loadTrustedActors(path)),
-    cell(() => statusList({ TRUSTED_ACTORS_PATH: path })),
-    cell(() => trustedHumansFrom(path)),
-    cell(() => reviewerIdFrom(path)),
-    cell(() => dependabotIdFrom(path)),
-    cell(() => readHumans(path)),
-    cell(() => gate.trustedHumans()),
-  ];
+  const saved = process.env.STANDARDS_DIR;
+  process.env.STANDARDS_DIR = tree;
+  try {
+    return [
+      cell(() => view(loadTrustedList(path))),
+      cell(() => loadTrustedActors(path)),
+      cell(() => statusList({ STANDARDS_DIR: tree })),
+      cell(() => trustedHumansFrom(path)),
+      cell(() => reviewerIdFrom(path)),
+      cell(() => dependabotIdFrom(path)),
+      cell(() => readHumans(path)),
+      cell(() => gate.trustedHumans()),
+    ];
+  } finally {
+    if (saved === undefined) {
+      delete process.env.STANDARDS_DIR;
+    } else {
+      process.env.STANDARDS_DIR = saved;
+    }
+  }
 }
 
 test("every reader, permissive ones included, returns what main returned on each malformed list", async () => {
@@ -169,17 +184,20 @@ test("every reader, permissive ones included, returns what main returned on each
   }
 });
 
-test("gate-source reads the standards checkout STANDARDS_DIR names over its same-tree list", async () => {
+test("gate-source reads the standards checkout STANDARDS_DIR names, and with none trusts no one over its same-tree list", async () => {
   const tree = gateSourceCopyBesideFixture();
   writeFileSync(join(tree, TRUSTED_ACTORS_PATH), doc([h]));
   const standards = tempDir("trusted-actors-gate-standards-");
   mkdirSync(dirname(join(standards, STANDARDS_LIST_PATH)), { recursive: true });
   writeFileSync(join(standards, STANDARDS_LIST_PATH), doc([{ id: 11, login: "Other", kind: "human" }]));
-  const gate = await import(`${pathToFileURL(join(tree, ".github/scripts/pr-unblock/gate-source.mjs")).href}?case=standards`);
   const saved = process.env.STANDARDS_DIR;
-  process.env.STANDARDS_DIR = standards;
   try {
+    process.env.STANDARDS_DIR = standards;
+    const gate = await import(`${pathToFileURL(join(tree, ".github/scripts/pr-unblock/gate-source.mjs")).href}?case=standards`);
     assert.deepEqual([...gate.trustedHumans()], [11]);
+    delete process.env.STANDARDS_DIR;
+    const bare = await import(`${pathToFileURL(join(tree, ".github/scripts/pr-unblock/gate-source.mjs")).href}?case=no-standards`);
+    assert.deepEqual([...bare.trustedHumans()], [], "the same-tree copy names 7, and is never read");
   } finally {
     if (saved === undefined) {
       delete process.env.STANDARDS_DIR;
