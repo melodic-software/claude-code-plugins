@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for skill-stack-fences.py, the counter behind the skill-stack-fences ratchet.
-
-Each case builds a throwaway git repository and runs the counter at its command
-line, so every expected value below comes from the fixture and the rules in the
-counter's docstring, not from running the counter.
-"""
 
 from __future__ import annotations
 

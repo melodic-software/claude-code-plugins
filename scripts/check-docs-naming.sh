@@ -109,8 +109,6 @@ while IFS= read -r -d '' path; do
   paths+=("$path")
 done < <(git ls-files -z -- docs/ ':(icase)*.md')
 
-# One pass for the basename rule. The regex only sees what no exemption in the
-# header skipped.
 for path in ${paths+"${paths[@]}"}; do
   base="${path##*/}"
   if [[ "$path" == docs/* ]]; then

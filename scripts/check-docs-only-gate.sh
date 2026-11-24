@@ -146,8 +146,6 @@ if [[ ! -f "$WORKFLOW" ]]; then
   exit 2
 fi
 
-# The contract's literals, kept together so the whole of it reads as one block
-# rather than as constants scattered through the assertions.
 TAB="$(printf '\t')"
 RESOLVER_JOB="select-tests"
 DETECT_STEP_ID="detect"
@@ -194,16 +192,10 @@ node_legs${TAB}\${{ steps.plan.outputs.node_legs }}
 node_plan${TAB}\${{ steps.plan.outputs.node_plan }}
 selection_suites${TAB}\${{ steps.suites.outputs.list }}
 playwright_cache_key${TAB}\${{ steps.playwright_key.outputs.key }}"
-# The data reads that are not env entries: each sharded test lane sizes its
-# matrix from its `<lane>_legs`. A leg reads its suites from the plan and fails
-# on none, so an unset value falls back to one leg that fails loud.
 MATRIX_READS="\
 leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.bash_legs || '[0]') }}
 leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.python_legs || '[0]') }}
 leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.node_legs || '[0]') }}"
-# The single required context. Everything reachable from its `needs` is a
-# REQUIRED lane, and that closure is what decides whether a job-level condition
-# is a defect (check 5c) and whether a lane may opt out of coverage (check 8).
 AGGREGATE_JOB="ci-status"
 LANE_OPT_OUT="lane-coverage-ok:"
 # The one sanctioned job-level condition on a required consumer: the
@@ -218,19 +210,12 @@ JOB_GATE="\${{ !(${CONTRACT_ONLY_PREDICATE}) }}"
 # The same gate with the draft term every lane carries: a draft pull request
 # runs no lane at all, and `ci-status` fails on the skipped lanes.
 JOB_GATE_DRAFT="\${{ !(${CONTRACT_ONLY_PREDICATE}) && github.event.pull_request.draft != true }}"
-# A test lane's ordered skip (property 12): the draft gate and the lane's own
-# row. `job_gate_skip <x>` is the one literal job `test-<x>` may carry.
 job_gate_skip() { printf '%s' "\${{ !(${CONTRACT_ONLY_PREDICATE}) && github.event.pull_request.draft != true && needs.${RESOLVER_JOB}.outputs.run_$1 == 'true' }}"; }
-# The aggregate step that checks every skip against the resolver, by id, and
-# the results input the aggregate must then read from it.
 SKIP_CHECK_STEP_ID="lanes"
 SKIP_CHECKED_RESULTS="\${{ steps.${SKIP_CHECK_STEP_ID}.outputs.results }}"
 REFERENCE_PREFIX="needs.${RESOLVER_JOB}.outputs."
 REFERENCE="${REFERENCE_PREFIX}${OUTPUT_NAME}"
 
-# row_names <table> <sep>: the table's row names joined with <sep>, a space for
-# the parser and ", " for a message. Defined here rather than with the other
-# table readers below because the parser runs before them.
 row_names() {
   local tn out=""
   while IFS="$TAB" read -r tn _; do
@@ -511,8 +496,6 @@ parsed="$(
   exit 2
 }
 
-# Partition the record stream once. Re-grepping it per assertion would fork a
-# process per lookup, which is measurable on a large workflow.
 REC_ERR=""
 REC_JOB=""
 REC_USES=""
@@ -548,8 +531,6 @@ while IFS= read -r line; do
   "LANEOK$TAB"*) REC_LANEOK+="${line#*"$TAB"}"$'\n' ;;
   "SKIPAS$TAB"*) REC_SKIPAS+="${line#*"$TAB"}"$'\n' ;;
   "RESULTSIN$TAB"*) REC_RESULTSIN+="${line#*"$TAB"}"$'\n' ;;
-  # The awk pass emits no other record kind; a line that reaches here means the
-  # two halves have drifted, which is not something to guess past.
   *)
     echo "check-docs-only-gate: unrecognized internal record: $line" >&2
     exit 2
@@ -557,21 +538,11 @@ while IFS= read -r line; do
   esac
 done <<<"$parsed"
 
-# Newline-delimited membership test without forking.
 has_line() { case $'\n'"$1" in *$'\n'"$2"$'\n'*) return 0 ;; *) return 1 ;; esac }
 
-# --- the output table, read three ways --------------------------------------
-
-# table_has / data_has <name>: is <name> a row of the output or data table?
-# Every row is `<name><TAB><expr>`, so a row starts at a line start and ends its
-# name at the tab.
 table_has() { [[ $'\n'"$OUTPUT_TABLE" == *$'\n'"$1$TAB"* ]]; }
 data_has() { [[ $'\n'"$DATA_TABLE" == *$'\n'"$1$TAB"* ]]; }
 
-# is_data_read <line>: is this line exactly one env entry reading one data
-# output, `KEY: ${{ needs.<resolver>.outputs.<name> }}`? Whole-string, like
-# the consumer forms: a longer expression around the read is a decision this
-# gate does not model.
 is_data_read() {
   local t="$1" key rest name
   # shellcheck disable=SC2016 # `${{ }}` is a literal workflow delimiter here.
@@ -584,10 +555,6 @@ is_data_read() {
   data_has "$name"
 }
 
-# parse_consumer_form <bare-expression>: recognizes exactly
-# `needs.<resolver>.outputs.<name> == '<true|false>'`, setting CF_NAME and
-# CF_VALUE. Deliberately whole-string: a prefix match would accept a longer
-# expression whose extra clauses this gate never reads.
 CF_NAME=""
 CF_VALUE=""
 parse_consumer_form() {
@@ -613,7 +580,6 @@ parse_consumer_form() {
   return 0
 }
 
-# Unique, space-joined rendering of a newline-delimited list, for messages.
 uniq_list() {
   local seen="" item out=""
   while IFS= read -r item; do
@@ -643,11 +609,6 @@ if ! has_line "$REC_JOB" "$RESOLVER_JOB"; then
   echo "check-docs-only-gate: resolving job '$RESOLVER_JOB' is not defined in $WORKFLOW" >&2
   exit 2
 fi
-# Inconclusive for the same reason, and refused here rather than reported as a
-# defect later: without the aggregate the required-lane closure is empty, and an
-# empty closure makes the job-level-condition rule and the lane opt-out rule
-# both pass every workflow. One defect line beside two rules that silently
-# stopped asking is the nominal closure this gate exists to deny.
 if ! has_line "$REC_JOB" "$AGGREGATE_JOB"; then
   echo "check-docs-only-gate: aggregate job '$AGGREGATE_JOB' is not defined in $WORKFLOW, so the required-lane closure cannot be computed" >&2
   exit 2
@@ -674,8 +635,6 @@ elif ! has_line "$invoker_jobs" "$RESOLVER_JOB"; then
   report "SINGLE RESOLUTION: the docs-only detector is invoked from [$(uniq_list "$invoker_jobs")], not from the resolving job '$RESOLVER_JOB'."
 fi
 
-# The resolver reads its own detect step to publish the output — the single
-# sanctioned step-level read. Anywhere else it is a second answer.
 stray_stepouts=""
 while IFS= read -r sjob; do
   [[ -n "$sjob" ]] || continue
@@ -833,10 +792,6 @@ while IFS="$TAB" read -r refjob reford kind text; do
     fi
     ;;
   jobif)
-    # Judged in check 5c, which knows the required-lane closure. A job-level
-    # read is a defect on an aggregated lane and the intended shape on a lane
-    # outside it, and that distinction is not available here. A data output is
-    # never a condition, on any lane.
     for dn in $(data_names ' '); do
       if [[ "$bare" == *"${REFERENCE_PREFIX}${dn}"* ]]; then
         report "DATA IS NOT A GATE: job '$refjob' conditions the job on the data output '$dn': if: $text. Its value is not a polarity decision; read it in an env entry and let the script branch on it."
@@ -844,8 +799,6 @@ while IFS="$TAB" read -r refjob reford kind text; do
     done
     ;;
   *)
-    # A data output, read as a whole env entry or as the matrix size
-    # (property 10).
     if is_value_read "$kind" "$text"; then
       continue
     fi
@@ -902,26 +855,10 @@ done <<<"$gated_ordinals"
 
 while IFS="$TAB" read -r fjob fstep fname fout; do
   [[ -n "$fjob" ]] || continue
-  # Keyed on the OUTPUT as well as the step: an override that maps a skip of
-  # one output onto a step gated by another is not the honest mapping, because
-  # the two outputs can disagree and the step can have really run.
   if ! has_line "$gated_ids" "${fjob}${TAB}${fstep}${TAB}${fout}"; then
     report "THE FEED MIRRORS A REAL GATE: job '$fjob' maps '$fname' to success by reading step '$fstep' when '$fout' is false, but no step with that id is gated on \"${REFERENCE_PREFIX}${fout} == 'true'\". Mapping an ungated step's outcome to success hides a real failure instead of reporting a step that provably did not run, and pairing it with a DIFFERENT output would map a skip that never happened."
   fi
 done <<<"$feed_targets"
-
-# --- the required-lane closure ----------------------------------------------
-#
-# Everything reachable from the aggregate's `needs`, transitively, plus the
-# aggregate itself. That set is exactly the lanes whose result can turn the one
-# required context red, and it is what the next two checks are about: the
-# hazard a job-level condition creates is that a REQUIRED lane reports success
-# having run nothing, and the claim a lane-coverage opt-out makes is that the
-# lane is NOT required. Neither statement means anything for a job the
-# aggregate cannot see, and neither is safe for one it can.
-#
-# Derived from the file rather than configured, so it cannot drift from the
-# needs graph it describes.
 
 needs_of() {
   local job="$1" njob ntext entry normalized
@@ -1103,8 +1040,6 @@ while IFS= read -r refjob; do
   [[ -n "$refjob" ]] || continue
   consumer_count=$((consumer_count + 1))
   declared=0
-  # Both `needs:` spellings, read through the same resolver the closure uses, so
-  # the edge check and the closure cannot disagree about what a job needs.
   deps="$(needs_of "$refjob")"
   while IFS= read -r entry; do
     [[ "$entry" == "$RESOLVER_JOB" ]] && declared=1
@@ -1119,8 +1054,6 @@ done <<<"$refjobs"
 if [[ "$consumer_count" -eq 0 ]]; then
   report "CONTRACT IS LIVE: job '$RESOLVER_JOB' resolves the docs-only scope but no job reads $REFERENCE. Either the consumers stopped gating (and every lane now runs unconditionally), or they read it by a spelling this gate does not recognize. Reporting a well-formed contract over zero references would be the nominal closure this gate exists to deny."
 fi
-
-# --- verdict ----------------------------------------------------------------
 
 if [[ "$errors" -ne 0 ]]; then
   echo "check-docs-only-gate: $errors contract defect(s) in $WORKFLOW" >&2

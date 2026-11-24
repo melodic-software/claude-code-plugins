@@ -87,8 +87,6 @@ esac
 mount_root="${DRIVE_ROOT_LITTER_MOUNT_ROOT:-/}"
 mount_root="${mount_root%/}"
 
-# The set of mounted drive letters. This is both the set of roots to scan AND
-# the set of directory names that count as a single-letter-class hit.
 drives=()
 for letter in {a..z}; do
   [[ -d "$mount_root/$letter" ]] && drives+=("$letter")
@@ -108,9 +106,6 @@ here="$(pwd -P 2>/dev/null)" || here="$(pwd)"
 
 hits=()
 
-# Shared candidate check for both classes: skip a non-directory, skip a
-# candidate that contains the cwd (a real checkout location, not litter - see
-# the comment above `here`), record everything else as a hit.
 record_if_litter() {
   local drive="$1" name="$2" candidate cand_real
   candidate="$mount_root/$drive/$name"
@@ -125,7 +120,6 @@ record_if_litter() {
   fi
 }
 
-# Single-letter class: a drive-root directory named for another mounted drive.
 for drive in "${drives[@]}"; do
   for name in "${drives[@]}"; do
     record_if_litter "$drive" "$name"
