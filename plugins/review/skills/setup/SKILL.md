@@ -121,7 +121,7 @@ a regular file). `apply` is the fix.
    (`downstream_probe`: `run`, the default, unless the team wants `/review:quality-gate downstream`
    to state its probe without running it, in which case `report`; `fanout_diversity`: `lens`, the
    default, unless the team wants `/review:fanout run-everything` to run each review prompt on
-   several model tiers, in which case `model`, or to use the Codex reviewer as its model-diversity
+   several fan-out models, in which case `model`, or to use the Codex reviewer as its model-diversity
    panel, in which case `codex`; `fanout_act_on_cap`: `2`, the default, unless the team wants
    more or fewer rows under each `/review:fanout` `## By axis` heading marked act on;
    `reproduce_findings`: `off`, the default, unless the team wants `/review:fanout` and

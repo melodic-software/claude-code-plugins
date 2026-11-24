@@ -64,8 +64,8 @@ flag does not change them.
 
 **`fanout_diversity` (run-everything and its fallback only).** It sets how the leaf fan-out
 spreads: `lens` runs one reviewer agent per concern, `model` sends one review prompt to each
-distinct fan-out model tier, and `codex` runs the `lens` roster with the Codex reviewer as the
-model-diversity panel in place of those tiers
+distinct fan-out model, and `codex` runs the `lens` roster with the Codex reviewer as the
+model-diversity panel in place of those fan-out models
 ([context/run-everything-mode.md](context/run-everything-mode.md) steps 3 and 5). The default
 mode does not read it. Resolve it before step 5, lowest layer first: the
 default `lens`; the user option `${user_config.fanout_diversity}` (a literal, unexpanded

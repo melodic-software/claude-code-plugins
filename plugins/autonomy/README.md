@@ -41,10 +41,10 @@ whether `node` and `jq` resolve.
   estimate the human fields.
 - **Trigger-dispatch contract** (`reference/trigger-dispatch.md`): four signal-surface
   classes normalized by adapters into the governed work-item queue under six class-generic
-  obligations, a schema-versioned signal envelope, security-surface work-class stamping, and
-  one dispatch entrypoint (push kick + scheduled drain through the queue seam's race-safe
-  lease), plus the setup trigger/dispatch slice, its adapter and acknowledgment templates,
-  and the signal-envelope conformance check.
+  obligations, a schema-versioned signal envelope, work-class stamping from the security
+  surface's classification rules, and one dispatch entrypoint (push kick + scheduled drain
+  through the queue seam's race-safe lease), plus the setup trigger/dispatch slice, its
+  adapter and acknowledgment templates, and the signal-envelope conformance check.
 - **Guardrail matrix** (`reference/guardrails.md`): five semantic work classes (`C1`–`C5`)
   crossed with six enforcement columns: isolation floor, verification layers, verification
   topology, merge policy, cost tier, escalation, as one progressive-disclosure hub with
