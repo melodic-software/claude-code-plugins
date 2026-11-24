@@ -530,8 +530,8 @@ test("a session started from a one-session file is named by status, with the fla
   assert.doesNotMatch(message, /Surface:/);
 });
 
-function installedCopy(w, options) {
-  const root = join(w.home, ".claude", "plugins", "cache", M, "plugin-profiles", "0.0.0");
+function installedCopy(w, options, version = "0.0.0") {
+  const root = join(w.home, ".claude", "plugins", "cache", M, "plugin-profiles", version);
   cpSync(join(HERE, ".."), root, { recursive: true });
   const userFile = join(w.home, ".claude", "settings.json");
   const doc = JSON.parse(readFileSync(userFile, "utf8"));
@@ -2190,7 +2190,8 @@ test("#16893 the session-start hook of an installed copy writes its root for the
   hookStart(w, { session_id: "abc-1", source: "startup" });
   assert.equal(existsSync(pointer), false, "a worktree or --plugin-dir copy writes no pointer");
   const cli = installedCopy(w, {});
-  const hook = () => spawnSync(process.execPath, [cli, "status", "--session-start"], { cwd: w.project, env: { ...w.env, CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PROJECT_DIR: w.project }, input: JSON.stringify({ session_id: "abc-1", source: "startup" }), encoding: "utf8" });
+  recordUserInstall(w, cli);
+  const hook = () => pointerHook(w, cli);
   assert.equal(hook().status, 0);
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);
   const old = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -2201,6 +2202,29 @@ test("#16893 the session-start hook of an installed copy writes its root for the
   writeFileSync(pointer, "/somewhere/else\n");
   assert.equal(hook().status, 0);
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);
+});
+
+const pointerHook = (w, cli) => spawnSync(process.execPath, [cli, "status", "--session-start"], { cwd: w.project, env: { ...w.env, CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PROJECT_DIR: w.project }, input: JSON.stringify({ session_id: "abc-1", source: "startup" }), encoding: "utf8" });
+/** installed_plugins.json recording the copy holding cli as this plugin's user-scope install. */
+const recordUserInstall = (w, cli) => writeTree(w.home, { ".claude/plugins/installed_plugins.json": { version: 2, plugins: { [`plugin-profiles@${M}`]: [{ scope: "user", installPath: dirname(dirname(cli)), version: basename(dirname(dirname(cli))) }] } } });
+
+test("the session-start hook of an older cached version leaves the root pointer alone; the recorded user-scope install writes it", () => {
+  const w = world();
+  const pointer = join(w.home, ".claude", "plugin-profiles-state", "root");
+  const older = installedCopy(w, {}, "0.12.0");
+  const current = installedCopy(w, {}, "0.13.2");
+  recordUserInstall(w, current);
+  mkdirSync(dirname(pointer), { recursive: true });
+  writeFileSync(pointer, "/kept\n");
+  assert.equal(pointerHook(w, older).status, 0);
+  assert.equal(readFileSync(pointer, "utf8"), "/kept\n", "an older cached copy does not repoint the claude function");
+  assert.equal(pointerHook(w, current).status, 0);
+  assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(current)))}\n`);
+  writeFileSync(join(w.home, ".claude", "plugins", "installed_plugins.json"), "not json");
+  writeFileSync(pointer, "/kept\n");
+  const unreadable = pointerHook(w, current);
+  assert.equal(unreadable.status, 0, unreadable.stderr);
+  assert.equal(readFileSync(pointer, "utf8"), "/kept\n", "an unreadable record writes nothing");
 });
 
 const pointersDir = (w) => join(w.home, ".claude", "plugin-profiles-state", "repositories");
