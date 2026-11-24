@@ -156,6 +156,10 @@ MAX_ADOPTION_IDLE_HOURS = 720
 # Whose pull requests the pr-merge lane adopts: every account on this list,
 # by id (`trusted_actor_ids`).
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
+STANDARDS_REPO = "melodic-software/standards"
+STANDARDS_TRUSTED_ACTORS = "components/trusted-actors/trusted-actors.json"
+STANDARDS_SOURCE_KEY = "trusted_actors_source"
+STANDARDS_SOURCES = ("repository", "standards")
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
 ORG_SWITCH = "CLAUDE_LANES_DISABLED"
 REPO_SWITCH = "CLAUDE_LANES_REPO_DISABLED"
@@ -1063,9 +1067,14 @@ def enabled_authority(config: PipelineConfig) -> str | None:
     return None
 
 
-def _file_at(owner: str, name: str, path: str, sha: str) -> str | None:
-    """The file's text at `sha`, or None when absent from a readable tree."""
+def _file_at(
+    owner: str, name: str, path: str, sha: str, *, probe: bool = True
+) -> str | None:
+    """The file's text at `sha`, or None when absent from a readable tree;
+    with `probe` False, None on any 404."""
     status, payload = _get(f"repos/{owner}/{name}/contents/{path}?ref={sha}")
+    if status == 404 and not probe:
+        return None
     if status == 404:
         root, _ = _get(f"repos/{owner}/{name}/contents?ref={sha}")
         if root == 200:
@@ -5029,15 +5038,97 @@ def trusted_actors(
     return _TRUSTED_IDS[key]
 
 
+_READS_STANDARDS: dict[tuple[str, str, str], bool] = {}
+_STANDARDS_SHA: list[str] = []
+_STANDARDS_TEXT: dict[str, str | None] = {}
+
+
+def opts_in_to_standards(text: str | None) -> bool:
+    """Whether a team YAML sets `trusted_actors_source: standards`. Raises
+    `PolicyReadError` when the shared reader rejects it or the value is not
+    one of `STANDARDS_SOURCES`, so nothing is read from either source."""
+    if text is None:
+        return False
+    values = _concern_values(text, [(STANDARDS_SOURCE_KEY, False)])
+    if values is None:
+        raise PolicyReadError(
+            f"{repo_config.YAML_CONFIG_PATH}: the shared YAML reader rejects it"
+        )
+    found = values[STANDARDS_SOURCE_KEY]
+    if not found and repo_config._yaml_writes(text, STANDARDS_SOURCE_KEY):
+        raise PolicyReadError(
+            f"{repo_config.YAML_CONFIG_PATH}: {STANDARDS_SOURCE_KEY} is not a scalar value"
+        )
+    if found and found[0] not in STANDARDS_SOURCES:
+        raise PolicyReadError(
+            f"{repo_config.YAML_CONFIG_PATH}: {STANDARDS_SOURCE_KEY} "
+            f"{found[0]!r} is not one of {STANDARDS_SOURCES}"
+        )
+    return found[:1] == ["standards"]
+
+
+def team_yaml_at(owner: str, name: str, ref: str) -> str | None:
+    """The team YAML at `ref`, from a checkout holding `ref` or the contents
+    API; None on a 404, since a YAML hidden from the token hides the copy it
+    would leave in place too."""
+    text = checkout_file_at(repo_config.YAML_CONFIG_PATH, ref)
+    if text is not None:
+        return text
+    return _file_at(owner, name, repo_config.YAML_CONFIG_PATH, ref, probe=False)
+
+
+def reads_standards(owner: str, name: str, ref: str) -> bool:
+    """Whether the repository's team YAML at `ref` opts in to the standards
+    source (`opts_in_to_standards`), read once a process per ref."""
+    key = (owner, name, ref)
+    if key not in _READS_STANDARDS:
+        _READS_STANDARDS[key] = opts_in_to_standards(team_yaml_at(owner, name, ref))
+    return _READS_STANDARDS[key]
+
+
+def standards_sha() -> str:
+    """`STANDARDS_REPO`'s main at its first read in this process, so every
+    standards file a process reads comes from one commit."""
+    if not _STANDARDS_SHA:
+        status, payload = _get(f"repos/{STANDARDS_REPO}/commits/main")
+        sha = json_object(payload).get("sha") if status == 200 else None
+        if not SHA_RE.fullmatch(str(sha or "")):
+            raise PolicyReadError(
+                f"{STANDARDS_REPO} main could not be resolved (status {status})"
+            )
+        _STANDARDS_SHA.append(str(sha))
+    return _STANDARDS_SHA[0]
+
+
+def standards_file(path: str) -> str | None:
+    """`path` in `STANDARDS_REPO` at `standards_sha`, or None when absent;
+    each path read once a process."""
+    if path not in _STANDARDS_TEXT:
+        owner, name = _split_repo(STANDARDS_REPO)
+        _STANDARDS_TEXT[path] = _file_at(owner, name, path, standards_sha())
+    return _STANDARDS_TEXT[path]
+
+
+def synced_file(
+    owner: str, name: str, copy: str, component: str, ref: str
+) -> str | None:
+    """A standards-synced file: `component` in `STANDARDS_REPO` when the
+    repository opts in at `ref` (`reads_standards`), else its copy at `ref`."""
+    if reads_standards(owner, name, ref):
+        return standards_file(component)
+    return _file_at(owner, name, copy, ref)
+
+
 def trusted_listing(repo: str, ref: str) -> tuple[tuple[int, Any, Any], ...]:
-    """Each actor on `TRUSTED_ACTORS_PATH` at `ref` as (id, login, kind).
-    Raises `PolicyReadError` when the list is absent, unreadable or does not
-    match its schema (version 1, every id a positive whole number)."""
+    """Each actor on the trusted list (`synced_file`) at `ref` as (id, login,
+    kind). Raises `PolicyReadError` when the list is absent, unreadable or
+    does not match its schema (version 1, every id a positive whole number)."""
     owner, name = _split_repo(repo)
     try:
-        listing = json_object(
-            json.loads(_file_at(owner, name, TRUSTED_ACTORS_PATH, ref) or "{}")
+        text = synced_file(
+            owner, name, TRUSTED_ACTORS_PATH, STANDARDS_TRUSTED_ACTORS, ref
         )
+        listing = json_object(json.loads(text or "{}"))
     except ValueError as exc:
         raise PolicyReadError(f"{TRUSTED_ACTORS_PATH} at {ref}: {exc}") from exc
     actors = [json_object(a) for a in json_array(listing.get("actors"))]
@@ -5769,10 +5860,12 @@ def _cdn_paths(owner: str, name: str, base_sha: str) -> frozenset[str] | None:
 
 
 def _dependabot_policy(owner: str, name: str, sha: str) -> Any:
-    """The standards Dependabot policy at `sha` as parsed JSON, or None when it
-    is absent or not JSON (`review_only` then reports it unreadable). Raises
-    `PolicyReadError` on a read failure."""
-    text = _file_at(owner, name, dependabot.POLICY_PATH, sha)
+    """The standards Dependabot policy (`synced_file`) at `sha` as parsed
+    JSON, or None when it is absent or not JSON (`review_only` then reports it
+    unreadable). Raises `PolicyReadError` on a read failure."""
+    text = synced_file(
+        owner, name, dependabot.POLICY_PATH, dependabot.STANDARDS_POLICY, sha
+    )
     try:
         return json.loads(text) if text is not None else None
     except ValueError:

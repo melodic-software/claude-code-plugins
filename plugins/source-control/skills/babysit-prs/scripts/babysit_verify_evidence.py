@@ -3208,16 +3208,33 @@ class Reader:
             raise _Unreadable(str(exc)) from exc
 
     def _read_trusted_list(self) -> None:
-        """Read the trusted list at the branch's tip once: its human ids, and
-        every login's id (`_lane_app_id`), each shared by the run's gate
-        processes."""
+        """Read the trusted list at the branch's tip once (the standards
+        component when the repository opts in there,
+        `merge_policy.reads_standards`): its human ids, and every login's id
+        (`_lane_app_id`), each shared by the run's gate processes."""
         key = f"{self.repo}@{self.branch}"
         at = run_cache.now()
-        listing = json_object(
-            self._raw_file(
-                TRUSTED_ACTORS_PATH, self._tip(self.branch), "trusted-actor list"
+        tip = self._tip(self.branch)
+        owner, _, name = self.repo.partition("/")
+        label = "trusted-actor list"
+        try:
+            team = merge_policy.team_yaml_at(owner, name, tip)
+            standards = merge_policy.opts_in_to_standards(team)
+            text = (
+                merge_policy.standards_file(merge_policy.STANDARDS_TRUSTED_ACTORS)
+                if standards
+                else None
             )
-        )
+        except merge_policy.PolicyReadError as exc:
+            raise _Unreadable(f"{label}: {exc}") from exc
+        if standards:
+            try:
+                raw = json.loads(text or "null")
+            except ValueError as exc:
+                raise _Unreadable(f"{label}: {exc}") from exc
+        else:
+            raw = self._raw_file(TRUSTED_ACTORS_PATH, tip, label)
+        listing = json_object(raw)
         actors = listing.get("actors")
         if listing.get("version") != 1 or not is_json_array(actors):
             raise _Unreadable("trusted-actor list does not match its schema")

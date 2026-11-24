@@ -24,6 +24,7 @@ at the `gh_capture` seam the reader shares with the post-merge check.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import dataclasses
 import hashlib
@@ -213,6 +214,18 @@ def zipped(record: Any) -> bytes:
     return buffer.getvalue()
 
 
+TEAM_YAML = "docs/conventions/source-control.yaml"
+STANDARDS_SHA = "5" * 40
+
+
+def file_payload(text: str) -> dict[str, Any]:
+    return {
+        "type": "file",
+        "encoding": "base64",
+        "content": base64.b64encode(text.encode()).decode(),
+    }
+
+
 class FakeGitHub:
     """Answers the reader's reads: the artifact listing, runs, a compare of a
     run head against main, the pull request's commits, the trusted-actor list,
@@ -235,6 +248,8 @@ class FakeGitHub:
         # its merge base with main, each unlike the others.
         self.diffs = {s: change(s[:4]) for s in (HEAD, EARLIER, IN_PR, UNRELATED)}
         self.actors: Any = {"version": 1, "actors": [MAINTAINER, LANES]}
+        self.team_yaml: str | None = None
+        self.standards_actors: Any = None
         self.calls: list[list[str]] = []
         self.envs: list[tuple[list[str], Any]] = []
         self.fail: set[str] = set()
@@ -584,6 +599,21 @@ class FakeGitHub:
             return ok({"default_branch": "main"})
         if path == f"repos/{REPO}/git/ref/heads/main":
             return ok({"ref": "refs/heads/main", "object": {"sha": MAIN_SHA}})
+        team = f"repos/{REPO}/contents/{TEAM_YAML}?ref={MAIN_SHA}"
+        if path == team:
+            if self.team_yaml is None:
+                return missing()
+            return ok(file_payload(self.team_yaml))
+        if path == f"repos/{REPO}/contents?ref={MAIN_SHA}":
+            return ok([])
+        if path == f"repos/{policy.STANDARDS_REPO}/commits/main":
+            return ok({"sha": STANDARDS_SHA})
+        standards = (
+            f"repos/{policy.STANDARDS_REPO}/contents/"
+            f"{policy.STANDARDS_TRUSTED_ACTORS}?ref={STANDARDS_SHA}"
+        )
+        if path == standards:
+            return ok(file_payload(json.dumps(self.standards_actors)))
         if path.startswith(f"repos/{REPO}/contents/"):
             # Read at main's tip only, never by the branch's name.
             return ok(self.actors) if path.endswith(f"?ref={MAIN_SHA}") else missing()
@@ -3282,6 +3312,25 @@ class TheSpecMustBeTrusted(unittest.TestCase):
         del fake.records[named(HEAD, "pass")]
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
+    def test_an_opted_in_repository_reads_the_standards_list(self) -> None:
+        valid = {"version": 1, "actors": [MAINTAINER, LANES]}
+        for team, ours, theirs, expected in (
+            ("trusted_actors_source: standards\n", {"version": 2}, valid, None),
+            ("trusted_actors_source: standards\n", valid, {"version": 2}, "verify:unreadable"),
+            ("trusted_actors_source: repository\n", valid, {"version": 2}, None),
+            ("trusted_actors_source: elsewhere\n", valid, valid, "verify:unreadable"),
+        ):  # fmt: skip
+            with self.subTest(team=team, ours=ours):
+                self.enterContext(mock.patch.object(policy, "_STANDARDS_SHA", []))
+                self.enterContext(mock.patch.object(policy, "_STANDARDS_TEXT", {}))
+                fake = passing()
+                fake.team_yaml, fake.actors, fake.standards_actors = team, ours, theirs
+                self.assertEqual(read(fake).refusal, expected)
+                read_standards = any(
+                    policy.STANDARDS_REPO in " ".join(c) for c in fake.calls
+                )
+                self.assertEqual(read_standards, team.endswith(" standards\n"))
+
 
 class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):
     """The trusted comments on each linked issue now (by a User on the
@@ -4044,7 +4093,10 @@ class OneRunSharesItsVerifierReads(unittest.TestCase):
 
     @staticmethod
     def trusted_reads(fake: FakeGitHub) -> int:
-        return sum(any("/contents/" in a for a in c) for c in fake.calls)
+        return sum(
+            any("/contents/" in a and TEAM_YAML not in a for a in c)
+            for c in fake.calls
+        )
 
     def candidates(self, fake: FakeGitHub, count: int) -> None:
         for _ in range(count):

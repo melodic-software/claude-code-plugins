@@ -28,7 +28,7 @@ for a in "\$@"; do
 done
 serve() {
   [[ -f "$TEST_TMPDIR/\$1" ]] || exit 1
-  if [[ -n "\$filter" ]]; then jq -c "\$filter" "$TEST_TMPDIR/\$1"; else cat "$TEST_TMPDIR/\$1"; fi
+  if [[ -n "\$filter" ]]; then jq -rc "\$filter" "$TEST_TMPDIR/\$1"; else cat "$TEST_TMPDIR/\$1"; fi
 }
 case "\$1 \$2" in
   "pr view") [[ -f "$TEST_TMPDIR/pr.json" ]] || exit 1; cat "$TEST_TMPDIR/pr.json" ;;
@@ -36,6 +36,12 @@ case "\$1 \$2" in
     case "\$endpoint" in
       */events\?*) serve events.json ;;
       */comments\?*) serve comments.json ;;
+      repos/melodic-software/standards/commits/main) serve standards-head.json ;;
+      repos/melodic-software/standards/contents/*) serve standards-trusted.json ;;
+      */contents/docs/conventions/source-control.yaml)
+        [[ -f "$TEST_TMPDIR/team.yaml" ]] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+        cat "$TEST_TMPDIR/team.yaml"
+        ;;
       */contents/*) serve trusted.json ;;
       *)
         n="\${endpoint##*/}"
@@ -159,7 +165,28 @@ PATH="$STUB_DIR:$PATH" bash "$APP_PLUGIN/skills/pull-request/scripts/check-ready
 assert_exit "an eval line from the lanes App the settings name lets the flip go on" 0 "$?"
 
 comments "$(comment 2026-11-21T07:00:05Z User 101 owner "$EVAL_LINE")"
-rm -f "$TEST_TMPDIR/trusted.json"
+mv "$TEST_TMPDIR/trusted.json" "$TEST_TMPDIR/standards-trusted.json"
+printf '{"sha":"%s"}\n' "$(printf '5%.0s' {1..40})" >"$TEST_TMPDIR/standards-head.json"
+printf 'trusted_actors_source: standards\n' >"$TEST_TMPDIR/team.yaml"
+run 7 >/dev/null 2>&1
+assert_exit "an opted-in repository reads the standards list" 0 "$?"
+assert_contains "the standards list is read at main's commit" "$(cat "$TEST_TMPDIR/calls")" "contents/components/trusted-actors/trusted-actors.json?ref=5555555555555555555555555555555555555555"
+assert_not_contains "the repository copy is not read" "$(cat "$TEST_TMPDIR/calls")" ".github/standards/trusted-actors"
+rm -f "$TEST_TMPDIR/standards-head.json"
+run 7 >/dev/null 2>&1
+assert_exit "an unresolved standards commit leaves the label holding" 3 "$?"
+for team in 'trusted_actors_source: elsewhere' 'trusted_actors_source: [standards]'; do
+  printf '%s\n' "$team" >"$TEST_TMPDIR/team.yaml"
+  run 7 >/dev/null 2>&1
+  assert_exit "an unreadable source ($team) leaves the label holding" 3 "$?"
+done
+printf 'trusted_actors_source: repository\n' >"$TEST_TMPDIR/team.yaml"
+run 7 >/dev/null 2>&1
+assert_exit "a repository source with no copy leaves the label holding" 3 "$?"
+mv "$TEST_TMPDIR/standards-trusted.json" "$TEST_TMPDIR/trusted.json"
+run 7 >/dev/null 2>&1
+assert_exit "a repository source reads its own copy" 0 "$?"
+rm -f "$TEST_TMPDIR/team.yaml" "$TEST_TMPDIR/trusted.json"
 run 7 >/dev/null 2>&1
 assert_exit "an unreadable trusted-actors list leaves the label holding" 3 "$?"
 rm -f "$TEST_TMPDIR/events.json" "$TEST_TMPDIR/comments.json"

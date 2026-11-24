@@ -90,6 +90,14 @@ RETIRED_SOURCE_CONTROL = ".claude/source-control.md"
 TRACKER_YAML = policy.tracker_binding.YAML_PATH
 # The YAML files `GhFake` answers absent when a test sets none.
 UNSET_YAML = (TEAM_YAML, policy.tracker_binding.YAML_PATH)
+STANDARDS_SHA = "5" * 40
+dependabot = policy.dependabot
+
+
+def standards_cleared(case: unittest.TestCase) -> None:
+    """Empty the per-process standards reads for the rest of `case`."""
+    for cache in ("_READS_STANDARDS", "_STANDARDS_SHA", "_STANDARDS_TEXT"):
+        case.enterContext(mock.patch.object(policy, cache, type(getattr(policy, cache))()))
 
 
 def ok(payload: Any) -> subprocess.CompletedProcess[str]:
@@ -7630,6 +7638,70 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 gh.rest[f"repos/{REPO}/contents?ref=trunk"] = []
                 self.assertEqual(policy.trusted_actors(REPO, "trunk"), expected)
 
+    def test_an_opted_in_repository_adopts_from_the_standards_list(self) -> None:
+        listing = {"version": 1, "actors": [{"id": 5, "login": "p", "kind": "human"}]}
+        ours = f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref=trunk"
+        theirs = (
+            f"repos/{policy.STANDARDS_REPO}/contents/"
+            f"{policy.STANDARDS_TRUSTED_ACTORS}?ref={STANDARDS_SHA}"
+        )
+        head = f"repos/{policy.STANDARDS_REPO}/commits/main"
+        none: tuple[tuple[int, ...], tuple[int, ...]] = ((), ())
+        for team, main, expected in (
+            ("trusted_actors_source: standards\n", {"sha": STANDARDS_SHA}, ((5,), (5,))),
+            ("trusted_actors_source: standards\n", 502, none),
+            ("trusted_actors_source: other\n", {"sha": STANDARDS_SHA}, none),
+            ("trusted_actors_source: [standards]\n", {"sha": STANDARDS_SHA}, none),
+        ):  # fmt: skip
+            with self.subTest(team=team, main=main):
+                standards_cleared(self)
+                policy._TRUSTED_IDS.clear()
+                gh = GhFake().install(self)
+                gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref=trunk"] = file_payload(team)
+                gh.rest[ours] = 500
+                gh.rest[head] = main
+                gh.rest[theirs] = file_payload(json.dumps(listing))
+                self.assertEqual(policy.trusted_actors(REPO, "trunk"), expected)
+                self.assertNotIn(["api", ours], gh.calls)
+
+    def test_one_standards_commit_and_read_serve_every_repository(self) -> None:
+        standards_cleared(self)
+        policy._TRUSTED_IDS.clear()
+        gh = GhFake().install(self)
+        listing = {"version": 1, "actors": [{"id": 5, "login": "p", "kind": "human"}]}
+        head = f"repos/{policy.STANDARDS_REPO}/commits/main"
+        theirs = (
+            f"repos/{policy.STANDARDS_REPO}/contents/"
+            f"{policy.STANDARDS_TRUSTED_ACTORS}?ref={STANDARDS_SHA}"
+        )
+        gh.rest[head] = {"sha": STANDARDS_SHA}
+        gh.rest[theirs] = file_payload(json.dumps(listing))
+        for repo in (REPO, "owner/other"):
+            gh.rest[f"repos/{repo}/contents/{TEAM_YAML}?ref=trunk"] = file_payload(
+                "trusted_actors_source: standards\n"
+            )
+            self.assertEqual(policy.trusted_actors(repo, "trunk"), ((5,), (5,)))
+        self.assertEqual(gh.calls.count(["api", head]), 1)
+        self.assertEqual(gh.calls.count(["api", theirs]), 1)
+
+    def test_an_unset_or_repository_source_reads_the_copy(self) -> None:
+        for team in (None, "trusted_actors_source: repository\n"):
+            with self.subTest(team=team):
+                standards_cleared(self)
+                policy._TRUSTED_IDS.clear()
+                gh = GhFake().install(self)
+                if team is not None:
+                    gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref=trunk"] = (
+                        file_payload(team)
+                    )
+                listing = {"version": 1, "actors": [{"id": 7, "login": "q", "kind": "bot"}]}
+                gh.rest[f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref=trunk"] = (
+                    file_payload(json.dumps(listing))
+                )
+                gh.rest[f"repos/{REPO}/contents?ref=trunk"] = []
+                self.assertEqual(policy.trusted_actors(REPO, "trunk"), ((7,), ()))
+                self.assertFalse(any(policy.STANDARDS_REPO in c[1] for c in gh.calls))
+
     def test_the_default_branch_head_decides_idle_hours(self) -> None:
         base = policy.PipelineConfig(SHA, "C2", None, IDENTITY, None, (), None)
         for ours, main in ((24, 48), (48, 24), (24, None), (None, 24)):
@@ -10953,6 +11025,27 @@ class DependabotEligibility(unittest.TestCase):
                     "dependabot-review:dependabot-policy-unreadable;"
                     "review-verdict-missing",
                 )
+
+    def test_an_opted_in_repository_reads_the_standards_policy(self) -> None:
+        standards = f"repos/{policy.STANDARDS_REPO}/contents/"
+        for theirs, eligible in (
+            (json.dumps({"autoMerge": {"reviewOnly": []}}), True),
+            ("{not json", False),
+        ):
+            with self.subTest(theirs=theirs):
+                standards_cleared(self)
+                gh = self.fake()
+                gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = 500
+                gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = file_payload(
+                    "trusted_actors_source: standards\n"
+                )
+                gh.rest[f"repos/{policy.STANDARDS_REPO}/commits/main"] = {
+                    "sha": STANDARDS_SHA
+                }
+                path = f"{dependabot.STANDARDS_POLICY}?ref={STANDARDS_SHA}"
+                gh.rest[standards + path] = file_payload(theirs)
+                result = self.eligibility()
+                self.assertIs(result.eligible, eligible, result.reason)
 
     def moved_main(
         self, main_config: Any = None, main_policy: Any = None, **options: Any

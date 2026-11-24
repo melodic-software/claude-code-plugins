@@ -91,8 +91,10 @@ For another manager, use its own documented rebase trigger.
 A base repository runs pr-verify when its base commit has `.github/workflows/pr-verify.yml`.
 pr-verify judges the PR's author by `merge.verify-authors` in that commit's
 `docs/conventions/pr-pipeline.yaml`: `lane` (the default) judges only the lanes App
-(`merge.agent-identity`), `lane-or-owner` also an author on
-`.github/standards/trusted-actors/trusted-actors.json`, and `any` every author
+(`merge.agent-identity`), `lane-or-owner` also an author on the trusted list (the
+`melodic-software/standards` component `components/trusted-actors/trusted-actors.json` when the
+base's `docs/conventions/source-control.yaml` sets `trusted_actors_source: standards`, else the
+repository's `.github/standards/trusted-actors/trusted-actors.json`), and `any` every author
 (`.github/scripts/pr-verify/resolve-pr.mjs`). Before that setting, the resolver skips a PR whose
 base is not the default branch, whose head is in a fork, or whose author is a dependency-manager
 Bot (`dependabot`, `dependabot-preview`, `renovate`, `renovate-bot`): pr-verify never judges one, so
@@ -128,8 +130,13 @@ AUTHOR=$(jq -r '"\(.user.id) \(.user.login)"' <<<"$PULL")
 CONF=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/pr-pipeline.yaml?ref=$BASE_SHA") || exit 1
 MODE=$(sed -n 's/^  verify-authors: *\([a-z-]*\).*/\1/p' <<<"$CONF" | head -n 1)
 LANE=$(sed -n 's/^  agent-identity: *\([^ #]*\).*/\1/p' <<<"$CONF" | head -n 1)
-TRUSTED=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA" \
-  | jq -r '.actors[].id') || exit 1
+TEAM=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/source-control.yaml?ref=$BASE_SHA" 2>/dev/null)
+LIST="repos/$REPO/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA"
+if grep -Eq '^trusted_actors_source: *standards *$' <<<"$TEAM"; then
+  STD=$(gh api repos/melodic-software/standards/commits/main --jq .sha) || exit 1
+  LIST="repos/melodic-software/standards/contents/components/trusted-actors/trusted-actors.json?ref=$STD"
+fi
+TRUSTED=$(gh api -H 'Accept: application/vnd.github.raw' "$LIST" | jq -r '.actors[].id') || exit 1
 JUDGED=no
 case "${MODE:-lane}" in
   any) JUDGED=yes ;;

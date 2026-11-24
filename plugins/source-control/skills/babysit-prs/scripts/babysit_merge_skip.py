@@ -27,7 +27,8 @@ refused, with its earlier verdict marked carried, and is never enqueued.
 - the default branch's blob or tree ids of the gate's config, trusted list,
   tracker config, the pr-merge workflow, the config resolver that picks the
   gate's script and flags, and the gate's scripts, read from the `.base`
-  clone, and `CLAUDE_LANES_MERGE_RUNG_CAP`.
+  clone, a digest of the standards trusted list when that clone's team YAML
+  opts in to it (`standards_input`), and `CLAUDE_LANES_MERGE_RUNG_CAP`.
 
 The key is read before the gate runs, so a first refusal that posts its
 reasons comment changes the comments and `updatedAt`; the next run gates
@@ -68,6 +69,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import babysit_merge_policy as merge_policy
 import babysit_tracker_binding as tracker_binding
 import babysit_verify_evidence as verify_evidence
 from babysit_gh import gh_json
@@ -96,6 +98,9 @@ DEFAULT_MAX_MINUTES = 60
 DEFAULT_MAX_SKIPS = 3
 # Candidates per GraphQL query.
 CHUNK = 20
+STANDARDS_INPUT = (
+    f"{merge_policy.STANDARDS_REPO}:{merge_policy.STANDARDS_TRUSTED_ACTORS}"
+)
 MAIN_PATHS = (
     "docs/conventions/pr-pipeline.yaml",
     "docs/conventions/source-control.yaml",
@@ -181,7 +186,36 @@ def main_inputs(base: Path) -> dict[str, str]:
     head = rev("HEAD^{commit}")
     if not head:
         raise RuntimeError(f"{base} has no HEAD commit")
-    return {path: rev(f"{head}:{path}") or "absent" for path in MAIN_PATHS}
+    inputs = {path: rev(f"{head}:{path}") or "absent" for path in MAIN_PATHS}
+    inputs[STANDARDS_INPUT] = standards_input(base, head)
+    return inputs
+
+
+def standards_input(base: Path, head: str) -> str:
+    """The digest of the standards trusted list the gate reads when the
+    clone's team YAML opts in (`merge_policy.reads_standards`), else `unread`.
+    Raises `RuntimeError` when either read fails."""
+    proc = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(base),
+            "show",
+            f"{head}:{merge_policy.repo_config.YAML_CONFIG_PATH}",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        if not merge_policy.opts_in_to_standards(
+            proc.stdout if proc.returncode == 0 else None
+        ):
+            return "unread"
+        text = merge_policy.standards_file(merge_policy.STANDARDS_TRUSTED_ACTORS)
+    except merge_policy.PolicyReadError as exc:
+        raise RuntimeError(f"standards trusted list: {exc}") from exc
+    return hashlib.sha256(text.encode()).hexdigest() if text is not None else "absent"
 
 
 def state_query(numbers: Iterable[int]) -> str:
