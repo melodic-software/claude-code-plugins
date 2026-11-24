@@ -97,7 +97,7 @@
     "merge_guard_enabled": {
       "type": "boolean",
       "title": "Merge guard",
-      "description": "Blocks a pull-request merge (--admin, --auto and merge-queue requests included) while the PR carries a hold label (do-not-merge, pr-verify-failed, security: outside-actor, any case), has an unresolved review thread, a reviewer whose latest review requests changes, a failed, cancelled or timed-out check, a pending check (immediate merge only), or, where pr-verify judges it, no PASS at its head until 30 minutes after its checks finished. A failed check the base branch does not require is exempt on a PR that fixes a workflow or action file and ran the base branch's copy. Also blocks removing the pr-verify-failed label. Fails open, visibly, when the PR state cannot be read. On by default.",
+      "description": "Blocks a PR merge, auto-merge or merge-queue request while the PR has a hold label, an unresolved review thread, a changes-requested review, a failed check, a pending check (immediate merge only) or no pr-verify PASS where one is due. Fails open, visibly, on an unreadable PR. On by default.",
       "default": true
     },
     "merge_guard_ignored_checks": {

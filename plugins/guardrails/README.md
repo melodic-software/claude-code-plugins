@@ -1743,6 +1743,15 @@ clone or, with `scope=shared`, for every clone.
 
 ### Option details
 
+**`merge_guard_enabled`.** `--admin` and `--auto` merges are judged too. The hold labels are
+`do-not-merge`, `pr-verify-failed` and `security: outside-actor`, in any case. A failed check is a
+`failure`, `timed_out`, `cancelled`, `action_required`, `startup_failure` or `stale` run, or a
+commit status in `failure` or `error`. A failed check the base branch does not require is exempt
+on a PR that changes a workflow or action file and whose run loaded the base branch's copy. Where
+pr-verify judges the PR, a merge waits for a PASS at its head until 30 minutes after the head's
+last check finished, then runs with a notice. The guard also blocks removing the
+`pr-verify-failed` label. The merge-guard row under [The guards](#the-guards) lists every condition and merge path.
+
 **`secret_pattern_detection_allowed_roots`.** For credentials you keep on purpose in local notes
 that are never committed, such as a notes directory under home that is not a repository. Only you
 set it. It is read from the hook's own environment, never from the tool call. A Write, Edit or
@@ -1952,7 +1961,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `block_credential_read_enabled` | boolean | `false` | Blocks a command whose output is a credential: git credential fill, gh auth token, a token-shaped variable echoed, and an interpreter (python -c, node -e) reading .env, .netrc, ~/.ssh/id_* or ~/.aws/credentials. cat is left to Read() deny rules. Off by default: precision below the bar. |
 | `block_credential_read_allow` | string | *(none)* | Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read. Empty, the default, blocks all. |
 | `block_cross_domain_enabled` | boolean | `true` | Denies a Bash or PowerShell global git identity write (git config --global user.email and kin, a ~/.gitconfig write). In an identity domain (identity-domains.json) also denies naming another domain's path, using its marker, or gh/az without the domain's config dir. On by default. |
-| `merge_guard_enabled` | boolean | `true` | Blocks a pull-request merge (`--admin`, `--auto` and merge-queue requests included) while the PR carries a hold label (any case), has an unresolved review thread, a changes-requested review, a failed or (for an immediate merge) pending check or, where pr-verify judges it, no PASS at its head until 30 minutes after its last check finished; also blocks removing the pr-verify-failed label. Fails open, visibly, when the PR state cannot be read. On by default. |
+| `merge_guard_enabled` | boolean | `true` | Blocks a PR merge, auto-merge or merge-queue request while the PR has a hold label, an unresolved review thread, a changes-requested review, a failed check, a pending check (immediate merge only) or no pr-verify PASS where one is due. Fails open, visibly, on an unreadable PR. On by default. |
 | `merge_guard_ignored_checks` | string | `"github-actions:Merge,github-actions:merge"` | Comma-separated <app slug>:<check name> pairs the merge guard never judges as pending or failing, the only way a failed check is cleared. The default names the pr-merge lane's merge job, which runs as the merger, not a gate, by display name and by job id. Empty judges every check. |
 | `block_lane_pr_disable_auto_enabled` | boolean | `true` | Blocks gh pr merge --disable-auto, or the disablePullRequestAutoMerge mutation through gh api graphql, on a pull request the lanes App opened, and says to hold it with the do-not-merge label instead. A target it cannot read is blocked. On by default. |
 | `block_lane_pr_disable_auto_app` | string | *(none)* | The GitHub App login (slug, app/<slug> or <slug>\[bot\]) whose pull requests block-lane-pr-disable-auto protects. Empty, the default, blocks a disable on any pull request a GitHub App opened, since the guard cannot tell which App is the lanes App; a pull request a person opened passes. |
