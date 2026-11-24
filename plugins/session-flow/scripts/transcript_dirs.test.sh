@@ -62,7 +62,7 @@ fi
 cwd_of() { if [[ "$WINHOST" -eq 1 ]]; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
 
 fails=0
-assert_true() { # assert_true <description> <command...>
+assert_true() {
   local desc="$1"
   shift
   if "$@"; then printf 'ok   - %s\n' "$desc"; else
@@ -73,7 +73,7 @@ assert_true() { # assert_true <description> <command...>
 
 OUT=""
 CODE=0
-run_in() { # run_in <dir> [args...]; CLAUDE_CONFIG_DIR and HOME come from the caller
+run_in() {
   local dir="$1"
   shift
   OUT="$(cd "$dir" && bash "$SUT" "$@" 2>"$T/err")"
@@ -84,13 +84,11 @@ out_is() { [[ "$OUT" == "$1" ]]; }
 sorted_out_is() { [[ "$(printf '%s\n' "$OUT" | LC_ALL=C sort)" == "$(printf '%s\n' "$@" | LC_ALL=C sort)" ]]; }
 first_line_is() { [[ "${OUT%%$'\n'*}" == "$1" ]]; }
 no_file_x() { [[ ! -e "$R1/x" && ! -e "$T/x" && ! -e "$SCRIPT_DIR/x" ]]; }
-transcript() { # transcript <dir> <file> <cwd>: one record carrying cwd, JSON-escaped
+transcript() {
   mkdir -p "$1"
   printf '{"type":"user","cwd":"%s"}\n' "${3//\\/\\\\}" >"$1/$2"
 }
 
-# The repository: a main checkout, a subdirectory, a second worktree, and a
-# sibling whose name extends the main checkout's.
 R1="$T/repo.main"
 R2="$T/wt-two"
 mkdir -p "$R1/sub" "$T/repo.main-v2" "$T/plain"
@@ -119,7 +117,6 @@ OTHER="$S/-srv-other-project"
 mkdir -p "$E1" "$E2" "$EPLAIN" "$OTHER"
 transcript "$E1SUB" a.jsonl "$(cwd_of "$R1/sub")"
 transcript "$E1ODD" a.jsonl "$(cwd_of "$R1/odd")"
-# The sibling: an older transcript claims the root, the newest one does not.
 transcript "$E1V2" old.jsonl "$(cwd_of "$R1")"
 touch -t 202001010000 "$E1V2/old.jsonl"
 transcript "$E1V2" new.jsonl "$(cwd_of "$T/repo.main-v2")"
@@ -231,7 +228,6 @@ else
   rm -rf "$W1" "$W1SUB" "$W2"
 fi
 
-# No Python: exact names only, and one gap line on stderr.
 NOPY="$T/nopy"
 mkdir -p "$NOPY"
 BASH_BIN="$(command -v bash)"
