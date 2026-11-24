@@ -26,12 +26,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// Judgment value: below 5 failures in either group, one failure moves a rate
-// by 20 points or more, so the groups are not compared.
 export const MIN_FAILURES = 5;
-// Judgment value: above one 84-day window's reads at this repository's pace
-// (one search page per 20 merged lanes App pull requests, 1543 in the 84 days
-// to 2026-11-14, and one issues page per 100 issues per filer).
 const CALL_BUDGET = 200;
 const SLICE_DAYS = 7;
 const SIGNALS = ["demotion", "canary", "revert", "any"];
@@ -107,7 +102,6 @@ export function readRecord(body) {
   if (!marker) return null;
   const prs = lines.flatMap((line) => /^- Pull request: \S*\/pull\/([0-9]+)/.exec(line)?.[1] ?? []).map(Number);
   const range = lines.flatMap((line) => /^ +- .*`([0-9a-f]{40})`/.exec(line)?.[1] ?? []);
-  // The babysitter's shared record charges several merges on one line; none is singled out.
   const also = lines.flatMap((line) => (line.startsWith("- Also charged by this run: ") ? [...line.matchAll(/`([0-9a-f]{40})`/g)].map((m) => m[1]) : []));
   if (also.length) range.push(marker.sha, ...also);
   return { signal: marker.signal, sha: marker.sha, prs, range };

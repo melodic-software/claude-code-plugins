@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# The morning-brief status report page: a fixture-fed brief goes through the builder, and
-# hostile issue and pull-request titles must reach the page only as escaped JSON data. When a
-# Chrome or Chromium binary is found the page is also opened from file:// and read back.
 # test-scope: docs/conventions/work-items.yaml
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -50,13 +47,11 @@ jq -n --arg t "$HOSTILE" '[{number: 10, title: $t, url: "http://x/10", isDraft: 
 printf '{"10": 0}\n' >"$TMP/behind.json"
 jq -n --arg t "$HOSTILE" '[{number: 100, title: $t, url: "http://x/i/100", body: ("RECOMMENDED: " + $t), comments: []}]' >"$TMP/decisions.json"
 printf '[]\n' >"$TMP/empty.json"
-# A merged-PR read always carries a page document; a bare [] is UNREADABLE.
 printf '[{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false}, "nodes": []}}}}]\n' >"$TMP/merged.json"
 printf '{"pr-unblock.yml": [{"id": 30, "html_url": "http://x/runs/30", "event": "pull_request", "display_title": "PR A", "head_sha": "a1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"}]}\n' >"$TMP/lane-runs.json"
 cat >"$TMP/lane-ann.json" <<'EOF'
 {"30": "pr-unblock completed. lane-outcome {\"v\":1,\"lane\":\"resolve-conflicts\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":8,\"maxTurns\":40,\"models\":[\"claude-sonnet-5\"]}\nactivity=resolve-conflicts"}
 EOF
-# The cost reads, all clear, so the fixture brief reads every section.
 printf '{"usageItems": []}\n' >"$TMP/usage.json"
 printf '{"budgets": [], "has_next_page": false}\n' >"$TMP/budgets.json"
 printf '{"admins": ["owner-example"], "partial": 0, "repos": [{"name": "app", "visibility": "private", "archived": false, "collaborators": [], "workflows": []}]}\n' >"$TMP/scan.json"

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Discovery wrapper for merge-risk-failures.test.mjs: run-plugin-tests.sh discovers only *.test.sh.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

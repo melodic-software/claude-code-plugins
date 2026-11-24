@@ -24,11 +24,6 @@ emit() {
 # is not misreported as "no lease record" (which would let reclaim proceed).
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 
-# Select the ACTIVE lease = newest NON-superseded lease comment (not blind `last`:
-# a back-off supersedes its own newer comment, so the highest-id comment can be a
-# superseded back-off while an earlier comment is the still-active lease — picking
-# `last` there would falsely report "already superseded" and never reclaim the
-# genuinely expired active lease).
 wit_select_active_lease "$leases"
 lease_comment_id="$WIT_ACTIVE_LEASE_ID"
 lease_json="$WIT_ACTIVE_LEASE_JSON"
@@ -42,7 +37,6 @@ fi
 
 renewed_at="$(jq -r '.renewed_at' <<<"$lease_json")"
 
-# Activity check: non-lease comments since renewed_at, or open cross-referenced PRs.
 wit_run_gh read api --paginate "repos/$owner/$repo/issues/$number/comments?per_page=100" \
   --jq "[.[] | select((.body | startswith(\"<!-- work-item-lease v1\") | not) and .created_at > \"$renewed_at\")] | length"
 comment_activity="$(jq -s 'add // 0' <<<"$WIT_GH_OUT")"
@@ -58,12 +52,6 @@ if ((comment_activity > 0 || pr_activity > 0)); then
   emit false "activity detected; lease renewed"
 fi
 
-# Expired + inactive → reclaim. Revalidate first: the lease was selected before
-# the two activity round-trips above, a TOCTOU window in which a concurrent
-# claimer can renew or supersede it. Re-read leases and confirm THIS is still the
-# active lease and still expired; if another worker won the item in that window,
-# reclaim is a no-op for this idempotent session-start sweep (reclaimed:false) —
-# not a conflict, and emphatically not a mutation that would strip the new owner.
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 wit_select_active_lease "$leases"
 if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
@@ -73,11 +61,6 @@ if wit_lease_is_live "$WIT_ACTIVE_LEASE_JSON" "$(date -u +%s)"; then
   emit false "lease renewed during reclaim"
 fi
 
-# Remove ONLY the expired lease's holder — never a co-assignee a human added after
-# the lease or a concurrent claimer added before this snapshot. Removing all
-# assignees would strip a live claim and leave the frontier treating the item as
-# unassigned while that lease stays live: two workers on one item. Guard on a
-# fresh assignee read so a holder already unassigned (idempotent re-run) is a no-op.
 holder="$(jq -r '.holder' <<<"$lease_json")"
 wit_read_assignees "$owner" "$repo" "$number"
 if jq -e --arg h "$holder" 'any(.[]; . == $h)' <<<"$WIT_GH_OUT" >/dev/null; then

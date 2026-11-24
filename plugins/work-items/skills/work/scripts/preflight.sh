@@ -131,30 +131,12 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-# --- Settings resolution ------------------------------------------------------
-# (a) is about the actual cwd; project settings are read from --project-root when
-# given (the worker worktree the orchestrator is dispatching into), else the cwd
-# checkout. Reading the dispatched worktree's own project settings is what keeps
-# the main checkout's grants from masking a worker-side gap. User-global settings
-# apply everywhere and are read regardless.
 CHECK_DIR="${PREFLIGHT_FIXTURE_DIR:-$PWD}"
 repo_root="$(git -C "$CHECK_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 proj_src="${project_root:-$CHECK_DIR}"
 proj_toplevel="$(git -C "$proj_src" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 proj_base="${proj_toplevel:-$proj_src}"
 user_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-# The MAIN checkout's .claude/settings.local.json is shared by linked worktrees
-# where approvals save at the repository root, not in every case
-# (reference/permission-preflight.md "settings.local.json scope" holds
-# the pointer record).
-# Resolving that checkout has three outcomes, and the report distinguishes them:
-#   verified  — main_root names a directory PROVEN to be this repository's main
-#               working tree (main_state=verified).
-#   bare      — the repository has no main working tree at all, so no main-local
-#               layer can exist and nothing is missing (main_state=bare).
-#   unresolved— the main working tree cannot be determined; the layer is UNREAD
-#               and the report says so loudly (main_state=unresolved + reason).
-# Only "verified" may be named as the main checkout, and only it is read.
 main_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
 own_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-dir 2>/dev/null | tr -d '\r')"
 
@@ -242,17 +224,12 @@ is_main_worktree() {
 }
 
 accept_main_worktree() {
-  # accept_main_worktree <candidate> — verify the candidate and, only then,
-  # record it (in git's own spelling) as the resolved main checkout.
   is_main_worktree "$1" || return 1
   main_root="$MAIN_TOP"
   main_state="verified"
 }
 
 resolve_main_root() {
-  # Sets main_root / main_state / main_reason. Candidates are proposed cheapest
-  # first and each is put through is_main_worktree before being trusted; a
-  # candidate that fails verification is discarded, never named.
   local cand own_n
   main_root=""
   main_state="unresolved"
@@ -337,7 +314,6 @@ detect_layout() {
   layout_causes=""
   layout_reason=""
   [[ "$main_state" == "verified" ]] || return 0
-  # Unset, not empty, selects the real uname: tests inject an empty platform.
   local uname_s="${PREFLIGHT_UNAME-$(uname -s 2>/dev/null)}" home="${HOME:-${USERPROFILE:-}}"
   local cur_uid tag entry owner root_n home_n root_p home_p
   [[ -n "$uname_s" ]] || layout_reason="the platform (uname -s) is unreadable"
@@ -374,7 +350,6 @@ detect_layout() {
       *) entry="$main_root/.claude" owner="${PREFLIGHT_OWNER_CLAUDE:-}" ;;
       esac
       if [[ ! -e "$entry" ]]; then
-        # .claude may legitimately be absent; the root and .git exist once verified.
         [[ "$tag" == "CLAUDE" ]] && continue
         layout_reason="'$entry' does not exist, so its owner cannot be read"
         continue
@@ -470,7 +445,6 @@ ALL_ALLOW="$(collect '.permissions.allow' "$cov_local")"
 ALL_DENY="$(collect '.permissions.deny' "with-local" deny)"
 ALL_ADDDIRS="$(collect '.permissions.additionalDirectories' "$cov_local")"
 
-# --- Matchers -----------------------------------------------------------------
 verb_in_rules() {
   # verb_in_rules <verb> <rules> <mode> — true when some Bash()/PowerShell() rule
   # in the newline-separated <rules> grants <verb> in a shape the <mode> accepts:
@@ -521,8 +495,6 @@ verb_denied() { verb_in_rules "$1" "$ALL_DENY" "bare"; }
 verb_bare_exact() { verb_in_rules "$1" "$ALL_ALLOW" "bare-exact-only"; }
 
 dir_covered() {
-  # dir_covered <path> — true when some additionalDirectories entry equals the
-  # path or is an ancestor of it, after normalization.
   local want entry
   norm_path "$1"
   want="$NORM_OUT"
@@ -530,8 +502,6 @@ dir_covered() {
     [[ -n "$entry" ]] || continue
     norm_path "$entry"
     entry="$NORM_OUT"
-    # Filesystem root authorizes every absolute path ("" after the trailing-slash
-    # strip would otherwise expand to //* and match nothing).
     [[ "$entry" == "/" || "$entry" == "" ]] && return 0
     [[ "$want" == "$entry" ]] && return 0
     case "$want" in
@@ -544,7 +514,6 @@ DIRS
   return 1
 }
 
-# --- Checks -------------------------------------------------------------------
 findings=()
 gapcount=0
 emit_gap() {
@@ -553,7 +522,6 @@ emit_gap() {
 }
 emit_note() { findings+=("NOTE $1"); }
 
-# (a) cwd not a git repo — informational; a worktree-operating lane may still run.
 if [[ -z "$repo_root" ]]; then
   emit_note "(a) '$CHECK_DIR' is not a git repository. A lane that needs a checkout at the cwd cannot claim, branch, or push here; a lane that operates in an out-of-tree worktree proceeds once (c) is covered."
 fi
@@ -574,7 +542,6 @@ for verb in "git add" "git commit" "gh pr create" "gh issue comment"; do
   emit_gap "(b) no Bash()/PowerShell() allow rule covers '$verb'. Apply the fleet permission floor operator-side (standards components/claude-permissions, composed into settings via dotfiles#233) — never a plugin self-grant. See reference/permission-preflight.md."
 done
 
-# (c) worktree root not covered by additionalDirectories.
 if [[ -n "$worktree_root" ]]; then
   if ! dir_covered "$worktree_root"; then
     emit_gap "(c) no permissions.additionalDirectories entry covers the worktree root '$worktree_root'; every out-of-tree write will prompt. Add it operator-side. See reference/permission-preflight.md."
@@ -583,7 +550,6 @@ else
   emit_note "(c) worktree root not provided (--worktree-root / PREFLIGHT_WORKTREE_ROOT unset) — additionalDirectories coverage not checked. Pass the lane's out-of-tree worktree root to verify it."
 fi
 
-# --- Output -------------------------------------------------------------------
 if [[ "$mode" == "count" ]]; then
   printf '%s\n' "$gapcount"
   exit 0
@@ -623,8 +589,6 @@ if [[ "${#findings[@]}" -gt 0 ]]; then
   printf '%s\n' "${findings[@]}"
 fi
 
-# INCOMPLETE outranks BOTH OK branches: an unread main-checkout layer means the
-# probe never saw every rule, so "OK" would assert more than the run checked.
 if [[ "$main_state" == "unresolved" ]]; then
   echo "PREFLIGHT: INCOMPLETE — main-checkout layer unread ($main_reason); $gapcount gap(s) found among the layers that were read. Report-only: exit 0 regardless (see reference/permission-preflight.md)."
 elif [[ -n "$layout_unread" ]]; then

@@ -65,7 +65,6 @@ records="$(LC_ALL=C awk -f "$SCRIPT_DIR/yaml-subset.awk" <<<"$text")" ||
 records="$(awk -F '\t' -v p="$PREFIX" 'index($1, p) == 1 { print substr($0, length(p) + 1) }' <<<"$records")"
 [[ -n "$records" ]] || die 3 "$CONFIG has no ${PREFIX%.} block"
 
-# One row per given dimension: dimension, key, field id, option id.
 dims="$(awk -F '\t' '{ split($1, k, "."); if (k[2] == "field-id") print k[1] }' <<<"$records" | sort -u)"
 given=""
 fields=()

@@ -25,7 +25,6 @@ const number = (value) => (Number.isSafeInteger(value) && value > 0 ? String(val
 function boardData(input) {
   const items = Array.isArray(input?.items) ? input.items : [];
   const rows = items.map((item) => {
-    // An item whose blockers were not read is neither blocked nor unblocked.
     const blockers = Array.isArray(item?.blockedBy) ? item.blockedBy.map((n) => `#${number(n)}`) : null;
     const blockerNames = blockers === null ? ["blockers not read"] : blockers.length ? blockers : ["unblocked"];
     const labels = (Array.isArray(item?.labels) ? item.labels : []).map(text).filter(Boolean);
@@ -61,7 +60,6 @@ function boardData(input) {
     bystate: group((row) => [row.state], "srows"),
     byblocker: group((row) => row.blockers, "brows"),
     bylabel: group((row) => row.labelList, "lrows"),
-    // Input order, so the page's row id items-N is the Nth item in the input.
     items: rows.map(({ ref, title }) => ({ ref, title })),
   };
 }

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for the morning-brief script's pure rendering logic.
-# Every data source is fed as a fixture (no network, no gh required); the clock
-# is pinned with --now so staleness is deterministic. Self-contained and
-# cwd-independent per the plugin-test runner contract.
 
 set -uo pipefail
 
@@ -34,9 +30,6 @@ fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-# The brief reads cost settings from the checkout it runs in. The suite runs
-# outside any checkout, so no repository's own settings reach a case; the
-# settings cases build their own.
 cd "$TMP" || exit 1
 
 FAILED=0
@@ -55,11 +48,9 @@ assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" 
 assert_exit() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $2" "exit $3"; fi; }
 assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
 section() {
-  # section OUTPUT "== heading prefix" — the lines of one section, heading included.
   printf '%s\n' "$1" | awk -v h="$2" 'index($0, h) == 1 {p = 1; print; next} /^== / {p = 0} p'
 }
 
-# --- Fixtures -----------------------------------------------------------------
 NOW="2026-07-20T08:00Z"
 FIXTURE_REPO="example/test-repo"
 
@@ -69,8 +60,6 @@ cat >"$TMP/counts.json" <<'EOF'
 {"needs-triage": 28, "status: ready": 44, "needs-owner-decision": 3, "needs-human": 7}
 EOF
 
-# One clean non-draft (#10, kept), one draft-but-clean (#11, excluded), one
-# non-draft BLOCKED (#12, excluded), one clean non-draft with a review (#13).
 cat >"$TMP/pr.json" <<'EOF'
 [
   {"number": 12, "title": "blocked pr", "url": "http://x/12", "isDraft": false, "mergeStateStatus": "BLOCKED", "reviewDecision": ""},
@@ -82,13 +71,10 @@ cat >"$TMP/pr.json" <<'EOF'
 ]
 EOF
 
-# #10's head contains the base tip; #13's is four commits behind it.
 cat >"$TMP/behind.json" <<'EOF'
 {"10": 0, "13": 4}
 EOF
 
-# #100 uppercase marker must beat an earlier "not recommended"; #101 lowercase
-# fallback; #102 no marker at all; #103 marker only in a comment.
 cat >"$TMP/decisions.json" <<'EOF'
 [
   {"number": 100, "title": "storage decision", "url": "http://x/i/100",
@@ -115,8 +101,6 @@ cat >"$TMP/decisions.json" <<'EOF'
 ]
 EOF
 
-# babysit fresh (1h30m), triage stale (26h), work unparsable stamp, work-2 has
-# flags; a lane comment without the sentinel and a scope-note comment are skipped.
 cat >"$TMP/telemetry.json" <<'EOF'
 [
   {"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"},
@@ -130,20 +114,9 @@ EOF
 
 printf '[]\n' >"$TMP/empty.json"
 
-# A stuck-section read that finds no label holding anything, for every run that
-# gives the brief a repo but is not about the Stuck section.
 printf '{}\n' >"$TMP/stuck-empty.json"
-# Likewise an owner-touch read with no events.
 printf '{"owner": "op-user", "pages": []}\n' >"$TMP/touch-empty.json"
 
-# Stuck-section fixture: label -> search page documents. NOW is 2026-07-20T08:00Z.
-#   #201 issue — "status: ready" since 07-01 (19d); an older labeled event and a
-#                newer event for ANOTHER label must not move it   -> listed
-#   #202 PR    — "status: ready" since 07-18 (2d)                  -> under 7d, not listed
-#   #203 issue — "status: ready", no labeled event in its timeline -> days unknown
-#   #204 PR    — "needs-human" since 07-12 (8d)                    -> listed
-#   #205 PR    — "needs-human" labeled 06-01 and again 07-19 (1d)  -> newest event wins, not listed
-#   #206 issue — "needs-triage" since 07-10 (10d)                  -> listed
 cat >"$TMP/stuck.json" <<'EOF'
 {
   "status: ready": [{"data": {"search": {"issueCount": 3, "pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
@@ -210,12 +183,6 @@ cat >"$TMP/merged.json" <<'EOF'
 ]
 EOF
 
-# Severity classification and ranking edge cases:
-#   #300 — a P2 whose PROSE says "P1" and "CRITICAL": body-substring matching
-#          falsely promoted it. Only the structured marker counts.
-#   #301 — an unclassified thread beside a P0: "--" sorts before "P0"
-#          lexicographically, so the PR would render "[--]" and hide the P0.
-#   #302 — the shields badge/P0 URL form, with no alt-text marker.
 cat >"$TMP/merged-severity.json" <<'EOF'
 [
   {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
@@ -244,8 +211,6 @@ cat >"$TMP/merged-severity.json" <<'EOF'
 ]
 EOF
 
-# A PR whose thread connection was TRUNCATED: the read is partial, so neither
-# the finding list nor an all-clear can be trusted to be complete.
 cat >"$TMP/merged-truncated.json" <<'EOF'
 [
   {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
@@ -269,7 +234,6 @@ cat >"$TMP/merged-apierror.json" <<'EOF'
 ]
 EOF
 
-# No merged PR carries a post-merge thread — the clean-window branch.
 cat >"$TMP/merged-clean.json" <<'EOF'
 [
   {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
@@ -279,8 +243,6 @@ cat >"$TMP/merged-clean.json" <<'EOF'
 ]
 EOF
 
-# Non-empty telemetry array with zero lane-tagged comments (only scope notes) —
-# the any=0 branch, distinct from the null/no-issue-found case above.
 cat >"$TMP/telemetry-no-lanes.json" <<'EOF'
 [
   {"body": "Scope note: this issue is the interim telemetry surface."},
@@ -288,17 +250,14 @@ cat >"$TMP/telemetry-no-lanes.json" <<'EOF'
 ]
 EOF
 
-# A repo whose label taxonomy does not include the melodic-software defaults.
 cat >"$TMP/repo-labels-alternate.json" <<'EOF'
 ["bug", "enhancement", "status: blocked"]
 EOF
 
-# A repo that carries only a subset of the defaults (ready + needs-human).
 cat >"$TMP/repo-labels-partial.json" <<'EOF'
 ["status: ready", "needs-human", "documentation"]
 EOF
 
-# A repo with no labels at all (successful empty lookup, not a failed one).
 printf '[]\n' >"$TMP/repo-labels-empty.json"
 
 # Cost fixtures with nothing charging, all values synthetic. The billing usage
@@ -322,9 +281,6 @@ cat >"$TMP/billing-usage-clear.json" <<'EOF'
   {"date": "2026-07-01T00:00:00Z", "product": "git_lfs", "sku": "Git LFS Storage", "unitType": "GigabyteHours", "quantity": 4, "repositoryName": "app-private", "grossAmount": 0.2, "discountAmount": 0.2, "netAmount": 0}
 ]}
 EOF
-# The org scan: one org admin, no other direct collaborator, a pull_request
-# workflow that reads a _CLAUDE_ secret (not fork-triggered), a workflow_run
-# workflow that reads none, and an archived repo whose state is never judged.
 cat >"$TMP/org-scan-clear.json" <<'EOF'
 {"admins": ["owner-example"], "partial": 0, "repos": [
   {"name": "app-private", "visibility": "private", "archived": false, "collaborators": ["owner-example"],
@@ -366,7 +322,6 @@ CLEAR_COST_ARGS=(--billing-usage-json "$TMP/billing-usage-clear.json" --billing-
   --org-scan-json "$TMP/org-scan-clear.json" --azure-json "$TMP/azure-clear.json"
   --actions-included-minutes 3000 --actions-included-storage-gb 2 --required-budgets budget-example --anomaly-alert anomaly-example)
 
-# --- Full render --------------------------------------------------------------
 OUT="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
@@ -397,7 +352,6 @@ assert_contains "merge-ready leaves a clean PR containing the base tip unflagged
   #13 approved clean pr"
 assert_not_contains "merge-ready reports no unread freshness when every count is known" "$MERGE_READY" "base freshness unread"
 
-# Freshness that was never read is UNVERIFIED, never silently fresh.
 OUT_NO_BEHIND="$(bash "$BRIEF" --now "$NOW" --pr-json "$TMP/pr.json" \
   --counts-json "$TMP/counts.json" --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged.json" 2>&1)"
@@ -411,8 +365,6 @@ OUT_PARTIAL_BEHIND="$(bash "$BRIEF" --now "$NOW" --pr-json "$TMP/pr.json" --behi
 assert_contains "merge-ready with no count for a PR says freshness is unread" "$(section "$OUT_PARTIAL_BEHIND" "== Merge-ready")" \
   "    UNVERIFIED: base freshness unread: no behind count for #13"
 
-# The compare read costs one GET per clean PR, so it shares the --pr-limit cap;
-# a clean PR past the cap is UNVERIFIED with the cap as its reason.
 OUT_FRESH_CAP="$(bash "$BRIEF" --now "$NOW" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind.json" --pr-limit 1 \
   --counts-json "$TMP/counts.json" --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged.json" 2>&1)"
@@ -431,12 +383,8 @@ assert_not_contains "decision #100 ignores 'not recommended'" "$OUT" "not recomm
 assert_contains "decision #101 lowercase fallback" "$OUT" "keep the interim surface for now"
 assert_contains "decision #102 no marker" "$OUT" "(no RECOMMENDED line found)"
 assert_contains "decision #103 scans comments" "$OUT" "adopt option B"
-# #105: the lowercase fallback must anchor to marker position, not grab the
-# incidental "recommended" inside an earlier "not recommended" rejection line.
 assert_contains "decision #105 lowercase marker beats earlier 'not recommended'" "$OUT" "keep the sibling worktree layout"
 assert_not_contains "decision #105 ignores 'not recommended' rejection" "$OUT" "bare-clone hub is not recommended"
-# #106: tier 1 (uppercase) must anchor too — an unanchored uppercase scan grabs
-# the "NOT RECOMMENDED" prose line before the real marker.
 assert_contains "decision #106 uppercase marker beats earlier 'NOT RECOMMENDED'" "$OUT" "choose the managed sync path"
 assert_not_contains "decision #106 ignores 'NOT RECOMMENDED' rejection" "$OUT" "because of drift"
 
@@ -448,7 +396,6 @@ assert_contains "telemetry surfaces flags" "$OUT" "gh-identity drift detected"
 assert_not_contains "telemetry hides flags=none" "$OUT" "flags: none"
 assert_not_contains "telemetry skips a lane comment without the sentinel" "$OUT" "unmarked"
 
-# --- RECOMMENDED preview truncation ------------------------------------------
 OUT_TRUNC="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 30 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
@@ -457,7 +404,6 @@ OUT_TRUNC="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 30 \
 assert_contains "long rec is truncated with ellipsis" "$OUT_TRUNC" "alpha beta gamma delta epsilon…"
 assert_not_contains "long rec tail is dropped" "$OUT_TRUNC" "omicron pi"
 
-# --- RECOMMENDED preview: 0 = full (no truncation) ---------------------------
 OUT_FULL="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 0 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
@@ -466,7 +412,6 @@ OUT_FULL="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 0 \
 assert_contains "rec-maxlen 0 keeps the full tail untruncated" "$OUT_FULL" "omicron pi"
 assert_not_contains "rec-maxlen 0 never inserts an ellipsis" "$OUT_FULL" "…"
 
-# --- Telemetry: non-empty array with no lane-tagged comments (any=0) ---------
 OUT_NO_LANES="$(bash "$BRIEF" --now "$NOW" \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
@@ -474,7 +419,6 @@ OUT_NO_LANES="$(bash "$BRIEF" --now "$NOW" \
   --telemetry-json "$TMP/telemetry-no-lanes.json" 2>&1)"
 assert_contains "telemetry with no lane-tagged comments reports none found" "$OUT_NO_LANES" "(no per-lane comments found on the telemetry issue)"
 
-# --- Graceful: no telemetry issue found --------------------------------------
 printf 'null\n' >"$TMP/no-telemetry.json"
 OUT2="$(bash "$BRIEF" --now "$NOW" \
   --counts-json "$TMP/counts.json" \
@@ -483,7 +427,6 @@ OUT2="$(bash "$BRIEF" --now "$NOW" \
   --telemetry-json "$TMP/no-telemetry.json" 2>&1)"
 assert_contains "missing telemetry degrades gracefully" "$OUT2" "no telemetry issue found"
 
-# --- Graceful: queue labels absent in consuming repo -------------------------
 OUT_NO_QL="$(bash "$BRIEF" --now "$NOW" \
   --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
@@ -549,7 +492,6 @@ OUT_EMPTY_LABELS_DEC="$(bash "$BRIEF" --now "$NOW" \
   --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json" 2>&1)"
 assert_contains "empty label inventory degrades decision section" "$OUT_EMPTY_LABELS_DEC" "decision label not found in this repo"
 
-# --- Graceful: empty queues / no parked decisions ----------------------------
 OUT3="$(bash "$BRIEF" --now "$NOW" \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
@@ -558,7 +500,6 @@ OUT3="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "no clean PRs message" "$OUT3" "(none clean right now)"
 assert_contains "no parked decisions message" "$OUT3" "(none parked)"
 
-# --- Argument handling --------------------------------------------------------
 bash "$BRIEF" --help >/dev/null 2>&1
 assert_exit "--help exits 0" 0 "$?"
 bash "$BRIEF" --bogus >/dev/null 2>&1
@@ -656,23 +597,15 @@ fi
 # gate could never have seen, because it did not exist yet.
 assert_contains "stranded: reports the post-merge P1" "$OUT" "#1720"
 assert_contains "stranded: severity survives to the operator" "$OUT" "[P1]"
-# One line per PR, not per thread: #1720 carries a P1 and a P2, and must render
-# once at its WORST severity with the count — repeating a title per thread buries
-# every other PR in the section.
 assert_contains "stranded: several findings on one PR collapse to one line" "$OUT" "(2 findings)"
 assert_not_contains "stranded: a collapsed PR is not softened to its lesser severity" "$OUT" "[P2] #1720"
 assert_contains "stranded: names the reviewer" "$OUT" "by chatgpt-codex-connector"
 assert_contains "stranded: says why it was missed" "$OUT" "merge gate could not see it"
-# The three negative cases matter more than the positive: a check that reports
-# every unresolved thread on every merged PR is noise, not a signal.
 STRANDED_ONLY="$(printf '%s\n' "$OUT" | sed -n '/stranded on merged/,/^== Landed/p')"
 assert_not_contains "stranded: a thread PREDATING the merge is not stranded" "$STRANDED_ONLY" "#1707"
 assert_not_contains "stranded: an already-RESOLVED post-merge thread is excluded" "$STRANDED_ONLY" "#1712"
 assert_not_contains "stranded: a merge outside the window is excluded" "$OUT" "#1690"
 
-# --- Landed PRs and the ones to read ------------------------------------------
-# A fixture run has no landed_at, so the window is the last day: the three
-# merges on 07-19 land, #1690 (07-01) does not.
 LANDED_BLOCK="$(printf '%s\n' "$OUT" | sed -n '/^== Landed/,/^$/p')"
 assert_contains "landed: the first read on a machine covers the last day" "$LANDED_BLOCK" "first read on this machine: last 1d"
 assert_contains "landed: counts the PRs merged in the window" "$LANDED_BLOCK" "3 PRs merged"
@@ -689,12 +622,10 @@ assert_contains "landed: the sample takes the newest merge" "$LANDED_TWO" "#1720
 assert_not_contains "landed: the sample skips the one between" "$LANDED_TWO" "#1712"
 assert_contains "landed: a flag setting names its layer" "$LANDED_TWO" "setting: landed_sample=2 (flag)"
 
-# Severity ordering: a P0/P1 must not sort below advisory findings.
 STRANDED_BLOCK="$(printf '%s\n' "$OUT" | sed -n '/stranded on merged/,$p')"
 FIRST_SEV="$(printf '%s\n' "$STRANDED_BLOCK" | grep -oE '^[[:space:]]+\[P[0-9]\]' | head -1 | tr -d ' ')"
 assert_contains "stranded: highest severity is listed first" "$FIRST_SEV" "[P1]"
 
-# Clean window renders the reassuring branch rather than an empty section.
 OUT_CLEAN="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
@@ -703,8 +634,6 @@ OUT_CLEAN="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --merged-json "$TMP/merged-clean.json" 2>&1)"
 assert_contains "stranded: a clean window says so explicitly" "$OUT_CLEAN" "every merged PR in the window is clear"
 
-# An API error must NOT read as an all-clear. This is the section's own fail-open
-# failure mode, and it was observed live before being fixed.
 OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
@@ -716,24 +645,19 @@ assert_contains "stranded: an API error renders the section UNREADABLE" "$OUT_ER
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
 assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "2 of 10 sections unreadable: stranded landed"
 
-# --- Severity classification and ranking -------------------------------------
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" \
   --merged-json "$TMP/merged-severity.json" 2>&1)"
-# Prose is not a severity marker: only the structured badge counts.
 assert_contains "severity: a P2 whose prose says P1/CRITICAL stays P2" "$OUT_SEV" "[P2] #300"
 assert_not_contains "severity: prose never promotes a finding" "$OUT_SEV" "[P1] #300"
 assert_not_contains "severity: the word CRITICAL in prose never promotes to P0" "$OUT_SEV" "[P0] #300"
-# Ranking is numeric, so an unclassified thread cannot mask a real P0.
 assert_contains "severity: an unclassified thread never hides a P0" "$OUT_SEV" "[P0] #301"
 assert_not_contains "severity: the unclassified marker never wins the collapse" "$OUT_SEV" "[--] #301"
-# Both structured marker forms the bots emit are recognized.
 assert_contains "severity: the shields badge/P0 URL form is recognized" "$OUT_SEV" "[P0] #302"
 
-# --- Truncated thread page is a PARTIAL read, never an all-clear -------------
 OUT_TRUNC="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
@@ -743,7 +667,6 @@ OUT_TRUNC="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
 assert_contains "truncation: a partial thread read is reported" "$OUT_TRUNC" "this read is PARTIAL"
 assert_contains "truncation: the affected PR is named" "$OUT_TRUNC" "#400"
 
-# The window is operator-tunable, and widening it must pull in the older merge.
 OUT_WIDE="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --stranded-days 60 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
@@ -753,7 +676,6 @@ OUT_WIDE="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --stranded-days 60 \
 assert_contains "stranded: --stranded-days widens the window" "$OUT_WIDE" "#1690"
 assert_contains "stranded: the window is reported in the header" "$OUT_WIDE" "last 60d"
 
-# --- Stuck: open items past --stuck-days in a queue label ----------------------
 run_stuck() {
   bash "$BRIEF" --now "$NOW" --stale-hours 6 \
     --counts-json "$TMP/counts.json" \
@@ -822,21 +744,6 @@ assert_exit "non-numeric --stuck-days exits 3" 3 "$?"
 bash "$BRIEF" --stuck-limit x >/dev/null 2>&1
 assert_exit "non-numeric --stuck-limit exits 3" 3 "$?"
 
-# --- Owner touches: per UTC day, from timeline events -------------------------
-# The window is 2026-07-19 and 2026-07-20 (NOW is 2026-07-20T08:00Z). The
-# operator is op-user; the lane identity lanes-app[bot] shows up as lanes-app.
-#  #301 PR: op approves 07-19 (another reviewer's approval does not count), a
-#    lane escalation 07-19 (pr-unblock, reason ci-fix-round-cap), needs-human
-#    on 07-19T09:00 and off by the operator 07-19T12:30 (a 3h 30m wait), op
-#    lifts do-not-merge 07-20 and merges 07-20.
-#  #302 PR: a marker from mallory (not trusted) and one from before the window
-#    do not count; a pr-merge escalation 07-20 (reason risk, from its second
-#    marker line); needs-human on 07-17T08:00, off by another person
-#    07-20T02:00 (2d 18h); a do-not-merge lift by someone else does not count.
-#  #303 issue: a work-resolve-issue escalation 07-20 (reason pushback, from the
-#    outcome marker), a ratify-c3 marker with no reason 07-19, needs-human off
-#    by the operator 07-19T20:00 with no apply event read, and more events
-#    than the read took.
 cat >"$TMP/touch.json" <<'EOF'
 {"owner": "Op-User", "laneIdentity": "lanes-app[bot]", "pages": [{"data": {"search": {"issueCount": 3, "pageInfo": {"hasNextPage": false}, "nodes": [
   {"__typename": "PullRequest", "number": 301,
@@ -915,9 +822,6 @@ assert_contains "touches: --hold-label picks the hold label" \
 assert_contains "touches: a quiet window says so" \
   "$(section "$(run_touch --touch-json "$TMP/touch-empty.json")" "== Owner touches")" "  escalations: none in the window"
 
-# Label events are read back from now, 100 at most. #304 has more before its
-# oldest read, which is inside the window, so events in the window may be lost;
-# #305 has more before an oldest read from before the window; #306 has no more.
 cat >"$TMP/touch-labelcap.json" <<'EOF'
 {"owner": "op-user", "pages": [{"data": {"search": {"issueCount": 3, "pageInfo": {"hasNextPage": false}, "nodes": [
   {"__typename": "Issue", "number": 304, "acts": {"pageInfo": {"hasNextPage": false}, "nodes": []},
@@ -950,12 +854,6 @@ assert_contains "touches: no repo and no fixture is an empty state" "$(section "
 bash "$BRIEF" --touch-days 0 >/dev/null 2>&1
 assert_exit "touches: --touch-days 0 exits 3" 3 "$?"
 
-# Merges no person touched, over the same window (07-19 and 07-20).
-#  #311 untouched: a bot-email commit, a Bot comment, a lane-identity review,
-#    and a person's comment after the merge.
-#  #312 a person's commit; #313 a person's review; #314 a person's comment.
-#  #315 merged before the window; #316 still open; neither is counted.
-#  #317 untouched in its first 100 timeline items, with more past them.
 cat >"$TMP/touch-merged.json" <<'EOF'
 {"owner": "op-user", "laneIdentity": "lanes-app[bot]", "pages": [{"data": {"search": {"issueCount": 7, "pageInfo": {"hasNextPage": false}, "nodes": [
   {"__typename": "PullRequest", "number": 311, "createdAt": "2026-07-19T01:00:00Z", "mergedAt": "2026-07-20T05:00:00Z",
@@ -1153,11 +1051,6 @@ esac
 STUB
 chmod +x "$GH_STUB_DIR/gh"
 
-# An `az` double beside it, so no live run reaches the real Azure CLI. By
-# default it answers as a logged-out az. MB_AZ_MODE=serve answers each read
-# from the matching key of MB_AZ_FIXTURE, an --azure-json-shaped object, a
-# missing key failing the call; a key holding {"__error": MSG} fails it with
-# MSG. Every call's arguments go to MB_AZ_LOG when set.
 cat >"$GH_STUB_DIR/az" <<'STUB'
 #!/usr/bin/env bash
 # The real az reads whatever its stdin holds; drain what is waiting, as it does.
@@ -1207,16 +1100,9 @@ jq --arg k "$key" 'getpath($k | split("/"))' "$MB_AZ_FIXTURE"
 STUB
 chmod +x "$GH_STUB_DIR/az"
 
-# The cost reads run_stub feeds by default; a case that drives the cost reads
-# live sets COST_ARGS to fewer fixtures, then restores it.
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 
 run_stub() {
-  # run_stub MODE args... — runs the brief with the gh and az doubles on PATH.
-  # The gql double serves the stranded fixtures by cursor alone, so a gql run
-  # takes its stuck and owner-touch reads from empty fixtures unless MB_STUCK_LIVE
-  # or MB_TOUCH_LIVE is set; a later --stuck-json or --touch-json in "$@" wins.
-  # MB_NO_DATA_DIR omits --data-dir, so the brief resolves its own fallback.
   local mode="$1" stuck=() data=(--data-dir "${MB_DATA_DIR:-$TMP/data}")
   shift
   [[ -n "${MB_NO_DATA_DIR:-}" ]] && data=()
@@ -1227,8 +1113,6 @@ run_stub() {
     "${COST_ARGS[@]}" ${stuck[@]+"${stuck[@]}"} "$@" 2>&1
 }
 
-# Every section live, every call refused: nothing may read as clear or absent.
-# The cost reads go live too, against a logged-out az.
 COST_ARGS=()
 OUT_BLOCKED="$(run_stub blocked)"
 RC_BLOCKED=$?
@@ -1258,15 +1142,10 @@ assert_not_contains "blocked: decisions never render as none parked" "$OUT_BLOCK
 assert_not_contains "blocked: queues never render a ? count" "$(section "$OUT_BLOCKED" "== Queues")" " ?"
 assert_contains "blocked: the refusal is surfaced verbatim" "$OUT_BLOCKED" "GraphQL is not available from Claude Code sessions"
 
-# An unrelated failure degrades the same way; the shape of the error does not
-# decide whether a section is readable.
 assert_exit "fail: every live section unreadable exits 5" 5 "$RC_FAIL"
 assert_contains "fail: the error is surfaced" "$OUT_FAIL" "UNREADABLE: boom, the upstream fell over"
 assert_not_contains "fail: no REST transport claimed for an unrelated error" "$OUT_FAIL" "transport: REST"
 
-# One live section among fixtures: a partial brief still renders, exits 6 so a
-# caller cannot take it for a full one, and the header says which section was
-# lost.
 OUT_ONE="$(run_stub blocked \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
@@ -1293,7 +1172,6 @@ OUT_MSG="$(bash "$BRIEF" --now "$NOW" \
 assert_not_contains "message-shaped error: never an all-clear" "$OUT_MSG" "every merged PR in the window is clear"
 assert_contains "message-shaped error: renders UNREADABLE" "$OUT_MSG" "UNREADABLE: GitHub GraphQL is not available"
 
-# --- Repo resolution falls back to the git origin remote ---------------------
 if have git; then
   CHECKOUT="$TMP/checkout"
   mkdir -p "$CHECKOUT"
@@ -1312,10 +1190,6 @@ if have git; then
   assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "6 of 10 sections unreadable: telemetry stranded landed lanes touches cost"
 fi
 
-# --- REST fallback: sections 1-4 from repository-scoped endpoints -------------
-# The REST fixtures and the gh-shaped fixtures below describe the SAME data, so
-# the two paths must render sections 1-3 byte-identically (and telemetry
-# identically once the REST path's source line is set aside).
 REST="$TMP/rest"
 mkdir -p "$REST"
 rest_key() { printf '%s' "$1" | sed -E 's/[^A-Za-z0-9._-]/_/g'; }
@@ -1323,7 +1197,6 @@ R="repos/$FIXTURE_REPO"
 cat >"$REST/$(rest_key "$R/labels?per_page=100").json" <<'EOF'
 [{"name": "status: ready"}, {"name": "needs-human"}, {"name": "needs-owner-decision"}]
 EOF
-# Two issues and one pull request carry the label: the count excludes the PR.
 cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100&labels=status%3A%20ready").json" <<'EOF'
 [{"number": 1, "title": "a"}, {"number": 2, "title": "b"}, {"number": 3, "title": "pr", "pull_request": {"url": "x"}}]
 EOF
@@ -1364,12 +1237,9 @@ EOF
 cat >"$REST/$(rest_key "$R/actions/workflows?per_page=100").json" <<'EOF'
 {"total_count": 4, "workflows": [{"path": ".github/workflows/intake-triage.yml"}, {"path": ".github/workflows/ci.yml"}, {"path": ".github/workflows/pr-unblock.yml"}, {"path": ".github/workflows/pr-review-main.yml"}]}
 EOF
-# pr-review-main: a default lane workflow with two passing runs and no records. Its week search
-# stops short of total_count (the runs-listing cap), so the brief re-reads it one day at a time.
 cat >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
 {"total_count": 2, "workflow_runs": [{"id": 99, "html_url": "http://x/runs/99", "event": "push", "display_title": "main", "head_sha": "p1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
 EOF
-# 07-18 reports one run its own search left out, as a day past the cap would.
 printf '%s\n' '{"total_count": 1, "workflow_runs": []}' \
   >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=2026-07-18&per_page=100").json"
 for d in 13 14 15 16 17 20; do
@@ -1388,8 +1258,6 @@ EOF
 cat >"$REST/$(rest_key "$R/check-runs/990/annotations?per_page=100").json" <<'EOF'
 []
 EOF
-# pr-unblock: one run whose first job, a reusable-workflow job with no
-# annotations, must not name the activity; the second job carries the record.
 cat >"$REST/$(rest_key "$R/actions/workflows/pr-unblock.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
 {"total_count": 1, "workflow_runs": [{"id": 88, "html_url": "http://x/runs/88", "event": "pull_request", "display_title": "PR R", "head_sha": "r1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
 EOF
@@ -1485,7 +1353,6 @@ assert_contains "lane_workflows unset: lanes are still read past a 404 and a del
 assert_contains "lane_workflows unset: a lane listed after the 404 is read" "$LANES_GONE_WF" "pr-unblock.yml  runs=1"
 assert_not_contains "lane_workflows unset: a deleted workflow is not a lane" "$LANES_GONE_WF" "old.yml"
 
-# The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'
 {"status: ready": 2, "needs-human": 1, "needs-owner-decision": 1}
 EOF
@@ -1548,8 +1415,6 @@ assert_contains "rest: an uncomputed merge state is reported as inconclusive" "$
 assert_contains "rest: the computed PR beside it still renders" "$OUT_UNCOMPUTED" "#7 clean one"
 assert_not_contains "rest: the uncomputed PR is never listed as merge-ready" "$OUT_UNCOMPUTED" "#10 still computing"
 
-# A compare read that fails leaves the clean PR listed, flagged unverified with
-# the error, never as fresh.
 NO_COMPARE="$TMP/rest-no-compare"
 mkdir -p "$NO_COMPARE"
 cp "$REST/"*.json "$NO_COMPARE/"
@@ -1559,15 +1424,11 @@ assert_contains "rest: a failed compare read flags the clean PR unverified" "$(s
   "    http://x/7  review=n/a
     UNVERIFIED: base freshness unread: Not Found"
 
-# The per-PR merge-state read is capped, and a capped read says so.
 OUT_CAP="$(run_stub rest --pr-limit 1)"
 assert_contains "rest: a capped merge-state read is reported as PARTIAL" "$OUT_CAP" "PARTIAL: 3 open PRs; merge state read for the first 1 only"
 bash "$BRIEF" --pr-limit x --repo "$FIXTURE_REPO" >/dev/null 2>&1
 assert_exit "non-numeric --pr-limit exits 3" 3 "$?"
 
-# --- A response that cannot be parsed is UNREADABLE, never an empty state -----
-# Each section's empty-state line is what a swallowed parse failure used to
-# print; the fixture is not JSON at all.
 printf 'not json\n' >"$TMP/garbage.json"
 OUT_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/garbage.json" --decisions-json "$TMP/garbage.json" \
@@ -1584,17 +1445,12 @@ assert_not_contains "unparsable: telemetry never renders as no lanes" "$OUT_BAD"
 assert_contains "unparsable: stranded is UNREADABLE" "$(section "$OUT_BAD" "== Findings stranded")" "UNREADABLE: could not parse the merged-PR pages"
 assert_not_contains "unparsable: stranded never renders an all-clear" "$OUT_BAD" "every merged PR in the window is clear"
 
-# Well-formed JSON holding no page document is not a clean window either.
 OUT_NO_PAGE="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
   --behind-json "$TMP/behind.json" --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/empty.json" 2>&1)"
 assert_contains "no page: stranded is UNREADABLE" "$(section "$OUT_NO_PAGE" "== Findings stranded")" "UNREADABLE: could not parse the merged-PR pages"
 assert_not_contains "no page: stranded never renders an all-clear" "$OUT_NO_PAGE" "every merged PR in the window is clear"
 
-# --- A list read that reaches its cap says PARTIAL ----------------------------
-# Every capped read is one past its cap here, so gh hands back exactly the cap.
-# The caps are the script's: labels 500, counts 1000, open PRs 200, decisions
-# 200, telemetry search 100.
 CAPS="$TMP/gql-caps"
 mkdir -p "$CAPS"
 jq -n '[range(501) | {name: "label-\(.)"}]' >"$CAPS/label-list.json"
@@ -1674,14 +1530,6 @@ assert_contains "parents rest: one parent and two open children count 2, the par
   "$(printf '  %-24s %s' needs-human '2 (+1 with open sub-issues)')"
 assert_not_contains "parents rest: the parent is not in the count" "$QUEUES_REST_PARENTS" "$(printf '  %-24s %s' needs-human 3)"
 
-# --- Stranded: paging stops at the cutoff; the bookmark widens the window ----
-# Pages are newest-updated first. NOW is 2026-07-20T08:00Z, so the 3-day floor
-# is 2026-07-17T08:00Z. Page c1's oldest PR was updated before both the floor
-# and the bookmark below, so page c2 must never be requested.
-#   #500  merged 07-19, post-merge P1      -> inside the floor
-#   #501  merged 07-14, post-merge P2      -> only inside the 07-10 bookmark
-#   #502  merged 07-08, post-merge P1      -> before the bookmark too
-#   #503  on page c2                       -> never read
 STR="$TMP/gql-stranded"
 mkdir -p "$STR"
 cat >"$STR/api-graphql-first.json" <<'EOF'
@@ -1756,7 +1604,6 @@ assert_not_contains "bookmark: a merge before the bookmark is not reported" "$ST
 assert_not_contains "bookmark: paging still stops at the cutoff" "$(cat "$TMP/log-mark")" "api-graphql-c2"
 assert_eq "bookmark: a full read advances it to this run's floor" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/data-mark")"
 
-# Landed: landed_at sits beside the stranded bookmark, one per machine's data dir.
 landed_of() { cat "$1/morning-brief/$FIXTURE_REPO/landed-at" 2>/dev/null; }
 LANDED_PAGE="$(section "$OUT_PAGE" "== Landed")"
 assert_contains "landed live: a first read covers the last day" "$LANDED_PAGE" "#500"
@@ -1826,7 +1673,6 @@ OUT_LINK="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/data-link" run_stub gql "${F
 assert_contains "bookmark: a symlinked bookmark is not saved" "$(section "$OUT_LINK" "== Findings stranded")" "bookmark not saved under the data dir"
 assert_eq "bookmark: a symlinked bookmark's target is untouched" "untouched" "$(cat "$TMP/link-target")"
 
-# A page that claims more results but carries no cursor is not a full read.
 mkdir -p "$TMP/gql-nocursor" "$TMP/data-nocursor/morning-brief/$FIXTURE_REPO"
 jq '.data.repository.pullRequests.pageInfo.endCursor = null' "$STR/api-graphql-first.json" >"$TMP/gql-nocursor/api-graphql-first.json"
 printf '2026-07-10T08:00Z\n' >"$TMP/data-nocursor/morning-brief/$FIXTURE_REPO/stranded-cutoff"
@@ -1836,8 +1682,6 @@ assert_contains "paging: a next page without a cursor is UNREADABLE" "$STR_NOCUR
 assert_not_contains "paging: a next page without a cursor never reads as clear" "$STR_NOCURSOR" "every merged PR in the window is clear"
 assert_eq "paging: a next page without a cursor leaves the bookmark" "2026-07-10T08:00Z" "$(bookmark_of "$TMP/data-nocursor")"
 
-# --- Stuck: the live read is one paged search per queue label -----------------
-# status: ready spans two pages (cursor p2); the other labels hold nothing.
 STK="$TMP/gql-stuck"
 mkdir -p "$STK"
 cat >"$STK/api-graphql-stuck-status__ready-first.json" <<'EOF'
@@ -1857,7 +1701,6 @@ for stk_label in needs-triage needs-owner-decision needs-human; do
 {"data": {"search": {"issueCount": 0, "pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": []}}}
 EOF
 done
-# The REST issue listing confirms each empty search.
 for stk_label in needs-triage needs-owner-decision needs-human; do
   printf '[]\n' >"$STK/$(rest_key "$R/issues?state=open&per_page=100&labels=$stk_label").json"
 done
@@ -1872,8 +1715,6 @@ assert_contains "stuck live: the page past the first is read" "$(cat "$TMP/log-s
 assert_contains "stuck live: every queue label is searched" "$(cat "$TMP/log-stuck")" "api-graphql-stuck-needs-human-first"
 assert_not_contains "stuck live: an empty search the REST listing confirms is not flagged" "$STUCK_LIVE_SEC" "count unavailable"
 
-# Every search empty, one contradicted by the REST listing: no all-clear. The
-# stuck search returns PRs too, so an open PR alone contradicts it.
 STK0="$TMP/gql-stuck-false-zero"
 cp -r "$STK" "$STK0"
 cp "$STK0/api-graphql-stuck-needs-human-first.json" "$STK0/api-graphql-stuck-status__ready-first.json"
@@ -1888,16 +1729,12 @@ mkdir -p "$TMP/gql-stuck-none"
 OUT_STUCK_FAIL="$(MB_STUCK_LIVE=1 MB_GH_FIXTURES="$TMP/gql-stuck-none" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")"
 assert_contains "stuck live: a failed search renders UNREADABLE, never empty" "$(section "$OUT_STUCK_FAIL" "== Stuck")" "UNREADABLE: needs-triage: no fixture"
 
-# --- Owner touches, live: one paged search per UTC day ------------------------
-# The same three items as touch.json: #301 on 2026-07-19's first page, #302 on
-# its second page (cursor t2), #303 on 2026-07-20. The operator comes from
-# `gh api user`, the lane identity from the default branch's pr-pipeline.yaml.
 TCH="$TMP/gql-touch"
 mkdir -p "$TCH"
 printf '{"login": "Op-User"}\n' >"$TCH/api_user.json"
 printf 'merge:\n  rung: C2\n  agent-identity: lanes-app[bot] # the lanes App\nother:\n  agent-identity: not-this\n' \
   >"$TCH/$(rest_key "$R/contents/docs/conventions/pr-pipeline.yaml").json"
-touch_page() { # touch_page ITEM-INDEX HAS-NEXT CURSOR
+touch_page() {
   jq --argjson i "$1" --argjson next "$2" --arg c "$3" \
     '{data: {search: {issueCount: 1, pageInfo: {hasNextPage: $next, endCursor: (if $c == "" then null else $c end)}, nodes: [.pages[0].data.search.nodes[$i]]}}}' \
     "$TMP/touch.json"
@@ -1925,17 +1762,6 @@ assert_contains "touches live: a failed search renders UNREADABLE, never empty" 
   "$(section "$(MB_TOUCH_LIVE=1 MB_GH_FIXTURES="$TMP/gql-touch-none" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")" "== Owner touches")" \
   "UNREADABLE: no fixture api-graphql-touch-2026-07-19-first"
 
-# --- Lanes: failures by class, limit stops, restarts, turn headroom -----------
-# The window is 2026-07-13T08:00Z to NOW. intake-triage: three runs in the
-# window (a fourth is older, a fifth skipped); run 2 carries the annotations
-# of intake-triage run 39038437240, which classify marked class=other while
-# the action reported the turn cap. Turns 10, 16, 12 against a cap of 15:
-# nearest-rank p90 of three is the third, 16; 80% of 15 is 12, so runs 2 and
-# 3 are linked. work-resolve-issue: the item whose titles end "#7" stops on
-# the limit three times, then succeeds, so three restarts and one repeat line,
-# its title changing midway; the one ending "#8", with the same first title,
-# fails on auth and then with no annotations read. pr-verify: three limit
-# stops on one head.
 cat >"$TMP/lane-runs.json" <<'EOF'
 {
   "intake-triage.yml": [
@@ -1995,8 +1821,6 @@ assert_contains "lanes: three limit stops on one issue are named, keyed by its n
 assert_contains "lanes: three limit stops on one head are named with the head" "$LANES" "3 limit stops on one head: PR Z @ abcdef1"
 assert_contains "lanes: restarts on a pull request head" "$LANES" "pr-verify.yml  runs=3  failed=3 [rate-limit 3, max-turns 0, auth 0, other 0]  limit-stops=3  restarts=2"
 
-# A leg that hands off leaves its own lane record, a notice with handoff true:
-# the run's class is the class of the leg that ended it, not the handoff's.
 cat >"$TMP/lane-runs-handoff.json" <<'EOF'
 {
   "pr-review-main.yml": [
@@ -2015,8 +1839,6 @@ LANES_HANDOFF="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/count
 assert_contains "lanes: a handoff record neither classes the run nor counts a limit stop" "$LANES_HANDOFF" \
   "pr-review-main.yml  runs=1  failed=1 [rate-limit 0, max-turns 0, auth 0, other 1]  limit-stops=0  restarts=0"
 assert_contains "lanes: turns come from the leg that ended the run" "$LANES_HANDOFF" "turns: max=5"
-# KEY and SPEND read every leg: a key leg that credit-stopped and handed off
-# still names its key.
 assert_contains "lanes: a handed-off key leg's credit stop still names its key" "$LANES_HANDOFF" "KEY: REVIEWS credit-stop (1 of 1)"
 assert_contains "lanes: a handed-off key leg still counts in SPEND" "$LANES_HANDOFF" "SPEND: REVIEWS cost not recorded (n=1)"
 # The legacy key=value tokens alone (ADR 0087 slice 3 retires them) carry no
@@ -2040,9 +1862,6 @@ assert_contains "lanes: legacy tokens alone class no run" "$LANES_LEGACY" \
   "pr-verify.yml  runs=1  failed=1 [rate-limit 0, max-turns 0, auth 0, other 1]  limit-stops=0  restarts=0"
 assert_not_contains "lanes: legacy tokens alone give no turns" "$LANES_LEGACY" "turns: max="
 assert_contains "lanes: legacy tokens alone are no lane record" "$LANES_LEGACY" "    1 run(s) left out: no lane record was read"
-# review-unposted is its own failure class; a run with no working shell (a
-# success record with shellFailed true, or an older shell-failed record) is
-# counted beside the row.
 cat >"$TMP/lane-runs-classes.json" <<'EOF'
 {
   "pr-review-main.yml": [
@@ -2081,20 +1900,6 @@ assert_contains "models: a lane whose records carry no models still gets a row" 
   "    work-resolve-issue  profile=unknown  runs=5  pass=1/5  median-turns=4  max-turns-hits=0  models=none recorded"
 assert_not_contains "keys: runs with no lane-outcome record print no KEY line" "$LANES" "KEY:"
 
-# --- Lanes: dead and credit-stopped API keys ----------------------------------
-# One lane-outcome record per credential attempt, after the marker. REVIEWS:
-# run 50 handed off on auth, so only the subscription leg's record names the
-# role and the line names the key secret derived from it; run 51 is a healthy
-# key leg. INTAKE: run 60 is a key leg that failed with class=auth (a 403
-# hands nothing off). AUTOMATIONS: pr-verify run 70 carries the key leg's
-# record in its older class=rate-limit shape and the subscription leg's
-# fallback=credit-stop; run 71 is healthy, in the live shape. CREDIT: run 72's
-# key leg failed with class=credit-stop and no fallback leg ran. PR_UNBLOCK: run 80 is a healthy key
-# leg and run 81 a no-key fallback, neither a key problem; run 82's
-# subscription token failed with class auth, which is no key problem either,
-# and run 83's records are malformed. ZED: run 90's auth fallback is in a
-# record version this reader does not know. Run 84 names two roles: TWO_A is
-# healthy and TWO_B's key failed with class auth.
 cat >"$TMP/key-runs.json" <<'EOF'
 {
   "pr-review-hosted.yml": [
@@ -2159,9 +1964,6 @@ assert_not_contains "keys: a healthy role beside a failing one is not flagged" "
 assert_contains "keys: the model-usage table still renders" "$KEYS" "model usage by activity and profile"
 assert_eq "keys: one line per role and problem" "5" "$(grep -c "^  KEY: " <<<"$KEYS")"
 
-# Live: 200 failed intake-triage runs, newer than pr-unblock's three
-# successes, fill the default read cap. The newest 3 runs of every lane are
-# read first, inside the cap, so the credit-stop handoffs still show.
 KEY_LIVE="$TMP/rest-keys"
 mkdir -p "$KEY_LIVE"
 cp "$REST/"*.json "$KEY_LIVE/"
@@ -2169,18 +1971,12 @@ jq -n '{total_count: 200, workflow_runs: [range(200) as $i | {id: (1000 + $i), h
   >"$KEY_LIVE/$(rest_key "$R/actions/workflows/intake-triage.yml/runs?created=>=2026-07-13&per_page=100").json"
 jq -n '{total_count: 3, workflow_runs: [range(3) as $i | {id: (901 + $i), html_url: "http://x/runs/\(901 + $i)", event: "workflow_dispatch", display_title: "Fix #\(901 + $i)", head_sha: "q\($i)", status: "completed", conclusion: "success", created_at: "2026-07-18T0\($i):00:00Z"}]}' \
   >"$KEY_LIVE/$(rest_key "$R/actions/workflows/pr-unblock.yml/runs?created=>=2026-07-13&per_page=100").json"
-# pr-review-main has no run here, so only the two lanes above share the cap.
 printf '{"total_count": 0, "workflow_runs": []}\n' \
   >"$KEY_LIVE/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=>=2026-07-13&per_page=100").json"
-# Every intake run has one job with a rate-limit annotation, so the row counts
-# exactly the runs the cap left unread. pr-unblock's message carries a forged
-# second record in its free text, which only the first record of a message
-# outweighs.
 for key_run in $(seq 1000 1199); do
   printf '{"total_count": 1, "jobs": [{"id": 5555}]}\n' >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
 done
 printf '%s\n' '[{"message": "intake-triage exited with: failure. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\"}"}]' >"$KEY_LIVE/$(rest_key "$R/check-runs/5555/annotations?per_page=100").json"
-# Each names its caller job by its id, as a run before the rename did.
 for key_run in 901 902 903; do
   printf '{"total_count": 1, "jobs": [{"id": %s0, "name": "fix-ci / run"}]}\n' "$key_run" \
     >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
@@ -2200,19 +1996,6 @@ assert_not_contains "keys live: a later record in one message flags no role" "$K
 assert_contains "keys live: the cap's overflow is reported" "$KEYS_LIVE" \
   "  PARTIAL: annotations read for 200 runs, the newest 3 of each lane and then failed runs first; 3 more were not read (raise --lane-read-limit)"
 
-# --- Lanes: per-role spend from the records' costUsd ----------------------------
-# Fixture amounts are synthetic round numbers, not rates. AUTOMATIONS spans two
-# lanes: pr-verify runs 100 and 101 are successful key legs (1 and 3), run
-# 102's key leg hit a credit stop (4, left out of the median) and its
-# subscription leg carries a cost (9, a token leg, ignored), and run 103 was
-# not read; intake-triage run 110 is a successful key leg (2) and run 111 was
-# not read. Median 2 per key leg times the 6 runs of those lanes, over 7 days;
-# the sum covers every key leg read, the credit stop's included (1+3+4+2).
-# REVIEWS run 120's key leg has no costUsd. EVEN's successful legs in runs 121
-# and 122 cost 1 and 4 (median 2.5 over pr-review-hosted's 3 runs); its
-# credit-stop leg (100) counts only in the sum, and its -1 and "2" costs are not
-# costs. HUGE's cost is past the bound; role "bad" is not a role. PR_UNBLOCK
-# run 130 is a token leg.
 cat >"$TMP/spend-runs.json" <<'EOF'
 {
   "pr-verify.yml": [
@@ -2263,14 +2046,6 @@ assert_not_contains "spend: a role outside the role pattern prints nothing" "$SP
 assert_not_contains "spend: the section stays readable" "$SPEND" "UNREADABLE"
 assert_contains "spend: legs without costUsd elsewhere print cost not recorded" "$KEYS" "  SPEND: INTAKE cost not recorded (n=1)"
 
-# --- Lanes: model usage by activity and profile ---------------------------------
-# pr-unblock runs 30-36, each with a lane-outcome record: resolve-conflicts
-# runs 30, 31, 34 and 36 (two pass, two max-turns failures, turns 8, 40, 40,
-# 10, so the median is (10 + 40) / 2 = 25); run 32 is fix-docs, with a
-# profile= token in its free text that is not read; run 33 is
-# address-feedback; run 35 has no annotations read, and cancelled run 37's
-# annotations carry no lane record. intake-triage run 40 has no
-# activity= and so is its own activity.
 cat >"$TMP/model-runs.json" <<'EOF'
 {
   "pr-unblock.yml": [
@@ -2332,13 +2107,6 @@ assert_exit "models: a non-numeric threshold is an invalid argument" 3 "$(
   echo $?
 )"
 
-# --- Cost: what on GitHub or Azure is charging or could start charging ---------
-# NOW is 2026-07-20, so the billing month is 2026-07. The rules under test, from
-# the plan's acceptance criteria: a product whose month net is above 0, a budget
-# whose amount is above 0 or whose stop at limit is off, an Azure budget whose
-# spend reached its amount, a month-to-date Defender charge above 0, and any
-# Defender plan, policy assignment or role assignment write in the last day are
-# each an ALERT. A Defender plan off the Free tier is INFO.
 cost_brief() {
   bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind.json" \
     --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
@@ -2381,13 +2149,6 @@ assert_contains "cost: Advisor cost counts are informational" "$COST_CLEAR" "INF
 assert_not_contains "cost: an all-clear section carries no ALERT" "$COST_CLEAR" "ALERT"
 assert_not_contains "cost: an all-clear brief counts no lost section" "$OUT_COST_CLEAR" "sections unreadable"
 
-# Alerts: private minutes 1600 of 3000 (53%) and storage 800 of 1488 GB-hours
-# (54%) reach the 50% flag. A direct collaborator who is not an org admin, a
-# pull_request_target workflow and a workflow_run workflow that read _CLAUDE_
-# secrets (the second in index form) are each an ALERT. Budget forecast-high
-# forecasts 60 against --forecast-alert 50; ending-soon ends within 30 days;
-# missing-budget does not exist; the anomaly alert is disabled; one workspace
-# peaked at 60% of its cap and another has no cap.
 ALERT_CONFIG=(--actions-included-minutes 3000 --actions-included-storage-gb 2 --forecast-alert 50
   --required-budgets "under-cap, missing-budget,ending-soon" --anomaly-alert anomaly-example)
 cat >"$TMP/billing-usage-alert.json" <<'EOF'

@@ -19,7 +19,6 @@ const DEFAULT_CONTRACT = new URL("../../../reference/issue-body-contract.json", 
 
 const normalize = (text) => text.trim().replace(/\s+/g, " ").toLowerCase();
 
-// Lines outside fenced code, with HTML comments removed.
 function proseLines(body) {
   const lines = body.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
   let fence = null;

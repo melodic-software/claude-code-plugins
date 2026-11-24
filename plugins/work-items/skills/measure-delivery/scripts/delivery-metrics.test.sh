@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# Offline tests for delivery-metrics.sh over a fixture repository of merges and
-# reverts with fixed author and committer dates. Each expected value is worked
-# out by hand from the fixture below, in hours from T0 (Monday 2026-01-05 UTC).
-#
-#   deploy  author  landed   lead  reverted by (landed)       recovery
-#   A merge 0       10       10    R3, a commit A merged (216) 206
-#   B       24      28       4     R4, after the window (360)  332
-#   C merge 48      54       6     R1, `This reverts` (56)     2
-#   R1      55      56       1
-#   D       168     170      2
-#   E       192     195      3     R2, subject only (204)      9
-#   R2      201     204      3
-#   R3      216     216      0
-#   R4      360     360      (after --until, not reported)
-#
-# Week 2026-01-05: 4 deployments, lead median 5, fail rate 3/4, recovery median
-# 206, rework 1/4. Week 2026-01-12: 4 deployments, lead median 2.5, fail rate
-# 1/4, recovery 9, rework 2/4. Window: 8 deployments over 14 days (4 a week),
-# lead median 3, fail rate 4/8, recovery median 107.5, rework 3/8.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -47,7 +28,6 @@ H=3600
 T0=1767571200
 
 g() { git -C "$R" -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
-# at <author-hours> <committer-hours> <git args...>: run git with both dates fixed.
 at() {
   local a=$((T0 + $1 * H)) c=$((T0 + $2 * H))
   shift 2
@@ -56,7 +36,6 @@ at() {
     exit 1
   }
 }
-# change <author-hours> <committer-hours> <file> <subject> [<commit args>...]: commit one new file.
 change() {
   printf '%s\n' "$3" >"$R/$3"
   g add -- "$3"
@@ -91,9 +70,6 @@ at 201 204 commit -q -m 'Revert "feat: e"'
 at 216 216 revert --no-edit "$A2"
 at 360 360 revert --no-edit "$B"
 
-# Week 2026-02-02: F (lead 0) is reverted by a commit on a branch (authored at
-# 673) that lands through a merge at 677 (lead 4): recovery 5, fail rate 1/2,
-# rework 1/2.
 change 672 672 f.txt "feat: f"
 F="$(sha HEAD)"
 g checkout -q -b revert-f
@@ -101,11 +77,6 @@ at 673 673 revert --no-edit "$F"
 g checkout -q main
 at 677 677 merge -q --no-ff --no-edit revert-f
 
-# Week 2026-02-16: G (lead 0) is reverted by a subject-only `Revert "feat: g"`
-# commit on a branch (authored at 1010) that lands through a merge at 1012
-# (lead 2): recovery 4. S, a squash-style commit at 1020 (lead 0), names in its
-# body a commit that only ever existed on an unmerged branch, so it reverts
-# nothing on main: fail rate 1/3, rework 1/3.
 change 1008 1008 g.txt "feat: g"
 g checkout -q -b revert-g
 g rm -q -- g.txt
@@ -118,12 +89,6 @@ WIP="$(sha HEAD)"
 g checkout -q main
 change 1020 1020 s.txt "feat: s" -m "* Revert \"wip\"" -m "This reverts commit $WIP."
 
-# 2026-03-16 to 2026-03-24, one day per case: landings (squash subjects end in
-# their own PR number; X carries none, so only its quoted subject can name it),
-# each reverted two hours later by a `revert:` or
-# `revert(<scope>):` squash naming its target one way. A resolved day reads 2
-# deployments, 1 failed, 1 rework, 0 unresolved, recovery 2; the unresolved day
-# reads 0 failed, 1 rework, 1 unresolved, recovery null.
 change 1680 1680 p.txt "feat: p (#101)"
 change 1682 1682 rp.txt "revert(p): undo p (#102)" -m "- Reverts #101."
 change 1704 1704 q.txt "feat: q (#103)"
@@ -139,11 +104,8 @@ Y="$(sha HEAD)"
 change 1802 1802 ry.txt "revert(y): drop y (#112)" -m "This reverts commit $Y."
 change 1824 1824 w.txt "feat: w (#113)"
 change 1826 1826 rw.txt "revert(w): restore the old w text (#114)" -m "#113: the cut this reverts, named in prose only."
-# Z lands on 2026-03-23 and its revert on 2026-03-24: a one-day window on the
-# revert still resolves a target that landed before --since.
 change 1848 1848 z.txt "feat: z (#115)"
 change 1872 1872 rz.txt "revert(z): drop z (#116)" -m "Reverts #115."
-# K lands on 2026-03-25 and its `This reverts commit` revert on 2026-03-26.
 change 1896 1896 k.txt "feat: k (#117)"
 K="$(sha HEAD)"
 change 1920 1920 rk.txt "revert(k): drop k (#118)" -m "This reverts commit $K."
@@ -157,7 +119,7 @@ else
   OUT='{}'
 fi
 
-expect() { # <name> <jq filter> <expected compact JSON>
+expect() {
   local got
   got="$(jq -c "$2" <<<"$OUT" 2>&1)"
   if [[ "$got" == "$3" ]]; then pass "$1"; else fail "$1: expected $3, got $got"; fi
@@ -204,7 +166,7 @@ expect "subject-only revert landed through a merge; squash naming a branch-only 
   '[3,0,1,4,1]'
 
 REVERT_FIELDS='.totals | [.deployments, .failed_deployments, .rework_deployments, .unresolved_reverts, .failed_deployment_recovery_time_hours_median]'
-revert_case() { # <name> <day> <expected>
+revert_case() {
   OUT="$(bash "$S" --repo "$R" --branch main --since "$2" --until "$2")" || fail "$1: report exited non-zero"
   expect "$1" "$REVERT_FIELDS" "$3"
 }
@@ -227,9 +189,6 @@ OUT="$(bash "$S" --repo "$R" --branch main --since 2026-03-02 --until 2026-03-08
 expect "empty window: nothing to measure is null" \
   '[.totals.deployments, .totals.change_lead_time_hours_median, .totals.change_fail_rate]' '[0,null,null]'
 
-# The schema's delivery_deploy_signal must match the script: its default is
-# merge-to-default-branch and the script's own default, and the script accepts
-# every value the schema lists.
 SCHEMA="$(dirname "$S")/../../../schemas/work-items.schema.json"
 SCHEMA_DEFAULT="$(jq -r '.properties.delivery_deploy_signal.default // empty' "$SCHEMA" 2>/dev/null)"
 if [[ "$SCHEMA_DEFAULT" == merge-to-default-branch ]]; then
@@ -251,7 +210,7 @@ while IFS= read -r signal; do
 done < <(jq -r '.properties.delivery_deploy_signal.enum[]?' "$SCHEMA" 2>/dev/null)
 ((SIGNALS > 0)) || fail "schema: delivery_deploy_signal lists no value"
 
-usage_error() { # <name> <args...>
+usage_error() {
   local name="$1"
   shift
   bash "$S" "$@" >/dev/null 2>&1
