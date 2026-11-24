@@ -262,6 +262,11 @@ base_config() {
   [[ -n "${STUB_NO_ACTORS:-}" ]] || cp "$STUB_ACTORS" "$dir/.github/standards/trusted-actors/trusted-actors.json"
   [[ -n "${STUB_NO_MODULE:-}" ]] || cp "${STUB_MODULE:-$MODULE}" "$dir/.github/scripts/pr-merge/merge-holds.mjs"
 }
+standards_stub() {
+  rm -rf "$TMP_ROOT/standards"
+  mkdir -p "$TMP_ROOT/standards/components/trusted-actors"
+  [[ -n "${STUB_NO_ACTORS:-}" ]] || cp "$STUB_ACTORS" "$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
+}
 
 # expect <label> <want-rc> <want-discussion-calls> [want-out]
 # The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
@@ -271,6 +276,7 @@ expect() {
   : >"$TMP_ROOT/log"
   rm -rf "$TMP_ROOT/verify-listing.json" "$TMP_ROOT/pr-files.json"
   [[ -n "${STUB_BASE_CONFIG+x}" ]] || base_config
+  standards_stub
   # STUB_KEEP_READS keeps the pr_read answers an earlier step left.
   [[ -n "${STUB_KEEP_READS:-}" ]] || rm -rf "$TMP_ROOT/pr-reads"
   # The broker step's file pages (STUB_PR_FILES, as that step saved them).
@@ -295,7 +301,7 @@ expect() {
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" PR_HEAD_SHA="$head_sha" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" BABYSIT_VERIFY_LEGACY_FAILS="$TMP_ROOT/base/.github/verify-legacy-fails.json" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
-    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 MERGE_GROUP_WAIT_SECONDS="$budget" QUEUED_PR_WAITED="${STUB_WAITED-0}" BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 MERGE_GROUP_WAIT_SECONDS="$budget" QUEUED_PR_WAITED="${STUB_WAITED-0}" BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" STANDARDS_DIR="${STUB_STANDARDS-$TMP_ROOT/standards}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -553,9 +559,10 @@ author_run() {
   : >"$TMP_ROOT/author-output"
   rm -rf "$TMP_ROOT/pr-reads"
   [[ -n "${STUB_BASE_CONFIG+x}" ]] || base_config
+  standards_stub
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REF="${REF:-$QUEUE}" GITHUB_REPOSITORY=o/r \
     GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/author-output" \
-    BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" bash -e "$TMP_ROOT/author.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" STANDARDS_DIR="${STUB_STANDARDS-$TMP_ROOT/standards}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" bash -e "$TMP_ROOT/author.sh" 2>&1)" && rc=0 || rc=$?
   got="$(sed -n 's/^lanes=//p' "$TMP_ROOT/author-output")"
   judged="$(sed -n 's/^verify_judged=//p' "$TMP_ROOT/author-output")"
   if [[ "$rc" -ne 0 ]]; then
@@ -812,6 +819,7 @@ STUB_PULL="$(pull 'Closes #1')"
 export STUB_NO_ACTORS=1
 expect "an unreadable trusted-actor list fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
 unset STUB_NO_ACTORS
+STUB_STANDARDS='' expect "with no standards checkout the hold config's copy is never read, and it fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
 STUB_REVIEWS=''
 STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
 expect "a config with no denied paths holds no path" 0 3 "no hold path"

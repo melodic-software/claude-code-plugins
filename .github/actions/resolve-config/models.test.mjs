@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { parse, stringify } from "yaml";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main } from "./resolve-config.mjs";
 import { modelArgs, modelSettings, neededFacts, Rejection, resolve, resolveRoute } from "./resolve.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -842,6 +843,7 @@ function routeEnv(extra = {}) {
   writeFileSync(output, "");
   return {
     BASE_PATH: base,
+    STANDARDS_DIR: standardsCheckout(),
     MODEL_ROUTE: "verify-pr",
     OUTPUT_PATH: join(base, "resolved.json"),
     GITHUB_OUTPUT: output,

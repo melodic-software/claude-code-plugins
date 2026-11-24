@@ -139,8 +139,8 @@ ACTORS='{"version":1,"actors":[{"id":100,"login":"maintainer","kind":"human"},{"
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" want_pr="$4" out rc calls config="$TMP_ROOT/base-config"
   : >"$TMP_ROOT/log"
-  rm -rf "$config"
-  mkdir -p "$config"
+  rm -rf "$config" "$TMP_ROOT/standards"
+  mkdir -p "$config" "$TMP_ROOT/standards/components/trusted-actors"
   [[ -z "${STUB_TRACKER+set}" ]] || { mkdir -p "$config/docs/conventions" && printf 'tracker: %s\n' "$STUB_TRACKER" >"$config/docs/conventions/work-items.yaml"; }
   mkdir -p "$config/docs/conventions"
   if [[ -n "${STUB_BASELINE_FILE:-}" ]]; then
@@ -149,7 +149,8 @@ expect() {
     printf 'merge:\n  lane-prs: native\n' >"$config/docs/conventions/pr-pipeline.yaml"
   fi
   mkdir -p "$config/.github/standards/trusted-actors" "$config/.github/scripts/pr-merge"
-  printf '%s\n' "${STUB_ACTORS:-$ACTORS}" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  printf '%s\n' "$ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  printf '%s\n' "${STUB_ACTORS:-$ACTORS}" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
   # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
   # none with STUB_NO_MODULE.
   if [[ -n "${STUB_MODULE_TEXT:-}" ]]; then
@@ -160,7 +161,7 @@ expect() {
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REF="$5" STUB_LABELS="$6" STUB_FAILS="$7" \
     GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" LANES_APP_ID="$LANES" BASE_SHA="${BASE_SHA-$BASE}" BASE_CONFIG="$config" \
-    bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    STANDARDS_DIR="${STUB_STANDARDS-$TMP_ROOT/standards}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE 'graphql|/labels' "$TMP_ROOT/log")
   TRUST_CALLS=$(grep -cE 'graphql|/timeline|issues/18/labels' "$TMP_ROOT/log")
   TRUST_OUT=$out
@@ -315,6 +316,7 @@ STUB_TIMELINE=''
 STUB_ACTORS='{not json'
 trust "an unreadable trusted-actor list fails closed" 1 1 "could not read trusted-actors.json"
 STUB_ACTORS=''
+STUB_STANDARDS='' trust "with no standards checkout the hold config's copy is never read, and it fails closed" 1 1 "could not read trusted-actors.json from the standards checkout"
 STUB_LINK="$(link Bot '[]' 'Refs: #18')" STUB_ISSUE_LABELS="agent-ready,$UNTRUSTED"
 trust "the one Refs issue is read and holds" 1 2 "issue #18, which #6419 links, carries a label naming untrusted work" refs
 STUB_ISSUE_LABELS=agent-ready
