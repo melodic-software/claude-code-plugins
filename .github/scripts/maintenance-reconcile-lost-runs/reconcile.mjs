@@ -234,7 +234,10 @@
 //                        reads empty
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
 //   SETTLED_PATH         plan reads the last pass's settled runs and job reads, then writes
-//                        this pass's there for the upload; unset carries nothing
+//                        this pass's there for the upload, with the reviews it left waiting
+//                        on a running checks run (waiting_reviews); unset carries nothing
+//   FOLLOWUP             `true` makes plan the review-only follow-up of FOLLOWUP_PATH's
+//                        queue (followup.mjs): no other read, and no settled runs written
 //   GITHUB_RUN_ID, RUNNER_TEMP  this run, and where the last carry is downloaded
 //   GITHUB_OUTPUT        plan writes record-1 to record-15 there (empty when unused;
 //                        https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/maintenance-reconcile-lost-runs.yml)
@@ -455,10 +458,19 @@ export const SETTLED_VERSION = 4;
 
 class RateLimited extends Error {}
 // Rethrows a rate limit, which stops the run; the caller handles any other error.
-const passRateLimit = (error) => {
+export const passRateLimit = (error) => {
   if (error instanceof RateLimited) {
     throw error;
   }
+};
+
+export const upstreamGate = (readStatus) => {
+  let gate;
+  return async () =>
+    (gate ??= checkUpstreamStatus({ fetchStatus: readStatus }).then(
+      (result) => (result.degraded === "true" ? `the upstream gate still reads ${escapeCommand(result.reason)}` : ""),
+      (error) => `the upstream gate could not be read (${escapeCommand(error?.message ?? error)})`,
+    ));
 };
 
 // A carried job read, {id, attempt, head, updated_at, jobs}.
@@ -489,6 +501,9 @@ const carriedPassesEntry = (e) =>
   e.runs.length > 0 &&
   e.runs.every((r) => Number.isSafeInteger(r?.id) && r.id > 0 && isTime(r.started_at));
 
+const positiveId = (value) => Number.isSafeInteger(value) && value > 0;
+export const waitingReview = (e) => positiveId(e?.checksRunId) && positiveId(e.reviewRunId) && positiveId(e.pr) && SHA.test(e.head ?? "") && GATED_REVIEWS.has(e.path);
+
 // The carried runs, id to hold reason ("" for an intake or verdict run), the
 // carried job reads by jobsKey and the carried pass reads by passesKey (none
 // when the file has no `passes`), or an error for any other shape.
@@ -502,7 +517,8 @@ export function parseSettled(text, repo) {
     !Array.isArray(data.jobs) ||
     !data.jobs.every(carriedJobsEntry) ||
     (data.passes !== undefined && (!Array.isArray(data.passes) || !data.passes.every(carriedPassesEntry))) ||
-    (data.held_since !== undefined && !isTime(data.held_since))
+    (data.held_since !== undefined && !isTime(data.held_since)) ||
+    (data.waiting_reviews !== undefined && (!Array.isArray(data.waiting_reviews) || !data.waiting_reviews.every(waitingReview)))
   ) {
     throw new Error("the settled runs file has an unexpected shape");
   }
@@ -510,6 +526,7 @@ export function parseSettled(text, repo) {
     runs: new Map(data.runs.map((r) => [r.id, r.reason])),
     jobs: new Map(data.jobs.map((e) => [jobsKey(e.id, e.attempt), e])),
     passes: new Map((data.passes ?? []).map((e) => [passesKey(e.pr, e.head), e])),
+    waiting: data.waiting_reviews ?? [],
     // Where the next held-run listing starts (plan's heldSince), if carried.
     ...(data.held_since !== undefined ? { heldSince: Date.parse(data.held_since) } : {}),
   };
@@ -554,7 +571,7 @@ export const actionsStatus = (page) => componentStatus(page, ACTIONS.name);
 const newerFirst = (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id;
 
 // The newest run of each workflow on one head.
-function newestByWorkflow(runs) {
+export function newestByWorkflow(runs) {
   const newest = new Map();
   for (const r of runs) {
     const seen = newest.get(r.path);
@@ -624,12 +641,12 @@ const atCap = (pull, checks, why) =>
 // The error ci-status's lanes-hold step writes for a lanes App PR while the
 // kill switch is on (pr-require-checks.yml; reconcile.test.mjs pins it there).
 export const KILL_SWITCH_NOTE = "the lanes kill switch is on";
-const isRedChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure";
+export const isRedChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure";
 // The checks run a lifted kill switch leaves red: failed on its first attempt.
 const isFailedChecks = (r) => isRedChecks(r) && r.run_attempt === 1;
 const isRunningChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status !== "completed";
 // The failed ci-status job when it is the run's only failed job, else undefined.
-const onlyAggregateFailed = (jobs) =>
+export const onlyAggregateFailed = (jobs) =>
   Array.isArray(jobs) && jobs.every((job) => !FAILED.has(job?.conclusion) || AGGREGATE_JOBS.has(job.name))
     ? gateEntries(jobs).find((job) => job.conclusion === "failure" && Number.isSafeInteger(job.id))
     : undefined;
@@ -881,7 +898,7 @@ function laneOrder(lanes, openChecks, drop) {
 // A job whose steps did not list in full may have lost its runner, which cuts
 // the list at the running step; its check-run annotations tell
 // (infra-failure.mjs lostRunnerNoted). Reads them for each such job `wanted` picks.
-const withAnnotations = (call, repo, jobs, wanted = () => true) =>
+export const withAnnotations = (call, repo, jobs, wanted = () => true) =>
   Promise.all(
     jobs.map(async (job) =>
       wanted(job) && !stepsKnown(job) && Number.isSafeInteger(job?.id)
@@ -965,12 +982,62 @@ export const RATE_RESET_GRACE_MS = 60_000;
 // window's reset in epoch seconds (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md).
 export const DEFER_NOTE = /\bcause=defer reset=([0-9]{9,12})\b/;
 export const DEFER_STEP = "Note the deferral";
-const DEFERRED = "success (deferred)";
+export const DEFERRED = "success (deferred)";
 export const deferReset = async (jobs, notesOf) => {
   const gate = jobs.find((job) => GATE_JOBS.has(job?.name) && Number.isSafeInteger(job.id) && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
   const resets = gate ? (await notesOf(gate)).map((a) => DEFER_NOTE.exec(String(a?.message ?? ""))?.[1]).filter(Boolean).map(Number) : [];
   return resets.length > 0 ? Math.max(...resets) : undefined;
 };
+
+/**
+ * The review items of one head (`own`, its runs) whose newest hosted review a
+ * kill switch stopped, or a rate limit held, once nothing would stop it
+ * again: its lane's switch is off, it is inside RERUN_WINDOW_DAYS, a defer or
+ * rate-limit reset it names is RATE_RESET_GRACE_MS past, and the upstream gate
+ * (`gateHold`) lets it run. A wait is named through `say` or `waitReset`.
+ */
+export async function stoppedReviews({ call, repo, own, pull, env, now, readJobs, say, waitReset, gateHold }) {
+  const items = [];
+  for (const [path, name] of REVIEW_SWITCHES) {
+    const r = newestByWorkflow(own).find((candidate) => candidate.path === path);
+    if (!isUnreviewed(r)) {
+      continue;
+    }
+    if (env[name]?.toLowerCase() === "true") {
+      say(`#${pull.number}: review run ${r.id} (${r.path}) waits for ${name}`);
+      continue;
+    }
+    if (now - Date.parse(r.created_at) >= RERUN_WINDOW_DAYS * 86_400_000) {
+      continue;
+    }
+    const jobs = await readJobs(r);
+    const stopped = reviewStopped(jobs);
+    const notesOf = (job) => job.annotations ?? call("GET", annotationsPath(repo, job.id));
+    const defer = stopped ? await deferReset(jobs, notesOf) : undefined;
+    if (beforeReset(defer === undefined ? undefined : defer * 1000, now)) {
+      waitReset(`#${pull.number}: review run ${r.id} (${r.path})`, defer * 1000, "was deferred on the GITHUB_TOKEN budget");
+      continue;
+    }
+    if (!stopped) {
+      const reset = await rateHeld(jobs, notesOf);
+      if (reset === undefined) {
+        continue;
+      }
+      if (now <= reset * 1000 + RATE_RESET_GRACE_MS) {
+        say(`#${pull.number}: review run ${r.id} (${r.path}) held on a GitHub API rate limit; waiting for its reset at ${new Date(reset * 1000).toISOString()}`);
+        continue;
+      }
+    }
+    const hold = await gateHold();
+    if (hold) {
+      say(`#${pull.number}: review run ${r.id} (${r.path}) ${defer !== undefined ? "was deferred on the GITHUB_TOKEN budget" : stopped ? "was stopped by a kill switch" : "held on a GitHub API rate limit"}; waiting, ${hold}`);
+      continue;
+    }
+    const conclusion = defer !== undefined ? DEFERRED : stopped ? "success (kill switch stop)" : "success (rate-limit hold)";
+    items.push({ kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion, attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, 2, pull.head.sha) });
+  }
+  return items;
+}
 
 /**
  * Why the run's first attempt must not be re-run, with whether that hold is
@@ -1220,6 +1287,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const keepJobs = new Map();
   // The pass reads to carry to the next pass: read whole now, or carried and still unexpired.
   const keepPasses = [];
+  const waiting = [];
   const prefetchedReads = new Map();
   const batches = { failed: false };
   const send = call;
@@ -1257,14 +1325,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const tooOld = [];
   // Read once, on the first infra-only run: why its re-run waits, or "" when npm and GitHub are clear.
   let upstream;
-  // Read once, on the first upstream-stopped review: why its re-run waits, or
-  // "" when the gate would let the review run now.
-  let gate;
-  const gateHold = async () =>
-    (gate ??= checkUpstreamStatus({ fetchStatus: readStatus }).then(
-      (result) => (result.degraded === "true" ? `the upstream gate still reads ${escapeCommand(result.reason)}` : ""),
-      (error) => `the upstream gate could not be read (${escapeCommand(error?.message ?? error)})`,
-    ));
+  const gateHold = upstreamGate(readStatus);
   const upstreamHold = async () =>
     (upstream ??= (async () => {
       for (const url of [NPM_STATUS_URL, GITHUB_STATUS_URL]) {
@@ -1359,6 +1420,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
             reviewStopped(await readJobs(r))
           ) {
             waits += 1;
+            waiting.push({ checksRunId: checks.id, reviewRunId: r.id, pr: pull.number, head: pull.head.sha, path: r.path });
             say(`#${pull.number}: review run ${r.id} (${r.path}) was stopped by a kill switch; waiting for checks run ${checks.id} (${checks.path}) to finish`);
           }
         }
@@ -1419,48 +1481,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
         set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
       }
-      const stoppedReviews = async () => {
-        const items = [];
-        for (const [path, name] of REVIEW_SWITCHES) {
-          const r = newestByWorkflow(own).find((candidate) => candidate.path === path);
-          if (!isUnreviewed(r)) {
-            continue;
-          }
-          if (env[name]?.toLowerCase() === "true") {
-            say(`#${pull.number}: review run ${r.id} (${r.path}) waits for ${name}`);
-            continue;
-          }
-          if (now - Date.parse(r.created_at) >= RERUN_WINDOW_DAYS * 86_400_000) {
-            continue;
-          }
-          const jobs = await readJobs(r);
-          const stopped = reviewStopped(jobs);
-          const notesOf = (job) => job.annotations ?? call("GET", annotationsPath(repo, job.id));
-          const defer = stopped ? await deferReset(jobs, notesOf) : undefined;
-          if (beforeReset(defer === undefined ? undefined : defer * 1000, now)) {
-            waitReset(`#${pull.number}: review run ${r.id} (${r.path})`, defer * 1000, "was deferred on the GITHUB_TOKEN budget");
-            continue;
-          }
-          if (!stopped) {
-            const reset = await rateHeld(jobs, notesOf);
-            if (reset === undefined) {
-              continue;
-            }
-            if (now <= reset * 1000 + RATE_RESET_GRACE_MS) {
-              say(`#${pull.number}: review run ${r.id} (${r.path}) held on a GitHub API rate limit; waiting for its reset at ${new Date(reset * 1000).toISOString()}`);
-              continue;
-            }
-          }
-          const hold = await gateHold();
-          if (hold) {
-            say(`#${pull.number}: review run ${r.id} (${r.path}) ${defer !== undefined ? "was deferred on the GITHUB_TOKEN budget" : stopped ? "was stopped by a kill switch" : "held on a GitHub API rate limit"}; waiting, ${hold}`);
-            continue;
-          }
-          const conclusion = defer !== undefined ? DEFERRED : stopped ? "success (kill switch stop)" : "success (rate-limit hold)";
-          items.push({ kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion, attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, 2, pull.head.sha) });
-        }
-        return items;
-      };
+      const headReviews = () => stoppedReviews({ call, repo, own, pull, env, now, readJobs, say, waitReset, gateHold });
       // A newest checks run that failed only in ci-status: a review a kill
       // switch stopped is re-run once nothing would stop it again, a lanes App
       // PR's that the kill switch failed is re-run now that the switch is off,
@@ -1472,7 +1493,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         // A lanes App PR's ci-status that failed on the kill switch.
         const switchNoted = notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes);
         if (reviewStopNoted(notes) || rateHeldNoted(notes)) {
-          set.push(...(await stoppedReviews()));
+          set.push(...(await headReviews()));
         } else if (isFailedChecks(checks) && switchNoted) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
         } else if (checks.run_attempt >= 2 && switchNoted) {
@@ -1499,7 +1520,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
       }
       if (set.some((item) => item.kind === "floor" || item.kind === "switch")) {
-        set.push(...(await stoppedReviews()));
+        set.push(...(await headReviews()));
       }
       // A pass the spec has since changed under: re-running the head's
       // passed checks starts pr-verify, which judges it again (resolve-pr's
@@ -1962,7 +1983,17 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     place(`#${set[0].pr}`, set);
   }
   items.push(...intake, ...verdicts);
-  return { items, failed, deferred: deferred + waits, settle, heldSince, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
+  const selected = new Set(ready.flat().map((item) => item.id));
+  return {
+    items,
+    failed,
+    deferred: deferred + waits,
+    settle,
+    heldSince,
+    jobs: [...keepJobs.values()],
+    passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()],
+    waiting: waiting.filter((w) => !selected.has(w.reviewRunId)),
+  };
 }
 
 // The item kinds that name no PR: act labels them by kind and reads no PR.
@@ -2137,6 +2168,15 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       write();
       return finish(0);
     }
+    if (env.FOLLOWUP === "true") {
+      const { followUp } = await import("./followup.mjs");
+      result = await followUp({ repo, call, say, now, env, readStatus });
+      if (result.items.some(recorded) && !env.RECORD_PATH) {
+        throw new Error("RECORD_PATH is not set");
+      }
+      write();
+      return finish(0);
+    }
     // resolve-pr's own read, with pr-verify.yml's inputs: `spec-changed` is
     // exactly a head pr-verify would judge again. Without the trusted list
     // nothing is checked.
@@ -2171,7 +2211,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
       }
     }
-    const { settle, jobs, passes, heldSince, deferred, ...planned } = await plan({
+    const { settle, jobs, passes, heldSince, deferred, waiting, ...planned } = await plan({
       repo,
       call,
       say,
@@ -2193,7 +2233,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     clean = result.failed === 0 && deferred === 0;
     write();
     if (env.SETTLED_PATH) {
-      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes, held_since: new Date(heldSince).toISOString() }));
+      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes, held_since: new Date(heldSince).toISOString(), waiting_reviews: waiting }));
     }
     if (lines.length === 0 && result.items.length === 0) {
       say(result.failed > 0 ? `${result.failed} listings failed; what was lost is unknown` : "nothing lost");

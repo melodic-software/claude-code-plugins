@@ -1904,7 +1904,7 @@ test("the marker upload comes after the plan and before the act step, kept longe
   assert.match(step, /retention-days: 2$/);
   // A failed upload skips the act step (no status function there), so no
   // record is written without its marker.
-  assert.match(text, /- name: Re-run lost runs\n {8}if: steps\.reset\.outputs\.due != 'false' && steps\.pace\.outputs\.paced != 'true' && steps\.recent\.outputs\.skip != 'true'\n/);
+  assert.match(text, /- name: Re-run lost runs\n {8}if: \(steps\.reset\.outputs\.due != 'false' && steps\.pace\.outputs\.paced != 'true' && steps\.recent\.outputs\.skip != 'true'\) \|\| steps\.recent\.outputs\.followup == 'true'\n/);
 });
 
 test("while the kill switch is on, no stopped verdict is read or re-run", async () => {
@@ -2858,6 +2858,92 @@ test("the defer band starts at most DEFER_MAX re-runs a pass, a head's two lanes
   assert.equal(outputs[`record-${DEFER_MAX + 1}`], "");
   assert.equal(outputs.clean, "");
   assert.ok(log.mock.calls.some((c) => c.arguments[0] === `reconcile: #${DEFER_MAX / 2 + 1}: its deferred reviews wait, only 0 of ${DEFER_MAX} recovery places left this pass`));
+});
+
+const AFTER_GRACE = RESET_S * 1000 + 61_000;
+const queued = (n) => [
+  { checksRunId: 100 + n, reviewRunId: 200 + n, pr: n, head: sha(n), path: REVIEW },
+  { checksRunId: 100 + n, reviewRunId: 300 + n, pr: n, head: sha(n), path: SECURITY_REVIEW },
+];
+const deferredWaiting = (n, checks = {}) => [run(100 + n, sha(n), { status: "in_progress", ...checks }), deferredRun(200 + n, sha(n)), deferredRun(300 + n, sha(n), { path: SECURITY_REVIEW })];
+async function followUpTick(rows, { env = {}, ...opts } = {}) {
+  const dir = tempDir("reconcile-followup-");
+  const queue = path.join(dir, "followup.json");
+  if (rows !== undefined) {
+    writeFileSync(queue, JSON.stringify({ run_id: 900, waiting_reviews: rows }));
+  }
+  try {
+    return await reconcile({ now: AFTER_GRACE, ...opts, env: { ...SWITCHES_OFF, FOLLOWUP: "true", FOLLOWUP_PATH: queue, ...env } });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("the full pass queues each stopped review it leaves waiting on a running checks run, and none it can re-run itself", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const waiting = await reconcile({ pulls: [pr(1)], runs: deferredWaiting(1), carry: null, env: SWITCHES_OFF, now: AFTER_GRACE });
+  assert.deepEqual(waiting.reruns, []);
+  assert.deepEqual(waiting.settled.waiting_reviews, queued(1));
+  const done = await reconcile({ pulls: [pr(1)], runs: bothDeferred(1), carry: null, env: SWITCHES_OFF, now: AFTER_GRACE });
+  assert.deepEqual(done.reruns, [201, 301], "a finished red checks run lets the pass re-run them");
+  assert.deepEqual(done.settled.waiting_reviews, []);
+});
+
+test("a follow-up tick re-runs the queued reviews whole, recorded, once their checks run finished red on the stop, reading only the queued head", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { code, calls, reruns, failedJobReruns, outputs } = await followUpTick(queued(1), { pulls: [pr(1)], runs: bothDeferred(1) });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201, 301]);
+  assert.deepEqual(failedJobReruns, []);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, `reconcile-rerun-301-2-${sha(1)}`, ""]);
+  assert.equal(outputs.clean, "", "a follow-up never marks a clean pass, so the pacer reads only full passes");
+  const reads = (id) => [`GET /repos/${REPO}/actions/runs/${id}/jobs?filter=latest&per_page=100`, `GET /repos/${REPO}/check-runs/312/annotations?per_page=100`];
+  const act = (id) => [`GET /repos/${REPO}/actions/runs/${id}`, `GET /repos/${REPO}/pulls/1`, `POST /repos/${REPO}/actions/runs/${id}/rerun`];
+  assert.deepEqual(calls, [
+    `GET /repos/${REPO}/actions/runs?head_sha=${sha(1)}&per_page=100`,
+    `GET /repos/${REPO}/actions/runs/101/jobs?filter=latest&per_page=100`,
+    `GET /repos/${REPO}/check-runs/502/annotations?per_page=100`,
+    ...reads(201),
+    ...reads(301),
+    ...act(201),
+    ...act(301),
+  ]);
+});
+
+test("a queued review already re-run (attempt 2) is skipped, so a later tick never doubles a re-run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const both = [redChecks(101, sha(1)), deferredRun(201, sha(1), { attempt: 2 }), deferredRun(301, sha(1), { path: SECURITY_REVIEW, attempt: 2 })];
+  const again = await followUpTick(queued(1), { pulls: [pr(1)], runs: both });
+  assert.equal(again.code, 0);
+  assert.deepEqual(again.calls.filter((c) => c.startsWith("POST ")), []);
+  const one = [redChecks(101, sha(1)), deferredRun(201, sha(1), { attempt: 2 }), deferredRun(301, sha(1), { path: SECURITY_REVIEW })];
+  assert.deepEqual((await followUpTick(queued(1), { pulls: [pr(1)], runs: one })).reruns, [301], "the lane still at attempt 1 goes");
+});
+
+test("a follow-up tick leaves a queued review alone while its checks run is still going, before its reset's grace, or when a kill switch stop needs a place", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const said = () => log.mock.calls.map((c) => String(c.arguments[0]));
+  const going = await followUpTick(queued(1), { pulls: [pr(1)], runs: deferredWaiting(1) });
+  assert.deepEqual(going.reruns, []);
+  assert.ok(said().includes("reconcile: #1: checks run 101 has not finished; the next tick looks again"));
+  log.mock.resetCalls();
+  const early = await followUpTick(queued(1), { pulls: [pr(1)], runs: bothDeferred(1), now: RESET_S * 1000 + 60_000 });
+  assert.deepEqual(early.reruns, []);
+  assert.ok(said().some((line) => line.startsWith(`reconcile: #1: review run 201 (${REVIEW}) was deferred on the GITHUB_TOKEN budget; waiting for the rate-limit reset at`)));
+  log.mock.resetCalls();
+  const stopped = await followUpTick(queued(1), { pulls: [pr(1)], runs: bothLanesStopped(1) });
+  assert.deepEqual(stopped.reruns, []);
+  assert.ok(said().includes("reconcile: #1: its stopped reviews wait for the next full pass, which counts the re-run places"));
+});
+
+test("a follow-up tick with no readable queue reads and re-runs nothing", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  for (const rows of [undefined, [{ ...queued(1)[0], head: "not a sha" }]]) {
+    const { code, calls } = await followUpTick(rows, { pulls: [pr(1)], runs: bothDeferred(1) });
+    assert.equal(code, 0);
+    assert.deepEqual(calls, []);
+  }
+  assert.ok(log.mock.calls.some((c) => String(c.arguments[0]).startsWith("reconcile: no follow-up queue was read (")));
 });
 
 const deferredVerify = (id, reset = RESET_S) => ({
