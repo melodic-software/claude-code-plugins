@@ -5,6 +5,17 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.10.2] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to six skills and a `## Next` to two of them, matching the committed skill-link table
+
+  audit, audit-pass, audit-prompting-postures and draft-auto-mode-rules now
+  list their context-dependent links under `## Related`. audit-permission-state
+  and unhobble also gain a `## Next`: draft-auto-mode-rules after an audit that
+  shows dropped rules, and review:security-review before a retirement PR merges.
+
 ## [5.10.1] - 2026-11-23
 
 ### Changed

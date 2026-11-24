@@ -3,6 +3,14 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.2] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to audit and stateless, matching the committed skill-link table
+
+  Each now lists its context-dependent links, one condition per line.
+
 ## [2.5.1] - 2026-11-23
 
 ### Changed
