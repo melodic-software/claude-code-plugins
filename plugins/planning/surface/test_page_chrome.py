@@ -18,7 +18,6 @@ BLOCKS = {
 
 
 def flat(text):
-    """The text with each line's leading spaces and tabs dropped."""
     return re.sub(r"(?m)^[ \t]+", "", text)
 
 

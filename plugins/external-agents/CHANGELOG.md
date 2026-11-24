@@ -3,6 +3,12 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-11-24
+
+### Added
+
+- Plugin options `antigravity_uses_task_mode`, `antigravity_uses_investigate_mode`, `codex_uses_task_mode` and `codex_uses_investigate_mode` set a use's mode once per machine, for every repository. The runner reads them from your user settings (found from a cache install's own path) and managed settings, below a repository's team and personal files, so a repository file still overrides them. A value outside the option's list, or a settings file that cannot be read, is reported as a config notice and leaves the mode at the repository's or the plugin's value. Options need Claude Code v2.1.271 or later.
+
 ## [0.7.2] - 2026-11-24
 
 ### Changed

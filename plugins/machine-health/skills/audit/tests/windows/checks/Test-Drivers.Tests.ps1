@@ -84,8 +84,6 @@ Describe 'Test-Drivers -- healthy baseline' -Tag 'check' {
             )
         }
         Mock Get-WinEvent { @() }
-        # Simulate elevated so Get-PnpProblemDevice runs (returns empty below) instead of
-        # being skipped and populating $adminFields.
         Mock Test-IsElevated { $true }
         Mock Get-PnpProblemDevice { @() }
         Mock Get-Module { $null }
@@ -116,7 +114,6 @@ Describe 'Test-Drivers -- IsSigned=false is no longer a WARN trigger' -Tag 'chec
                 -DriverDate (Get-Date).AddMonths(-3) -IsSigned $false
             @($nic, $gpu)
         }
-        # But pnputil reports every driver has a valid SignerName -- no genuinely unsigned.
         Mock Get-DriverStoreInventory {
             @(
                 (New-DriverStoreRecord -PublishedName 'oem1.inf' `
@@ -188,8 +185,6 @@ Describe 'Test-Drivers -- CodeIntegrity events' -Tag 'check' {
         Mock Get-VendorUpdateCli { @() }
 
         $result = Invoke-DriversAsObject
-        # A single run's reading caps at WARN; CRIT needs the cross-run repeat
-        # Invoke-TrendAnalysis checks (severity-rubric.md: prefer the lower).
         $result.severity | Should -Be 'WARN'
         $result.detail.code_integrity_event_count | Should -Be 1
         $result.detail.code_integrity_newest_event_unix | Should -BeOfType [long]

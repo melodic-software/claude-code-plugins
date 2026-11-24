@@ -22,7 +22,6 @@ trap 'rm -rf "$TMP"' EXIT
 readonly ITEM_A=https://github.com/o/r/issues/1
 readonly ITEM_B=https://github.com/o/r/issues/2
 
-# Shared attributes: <session> <item|-> <ccr|->. A `-` leaves the attribute out.
 attrs() {
   local out="{\"key\":\"session.id\",\"value\":{\"stringValue\":\"$1\"}}"
   [[ "$2" == - ]] || out+=",{\"key\":\"autonomy.work_item.url\",\"value\":{\"stringValue\":\"$2\"}}"
@@ -76,8 +75,6 @@ assert_eq "a missing store exits 2" 2 "$rc"
 assert_contains "the missing store names the metrics file" "$out" "cc-metrics.json"
 
 if command -v duckdb >/dev/null 2>&1; then
-  # Two items, each with one local session; one cloud session (s-3, ccr.session.id cse_1)
-  # whose metrics carry no item.
   main="$TMP/main"
   mkdir -p "$main"
   {
@@ -114,7 +111,6 @@ if command -v duckdb >/dev/null 2>&1; then
   assert_contains "an unmapped cloud session is unattributed" "$flat" "(no item) 1 1 2 7 3 0 30 40"
   assert_not_contains "no cost metric value" "$out" "1.2345"
   assert_not_contains "no api_request cost" "$out" "6.789"
-  # The store path is random text, so it is cut before looking for a currency mark.
   assert_not_contains "no dollar sign" "${out//$main/}" '$'
   assert_not_contains "no usd" "${out//$main/}" "usd"
 
@@ -127,7 +123,6 @@ if command -v duckdb >/dev/null 2>&1; then
   assert_contains "the cloud session row" "$flat" "$ITEM_B cse_1 2 7 3 0 30"
   assert_eq "the store is not modified" "$before" "$(cat "$main"/* | cksum)"
 
-  # The cloud session's events carry item B, its metrics do not: the store's own pairs map it.
   instore="$TMP/instore"
   mkdir -p "$instore"
   cp "$main/cc-metrics.json" "$instore/"

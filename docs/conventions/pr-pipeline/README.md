@@ -2933,6 +2933,11 @@ intake admission admits (below), so a lane pull request never supplies its own s
 human's comment on such an issue reaches the verifier, but it never makes the issue trusted, and
 neither does a listed human's edit of its body. To give any other work a Bot filed a spec, a listed
 human opens an issue that restates it, and the pull request links that one.
+Work the owner starts in a session with no issue gets its spec from a tracking issue that quotes the
+owner's words verbatim with their dates and marks process notes (proof tooling, batching, checks) as
+not part of the goal (owner decision 2026-11-24). Each pull request of that work opens its body with
+a plain `Refs: #<n>` line, nothing after the number, and names the slice it delivers in its Summary;
+`REFS_PLAIN` reads any other `Refs:` form as no linked issue.
 One Bot issue is its own spec (owner decision 2026-11-16): the issue
 `maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
 it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
@@ -3502,7 +3507,7 @@ change to any of them is a change to every lane's powers:
 - `.github/actions/**`, which holds `resolve-config/effect-grants.json`,
   `resolve-config/lane-rules.json`, `resolve-config/activity-rules.json`,
   `resolve-config/patch-rules.json` and every action a lane job runs from its base checkout;
-- `.github/standards/**`, which holds the trusted-actor list and the runner-policy script;
+- `.github/standards/**`, which holds the trusted-actor list;
 - `.github/workflows/**`;
 - `.github/CODEOWNERS`.
 
@@ -4694,13 +4699,13 @@ the lanes.
 | Repository variable `AUTOMATION_LANES_APP_SENDER_ID` | Set by hand on this repository and the sandbox, declared nowhere; [github-iac#677](https://github.com/melodic-software/github-iac/issues/677) |
 | `trust-root` ruleset, merge queues, code-owner review settings | github-iac `OrgRulesets.cs`; ADR 0015 Decision 5; [ADR 0007](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0007-no-required-approving-reviews.md). Its rollback is not yet tracked: [github-iac#677](https://github.com/melodic-software/github-iac/issues/677) |
 | Test repository | [`melodic-software/pr-pipeline-sandbox`](https://github.com/melodic-software/pr-pipeline-sandbox), whose README states its purpose |
-| Trusted actors, runner policy, Actions naming vocabulary | `melodic-software/standards` components [`trusted-actors`](https://github.com/melodic-software/standards/tree/main/components/trusted-actors), [`runner-policy`](https://github.com/melodic-software/standards/tree/main/components/runner-policy) and [`github-actions-conventions`](https://github.com/melodic-software/standards/tree/main/components/github-actions-conventions), synced into `.github/standards/` |
+| Trusted actors, runner policy, Actions naming vocabulary | `melodic-software/standards` components [`trusted-actors`](https://github.com/melodic-software/standards/tree/main/components/trusted-actors), [`runner-policy`](https://github.com/melodic-software/standards/tree/main/components/runner-policy) and [`github-actions-conventions`](https://github.com/melodic-software/standards/tree/main/components/github-actions-conventions); trusted actors and the vocabulary are synced into `.github/standards/`, and CI runs the runner policy from its standards download |
 | Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review-cli.yml` (both review lanes) and `intake-triage.yml`, called by this repository's `*-hosted.yml` review callers and `intake-triage.yml` |
 
 Every ci-workflows reference, reusable workflow and action alike, tracks `@main`, and official
-vendor actions run at their moving major tag (ADR 0129). The synced runner policy admits a
+vendor actions run at their moving major tag (ADR 0129). The runner policy admits a
 ci-workflows reusable only at `@main` or at a commit its contract lists in `approvedShas`
-(`.github/standards/runner-policy/runner-policy.mjs`, `reusableWorkflowContract`).
+(standards' `components/runner-policy/runner-policy.mjs`, `reusableWorkflowContract`).
 
 In this repository, the lane runners and their contract are in [Lanes](#lanes), the config is
 `docs/conventions/pr-pipeline.yaml`, and the decisions are ADRs 0049 to 0051, 0053 to 0055 and 0058 in `docs/adr/`.

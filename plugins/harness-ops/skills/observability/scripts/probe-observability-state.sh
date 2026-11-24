@@ -408,8 +408,6 @@ case "$MODE" in
   fi
 
   logging="off"
-  # Only the literal "true" turns it on, so an unset value and a placeholder
-  # both fall through to the default without a separate unset_value test.
   [[ "$ENABLED_ARG" == "true" ]] && logging="on"
   categories="all"
   unset_value "$CATEGORIES_ARG" || categories="$CATEGORIES_ARG"

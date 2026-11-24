@@ -62,7 +62,6 @@ $CheckBody = {
             }
         })
         $exclusionItems = @(foreach ($c in $history.ExclusionChanges) {
-            # A recent path addition outside the known-safe list is the one change worth a WARN.
             $suspect = $c.Change -eq 'added' -and $c.Type -eq 'path' -and $c.ChangedAt -ge $cutoff -and
                 -not (Test-DefenderKnownSafePath -Path $c.Value)
             New-DefenderExclusionItem -Type $c.Type -Value $c.Value -MutedKeys $MutedKeys `
@@ -73,7 +72,6 @@ $CheckBody = {
             }
         })
         $items = $detectionItems + $exclusionItems
-        # Counts cover unmuted items only, like the severity.
         $recentThreats = @($detectionItems | Where-Object { -not $_.muted -and $_.severity -in 'WARN', 'CRIT' })
         $unremediated = @($recentThreats | Where-Object severity -EQ 'CRIT')
         $unmutedChanges = @($exclusionItems | Where-Object { -not $_.muted })
@@ -150,7 +148,6 @@ $CheckBody = {
 
         $severities.Add((Get-UnmutedSeverity -Items $items))
         $severity = Get-WorstSeverity $severities
-        # An unreadable history is never hidden behind OK or INFO, and never outranks a real WARN or CRIT.
         if ($severity -in 'OK', 'INFO' -and $eventsFloor -ne 'OK') { $severity = $eventsFloor }
         if ($severity -eq 'OK' -and $coverageGap) { $severity = 'INFO' }
 

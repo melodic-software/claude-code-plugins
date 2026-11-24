@@ -1,11 +1,3 @@
-/**
- * Shared slice-artifact JSON reads and writes and the selected-frame index for the watch scripts.
- *
- * The `watch/` CLI scripts all read the same lane JSON and rebuild the same
- * `file` -> frame lookup from `key-frames/selection.json`; both live here so the
- * scripts stay siblings instead of importing one another.
- */
-
 import fs from "node:fs";
 
 import { lanePath } from "./slice-lanes.js";
