@@ -1,9 +1,3 @@
-// Expected values come from the skip-unchanged design: the skip records are
-// read only from the newest scheduled or hand-started pr-merge.yml run on
-// main other than this one (found as head-ref-map.mjs finds its map) whose
-// head commit is on main, under the name pr-merge-verify-answers, never
-// through actions/cache; a file already at the path is never read; any
-// failure writes nothing and warns.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -39,8 +33,6 @@ async function readRun({ pages = [[]], skips = {}, offMain = [], fail, beforeSki
     const artifacts = id in skips ? [{ name: ANSWERS_ARTIFACT, expired: false }] : [{ name: "pr-merge-head-refs", expired: false }];
     return { total_count: artifacts.length, artifacts };
   };
-  // A file the artifact lacks (null) fails as readFileSync does;
-  // "download-fails" fails as `gh run download` does.
   const download = (id, file) => {
     downloads.push(`${id}:${file}`);
     if (skips[id] === "download-fails") throw new Error("Command failed: gh run download");
@@ -65,8 +57,6 @@ test("the newest trusted run on main's skip records are written as they were kep
     skips: { 9: skipsOf({ 41: { key: "forged" } }), 8: skipsOf({ 1: {} }), 7: kept, 6: skipsOf({}) },
     offMain: [sha(8)],
   });
-  // This run is skipped, a pull_request_target run is never asked, and run 8
-  // is not on main.
   assert.deepEqual(result.downloads, [`7:${SKIP_FILE}`]);
   assert.equal(result.skipsWritten, kept);
   assert.ok(result.lines.includes("skip records of run 7"), result.lines.join("\n"));

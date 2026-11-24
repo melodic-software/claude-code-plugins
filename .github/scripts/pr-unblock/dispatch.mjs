@@ -71,8 +71,6 @@ export const DEFAULTS = Object.freeze({
   workflow: "pr-unblock.yml",
   activity: "resolve-conflicts",
   checkName: "pr-unblock / resolve-conflicts",
-  // The push job's check: its lane-stopped skip releases the head for a
-  // same-head retry (limit-stop.mjs stopRelease).
   stopCheckName: "pr-unblock / apply-conflict-patch",
   // The GitHub Actions app: only a check run it created counts, so another
   // app cannot suppress a dispatch by posting a run under the same name.
@@ -83,17 +81,13 @@ export const DEFAULTS = Object.freeze({
   // at about a minute (judgment).
   unknownRetries: 5,
   unknownDelayMs: 10_000,
-  // resolve-conflicts's applies-when labels-absent and the human-gated label
-  // (docs/conventions/pr-pipeline.yaml), checked before its check runs are read.
   holdLabels: DISPATCH_HOLDS,
 });
 
 const SHA = /^[0-9a-f]{40}$/;
 
-// The check-run handling both dispatchers read a head's runs under.
 const handleOptions = (limits) => ({ limits, failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true });
 
-// prHold's reads of one listed PR.
 function holdReads(api, node) {
   return {
     labels: (node.labels?.nodes ?? []).map((label) => label?.name),
@@ -103,7 +97,6 @@ function holdReads(api, node) {
   };
 }
 
-// The in-flight run of `activity` for the PR, logged as a skip, or undefined.
 function inFlightRun(log, active, { workflow, activity, node }) {
   const inFlight = active.find((run) => isPrUnblockTitle(run.display_title, activity, node.number));
   if (inFlight) {
@@ -135,8 +128,6 @@ async function conflictUntouched(api, log, { node, base, conflict, readTip }) {
   }
 }
 
-// The log line that names a head-lag stop on the head as the cause of this
-// dispatch (limit-stop.mjs lagStopsRelease).
 function lagRefire(log, node, checkName, existing, handled) {
   if (!handled && existing.some(headLagStop)) {
     log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
@@ -198,11 +189,8 @@ export async function dispatchConflicting({
   appSenderId,
 }) {
   const nodes = listed ?? (await listAll(api, base));
-  // The base tip, read once a run and only when a head needs it.
   let tipRead = null;
   const readTip = () => (tipRead ??= api.readBaseTip(base));
-  // Heads recorded on a select job's stop under a base that is no longer the
-  // tip: read again, after the heads never tried.
   const moved = new Set();
   if (nodes.some((node) => record.bases.has(node.headRefOid))) {
     try {
@@ -217,8 +205,6 @@ export async function dispatchConflicting({
       log(`::warning::could not read the ${base} tip: ${error.message}; heads recorded on a select job's stop stay skipped, a later run retries`);
     }
   }
-  // A recorded head is skipped whatever its mergeable state, so it is neither
-  // read nor re-queried.
   const recorded = (node) => {
     if (!isHandled(record, checkName, node.headRefOid) || moved.has(node.headRefOid)) {
       return false;
@@ -251,9 +237,6 @@ export async function dispatchConflicting({
   candidates.sort((a, b) => moved.has(a.headRefOid) - moved.has(b.headRefOid) || a.number - b.number);
   const dispatched = [];
   let failed = 0;
-  // A dispatched run posts its check run only when it ends, so two main
-  // pushes seconds apart would each dispatch one. A run of this activity for
-  // the PR that is not done yet holds the dispatch.
   let active = [];
   if (candidates.length > 0) {
     try {
@@ -263,8 +246,6 @@ export async function dispatchConflicting({
       return { dispatched, failed };
     }
   }
-  // Every dispatch call counts against the cap: one that failed or returned no
-  // usable id may still have started a run.
   let sent = 0;
   for (const node of candidates) {
     if (sent >= maxDispatch) {
@@ -279,17 +260,12 @@ export async function dispatchConflicting({
     let conflict = null;
     try {
       const { held, why } = await prHold({ ...holdReads(api, node), holdLabels, gateLabel, activity, appId: appSenderId });
-      // Not recorded: the hold can come off with the head unchanged.
       if (held) {
         log(`skip #${node.number}: ${why}`);
         continue;
       }
       let existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
       const options = handleOptions(limits);
-      // A push job that stopped on a reason routed to a failing status
-      // releases the head's earlier checks: the next run retries the same
-      // head, a fresh model session, until limit-stops-per-head such stops
-      // stand on it.
       if (anyHandles(existing, { now, ...options })) {
         const cap = (limits ?? LIMIT_DEFAULTS)["limit-stops-per-head"];
         const { cut, stops, newest } = stopRelease(await api.listCheckRuns({ sha: node.headRefOid, checkName: stopCheckName, appId }), cap);
@@ -299,24 +275,16 @@ export async function dispatchConflicting({
           log(`::warning::#${node.number}: head ${node.headRefOid}'s ${stopCheckName} stopped ${stops} time(s), the most one head gets; no ${activity} retry until a new push`);
         }
       }
-      // A select job's own stop (escalation-routes.mjs stopSkip) judged the
-      // base of its day: one that started before the tip was committed no
-      // longer counts. A merge-queue tip committed before it landed can hold
-      // such a stop one base longer.
       if (existing.some(laneStop)) {
         const { committedAt } = await readTip();
         existing = existing.filter((run) => !(laneStop(run) && Date.parse(run.started_at ?? "") < committedAt));
       }
       handled = anyHandles(existing, { now, ...options });
       lagRefire(log, node, checkName, existing, handled);
-      // Handled only because a limit stop has not reset: the log names it.
       waiting = handled && !anyHandles(existing, { now: Infinity, ...options }) ? pendingStop(existing, { now, limits }) : null;
       if (permanentlyHandles(existing, options)) {
-        // Recording it means this warning shows once per head.
         const capped = cappedAt(existing, options);
         if (capped > 0) {
-          // The newest finished run's stop class, so a cap a credential outage
-          // or a usage limit spent names that cause.
           const newest = existing.filter((run) => run.status === "completed").sort((a, b) => Date.parse(b.completed_at ?? "") - Date.parse(a.completed_at ?? ""))[0];
           const stop = newest ? limitStop(newest, limits) : null;
           log(
@@ -324,8 +292,6 @@ export async function dispatchConflicting({
           );
         }
         markHandled(record, checkName, node.headRefOid);
-        // Handled only by a select job's stop: kept with the tip it judged,
-        // so the next base move reads the head again.
         if (permanentlyHandles(existing.filter((run) => !laneStop(run)), options)) {
           record.bases.delete(node.headRefOid);
         } else {
@@ -364,19 +330,9 @@ export async function dispatchConflicting({
   return { dispatched, failed };
 }
 
-// sync-shared-copies: a lanes App pull request into the base, not a draft,
-// carrying the human-gated label that pr-merge's shared-copy-sources-changed
-// refusal at its current head put on (gate-source.mjs sharedCopyGate, through
-// prHold), gets one pr-unblock.yml dispatch per head. Its
-// pr-unblock / sync-shared-copies check runs from the GitHub Actions app
-// handle the head as resolve-conflicts's do (limit-stop.mjs, failuresRetry):
-// a failed select job's failure retries until limit-stops-per-head failures
-// stand on it; a head handled for good is recorded, so the next run reads
-// nothing for it. A run of the activity for the PR not done yet holds it.
 export const SHARED_COPY_DEFAULTS = Object.freeze({
   activity: "sync-shared-copies",
   checkName: "pr-unblock / sync-shared-copies",
-  // Judgment: no model runs, so the cap only spreads the pushes out.
   maxDispatch: 3,
 });
 
@@ -458,7 +414,6 @@ export async function dispatchSharedCopies({
   return { dispatched, failed };
 }
 
-// The Dependabot fields feed dependency-dispatch.mjs's classification.
 const PULL_FIELDS =
   "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login ... on Bot { databaseId } } labels(first: 100) { nodes { name } } changedFiles commits { totalCount }";
 
@@ -530,7 +485,6 @@ export function createGitHubApi({
   graphqlUrl,
   fetch: rawFetch = rateLimitLatch.guard(globalThis.fetch, { floorGraceMs: DISPATCH_FLOOR_GRACE_MS }),
 }) {
-  // Each request's rate-limit reading goes to the job-end api-calls notice.
   const fetch = countRequests(rawFetch);
   const [owner, name] = repository.split("/");
   // Connection: close ends each socket after its answer, so no request goes
@@ -585,8 +539,6 @@ export function createGitHubApi({
     return result.data;
   }
 
-  // Each LIST_QUERY page is sent once per adapter, however many dispatchers
-  // page through it; a failed read is forgotten, so a later one sends it again.
   const pages = new Map();
   function listPage(base, after) {
     const key = JSON.stringify([base, after ?? null]);
@@ -615,7 +567,6 @@ export function createGitHubApi({
     async listOpenPulls({ base, after }) {
       return (await listPage(base, after)).repository.pullRequests;
     },
-    // The base branch tip and when it was committed.
     async readBaseTip(base) {
       const target = (await graphql(BASE_TIP_QUERY, { owner, name, base })).repository.ref?.target;
       const committedAt = Date.parse(target?.committedDate ?? "");
@@ -624,13 +575,10 @@ export function createGitHubApi({
       }
       return { oid: target.oid, committedAt };
     },
-    // fix-ci-dispatch.mjs's view of the listing, with the page's cost.
     async listCiFixCandidates({ base, after }) {
       const data = await listPage(base, after);
       return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests, baseCommittedAt: data.repository.ref?.target?.committedDate };
     },
-    // fix-docs-dispatch.mjs's view of one pull request, as a one-page listing
-    // (empty unless it is open), and its per-PR check-run history.
     async readDocsFixCandidate(number) {
       if (!Number.isSafeInteger(number) || number < 1) {
         throw new Error(`not a PR number: ${number}`);
@@ -658,8 +606,6 @@ export function createGitHubApi({
       );
       return Object.values(data.repository).filter((node) => node?.state === "OPEN");
     },
-    // The REST reads the Dependabot classifier takes: the files listing with
-    // patches, the commits, and one commit's files.
     listPullFiles: (number) => paginate(`pulls/${Number(number)}/files`),
     listPullCommits: (number) => paginate(`pulls/${Number(number)}/commits`),
     async getCommit(sha) {
@@ -672,8 +618,6 @@ export function createGitHubApi({
       const { status, files } = await request(`${repoUrl}/compare/${base}...${head}?per_page=1`);
       return { status, files };
     },
-    // A held PR's issue timeline, review comments and reviews (gate-source.mjs
-    // reads their REST shape).
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
     // Written or edited since `since` (GitHub's since query value) when given.
     listReviewComments: (number, since) => paginate(`pulls/${Number(number)}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
@@ -707,18 +651,12 @@ export function createGitHubApi({
       });
       return (await request(`${repoUrl}/commits/${sha}/check-runs?${query}`)).check_runs;
     },
-    // One check run's annotations: whether a cancelled job passed its time
-    // limit (infra-failure.mjs timeLimitNoted).
     async listAnnotations(checkRunId) {
       if (!Number.isSafeInteger(checkRunId) || checkRunId < 1) {
         throw new Error("not a check run id");
       }
       return request(`${repoUrl}/check-runs/${checkRunId}/annotations?per_page=100`);
     },
-    // fix-ci-dispatch.mjs's re-run check: the newest pull_request run of the
-    // workflow at path (pr-require-checks unless named) on the head that
-    // tested it and its latest jobs (infra-failure.mjs testedRun); a null run
-    // and no jobs when there is none.
     async readRequiredRun(sha, path = ".github/workflows/pr-require-checks.yml") {
       if (!SHA.test(sha)) {
         throw new Error("not a commit SHA");
@@ -732,8 +670,6 @@ export function createGitHubApi({
       const tested = await testedRun(runs, (run) => latestJobs(run.id));
       return { run: tested?.run ?? null, jobs: tested?.jobs ?? [] };
     },
-    // One run's status and latest jobs, as fix-docs-dispatch.mjs counts a
-    // head's runs; null when the run is gone.
     async readRunJobs(runId) {
       if (!RUN_ID.test(String(runId))) {
         throw new Error("not a run id");
@@ -775,23 +711,17 @@ export function createGitHubApi({
   };
 }
 
-// The base checkout's path.
 const basePath = (env) => env.BASE_PATH || ".base";
 
-// One reader of the base checkout's resolve-config, called on the base path;
-// the workflow installs its dependencies before this runs.
 async function fromBase(env, reader) {
   const resolver = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
   return resolver[reader]({ BASE_PATH: basePath(env), STANDARDS_DIR: env.STANDARDS_DIR });
 }
 
-// The base config's resolved limits. A config the resolver refuses throws, so
-// nothing is dispatched.
 export async function loadBaseLimits(env) {
   return fromBase(env, "limitsFromBase");
 }
 
-// The base tracker config's human-gated label, as pr-merge.yml reads it.
 export function baseHumanGatedLabel(env) {
   let text = null;
   try {
@@ -804,24 +734,18 @@ export function baseHumanGatedLabel(env) {
   return humanGatedLabel(text);
 }
 
-// The base config's `adoption` section as set, the same way.
 export async function loadBaseAdoption(env) {
   return fromBase(env, "adoptionFromBase");
 }
 
-// The base config's merge.refire-skip-branches, the same way: head branches a
-// workflow owns and rebuilds, which never get fix-ci.
 export async function loadBaseOwnedBranches(env) {
   return fromBase(env, "ownedBranchesFromBase");
 }
 
-// The base config's resolve-issue tidy cutoffs, the same way, or null: the
-// fix-docs dispatcher skips a lane PR within them, which tidied in its run.
 export async function loadBaseTidyCutoffs(env) {
   return fromBase(env, "tidyCutoffsFromBase");
 }
 
-// The base config's refine-dispatch.activities, the same way, or [].
 export async function loadBaseRefineActivities(env) {
   return fromBase(env, "refineDispatchActivitiesFromBase");
 }
@@ -841,8 +765,6 @@ export function wrapRunIds(base, env) {
   };
 }
 
-// A held PR's timeline, review comments (by their since time) and reviews are
-// each read at most once a run, however many dispatchers ask.
 export function shareTimeline(base) {
   const shared = (method) => {
     const seen = new Map();
@@ -863,15 +785,12 @@ export async function main(
   env,
   {
     api,
-    // The review lanes' run records (address-feedback.mjs laneReader).
     actions,
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     log = (line) => console.log(line),
     loadLimits = loadBaseLimits,
     loadAdoption = loadBaseAdoption,
     loadOwnedBranches = loadBaseOwnedBranches,
-    // The gate's reader for fix-ci's FAIL-cap skip (verify-cap.mjs), when the
-    // workflow names it in VERIFY_EVIDENCE_SCRIPT.
     verifyCapped = env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined,
     now,
   } = {},
@@ -882,8 +801,6 @@ export async function main(
     }
   }
   const budget = api ? null : budgetedFetch({ log, floorGraceMs: DISPATCH_FLOOR_GRACE_MS });
-  // Every held PR's timeline binds the review lanes' hold comments to their
-  // runs (address-feedback.mjs withLaneBinding), read with ARTIFACT_READ_TOKEN.
   const base = withLaneBinding(
     api ??
       createGitHubApi({
@@ -908,8 +825,6 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   const limits = await loadLimits(env);
   const adoption = await loadAdoption(env);
   const ownedBranches = await loadOwnedBranches(env);
-  // Every dispatcher reads this listing's pages, so one that cannot be read
-  // holds the whole run: nothing dispatched, nothing recorded.
   let listed;
   try {
     listed = await listAll(client, DEFAULTS.base);
@@ -922,8 +837,6 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   appendFileSync(env.GITHUB_OUTPUT, "listed=true\n");
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
-  // The human-gated label another lane's escalation may leave on for
-  // resolve-conflicts, fix-ci and sync-shared-copies; null when unreadable, so it holds.
   const appSenderId = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "") ? Number(env.APP_SENDER_ID) : undefined;
   let gateLabel = null;
   try {
@@ -946,12 +859,6 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     repository: env.GITHUB_REPOSITORY,
     laneAppId: appSenderId,
   });
-  // A missing lanes App id stops fix-ci alone, as a failure. The tracker's
-  // human-gated label is read only when owners are adopted; an unreadable
-  // tracker config holds the adopted owner PRs alone, as a failure.
-  // With `adoption.idle-hours` set (as pr-merge requires), every account on
-  // the base's trusted-actors list is adoptable, by id, but the bot authors
-  // fix-ci-dispatch.mjs adoptableOwnerIds leaves out.
   let fixes = { dispatched: [], failed: 1 };
   let ownerIds = [];
   let holdLabels = CI_FIX_DEFAULTS.holdLabels;
