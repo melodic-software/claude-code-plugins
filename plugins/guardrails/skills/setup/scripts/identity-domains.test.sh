@@ -29,7 +29,6 @@ darwin*) OS_KEY=macos ;;
 esac
 OS_FACT=$(uname -s)
 
-# The checkout this suite runs in, so it can show the script left it alone.
 REPO_ROOT=$(git -C "$PLUGIN_DIR" rev-parse --show-toplevel 2>/dev/null || true)
 repo_state() { [[ -z "$REPO_ROOT" ]] || git -C "$REPO_ROOT" status --porcelain --untracked-files=all 2>/dev/null; }
 REPO_BEFORE=$(repo_state)
@@ -68,7 +67,6 @@ run() {
   ERR=$(<"$TEST_TMPDIR/err")
 }
 
-# --- Two domains from the profile -------------------------------------------
 TWO="$TEST_TMPDIR/two.json"
 profile "$ALPHA" "$(gh_set /placeholder/gh-alpha)" "$BETA" "$(gh_set /placeholder/gh-beta)" >"$TWO"
 DATA="$TEST_TMPDIR/plugin-data"
@@ -99,7 +97,6 @@ run "$TWO" --data-dir "$DATA" --confirm
 assert_exit "a rerun with the same map" 0 "$RC"
 assert_contains "a rerun reports the map unchanged" "$ERR" "unchanged"
 
-# --- The guard reads the written map ------------------------------------------
 GUARD_UNDER_TEST="$PLUGIN_DIR/hooks/block-cross-domain.sh"
 guard_invoke --cwd "$ALPHA/repo" --command "ls $BETA/repo" -- "CLAUDE_PLUGIN_DATA=$DATA" GUARDRAILS_CROSS_DOMAIN_TRACE=1
 assert_exit "the guard on the written map: exit 0" 0 "$GUARD_RC"
@@ -108,7 +105,6 @@ assert_contains "the guard compiles the map" "$GUARD_ERR" "trace map-compile"
 assert_contains "a command naming beta's tree hits the prefilter" "$GUARD_ERR" "trace prefilter-hit"
 rm -f "$DATA/identity-domains.cache"
 
-# --- A different map there is kept unless --replace --------------------------
 OTHER="$TEST_TMPDIR/other.json"
 profile "$ALPHA" "$GH_UNEXAMINED" >"$OTHER"
 run "$OTHER" --data-dir "$DATA"
@@ -123,7 +119,6 @@ assert_eq "the replaced map holds the new domains" "alpha" "$(jq -r '.domains | 
 assert_eq "an unexamined gh directory is left out" "null" "$(jq -r '.domains.alpha.gh_config_dir' <"$MAP_FILE")"
 assert_contains "the notes say why gh_config_dir is left out" "$ERR" "default-unexamined"
 
-# --- Operator values ------------------------------------------------------------
 run "$TWO" --owner alpha=alpha-org --marker alpha=alpha-org --az-config-dir beta=/placeholder/az-beta \
   --shared-exception "alpha:beta=$BETA/shared"
 assert_exit "operator values: exit 0" 0 "$RC"
@@ -133,7 +128,6 @@ assert_eq "an az directory lands in its domain" "/placeholder/az-beta" "$(jq -r 
 assert_eq "a shared exception is a top-level entry naming its domains" "$BETA/shared|alpha|beta" \
   "$(jq -r '.shared_exceptions[0] | "\(.path)|\(.from | join(","))|\(.to)"' <<<"$OUT")"
 
-# --- Shared exceptions ------------------------------------------------------------
 THREE="$TEST_TMPDIR/three.json"
 GAMMA="$TEST_TMPDIR/trees/gamma"
 profile "$ALPHA" "$GH_UNEXAMINED" "$BETA" "$GH_UNEXAMINED" "$GAMMA" "$GH_UNEXAMINED" >"$THREE"
@@ -165,7 +159,6 @@ run "$TWO" --owner beta=beta-org --owner-root "$OWNER_ROOT" --shared-exception "
 assert_exit "an owner root replaces the default directories for an exception: refused" 1 "$RC"
 run "$TWO" --owner-root relative
 assert_exit "a relative owner root: refused" 1 "$RC"
-# shared_refused <label> <value> <what the refusal says>
 shared_refused() {
   run "$TWO" --shared-exception "$2"
   assert_exit "$1: refused" 1 "$RC"
@@ -197,7 +190,6 @@ assert_contains "the refusal lists the domains" "$ERR" "alpha, beta"
 run "$TWO" --owner alpha
 assert_exit "an owner with no NAME=: usage" 2 "$RC"
 
-# --- Trees the map cannot hold, and name clashes ------------------------------
 CLASH="$TEST_TMPDIR/clash.json"
 profile "$ALPHA" "$GH_UNEXAMINED" "$TEST_TMPDIR/other/alpha" "$GH_UNEXAMINED" \
   "relative/tree" "$GH_UNEXAMINED" "$TEST_TMPDIR/glob/*" "$GH_UNEXAMINED" >"$CLASH"
@@ -227,7 +219,6 @@ jq '.machine.facts = []' "$TWO" >"$TEST_TMPDIR/no-os.json"
 run "$TEST_TMPDIR/no-os.json"
 assert_exit "a profile with no os fact: refused" 1 "$RC"
 
-# --- The checkout is untouched ----------------------------------------------------
 if [[ -z "$REPO_ROOT" ]]; then
   echo "ok: checkout comparison skipped (not run from a git checkout)"
 else
