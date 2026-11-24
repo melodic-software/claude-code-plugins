@@ -478,29 +478,139 @@ t_top_level_run_split_across_two_paths_still_fires() {
   rm -f "$sink"
 }
 
-t_markdown_section_split_counts_the_half_left_without_its_heading() {
-  local repo sink culprit
+FIRST_HALF='case ([1-9]|1[0-9]|20)$'
+SECOND_HALF='case (2[1-9]|3[0-9]|40)$'
+
+guard_lines() {
+  local prefix="$1" i
+  for i in $(seq 1 40); do
+    printf '%sthe alpha guard rejects a relocation outside the session root, case %s\n' "$prefix" "$i"
+  done
+}
+
+expect_finding() {
+  local repo="$1" culprit="$2" count="$3" what="$4" sink
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit $count" ]]; then
+    ok "$what"
+  else
+    fail "$what: want one $count-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+commit_all() {
+  git_test_config "$1" add -A >/dev/null
+  git_test_config "$1" commit -qm "$2"
+}
+
+split_md_section() {
+  local repo heading_in_b="$1" culprit
   mk_repo repo
   add_md_section "$repo"
   culprit="$(git -C "$repo" rev-parse HEAD)"
   {
     printf '%s\n\n' "$MD_HEADING"
-    grep -E 'case ([1-9]|1[0-9]|20)$' "$repo/doc.md"
+    grep -E "$FIRST_HALF" "$repo/doc.md"
   } >"$repo/alpha-a.md"
-  grep -E 'case (2[1-9]|3[0-9]|40)$' "$repo/doc.md" >"$repo/alpha-b.md"
+  {
+    [[ "$heading_in_b" = yes ]] && printf '%s\n\n' "$MD_HEADING"
+    grep -E "$SECOND_HALF" "$repo/doc.md"
+  } >"$repo/alpha-b.md"
   sed "/^$MD_HEADING\$/,\$d" "$repo/doc.md" >"$repo/doc.md.tmp"
   mv "$repo/doc.md.tmp" "$repo/doc.md"
-  git_test_config "$repo" add -A >/dev/null
-  git_test_config "$repo" commit -qm "docs: split the alpha guard section (#99)"
-  sink="$(mktemp "$TMP/x.XXXX")"
-  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
-  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
-    [[ "$(cat "$sink")" == "$culprit 21" ]]; then
-    ok "a Markdown section split across two new files fires on the 20 lines that left without their heading, plus the blank line under it"
-  else
-    fail "want one 21-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
-  fi
-  rm -f "$sink"
+  commit_all "$repo" "docs: split the alpha guard section (#99)"
+  expect_finding "$repo" "$culprit" 42 "$2"
+}
+
+t_markdown_section_split_across_two_paths_still_fires() {
+  split_md_section no "a Markdown section split across two new files fires on the whole 42-line section"
+}
+
+t_markdown_section_split_with_a_copied_heading_still_fires() {
+  split_md_section yes "a Markdown section split across two new files, each with a copy of its heading, fires on the whole 42-line section"
+}
+
+t_indented_chain_split_with_a_copied_chain_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf '\nparent:\n  child:\n'
+    guard_lines '    '
+  } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  { printf 'parent:\n  child:\n'; grep -E "$FIRST_HALF" "$repo/feature.txt"; } >"$repo/a.txt"
+  { printf 'parent:\n  child:\n'; grep -E "$SECOND_HALF" "$repo/feature.txt"; } >"$repo/b.txt"
+  grep -vE '^(parent:|  child:|    the alpha guard)' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: split the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 42 \
+    "an indented block split across two new files, each with a copy of its header chain, fires on all 42 lines"
+}
+
+t_markdown_body_under_an_unrecognized_heading_still_fires() {
+  local repo culprit heading
+  for heading in $'Actual heading\n==============' '  ## retained heading'; do
+    mk_repo repo
+    { printf '%s\n\n' "$heading"; guard_lines ''; printf '\n# tail\n'; } >"$repo/doc.md"
+    commit_all "$repo" "docs: add the alpha guard"
+    culprit="$(git -C "$repo" rev-parse HEAD)"
+    grep 'the alpha guard rejects' "$repo/doc.md" >"$repo/a.txt"
+    grep -v 'the alpha guard rejects' "$repo/doc.md" >"$repo/doc.md.tmp" || true
+    mv "$repo/doc.md.tmp" "$repo/doc.md"
+    commit_all "$repo" "docs: tidy the alpha guard (#99)"
+    expect_finding "$repo" "$culprit" 40 \
+      "a Markdown body moved out from under a retained '${heading%%$'\n'*}' heading still fires on all 40 lines"
+  done
+}
+
+t_top_level_run_reordered_in_its_destination_still_fires() {
+  local repo culprit
+  mk_repo repo
+  { printf '\n'; guard_lines ''; printf '\ntail\n'; } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  {
+    grep -E "$SECOND_HALF" "$repo/feature.txt"
+    printf '\n'
+    grep -E "$FIRST_HALF" "$repo/feature.txt"
+  } >"$repo/a.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 40 "a top-level run re-added out of order in one new file still fires on all 40 lines"
+}
+
+t_fenced_body_pasted_without_its_fences_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf 'old\n## h\n```text\n'
+    guard_lines ''
+    printf '```\n# tail\n'
+  } >"$repo/doc.md"
+  commit_all "$repo" "docs: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  { printf '## h\n'; grep 'the alpha guard rejects' "$repo/doc.md"; } >"$repo/a.txt"
+  printf 'old\n# tail\n' >"$repo/doc.md"
+  commit_all "$repo" "docs: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 43 "a fenced Markdown body pasted with its heading but without its fences still fires on all 43 lines"
+}
+
+t_duplicate_lines_need_their_own_copies_to_move() {
+  local repo culprit
+  mk_repo repo
+  { printf '\nparent:\nparent:\n'; guard_lines ''; printf '\ntail\n'; } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  { printf 'parent:\n'; grep 'the alpha guard rejects' "$repo/feature.txt"; } >"$repo/a.txt"
+  grep -vE '^(parent:|the alpha guard)' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 42 "a run with two identical lines re-added with one copy of them still fires on all 42 lines"
 }
 
 t_partial_move_counts_only_the_lines_not_re_added() {
@@ -576,7 +686,7 @@ t_moved_short_lines_still_count() {
 add_function() {
   local repo="$1" i
   {
-    printf 'alpha_guard() {\n'
+    printf '\nalpha_guard() {\n'
     for i in $(seq 1 40); do
       printf '  the alpha guard rejects a relocation outside the session root, case %s\n' "$i"
     done
@@ -2853,7 +2963,13 @@ t_markdown_body_pasted_without_its_heading_still_fires
 t_markdown_section_moved_with_its_heading_is_not_a_removal
 t_markdown_body_pasted_under_a_copied_heading_still_fires
 t_top_level_run_split_across_two_paths_still_fires
-t_markdown_section_split_counts_the_half_left_without_its_heading
+t_markdown_section_split_across_two_paths_still_fires
+t_markdown_section_split_with_a_copied_heading_still_fires
+t_indented_chain_split_with_a_copied_chain_still_fires
+t_markdown_body_under_an_unrecognized_heading_still_fires
+t_top_level_run_reordered_in_its_destination_still_fires
+t_fenced_body_pasted_without_its_fences_still_fires
+t_duplicate_lines_need_their_own_copies_to_move
 t_partial_move_counts_only_the_lines_not_re_added
 t_one_copy_discounts_one_deletion
 t_moved_short_lines_still_count
