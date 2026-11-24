@@ -48,7 +48,6 @@ expect "a partly staged file is refused with the contract line" "1||a.ps1: partl
 expect "a refused file is left byte for byte" "$(printf 'get-childitem .\nget-date')" "$(cat "$REPO/a.ps1")"
 expect "a refused file's index entry is left byte for byte" "get-childitem ." "$(git -C "$REPO" show :a.ps1)"
 
-# The settings file is read from the work tree; the commit holds the index's.
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
 new_repo
 printf 'get-childitem .\n' >"$REPO/a.ps1"
@@ -189,7 +188,6 @@ out="$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
 expect "a formatter error fails the entry and shows the error" "1|powershell-format: Invoke-Formatter failed under PSScriptAnalyzerSettings.psd1:
 a.ps1: boom" "$?|$out"
 
-# CustomRulePath: skipped until the exact content state is approved.
 new_repo NONE
 mkdir -p "$REPO/rules"
 cat >"$REPO/rules/CleanRules.psm1" <<'EOF'

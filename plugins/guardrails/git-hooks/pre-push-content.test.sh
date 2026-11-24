@@ -88,6 +88,14 @@ expect "a token one commit adds and a later commit removes still blocks" \
 $HINT" "$(new_push)"
 
 new_repo
+commit_text run.sh $'if x; then\nsee '"$FAKE_LINUX"$' here\ntoken='"$FAKE_GHP"$'\nfi\n' "old"
+git -C "$REPO" update-ref refs/remotes/origin/main HEAD
+commit_text run.sh $'if x; then\n  see '"$FAKE_LINUX"$' here\n  token='"$FAKE_GHP"$'\nfi\n' "reindent"
+expect "a reindent passes the path it moves and blocks the token it moves" \
+  "1|run.sh:3: secret or credential pattern: GitHub PAT (commit $(short HEAD))
+$HINT" "$(new_push)"
+
+new_repo
 commit_text tests/fixtures/token.txt "token=$FAKE_GHP"$'\n' "fixture"
 expect "a token under tests/fixtures/ passes, as secret-pattern-detection exempts it" "0|" "$(new_push)"
 

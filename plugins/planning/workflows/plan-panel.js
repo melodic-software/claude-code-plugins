@@ -48,10 +48,6 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
   ? Math.min(16, Math.max(1, input.maxConcurrent))
   : 4
 
-// Role variants as /multi-agent:route emits them. `single` serves a stage that
-// runs one agent; `fanout` a stage that runs several. The fallback names opus
-// for every fan-out because the session model is unknown here, and a frontier
-// session must never fan out on its own model.
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
@@ -72,7 +68,6 @@ for (const role of Object.keys(FALLBACK_ROLES)) {
 }
 if (!input.roles) log('no roles in args: built-in fallbacks apply (fan-out stages on opus)')
 
-// `inherit` omits opts.model. Effort is always explicit.
 function opts(variant) {
   return variant.model === 'inherit' ? { effort: variant.effort } : { model: variant.model, effort: variant.effort }
 }
@@ -92,7 +87,6 @@ async function agentRetry(prompt, o) {
   }
 }
 
-// Run thunks at most `cap` at a time, in order; a failed thunk yields null.
 async function inWaves(thunks, cap) {
   const out = []
   for (let i = 0; i < thunks.length; i += cap) {
@@ -122,7 +116,6 @@ const drafted = await inWaves(angles.map(a => () => agentRetry(
   { schema: DRAFT_SCHEMA, label: 'draft:' + a.name, phase: 'Draft', ...opts(R.worker.fanout) }
 )), MAX_CONCURRENT)
 
-// Drafts are lettered so judges score the plan, not the angle's name.
 const drafts = angles
   .map((a, i) => ({ angle: a.name, out: drafted[i] }))
   .filter(d => d.out && typeof d.out.plan === 'string' && d.out.plan.trim() !== '')
@@ -142,8 +135,6 @@ const DEFAULT_RUBRIC = [
   { name: 'test_strategy', text: '5 = names the boundaries the tests drive and gives every phase a mechanically verifiable check' },
   { name: 'reversibility', text: '5 = each phase can be undone or abandoned cheaply' },
 ]
-// A caller rubric is 2 to 6 { name, text } criteria with snake_case names; anything else keeps the default.
-// The reserved names are fields of a score row, which a criterion of the same name would overwrite.
 const CRITERION = /^[a-z][a-z0-9_]{0,39}$/
 const RESERVED = ['draft', 'rationale', 'angle', 'judges', 'total']
 const passedRubric = Array.isArray(input.rubric) ? input.rubric : null
@@ -193,8 +184,6 @@ if (drafts.length > 1) {
     { schema: SCORE_SCHEMA, label: 'judge:' + (j + 1), phase: 'Judge', ...opts(R.verifier.fanout) }
   )), MAX_CONCURRENT)
 
-  // A judge counts only when it scored every draft exactly once; a partial
-  // score sheet would rank an unscored draft as zero.
   const scoresFor = (r, id) => r.scores.filter(x => x && String(x.draft).trim().toUpperCase() === id)
   const complete = r => r && Array.isArray(r.scores) && drafts.every(d => scoresFor(r, d.id).length === 1)
   judgeNulls = judged.map((r, j) => (complete(r) ? null : 'judge:' + (j + 1))).filter(Boolean)
@@ -213,7 +202,6 @@ if (drafts.length > 1) {
     }
   }
 
-  // Each judge's own pick, so a split panel is visible and not hidden by the mean.
   judgeWinners = returned.map(r => {
     const tot = d => { const [row] = scoresFor(r, d.id); return RUBRIC.reduce((t, k) => t + (Number(row[k]) || 0), 0) }
     return drafts.reduce((b, d) => (tot(d) > tot(b) ? d : b), drafts[0]).id
@@ -228,7 +216,6 @@ if (drafts.length > 1) {
     for (const k of RUBRIC) s[k] = s.judges ? Math.round((s[k] / s.judges) * 100) / 100 : 0
     s.total = Math.round(RUBRIC.reduce((t, k) => t + s[k], 0) * 100) / 100
   }
-  // Highest mean total wins; a tie keeps angle order.
   const best = scores.reduce((b, s) => (s.total > b.total ? s : b), scores[0])
   winner = drafts.find(d => d.id === best.draft)
 } else {

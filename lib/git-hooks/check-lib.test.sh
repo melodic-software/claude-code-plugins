@@ -82,6 +82,36 @@ expect "pre-commit ranges: a diff.interHunkContext setting fuses no hunks" \
   $'f.txt\t2\t2\nf.txt\t5\t5\ng.txt\t1\t1' \
   "$(in_repo "$H" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
 
+new_repo; W="$REPO"
+printf 'if x; then\n# keep\nrun  a\nfi\nlast\n' >"$W/f.sh"
+printf '# from g\n' >"$W/g.sh"
+git -C "$W" add f.sh g.sh
+git -C "$W" commit -q -m seed
+printf 'if x; then\n    # keep\n    run a\nfi\n' >"$W/f.sh"
+git -C "$W" add f.sh
+expect "pre-commit ranges: without --skip-reindent a reindented line is added" $'f.sh\t2\t3' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+expect "pre-commit ranges: --skip-reindent drops a reindent, not a change inside the line" $'f.sh\t3\t3' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines --skip-reindent; cat "$CHECKS_TMP/ranges"')"
+expect "pre-commit ranges: --skip-reindent writes to the file it names" $'f.sh\t3\t3|f.sh\t2\t3' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines --skip-reindent "$CHECKS_TMP/r2"; checks_changed_lines; printf "%s|%s" "$(cat "$CHECKS_TMP/r2")" "$(cat "$CHECKS_TMP/ranges")"')"
+printf 'x=1\n' >"$W/f.sh"
+git -C "$W" add f.sh
+git -C "$W" commit -q -m inner
+printf 'x = 1\n' >"$W/f.sh"
+git -C "$W" add f.sh
+expect "pre-commit ranges: --skip-reindent still adds a line whose inner whitespace changed" $'f.sh\t1\t1' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines --skip-reindent; cat "$CHECKS_TMP/ranges"')"
+printf 'if x; then\n# keep\nrun  a\nfi\nlast\n' >"$W/f.sh"
+git -C "$W" add f.sh
+git -C "$W" commit -q -m reseed
+printf 'last\nif x; then\n    # keep\n    # keep\n    # new\n    run b\nfi\n# from g\n' >"$W/f.sh"
+: >"$W/g.sh"
+git -C "$W" add f.sh g.sh
+expect "pre-commit ranges: a copy, a new or reworded line and a line from another file are added" \
+  $'f.sh\t4\t6\nf.sh\t8\t8' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines --skip-reindent; cat "$CHECKS_TMP/ranges"')"
+
 printf 'one\nTWO\nthree\nfour\nfive\n' >"$R/a.txt"
 expect "partly-staged: a file with unstaged changes is detected" yes \
   "$(in_repo "$R" pre-commit 'checks_partly_staged a.txt && echo yes || echo no')"

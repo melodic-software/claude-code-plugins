@@ -20,5 +20,6 @@ while read -r head; do
   other_parents+=("$head")
 done < <(checks_merge_heads)
 checks_changed_lines
+checks_changed_lines --skip-reindent "$CHECKS_TMP/path-ranges"
 content_scan "$CHECKS_TMP/blocking"
 content_report "$CHECKS_TMP/blocking" 'the change (use a placeholder, an environment variable or a portable path)'

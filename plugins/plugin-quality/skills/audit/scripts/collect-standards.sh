@@ -127,9 +127,6 @@ emit_probe() {
   fi
 }
 
-# topic_rel <topic> - the topic's contract, relative to the root: the
-# marketplace contract folder docs/contracts/<topic>/README.md when present,
-# else <home>/<topic>/README.md (a convention home that still holds the topic).
 topic_rel() {
   if [[ -f "$ROOT/docs/contracts/$1/README.md" ]]; then
     printf 'docs/contracts/%s/README.md' "$1"
@@ -164,9 +161,6 @@ if topic_ready invocation-mode "The key is written"; then
   fi
 fi
 
-# --- seam-phrasing ---------------------------------------------------------
-# Only an optional cross-plugin reference needs the gate; a sibling skill in
-# the owning plugin or a declared dependency does not.
 exempt_plugins() {
   local dir
   dir="$(cd "$(dirname "$COMPONENT")" && pwd)"
@@ -234,9 +228,6 @@ if topic_ready seam-phrasing "$seam_needle"; then
   fi
 fi
 
-# --- untrusted-content -----------------------------------------------------
-# The convention grades file for file on `never instructions to you`. An ingest
-# signal in the frontmatter (a `tools:` list) declares a capability, not a read.
 if topic_ready untrusted-content "DATA, never instructions"; then
   ingest_line="$(awk '
     NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
