@@ -17,6 +17,7 @@ import { STOP_REASONS } from "../../scripts/lib/stop-reason.mjs";
 import { LIMITS, UNPLAIN_PATTERN, VERDICT_KEYS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { loads } from "./stage-closure.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -169,48 +170,38 @@ function stage(overrides) {
   return { status: result.status, stdout: result.stdout, args, allowed, denied, prompt, plugins, jobEnv, env };
 }
 
-const UNSTAGED_DECLARE_TEST_SCOPE_IMPORTS = {
-  ".github/scripts/pr-unblock/declare-test-scope.mjs": ["../actions/log-api-budget/rate-guard.mjs", "maintenance-reconcile-lost-runs/infra-failure.mjs"],
-};
-test("each activity runner script's static relative imports resolve in the staged base-script layout, apply-patch.mjs with the write runner's apply-base copies", () => {
+test("every module and file a runner's script activity loads resolves in the staged base-script layout", () => {
   const { parse } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("yaml");
   const config = parse(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"));
   const runnerLanes = Object.entries(config.lanes).filter(([lane]) => {
     const workflow = path.join(REPO_ROOT, ".github/workflows", `${lane}.yml`);
     return existsSync(workflow) && /uses: \.\/\.github\/workflows\/pr-run-activity-(read|write)\.yml/.test(readFileSync(workflow, "utf8"));
   });
-  const scripts = [
-    ...new Set(
-      runnerLanes
-        .flatMap(([, lane]) => lane.slots.map((slot) => config.activities[slot.activity].script))
-        .filter((script) => script?.endsWith(".mjs")),
-    ),
-  ];
-  assert.ok(scripts.includes(".github/scripts/pr-unblock/apply-dependency-verdict.mjs"), scripts.join(" | "));
+  const scripts = [...new Set(runnerLanes.flatMap(([, lane]) => lane.slots.map((slot) => config.activities[slot.activity].script)).filter(Boolean))];
+  assert.ok(scripts.includes(".github/scripts/pr-unblock/report-escalation.sh"), scripts.join(" | "));
   const copy = skillScript(/^\s+- name: Copy the script's base directory$/);
-  const write = readFileSync(path.join(REPO_ROOT, ".github/workflows/pr-run-activity-write.yml"), "utf8");
-  const applyBase = [...write.matchAll(/^\s+cp \.base\/\.github\/scripts\/(([^/\s]+)\/[^/\s]+) "\$RUNNER_TEMP\/\2\/"$/gm)].map((m) => m[1]);
-  assert.ok(applyBase.length > 0, "the write runner's apply-base step copies sibling modules");
+  const runs = ["read", "write"].map((kind) => {
+    const workflow = readFileSync(path.join(REPO_ROOT, `.github/workflows/pr-run-activity-${kind}.yml`), "utf8");
+    return /^\s+("\$RUNNER_TEMP\/base-script\/[^\n]*")$/m.exec(workflow)?.[1];
+  });
+  assert.ok(runs[0] && runs[0] === runs[1], `both runners run the script by one path: ${runs.join(" | ")}`);
   const missing = {};
   for (const script of scripts) {
     const runTemp = mkdtempSync(path.join(root, "script-"));
-    const env = { PATH: process.env.PATH, SCRIPT: script, SCRIPT_DIR: path.join(runTemp, "base-script"), BASE_PATH: REPO_ROOT, RUNNER_TEMP: runTemp };
+    const env = { PATH: process.env.PATH, SCRIPT: script, SCRIPT_DIR: path.join(runTemp, "base-script"), BASE_PATH: REPO_ROOT, RUNNER_TEMP: runTemp, GITHUB_ACTION_PATH: import.meta.dirname };
     const result = spawnSync("bash", ["-e", "-c", copy], { env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    if (path.basename(script) === "apply-patch.mjs") {
-      for (const file of applyBase) cpSync(path.join(REPO_ROOT, ".github/scripts", file), path.join(runTemp, file));
-    }
+    const entry = spawnSync("bash", ["-c", `printf %s ${runs[0]}`], { env, encoding: "utf8" }).stdout;
     const seen = new Set();
     const walk = (file) => {
       if (seen.has(file)) return;
       seen.add(file);
       if (!existsSync(file)) return (missing[script] ??= []).push(path.relative(runTemp, file));
-      if (!file.endsWith(".mjs")) return;
-      for (const [, spec] of readFileSync(file, "utf8").matchAll(/^(?:import|export)\b[^;]*?\bfrom ["'](\.\.?\/[^"']+)["']/gm)) walk(path.resolve(path.dirname(file), spec));
+      if (statSync(file).isFile()) for (const next of loads(file)) walk(next);
     };
-    walk(path.join(runTemp, "base-script", path.basename(script)));
+    walk(entry);
   }
-  assert.deepEqual(missing, UNSTAGED_DECLARE_TEST_SCOPE_IMPORTS);
+  assert.deepEqual(missing, {});
 });
 
 // #8595: the lanes run the latest CLI, so the comment above shell_denied

@@ -2,14 +2,15 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { isEscalationReply } from "./address-feedback.mjs";
 import { gateLines, sectionRefusal } from "./address-feedback.mjs";
 import { followUpBullet, main, publish, refreshedBody, renderReply, takeBodyRecord, undisposedLines, withFollowUp } from "./publish-feedback.mjs";
+import { stage } from "../../actions/collect-base-activity/stage-closure.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
@@ -1628,17 +1629,11 @@ test("lineChanged reads a patch's new-side hunks", async () => {
   assert.equal(lineChanged(undefined, 1), false);
 });
 
-// collect-base-activity runs a script activity from a copy of its own
-// directory under $RUNNER_TEMP, beside a copy of the shared ../lib modules and
-// merge-holds.mjs in ../pr-merge, so every import must resolve inside those.
-test("the script loads from a copy of its own directory, the shared lib and the staged merge-holds alone", async () => {
+test("the script loads from its staged closure", async () => {
   const root = tempDir("base-activity-");
   try {
-    cpSync(dirname(fileURLToPath(import.meta.url)), join(root, "base-script"), { recursive: true });
-    cpSync(fileURLToPath(new URL("../lib", import.meta.url)), join(root, "lib"), { recursive: true });
-    mkdirSync(join(root, "pr-merge"));
-    cpSync(fileURLToPath(new URL("../pr-merge/merge-holds.mjs", import.meta.url)), join(root, "pr-merge", "merge-holds.mjs"));
-    const module = await import(pathToFileURL(join(root, "base-script", "publish-feedback.mjs")).href);
+    stage(fileURLToPath(new URL("../../..", import.meta.url)), ".github/scripts/pr-unblock/publish-feedback.mjs", root);
+    const module = await import(pathToFileURL(join(root, ".github/scripts/pr-unblock/publish-feedback.mjs")).href);
     assert.equal(typeof module.main, "function");
   } finally {
     rmSync(root, { recursive: true, force: true });

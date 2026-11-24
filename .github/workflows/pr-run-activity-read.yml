@@ -1899,7 +1899,7 @@ jobs:
           export ACTIVITY_ARGS
           unset GH_TOKEN GITHUB_TOKEN RESOLVED
           rm -f "$SKIP_REASON_FILE"
-          "$RUNNER_TEMP/base-script/$(basename "$SCRIPT")"
+          "$RUNNER_TEMP/base-script/$SCRIPT"
           reason=""
           if [ -s "$SKIP_REASON_FILE" ]; then
             reason=$(head -n 1 "$SKIP_REASON_FILE" | tr -d '\r')
