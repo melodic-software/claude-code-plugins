@@ -11,7 +11,11 @@ comment-dissolving edit has to make and a test suite can only sample:
                  module or of functions defined outside any class (top level
                  or nested in a function), every kept one unchanged and in
                  place. A class or method docstring removal is CODE-CHANGED.
-                 Also CODE-CHANGED when the file holds `__doc__` or
+                 Also CODE-CHANGED when the removed docstring is the
+                 module's and the file holds a bare `__doc__` name, or is
+                 f's and it holds `f.__doc__`; when it holds `name.__doc__`
+                 for a name owning no removed docstring, `__doc__` in any
+                 other token (`x.f.__doc__`, `f().__doc__`, a string),
                  `__dict__` in any token, or one of the identifiers `vars`,
                  `help`, `getdoc`, `getmembers`, `__init_subclass__`, `pydoc`
                  or `doctest` other than as a keyword argument or parameter
@@ -399,14 +403,28 @@ def without_docstrings(stream, docs: list[Docstring]):
     return kept, anchors
 
 
-def docstring_reader(stream) -> str | None:
-    """The first token through which the file can read docstrings at run time.
+def docstring_reader(stream) -> tuple[str | None, set[str | None]]:
+    """The first token through which the file can read any docstring at run
+    time, and the owners whose docstrings it reads by name.
 
-    A DOC_READERS name directly after `(` or `,` and before `=` is a keyword
-    argument or parameter name, such as argparse's `help=`, not a reader."""
+    A bare `__doc__` reads the module docstring, owner None (in a class body
+    the class's, whose removal is refused anyway); `name.__doc__` reads
+    `name`'s. `__doc__` on any other expression, in a string or a longer
+    name, and `__dict__` can reach any docstring. A DOC_READERS name directly
+    after `(` or `,` and before `=` is a keyword argument or parameter name,
+    such as argparse's `help=`, not a reader."""
+    owners: set[str | None] = set()
     for i, (kind, text) in enumerate(stream):
+        if (kind, text) == ("identifier", "__doc__"):
+            if i == 0 or stream[i - 1][1] != ".":
+                owners.add(None)
+                continue
+            if stream[i - 2][0] == "identifier" and (i < 3 or stream[i - 3][1] != "."):
+                owners.add(stream[i - 2][1])
+                continue
+            return f"{stream[i - 2][1]}.__doc__", owners
         if "__doc__" in text or "__dict__" in text:
-            return text
+            return text, owners
         if kind != "identifier" or text not in DOC_READERS:
             continue
         keyword = (
@@ -415,8 +433,8 @@ def docstring_reader(stream) -> str | None:
             and stream[i + 1] == ("=", "=")
         )
         if not keyword:
-            return text
-    return None
+            return text, owners
+    return None, owners
 
 
 def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
@@ -428,12 +446,23 @@ def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
     removed = [doc for key, doc in a_anchors.items() if key not in b_anchors]
     if not removed:
         return None
-    reader = docstring_reader(a) or docstring_reader(b)
+    (a_reader, a_read), (b_reader, b_read) = docstring_reader(a), docstring_reader(b)
+    read = a_read | b_read
+    unresolved = sorted(
+        f"{name}.__doc__" for name in read - {doc.owner for doc in removed} if name
+    )
+    reader = a_reader or b_reader or next(iter(unresolved), None)
     if reader is not None:
         return code_changed(
             reason="the file can read docstrings at run time", at=reader
         )
     for doc in removed:
+        if doc.owner in read:
+            return code_changed(
+                reason="the file reads this docstring through __doc__",
+                at=doc.owner or "__doc__",
+                line=doc.line,
+            )
         if doc.refusal:
             return code_changed(reason=doc.refusal, line=doc.line)
         if doc.owner and referenced_as_value(a, doc.owner):

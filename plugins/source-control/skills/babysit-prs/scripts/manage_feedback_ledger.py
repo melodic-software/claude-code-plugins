@@ -52,10 +52,6 @@ def dispose(
         )
     dispositions = dict(ledger_entry.get("feedback_dispositions") or {})
     existing = dispositions.get(args.feedback_id)
-    # Only a disposition at this exact head blocks a duplicate, matching
-    # `dispositions_at_current_head`: a bot may reuse an id for new content at
-    # a new head, and refusing that dispose would leave the id undisposable,
-    # re-arming `quiet_recheck_due` forever.
     if is_json_object(existing) and existing.get("head_sha") == head_sha:
         raise RuntimeError(
             "feedback id already has a recorded disposition at this head"
@@ -95,9 +91,6 @@ def record_advisory_round(
     finding_classes = {
         name: args.finding_class.count(name) for name in delta.ADVISORY_ROUND_CLASSES
     }
-    # The ledger serializes with sorted keys and timestamps can tie, so an
-    # explicit monotonic sequence is the only chronology that survives a
-    # reload (`ordered_advisory_rounds` sorts by it).
     sequence = 1 + max(
         (delta.advisory_round_sequence(record) for record in rounds.values()),
         default=0,
@@ -115,8 +108,6 @@ def record_advisory_round(
         "cap_reached_after": len(rounds) + 1 >= args.fix_round_cap,
         "finding_classes": finding_classes,
         "composition": delta.advisory_round_composition(record),
-        # Reported on the dry run too, so a caller can see what recording this
-        # round would arm before it writes.
         "non_convergence_tripwire": delta.advisory_non_convergence_tripwire(
             {**rounds, head_sha: record}
         ),
@@ -139,8 +130,6 @@ def record_rerun(
     pr_state: dict[str, Any],
     head_sha: str,
 ) -> dict[str, Any]:
-    # The id is recomputed from each stored triple rather than read from a
-    # stored `rerun_id`, so a snapshot written before ids existed still resolves.
     matches = [
         identity
         for identity in pr_state.get("checks_failing_identities") or []
@@ -159,8 +148,6 @@ def record_rerun(
         for field in ("type", "name", "workflow_name")
     }
     count_before = rerun_count(mutation_ledger, key, head_sha, check)
-    # A dry run records into a scratch copy, so it refuses at the cap exactly as
-    # the write would.
     target = mutation_ledger if args.apply else json.loads(json.dumps(mutation_ledger))
     count_after = record_check_rerun(
         target, key, head_sha, check, recorded_at=datetime.now(UTC).isoformat()

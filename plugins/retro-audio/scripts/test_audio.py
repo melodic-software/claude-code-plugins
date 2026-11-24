@@ -32,7 +32,6 @@ class AudioTest(unittest.TestCase):
             "wave": "square", "freq": 440, "duty": 0.5,
             "attack": 0, "sustain": 0.1, "decay": 0, "volume": 1,
         }, rate=44100)
-        # 440 Hz at 44100 is about 100 samples per cycle. Count rising edges.
         edges = 0
         for previous, current in zip(samples, samples[1:]):
             if previous < 0 <= current:

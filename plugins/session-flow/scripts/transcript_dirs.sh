@@ -103,8 +103,6 @@ PY=""
 python_probe::floor_interpreter_to PY
 SKIPPED=0
 
-# confirm <root> <dir>: the newest transcript in <dir> records a cwd at or under
-# <root>, which arrives already normalized.
 confirm() {
   local root="$1" dir="$2" newest="" f cwd
   if [[ -z "$PY" ]]; then

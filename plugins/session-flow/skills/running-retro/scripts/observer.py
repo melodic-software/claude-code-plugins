@@ -51,7 +51,6 @@ from transcript_reader import decode_line  # noqa: E402  (plugin-level scripts/t
 
 
 def user_config_default(key: str) -> str:
-    """The plugin.json userConfig default for `key`, the single source of defaults."""
     manifest = json.loads(
         (_PLUGIN_DIR / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
@@ -92,15 +91,6 @@ def _short_id(value: object) -> object:
 
 
 def _bounded(text: str, limit: int) -> tuple[str, bool]:
-    """Cut `text` to `limit`, reporting whether it was cut.
-
-    The flag is out-of-band on purpose. An in-band trailing marker cannot be
-    told apart from a value that genuinely ends in those characters (a tool
-    result reading `Processing complete...` is not truncated), and the analysis
-    prompt keys its unknown-vs-absent dependency rule off this signal -- so an
-    ambiguous one either suppresses a computable finding or licenses an
-    asserted-and-wrong one, depending on which way it is misread.
-    """
     return (text, False) if len(text) <= limit else (text[:limit], True)
 
 
@@ -164,7 +154,6 @@ def _compact_json(value: object) -> str:
 
 
 def _call_entry(short_id: object, key: str, value: object) -> dict:
-    """One `calls`/`results` entry: correlation id, bounded preview, cut flag."""
     text, cut = _preview(value)
     entry = {"id": short_id, key: text}
     if cut:
@@ -173,12 +162,6 @@ def _call_entry(short_id: object, key: str, value: object) -> dict:
 
 
 def _result_entry(block: dict) -> dict:
-    """One `results` entry: the call entry plus `err` when the call FAILED.
-
-    A failed call's own output is often empty or generic, so the failure is
-    invisible in the preview alone -- and a later call that retries it is
-    control-dependent on having seen the error, not an unbatched sibling.
-    """
     entry = _call_entry(
         _short_id(block.get("tool_use_id")), "out", block.get("content")
     )
@@ -188,7 +171,6 @@ def _result_entry(block: dict) -> dict:
 
 
 def _set_narration(out: dict, key: str, text: str) -> None:
-    """Write a bounded `say`/`human` narration and its `<key>_cut` flag."""
     bounded, cut = _bounded(text, _NARRATION_LIMIT)
     out[key] = bounded
     if cut:
@@ -926,7 +908,6 @@ def _find_claude() -> str | None:
 
 
 def _json_object(stdout: str) -> dict:
-    """The -p run's JSON body as a dict; empty when it is not a JSON object."""
     try:
         data = json.loads(stdout)
     except json.JSONDecodeError:
@@ -1013,7 +994,6 @@ def _redact(text: str) -> str:
 
 
 def _result_error(stdout: str) -> str:
-    """Return the -p run's own error text when its JSON body signals failure."""
     data = _json_object(stdout)
     if data.get("is_error"):
         return str(data.get("result") or data.get("terminal_reason") or "api_error")

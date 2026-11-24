@@ -147,8 +147,6 @@ OVER_BUDGET_RE = re.compile(r"^\.(\d{8}T\d{6}Z-handoff-[^/\\]+\.md)\.over-budget
 
 
 def _sidecars(path: Path) -> list[Path]:
-    """The files `save_point.py` writes beside a handoff: its slots file and
-    the over-budget marker `fill` leaves."""
     return [
         p
         for p in (
@@ -159,7 +157,6 @@ def _sidecars(path: Path) -> list[Path]:
     ]
 
 
-# Concern dirs other skills write and read back; their entries are never removed.
 CONCERN_DIRS = (
     "reviews",
     "exports",
@@ -192,9 +189,7 @@ class Item:
     links: list[str] = field(default_factory=list)
     extras: list[Path] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
-    # link -> state, recorded when the link is looked up
     states: dict[str, str] = field(default_factory=dict)
-    # a handoff's chain root filename, or an archive's (its directory stem + .md)
     chain: str = ""
     closed: bool = False
     chain_names: frozenset[str] = frozenset()
@@ -222,7 +217,6 @@ def _plain_file(path: Path) -> bool:
 
 
 def _tree_stats(path: Path) -> tuple[float, int]:
-    """Newest mtime and total bytes under path; symlinks are counted, never followed."""
     st = path.lstat()
     newest, size = st.st_mtime, st.st_size
     if path.is_dir() and not path.is_symlink():
@@ -238,7 +232,6 @@ def _tree_stats(path: Path) -> tuple[float, int]:
 
 
 def _refs_of(path: Path) -> list[str]:
-    """Issue and PR references in the text: `owner/repo#N`, or `#N` when bare."""
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -254,10 +247,6 @@ def _refs_of(path: Path) -> list[str]:
 
 
 def _name_refs(name: str) -> list[str]:
-    """`#N` when the name holds exactly one all-digit token of 3 to 7 digits
-    (optionally prefixed pr, issue or gh), and a year-like one has the prefix; any
-    other name is not attributed, and neither is a timestamped one (the writers'
-    handoff, retro and export names)."""
     if TIMESTAMP_RE.match(name):
         return []
     tokens = [
@@ -275,7 +264,6 @@ def _name_refs(name: str) -> list[str]:
 
 
 def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
-    """(kind, file whose text names the issues and PRs it is about)."""
     if path.is_symlink():
         return "unknown", None
     if parent_kind == "concern":
@@ -296,10 +284,6 @@ def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
 
 
 def _chain_facts(path: Path) -> tuple[str, bool, frozenset[str], int | None]:
-    """A handoff's chain root (shape 3 and 4's `chain_root`, shape 2's first
-    `chain:` entry, else none: shape 1 belongs to no chain), whether its Resume
-    prompt `Next:` line closes the chain, the handoff names it links to, and its
-    shape."""
     try:
         doc = save_point.parse_doc(path)
     except (OSError, UnicodeDecodeError):
@@ -347,9 +331,6 @@ def _holds_git(path: Path) -> bool:
 
 
 def _open_work(directory: Path) -> list[str]:
-    """Why a slice or checklist directory is not finished: every INDEX.md under
-    it (child slices included) whose status is not `done`, and every checklist
-    with an unfinished stage. `clean` removes the whole tree, so all of it counts."""
     reasons: list[str] = []
     for base, dirs, files in os.walk(directory, followlinks=False):
         dirs.sort()
@@ -403,7 +384,6 @@ def inventory(root: Path, label: str) -> list[Item]:
         )
 
     def visit(path: Path, parent_kind: str | None) -> None:
-        # a handoff's sidecar is part of the handoff, wherever the pair sits
         if (slots := SLOTS_RE.match(path.name)) and _plain_file(
             path.with_name(f"{slots[1]}.md")
         ):
@@ -597,8 +577,6 @@ def mark_in_flight(
             if state not in FINISHED:
                 item.reasons.append(f"link {ref} is {state}")
 
-    # Newest first, so a handoff is judged after every later one: a stale
-    # handoff does not keep what it names.
     for item in sorted(
         (i for i in items if i.kind == "handoff"), key=lambda i: i.mtime, reverse=True
     ):
@@ -696,7 +674,6 @@ def _to_dict(item: Item, now: float) -> dict[str, object]:
 
 
 def _attribution(item: Item) -> str:
-    """The issues or PRs the item was matched to, with the states looked up."""
     if not item.states:
         return ""
     return (
@@ -824,7 +801,6 @@ class Guard:
 
     root: Path
     refusal: str | None = None
-    # root-relative tracked paths; None outside a work tree
     tracked: list[str] | None = None
 
     def blocks(self, path: Path) -> str | None:
@@ -970,8 +946,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
         if any(item.root == label for item in stale)
     }
     failed = removed = 0
-    held: set[tuple[str, str]] = set()  # (root, chain) of a handoff not removed
-    # Handoffs before archives, so an archive leaves only after its chain did.
+    held: set[tuple[str, str]] = set()
     for item in sorted(stale, key=lambda i: i.kind == "archive"):
         refusal = _blocked(item, root_of[item.root], guards[item.root])
         if item.kind == "archive" and (item.root, item.chain) in held:
