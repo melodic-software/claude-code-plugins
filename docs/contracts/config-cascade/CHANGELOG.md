@@ -18,6 +18,10 @@ other entries below leave `contract_version` as it is.
   of its own; a worktree's own file is read instead, never merged with the main checkout's. The
   symlink and outside-the-project guards apply to the main checkout's file. The plugins that carry
   the synced copies record it in their own changelog fragments.
+- **Per-hook `<name>_enabled` keys are a declared deviation.** A set `userConfig` value beats the
+  team layer for that user, and the team value is the default for users who set none
+  ([hook-enablement](../hook-enablement/README.md), ADR 0131). The contract's order for every other
+  key is unchanged, so `contract_version` stays.
 - **The `overengineering` row reads `<home>/overengineering.yaml`.** The team file moves to the
   convention home with a schema and the personal override to `<home>/overengineering.local.yaml`;
   the plugin keeps no user-global file. Each old `.claude` file is still read, with a warning,

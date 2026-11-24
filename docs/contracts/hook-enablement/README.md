@@ -31,21 +31,40 @@ When it does, this doc points at the upstream setting and the per-hook key becom
   (`observer_enabled`, `block_no_verify_enabled`). One key per hook; a key is never shared by two
   hooks with different purposes. Title and description follow
   [plugin-option-naming](../plugin-option-naming/README.md#titles).
+- **Naming against the switch standard.** [Configuration switch naming](../../standards/configuration-switch-naming.md)
+  names a default-on switch `<THING>_DISABLED` so that leaving it unset never turns the behavior
+  off. A `userConfig` option or convention-file key always resolves to the default the plugin
+  declares, so it has no unset state to protect: it is the standard's case of a boolean that always
+  holds a value, which stays affirmative, hence `<name>_enabled` whatever the default. A hook that
+  reads an environment variable of its own, not the `CLAUDE_PLUGIN_OPTION_<KEY>` that carries the
+  option, follows the standard: `<THING>_DISABLED` for a default-on behavior, `<THING>_ENABLED` for
+  a default-off one.
 - **Default.** The plugin chooses it per hook and declares it as the option's `default`. A hook that
   starts work the operator did not ask for (a background process, a network call) defaults off.
 - **Layers.** Lowest first: the plugin default; the user layer, the plugin's `userConfig` option of
   that key; the repository layer, the same key in `docs/conventions/<plugin>.yaml` (or the
-  repository's bound convention home). The later layer wins, and an invalid value (anything but an
-  unquoted `true` or `false`) is named with its file or option and dropped, per
-  [config-cascade, The layers](../config-cascade/README.md#the-layers), the order session-flow's
-  [Resolution](../../../plugins/session-flow/reference/config.md#resolution) follows for its keys.
+  repository's bound convention home). An invalid value (anything but an unquoted `true` or
+  `false`) is named with its file or option and dropped, per
+  [config-cascade, The layers](../config-cascade/README.md#the-layers).
+- **Precedence.** The user's own value, when the user has set one, wins for that user: an explicit
+  `false` turns the hook off whatever the repository says. Otherwise the repository value decides,
+  so a repository sets the default for every contributor who has not set their own. Otherwise the
+  plugin default decides. The user layer is set only when the user chose a value: Claude Code
+  exports no `CLAUDE_PLUGIN_OPTION_<KEY>` for an unset option
+  ([hook-config-delivery, fact 3](../hook-config-delivery/README.md#verified-upstream-behavior-version-pinned)),
+  and an unset option has no `pluginConfigs` entry.
+- **Deviation from config-cascade.** Config-cascade puts the team layer above `userConfig`, the
+  later layer winning. This key reverses that one pair, so a repository cannot force a hook back
+  on for someone who turned it off; it is a declared deviation, listed in
+  [config-cascade, Deviations](../config-cascade/README.md#deviations). The repository layer still
+  refines the plugin default.
 - **Who reads it.** The hook's own script, before it does any work. It resolves every layer before
-  deciding, so an early exit on the user layer alone does not conform: a repository value of `true`
-  turns the hook back on for that repository.
-- **Security controls.** A guard whose off state loosens a security control must put its key in the
-  [policy-floor class](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion),
-  under that class's rules: a repository value can only turn the guard on, and only the user's own
-  layer can turn it off.
+  deciding: a hook that treats an unset user layer as the plugin default without reading the
+  repository value does not conform.
+- **Security controls.** A guard whose off state loosens a security control keeps the
+  [policy-floor class](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)
+  on its key: a repository value can only turn the guard on (a repository `false` is ignored), and
+  only the user's own layer turns it off.
 - **Cost.** Reading the repository file on every fire counts against the
   [hook budget](../hook-budget/README.md).
 

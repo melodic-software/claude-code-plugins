@@ -556,6 +556,16 @@ decision.
   scan with a layer dropped would apply different `paths.exclude` or `rules.*` values than the team
   set and report a result that looks clean. The stop covers every key and layer of the surface,
   not one key.
+- **A hook's `<name>_enabled` key puts a set `userConfig` value above the team layer.** The
+  user's own value, when set, wins for that user; the team value decides only for a user who set
+  none, so a repository sets the default but cannot force a hook back on for someone who turned it
+  off. A guard whose off state loosens a security control also ignores a team `false`. Rules and
+  scope: [hook-enablement](../hook-enablement/README.md#the-per-hook-setting).
+  - **Claim:** the user-over-team order on per-hook on/off keys is a declared exception.
+  - **Basis:** the owner decision of 2026-11-24, recorded in
+    [ADR 0131](../../adr/0131-give-every-hook-its-own-on-off-setting-at-the-user-and-repository-layers.md).
+  - **Recheck:** Claude Code ships its own per-hook off switch, or a repository needs to force a
+    non-security hook on for every contributor.
 
 **Undeclared**, meaning divergence with no recorded rationale:
 
