@@ -181,7 +181,9 @@ mode.
 ### 3. Hand off
 
 Do not launch the script. Print the `# STAGES` block and get explicit approval
-first: the agent runs nothing before the human has seen the stages. Check that
+first: the agent runs nothing before the human has seen the stages. A request that waives
+confirming the stages in step 1 does not waive this approval: end the turn on that question, and
+give the launch instructions only after the yes. Check that
 every effect sits inside a helper's block, because `-Test` runs a bare native
 command. After approval the agent's own entry is `pwsh -File <script> -Test`,
 which changes nothing when every effect is inside a helper: read
