@@ -34,17 +34,16 @@ renderer="$here/render-index.sh"
 
 checks_init pre-commit "$@" || exit 0
 
-src="$PWD"
-if [[ "$CHECKS_MODE" == pre-commit ]]; then
-  src="$CHECKS_TMP/index"
-  mkdir -p "$src" || exit 1
-  git ls-files -z -- ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md' ':(glob)**/.claude/rules/**/*.md' |
-    git checkout-index -z --stdin --prefix="$src/" || exit 1
-fi
-
+present() {
+  if [[ "$CHECKS_MODE" == pre-commit ]]; then
+    git cat-file -e ":$1" 2>/dev/null
+  else
+    [[ -f "$1" ]]
+  fi
+}
 target=AGENTS.md
-[[ -f "$src/$target" ]] || target=CLAUDE.md
-[[ -f "$src/$target" ]] || exit 0
+present "$target" || target=CLAUDE.md
+present "$target" || exit 0
 
 relevant=0
 while IFS= read -r -d '' f; do
@@ -57,6 +56,14 @@ done < <(
   [[ "$CHECKS_MODE" == worktree ]] && git ls-files --others --exclude-standard -z
 )
 ((relevant)) || exit 0
+
+src="$PWD"
+if [[ "$CHECKS_MODE" == pre-commit ]]; then
+  src="$CHECKS_TMP/index"
+  mkdir -p "$src" || exit 1
+  git ls-files -z -- ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md' ':(glob)**/.claude/rules/**/*.md' |
+    git checkout-index -z --stdin --prefix="$src/" || exit 1
+fi
 
 # check exits 0 in sync, 1 drifted, 3 with no index block (not adopted); any
 # other status is no verdict, and no verdict blocks.
