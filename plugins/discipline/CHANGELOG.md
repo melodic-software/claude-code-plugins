@@ -5,6 +5,17 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.31.1] - 2026-11-24
+
+### Changed
+
+- Thirteen discipline skills now carry a `## Related` section that lists the skills to reach for in
+  nearby situations, one condition per line: `be-ambitious`, `do-your-research`,
+  `follow-our-standards`, `mind-your-maxims`, `pick-for-the-problem`, `point-dont-copy`,
+  `reason-dont-recite`, `recheck-against-upstream`, `reuse-or-replace`,
+  `script-the-deterministic-work`, `scrutinize-dont-coast`, `tighten-your-output` and
+  `use-your-skills`.
+
 ## [0.31.0] - 2026-11-23
 
 ### Added
