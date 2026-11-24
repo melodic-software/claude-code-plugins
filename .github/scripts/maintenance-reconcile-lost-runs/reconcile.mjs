@@ -562,6 +562,10 @@ export const rateHeldNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(RATE_HELD_NOTE));
 // The note GitHub adds for a step that exits non-zero.
 export const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
+export const onlyReviewStopsNoted = (annotations) => {
+  const causes = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure" && !EXIT_NOTE.test(String(a.message ?? "")));
+  return causes.length > 0 && causes.every((a) => reviewStopNoted([a]) || rateHeldNoted([a]));
+};
 // The errors ci-status's review-lane step writes for a review still running,
 // or with no run yet, when it read the head (pr-require-checks.yml;
 // reconcile.test.mjs pins both there).
@@ -1256,7 +1260,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
         const notes = status && (status.annotations ?? (await call("GET", annotationsPath(repo, status.id))));
         const switchNoted = notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes);
-        if (reviewStopNoted(notes) || rateHeldNoted(notes)) {
+        if (onlyReviewStopsNoted(notes)) {
           set.push(...(await headReviews()));
         } else if (isFailedChecks(checks) && switchNoted) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });

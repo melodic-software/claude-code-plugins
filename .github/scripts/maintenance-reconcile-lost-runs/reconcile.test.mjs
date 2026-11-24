@@ -2963,24 +2963,33 @@ test("a follow-up tick leaves the head to the full pass when its queued checks r
   assert.deepEqual((await followUpTick(queued(1), { pulls: [pr(1)], runs: bothDeferred(1) })).reruns, [201, 301], "the same head with none of these goes");
 });
 
+const laneUrl = (id) => `https://github.com/${REPO}/actions/runs/${id}`;
+const STOPPED_LINE = `'pr-review / claude-review-status' did not run on ${sha(1)} (${laneUrl(201)}): an API budget defer or ${REVIEW_STOP_NOTE}. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of ${laneUrl(201)}; ci-status re-runs when it finishes.`;
+const UPSTREAM_LINE = `'pr-review-security / claude-security-review-status' did not run on ${sha(1)} (${laneUrl(301)}): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, its dispatch re-runs this ci-status job under the reconciler's record, so pr-verify accepts it; if that re-run does not come, a person re-runs this ci-status job, not the review run; after 24 hours, push to the head.`;
+const laneNote = (message) => ({ annotation_level: "failure", title: "", message });
+const EXIT_LINE = laneNote("Process completed with exit code 1.");
+const statusNoted = (notes) =>
+  failed(101, sha(1), {
+    jobs: [
+      { id: 501, name: "Lint Repo", status: "completed", conclusion: "success", steps: [] },
+      { id: 502, name: "ci-status", status: "completed", conclusion: "failure", steps: [], notes },
+    ],
+  });
+const otherLaneFailed = () => run(301, sha(1), { path: SECURITY_REVIEW, conclusion: "failure", jobs: [] });
+
 test("a follow-up tick re-runs a deferred review only when every ci-status failure is a review stop, past GitHub's exit-code note", async (t) => {
   t.mock.method(console, "log", () => {});
-  const url = (id) => `https://github.com/${REPO}/actions/runs/${id}`;
-  const stoppedLine = `'pr-review / claude-review-status' did not run on ${sha(1)} (${url(201)}): an API budget defer or ${REVIEW_STOP_NOTE}. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of ${url(201)}; ci-status re-runs when it finishes.`;
-  const upstreamLine = `'pr-review-security / claude-security-review-status' did not run on ${sha(1)} (${url(301)}): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, its dispatch re-runs this ci-status job under the reconciler's record, so pr-verify accepts it; if that re-run does not come, a person re-runs this ci-status job, not the review run; after 24 hours, push to the head.`;
-  const note = (message) => ({ annotation_level: "failure", title: "", message });
-  const checks = (notes) =>
-    failed(101, sha(1), {
-      jobs: [
-        { id: 501, name: "Lint Repo", status: "completed", conclusion: "success", steps: [] },
-        { id: 502, name: "ci-status", status: "completed", conclusion: "failure", steps: [], notes },
-      ],
-    });
-  const otherLane = run(301, sha(1), { path: SECURITY_REVIEW, conclusion: "failure", jobs: [] });
-  const tick = (notes) => followUpTick(queued(1).slice(0, 1), { pulls: [pr(1)], runs: [checks(notes), deferredRun(201, sha(1)), otherLane] });
-  const exit = note("Process completed with exit code 1.");
-  assert.deepEqual((await tick([note(stoppedLine), note(upstreamLine), exit])).reruns, [], "an outage note for the other lane leaves the head to the full pass");
-  assert.deepEqual((await tick([note(stoppedLine), exit])).reruns, [201], "the review stop alone, beside the exit-code note, re-runs the deferred review");
+  const tick = (notes) => followUpTick(queued(1).slice(0, 1), { pulls: [pr(1)], runs: [statusNoted(notes), deferredRun(201, sha(1)), otherLaneFailed()] });
+  assert.deepEqual((await tick([laneNote(STOPPED_LINE), laneNote(UPSTREAM_LINE), EXIT_LINE])).reruns, [], "an outage note for the other lane leaves the head to the full pass");
+  assert.deepEqual((await tick([laneNote(STOPPED_LINE), EXIT_LINE])).reruns, [201], "the review stop alone, beside the exit-code note, re-runs the deferred review");
+});
+
+test("the full pass re-runs a head's stopped reviews only when every ci-status failure is a review stop, past GitHub's exit-code note", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const pass = (notes) => reconcile({ pulls: [pr(1)], runs: [statusNoted(notes), deferredRun(201, sha(1)), otherLaneFailed()], carry: null, env: SWITCHES_OFF, now: AFTER_GRACE });
+  assert.deepEqual((await pass([laneNote(STOPPED_LINE), laneNote(UPSTREAM_LINE), EXIT_LINE])).reruns, [], "an outage note for the other lane is a real failure, so no stopped review is re-run");
+  assert.deepEqual((await pass([laneNote(STOPPED_LINE), EXIT_LINE])).reruns, [201], "the review stop alone, beside the exit-code note, re-runs the deferred review");
+  assert.deepEqual((await pass([laneNote(UPSTREAM_LINE), EXIT_LINE])).reruns, [], "the real failure alone re-runs nothing, as before");
 });
 
 test("a follow-up tick names itself in a notice with its queued and planned counts", async (t) => {

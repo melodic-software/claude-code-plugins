@@ -9,25 +9,18 @@ import {
   ciRecoveryFirst,
   DEFER_MAX,
   DEFERRED,
-  EXIT_NOTE,
   isRedChecks,
   newestByWorkflow,
   onlyAggregateFailed,
+  onlyReviewStopsNoted,
   passRateLimit,
-  rateHeldNoted,
   reconciledPull,
   RECORDED_UPSTREAMS,
-  reviewStopNoted,
   stoppedReviews,
   upstreamGate,
   waitingReview,
   withAnnotations,
 } from "./reconcile.mjs";
-
-export const onlyReviewStopsNoted = (annotations) => {
-  const causes = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure" && !EXIT_NOTE.test(String(a.message ?? "")));
-  return causes.length > 0 && causes.every((a) => reviewStopNoted([a]) || rateHeldNoted([a]));
-};
 
 export function readQueue(path) {
   const data = JSON.parse(readFileSync(path, "utf8"));
