@@ -1,4 +1,4 @@
-# test-scope: plugins/session-flow/scripts/tests/fixtures/*
+# test-scope: plugins/session-flow/scripts/tests/fixtures/* plugins/session-flow/scripts/dialect.py plugins/session-flow/scripts/handoff_chain.py plugins/session-flow/scripts/handoff_fit.py plugins/session-flow/scripts/io_streams.py plugins/session-flow/scripts/plugin_paths.py plugins/session-flow/scripts/save_point.py
 """A role chain's Decisions in force live in its standing-rules file, and its
 retire pointers in one retired-entries index beside it. Expected values come
 from reference/structure.md ("Role chains: the standing-rules file" and "The
