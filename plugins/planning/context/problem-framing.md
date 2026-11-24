@@ -168,7 +168,10 @@ The marker counts only when the run verifies every one of these:
 - The comment's author is a `kind: human` entry on the repository's trusted-actor list, matched by
   numeric account id, never by login, and the account is a user, not a bot or an App. The list is
   read from the default branch, never from the working tree or another branch; in the
-  claude-code-plugins marketplace it is `.github/standards/trusted-actors/trusted-actors.json`. A
+  claude-code-plugins marketplace it is `.github/standards/trusted-actors/trusted-actors.json`, or,
+  where the default branch's `docs/conventions/source-control.yaml` sets
+  `trusted_actors_source: standards`, `components/trusted-actors/trusted-actors.json` in the
+  repository its `standards_repository` names, at that repository's main commit. A
   repository with no trusted-actor list has no marker that counts.
 - The comment was not posted through an App. On GitHub, the REST issue comment
   (`gh api repos/<owner>/<repo>/issues/comments/<id>`) carries `performed_via_github_app`, and it

@@ -69,6 +69,7 @@ Report which depth ran and why (strict verification level / argument / configure
    `Basis: judgment` (never on a consequential one), or **withheld**, with no `Basis:` label and
    the open question naming the evidence that would settle it. A corrected row adds
    old → new → why; a verified one says unchanged and why.
+   Render the ledger as one markdown table with the columns Claim, Type (assumption, asserted fact, concrete specific, load-bearing premise or recommendation), Verdict, Source, Source tier, Consensus and Recency, one row per inventory item with every column filled.
 
 ## Gotchas
 

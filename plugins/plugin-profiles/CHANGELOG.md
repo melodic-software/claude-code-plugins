@@ -3,6 +3,18 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3] - 2026-11-24
+
+### Fixed
+
+- The session-start hook writes `~/.claude/plugin-profiles-state/root` only from the copy that `plugins/installed_plugins.json` records as this plugin's user-scope install, so a running session whose hooks load an older cached version no longer points the `claude` shell function back at that old code. A missing or unreadable record writes nothing.
+
+## [0.13.2] - 2026-11-24
+
+### Fixed
+
+- A profile started or launched from the home folder now switches plugins: the home folder's `.claude/settings.json` is the user settings file, which was read a second time as the project level, so every plugin that file set was left alone.
+
 ## [0.13.1] - 2026-11-24
 
 ### Changed

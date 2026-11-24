@@ -3,6 +3,12 @@
 # do-your-research fan-out cases verify session claims against (no network in an eval run).
 set -euo pipefail
 
+level="${1:-}"
+case "${level}" in
+"" | off | light | standard | strict) ;;
+*) echo "unknown verification level: ${level}" >&2 && exit 2 ;;
+esac
+
 here="$(pwd -P)"
 run_home="$(cd "${HOME:?}" && pwd -P)"
 real_home="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6 || true)"
@@ -107,3 +113,18 @@ cat >gateway/docs/rollout.md <<'MD'
 
 Rollback: `helm rollback partner-gateway`.
 MD
+
+[[ -n "${level}" ]] || exit 0
+git init -q -b main
+git config user.name eval
+git config user.email eval@example.invalid
+mkdir -p docs/conventions
+printf 'verification: %s\n' "${level}" >docs/conventions/discipline.yaml
+printf '.work/\n' >.gitignore
+git add .gitignore docs gateway
+git commit -q -m "seed partner-gateway"
+mkdir -p .work/origin.git
+git init -q --bare -b main .work/origin.git
+git remote add origin "${here}/.work/origin.git"
+git push -q origin main
+git remote set-head origin main

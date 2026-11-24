@@ -1,4 +1,2 @@
 # yaml-language-server: $schema=../../plugins/attribution/schemas/attribution.schema.json
-# Team layer for the attribution plugin (schema: plugins/attribution/schemas/attribution.schema.json).
-# Every key is optional; an absent key keeps the shipped default.
 trigger_less_stamp_check: true

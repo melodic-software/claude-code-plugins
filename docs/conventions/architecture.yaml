@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=../../plugins/architecture/schemas/architecture.schema.json
-# Team layer for the architecture plugin's settings: plugins/architecture/reference/config.md.
 
 layout:
   exclude_authors:

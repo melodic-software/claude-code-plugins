@@ -3,7 +3,7 @@ set -u
 
 extract_gotchas() {
   local file="$1"
-  [[ -f "$file" && -r "$file" ]] || return 1
+  readable "$file" || return 1
   awk '
     {
       line = $0

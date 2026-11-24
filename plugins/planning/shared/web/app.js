@@ -1,14 +1,9 @@
-// The shared interview page: top bar, question rail and a Focus | Compare | Tree | Host center, with votes,
-// reactions, locks and suggestions, Claude's cards, requests, roles, owner settings, per-viewer themes and a
-// docked side chat. It reads the state core.js builds (the prototype's names) and acts only through Core.
 (() => {
     const Core = window.Core, root = document.getElementById("app");
     const E = Core.el, { OTHER } = QuestionShape;
     const phone = matchMedia("(max-width: 720px)");
     const coarse = matchMedia("(pointer: coarse)");
-    /** Wide enough that the open chat panel pushes the page over (app.css); narrower, it covers the page and is modal. */
     const docked = matchMedia("(min-width: 1100px)");
-    /** "Tap" on a touch screen, "Click" with a mouse. */
     const tapW = () => (coarse.matches ? "Tap" : "Click");
     const lightOS = matchMedia("(prefers-color-scheme: light)");
     const store = {
@@ -27,11 +22,7 @@
       askPanel: false, askMode: "ask", askQ: "", askSelf: false, apAud: null, askAud: null, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
       more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false, ixTab: store.get("vf-ixtab", "needs"), ixOff: store.get("vf-ix-off", {}),
     };
-    if (!ui.ixOff || typeof ui.ixOff !== "object" || Array.isArray(ui.ixOff)) ui.ixOff = {}; // the Inbox's chips turned off, per tab
-    // Unsent text saved as this tab last reloaded (a new version, or the person's own reload; at the end): answer drafts
-    // and every composer kit field's (chat, Discussion, Ask Claude, Suggest, Pass), per question where it is per question.
-    // They belong to whoever wrote them (`who`), so they come back only once the server says who this page is and it
-    // is the same person: never into another identity's fields after Switch, or an owner tab opening the guest link.
+    if (!ui.ixOff || typeof ui.ixOff !== "object" || Array.isArray(ui.ixOff)) ui.ixOff = {};
     const UNSENT = "vf-unsent";
     let unsent = (() => { try { const v = JSON.parse(sessionStorage.getItem(UNSENT) || "null"); sessionStorage.removeItem(UNSENT); return v; } catch { return null; } })();
     const whoAmI = () => (Core.me.isOwner ? "owner" : Core.me.cid);
@@ -41,23 +32,18 @@
       if (!v.who || v.who !== whoAmI()) return;
       Object.assign(ui.drafts, v.drafts || {}); ui.restoreCur = v.cur || "";
       if (v.kit && typeof v.kit === "object") Object.assign(ui.kd, v.kit);
-      for (const k of Kit.fields) if (k.draftKey && !k.f.value) k.key = null; // shown again from the restored drafts
+      for (const k of Kit.fields) if (k.draftKey && !k.f.value) k.key = null;
     }
     const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
-    /** Ring an element briefly; the class comes off again so a reduced-motion ring (no animation) never lingers. */
     const ring = el => {
       el.classList.remove("vf-hl"); void el.offsetWidth; el.classList.add("vf-hl");
       clearTimeout(el._hlT); el._hlT = setTimeout(() => el.classList.remove("vf-hl"), 1200);
     };
     const roundOf = q => q.round || 1;
     const curRound = () => Core.state.round || { current: 1, status: "open" };
-    /** Goal, explore requests, citations and Later: always on (the prototype gated them for an older server). */
     const v8 = () => true;
-    /** Sent to Claude: "sent" (Cancel works) or "working". */
     const isSentStatus = s => s === "sent" || s === "working";
-    /** A round's own status: open, sent, working or closed (an earlier round, still open to late answers). */
     const roundStatus = n => (Core.state.rounds || []).find(r => r.n === n)?.status || (n < curRound().current ? "closed" : curRound().status);
-    /** The confirm question's written answer: named apart from the "Something else…" option of choice questions. */
     const CONFIRM_OTHER = "Not exactly";
     // Chat reactions (Phase 4c): the quick row, then the More picker's general set. session.py takes exactly these
     // (CHAT_EMOJI there; test_session.py checks the two match). Plain Unicode: no library, no network.
@@ -71,10 +57,8 @@
     const QUICK_EMOJI = CHAT_EMOJI.slice(0, 6);
     const PURPOSE = { decide: ["Decide", "Vote, then a moderator locks the answer"], gather: ["Gather", "Every answer stands; react to the ones you like"],
       poll: ["Poll", "Pick one; results show once you pick, and the host closes it"] };
-    // ---------- my preferences: the server's copy (state.me.prefs) once I have joined, this browser's copy before ----------
     const PK = { pending: {}, out: {}, timer: 0, migrated: false };
     const localKey = () => "vf-prefs:" + (Core.me.cid || "anon");
-    /** This browser's copy, over the per-key stores pages used before preferences moved to the server. */
     function localPrefs() {
       const who = Core.me.cid || "anon", th = store.get("vf-theme", {}), t = store.get("vf-tb:" + who, {}), c = store.get("vf-claude:" + who, "");
       const old = { theme: th.mode, sort: t.sort, filter: t.filter, round: t.round, claudeTake: c === "session" ? undefined : c || undefined };
@@ -88,7 +72,6 @@
       return out;
     }
     const pref = (k, d) => prefs()[k] ?? d;
-    /** Save now in this browser, and on the server 500 ms after the last change. */
     function setPrefs(patch) {
       for (const [k, v] of Object.entries(patch)) { PK.pending[k] = { value: v }; PK.out[k] = v; }
       store.put(localKey(), { ...store.get(localKey(), {}), ...patch });
@@ -96,7 +79,7 @@
     }
     function flushPrefs() {
       if (dead || !Object.keys(PK.out).length) return;
-      if (!Core.state.me) { PK.timer = setTimeout(flushPrefs, 1500); return; } // not joined yet: send once the server knows me
+      if (!Core.state.me) { PK.timer = setTimeout(flushPrefs, 1500); return; }
       const set = PK.out; PK.out = {};
       Core.savePrefs(set).then(j => {
         for (const [k, v] of Object.entries(set)) if (PK.pending[k] && JSON.stringify(PK.pending[k].value) === JSON.stringify(v)) PK.pending[k].ack = j.ts;
@@ -105,7 +88,6 @@
         PK.out = { ...set, ...PK.out }; clearTimeout(PK.timer); PK.timer = setTimeout(flushPrefs, 3000);
       });
     }
-    /** First load after preferences moved to the server: upload this browser's copy when the server has none for me. */
     function migratePrefs() {
       const me = Core.state.me;
       if (PK.migrated || !me) return;
@@ -114,7 +96,6 @@
       const local = localPrefs();
       if (Object.keys(local).length) setPrefs(local);
     }
-    // ---------- toolbar: sort, filters, round, remembered per person ----------
     function tb() {
       const p = prefs(), t = { sort: p.sort || "new", filter: p.filter || "all", round: p.round || "all" };
       ui.order = t.sort === "votes" ? "votes" : "new";
@@ -122,13 +103,11 @@
     }
     function setTb(patch) { setPrefs(patch); render(); }
     const claudePref = () => pref("claudeTake", "session");
-    /** My theme toggle's choice: System, Light or Dark, System until I pick another. */
     const myMode = () => { const m = pref("theme", "system"); return m === "light" || m === "dark" ? m : "system"; };
     const openRounds = () => new Set(pref("expandedRounds", []));
     const setOpenRounds = set => { setPrefs({ expandedRounds: [...set].sort((a, b) => a - b) }); render(); };
     const following = () => !!pref("follow", false) && Core.state.settings.follow !== false;
 
-    // ---------- icons: inline SVG built with createElementNS, never parsed markup ----------
     const SVG = "http://www.w3.org/2000/svg";
     const PATHS = {
       gear: ["M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z", "M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"],
@@ -191,13 +170,10 @@
     const btn = (cls, text) => { const b = E("button", cls, text); b.type = "button"; return b; };
     const ibtn = (cls, name, label) => { const b = btn(cls); b.append(icon(name)); b.setAttribute("aria-label", label); b.title = label; return b; };
     const lbtn = (cls, name, text) => { const b = btn(cls); b.append(icon(name), E("span", null, text)); return b; };
-    // ---------- where an answer was made: sent with answers, picks, votes and suggestions; only the host sees it ----------
-    // The device and browser come from Core (deviceKind, browserKind), the one source; the page adds only where it is.
     Core.context = () => ({ view: ui.mode, tab: phone.matches ? ui.tab : "", qid: ui.cur || "", round: Core.state.questions.length ? curRound().current : null });
     const VIEW_NAME = { focus: "Focus", compare: "Compare", tree: "Tree", host: "Host", prototype: "Prototype" };
     const BROWSER_NAME = { chrome: "Chrome", safari: "Safari", firefox: "Firefox", edge: "Edge", samsung: "Samsung Internet", "in-app": "an in-app browser" };
     const ctxText = c => `${{ phone: "On a phone", tablet: "On a tablet", computer: "On a computer" }[c.device] || "Device unknown"}${c.browser ? `, ${BROWSER_NAME[c.browser] || "another browser"}` : ""}${c.vw ? `, ${c.vw}×${c.vh}` : ""}${c.view ? `, in ${VIEW_NAME[c.view] || c.view}` : ""}`;
-    /** A report's context as lines, the same for the reporter's "Sent with this report" list and the host's report row. */
     const ctxLines = c => {
       const v = c.visualViewport, x = n => Math.round(n);
       return [`View: ${VIEW_NAME[c.view] || c.view}${c.tab ? `, ${c.tab} tab` : ""}`,
@@ -206,7 +182,6 @@
         `Screen: ${c.viewport.w} × ${c.viewport.h}${v ? `; visible ${x(v.w)} × ${x(v.h)} at ${v.scale}×` : ""}`,
         ...(c.build ? [`Page version: ${c.build}`] : [])];
     };
-    /** A small device icon with the full context as its tooltip and accessible name. */
     function ctxBadge(el, c) {
       el.hidden = !c;
       if (!c) return;
@@ -218,11 +193,6 @@
     }
     const dlgOpen = () => !!root.querySelector("dialog.vf-dlg[open]");
     const radioDot = () => { const s = E("span", "vf-radio"); s.setAttribute("aria-hidden", "true"); return s; };
-    // ---------- confirmations for actions that are hard to take back ----------
-    // The rule (F10): an action asks first, through confirmAct, when it is hard to undo or affects someone else (send a
-    // round while questions are open, decline a request, join, merge or file, remove, discard, take down, delete). One
-    // that is undoable and that the owner can take back at once (Hide, then Show) runs without asking.
-    // A modal dialog: it names the consequence, Cancel has focus, Escape cancels, and the risky button looks risky.
     const cdlg = E("dialog", "vf-dlg vf-cdlg"); cdlg.setAttribute("role", "alertdialog");
     const cdTitle = E("h2", "vf-dlg-title"), cdBody = E("p", "vf-dlg-body");
     cdTitle.id = "vf-cd-title"; cdBody.id = "vf-cd-body";
@@ -233,7 +203,6 @@
     cdlg.append(cdTitle, cdBody, cdRow);
     root.append(cdlg);
     let cdDone = null;
-    /** Ask before a critical action. Resolves true only on the action button. */
     function confirmAct({ title, body, ok, safe = "Cancel", danger = true }) {
       if (cdlg.open) return Promise.resolve(false);
       const from = document.activeElement;
@@ -246,15 +215,12 @@
     }
     cdYes.onclick = () => cdDone?.(true);
     cdNo.onclick = () => cdDone?.(false);
-    cdlg.addEventListener("close", () => cdDone?.(false)); // Escape
+    cdlg.addEventListener("close", () => cdDone?.(false));
     const REPORT_ASK = { title: "Ask Claude about this report?", body: "Claude reads the report and its screenshots as the reporter's words, works out what likely went wrong and proposes a fix to you in the terminal. It never acts on the report itself.", ok: "Ask Claude" };
     const removeAsk = name => ({ title: `Remove ${disp(name)}?`, ok: "Remove", body: `${disp(name)}'s link stops working and their answers, votes, chat and suggestions are hidden from everyone. You can restore them from Settings.` });
     const PARK_ASK = { title: "Park this proposal?", ok: "Park", body: "It stays out of the round, so Claude does not see it when the round is sent. You can restore it from Parked." };
     const LATER_ASK = { title: "Move this proposal to Later?", ok: "Move to Later", body: "It leaves this round and becomes a tracker item when the session ends. You can restore it before then." };
-    /** Wrap a click handler so it runs only after the person confirms. */
     const guarded = (opts, run) => async e => { const o = typeof opts === "function" ? opts() : opts; if (o && !(await confirmAct(o))) return; run(e); };
-    /** A moderator's buttons for the proposal `getI()` returns, the same verbs and toasts in Proposed, the Inbox queue and
-     *  Later. Each list shows the ones that fit with paintPropActs. */
     function proposalActs(getI) {
       const question = btn("vf-btn vf-btn-primary vf-btn-sm vf-prop-q", "Make it a question");
       const park = btn("vf-btn vf-btn-ghost vf-btn-sm vf-prop-park", "Park"), later = btn("vf-btn vf-btn-ghost vf-btn-sm vf-prop-later", "Later");
@@ -265,10 +231,6 @@
       restore.onclick = () => Core.proposal(getI().id, "restore").then(() => flash("Back in Proposed.")).catch(fail);
       return { question, park, later, restore };
     }
-    /** F5: the owner's buttons for the person `getPid()` returns, the same words and toasts in the person card, the Host
-     *  view's people row, the person view and Settings' removed people: Rename, View all, Leader, Trusted, Merge…, Remove
-     *  (or Restore). `menu` draws them as the card's menu rows; `onRename(pid, button)` opens that place's rename form,
-     *  and without it there is no Rename. Each place shows the ones that fit with paintPersonActs. */
     function personActs(getPid, menu, onRename) {
       const c = menu ? "vf-menu-item" : "vf-btn vf-btn-ghost vf-btn-sm";
       const rename = btn(`${c} vf-pa-rename`, "Rename"); rename._on = !!onRename;
@@ -279,7 +241,6 @@
       view.onclick = () => openPersonView(getPid(), view);
       lead.onclick = () => { const p = getPid(), was = Core.state.leaders.includes(p); Core.setLeader(p, !was).then(() => flash(was ? "Leader removed." : "Leader added.")).catch(fail); };
       trust.onclick = () => { const p = getPid(), was = Core.state.trusted.includes(p); Core.setTrusted(p, !was).then(() => flash(was ? "Trust removed." : "Trusted.")).catch(fail); };
-      // Merge picks who this person really is, in their card.
       merge.onclick = () => {
         const p = getPid();
         if (ui.pop === pcard && ui.pcard?.pid === p) { ui.mergeFrom = ui.mergeFrom === p ? "" : p; ui.mergeTo = ""; fillPcard(); return; }
@@ -292,13 +253,11 @@
       });
       return { rename, view, lead, trust, merge, remove };
     }
-    /** Leader and Trusted say whether they are on; a removed person has only Restore (and View all). `here` is the
-     *  place's own row: the person view does not offer itself. */
     function paintPersonActs(k, pid, here) {
       const S = Core.state, name = disp(nameOf(pid)), out = (S.removed || []).includes(pid), known = !!S.people && pid in S.people;
       k.lead.setAttribute("aria-pressed", String(S.leaders.includes(pid))); k.trust.setAttribute("aria-pressed", String(S.trusted.includes(pid)));
       k.lead.setAttribute("aria-label", `Leader: ${name}`); k.trust.setAttribute("aria-label", `Trusted: ${name}`);
-      k.lead.hidden = k.trust.hidden = out || !known; // records from before identities have no people entry: they can only be merged
+      k.lead.hidden = k.trust.hidden = out || !known;
       k.merge.hidden = out || here === "view";
       k.merge.setAttribute("aria-label", `Merge ${name} into someone`);
       k.merge.setAttribute("aria-expanded", String(ui.mergeFrom === pid));
@@ -307,41 +266,32 @@
       k.view.hidden = here === "view"; k.view.setAttribute("aria-label", `View everything ${name} did`);
       k.rename.hidden = !k.rename._on || out || !known; k.rename.setAttribute("aria-label", `Rename ${name}`);
     }
-    /** New: Make it a question, Later, Park. Not placed: also Back to Proposed. Parked or Later: Back to Proposed, Make it a question. */
     function paintPropActs(k, i) {
       k.park.hidden = i.status === "parked" || i.status === "later"; k.later.hidden = i.status !== "new"; k.restore.hidden = i.status === "new";
     }
 
-    /** The "View larger" badge drawn over a picture that opens the picture viewer. */
     const zoomTag = () => { const t = E("span", "vf-zoomtag"); t.setAttribute("aria-hidden", "true"); t.append(icon("search"), E("span", null, "View larger")); return t; };
     const st = () => Core.state.settings;
     const disp = name => (st().showNames ? name : Core.initials(name));
-    /** Avatar for a person. data-pid makes it open the person card; focusable avatars sit outside buttons. */
     const av = (cid, name, size, focusable = false) => {
       const a = Core.avatar(cid, name, size);
       a.title = ""; a.dataset.pid = cid; a.dataset.name = name;
       if (focusable) { a.tabIndex = 0; a.setAttribute("role", "button"); a.setAttribute("aria-label", `${disp(name)}, show details`); }
       return a;
     };
-    /** Avatar sizes: one set for the whole page. */
-    const AV = { s: 20, m: 22, l: 26, xl: 34 }; // the smallest still reads its initials (sweep S25)
-    /** A person as the page names them: "You" for me, else their shown name. */
+    const AV = { s: 20, m: 22, l: 26, xl: 34 };
     const youOr = (cid, name) => (isMe(cid) ? "You" : disp(name || "Someone"));
-    /** F14: avatar, name and time, drawn the same everywhere. The avatar opens the person card: focusable, except
-     *  inside a button, which owns the click. A line with no cid has no avatar; one with no ts has no time. */
     const whoLine = (cid, name, ts, size = AV.s, inBtn = false) => [...(cid ? [av(cid, name, size, !inBtn)] : []),
       E("span", null, youOr(cid, name)), ...(ts ? [E("span", "vf-card-time", since(ts))] : [])];
     const claudeAv = size => { const a = E("span", "core-avatar vf-claude-av"); a.style.cssText = `width:${size}px;height:${size}px`; a.append(icon("sparkle")); a.title = "Claude"; return a; };
     const isMe = c => c === Core.me.cid;
     function dots() { const d = E("span", "vf-dots"); d.setAttribute("aria-hidden", "true"); d.append(E("i"), E("i"), E("i")); return d; }
     const since = ts => Core.since(ts);
-    /** How long a present person has been Away, as " 4 min"; "" just now or while active. */
     const awayFor = p => { const a = p?.awaySince ? Core.span(p.awaySince) : ""; return a ? ` ${a}` : ""; };
     function names(list) {
       const n = list.map(p => disp(p.name));
       return n.length <= 2 ? n.join(" and ") : `${n[0]} and ${n.length - 1} others`;
     }
-    /** Keyed list sync: reuses nodes by key, creates missing ones, removes stale ones, keeps order. */
     function sync(list, items, key, create, update) {
       const map = list._map || (list._map = new Map());
       const keep = new Set();
@@ -352,7 +302,6 @@
         if (!node) {
           node = create(it); map.set(k, node);
           if (list._primed) {
-            // Entrance plays once: without this, moving the node (a reorder) would replay it.
             node.classList.add("vf-in");
             const done = e => { if (e.target === node) { node.classList.remove("vf-in"); node.removeEventListener("animationend", done); } };
             node.addEventListener("animationend", done);
@@ -367,9 +316,6 @@
       list._primed = true;
     }
     function resetList(list) { list.replaceChildren(); list._map = null; list._primed = false; }
-    /** A long list's first `def` items, then a Show more control under it (`all`: one Show all (N) instead). How far
-     *  a list was opened lives in ui.more under the key `page` is given, so a filter keys its own. Show more moves
-     *  focus to the first item it reveals. Returns {foot, page(items, list, key)}: put foot after the list. */
     function showMore(listKey, def, { all = false } = {}) {
       const foot = E("div", "vf-more-foot"), note = E("span", "vf-meta"), b = btn("vf-btn vf-btn-ghost vf-btn-sm");
       foot.append(note, b); foot.hidden = true;
@@ -393,16 +339,13 @@
         },
       };
     }
-    /** Active, away or offline, from a presence entry (none: offline), and how a label says it. */
     const presState = h => (!h ? "offline" : h.away ? "away" : "active");
     const presWord = h => (!h ? "offline" : h.away ? `away${awayFor(h)}` : "active");
-    /** The presence dot at an avatar's bottom-right; aria-hidden, as the state is in the label beside or on it. */
     function presDot(a, h) {
       a.dataset.presence = presState(h);
       if (!a.querySelector(".vf-pres")) { const d = E("span", "vf-pres"); d.setAttribute("aria-hidden", "true"); a.append(d); }
       return a;
     }
-    /** Avatars in a row; `presence` true: the people are presence entries, each shown with its dot and named with its state. */
     function avStack(holder, people, max, size = AV.m, presence = false) {
       const one = p => {
         const a = av(p.cid, p.name, size);
@@ -413,11 +356,8 @@
       if (people.length > max) holder.append(E("span", "vf-more", "+" + (people.length - max)));
     }
     const votesOf = a => a.votes?.length || 0;
-    // Most votes first; on a tie Claude's recommendation first, then the earliest.
     const byVotes = list => list.slice().sort((a, b) => votesOf(b) - votesOf(a) || !!b.rec - !!a.rec || a.ts - b.ts);
-    /** The single answer with the most votes; none while two or more tie. */
     const leadOf = qid => { const [top, next] = byVotes(Core.answersFor(qid)); return top && votesOf(top) && (!next || votesOf(next) < votesOf(top)) ? top.cid : ""; };
-    /** Display order: the locked answer first, then newest or most votes as this viewer chose. */
     function ordered(qid) {
       const lk = Core.lockOf(qid);
       tb();
@@ -430,29 +370,19 @@
     const agreeing = a => Core.state.presence.filter(p => p.cid === a.cid || (a.votes || []).includes(p.cid)).length;
     const openSugs = qid => Core.suggestionsFor(qid).filter(s => s.status === "open");
     const qById = id => Core.state.questions.find(q => q.id === id);
-    /** Read-only once its round went to Claude (an earlier round, or the current one while preparing), or the session ended. */
     const isSent = q => isSentStatus(roundStatus(roundOf(q)));
-    /** Placed in a round that has not opened yet: shown, read-only. */
     const notOpenYet = q => roundOf(q) > curRound().current;
     const readOnly = q => !!q && (isSent(q) || notOpenYet(q) || (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved);
-    /** My answer record: text, or a pick on a choice question, or both (this device's, on a per-device question). */
     const myRec = qid => Core.myRecord(qid);
     const hasAnswered = qid => !!myRec(qid);
     const askedOfMe = qid => Core.askedOf(qid).includes(Core.me.cid);
-    /** Someone else's answer (not Claude's, not an option): one makes a question not asked of me by name optional. */
     const otherAnswer = qid => Core.answersFor(qid).find(a => !a.claude && !a.option && a.cid !== Core.me.cid);
-    /** Where a question stands for me (triage row 42): answered (my own answer), took (I voted, reacted, disagreed or
-     *  passed: Core.tookPart), soft (someone else answered and it is not asked of me, so it is optional), or open. Only
-     *  open counts as not answered, as the server's behind count does (session.py _owes). */
     function myState(qid) {
       if (hasAnswered(qid)) return "answered";
       if (Core.tookPart(qid)) return "took";
       return !askedOfMe(qid) && otherAnswer(qid) ? "soft" : "open";
     }
-    /** Not yet taken part in, optional or not: where landing, Next and Start here go. Counts use myState "open" only. */
     const isOpenForMe = id => { const q = qById(id); return !!q && ["open", "soft"].includes(myState(id)) && !Core.lockOf(id) && !readOnly(q); };
-    /** Triage row 43 (Q100): the earliest closed round with unlocked questions I have not taken part in, and those
-     *  questions; answers there still go to Claude, marked late. Null when there is none, or for the owner. */
     function catchUp() {
       const S = Core.state;
       if (Core.me.isOwner || !S.me || S.ended || S.youRemoved) return null;
@@ -461,7 +391,6 @@
       const n = Math.min(...behind.map(roundOf)), qs = behind.filter(q => roundOf(q) === n);
       return { n, qs, text: `Round ${n} has ${qs.length} question${qs.length === 1 ? "" : "s"} you haven't answered. Answers there still go to Claude, marked late.` };
     }
-    /** The catch-up line: what is behind, and a link that opens its first question. */
     function catchUpEl(onGo) {
       const p = E("p", "vf-catchup"), t = E("span", "vf-catchup-t"), go = btn("vf-lbtn");
       p.append(t, " ", go);
@@ -470,15 +399,11 @@
       return p;
     }
     const optionsOf = q => q?.options || [];
-    /** Every pick format's one line while results wait for my vote. */
     const RESULTS_HINT = "Everyone's votes show once you vote.";
-    /** A question that takes a pick (its options are the vote), not a written answer. */
     const isChoice = q => ["choice", "confirm", "multi", "scale", "rank"].includes(q?.format);
     const isFormat = q => ["multi", "scale", "rank"].includes(q?.format);
-    /** The server-added "Something else…" option, where the question has one. */
     const otherOf = q => optionsOf(q).find(o => o.other) || null;
     const realOptions = q => optionsOf(q).filter(o => !o.other);
-    /** My saved pick as the fields /api/pick takes, or null with none. */
     function savedPick(q, rec) {
       if (!q || !rec) return null;
       if (q.format === "multi") return rec.picks?.length ? { options: rec.picks } : null;
@@ -486,11 +411,8 @@
       if (q.format === "rank") return rec.order?.length ? { order: rec.order } : null;
       return rec.pick ? { option: rec.pick } : null;
     }
-    /** A question that takes a pick first: polls, multi, scale and rank, and a choice with "Something else" (writing
-     *  your own option goes there). Its comment box works before the pick, and the comment goes in with it. */
     const commentFirst = q => q?.purpose === "poll" || isFormat(q) || (q?.format === "choice" && !!otherOf(q));
     const pickLabel = (q, id) => optionsOf(q).find(o => o.id === id)?.label || id;
-    /** What a person card picked, in words: "Picked: Card", "Picked: A, B", "Chose 4 of 5", "Ranked: A > B > C". */
     function pickedText(q, a) {
       if (!q || a.claude || a.option) return "";
       const own = `${isMe(a.cid) ? "your" : "their"} own option`;
@@ -503,27 +425,18 @@
       return q.format === "confirm" ? CONFIRM_OTHER : "";
     }
     const assetUrl = id => "/assets/" + encodeURIComponent(id);
-    /** People's answers and Claude's cards; a choice question's options render as their own cards above. */
     const peopleAnswers = qid => Core.answersFor(qid).filter(a => !a.option);
-    /** An answer's text, else how many files it carries (an answer may be pictures alone); "" for neither. */
     const answerLine = a => a?.text || (a?.att?.length ? `${a.att.length} file${a.att.length === 1 ? "" : "s"}` : "");
     const iVoted = qid => Core.answersFor(qid).some(a => (a.votes || []).includes(Core.me.cid));
-    /** My Claude-cards choice, or the session default from ⚙ when I left it there: Answer first is on. */
     const answerFirst = () => { const p = claudePref(); return p === "session" ? st().hideClaude !== false : p === "answerFirst"; };
-    /** C26: Claude's cards wait until I answered or voted, unless I chose Always show (session default from ⚙). */
     function claudeHidden(qid) {
       return answerFirst() && !ui.revealed.has(qid) && !hasAnswered(qid) && !iVoted(qid);
     }
-    /** ux-review-2 #5: under Answer first, a guest sees no one's picks (counts, Leading, avatars, pick cards) until they
-     *  answered or voted, so the first voter does not steer them. A poll always waits for a pick; the owner, moderators
-     *  and a locked question see everything. */
     function resultsWait(q) {
       if (!q || Core.me.isOwner || Core.lockOf(q.id)) return false;
       if (q.purpose === "poll") return !savedPick(q, myRec(q.id));
-      // Picks only: on a written question, voting for someone else's answer is how a guest takes part.
       return answerFirst() && isChoice(q) && !Core.canModerate() && !ui.revealed.has(q.id) && !hasAnswered(q.id) && !iVoted(q.id);
     }
-    /** Why a Claude card shows while the others wait: chosen already. */
     function claudeChosen(a, qid, lead) {
       const lk = Core.lockOf(qid);
       if (lk && lk.answerCid === a.cid) return "locked";
@@ -532,7 +445,6 @@
       return "";
     }
 
-    // ---------- @mentions: Core turns the server's <@pid> into "@Name" as this page shows that person; each renders as a chip ----------
     const MN = { labels: null, re: null };
     function mentionRe() {
       const labels = Core.mentionLabels();
@@ -552,13 +464,9 @@
       }
       if (i < s.length) parent.append(s.slice(i));
     }
-    /** Text as markdown (question-shape.js): headings are bold lines, never page headings; #N and repository paths
-     *  link into the session's repository (set-repo), plain text without one; @mentions render as chips. */
     const MD = { repo: () => Core.state, text: withMentions };
-    /** Rebuilt when the text or the session's repository changes; _t stays the text (the reader opens it). */
     function setRich(el, text) { const k = `${Core.state.repo} ${Core.state.commit}`; if (el._t !== text || el._rk !== k) { el._t = text; el._rk = k; el.replaceChildren(QuestionShape.markdown(text, MD)); } }
 
-    // ---------- clamped text: ~6 lines, Show more expands in place, Open shows it in the reader ----------
     function clampBox(cls = "") {
       const box = E("div", ("vf-cbox " + cls).trim());
       const body = E("div", "vf-rich vf-clamp");
@@ -591,13 +499,9 @@
     }
     const measureAll = () => root.querySelectorAll(".vf-cbox").forEach(measure);
 
-    // ---------- the composer kit (question-shape.js): one rule set for every field people write in ----------
-    // "claude" mentions offer Claude first, where the server files "@Claude" as a request. Every key's unsent text
-    // survives a reload (UNSENT).
     const Kit = QuestionShape.kit({
       on,
       pane: t => t.closest(".vf-center, .vf-chat, .vf-pop, .vf-rail") || root,
-      // Triage 23: a field growing while I type stays in view, with its form's send button when the form fits.
       grew: t => { if (document.activeElement === t && Kit.typing(t) && !t.closest(".vf-composer-sheet")) reveal(t.closest("form") || t, t); },
       drafts: { get: k => ui.kd[k], set: (k, v) => { if (v) ui.kd[k] = v; else delete ui.kd[k]; } },
       mentionOn: f => ui.mention?.field === f,
@@ -624,7 +528,6 @@
       const label = SPEECH.reading ? "Stop reading aloud" : "Read the question aloud";
       readBtn.setAttribute("aria-pressed", String(SPEECH.reading)); readBtn.setAttribute("aria-label", label); readBtn.title = label;
     }
-    /** The question's text, then its option labels, as this person's page shows them now. */
     function spokenParts() {
       const shown = el => el.getClientRects().length > 0;
       const opts = [...fmtBox.querySelectorAll(".vf-optlabel, .vf-check-l, .vf-rank-l, .vf-pickbtn .vf-pick-l, .vf-scale-end")];
@@ -653,8 +556,6 @@
       paintRead();
     }
     readBtn.onclick = readAloud;
-    // Escape stops reading or dictation wherever focus is; it runs before the fields' own Escape, and that press does
-    // nothing else.
     on(window, "keydown", e => {
       if (e.key !== "Escape" || (!SPEECH.reading && !SPEECH.rec)) return;
       e.preventDefault(); e.stopPropagation(); stopReading(); stopDictation();
@@ -674,7 +575,6 @@
         b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", label); b.title = label;
       }
     }
-    /** Put the words at the box's caret, within its limit, and tell the box it changed; nothing is sent. */
     function dictInto(f, words) {
       const start = f.selectionStart ?? f.value.length, end = f.selectionEnd ?? start;
       const before = f.value.slice(0, start), sep = before && !/\s$/.test(before) ? " " : "";
@@ -685,7 +585,6 @@
       f.setRangeText(text, start, end, "end");
       f.dispatchEvent(new Event("input", { bubbles: true }));
     }
-    /** A Dictate button for field f: press to start, press again to stop. */
     function dictBtn(f, label) {
       const b = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-dictate", "mic", label);
       b._label = label; b.hidden = true; b.setAttribute("aria-pressed", "false");
@@ -697,7 +596,6 @@
       };
       return b;
     }
-    /** One recognition session into field f, on the device when local. */
     function listen(f, b, local) {
       const r = new SR();
       r.lang = speechLang(); r.interimResults = false; r.continuous = false; r.maxAlternatives = 1;
@@ -705,7 +603,6 @@
       let heard = false, fallback = false;
       r.onresult = e => {
         const res = e.results[e.results.length - 1];
-        // the boxes are reused across questions: a session stopped by a move, or replaced, writes nowhere
         if (SPEECH.rec !== r || SPEECH.dq !== ui.cur || res?.isFinal === false || !res?.[0]) return;
         heard = true;
         if (local && SPEECH.local !== true) { SPEECH.local = true; fillPcard(); }
@@ -724,7 +621,6 @@
       try { r.start(); } catch { SPEECH.rec = null; flash("Dictation could not start."); }
       paintDict();
     }
-    /** Each render: the controls show only with their pref on and the API there; what runs stops when it should. */
     function paintSpeech(hasQ) {
       readBtn.hidden = !readOn() || !hasQ;
       if (SPEECH.reading && (readBtn.hidden || SPEECH.qid !== ui.cur)) stopReading();
@@ -733,14 +629,11 @@
       if (!d || SPEECH.dq !== ui.cur) stopDictation();
     }
 
-    /** The nearest scrolling ancestor of el, never #app or the page. */
     function scroller(el) {
       let sc = el.parentElement;
       while (sc && sc !== root && !(/auto|scroll/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
       return sc && sc !== root ? sc : null;
     }
-    /** The part of scroller sc a person sees: its box inside the visual viewport, less the sticky or fixed rows in it
-     *  that sit in keep's column without holding it or being held by it, since they cover what scrolls under them. */
     function seenBand(sc, keep) {
       const S = sc.getBoundingClientRect(), K = keep.getBoundingClientRect(), vv = window.visualViewport;
       let top = Math.max(S.top, vv ? vv.offsetTop : 0), bottom = Math.min(S.bottom, vv ? vv.offsetTop + vv.height : innerHeight);
@@ -753,13 +646,10 @@
       }
       return { top, bottom };
     }
-    /** Scroll sc by the least that brings the range top..bottom inside band, its top first. */
     function scrollInto(sc, top, bottom, band) {
       if (top < band.top) sc.scrollTop -= band.top - top + 4;
       else if (bottom > band.bottom) sc.scrollTop += Math.min(bottom - band.bottom + 4, top - band.top);
     }
-    /** Scroll the nearest scrolling ancestor so el is in view; if el does not fit, keep must in view. Sticky rows count
-     *  as covering. */
     function reveal(el, must = el) {
       const sc = scroller(must);
       if (!sc) return;
@@ -777,16 +667,11 @@
     toastAct.hidden = true; toastX.hidden = true;
     toast.append(toastTxt, toastAct, toastX);
     toastX.onclick = () => { ui.alertOpen = false; hideToast(); };
-    // A second, visually hidden polite region for content that arrives (new answers), never the answer list itself.
     const srLive = E("div", "vf-sr"); srLive.setAttribute("aria-live", "polite");
     let toastT = 0, clearT = 0, toastPaint = 0;
     const toastQ = [];
-    /** `msg` may be a function that returns [msg, action] when the toast's turn comes, or null to drop it; `tag` names
-     *  the toast while it shows (toast._tag). */
     const flashNow = (...a) => flash(...a);
     function flash(msg, action, tag) {
-      // A second message in the same pass (a new round and a placed proposal) waits its turn instead of
-      // overwriting the first before it paints.
       if (toastPaint) { toastQ.push([msg, action, tag]); return; }
       if (typeof msg === "function") { const r = msg(); if (!r) { if (tag === "alert") ui.alertOpen = false; if (toastQ.length) flash(...toastQ.shift()); return; } [msg, action] = r; }
       clearTimeout(toastT); clearTimeout(clearT);
@@ -799,12 +684,9 @@
         placeToast();
         toast.classList.add("vf-on");
       });
-      // Q39: an urgent pop-up stays until it is closed or opened; the rest go after a few seconds.
       if (tag === "alert") ui.alertOpen = true;
       else toastT = setTimeout(() => (toastQ.length ? flash(...toastQ.shift()) : hideToast()), action ? 9000 : 3200);
     }
-    /** Centered on the center pane (the part the chat leaves uncovered; the whole page when the pane is hidden),
-     *  12px above whatever is docked at the bottom under it: tab bar, chat button, panel or the phone edit sheet. */
     function placeToast() {
       const R = root.getBoundingClientRect(), C = center.getBoundingClientRect(), side = !chat.hidden ? chat : askPanel.isConnected && !askPanel.hidden && !phone.matches ? askPanel : null, ch = side ? side.getBoundingClientRect() : null;
       let L = C.width ? C.left : R.left, Rt = C.width ? C.right : R.right;
@@ -813,22 +695,17 @@
         toast.style.setProperty("--toast-room", Rt - L - 32 + "px");
         return toast.offsetWidth;
       };
-      // The modal chat covers the page: the toast takes a slot the chat opens between its messages and its composer,
-      // so it hides no message, the close button or the message box.
       if (activeSheet() === chat) {
         L = R.right - chat.offsetWidth; Rt = R.right; fit();
         const h = toast.offsetHeight;
         chat.style.setProperty("--toast-slot", h ? h + 16 + "px" : "0px");
-        // measured from the typing line under the slot: the messages' margin may still be mid-transition
         toast.style.insetBlockStart = "auto";
         toast.style.insetBlockEnd = R.bottom - mTyping.getBoundingClientRect().top + 8 + "px";
         return;
       }
       chat.style.removeProperty("--toast-slot");
-      // docked beside the page, the chat's column is never under the toast (its layout box: the entrance slide moves it)
       if (!chat.hidden) Rt = Math.min(Rt, R.right - chat.offsetWidth - 8);
       let w = fit();
-      // only when the open chat panel would sit under it, center it on the part of the pane the chat leaves
       if (ch && ch.left > L + 200 && ch.left < (L + Rt) / 2 + w / 2) { Rt = ch.left - 8; w = fit(); }
       const l = (L + Rt) / 2 - w / 2, r = l + w;
       let bottom = R.bottom - 16;
@@ -837,7 +714,6 @@
         if (!b.height || el.closest("[hidden]") || getComputedStyle(el).visibility === "hidden" || b.right <= l || b.left >= r || b.bottom < R.bottom - 160) continue;
         bottom = Math.min(bottom, b.top - 12);
       }
-      // A tall panel under it: drop in under the top bar instead of floating mid-page.
       const high = bottom < R.top + R.height / 2;
       toast.style.insetBlockEnd = high ? "auto" : Math.max(8, R.bottom - bottom) + "px";
       toast.style.insetBlockStart = high ? top.getBoundingClientRect().bottom - R.top + 8 + "px" : "";
@@ -845,7 +721,7 @@
     function hideToast() {
       const was = toast._tag;
       toast.classList.remove("vf-on"); toast._tag = ""; chat.style.removeProperty("--toast-slot");
-      if (was !== "alert" && ui.alertOpen) { flash(alertToast, null, "alert"); return; } // an urgent pop-up another toast covered comes back
+      if (was !== "alert" && ui.alertOpen) { flash(alertToast, null, "alert"); return; }
       clearT = setTimeout(() => { toastTxt.textContent = ""; toastAct.hidden = true; }, 250);
     }
     function announce(msg) { srLive.textContent = ""; requestAnimationFrame(() => { srLive.textContent = msg; }); }
@@ -859,14 +735,12 @@
     const titleTxt = E("span", "vf-title");
     const titleEdit = ibtn("vf-tbtn vf-tbtn-quiet vf-pencil", "pencil", "Rename this session");
     const titleInput = E("input", "vf-input vf-title-input"); titleInput.maxLength = 80; titleInput.hidden = true; titleInput.setAttribute("aria-label", "Session title");
-    // The goal: one line under the title for everyone; the owner sets it with the pencil.
     const titles = E("div", "vf-titles"), titleRow = E("div", "vf-titlerow"), goalRow = E("div", "vf-goalrow");
     const goalTxt = E("span", "vf-goal");
     const goalEdit = ibtn("vf-tbtn vf-tbtn-quiet vf-pencil vf-goal-pencil", "pencil", "Set the session goal");
     const goalAdd = btn("vf-goal-add", "Add a goal");
     const goalInput = E("input", "vf-input vf-goal-input"); goalInput.maxLength = 200; goalInput.hidden = true;
     goalInput.setAttribute("aria-label", "Session goal"); goalInput.placeholder = "What this session should settle";
-    // The Live pill sits on the title's own line, so it stays beside the title however wide the goal runs.
     const live = E("span", "vf-live"); live.setAttribute("role", "status");
     const liveTxt = E("span", "vf-live-txt");
     live.append(E("span", "vf-live-dot"), liveTxt);
@@ -883,12 +757,9 @@
     follow.append(E("span", "vf-switch"), followTxt);
     const keysBtn = ibtn("vf-tbtn vf-icon-btn vf-keysbtn", "help", "Help: the tour and keyboard shortcuts (?)"); keysBtn.setAttribute("aria-haspopup", "dialog");
     const gear = ibtn("vf-tbtn vf-icon-btn vf-gear", "gear", "Session settings"); gear.setAttribute("aria-haspopup", "dialog");
-    // Ask Claude: the session panel; the 💬 bubble is people chat only.
     const askTop = lbtn("vf-tbtn vf-asktop", "sparkle", "Ask Claude"); askTop.setAttribute("aria-haspopup", "dialog"); askTop.setAttribute("aria-expanded", "false");
     askTop.setAttribute("aria-label", "Ask Claude");
-    // Q87: one tap cycles System, Light, Dark; saved with my preferences.
     const themeBtn = btn("vf-tbtn vf-icon-btn vf-themebtn");
-    // Item 11: the Inbox in the bell's place: my requests, what waits on the host, and every notification, with one unread count.
     const bellBtn = btn("vf-tbtn vf-bell vf-inboxbtn"); bellBtn.setAttribute("aria-haspopup", "dialog"); bellBtn.setAttribute("aria-expanded", "false");
     const bellBadge = E("span", "vf-bell-n");
     bellBtn.append(icon("host"), E("span", "vf-inbox-l", "Inbox"), bellBadge);
@@ -907,15 +778,12 @@
     cancelSend.hidden = true;
     cancelSend.onclick = guarded(() => ({ title: `Cancel sending round ${curRound().current}?`, body: "Claude will not pick this round up. It goes back to open, so people can answer and vote again until you send it.", ok: "Cancel sending", safe: "Keep it sent" }),
       () => Core.cancelRound().then(() => flash("Round reopened. Send it again when it is ready.")).catch(fail));
-    /** Q78: after Send, the same three steps for everyone. A real sequence, so it is an ordered list. */
     function makeStepper() {
       const ol = E("ol", "vf-steps");
       ol._items = ["sent", "working", "here"].map(k => { const li = E("li", "vf-step"); li.dataset.k = k; li.append(E("span", "vf-step-dot"), E("span", "vf-step-txt")); ol.append(li); return li; });
       return ol;
     }
-    /** Follow-up 33: how long Claude has been working on the round, once that is long enough to wonder ("" before). */
-    const WORKING_SHOWN_AFTER = 120; // judgment: seconds before the page says how long Claude has been working
-    // Claude acks and opens the next round in one apply, so a round mostly waits in "sent": that wait counts from sentAt.
+    const WORKING_SHOWN_AFTER = 120;
     const longFor = ts => (ts && (Core.state.serverTime || Date.now() / 1000) - ts >= WORKING_SHOWN_AFTER ? Core.span(ts) : "");
     const workingFor = R => (R.status === "working" ? longFor(R.ackAt) : "");
     const waitingFor = R => (R.status === "sent" ? longFor(R.sentAt) : "");
@@ -933,7 +801,6 @@
     const stepNote = E("p", "vf-step-note");
     nextBox.append(nextTxt, railSteps, stepNote, cancelSend);
     const railEmpty = E("p", "vf-empty vf-empty-sm vf-rail-empty", "No questions yet. Round 1 lists here as soon as it opens.");
-    // Follow-up 52: a filter or a round pick that hides questions says so above the rail, with a way back.
     const railFilter = E("p", "vf-railfilter"), railFilterTxt = E("span"), railFilterAll = btn("vf-lbtn", "Show all");
     railFilter.append(railFilterTxt, railFilterAll); railFilter.hidden = true;
     railFilterAll.onclick = () => setTb({ filter: "all", round: "all" });
@@ -948,13 +815,11 @@
     }
     const propRow = railRow("Proposed");
     const myProp = E("ul", "vf-myprops"); myProp.setAttribute("aria-label", "Your proposals");
-    const proposeBtn = lbtn("vf-btn vf-propose", "plus", "Propose a question"); // a secondary button, not ghost (research: propose discoverability)
+    const proposeBtn = lbtn("vf-btn vf-propose", "plus", "Propose a question");
     proposeBtn.setAttribute("aria-haspopup", "dialog"); proposeBtn.setAttribute("aria-expanded", "false");
     railFoot.append(propRow, myProp, proposeBtn);
     rail.append(railHead, rounds, railFoot);
 
-    // Propose a question: anyone; it goes to Proposed, and Claude places it with the next round or says why not. The one
-    // Propose form: every way in opens it, beside this button on a wide screen and as a bottom sheet on a phone.
     const proposePop = E("form", "vf-pop vf-proposepop"); proposePop.setAttribute("role", "dialog"); proposePop.setAttribute("aria-label", "Propose a question"); proposePop.hidden = true;
     const propTa = E("textarea", "vf-ta"); propTa.rows = 3; propTa.maxLength = 2000; propTa.id = "vf-prop-ta";
     const propLabel = E("label", "vf-asklabel", "What should the group be asked?"); propLabel.htmlFor = propTa.id;
@@ -966,8 +831,6 @@
     proposePop.append(E("h2", "vf-pop-title", "Propose a question"), propLabel, propTa,
       E("p", "vf-pop-note", "It goes to Proposed. Claude places it in the next round or says why not."), propRowB);
 
-    // Report a problem: from More, Help or a refused action's toast, placed as the Propose form is (a bottom sheet on a
-    // phone, so it sits right on the keyboard). "Sent with this report" lists everything that goes with it before Send.
     const reportPop = E("form", "vf-pop vf-reportpop"); reportPop.setAttribute("role", "dialog"); reportPop.setAttribute("aria-label", "Report a problem"); reportPop.hidden = true;
     const repTa = E("textarea", "vf-ta"); repTa.rows = 3; repTa.maxLength = 2000; repTa.id = "vf-rep-ta"; repTa.required = true;
     const repLabel = E("label", "vf-asklabel", "What went wrong?"); repLabel.htmlFor = repTa.id;
@@ -977,21 +840,16 @@
     const repRow = E("div", "vf-crow"), repCancel = btn("vf-btn vf-btn-ghost", "Cancel");
     const repSend = E("button", "vf-btn vf-btn-primary", "Send report"); repSend.type = "submit";
     repRow.append(repCount, repK.hint, repCancel, repSend);
-    // the screenshot and what goes with the report come before Send, which ends the form within thumb reach
     reportPop.append(E("h2", "vf-pop-title", "Report a problem"), repLabel, repTa,
       E("p", "vf-pop-note", "Take a screenshot first, then add or paste it here. Only the host and Claude see your report."),
       E("h3", "vf-pop-sub", "Sent with this report"), repSent, repErr, repRow);
 
-    // Follow-up item 3: Your reports, the person's own problem reports in this session with where each stands. While one
-    // is not fixed they can add a line or a screenshot to it (the same screenshot path and caps). Only they and the host
-    // see a report.
     const myRepPop = E("div", "vf-pop vf-reportpop vf-myreps"); myRepPop.setAttribute("role", "dialog"); myRepPop.setAttribute("aria-label", "Your reports"); myRepPop.hidden = true;
     const myRepList = E("ul", "vf-plist vf-myrep-list"); myRepList.setAttribute("role", "list");
     myRepPop.append(E("h2", "vf-pop-title", "Your reports"), E("p", "vf-pop-note", "Only you and the host see these."), myRepList);
     const REP_WORD = { open: "Sent", seen: "Seen by the host", resolved: "Fixed" };
     const MAX_REPORT_IMAGES = 4; // screenshots a report takes when it is sent (session.py MAX_REPORT_IMAGES); an addition takes one
 
-    // Wide panels: beside the rail when there is room, over the center pane when not, a bottom sheet on phones.
     function panel(title, label) {
       const pop = E("div", "vf-pop vf-panel"); pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", label); pop.hidden = true;
       const head = E("div", "vf-pp-head");
@@ -1034,13 +892,11 @@
     });
     for (const [b, f] of [[propNewBtn, "new"], [propNotBtn, "notplaced"], [propParkBtn, "parked"]]) b.onclick = () => { ui.propFilter = f; render(); };
 
-    // A vote tie on Lock top answer: the moderator picks which answer to lock.
     const tiePop = E("div", "vf-pop vf-tiepop"); tiePop.setAttribute("role", "dialog"); tiePop.setAttribute("aria-label", "Pick the answer to lock"); tiePop.hidden = true;
     const tieList = E("ul", "vf-tielist"); tieList.setAttribute("role", "list");
     tiePop.append(E("h2", "vf-pop-title", "Tied on votes"), E("p", "vf-pop-note", "Pick the one to lock. Claude's recommendation is listed first."), tieList);
 
     const center = E("section", "vf-center");
-    // Session-wide notice: moved, ended, removed, or (owner) a new guest link to share.
     const banner = E("div", "vf-banner"); banner.setAttribute("role", "status"); banner.hidden = true;
     const bannerTxt = E("span", "vf-banner-txt"), bannerAct = btn("vf-btn vf-btn-ghost vf-btn-sm");
     banner.append(icon("alert"), bannerTxt, bannerAct);
@@ -1050,7 +906,6 @@
     for (const [k, label] of [["focus", "Focus"], ["compare", "Compare"], ["tree", "Tree"], ["host", "Host"]]) {
       const b = btn("vf-seg-btn", label); b.onclick = () => setMode(k); seg.append(b); segBtns[k] = b;
     }
-    // One toolbar for Focus, Compare and Tree (Q72): sort, filter chips, round, expand or collapse every round.
     const toolbar = E("div", "vf-toolbar"); toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Sort and filter questions");
     const selWrap = (label, opts) => {
       const w = E("label", "vf-selwrap"), s = E("select", "vf-select");
@@ -1066,16 +921,13 @@
     const FILTER_LABEL = Object.fromEntries(FILTERS);
     for (const [k, label] of FILTERS) {
       const b = btn("vf-fchip", label); chips.append(b); chipBtns[k] = b;
-      // Prototypes shows every round's, so it clears the round choice; the rail opens each round while it is on.
       b.onclick = () => setTb(k === "proto" ? { filter: k, round: "all" } : { filter: k });
     }
     const roundSel = selWrap("Round", [["all", "All rounds"]]);
     roundSel.s.onchange = () => { setTb({ round: roundSel.s.value }); board.scrollLeft = 0; };
     const expandBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-expand");
     toolbar.append(sortSel.w, chips, roundSel.w, expandBtn);
-    /** A guest's simple view: no view switch, sort or filters, so every question shows in round order. */
     const simpleView = () => !Core.canModerate() && pref("toolbar", "simple") !== "full";
-    /** Does a question pass the toolbar's filter and round? */
     function passes(q) {
       if (simpleView()) return true;
       const t = tb();
@@ -1092,7 +944,6 @@
       }
     }
     const totalVotes = qid => Core.answersFor(qid).reduce((n, a) => n + votesOf(a), 0);
-    /** Questions in round order, filtered, and sorted inside each round as the toolbar says. */
     function shownQuestions() {
       const t = tb(), qs = Core.state.questions.filter(passes), pos = new Map(Core.state.questions.map((q, i) => [q.id, i]));
       const key = q => simpleView() ? 0 : t.sort === "votes" ? -totalVotes(q.id) : t.sort === "unanswered" ? +(myState(q.id) !== "open") : 0;
@@ -1104,7 +955,6 @@
     const nextQ = ibtn("vf-tbtn vf-icon-btn", "chevR", "Next question");
     barNav.append(prevQ, nextQ);
     const pick = E("div", "vf-pick"); pick.setAttribute("role", "group"); pick.setAttribute("aria-label", "Round to compare");
-    // ux-review-2 #4: a guest starts with one question at a time; views, sort and filters wait behind View options.
     const viewOpts = btn("vf-btn vf-btn-ghost vf-btn-sm vf-viewopts"); viewOpts.setAttribute("aria-expanded", "false");
     viewOpts.onclick = () => {
       const full = pref("toolbar", "simple") !== "full";
@@ -1119,65 +969,52 @@
     const qMeta = E("div", "vf-qmeta");
     const qPos = E("span"), qFrom = E("span", "vf-qfrom"), qSug = E("span", "vf-chip vf-chip-brass"), qDeps = E("span", "vf-chip vf-chip-quiet");
     const qHost = E("span", "vf-chip vf-chip-quiet");
-    // Q97: the question's purpose; the owner overrides the one Claude inferred.
     const qPurpose = E("span", "vf-chip vf-chip-quiet vf-purpose");
     const purposeSel = selWrap("Purpose", Object.entries(PURPOSE).map(([k, [l]]) => [k, l]));
     purposeSel.w.classList.add("vf-purposesel");
     purposeSel.s.onchange = () => Core.setPurpose(ui.cur, purposeSel.s.value).then(() => flash(`${qById(ui.cur)?.id} is now a ${PURPOSE[purposeSel.s.value][0]} question.`)).catch(e => { fail(e); render(); });
-    // Triage row 42: who a question is asked of (`for`). Claude sets it from "@name"; the owner changes it here, as the purpose.
     const qFor = E("span", "vf-chip vf-chip-brass vf-forchip");
     const forBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-forbtn"); forBtn.setAttribute("aria-expanded", "false");
     const forBox = E("fieldset", "vf-forbox"); forBox.hidden = true; forBox.id = "vf-forbox"; forBtn.setAttribute("aria-controls", forBox.id);
     const forLegend = E("legend", null, "Who must answer (no one ticked asks everyone)"), forList = E("div", "vf-forlist");
     forBox.append(forLegend, forList);
     forBtn.onclick = () => { ui.forOpen = ui.forOpen === ui.cur ? "" : ui.cur; render(); };
-    // the purpose and who it asks, one group: on a phone it wraps to its own row as a whole (app.css .vf-qgroup)
     const qTools = E("span", "vf-qgroup"); qTools.append(qPurpose, purposeSel.w, qFor, forBtn);
     qMeta.append(qPos, qTools, qFrom, qDeps, qSug, qHost);
     const qText = E("h1", "vf-qtext"); qText.tabIndex = -1;
-    // F:30: the background Claude wrote for the question (its stored `context`), under the question, clamped like any long text
     const qCtx = clampBox("vf-qctx"); qCtx.hidden = true;
-    // a withheld recommendation is asked open: its Withheld: text shows here as the question's open note, never on a card
     const qOpen = E("p", "vf-qctx vf-qopen"); qOpen.hidden = true;
     const reviewRow = E("div", "vf-reviewrow");
     const reviewTag = E("span", "vf-review"); const reviewTxt = E("span");
     reviewTag.append(icon("alert"), reviewTxt);
     const reviewClear = btn("vf-btn vf-btn-ghost vf-btn-sm", "Mark reviewed");
     reviewRow.append(reviewTag, reviewClear);
-    // The owner's history of this question's decision (Core.state.decisions), folded until opened.
     const qHist = E("details", "vf-qhist"), qHistList = E("ol", "vf-history");
     qHistList.setAttribute("aria-label", "Decision history");
     qHist.append(E("summary", "vf-qhist-sum", "History"), qHistList); qHist.hidden = true;
     const onIt = E("div", "vf-onit");
     const onItAv = E("span", "vf-avrow"), onItTxt = E("span"), onItDots = dots();
     onIt.append(onItAv, onItTxt, onItDots);
-    // Triage 3: a guest's first view says why they are here, what the host asks, and where to start.
     const orient = E("section", "vf-orient"); orient.setAttribute("aria-labelledby", "vf-orient-h");
     const orH = E("h2", "vf-orient-h"); orH.id = "vf-orient-h";
     const orGoal = E("p", "vf-orient-goal"), orAsk = E("p", "vf-orient-ask");
     const orRow = E("div", "vf-orient-row");
     const orStart = btn("vf-btn vf-btn-primary vf-orient-start"), orTour = btn("vf-btn vf-btn-ghost vf-orient-tour", "Show me around");
-    // Phase 4c: "Why you're here", the intro the owner confirmed. Open on a wide screen's first view; on a phone, and on
-    // later visits, it folds behind its toggle so the question, "Something else…" and the answer box stay on screen.
     const orWhyBtn = btn("vf-btn vf-btn-ghost vf-orient-whybtn", "Why you're here"); orWhyBtn.setAttribute("aria-expanded", "false");
     const orWhy = E("div", "vf-orient-why"); orWhy.id = "vf-orient-why"; orWhyBtn.setAttribute("aria-controls", orWhy.id);
     const orIntro = E("p", "vf-orient-intro"), orHow = E("p", "vf-orient-how");
     orWhy.append(orIntro, orHow);
     orRow.append(orStart, orWhyBtn, orTour);
-    // Follow-up item 6: this is the welcome card, shown once per person on each device until Skip or Start here; Skip
-    // closes it and the tour offer at once. "Show the tour again" in the person's settings brings both back.
     const orLead = E("p", "vf-orient-lead", "You're in. Answer this round's questions.");
     const orHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-orient-x", "Skip"); orHide.setAttribute("aria-label", "Skip the welcome and the tour");
     const orCatch = catchUpEl(() => { ui.orientHidden = true; });
     orient.append(orHide, orLead, orH, orGoal, orAsk, orCatch, orRow, orWhy);
-    // Follow-up 39: on a return visit a guest sees the goal in one line until they close it; this tab remembers the close
-    // for that goal, so the next visit shows it again.
     const goalBack = E("div", "vf-goalback"), goalBackTxt = E("span", "vf-goalback-t");
     const goalBackX = ibtn("vf-tbtn vf-tbtn-quiet vf-goalback-x", "x", "Hide the goal");
     goalBack.append(goalBackTxt, goalBackX);
     const GOAL_HIDDEN = "vf-goal-hidden";
     const goalHidden = () => { try { return sessionStorage.getItem(GOAL_HIDDEN); } catch { return ui.goalHidden; } };
-    goalBackX.onclick = () => { ui.goalHidden = Core.state.goal; try { sessionStorage.setItem(GOAL_HIDDEN, Core.state.goal); } catch { /* storage off */ } render(); qText.focus({ preventScroll: true }); };
+    goalBackX.onclick = () => { ui.goalHidden = Core.state.goal; try { sessionStorage.setItem(GOAL_HIDDEN, Core.state.goal); } catch {} render(); qText.focus({ preventScroll: true }); };
     orWhyBtn.onclick = () => { ui.introOpen = !introOpen(); render(); };
     const WELCOME_SEEN = () => "vf-welcome-seen:" + (Core.me.cid || "anon");
     const welcomeDone = () => { store.put(WELCOME_SEEN(), true); ui.welcomeAgain = false; ui.orientHidden = true; };
@@ -1190,7 +1027,6 @@
     const INTRO_SEEN = () => "vf-intro-seen:" + (Core.me.cid || "anon");
 
     const tools = E("div", "vf-qtools");
-    // "Ask Claude" toggles the ask form below it, the same words everywhere.
     const askBtn = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-askbtn", "sparkle", "Ask Claude");
     askBtn.setAttribute("aria-expanded", "false");
     const reqChip = E("span", "vf-meta vf-reqchip");
@@ -1202,12 +1038,9 @@
     for (const [k, label] of [["ask", "Ask"], ["research", "Research"]]) {
       const b = btn("vf-seg-btn", label); b.onclick = () => { ui.askKind = k; renderAsk(); }; askSeg.append(b); askKinds[k] = b;
     }
-    // Follow-up item 2: a guest asks in one box, and Claude works out the kind of request and says what it did; "Use the
-    // web" sends it as research. The owner keeps the kind picker.
     const webChip = () => { const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle vf-webchip", "Use the web"); b.setAttribute("aria-pressed", "false"); return b; };
     const askWeb = webChip();
     askWeb.onclick = () => { ui.askWeb = !ui.askWeb; renderAsk(); };
-    // Who sees Claude's answer: Everyone, or Just me (the asker and the host, until one of them shares it).
     function audPick(onPick) {
       const g = E("div", "vf-seg vf-seg-sm vf-aud"); g.setAttribute("role", "group"); g.setAttribute("aria-label", "Who sees Claude's answer");
       const b = {};
@@ -1224,13 +1057,11 @@
     const askSend = E("button", "vf-btn vf-btn-primary", "Send request"); askSend.type = "submit";
     const askK = Kit.composer(askTa, { send: () => askForm.requestSubmit(), escape: () => askCancel.click(), mentions: true, draftKey: () => "ask:" + ui.cur });
     askRow.append(askK.count, askK.hint, askCancel, askSend);
-    // the same switch as the Ask Claude panel's: a guest's request can run on their own Claude
     const askSelfSw = btn("vf-sw-row vf-askself"); askSelfSw.setAttribute("role", "switch");
     askSelfSw.append(E("span", "vf-sw-txt vf-sw-label", "Run it on my own Claude"), E("span", "vf-switch"));
     askSelfSw.onclick = () => { ui.askSelf = !ui.askSelf; render(); };
     askForm.append(askHead, askTa, askSelfSw, askAud,
       E("p", "vf-pop-note vf-asknote", "The host runs it; the result lands on this question. Your request text shows on the result for everyone."), askRow);
-    // Q77: the question's Claude thread, requests and results in time order.
     const thList = E("ul", "vf-thlist"); thList.setAttribute("role", "list"); thList.setAttribute("aria-label", "Claude thread");
     const thEmpty = E("p", "vf-empty vf-empty-sm", "Nothing asked yet. Ask Claude about this question, or have it research something.");
 
@@ -1242,7 +1073,7 @@
     const editBtn = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit");
     lockTop.append(lockBadge, lockBy, E("span", "vf-spacer"), editBtn, unlockBtn);
     const lockText = clampBox("vf-lock-text");
-    const lockAtts = E("ul", "vf-reflist vf-attlist"); lockAtts.setAttribute("aria-label", "Attachments"); lockAtts.hidden = true; // the locked answer's files
+    const lockAtts = E("ul", "vf-reflist vf-attlist"); lockAtts.setAttribute("aria-label", "Attachments"); lockAtts.hidden = true;
     const lockFrom = E("div", "vf-lock-from");
     const editForm = E("form", "vf-edit"); editForm.hidden = true;
     const editTa = E("textarea", "vf-ta"); editTa.rows = 3; editTa.setAttribute("aria-label", "Locked answer text"); editTa.maxLength = 2000;
@@ -1275,23 +1106,19 @@
     const agreeTxt = E("span", "vf-agree");
     const lockBtn = btn("vf-btn vf-btn-brass vf-btn-sm", "Lock top answer");
     ansHead.append(ansTitle, ansCount, E("span", "vf-spacer"), agreeTxt, lockBtn);
-    // C26: Claude's take waits behind this bar until the person answered or voted.
     const claudeBar = btn("vf-claudebar"); claudeBar.append(claudeAv(20), E("span", "vf-claudebar-t"), E("span", "vf-claudebar-n"));
     claudeBar.onclick = () => { ui.revealed.add(ui.cur); render(); };
     const aList = E("ul", "vf-alist"); aList.setAttribute("role", "list");
     const aEmpty = E("p", "vf-empty", "No answers yet. Yours can be the first.");
-    // Suggestions an Unlock closed: kept and shown, never deleted.
     const closedBox = E("section", "vf-closed"); closedBox.setAttribute("aria-label", "Suggestions closed by unlock");
     const closedList = E("ul", "vf-slist"); closedList.setAttribute("role", "list");
     closedBox.append(E("h2", "vf-h2", "Suggestions closed by unlock"), closedList);
-    // Q76: a choice question's options, or a screenshot with a marked area for "Did you mean this?"
     const fmtBox = E("section", "vf-fmt"); fmtBox.setAttribute("aria-label", "Options");
     const fmtHint = E("p", "vf-fmt-hint");
     const optGrid = E("ul", "vf-opts"); optGrid.setAttribute("role", "list");
     const confirmFig = E("figure", "vf-confirm-fig");
     const confirmImg = E("img", "vf-confirm-img"); confirmImg.alt = "Screenshot";
     const confirmMark = E("span", "vf-confirm-mark"); confirmMark.setAttribute("aria-hidden", "true");
-    // The canvas holds the whole picture; the box shows it at full width and crops a tall one around the mark.
     const confirmCanvas = E("span", "vf-confirm-canvas"); confirmCanvas.append(confirmImg, confirmMark);
     const confirmImgBox = E("span", "vf-confirm-box"); confirmImgBox.append(confirmCanvas, zoomTag());
     const confirmView = btn("vf-imgbtn"); confirmView.append(confirmImgBox);
@@ -1303,8 +1130,6 @@
     const cfUndo = btn("vf-btn vf-btn-ghost vf-btn-sm vf-optundo", "Undo");
     cfRow.append(yesBtn, noBtn, elseBtn, cfUndo);
     const fmtNote = E("p", "vf-fmt-note");
-    // Phase 4b formats. multi: checkboxes, any subset of at least one. scale: one value from min to max. rank: every
-    // option in order, by dragging its handle (mouse or touch), its Up and Down buttons, or the arrow keys on its handle.
     const multiList = E("ul", "vf-multilist"); multiList.setAttribute("role", "list");
     const scaleBox = E("div", "vf-scale");
     const scaleRow = E("div", "vf-scale-row"); scaleRow.setAttribute("role", "radiogroup");
@@ -1313,7 +1138,6 @@
     scaleEnds.append(scaleMin, scaleMid, scaleMax);
     scaleBox.append(scaleRow, scaleEnds);
     const rankList = E("ol", "vf-rank"); rankList.setAttribute("aria-label", "Your ranking, best first");
-    // "Something else…": the person's own option, written here; it becomes a card others can back.
     const otherBox = E("div", "vf-otherbox");
     const otherLbl = E("label", "vf-otherlbl", "Your own option"); otherLbl.htmlFor = "vf-other";
     const otherTa = E("textarea", "vf-ta vf-other-ta"); otherTa.id = "vf-other"; otherTa.rows = 2;
@@ -1327,27 +1151,21 @@
     const fmtActs = E("div", "vf-fmtacts");
     const fmtSave = btn("vf-btn vf-btn-primary vf-btn-sm vf-fmt-save"), fmtClear = btn("vf-btn vf-btn-ghost vf-btn-sm vf-fmt-clear");
     fmtActs.append(fmtClear, E("span", "vf-spacer"), fmtSave);
-    // Results where the options are: counts (multi, scale with mean and median), Borda points (rank).
     const fmtRes = E("section", "vf-fmtres"); fmtRes.setAttribute("aria-label", "Results");
     const fmtResHead = E("h3", "vf-fmtres-h"), fmtResSum = E("p", "vf-fmtres-sum"), fmtResList = E("ol", "vf-fmtres-list");
     fmtRes.append(fmtResHead, fmtResSum, fmtResList);
-    // Q98: a prototype question shows a preview tile and opens its own page, where the variants run and take notes.
     const protoBox = E("section", "vf-proto"); protoBox.setAttribute("aria-label", "Prototype");
-    // the tile opens the prototype too (a mouse shortcut; the named link below is the one keyboards and screen readers get)
     const protoTile = E("a", "vf-proto-tile"), protoInfo = E("div", "vf-proto-info");
     protoTile.target = "_blank"; protoTile.rel = "noopener noreferrer"; protoTile.tabIndex = -1; protoTile.setAttribute("aria-hidden", "true");
     const protoMeta = E("p", "vf-proto-meta"), protoOpen = E("a", "vf-btn vf-btn-primary vf-btn-sm vf-proto-open", "Open prototype");
     protoOpen.target = "_blank"; protoOpen.rel = "noopener noreferrer";
     const protoVers = E("div", "vf-proto-versions"); protoVers.hidden = true;
-    // Where to look (the question's lookAt), beside Open prototype: the area the variants change and the step that shows it.
     const protoGo = E("div", "vf-proto-go"), protoLook = E("p", "vf-proto-look"), protoLookText = E("span");
     protoLook.append(E("span", "vf-proto-look-h", "Where to look: "), protoLookText);
     protoGo.append(protoOpen, protoLook);
     protoInfo.append(protoMeta, protoVers, protoGo);
     protoBox.append(protoTile, protoInfo);
     fmtBox.append(fmtHint, protoBox, optGrid, multiList, scaleBox, rankList, confirmFig, cfRow, otherBox, fmtActs, fmtNote, fmtRes);
-    // Layout A: Answers, then "Claude on this question", one column at every width. The Claude section starts folded to its
-    // head and opens by itself when this person has a new result on the question; opening pushes the page, hiding nothing.
     const ansPane = E("section", "vf-anspane"); ansPane.setAttribute("aria-label", "Answers"); ansPane.id = "vf-anspane";
     const ansMore = showMore("ans", 12, { all: true });
     ansPane.append(lockBox, ansHead, claudeBar, aList, ansMore.foot, aEmpty, closedBox);
@@ -1367,11 +1185,8 @@
       clSec.dataset.open = String(open); clBody.hidden = !open;
       clToggle.setAttribute("aria-expanded", String(open));
     }
-    /** Opening keeps the section in view: its head moves to the top of the scroll area, the answers stay above it. */
     function keepClInView() { requestAnimationFrame(() => clSec.scrollIntoView({ block: "start", behavior: smooth() })); }
     clToggle.onclick = () => { const open = !clIsOpen(); ui.clOpen.set(ui.cur, open); if (!open) ui.askOpen = false; render(); if (open) keepClInView(); };
-    // Item 10: the question's Discussion, below the Claude section and folded by default. Its head counts the comments and
-    // the ones new to me (others' since I last opened it); opening it marks them read on the server, on every device.
     const discSec = E("section", "vf-disc"); discSec.setAttribute("aria-label", "Discussion");
     const discToggle = btn("vf-disc-head"); discToggle.setAttribute("aria-controls", "vf-discbody");
     const discCount = E("span", "vf-meta vf-disc-count"), discNew = E("span", "vf-chip vf-chip-new vf-disc-new");
@@ -1381,7 +1196,6 @@
     const discList = E("ul", "vf-disc-list"); discList.setAttribute("role", "list");
     const discEmpty = E("p", "vf-empty", "No comments yet.");
     const discForm = E("form", "vf-disc-form");
-    // The canonical chrome's comment box (reference/html-chrome.html) is this composer: its heading, label and field.
     const discBox = E("section", "rv-comment"); discBox.setAttribute("aria-labelledby", "rv-comment-h");
     const discBoxH = E("h2", null, "Comment"); discBoxH.id = "rv-comment-h";
     const discLabel = E("label", null, "Your comment for the session"); discLabel.htmlFor = "rv-comment-text";
@@ -1398,7 +1212,6 @@
     discSec.append(discH, discBody);
     ui.discOpen = new Map(); ui.discFrom = new Map(); ui.discEdit = "";
     const discIsOpen = () => !!ui.cur && ui.discOpen.get(ui.cur) === true;
-    /** Opening: the new dots stay on what was new when I opened it, while the server marks it all read. */
     function setDisc(qid, open) {
       if (open && !ui.discOpen.get(qid)) ui.discFrom.set(qid, Core.state.discussionSeen?.[qid] || 0);
       ui.discOpen.set(qid, open);
@@ -1411,26 +1224,22 @@
       discPost.disabled = true;
       const ex = attExtra(discSlot);
       Core.comment(qid, text, ex).then(j => {
-        Kit.sent(discTa, "disc:" + qid); discSlot.sent(ex); // a question switched to meanwhile keeps its own draft
+        Kit.sent(discTa, "disc:" + qid); discSlot.sent(ex);
         if (j.request) flash("Posted, and sent to Claude."); else if (j.requestRefused) flash(j.message); })
         .catch(fail).finally(() => { discPost.disabled = false; });
     };
-    // Q84: References under the question: screenshots with a marked area, quoted excerpts with their source, titled links.
     const refBox = E("section", "vf-refs"); refBox.setAttribute("aria-label", "References");
     const refHead = E("div", "vf-refs-head");
     const refAdd = lbtn("vf-lbtn vf-refadd", "plus", "Add reference"); refAdd.setAttribute("aria-haspopup", "dialog"); refAdd.setAttribute("aria-expanded", "false");
     refHead.append(E("h2", "vf-h2", "References"), refAdd);
     const refList = E("ul", "vf-reflist"); refList.setAttribute("role", "list");
     refBox.append(refHead, refList);
-    // Follow-up 32: received pictures offered on this question that nothing carries, under the approval rule.
     const qPicBox = E("section", "vf-refs vf-qpics"); qPicBox.setAttribute("aria-label", "Pictures on this question"); qPicBox.hidden = true;
     const qPicHead = E("div", "vf-refs-head"), qPicList = E("ul", "vf-reflist vf-attlist");
     qPicHead.append(E("h2", "vf-h2", "Pictures")); qPicBox.append(qPicHead, qPicList);
-    // Q86 / content first: on phones the question's own row carries previous and next.
     const qNav = E("span", "vf-qnav");
     const qPrev = ibtn("vf-tbtn vf-icon-btn vf-qnav-btn", "chevL", "Previous question"), qNext = ibtn("vf-tbtn vf-icon-btn vf-qnav-btn", "chevR", "Next question");
     qNav.append(qPrev, qNext);
-    // On phones the on-it avatars sit in this row, before the arrows, so presence costs the question no height.
     const qOnIt = E("span", "vf-qonit"), qOnItAv = E("span", "vf-avrow");
     qOnIt.setAttribute("role", "img"); qOnIt.append(qOnItAv);
     qMeta.append(qOnIt, readBtn, qNav);
@@ -1440,19 +1249,15 @@
     const cK = Kit.composer(ta, { send: () => submit(), mentions: true }), cHint = cK.hint, cCount = cK.count;
     cRow.append(cCount);
     const clearBtn = btn("vf-btn vf-btn-ghost", "Clear");
-    // On phones the send button is a round icon inside the field's end; the label stays as its accessible name.
     const sendBtn = E("button", "vf-btn vf-btn-primary vf-sendbtn"); sendBtn.type = "submit";
     const sendLbl = E("span", "vf-send-l", "Answer");
     sendBtn.append(icon("send", "vf-i vf-send-i"), sendLbl);
-    // Cite one of this question's Claude results; attach a file (uploads on).
     const citeBtn = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-citebtn", "cite", "Cite");
     citeBtn.setAttribute("aria-haspopup", "dialog"); citeBtn.setAttribute("aria-expanded", "false");
     const attachBtn = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
     const citeChips = E("ul", "vf-citechips"); citeChips.setAttribute("aria-label", "Cited results");
     const upStrip = E("ul", "vf-upstrip"); upStrip.setAttribute("aria-label", "Your files on this question");
     cRow.append(attachBtn, dictBtn(ta, "Dictate your answer"), citeBtn, cHint, clearBtn, sendBtn);
-    // The phone sheet (triage 18): Cancel and what is being answered on top; Save ends the row under the field, right on
-    // the keyboard, in thumb reach (O114). Both show only in the sheet.
     const sheetHead = E("div", "vf-sheethead");
     const sheetCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), sheetTitle = E("span", "vf-sheettitle");
     const sheetSave = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-sheetsave", "Save"); sheetSave.type = "submit";
@@ -1467,8 +1272,6 @@
     const citePop = E("div", "vf-pop vf-citepop"); citePop.setAttribute("role", "dialog"); citePop.setAttribute("aria-label", "Cite a result"); citePop.hidden = true;
     const citeList = E("ul", "vf-citelist"); citeList.setAttribute("role", "list");
     citePop.append(E("h2", "vf-pop-title", "Cite a result"), E("p", "vf-pop-note", "Your answer links to it, and the result shows who cited it."), citeList);
-    // Triage row 42: once someone else answered a question not asked of me by name, a line says so (optional now), and
-    // Pass, on every purpose, says I have no view to give. Pass is a quiet button under the answer box, never the default.
     const passBox = E("div", "vf-passbox");
     const passNote = E("p", "vf-passnote"), passWho = E("p", "vf-passwho");
     const passBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-passbtn", "Pass"); passBtn.setAttribute("aria-expanded", "false");
@@ -1495,14 +1298,10 @@
         .catch(x => { passErr.textContent = `Not passed: ${Core.errorText(x)}`; }).finally(() => { passSave.disabled = false; render(); });
     };
     passUndo.onclick = () => Core.pass(ui.cur, "", false).then(() => flash("Pass taken back.")).catch(fail);
-    // Follow-up item 1: "Go to the next question after I answer" (the autoAdvance pref, off by default). One pick, a
-    // confirm or a scale value with the comment box empty moves on in 2 s unless Stay; never pick-many, rank or text.
     const ADV = { timer: 0, qid: "" };
     const advBar = E("p", "vf-advance"); advBar.setAttribute("role", "status"); advBar.hidden = true;
     const advStay = btn("vf-btn vf-btn-ghost vf-btn-sm vf-advance-stay", "Stay");
     advBar.append(E("span", null, "Next question in 2 s"), E("span", "vf-advance-sep", "·"), advStay);
-    // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
-    // Follow-up 47: a question asked once per device, answered from another kind of device, asks again on this one.
     const devNote = E("p", "vf-devnote"); devNote.hidden = true;
     scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, qOpen, refBox, qPicBox, reviewRow, qHist, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
@@ -1520,7 +1319,6 @@
     const tree = E("div", "vf-tree"); tree.setAttribute("aria-label", "Decision tree");
     treeV.append(tree);
 
-    // Host view (Q73): owner and leaders. People, one combined queue, round status, links, settings, goal and Later.
     const hostV = E("div", "vf-hostv");
     const hostGrid = E("div", "vf-hostgrid");
     const hsec = (title, cls) => { const s = E("section", "vf-hsec " + (cls || "")); const h = E("div", "vf-hsec-head"); const t = E("h2", "vf-hsec-title", title); const m = E("span", "vf-meta"); h.append(t, m); s.append(h); s._h = h; s._t = t; s._m = m; return s; };
@@ -1533,7 +1331,6 @@
     hRoundRow.append(hCancel, hReset, hSend);
     const hGoalLabel = E("h3", "vf-pop-sub", "Goal"), hGoal = E("p", "vf-hgoal"), hGoalEdit = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit goal");
     const hGoalRow = E("div", "vf-hgoal-row"); hGoalRow.append(hGoal, hGoalEdit);
-    // Phase 4c: the owner edits "Why you're here" here; Claude drafts the first one in the terminal.
     const hIntroLabel = E("label", "vf-pop-sub vf-hintro-l", "Why you're here"); hIntroLabel.htmlFor = "vf-hintro";
     const hIntroIn = E("textarea", "vf-ta vf-hintro"); hIntroIn.id = "vf-hintro"; hIntroIn.maxLength = 600; hIntroIn.rows = 3;
     hIntroIn.placeholder = "Who is asking, why, about how long it takes, and what happens to the answers";
@@ -1542,7 +1339,6 @@
     hIntroRow.append(hIntroCount, E("span", "vf-spacer"), hIntroSave);
     const hIntroShown = E("p", "vf-hgoal vf-hintro-shown");
     hRound.append(hRoundName, hSteps, hRoundNote, hRoundRow, hGoalLabel, hGoalRow, hIntroLabel, hIntroShown, hIntroIn, hIntroRow);
-    /** A row of filter chips, each with its label and a count: a pick stores its key in ui[field]. Returns the chips by key. */
     function countChips(holder, entries, field) {
       const by = {};
       for (const [k, label] of entries) {
@@ -1556,8 +1352,6 @@
     const queueEmpty = E("p", "vf-empty vf-empty-sm");
     const queueMore = showMore("queue", 20);
     hQueue.append(qFilters, queueList, queueMore.foot, queueEmpty);
-    // people
-    // Filter chips by presence, one chip per state so each person is under exactly one (and Removed, the owner's), a name search once the list passes 12, then 25 at a time.
     const pFilters = E("div", "vf-chips vf-pfilters"); pFilters.setAttribute("role", "group"); pFilters.setAttribute("aria-label", "Show people");
     const pfBtns = countChips(pFilters, [["all", "All"], ["active", "Active"], ["away", "Away"], ["offline", "Offline"], ["behind", "Behind"], ["removed", "Removed"]], "peopleFilter");
     const pFind = E("input", "vf-input vf-pfind"); pFind.type = "search"; pFind.placeholder = "Find a person"; pFind.setAttribute("aria-label", "Find a person by name");
@@ -1582,7 +1376,6 @@
     hostGrid.append(hColA, hColB);
     hostV.append(hostGrid);
 
-    // A fresh session, no questions yet: the host starts with a goal and the link; guests see that the host is setting up.
     const emptyV = E("div", "vf-emptyv");
     const ev = E("div", "vf-ev");
     const evTitle = E("h1", "vf-ev-title"), evNote = E("p", "vf-ev-note");
@@ -1603,7 +1396,6 @@
     evHere.append(evHereAv, evHereTxt);
     const evNext = E("p", "vf-ev-next");
     const evPropose = lbtn("vf-btn vf-btn-ghost", "plus", "Propose a question"); evPropose.setAttribute("aria-haspopup", "dialog");
-    // Approve new joins: the waiting card's "Why you're here", the host's intro (the server sends it with the refusal).
     const evIntro = E("section", "vf-ev-intro"); evIntro.hidden = true;
     const evIntroT = E("p", "vf-intropop-t"); evIntro.append(E("h2", "vf-pop-sub", "Why you're here"), evIntroT);
     ev.append(evTitle, evIntro, evNote, evGoalNow, evGoal, evShare, evHere, evNext, evPropose);
@@ -1614,9 +1406,7 @@
 
     const tabs = E("nav", "vf-tabs"); tabs.setAttribute("aria-label", "Sections");
     const tabBtns = {};
-    // Q86: Questions, Answer, Compare, Tree, More; More opens a sheet with everything else. No hamburger.
     for (const [k, label] of [["questions", "Questions"], ["answer", "Answer"], ["compare", "Compare"], ["tree", "Tree"], ["more", "More"]]) {
-      // Icon over a short label; the count badge hangs off the icon, so it never crowds the next tab.
       const b = btn("vf-tab"), ico = E("span", "vf-tab-ico"), l = E("span", "vf-tab-l", label);
       b._badge = E("span", "vf-badge");
       ico.append(icon({ questions: "list", answer: "pencil", compare: "columns", tree: "tree", more: "more" }[k]), b._badge);
@@ -1640,7 +1430,6 @@
     const mList = E("ul", "vf-mlist"); mList.setAttribute("role", "log");
     const mEmpty = E("p", "vf-empty vf-empty-sm", "No messages yet. Say hi, or float an idea.");
     mScroll.append(mList, mEmpty);
-    // Triage 24: scrolled up when messages arrive, the chat says how many are new instead of jumping.
     const mNew = btn("vf-mnew"); mNew.hidden = true;
     mNew.onclick = () => { mScroll.scrollTo({ top: mScroll.scrollHeight, behavior: smooth() }); mNew.hidden = true; ui.mNewFrom = null; };
     // A reader at the newest message stays there when the list or its box changes size: an on-screen keyboard opening
@@ -1655,9 +1444,7 @@
       if (mStick) { mNew.hidden = true; ui.mNewFrom = null; }
       if (top < EARLIER_PX) loadTop();
     });
-    // ---------- older chat: loaded when the reader nears the top, or from a Load earlier button ----------
-    const EARLIER_PX = 300; // judgment: about five messages above the top edge
-    /** A place in the chat: a message's id and time; `after` gives the messages newer than it. */
+    const EARLIER_PX = 300;
     const mark = m => (m ? { id: m.id, ts: m.ts } : { id: "", ts: 0 });
     function after(msgs, at) {
       if (!at) return [];
@@ -1668,7 +1455,6 @@
       const top = mList.firstElementChild;
       if (ui.chatOpen && mScroll.scrollTop < EARLIER_PX && top?.classList.contains("vf-mgap") && Date.now() > (ui.mRetry || 0)) loadEarlier(top._below, top._b);
     }
-    /** Read the messages older than message `id` into the chat, keeping what the reader sees where it is. */
     async function loadEarlier(id, button) {
       if (ui.mLoading || !id) return;
       ui.mLoading = true;
@@ -1688,8 +1474,6 @@
         if (hadFocus && !button.isConnected) mList.querySelector(".vf-msgmore")?.focus({ preventScroll: true });
       } catch (e) { ui.mRetry = Date.now() + 10000; fail(e); } finally { ui.mLoading = false; }
     }
-    /** Open the chat at one message, reading it from the server when it is outside what the page holds. */
-    /** `gone`, when given, runs in place of the "no longer in the chat" notice. */
     async function goMsg(id, gone) {
       if (!mList._map?.has(id) && !(await Core.chatAround(id).catch(() => false))) return gone ? gone() : flash("That message is no longer in the chat.");
       // At once, not smoothly: a poll's render during a smooth scroll would still see the reader at the newest message.
@@ -1705,24 +1489,19 @@
     const mSend = E("button", "vf-btn vf-btn-primary", "Send"); mSend.type = "submit";
     const mCount = Kit.composer(mInput, { send: () => sendChat(), mentions: "claude", draftKey: () => "chat" }).count; mCount.classList.add("vf-mcount");
     mForm.append(mInput, mSend);
-    // As in a Discussion: "@Claude" in a message also asks Claude, here about the whole session.
     const mHint = E("p", "vf-mhint", "Type @Claude to send it to Claude."); mHint.id = "vf-mhint";
     mInput.setAttribute("aria-describedby", mHint.id);
-    // Replying to: the quoted message rides above the field until it is sent or cancelled.
     const mReply = E("div", "vf-mreply"); mReply.hidden = true;
     const mReplyTxt = E("span", "vf-mreply-txt"), mReplyX = ibtn("vf-tbtn vf-icon-btn vf-mreply-x", "x", "Cancel the reply");
     mReply.append(icon("reply"), mReplyTxt, mReplyX);
     chat.append(chatHead, mScroll, mNew, mTyping, mCount, mReply, mHint, mForm);
-    // @mention suggestions: one list, under (or over) whichever field is being typed in.
     const mentionBox = E("ul", "vf-pop vf-mentions"); mentionBox.setAttribute("role", "listbox"); mentionBox.id = "vf-mentions"; mentionBox.hidden = true;
     mentionBox.setAttribute("aria-label", "People to mention");
 
-    // Person card: hover or focus shows it, a tap or click pins it (then it holds the owner's actions).
     const pcard = E("div", "vf-pop vf-pcard"); pcard.setAttribute("role", "dialog"); pcard.setAttribute("aria-label", "Person"); pcard.hidden = true;
 
     const settingsPop = E("div", "vf-pop vf-settings"); settingsPop.setAttribute("role", "dialog"); settingsPop.setAttribute("aria-label", "Session settings"); settingsPop.hidden = true;
     settingsPop.append(E("h2", "vf-pop-title", "Session settings"), E("p", "vf-pop-note", "Changes apply to everyone right away."));
-    /** A switch row: its label, with the description under it when given, then the switch. */
     function swRow(label, desc) {
       const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
       const txt = desc == null ? E("span", "vf-sw-txt vf-sw-label", label) : E("span", "vf-sw-txt");
@@ -1730,7 +1509,6 @@
       b.append(txt, E("span", "vf-switch"));
       return b;
     }
-    /** The keys of `rows` ([key, ...] entries), in their order, that are in `on` once `k` is toggled there. */
     function toggledKeys(rows, on, k) {
       const s = new Set(on); s.has(k) ? s.delete(k) : s.add(k);
       return rows.map(([kk]) => kk).filter(kk => s.has(kk));
@@ -1752,8 +1530,6 @@
       b.onclick = () => Core.saveSettings({ [k]: !st()[k] }).catch(fail);
       settingsPop.append(b); switches[k] = b;
     }
-    // Which prototype views guests get (the prototypeTiers setting): each switch saves the list with its own view toggled.
-    // Live prototypes are only stored for now; nothing starts one yet.
     const TIERS = [["screenshot", "Screenshots", "Picture variants of a prototype question"],
       ["snapshot", "HTML snapshots", "Self-contained HTML variants, run in a sandbox"],
       ["live", "Live prototypes", "A linked prototype server guests click around in; off by default"]];
@@ -1765,8 +1541,6 @@
       settingsPop.append(b); tierRows[k] = b;
     }
     const MODES = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
-    /** The canonical chrome's theme toggle (reference/html-chrome.html), the page's only theme choice: one labeled group
-     *  of System, Light and Dark, the chosen one pressed. Each viewer picks for themselves; no session default. */
     function themeToggle(onPick) {
       const g = E("div", "rv-theme"); g.setAttribute("role", "group"); g.setAttribute("aria-label", "Theme");
       for (const [k, l] of MODES) {
@@ -1794,7 +1568,6 @@
     const nativeShare = btn("vf-btn vf-btn-ghost", "Share…");
     shareRow.append(nativeShare, copyBtn);
     const shareNew = E("p", "vf-share-new"); shareNew.hidden = true;
-    // A named tunnel keeps its address across restarts; a quick tunnel gets a new one (share.tunnel, owners and leaders).
     const linkKeeps = () => Core.state.shareTunnel === "named";
     const linkNote = E("p", "vf-pop-note");
     sharePop.append(E("h2", "vf-pop-title", "Invite people"), shareNew, shareField, shareRow, linkNote);
@@ -1806,8 +1579,6 @@
       const dt = E("dt"); for (const part of k.split(" ")) dt.append(E("kbd", null, part));
       keyList.append(dt, E("dd", null, d));
     }
-    // F12: one menu model. Each entry is written once: its icon, words, which menus list it (Help, a popover on a computer;
-    // More, a sheet on a phone) and what it does (MENU_RUN). Each menu draws the same row for it.
     const MENU = [["ask", "sparkle", "Ask Claude", "", "more"], ["bell", "host", "Inbox", "", "more"], ["theme", "system", "Theme", "", "more"],
       ["follow", "forward", "Follow host", "", "more"], ["share", "link", "Share", "", "more"], ["settings", "gear", "Settings", "", "more help"],
       ["host", "host", "Host view", "", "more"], ["tour", "help", "Show me around", "A one-minute tour", "more help"], ["intro", "doc", "Why you're here", "", "more help"],
@@ -1821,12 +1592,10 @@
       b.append(icon(ico), t, d); b._d = d; b._l = t;
       (where === "help" ? helpList : msList).append(b); menu[where][k] = b;
     }
-    /** Show or hide an entry in every menu that lists it. */
     const menuShow = (k, on) => { for (const m of Object.values(menu)) if (m[k]) m[k].hidden = !on; };
     keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpList,
       Core.telemetry.notice("core-rec vf-help-rec"), E("h3", "vf-pop-sub", "Keyboard shortcuts"), keyList, E("p", "vf-pop-note", "They work when you are not typing in a field."));
 
-    // Phase 4c: "Why you're here", reopened from the header (or More on a phone) after the first view.
     const introPop = E("div", "vf-pop vf-intropop"); introPop.setAttribute("role", "dialog"); introPop.setAttribute("aria-labelledby", "vf-intropop-h"); introPop.hidden = true;
     const ipH = E("h2", "vf-pop-title", "Why you're here"); ipH.id = "vf-intropop-h";
     const ipText = E("p", "vf-intropop-t"), ipGoal = E("p", "vf-pop-note vf-intropop-goal");
@@ -1834,7 +1603,6 @@
     introPop.append(ipH, ipText, ipGoal, ipEdit);
     const introBtn = ibtn("vf-tbtn vf-icon-btn vf-introbtn", "doc", "Why you're here"); introBtn.setAttribute("aria-haspopup", "dialog");
 
-    // The owner's decision timeline: every lock, change, unlock, closed or reopened poll, late Disagree and Keep decision.
     const decPop = E("div", "vf-pop vf-decpop"); decPop.setAttribute("role", "dialog"); decPop.setAttribute("aria-labelledby", "vf-decpop-h"); decPop.hidden = true;
     const dpH = E("h2", "vf-pop-title", "Decisions"); dpH.id = "vf-decpop-h";
     const dpList = E("ol", "vf-history"); dpList.setAttribute("aria-label", "Decisions, oldest first");
@@ -1844,7 +1612,6 @@
       "poll-close": () => "Closed the poll", "poll-reopen": () => "Reopened the poll",
       "late-disagree": e => `Disagreed after the round closed, so it may be reopened: ${e.reason}`,
       withdrawn: () => "Took back the last late Disagree, so it is no longer reopened", kept: () => "Kept the decision" };
-    /** A decision list, oldest first: who and when (the time in full on hover), then what happened. */
     function fillDecisions(ol, list, withQ) {
       const sig = JSON.stringify([list.map(e => [e.ts, e.kind, e.by, e.text, e.reason]), withQ, Math.floor(Date.now() / 60000)]);
       if (ol._sig === sig) return;
@@ -1865,7 +1632,7 @@
     const hpBody = E("div", "vf-health");
     healthPop.append(hpH, E("p", "vf-pop-note", "Only you see this: errors, slow or failed actions, layout problems and taps from this session's log. Usage counts arrive every 10 minutes; your own page views stay out of the timings."),
       hpRefresh, hpStatus, hpBody);
-    function loadHealth() { // Refresh stays enabled, so it keeps focus; a read in flight takes no second one
+    function loadHealth() {
       if (healthPop._reading) return;
       healthPop._reading = true; hpStatus.textContent = "Reading the log…";
       Core.health().then(h => {
@@ -1877,13 +1644,12 @@
           return sec;
         }));
         hpStatus.textContent = "";
-        if (ui.pop === healthPop && !phone.matches && healthPop._anchor) placeNear(healthPop, healthPop._anchor); // placed while still empty
+        if (ui.pop === healthPop && !phone.matches && healthPop._anchor) placeNear(healthPop, healthPop._anchor);
       }, e => { hpStatus.textContent = `Could not read the log: ${Core.errorText(e)}`; }).finally(() => { healthPop._reading = false; });
     }
     function openHealth(anchor) { openSurface(healthPop, anchor); loadHealth(); }
     hpRefresh.onclick = loadHealth;
 
-    // Phase 4c: the owner edits one answer's text; every earlier version, with who and when, shows only here.
     const editPop = E("div", "vf-pop vf-editpop"); editPop.setAttribute("role", "dialog"); editPop.setAttribute("aria-labelledby", "vf-editpop-h"); editPop.hidden = true;
     const epH = E("h2", "vf-pop-title", "Edit this answer"); epH.id = "vf-editpop-h";
     const epNote = E("p", "vf-pop-note", "Everyone sees \"Edited by the host\" on it. Earlier versions stay here, for you only.");
@@ -1893,7 +1659,6 @@
     epRow.append(epK.count, epK.hint, epCancel, epSave);
     const epHistH = E("h3", "vf-pop-sub", "Earlier versions"), epHist = E("ol", "vf-history"); epHist.setAttribute("aria-label", "Earlier versions");
     editPop.append(epH, epNote, epTa, epRow, epHistH, epHist);
-    /** The history list: oldest first, each with who wrote it and when. */
     function fillHistory(ol, history) {
       ol.replaceChildren(...(history || []).map(v => {
         const li = E("li", "vf-hist");
@@ -1906,7 +1671,6 @@
       epTa.value = a.text || "";
       epHist.replaceChildren();
       epHistH.hidden = epHist.hidden = !a.versions;
-      // The versions are not in the snapshot: fetch them for this answer when the list opens.
       if (a.versions) Core.cardHistory(qid, a.ref).then(h => { if (ui.editing?.ref === a.ref) fillHistory(epHist, h.history); }).catch(fail);
       openSurface(editPop, anchor);
       requestAnimationFrame(() => epTa.focus());
@@ -1919,13 +1683,10 @@
       epSave.disabled = true;
       Core.editCard(e.qid, e.ref, text).then(() => { closePop(); flash("Edited. Everyone sees \"Edited by the host\" on it."); }).catch(fail).finally(() => { epSave.disabled = false; });
     };
-    /** Hide or show one answer again (owner). */
     const toggleHidden = (qid, a) => Core.hideCard(qid, a.ref, !a.hidden)
       .then(() => flash(a.hidden ? "Shown again to everyone." : "Hidden from everyone else and from Claude's digest. Its author still sees it, marked."))
       .catch(fail);
 
-    // Phase 4c: one person at a glance for the owner: every answer, pick, vote, request and chat line, with Hide, Edit
-    // beside each answer and Remove for the person.
     const personPop = E("div", "vf-pop vf-panel vf-personpop"); personPop.setAttribute("role", "dialog"); personPop.setAttribute("aria-labelledby", "vf-personpop-h"); personPop.hidden = true;
     personPop.dataset.kind = "panel"; personPop.dataset.phone = "sheet";
     const ppvHead = E("div", "vf-pp-head"), ppvH = E("h2", "vf-pop-title"); ppvH.id = "vf-personpop-h";
@@ -1936,7 +1697,6 @@
     const ppvBody = E("div", "vf-pscroll vf-ppv-body");
     personPop.append(ppvHead, ppvRow, ppvBody);
     function openPersonView(pid, anchor) { ui.personView = pid; ppvBody._sig = ""; fillPersonView(); openSurface(personPop, anchor); }
-    /** The person view's sections, rebuilt only when what they show changed, so focus stays put across polls. */
     function fillPersonView() {
       const S = Core.state, pid = ui.personView;
       if (!pid) return;
@@ -1984,7 +1744,6 @@
       const voteRows = votes.map(([q, a]) => row(q.id, a.option ? `Picked: ${a.text}` : a.claude ? `Voted for Claude's card: ${a.text}` : `Voted for ${disp(a.name)}'s answer: ${answerLine(a)}`));
       const reqRows = reqs.map(r => row(`${r.qid}, ${r.status}`, `${KIND_REQ[r.kind] || "Request"}: ${r.text}`));
       const chatRows = msgs.map(m => row(since(m.ts), m.text));
-      // An answer they cleared after you hid or edited it: its last text and versions, fetched when asked.
       const clearedRows = cleared.map(t => {
         const show = btn("vf-btn vf-btn-ghost vf-btn-sm", "Show what it said");
         show.setAttribute("aria-label", `Show what ${disp(name)}'s cleared answer on ${t.qid} said`);
@@ -2002,7 +1761,6 @@
         ...(clearedRows.length ? [section("Cleared after you hid or edited them", clearedRows, "")] : []));
     }
 
-    // Reader: one text at full width.
     const reader = E("div", "vf-reader"); reader.setAttribute("role", "dialog"); reader.setAttribute("aria-modal", "true"); reader.hidden = true;
     const rdHead = E("header", "vf-rd-head");
     const rdTitles = E("div", "vf-rd-titles");
@@ -2016,8 +1774,6 @@
     reader.append(rdHead, rdBody);
     reader.setAttribute("aria-labelledby", rdTitle.id = "vf-rd-title");
 
-    // Picture viewer: one picture as large as the screen allows, ← → through the set, pinch or double-tap to zoom,
-    // and the pick controls for a choice or confirm question right under it.
     const lb = E("div", "vf-lb"); lb.setAttribute("role", "dialog"); lb.setAttribute("aria-modal", "true"); lb.hidden = true; lb.tabIndex = -1;
     const lbHead = E("header", "vf-lb-head"), lbTitles = E("div", "vf-lb-titles");
     const lbTitle = E("h2", "vf-lb-title"), lbMeta = E("p", "vf-lb-meta");
@@ -2044,13 +1800,9 @@
     lb.append(lbHead, lbStage, lbFoot);
     lb.setAttribute("aria-labelledby", lbTitle.id = "vf-lb-title");
 
-    // F4: one message-actions menu for chat messages and Discussion comments, opened by ⋯ or a long press on either.
-    // An answer card's reactions stay apart: on an answer they stand in for a vote, so they never join this menu.
     const msgMenu = E("div", "vf-pop vf-menu vf-msgmenu"); msgMenu.setAttribute("role", "menu"); msgMenu.setAttribute("aria-label", "Message actions"); msgMenu.hidden = true;
-    msgMenu.dataset.kind = "pop"; // beside the ⋯ (or the long-pressed message) that opened it
-    msgMenu.dataset.phone = "sheet"; // a bottom sheet on a phone (O114)
-    // the finger that held a message open lifts over the sheet: that release is no tap on a menu row; a tap that starts
-    // on the sheet is
+    msgMenu.dataset.kind = "pop";
+    msgMenu.dataset.phone = "sheet";
     for (const ev of ["pointerdown", "keydown"]) msgMenu.addEventListener(ev, () => { ui.menuHeld = false; }, true);
     msgMenu.addEventListener("click", e => { if (ui.menuHeld) { ui.menuHeld = false; e.preventDefault(); e.stopPropagation(); } }, true);
     const mmPropose = lbtn("vf-menu-item vf-menu-plain", "forward", "Propose as question");
@@ -2062,14 +1814,11 @@
     const mmDelete = btn("vf-menu-item vf-menu-danger", "Delete");
     for (const b of [mmReply, mmReact, mmPropose, mmAsk, mmCopy, mmEdit, mmHide, mmDelete]) { b.setAttribute("role", "menuitem"); msgMenu.append(b); }
 
-    // ---------- Q82: notifications ----------
     const NOTE_KINDS = [["mention", "Mentions of me", "at"], ["reply", "Replies to my messages", "reply"], ["request", "My requests to Claude", "sparkle"],
       ["proposal", "My proposals placed or not", "forward"], ["round", "New rounds", "list"], ["merge", "Merges I asked for", "merge"],
       ["role", "Made leader or trusted", "host"], ["votes", "Agreement with my answers, once an hour", "thumb"],
       ["reaction", "Reactions to my chat messages", "chat"], ["discussion", "New comments in Discussions I am in", "chat"],
       ["queue", "New items in the host queue", "host"], ["ready", "A round marked ready", "check"], ["report", "The host read my problem reports", "help"]];
-    // Spec PR 9: the Inbox is a page of its own over the session, for everyone: Needs you (what needs this person now),
-    // My requests, Notifications and History, each behind filter chips; every row opens where it happened.
     const bellPop = E("section", "vf-inboxpage"); bellPop.setAttribute("role", "dialog"); bellPop.setAttribute("aria-labelledby", "vf-inbox-h"); bellPop.hidden = true;
     const bpHead = E("div", "vf-ibhead");
     const bpBack = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-ibback", "chevL", "Back to the session");
@@ -2090,9 +1839,7 @@
     bpUnread.onclick = () => { ui.unreadOnly = !ui.unreadOnly; render(); };
     const bpTools = E("div", "vf-bptools"); bpTools.append(bpUnread);
     const ibTop = E("div", "vf-ibtop"); ibTop.append(bpHead, ixTabs, ixChips);
-    /** One titled group of rows on a tab. */
     const ixGroup = (cls, list) => { const g = E("section", "vf-ixgroup " + cls), h = E("h3", "vf-ixgh"); list.setAttribute("role", "list"); g.append(h, list); g._h = h; return g; };
-    // Needs you: the host's requests to Claude (Run, Share, Run again on the row), then what else waits, by kind.
     const revList = E("ul", "vf-plist vf-revlist"); revList.setAttribute("aria-label", "Requests to Claude");
     const revBox = ixGroup("vf-ibrev", revList), revHead = E("div", "vf-rev-head");
     const runAllBtn = lbtn("vf-btn vf-btn-primary vf-btn-sm", "play", "Run all shown");
@@ -2104,7 +1851,6 @@
     const ixMineList = E("ul", "vf-ixlist"); ixMineList.setAttribute("role", "list"); ixMineList.setAttribute("aria-label", "My requests");
     const ixMineEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
     const ixMine = E("div", "vf-ibtab vf-ixmine"); ixMine.append(ixMineList, ixMineEmpty);
-    // Notifications: a page at a time, by kind
     const nList = E("ul", "vf-nlist"); nList.setAttribute("role", "list"); nList.setAttribute("aria-label", "Notifications");
     const NO_NOTES = "Nothing new. You hear here when someone mentions you or replies to you, when your requests and proposals move, and when a round opens.";
     const nEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty", NO_NOTES);
@@ -2116,21 +1862,16 @@
       b.onclick = () => { const m = new Set(pref("mute", [])); m.has(k) ? m.delete(k) : m.add(k); setPrefs({ mute: [...m] }); render(); };
       muteBox.append(b); muteRows[k] = b;
     }
-    // Pop-ups: what pops up the moment it happens, per person; off leaves it in the Inbox only.
     const popBox = E("section", "vf-ixgroup vf-ibpops"), popRows = {}, popNote = E("p", "vf-pop-note");
     popBox.append(E("h3", "vf-ixgh", "Pop-ups"), popNote);
     const popList = E("div", "vf-mutebox"); popBox.append(popList);
-    // Round 11: the owner sets the pop-ups a guest starts with; each guest's own switches win.
     const gPopBox = E("section", "vf-ixgroup vf-ibgpops"), gPopRows = {};
     gPopBox.append(E("h3", "vf-ixgh", "Guests start with"), E("p", "vf-pop-note", "The pop-ups a guest has on until they change their own."));
     const gPopList = E("div", "vf-mutebox"); gPopBox.append(gPopList);
     const noteMore = showMore("notes", 20);
-    // Follow-up 51: the messages first at every width; Pop-ups and the switches beside them from 1100 px (a sticky side
-    // column), and below that behind one "Pop-ups and notifications" button after them.
     const muteHead = E("h3", "vf-ixgh vf-ibmuteh", "Notify me about");
     const ibSide = E("div", "vf-ibside"); ibSide.dataset.open = "false"; ibSide.append(muteBtn, popBox, gPopBox, muteHead, muteBox);
     const ixNotes = E("div", "vf-ibtab vf-ixnotes"); ixNotes.append(bpTools, nList, noteMore.foot, nEmpty, ibSide);
-    // History: what needed someone and was handled, a page at a time
     const histRev = E("ul", "vf-plist vf-revlist vf-ibhistrev"); histRev.setAttribute("aria-label", "Requests to Claude, handled");
     const histRevBox = ixGroup("vf-ibhistreq", histRev);
     const histQ = E("ul", "vf-plist vf-ibq"), histQBox = ixGroup("vf-ibhistq", histQ);
@@ -2142,7 +1883,6 @@
     const bpScroll = E("div", "vf-pscroll vf-bpscroll vf-ibscroll"); bpScroll.append(ixNeeds, ixMine, ixNotes, ixHist);
     bellPop.append(ibTop, bpScroll);
 
-    // ---------- Q86: the phone More sheet ----------
     const moreSheet = E("div", "vf-pop vf-panel vf-moresheet"); moreSheet.setAttribute("role", "dialog"); moreSheet.setAttribute("aria-label", "More"); moreSheet.hidden = true;
     moreSheet.dataset.kind = "panel"; moreSheet.dataset.phone = "sheet";
     const msHead = E("div", "vf-pp-head");
@@ -2150,7 +1890,6 @@
     msHead.append(E("h2", "vf-pop-title", "More"), msClose);
     moreSheet.append(msHead, msList);
 
-    // ---------- Triage 4: an optional first-visit tour, skippable, re-opened from Help; the `tour` pref remembers it ----------
     const tour = E("div", "vf-tour"); tour.hidden = true;
     const tourRing = E("div", "vf-tour-ring"); tourRing.setAttribute("aria-hidden", "true");
     const tourCard = E("div", "vf-tour-card"); tourCard.setAttribute("role", "dialog"); tourCard.setAttribute("aria-modal", "true");
@@ -2163,8 +1902,6 @@
     tourCard.append(tourN, tourH, tourT, tourRow);
     tour.append(tourRing, tourCard);
     const shown = el => !!el && el.isConnected && !el.closest("[hidden]") && el.getClientRects().length > 0;
-    // Follow-up 38: each step rings the real control and shows only when that control is on screen. `who` keeps a guest's
-    // tour on answering and asking, and adds the host's own controls (Share, Needs you with Run and Approve, Send).
     const TOUR = [
       { h: "The questions", t: "Every question in this round is listed here. A tick marks each one you answered.",
         at: () => (phone.matches ? tabBtns.questions : rail) },
@@ -2194,7 +1931,6 @@
         at: () => (phone.matches ? tabBtns.more : keysBtn) },
     ];
     const TT = { i: 0, from: null, steps: [] };
-    /** While the tour runs, everything behind its card is inert. */
     const tourInert = v => { for (const el of [top, body, tabs, fab, chat]) el.inert = v; };
     function startTour(from) {
       closePop(); hideCard(); if (ui.chatOpen) setChat(false);
@@ -2227,15 +1963,12 @@
       placeTour(el);
       tourNext.focus({ preventScroll: true });
     }
-    /** Draw the ring round the step's target and put the card beside it; again after any re-render or resize moves it. */
     function placeTour(el = TT.steps[TT.i]?.at()) {
       if (!shown(el)) return;
       el.scrollIntoView({ block: "nearest", behavior: "auto" });
       const R = root.getBoundingClientRect(), r = el.getBoundingClientRect();
       const box = { l: Math.max(R.left + 4, r.left - 4), t: Math.max(R.top + 4, r.top - 4), r: Math.min(R.right - 4, r.right + 4), b: Math.min(R.bottom - 4, r.bottom + 4) };
-      // Moved with translate (composited); its size changes without a transition.
       Object.assign(tourRing.style, { translate: `${box.l - R.left}px ${box.t - R.top}px`, inlineSize: box.r - box.l + "px", blockSize: box.b - box.t + "px" });
-      // The card sits below the target when it fits there, else above it, else over the bottom of the page.
       const cs = tourCard.style; cs.insetBlockStart = cs.insetBlockEnd = cs.insetInlineStart = "";
       const w = Math.min(360, R.width - 24), h = tourCard.offsetHeight || 180;
       cs.inlineSize = w + "px";
@@ -2251,12 +1984,10 @@
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); endTour("skipped"); return; }
       if (e.key === "Tab") { e.stopPropagation(); trapTab(e, tourCard); }
     });
-    // A click outside the card does nothing: the tour ends only by Skip, Done or Escape.
     on(tour, "pointerdown", e => { if (!tourCard.contains(e.target)) e.preventDefault(); });
     const tourMove = () => { if (!tour.hidden) placeTour(); };
     on(window, "resize", tourMove);
 
-    // Ask Claude: right drawer on desktop, bottom sheet on phones.
     const askPanel = E("div", "vf-pop vf-drawer"); askPanel.setAttribute("role", "dialog"); askPanel.setAttribute("aria-label", "Ask Claude"); askPanel.hidden = true;
     askPanel.dataset.kind = "drawer"; askPanel.dataset.phone = "sheet";
     const apHead = E("div", "vf-pp-head");
@@ -2268,7 +1999,6 @@
     for (const [k, label] of [["ask", "Ask"], ["research", "Research"], ["explore", "Explore"]]) {
       const b = btn("vf-seg-btn", label); b.setAttribute("role", "tab"); b.onclick = () => { ui.askMode = k; render(); apTa.focus(); }; apModes.append(b); apModeBtns[k] = b;
     }
-    // A proposed question goes to the group, not to Claude, so it is not one of these tabs; this points to its form.
     const apPropose = btn("vf-lbtn vf-ap-propose", "Propose a question"); apPropose.setAttribute("aria-haspopup", "dialog");
     const apPointer = E("p", "vf-pop-note vf-ap-pointer", "Want the group asked something? "); apPointer.append(apPropose);
     const apForm = E("form", "vf-apform");
@@ -2277,7 +2007,6 @@
     apQWrap.s.onchange = () => { ui.askQ = apQWrap.s.value; ui.apAud = null; render(); };
     const apLabel = E("label", "vf-asklabel"); const apTa = E("textarea", "vf-ta"); apTa.rows = 3; apTa.maxLength = 2000; apTa.id = "vf-ap-ta"; apLabel.htmlFor = apTa.id;
     const apNote = E("p", "vf-pop-note");
-    // Connect your Claude (R2-12): a guest's request can run on their own Claude, never the host's.
     const apSelf = swRow("Run it on my own Claude"); apSelf.classList.add("vf-apself");
     apSelf.onclick = () => { ui.askSelf = !ui.askSelf; render(); };
     const apRow = E("div", "vf-crow");
@@ -2314,13 +2043,11 @@
     const apReqEmpty = E("p", "vf-empty vf-empty-sm", "No requests yet. What you ask shows here with where it stands.");
     const apFileHead = E("h3", "vf-pop-sub", "Your files");
     const apFiles = E("ul", "vf-upstrip vf-apfiles"); apFiles.setAttribute("aria-label", "Your files");
-    // About the whole session: Claude's answers to general asks, the owner's to share; once shared each is also in chat.
     const apGenHead = E("h3", "vf-pop-sub", "Claude's answers about the session");
     const apGen = E("ul", "vf-thlist vf-apgen"); apGen.setAttribute("role", "list");
     apScroll.append(apForm, apConnect, apGenHead, apGen, apReqHead, apReqs, apReqEmpty, apFileHead, apFiles);
     askPanel.append(apHead, apModes, apPointer, apScroll);
 
-    // Use on another device: a personal link and its QR code.
     const devicePop = E("div", "vf-pop vf-devicepop"); devicePop.setAttribute("role", "dialog"); devicePop.setAttribute("aria-label", "Use on another device"); devicePop.hidden = true;
     const qrBox = E("div", "vf-qr");
     const devField = E("input", "vf-input vf-share-url"); devField.readOnly = true; devField.setAttribute("aria-label", "Your personal link");
@@ -2330,7 +2057,6 @@
     const devWarn = E("p", "vf-devwarn");
     devicePop.append(E("h2", "vf-pop-title", "Use on another device"), E("p", "vf-pop-note", "Scan this on your phone, or open the link in another browser. You stay the same person there, with your answers and votes."), qrBox, devField, devRow, devWarn);
 
-    // Sign in on another device (the owner): a one-time code, its QR code, and the devices signed in so far.
     const pairPop = E("div", "vf-pop vf-devicepop vf-pairpop"); pairPop.setAttribute("role", "dialog"); pairPop.setAttribute("aria-label", "Sign in on another device"); pairPop.hidden = true;
     const pairNote = E("p", "vf-pop-note"), pairQr = E("div", "vf-qr"), pairCode = E("p", "vf-pair-code"), pairWhen = E("p", "vf-pop-note");
     const pairRow = E("div", "vf-crow"), pairNew = btn("vf-btn vf-btn-ghost vf-btn-sm", "New code");
@@ -2341,21 +2067,18 @@
     keysBtn.before(introBtn);
     root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, decPop, healthPop, editPop, personPop, PP.pop, tiePop, proposePop, reportPop, myRepPop, citePop, msgMenu, askPanel, devicePop,
       pairPop, bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
-    // F11: the surfaces made without a close control get the one x, named for what it closes; the forms keep Cancel too.
     for (const [pop, name, ph] of [[settingsPop, "Session settings"], [sharePop, "Invite people"], [keysPop, "Help"], [introPop, "Why you're here"], [decPop, "Decisions"], [healthPop, "Host Health", "sheet"],
       [citePop, "Cite a result"], [tiePop, "Tied on votes"], [devicePop, "Use on another device"], [pairPop, "Sign in on another device"], [editPop, "Edit this answer"],
       [proposePop, "Propose a question", "sheet"], [reportPop, "Report a problem", "sheet"], [myRepPop, "Your reports", "sheet"]]) {
       pop.dataset.kind = "pop"; pop.dataset.phone = ph || "pop";
       pop.prepend(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${name}`));
     }
-    // One close behavior for every x: close, and focus goes back to what opened the surface.
     on(root, "click", e => { if (e.target.closest?.(".vf-popx") && ui.pop?.contains(e.target)) closeSurface(); });
 
     function applyTheme() {
       const mode = myMode();
       root.dataset.theme = mode === "system" ? (lightOS.matches ? "light" : "dark") : mode;
     }
-    /** The Host view has no tab of its own on phones: More stands for it. */
     const paintTabs = () => { for (const [t, b] of Object.entries(tabBtns)) b.setAttribute("aria-current", t === (ui.tab === "host" ? "more" : ui.tab) ? "page" : "false"); };
     function setTab(k) {
       ui.tab = k; body.dataset.tab = k;
@@ -2370,7 +2093,6 @@
       render();
       if (m === "compare") requestAnimationFrame(() => { revealCol(ui.cur); edges(); });
     }
-    /** Switch the center to mode `m` and, on a phone, to the tab that holds it. */
     function showMode(m) { setMode(m); if (phone.matches) setTab(m === "focus" ? "answer" : m); }
     function markSeen(qid) {
       if (!qid) return;
@@ -2396,7 +2118,6 @@
       Kit.grow(ta);
       if (ui.mode === "compare") revealCol(qid);
     }
-    /** Previous goes back one in round order; Next goes to the next question still open for me, else the next one. */
     function step(d) {
       const shown = shownQuestions().map(q => q.id);
       const ids = shown.length ? (shown.includes(ui.cur) ? shown : [ui.cur, ...shown]) : Core.state.questions.map(q => q.id), i = ids.indexOf(ui.cur);
@@ -2410,17 +2131,12 @@
       select(ids[(i + d + ids.length) % ids.length], { manual: true });
     }
     function stopAdvance() { clearTimeout(ADV.timer); ADV.timer = 0; ADV.qid = ""; advBar.hidden = true; }
-    /** After my own single pick on the question in view: with the switch on, the comment box empty and another
-     *  question still open for me, Next in 2 s. */
-    /** Whether moving on from qid is still wanted: the switch on, not following the host, my pick or value still
-     *  held, the comment box empty, and nothing else being written in the pane (Ask Claude, Pass, any text field). */
     function advanceWanted(qid) {
       const q = qById(qid), rec = myRec(qid), f = document.activeElement;
       return !!pref("autoAdvance", false) && !following() && ui.cur === qid && ["choice", "confirm", "prototype", "scale"].includes(q?.format)
         && (q.format === "scale" ? rec?.value != null : !!rec?.pick) && !ta.value.trim() && !ui.askOpen && !ui.passOpen
         && !(scroll.contains(f) && f.matches("textarea, input:not([type=radio], [type=checkbox], [type=button], [type=file])"));
     }
-    /** The next question after qid, in the order and filters Next uses, that is still open for me; "" when none is. */
     function nextOpen(qid) {
       const shown = shownQuestions().map(q => q.id), ids = shown.includes(qid) ? shown : [qid, ...shown], i = ids.indexOf(qid);
       for (let j = 1; j < ids.length; j++) { const id = ids[(i + j) % ids.length]; if (isOpenForMe(id)) return id; }
@@ -2432,7 +2148,6 @@
       ADV.qid = qid; advBar.hidden = false;
       ADV.timer = setTimeout(() => { const to = advanceWanted(ADV.qid) && nextOpen(ADV.qid); stopAdvance(); if (to) select(to, { manual: true }); }, 2000);
     }
-    // Writing anywhere in the question pane stays on the question.
     on(scroll, "input", e => { if (e.target.matches?.("textarea, input:not([type=radio], [type=checkbox])")) stopAdvance(); });
     advStay.onclick = () => { stopAdvance(); (ta.disabled ? qText : ta).focus({ preventScroll: true }); };
     function focusQuestion(qid) { select(qid, { manual: true }); showMode("focus"); }
@@ -2444,11 +2159,8 @@
       sendBtn.disabled = true;
       const extra = attExtra(cSlot);
       try {
-        // A question that takes a pick (or a poll): the text is a comment on my pick. Without a pick (or on confirm) it is my own answer.
         const fields = savedPick(q, rec), takesPick = q?.format === "choice" || isFormat(q) || q?.purpose === "poll";
         if (!fields && commentFirst(q) && takesPick) {
-          // no pick yet: picks drafted on a pick-many question save with the comment; otherwise the comment waits for the
-          // pick, and a phone's sheet closes so the options show
           ui.drafts[qid] = ta.value; closeSheet();
           if (phone.matches) ta.blur();
           if (q.format === "multi" && fmtSave.getAttribute("aria-disabled") !== "true") fmtSave.click();
@@ -2460,7 +2172,7 @@
         delete ui.drafts[qid]; delete ui.attDraft[qid]; ui.dirty = false; ta.value = Core.myAnswer(qid); Kit.grow(ta);
         closeSheet();
         announce(fields && takesPick ? "Your comment is saved." : "Your answer is saved.");
-        if (phone.matches) ta.blur(); // the one-line composer folds back once sent
+        if (phone.matches) ta.blur();
       }
       catch (e) {
         if (e?.status) fail(e);
@@ -2471,8 +2183,6 @@
     function revealCol(qid) {
       const col = board._map?.get(qid);
       if (!col) return;
-      // ux-review-2 #15: the first columns stay at the start when the current one fits; otherwise a slice of the
-      // previous column stays in view, so it is plain that more columns are to the left.
       const fits = col.offsetLeft + col.offsetWidth <= board.clientWidth - 12;
       board.scrollTo({ left: fits ? 0 : Math.max(0, col.offsetLeft - 64), behavior: smooth() });
     }
@@ -2486,13 +2196,11 @@
     }
     const colStep = () => (board.firstChild?.offsetWidth || 300) + 12;
 
-    /** Place a popover under its anchor (above when there is no room), inside the app. */
     function placeNear(pop, anchor) {
       const r = anchor.getBoundingClientRect(), R = root.getBoundingClientRect(), ps = pop.style;
       ps.insetBlockEnd = ps.maxBlockSize = ps.overflowY = ""; ps.insetInlineStart = "0px"; ps.insetBlockStart = "0px";
       const w = pop.offsetWidth, h = pop.offsetHeight;
       const left = Math.min(Math.max(8, r.left - R.left + r.width / 2 - w / 2), R.width - w - 8);
-      // Below the anchor, else above it; when it fits neither, the roomier side, scrolling, so it never covers the anchor.
       const below = R.height - (r.bottom - R.top) - 16, above = r.top - R.top - 16;
       let topY = r.bottom - R.top + 8;
       if (h > below && h <= above) topY = r.top - R.top - h - 8;
@@ -2502,9 +2210,6 @@
       }
       ps.insetInlineStart = left + "px"; ps.insetBlockStart = topY + "px";
     }
-    /** F11: every popover, panel, drawer and sheet opens here. How it was made says where it goes: a pop beside its
-     *  anchor, a panel beside the rail, a drawer at the edge; on a phone one marked "sheet" is a bottom sheet that covers
-     *  the page (activeSheet). Focus goes in (`focus`, else its first field or button), and back to `anchor` on close. */
     function openSurface(pop, anchor, focus) {
       closePop(); hideCard();
       ui.pop = pop; pop.hidden = false; pop._return = null; pop._anchor = anchor;
@@ -2517,14 +2222,12 @@
       const first = sel => [...pop.querySelectorAll(sel)].find(x => !x.disabled && x.getClientRects().length);
       (focus || first(kind === "panel" ? "button" : "textarea, input, button:not(.vf-popx)") || first(".vf-popx") || pop).focus({ preventScroll: true });
     }
-    /** Close what is open; focus goes back where it was when it opened (a shortcut's spot), else to what opened it. */
     function closeSurface() {
       const p = ui.pop; if (!p) return;
       const r = p._return, a = r?.isConnected && r !== document.body ? r : p._anchor;
       closePop();
       if (a?.isConnected && a.offsetParent) a.focus({ preventScroll: true });
     }
-    /** F11: the one focus trap. At either end of `box`, Tab and Shift+Tab wrap round; true when it moved focus. */
     function trapTab(e, box) {
       const f = [...box.querySelectorAll("button, textarea, input, select, a[href], [tabindex]:not([tabindex='-1'])")].filter(x => !x.disabled && x.offsetParent && !x.closest("[inert]"));
       if (!f.length) return false;
@@ -2555,23 +2258,21 @@
     function closePop() {
       if (!ui.pop) return;
       if (ui.pop === pcard) { ui.pcard = null; ui.renaming = false; ui.renameFor = null; ui.renameDraft = null; }
-      if (ui.pop === msgMenu) ui.menuHeld = false; // a held-open menu closed without a release click: the next tap counts
+      if (ui.pop === msgMenu) ui.menuHeld = false;
       ui.pop.hidden = true; ui.pop._anchor?.setAttribute?.("aria-expanded", "false");
       if (ui.pop === bellPop) root.classList.remove("vf-inboxon");
-      ui.pop._kbRead = false; // the next open logs its keyboard readout again
+      ui.pop._kbRead = false;
       ui.pop = null;
       syncModal();
     }
-    /** The chat panel covers the page below 1100px wide, as does a phone's panel sheet: everything behind it goes inert,
-     *  and Tab stays inside. Docked beside the page, the chat is a region Tab moves in and out of. */
     const activeSheet = () => (ui.chatOpen && !docked.matches ? chat : phone.matches && ui.pop?.dataset.phone === "sheet" ? ui.pop : null);
     function syncModal() {
-      const sheet = activeSheet(), page = ui.pop === bellPop; // the Inbox page stands in for the session below the top bar
+      const sheet = activeSheet(), page = ui.pop === bellPop;
       for (const el of [top, body, tabs, fab]) el.inert = !!sheet || (page && el !== top);
       chat.inert = page;
       if (sheet === chat) { chat.setAttribute("role", "dialog"); chat.setAttribute("aria-modal", "true"); }
       else { chat.removeAttribute("role"); chat.removeAttribute("aria-modal"); }
-      if (toast.classList.contains("vf-on")) placeToast(); // a chat or panel opened or closed under it
+      if (toast.classList.contains("vf-on")) placeToast();
     }
     function setChat(open) {
       ui.chatOpen = open; chat.hidden = !open; fab.setAttribute("aria-expanded", String(open));
@@ -2591,9 +2292,6 @@
     }
     function closeReader() { reader.hidden = true; reader._from?.focus({ preventScroll: true }); }
 
-    // ---------- picture viewer ----------
-    // kind: "choice" (the question's option pictures), "confirm" (its screenshot), "ref" (its image references)
-    // or "att" (the pictures attached to one answer, message, request or suggestion, passed in as items).
     const LB = { kind: null, qid: null, i: 0, s: 1, x: 0, y: 0, from: null, vKey: null, cur: null, items: null, meta: "" };
     const optCard = (qid, id) => Core.answersFor(qid).find(a => a.option && a.cid === id);
     const chose = n => (n ? `${n} ${n === 1 ? "person" : "people"} chose this` : "No picks yet");
@@ -2668,7 +2366,6 @@
       lbInfo.hidden = !many && !picks;
       lbZoom.textContent = coarse.matches ? `Pinch or double-tap to zoom.${many ? " Swipe for the next picture." : ""}` : `Double-click to zoom.${many ? " Use ← and → for the next picture." : ""} Esc closes.`;
     }
-    // Zoom keeps the point under the finger or cursor in place; the frame is centered, so offsets are from the stage center.
     function lbApply() {
       const fw = lbFrame.offsetWidth * LB.s, fh = lbFrame.offsetHeight * LB.s;
       const mx = Math.max(0, (fw - lbStage.clientWidth) / 2), my = Math.max(0, (fh - lbStage.clientHeight) / 2);
@@ -2706,7 +2403,7 @@
       if (!drag || ptrs.size) return;
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (e.type === "pointerup" && LB.s === 1 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) lbGo(dx < 0 ? 1 : -1);
-      else if (e.type === "pointerup" && Date.now() - drag.t < 300 && Math.hypot(dx, dy) < 10) { // two quick taps toggle zoom
+      else if (e.type === "pointerup" && Date.now() - drag.t < 300 && Math.hypot(dx, dy) < 10) {
         if (Date.now() - lastTap < 350) { lastTap = 0; LB.s > 1 ? lbZoomTo(1) : lbZoomTo(2.5, ...fromCenter(e.clientX, e.clientY)); }
         else lastTap = Date.now();
       }
@@ -2725,7 +2422,7 @@
       else if (e.key === "+" || e.key === "=") lbZoomTo(LB.s * 1.5);
       else if (e.key === "-") lbZoomTo(LB.s / 1.5);
       else if (e.key === "0") lbZoomTo(1);
-      else if (e.key === "Tab") { e.stopPropagation(); trapTab(e, lb); return; } // keep Tab inside the viewer
+      else if (e.key === "Tab") { e.stopPropagation(); trapTab(e, lb); return; }
       else return;
       e.preventDefault(); e.stopPropagation();
     });
@@ -2745,7 +2442,6 @@
         body: `${open} question${open > 1 ? "s are" : " is"} still open in round ${n}.${props ? ` ${props} pending proposal${props > 1 ? "s go" : " goes"} along.` : ""}` }))) return;
       if (curRound().current === n && curRound().status === "open") Core.sendRound().catch(fail);
     }
-    /** The round button: the owner sends (with a confirm if questions are open); a leader marks the round ready. */
     function roundAction(anchor) {
       if (!Core.me.isOwner) {
         const on = !curRound().ready;
@@ -2773,7 +2469,6 @@
       const a = document.activeElement;
       return !!a && root.contains(a) && a.matches("textarea, input:not([readonly])") && !a.disabled;
     }
-    /** The spring plays once per closed period; later messages only pop the badge. */
     function bumpFab() {
       const cls = ui.bumped ? "vf-badge-pop" : "vf-bump";
       ui.bumped = true;
@@ -2783,7 +2478,6 @@
     }
     async function sendChat() {
       const text = mInput.value.trim(); if (!text || attWaits(chatSlot)) return;
-      // The message shows at once and the box empties; a refusal puts the text back.
       const reply = ui.replyTo, ex = attExtra(chatSlot), sent = Core.chat(text, reply?.id, ex);
       mInput.value = ""; mCount.textContent = ""; Kit.grow(mInput); mScroll.scrollTop = mScroll.scrollHeight;
       ui.replyTo = null; paintReply();
@@ -2836,7 +2530,6 @@
       Kit.grow(apTa);
       if (text) apTa.setSelectionRange(apTa.value.length, apTa.value.length);
     }
-    // The top Ask Claude asks about the whole session; a question's own Ask form asks about that question.
     askTop.onclick = () => (ui.pop === askPanel ? closePop() : openAskPanel(null, Core.GENERAL));
     apForm.onsubmit = e => {
       e.preventDefault();
@@ -2854,27 +2547,19 @@
       }).catch(fail).finally(() => { apSend.disabled = false; });
     };
 
-    // ---------- Connect your Claude (R2-12, AC 70) ----------
-    // A guest's `runner: self` request runs on their own Claude: a watcher in Claude Code or Desktop's Code tab, or one
-    // prompt copied (or opened in Desktop chat) with the answer pasted back. Prompts and links come from connect.js.
     const askGeneral = () => (apQWrap.s.value || ui.askQ) === Core.GENERAL;
-    /** The kind a request goes as: the owner's pick, else ask, or research with "Use the web" on. */
     const guestKind = (picked, web) => (Core.me.isOwner ? picked : web ? "research" : "ask");
-    /** Both Ask boxes' placeholder: the same words for the same kind of request. */
     const askPh = (kind, general) => (general && kind !== "explore" ? "A question about the whole session"
       : { ask: "A question for Claude, answered on the question", research: "What to look up, compare or verify", explore: "Something in the answers, the chat or the linked project" }[kind]);
-    /** An Ask box's note: who runs the request, and who sees Claude's answer where. */
     function askNoteText(aud, where, web) {
       const how = `Claude works out how to answer${web ? ", looking on the web," : ""} and says what it did`;
       if (Core.me.isOwner) return aud === "me" ? "Claude runs it now. Only you see the answer until you share it." : `Claude runs it now and the answer shows ${where} for everyone.`;
       if (aud === "me") return `The host runs it; ${how}. Only you and the host see the answer, and you can share it with everyone later.`;
       return `The host runs it; ${how}. ${st().reviewAnswers ? "Once the host shares the answer, it" : "The answer"} shows ${where} for everyone, with your request text.`;
     }
-    const selfAsk = () => !Core.me.isOwner && !!ui.askSelf && !askGeneral(); // a general ask runs on the host's Claude only
-    /** Who sees the answer: what the asker picked, else Everyone on a question and Just me about the whole session. */
+    const selfAsk = () => !Core.me.isOwner && !!ui.askSelf && !askGeneral();
     const apAudV = () => ui.apAud || (askGeneral() ? "me" : "everyone");
-    const sessionBase = () => location.origin; // the address this guest reaches the session at; their Claude runs beside them
-    /** Every Copy action: the clipboard and a toast, else the text selected in `field` when it shows it, else the reader. */
+    const sessionBase = () => location.origin;
     async function copyOut(text, done, title, from, field) {
       try { await navigator.clipboard.writeText(text); flash(done); }
       catch {
@@ -2883,12 +2568,10 @@
       }
     }
     apcCopyW.onclick = () => copyOut(Connect.watcherPrompt(sessionBase()), "Watch prompt copied. Paste it into Claude Code; it asks for your watcher key.", "Watch prompt", apcCopyW);
-    // A fresh watcher key per copy: it only reads and answers my own requests, and my session secret stays on this page.
     apcKey.onclick = () => Core.newWatcherKey()
       .then(key => copyOut(key, "Watcher key copied. It replaces any earlier one; paste it only into your own Claude.", "Your watcher key", apcKey)).catch(fail);
     apcRevoke.onclick = () => Core.revokeWatcher().then(() => flash("Watcher key revoked. Your Claude can no longer read your requests.")).catch(fail);
     let selfSeq = 0;
-    /** Copy prompt, Open in Claude Desktop, Paste answer and Cancel for one of my own self requests. */
     function makeSelfActs() {
       const box = E("div", "vf-selfacts"), row = E("div", "vf-acts");
       const copyP = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-self-copy", "doc", "Copy prompt");
@@ -2897,7 +2580,6 @@
       const cancel = btn("vf-btn vf-btn-ghost vf-btn-sm vf-self-cancel", "Cancel request");
       row.append(copyP, chat, paste, cancel);
       const form = E("form", "vf-selfform"); form.hidden = true;
-      // the answer, plus up to 30 source lines of about 130 characters each (judgment)
       const ta = E("textarea", "vf-ta"); ta.rows = 5; ta.id = `vf-self-ta-${++selfSeq}`;
       const lab = E("label", "vf-asklabel", "Your Claude's answer"); lab.htmlFor = ta.id;
       const post = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Post answer"); post.type = "submit";
@@ -2936,7 +2618,6 @@
       if (href) box._k.chat.href = href;
     }
 
-    // ---------- Phase 4c: chat reactions ----------
     const reactPop = E("div", "vf-pop vf-reactpop"); reactPop.setAttribute("role", "dialog"); reactPop.setAttribute("aria-label", "Add a reaction"); reactPop.hidden = true;
     reactPop.dataset.kind = "pop"; reactPop.dataset.phone = "sheet";
     const rpQuick = E("div", "vf-rp-quick"); rpQuick.setAttribute("role", "group"); rpQuick.setAttribute("aria-label", "Quick reactions");
@@ -2956,7 +2637,6 @@
     rpMore.onclick = () => { rpGrid.hidden = !rpGrid.hidden; rpMore.setAttribute("aria-expanded", String(!rpGrid.hidden)); if (!rpGrid.hidden) rpGrid.firstChild.focus(); };
     reactPop.append(rpQuick, rpGrid);
     root.append(reactPop);
-    /** react(id, emoji, on): a Discussion comment passes its own; a chat message uses Core.chatReact. */
     function openReactPop(m, anchor, react = null) {
       if (!m) return;
       ui.reactMsg = m; ui.reactFn = react; rpGrid.hidden = true; rpMore.setAttribute("aria-expanded", "false");
@@ -2964,7 +2644,6 @@
       openSurface(reactPop, anchor);
     }
     const cantReact = () => (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved;
-    /** A message's reaction chips: emoji, count and who (as Show names allows); a tap adds or takes back mine. */
     function fillReactChips(k, m, react = Core.chatReact) {
       const entries = Object.entries(m.reactions || {});
       const sig = JSON.stringify(entries) + Core.me.cid + st().showNames;
@@ -2977,28 +2656,25 @@
         b.append(E("span", "vf-mreact-e", e), E("span", "vf-mreact-n", String(pids.length)));
         const who = pids.map(p => (isMe(p) ? "you" : p ? disp(nameOf(p)) : "someone"));
         b.setAttribute("aria-pressed", String(mine));
-        b.setAttribute("aria-label", `${e}: ${pids.length}, from ${who.join(", ")}`); // aria-pressed says whether it is yours
+        b.setAttribute("aria-label", `${e}: ${pids.length}, from ${who.join(", ")}`);
         b.title = who.join(", ");
         b.onclick = () => react(m.id, e, !mine).catch(fail);
         return b;
       }));
     }
 
-    /** The menu for chat message `m`, or with `cmt` ({ qid, li }) for a Discussion comment; each entry shows where it fits. */
     function openMsgMenu(m, anchor, cmt) {
       if (!m) return;
       ui.msgMenu = m; ui.msgCmt = cmt || null;
       const S = Core.state, ro = (!!S.ended && !Core.me.isOwner) || !!S.youRemoved, mine = isMe(m.cid);
       mmPropose.hidden = !!m.forwarded || !!m.claude || ro;
       mmReact.hidden = cantReact() || !!m.hidden;
-      mmReply.hidden = mmAsk.hidden = ro; // read-only: the server refuses a reply and a request
-      // The server lets a comment's author edit (until its text went to Claude) and delete it, and the owner hide it.
+      mmReply.hidden = mmAsk.hidden = ro;
       mmEdit.hidden = !cmt || !mine || ro || !!m.request;
       mmDelete.hidden = !cmt || !mine || ro;
       mmHide.hidden = !cmt || !Core.me.isOwner || ro; mmHide.textContent = m.hidden ? "Show" : "Hide";
       openSurface(msgMenu, anchor);
     }
-    /** ⋯ and a long press (touch) on `bubble` open the message menu for what `get()` returns. */
     function msgMenuOpeners(bubble, more, get) {
       more.onclick = () => openMsgMenu(...get());
       let pressT = 0;
@@ -3011,8 +2687,6 @@
       const m = ui.msgMenu, c = ui.msgCmt, at = msgMenu._anchor; closePop(); if (!m || !at) return;
       openReactPop(m, at, c ? (id, e, on) => Core.reactComment(c.qid, id, e, on) : null);
     };
-    // A moderator forwards a chat message itself (it shows as proposed in the chat); anyone else, and any comment, gets
-    // the Propose form with its text, to edit before sending.
     mmPropose.onclick = () => {
       const m = ui.msgMenu; closePop(); if (!m) return;
       if (ui.msgCmt || !Core.canModerate()) return openPropose(m.text);
@@ -3026,7 +2700,6 @@
       const m = ui.msgMenu; closePop(); if (!m) return;
       copyOut(m.text, "Copied.", ui.msgCmt ? "Comment" : "Message", ui.msgCmt ? discTa : mInput);
     };
-    // Reply: in chat it quotes the message; in a Discussion it names the person in the comment box.
     mmReply.onclick = () => {
       const m = ui.msgMenu, c = ui.msgCmt; closePop(); if (!m) return;
       if (!c) { ui.replyTo = m; paintReply(); mInput.focus(); return; }
@@ -3053,8 +2726,6 @@
     }
     mReplyX.onclick = () => { ui.replyTo = null; paintReply(); mInput.focus(); };
 
-    /** A marked area in percent over an image, clamped inside it (a rect stored before the server checked the unit
-     *  can be pixel-sized); none hides the mark. Returns the area drawn. */
     function markRect(el, r) {
       el.hidden = !r;
       if (!r) return null;
@@ -3064,7 +2735,6 @@
       return c;
     }
 
-    // ---------- Q87: theme, one tap cycles System, Light, Dark ----------
     const THEME_NEXT = { system: "light", light: "dark", dark: "system" }, THEME_LABEL = Object.fromEntries(MODES);
     function cycleTheme() {
       const next = THEME_NEXT[myMode()] || "system";
@@ -3080,15 +2750,13 @@
     }
     themeBtn.onclick = cycleTheme;
 
-    // ---------- Q82: the bell ----------
     const notes = () => Core.state.me?.notifications || [];
     const KIND_ICON = Object.fromEntries(NOTE_KINDS.map(([k, , i]) => [k, i]));
-    /** The Inbox opens as a page over the session, below the top bar, at every width; Back or Escape closes it. */
     function openBell(anchor) {
       if (ui.pop === bellPop) { closePop(); anchor?.focus?.({ preventScroll: true }); return; }
-      if (ui.chatOpen) setChat(false); // the page stands in for the session, chat included: a hidden chat must not hold Tab
+      if (ui.chatOpen) setChat(false);
       ui.muteOpen = false;
-      ui.reqSeen = new Set((Core.state.requests || []).filter(r => r.status === "pending").map(r => r.id)); // what Run all shown may run
+      ui.reqSeen = new Set((Core.state.requests || []).filter(r => r.status === "pending").map(r => r.id));
       root.classList.add("vf-inboxon");
       openSurface(bellPop, anchor, ixTabBtn[ui.ixTab] || ixTabBtn.needs);
       bpScroll.scrollTop = 0;
@@ -3105,7 +2773,6 @@
       if (n.qid && qById(n.qid)) return focusQuestion(n.qid);
       if ((n.kind === "queue" || n.kind === "ready") && Core.canModerate()) showMode("host");
     }
-    // ---------- Item 11 and spec PR 9: the Inbox page ----------
     const inbox = () => Core.state.inbox || [];
     /** What pops up for the host the moment it arrives (owner decision 2026-10-19, follow-up 24): a join, a request
      *  waiting for Run, a problem report; the rest is in the Inbox only. The Notifications tab's Pop-ups switches change
@@ -3113,14 +2780,11 @@
     const HOST_URGENT = ["join", "run", "report"];
     const POPUP_KINDS = [["join", "Someone asks to join"], ["run", "A request waits for Run"], ["report", "Someone reports a problem"],
       ["share", "An answer waits for Share"], ["merge", "Someone asks to be joined with an earlier name"], ["fail", "Claude could not answer a request"], ["upload", "Someone offers a file"]];
-    /** Round 11: a guest's own pop-ups, all on until they turn one off; the rest from others waits in the Inbox. */
     const GUEST_POPUPS = [["request", "Claude answered my request"], ["mention", "Someone names or mentions me"], ["round", "A new round, or the round moves on"]];
     const popKinds = () => (Core.me.isOwner ? POPUP_KINDS : GUEST_POPUPS);
     const guestDefault = () => Core.state.settings?.guestPopups ?? GUEST_POPUPS.map(([k]) => k);
     const urgent = () => { const v = pref("popups", null); return Array.isArray(v) ? v : Core.me.isOwner ? HOST_URGENT : guestDefault(); };
-    /** Whether a kind of news pops up for me: switched on as a pop-up and not muted in "Notify me about". */
     const popsUp = kind => urgent().includes(kind) && !pref("mute", []).includes(kind);
-    /** What may pop up: a waiting item of a kind switched on, never the host's own report, and a failure only until opened. */
     const alertable = i => i.group === "waiting" && urgent().includes(i.kind) && !isMe(i.byCid) && (i.kind !== "fail" || i.unread);
     for (const [k, label] of [...POPUP_KINDS, ...GUEST_POPUPS]) {
       const b = swRow(label); b.dataset.k = k;
@@ -3133,36 +2797,27 @@
       gPopList.append(b); gPopRows[k] = b;
     }
     const IX_STAT = { waiting: "Waiting", running: "Running", answered: "Answered", unshared: "Answered", shared: "Shared", declined: "Declined", failed: "Failed" };
-    /** A count that is news: unread Inbox items, plus unread notifications other than a request's own notices, which
-     *  are its items. The queue line counts only what has no item: proposals, suggestions and offers. */
     function inboxUnread() {
       return inbox().filter(i => i.unread).length + notes().filter(n => !n.read && n.kind !== "request").length;
     }
     const qLabel = qid => { const q = qById(qid); return q ? `${q.id} · ${q.text}` : qid || ""; };
-    /** A request about the whole session has no question: it shows under this label, and opens in Ask Claude or chat. */
     const GEN_LABEL = "General", GEN_Q = { id: GEN_LABEL, text: "about the whole session" };
     const clipWords = (t, n) => (t.length > n ? t.slice(0, n).replace(/\s+\S*$/, "") + "…" : t);
-    /** A picker's option: a question's id and the start of its text, or with no question About the whole session. */
     const placeOpt = q => { const o = E("option", null, q ? `${q.id}: ${clipWords(q.text, 70)}` : "About the whole session"); o.value = q ? q.id : Core.GENERAL; return o; };
     const ixWhere = i => (i.qid ? `on ${i.qid}` : "about the session");
-    /** Where everyone reads a shared general answer: chat, or with chat off only Ask Claude's General list. */
     const genWhere = () => (Core.state.settings?.chat ? "in chat" : "in Ask Claude, About the whole session");
-    /** The request a chat message's @Claude filed, as this viewer knows it, as discReq does for a comment. */
     function genReq(S, rid) {
       const x = (S.research?.[Core.GENERAL] || []).find(r => r.requestId === rid);
       const r = (Core.me.isOwner ? S.requests || [] : []).concat(S.myRequests || []).find(r2 => r2.id === rid);
       return { x, r, label: x ? ansLabel(x) : r ? rstat(r) : "" };
     }
-    /** What became of an answer, as its request's line says it. */
     const ansLabel = x => (x.takenDown ? "Taken down by the host" : x.private ? (isMe(x.byCid) ? "Answered, just for you" : "Answered, just for the asker") : x.published === false ? (Core.me.isOwner ? "Answered, waiting for you to share" : "Answered, waiting for the host to share") : "Answered");
-    /** Ask Claude on "About the whole session", with one answer ("x:<id>") or request ("r:<id>") of it in view. */
     function openGeneral(key) {
       if (key?.startsWith("x:")) ui.resClosed.delete(key.slice(2));
       openAskPanel(null, Core.GENERAL);
       const answer = key.startsWith("x:");
       ringRow(answer ? apGen : apReqs, answer ? key : key.slice(2));
     }
-    /** After the next frame, scroll row `key` of `list` into view and ring it, when the list still has it. */
     function ringRow(list, key) {
       requestAnimationFrame(() => {
         const li = list._map?.get(key); if (!li) return;
@@ -3170,7 +2825,6 @@
         ring(li);
       });
     }
-    /** My request, open: its answer when I can see it, else its card, in that question's Claude section. */
     function showRequest(qid, rid) {
       ui.clOpen.set(qid, true);
       if (ui.cur !== qid) select(qid, { manual: true });
@@ -3178,14 +2832,12 @@
       render();
       ringRow(thList, "r:" + rid);
     }
-    /** The Host view with one queue row in sight. */
     function showHostRow(id) {
       closePop();
       ui.hostFilter = "all"; ui.more["queue:all"] = Infinity;
       showMode("host");
       ringRow(queueList, id);
     }
-    /** Where an Inbox item happened. What waits on the host opens its row on the Inbox page, where it is handled. */
     function openInboxItem(i) {
       if (i.group === "waiting") {
         const S = Core.state;
@@ -3197,16 +2849,15 @@
       if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
       if (i.kind === "ask") return focusQuestion(i.qid);
       if (i.kind === "markready") return showMode("host");
-      if (!i.qid && i.scope) { // about the whole session: a shared answer is in chat, the rest in Ask Claude
+      if (!i.qid && i.scope) {
         const xid = i.result, x = xid && (Core.state.research?.[Core.GENERAL] || []).find(y => y.id === xid);
-        if (x?.msg && x.published !== false && st().chat) { setChat(true); return goMsg(x.msg, () => openGeneral("x:" + xid)); } // a message chat dropped: the answer is still in Ask Claude
+        if (x?.msg && x.published !== false && st().chat) { setChat(true); return goMsg(x.msg, () => openGeneral("x:" + xid)); }
         return openGeneral(xid ? "x:" + xid : "r:" + i.id);
       }
       if (!qById(i.qid)) return;
       if (i.result) { showMode("focus"); return showResult(i.qid, i.result); }
       showRequest(i.qid, i.id);
     }
-    /** One Inbox row: the question, what was asked or what waits, a status chip, when, and an unread dot. */
     function makeIx() {
       const li = E("li"), b = btn("vf-ixitem");
       const q = E("span", "vf-ixq"), chip = E("span", "vf-chip vf-ixchip"), what = E("span", "vf-ixwhat"), sub = E("span", "vf-ixsub"), tm = E("span", "vf-card-time vf-ixtime"), dot = E("span", "vf-ndot");
@@ -3242,18 +2893,13 @@
       k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}${mine ? ` ${i.status === "unshared" ? (Core.me.isOwner ? "Answered, waiting for you to share" : "Answered, waiting for the host to share") : IX_STAT[i.status]}${sub && i.status !== "unshared" ? `: ${sub}` : ""}.` : ""}${when}`);
     }
 
-    /** A guest's request Claude failed waits on the host until the host opens it (its fail: item is read). */
     const failWaits = r => inbox().some(i => i.key === "fail:" + r.id && i.unread);
-    /** The host's requests to Claude that need the host now: to run, to share, or failed and not yet opened. */
     const revNeeds = row => row.st === "waiting" || row.st === "unshared" || (row.st === "failed" && failWaits(row.r));
-    /** Everything else that needs this person now, by role: what only the owner handles, what a leader places, and for
-     *  everyone the answers to their requests not yet opened and the questions they are asked to answer. */
     function needItems(S) {
       const owner = Core.me.isOwner, mod = Core.canModerate(), R = curRound(), q = [], ix = [];
       for (const it of queueItems(S)) {
-        // a report seen or with Claude, a file on its way and a round only the owner sends are not this person's to do now
         if (it.t === "request" || (it.t === "report" && (it.f.status !== "open" || it.f.asked)) || (it.t === "upload" && !["offered", "done"].includes(it.u.status)) || (it.t === "ready" && !owner)
-          || ((it.t === "proposal" || it.t === "suggestion") && !mod)) continue; // placing is a moderator's
+          || ((it.t === "proposal" || it.t === "suggestion") && !mod)) continue;
         q.push({ ...it, ck: it.t === "upload" ? (it.u.status === "offered" ? "file" : "picture") : it.t });
       }
       for (const i of inbox()) if (i.group === "mine" && i.unread && (i.status === "answered" || i.status === "shared")) ix.push({ ...i, ck: "answer" });
@@ -3266,8 +2912,6 @@
       }
       return { q: q.sort((a, b) => b.ts - a.ts), ix };
     }
-    /** What was handled: the host's other requests to Claude, problem reports seen or with Claude, pictures done, and
-     *  my own requests that are finished and opened. */
     function historyItems(S) {
       const owner = Core.me.isOwner, q = [];
       if (owner) {
@@ -3282,9 +2926,7 @@
       ready: "Rounds", answer: "Answers", question: "Questions for you", mention: "Mentions", reply: "Replies", request: "Requests", round: "New rounds",
       role: "Roles", votes: "Agreement", reaction: "Reactions", discussion: "Discussions", queue: "Queue" };
     function ixOffOf(tab) { return [].concat(ui.ixOff[tab] || []); }
-    /** History's page key: which chips are off, so turning one on or off starts the page over. */
     function histKey() { return "history:" + ixOffOf("history").join(); }
-    /** This tab's filter chips, one per kind of item it holds, with counts; a chip turned off hides its kind, remembered on this device. */
     function ixFilter(tab, list) {
       const off = new Set(ixOffOf(tab)), keys = [...new Set(list.map(x => x.ck))];
       sync(ixChips, keys, k => tab + ":" + k, () => {
@@ -3292,11 +2934,9 @@
         b.onclick = () => { const o = new Set(ixOffOf(b._tab)); o.has(b.dataset.stat) ? o.delete(b.dataset.stat) : o.add(b.dataset.stat); ui.ixOff[b._tab] = [...o]; store.put("vf-ix-off", ui.ixOff); render(); };
         return b;
       }, (b, k) => { b._tab = tab; b.dataset.stat = k; b.textContent = `${CHIP_WORD[k] || k} · ${list.filter(x => x.ck === k).length}`; b.setAttribute("aria-pressed", String(!off.has(k))); });
-      ixChips.hidden = keys.length < 2 && !keys.some(k => off.has(k)); // a chip turned off always stays in reach
+      ixChips.hidden = keys.length < 2 && !keys.some(k => off.has(k));
       return list.filter(x => !off.has(x.ck));
     }
-    /** Queue rows on the Inbox page: their question link and Show in Host view (first in the row's own actions, so the
-     *  row takes one line of buttons) leave the page for where they live. */
     function makeIbQ(it) {
       const li = makeQItem(it), k = li._k, go = k.qref.onclick;
       k.qref.onclick = () => { closePop(); go(); };
@@ -3313,8 +2953,8 @@
     bellBtn.onclick = () => openBell(bellBtn);
     bpBack.onclick = () => { const a = bellPop._anchor; closePop(); a?.focus?.({ preventScroll: true }); };
     bpAll.onclick = () => {
-      const items = inbox().filter(i => i.unread && !i.key.startsWith("fail:")); // a failed request clears only from its row
-      for (let n = 0; n < items.length; n += 100) { // the server takes 100 a read
+      const items = inbox().filter(i => i.unread && !i.key.startsWith("fail:"));
+      for (let n = 0; n < items.length; n += 100) {
         const part = items.slice(n, n + 100);
         Core.readInbox(part.map(i => i.key), Object.fromEntries(part.map(i => [i.key, i.status]))).catch(fail);
       }
@@ -3329,7 +2969,7 @@
       bellBtn.setAttribute("aria-label", unread ? `Inbox, ${unread} unread` : "Inbox");
       bellBtn.title = bellBtn.getAttribute("aria-label");
       bellBtn.hidden = !S.me;
-      tabBtns.more._badge.textContent = ""; // ux-review-2 #8: a notification is badged once, on the Inbox
+      tabBtns.more._badge.textContent = "";
       menu.more.bell._d.textContent = unread ? `${unread} unread` : "All read";
       if (ui.pop !== bellPop) return;
       bpAll.hidden = !unread;
@@ -3393,7 +3033,7 @@
         const kinds = NOTE_KINDS.filter(([kk]) => mod || !["queue", "ready"].includes(kk)).length;
         muteBtn.textContent = muted.size ? `Pop-ups and notifications · ${kinds - muted.size} of ${kinds} kinds notify you` : "Pop-ups and notifications";
         muteBtn.setAttribute("aria-expanded", String(!!ui.muteOpen));
-        ibSide.dataset.open = String(!!ui.muteOpen); // below 1100 px the button folds Pop-ups and the switches away
+        ibSide.dataset.open = String(!!ui.muteOpen);
         for (const [kk, b] of Object.entries(muteRows)) { b.hidden = !mod && (kk === "queue" || kk === "ready"); b.setAttribute("aria-checked", String(!muted.has(kk))); }
       } else {
         const h = historyItems(S), all = [...rows.filter(r => !revNeeds(r)).map(r => ({ ...r, ck: r.st })), ...h.q, ...h.ix];
@@ -3409,7 +3049,6 @@
       }
     }
 
-    /** Every request to the host's Claude and every answer, newest first, each with the status the chips filter on. */
     function revRows(S) {
       const res = [];
       for (const [qid, lst] of Object.entries(S.research || {})) for (const x of lst) res.push({ qid: qid === Core.GENERAL ? "" : qid, x });
@@ -3420,7 +3059,6 @@
       for (const e of res) if (!e.x.requestId || !asked.has(e.x.requestId)) rows.push({ key: "x:" + e.x.id, x: e.x, qid: e.qid, ts: e.x.ts, st: st2(null, e.x) });
       return rows.sort((a, b) => b.ts - a.ts);
     }
-    /** The Inbox page with one row in sight: a request to Claude ("r:<id>", "x:<id>") or another queue row's id. */
     function openReview(key) {
       const S = Core.state, row = revRows(S).find(r => r.key === key), q = needItems(S).q.find(i => i.id === key);
       const tab = (row ? revNeeds(row) : !!q) ? "needs" : "history", ck = row ? row.st : q?.ck;
@@ -3436,12 +3074,10 @@
         ring(li);
       });
     }
-    /** A review row: the request with its own actions and, once Claude answered, the answer with Share,
-     *  Discard and Take down. A row with no request is an answer no host request asked for (a guest's own Claude's). */
     function makeRev() {
       const li = makeReq(), k = li._k;
       li.classList.add("vf-revrow");
-      k.tarea.rows = 3; // editing on the Inbox page: three lines of the request in view
+      k.tarea.rows = 3;
       const stat = E("span", "vf-chip vf-ixchip vf-revstat"), dot = E("span", "vf-ndot");
       k.kind.after(stat); k.status.after(dot);
       const res = E("div", "vf-rev-res"), lbl = E("div", "vf-qa-lbl"), rwho = E("span", "vf-meta vf-rev-who");
@@ -3455,8 +3091,8 @@
       li.append(res);
       const seen = () => { const keys = li._unread || []; if (keys.length) Core.readInbox(keys, Object.fromEntries(keys.map(kk => [kk, "open"]))).catch(() => {}); };
       open.onclick = () => k.qref.onclick();
-      k.rerun.addEventListener("click", seen); // a failed request run again needs nothing more from its row
-      k.qref.onclick = () => { // the request, or the answer, where it lives
+      k.rerun.addEventListener("click", seen);
+      k.qref.onclick = () => {
         seen(); closePop();
         const r = li._row;
         if (!r.qid) return openGeneral(r.x ? "x:" + r.x.id : "r:" + r.r.id);
@@ -3473,7 +3109,7 @@
       li._row = row;
       if (row.r) {
         fillReq(li, row.r);
-        if (row.r.status === "done" || row.r.status === "declined") { // answered or declined: what is left to do is on the answer
+        if (row.r.status === "done" || row.r.status === "declined") {
           for (const b of [k.edit, k.save, k.cancel, k.decline, k.run, k.failB, k.rerun]) b.hidden = true;
           k.fresh.hidden = true; li.classList.remove("vf-ritem-fresh");
         }
@@ -3498,7 +3134,6 @@
       paintResActs(k, x);
     }
 
-    // ---------- Q86: the phone More sheet ----------
     function toggleMore() { if (ui.pop === moreSheet) return closePop(); openSurface(moreSheet, tabBtns.more); }
     function openIntro(anchor) {
       const S = Core.state;
@@ -3527,7 +3162,6 @@
         first.focus({ preventScroll: true });
       });
     };
-    // What each menu entry does; `from` is the menu's own button (More's tab, or Help), where focus goes back.
     const MENU_RUN = {
       ask: () => { closePop(); openAskPanel(null, Core.GENERAL); },
       bell: from => { closePop(); openBell(from); },
@@ -3538,7 +3172,6 @@
       settings: from => {
         closePop();
         if (Core.me.isOwner) return openSurface(settingsPop, from);
-        // Everyone else: my own card holds my name, theme accent, Claude's take and other devices.
         let a = people.querySelector(".vf-person-me");
         if (!a?.offsetParent) { a = from; a.dataset.pid = Core.me.cid; a.dataset.name = Core.me.name; }
         showCard(a, true);
@@ -3564,7 +3197,7 @@
       menuShow("health", Core.me.isOwner);
       if (ui.pop === decPop) { fillDecisions(dpList, S.decisions, true); dpEmpty.hidden = S.decisions.length > 0; }
       msFollow.hidden = Core.me.isOwner || !S.settings.follow;
-      menu.help.settings.hidden = Core.me.isOwner; // the owner's settings are behind the gear; a guest's are their own card
+      menu.help.settings.hidden = Core.me.isOwner;
       msFollow._l.textContent = Core.owner() ? `Follow ${disp(Core.owner().name)}` : "Follow host";
       msFollow._d.textContent = following() ? "On" : "Off";
       msFollow.setAttribute("aria-pressed", String(following()));
@@ -3574,10 +3207,7 @@
       tabBtns.more.setAttribute("aria-expanded", String(ui.pop === moreSheet));
     }
 
-    // ---------- Q82: @mention suggestions in every field people write in ----------
     const MQ = /(?:^|[^\p{L}\p{N}])@([^\s@][^@\n]{0,39}|)$/u;
-    // The fields: every composer kit field made with `mentions`; "claude" ones (chat and Discussion, where the server
-    // files "@Claude" as a request) list Claude first, inserting the "@Claude" the server reads.
     function closeMention() {
       const M = ui.mention; if (!M) return;
       ui.mention = null; mentionBox.hidden = true;
@@ -3592,7 +3222,6 @@
       const people = Object.entries(Core.state.people || {}).filter(([p]) => !isMe(p) && !gone.has(p) && Core.mentionLabel(p).toLowerCase().startsWith(q))
         .map(([pid, v]) => ({ pid, name: v.name, label: Core.mentionLabel(pid), here: hereNow.has(pid) }))
         .sort((a, b) => b.here - a.here || a.name.localeCompare(b.name));
-      // a person whose name reads "Claude" is who "@Claude" names (the server tokenizes it first), so no Claude entry then
       const claude = Kit.get(f)?.mentions === "claude" && "claude".startsWith(q) && !Core.mentionLabels().some(([l]) => l.toLowerCase() === "claude");
       const items = [...(claude ? [{ claude: true, name: "Claude", label: "Claude" }] : []), ...people].slice(0, 6);
       if (!items.length) return closeMention();
@@ -3607,17 +3236,14 @@
         const li = E("li", "vf-mopt"); li.id = "vf-mopt-" + i; li.setAttribute("role", "option"); li.setAttribute("aria-selected", String(i === M.sel));
         li.append(p.claude ? claudeAv(AV.m) : Core.avatar(p.pid, p.name, AV.m), E("span", "vf-mopt-n", p.claude ? "Claude" : disp(p.name)),
           E("span", "vf-meta", p.claude ? "sends it to Claude" : p.here ? "here" : ""));
-        // keep focus in the field, and keep an open popover or panel (Propose, Ask Claude) from closing
         li.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); pickMention(i); });
         return li;
       }));
       mentionBox.hidden = false;
       f.setAttribute("aria-expanded", "true"); f.setAttribute("aria-controls", mentionBox.id); f.setAttribute("aria-activedescendant", "vf-mopt-" + M.sel);
-      // over the field when it sits low (composer, chat), under it otherwise; never wider than the field
       const R = root.getBoundingClientRect(), r = f.getBoundingClientRect(), ps = mentionBox.style;
       ps.inlineSize = Math.min(300, Math.max(220, r.width)) + "px";
       ps.insetInlineStart = Math.max(8, Math.min(r.left - R.left, R.width - mentionBox.offsetWidth - 8)) + "px";
-      // a field with no room above or below it (the phone's full-height answer sheet): over the field's lower half
       if (r.top - R.top - 14 < 88 && R.bottom - r.bottom - 14 < 88) {
         ps.insetBlockStart = ""; ps.insetBlockEnd = R.bottom - r.bottom + 8 + "px"; ps.maxBlockSize = Math.max(88, r.height / 2) + "px";
         return;
@@ -3639,7 +3265,6 @@
     on(root, "input", e => { if (Kit.get(e.target)?.mentions && !e.isComposing) mentionCheck(e.target); });
     on(document, "selectionchange", () => { const M = ui.mention; if (M && document.activeElement === M.field) mentionCheck(M.field); });
     on(root, "focusout", e => { if (ui.mention?.field === e.target) closeMention(); });
-    // Runs before the fields' own keys (Enter sends chat, Ctrl + Enter sends an answer) while the list is open.
     on(root, "keydown", e => {
       const M = ui.mention;
       if (!M || e.target !== M.field || e.isComposing) return;
@@ -3651,23 +3276,17 @@
       e.preventDefault(); e.stopPropagation();
     }, true);
 
-    // ---------- attachments: one picker and one renderer for answers, chat, requests, suggestions, proposals and references ----------
     const httpUrl = u => { try { return ["http:", "https:"].includes(new URL(u).protocol) ? u : ""; } catch { return ""; } };
     const domainOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
     function dataBytes(url) { return Uint8Array.from(atob(url.slice(url.indexOf(",") + 1)), c => c.charCodeAt(0)); }
     function isMyUpload(id) { return (Core.state.myUploads || []).some(u => u.id === id); }
-    // C44: an answer, pick, chat message, request, suggestion, proposal or comment carries files (uploads the owner
-    // accepted). A received picture shows to whoever sees what carries it, read from the server as a data: URL.
-    // The uploader and the owner see a received picture at once; everyone else once the owner approves it (`image` in files).
     const fileOf = a => {
       if (!a?.upload) return null;
       const f = Core.state.files?.[a.upload], own = [...(Core.state.myUploads || []), ...(Core.state.uploads || [])].find(u => u.id === a.upload);
       return f ? (own?.image ? { ...f, image: true } : f) : own || null;
     };
-    // A diagram reference is an SVG Claude made, shown like a picture, with its required alt text on the image.
     const attAsset = a => (a?.kind === "image" ? a.asset || fileOf(a)?.asset || "" : a?.kind === "diagram" ? a.asset || "" : "");
     const PIC_EXT = new Set(["png", "jpg", "jpeg", "gif", "webp"]);
-    // upload id -> the promise of its picture's data: URL, the 24 used last (each at most 512 KB); an older one is read again
     const upPics = new Map(), UP_PICS = 24;
     const upPic = id => {
       const p = upPics.get(id) || Core.uploadImage(id).catch(e => { upPics.delete(id); throw e; });
@@ -3679,7 +3298,6 @@
     // upload id -> the promise of its first frame as a PNG data: URL when it is an animated GIF, else null. An animated
     // GIF shows still until someone presses Play (WCAG 2.2.2): canvas draws an animated image's first frame.
     const gifStills = new Map();
-    /** Drop a cached picture the page may no longer show (removed, or no longer carried by anything it reads). */
     function prunePics() {
       for (const id of [...upPics.keys()]) if (!fileOf({ upload: id })?.image) upPics.delete(id);
       for (const id of [...gifStills.keys()]) if (!upPics.has(id)) gifStills.delete(id);
@@ -3722,31 +3340,25 @@
       })().catch(() => null));
       return gifStills.get(id);
     };
-    /** Play GIF / Stop GIF on an animated GIF shown still in img. */
     function gifToggle(b, img, src, still) {
       const set = on => { img.src = on ? src : still; b.textContent = on ? "Stop GIF" : "Play GIF"; b._on = on; };
       b.onclick = e => { e.stopPropagation(); set(!b._on); };
       set(false);
       return b;
     }
-    /** A placeholder where a picture will show: to its uploader and the host until it arrives, and to everyone else
-     *  until the host approves it once it has. */
     const picWaits = a => {
       const f = fileOf(a);
       return !!f && !f.image && (!!f.awaitsHost || (PIC_EXT.has(f.ext) && ["offered", "accepted", "uploading"].includes(f.status)
         && (Core.me.isOwner || isMyUpload(a.upload))));
     };
     const isPic = a => !!attAsset(a) || !!fileOf(a)?.image;
-    /** The viewer's items for a record's pictures: an asset, or a received upload read from the server. */
     const picItems = pics => Promise.all(pics.map(async p => (attAsset(p) ? { asset: attAsset(p), title: attTitle(p), rect: p.rect || null }
       : { src: await upPic(p.upload), id: p.upload, title: attTitle(p) })));
     const attTitle = a => a.caption || fileOf(a)?.file || (a.kind === "diagram" ? "Diagram" : "Picture");
-    /** The owner's view of whether a guest's received picture is approved. */
     const upShown = a => !!(Core.state.uploads || []).find(u => u.id === a.upload)?.shown;
     const attKey = list => JSON.stringify((list || []).map(a => [a, fileOf(a)?.status || "", attAsset(a), !!fileOf(a)?.image, !!fileOf(a)?.awaitsHost, localPics.has(a.upload), upShown(a)]));
     const ATT_STAT = { offered: "Waiting for the host to accept", accepted: "Accepted, sending", uploading: "Sending", done: "Received by the host",
       declined: "Not accepted", withdrawn: "Withdrawn", failed: "Failed", removed: "Removed" };
-    /** One attachment, drawn the same everywhere. open(from) shows an inline picture in the viewer. */
     function attNode(a, open) {
       const li = E("li", "vf-ref"), asset = attAsset(a);
       const diagram = a.kind === "diagram";
@@ -3756,7 +3368,6 @@
         const thumb = E("span", "vf-ref-thumb"), img = E("img"), mark = E("span", "vf-confirm-mark");
         img.src = assetUrl(asset); img.alt = diagram ? a.alt || "" : ""; img.loading = "lazy"; mark.setAttribute("aria-hidden", "true"); markRect(mark, a.rect);
         thumb.append(img, mark, zoomTag());
-        // A diagram's button is named by its alt text and caption; a picture's by its caption alone.
         viewBtn("vf-ref-img", thumb, diagram ? `View larger: ${attTitle(a)}. ${a.alt || ""}`.trim() : `View larger: ${attTitle(a)}${a.rect ? ", with a marked area" : ""}`);
       } else if (a.kind === "file" && (fileOf(a)?.image || picWaits(a))) {
         const f = fileOf(a), thumb = E("span", "vf-ref-thumb"), img = E("img");
@@ -3774,7 +3385,6 @@
           if (open.approvable && Core.me.isOwner && !upShown(a)) li.append(approveBtn(a.upload));
           if (open.removable && (Core.me.isOwner || isMyUpload(a.upload))) li.append(removeBtn(a.upload, f.file));
         } else {
-          // Not received yet: only its uploader and the host see this, with the thumbnail this browser made, if any.
           const box = E("div", "vf-ref-img vf-uppic vf-uppic-wait"), local = localPics.get(a.upload) || "";
           if (local) img.src = local; else img.hidden = true;
           thumb.append(E("span", "vf-uppic-stat", f.status === "offered" || f.awaitsHost ? "Waiting for the host" : ATT_STAT[f.status]));
@@ -3807,8 +3417,6 @@
       }
       return li;
     }
-    /** A record's attachments into a list; meta names the record in the picture viewer. approvable: the owner's
-     *  Approve picture shows on a guest's received picture that waits for it. */
     function fillAtts(ul, atts, meta, approvable = false) {
       atts = atts || [];
       ul.hidden = !atts.length;
@@ -3819,7 +3427,6 @@
       const open = a => Object.assign(from => picItems(pics).then(items => openLb("att", null, pics.indexOf(a), from, items, meta)).catch(fail), { removable: true, approvable });
       ul.replaceChildren(...atts.map(a => attNode(a, open(a))));
     }
-    /** The owner's or the uploader's Remove on a received picture: it leaves everything that carries it and is deleted. */
     function removeBtn(id, file) {
       const x = ibtn("vf-tbtn vf-icon-btn vf-ref-x vf-upremove", "x", `Remove ${file}`);
       x.onclick = guarded({ title: `Remove ${file}?`, ok: "Remove picture", body: "It disappears from everything that carries it, for everyone, and is deleted from the host's computer." },
@@ -3833,7 +3440,6 @@
     }
     const attRowEl = () => { const ul = E("ul", "vf-reflist vf-attlist"); ul.setAttribute("aria-label", "Attachments"); ul.hidden = true; return ul; };
 
-    // References under the question: the host adds them through the same picker.
     function makeRef(r) {
       const li = attNode(r, from => openLb("ref", ui.cur, (qById(ui.cur)?.references || []).slice(0, li._i).filter(attAsset).length, from));
       if (Core.me.isOwner) {
@@ -3849,7 +3455,7 @@
       refBox.hidden = !refs.length && !owner;
       refAdd.hidden = !owner || refs.length >= 8;
       refList.hidden = !refs.length;
-      refHead.firstChild.hidden = !refs.length; // with none yet, the host sees only Add reference
+      refHead.firstChild.hidden = !refs.length;
       if (refList._q !== q.id) { resetList(refList); refList._q = q.id; }
       sync(refList, refs.map((r, i) => ({ r, i })), x => x.i + ":" + attKey([x.r]), x => makeRef(x.r), (li, x) => { li._i = x.i; });
     }
@@ -3860,7 +3466,6 @@
     }
     refAdd.onclick = () => { const qid = ui.cur; openAttach({ qid, ref: true, from: refAdd, onAdd: att => Core.addReference(qid, att).then(() => flash("Reference added.")) }); };
 
-    // The picker: Upload a file, Image, Link or Quote. A modal dialog, so it opens over any panel or sheet.
     const attDlg = E("dialog", "vf-dlg vf-attdlg");
     const adForm = E("form", "vf-attform"); adForm.noValidate = true;
     const adTitle = E("h2", "vf-dlg-title"); adTitle.id = "vf-att-title"; attDlg.setAttribute("aria-labelledby", adTitle.id);
@@ -3881,7 +3486,6 @@
     const adF = { file: adField("File", adFile), image: adField("Image (PNG, JPEG or WebP)", adImg), cap: adField("Caption (optional)", adCap),
       url: adField("Link", adUrl), ltitle: adField("Title (optional)", adLTitle), qtext: adField("Quoted text", adQText),
       qsrc: adField("Source", adQSrc), qurl: adField("Link to the source (optional)", adQUrl) };
-    // C44: files I sent that the host accepted, ready to attach to this answer.
     const adMine = E("ul", "vf-reflist vf-attmine"); adMine.setAttribute("aria-label", "Your files the host accepted");
     const adMineHead = E("p", "vf-sel-l", "Or attach a file the host accepted");
     const adNote = E("p", "vf-pop-note vf-att-note");
@@ -3894,13 +3498,10 @@
     attDlg.append(adForm);
     root.append(attDlg);
     const AD = { kind: "link", qid: "", ref: false, taken: [], onAdd: null, from: null, title: "" };
-    /** Which tabs the picker shows. A reference takes a link or a quote. Every form people write in takes an upload,
-     *  and only while Uploads is on. Pictures come from Claude's add-asset. */
     function attKinds(ref) {
       if (ref) return { file: false, image: false, link: true, quote: true };
       return { file: !!st().uploads, image: false, link: false, quote: false };
     }
-    /** My uploads the host accepted (the owner's own are accepted at once), newest first, not already attached. */
     const acceptedMine = taken => (Core.state.myUploads || []).filter(u => ["accepted", "uploading", "done"].includes(u.status) && !taken.includes(u.id))
       .sort((a, b) => b.ts - a.ts);
     const adFirst = () => ({ file: adFile, image: adImg, link: adUrl, quote: adQText })[AD.kind];
@@ -3960,8 +3561,6 @@
           if (u && !httpUrl(u)) throw bad("The source link must start with http:// or https://.", adQUrl);
           att = { kind: "quote", text, source, ...(u ? { url: u } : {}) };
         } else {
-          // Offered and attached at once, as a pasted picture is: the chip reads "Waiting for the host" until they
-          // accept it, and Send waits for that (attWaits). The file stays on this device until then.
           const f = adFile.files?.[0];
           if (!f) throw bad("Choose a file first.", adFile);
           const r = await offerFile(f, AD.qid).catch(x => { throw x?.status ? x : bad(x.error, adFile); });
@@ -3977,8 +3576,6 @@
     adCancel.onclick = () => attDlg.close();
     attDlg.addEventListener("close", () => { if (AD.from?.isConnected) AD.from.focus({ preventScroll: true }); });
 
-    /** A form's attachments before it is sent: chips with a remove button, the button that opens the picker, and a
-     *  picture pasted into its field. store.get/set keep the list somewhere else (the answer composer keeps one per question). */
     function attSlot(getQid, btnEl, store, field, enabled = () => true) {
       store ||= null;
       const b = btnEl || ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach");
@@ -3986,15 +3583,13 @@
       const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", "Attached, not sent yet"); chips.hidden = true;
       let own = [];
       const slot = { btn: b, chips, qid: getQid, get: store?.get || (() => own), set: store?.set || (l => { own = l; }) };
-      slot.put = l => { slot.set(l); paintSlot(slot); render(); }; // render: the answer's file rows drop a picture its tile now shows (S17)
-      /** After a send: only the files it carried leave the form, on the question it was sent from. */
+      slot.put = l => { slot.set(l); paintSlot(slot); render(); };
       slot.sent = ex => {
         const ids = ex?.attachments || [], q = ex?.from?.qid, mine = store?.getFor ? store.getFor(q) : slot.get();
         const rest = mine.filter(a => !ids.includes(a.upload));
         if (store?.setFor) store.setFor(q, rest); else slot.set(rest);
         paintSlot(slot);
       };
-      /** The draft list of the question in view now, kept for a paste that finishes after the reader moved on. */
       slot.here = () => {
         const q = ui.cur;
         return store?.getFor ? { get: () => store.getFor(q), put: l => { store.setFor(q, l); paintSlot(slot); render(); } } : { get: slot.get, put: slot.put };
@@ -4005,24 +3600,21 @@
       };
       if (field) on(field, "paste", e => {
         const pics = [...(e.clipboardData?.files || [])].filter(f => /^image\/(png|jpeg|webp|gif)$/.test(f.type));
-        if (!pics.length || !st().uploads || field.disabled || field.readOnly || !enabled()) return; // the paste goes on as usual
+        if (!pics.length || !st().uploads || field.disabled || field.readOnly || !enabled()) return;
         e.preventDefault();
         (async () => { for (const f of pics) await pastePic(slot, f); })();
       });
       return slot;
     }
-    /** A pasted picture: offered to the host (offerFile redraws it) and attached as a thumbnail chip. */
     async function pastePic(slot, file) {
       if (slot.get().length >= 4) return flash("Four files at most go with one post.");
-      const here = slot.here(), qid = slot.qid(); // the question pasted on, whichever the reader is on when the offer lands
+      const here = slot.here(), qid = slot.qid();
       try {
         const named = new File([file], `pasted-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "")}.png`, { type: file.type });
         const r = await offerFile(named, qid);
         here.put([...here.get(), { kind: "file", upload: r.id, pasted: true }]);
       } catch (x) { flash(x?.error || `Not attached: ${Core.errorText(x)}`); }
     }
-    /** Sending waits while a file in the form is waiting for the host; one the host declined, or that was withdrawn,
-     *  failed, removed or is gone, leaves the form. Either way it names the file and the form stays unsent. */
     function attWaits(slot) {
       const list = slot.get(), stat = a => fileOf(a)?.status, name = a => fileOf(a)?.file || "A file";
       const gone = list.filter(a => a.upload && !["offered", "accepted", "uploading", "done"].includes(stat(a)));
@@ -4050,21 +3642,17 @@
         const x = ibtn("vf-tbtn vf-icon-btn vf-ref-x", "x", "Remove this attachment");
         x.onclick = () => {
           const l = slot.get().slice(); l.splice(i, 1); slot.put(l); (slot.chips.querySelector(".vf-ref-x") || slot.btn).focus();
-          // A pasted picture belongs to this draft alone: taking it off withdraws it, unless something sent carries it
-          // (the server says so on my own uploads).
           const mine = (Core.state.myUploads || []).find(u => u.id === a.upload), st2 = mine?.status;
           if (a.pasted && mine && !mine.carried && ["offered", "accepted", "uploading", "done"].includes(st2)) {
             // draftOnly: a page that has not yet seen a send carry it never takes the file off what was sent (#8615)
             Core.uploadAct(a.upload, st2 === "done" ? "remove" : "withdraw", true).then(() => forget(a.upload))
-              .catch(e => { if (e?.status !== "carried") fail(e); }); // carried: it stays on the post, and its copy here too
+              .catch(e => { if (e?.status !== "carried") fail(e); });
           }
         };
         li.append(x); return li;
       }));
     }
-    /** What a send carries: the upload ids of the form's files, and (not sent) where they came from, for slot.sent. */
     const attExtra = slot => Object.defineProperty({ attachments: slot.get().map(a => a.upload).filter(Boolean) }, "from", { value: { qid: slot.qid() } });
-    /** A draft list per question for a form that writes on the question in view. */
     const perQuestion = () => {
       const by = {};
       return { get: () => by[ui.cur] || [], set: l => { by[ui.cur] = l; }, getFor: q => by[q] || [], setFor: (q, l) => { by[q] = l; } };
@@ -4183,7 +3771,6 @@
     }
     devCopy.onclick = () => copyOut(devField.value, "Link copied. Open it on your other device.", "Your link", devCopy, devField);
     let pairT = 0;
-    /** A fresh one-time code: the QR code opens the session's link with it, or the other device types it. */
     function newPairCode() {
       clearTimeout(pairT);
       pairQr.replaceChildren(); pairCode.textContent = ""; pairWhen.textContent = "Making a code…"; pairNew.disabled = true;
@@ -4199,7 +3786,7 @@
     pairNew.onclick = newPairCode;
     function fillPairList() {
       const mine = Core.ownerDevice(), devs = Core.state.ownerDevices || [], sig = JSON.stringify(devs);
-      if (pairList.dataset.sig === sig) return; // a repaint mid-click would drop the click
+      if (pairList.dataset.sig === sig) return;
       pairList.dataset.sig = sig;
       pairList.replaceChildren(...devs.map(d => {
         const name = `${d.device ? d.device[0].toUpperCase() + d.device.slice(1) : "Device"}${d.browser ? ` (${d.browser})` : ""}${d.id === mine ? ", this one" : ""}`;
@@ -4222,10 +3809,9 @@
       if (!dev) newPairCode();
     }
 
-    // ---------- uploads: the file waits in this browser until the host accepts ----------
-    const CHUNK_MAX = 8 * 1024 * 1024, GUEST_MAX = 100 * 1024 * 1024; // the server names its chunk size on each upload
-    const SHOWN_MAX = 512 * 1024; // the largest received picture the server reads back as one; a larger one shows as a file
-    const AVATAR_MAX = 256 * 1024, AVATAR_EDGE = 256; // a profile picture: the server takes 256 KB at most; 256 px covers the largest avatar on a dense screen
+    const CHUNK_MAX = 8 * 1024 * 1024, GUEST_MAX = 100 * 1024 * 1024;
+    const SHOWN_MAX = 512 * 1024;
+    const AVATAR_MAX = 256 * 1024, AVATAR_EDGE = 256;
     const GUEST_EXT = new Set("png jpg jpeg gif webp pdf txt md csv tsv log rtf doc docx xls xlsx ppt pptx odt ods odp".split(" "));
     const up = { files: new Map(), running: new Set(), sent: {}, retryAt: {}, memOnly: new Set(), loaded: false, noIdb: false };
     const idb = (() => {
@@ -4314,8 +3900,6 @@
       if (out.size > SHOWN_MAX) throw { error: `${file.name} is ${sizeTxt(out.size)}. A GIF shows in place up to 512 KB.` };
       return out;
     }
-    /** Offer a file to the host; resolves to {id, status}, rejects with {error} or the server's refusal. `avatar`: my
-     *  profile picture, redrawn as a small square; it replaces my last one once it arrives. */
     async function offerFile(file, qid, avatar = false) {
       const ext = (file.name.split(".").pop() || "").toLowerCase(), owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
       if (!trusted && !GUEST_EXT.has(ext)) throw { error: "Guests can send pictures, PDF, text, CSV and Office files. Ask the host to trust you for other kinds." };
@@ -4336,7 +3920,6 @@
       return r;
     }
     function forget(id) { up.files.delete(id); up.memOnly.delete(id); idb.del(id).catch(() => {}); }
-    /** Start or resume every accepted upload this browser still holds. Called on each render. */
     function pumpUploads() {
       for (const u of Core.state.myUploads || []) {
         if (["declined", "withdrawn", "failed", "done"].includes(u.status)) { if (up.files.has(u.id)) forget(u.id); continue; }
@@ -4351,12 +3934,12 @@
         for (let i = 0; i < u.total; i++) {
           const buf = new Uint8Array(await file.slice(i * CHUNK, Math.min(file.size, (i + 1) * CHUNK)).arrayBuffer());
           hasher.update(buf);
-          if (i < u.received) continue; // the server has it already: only the running hash needs it
+          if (i < u.received) continue;
           const sha = await pieceSha(buf), last = i === u.total - 1, whole = last ? hasher.hex() : "";
           for (let attempt = 0; ; attempt++) {
             try { await Core.uploadChunk(u.id, i, u.total, buf, sha, whole); break; }
             catch (e) {
-              if (e?.status || attempt >= 4) throw e; // the server said no: do not hammer it
+              if (e?.status || attempt >= 4) throw e;
               await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
             }
           }
@@ -4366,7 +3949,6 @@
         }
       } catch (e) {
         up.retryAt[u.id] = Date.now() + 4000;
-        // a gap resumes from the server's count; too fast waits a moment; the next poll shows a decline or a failure
         if ((e?.status === 409 && e.received != null) || e?.status === 429) up.retryAt[u.id] = Date.now() + 1600;
         else if (e?.status && e.status !== 409) flash(`Upload stopped: ${Core.errorText(e)}`);
       } finally { up.running.delete(u.id); }
@@ -4375,7 +3957,6 @@
       done: "Sent", declined: "Not accepted", withdrawn: "Withdrawn", failed: "Failed", removed: "Removed" };
     function makeUpRow(host) {
       const li = E("li", "vf-uprow");
-      // the host sees an offered picture before accepting it: the thumbnail opens the viewer
       const thumbImg = E("img"); thumbImg.alt = "";
       const thumb = btn("vf-imgbtn vf-upthumb"); thumb.append(thumbImg); thumb.hidden = true;
       thumb.onclick = () => openLb("att", null, 0, thumb, [{ src: thumbImg.src, title: li._u.file }], isMe(li._u.cid) ? "Your file" : li._u.status === "done" ? `Sent by ${disp(li._u.by)}, not approved yet` : `Offered by ${disp(li._u.by)}, not accepted yet`);
@@ -4405,10 +3986,7 @@
       const k = li._k, host = k.host, mine = isMe(u.cid);
       li._u = u;
       const bytes = Math.max(u.bytes || 0, mine ? up.sent[u.id] || 0 : 0), pct = u.size ? Math.floor((bytes / u.size) * 100) : 0;
-      // the host decides on the server's extension, not on a name that may hide one
       k.name.textContent = `${u.file} · ${host ? (u.ext ? u.ext.toUpperCase() : "no extension") + " · " : ""}${sizeTxt(u.size)}`;
-      // The host decides on the received picture itself: its row shows the bytes that arrived. Before then the host
-      // sees the offered preview, and the uploader the thumbnail this browser made.
       const pre = host ? u.thumb : mine ? localPics.get(u.id) : "";
       if ((host || mine) && u.image && !k.thumb._real) { k.thumb._real = true; upPic(u.id).then(src => { k.thumbImg.src = src; }).catch(() => {}); }
       if (pre || k.thumb._real) { if (pre && k.thumbImg.src !== pre && !k.thumb._real) k.thumbImg.src = pre; k.thumb.hidden = false; k.ico.hidden = true; k.thumb.setAttribute("aria-label", `View larger: ${u.file}`); }
@@ -4437,24 +4015,21 @@
       k.approve.hidden = !(decides && !mine && u.status === "done" && u.image && !u.shown);
       if (!k.approve.hidden) k.stat.textContent = `${disp(u.by)}${u.avatar ? " · Profile picture" : ""} · Received. Approve the picture before others see it.`;
     }
-    /** Progress moves between polls: repaint just the rows. */
     function paintUploads() {
       for (const list of [upStrip, apFiles, queueList]) for (const li of list.children) if (li._u) fillUpRow(li, li._u);
     }
-    // One attach picker on every form; the answer keeps a draft list per question, prefilled from my answer.
     ui.attDraft = {};
     const cSlot = attSlot(() => ui.cur, attachBtn, { get: () => ui.attDraft[ui.cur] ?? (myRec(ui.cur)?.att || []), set: l => { ui.attDraft[ui.cur] = l; },
       getFor: q => ui.attDraft[q] ?? (myRec(q)?.att || []), setFor: (q, l) => { ui.attDraft[q] = l; } }, ta);
     cForm.insertBefore(cSlot.chips, ta);
     const apSlot = attSlot(() => (askGeneral() ? "" : apQWrap.s.value || ui.cur), apAttach, null, apTa, () => !selfAsk());
     apForm.insertBefore(apSlot.chips, apNote);
-    const askOwn = () => !Core.me.isOwner && !!ui.askSelf; // the question's ask box runs on my own Claude: it carries no files
+    const askOwn = () => !Core.me.isOwner && !!ui.askSelf;
     const askSlot = attSlot(() => ui.cur, null, perQuestion(), askTa, () => !askOwn());
     askRow.prepend(askSlot.btn); askForm.insertBefore(askSlot.chips, askForm.querySelector(".vf-asknote"));
     const sugSlot = attSlot(() => ui.cur, null, perQuestion(), sugTa);
     sugRow.prepend(sugSlot.btn); sugForm.insertBefore(sugSlot.chips, sugRow);
     const chatSlot = attSlot(() => "", null, null, mInput);
-    // the attach dialog names what the file goes with (sweep S26)
     for (const [sl, t] of [[cSlot, "Attach to your answer"], [apSlot, "Attach to your request"], [askSlot, "Attach to your request"], [sugSlot, "Attach to your suggestion"],
       [chatSlot, "Attach to your message"]]) sl.title = t;
     mForm.prepend(chatSlot.btn); chat.insertBefore(chatSlot.chips, mForm);
@@ -4466,10 +4041,8 @@
     const sameAtt = qid => attKey(ui.attDraft[qid] ?? (myRec(qid)?.att || [])) === attKey(myRec(qid)?.att || []);
 
     function notices(S) {
-      if (!Core.live || !Core.me.cid) return; // prime on real state, not the empty one before the first poll
+      if (!Core.live || !Core.me.cid) return;
       const seen = ui.notified, first = !seen._primed, owner = Core.me.isOwner, muted = new Set(pref("mute", []));
-      // F13: a toast is the result of my own action (a file, a merge I asked for, my proposal), unless I muted its kind,
-      // or a pop-up I switched on (the host's in hostAlerts); everything else from others waits in the Inbox.
       const note = (key, val, msg, action, kind) => {
         if (seen[key] === val) return; const had = key in seen; seen[key] = val;
         if (!owner && !first && (had || action?.isNew) && msg && !muted.has(kind)) flash(msg, action?.run ? action : null);
@@ -4488,15 +4061,12 @@
           seen["uo:" + u.id] = "seen";
           if (!first && popsUp("upload")) flash(`${disp(u.by)} offered a file: ${u.file}.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); } });
         }
-        // What urgently waits on me pops up once when it arrives, those arriving together as one.
         const fresh = [];
         for (const i of S.inbox || []) if (alertable(i) && !(("iw:" + i.key) in seen)) { seen["iw:" + i.key] = "seen"; if (!first) fresh.push(i.key); }
         const waits = new Set((S.inbox || []).filter(i => i.group === "waiting").map(i => "iw:" + i.key));
-        for (const k of Object.keys(seen)) if (k.startsWith("iw:") && !waits.has(k)) delete seen[k]; // one that comes back pops up again
+        for (const k of Object.keys(seen)) if (k.startsWith("iw:") && !waits.has(k)) delete seen[k];
         hostAlerts(fresh);
       }
-      // Item 11 and round 11: a pop-up when Claude answers one of my requests, once I can open the answer, and when
-      // someone names or mentions me, each while its pop-up is on.
       for (const i of S.inbox || []) {
         if (i.group !== "mine") continue;
         const open = (i.status === "answered" || i.status === "shared") && popsUp("request");
@@ -4511,14 +4081,11 @@
       seen._primed = true;
     }
 
-    // ---------- the host's pop-ups (owner decision, follow-ups 18 and 24) ----------
     const ALERT_ONE = { join: i => `${disp(i.by)} asks to join.`, run: i => `${disp(i.by)} asked Claude ${ixWhere(i)}. Run it from the Inbox.`, report: i => `${disp(i.by)} reported a problem.`,
       share: i => `Claude answered ${ixWhere(i)}. Share it from the Inbox.`, merge: i => `${disp(i.by)} asks to be joined with an earlier name.`,
       fail: i => `Claude could not answer ${disp(i.by)}'s request ${ixWhere(i)}.` };
     const ALERT_MANY = { join: n => `${n} people ask to join`, run: n => `${n} requests wait on you`, report: n => `${n} problem reports wait on you`,
       share: n => `${n} answers wait for Share`, merge: n => `${n} merge requests wait on you`, fail: n => `${n} requests failed` };
-    /** The pop-up for what urgently waits on the host now: one item in its own words, several as one count with
-     *  Open Inbox. Items that no longer wait drop out; with none left, null. */
     function alertToast() {
       const live = new Map(inbox().filter(alertable).map(i => [i.key, i]));
       ui.alertKeys = (ui.alertKeys || []).filter(k => live.has(k));
@@ -4528,18 +4095,16 @@
       const kinds = new Set(items.map(i => i.kind)), n = items.length;
       return [kinds.size === 1 ? ALERT_MANY[items[0].kind](n) : `${n} things wait on you`, { label: "Open Inbox", run: () => { ui.ixTab = "needs"; if (ui.pop === bellPop) render(); else openBell(bellBtn.offsetParent ? bellBtn : tabBtns.more); } }];
     }
-    /** New urgent keys join the pop-up showing (or queued) now, else start one; each pass also drops what stopped waiting. */
     function hostAlerts(fresh) {
-      // Not while another toast waits to paint: flash has emptied the live region for it already.
       const showing = !toastPaint && toast._tag === "alert" && toast.classList.contains("vf-on"), queued = toastQ.some(e => e[2] === "alert");
       if (fresh.length) ui.alertKeys = [...(showing || queued || ui.alertOpen ? ui.alertKeys || [] : []), ...fresh];
       if (showing) {
         const r = alertToast();
         if (!r) { ui.alertOpen = false; hideToast(); return; }
-        toastAct.onclick = () => { ui.alertOpen = false; hideToast(); r[1].run(); }; // the same words can name a newer item
-        if (toastAct.textContent !== r[1].label) toastAct.textContent = r[1].label; // the live region changes only with its words
+        toastAct.onclick = () => { ui.alertOpen = false; hideToast(); r[1].run(); };
+        if (toastAct.textContent !== r[1].label) toastAct.textContent = r[1].label;
         if (toastTxt.textContent !== r[0]) { toastTxt.textContent = r[0]; placeToast(); }
-      } else if (ui.alertOpen && !queued && !alertToast()) ui.alertOpen = false; // covered, and nothing waits any more
+      } else if (ui.alertOpen && !queued && !alertToast()) ui.alertOpen = false;
       else if (fresh.length && !queued && !ui.alertOpen) flash(alertToast, null, "alert");
     }
 
@@ -4575,7 +4140,7 @@
       evPropose.hidden = (!!S.ended && !owner) || !!S.youRemoved;
       paintSlot(propSlot);
       evIntro.hidden = !S.youWaiting || !S.intro;
-      if (S.youWaiting) { // Approve new joins: one card, the title, the intro and the wait; nothing to read or do until let in
+      if (S.youWaiting) {
         evTitle.textContent = S.title || "Interview";
         evIntroT.textContent = S.intro || "";
         evNote.textContent = `${renamedLine()}Waiting for the host to let you in. This page opens by itself; keep it open.`;
@@ -4583,7 +4148,6 @@
       }
     }
 
-    /** Sweep S22: the name the server gave when the one typed was taken (by someone here or offline), said once. */
     const renamedLine = () => (Core.renamedFrom && Core.me.name ? `You joined as ${Core.me.name}: the name ${Core.renamedFrom} was taken. ` : "");
     qPrev.onclick = () => step(-1);
     qNext.onclick = () => step(1);
@@ -4597,20 +4161,14 @@
       render();
     };
     citeBtn.onclick = () => (ui.pop === citePop ? closePop() : openSurface(citePop, citeBtn));
-    // Picking another option moves my pick (one vote per question); only Undo clears it. Pressing my own pick does nothing.
-    // A comment rides along with a new pick; my own option's text does not (it was the option, not a comment).
     const keptComment = (q, rec) => (q.format === "choice" && !rec?.other ? rec?.text || "" : "");
-    /** What is written in a question's answer field: the field itself on the question in view, else its saved draft. */
     function answerDraft(qid) { return qid === ui.cur ? ta.value : ui.drafts[qid] || ""; }
-    /** The comment, and the files, written before the first pick on a poll or pick-many question (follow-up 26): what
-     *  that pick sends with it, or null. */
     function earlyOf(q, rec) {
       if (!commentFirst(q) || savedPick(q, rec) || rec?.other) return null;
       const comment = answerDraft(q.id).trim(), att = ui.attDraft[q.id];
       if (!comment && !att?.length) return null;
       return { comment, ...(att?.length ? { attachments: att.map(a => a.upload).filter(Boolean) } : {}) };
     }
-    /** Sent: the files leave the draft; the text does too, unless more was typed while the pick was on its way. */
     function sentEarly(qid, sent) {
       if (sent.attachments) delete ui.attDraft[qid];
       if (answerDraft(qid).trim() === sent.comment) {
@@ -4619,7 +4177,6 @@
       }
       render();
     }
-    /** An early pick on the question in view waits while one of its files waits for the host (attWaits says so). */
     const earlyWaits = (qid, early) => !!early?.attachments && qid === ui.cur && attWaits(cSlot);
     const pickOpt = (optId, qid = ui.cur) => {
       const rec = myRec(qid), q = qById(qid);
@@ -4650,7 +4207,7 @@
     hSettings.onclick = () => openSurface(settingsPop, hSettings);
     hNewGuest.onclick = () => newGuestBtn.click();
     hNewOwner.onclick = () => newOwnerBtn.click();
-    newOwnerBtn.hidden = Core.ownerDevice() != null; // only where the owner link was opened (server.py "host")
+    newOwnerBtn.hidden = Core.ownerDevice() != null;
     hEnd.onclick = () => endBtn.click();
     follow.onclick = () => setFollow(!following());
     prevQ.onclick = () => step(-1);
@@ -4661,8 +4218,7 @@
     cForm.onsubmit = e => { e.preventDefault(); submit(); };
     clearBtn.onclick = () => { ta.value = ""; ui.dirty = true; ui.drafts[ui.cur] = ""; Core.setTyping(); Kit.grow(ta); render(); ta.focus(); };
     on(ta, "input", () => {
-      ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer(); stopAdvance(); // writing a comment stays
-      // in the phone sheet, writing at the end keeps the last line (the caret) in view
+      ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer(); stopAdvance();
       if (cForm.classList.contains("vf-composer-sheet") && ta.selectionEnd === ta.value.length) ta.scrollTop = ta.scrollHeight;
     });
     // Triage 18: on a phone, writing opens the answer as a full-height sheet: the text pre-filled, Cancel and Save on
@@ -4680,8 +4236,6 @@
       renderComposer();
       requestAnimationFrame(() => ta.setSelectionRange(ta.value.length, ta.value.length));
     });
-    // Triage 21: on a touch screen a sideways swipe in Focus moves to the previous or next question; not from inside
-    // a field, the ranking (it drags) or anything that scrolls sideways.
     const SW = { x: 0, y: 0, t: 0, ok: false };
     on(scroll, "touchstart", e => {
       const t = e.touches[0], el = e.target;
@@ -4755,7 +4309,6 @@
     };
     on(board, "scroll", edges, { passive: true });
     on(window, "resize", () => { edges(); if (toast.classList.contains("vf-on")) placeToast(); if (ui.pop === PP.pop) placePanel(ui.pop); measureAll(); });
-    // the pane the toast centers on also changes width without a window resize (the chat docking, the waiting room)
     const toastPane = new ResizeObserver(() => { if (toast.classList.contains("vf-on")) placeToast(); });
     toastPane.observe(center); offs.push(() => toastPane.disconnect());
     // in the modal chat the toast stands on the typing line, which moves when it wraps or when what is under it
@@ -4770,7 +4323,6 @@
     chatClose.onclick = () => { setChat(false); fab.focus(); };
     mForm.onsubmit = e => { e.preventDefault(); sendChat(); };
     on(mInput, "input", () => Core.setChatTyping());
-    /** The Propose form, from any way in; `text` prefills it. Focus goes back where it came from, else to the rail's button. */
     function openPropose(text) {
       const from = document.activeElement;
       if (ui.chatOpen) setChat(false);
@@ -4795,7 +4347,7 @@
     const REP = { ctx: null };
     function paintSent() {
       const c = REP.ctx;
-      if (!c) return; // the form has not opened yet: a screenshot picked or cleared before it has nothing to list (sweep S30)
+      if (!c) return;
       const rows = [...ctxLines(c),
         c.errors.length ? `Recent errors: ${c.errors.join("; ")}` : "Recent errors: none",
         ...repShot.shots.map((x, i, all) => `Your screenshot${all.length > 1 ? ` ${i + 1} of ${all.length}` : ""}, ${x.w} × ${x.h}`),
@@ -4803,7 +4355,7 @@
       repSent.replaceChildren(...rows.map(t => E("li", null, t)));
     }
     function openReport(anchor) {
-      REP.ctx = Core.reportContext(); // where the page was when the problem showed, before this form opened
+      REP.ctx = Core.reportContext();
       repErr.textContent = "";
       paintSent();
       openSurface(reportPop, anchor || (keysBtn.offsetParent ? keysBtn : tabBtns.more.offsetParent ? tabBtns.more : top));
@@ -4821,16 +4373,13 @@
       }
       throw new Error("too large");
     }
-    /** F3: a report's screenshots, at most `max`, picked (several at once) or pasted into its field, each shown as an
-     *  attachment chip (attSlot's look) and sent as a data: URL (shrinkShot), so they work while Uploads is off. `shots`
-     *  holds {url, w, h} in the order they came; with max 1 a new one replaces the old. changed(error) runs after each change. */
     function shotSlot(field, changed, max = 1) {
       const input = E("input", "vf-rep-file"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true; input.multiple = max > 1;
       const b = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-rep-attach", "clip", max > 1 ? "Add screenshots" : "Add a screenshot");
       const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", max > 1 ? "Screenshots, not sent yet" : "Screenshot, not sent yet"); chips.hidden = true;
       const sl = { btn: b, chips, input, shots: [], gen: 0, get image() { return sl.shots[0]?.url || ""; } };
       const paint = () => {
-        chips.hidden = !sl.shots.length; b.hidden = sl.shots.length >= max; // full: each chip's x takes one off
+        chips.hidden = !sl.shots.length; b.hidden = sl.shots.length >= max;
         const all = sl.shots.map(x => ({ src: x.url, title: "" }));
         chips.replaceChildren(...sl.shots.map((x, i) => {
           const li = E("li", "vf-ref"), v = btn("vf-ref-img vf-uppic"), thumb = E("span", "vf-ref-thumb"), img = E("img");
@@ -4848,12 +4397,10 @@
           li.append(v, rm); return li;
         }));
       };
-      // gen, read when the pictures come: a clear (the form sent) makes those still shrinking or waiting their turn
-      // stale; takes run one after another, so the chips keep the order the pictures came in
       sl.clear = () => { sl.gen++; sl.shots = []; input.value = ""; paint(); };
       let line = Promise.resolve();
       const take = files => { const gen = sl.gen; return (line = line.then(async () => {
-        if (gen !== sl.gen) return; // picked for a report sent since
+        if (gen !== sl.gen) return;
         const moved = document.activeElement === b;
         let err = "";
         for (const f of files) {
@@ -4866,7 +4413,7 @@
           } catch { if (gen !== sl.gen) return; err = "That picture could not be added. Use a PNG, JPEG or WebP screenshot."; }
         }
         input.value = ""; paint(); changed(err);
-        if (moved && b.hidden) chips.querySelector(".vf-ref:last-child .vf-ref-img")?.focus(); // the button hid once full: focus goes to the last chip
+        if (moved && b.hidden) chips.querySelector(".vf-ref:last-child .vf-ref-img")?.focus();
       })); };
       b.onclick = () => input.click();
       on(input, "change", () => { if (input.files?.length) take([...input.files]); });
@@ -4958,25 +4505,20 @@
     };
     nativeShare.onclick = () => navigator.share?.({ title: "Join the interview", url: shareField.value }).catch(() => {});
     on(document, "pointerdown", e => {
-      // a toast (its Close or Open) is not outside: it does its own thing to what is open
       if (ui.pop && !dlgOpen() && !ui.pop.contains(e.target) && !ui.pop._anchor?.contains(e.target) && !toast.contains(e.target) && !e.target.closest?.("[data-pid]")) closePop();
     });
     const vis = () => { if (document.visibilityState === "hidden") markSeen(ui.cur); };
     on(document, "visibilitychange", vis);
-    // An on-screen keyboard is up (question-shape.js measures it): phones give its room to the field, not the tab bar.
     const kbSync = () => {
       const was = root.hasAttribute("data-kb"), now = "kb" in document.documentElement.dataset;
       root.toggleAttribute("data-kb", now);
       if (was !== now) { syncModal(); if (ui.mention) paintMention(); }
-      // the keyboard coming, going or resizing, or a line typed, keeps the field in view; scrolling away to read does not
       const h = window.visualViewport?.height ?? innerHeight, resized = h !== kbSync.h; kbSync.h = h;
       if (was === now && !resized && !Kit.typing(document.activeElement)) return;
       revealAskField(now && !was);
       revealInboxField();
       if (now && !was && ui.pop && !ui.pop._kbRead && coarse.matches) { ui.pop._kbRead = true; kbReadout(ui.pop); }
     };
-    // Once per sheet open, the keyboard coming up on a touch device logs where the viewport, the app and the sheet
-    // sit (server.log, kind layout), so a gap seen on a real phone can be measured.
     function kbReadout(sheet) {
       const vv = window.visualViewport, de = document.documentElement, dcs = getComputedStyle(de), cs = getComputedStyle(sheet), r = sheet.getBoundingClientRect();
       const probe = E("div"); probe.style.cssText = "position:fixed;visibility:hidden;padding-bottom:env(safe-area-inset-bottom,0px)";
@@ -4990,9 +4532,6 @@
         dataKb: "kb" in de.dataset, sheetTop: n(r.top), sheetBottom: n(r.bottom), sheetHeight: n(r.height), paddingBottom: cs.paddingBottom,
         marginBottom: cs.marginBottom, bottom: cs.bottom, transform: cs.transform, safeBottom: safe, screenHeight: screen.height });
     }
-    // In the Ask Claude sheet, focusing its field or the keyboard coming up puts the sheet at its top: the label and the
-    // field first, the Send row sticky under them. After that, as the keyboard moves or the field grows, the
-    // label and the field's first 3 lines stay seen above that row; where even that does not fit, the field's top does.
     const revealAskField = toTop => {
       const f = document.activeElement;
       if (!f?.matches?.("textarea") || !apForm.contains(f)) return;
@@ -5004,8 +4543,6 @@
       else scrollInto(apScroll, fr.top, fr.top + band.bottom - band.top, band);
     };
     on(askPanel, "focusin", e => { if (e.target === apTa) revealAskField(true); });
-    // On the Inbox page, a request's Edit field stays seen above the keyboard with its row's question line and Save
-    // when they fit, else the field's top.
     const revealInboxField = () => {
       const f = document.activeElement;
       if (ui.pop !== bellPop || !f?.matches?.("textarea") || !bpScroll.contains(f)) return;
@@ -5061,7 +4598,7 @@
       const el = pidEl(e.target);
       if (!el || el.closest(".vf-pcard")) return;
       const host = el.closest("button");
-      if (host && !host.classList.contains("vf-person")) return; // avatars inside other buttons belong to that button
+      if (host && !host.classList.contains("vf-person")) return;
       e.preventDefault();
       if (ui.pop === pcard && ui.pcard?.pid === el.dataset.pid) return closePop();
       showCard(el, true);
@@ -5080,26 +4617,22 @@
     const COMFORT = { low: "Not very", ok: "Fine", high: "Very" }; // session.py TECH_COMFORT
     const COLOR_NAMES = ["Pink", "Blue", "Green", "Amber", "Violet", "Red", "Cyan", "Orange", "Lime", "Magenta"];
     const nameOf = (pid, fallback = "") => Core.state.people?.[pid]?.name || Core.state.presence.find(p => p.cid === pid)?.name || fallback || "Someone";
-    /** "Show the tour again": the welcome card and the tour offer come back, on this device and in my prefs. */
     function showWelcomeAgain() {
       store.put(WELCOME_SEEN(), false);
       setPrefs({ tour: null });
       hideCard();
-      if (Core.me.isOwner) { render(); return startTour(null); } // the owner has no welcome card: the tour itself
+      if (Core.me.isOwner) { render(); return startTour(null); }
       ui.orientHidden = false; ui.welcomeAgain = true;
       setMode("focus"); if (phone.matches) setTab("answer");
       render();
       scroll.scrollTop = 0;
       orStart.focus({ preventScroll: true });
     }
-    /** A person's profile picture uploads as this page reads them: the received one (`done`) and, for me, one on its way. */
     function avatarUps(pid, mine) {
       const list = (mine ? Core.state.myUploads : Core.state.uploads) || [];
       return { done: list.find(u => u.avatar && u.cid === pid && u.status === "done"), going: mine && list.find(u => u.avatar && ["offered", "accepted", "uploading"].includes(u.status)) };
     }
     const avatarSig = pid => { const a = avatarUps(pid, isMe(pid)); return [a.done?.id, a.done?.shown, a.going?.status, st().uploads, st().showNames]; };
-    /** A person card's picture section: mine to choose, replace or remove; the owner's Approve picture and Remove on
-     *  anyone's. A guest's picture shows to others once the host approves it, as every received picture does. */
     function avatarControls(pid, mine, k) {
       const box = E("div", "vf-pavatar"), { done, going } = avatarUps(pid, mine), owner = Core.me.isOwner;
       const say = t => box.append(E("p", "vf-pop-note", t));
@@ -5113,7 +4646,7 @@
       if (done && !done.shown && pid !== "host") say(mine ? "Only you and the host see it until the host approves it." : "Waiting for your approval before others see it.");
       const row = E("div", "vf-crow");
       if (mine) {
-        if (st().uploads || owner) { // the owner's own picture needs no Uploads switch; a guest's does
+        if (st().uploads || owner) {
           const input = E("input"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true;
           const pick = k(btn("vf-btn vf-btn-ghost vf-btn-sm", done ? "Replace picture" : "Choose a picture"), "avPick");
           pick.onclick = () => input.click();
@@ -5139,7 +4672,7 @@
       const c = ui.pcard; if (!c) return;
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
-      const q = here?.q && qById(here.q), ab = owner && !me && S.aboutYou?.[pid]; // follow-up 46: for the owner only
+      const q = here?.q && qById(here.q), ab = owner && !me && S.aboutYou?.[pid];
       const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myMode(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, !!prefs().readAloud, !!prefs().dictate, SPEECH.local, S.myAbout], Core.colorIdOf(pid), Core.avatarOf(pid), avatarSig(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
@@ -5155,12 +4688,10 @@
       if (joined) fact("Joined", since(joined));
       // what they said about themselves: the people row drops it once the list goes compact (#8698)
       if (ab) fact("Tech comfort", COMFORT[ab.techComfort]);
-      if (ab?.note) { fact("Their note", ab.note); facts.lastChild.className = "vf-pc-note"; } // whole, never clamped
+      if (ab?.note) { fact("Their note", ab.note); facts.lastChild.className = "vf-pc-note"; }
       const parts = [head, facts];
       const k = (b, key) => { b.dataset.k = key; return b; };
       const focusField = key => { const i = pcard.querySelector(`[data-k="${key}"]`); i?.focus(); i?.select(); };
-      // The name form, mine or, for the owner, another person's: `end` closes it, Cancel returns focus to `back`, and
-      // `said` words the name the server gave.
       const renameForm = ({ keys: [kIn, kCancel, kSave], value, label, end, back, send, said }) => {
         const f = E("form", "vf-rename");
         const inp = E("input", "vf-input"); inp.maxLength = 40; inp.value = ui.renameDraft ?? value; inp.setAttribute("aria-label", label); k(inp, kIn);
@@ -5179,12 +4710,11 @@
         };
         return f;
       };
-      if (c.pinned) parts.unshift(k(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${me ? "your card" : `${disp(name)}'s card`}`), "x")); // F11: the one close control
+      if (c.pinned) parts.unshift(k(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${me ? "your card" : `${disp(name)}'s card`}`), "x"));
       if (me) {
         const t = themeToggle(fillPcard);
         t.querySelectorAll("button").forEach((b, i) => k(b, "t" + i));
         parts.push(E("h3", "vf-pop-sub", "Theme, just for you"), t);
-        // C40: my color, one of ten; everyone sees it on my avatar.
         const mine = Core.colorIdOf(pid), colors = E("div", "vf-pcolors"); colors.setAttribute("role", "group"); colors.setAttribute("aria-label", "Your color");
         Core.COLORS.forEach((id, i) => {
           const nm = COLOR_NAMES[i], b = k(btn("vf-pcolor"), "pc" + id);
@@ -5195,7 +4725,6 @@
         });
         parts.push(E("h3", "vf-pop-sub", "Your color"), colors);
         parts.push(E("h3", "vf-pop-sub", "Your picture"), avatarControls(pid, true, k));
-        // C26 / Q79: see Claude's cards before or after answering. "Session default" follows the host's setting.
         const pref = claudePref(), sessWant = st().hideClaude !== false ? "answerFirst" : "always";
         const eff = pref === "session" ? sessWant : pref;
         const cseg = E("div", "vf-seg vf-seg-sm"); cseg.setAttribute("role", "group"); cseg.setAttribute("aria-label", "Claude's take");
@@ -5212,7 +4741,6 @@
         const again = k(lbtn("vf-menu-item vf-menu-plain vf-tour-again", "help", "Show the tour again"), "tourAgain");
         again.onclick = showWelcomeAgain;
         parts.push(adv);
-        // Read aloud and Dictate: off until turned on; a switch shows only where the browser has the API.
         const sw = (key, cls, isOn, text, flip) => {
           const b = k(btn(`vf-sw-row ${cls}`), key);
           b.setAttribute("role", "switch"); b.setAttribute("aria-checked", String(isOn));
@@ -5232,7 +4760,6 @@
         }
         parts.push(again);
         if (c.pinned && !owner) {
-          // Follow-up 46: optional, for the host and Claude only, so questions can be worded for me.
           const a = S.myAbout || {}, aseg = E("div", "vf-seg vf-seg-sm vf-about"); aseg.setAttribute("role", "group"); aseg.setAttribute("aria-label", "How comfortable are you with tech?");
           const note = k(E("input", "vf-input vf-about-note"), "an"); note.maxLength = 200; note.placeholder = "Anything else the host should know (optional)";
           note.setAttribute("aria-label", "A note for the host"); note.value = ui.aboutDraft ?? a.note ?? "";
@@ -5248,10 +4775,8 @@
           parts.push(E("h3", "vf-pop-sub", "About you (optional, only the host sees it)"), E("p", "vf-pop-note", "How comfortable are you with tech?"), aseg, note, saveNote);
         }
         if (c.pinned) {
-          // Away by hand (the snooze): others see me as Away until my next key, click or touch.
           const awayB = k(lbtn("vf-menu-item vf-menu-plain vf-away-btn", "moon", Core.isAway() ? "You show as Away. Any key or tap ends it" : "Show me as Away"), "away");
           awayB.setAttribute("aria-pressed", String(Core.isAway()));
-          // Pressed means this click is the input that ended Away (core.js clears it on pointerdown or keydown).
           awayB.onclick = () => { if (awayB.getAttribute("aria-pressed") === "true" || Core.isAway()) return; Core.setAway(true); flash("You show as Away until you next type, click or tap."); fillPcard(); };
           const dev = k(lbtn("vf-menu-item vf-menu-plain", "device", owner ? "Sign in on another device" : "Use on another device"), owner ? "pair" : "device");
           dev.onclick = owner ? openPair : openDevice;
@@ -5282,14 +4807,12 @@
         if (ui.mergeFrom === pid) {
           const box = E("div", "vf-merge");
           if (ui.mergeTo) {
-            // Into the owner: a second identity of the owner's own (another device) folds into the owner.
             const toMe = isMe(ui.mergeTo), toName = toMe ? "me (owner)" : disp(nameOf(ui.mergeTo)), toWhom = toMe ? "you" : toName;
             const row = E("div", "vf-crow");
             const cancel = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), "mc");
             const go = k(btn("vf-btn vf-btn-primary vf-btn-sm", `Merge into ${toName}`), "mg");
             const moves = `${disp(name)}'s answers, votes, chat and suggestions move to ${toWhom}, and ${disp(name)} goes away. This cannot be undone.`;
             cancel.onclick = () => { ui.mergeTo = ""; fillPcard(); };
-            // The server's own sentence: a refused merge says why (the owner is never merged away, for one).
             go.onclick = guarded({ title: `Merge ${disp(name)} into ${toName}?`, ok: "Merge", body: moves },
               () => { go.disabled = true; Core.merge(pid, ui.mergeTo).then(() => { flash(`Merged ${disp(name)} into ${toName}.`); closePop(); }).catch(e => { go.disabled = false; flash(`Not merged: ${e?.message || Core.errorText(e)}`); }); });
             row.append(cancel, go);
@@ -5313,21 +4836,17 @@
       if (refocus) pcard.querySelector(`[data-k="${CSS.escape(refocus)}"]`)?.focus({ preventScroll: true });
     }
 
-    // keyboard: only when no field has focus; the switcher keeps Alt + arrows
     on(document, "keydown", e => {
-      if (dlgOpen() || !tour.hidden) return; // a confirm or attach dialog, or the tour, handles its own keys
-      // Tab stays inside an open phone sheet, and inside an open panel or the chat while focus is in it.
+      if (dlgOpen() || !tour.hidden) return;
       const inside = el => !!el && !el.hidden && el.contains(document.activeElement) && el;
-      // a popover focused over the modal chat (reactions, the message menu) keeps Tab before the chat does
       const sheet = e.key === "Tab" && (inside(ui.pop) || activeSheet());
       if (sheet) { trapTab(e, sheet); return; }
       if (e.key === "Escape") {
-        if (toast._tag === "alert" && toast.classList.contains("vf-on")) { ui.alertOpen = false; hideToast(); return; } // an urgent pop-up goes first
+        if (toast._tag === "alert" && toast.classList.contains("vf-on")) { ui.alertOpen = false; hideToast(); return; }
         if (!lb.hidden) { closeLb(); return; }
         if (!reader.hidden) { closeReader(); return; }
         if (ui.pop) { closeSurface(); return; }
         if (ui.pcard) { hideCard(); return; }
-        // docked beside the page, the chat stays open while Escape is pressed in the page
         if (ui.chatOpen && (!docked.matches || chat.contains(document.activeElement))) { setChat(false); fab.focus(); }
         return;
       }
@@ -5335,10 +4854,10 @@
       const t = e.target;
       if (t.closest?.("input, textarea, select, [contenteditable]") || !reader.hidden || !lb.hidden) return;
       if (e.key === "?") {
-        if (Core.state.youWaiting) return; // a waiting person gets no controls until let in
+        if (Core.state.youWaiting) return;
         e.preventDefault();
         if (ui.pop === keysPop) return closePop();
-        const from = document.activeElement; // Escape returns here, where "?" was pressed
+        const from = document.activeElement;
         openSurface(keysPop, keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top); keysPop._return = from;
         return;
       }
@@ -5372,7 +4891,6 @@
     });
     const mqOff = () => { closePop(); closeSheet(); render(); syncModal(); };
     phone.addEventListener("change", mqOff); offs.push(() => phone.removeEventListener("change", mqOff));
-    // narrowed below 1100px with the chat open, it becomes a modal: focus moves into it (WAI-ARIA APG dialog pattern)
     const onDock = () => { syncModal(); if (activeSheet() === chat && !chat.contains(document.activeElement)) (coarse.matches ? chatClose : mInput).focus({ preventScroll: true }); };
     docked.addEventListener("change", onDock); offs.push(() => docked.removeEventListener("change", onDock));
 
@@ -5381,11 +4899,8 @@
       if (ui.reqEditing.has(r.id) && val && val !== r.text) await Core.requestAct(r.id, "edit", val);
       ui.reqEditing.delete(r.id);
     }
-    // A refused run says why in the session's own words ("None of these requests is still waiting.").
     const runFail = e => (e?.error === "wrong-status" && e.message ? flash(`Not run: ${e.message}`) : fail(e));
-    // ---------- one set of request actions (Run, Decline, Mark failed, Run again) wherever a request shows ----------
     const declineAsk = r => ({ title: "Decline this request?", ok: "Decline", body: `${isMe(r.cid) ? "Your" : disp(r.name) + "'s"} request is not sent to Claude, and ${isMe(r.cid) ? "you see" : "they see"} it as declined.` });
-    /** The owner's buttons for the request `getR()` returns; `before` runs ahead of Run (saving an open edit). Paint with paintReqActs. */
     function reqActs(getR, before) {
       const run = lbtn("vf-btn vf-btn-primary vf-btn-sm vf-req-run", "play", "Run"), decline = btn("vf-btn vf-btn-ghost vf-btn-sm vf-req-decline", "Decline");
       const failB = btn("vf-btn vf-btn-ghost vf-btn-sm vf-req-fail", "Mark failed"), rerun = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-req-rerun", "restore", "Run again");
@@ -5397,7 +4912,6 @@
       decline.onclick = guarded(() => declineAsk(getR()), () => Core.requestAct(getR().id, "decline").then(() => flash("Request declined.")).catch(fail));
       failB.onclick = () => Core.requestAct(getR().id, "fail").then(() => flash("Marked failed. The requester sees it.")).catch(fail);
       rerun.onclick = () => Core.requestAct(getR().id, "rerun").then(() => flash("Running again.")).catch(fail);
-      // Move to: its asker or the owner puts the request, and any answer, on another question or the whole session.
       const mv = selWrap("Move to", []), move = mv.w;
       move.classList.add("vf-req-move");
       mv.s.onchange = () => {
@@ -5406,7 +4920,6 @@
       };
       return { run, decline, failB, rerun, move };
     }
-    /** Move to's choices: every other question and, for a request on a question the host's Claude runs, the whole session. */
     function fillMove(move, r) {
       const s = move.querySelector("select"), qs = Core.state.questions.filter(q => q.id !== r.qid);
       const key = [r.qid, r.runner, ...qs.map(q => q.id + q.text)].join("|"); if (s._k === key) return;
@@ -5414,8 +4927,6 @@
       const pick = E("option", null, "Choose"); pick.value = "";
       s.replaceChildren(pick, ...(r.qid && r.runner !== "self" ? [placeOpt(null)] : []), ...qs.map(placeOpt));
     }
-    /** Share with everyone (or Send to its asker), Discard and Take down for the result `getX()` returns, on the question
-     *  `getQ()` (GEN_Q for the whole session); `before` runs first (marking the Inbox row read). Paint with paintResActs. */
     function resActs(getX, getQ, before) {
       const discard = btn("vf-btn vf-btn-ghost vf-btn-sm vf-res-discard", "Discard"), publish = btn("vf-btn vf-btn-primary vf-btn-sm vf-res-publish", "Share with everyone");
       const takeDown = btn("vf-btn vf-btn-ghost vf-btn-sm vf-res-takedown", "Take down");
@@ -5437,11 +4948,10 @@
       const draft = !x.published, owner = Core.me.isOwner, held = draft && !x.private;
       const canShare = !owner && isMe(x.byCid) && x.private && !x.takenDown && !x.own;
       k.publish.textContent = owner && held && x.justMe ? `Send to ${disp(x.by || "the person who asked")}` : "Share with everyone";
-      k.discard.hidden = !(owner && held); // a delivered answer is its asker's: take it down instead
+      k.discard.hidden = !(owner && held);
       k.publish.hidden = !((owner && draft) || canShare);
       k.takeDown.hidden = !(owner && !draft);
     }
-    // as session.py _move_request: an asker moves a host-run request only until the host takes it up
     const canMove = r => Core.me.isOwner || (isMe(r.cid) && (r.runner === "self" || r.status === "pending"));
     function paintReqActs(k, r) {
       const owner = Core.me.isOwner;
@@ -5514,7 +5024,7 @@
       k.fresh.hidden = !fresh;
       k.edit.hidden = editing || running; k.save.hidden = k.cancel.hidden = !editing;
       paintReqActs(k, r);
-      if (editing) k.move.hidden = true; // the row is its text box, Save and Cancel until the edit ends
+      if (editing) k.move.hidden = true;
     }
 
     function buildCard(compact) {
@@ -5524,12 +5034,10 @@
       head.append(E("span", "vf-card-av"), E("span", "vf-card-name"), E("span", "vf-tag"), E("span", "vf-ndot"), E("span", "vf-card-time"));
       const ctxB = E("span", "vf-ctx"); ctxB.hidden = true; head.insertBefore(ctxB, head.lastChild);
       const text = clampBox();
-      // A pick shows its option, with the option's picture as a button that opens the viewer (it never picks).
       const pickChip = E("div", "vf-pickchip"), pickThumb = btn("vf-imgbtn vf-pickthumb"), pickImg = E("img"), pickTxt = E("span", "vf-pickchip-t");
       pickImg.alt = ""; pickImg.loading = "lazy"; pickThumb.append(pickImg); pickChip.append(pickThumb, pickTxt);
       pickThumb.onclick = () => { const q = qById(k.qid); openLb("choice", k.qid, optionsOf(q).filter(o => o.image).findIndex(o => o.id === k.pick), pickThumb); };
       const why = E("p", "vf-why vf-shownwhy");
-      // The basis carries its own labels (Checked against:, Basis:), folded behind "Why" as the 1:1 page folds it.
       const basis = E("details", "vf-basis"), basisBody = E("div", "vf-rich vf-basis-body");
       basis.append(E("summary", "vf-basis-sum", "Why"), basisBody);
       const edited = E("p", "vf-edited");
@@ -5537,7 +5045,6 @@
       const foot = E("div", "vf-card-foot");
       const voters = E("span", "vf-avrow vf-voters"); voters.setAttribute("aria-hidden", "true");
       const vote = btn("vf-vote"); vote.append(icon("thumb"), E("span", "vf-vote-n"), voters);
-      // Gather questions (Q97): reactions instead of a vote; every answer stands.
       const reacts = E("span", "vf-reacts"); reacts.setAttribute("role", "group"); reacts.setAttribute("aria-label", "React");
       const reactBtns = Core.REACTIONS.map(([r, glyph, label]) => {
         const b = btn("vf-react"); b.dataset.r = r; b.append(E("span", "vf-react-g", glyph), E("span", "vf-react-n"));
@@ -5546,7 +5053,6 @@
         reacts.append(b); return b;
       });
       foot.append(vote, reacts);
-      // Phase 4c: "Hidden by the host" (the author and the owner see the card) and "Edited by the host" (everyone).
       const modNote = E("p", "vf-modnote");
       li.append(head, pickChip, text, why, basis, edited, modNote, citeRow, foot);
       const attRow = E("ul", "vf-reflist vf-attlist"); attRow.setAttribute("aria-label", "Attachments");
@@ -5559,7 +5065,6 @@
         k.agree = E("span", "vf-agree");
         k.goWith = btn("vf-btn vf-btn-ghost vf-btn-sm", "Go with this");
         k.lockThis = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-brass-ghost", "Lock this one");
-        // Decide questions: Disagree, with a reason of 1 to 200 characters. It never changes the vote count.
         k.disBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-disagree-btn", "Disagree");
         k.disBtn.setAttribute("aria-expanded", "false");
         foot.append(k.agree, E("span", "vf-spacer"), k.disBtn, k.goWith, k.lockThis, k.modHide, k.modEdit);
@@ -5587,7 +5092,6 @@
           e.preventDefault();
           const reason = disIn.value.trim();
           if (!reason) { disIn.focus(); return flash("Say why you disagree first."); }
-          // It shows in the list at once; a refusal takes it out again and reopens the form with the reason.
           closeDis();
           Core.disagree(k.qid, k.ref, reason).then(() => flash("Your disagreement is noted with your reason. Votes stay as they are."))
             .catch(e => { if (disForm.hidden && !k.disBtn.hidden) { disForm.hidden = false; k.disBtn.setAttribute("aria-expanded", "true"); disIn.value = reason; } fail(e); });
@@ -5605,7 +5109,6 @@
       const k = li._k, me = Core.me, s = st(), lk = Core.lockOf(qid), locked = !!lk, bot = !!a.claude;
       k.qid = qid; k.cid = a.cid; k.ref = a.ref || a.cid; k.a = a;
       const person = !bot && !a.option;
-      // A hidden answer's picks leave the tally with its text (session.py _tally counts shown cards only).
       const uncounted = a.hidden && (a.other || ["multi", "scale", "rank"].includes(qById(qid)?.format));
       const modTxt = a.hidden ? (isMe(a.cid) ? `Hidden by the host${a.hidden.reason ? `: ${a.hidden.reason}` : ""}. Only you and the host see it.${uncounted ? " Your pick is not counted while it is hidden." : ""}`
         : `Hidden by ${me.isOwner ? "you" : "the host"}${a.hidden.reason ? `: ${a.hidden.reason}` : ""}. Only you and its author see it.${uncounted ? " Its pick is not counted while it is hidden." : ""}`)
@@ -5646,10 +5149,8 @@
       if (opt?.image) k.pickThumb.setAttribute("aria-label", `View larger: ${opt.label}`);
       fillAtts(k.attRow, a.att, `${who}'s answer${q ? ` on ${q.id}` : ""}`);
       k.text.hidden = !a.text;
-      // C26: a Claude card that shows while the others wait says why.
       const chosen = bot && claudeHidden(qid) ? claudeChosen(a, qid, lead ? a.cid : "") : "";
       k.why.textContent = chosen ? `Shown because it is ${chosen}` : ""; k.why.hidden = !chosen;
-      // Q77: cite chips link to the result in the Claude thread.
       const cites = (a.cites || []).filter(id => (Core.state.research?.[qid] || []).some(x => x.id === id));
       const cKey = cites.join(",") + (compact ? "c" : "");
       if (k.cKey !== cKey) {
@@ -5670,7 +5171,6 @@
       const votes = a.votes || [], ro = readOnly(q), gather = q?.purpose === "gather";
       k.mine = votes.includes(me.cid);
       k.other = !!a.other;
-      // On a question that takes a pick, the pick is the vote; a person's own "Something else…" option is backed with one.
       k.vote.hidden = !s.voting || (isChoice(q) && !k.other) || gather;
       k.vote.classList.toggle("vf-vote-back", k.other);
       k.reacts.hidden = !gather || !!a.option;
@@ -5681,12 +5181,11 @@
           b.lastChild.textContent = n ? String(n) : "";
           b.setAttribute("aria-pressed", String(mineR.includes(r)));
           b.disabled = isMe(a.cid) || ro;
-          b.setAttribute("aria-label", `${b._label}: ${n}`); // aria-pressed says whether it is yours
+          b.setAttribute("aria-label", `${b._label}: ${n}`);
           b.title = isMe(a.cid) ? "Your answer" : b._label;
         }
       }
       k.vote.children[1].textContent = String(votes.length);
-      // Voters' faces on the thumb while names show; with names off the server sends counts only.
       const named = s.showNames ? votes.filter(Boolean) : [];
       const vKey = named.join(",");
       if (k.vKey !== vKey) { k.vKey = vKey; avStack(k.voters, named.map(c => ({ cid: c, name: nameOf(c) })), 3, AV.s); }
@@ -5701,10 +5200,7 @@
       li.setAttribute("aria-label", `${who}${tagTxt ? ", " + tagTxt.toLowerCase() : ""}, ${votes.length} ${noun}s`);
       if (k.goWith) {
         k.goWith.hidden = !s.voting || locked || ro || isMe(a.cid) || !answerLine(myRec(qid)) || isChoice(q) || gather;
-        // On a question with options, Lock this one sits on the option itself; a person's own option is a card, so it locks here.
-        // A poll closes only as a whole (Close poll), never by locking one answer.
         k.lockThis.hidden = locked || !Core.canModerate() || (isChoice(q) && q.format !== "confirm" && !k.other) || gather || q?.purpose === "poll";
-        // Disagree: decide questions only, never on my own answer; a locked one takes it only once its round closed.
         const dis = Core.disagreementsOn(qid, k.ref), shut = locked && !(q && roundStatus(roundOf(q)) === "closed");
         k.myDis = dis.find(d => d.cid && isMe(d.cid)) || null;
         k.disBtn.hidden = q?.purpose !== "decide" || isMe(a.cid) || shut || ro || !!Core.state.youRemoved;
@@ -5735,18 +5231,14 @@
     function renderComposer() {
       const qid = ui.cur, q = qById(qid), mine = Core.myAnswer(qid), S = Core.state;
       const rec = myRec(qid), picked = !!savedPick(q, rec);
-      // Where a pick comes first, the comment box works before it (the owner's call, every format), and the comment goes
-      // in with the pick. My own option is my card's text, so it takes no comment.
       const lockedQ = !!Core.lockOf(qid), ro = readOnly(q), ownOpt = !!rec?.other;
       const early = commentFirst(q) && !picked;
       const locked = lockedQ || ro || ownOpt;
       ta.disabled = !qid || locked;
       if (ta.disabled) closeSheet();
-      // a phone's composer is one line between the paperclip and send, so every placeholder there fits it whole (sweep S24)
       ta.placeholder = S.youRemoved ? (phone.matches ? "The host removed you" : "The host removed you from this session.")
         : S.ended && !Core.me.isOwner ? "This session has ended."
         : q && notOpenYet(q) ? (phone.matches ? `Opens after round ${curRound().current}` : `Round ${roundOf(q)} opens after round ${curRound().current}. You can answer then.`)
-        // no "above" or "below": where Edit, Unlock and Suggest a change sit differs by width; a phone gets the short form
         : ro ? (phone.matches ? "Read-only: sent to Claude" : `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Use Suggest a change." : ""}`)
         : lockedQ ? (phone.matches ? "Locked" : Core.canModerate() ? "This question is locked. Use Edit or Unlock." : "This question is locked. Use Suggest a change.")
         : ownOpt ? (phone.matches ? "Your own option is your answer" : "Your own option is your answer here. Change it above.")
@@ -5761,7 +5253,6 @@
       ta.setAttribute("aria-label", commenting ? "Comment on your pick" : q?.format === "confirm" ? "Not exactly: what you meant" : "Your answer");
       sendBtn.setAttribute("aria-disabled", String(locked || (ta.value.trim() === mine && sameCites(qid) && sameAtt(qid)) || !qid));
       clearBtn.hidden = !ta.value || locked;
-      // a comment written before the picks goes in with Save my picks (or Save my ranking): one primary button, not two
       sendBtn.hidden = early && ["multi", "rank"].includes(q?.format);
       cRow.hidden = locked;
     }
@@ -5803,7 +5294,7 @@
       const nums = [...new Set([...S.questions.map(roundOf), cur])].sort((a, b) => a - b).filter(n => T.round === "all" || String(n) === T.round);
       for (const n of nums) {
         const all = S.questions.filter(q => roundOf(q) === n), qs = shownT.filter(q => roundOf(q) === n);
-        if (!qs.length && all.length) continue; // filtered out entirely
+        if (!qs.length && all.length) continue;
         const decided = all.filter(q => Core.lockOf(q.id)).length, closed = ui.treeClosed.has(n);
         const rLi = E("li", "vf-tn");
         const rNode = node(all.length ? "button" : "div", "vf-tnode vf-tround", "r:" + n);
@@ -5852,7 +5343,6 @@
         }
         pLi.append(pNode, pUl); rootUl.append(pLi);
       }
-      // Later: off-goal proposals, filed as tracker items when the session ends.
       if (later.length) {
         const lLi = E("li", "vf-tn vf-tparked vf-tlater");
         const lNode = node("div", "vf-tnode vf-tround");
@@ -5872,13 +5362,11 @@
       if (focusKey) tree.querySelector(`[data-tkey="${CSS.escape(focusKey)}"]`)?.focus({ preventScroll: true });
     }
 
-    // ---------- Claude thread (Q77) ----------
     const KIND_LABEL = { ask: "Answer", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
     const kindLabel = kind => KIND_LABEL[kind] || "Research";
     const KIND_REQ = { ask: "Ask", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
     const RSTAT = { pending: "Waiting for the host", running: "Running", declined: "Declined", done: "Done", failed: "Failed" };
     const RSTAT_SELF = { pending: "Waiting for your Claude", running: "Your Claude is on it" };
-    // the host reads their own turn: the request waits for them, not for "the host"
     const rstat = r => (r.runner === "self" && RSTAT_SELF[r.status]) || (r.status === "pending" && Core.me.isOwner ? "Waiting for you to run it" : RSTAT[r.status]) || r.status;
     function threadItems(S, q) {
       const res = (S.research?.[q.id] || []).map(x => ({ t: "res", id: "x:" + x.id, ts: x.ts, x }));
@@ -5890,11 +5378,9 @@
       const notes = (S.annotations || []).filter(a => a.qid === q.id).map(a => ({ t: "note", id: "a:" + a.id, ts: a.ts, a }));
       return [...rq, ...res, ...notes].sort((a, b) => a.ts - b.ts);
     }
-    /** New to me: the answer to my own request while its "is done" notice is unread, or anyone else's result since my last visit. */
     const doneUnread = qid => notes().some(n => !n.read && n.kind === "request" && n.qid === qid && / is done\.$/.test(n.title || ""));
     const ixUnread = rid => inbox().some(i => i.group === "mine" && i.unread && i.id === rid && (i.status === "answered" || i.status === "shared"));
     const resNew = (x, q) => (isMe(x.byCid) ? (x.requestId ? ixUnread(x.requestId) : doneUnread(q.id)) : ui.seenAt != null && x.ts > ui.seenAt);
-    /** Q98: a note someone pinned on a variant of this prototype, with a link to it on the prototype's page. */
     function makeThNote() {
       const li = E("li", "vf-thnote");
       const head = E("div", "vf-thnote-head"), text = E("p", "vf-thnote-text"), go = E("a", "vf-thnote-go", "Show it on the prototype");
@@ -5923,7 +5409,6 @@
       head.append(icon("search"), ttl, via, isNew, tm, icon("chevD", "vf-i vf-chev"));
       const bodyR = E("div", "vf-res-body");
       const fromDisc = btn("vf-lbtn vf-fromdisc", "from Discussion");
-      // Soft rule: "<Name> asked" and the ask, a thin line, then "Claude" and the answer, both at one text size.
       const ask = E("div", "vf-res-ask vf-qa-ask");
       const ans = E("div", "vf-qa-ans"), ansLbl = E("div", "vf-qa-lbl");
       ansLbl.append(claudeAv(18), E("span", null, "Claude"));
@@ -5931,16 +5416,12 @@
       const srcs = E("ul", "vf-sources"); srcs.setAttribute("aria-label", "Sources");
       const full = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "doc", "Full report");
       const citedBy = E("div", "vf-citedby");
-      // Follow-up 29: its asker, on a choice, pick-many or ranking question, takes the answer as their own option.
       const useRow = E("div", "vf-acts vf-res-use"), use = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "reply", "Use as my answer");
       useRow.append(use);
       use.onclick = () => useClaude(li._x, li._q);
-      // Reply: a new ask, where this answer is, that quotes it.
       const reply = btn("vf-btn vf-btn-ghost vf-btn-sm vf-res-reply", "Reply"), ansActs = E("div", "vf-acts vf-res-acts");
       ansActs.append(useRow, reply);
       reply.onclick = () => openAskPanel("ask", li._q === GEN_Q ? Core.GENERAL : li._q.id, `About Claude's answer: "${clipWords(li._x.summary, 300)}"\n\n`);
-      // Who sees it, and what this viewer can do: the owner shares, discards or takes down any answer; its asker shares
-      // their own Just me answer.
       const share = E("div", "vf-acts vf-res-share");
       const shareNote = E("span", "vf-meta", "Only you see this until you share it.");
       const { discard, publish, takeDown } = resActs(() => li._x, () => li._q);
@@ -5958,13 +5439,11 @@
       const k = li._k, open = !ui.resClosed.has(x.id);
       li._x = x; li._q = q;
       if (!k.bodyR.id) { k.bodyR.id = "vf-res-" + x.id; k.head.setAttribute("aria-controls", k.bodyR.id); }
-      // Connect your Claude: a result the requester's own Claude wrote says whose Claude it was.
       k.ttl.textContent = x.own ? `${x.kind === "ask" ? "Answer" : KIND_LABEL[x.kind] || "Answer"} from ${isMe(x.byCid) ? "your" : `${disp(x.by || "someone")}'s`} own Claude`
         : x.kind === "ask" ? "Claude's answer" : kindLabel(x.kind);
       li.classList.toggle("vf-res-own", !!x.own);
-      k.via.textContent = x.skill ? `via ${x.skill}` : ""; k.via.hidden = !x.skill; // nothing named: no "via Claude" under "Claude's answer"
-      k.via.title = x.why || ""; // C37: why Claude routed it there
-      // Shared, held for the owner's Share, or out to its asker alone (private: Just me, or taken down by the owner).
+      k.via.textContent = x.skill ? `via ${x.skill}` : ""; k.via.hidden = !x.skill;
+      k.via.title = x.why || "";
       const draft = x.published === false, owner = Core.me.isOwner, asker = isMe(x.byCid), who = disp(x.by || "the person who asked");
       k.share.hidden = !(owner || (draft && asker));
       k.shareNote.textContent = owner
@@ -6010,7 +5489,6 @@
       }
       k.srcs.hidden = !x.sources?.length;
       k.full.hidden = !x.report;
-      // cited by: the answers that cite this result, each a link back to the answer
       const by = Core.answersFor(q.id).filter(a => (a.cites || []).includes(x.id));
       const ck = by.map(a => a.cid + ":" + a.name).join(",");
       if (k.citedBy._ck !== ck) {
@@ -6037,7 +5515,6 @@
       const kind = E("span", "vf-chip"), who = E("span", "vf-pfrom"), status = E("span", "vf-thstat");
       head.append(kind, E("span", "vf-spacer"), status);
       const text = clampBox("vf-qa-txt");
-      // Under the ask: Claude's label row and, while it waits or runs, the progress line.
       const ans = E("div", "vf-qa-ans"), ansLbl = E("div", "vf-qa-lbl"), prog = E("div", "vf-runline");
       ansLbl.append(claudeAv(18), E("span", null, "Claude"));
       const progTxt = E("span", "vf-runline-t");
@@ -6084,7 +5561,6 @@
       const others = Math.max(0, (S.requestCounts?.byQ?.[q.id] || 0) - (Core.me.isOwner ? (S.requests || []).filter(openHere).length : mineOpen));
       reqChip.textContent = others ? `${others} more open with the host` : "";
       reqChip.hidden = !others;
-      // with others' requests open, the head and the empty line say so, never "Nothing asked yet" beside the count
       thEmpty.hidden = items.length > 0;
       thEmpty.textContent = others ? "Others asked Claude about this question. Answers show here once the host runs them." : "Nothing asked yet. Ask Claude about this question, or have it research something.";
       const res = items.filter(i => i.t === "res"), reqs = items.filter(i => i.t === "req"), nNotes = items.length - res.length - reqs.length;
@@ -6107,15 +5583,11 @@
         li._k.head.focus({ preventScroll: true });
       });
     }
-    // ---------- item 10: the Discussion ----------
-    /** The request a comment's @Claude filed, as this viewer knows it: its result if it shows here, else its card;
-     * someone who sees neither (not the owner, not the requester) gets no status. */
     function discReq(S, q, c) {
       const x = (S.research?.[q.id] || []).find(r => r.requestId === c.request);
       const r = (Core.me.isOwner ? S.requests || [] : []).concat(S.myRequests || []).find(r2 => r2.id === c.request);
       return { x, r, label: x ? ansLabel(x) : r ? rstat(r) : "" };
     }
-    /** Show a comment: the question, its Discussion open, the comment in view. */
     function openComment(qid, id) {
       setDisc(qid, true);
       if (ui.cur !== qid) select(qid, { manual: true });
@@ -6205,7 +5677,6 @@
       discForm.hidden = (!!S.ended && !Core.me.isOwner) || !!S.youRemoved || notOpenYet(q);
       paintSlot(discSlot, discForm.hidden);
     }
-    /** "from Discussion" on a Claude card whose request a comment's @Claude filed. */
     function fillFromDisc(b, S, q, rid) {
       const c = rid && (S.discussions?.[q.id] || []).find(x => x.request === rid);
       b.hidden = !c;
@@ -6253,9 +5724,6 @@
     }
 
     const OFF_NAME = { screenshot: "screenshots off", snapshot: "HTML snapshots off", live: "live prototypes off" };
-    /** Q98: the preview tile (the first picture variant, else a plain tile) and the link to the prototype's own page.
-     *  With every view off for this guest (prototypeTiers) the question shows as text with a note; the owner, who still
-     *  sees every view, is told which ones guests do not get. */
     function renderProtoTile(q) {
       protoBox.hidden = q.formatKind !== "prototype";
       if (protoBox.hidden) return;
@@ -6279,8 +5747,6 @@
       renderProtoVersions(q, vs);
     }
     const newTab = (a, href) => { a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; };
-    /** Each variant with earlier or later versions on other prototype questions: every version, the current one marked,
-     *  and a link to see this one (or, on the current one, its previous) beside the current one. */
     function renderProtoVersions(q, vs) {
       const lines = vs.map(v => Core.versionsOf(q.id, v.id)).filter(l => l.length > 1), key = JSON.stringify(lines);
       if (protoVers._key === key) return;
@@ -6305,16 +5771,14 @@
       }));
     }
 
-    // ---------- choice and confirm questions (Q76) ----------
     function renderFormat(S, q) {
       const show = isChoice(q);
       fmtBox.hidden = !show;
       if (!show) return;
       const fmt = q.format, rec = myRec(q.id), lk = Core.lockOf(q.id), ro = readOnly(q) || !!lk;
-      // A poll shows its results once the person picked (the owner always sees them), as Claude's take waits (Q97).
       const hideResults = resultsWait(q), lead = hideResults ? "" : leadOf(q.id);
       const byId = hideResults ? {} : Object.fromEntries(Core.answersFor(q.id).filter(a => a.option).map(a => [a.cid, a]));
-      const owns = hideResults ? [] : peopleAnswers(q.id).filter(a => a.other); // people's own options
+      const owns = hideResults ? [] : peopleAnswers(q.id).filter(a => a.other);
       fmtBox.dataset.fmt = fmt;
       optGrid.hidden = fmt !== "choice"; confirmFig.hidden = cfRow.hidden = fmt !== "confirm";
       multiList.hidden = fmt !== "multi"; scaleBox.hidden = fmt !== "scale"; rankList.hidden = fmt !== "rank";
@@ -6326,12 +5790,11 @@
       const voterKey = a => (st().showNames ? (a?.votes || []).filter(Boolean) : []).join(",");
       if (fmt === "choice") {
         if (optGrid._q !== q.id) { resetList(optGrid); optGrid._q = q.id; }
-        // Each card: the picture (or its label) opens the viewer and never picks; the radio button below is the one pick control.
         sync(optGrid, optionsOf(q), o => o.id, o => {
           const li = E("li", "vf-opt");
           const view = btn("vf-imgbtn vf-optview"), media = E("span", "vf-optmedia");
           const img = E("img", "vf-optimg"); img.alt = ""; img.loading = "lazy"; img.decoding = "async";
-          media.append(img, zoomTag()); view.append(media); // the chosen card's picture carries a "Your choice" mark (CSS)
+          media.append(img, zoomTag()); view.append(media);
           view.onclick = () => openLb("choice", ui.cur, optionsOf(qById(ui.cur)).filter(x => x.image).findIndex(x => x.id === li._o.id), view);
           const lab = E("span", "vf-optlabel"), foot = E("span", "vf-optfoot");
           const tag = E("span", "vf-tag"), voters = E("span", "vf-avrow vf-voters"), n = E("span", "vf-optn");
@@ -6339,7 +5802,7 @@
           const acts = E("div", "vf-optacts");
           const choose = btn("vf-btn vf-optchoose"), undo = btn("vf-btn vf-btn-ghost vf-btn-sm vf-optundo", "Undo");
           choose.onclick = () => (li._o.other ? openOther(ui.cur) : pickOpt(li._o.id));
-          lab.onclick = () => { if (!choose.disabled && choose.getAttribute("aria-pressed") !== "true") choose.click(); }; // the name picks too
+          lab.onclick = () => { if (!choose.disabled && choose.getAttribute("aria-pressed") !== "true") choose.click(); };
           undo.onclick = () => { choose.focus({ preventScroll: true }); clearPick(); };
           acts.append(choose, undo);
           const lockB = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-brass-ghost vf-optlock", "Lock this one");
@@ -6356,12 +5819,9 @@
           k.lab.textContent = o.label;
           const isLocked = lk && lk.answerCid === o.id;
           k.tag.textContent = isLocked ? "Locked" : lead === o.id && st().voting ? "Leading" : "";
-          // "Something else…" has no card of its own: each person who picks it writes their own option, a card in Answers.
           k.n.textContent = o.other ? (owns.length ? `${owns.length} wrote their own, in Answers` : "Write your own option") : hideResults ? "" : chose(votes.length);
           const vk = o.other ? "" : voterKey(a);
           if (k.vKey !== vk) { k.vKey = vk; avStack(k.voters, (vk ? vk.split(",") : []).map(c => ({ cid: c, name: nameOf(c) })), 3); }
-          // Item 12: the foot always takes its row, so every Choose button in a grid row lines up; empty (Answer first) it stays
-          // blank, and on a phone, one card per row, an empty foot takes no room.
           k.foot.dataset.empty = String(!k.n.textContent && !k.tag.textContent && !vk);
           const label = o.other ? (mine ? "Your own option: edit it" : rec?.pick ? "Write your own instead" : "Write your own")
             : mine ? "Your choice" : rec?.pick ? "Choose this instead" : "Choose this";
@@ -6378,7 +5838,6 @@
           li.classList.toggle("vf-opt-other", !!o.other);
           li.classList.toggle("vf-opt-lead", lead === o.id && !lk);
           li.classList.toggle("vf-opt-locked", !!isLocked);
-          // Lock this one never sits on "Something else…": a person's own option is locked from its card in Answers.
           k.lockB.hidden = !!o.other || !!lk || !Core.canModerate() || q.purpose === "gather" || q.purpose === "poll";
         });
         const picked = optionsOf(q).find(o => o.id === rec?.pick);
@@ -6403,8 +5862,8 @@
           b.setAttribute("aria-pressed", String(mine));
           b.disabled = ro;
           b.lastChild.textContent = hideResults ? "" : String(cnt);
-          b.lastChild.hidden = hideResults; // no empty count box before the results show
-          b.hidden = !id && q.purpose === "poll"; // a poll takes a pick, not a written answer
+          b.lastChild.hidden = hideResults;
+          b.hidden = !id && q.purpose === "poll";
           b.dataset.lead = String(!!id && lead === id);
           b.dataset.locked = String(!!id && lk?.answerCid === id);
         }
@@ -6413,13 +5872,9 @@
       }
     }
 
-    // ---------- multi, scale and rank; "Something else…"; their results ----------
-    // A draft is my pick while I change it (multi and rank save with a button; scale sends itself a moment after the
-    // last change). ui.otherText holds my own option's text while I write it.
     Object.assign(ui, { fdraft: {}, otherOpen: {}, otherText: {} });
     const FMT = { timer: 0, drag: null };
     const sameList = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
-    /** My working pick: the draft, else what I saved, else none (a rank starts from the order given). */
     function draftOf(q, rec = myRec(q.id)) {
       const d = ui.fdraft[q.id];
       if (q.format === "multi") return d?.options ?? rec?.picks ?? [];
@@ -6435,16 +5890,13 @@
       flash(`Shorten your own option to ${MAX_OWN} characters; it has ${text.length}.`); otherTa.focus();
       return true;
     }
-    /** What a question's drafts held before Use as my answer changed them, put back by Cancel. */
     const useBefore = {};
     const ownText = (q, rec = myRec(q.id)) => ui.otherText[q.id] ?? (rec?.other ? rec.text : "");
     const ownChanged = (q, rec) => (ui.otherText[q.id] ?? null) !== null && ui.otherText[q.id].trim() !== (rec?.other ? rec.text : "");
-    /** Choosing "Something else…" opens the box for my own option (with what I wrote before, if I did). */
     function openOther(qid) {
       const q = qById(qid);
       if (!q || readOnly(q) || Core.lockOf(qid) || !otherOf(q)) return;
       ui.otherOpen[qid] = true;
-      // On a choice my own option takes no comment, so a comment typed before the pick becomes the option's first draft.
       ui.otherText[qid] = ownText(q) || (q.format === "choice" && earlyOf(q, myRec(qid))?.comment) || "";
       if (q.format === "multi" && !draftOf(q).includes(OTHER)) ui.fdraft[qid] = { options: [...draftOf(q).filter(o => o !== "none"), OTHER] };
       otherBox._q = null;
@@ -6466,8 +5918,6 @@
       if (!q) return;
       if (!text) { otherTa.focus(); return flash("Write your own option first."); }
       if (ownTooLong(text)) return;
-      // A comment typed before it was its first draft (openOther), and an own option takes none, so it leaves the comment
-      // box; files attached before it go in with it. A file still waiting for the host holds the save back, the box open.
       const early = q.format === "rank" ? null : earlyOf(q, myRec(qid));
       if (earlyWaits(qid, early)) return;
       delete useBefore[qid];
@@ -6480,13 +5930,10 @@
         announce("Your own option is in your ranking. Move it where it belongs, then save your ranking.");
         return fmtSave.focus({ preventScroll: true });
       }
-      // It shows in Answers at once; a refusal reopens the box with the text.
       delete ui.otherText[qid]; ui.otherOpen[qid] = false;
       Core.pickWith(qid, { option: OTHER }, { other: text, attachments: early?.attachments }).then(() => { if (early) sentEarly(qid, early); flash("Your own option is in Answers, where others can back it."); })
         .catch(e => { if (ui.otherText[qid] == null) { ui.otherText[qid] = text; ui.otherOpen[qid] = true; } fail(e); render(); });
     };
-    /** Follow-up 29: the asker of an ask on a choice, pick-many or ranking question may make Claude's answer their own
-     *  option (Something else), its text editable before they save it. */
     const canUseClaude = (x, q) => !!q && x.kind === "ask" && isMe(x.byCid) && !!x.summary && ["choice", "multi", "rank"].includes(q.format)
       && !x.takenDown && !(x.own && !x.published) && !!otherOf(q) && !readOnly(q) && !Core.lockOf(q.id) && !Core.state.ended && !Core.state.youRemoved;
     async function useClaude(x, q) {
@@ -6511,7 +5958,7 @@
       const qid = ui.cur, q = qById(qid);
       if (!q) return;
       const before = useBefore[qid]; delete useBefore[qid];
-      if (before) { // Use as my answer, cancelled: the picks, order and own text go back to what they were
+      if (before) {
         if (before.fdraft === undefined) delete ui.fdraft[qid]; else ui.fdraft[qid] = before.fdraft;
         if (before.otherText === undefined) delete ui.otherText[qid]; else ui.otherText[qid] = before.otherText;
         closeOther(qid);
@@ -6523,10 +5970,8 @@
     };
     on(otherTa, "input", () => { ui.otherText[ui.cur] = otherTa.value; Core.setTyping(); const q = qById(ui.cur); if (q) paintFmtActs(q, myRec(q.id), readOnly(q) || !!Core.lockOf(q.id)); });
 
-    /** The pick controls of a multi, scale or rank question. */
     function renderPicks(q, rec, ro, hideResults) {
       const lk = Core.lockOf(q.id);
-      /** Why the picks cannot change, or "" when they can; `what` is what a lock decided. */
       const held = what => (lk ? (q.purpose === "poll" ? "The poll is closed." : `Locked. The ${what} is decided.`) : ro ? "Read-only now." : "");
       if (q.format === "multi") {
         const cur = draftOf(q, rec);
@@ -6542,7 +5987,7 @@
           li._o = o;
           li._box.checked = cur.includes(o.id); li._box.disabled = ro;
           li.firstChild.lastChild.textContent = o.label;
-          li.classList.toggle("vf-check-other", !!(o.other || o.none)); // None of these looks like Something else
+          li.classList.toggle("vf-check-other", !!(o.other || o.none));
           li.dataset.on = String(li._box.checked);
         });
         fmtHint.textContent = "Pick every option that fits, then save. Your picks are your vote.";
@@ -6566,7 +6011,7 @@
           b.setAttribute("aria-label", named(n) ? `${n}, ${named(n)}` : String(n));
         });
         scaleMin.textContent = `${q.min}: ${labels.min}`; scaleMax.textContent = `${q.max}: ${labels.max}`;
-        scaleMid.textContent = labels.mid ? (mid != null ? `${mid}: ${labels.mid}` : labels.mid) : ""; // kept empty, it holds the middle column
+        scaleMid.textContent = labels.mid ? (mid != null ? `${mid}: ${labels.mid}` : labels.mid) : "";
         fmtHint.textContent = `${tapW()} a number from ${q.min} to ${q.max}, or use the arrow keys. It saves by itself.`;
         fmtNote.textContent = held("choice")
           || (rec?.value != null ? `You chose ${rec.value}. Add a comment below if you like.` : hideResults ? RESULTS_HINT : "");
@@ -6595,7 +6040,6 @@
       fmtHint.hidden = ro;
       paintFmtActs(q, rec, ro);
     }
-    /** Save and Clear under the picks: multi and rank save with the button; scale saves itself. */
     function paintFmtActs(q, rec, ro) {
       const saved = !!savedPick(q, rec);
       fmtActs.hidden = !isFormat(q) || ro;
@@ -6615,20 +6059,18 @@
       } else fmtClear.textContent = "Clear my choice";
       fmtClear.hidden = !saved;
     }
-    const fmtOwn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-fmt-own", "Write your own"); // the choice card's words
+    const fmtOwn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-fmt-own", "Write your own");
     fmtActs.insertBefore(fmtOwn, fmtActs.children[1]);
     fmtOwn.onclick = () => openOther(ui.cur);
     function toggleMulti(o, checked) {
       const q = qById(ui.cur); if (!q) return;
       if (o.other) { if (checked) return openOther(q.id); return otherCancel.click(); }
-      // None of these excludes every other pick, as the server does: picking it clears them, and picking another clears it.
       if (o.none && checked) { closeOther(q.id); ui.fdraft[q.id] = { options: ["none"] }; return render(); }
       const cur = new Set(draftOf(q)); checked ? cur.add(o.id) : cur.delete(o.id);
       if (checked) cur.delete("none");
       ui.fdraft[q.id] = { options: optionsOf(q).map(x => x.id).filter(id => cur.has(id)) };
       render();
     }
-    /** The comment my pick keeps when I change it; my own option is its card's text, never a comment. */
     const commentOf = rec => (rec?.other ? "" : rec?.text || "");
     fmtSave.onclick = () => {
       const qid = ui.cur, q = qById(qid), rec = myRec(qid);
@@ -6640,13 +6082,10 @@
       if (own === "") { openOther(qid); return flash("Write your own option first."); }
       if (own != null && ownTooLong(own)) return;
       const fields = q.format === "multi" ? { options: list } : { order: list };
-      // A file still waiting for the host holds the save back, the picks kept as drafted.
       const early = earlyOf(q, rec);
       if (earlyWaits(qid, early)) return;
-      // The saved pick shows at once; a refusal puts the draft back.
       const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
       delete useBefore[qid]; delete ui.fdraft[qid]; delete ui.otherText[qid]; closeOther(qid);
-      // An own option takes no comment, so only the files written before it go in with it.
       const sent = own != null ? early?.attachments && { attachments: early.attachments } : early;
       Core.pickWith(qid, fields, own != null ? { other: own, attachments: sent?.attachments } : early || { comment: commentOf(rec) })
         .then(() => { if (sent) sentEarly(qid, sent); flash(q.format === "multi" ? `Your picks are saved${sent?.comment ? " with your comment" : ""}.` : `Your ranking is saved${sent?.comment ? " with your comment" : ""}.`); })
@@ -6662,7 +6101,6 @@
         flash(q.format === "rank" ? "Your ranking is cleared." : "Your pick is cleared.");
       }).catch(fail).finally(render);
     };
-    /** A scale value: a tap saves it at once; arrowing sends a moment after the last key, so arrowing across sends one pick. */
     function pickScale(n, now) {
       const qid = ui.cur, q = qById(qid);
       if (!q || readOnly(q) || Core.lockOf(qid) || n < q.min || n > q.max) return;
@@ -6674,7 +6112,7 @@
         const rec = myRec(qid);
         if (rec?.value === n) { delete ui.fdraft[qid]; return render(); }
         const early = earlyOf(q, rec);
-        if (earlyWaits(qid, early)) return render(); // the value stays drafted until its file is ready
+        if (earlyWaits(qid, early)) return render();
         delete ui.fdraft[qid];
         Core.pickWith(qid, { value: n }, early || { comment: commentOf(rec) }).then(() => { if (early) sentEarly(qid, early); announce(`You chose ${n}.`); armAdvance(qid); }).catch(fail).finally(render);
       };
@@ -6682,14 +6120,12 @@
     }
     on(scaleRow, "keydown", e => {
       const q = qById(ui.cur); if (!q || q.format !== "scale") return;
-      // From the focused value (with nothing chosen yet, focus sits on the first), as a radio group moves.
       const o = e.target.closest?.(".vf-scale-btn")?._o, v = o ? +o.id : draftOf(q) ?? q.min;
       const to = { ArrowRight: v + 1, ArrowUp: v + 1, ArrowLeft: v - 1, ArrowDown: v - 1, Home: q.min, End: q.max }[e.key];
       if (to == null) return;
       e.preventDefault(); e.stopPropagation();
       pickScale(Math.min(q.max, Math.max(q.min, to)));
     });
-    // ---------- rank: drag with mouse or touch on the handle, or move with the arrows ----------
     function buildRankItem() {
       const li = E("li", "vf-rank-item");
       const grip = btn("vf-rank-grip"); grip.append(icon("grip"));
@@ -6737,7 +6173,6 @@
       const dr = FMT.drag; if (!dr || e.pointerId !== dr.pointer) return;
       const q = qById(ui.cur); if (!q) return;
       const order = [...draftOf(q)], from = order.indexOf(dr.id);
-      // Where the pointer is among the other items' middles.
       let to = 0;
       for (const li of rankList.children) {
         if (li._id === dr.id) continue;
@@ -6759,7 +6194,6 @@
     };
     on(rankList, "pointerup", endDrag); on(rankList, "pointercancel", endDrag);
 
-    /** Results where the options are: counts per option (multi), per value with the mean and median (scale), Borda points (rank). */
     function renderResults(q, hide) {
       const show = isFormat(q) && !hide;
       fmtRes.hidden = !show;
@@ -6804,13 +6238,11 @@
       });
     }
 
-    /** Compact options for a Compare column. */
     function fillColFormat(holder, q) {
       holder.hidden = !isChoice(q);
       if (!isChoice(q)) return;
       const wait = resultsWait(q);
       const byId = wait ? {} : Object.fromEntries(Core.answersFor(q.id).filter(a => a.option).map(a => [a.cid, a])), lk = Core.lockOf(q.id);
-      // Counts: votes on an option (picks on multi, people per value on scale), Borda points on rank, own options written.
       const rows = q.format === "confirm"
         ? [{ id: "opt-yes", label: "Yes" }, { id: "opt-no", label: "No" }, { id: "", label: CONFIRM_OTHER, n: peopleAnswers(q.id).filter(a => !a.claude && !a.pick && answerLine(a)).length }]
         : optionsOf(q).map(o => (o.other ? { ...o, id: "", n: peopleAnswers(q.id).filter(a => a.other).length }
@@ -6832,7 +6264,7 @@
       const withImg = rows.filter(r => r.image);
       for (const o of rows) {
         const li = E("li", "vf-colopt" + (lk?.answerCid === o.id && o.id ? " vf-colopt-locked" : ""));
-        if (o.image) { // looking, never picking: the picture opens the viewer
+        if (o.image) {
           const b = btn("vf-imgbtn vf-colopt-view"), im = E("img", "vf-colopt-img"); im.src = assetUrl(o.image); im.alt = ""; b.append(im);
           b.setAttribute("aria-label", `View larger: ${o.label}`);
           b.onclick = () => openLb("choice", q.id, withImg.indexOf(o), b);
@@ -6855,7 +6287,7 @@
       const qk = qs.map(q => q.id + q.text).join("|");
       if (apQWrap.s._k !== qk) {
         apQWrap.s._k = qk;
-        apQWrap.s.replaceChildren(placeOpt(null), ...qs.map(placeOpt)); // the whole session pinned first: no question needed
+        apQWrap.s.replaceChildren(placeOpt(null), ...qs.map(placeOpt));
       }
       if (apQWrap.s.value !== want && document.activeElement !== apQWrap.s) apQWrap.s.value = want;
       const general = askGeneral();
@@ -6915,10 +6347,8 @@
       apFileHead.hidden = apFiles.hidden = !files.length;
     }
 
-    // ---------- Host view (Q73) ----------
     function queueItems(S) {
       const R = curRound(), out = [], owner = Core.me.isOwner;
-      // a request waits to run, runs, or failed and is not yet opened; one handled is in the Inbox's History
       if (owner) for (const r of S.requests || []) if (r.status === "pending" || r.status === "running" || (r.status === "failed" && failWaits(r))) out.push({ t: "request", id: "r:" + r.id, ts: r.ts, r });
       for (const i of S.ideas) if (i.status === "new") out.push({ t: "proposal", id: "p:" + i.id, ts: i.ts, i });
       for (const [qid, lst] of Object.entries(S.suggestions || {})) if (Core.lockOf(qid)) for (const x of lst) if (x.status === "open") out.push({ t: "suggestion", id: "s:" + x.id, ts: x.ts, x, qid });
@@ -6932,21 +6362,17 @@
       return out.sort((a, b) => a.ts - b.ts);
     }
     const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem", people: "Claude suggests", reopen: "Possibly reopened" };
-    /** Why Claude proposes a merge or an admit, in the host's words (ops.schema.json personReasons). */
     const WHY_WORD = { "same-name": "the same name", "was-offline": "the earlier one was offline when this one joined", "same-device": "the same kind of device", expected: "you told Claude to expect them" };
-    /** What Claude proposes, why, and for a merge the fix for next time: the earlier person's own link. */
     const proposalText = c => {
       const why = `Why: ${c.reasons.map(r => WHY_WORD[r] || r).join("; ")}.${c.note ? ` ${c.note}` : ""}`;
       return c.kind === "admit" ? `Let ${c.name} in? ${why}`
         : `${c.name} may be ${c.toName}, back on another device or browser. ${why} Merge moves ${c.name}'s answers, votes and chat to ${c.toName} in one tap, and this browser carries on as ${c.toName}; it cannot be undone. Next time, send ${c.toName} their own link (Use on another device), so they come back as themselves.`;
     };
     const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"); // spellchecker:disable-line
-    /** " (2nd waiting; phone · Safari)": the join order and what the join said about its device, never more. */
     const joinHint = j => {
       const hint = [j.device, BROWSER_NAME[j.browser]].filter(Boolean).join(" · ");
       return j.n ? ` (${ordinal(j.n)} waiting${hint ? `; ${hint}` : ""})` : "";
     };
-    /** A possibly reopened decision: the locked answer, and the reason each person who disagreed late holds now. */
     function reopenText(qid, n, card) {
       const who = new Set();
       for (const e of Core.state.decisions) if (e.qid === qid) { if (e.kind === "late-disagree") who.add(e.cid); else who.clear(); }
@@ -6969,7 +6395,6 @@
       li._k = { chip, who, qref, text, att, extra, acts, sig: "" };
       if (it.t === "upload") { const row = makeUpRow(true); row.classList.add("vf-uprow-q"); extra.append(row); li._k.up = row; }
       if (it.t === "report") {
-        // The reporter's words and context are their data. Each picture loads only when the owner asks for it.
         const ctx = E("ul", "vf-rep-sent"), pics = E("div", "vf-rep-pics");
         const adds = E("ul", "vf-myrep-adds vf-rep-adds"); adds.setAttribute("aria-label", "Added by the reporter");
         extra.append(ctx, pics, adds);
@@ -6991,7 +6416,7 @@
         k.who.replaceChildren(...whoLine(person[0], person[1], it.ts));
       }
       const qid = it.qid || it.r?.qid || it.u?.qid || it.f?.ctx.qid || "", q = qid && qById(qid);
-      const general = !!it.r && !it.r.qid; // a request about the whole session
+      const general = !!it.r && !it.r.qid;
       k.qref.hidden = !q && !general;
       if (!k.qref.hidden) { k.qref.textContent = q ? q.id : GEN_LABEL; k.qref.setAttribute("aria-label", q ? `Open ${q.id}: ${q.text}` : "General: about the whole session"); }
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
@@ -7004,7 +6429,6 @@
       if (k.rep) {
         const c = it.f.ctx;
         k.rep.ctx.replaceChildren(...[...ctxLines(c), ...c.errors.map(e => `Error: ${e}`)].map(t => E("li", null, t)));
-        // one Show screenshot per picture sent with the report, numbered when there are several; built once per count
         const nPics = it.f.images || (it.f.image ? 1 : 0);
         if (k.rep.pics._n !== nPics) {
           k.rep.pics._n = nPics;
@@ -7017,7 +6441,6 @@
           }));
         }
         k.rep.pics.hidden = !nPics;
-        // What the reporter added since: each line, and a screenshot that loads only when the owner asks.
         const sig = JSON.stringify(it.f.adds);
         if (k.rep.adds._sig !== sig) {
           k.rep.adds._sig = sig;
@@ -7068,7 +6491,6 @@
         qAct("Decline", "vf-btn-ghost", guarded(() => ({ title: `Turn ${li._it.j.name} away?`, ok: "Decline", body: `${li._it.j.name} is not let in. You can restore them from Settings.` }),
           () => Core.joinAct(li._it.j.pid, "decline").then(() => flash(`${li._it.j.name} was not let in. Restore them from Settings if that was a mistake.`)).catch(fail))),
         qAct("Let in", "vf-btn-primary", () => Core.joinAct(li._it.j.pid, "admit").then(() => flash(`${li._it.j.name} is in.`)).catch(fail)));
-      // Claude only proposes: nothing merges or lets anyone in until the owner taps Merge or Let in here.
       if (it.t === "people" && owner) {
         const c = () => li._it.c, act = a => Core.claudeProposalAct(c().id, a);
         a.push(qAct(it.c.kind === "merge" ? "Not the same person" : "Dismiss", "vf-btn-ghost", () => act("dismiss").then(() => flash("Dismissed.")).catch(fail)));
@@ -7095,7 +6517,6 @@
       hGoal.textContent = S.goal || "No goal yet. One goal keeps the session small: one ticket or one slice.";
       hGoal.classList.toggle("vf-hgoal-empty", !S.goal);
       hGoalEdit.hidden = !owner; hGoalEdit.textContent = S.goal ? "Edit goal" : "Set a goal";
-      // why you're here: the owner edits it; a leader reads it
       hIntroIn.hidden = hIntroRow.hidden = !owner;
       hIntroShown.hidden = owner;
       hIntroShown.textContent = S.intro || "No introduction yet.";
@@ -7115,14 +6536,13 @@
       queueEmpty.textContent = ui.hostFilter === "all" ? "All clear. New requests, proposals, suggestions, merges and files show up here." : `No ${QT[ui.hostFilter]?.toLowerCase() || "items"} waiting.`;
       hQueue._m.textContent = `${items.length} waiting`;
       const here = new Map(S.presence.map(p => [p.cid, p])), gone = new Set(S.removed || []);
-      // You first, then Active, Away, Offline (the most recently seen first), the owner first within each, then by name.
       const rank = p => ["active", "away", "offline"].indexOf(presState(here.get(p.pid)));
       const ppl = Object.entries(S.people || {}).map(([pid, v]) => ({ pid, ...v })).filter(p => owner || !gone.has(p.pid))
         .sort((a, b) => isMe(b.pid) - isMe(a.pid) || rank(a) - rank(b) || (rank(a) === 2 && (b.seen || 0) - (a.seen || 0))
           || (b.pid === S.ownerPid) - (a.pid === S.ownerPid) || a.name.localeCompare(b.name));
       const answeredBy = {};
       for (const lst of Object.values(S.answers)) for (const a of lst) if (!a.claude && !a.option) answeredBy[a.cid] = (answeredBy[a.cid] || 0) + 1;
-      const lastCtx = {}, lastTs = {}; // each person's newest recorded context: answers and suggestions carry one
+      const lastCtx = {}, lastTs = {};
       for (const r of [...Object.values(S.answers).flat(), ...Object.values(S.suggestions || {}).flat()]) if (r.ctx && !(lastTs[r.cid] > r.ts)) { lastCtx[r.cid] = r.ctx; lastTs[r.cid] = r.ts; }
       const pres = p => (gone.has(p.pid) ? "removed" : presState(here.get(p.pid)));
       // #7852: how many of the open round's questions each guest still owes (the server's count, moderators only)
@@ -7144,7 +6564,6 @@
       const pShown = ppl.filter(p => inFilter[ui.peopleFilter](p) && (!find || disp(p.name).toLowerCase().includes(find)));
       peopleEmpty.hidden = pShown.length > 0;
       peopleEmpty.textContent = find ? `No one named “${ui.peopleFind.trim()}” here.` : "No one to show.";
-      // A name more than one person holds (names hidden from guests let it repeat): each gets its join-order number here.
       const nth = {}, byName = {};
       for (const p of [...ppl].sort((a, b) => a.ts - b.ts)) (byName[p.name.toLowerCase()] ||= []).push(p.pid);
       for (const pids of Object.values(byName)) if (pids.length > 1) pids.forEach((pid, i) => { nth[pid] = i + 1; });
@@ -7158,7 +6577,6 @@
         more.onclick = () => { more.dataset.pid = li._p.pid; more.dataset.name = li._p.name; showCard(more, true); delete more.dataset.pid; delete more.dataset.name; };
         mid.append(nameRow, meta);
         const acts = E("div", "vf-hp-acts");
-        // The owner renames anyone here, with the same form as their own name in the person card.
         const pa = personActs(() => li._p.pid, false, () => { rform.hidden = false; nameIn.value = li._p.name; nameIn.focus(); nameIn.select(); });
         const rform = E("form", "vf-rename vf-hp-rename"); rform.hidden = true;
         const nameIn = E("input", "vf-input"); nameIn.maxLength = 40;
@@ -7186,11 +6604,10 @@
         k.nm.textContent = me2 ? "You" : disp(p.name) + (nth[p.pid] && Core.canModerate() ? ` (${nth[p.pid]})` : "");
         k.role.textContent = isGone ? "Removed" : rl; k.role.className = `vf-role vf-role-${isGone ? "removed" : rl.toLowerCase()}`;
         const hq = h?.q && qById(h.q);
-        // Active, Away (with how long), or offline: no heartbeat for a while, so not in presence at all.
         const last = h ? (h.away ? `Away${awayFor(h)}` : hq ? `Active, on ${hq.id}` : "Active") : p.seen ? `Offline, last active ${since(p.seen)}` : `Offline, joined ${since(p.ts)}`;
         const na = answeredBy[p.pid] || 0;
         const nb = owes(p);
-        const ab = owner && S.aboutYou[p.pid]; // follow-up 46: what they said about themselves, for the owner only
+        const ab = owner && S.aboutYou[p.pid];
         k.meta.textContent = `${last}. ${na} answered${nb ? `, ${nb} to answer this round` : ""}${h?.typing ? ", typing" : ""}${ab ? `. Tech comfort: ${COMFORT[ab.techComfort]}${ab.note ? `, “${ab.note}”` : ""}` : ""}`;
         ctxBadge(k.ctxB, owner ? lastCtx[p.pid] : null);
         li.dataset.here = String(!!h);
@@ -7208,7 +6625,7 @@
       const nAway = S.presence.filter(p => p.away).length;
       hPeople._m.textContent = `${S.presence.length} here${nAway ? ` (${nAway} away)` : ""}, ${ppl.filter(p => !gone.has(p.pid)).length} joined`;
       hNewGuest.hidden = hNewOwner.hidden = hSettings.hidden = hEnd.hidden = !owner;
-      hNewOwner.hidden ||= Core.ownerDevice() != null; // only where the owner link was opened (server.py "host")
+      hNewOwner.hidden ||= Core.ownerDevice() != null;
       const later = laterItems().sort((a, b) => a.ts - b.ts), nl = later.length;
       hEnd.textContent = S.ended ? "Reopen session" : "End session";
       hEndNote.textContent = owner && !S.ended ? (nl ? `Ending makes the page read-only for guests. ${laterLine(nl)}.` : "Ending makes the page read-only for guests, with the final tree.") : "";
@@ -7242,11 +6659,8 @@
       restoreUnsent();
       Kit.swap();
       const S = Core.state, me = Core.me, s = S.settings, mod = Core.canModerate();
-      // The rail keeps round order (S.questions); answered ones carry a mark instead of moving.
       const qs = S.questions, owner = Core.owner(), here = S.presence;
-      // ux-review-2 #7: the viewer counts as here from the moment the page loads, before their first heartbeat lands.
       const hereN = here.length + (here.some(p => isMe(p.cid)) ? 0 : 1);
-      // D5: "1 here" read as a count of others (who had not joined yet); with no one else, it says who it counts.
       const hereTxt = hereN === 1 ? "only you here" : `${hereN} here`;
       migratePrefs(); follow.setAttribute("aria-pressed", String(following()));
       if (following() && owner && !isMe(owner.cid) && owner.q && owner.q !== ui.cur && S.questions.some(q => q.id === owner.q)) { select(owner.q); return; }
@@ -7259,10 +6673,8 @@
       applyTheme();
       paintTheme();
 
-      // round changes: a toast with a way to go there; the view moves only for people following the host
       if (Core.live) {
-        const flash = (me.isOwner || popsUp("round")) ? flashNow : () => {}; // round 11: a guest's round pop-up, theirs to turn off
-        // the baseline is what a person first sees once in (sweep S32): no "Round 2 is here." on arriving in round 2
+        const flash = (me.isOwner || popsUp("round")) ? flashNow : () => {};
         const inNow = !!S.me && !S.youWaiting;
         if (ui.round == null || !ui.roundIn) {
           ui.round = cur; ui.rstat = R.status;
@@ -7284,7 +6696,6 @@
       notices(S);
       if (!pairPop.hidden) fillPairList();
       pumpUploads(); prunePics();
-      // New answers from others on the question I am on: one polite summary, never the list itself.
       const heardQ = ui.cur, others0 = Core.answersFor(heardQ).filter(a => !isMe(a.cid)).length;
       if (ui.heard.q === heardQ && others0 > ui.heard.n) announce(`${others0 - ui.heard.n} new answer${others0 - ui.heard.n > 1 ? "s" : ""} on ${heardQ}`);
       ui.heard = { q: heardQ, n: others0 };
@@ -7328,7 +6739,7 @@
       followTxt.textContent = owner ? `Follow ${disp(owner.name)}` : "Follow host";
       follow.classList.toggle("vf-dim", !owner);
       gear.hidden = !me.isOwner;
-      shareBtn.hidden = !mod; // owner and leaders: the guest link carries no owner rights
+      shareBtn.hidden = !mod;
       if (!mod && ui.pop === sharePop) closePop();
       if (!me.isOwner && ui.pop === settingsPop) closePop();
       if (ui.pcard) fillPcard();
@@ -7343,7 +6754,6 @@
       if (shareField.value !== url) shareField.value = url;
       linkNote.textContent = `Anyone with this link can join. ${linkKeeps() ? "The link stays the same when the tunnel restarts." : "The link can change after the tunnel restarts."}`;
       nativeShare.hidden = !(navigator.share && phone.matches);
-      // A new tunnel address since the last start: the old guest link is dead until shared again.
       const reshare = mod && !!S.shareChanged && store.get("vf-share-ack", "") !== url;
       shareNew.hidden = !reshare;
       shareNew.textContent = "New guest link, share again: the link people have from before no longer works.";
@@ -7360,8 +6770,6 @@
         return li;
       }, (li, p) => { li._p = p; li.firstChild.textContent = disp(nameOf(p)); paintPersonActs(li._k, p, "removed"); });
 
-      // session banner: moved, removed, ended, a link to share again, or (follow-up 45) a social app's browser, which
-      // never blocks the page (a waiting person's card says it all: no banner)
       const inApp = Core.inApp();
       root.toggleAttribute("data-waiting", !!S.youWaiting);
       if (S.youWaiting && (ui.mode !== "focus" || (phone.matches && ui.tab !== "answer"))) { if (phone.matches) setTab("answer"); else setMode("focus"); return; }
@@ -7373,8 +6781,6 @@
         : S.ended ? [me.isOwner ? "You ended this session. Guests see it read-only, with the final tree." : "This session has ended. Here is what it decided.",
           me.isOwner ? ["Reopen", () => Core.endSession(false).catch(fail)] : ["Show the tree", () => setMode("tree")]]
         : reshare ? ["New guest link, share again: the old link no longer works.", ["Share", () => openSurface(sharePop, shareBtn.offsetParent ? shareBtn : bannerAct)]]
-        // never the owner's: their link is the owner credential. A guest's link signs them in, so it opens the device
-        // panel with its "Keep this private" warning rather than going to the clipboard unannounced.
         : inApp && !me.isOwner && !ui.inAppDone ? [`You are in ${inApp.app}'s browser. For pictures, pop-ups and staying signed in, open this page in ${inApp.open}: copy your link, then paste it there.`,
           ["Get your link", () => { ui.inAppDone = true; render(); openDevice(); }]]
         : null;
@@ -7388,8 +6794,6 @@
       if (!S.ended) ui.endedShown = false;
 
       const answered = S.questions.filter(q => myState(q.id) !== "open" || Core.lockOf(q.id)).length;
-      // per person, the complement of catchUp's count: what I answered or took part in, or what is decided; someone else's
-      // answer does not make it mine
       const mineDone = x => ["answered", "took"].includes(myState(x.id)) || !!Core.lockOf(x.id);
       railMeta.textContent = `${S.questions.filter(mineDone).length} of ${S.questions.length} answered`;
       const byRound = new Map(), shownQs = shownQuestions(), cuNow = catchUp();
@@ -7407,8 +6811,6 @@
         const head = E("div", "vf-rhead");
         const toggle = btn("vf-rtoggle");
         const tLabel = E("span", "vf-rlabel");
-        // the slot always shows, so every round's label starts at one x: a check once any is done, else an empty ring; the
-        // label says the count, so the slot is aria-hidden in both
         const check = E("span", "vf-rcheck"); check.setAttribute("aria-hidden", "true"); check.append(icon("check"));
         toggle.append(check, tLabel, icon("chevR", "vf-i vf-chev"));
         toggle.onclick = () => { const o = openRounds(); o.has(n) ? o.delete(n) : o.add(n); setOpenRounds(o); };
@@ -7423,8 +6825,8 @@
         curHead.append(title2, prog, send, readyNote);
         head.append(toggle, curHead);
         const ul = E("ul", "vf-qlist"); ul.setAttribute("role", "list");
-        if (ui.freshRound === n) ul._primed = true; // a round that opened while we watched animates its questions in
-        const cu = catchUpEl(); // shown in the round it is about, under its head
+        if (ui.freshRound === n) ul._primed = true;
+        const cu = catchUpEl();
         g.dataset.round = String(n);
         g.append(head, cu, ul);
         g._k = { toggle, tLabel, check, curHead, name, meta, prog, send, readyNote, ul, cu };
@@ -7437,7 +6839,6 @@
         k.cu._paint(cuNow?.n === n ? cuNow : null);
         k.toggle.hidden = isCur || tf.filter === "proto"; k.curHead.hidden = !isCur;
         k.toggle.setAttribute("aria-expanded", String(expanded));
-        // ux-review-2 #7: guests count what they answered; "decided" is the moderators' word.
         const done = mod ? decided : inRound.filter(mineDone).length, word = mod ? "decided" : "answered";
         k.tLabel.textContent = n > cur ? `Round ${n}, opens after round ${cur}` : `Round ${n}, ${done} of ${inRound.length} ${word}`;
         k.check.classList.toggle("vf-rcheck-none", !done);
@@ -7501,7 +6902,7 @@
         const acts = E("div", "vf-acts");
         const pa = proposalActs(() => li._i);
         const why = E("p", "vf-why");
-        acts.append(pa.park, pa.later, pa.restore, pa.question); // the Inbox row's order: the primary last
+        acts.append(pa.park, pa.later, pa.restore, pa.question);
         const att = attRowEl();
         li.append(t, why, from, att, acts);
         li._k = { t, att, why, from, ...pa };
@@ -7518,7 +6919,6 @@
       PP.empty.hidden = shown.length > 0;
       PP.empty.textContent = ui.propFilter === "new" ? "Nothing proposed yet. Anyone can use Propose a question; a moderator can also propose a chat message."
         : ui.propFilter === "notplaced" ? "Claude placed everything so far." : "Nothing parked.";
-      // My own proposals and where each stands; the newest few.
       const host = owner ? disp(owner.name) : "the host";
       const mine = S.ideas.filter(i => isMe(i.cid)).sort((a, b) => b.ts - a.ts).slice(0, 4);
       const PSTAT = { new: `Waiting: goes to Claude with round ${preparing ? nextN : cur}`, notplaced: "Not placed", parked: `Parked by ${host}`,
@@ -7539,7 +6939,6 @@
       function makeQ(q) {
         const li = E("li");
         const b = btn("vf-q"); b.dataset.qid = q.id;
-        // The marker shows the id number (hidden from screen readers: the aria-label says it).
         const stat = E("span", "vf-qstat"), num = E("span", "vf-qnum", q.id.slice(1)), badge = E("span", "vf-qlock");
         stat.setAttribute("aria-hidden", "true"); stat.dataset.long = String(num.textContent.length > 2);
         badge.append(icon("lock")); stat.append(num, badge);
@@ -7609,28 +7008,22 @@
       railEmpty.hidden = qs.length > 0;
       if (!qs.length) renderEmpty(S);
       const beenHere = () => !!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
-      // Triage 3: until a guest answers anything, the Focus view opens with the goal, the host's ask and where to start.
       orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden || (!ui.welcomeAgain && beenHere());
       introBtn.hidden = !S.intro && !me.isOwner; menuShow("intro", !introBtn.hidden);
-      // a return visit: this person had been here before this page opened
       if (ui.returning == null && S.me) ui.returning = beenHere();
       goalBack.hidden = !q || me.isOwner || !!S.youWaiting || !!S.youRemoved || !S.goal || !ui.returning || !orient.hidden || !!S.ended || goalHidden() === S.goal;
       if (!goalBack.hidden) goalBackTxt.textContent = `Goal: ${S.goal}`;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
-        // the questions this person owes, by the server's rule (session.py _owes) as the rail and catch-up count them: open
-        // for me (asked of me, or nobody else answered yet), not locked, not read-only
         const nQ = inCur.filter(x => myState(x.id) === "open" && !Core.lockOf(x.id) && !readOnly(x)).length;
         const hostName = disp(nameOf(S.ownerPid, "The host"));
         orH.textContent = me.name ? `Welcome, ${me.name}` : "Welcome";
         orGoal.textContent = S.goal ? `Goal: ${S.goal}` : ""; orGoal.hidden = !S.goal;
         const how = "On each one, pick an option, or type your answer in the box under the question. Chat is for people; start a message with @Claude to ask Claude.";
-        // On a phone the how-to sentence folds in with the intro, so the card stays short.
         orAsk.textContent = `${nQ ? `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}.` : `${hostName} has no questions waiting for you right now.`}${phone.matches ? "" : " " + how}`;
-        // past round 1 the step names its round, so it reads apart from a catch-up link to an earlier one
         const tRound = target ? roundOf(target) : cur, tPos = Math.max(1, S.questions.filter(x => roundOf(x) === tRound).indexOf(target) + 1);
         orStart.textContent = tRound > 1 ? `Start here: round ${tRound}, question ${tPos}` : `Start here: question ${tPos}`; orStart._q = target?.id;
-        orStart.hidden = !nQ; // nothing waiting: no "Start here" beside it
+        orStart.hidden = !nQ;
         orCatch._paint(catchUp());
         if (ui.introOpen == null) { ui.introOpen = !phone.matches && !store.get(INTRO_SEEN(), false); store.put(INTRO_SEEN(), true); }
         const hasWhy = !!S.intro || phone.matches;
@@ -7679,7 +7072,6 @@
             l.append(cb, E("span")); l._cb = cb; return l;
           }, (l, p) => { l._cb.checked = asked.includes(p); l.lastChild.textContent = youOr(p, nameOf(p)); });
         }
-        // Pass, and the optional line once someone else answered (myState soft); only open counts as not answered.
         const mineNow = myState(q.id), myPass = Core.myPass(q.id), canPass = !readOnly(q) && !lk, other = otherAnswer(q.id);
         passNote.textContent = myPass ? `You passed${myPass.reason ? `: ${myPass.reason}` : "."}`
           : !canPass ? ""
@@ -7688,7 +7080,7 @@
         const passable = canPass && !myPass && mineNow !== "answered" && mineNow !== "took";
         passUndo.hidden = !canPass || !myPass;
         passForm.hidden = !passable || ui.passOpen !== q.id;
-        passBtn.hidden = !passable || !passForm.hidden; // the open form has its own Pass and Cancel
+        passBtn.hidden = !passable || !passForm.hidden;
         passBtn.setAttribute("aria-expanded", String(!passForm.hidden));
         passLbl.textContent = askedOfMe(q.id) ? "Your reason for passing (needed: this is asked of you)" : "Your reason for passing (optional)";
         const passed = me.isOwner ? Object.entries(S.passes[q.id] || {}) : [];
@@ -7722,14 +7114,11 @@
         if (!lb.hidden) paintLb();
         askBtn.hidden = (!!S.ended && !me.isOwner) || !!S.youRemoved;
         renderAsk();
-        // A new result for me on this question opens the Claude section once; after that it stays as the person left it.
         if (renderThread(S, q) && !ui.clOpen.has(q.id)) ui.clOpen.set(q.id, true);
         paintCl();
         renderDisc(S, q);
         renderCite(S, q);
         ansPane.hidden = false; clSec.hidden = false; discSec.hidden = false;
-        // my files on this question
-        // a picture the answer already carries shows once, as its tile there; its row would repeat it
         const tiled = new Set([...(cSlot.get() || []), ...(myRec(q.id)?.att || [])].filter(a => a.kind === "file" && a.upload && picWaits(a)).map(a => a.upload));
         const myUps = (S.myUploads || []).filter(u => u.qid === q.id && !["withdrawn"].includes(u.status) && !tiled.has(u.id)).sort((a, b) => a.ts - b.ts);
         sync(upStrip, myUps, u => u.id, () => makeUpRow(false), fillUpRow);
@@ -7742,9 +7131,8 @@
         if (lk) {
           lockBy.textContent = `by ${disp(lk.by)}, ${since(lk.ts)}${lk.edited ? ", edited" : ""}`;
           const lname = lk.name === "Claude" && String(lk.answerCid).startsWith("claude") ? "Claude" : disp(lk.name);
-          // A closed poll chose no answer: it names no author and has no locked text to edit.
           fillClamp(lockText, "l:" + q.id, lk.poll ? "The poll is closed. The counts are final." : lk.text, lk.poll ? "Closed poll" : `Locked answer`, `${q.id}: ${q.text}`);
-          lockText.hidden = !lk.poll && !lk.text && !!lk.att; // a locked answer of pictures alone shows them, not an empty line
+          lockText.hidden = !lk.poll && !lk.text && !!lk.att;
           fillAtts(lockAtts, lk.poll ? [] : lk.att, `Locked answer on ${q.id}`);
           const lkey = lk.poll ? "poll" : lk.answerCid + "|" + lname + "|" + lk.hostEdited;
           if (lockFrom._k !== lkey) {
@@ -7796,7 +7184,7 @@
             k.vote.setAttribute("aria-pressed", String(li._mine));
             k.vote.disabled = isMe(x.cid);
             k.vote.title = isMe(x.cid) ? "Your suggestion" : "Vote for this suggestion";
-            k.use.hidden = k.edit.hidden = !mod || !!lk.poll; // a closed poll's counts are never replaced
+            k.use.hidden = k.edit.hidden = !mod || !!lk.poll;
             k.dismiss.hidden = !mod;
           });
           sList.hidden = sugs.length === 0;
@@ -7804,9 +7192,7 @@
         }
 
         const lead = leadOf(q.id), all = ordered(q.id);
-        // C26: Claude's cards wait behind a bar until I answered or voted; a chosen one (voted, leading, locked) shows.
         const hideOn = claudeHidden(q.id), pw = resultsWait(q);
-        // ux-review-2 #5: under Answer first everyone else's cards wait too; a poll's wait for a pick has no bar.
         const waitingC = all.filter(a => (a.claude && (pw || (hideOn && !claudeChosen(a, q.id, lead)))) || (pw && !a.claude && !isMe(a.cid)));
         const ans = all.filter(a => !waitingC.includes(a));
         const nC = waitingC.filter(a => a.claude).length, nP = waitingC.length - nC;
@@ -7816,11 +7202,9 @@
         claudeBar.setAttribute("aria-label", nP ? `Show the answers so far: ${waitingC.length}. They show by themselves once you answer or vote.`
           : `Show Claude's take: ${nC} card${nC === 1 ? "" : "s"}. They show by themselves once you answer or vote.`);
         ansTitle.textContent = lk ? "All answers" : "Answers";
-        // Answered counts everyone who joined (Claude's cards are not people); who is here is a separate number.
         const joinedN = Math.max(Object.keys(S.people || {}).filter(p => !gone.includes(p)).length, here.length);
         const answeredN = all.filter(a => !a.claude).length;
         ansCount.textContent = `${answeredN} of ${joinedN} answered, ${hereTxt}`;
-        // Suggestions an unlock closed, shown while the question is open again.
         const closed = lk ? [] : Core.suggestionsFor(q.id).filter(x => x.status === "closed");
         closedBox.hidden = !closed.length;
         if (closedList._q !== q.id) { resetList(closedList); closedList._q = q.id; }
@@ -7840,8 +7224,6 @@
         aEmpty.hidden = ans.length > 0 || (waitingC.length > 0 && !claudeBar.hidden);
         aEmpty.textContent = waitingC.length ? "Pick one to see what others said." : isChoice(q) ? "No comments yet." : "No answers yet. Yours can be the first.";
         const lockable = Core.answersFor(q.id).filter(a => !waitingC.includes(a));
-        // Gather answers stand (no lock); only the owner closes a poll (Q97).
-        // A poll closes as a tally: always open to the owner, ties and no votes included, with no winner chosen.
         const poll = q.purpose === "poll";
         lockBtn.hidden = !mod || !!lk || (!lockable.length && !poll) || q.purpose === "gather" || (poll && !me.isOwner);
         lockBtn.textContent = poll ? "Close poll" : isChoice(q) ? "Lock top pick" : "Lock top answer";
@@ -7925,14 +7307,12 @@
 
       chat.classList.toggle("vf-off", !s.chat);
       fab.hidden = !s.chat;
-      if (!s.chat && ui.chatOpen) { ui.chatOpen = false; chat.hidden = true; fab.setAttribute("aria-expanded", "false"); syncModal(); } // the page it covered goes live again
+      if (!s.chat && ui.chatOpen) { ui.chatOpen = false; chat.hidden = true; fab.setAttribute("aria-expanded", "false"); syncModal(); }
       const msgs = S.chat, newest = mark(msgs.at(-1));
       if (ui.seenChat === null && Core.live) ui.seenChat = newest;
       if (ui.chatOpen) ui.seenChat = newest;
-      // ux-review-2 #8: a message that mentions me is badged on the bell, not again here.
       const belled = new Set(notes().filter(n => n.msg && !n.read).map(n => n.msg));
       const unread = after(msgs, ui.seenChat).filter(m => !isMe(m.cid) && !belled.has(m.id)).length;
-      // Triage 2: a message for a host whose chat is closed (or whose tab is in the background) shows in the tab title too.
       document.title = unread && !ui.chatOpen ? `(${unread}) ${title}` : title;
       fabBadge.textContent = unread ? String(unread > 9 ? "9+" : unread) : "";
       if (!ui.chatOpen && unread > ui.lastUnread) bumpFab();
@@ -7944,8 +7324,6 @@
       paintSlot(chatSlot, mForm.hidden);
       if (ui.chatOpen) {
         const atBottom = mStick || mGap() < 40;
-        // A Load earlier row sits above each message whose next older one is not loaded; the top one keeps its node,
-        // so its button keeps focus while there is more to load.
         const rows = msgs.flatMap((m, i) => (m.gapAbove ? [{ id: i ? "gap:" + m.id : "gap-top", gap: m.id }, m] : [m]));
         const added = rows.filter(r => !mList._map?.has(r.id)).length;
         if (added > 1) { mList.setAttribute("aria-busy", "true"); requestAnimationFrame(() => mList.removeAttribute("aria-busy")); } // a batch is not read out
@@ -7961,25 +7339,19 @@
           const meta = E("div", "vf-msg-meta");
           meta.append(E("span", "vf-msg-name"), E("span", "vf-card-time"));
           const bubble = E("div", "vf-bubble"); const btext = clampBox();
-          // a reply quotes the message it answers; tapping the quote goes to it
           const quote = btn("vf-mquote"); const qName = E("span", "vf-mquote-n"), qTxt = E("span", "vf-mquote-t"); quote.append(qName, qTxt);
           quote.onclick = () => { if (li._m?.replyTo) goMsg(li._m.replyTo.id); };
           const batt = attRowEl();
           bubble.append(btext, batt);
           const tools2 = E("div", "vf-msg-tools");
-          // Actions live behind ⋯ (hover, focus or long-press): Propose as question, Ask Claude about this, Copy.
           const more = ibtn("vf-msgmore", "more", "Message actions");
           more.setAttribute("aria-haspopup", "menu"); more.setAttribute("aria-expanded", "false");
           msgMenuOpeners(bubble, more, () => [li._m, more]);
           const done = E("span", "vf-fwd-done"); done.append(icon("check"), E("span", null, "Proposed"));
           tools2.append(done);
-          // A message whose "@Claude" filed a request says so, with where it stands for the owner and its asker; Claude's
-          // own message opens its full answer.
           const sent = btn("vf-lbtn vf-msent"), sentT = E("span");
           sent.append(claudeAv(14), sentT);
           sent.onclick = () => { const x = li._gq?.x; if (li._m?.claude || !x?.msg || x.published === false) openGeneral(x ? "x:" + x.id : "r:" + li._m?.request); else goMsg(x.msg, () => openGeneral("x:" + x.id)); };
-          // Emoji reactions: chips under the bubble only when there are some. Add sits beside ⋯ (hover or focus on a
-          // fine pointer); on touch it is React in the long-press menu.
           const reactAdd = btn("vf-mreact-add"); reactAdd.append(E("span", "vf-mreact-plus", "+"), E("span", "vf-mreact-face", "🙂"));
           reactAdd.setAttribute("aria-haspopup", "dialog"); reactAdd.setAttribute("aria-label", "Add a reaction"); reactAdd.title = "Add a reaction";
           reactAdd.onclick = () => (ui.pop === reactPop && ui.reactMsg?.id === li._m?.id ? closePop() : openReactPop(li._m, reactAdd));
@@ -7992,7 +7364,7 @@
         }, (li, m) => {
           if (m.gap) { li._below = m.gap; return; }
           const i = msgs.indexOf(m), prev = msgs[i - 1], k = li._k;
-          const cont = prev && !m.gapAbove && prev.cid === m.cid && m.ts - prev.ts < 120 && !m.replyTo; // a reply always shows who and what it answers
+          const cont = prev && !m.gapAbove && prev.cid === m.cid && m.ts - prev.ts < 120 && !m.replyTo;
           li.classList.toggle("vf-msg-mine", isMe(m.cid));
           li.classList.toggle("vf-msg-cont", !!cont);
           const avBox = li.firstChild, key = m.cid + "|" + disp(m.name);
@@ -8031,8 +7403,6 @@
         mTypingTxt.textContent = typers.length ? `${names(typers)} ${typers.length > 1 ? "are" : "is"} typing` : "";
       }
 
-      // tab badges
-      // ux-review-2 #8: an unlabeled count on Questions read as another notification; the rail says how many are answered.
       tabBtns.questions._badge.textContent = "";
       const left = S.questions.length - answered;
       tabBtns.questions.setAttribute("aria-label", left ? `Questions, ${left} not answered yet` : "Questions");
@@ -8046,7 +7416,6 @@
       renderMore(S, mod);
       renderMyReps(S);
 
-      // a color or profile picture someone just chose, or names hidden or shown: repaint their avatars wherever they are
       for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); Core.paintAvatar(a); }
       tourMove();
       requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); tourMove(); });
@@ -8057,18 +7426,14 @@
     setMode("focus");
     const sendPrefsNow = () => { clearTimeout(PK.timer); flushPrefs(); };
     on(window, "pagehide", sendPrefsNow);
-    // A reload, for a new version (core.js) or the person's own, keeps unsent text in this tab's sessionStorage.
-    // Switch (core.js askSwitch) reloads as someone else: this person's drafts are dropped, not saved for them.
     const saveUnsent = () => {
       if (Core.switching || (!unsent && !Core.snapshot()?.me)) return;
       if (ui.cur) ui.drafts[ui.cur] = ta.value;
       const drafts = Object.fromEntries(Object.entries(ui.drafts).filter(([q, t]) => t && t !== Core.myAnswer(q)));
-      // drafts not restored yet (who this page is was still unknown) go back as they came
-      try { sessionStorage.setItem(UNSENT, JSON.stringify(unsent || { who: whoAmI(), drafts, kit: (Kit.store(), ui.kd), cur: ui.cur })); } catch { /* storage off */ }
+      try { sessionStorage.setItem(UNSENT, JSON.stringify(unsent || { who: whoAmI(), drafts, kit: (Kit.store(), ui.kd), cur: ui.cur })); } catch {}
     };
     on(window, "pagehide", saveUnsent);
     Core.onReload(() => { saveUnsent(); markSeen(ui.cur); sendPrefsNow(); });
-    // A move to the session's new address (core.js moveTo) waits while any of that text is unsent: the banner offers it.
     Core.keepUnsent(() => !!unsent || (!!ui.cur && !!ta.value && ta.value !== Core.myAnswer(ui.cur))
       || Object.entries(ui.drafts).some(([q, t]) => q !== ui.cur && t && t !== Core.myAnswer(q)) || Object.values((Kit.store(), ui.kd)).some(Boolean));
     Kit.boot();

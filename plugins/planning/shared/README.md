@@ -21,7 +21,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/question-shape.js`, `/core.css`, `/app.css`, `/question-shape.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. `question-shape.js` and `question-shape.css` hold what the 1:1 page (`surface/interview_server.py` serves both) shares with this one: the markdown renderer, the composer kit, the visual-viewport fit, and the own-option id. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | Python suites (`test_*.py`, with `support.py`); browser suites (`ui_*.js`; `ui_inputs.js` with `harness-open.js`), run in parts by `ui-run.sh` through `ui-a.test.sh` to `ui-c.test.sh` as `ui-parts.txt` assigns them; `tracer.test.sh`, `tracer-live.test.sh`; `align-a.test.sh` to `align-c.test.sh` (with `align-run.sh` and `align.js`); `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | Python suites (`test_*.py`, with `support.py`); browser suites (`ui_*.js`; `ui_inputs.js` with `harness-open.js`), run in parts by `ui-run.sh` through `ui-a.test.sh` to `ui-d.test.sh` as `ui-parts.txt` assigns them; `tracer.test.sh`, `tracer-live.test.sh`; `align-a.test.sh` to `align-c.test.sh` (with `align-run.sh` and `align.js`); `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -1326,8 +1326,8 @@ list before Send, a 3200x1800 screenshot re-encoded to 1600 px, three more picke
 refused, the field and Send report above a keyboard, and a request carrying four pictures and no
 answer, chat, fragment or secret; the desktop owner's Problem item, each picture on its own Show screenshot, Ask Claude about this report (the owner's alone), Seen telling the reporter, and
 Resolved; on a desktop, Help's entry and a
-refused action's "Report this", whose form lists the refusal. `ui_layout.js` also sweeps the form
-with keyboards at 320 to 430 px wide.
+refused action's "Report this", whose form lists the refusal. `ui_layout_keyboard.js` also sweeps
+the form with keyboards at 320 to 430 px wide.
 
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
@@ -1353,6 +1353,8 @@ owner's Session settings set no theme; and the Discussion composer is the commen
 targets, no sideways scroll in Ask Claude on a phone with "Run it on my own Claude" on, the
 answer box right under the question, a guest's first view (goal, the host's ask,
 "Start here: question 1"), the ten person colors against WCAG 2.2 AA, and the phone edit sheet.
+`ui_layout_keyboard.js` checks Ask Claude, Propose a question, Report a problem and the Inbox
+page's request Edit above phone keyboards, and the keyboard's height read while pinch-zoomed.
 `ui_keyboard.js` checks focus traps, Escape, focus return, announcements and the first-visit tour
 (the `tour` pref). `ui_inputs.js` types 2000 characters and pastes a 300-character word into each
 input surface on iPhone and Pixel profiles at keyboard-open heights and on a desktop. `ui_chat.js`

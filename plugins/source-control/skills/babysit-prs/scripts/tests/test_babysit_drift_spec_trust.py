@@ -195,6 +195,9 @@ class FakeGitHub:
                         "actors": [{"id": 100, "login": "human-100", "kind": "human"}],
                     }
                 )
+        team = f"repos/{REPO}/contents/{ve.merge_policy.repo_config.YAML_CONFIG_PATH}?"
+        if any(a.startswith(team) for a in args):
+            return subprocess.CompletedProcess(args, 1, "", "gh: Not Found (HTTP 404)")
         raise AssertionError(f"unexpected gh call: {args}")
 
 

@@ -4,7 +4,7 @@
 # the human-gated role label unless the caller's base-code verdict lifts it,
 # and the activity's labels-absent list. Runs the step's bash with a stub
 # gate-recheck.mjs.
-# test-scope: .github/workflows/pr-run-activity-write.yml .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-run-activity-write.yml scripts/ci-deps/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,7 +15,7 @@ results=$(
   cd "$ROOT" && node --input-type=module - <<'EOF'
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-const require = createRequire(`${process.cwd()}/.github/standards/runner-policy/package.json`);
+const require = createRequire(`${process.cwd()}/scripts/ci-deps/package.json`);
 const YAML = require("yaml");
 
 const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
@@ -80,7 +80,7 @@ for (const gate of ["false", "", "true", "FIX-REQUEST", "lane-escalation-x"]) {
 EOF
 )
 if [[ -z "$results" ]]; then
-  fail "the check printed nothing; is .github/standards/runner-policy installed?"
+  fail "the check printed nothing; is scripts/ci-deps installed?"
 fi
 while IFS=$'\t' read -r verdict text; do
   [[ -n "$verdict" ]] || continue

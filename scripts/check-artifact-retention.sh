@@ -51,10 +51,6 @@
 # read. Each family's row records who reads it and why its length is needed, so
 # a longer retention is a decision with a stated reader, not a default.
 #
-# The work is in check-artifact-retention.mjs beside this file. It parses YAML
-# with the `yaml` package and validates the table with `ajv`, both installed by
-# `npm ci --prefix .github/standards/runner-policy`.
-#
 # Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one `path:line: finding` per offender on stderr, the clean-run
 # statement on stdout. Exit: 0 clean, 1 any finding, 2 usage or environment

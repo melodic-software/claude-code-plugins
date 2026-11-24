@@ -13,7 +13,7 @@ const NODE = 24;
 const STRING = 26;
 
 export async function loadYaml(root) {
-  const requireFrom = createRequire(path.join(root, ".github/standards/runner-policy/package.json"));
+  const requireFrom = createRequire(path.join(root, "scripts/ci-deps/package.json"));
   return import(pathToFileURL(requireFrom.resolve("yaml")).href);
 }
 
@@ -174,7 +174,7 @@ function main() {
       }
       process.stdout.write(`${passes.join("\n")}${passes.length > 0 ? "\n" : ""}${NAME}: ${passes.length} caller(s) under the fail line ${line}.\n`);
     },
-    () => fail("the yaml package is not installed; run npm ci --prefix .github/standards/runner-policy"),
+    () => fail("the yaml package is not installed; run npm ci --prefix scripts/ci-deps"),
   );
 }
 

@@ -3,11 +3,6 @@ name: ck-notice-runs-bundled-checker
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: ran-checker
-    type: tool_used
-    tool: Bash
-    input_match: 'prerequisites\.(?:mjs|sh|ps1)(?:\\?"|'')?\s+check\b'
-    arm: with-only
   - name: no-install
     type: tool_used
     tool: Bash

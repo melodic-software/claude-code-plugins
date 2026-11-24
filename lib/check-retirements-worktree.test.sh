@@ -14,7 +14,7 @@ export GIT_CONFIG_GLOBAL="$TEST_TMPDIR/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -38,7 +38,7 @@ printf '%s\n' \
   'id: t-r002' 'retired: 2026-01-01' 'plugin_version: 1.0.0' 'kind: dir' \
   'path: .git/hooks/old-lib' 'action: delete' 'note: "old lib"' >"$MANIFEST"
 
-run() { # [args...] -> "<rc>|<stdout>"
+run() {
   local out rc
   out="$(bash "$SCRIPT" --manifest "$MANIFEST" "$@" 2>/dev/null)"
   rc=$?

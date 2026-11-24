@@ -43,7 +43,6 @@ import { retryApi } from "../lib/retry-fetch.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
 const STEP_STATES = { pass: "success", fail: "failure" };
-// Strictest first: fail over pass over skipped.
 const rank = (state) => ["failure", "success", null].indexOf(state);
 
 const jobState = (result) => ({ success: "success", failure: "failure" })[result] ?? "error";
@@ -75,13 +74,9 @@ export function plan({ outcome, branch, resolveResult, reportResult, turnCap = n
     ["report-outcome", jobState(reportResult)],
   ]);
   if (outcome.exit === "done") {
-    // A prep step the run never reported fails closed as error; one it
-    // reported `skipped` (prep skips steps a docs-only change does not owe)
-    // posts nothing.
     const reported = new Map();
     for (const step of Array.isArray(outcome.steps) ? outcome.steps : []) {
       if (PREP_STEPS.has(step?.activity) && (STEP_STATES[step?.result] || step?.result === "skipped")) {
-        // A step reported twice keeps its strictest result.
         const state = STEP_STATES[step.result] ?? null;
         if (!reported.has(step.activity) || rank(state) < rank(reported.get(step.activity))) {
           reported.set(step.activity, state);
@@ -121,12 +116,6 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
     }
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const ran = readBranch(dir, issue);
-    // A resumed run that committed nothing has its PR opened from the branch
-    // it resumed, at the tip run-checks checked, so its statuses go on that
-    // tip, under report-outcome's gate: lane.json's resume (rewritable) is
-    // the runner's, a check ran and none failed, and every commit ahead of
-    // the default branch is the lanes App's, and the branch is still at that
-    // tip (one that cannot be read is not). Otherwise none is posted.
     const resume = env.RESUME_BRANCH ?? "";
     const resumed =
       !reuse && !ran && resume !== "" && readBranch(dir, issue, "resume") === resume ? resume : "";
@@ -151,8 +140,6 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
         `::notice title=post-statuses::${branch} holds this run's work and report-outcome did not finish (${env.REPORT_RESULT || "no result"}), so it may have no pull request; while no outcome of this run names it, the issue's next run reuses it and opens one`,
       );
     }
-    // On a reuse, an outcome this run cannot read counts as none, as in
-    // report-outcome: the earlier run's statuses on the branch stand.
     const own = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
     const statuses = plan({
       outcome: reuse && own?.unread ? null : own,

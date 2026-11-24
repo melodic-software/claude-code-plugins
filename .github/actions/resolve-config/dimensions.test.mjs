@@ -72,8 +72,6 @@ for (const [who, id] of [
   });
 }
 
-// models.issue-status's bot-setters widen the Work status field alone: a
-// dimension one of them set still reads as unset, under the live trusted list.
 test("a Size github-actions[bot] or a melodic- App set reads as unset", () => {
   const live = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
   for (const setter of [41898282, 288071998]) {
@@ -98,7 +96,6 @@ test("a field the config does not name is ignored", () => {
   assert.equal(issueDimensions(extra, CONFIG, TRUSTED).size, "small");
 });
 
-// Turn cap = the size's base turns times the complexity factor, rounded up.
 for (const [size, complexity, turns, minutes] of [
   ["small", "low", 40, 20],
   ["small", "high", 80, 20],
@@ -166,8 +163,6 @@ for (const [why, config] of [
   });
 }
 
-// A trusted size-split sub-issue rated with a split size takes
-// split-child-size; nothing else changes.
 test("splitChildDims gives a trusted split child of a split size the split-child size, and leaves everything else", () => {
   const config = { ...CONFIG, "split-child-size": "medium" };
   const large = { size: "large", complexity: "low", uncertainty: "known" };

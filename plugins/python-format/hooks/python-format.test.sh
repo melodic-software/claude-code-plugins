@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/python-format/.claude-plugin/plugin.json plugins/python-format/hooks/hooks.json plugins/python-format/prerequisites.json plugins/python-format/lib/prerequisites.mjs plugins/python-format/lib/git-hooks/install.mjs
-# test-scope: plugins/python-format/git-hooks/adapters.sh plugins/python-format/lib/git-hooks/resolve-tool.sh
+# test-scope: plugins/python-format/git-hooks/adapters.sh plugins/python-format/git-hooks/format.sh plugins/python-format/lib/git-hooks/resolve-tool.sh
 
 set -uo pipefail
 

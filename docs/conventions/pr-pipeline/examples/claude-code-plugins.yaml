@@ -4,8 +4,8 @@ version: 2
 activities:
   simplify:
     skill: code-tidying:batch-simplify
-    args: --unattended            # a lane run has nobody to answer an ask
-    effect: read                  # a skill never holds a write token
+    args: --unattended
+    effect: read
     applied-by:
       patch: apply-patch
     gating: advisory
@@ -14,7 +14,7 @@ activities:
   fix-docs:
     skill: ai-slop:audit
     args: fix
-    effect: read                  # no write token: its change leaves as a patch
+    effect: read
     applied-by:
       patch: apply-patch
     gating: advisory
@@ -22,7 +22,7 @@ activities:
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]
-  apply-patch:                    # pushes a producer's patch as one commit
+  apply-patch:
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
     effect: mutate-branch
@@ -75,29 +75,29 @@ activities:
     inputs: [pr, head-sha]
   resolve-conflicts:
     skill: source-control:pull-request
-    args: conflicts --ci --unattended  # no gates; escalates instead of asking
-    prepare: merge-base           # the runner merges the base tip before the skill
-    effect: read                  # no write token: the resolutions leave as a patch
+    args: conflicts --ci --unattended
+    prepare: merge-base
+    effect: read
     applied-by:
       patch: apply-conflict-patch
-    gating: advisory              # ci-status judges the merged tree
-    reads-untrusted: true         # reads PR head files
+    gating: advisory
+    reads-untrusted: true
     inputs: [pr, base-sha, head-sha]
     applies-when:
-      mergeable: [conflicting]    # a PR that is only behind stays with the merge queue
-      labels-absent: [do-not-merge] # the select job holds needs-human unless another lane escalated
+      mergeable: [conflicting]
+      labels-absent: [do-not-merge]
       draft: [false]
-  apply-conflict-patch:           # commits the merge, with the patch, as one merge commit
+  apply-conflict-patch:
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
     effect: mutate-branch
     gating: advisory
-    reads-untrusted: true         # reads the patch the model wrote
+    reads-untrusted: true
     inputs: [pr, head-sha, base-sha]
     applies-when:
       labels-absent: [do-not-merge]
       draft: [false]
-  report-escalation:              # labels needs-human with a resume key
+  report-escalation:
     script: .github/scripts/pr-unblock/report-escalation.sh
     effect: publish-artifact
     gating: advisory
@@ -119,7 +119,7 @@ activities:
     inputs: [head-sha]
   sweep-comments:
     skill: review:fanout
-    args: --unattended            # a lane run has nobody to approve a check
+    args: --unattended
     effect: read
     gating: advisory
     reads-untrusted: true
@@ -187,8 +187,6 @@ loop:
   review-rounds: 3
   no-progress: 3
 
-# Every skill activity takes default-profile unless a route names another
-# (README.md, Models).
 models:
   profiles:
     standard:
@@ -202,7 +200,6 @@ models:
     claude: review
 
 merge:
-  # off, merge or merge-reviewed (README.md, Merge authority).
   rung: merge
   # The merge authority and, for local-babysit, the login the lane acts as
   # (README.md, Merge authority). local-babysit requires agent-identity.

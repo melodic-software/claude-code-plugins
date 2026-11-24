@@ -201,6 +201,42 @@ export function runFetchBoardsCacheFixture(t) {
   }
 }
 
+export function runFetchBoardsOnce(t, rows, pages) {
+  const dir = mkdtempSync(join(tmpdir(), 'fetch-boards-test-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const fixtureDir = join(dir, 'fixtures')
+  const outDir = join(dir, 'out')
+  const regPath = join(dir, 'benchmarks.json')
+  for (const [relPath, body] of Object.entries(pages)) {
+    mkdirSync(dirname(join(fixtureDir, relPath)), { recursive: true })
+    writeFileSync(join(fixtureDir, relPath), body)
+  }
+  writeFileSync(regPath, JSON.stringify({ version: 1, rows }))
+  const toPosix = (p) => p.replace(/\\/g, '/')
+  const res = spawnSync(
+    'bash',
+    [
+      toPosix(FETCH_BOARDS),
+      '--registry', toPosix(regPath),
+      '--out', toPosix(outDir),
+      '--cache-dir', toPosix(join(dir, 'cache')),
+    ],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        FETCH_DOCS_FIXTURE_DIR: toPosix(fixtureDir),
+        DOCS_CACHE_DIR: toPosix(join(dir, 'cache')),
+        DOCS_CACHE_NOW: String(Math.floor(Date.UTC(2026, 10, 22, 12, 0, 0) / 1000)),
+      },
+    },
+  )
+  return {
+    res,
+    manifest: res.status === 0 ? JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8')) : null,
+  }
+}
+
 export function row(id, overrides = {}) {
   return {
     id,

@@ -52,8 +52,6 @@ mkdir -p "$bin/scripts"
 cp "$base_dir/scripts/sync-shared-copies.sh" "$bin/scripts/"
 cp -R "$base_dir/scripts/lib" "$bin/scripts/lib"
 
-# The copies the base registry lists, as the base script's --print-manifest
-# reports them; a malformed registry row fails the run there.
 manifest=$(cd "$base_dir" && bash "$bin/scripts/sync-shared-copies.sh" --print-manifest)
 declare -A registered=()
 while IFS=$'\t' read -r kind path; do

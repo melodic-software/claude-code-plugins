@@ -30,6 +30,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRUSTED_ACTORS_PATH=".github/standards/trusted-actors/trusted-actors.json"
+TEAM_YAML="docs/conventions/source-control.yaml"
+STANDARDS_TRUSTED_ACTORS="components/trusted-actors/trusted-actors.json"
+PARSER="$SCRIPT_DIR/../../../lib/parse-concern-value.sh"
 
 usage() {
   sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -83,6 +86,39 @@ lanes_app_login_from_settings() {
   jq -r '.issue_status_app_login // "" | strings' <<<"$shown" 2>/dev/null | tr -d '\r' || true
 }
 
+trusted_list() {
+  local host=$1 path=$2 err team found src std sha
+  err=$(mktemp) || return 1
+  team=$(gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$path/contents/$TEAM_YAML" 2>"$err")
+  found=$?
+  if ((found != 0)) && ! grep -q 'HTTP 404' "$err"; then
+    rm -f "$err"
+    return 1
+  fi
+  rm -f "$err"
+  src=""
+  if ((found == 0)); then
+    src=$(printf '%s\n' "$team" | bash "$PARSER" --strict - trusted_actors_source) || return 1
+    src=${src//$'\r'/}
+    [[ -n "$src" ]] || ! grep -Eq '^trusted_actors_source[[:blank:]]*:' <<<"$team" || return 1
+  fi
+  case "$src" in
+  "" | repository)
+    gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$path/contents/$TRUSTED_ACTORS_PATH"
+    ;;
+  standards)
+    std=$(printf '%s\n' "$team" | bash "$PARSER" --strict - standards_repository) || return 1
+    std=${std//$'\r'/}
+    [[ "$std" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || return 1
+    sha=$(gh api --hostname "$host" "repos/$std/git/ref/heads/main" --jq .object.sha) || return 1
+    sha=${sha//$'\r'/}
+    [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || return 1
+    gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$std/contents/$STANDARDS_TRUSTED_ACTORS?ref=$sha"
+    ;;
+  *) return 1 ;;
+  esac
+}
+
 eval_only_hold() {
   local where host path comments events trusted verdict
   where=$(jq -r '.url // "" | capture("^https?://(?<h>[^/]+)/(?<p>[^/]+/[^/]+)/pull/[0-9]+") | [.h, .p] | @tsv' <<<"$facts" 2>/dev/null)
@@ -102,7 +138,7 @@ eval_only_hold() {
     echo "its comments could not be read"
     return 1
   }
-  trusted=$(gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$path/contents/$TRUSTED_ACTORS_PATH") || {
+  trusted=$(trusted_list "$host" "$path") || {
     echo "the trusted-actors list could not be read"
     return 1
   }

@@ -5,6 +5,13 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.31.3] - 2026-11-24
+
+### Fixed
+
+- `do-your-research` renders the fan-out ledger as one table with Claim, Type, Verdict, Source, Source tier, Consensus and Recency columns.
+- `pick-for-the-problem` names all five coupling costs in the reply, including when the research is still to come.
+
 ## [0.31.2] - 2026-11-24
 
 ### Changed

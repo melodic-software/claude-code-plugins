@@ -62,6 +62,8 @@ const SETTINGS_KEYS = new Set([
   'tiebreak',
   'trials_prove',
   'trials_fail',
+  'promotion_audits',
+  'promotion_days',
   'claude',
   'codex',
   'antigravity',
@@ -399,6 +401,7 @@ export function normalizeModels(doc) {
         defaultEffort: null,
         tools: null,
         toolSet: null,
+        readOnlyToolSet: null,
         image: null,
         breaker: { open: false, reason: null, reset_at: null },
         skippedModels: new Set(),
@@ -442,11 +445,12 @@ export function normalizeModels(doc) {
       entry.context_window > 0
         ? entry.context_window
         : null
-    const tools = Array.isArray(entry.tools)
-      ? entry.tools
-          .filter((x) => typeof x === 'string' && x.trim().length > 0)
-          .map((x) => x.trim().toLowerCase())
-      : null
+    const toolList = (raw) =>
+      Array.isArray(raw)
+        ? raw.filter((x) => typeof x === 'string' && x.trim().length > 0).map((x) => x.trim().toLowerCase())
+        : null
+    const tools = toolList(entry.tools)
+    const readOnlyTools = toolList(entry.read_only_tools) ?? tools
     const rawBreaker = entry.breaker && typeof entry.breaker === 'object' && !Array.isArray(entry.breaker)
       ? entry.breaker
       : null
@@ -477,6 +481,7 @@ export function normalizeModels(doc) {
       defaultEffort: typeof entry.default_effort === 'string' ? entry.default_effort : null,
       tools,
       toolSet: tools ? new Set(tools) : null,
+      readOnlyToolSet: readOnlyTools ? new Set(readOnlyTools) : null,
       image: typeof entry.image === 'boolean' ? entry.image : null,
       breaker,
       skippedModels: new Set(),

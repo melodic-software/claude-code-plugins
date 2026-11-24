@@ -3,6 +3,13 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.4] - 2026-11-24
+
+### Fixed
+
+- `codify` names the three outside-source kinds and makes the one recount offer in every report on a person's invocation, an unproven check's included.
+- `codify preferences` gives each contributing `project` value in full and quotes each excerpt.
+
 ## [1.10.3] - 2026-11-24
 
 ### Changed

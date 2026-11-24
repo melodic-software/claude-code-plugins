@@ -73,7 +73,6 @@ export const releasedMarker = (head, recordId) => `<!-- eval-hold-released head=
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-// The lines of `body` outside a fenced code block and a block quote, as written.
 export function* ownLines(body) {
   let fence = "";
   for (const line of String(body ?? "").split(/\r\n|\r|\n/)) {
@@ -94,10 +93,8 @@ export function* ownLines(body) {
   }
 }
 
-// Every capture of `pattern` on a line of its own in `body`.
 export const markers = (body, pattern) => [...ownLines(body)].map((line) => pattern.exec(line)?.[1]).filter((value) => value !== undefined);
 
-// A comment a listed human wrote: a User account by id, not through an App.
 const byHuman = (comment, humans) =>
   comment?.user?.type === "User" && Number.isSafeInteger(comment.user.id) && humans.has(comment.user.id) && comment.performed_via_github_app == null;
 
@@ -170,11 +167,6 @@ export function recordJobRan(answer) {
   return named.length === 1 && named[0].status === "completed" && named[0].conclusion === "success";
 }
 
-/**
- * Whether `comment` is a record that counts for pull request `number`: a
- * listed human's, or a cited run's that `vouched` (run id -> { pr, head })
- * holds for this pull request and the record's head.
- */
 const counts =(comment, humans, vouched, number) => {
   if (byHuman(comment, humans)) {
     return true;
@@ -184,7 +176,6 @@ const counts =(comment, humans, vouched, number) => {
   return run !== undefined && run.pr === number && run.head === markers(comment.body, RECORD)[0];
 };
 
-// The newest `labeled` event of LABEL, as its time, or null.
 export function heldAt(events) {
   const times = (events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === LABEL).map((event) => String(event.created_at ?? ""));
   return times.length === 0 ? null : times.sort().at(-1);
@@ -368,7 +359,6 @@ async function holdEvalGated(github, repo, humans) {
   return counts;
 }
 
-// The comments first; the rest only for a pull request that may release.
 async function readAll(github, repo, number, humans, runsGitHub = github) {
   const base = `/repos/${repo}/issues/${number}`;
   const comments = await paginate(github, `${base}/comments`);
@@ -383,11 +373,6 @@ async function readAll(github, repo, number, humans, runsGitHub = github) {
   return { pull, comments, events, reviews, vouched };
 }
 
-/**
- * The newest RUNS_PER_PULL runs the comments cite, read back, as run id ->
- * { pr, head } for each that vouches. A run that does not read vouches for
- * nothing, so a forged id releases nothing; the next run reads it again.
- */
 async function readRuns(github, repo, comments, defaultBranch) {
   const ids = [...new Set(comments.map(citedRun).filter((id) => id !== null).reverse())].slice(0, RUNS_PER_PULL);
   const vouched = new Map();
@@ -441,7 +426,6 @@ async function readRuns(github, repo, comments, defaultBranch) {
   return vouched;
 }
 
-// Whether the head and the label still stand as decided.
 async function stands(github, repo, number, head) {
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
   return pull?.state === "open" && pull.head?.sha === head && (pull.labels ?? []).some((label) => label?.name === LABEL);

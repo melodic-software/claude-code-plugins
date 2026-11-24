@@ -41,4 +41,3 @@
 91e77fc16f62bc0ce99b36565053636fb4a21d9e  #2135 deliberately reconciled a merge of origin/main; disposition argued in the PR body
 c97fba7b12f8dd61aac0574ee009f8632a2af1df  #7780 deliberately retired the ratification marker that #7725 had wired into pr-merge; the verifier criterion stays
 5cce729c61018f709e9fa5216e639112e7f82daa  #11646 widened #11548's chunk slots from 4 to 12: the lines it rewrote are the slot chains, MAX_CHUNKS, timeouts and chunk patterns; judge steps went from 15 to 39 and every judge-spec step stays
-a6c6f1d74a29177290961ec924837cd522c9435d  #18321 moved #18267's reference helpers from validate-cases.py into the new plugins/evals/scripts/case_skills.py; a cross-file extraction, nothing removed

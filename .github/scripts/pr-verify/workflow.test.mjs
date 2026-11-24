@@ -18,6 +18,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { admits } from "../lib/gate-expression.mjs";
 import { HELD_REASON, HELD_STEP, main, packReads } from "./resolve-pr.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
 const KEY = "check-intent";
@@ -56,6 +57,7 @@ const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/se
 // check-intent's reads, which the subscription job's resolver takes through
 // env only (resolve-pr.mjs takeReads).
 const CARRIED = "          CARRIED: ${{ needs.check-intent.outputs.reads }}";
+const STANDARDS_REF = "          ref: ${{ needs.check-intent.outputs.standards-sha }}";
 const CARRY_ENV = ["          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json", CARRIED];
 const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
 // The key job's credit gate, read inside its credential call: a key it
@@ -547,7 +549,7 @@ test("the subscription job runs only on a clean handoff, an empty key, a key the
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [CARRIED, "          reason: ${{ needs.check-intent.result == 'skipped' && 'no-key' || needs.check-intent.outputs.next-reason }}"],
+    [STANDARDS_REF, CARRIED, "          reason: ${{ needs.check-intent.result == 'skipped' && 'no-key' || needs.check-intent.outputs.next-reason }}"],
   );
   const key = jobText(KEY);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(key)?.[1];
@@ -558,6 +560,7 @@ test("the subscription job runs only on a clean handoff, an empty key, a key the
       "      next-reason: ${{ steps.next.outputs.next-reason }}",
       "      reads: ${{ steps.carry.outputs.reads }}",
       ...WAKE_OUTPUTS,
+      "      standards-sha: ${{ steps.standards.outputs.sha }}",
       "",
     ].join("\n"),
   );
@@ -605,7 +608,7 @@ test("the fallback job runs only on the subscription job's clean handoff, or its
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [CARRIED, "          reason: ${{ needs.check-intent-subscription.outputs.next-reason }}"],
+    [STANDARDS_REF, CARRIED, "          reason: ${{ needs.check-intent-subscription.outputs.next-reason }}"],
   );
 });
 
@@ -739,6 +742,7 @@ test("the subscription and fallback resolvers take check-intent's bundle in its 
       "github.token": "t",
       "github.event.workflow_run.id": "123",
       "needs.check-intent.outputs.reads": bundle,
+      "steps.standards.outputs.path": standardsCheckout(),
     };
     const env = { GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: path.join(dir, "out") };
     const block = /^ {8}env:\n((?: {10}.*\n)+)/m.exec(step("Resolve the pull request", job))[1];
@@ -907,7 +911,7 @@ test("every ci-workflows action tracks main", () => {
 test("the resolver reads the trusted-actor list from main in both jobs", () => {
   for (const job of JOBS) {
     const block = step("Resolve the pull request", job);
-    assert.match(block, /TRUSTED_ACTORS_PATH: \.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json\n/, job);
+    assert.match(block, /TRUSTED_ACTORS_PATH: \$\{\{ steps\.standards\.outputs\.path \}\}\/components\/trusted-actors\/trusted-actors\.json\n/, job);
     assert.match(block, /SPEC_FROM_BODY_APPS=\$\(yq '\.adoption\."spec-from-body-apps" \/\/ \[\] \| \.\[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
     // The issue lane's web hosts, as admission reads them, so a split record holds under the same hosts.
     assert.match(block, /ISSUE_LANE_WEB_HOSTS=\$\(yq -o=json -I=0 '\(\.activities\."resolve-issue"\."web-access" \| select\(\.enabled == true\) \| \.domains\) \/\/ \[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);

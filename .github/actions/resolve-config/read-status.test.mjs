@@ -53,7 +53,6 @@ test("a trusted agent-ready adds the agent-ready label once and drops stale queu
   assert.deepEqual(statusLabels("agent-ready", ["needs-spec"], STATUS_CONFIG), ["needs-spec", "agent-ready"]);
 });
 
-// A field holding what the labels collapse to leaves the collapse as it was.
 test("a field equal to what the labels collapse to leaves their collapse unchanged", () => {
   const sets = [[], ["priority: high"], ["needs-triage"], ["agent-ready"], ["agent-ready", "needs-spec"], ["status: ready", "admission-deferred"], ["status: confirmed", "status: ready"], ["needs-owner-decision"], ["needs-human", "agent-ready"]];
   for (const names of sets) {
@@ -83,8 +82,6 @@ test("an unset field, or one an untrusted account set, leaves the labels to deci
   assert.deepEqual(await reader({ 7: { state: "needs-human", setter: STRANGER_ID } }).labels(7, ["agent-ready"]), ["agent-ready"]);
 });
 
-// The live bot-setters: github-actions[bot] counts for every state but
-// agent-ready, and a third-party bot for none.
 test("a hold github-actions[bot] set is added to the labels; its agent-ready, and a third-party bot's hold, leave the labels", async () => {
   const actionsBot = 41898282;
   assert.deepEqual(await reader({ 7: { state: "needs-human", setter: actionsBot } }).labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
@@ -114,7 +111,6 @@ test("a listed human's hold that claude[bot] then changed is still added to the 
   assert.deepEqual(await labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
 });
 
-// The labels alone could miss a hold that exists only on the field.
 const unreadable = (error) => error instanceof StatusReadError && error.name === "StatusReadError" && error.number === 7;
 
 test("a failed field read throws StatusReadError naming the issue and the cause", async () => {
@@ -253,9 +249,7 @@ test("bot field events before since are dropped, and a person's before it are ke
     label("labeled", "status: ready", appActor, "2026-11-07T13:00:00Z"),
   ];
   assert.deepEqual(await eventsOf([], field, { since: "2026-11-07T12:00:00Z" }), kept);
-  // With no `since`, the config's field-events-since applies.
   assert.deepEqual(await eventsOf([], field, { config: { ...STATUS_CONFIG, "field-events-since": "2026-11-07T12:00:00Z" } }), kept);
-  // A config with no cutoff keeps every field event.
   assert.equal((await eventsOf([], field, { config: { ...STATUS_CONFIG, "field-events-since": undefined } })).length, 5);
 });
 
@@ -285,7 +279,6 @@ test("an issue with only field history and no label event reads its field change
   assert.deepEqual(await eventsOf([], field), [label("labeled", "admission-deferred", appActor, "2026-11-08T09:00:00Z")]);
 });
 
-// statusReader's events(number): one field event read serves labels and events.
 const node = (typename, at, values, actor) => ({ __typename: typename, createdAt: at, ...values, actor, issueField: { fullDatabaseId: FIELD } });
 const historyFields = () => ({
   7: {
@@ -352,7 +345,6 @@ test("reader events whose field history cannot be read throw StatusReadError", a
   await assert.rejects(() => labels.events(7), (error) => unreadable(error) && error.message.endsWith("GraphQL answered 502"));
 });
 
-// fieldStatusSetter over fakes: `answers` is what each status call does in turn.
 function disagreeing(answers) {
   const calls = [];
   let turn = 0;

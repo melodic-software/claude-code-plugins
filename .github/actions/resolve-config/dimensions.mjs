@@ -1,13 +1,9 @@
-// The issue dimensions (models.issue-dimensions): one reader of an issue's
-// Size, Complexity and Uncertainty org issue fields, keyed on field and option
-// ids, and the run budget they set. Pure: the caller fetches the facts.
 import { Rejection } from "./resolve.mjs";
 
 export const DIMENSIONS = ["size", "complexity", "uncertainty"];
 // What a field no trusted account set reads as, so the run proceeds.
 export const UNSET = { size: "small", complexity: "medium", uncertainty: "known" };
 const NOT_ASSESSED = "not-assessed";
-// The only bot whose field values count; any listed human's count too.
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 
 // The account ids whose field values count: the listed humans and the lanes App.
@@ -57,7 +53,6 @@ export function issueDimensions(facts, config, trustedActors) {
   return result;
 }
 
-// The shortest run timeout any size sets, for a run that skips.
 const skipTimeout = (config) =>
   Math.min(...Object.values(config.sizes).filter((size) => size !== "split").map((size) => size["timeout-minutes"]));
 
@@ -91,7 +86,6 @@ export function splitChildDims(dims, config, splitChild) {
   return splitChild === true && size !== undefined && config.sizes[dims.size] === "split" ? { ...dims, size } : dims;
 }
 
-// Each dimension's table of keys.
 const tablesOf = (config) => ({ size: config.sizes, complexity: config.complexity, uncertainty: config.uncertainty });
 
 // The dimensions a pin (dimensionBudget's `pin`) names.

@@ -159,12 +159,14 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
     slice so scoring never parses prose. A restated-fact finding records its `class`,
     `rubric.unanimous`, `rubric.verdict` and `review.verdict`: the relay reads exactly those
     ([`context/persist-findings.md`](context/persist-findings.md)), and a finding missing one is
-    withheld and counted, never relayed.
+    withheld and counted, never relayed. A finding a detector script emitted names its `rule`
+    value in full, as the script printed it (`attribution/audit/rule-stamp-expired`).
 
 11. **Persist the findings file** per
     [`context/persist-findings.md`](context/persist-findings.md) whenever the audit examined
     tracked files. Resolve the producer contract first and refuse to write when it cannot be
-    resolved, reporting report-only as the outcome. Relay-eligible findings only.
+    resolved, reporting report-only as the outcome. Relay-eligible findings only. With files
+    examined and zero relay-eligible findings, still write it, with an empty `## Findings` section.
 
 12. **Recommend, never auto-run.** Report each finding as fix-eligible or report-only by
     [`reference/dispositions.md`](reference/dispositions.md) "Fix eligibility". Recommend the

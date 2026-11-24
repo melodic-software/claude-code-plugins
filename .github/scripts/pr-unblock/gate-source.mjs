@@ -29,8 +29,6 @@ import { escalationActivity } from "./escalation-routes.mjs";
 
 export const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated -->";
 export const RESUME_KEY = /^<!-- pr-unblock resume-key=([0-9a-f]{40}|[0-9a-f]{64}) -->$/;
-// Any escalation marker, of any lane: one that is not a whole ESCALATION
-// comment is unparsable here.
 const ANY_ESCALATION = "<!-- work-items:escalation";
 // address-feedback's round record (publish-feedback.mjs), posted by the lanes
 // App after each round it works on an escalated PR.
@@ -48,19 +46,14 @@ export const SIGNED_COMMITS_HOLD = "<!-- check-signed-commits hold -->";
 // The first line of pr-verify's stop on a withheld fail (verify-notes.mjs
 // holdForCredential, stop-reason.mjs reasonMarker).
 export const CREDENTIAL_HOLD = "<!-- stop-reason lane=pr-verify reason=security -->";
-// report-escalation.sh writes the label, then the comment, retrying the
-// comment for up to 15 seconds; a minute covers that (judgment).
 export const PAIRED_MS = 60_000;
 
 export const lines = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, ""));
 export const same = (a, b) => String(a ?? "").toLowerCase() === String(b).toLowerCase();
 export const isApp = (user, bot) => user?.login === bot && user?.type === "Bot";
-// When a timeline item was last written: created, or edited later.
 const writtenAt = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
-// Written or edited at or after `since`; an unparsable time counts as since.
 const writtenSince = (item, since) => !(writtenAt(item) < since);
 const result = (source, reason) => ({ source, reason });
-// A whole pr-unblock escalation comment's first two lines.
 const isEscalation = (body) => body[0] === ESCALATION && RESUME_KEY.test(body[1] ?? "");
 const lanesAppComments = (timeline, isLanesApp) => timeline.filter((item) => item.event === "commented" && isLanesApp(item.user));
 
@@ -77,9 +70,6 @@ export function laneHold(item) {
 // Issue comments (REST) as timeline items.
 export const commentItems = (comments) => comments.map((comment) => ({ event: "commented", ...comment }));
 
-// The review lanes' accounts: their `labeled` event of the human-gated label
-// is a hold, as ci-status reads one (pr-require-checks.yml, "Fail a review-lane
-// hold an untrusted account lifted").
 const REVIEW_BOTS = ["claude[bot]", "github-actions[bot]"];
 
 // The `human` ids of the base's trusted-actor list, read once. An unreadable
@@ -97,8 +87,6 @@ export function trustedHumans() {
   return trustedHumanIds;
 }
 
-// The item with the newest created_at, whatever the list order; a later item
-// wins a tie, and one whose time does not parse wins over the one kept.
 const newest = (items) =>
   items.reduce((kept, item) => (kept === undefined || !(Date.parse(item.created_at) < Date.parse(kept.created_at)) ? item : kept), undefined);
 
@@ -134,10 +122,6 @@ export function openReviewHold(timeline, lifted, reviewLabeled) {
 // added the label.
 export const holdText = (item) => laneHold(item) ?? `${item.label?.name} added by ${item.actor?.login ?? "an unknown account"}`;
 
-// A github-actions[bot] comment written or edited since the label was last
-// removed (ever, when it never was) whose first line is `marker`. The marker in
-// anyone else's comment is never read; a trusted person removing the label
-// lifts it.
 const openActionsHold = (timeline, lifted, marker) =>
   timeline.find(
     (item) =>
@@ -170,13 +154,8 @@ export function foreignMarker(appComments, since, known) {
     .find((line) => !known(line) && !CLEARED.test(line));
 }
 
-// The hold a review lane, check-signed-commits or pr-verify keeps on a PR at
-// `head`, as gateSource's { source, reason }, or undefined when none is open.
-// These post while the label is already on, so who added it last never
-// decides them; gateSource and sharedCopyGate read them first.
 function openHold(timeline, head, lifted, reviewLabeled) {
   const holds = timeline.filter((item) => laneHold(item) !== undefined);
-  // A lifted hold on an older head holds nothing, whatever its marker says.
   const unparsable = holds.find((item) => !HOLD_LINE.test(laneHold(item)) && (writtenSince(item, lifted) || laneHold(item).includes(`sha=${head}`)));
   if (unparsable !== undefined) {
     return result("unknown", `a review-lane hold marker does not parse: ${laneHold(unparsable).slice(0, 120)}`);
@@ -197,9 +176,6 @@ function openHold(timeline, head, lifted, reviewLabeled) {
   return undefined;
 }
 
-// What gateSource and sharedCopyGate both read first: { gate } when an open
-// hold (openHold's source) or the label's last adder (not the lanes App)
-// decides it, else { since }, when the lanes App last added `label`.
 function labelGate({ timeline, label, head, isLanesApp, trusted }) {
   const { labeled, since, lifted, reviewLabeled } = labelHistory(timeline, label, trusted);
   const held = openHold(timeline, head, lifted, reviewLabeled);
@@ -287,19 +263,12 @@ export function sharedCopyGate(args) {
   return result("shared-copy-refusal", `pr-merge refused head ${head} as shared-copy-sources-changed`);
 }
 
-// The Reason line report-escalation.sh writes into its escalation comment.
 const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
 
 export { escalationActivity, escalationRoute, ROUTES } from "./escalation-routes.mjs";
 
 export const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
-// The aggregate of the others, CI Status, and its ci-status alias: fixing the
-// others fixes them. They also fail on a hold label, so they never stand for
-// the head's CI. A literal, not infra-failure.mjs's AGGREGATE_JOBS: this file
-// also runs from a copy of this directory alone and from a sparse checkout.
 const AGGREGATE_JOBS = new Set(["CI Status", "ci-status"]);
-// A contract-only run skips every lane, and CI Status then carries the last
-// full run's recorded verdict forward, so a skip says nothing about a check.
 const SILENT = new Set(["skipped", "neutral"]);
 const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
 
@@ -325,9 +294,6 @@ export function failingChecks(checkRuns) {
     .sort((a, b) => a.id - b.id);
 }
 
-// A comment's last write: its creation or its last edit, so an old comment
-// edited to say "wait" counts at the edit. A time that does not parse, a
-// missing updated_at included, is NaN, which personSince counts as since.
 const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at));
 
 // When a timeline item was written, and by whom, for a comment or a review
@@ -429,8 +395,6 @@ export async function prHold({ labels, holdLabels, gateLabel, head, activity, ap
   const isLanesApp = (user) => user?.id === appId && user?.type === "Bot";
   const timeline = await readTimeline();
   const allows = (reviewComments, reviews) => laneEscalationAllows({ timeline, reviewComments, reviews, label: gateLabel, head, isLanesApp, activity });
-  // More entries can only hold it, so the timeline is judged alone first and
-  // the review reads are spent only on a PR it does not hold.
   let { allowed, why } = allows([], []);
   if (allowed) {
     let read;

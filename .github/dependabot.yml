@@ -1,6 +1,10 @@
 # Dependabot keeps this repo's dependencies current with pull requests — GitHub-native,
-# no third-party app and no PAT. It covers full-SHA GitHub Actions, the root locked Node CI
-# toolchain, the standards-managed runner-policy dependency root, the hash-locked Python CI
+# no third-party app and no PAT. It covers the GitHub Actions (first-party `melodic-software/*`
+# refs track `@main`, vendor actions `actions/*`, `github/*` and `anthropics/*` use major tags, and
+# other third-party actions stay hash-pinned and move by Dependabot:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0129-reference-first-party-actions-at-main-and-vendor-actions-by-major-tag.md),
+# the root locked Node CI toolchain, the standards-managed runner-policy dependency root, the
+# hash-locked Python CI
 # toolchain, the lockfile-backed npm roots of the resolve-config action and the plugin skills and
 # evals, and the Node MCP servers of the miro and sql-server plugins. The plugin hooks
 # still use each consuming repository's tools; these manifests exist only to make this repository's
@@ -26,15 +30,15 @@ updates:
     # group on `dependencies`; auto-merge keys on fetch-metadata outputs).
     labels:
       - dependencies
-    # Daily so claude-code-action tracks the latest release like the CLI below.
     schedule:
-      interval: daily
+      interval: weekly
     open-pull-requests-limit: 5
     commit-message:
       prefix: build
     # Let a brand-new release settle before proposing it (supply-chain caution); security-advisory
-    # updates bypass cooldown and still surface immediately. claude-code-action is excluded so it
-    # lands as soon as it is released.
+    # updates bypass cooldown and still surface immediately. claude-code-action is excluded from
+    # the cooldown, so its release lands at the next weekly check with no soak:
+    # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#cooldown-
     cooldown:
       default-days: 3
       exclude:
@@ -79,6 +83,22 @@ updates:
   # updates are reviewed and cannot drift behind the materialized component.
   - package-ecosystem: npm
     directory: /.github/standards/runner-policy
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: npm
+    directory: /scripts/ci-deps
     labels:
       - dependencies
     schedule:

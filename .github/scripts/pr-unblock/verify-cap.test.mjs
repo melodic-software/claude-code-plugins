@@ -61,8 +61,6 @@ test("any other refusal is not the cap: the round runs, with a warning naming th
   }
 });
 
-// Gap: an address-feedback round is sent for the FAIL at its head, so every
-// such round warned that the reader refused verify:fail.
 test("a refusal the round expects warns nothing; any other still warns, and the cap still caps", async () => {
   const quiet = reader(answer({ refusal: "verify:fail", detail: `a FAIL at ${HEAD}` }));
   assert.equal(await quiet.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), null);
@@ -75,9 +73,6 @@ test("a refusal the round expects warns nothing; any other still warns, and the 
   assert.equal(await capped.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), `verify:repeated-fail: ${CAPPED}`);
 });
 
-// Gap: the reader's stderr, where its listing misses go
-// (babysit_verify_evidence.py `Reader._incremental`), was dropped, so a
-// round skipped for a listing that outran the limit showed no cause.
 test("the reader's stderr is logged on one line, its listing misses first", async () => {
   const miss = (stage, listed) =>
     `babysit-listing-miss {"base_age_seconds": 900, "fresh": 120, "kept": 10300, "listed": ${listed}, "pages": 2, "stage": "${stage}", "total_count": 10450}`;
@@ -89,7 +84,6 @@ test("the reader's stderr is logged on one line, its listing misses first", asyn
   assert.ok(lines[0].includes(miss("incremental", 10420)) && lines[0].includes(miss("top-up", 10449)), lines[0]);
   assert.ok(!lines[0].includes("babysit-gh-calls"), lines[0]);
 
-  // With no miss, the last line; a timed-out read still logs what it wrote.
   const plain = reader({ ...answer({ refusal: null }), stderr: "first\nlast line\n" });
   await plain.read({ number: 42, head: HEAD, base: BASE });
   assert.deepEqual(plain.lines, ["#42: the verifier reader's stderr: 2 line(s), 0 babysit-listing-miss: last line"]);
@@ -116,10 +110,6 @@ test("a read that fails, does not parse or answers for another head runs the rou
   }
 });
 
-// feedback-dispatch.mjs resolves a same-head FAIL's notes on the reader's own
-// `supersededAtHead` (Evidence.report), from a read at the head only: a
-// missing field (an older reader), any other value, a failed read or an
-// answer for another head is not superseded.
 test("the reader's supersededAtHead reaches the caller only as true from a read at the head", async () => {
   const read = (done) => verifyReader({ GITHUB_REPOSITORY: REPO }, { spawn: () => done, log: () => {} })({ number: 42, head: HEAD, base: BASE });
   assert.deepEqual(await read(answer({ refusal: null, supersededAtHead: true })), { cap: null, supersededAtHead: true, earlierFailHeads: [] });
@@ -155,9 +145,7 @@ test("a verify:earlier-fail refusal names its FAILed heads and warns nothing; a 
     assert.deepEqual(await read(answer({ refusal: EARLIER_FAIL, earlierFails })), { cap: null, supersededAtHead: false, earlierFailHeads: [] }, JSON.stringify(earlierFails));
     assert.match(lines.join("\n"), /^::warning::#42: .*verify:earlier-fail/m);
   }
-  // Another refusal names no head, whatever the report lists.
   assert.deepEqual((await read(answer({ refusal: "verify:fail", earlierFails: [one] }))).earlierFailHeads, []);
-  // The cap reader still answers the cap alone.
   const capRead = verifyCapReader({ GITHUB_REPOSITORY: REPO }, { spawn: () => answer({ refusal: EARLIER_FAIL, earlierFails: [one] }), log: () => {} });
   assert.equal(await capRead({ number: 42, head: HEAD, base: BASE }), null);
 });
@@ -173,23 +161,16 @@ test("without a base commit the reader is not run and the read fails", async () 
   assert.match(lines.join("\n"), /^::warning::#42: no base commit/m);
 });
 
-// Gap: a cap reached only through other pull requests' FAILs is hidden when
-// one of their runs cannot be read. That read skips the round, failing
-// closed, but never records the head as handled.
 test("a sibling FAIL run the reader cannot read skips the round, for this run only", async () => {
   const { read } = reader(answer({ refusal: "verify:unreadable", detail: SIBLING_UNREADABLE }));
   const got = await read({ number: 42, head: HEAD, base: BASE });
   assert.equal(got, `verify:unreadable: ${SIBLING_UNREADABLE}`);
   assert.equal(final(got), false);
   assert.equal(final(`verify:repeated-fail: ${CAPPED}`), true);
-  // Another unreadable answer (the pull request's own run) is not the cap.
   const own = reader(answer({ refusal: "verify:unreadable", detail: "run of pr-verify-42-x-fail" }));
   assert.equal(await own.read({ number: 42, head: HEAD, base: BASE }), null);
 });
 
-// Gap: a listing that does not fit in this caller's 120 s limit returned an
-// exit-0 `verify:unreadable` the round ran past with no word. It hides the
-// cap as a sibling read does, so it skips the round the same way.
 test("a listing that does not fit in the caller's limit skips the round, for this run only, naming why", async () => {
   const detail = `${DEADLINE_UNREADABLE}: repository artifacts: 10450 artifacts in 105 pages need 112 s`;
   const { read, lines } = reader(answer({ refusal: "verify:unreadable", detail }));
@@ -199,8 +180,6 @@ test("a listing that does not fit in the caller's limit skips the round, for thi
   assert.deepEqual(lines, []);
 });
 
-// The dispatchers read one pull request after another: each read after a
-// caller-limit answer must not repeat the 15 s and 30 s waits.
 test("after a caller-limit answer the same reader's later reads skip the waits; before one, and in a new reader, they wait", async () => {
   const NO_WAITS = Object.keys(NO_INCREMENTAL_WAITS)[0];
   const refused = answer({ refusal: "verify:unreadable", detail: `${DEADLINE_UNREADABLE}: repository artifacts` });
@@ -229,10 +208,6 @@ test("a refusal other than the caller limit keeps the waits for later reads", as
   assert.equal(calls[1].env[NO_WAITS], undefined);
 });
 
-// Both dispatchers' FAIL-cap reads take the run cache and head-ref map
-// pr-merge carried, fetched on the job's first FAIL-cap read, not by a step
-// every run pays for, and share one saved listing across every pull request
-// of the job.
 const READER = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
 const readerEnv = (name) => {
   const match = new RegExp(`^${name} = "([A-Z_]+)"$`, "m").exec(READER);
@@ -362,9 +337,6 @@ test("a carry that fails is fetched once, warns, and the reads go on without it"
   assert.match(lines[0], /^::warning::pr-merge's carried reads were not all fetched \(HTTP 502\)/);
 });
 
-// The default carry runs carry-run-cache.mjs as a bounded child, as the step
-// did: here it removes a stale file at its path and stops at the repository
-// name, with no request.
 test("the default carry runs carry-run-cache.mjs with the job's environment, then the read goes on", async () => {
   const dir = tempDir("verify-cap-");
   const path = join(dir, "pr-merge-carried.json");
@@ -398,9 +370,6 @@ test("the sibling and caller-limit details, the FAIL refusal, the listing-miss p
   assert.ok(source.includes(`"${SUPERSEDED_AT_HEAD}": self.superseded_at_head,`));
 });
 
-// babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV: the reader sizes its
-// listing to the limit this caller kills it at, and names the caller when a
-// listing cannot fit, rather than being killed with no reason.
 test("the reader is told the limit it is killed at, and who kills it", async () => {
   const { read, calls } = reader(answer({ refusal: null }));
   await read({ number: 42, head: HEAD, base: BASE });
@@ -436,7 +405,6 @@ test("a request after the reader's read goes out on a live connection, not on on
     const port = await new Promise((resolve) => server.stdout.once("data", (chunk) => resolve(String(chunk).trim())));
     const url = `http://127.0.0.1:${port}/`;
     await (await fetch(url)).json();
-    // Let the first response's socket go back to the pool.
     await new Promise((resolve) => setTimeout(resolve, 100));
     const script = join(tempDir("verify-cap-"), "reader.py");
     writeFileSync(script, `import json, sys, time\ntime.sleep(0.8)\nprint(json.dumps({"head": sys.argv[-1], "refusal": None, "detail": None}))\n`);

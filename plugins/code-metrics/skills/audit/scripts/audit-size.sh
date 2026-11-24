@@ -124,7 +124,25 @@ if [[ -n "$COMMITS_SINCE" ]]; then
   "${PY[@]}" -I "$SCRIPT_DIR/size_commits.py" add --since "$COMMITS_SINCE" "$WORK/report.json" || exit 2
 fi
 if [[ "$CHECK" -eq 1 ]]; then
-  "${PY[@]}" -I "$SCRIPT_DIR/size_check.py" add --config "$CM_CONFIG" "$WORK/report.json"
+  # shellcheck source=../../../scripts/replica-collapse.sh
+  source "$PLUGIN_ROOT/scripts/replica-collapse.sh"
+  REGISTRIES="$(cm_registry_paths "$CM_CONFIG")" || exit 2
+  CHECK_ARGS=()
+  while IFS= read -r registry; do
+    [[ -n "$registry" ]] && CHECK_ARGS+=(--registry "$registry")
+  done <<<"$REGISTRIES"
+  MANIFEST="$("${PY[@]}" -I -c 'import json,sys; print((json.load(open(sys.argv[1])).get("size") or {}).get("copies_manifest") or "")' "$CM_CONFIG")"
+  if [[ -n "$MANIFEST" && ! -f "$MANIFEST" ]]; then
+    TOP="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    if [[ -f "$TOP/$MANIFEST" ]]; then
+      MANIFEST="$TOP/$MANIFEST"
+    else
+      echo "audit-size.sh: size.copies_manifest not found: $MANIFEST" >&2
+      exit 2
+    fi
+  fi
+  [[ -z "$MANIFEST" ]] || CHECK_ARGS+=(--manifest "$MANIFEST")
+  "${PY[@]}" -I "$SCRIPT_DIR/size_check.py" add --config "$CM_CONFIG" ${CHECK_ARGS[@]+"${CHECK_ARGS[@]}"} "$WORK/report.json"
   check_rc=$?
   if [[ $rc -eq 3 && "$RULE" != "report" ]]; then
     echo "audit-size.sh: --check cannot decide: a collector produced nothing parseable (see the run table)" >&2

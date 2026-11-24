@@ -1,6 +1,3 @@
-// A skill leaf's web-access, validated by the real schema and passed through
-// to the selected activity for collect-base-activity. Contract:
-// docs/conventions/pr-pipeline/README.md, "Activities", web-access.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -66,7 +63,6 @@ test("web-access turned off validates with or without domains", () => {
   assert.doesNotThrow(() => selected({ "web-access": { enabled: false, domains: "any" } }));
 });
 
-// Web pages are text anyone can write.
 test("web-access on with reads-untrusted false fails the schema", () => {
   rejected({ "reads-untrusted": false, "web-access": { enabled: true, domains: "any" } });
 });
@@ -81,8 +77,6 @@ for (const domains of ["all", [], ["*"], ["any"], ["code.claude.com,x"], ["Code.
   });
 }
 
-// Only the runner that stages edit tools grants the web, so a read skill that
-// hands on no patch cannot ask for it (README.md, Activities, web-access).
 test("web-access on with no applied-by.patch fails the schema", () => {
   rejected({ "reads-untrusted": true, "web-access": { enabled: true, domains: "any" } }, { handsOnPatch: false });
 });

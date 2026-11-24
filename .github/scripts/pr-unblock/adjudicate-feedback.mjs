@@ -43,30 +43,12 @@ import { claimsSecurity, contractIssues, createGitHubApi, FINDING_STANDS, linked
 
 export { contractIssues };
 
-// The most disputed threads one round adjudicates: pr-unblock.yml runs one
-// model step per slot. A thread past it is not adjudicated, and the round
-// escalates feedback-unadjudicated.
 export const MAX_THREADS = 3;
-// The dispositions that leave a thread open, each one an adjudicator judges
-// on an adjudicable thread instead of a person. Only an INCORRECT reply (the
-// lane asserted, with evidence, that the finding does not hold) can be
-// resolved by a lane verdict; on UNCERTAIN or VALID-defer only a reviewer or
-// human verdict settles it, so a model never closes a thread the lane did not
-// dispute (settleDisputes).
 export const DISPUTED = Object.freeze(["INCORRECT", "UNCERTAIN", "VALID-defer"]);
-// What a resolveAfterReply stand-in returns when the lanes App answered a
-// thread it cannot resolve (a PR it did not open): handled, and still open.
 export const LEFT_OPEN = "left-open";
-// tests-only: the finding asks only that tests or checks CI runs be run;
-// settleDisputes decides it from the head's covering check runs (run.json's
-// `ci`, address-feedback.mjs ciSnapshot), with no model text.
 export const VERDICTS = ["lane", "reviewer", "human", "tests-only"];
 export const QUESTIONS = ["intent", "design", "security"];
-// The questions a quoted contract line may settle: never security, so a
-// security judgment always reaches a person.
 export const CONTRACT_QUESTIONS = ["intent", "design"];
-// The shortest quote that settles a question, so a word or two that happens
-// to appear in the issue settles nothing (judgment), and the longest kept.
 export const QUOTE_MIN = 20;
 const QUOTE_MAX = 2000;
 const ISSUE_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]{0,9}$/;
@@ -74,8 +56,6 @@ const ISSUE_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/iss
 // FINDING_STANDS, which the next address-feedback round reads.
 export const FINDING_ANSWERED = "<!-- pr-unblock adjudicate-feedback: finding-answered -->";
 const FILE_BYTES = 204800;
-// The most cited locations one slot stages from each side: publish-feedback.mjs's
-// LIMITS.evidence, which rejects a reply citing more.
 const EVIDENCE_CAP = 10;
 // Each staged file's suffix, so a cited CLAUDE.md, AGENTS.md or .claude/**
 // file is never at a path Claude Code reads as instructions.
@@ -84,46 +64,17 @@ const PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
 const PATH_LINE = /^([A-Za-z0-9_@+.-]+(?:\/[A-Za-z0-9_@+.-]+)*):([1-9][0-9]{0,6})$/;
 const DOT_SEGMENT = /(^|\/)\.\.?(\/|$)/;
 const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
-// A path:line token in review prose; the path must hold a `/` or a `.`.
 const PROSE_LOCATION = /(?<![\w@+./:-])((?:[\w@+.-]+\/)*[\w@+.-]+):([1-9][0-9]{0,6})(?![\w])/g;
-// A CRITICAL rating anywhere in the comment: any rating-shaped line
-// (SEVERITY_SHAPED), so a bold or trailed one fails closed. Only non-letters
-// may sit before the word, so `severity: not critical` is no match.
 const CRITICAL = new RegExp(`${SEVERITY_SHAPED.source}[^A-Za-z\\n]*critical\\b`, "im");
 export const isCritical = (body) => CRITICAL.test(String(body ?? ""));
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 const safePath = (path) => typeof path === "string" && PATH.test(path) && !DOT_SEGMENT.test(path);
 
-// Whether a thread's comments, tagged as threads.json and keepThreads tag
-// them, hold an adjudication that let the finding stand: the lanes App's
-// comment whose first line is FINDING_STANDS.
 export const stood = (comments) => (comments ?? []).some((comment) => comment.author === "lane" && firstLine(comment.body) === FINDING_STANDS);
 
-// Whether a trusted person's direction is on the thread (threadAuthors tags
-// it): their call outranks an adjudicator's, so such a thread is never
-// adjudicated.
 export const directed = (comments) => (comments ?? []).some((comment) => comment.direction === true);
 
-// Whether an adjudicator may judge a dispute on the thread: a review comment
-// that carries no `severity: CRITICAL` line and that keepThreads tagged with
-// the code-review lane (a github-actions[bot] footer), with no lane (the
-// reviewer bot's own finding: claude[bot] writes its own body, so it names no
-// lane, and it is judged as a code-review finding unless its text claims the
-// security-review lane at a rating a person decides, claimsSecurity), with
-// the security-review lane and a rating below the one a person decides
-// (securityNeedsPerson), or as a listed review bot's (from its account id)
-// whose `security` state is clear: the security-review lane reviewed the head
-// the bot reviewed and holds nothing there or since. The bot's own severity
-// badge decides nothing. A listed bot's finding the lane held goes to a
-// person (feedback-question-security); one the lane has not reviewed yet
-// waits for the next round (settleDisputes). A CRITICAL finding (the
-// code-review lane reports security there too), a security-review finding a
-// person decides (CRITICAL or unrated), a thread a person opened, and a
-// pr-verify verifier note (resolving it leaves the verifier's FAIL holding
-// the merge, and pr-verify judges each head once) are never adjudicated.
 const listedState = (comments) => (comments?.[0]?.listed === true ? comments[0].security ?? "pending" : null);
-// Whether the thread's root is a security-review lane finding rated below the
-// one a person decides.
 const minorSecurity = (comments) => comments?.[0]?.lane === "claude-security-review" && !securityNeedsPerson(comments[0].body);
 export const adjudicable = (comments) => {
   const root = comments?.[0];
@@ -139,14 +90,6 @@ export const adjudicable = (comments) => {
   return root.lane === "claude-review" || minorSecurity(comments);
 };
 
-// Whether a thread no adjudicator judges is a security finding a person
-// decides, like address-feedback.mjs securityThread at the round cap: a
-// security-review finding rated CRITICAL or unrated, the reviewer bot's own
-// finding claiming that (claimsSecurity), a listed bot's finding on a head the
-// security-review lane held or has not reviewed yet, a finding of a lane this
-// does not know, or a thread this round did not keep (fail safe). A
-// code-review lane finding, CRITICAL or not, is not: that lane leaves security
-// to the security-review lane.
 export const securityRoot = (comments) => {
   const root = comments?.[0];
   if (root?.author === undefined) {
@@ -164,8 +107,6 @@ export const securityRoot = (comments) => {
   return root.lane === "claude-security-review" ? securityNeedsPerson(root.body) : root.lane !== "claude-review";
 };
 
-// The security-review lane's first line on an inline comment for a manifest
-// `dependencies` flag (security-review SKILL.md, "Reporting").
 const DEPENDENCIES_FLAG = /^manifest dependencies: flag(,|$)/;
 const PLUGIN_MANIFEST = /^plugins\/([A-Za-z0-9._-]+)\/\.claude-plugin\/plugin\.json$/;
 export const MARKETPLACE = ".claude-plugin/marketplace.json";
@@ -186,11 +127,6 @@ const IN_REPOSITORY = /^\.\/[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
 const INERT_MANIFEST = new Set(["$schema", "name", "displayName", "version", "description", "author", "homepage", "repository", "license", "keywords", "metadata", "userConfig"]);
 const INERT_ENTRY = new Set(["name", "source", "displayName", "version", "description", "author", "homepage", "repository", "license", "keywords", "category", "tags", "relevance", "defaultEnabled"]);
 const RUNS = new Set(["hooks", ".mcp.json", ".lsp.json", "monitors", "bin", "workflows", "settings.json"]);
-// Words of a presence gate, a condition, a fallback or a negation within
-// GUARD_LINES of a cited line: an optional collaborator
-// (docs/plugin-philosophy.md) or no call at all, never a hard require. The
-// list fails closed: a hard require worded with one of these escalates, which
-// a person then settles.
 const GUARDED =
   /\b(install(ed)?|uninstalled|enabled?|disabled|resolves?|available|unavailable|absent|present|missing|exists?|loaded|fallback|falls? back|otherwise|optional(ly)?|never|not|cannot|without|if|when(ever)?|unless|where|whether|once|in case)\b|n['\u2019]t\b/i;
 const GUARD_LINES = 2;
@@ -198,9 +134,6 @@ const GUARD_LINES = 2;
 // commands; an eval case, a changelog or a script is no call site.
 const callSite = (dir, path) => new RegExp(`^plugins/${dir.replace(/\./g, "\\.")}/(skills|agents|commands)/([A-Za-z0-9_@+.-]+/)*[A-Za-z0-9_@+.-]+\\.md$`).test(path) && !/\/evals\//.test(path);
 const firstContentLine = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, "")).find((line) => line.trim() !== "") ?? "";
-// Per line, whether it sits in a `## Next` section: from that heading to the
-// next level-1 or level-2 heading outside a code fence. A successor named
-// there is a human-facing mention, not an operative call (AGENTS.md).
 const nextSection = (lines) => {
   let next = false;
   let fence = false;
@@ -213,19 +146,12 @@ const nextSection = (lines) => {
     return next;
   });
 };
-// Whether line `at` of `lines` invokes `/<dependency>:` at the start of a
-// token, outside a `## Next` section, with no GUARDED word within GUARD_LINES
-// of it. `dependency` is a BARE_NAME, so it holds no regular-expression
-// syntax.
 const unguardedCall = (lines, at, dependency, next = nextSection(lines)) =>
   new RegExp(`(^|[\\s\`(])/${dependency}:`).test(lines[at] ?? "") &&
   !next[at] &&
   !GUARDED.test(lines.slice(Math.max(0, at - GUARD_LINES), at + GUARD_LINES + 1).join("\n"));
 const linesOf = (file) => (typeof file === "string" ? file.split("\n") : []);
 
-// Whether a thread is a security-review lane flag on a plugin manifest's
-// `dependencies`, rated below CRITICAL: the one security-review finding
-// hardRequire may settle without a person (owner decision).
 export const dependencyFlag = (comments, path) => {
   const root = comments?.[0];
   const body = String(root?.body ?? "");
@@ -249,16 +175,11 @@ const parseObject = (text) => {
   }
 };
 
-// The object entries of a marketplace file's `plugins`, none when it does not
-// read.
 const pluginEntries = (text) => {
   const plugins = parseObject(text)?.plugins;
   return Array.isArray(plugins) ? plugins.filter((entry) => entry !== null && typeof entry === "object") : [];
 };
 
-// What the dependency at `dir` adds that Claude Code runs at `ref`, as a
-// clause, or null when it adds nothing: its marketplace `entry`, its manifest
-// and its top-level entries, each held to INERT_ENTRY, INERT_MANIFEST and RUNS.
 async function executable({ ref, read, listTree, entry, dir }) {
   const entryKey = Object.keys(entry ?? {}).find((key) => !INERT_ENTRY.has(key));
   if (entryKey !== undefined) {
@@ -281,21 +202,6 @@ async function executable({ ref, read, listTree, entry, dir }) {
   return ships ? `ships ${dir}/${ships.name}` : null;
 }
 
-// Whether every dependency of the flagged manifest at `sha` is a hard require
-// on a plugin of this repository's marketplace: the flagged plugin is an
-// entry there; each dependency is a bare name of another entry whose source is
-// a path in this repository, and an entry of the marketplace at `baseSha` (the
-// PR's base) with that same source, so the PR that adds the dependency cannot
-// also add the plugin it trusts; that dependency adds nothing Claude Code runs
-// (executable), at the base and the head, since enabling it enables its hooks,
-// servers and monitors for every user of the flagged plugin; and `evidence`
-// (the lane's path:line list) cites, for each one, a line of the flagged
-// plugin's skills, agents or commands that unguardedCall accepts at `sha`, in
-// a file that at `baseSha` already holds such a line, so the call-site
-// evidence is read at both the base and the head and the PR cannot supply it
-// alone. Returns {sites}, the cited line per dependency, or {why}.
-// `getText(path, ref)` reads a file, null when absent; `listTree(ref, dir)`
-// lists a directory's entries, none when it is absent.
 export async function hardRequire({ getText, listTree, sha, baseSha, path, evidence }) {
   if (!SHA.test(String(baseSha ?? ""))) {
     return { why: "the PR's base commit is unknown" };
@@ -346,7 +252,6 @@ export async function hardRequire({ getText, listTree, sha, baseSha, path, evide
       }
     }
     let site = null;
-    // The first cited file whose head line holds up but whose base does not.
     let baseMiss = null;
     for (const cited of evidence) {
       const match = PATH_LINE.exec(cited);
@@ -375,9 +280,6 @@ export async function hardRequire({ getText, listTree, sha, baseSha, path, evide
   return { sites };
 }
 
-// The locations a review comment cites: path:line tokens in its prose and
-// line-numbered permalinks into `repository`, each safe path:line once, at
-// most EVIDENCE_CAP.
 export function reviewerEvidence(body, repository) {
   const text = String(body ?? "");
   const found = [...text.matchAll(PROSE_LOCATION)].filter((match) => /[/.]/.test(match[1])).map((match) => [match.index, match[1], match[2]]);
@@ -411,10 +313,6 @@ function readChecked(path, expected, what) {
   return text;
 }
 
-// The slots to adjudicate: each DISPUTED reply whose thread the select job
-// kept, is adjudicable, no adjudication has stood and no trusted person
-// directed, in reply order, one slot per thread. Returns [{thread, finding,
-// evidence, cited, paths}] and the threads past MAX_THREADS.
 export function disputes(threadFile, repliesText, repository = "") {
   const kept = new Map((threadFile.threads ?? []).map((thread) => [thread.id, thread]));
   const slots = [];
@@ -423,7 +321,6 @@ export function disputes(threadFile, repliesText, repository = "") {
   for (const line of repliesText.split("\n").filter((row) => row.trim() !== "")) {
     const reply = JSON.parse(line);
     const thread = kept.get(reply?.thread);
-    // An INCORRECT reply on a dependencies flag is hardRequire's, never a model's.
     const settledByScript = reply?.disposition === "INCORRECT" && dependencyFlag(thread?.comments, thread?.path);
     if (!DISPUTED.includes(reply?.disposition) || !thread || !THREAD_ID.test(thread.id) || seen.has(thread.id) || settledByScript || !adjudicable(thread.comments) || stood(thread.comments) || directed(thread.comments)) {
       continue;
@@ -470,8 +367,6 @@ export async function prepare({ threadsText, repliesText, headSha, outDir, getTe
       const fits = typeof text === "string" && Buffer.byteLength(text) <= FILE_BYTES;
       let state = typeof text !== "string" ? "absent" : fits ? "present" : "too-large";
       if (fits) {
-        // A path that collides with another staged one (`a` beside `a/b`)
-        // is absent for this slot rather than failing the round.
         try {
           const staged = join(dir, "files", `${path}${STAGED_SUFFIX}`);
           mkdirSync(dirname(staged), { recursive: true });
@@ -493,7 +388,6 @@ export async function prepare({ threadsText, repliesText, headSha, outDir, getTe
   return { count: index.length, over };
 }
 
-// The URL of the staged issue whose text holds `quote` exactly, or null.
 export function quoteSource(quote, issues) {
   if (typeof quote !== "string" || quote.trim().length < QUOTE_MIN) {
     return null;
@@ -504,12 +398,6 @@ export function quoteSource(quote, issues) {
   return typeof issue?.url === "string" && ISSUE_URL.test(issue.url) ? issue.url : null;
 }
 
-// One structured output, held to the schema's closed sets; null otherwise.
-// A lane or reviewer verdict on an intent or design question must carry a
-// quote, the contract line that settles it; any other verdict's quote is
-// dropped. A quote shows the text exists, not that it bears on the finding,
-// so it only keeps a finding standing: a lane verdict on such a question
-// goes to a person.
 export function verdictOf(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -534,9 +422,6 @@ export function verdictOf(value) {
   return verdict === "reviewer" ? { verdict, question, quote } : verdict === "lane" ? { verdict: "human", question } : null;
 }
 
-// A verdict that settles a question by quote, checked against the staged
-// issues: kept with the quote's issue URL when the quote is in them, else
-// the question goes to a person, as with no quote.
 export function checkQuote(verdict, issues) {
   if (verdict?.quote === undefined) {
     return verdict;
@@ -572,9 +457,6 @@ export function collect({ outDir }) {
   return { version: 1, head_sha: index.head_sha, threads };
 }
 
-// verdicts.json as the reply job reads it: thread -> {verdict, question}, for
-// the head the select job read (run.json's head_sha), the code the adjudicator
-// saw. Anything malformed reads as no verdicts.
 export function parseVerdicts(text, headSha) {
   if (text === null) {
     return new Map();
@@ -588,7 +470,6 @@ export function parseVerdicts(text, headSha) {
       file.threads
         .map((entry) => {
           const verdict = verdictOf({ verdict: entry?.verdict, question: entry?.question, ...(entry?.quote === undefined ? {} : { quote: entry.quote }) });
-          // A settling quote counts only with the issue URL collect found it in.
           if (verdict?.quote !== undefined) {
             return [entry.thread, typeof entry.url === "string" && ISSUE_URL.test(entry.url) ? { ...verdict, url: entry.url } : { verdict: "human", question: verdict.question }];
           }
@@ -603,9 +484,6 @@ export function parseVerdicts(text, headSha) {
 
 const evidenceLine = (evidence) => (evidence.length > 0 ? `Evidence: ${evidence.map((ev) => `\`${ev}\``).join(", ")}` : "Evidence: none in the checkout");
 
-// The contract lines that settled a question: the quote, checked to be the
-// linked issue's own text, each line quoted, and the issue it is in. An HTML
-// comment opener is escaped so no quoted line reads as a marker.
 const contractLines = (settled) =>
   settled?.quote === undefined
     ? []
@@ -616,9 +494,6 @@ const contractLines = (settled) =>
         ...settled.quote.split("\n").map((line) => `> ${line.replace(/\r$/, "").replaceAll("<!--", "&lt;!--")}`),
       ];
 
-// The fixed reply for a lane or reviewer verdict; no model text but, on a
-// reviewer verdict, a quote of the linked issue's own text (`settled`, a
-// verdict checkQuote kept).
 export function adjudicationReply(verdict, evidence, headSha, settled) {
   const seen = `A fresh-context adjudicator read the review comment, the locations both sides cited and the code at \`${headSha}\`, without the fixing lane's reasoning,`;
   return verdict === "lane"
@@ -634,8 +509,6 @@ export function adjudicationReply(verdict, evidence, headSha, settled) {
       ].join("\n");
 }
 
-// The fixed reply for a tests-only finding whose covering check runs all
-// passed at `headSha`; no model text.
 export function testsReply(runs, headSha) {
   return [
     FINDING_ANSWERED,
@@ -647,7 +520,6 @@ export function testsReply(runs, headSha) {
   ].join("\n");
 }
 
-// The fixed reply for a dependencies flag hardRequire settled; no model text.
 export function hardRequireReply(path, sites, headSha) {
   return [
     FINDING_ANSWERED,
@@ -659,9 +531,6 @@ export function hardRequireReply(path, sites, headSha) {
   ].join("\n");
 }
 
-// The round's escalation reasons, most urgent first; one round records one.
-// A reason escalation-routes.json holds for a person outranks every reason it
-// routes to a failing status, so a question for a person is never lost.
 const ORDER = [
   "feedback-question-security",
   "feedback-question-intent",
@@ -677,66 +546,12 @@ const ORDER = [
   "",
 ];
 
-// Whether a thread is a pr-verify verifier note (threadAuthors tags it).
 const verifierNote = (comments) => comments?.[0]?.author === "verifier";
 
-// The reply job's skip reason for a round that left a finding standing, or a
-// listed bot's dispute waiting on the security-review lane, with the PR head
-// where the select job read it: no review run may follow to start
-// the round that fixes it, so feedback-dispatch.mjs's sweep dispatches that
-// head again.
 export const FINDING_STANDS_SKIP = "finding-stands";
 
-// publish-feedback.mjs's DISPUTED branch, after the lane's replies posted:
-// - a thread an adjudication stood before (stood) that this round left open
-//   is the cap: feedback-stood-open, and no second adjudication;
-// - a DISPUTED thread a trusted person directed (directed) is theirs:
-//   feedback-disputed, and no adjudication;
-// - a DISPUTED pr-verify verifier note: feedback-verifier-open (pr-verify's
-//   own FAIL holds the merge, and it judges the next head afresh);
-// - a DISPUTED listed review bot's finding the security-review lane held as
-//   CRITICAL: feedback-question-security; one whose head the lane has not
-//   reviewed yet is deferred: no verdict, no escalation, and the round skips
-//   FINDING_STANDS_SKIP as below so the sweep dispatches the head again;
-// - an INCORRECT reply on a dependencyFlag thread: when hardRequire settles
-//   it at the PR head (`headSha`, which headMoved checks before the reply)
-//   against the marketplace and the cited call sites at the PR's base, the fixed hardRequireReply, then the thread is resolved (left open, as LEFT_OPEN,
-//   where the lanes App cannot resolve it), with no verdict and no person;
-//   otherwise it is settled as any other DISPUTED thread below;
-// - any other DISPUTED thread that is not adjudicable (a CRITICAL finding, a
-//   security-review finding rated at or above SECURITY_PERSON_SEVERITY or
-//   with no readable rating, one a person opened, or one the re-read no
-//   longer keeps) is not adjudicated, and any verdict for it is ignored:
-//   feedback-disputed when the reply is INCORRECT, else feedback-uncertain,
-//   each with `-security` (a person) when securityRoot holds, else a session;
-// - a DISPUTED thread with no verdict escalates feedback-unadjudicated;
-// - human: no reply, feedback-question-<intent|design|security>; a question
-//   only the owner answers stays the owner's, except a security question on
-//   a security-review finding rated below SECURITY_PERSON_SEVERITY, which is
-//   feedback-unadjudicated;
-// - lane: on an INCORRECT reply, the fixed reply, then the thread is
-//   resolved (left open, as LEFT_OPEN, where the lanes App cannot resolve
-//   it); on an UNCERTAIN or VALID-defer reply (the lane could not tell,
-//   or agreed the finding holds) no reply, the thread stays open (the
-//   ruleset's thread resolution still holds the merge), and
-//   feedback-unadjudicated;
-// - tests-only, on an UNCERTAIN reply, from `ci` (run.json's, read at the
-//   select job's head), only when this round pushed nothing (`pushed`
-//   false; else feedback-unadjudicated): green, the fixed testsReply, then the thread is
-//   resolved; red, no reply and no escalation, since fix-ci-dispatch.mjs
-//   already starts fix-ci for a head whose lanes failed; anything else (a
-//   covering check pending, missing or skipped, or no record) leaves the
-//   thread open, feedback-unadjudicated; on any other reply,
-//   feedback-unadjudicated;
-// - reviewer: the fixed FINDING_STANDS reply, which the next round reads as
-//   a finding to fix; when the head did not move this round (`pushed`
-//   false) and nothing escalates, the round skips FINDING_STANDS_SKIP.
-// A thread that changed, a moved head or a failed write stops here as
-// feedback-partial. Returns {escalationReason, skipReason}.
 export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudicatedSha, posted, replies, shown, now, verdicts, ci, pushed, headMoved, resolveAfterReply, escalationReason, log }) {
   let stands = false;
-  // A listed bot's dispute the security-review lane has not rated yet: like a
-  // finding that stood, it is left for the next round at this head.
   let deferred = false;
   let reason = escalationReason;
   const raise = (next) => {
@@ -745,11 +560,6 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
     }
   };
   const byThread = new Map(replies.map((reply) => [reply.thread, reply]));
-  // Posts `body` on the thread, and resolves it when `resolve`, only while
-  // neither it nor the PR head changed after the lane's reply. Returns
-  // "posted", "resolved", LEFT_OPEN (posted, and the lanes App cannot resolve
-  // it), "changed" (nothing posted), "open" (posted, then left open) or
-  // "failed" (a write failed, and adjudication stops); the last three log why.
   const answer = async (thread, body, resolve) => {
     try {
       const ids = shown.get(thread).comment_ids;
@@ -784,7 +594,6 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       return "failed";
     }
   };
-  // How a "resolved" or LEFT_OPEN outcome reads in the log.
   const closed = (outcome) => (outcome === LEFT_OPEN ? "left open for the person" : "resolved");
   for (const { thread, disposition } of posted) {
     const comments = now.get(thread)?.comments;
@@ -838,15 +647,10 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
         }
         continue;
       }
-      // Rated below CRITICAL, an unsettled flag is no person's: it took no
-      // adjudicator slot (disputes), so it ends as feedback-unadjudicated.
       log(`${thread}: a dependencies flag hardRequire does not settle (${found.why})`);
     }
     if (!adjudicable(comments)) {
       log(`${thread}: a CRITICAL finding, a security-review finding rated ${SECURITY_PERSON_SEVERITY} or above or unrated, or a person's own thread; it goes to a person, not to an adjudicator`);
-      // A person decides only a security finding (securityRoot) and a thread
-      // this round did not keep (fail safe); a code-review finding, CRITICAL
-      // or not, and a person's own thread go to a session.
       raise(`${disposition === "INCORRECT" ? "feedback-disputed" : "feedback-uncertain"}${securityRoot(comments) ? "-security" : ""}`);
       continue;
     }
@@ -857,9 +661,6 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       continue;
     }
     if (verdict.verdict === "human") {
-      // The security-review lane rated this finding below the one a person
-      // decides, so a security question on it ends the lane in a failing
-      // status, not with a person.
       if (verdict.question === "security" && minorSecurity(comments)) {
         log(`${thread}: the adjudicator found a security question on a finding the security-review lane rated below ${SECURITY_PERSON_SEVERITY}; left open`);
         raise("feedback-unadjudicated");
@@ -875,12 +676,9 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
         log(`${thread}: a tests-only verdict settles only an UNCERTAIN reply, not ${disposition}; left open`);
         raise("feedback-unadjudicated");
       } else if (minorSecurity(comments)) {
-        // Green CI says nothing about whether a security finding holds.
         log(`${thread}: a tests-only verdict does not settle a security-review finding; left open`);
         raise("feedback-unadjudicated");
       } else if (pushed) {
-        // ci is the select job's read of the head before this round's fix
-        // commit, so it proves nothing about the head the thread now sits on.
         log(`${thread}: tests-only, but this round pushed past ${adjudicatedSha}, whose checks were read; left open`);
         raise("feedback-unadjudicated");
       } else if (ci?.state === "red") {
@@ -900,9 +698,6 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       }
       continue;
     }
-    // Only an INCORRECT reply is the lane disputing the finding with
-    // evidence. On UNCERTAIN or VALID-defer a lane verdict alone would let one
-    // model turn close a finding no one disputed, so the thread stays open.
     if (verdict.verdict === "lane" && disposition !== "INCORRECT") {
       log(`${thread}: a lane verdict settles only an INCORRECT reply, not ${disposition}; left open`);
       raise("feedback-unadjudicated");
@@ -932,10 +727,6 @@ export async function main(argv, env, { api, readContract, log = (line) => conso
     if (!SHA.test(env.HEAD_SHA)) {
       throw new Error("HEAD_SHA is not a commit id");
     }
-    // Each read's rate-limit headers go to the job-end api-budget notice.
-    // request-budget.mjs reaches into .github/actions, so it loads here, from
-    // the full base checkout prepare runs in: publish-feedback.mjs imports this
-    // module from a copy of this directory alone.
     const { budgetedFetch } = await import("./request-budget.mjs");
     const client =
       api ??

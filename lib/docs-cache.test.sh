@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for lib/docs-cache.sh (no external test lib; the copies ship with the plugins).
-#
-# Every case runs against a store under this suite's temp directory, never the
-# user's cache. DOCS_CACHE_NOW pins the clock so timestamps are known values.
-#
 # Markdown with backticks must reach the files unexpanded, so single quotes are
 # the correct spelling.
 # shellcheck disable=SC2016
@@ -13,7 +8,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/docs-cache.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export HOME="$TEST_TMPDIR/suite-home" XDG_CONFIG_HOME="$TEST_TMPDIR/suite-config"
 
@@ -35,7 +29,6 @@ assert_eq() {
 
 sha() { sha256sum | cut -d' ' -f1; }
 
-# dc <store> <args...>: the CLI against one store.
 dc() {
   local store="$1"
   shift
@@ -49,30 +42,16 @@ T2=1000000100
 T3=1000086500
 T3_ISO='2001-09-10T01:48:20Z'
 
-# entries_for <store> <key>: how many entry directories the key has.
 entries_for() {
   find "$1/entries" -mindepth 1 -maxdepth 1 -type d -name "${2:0:16}-*" | wc -l | tr -d ' '
 }
-# leftovers <store>: temp names left in the store.
 leftovers() {
   find "$1" -name '.tmp-*' 2>/dev/null | wc -l | tr -d ' '
 }
 
-# The page every map case starts from. Line numbers, hand-counted:
-#  1 intro               (before any heading: no section)
-#  2 # Top
-#  3 top body
-#  4 ## Child A
-#  5 a body
-#  6 ```
-#  7 # not a heading     (inside a fence)
-#  8 ```
-#  9 ## Child B
-# 10 b body
 PAGE="$TEST_TMPDIR/page.md"
 printf '%s\n' 'intro' '# Top' 'top body' '## Child A' 'a body' '```' '# not a heading' '```' '## Child B' 'b body' >"$PAGE"
 
-# --- key: normalized URL plus format ---------------------------------------------
 S="$TEST_TMPDIR/s-key"
 want="$(printf '%s\n%s' 'https://docs.test/docs/en/page.md' markdown | sha)"
 assert_eq "key: sha256 of the normalized URL, a newline and the format" "$want" "$(dc "$S" key "$URL" markdown)"
@@ -81,7 +60,6 @@ assert_eq "key: path case does" 0 "$([[ "$(dc "$S" key 'https://docs.test/docs/e
 assert_eq "key: the format does" 0 "$([[ "$(dc "$S" key "$URL" html-converted)" == "$want" ]] && echo 1 || echo 0)"
 assert_eq "key: reading a key creates no store" 0 "$([[ -e "$S" ]] && echo 1 || echo 0)"
 
-# --- map: fence-aware, own-body hash ---------------------------------------------
 S="$TEST_TMPDIR/s-map"
 h1="$(printf 'top body\n' | sha)"
 h2="$(printf 'a body\n```\n# not a heading\n```\n' | sha)"
@@ -138,7 +116,6 @@ assert_eq "map: CommonMark fences (same char, length >= opener, no info string c
   "$(printf '1\t1\t1\t19\tA\n2\t2\t7\t18\tA > B\n3\t2\t19\t19\tA > C')" \
   "$(dc "$S" map --file "$cm" | cut -f1-4,7)"
 
-# --- slice ----------------------------------------------------------------------
 assert_eq "slice: a section is its heading, body and child sections" "$(sed -n '2,10p' "$PAGE")" "$(dc "$S" slice "$KEY" 1)"
 assert_eq "slice: a leaf section" "$(sed -n '4,8p' "$PAGE")" "$(dc "$S" slice "$KEY" 2)"
 assert_eq "slice: ids print in page order, whatever order they are asked in" "$(
@@ -159,7 +136,6 @@ rc=0
 dc "$S" slice "$KEY" 2>/dev/null || rc=$?
 assert_eq "slice: no id is a usage error" 2 "$rc"
 
-# --- put and info ----------------------------------------------------------------
 info() { DOCS_CACHE_NOW="$2" dc "$1" info "$3"; }
 rec="$(info "$S" $T2 "$KEY")"
 assert_eq "info: the record" \
@@ -176,7 +152,6 @@ rc=0
 out="$(dc "$S" info "$(dc "$S" key https://docs.test/docs/en/other.md markdown)")" || rc=$?
 assert_eq "info: a key with no entry is a miss, exit 1" "1 " "$rc $out"
 
-# --- edge: TTL expiry with unchanged sha ------------------------------------------
 S="$TEST_TMPDIR/s-ttl"
 KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$PAGE")"
 first_entry="$(jq -r .entry <<<"$(info "$S" $T1 "$KEY")")"
@@ -197,11 +172,8 @@ bad="$(find "$S" -mindepth 2 -maxdepth 2 ! -name store_version | sed 's|.*/||' |
 assert_eq "store: every entry and pointer name is 16-hex digest prefixes only" 0 "$bad"
 assert_eq "store: the pointer still names the full key and sha256" "$KEY-$(sha <"$parent")" "$(cut -f1 "$S/keys/${KEY:0:16}")"
 
-# --- edge: two real parallel writer processes --------------------------------------
 other="$TEST_TMPDIR/other.md"
 printf '%s\n' '# Other' 'other body' >"$other"
-# racer <start file> <script args...>: run the script once the start file
-# exists, so two racers start their writes together.
 racer() {
   bash -c 'while [[ ! -e "$1" ]]; do :; done; shift; exec bash "$@"' _ "$@"
 }
@@ -240,12 +212,9 @@ for round in 1 2 3; do
   assert_eq "edge: two real parallel writers with different bytes (round $round): no temp left" 0 "$(leftovers "$S")"
 done
 
-# --- edge: torn-entry read ---------------------------------------------------------
 S="$TEST_TMPDIR/s-torn"
 KEY="$(dc "$S" key "$URL" markdown)"
 PSHA="$(sha <"$PAGE")"
-# A complete copy of the entry still under its temp name, and a pointer naming
-# that entry: a reader must take the bytes from the entry's own name only.
 DOCS_CACHE_NOW=$T1 dc "$TEST_TMPDIR/s-torn-src" put "$URL" markdown "$PAGE" >/dev/null
 mkdir -p "$S/entries" "$S/keys"
 cp -R "$TEST_TMPDIR/s-torn-src/entries/${KEY:0:16}-${PSHA:0:16}" "$S/entries/.tmp-123-456"
@@ -267,7 +236,6 @@ rc=0
 dc "$S" info "$KEY" >/dev/null || rc=$?
 assert_eq "edge: torn-entry read: an empty pointer is a miss" 1 "$rc"
 
-# --- edge: old reader on new store -------------------------------------------------
 S="$TEST_TMPDIR/s-new"
 KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$PAGE")"
 assert_eq "store: the layout version is 2" 2 "$(cat "$S/store_version")"
@@ -285,7 +253,6 @@ assert_eq "edge: old reader on new store: a write goes to its own v2 directory b
 assert_eq "edge: old reader on new store: and reads back from there" "$(sha <"$other")" "$(dc "$S" info "$KEY" | jq -r .sha256)"
 printf '2\n' >"$S/store_version"
 
-# A root holding a version-1 store (64-hex names) does not lock version 2 out.
 S="$TEST_TMPDIR/s-v1"
 v1name="$(printf '%064d-%064d' 1 2)"
 mkdir -p "$S/entries/$v1name" "$S/keys"
@@ -301,7 +268,6 @@ rc=0
 out="$(dc "$S" info "$KEY" 2>&1)" || rc=$?
 assert_eq "edge: old reader on new store: an entry with an unknown store_version is a miss" "1 " "$rc $out"
 
-# --- cache directory resolution ------------------------------------------------------
 H="$TEST_TMPDIR/home"
 mkdir -p "$H"
 env -u DOCS_CACHE_DIR -u XDG_CACHE_HOME HOME="$H" bash "$SCRIPT" put "$URL" markdown "$PAGE" >/dev/null
@@ -314,8 +280,6 @@ DOCS_CACHE_DIR="$TEST_TMPDIR/env-lost" bash "$SCRIPT" --cache-dir "$TEST_TMPDIR/
 assert_eq "dir: --cache-dir wins over DOCS_CACHE_DIR" "1 0" \
   "$([[ -f "$TEST_TMPDIR/flag/store_version" ]] && echo 1 || echo 0) $([[ -e "$TEST_TMPDIR/env-lost" ]] && echo 1 || echo 0)"
 
-# --- title, quarantine and validators ------------------------------------------------
-# lib_run <store> <now> <shell code>: run code with this file's functions sourced.
 lib_run() {
   DOCS_CACHE_NOW="$2" bash -c '. "$1"; dc_set_dir "$2"; eval "$3"' _ "$SCRIPT" "$1" "$3"
 }
@@ -387,10 +351,6 @@ assert_eq "edge: the refusal names the path limit" 1 "$([[ "$err" == *"path too 
 assert_eq "edge: the refused write leaves no entry or temp directory" "0 0" \
   "$(find "$TEST_TMPDIR/s-pathmax" -mindepth 2 -maxdepth 2 -path '*/entries/*' 2>/dev/null | wc -l | tr -d ' ') $(leftovers "$TEST_TMPDIR/s-pathmax")"
 
-# --- edge: a losing rename never nests ----------------------------------------------
-# An entry directory already in place when the rename runs (a racing writer's)
-# must not receive this writer's temp directory inside it. The mv stand-in
-# reports any rename that landed inside an existing directory.
 MVBIN="$TEST_TMPDIR/mvbin"
 mkdir -p "$MVBIN"
 REAL_MV="$(command -v mv)"
@@ -412,10 +372,6 @@ PATH="$MVBIN:$PATH" dc "$S" put "$URL" markdown "$PAGE" >/dev/null 2>&1
 assert_eq "edge: a rename onto an existing entry directory never nests the temp directory" "" "$(cat "$TEST_TMPDIR/mv.log")"
 assert_eq "edge: and leaves no temp directory anywhere" 0 "$(leftovers "$S")"
 
-# --- read, escalation, summaries and notes -------------------------------------------
-# The big page: a top section and seven children. Byte counts, hand-counted:
-# "# Big\n" + "intro\n" is 12, each "## Sk\n" + "body k\n" is 13, so the page is
-# 12 + 7 * 13 = 103 bytes in 8 sections.
 mk_big() {
   local out="$1" i
   shift
@@ -423,7 +379,6 @@ mk_big() {
     printf '# Big\nintro\n'
     for i in 1 2 3 4 5 6 7; do printf '## S%s\nbody %s\n' "$i" "$i"; done
   } >"$out"
-  # Optional edits: sed expressions.
   for i in "$@"; do sed "$i" "$out" >"$out.tmp" && mv "$out.tmp" "$out"; done
 }
 BIG="$TEST_TMPDIR/big.md"
@@ -440,13 +395,10 @@ assert_eq "read: and no page body" 0 "$(grep -c '^body ' <<<"$out")"
 assert_eq "read: with no summary or note it says so" "docs-cache read: no stored summary or unexpired note for this entry." "$(sed -n '10p' <<<"$out")"
 assert_eq "read: the default threshold is 50 KB, so a 103-byte page prints whole" "$(cat "$BIG")" "$(dc "$S" read "$KEY")"
 
-# slice escalation applies to a page over the whole-page threshold.
 esc() { dc "$S" --whole-page-bytes 50 "$@"; }
 err="$TEST_TMPDIR/esc.err"
 assert_eq "escalation: 2 of 8 sections (25%) is not escalated" "$(printf '## S1\nbody 1\n## S2\nbody 2')" "$(esc slice "$KEY" 2 3 2>"$err")"
 assert_eq "escalation: and says nothing on stderr" "" "$(cat "$err")"
-# Section 1 holds the whole 103-byte page, section 2 (13 bytes) inside it: asked
-# together they cover 103 bytes, under a 110-byte limit, not 116.
 dc "$S" --whole-page-bytes 50 --escalate-bytes 110 slice "$KEY" 1 2 >/dev/null 2>"$err"
 assert_eq "escalation: a child asked with its parent is counted once" "" "$(cat "$err")"
 assert_eq "escalation: 3 of 8 sections (over 25%) prints the whole page" "$(cat "$BIG")" "$(esc slice "$KEY" 2 3 4 2>"$err")"
@@ -568,7 +520,6 @@ rc=0
 printf 'It says "body\n1" across a line break.\n' | note "$KEY" --model m --session s --question q --sections 2 >/dev/null 2>&1 || rc=$?
 assert_eq "edge: quote check: a span split across a line break matches the body with the break as a space" 0 "$rc"
 
-# Note expiry follows the cited sections' hashes.
 mk_big "$TEST_TMPDIR/big-outside.md" 's/^body 5$/body 5 edited/'
 DOCS_CACHE_NOW=$T2 dc "$S" put "$URL" markdown "$TEST_TMPDIR/big-outside.md" >/dev/null
 assert_eq "edge: bytes change outside the cited sections: the note survives" 1 "$(dc "$S" note get "$KEY" | grep -c -F "$NOTE_TEXT")"
@@ -591,7 +542,6 @@ dc "$S" summary get "$KEY" 3 >/dev/null 2>&1 || rc=$?
 assert_eq "edge: a cited section changes: its summary is dropped" 1 "$rc"
 assert_eq "edge: the earlier entry, named by <key>-<sha256>, still serves the note" 1 "$(dc "$S" note get "$REF" | grep -c -F "$NOTE_TEXT")"
 
-# A quarantined key serves no note and no summary.
 S="$TEST_TMPDIR/s-removed"
 KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$BIG")"
 printf 'S2 says "body 2".\n' | DOCS_CACHE_NOW=$T1 dc "$S" note put "$KEY" --model m --session s --question q --sections 3 >/dev/null
@@ -608,8 +558,6 @@ assert_eq "edge: page removed or redirected: read withholds notes and summaries 
 rc=0
 printf 'plain\n' | dc "$S" note put "$KEY" --model m --session s --question q --sections 1 >/dev/null 2>&1 || rc=$?
 assert_eq "edge: page removed or redirected: a note on a quarantined key is refused" 2 "$rc"
-# A removal quarantine clears on a later read of the page under the title it had;
-# a retitle quarantine never clears. Notes then follow their cited hashes again.
 mk_big "$TEST_TMPDIR/big-s2.md" 's/^body 2$/body 2 changed/'
 DOCS_CACHE_NOW=$T3 dc "$S" put "$URL" markdown "$TEST_TMPDIR/big-s2.md" >/dev/null
 assert_eq "quarantine cleared: a later read under the recorded title clears a removal quarantine" null \
@@ -629,7 +577,6 @@ lib_run "$S" $T3 'dc_quarantine_reason '"$KEY"' http-404'
 lib_run "$S" $T3 'dc_confirm '"$KEY-$(sha <"$TEST_TMPDIR/big-other.md")" >/dev/null
 assert_eq "quarantine cleared: a confirmation (a 304) of the entry that was current clears a removal quarantine" null \
   "$(info "$S" $T3 "$KEY" | jq -c .quarantine)"
-# A page with no title lifts its removal quarantine when read again with no title.
 S="$TEST_TMPDIR/s-removed-untitled"
 printf '%s\n' 'no heading here' >"$TEST_TMPDIR/untitled.md"
 KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$TEST_TMPDIR/untitled.md")"
@@ -657,8 +604,6 @@ assert_eq "quarantine: a key with no entry is not quarantined" 1 \
     [[ -e "$S/keys/$(dc "$S" key https://docs.test/none markdown | cut -c1-16).quarantine" ]] && echo 0 || echo 1
   )"
 
-# A summary or note needs a section whose own body is non-empty and unique on the page.
-# Sections, hand-numbered: 1 Top, 2 Alpha, 3 A1, 4 Beta, 5 B1; 1, 2 and 4 have no own body.
 S="$TEST_TMPDIR/s-empty"
 printf '%s\n' '# Top' '## Alpha' '### A1' 'a1 body' '## Beta' '### B1' 'b1 body' >"$TEST_TMPDIR/nested.md"
 KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$TEST_TMPDIR/nested.md")"
@@ -673,8 +618,6 @@ DOCS_CACHE_NOW=$T1 dc "$S" summary put "$KEY" 3 'A1 in brief.'
 assert_eq "edge: a non-empty unique section takes a summary, shown on that section only" "summary 3: A1 in brief." \
   "$(dc "$S" --whole-page-bytes 1 read "$KEY" | grep '^summary ')"
 
-# Two sections with the same own body: neither takes a summary or a note, and one
-# written while the body was unique is withheld once another section repeats it.
 S="$TEST_TMPDIR/s-dup"
 printf '%s\n' '# Top' 'intro' '## X' 'same' '## Y' 'other' >"$TEST_TMPDIR/dup1.md"
 printf '%s\n' '# Top' 'intro' '## X' 'same' '## Y' 'same' >"$TEST_TMPDIR/dup2.md"
@@ -694,7 +637,6 @@ rc=0
 printf 'Y says "same".\n' | DOCS_CACHE_NOW=$T2 dc "$S" note put "$KEY" --model m --session s --question q --sections 3 >/dev/null 2>&1 || rc=$?
 assert_eq "edge: duplicate own bodies: a new note is refused, exit 2" 2 "$rc"
 
-# A note file that is not JSON hides only itself, with a warning.
 S="$TEST_TMPDIR/s-badnote"
 KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$BIG")"
 printf 'S2 says "body 2".\n' | DOCS_CACHE_NOW=$T1 dc "$S" note put "$KEY" --model m --session s --question q --sections 3 >/dev/null
@@ -704,7 +646,6 @@ assert_eq "edge: a malformed note file: the valid note is still served" 1 "$(dc 
 assert_eq "edge: a malformed note file: a warning names it" 1 "$(grep -c "^WARNING: docs-cache: skipped a note file that is not one JSON note: .*notes/${KEY:0:16}/0000000000000000$" "$err")"
 assert_eq "edge: a malformed note file: list still lists the valid note" 1 "$(dc "$S" note list "$KEY" 2>/dev/null | grep -c valid)"
 
-# A summary file that is not JSON hides only itself, with a warning.
 DOCS_CACHE_NOW=$T1 dc "$S" summary put "$KEY" 2 'One.'
 DOCS_CACHE_NOW=$T1 dc "$S" summary put "$KEY" 3 'Two.'
 printf 'not json\n' >"$S/summaries/${KEY:0:16}/0000000000000000"
@@ -713,8 +654,6 @@ assert_eq "edge: a malformed summary file: every valid summary is still shown" 2
   "$(dc "$S" --whole-page-bytes 50 read "$KEY" 2>"$err" | grep -c -E '^summary [23]: (One|Two)\.$')"
 assert_eq "edge: a malformed summary file: a warning names it" 1 "$(grep -c "^WARNING: docs-cache: skipped a summary file that is not one JSON summary: .*summaries/${KEY:0:16}/0000000000000000$" "$err")"
 
-# --- prune -----------------------------------------------------------------------------
-# bytes_of <path>...: the bytes of every file under the paths.
 bytes_of() { find "$@" -type f -exec cat {} + | wc -c | tr -d ' '; }
 URL_A='https://docs.test/a.md'
 URL_B='https://docs.test/b.md'
@@ -754,7 +693,6 @@ assert_eq "edge: prune inside the grace window deletes nothing" "0 $before" "$ou
 out="$(DOCS_CACHE_NOW=$((T2 + 301)) dc "$S" --max-bytes 0 prune | grep -c '^evicted.*'"${KB:0:16}" || true)"
 assert_eq "prune: past the grace window the same entries go" 2 "$out"
 
-# A reader holding a resolved pointer: prune runs between its lookup and its read.
 mk_prune_store "$TEST_TMPDIR/s-race"
 got="$(DOCS_CACHE_NOW=$T3 bash -c '. "$1"; dc_set_dir "$2"; dc_lookup "$3" || exit 9
   DOCS_CACHE_NOW=$(($4 + 10)) bash "$1" --cache-dir "$2" --max-bytes 0 prune >/dev/null
@@ -779,7 +717,6 @@ mkdir "$S/prune.lock"
 err="$(DOCS_CACHE_NOW=$((T3 + 400)) dc "$S" --max-bytes 0 --grace 300 prune 2>&1 >/dev/null)"
 assert_eq "prune: a lock with no start time recorded, younger than the grace window, is held" "1 1 1" \
   "$(info "$S" $((T3 + 400)) "$KA" >/dev/null && echo 1 || echo 0) $([[ "$err" == *busy* ]] && echo 1 || echo 0) $([[ -d "$S/prune.lock" ]] && echo 1 || echo 0)"
-# Another prune takes the lock over while this one evicts: this one leaves it.
 mk_prune_store "$TEST_TMPDIR/s-lock3"
 lib_run "$S" $((T3 + 400)) 'eval "orig_$(declare -f dc_rename_dir)"
   dc_rename_dir() {
@@ -795,7 +732,6 @@ lib_run "$S" $((T3 + 400)) 'eval "orig_$(declare -f dc_rename_dir)"
   DC_CFG_size_cap_bytes=0 DC_CFG_prune_grace_seconds=0
   dc_prune >/dev/null'
 assert_eq "prune: a prune releases only a lock it owns" other "$(cat "$S/prune.lock/owner" 2>/dev/null)"
-# A writer points a key at an entry prune is evicting: the entry stays.
 mk_prune_store "$TEST_TMPDIR/s-repoint"
 old="$KA-$(sha <"$PAGE")"
 lib_run "$S" $T3 'eval "orig_$(declare -f dc_rename_dir)"
@@ -813,8 +749,6 @@ assert_eq "edge: prune racing a writer that re-points a key at the entry being e
   DOCS_CACHE_NOW=$T3 dc "$S" info "$KA" >/dev/null 2>&1 || rc=$?
   echo "$rc"
 )"
-# A writer stores the same bytes again once prune has renamed the key's current
-# entry away: it places a new entry at the same path and rewrites the pointer.
 mk_prune_store "$TEST_TMPDIR/s-restore"
 cur_b="$(sha <"$other")"
 lib_run "$S" $T3 'eval "orig_$(declare -f dc_rename_dir)"
@@ -831,7 +765,6 @@ assert_eq "edge: prune racing a writer that stores the evicted entry's bytes aga
   DOCS_CACHE_NOW=$((T3 + 1)) dc "$S" info "$KB" >/dev/null 2>&1 || rc=$?
   echo "$rc $(leftovers "$S")"
 )"
-# Another prune takes the lock over just as this one releases it: this one leaves it.
 mk_prune_store "$TEST_TMPDIR/s-lock5"
 lib_run "$S" $((T3 + 400)) 'eval "orig_$(declare -f dc_rename_dir)"
   dc_rename_dir() {
@@ -847,14 +780,11 @@ lib_run "$S" $((T3 + 400)) 'eval "orig_$(declare -f dc_rename_dir)"
   dc_prune >/dev/null'
 assert_eq "prune: a lock another prune took over during the release is put back, not deleted" other \
   "$(cat "$S/prune.lock/owner" 2>/dev/null)"
-# A lock with no start time, left by a release cut short, is taken over once its
-# directory is older than the grace window.
 mk_prune_store "$TEST_TMPDIR/s-lock4"
 mkdir "$S/prune.lock" && touch -d "@$T1" "$S/prune.lock"
 DOCS_CACHE_NOW=$((T3 + 400)) dc "$S" --max-bytes 0 --grace 300 prune >/dev/null 2>&1
 assert_eq "prune: a lock with no start time older than the grace window is taken over, and released after" "1 0" \
   "$(dc "$S" info "$KA" >/dev/null 2>&1 && echo 0 || echo 1) $([[ -e "$S/prune.lock" ]] && echo 1 || echo 0)"
-# An entry that cannot be renamed away stays readable through its key.
 mk_prune_store "$TEST_TMPDIR/s-pinned"
 cur_b="$(sha <"$other")"
 lib_run "$S" $T3 'eval "orig_$(declare -f dc_rename_dir)"
@@ -869,8 +799,6 @@ assert_eq "edge: prune failing to rename an entry away: its key still reads it" 
   DOCS_CACHE_NOW=$T3 dc "$S" info "$KB" >/dev/null 2>&1 || rc=$?
   echo "$rc"
 )"
-# Temp items left by a writer or an eviction cut short count toward the cap; one
-# older than the grace window goes first, a younger one is never touched.
 mk_prune_store "$TEST_TMPDIR/s-temp"
 cap="$(bytes_of "$S/entries" "$S/summaries" "$S/notes")"
 mkdir "$S/entries/.tmp-evict-1-2" && cp "$PAGE" "$S/entries/.tmp-evict-1-2/body" && touch -d "@$T1" "$S/entries/.tmp-evict-1-2"
@@ -880,8 +808,6 @@ assert_eq "prune: a temp directory older than the grace window counts toward the
 mkdir "$S/entries/.tmp-3-4" && cp "$PAGE" "$S/entries/.tmp-3-4/body"
 DOCS_CACHE_NOW=$T3 dc "$S" --max-bytes 0 --grace 300 prune >/dev/null
 assert_eq "edge: prune leaves a temp directory younger than the grace window" 1 "$([[ -f "$S/entries/.tmp-3-4/body" ]] && echo 1 || echo 0)"
-# Every prune, under the cap too, removes temp items older than the grace window
-# from the store root, entries/, keys/ and each key's summaries/ and notes/.
 mk_prune_store "$TEST_TMPDIR/s-temp-sweep"
 stale=("$S/.tmp-ref-1-2" "$S/.tmp-version-1-2" "$S/keys/.tmp-${KA:0:16}-1-2" "$S/summaries/${KA:0:16}/.tmp-1-2" "$S/notes/${KA:0:16}/.tmp-1-2")
 young=("$S/.tmp-unlock-3-4" "$S/keys/.tmp-${KB:0:16}-3-4")
@@ -895,8 +821,6 @@ for f in "${stale[@]}"; do [[ ! -e "$f" ]] || n_stale=$((n_stale + 1)); done
 for f in "${young[@]}"; do [[ ! -e "$f" ]] || n_young=$((n_young + 1)); done
 assert_eq "prune: under the cap, stale temp items go everywhere in the store and younger ones stay" "0 2 0 0" \
   "$n_stale $n_young $(info "$S" $T3 "$KA" >/dev/null && echo 0 || echo 1) $(info "$S" $T3 "$KB" >/dev/null && echo 0 || echo 1)"
-# A prune's grace-window reference file stays out of the store, so a concurrent
-# prune never sweeps it as a stale temp item.
 mk_prune_store "$TEST_TMPDIR/s-ref"
 mkdir "$S/prune.lock" && touch -d "@$T1" "$S/prune.lock"
 printf 'x\n' >"$S/.tmp-1-2" && touch -d "@$T1" "$S/.tmp-1-2"
@@ -906,7 +830,6 @@ lib_run "$S" $T3 'find() { command find "$DC_DIR" -name ".tmp-ref-*" >>"'"$TEST_
   dc_prune >/dev/null'
 assert_eq "edge: prune never makes a reference file inside the store" "0 0" \
   "$(wc -l <"$TEST_TMPDIR/refs.log" | tr -d ' ') $([[ -e "$S/.tmp-1-2" ]] && echo 1 || echo 0)"
-# Under the cap, a prune that only sweeps temp items ranks nothing.
 mk_prune_store "$TEST_TMPDIR/s-temp-only"
 printf 'x\n' >"$S/.tmp-1-2" && touch -d "@$T1" "$S/.tmp-1-2"
 : >"$TEST_TMPDIR/ranked.log"
@@ -917,7 +840,6 @@ assert_eq "prune: under the cap with only a stale temp item, prune removes it an
   "$(printf 'evicted\ttemp\t.tmp-1-2\t2') 0 0 0" \
   "$(grep '^evicted' <<<"$out") $(wc -l <"$TEST_TMPDIR/ranked.log" | tr -d ' ') $(info "$S" $T3 "$KA" >/dev/null && echo 0 || echo 1) $(info "$S" $T3 "$KB" >/dev/null && echo 0 || echo 1)"
 
-# Every write prunes.
 S="$TEST_TMPDIR/s-autoprune"
 KA="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL_A" markdown "$PAGE")"
 KB="$(DOCS_CACHE_NOW=$T3 dc "$S" --max-bytes 1 put "$URL_B" markdown "$other")"
@@ -932,18 +854,12 @@ assert_eq "prune: a write prunes the store: the old key goes, the one just writt
     echo "$rc"
   )"
 
-# --- configuration layers --------------------------------------------------------------
-# Each key resolves on its own: a flag, then its DOCS_CACHE_* variable, then the
-# machine file, then the bundled default. Every expected value is a bundled default
-# the contract states or a value the case itself writes.
 CFG_HOME="$TEST_TMPDIR/cfg-home"
 CFG_XDG="$TEST_TMPDIR/cfg-xdg"
 CFG_FILE="$CFG_XDG/claude-docs-cache/config.json"
 CFG_CACHE="$TEST_TMPDIR/cfg-cache"
 mkdir -p "${CFG_FILE%/*}" "$CFG_HOME"
-# cfg <VAR=value>... <command...>: run with this section's config and cache homes.
 cfg() { env HOME="$CFG_HOME" XDG_CONFIG_HOME="$CFG_XDG" XDG_CACHE_HOME="$CFG_CACHE" "$@"; }
-# cfg_get <key> [VAR=value]... [flag value]...: that key's line from `config`.
 cfg_get() {
   local key="$1" envs=()
   shift
@@ -979,7 +895,6 @@ assert_eq "config: a flag wins over the variable and the file" "whole_page_bytes
   "$(cfg_get whole_page_bytes DOCS_CACHE_WHOLE_PAGE_BYTES=200 --whole-page-bytes 300)"
 assert_eq "config: an empty variable is unset" "whole_page_bytes=100 layer=file" "$(cfg_get whole_page_bytes DOCS_CACHE_WHOLE_PAGE_BYTES=)"
 
-# Every key from each layer: key, variable, value; flag, value.
 for row in "cache_dir DOCS_CACHE_DIR $TEST_TMPDIR/env-dir --cache-dir $TEST_TMPDIR/flag-dir" \
   "ttl_seconds DOCS_CACHE_TTL_SECONDS 11 - -" \
   "whole_page_bytes DOCS_CACHE_WHOLE_PAGE_BYTES 12 --whole-page-bytes 22" \
@@ -1009,7 +924,6 @@ renderer=firecrawl layer=file"
 assert_eq "config: the file sets every key" "$want" "$(cfg bash "$SCRIPT" config | grep 'layer=')"
 assert_eq "config: the file was read" "file: $CFG_FILE (read)" "$(cfg bash "$SCRIPT" config | grep '^file: ')"
 
-# The resolved values are the ones the commands use.
 S="$TEST_TMPDIR/s-cfg"
 KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$BIG")"
 printf '%s\n' '{"whole_page_bytes": 50, "size_cap_bytes": 12345}' >"$CFG_FILE"
@@ -1030,7 +944,6 @@ assert_eq "config: without XDG_CONFIG_HOME the file is \$HOME/.config/claude-doc
 assert_eq "config: XDG_CONFIG_HOME moves it" "ttl_seconds=43 layer=file" "$(cfg_get ttl_seconds)"
 rm -rf "$CFG_HOME/.config"
 
-# A malformed file resolves as absent, with a warning, never a failure.
 for body in '{"ttl_seconds": 5' '[{"ttl_seconds": 5}]' '' '{"ttl_seconds": 5} {"ttl_seconds": 6}'; do
   printf '%s' "$body" >"$CFG_FILE"
   rc=0
@@ -1045,7 +958,6 @@ assert_eq "config: malformed file: another command still runs and warns on stder
   "$rc $(grep -c "^WARNING: docs-cache config: $CFG_FILE" <<<"$err")"
 assert_eq "config: a malformed file does not hide a variable" "ttl_seconds=9 layer=env" "$(cfg_get ttl_seconds DOCS_CACHE_TTL_SECONDS=9)"
 
-# A bad value falls to the next layer, with a warning.
 printf '%s\n' '{"whole_page_bytes": "big", "escalate_bytes": 2.5, "size_cap_bytes": -1, "cache_enabled": "no", "cache_dir": 7, "ttl_seconds": 5}' >"$CFG_FILE"
 out="$(cfg bash "$SCRIPT" config 2>/dev/null)"
 want="cache_dir=$CFG_CACHE/claude-docs-cache layer=default
@@ -1099,7 +1011,6 @@ rc=0
 err="$(cfg bash "$SCRIPT" --whole-page-bytes 010 config 2>&1 >/dev/null)" || rc=$?
 assert_eq "config: a flag with a leading zero exits 2" "2 1" "$rc $(grep -c '^ERROR: --whole-page-bytes needs ' <<<"$err")"
 
-# An unknown key is inert: config reports it; nothing else notices.
 printf '%s\n' '{"shade": "blue", "ttl_seconds": 5}' >"$CFG_FILE"
 out="$(cfg bash "$SCRIPT" config)"
 assert_eq "config: an unknown key is reported as ignored, outside the layer lines" "ignored: shade (unknown key in the file)" \
@@ -1109,7 +1020,6 @@ assert_eq "config: an unknown key adds no layer line" 10 "$(grep -c 'layer=' <<<
 assert_eq "config: an unknown key warns nothing on other commands" "" "$(cfg bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
 rm -f "$CFG_FILE"
 
-# --- usage --------------------------------------------------------------------------
 rc=0
 bash "$SCRIPT" --cache-dir "$TEST_TMPDIR/u" nope >/dev/null 2>&1 || rc=$?
 assert_eq "usage: an unknown command exits 2" 2 "$rc"
