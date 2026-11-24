@@ -25,6 +25,8 @@ export TMPDIR="$TMP"
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-silent-revert.sh"
+FENCE3=$'\x60\x60\x60'
+FENCE4=$'\x60\x60\x60\x60'
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
@@ -703,7 +705,7 @@ t_markdown_after_a_nested_fence_still_fires() {
   mk_repo repo
   {
     printf '# Guide\n\n## Usage\n\nan intro line under usage that stays where it is\n\n'
-    printf '````markdown\n```bash\n\n# configure the alpha guard before the first run\n```\n````\n\n'
+    printf '%smarkdown\n%sbash\n\n# configure the alpha guard before the first run\n%s\n%s\n\n' "$FENCE4" "$FENCE3" "$FENCE3" "$FENCE4"
     guard_lines ''
     printf '\n## Next section\n\nnext section text that also moves along\n'
   } >"$repo/doc.md"
@@ -784,7 +786,7 @@ t_function_moved_into_a_disabled_heredoc_still_fires() {
 
 t_markdown_section_moved_into_a_wrapper_still_fires() {
   local repo culprit wrapper
-  for wrapper in '<!--|-->' '```markdown|```'; do
+  for wrapper in '<!--|-->' "${FENCE3}markdown|${FENCE3}"; do
     mk_repo repo
     add_md_section "$repo"
     culprit="$(git -C "$repo" rev-parse HEAD)"
