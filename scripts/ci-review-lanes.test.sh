@@ -850,7 +850,6 @@ else
   fail "could not list the tags of a throwaway repository with git ls-remote"
 fi
 mkdir -p "$TMP_ROOT/dep-config/docs/conventions"
-cp -R "$TMP_ROOT/base-config/.github" "$TMP_ROOT/dep-config/"
 printf 'merge:\n  dependabot:\n    trusted-action-owners:\n      - anthropics\n' >"$TMP_ROOT/dep-config/docs/conventions/pr-pipeline.yaml"
 WF=.github/workflows/pr-review-hosted.yml
 CCA_OLD="anthropics/claude-code-action@$SHA_OLD # v1.0.265"
