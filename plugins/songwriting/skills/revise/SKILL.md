@@ -55,7 +55,7 @@ No action → route on completion stage (partway draft → `demo`; near-complete
 
 ## Handlers
 
-- Name the dominant problem; offer one focused revision. Do not list every issue.
+- Name the dominant problem; offer one focused revision, which `rewrite` makes. Do not list every issue.
 - Audit boxes are tools, not gates: present each as a deliberate choice point, pass/fail/skip. A
   writer may skip any box, but a skip names a reason; silent skips are not OK.
 - The rubric's passes are **not** skippable: they are the writer's standing rule for every
