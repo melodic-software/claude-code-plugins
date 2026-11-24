@@ -15,7 +15,6 @@ describe("parseBoundaryLine", () => {
   });
 
   it("parses h:mm:ss stamps, as written from YouTube chapter times", () => {
-    // 59:00 = 3540 s; 1:05:30 = 3600 + 300 + 30 = 3930 s
     expect(parseBoundaryLine("[59:00] a → [1:05:30] b")).toEqual({
       startSec: 3540,
       endSec: 3930,
@@ -23,7 +22,6 @@ describe("parseBoundaryLine", () => {
   });
 
   it("keeps minutes unbounded in m:ss stamps, as transcripts write them", () => {
-    // 75:30 = 4500 + 30 = 4530 s
     expect(parseBoundaryLine("[75:30] a")).toEqual({ startSec: 4530, endSec: null });
   });
 });

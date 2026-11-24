@@ -238,8 +238,6 @@ describe("visionGatedPromote", () => {
       ctx.skip();
     }
 
-    // promoteKeyFrames creates the lane directory after the containment check and before the
-    // copy, so swapping the frame there lands in exactly that window.
     const realMkdir = fsp.mkdir.bind(fsp);
     let swapped = false;
     const spy = vi.spyOn(fsp, "mkdir").mockImplementation(async (...args) => {

@@ -1,7 +1,3 @@
-/**
- * Frame selection summary — dynamic coverage, no hard truncation.
- */
-
 import { scoreFramePriority } from "./densification.js";
 import { toSelectedFrame } from "./read-policy.js";
 import { compareTimesUntimedLast } from "./timestamp-interleave.js";

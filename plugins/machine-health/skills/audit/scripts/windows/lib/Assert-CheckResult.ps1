@@ -108,8 +108,6 @@ function Assert-CheckResult {
         }
     }
 
-    # Enforce trend's additionalProperties:false here so a stray key (for example
-    # last_severity) fails loudly instead of silently diverging from the schema.
     $trend = $fields['trend']
     if ($null -ne $trend) {
         $allowedTrendKeys = @('last_run', 'delta', 'adjusted_from')
