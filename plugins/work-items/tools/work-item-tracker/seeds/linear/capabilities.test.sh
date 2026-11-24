@@ -33,10 +33,6 @@ source "$TESTS_LIB"
 S="$SCRIPT_DIR/capabilities.sh"
 MANIFEST="$SCRIPT_DIR/capabilities.json"
 
-# --- the verb ---
-# capabilities is deliberately pre-network and config-free: the core reads it to decide
-# whether any other verb is attempted, so it must succeed before a credential or host
-# is configured. These cases run with no binding in sight and must still pass.
 out="$(bash "$S" --help 2>/dev/null)"
 assert_eq "--help exit 0" "0" "$?"
 assert_contains "--help mentions the manifest" "$out" "capabilities.json"
@@ -59,12 +55,8 @@ assert_eq "the verb emits the manifest's provider" "linear" "$(jq -r '.provider'
 assert_eq "declares a MAJOR.MINOR schema_version" "true" \
   "$(jq -r '.schema_version | test("^[0-9]+\\.[0-9]+$")' <<<"$out")"
 
-# capabilities itself must be true, or the core could not read the manifest to learn
-# anything about this adapter at all.
 assert_eq "capabilities is declared true" "true" "$(jq -r '.verbs["capabilities"]' <<<"$out")"
 
-# Every verb of the adapter surface is present and boolean — a missing key reads as
-# false at the gate, silently disabling a verb the adapter may actually implement.
 for v in create-item get-item claim renew-lease release reclaim link-blocks add-sub-item \
   list-items list-sub-items capabilities; do
   assert_eq "verbs[\"$v\"] is boolean" "boolean" "$(jq -r --arg v "$v" '.verbs[$v] | type' <<<"$out")"

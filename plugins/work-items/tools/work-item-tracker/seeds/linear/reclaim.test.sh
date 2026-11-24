@@ -30,10 +30,6 @@ assert_usage_error "$S" "linear:acme/ENG#12" extra
 lin_fixture_init
 trap 'rm -rf "$LIN_FIX"' EXIT
 
-# seed_reclaim <lease-nodes> <activity-nodes> [assignee-display-name]
-# The comments query answers three times over a full reclaim: the initial read, the
-# activity check, and the revalidation. Seeding the same set for all three models the
-# common no-concurrency case.
 seed_reclaim() {
   local nodes="$1" activity="$2" assignee="${3:-kyle}"
   lin_reset
@@ -72,8 +68,6 @@ assert_contains "the lease is superseded" "$(lin_bodies)" "superseded_at"
 assert_contains "the holder is unassigned" "$(lin_requests)" "issueUpdate"
 assert_contains "an explanatory comment is posted" "$(lin_bodies)" "Reclaimed:"
 
-# --- an expired lease WITH activity is renewed, not reclaimed ---
-# The holder is demonstrably still working; taking the item would interrupt them.
 ACTIVITY="$(jq -cn --arg t "$RECENT" '[{body: "still working on this", createdAt: $t}]')"
 seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" "$ACTIVITY"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
@@ -86,23 +80,17 @@ else
   pass "an active holder is not unassigned"
 fi
 
-# A LEASE comment does not count as activity. If it did, every renewal would count as
-# activity and the lease would never expire — the item would be held forever.
 LEASE_ONLY_ACTIVITY="$(jq -cn --arg b "$(lin_lease_body "$HANDLE" kyle "$RECENT" 24)" --arg t "$RECENT" \
   '[{body: $b, createdAt: $t}]')"
 seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" "$LEASE_ONLY_ACTIVITY"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "a lease comment is not activity → reclaimed" "true" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 
-# A comment OLDER than renewed_at is not activity either — it predates the lease.
 OLD_ACTIVITY="$(jq -cn '[{body: "from before the claim", createdAt: "1998-01-01T00:00:00Z"}]')"
 seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" "$OLD_ACTIVITY"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "a pre-lease comment is not activity → reclaimed" "true" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 
-# --- a co-assignee is NOT stripped ---
-# Someone else in the assignee slot took the item after this lease expired. Clearing it
-# would strip a LIVE claim and hand the item back to the frontier while they work it.
 seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" '[]' "someone-else"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "expired lease, different assignee → exit 0" "0" "$rc"
@@ -110,10 +98,6 @@ assert_eq "still reclaimed (the lease is released)" "true" "$(jq -r '.reclaimed'
 UNASSIGNED="$(lin_bodies | jq -rs '[.[] | select(.query | test("issueUpdate")) | .variables.input.assigneeId] | length')"
 assert_eq "the other assignee is left in place" "0" "$UNASSIGNED"
 
-# --- the revalidation window ---
-# The activity read round-trips, so a concurrent claimer can renew or supersede in
-# between. Revalidation before the mutation narrows that window: here the lease comes
-# back LIVE on the third read, and reclaim declines.
 lin_reset
 lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
 lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
@@ -127,11 +111,6 @@ assert_eq "a lease renewed under us → exit 0" "0" "$rc"
 assert_eq "and is NOT reclaimed" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 assert_contains "reason names the change" "$(jq -r '.reason' <<<"$(lin_out)")" "changed"
 
-# A concurrent claimer does NOT renew this lease — it posts its own, under a different
-# handle, and wins its own arbitration without ever touching this expired one. So the
-# handle-keyed re-read above still finds our lease present, un-superseded and expired,
-# and every check on it passes. Only looking for a live lease we do not hold catches it.
-# Left uncaught, reclaim supersedes and then unassigns the rival mid-work.
 RIVAL_HANDLE=1787227200999
 lin_reset
 lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
@@ -142,7 +121,6 @@ RIVAL_LIVE="$(jq -cn --arg b "$(lin_lease_body "$RIVAL_HANDLE" rival "$NOW" 24)"
   '[{id: "uuid-comment-rival", body: $b, createdAt: "2026-08-20T12:30:00.000Z"}]')"
 BOTH="$(jq -cn --argjson a "$MINE_EXPIRED" --argjson b "$RIVAL_LIVE" '$a + $b')"
 lin_comments "$MINE_EXPIRED" '[]' "$BOTH"
-# The re-fetched issue shows the rival holding the assignment, not the original holder.
 lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
   '{issues: {nodes: [($i | .assignee = {displayName: "rival", email: "r@example.invalid"})]}}')"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
@@ -160,8 +138,6 @@ lin_data 'commentCreate' '{"commentCreate":{"success":true,"comment":{"id":"uuid
 lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
 EXPIRED="$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
 RECENT_TALK="$(jq -cn --arg t "$NOW" '[{id: "uuid-c-late", body: "still on this", createdAt: $t}]')"
-# 1: initial lease read. 2-3: the activity check, whose recent comment is on page TWO.
-# 4: the revalidation read.
 lin_comments_page "$EXPIRED" false
 lin_comments_page '[]' true "cursor-1"
 lin_comments_page "$RECENT_TALK" false

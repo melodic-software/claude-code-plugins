@@ -193,8 +193,6 @@ top="$(git -C "${CHECK_DATA_ROOT:-$tools}" rev-parse --show-toplevel 2>/dev/null
 cd "$top" || exit 2
 
 if ((uncommitted)); then
-  # The scratch repository has no remote, so the base is fetched and resolved
-  # to a commit here, and the inner run gets that commit and --no-fetch.
   if [[ -z "$base" ]]; then
     base=HEAD
   elif ((fetch)) && [[ "$base" == */* ]]; then
@@ -224,8 +222,6 @@ if ((uncommitted)); then
   done < <(git ls-files -z --modified --others --exclude-standard)
   if ((${#paths[@]})); then
     printf '%s\0' "${paths[@]}" | git add -A --pathspec-from-file=- --pathspec-file-nul || exit 2
-    # An issue lane's patch is committed by apply-patch, which makes each new
-    # or changed .sh or #! file executable, so the snapshot does the same.
     if [[ ${CHECK_AFFECTED_SCRIPT_EXEC_BIT:-} == 1 ]]; then
       for f in "${paths[@]}"; do
         [[ -f "$f" && ! -L "$f" ]] || continue
@@ -234,7 +230,6 @@ if ((uncommitted)); then
     fi
   fi
   tree="$(git write-tree)" || exit 2
-  # No edits: the snapshot is HEAD itself, so a clean tree is HEAD at its base.
   if [[ "$tree" == "$(git rev-parse "HEAD^{tree}")" ]]; then
     commit="$(git rev-parse HEAD)" || exit 2
   else
@@ -270,8 +265,6 @@ if [[ "$(pwd -P)" != "$tools" ]]; then
   # uvx would otherwise read a uv.toml or [tool.uv] index from the checked tree.
   export UV_NO_CONFIG=1
 else
-  # It names this tree, so it says nothing; the test suites build fixture
-  # repositories, and an inherited one would point them back here.
   unset CHECK_DATA_ROOT
 fi
 
@@ -282,8 +275,6 @@ trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "
 
 skip() { skipped+=("$1 ($2)"); }
 
-# fail_check <name> <exit> <reproduce-command>: records the failure with the
-# last lines of $out.
 fail_check() {
   failed+=("$1")
   {
@@ -310,8 +301,6 @@ run_check() {
   esac
 }
 
-# A remote-tracking base is refreshed first, so the stale-base check compares
-# against the tip a merge would land on. A failed fetch skips that check only.
 fetched=1
 [[ -z "${CHECK_AFFECTED_FETCH_FAILED-}" ]] || fetched=0
 if ((fetch)) && [[ "$base" == */* ]]; then
@@ -330,8 +319,6 @@ merge_base="$(git merge-base HEAD "$base" 2>/dev/null)" || {
   echo "check-affected: cannot compute the merge-base of HEAD and $base" >&2
   exit 2
 }
-# Deleted paths still select their plugin for validate-plugins, as in CI; the
-# file linters get only paths that exist.
 if ! all_raw="$(git diff --name-only "$merge_base" HEAD)" ||
   ! changed_raw="$(git diff --name-only --diff-filter=d "$merge_base" HEAD)"; then
   echo "check-affected: git diff against $merge_base failed" >&2
@@ -339,8 +326,6 @@ if ! all_raw="$(git diff --name-only "$merge_base" HEAD)" ||
 fi
 mapfile -t changed <<<"$changed_raw"
 [[ -n "${changed[0]-}" ]] || changed=()
-# Nothing changed is a pass only when HEAD is the base; otherwise the run read
-# the wrong tree or range, and passing would check nothing.
 if [[ -z "$all_raw" && "$(git rev-list --count "$base...HEAD")" != 0 ]]; then
   echo "check-affected: no changed files in $top since $merge_base, yet HEAD is not $base_name, so nothing would be checked. Run the check-affected.sh inside the tree you mean to check, or name that tree in CHECK_DATA_ROOT." >&2
   exit 2
@@ -713,7 +698,6 @@ machine_paths_check() {
       ;;
     esac
   done
-  # A finding outranks a scan that could not run, so one never hides the other.
   if ((found)); then
     echo "Use portable placeholders (<repo-root>, <user>) or relative paths, or mark the line machine-path:allow."
     return 1
@@ -755,9 +739,6 @@ else
   skip lint-full "no $lf in this repository"
 fi
 
-# A file added to, changed in or removed from a plugin can make a cluster of
-# byte-identical copies across plugins that the registry does not list, or
-# leave a listed one drifted or stale.
 if ((drift_touched)); then
   run_check cross-plugin-source-drift "scripts/check-cross-plugin-source-drift.sh --check" \
     "$tools/scripts/check-cross-plugin-source-drift.sh" --check
@@ -768,8 +749,6 @@ fi
 run_check plugin-imports "scripts/check-plugin-imports.sh" \
   "$tools/scripts/check-plugin-imports.sh"
 
-# The generator writes the READMEs, so a copy's older generator fails a branch
-# that changes it and regenerates them.
 if ((foreign)) && grep -qx scripts/sync-plugin-options-docs.py <<<"$all_raw"; then
   skip plugin-options-docs "the branch changes the generator; CI runs the branch's copy"
 else
@@ -791,9 +770,6 @@ run_check changelog-parity \
   "scripts/check-changelog-parity.sh --check; CHANGELOG_PARITY_COLLISIONS=advisory scripts/check-changelog-parity.sh --check-bump $base; scripts/check-changelog-parity.sh --check-preserved $base; scripts/check-changelog-parity.sh --check-order" \
   parity
 
-# The slow checks (a plugin validation, a skill-quality run, the suites) run only
-# when every check above passed: a static finding is already a failed run, and
-# its report should not wait minutes on them.
 halt=${#failed[@]}
 halt_why="a static check failed above"
 
@@ -819,11 +795,9 @@ elif ((!skill_touched)); then
 elif ((foreign)); then
   skip changed-skills "runs the checked tree's own skill-quality code"
 elif ((run_tests)); then
-  # A skill's script tests are suites too, so the budget's deadline ends them.
   run_check changed-skills "scripts/check-changed-skills.sh $base" \
     env PLUGIN_TEST_DEADLINE="$deadline" "$tools/scripts/check-changed-skills.sh" "$base"
 else
-  # The lint tier leaves each skill's scripts/*.test.sh to --tests and CI's test lanes.
   run_check changed-skills "CHECK_SKILL_SKIP_SCRIPT_TESTS=1 scripts/check-changed-skills.sh $base" \
     env CHECK_SKILL_SKIP_SCRIPT_TESTS=1 "$tools/scripts/check-changed-skills.sh" "$base"
 fi
@@ -833,10 +807,6 @@ if ((run_tests && halt)); then
 elif ((run_tests && foreign && !snapshot)); then
   skip tests "runs the checked tree's own test code"
 elif ((run_tests)); then
-  # Suites load the locked npm packages, which a fresh worktree lacks or a
-  # lockfile change leaves stale, so setup-env installs them first; it skips a
-  # current install. A failed install fails the run and runs no suite; one that
-  # could not run (npm or nice missing) is a SKIP, and the suites still run.
   npm_failed=0
   rc=0
   bash "$tools/scripts/setup-env.sh" --node --root "$tools" >"$out" 2>&1 || rc=$?
@@ -866,9 +836,6 @@ elif ((run_tests)); then
       left+=("$1")
       echo "SKIP $1 (past the ${budget}s budget, left to CI)"
     }
-    # Suites run only when the data tree is this tree, so CHECK_DATA_ROOT adds nothing here, and a suite
-    # that inherits it points its checkers at the real tree instead of its fixtures.
-    # A suite that passes on a loaded host but runs past its share is a warning here.
     env -u CHECK_DATA_ROOT PLUGIN_TEST_SHARE_WARN_ONLY=1 PLUGIN_TEST_DEADLINE="$deadline" PLUGIN_TEST_LEFT_FILE="$out.left" \
       "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --budget "$budget" --base "$base" --write-not-run "$out.not-run" || rc=$?
     if [[ -s "$out.left" ]]; then
@@ -914,7 +881,6 @@ elif ((run_tests)); then
     if [[ -n "$missing" ]]; then
       unrun+=("${node[@]}")
     else
-      # One package at a time, so the budget can end the run between two.
       for pkg in ${pkgs[@]+"${pkgs[@]}"}; do
         [[ -n "${pkg_suites[$pkg]-}" ]] || continue
         printf -v now '%(%s)T' -1
@@ -923,7 +889,6 @@ elif ((run_tests)); then
           continue
         fi
         printf '%s' "${pkg_suites[$pkg]}" >"$out.node" || return 2
-        # A failure outranks a package that could not run, so one never hides the other.
         rc=0
         bash "$tools/scripts/run-outside-node-suites.sh" --paths "$out.node" || rc=$?
         ((rc == 0 || node_rc == 1)) || node_rc=$rc

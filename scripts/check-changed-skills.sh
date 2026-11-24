@@ -125,8 +125,6 @@ if [[ -f lib/view-registry.mjs ]]; then
   ((medium_lists <= 1)) || exit 2
 fi
 
-# Recorded evals-warrant skips. Missing file = no skips (tests, other repos).
-# A stale row is a gate failure so the list can only shrink.
 EXEMPTIONS="${EVALS_WARRANT_EXEMPTIONS:-scripts/evals-warrant-exemptions.txt}"
 evals_skip_dirs=()
 declare -A evals_skip=()
@@ -142,9 +140,6 @@ if [[ -f "$EXEMPTIONS" ]]; then
       exit 2
     fi
     evals_skip["$raw"]=1
-    # A row still doing its job names a live skill that ships no evals; anything
-    # else is an exemption outliving what it excuses. scripts/lib/read-list.sh
-    # owns the consumed-set and the diagnostic.
     if [[ ! -f "$raw/SKILL.md" ]]; then
       read_list::stale_line "$EXEMPTIONS" "$raw" 'names a skill that is gone'
       evals_stale=1
@@ -175,8 +170,6 @@ changed_files::into changed_paths "$BASE" --include-deleted -- 'plugins/' || exi
 # A lane run's edits are uncommitted, so a skill it adds is untracked, which
 # git diff does not list.
 declare -A untracked=()
-# Every temp file lives in this one directory, whose trap is set before any
-# write, so an early exit leaves nothing behind.
 out_dir="$(mktemp -d)" || exit 2
 trap 'rm -rf "$out_dir"' EXIT
 if ((lane)); then
@@ -201,9 +194,6 @@ for path in ${changed_paths[@]+"${changed_paths[@]}"}; do
   [[ "${rest%%/*}" == "skills" ]] || continue
   rest="${rest#skills/}"
   skill="${rest%%/*}"
-  # `skill == rest` means nothing follows the skill directory, so the path IS
-  # the directory rather than a file inside it — the trailing `/.*` the regex
-  # required.
   [[ -n "$skill" && "$skill" != "$rest" ]] || continue
   dir="plugins/$plugin/skills/$skill"
   [[ -z "${seen_dirs[$dir]:-}" ]] || continue
@@ -215,21 +205,14 @@ checked=0
 failed=0
 left=0
 
-# ONE CHECKER PER CORE. Each skill is checked on its own, so the checks run
-# CHECK_CHANGED_SKILLS_JOBS at a time (default: the core count) and each one's
-# output is captured and printed whole, in the order the skills were found, so
-# the log reads exactly as a serial run's. A marketplace-wide change checked
-# the skills one at a time for up to six minutes.
 jobs_max="${CHECK_CHANGED_SKILLS_JOBS:-$(nproc 2>/dev/null || echo 1)}"
 [[ "$jobs_max" =~ ^[1-9][0-9]*$ ]] || jobs_max=1
 keys=()
 
 for skill_dir in ${changed[@]+"${changed[@]}"}; do
-  # A deletion/rename-away leaves no SKILL.md in the tree — not a regression to
-  # gate (and the checker would FAIL "not found"). Skip those.
   [[ -f "$skill_dir/SKILL.md" ]] || continue
-  skills_root="${skill_dir%/*}" # plugins/<plugin>/skills
-  skill_name="${skill_dir##*/}" # <skill>
+  skills_root="${skill_dir%/*}"
+  skill_name="${skill_dir##*/}"
   checked=$((checked + 1))
   printf -v key '%06d' "$checked"
   keys+=("$key")
