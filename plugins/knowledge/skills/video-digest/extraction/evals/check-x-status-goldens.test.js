@@ -1,14 +1,3 @@
-/**
- * Offline CI eval gate for the X source adapter's golden fixture
- * (`evals/fixtures/x-status-goldens.json`, skill-level): drives the REAL
- * acquisition path against the fixture-defined yt-dlp pass outputs on a real
- * temp working directory and asserts the goldens — 0..N result shape, the
- * slice-key pair, and the source:* provenance fields (counts, snowflake
- * aliasing, blocked delegations) exactly as they persist into watch state
- * through `sourceMetadataSubset`. Pins the X golden behavior so later
- * refactors cannot silently regress it.
- */
-
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -107,15 +96,11 @@ describe("x status golden eval fixture", () => {
           expect(entry.metadataPath, goldenCase.name).toContain(".info.json");
         }
 
-        // Slice-key pair: metadata.id is the media discriminator; the slice
-        // key stays the URL's status id regardless of it.
         expect(envelope.metadata.id, goldenCase.name).toBe(expected.metadataId);
         expect(adapter.extractSliceKey(goldens.canonicalUrl, envelope.metadata), goldenCase.name).toBe(
           goldens.sliceKey,
         );
 
-        // Persisted provenance: exactly what watch state stores via
-        // sourceMetadataSubset must carry the golden source:* fields.
         const persisted = sourceMetadataSubset(envelope.metadata);
         expect(persisted, goldenCase.name).toMatchObject(expected.persistedSourceMetadata);
         if (expected.aliasingRecorded) {

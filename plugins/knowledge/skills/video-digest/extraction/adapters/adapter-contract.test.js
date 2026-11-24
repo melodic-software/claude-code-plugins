@@ -234,8 +234,6 @@ describe("validateAdapter", () => {
     badStrategy.transcriptStrategy = "telepathy";
     expect(validateAdapter(badStrategy).some((v) => v.includes("transcriptStrategy"))).toBe(true);
 
-    // captionClass is CONSUMED by the shared caption ladder, so the contract
-    // rejects classes the ladder does not understand.
     const badCaptionClass = validSpec();
     badCaptionClass.captionClass = "hand-transcribed";
     expect(validateAdapter(badCaptionClass).some((v) => v.includes("captionClass"))).toBe(true);

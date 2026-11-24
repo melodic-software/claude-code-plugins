@@ -154,8 +154,6 @@ async function processLesson(module, lesson, ctx) {
     stats,
   } = ctx;
 
-  // Keep these joins above the skip guard: they throw on a malformed course.json
-  // entry, which must abort the run rather than be counted as skipped.
   const lessonDir = join(modulesDir, module.slug, lessonDirName(lesson.position, lesson.title));
   const transcriptPath = join(lessonDir, "transcript.md");
 
