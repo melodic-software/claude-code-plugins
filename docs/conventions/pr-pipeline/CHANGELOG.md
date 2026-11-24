@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [12.9.0] - 2026-11-24
+
+### Added
+
+- pr-verify's verdict records `trusted_actors_blob`, the git blob id of the standards trusted-actor list the run judged with, which the merge gate compares with the live list. The resolver (`specChanged`) and the lost-run reconciler (`prefilterSpec`) count a pass that started before the committer time of the newest standards commit touching that list, at the run's standards SHA, as `spec-changed`, so the head is judged again; a change to any other standards file is not one. That time is one commits API read a run.
+
+### Fixed
+
+- Both activity runners run a script activity at the path `collect-base-activity`'s new `script-path` output names, not a staging layout of their own. The action loads from the base tip at job time while a dispatched run keeps its dispatch-time runner workflow, so a layout change merged mid-run made the runner exec a path the action no longer staged and failed the activity check unretryably.
+
 ## [12.8.4] - 2026-11-24
 
 ### Fixed
