@@ -126,7 +126,7 @@ Judge in this order:
    uncovered.
 3. Safety. Look for secrets or machine-specific data, a check, permission or guard weakened
    beyond what the spec asks for, and unsafe handling of untrusted input. Read a change to the
-   takeover set with extra care: the trusted-actor list (`.github/standards/trusted-actors/`), the
+   takeover set with extra care: the
    `check-trusted-trigger`, `check-kill-switch`, `request-lane-token` and `resolve-config` actions
    under `.github/actions/`, a `CODEOWNERS` file, and `.gitmodules` or a submodule. Touching one
    is not a defect by itself. It is a takeover risk when it lets an account, App or code outside

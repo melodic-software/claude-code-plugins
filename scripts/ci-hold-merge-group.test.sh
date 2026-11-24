@@ -121,7 +121,7 @@ fi
 # The lanes App's bot account the variable names, merge.agent-identity's
 # trusted-actor id, and another automation's.
 identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
-LANES="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")" DEPENDABOT=49699333
+LANES="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json")" DEPENDABOT=49699333
 [[ "$LANES" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES'"
 
 SHA=0123456789abcdef0123456789abcdef01234567
@@ -148,8 +148,7 @@ expect() {
   else
     printf 'merge:\n  lane-prs: native\n' >"$config/docs/conventions/pr-pipeline.yaml"
   fi
-  mkdir -p "$config/.github/standards/trusted-actors" "$config/.github/scripts/pr-merge"
-  printf '%s\n' "$ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  mkdir -p "$config/.github/scripts/pr-merge"
   printf '%s\n' "${STUB_ACTORS:-$ACTORS}" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
   # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
   # none with STUB_NO_MODULE.

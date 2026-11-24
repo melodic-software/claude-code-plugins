@@ -23,11 +23,10 @@ effort, turn budget) and the App token grant. The config's contract is the
 | `applied-by-supported` | empty | The `applied-by` keys this runner hands on, comma- or space-separated; `pr-run-activity-read.yml` passes `patch` |
 | `github-token` | `${{ github.token }}` | Read-only; used only when a predicate needs the PR's labels, draft state, mergeability or changed files |
 
-It reads, all under `base-path`: the config, `docs/conventions/pr-pipeline/pr-pipeline.schema.json`
-and `.github/standards/github-actions-conventions/vocabulary.json`. With `standards-path` set, it
-reads the vocabulary and the trusted-actor list from `components/github-actions-conventions/` and
-`components/trusted-actors/` under that checkout instead; a path there that resolves outside it is
-an error, as under `base-path`. The lane rules
+It reads the config and `docs/conventions/pr-pipeline/pr-pipeline.schema.json` under `base-path`,
+and the vocabulary and the trusted-actor list from `components/github-actions-conventions/` and
+`components/trusted-actors/` under `standards-path`; a path that resolves outside its checkout is
+an error. Without `standards-path` the vocabulary is missing, so it rejects the config. The lane rules
 ([`lane-rules.json`](lane-rules.json)), per-leaf rules ([`activity-rules.json`](activity-rules.json))
 effect grants ([`effect-grants.json`](effect-grants.json)) and patch rules
 ([`patch-rules.json`](patch-rules.json), validated by

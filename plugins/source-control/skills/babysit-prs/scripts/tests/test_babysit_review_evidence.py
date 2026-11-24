@@ -862,7 +862,8 @@ class ReadOnlyWorkflowTests(Base):
         vocabulary = json.loads(
             (
                 pathlib.Path(__file__).resolve().parents[6]
-                / ".github/standards/github-actions-conventions/vocabulary.json"
+                / ".github/scripts/lib/fixtures/standards/components"
+                / "github-actions-conventions/vocabulary.json"
             ).read_text(encoding="utf-8")
         )
         self.assertEqual(ev.WORKFLOW_NAME_WORDS, vocabulary["displayWords"])

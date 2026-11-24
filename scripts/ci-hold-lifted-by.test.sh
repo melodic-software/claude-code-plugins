@@ -101,8 +101,7 @@ expect() {
   local label="$1" want_rc="$2" out rc config="$TMP_ROOT/base-config" standards="$TMP_ROOT/stub-standards"
   : >"$TMP_ROOT/log"
   rm -rf "$config" "$standards" "$TMP_ROOT/pr-reads"
-  mkdir -p "$config/.github/standards/trusted-actors" "$standards/components/trusted-actors"
-  printf '%s\n' "$ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  mkdir -p "$config" "$standards/components/trusted-actors"
   printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$standards/components/trusted-actors/trusted-actors.json"
   # The base commit's clear-escalations.mjs, stubbed: its recheckStaleHold
   # records what it was given and answers STUB_PREDICATE (pass, else the hold

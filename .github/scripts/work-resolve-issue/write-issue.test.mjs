@@ -10,6 +10,7 @@ import { splitChildHeader } from "../intake-triage/size-split.mjs";
 import { MAX_OTHER_COMMENTS, main } from "./write-issue.mjs";
 import { recordBody } from "../lib/admission-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { standardsAt } from "../lib/trusted-actors.fixtures.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..", "..", "..");
@@ -119,12 +120,14 @@ function fakeGitHub({ comments: posted, edits = {}, issueEdits = {}, users = {},
 
 let dir;
 let list;
+let standards;
 beforeEach(() => {
   dir = tempDir("write-issue-");
   // The shared fixture plus cursoragent, a listed bot whose login has no [bot].
   const actors = JSON.parse(readFileSync(SHARED_LIST, "utf8"));
   actors.actors.push({ ...CURSOR_AGENT, kind: "bot" });
-  list = path.join(dir, "trusted-actors.json");
+  standards = standardsAt(path.join(dir, "standards"));
+  list = standards.list;
   writeFileSync(list, JSON.stringify(actors));
 });
 afterEach(() => {
@@ -146,6 +149,7 @@ async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00
       TRIGGER_SENDER_ID: sender,
       TRIGGER_AT: eventAt,
       BASE_PATH: ROOT,
+      STANDARDS_DIR: standards.dir,
       ...extraEnv,
     },
     github,

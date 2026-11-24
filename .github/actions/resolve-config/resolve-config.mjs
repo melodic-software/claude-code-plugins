@@ -1,7 +1,3 @@
-// I/O shell of resolve-config: reads the config, schema and vocabulary from
-// under base-path only, the event file, and (only when a predicate needs it)
-// the PR through the API; then writes ResolvedConfig to output-path and the
-// step outputs. Every rejection or failure exits 1 and leaves no file.
 import { readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import process from "node:process";
@@ -34,8 +30,6 @@ import {
 const DEFAULT_BASE_PATH = ".base";
 const DEFAULT_CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
 const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
-const VOCABULARY_PATH =
-  ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
 const STANDARDS_VOCABULARY_PATH = "components/github-actions-conventions/vocabulary.json";
 const STANDARDS_TRUSTED_ACTORS_PATH = "components/trusted-actors/trusted-actors.json";
@@ -89,13 +83,13 @@ function readJsonUnder(root, relative, name) {
 
 const readJsonUnderBase = (basePath, relative) => readJsonUnder(basePath, relative);
 
-const standardsFiles = (basePath, standardsPath) =>
+const standardsFiles = (standardsPath) =>
   standardsPath
     ? {
         vocabulary: readJsonUnder(standardsPath, STANDARDS_VOCABULARY_PATH, "standards-path"),
         trustedActors: readJsonUnder(standardsPath, STANDARDS_TRUSTED_ACTORS_PATH, "standards-path"),
       }
-    : { vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH), trustedActors: undefined };
+    : {};
 
 // The REST version that documents issue-field-values.
 const FIELD_API_VERSION = "2026-03-10";
@@ -542,7 +536,7 @@ function filesUnderBase({ basePath, configPath, standardsPath }, readRules = rea
   return {
     config: readUnderBase(basePath, configPath),
     schema,
-    ...standardsFiles(basePath, standardsPath),
+    ...standardsFiles(standardsPath),
     codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
     roleMap: readUnderBase(basePath, ROLE_MAP_PATH),
     laneRules: readRules("./lane-rules.json"),

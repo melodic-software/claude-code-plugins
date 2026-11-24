@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { laneSlots } from "../../actions/resolve-config/resolve.mjs";
 import { planPasses } from "./plan-passes.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const slotsOf = (activities, slots = Object.keys(activities).map((activity) => ({ activity })), lane = {}) =>
   laneSlots({ activities, lanes: { "pr-refine": { stage: "refine", ...lane, slots } } }, "pr-refine");
@@ -115,7 +116,7 @@ test("write-pass-plan.mjs writes the plan's outputs, and only planned passes get
       writeFileSync(join(dir, "paths.txt"), paths.join("\n"));
       writeFileSync(join(dir, "out"), "");
       const run = spawnSync(process.execPath, [fileURLToPath(new URL("./write-pass-plan.mjs", import.meta.url))], {
-        env: { PATH: process.env.PATH, BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), PATHS_FILE: join(dir, "paths.txt"), TRUNCATED: "false", GITHUB_OUTPUT: join(dir, "out") },
+        env: { PATH: process.env.PATH, BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: standardsCheckout(), PATHS_FILE: join(dir, "paths.txt"), TRUNCATED: "false", GITHUB_OUTPUT: join(dir, "out") },
         encoding: "utf8",
       });
       assert.equal(run.status, 0, run.stderr);

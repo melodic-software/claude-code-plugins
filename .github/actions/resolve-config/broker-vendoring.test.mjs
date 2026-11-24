@@ -49,11 +49,13 @@ function closure() {
 }
 
 const ROOT = "../../../";
+const STANDARDS = ".github/scripts/lib/fixtures/standards/";
 const fileAt = (path) => (path.endsWith(".json") ? JSON.parse(read(`${ROOT}${path}`)) : read(`${ROOT}${path}`));
 
 const brokerFiles = () => ({
   config: read(`${ROOT}${LISTS.binding.config}`),
   ...Object.fromEntries(Object.entries(LISTS.binding.trust_files).map(([key, path]) => [key, fileAt(path)])),
+  ...Object.fromEntries(Object.entries(LISTS.binding.standards_lists).map(([key, path]) => [key, fileAt(`${STANDARDS}${path}`)])),
 });
 
 test("the copied lists name the azure-iac files and the commit they were read from", () => {
@@ -101,9 +103,9 @@ test("the broker's calls resolve this tree's config from the TRUST_FILES it read
 
 const TREE_FILES = Object.freeze({
   schema: "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
-  vocabulary: ".github/standards/github-actions-conventions/vocabulary.json",
+  vocabulary: `${STANDARDS}components/github-actions-conventions/vocabulary.json`,
   codeowners: ".github/CODEOWNERS",
-  trustedActors: ".github/standards/trusted-actors/trusted-actors.json",
+  trustedActors: `${STANDARDS}components/trusted-actors/trusted-actors.json`,
   laneRules: ".github/actions/resolve-config/lane-rules.json",
   effectGrants: ".github/actions/resolve-config/effect-grants.json",
   activityRules: ".github/actions/resolve-config/activity-rules.json",
@@ -128,10 +130,13 @@ const neededKeys = () => {
   });
 };
 
-function brokerGaps(needed, { trust_files: trustFiles, test_data: testData }, testFiles) {
+function brokerGaps(needed, { trust_files: trustFiles, standards_lists: standardsLists, test_data: testData }, testFiles) {
   return needed
     .filter((key) => key !== "config")
     .flatMap((key) => {
+      if (Object.hasOwn(standardsLists, key)) {
+        return testData[key] === undefined || testFiles.includes(testData[key]) ? [] : [`fetch-resolve-config.sh's test_files list must add ${testData[key]}`];
+      }
       if (!Object.hasOwn(trustFiles, key)) {
         return [`binding.mjs TRUST_FILES must add ${key} (${TREE_FILES[key]}), or every broker request fails`];
       }
@@ -164,7 +169,7 @@ test("every listed file exists", () => {
   for (const file of [LISTS.loader.entry, ...LISTS.loader.dependency_files]) {
     assert.ok(existsSync(here(`./${file}`)), `the loader names ${file}, which does not exist`);
   }
-  for (const file of [...LISTS.fetch.test_files, ...Object.values(LISTS.binding.trust_files)]) {
+  for (const file of [...LISTS.fetch.test_files, ...Object.values(LISTS.binding.trust_files), ...Object.values(LISTS.binding.standards_lists).map((path) => `${STANDARDS}${path}`)]) {
     assert.ok(existsSync(here(`${ROOT}${file}`)), `the lists name ${file}, which does not exist`);
   }
 });

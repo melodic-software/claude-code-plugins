@@ -286,8 +286,7 @@ expect() {
   rm -rf "$config" "$TMP_ROOT/standards" "$TMP_ROOT/pr-reads"
   # STALE_EVENTS stands for an events answer an earlier step kept (pr_read).
   [[ -z "${STALE_EVENTS:-}" ]] || RUNNER_TEMP="$TMP_ROOT" bash -c '. "$RUNNER_TEMP/gh-read.sh"; pr_read_put "$1" "repos/o/r/issues/6419/events?per_page=100" --paginate' _ "$STALE_EVENTS"
-  mkdir -p "$TMP_ROOT/standards/components/trusted-actors" "$config/.github/standards/trusted-actors"
-  printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  mkdir -p "$TMP_ROOT/standards/components/trusted-actors" "$config"
   [[ -z "${STUB_TRACKER+set}" ]] || { mkdir -p "$config/docs/conventions" && printf 'tracker: %s\n' "$STUB_TRACKER" >"$config/docs/conventions/work-items.yaml"; }
   [[ " $STUB_FAIL " == *" actors "* ]] || printf '%s\n' "$STUB_ACTORS" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
   mkdir -p "$config/docs/conventions"

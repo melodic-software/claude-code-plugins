@@ -1383,7 +1383,7 @@ post-merge:
       enqueuers: [kyle-sexton]
 
 # PRs the lanes adopt (owner decisions Q22 and 2026-10-22): a non-draft PR an
-# account on .github/standards/trusted-actors/trusted-actors.json opened (by
+# account on the standards trusted-actor list opened (by
 # id, a person or an App), with no hold label and no `Hold:` body line, and,
 # for a person's PR, whose activity and head commit are both idle-hours old
 # (pr-merge counts only trusted-actor activity and pushes; fix-ci, the last

@@ -304,14 +304,10 @@ export const DO_NOT_MERGE_LINE = "check-contract: this PR carries the 'do-not-me
 export const PERSON_LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it";
 const STEP_EXIT = "Process completed with exit code 1.";
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// One such hold's whole log line, `#<n>: <reason>.`: a hold path or a
-// trusted-actor list widening, then PERSON_LIFT and its carry-over clause,
-// in today's wording and the earlier one, to the end of the line. A changed
-// path is author text, so only the full shape counts, never a substring.
 export const personHoldLine = (line, number) =>
   !line.includes("a cost path") &&
   new RegExp(
-    `^#${number}: (?:it changes .+, a hold path|it widens the trusted-actor list \\(.+\\))${escapeRegExp(PERSON_LIFT)}, and the approval carries over later merges (?:that bring only the base's changes|of the base that leave its net change the same); then re-run ci-status\\.$`,
+    `^#${number}: it changes .+, a hold path${escapeRegExp(PERSON_LIFT)}, and the approval carries over later merges (?:that bring only the base's changes|of the base that leave its net change the same); then re-run ci-status\\.$`,
   ).test(line);
 
 // The `##[error]` lines of a job log, without the runner's timestamp.

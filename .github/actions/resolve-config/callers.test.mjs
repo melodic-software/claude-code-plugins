@@ -33,7 +33,7 @@ import { TRAILER as TEST_SCOPE_TRAILER } from "../../scripts/pr-unblock/declare-
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
 import { contractAtPin, fetchAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
-import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
+import { STANDARDS_FIXTURE, standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
@@ -90,7 +90,6 @@ function importedActionDirs() {
 
 const BASE_FILES = [
   "/.github/CODEOWNERS",
-  "/.github/standards/github-actions-conventions/vocabulary.json",
   "/.node-version",
   "/docs/conventions/pr-pipeline.yaml",
   "/docs/conventions/pr-pipeline/",
@@ -414,7 +413,10 @@ test("upstream-apply-changelog.yml: every resolve-config step resolves on schedu
       };
       for (const [key, value] of Object.entries(step.with)) {
         if (key === "base-path") env.BASE_PATH = root;
-        else if (key === "standards-path") assert.equal(value, "${{ steps.standards.outputs.path }}", step.id);
+        else if (key === "standards-path") {
+          assert.equal(value, "${{ steps.standards.outputs.path }}", step.id);
+          env.STANDARDS_DIR = STANDARDS_FIXTURE;
+        }
         else if (key !== "output-path") {
           assert.doesNotMatch(String(value), /\$\{\{/, `${step.id} ${key} is an expression this test cannot evaluate`);
           env[key.toUpperCase().replaceAll("-", "_")] = String(value);

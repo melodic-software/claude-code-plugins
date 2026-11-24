@@ -2461,7 +2461,7 @@ same verdict reader and holds only when it reports `verify:fail` or `verify:earl
 head, judged by the base module's `evidenceHold`. The `merge.max-verify-fails` cap
 (`verify:repeated-fail`) only warns. No pass, a stale or untrusted-spec pass, `verify:unreadable`,
 `verify:too-old` and a reader that does not judge it leave it to merge. It reads only the reviews, bodies blanked, and no file list, so the
-kill switch, member veto, hold paths, cost paths and trusted-actor list holds stay the lanes App's.
+kill switch, member veto, hold paths and cost paths stay the lanes App's.
 A trusted approval of the head lifts the FAIL hold, but
 [a pull request's author cannot approve it](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/approving-a-pull-request-with-required-reviews),
 and the trusted-actor list names one person, so on an owner-login pull request the lift is a new
@@ -3070,7 +3070,8 @@ A trusted edit to the spec after a pass, an issue body edit or a spec comment ad
 makes the gate refuse that pass `verify:spec-changed`, and so does a change to the trusted-actor
 list it judged with (owner decision row 383, option (c)): in a repository whose `trusted_actors_source` is
 `standards`, the gate refuses a pass whose `trusted_actors_blob` is not the live list's blob, and a
-pass that records none while the repository's `.github/standards/trusted-actors/` copy is gone. The
+pass that records none, once the repository's `.github/standards/trusted-actors/` copy is gone,
+when it did not start after the list last changed. The
 resolver then judges the head again:
 when every counted pass at the head started before the spec's last change, it proceeds with the
 reason `spec-changed` instead of skipping. For the list, that change is the committer time of the
@@ -3197,7 +3198,8 @@ head:
   included) are the ones it recorded by id and update time, none added, edited or deleted, and, in a
   repository that reads the trusted-actor list from standards, its `trusted_actors_blob` is the
   live list's git blob id (none recorded counts while the `.github/standards/trusted-actors/` copy
-  is at the branch tip); a partial
+  is at the branch tip, and once it is gone when the pass started after the newest standards
+  commit touching the list); a partial
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
   list's humans, the pull request's author included, or is a sub-issue intake's size split filed
@@ -3428,7 +3430,7 @@ comment when the review returns a hold: `cost` (only for a real charge, as the w
 defines it) or `critical-security`. `hold-paths` only flags the files it names for extra security
 scrutiny; a match never holds by itself. The security lane reads such a file's whole change and
 what it gates, and only a CRITICAL finding there holds. The callers name
-`.github/standards/trusted-actors/**`, every entry of the narrow path floor above
+every entry of the narrow path floor above
 (`Floor.all`, every class), and the security review's own criteria and eval cases
 (`plugins/review/skills/security-review/**`, `plugins/review/evals/security-review-*/**`). All but
 those last two are also the trust-gate paths ci-status's exempt-author and agent App check below
@@ -3624,8 +3626,8 @@ before it reaches the default branch. Residuals, accepted by the owner:
 - a lane commit can change instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, skills) that
   the PR author's local session loads once it checks out the branch.
 
-The paths `.github/CODEOWNERS` lists with no owner are the eight synced data files (the
-vocabulary, pyright and runner-policy data files) and the synced caller workflow
+The paths `.github/CODEOWNERS` lists with no owner are the synced pyright data file and the
+synced caller workflow
 `pr-check-managed-files-hosted.yml`. The required `check-managed-files` job in `ci-status` fails
 any hand edit or deletion of them. The hosted review callers (`pr-review-hosted.yml`,
 `pr-review-security-hosted.yml`) are locally owned, so `/.github/workflows/**` owns them.
@@ -4325,7 +4327,8 @@ open listing and the merged count, and leaves the admission fields null with `ad
 
 With an `adoption` section, the lanes take over every trusted actor's pull request (owner
 decisions Q22 and 2026-10-22): one rule for the lanes App, Dependabot, the release App, the owner
-and anyone later added to `.github/standards/trusted-actors/trusted-actors.json`. When it is red
+and anyone later added to the trusted-actor list (standards'
+`components/trusted-actors/trusted-actors.json`). When it is red
 or needs a fix, a lane fixes it and it merges without a person, unless the fix changes behavior or
 intent, which the verifier fails and escalates. This grants the lanes unattended power over PRs a
 person opened. A PR is adopted when all of these hold:
@@ -4780,8 +4783,8 @@ Lane and activity names are verb-first and literal; review-engine activity names
 `codex`) are the one exception. The allowed workflow stages, function words and engines are owned
 by the `github-actions-conventions` component in `melodic-software/standards`
 (`components/github-actions-conventions/vocabulary.json`); this doc and its schema never copy that
-list. The config reader reads the synced copy from the base SHA's
-`.github/standards/github-actions-conventions/vocabulary.json`. Pipeline stage keys (the
+list. The config reader reads it from the run's standards checkout, and rejects the config
+without one. Pipeline stage keys (the
 [Stages](#stages) table) belong to this convention.
 
 ## Not settled yet

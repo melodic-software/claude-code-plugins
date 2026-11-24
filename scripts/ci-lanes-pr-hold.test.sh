@@ -26,8 +26,7 @@ MODULE="$ROOT/.github/scripts/pr-merge/merge-holds.mjs"
 . "$ROOT/scripts/lib/ci-step.sh"
 
 TMP_ROOT="$(mktemp -d)"
-API_PID=
-trap '[[ -z "$API_PID" ]] || kill "$API_PID" 2>/dev/null; rm -rf "$TMP_ROOT"' EXIT
+trap 'rm -rf "$TMP_ROOT"' EXIT
 
 # shellcheck source=lib/ci-gh-read.sh
 . "$ROOT/scripts/lib/ci-gh-read.sh"
@@ -58,11 +57,11 @@ fi
 # shellcheck disable=SC2016 # workflow literals to match, not shell expansions
 if [[ "$step" == *"BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}"* ]] &&
   grep -qxF '            /docs/conventions/pr-pipeline.yaml' "$WORKFLOW"; then
-  ok "step reads the base commit's pr-pipeline.yaml and trusted-actor list from the base checkout"
+  ok "step reads the base commit's pr-pipeline.yaml from the base checkout"
 else
   fail "step lacks BASE_CONFIG, or the base checkout lacks pr-pipeline.yaml"
 fi
-for file in /.github/scripts/pr-merge/merge-holds.mjs /docs/conventions/pr-pipeline.yaml /.github/standards/trusted-actors/trusted-actors.json; do
+for file in /.github/scripts/pr-merge/merge-holds.mjs /docs/conventions/pr-pipeline.yaml; do
   if grep -qxF "            $file" "$WORKFLOW"; then ok "the base checkout carries $file"; else fail "the base checkout lacks $file"; fi
 done
 if [[ "$step" != *"/contents/"* ]]; then
@@ -100,7 +99,7 @@ fi
 # The runs below stand the variable in with merge.agent-identity's
 # trusted-actor id, the account the variable names.
 identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
-LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")"
+LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json")"
 [[ "$LANES_APP_ID" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES_APP_ID'"
 
 # The stub logs its arguments. A pull read prints STUB_PULL. A contents read
@@ -247,19 +246,12 @@ approval() { jq -nc --arg login "$1" --argjson id "$2" --arg state "$3" --arg at
 review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4" \
   '{user: {login: $login, type: "User"}, author_association: $assoc, submitted_at: $at, body: $body}'; }
 
-# The hold config, as the base_config checkout holds it, rebuilt for each
-# run: STUB_CONFIG with merge.agent-identity as pr-pipeline.yaml, STUB_ACTORS
-# as the trusted-actor list and STUB_MODULE (this tree's merge-holds.mjs by
-# default), whose switchHold judges the kill switch and whose main judges the
-# holds. STUB_NO_CONFIG, STUB_NO_ACTORS and STUB_NO_MODULE leave that file
-# out. STUB_BASE_CONFIG replaces the whole directory.
 base_config() {
   local dir="$TMP_ROOT/base-config"
   rm -rf "$dir"
-  mkdir -p "$dir/docs/conventions" "$dir/.github/standards/trusted-actors" "$dir/.github/scripts/pr-merge"
+  mkdir -p "$dir/docs/conventions" "$dir/.github/scripts/pr-merge"
   [[ -n "${STUB_NO_CONFIG:-}" ]] ||
     IDENTITY="$identity" yq '.merge."agent-identity" = strenv(IDENTITY)' <<<"$STUB_CONFIG" >"$dir/docs/conventions/pr-pipeline.yaml"
-  [[ -n "${STUB_NO_ACTORS:-}" ]] || cp "$STUB_ACTORS" "$dir/.github/standards/trusted-actors/trusted-actors.json"
   [[ -n "${STUB_NO_MODULE:-}" ]] || cp "${STUB_MODULE:-$MODULE}" "$dir/.github/scripts/pr-merge/merge-holds.mjs"
 }
 standards_stub() {
@@ -317,7 +309,7 @@ expect() {
 }
 
 export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE='' STUB_FILES='[["docs/guide.md"]]'
-export STUB_ACTORS="$ROOT/.github/standards/trusted-actors/trusted-actors.json"
+export STUB_ACTORS="$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json"
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
@@ -471,7 +463,7 @@ else
 fi
 sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$base_step")"
 want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /.github/verify-legacy-fails.json /.github/source-control-settings.json /plugins/source-control/.claude-plugin/plugin.json /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk
-  /.github/standards/trusted-actors/trusted-actors.json /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml)
+  /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml)
 # Every module head-ref-map.mjs and carry-run-cache.mjs import, transitively.
 queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs)
 while ((${#queue[@]})); do
@@ -757,45 +749,8 @@ for path in .github/standards/trusted-actors/README.md docs/conventions/pr-pipel
 done
 STUB_FILES='[[".claude-plugin/marketplace.json",null,"removed"]]' STUB_PULL="$(pull 'Closes #1')"
 expect "a removed manifest is no hold" 0 3 "no hold path"
-# The trust gate: merge-holds.mjs reads the trusted-actor list at the base and
-# the head itself, through GITHUB_API_URL, and holds a change that adds or
-# widens an entry; one that only removes entries passes. A local server
-# answers those reads from $TMP_ROOT/list-<ref>, and 404 for anything else.
-cat >"$TMP_ROOT/api.mjs" <<'API'
-import { createServer } from "node:http";
-import { readFileSync, writeFileSync } from "node:fs";
-const [dir] = process.argv.slice(2);
-const server = createServer((request, response) => {
-  const ref = /^\/repos\/o\/r\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(request.url)?.[1];
-  let content;
-  try {
-    content = ref && readFileSync(`${dir}/list-${ref}`).toString("base64");
-  } catch {}
-  response.writeHead(content ? 200 : 404, { "content-type": "application/json" });
-  response.end(JSON.stringify(content ? { type: "file", encoding: "base64", content } : { message: "Not Found" }));
-});
-server.listen(0, "127.0.0.1", () => writeFileSync(`${dir}/port`, String(server.address().port)));
-API
-node "$TMP_ROOT/api.mjs" "$TMP_ROOT" &
-API_PID=$!
-for _ in $(seq 50); do
-  [[ ! -s "$TMP_ROOT/port" ]] || break
-  sleep 0.1
-done
-if [[ -s "$TMP_ROOT/port" ]]; then
-  api="http://127.0.0.1:$(cat "$TMP_ROOT/port")"
-  list() { jq -n --argjson actors "$1" '{version: 1, actors: $actors}'; }
-  list '[{"id":1,"login":"kyle","kind":"human"},{"id":2,"login":"lanes[bot]","kind":"bot"}]' >"$TMP_ROOT/list-$BASE"
-  STUB_FILES='[[".github/standards/trusted-actors/trusted-actors.json",null,"modified"]]' STUB_PULL="$(pull 'Closes #1')"
-  list '[{"id":1,"login":"kyle","kind":"human"},{"id":2,"login":"lanes[bot]","kind":"bot"},{"id":3,"login":"new","kind":"human"}]' >"$TMP_ROOT/list-$SHA"
-  STUB_API=$api expect "a trusted-actor list widening fails" 1 3 "it widens the trusted-actor list"
-  list '[{"id":1,"login":"kyle","kind":"human"}]' >"$TMP_ROOT/list-$SHA"
-  STUB_API=$api expect "a trusted-actor list removal passes" 0 3 "no hold path"
-  rm "$TMP_ROOT/list-$SHA"
-  STUB_API=$api expect "a trusted-actor list whose head does not read fails" 1 3 "contents unreadable"
-else
-  fail "the local API server for the trusted-actor list reads did not start"
-fi
+STUB_FILES='[[".github/standards/trusted-actors/trusted-actors.json",null,"modified"]]' STUB_PULL="$(pull 'Closes #1')"
+expect "a change at the retired synced trusted-actor list path passes" 0 3 "no hold path"
 if grep -qF "[.filename, .previous_filename, .status]" <<<"$step"; then
   ok "the step hands merge-holds.mjs each file's status"
 else
@@ -1221,9 +1176,8 @@ unset STUB_APP_ID
 export STUB_BASE_CONFIG=''
 expect "an unreadable base config fails closed" 1 0 "$NO_IDENTITY"
 export STUB_BASE_CONFIG="$TMP_ROOT/no-identity"
-mkdir -p "$STUB_BASE_CONFIG/docs/conventions" "$STUB_BASE_CONFIG/.github/standards/trusted-actors"
+mkdir -p "$STUB_BASE_CONFIG/docs/conventions"
 printf 'merge:\n  diff-check: {}\n' >"$STUB_BASE_CONFIG/docs/conventions/pr-pipeline.yaml"
-cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$STUB_BASE_CONFIG/.github/standards/trusted-actors/"
 expect "a base config with no merge.agent-identity fails closed" 1 0 "$NO_IDENTITY"
 unset STUB_BASE_CONFIG
 

@@ -1,4 +1,4 @@
-# test-scope: scripts/sync-hold-floor.py docs/conventions/pr-pipeline.yaml .github/actions/* .github/scripts/* .github/workflows/* .github/recurring-schedule.json .github/standards/trusted-actors/*
+# test-scope: scripts/sync-hold-floor.py docs/conventions/pr-pipeline.yaml .github/actions/* .github/scripts/* .github/workflows/* .github/recurring-schedule.json
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_*.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py lib/prerequisites.mjs lib/publish-gate.mjs plugins/evals/skills/plugin-eval/scripts/noise-report.py plugins/evals/skills/plugin-eval/scripts/run-validity.py plugins/evals/skills/plugin-eval/scripts/win-test.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/harness-ops/skills/inventory/scripts/parser_reader.py plugins/performance/scripts/ratchet.py plugins/work-items/scripts/charge-words.json scripts/check-declared-prerequisites.mjs scripts/validate-plugin-contracts.mjs
 # test-scope: plugins/source-control/.claude-plugin/plugin.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs scripts/check-read-caller-keys.mjs scripts/credential-legs/*.mjs scripts/sync-credential-legs.mjs
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
@@ -113,12 +113,8 @@ IMPORT = re.compile(
 )
 
 
-# The trusted-actor list is held outside the floor table: the trust gate
-# rates it HIGH, and every review caller's hold-paths lists it first.
-def floor_or_trust_gate(path: str) -> bool:
-    return path == risk.TRUSTED_ACTORS_PATH or any(
-        risk.glob_match(g, path) for g in FLOOR.all
-    )
+def in_floor(path: str) -> bool:
+    return any(risk.glob_match(g, path) for g in FLOOR.all)
 
 
 def import_closure(entries: tuple[str, ...]) -> list[str]:
@@ -254,8 +250,6 @@ FLOOR_PATHS = [
     "docs/CodeOwners",
     ".gitmodules",
     "vendor/.GitModules",
-    ".github/standards/trusted-actors/trusted-actors.json",
-    ".github/Standards/trusted-actors/trusted-actors.json",
     ".github/actions/check-trusted-trigger/action.yml",
     ".github/actions/Check-Trusted-Trigger/action.yml",
     ".github/scripts/pr-merge/rotation.mjs",
@@ -280,10 +274,6 @@ def module(paths: list[str]) -> dict[str, Any]:
         check=True,
     )
     return json.loads(proc.stdout)
-
-
-# What ci-status's hold_patterns add beside the floor (sync-hold-floor.py).
-TRUSTED_ACTORS_GLOB = ".github/standards/trusted-actors/**"
 
 
 def _glob_samples(glob: str) -> list[str]:
@@ -313,7 +303,7 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
     so the merge gate is the widest of the three, never the narrowest."""
 
     def test_each_sample_path_is_held_by_all_three_or_none(self) -> None:
-        globs = [TRUSTED_ACTORS_GLOB, *FLOOR.all]
+        globs = list(FLOOR.all)
         paths = sorted({p for g in globs for p in _glob_samples(g)})
         python = [any(risk.glob_match(g, p) for g in globs) for p in paths]
         node = subprocess.run(
@@ -328,7 +318,7 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
                 " console.log(JSON.stringify(paths.map((p) => globs.some((g) => matchesHoldPath(p, g)))));"
                 % json.dumps(MODULE.as_uri()),
             ],
-            input=json.dumps([paths, [TRUSTED_ACTORS_GLOB]]),
+            input=json.dumps([paths, []]),
             capture_output=True,
             text=True,
             check=True,
@@ -467,7 +457,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(floor_or_trust_gate(path))
+                self.assertTrue(in_floor(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in FLOOR.high)
                 )
@@ -480,7 +470,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(floor_or_trust_gate(path))
+                self.assertTrue(in_floor(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in FLOOR.high)
                 )
@@ -591,10 +581,13 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
         # author but Dependabot, whose action-pin bumps bring in third-party
         # code; true holds every exempt author.
         sync = _sync_hold_floor()
+        listed = (
+            ROOT
+            / ".github/scripts/lib/fixtures/standards/components"
+            / "trusted-actors"
+        )
         actors = json.loads(
-            (ROOT / ".github/standards/trusted-actors/trusted-actors.json").read_text(
-                encoding="utf-8"
-            )
+            (listed / "trusted-actors.json").read_text(encoding="utf-8")
         )["actors"]
         dependabot = [str(a["id"]) for a in actors if a["login"] == "dependabot[bot]"]
         self.assertEqual(dependabot, [sync.DEPENDABOT_ID])
@@ -636,42 +629,6 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
             for entry in FLOOR.all:
                 with self.subTest(list=name, entry=entry):
                     self.assertTrue(any(match(p, entry) for p in patterns))
-
-
-NODE_ACTORS = """
-import { actorsWidened } from %s;
-const cases = JSON.parse(process.argv[1]);
-console.log(JSON.stringify(cases.map(([status, previous, contents]) => actorsWidened({ status, previous, contents }))));
-"""
-_KYLE = {"id": 1, "login": "kyle", "kind": "human"}
-_BOT = {"id": 2, "login": "lanes[bot]", "kind": "bot"}
-
-
-def _list(*actors: Any, version: Any = 1) -> str:
-    return json.dumps({"version": version, "actors": list(actors)}, indent=2)
-
-
-_BASE_LIST = _list(_KYLE, _BOT)
-# Each case: status, renamed-from path, then [base text, head text] or None.
-ACTOR_CASES = {
-    "an entry added": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, {"id": 3})]),
-    "an entry's kind changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT | {"kind": "human"})]),
-    "a removal beside an addition": ("modified", None, [_BASE_LIST, _list(_KYLE, {"id": 5})]),
-    "an entry repeated": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, _BOT)]),
-    "another key changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, version=2)]),
-    "unparsable head": ("modified", None, [_BASE_LIST, "{"]),
-    "a repeated key": ("modified", None, [_BASE_LIST, _BASE_LIST.replace('"version": 1', '"version": 1, "version": 1')]),
-    "actors not a list": ("modified", None, [_BASE_LIST, '{"version": 1, "actors": {}}']),
-    "an array at the root": ("modified", None, [_BASE_LIST, "[]"]),
-    "contents unread": ("modified", None, None),
-    "added": ("added", None, [None, _BASE_LIST]),
-    "removed": ("removed", None, [_BASE_LIST, None]),
-    "renamed": ("renamed", "a.json", [_BASE_LIST, _BASE_LIST]),
-    "an entry removed": ("modified", None, [_BASE_LIST, _list(_KYLE)]),
-    "every entry removed": ("modified", None, [_BASE_LIST, _list()]),
-    "reformatted and reordered": ("modified", None, [_BASE_LIST, json.dumps({"actors": [_BOT, _KYLE], "version": 1})]),
-    "keys reordered in an entry": ("modified", None, [_BASE_LIST, _list({"kind": "human", "login": "kyle", "id": 1}, _BOT)]),
-}  # fmt: skip
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
@@ -733,40 +690,6 @@ class TheNativeBaselineIsTheGates(unittest.TestCase):
         ]
         self.assertEqual(answers, py)
         self.assertEqual(answers.count(True), 1)
-
-
-@unittest.skipUnless(shutil.which("node"), "node not installed")
-class TheWideningHoldIsTheGates(unittest.TestCase):
-    def test_both_hold_the_same_trusted_actor_list_changes(self) -> None:
-        cases = list(ACTOR_CASES.values())
-        script = NODE_ACTORS % json.dumps(MODULE.as_uri())
-        proc = subprocess.run(
-            ["node", "--input-type=module", "-e", script, json.dumps(cases)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        answers = json.loads(proc.stdout)
-        for (name, (status, previous, contents)), js in zip(
-            ACTOR_CASES.items(), answers, strict=True
-        ):
-            changed = risk.ChangedFile(
-                path=risk.TRUSTED_ACTORS_PATH,
-                previous_path=previous,
-                status=status,
-                additions=1,
-                deletions=1,
-                has_patch=True,
-                mode="100644",
-                previous_mode=None if status == "added" else "100644",
-                contents=None if contents is None else tuple(contents),
-            )
-            py = risk._actors_widened(risk._check_file(changed), changed)
-            with self.subTest(name):
-                self.assertEqual(js is None, py is None, (js, py))
-        held = [js is not None for js in answers]
-        self.assertIn(True, held)
-        self.assertIn(False, held)
 
 
 NODE_LIFTERS = """

@@ -3,28 +3,6 @@
 // rules pr-merge's gate reads them. enable-auto-merge.mjs arms nothing they
 // hold, and ci-status runs this file alone, fetched from the base commit, on
 // every lanes App pull request, so it imports no other file of the repository.
-//
-// Command line: merge-holds.mjs <number> <body-file> <discussion-file>
-// <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
-// [<verdicts-file> <link-file> [<evidence-file>]]. The link file holds {record, closing}: the
-// verdict.json of the pass verdictHold counts (null when none was read) and
-// the pull request's closingIssuesReferences (totalCount, nodes with number
-// and repository.nameWithOwner). The verdicts file holds one {name, verdict, runId, run}
-// per line, run as GET actions/runs/{runId} gives it, for each unexpired artifact
-// named a pass at the head; GITHUB_REPOSITORY names the repository. The
-// evidence file holds the reader's one JSON line (Evidence.report); with
-// verdicts and no evidence file, the FAIL check holds as unreadable. The
-// discussion file holds one REST issue comment, review or review comment per
-// line; the files file one changed file per line, its path, renamed-from
-// path and status (changeOf); the denied-paths file the config's
-// merge.diff-check.denied-paths as JSON; the trusted-actors file
-// trusted-actors.json. PATH_HOLDS "false" turns the hold paths off
-// (pathHoldsOf). Each hold prints as an ::error:: and exits 1; no hold
-// exits 0. Who wrote a body that holds, a changed trusted-actor list, a
-// cost path with a decision link in the body, and the approvals of earlier
-// heads when no approval of the head lifts a hold path, are read with
-// GH_TOKEN.
-import { Buffer } from "node:buffer";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
@@ -524,158 +502,6 @@ export function costHold(files, decision) {
   return held === undefined || decision ? null : `it changes ${held}, a cost path`;
 }
 
-function parseStrict(text) {
-  if (typeof text !== "string") {
-    return null;
-  }
-  try {
-    JSON.parse(text);
-  } catch {
-    return null;
-  }
-  // The text is valid JSON, so the walk below needs no error handling.
-  let at = 0;
-  const space = () => {
-    while (" \t\n\r".includes(text[at] ?? "x")) at += 1;
-  };
-  const string = () => {
-    const start = at;
-    for (at += 1; text[at] !== '"'; at += 1) {
-      if (text[at] === "\\") at += 1;
-    }
-    at += 1;
-    return JSON.parse(text.slice(start, at));
-  };
-  const items = (close, read) => {
-    at += 1;
-    for (space(); text[at] !== close; space()) {
-      read();
-      space();
-      if (text[at] === ",") at += 1;
-    }
-    at += 1;
-  };
-  const value = () => {
-    space();
-    if (text[at] === "{") {
-      const object = new Map();
-      items("}", () => {
-        const key = string();
-        if (object.has(key)) throw new Error("duplicate key");
-        space();
-        at += 1;
-        object.set(key, value());
-      });
-      return { object };
-    }
-    if (text[at] === "[") {
-      const array = [];
-      items("]", () => array.push(value()));
-      return { array };
-    }
-    if (text[at] === '"') return { text: JSON.stringify(string()), string: true };
-    const token = /^(?:true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(text.slice(at))[0];
-    at += token.length;
-    if (!/^-?\d/.test(token)) return { text: token };
-    if (!/[.eE]/.test(token)) {
-      // json.loads refuses an integer past int_max_str_digits (4300), so the
-      // gate reads that side as malformed.
-      if (token.replace("-", "").length > 4300) throw new Error("integer too long");
-      return { text: `${BigInt(token)}` };
-    }
-    const number = Number(token);
-    return { text: `${Object.is(number, -0) ? "-0" : String(number)}.f` };
-  };
-  try {
-    const root = value();
-    return root.object ? root : null;
-  } catch {
-    return null;
-  }
-}
-
-const canonical = (node) =>
-  node.object
-    ? `{${[...node.object]
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`)
-        .join(",")}}`
-    : node.array
-      ? `[${node.array.map(canonical).join(",")}]`
-      : node.text;
-export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
-
-export function actorsWidened({ status, previous = null, contents } = {}) {
-  if (status !== "modified" || previous !== null) {
-    return `${status ?? "unknown"} trusted-actor list`;
-  }
-  if (!Array.isArray(contents) || contents.length !== 2) {
-    return "contents unreadable";
-  }
-  const [base, head] = contents.map(parseStrict);
-  if (base === null || head === null) {
-    return "unreadable, malformed or a repeated key";
-  }
-  const [old, now] = [base, head].map((node) => node.object.get("actors"));
-  if (!old?.array || !now?.array) {
-    return "actors is not a list";
-  }
-  const rest = (node) => canonical({ object: new Map([...node.object].filter(([key]) => key !== "actors")) });
-  if (rest(base) !== rest(head)) {
-    return "a key other than actors changed";
-  }
-  const gained = new Map();
-  for (const [entries, step] of [[now.array, 1], [old.array, -1]]) {
-    for (const entry of entries) {
-      const key = canonical(entry);
-      gained.set(key, (gained.get(key) ?? 0) + step);
-    }
-  }
-  const added = [...gained].filter(([, n]) => n > 0).map(([key]) => key).sort();
-  return added.length ? `entries added or changed: ${added.join(", ")}` : null;
-}
-
-// Why the changes (changeOf's, with withActorContents's contents) widen the
-// trusted-actor list, or null. A change whose path or renamed-from path is the
-// list counts.
-export function actorsHold(changes) {
-  if (!Array.isArray(changes)) {
-    return "its changed files could not all be read";
-  }
-  const found = changes
-    .filter(({ path, previous }) => [path, previous].some((each) => each != null && matchesHoldPath(each, TRUSTED_ACTORS_PATH)))
-    .map((change) => [change.path, actorsWidened(change)])
-    .filter(([, why]) => why);
-  return found.length ? `it widens the trusted-actor list (${found.map(([path, why]) => `${path}: ${why}`).join("; ")})` : null;
-}
-
-// `changes` with the trusted-actor list's [base text at `base`, head text at
-// `head`] on a change that modifies it in place; a read that fails, or a base
-// that is not a commit SHA, leaves its contents out, so it holds.
-export async function withActorContents(github, repo, changes, base, head) {
-  const text = async (path, ref) => {
-    const file = await github("GET", `/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
-    if (file?.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") {
-      throw new Error(`${path} at ${ref} did not read`);
-    }
-    // Strict, as the gate's decode("utf-8"): invalid UTF-8 throws, so it
-    // holds, and a BOM stays, so the parse refuses it as json.loads does.
-    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Buffer.from(file.content, "base64"));
-  };
-  return Promise.all(
-    changes.map(async (change) => {
-      if (!matchesHoldPath(change.path, TRUSTED_ACTORS_PATH) || change.status !== "modified" || change.previous !== null || !isSha(base)) {
-        return change;
-      }
-      try {
-        return { ...change, contents: [await text(change.path, base), await text(change.path, head)] };
-      } catch {
-        return change;
-      }
-    }),
-  );
-}
-
 // babysit_merge_policy COST_DECISION_LINK, DECISION_LINE and HTML_COMMENT.
 const DECISION_LINK = /https:\/\/github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)\/(?:issues|pull)\/([0-9]+)#issuecomment-([0-9]+)/g;
 const DECISION_LINE = /^\*\*Decision recorded\.\*\*[ \t]+Cost:/;
@@ -1047,8 +873,6 @@ export function approvalCarry(then, now, from, inBase, merges, based, dismissal 
 // Holding them for a person would hold most pull requests, so a push that
 // touches one only stops an approval carrying (ungatedSince); the review
 // lanes still judge it. babysit_merge_policy.CARRY_REFUSES is the same list.
-// The trusted-actor list and the pipeline config are read too: a widening the
-// approver never saw is lifted by the same approval (actorsHold).
 export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh"]);
 
 // Whether the compare from...H' `merges` touches no hold path and no file a
@@ -1143,22 +967,6 @@ export function liftsOf(reviews, humans, dismissed = new Map()) {
   });
 }
 
-// The trusted people whose approval (liftsOf) of pull request `number`'s
-// `head`, or of an earlier head that carries to it over merges of its base
-// branch (approvalCarry against the base's tip, baseTip, with baseParents),
-// lifts its hold paths, as { lifters }, sorted. An approval GitHub dismissed
-// as stale on a push (autoDismissed, from the issue timeline, read only when
-// a trusted person's newest review was dismissed) counts, but only through
-// the carry, never as an approval of the head. It lifts the hold path and the
-// trusted-actor list widening only, never the holds an approving review of
-// the head itself lifts. Reads: the pull request (a head that is no longer
-// `head`, or is in a fork, lifts nothing), the reviews, the timeline, the
-// repository's default branch (a base that is not it carries nothing), the
-// base's tip, and the compares per approved head: against the tip, and when
-// the net change differs, H...H', the range between the two merge bases and
-// the recursive trees of H' and M' (exactBaseCarry). A read that fails lifts nothing (a timeline that does not
-// read restores no dismissed approval): the caller keeps the exact-head
-// approvals it read (pathLifters). `mainTip` goes to baseTip.
 export async function liftersOf(github, repo, number, head, humans, holdPaths = undefined, { mainTip } = {}) {
   try {
     const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
@@ -1407,19 +1215,8 @@ export function pathLifters(items, humans, head) {
     .sort();
 }
 
-// Why the pull request's `body`, discussion `items` and changed `files` hold
-// it; empty when nothing does. `lifters` approved the head (pathLifters, or
-// liftersOf over base merges), which lifts a
-// hold path but not an unreadable file list or hold-path list, nor a cost
-// path, which only the owner's `decision` lifts. It lifts `widened`
-// (actorsHold's reason) too. `byPerson` (personWrote) says whether the body
-// can hold; `pathHolds` false (pathHoldsOf) holds no hold path. `missing`
-// (costDecision's) names what a linked decision comment lacks.
-export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null, pathHolds = true, missing = []) {
+export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, pathHolds = true, missing = []) {
   const reasons = [];
-  if (widened && !lifters.length) {
-    reasons.push(`${widened}; ${APPROVAL_CARRIES}`);
-  }
   const pathReason = pathHold(files, holdPaths, pathHolds);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
@@ -1724,9 +1521,6 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       throw new Error("the trusted-actor list has no actors");
     }
     const humans = humansOf(actors);
-    // Exact-head approvals lift every hold an approval lifts; an approval
-    // carried over base merges lifts only the hold path and the trusted-actor
-    // list widening.
     const approved = pathLifters(items, humans, head);
     const body = readFileSync(bodyFile, "utf8");
     const repo = String(env.GITHUB_REPOSITORY);
@@ -1735,7 +1529,6 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (decision) {
       console.log(`#${number}: ${decision} records the owner's cost decision, which lifts its cost hold.`);
     }
-    const widened = actorsHold(await withActorContents(github, repo, changes, env.BASE_SHA, head));
     // PATH_HOLDS, merge.diff-check.path-holds as the base has it: only
     // "false" turns the hold paths off.
     const pathHolds = env.PATH_HOLDS !== "false";
@@ -1745,7 +1538,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     }
     const held = pathHold(files, holdPaths, pathHolds);
     let lifted = { lifters: [] };
-    if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && isRepo(repo)) {
+    if (!approved.length && held && Array.isArray(holdPaths) && isRepo(repo)) {
       lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
@@ -1754,13 +1547,10 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     // veto comment holds twice: enable-auto-merge labels it `do-not-merge` on
     // its next reader run, and this read holds it until then and whenever the
     // label is off.
-    const reasons = holds("", items, files, holdPaths, lifters, decision, true, widened, pathHolds, missing);
+    const reasons = holds("", items, files, holdPaths, lifters, decision, true, pathHolds, missing);
     const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its hold path (${escape(held)}).`);
-    }
-    if (widened && lifters.length) {
-      console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its trusted-actor list hold (${escape(widened)}).`);
     }
     // The verifier's holds, recorded under their own annotation title
     // (VERIFIER_TITLE): they share this step with the path holds.

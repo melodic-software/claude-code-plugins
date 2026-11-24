@@ -1,7 +1,7 @@
 name: Resolve Config
 description: >
   Read the repository's pr-pipeline.yaml from the base-SHA checkout only
-  (the vocabulary and trusted-actor list from standards-path when set),
+  (the vocabulary and trusted-actor list from standards-path),
   validate it against the convention schema, apply the lane rules and the
   vocabulary, and resolve one lane (and optionally one activity) with every
   default applied, or with model-route only that run's model profile. Writes
@@ -39,8 +39,8 @@ inputs:
     description: >
       A melodic-software/standards checkout (download-standards' `path`
       output), checked out before any head code ran: the vocabulary and the
-      trusted-actor list are read from under it instead of base-path. Empty
-      reads both under base-path.
+      trusted-actor list are read from under it. Empty reads neither, so the
+      config is rejected for its missing vocabulary.
     required: false
     default: ""
   config-path:

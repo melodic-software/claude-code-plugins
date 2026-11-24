@@ -10,9 +10,7 @@
 /.github/standards/** @kyle-sexton
 # Standards-synced data files outside .github/workflows/ have no owner (an entry with no owner
 # unowns the path, and the last match wins), so a standards-sync pull request touching only these
-# requests no review. The trusted-actors files stay owned above.
-/.github/standards/github-actions-conventions/vocabulary.json
-/.github/standards/github-actions-conventions/vocabulary.schema.json
+# requests no review.
 /.github/standards/pyright/pyrightconfig.json
 /.github/workflows/** @kyle-sexton
 # This synced caller workflow comes from standards: edits are blocked by the required

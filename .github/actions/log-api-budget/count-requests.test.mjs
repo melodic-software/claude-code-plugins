@@ -15,6 +15,7 @@ import { createGitHubApi as dispatchApi } from "../../scripts/pr-unblock/dispatc
 import { createGitHubApi as feedbackDispatchApi } from "../../scripts/pr-unblock/feedback-dispatch.mjs";
 import { budgetedFetch } from "../../scripts/pr-unblock/request-budget.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { STANDARDS_FIXTURE } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 
 const API = "https://api.github.com";
 const READING = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" };
@@ -198,13 +199,14 @@ for (const [name, run] of [
           CONTEXT_FILE: join(dir, "context.json"),
           THREAD_FILE: join(dir, "threads.json"),
           RUN_FILE: join(dir, "run.json"),
-          TRUSTED_ACTORS: join(ROOT, ".github/standards/trusted-actors/trusted-actors.json"),
+          TRUSTED_ACTORS: join(ROOT, ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json"),
           TRACKER_CONFIG: join(ROOT, "docs/conventions/work-items.yaml"),
           DEPENDENCY_FILE: join(dir, "dependency.json"),
           CONTEXT_RUN_FILE: join(dir, "run.json"),
           DEPENDABOT_CONFIG: join(ROOT, ".github/dependabot.yml"),
           DEPENDABOT_POLICY: join(ROOT, ".github/standards/dependabot-policy/policy.json"),
           BASE_PATH: ROOT,
+          STANDARDS_DIR: STANDARDS_FIXTURE,
         };
         await assert.rejects(run(env), /returned 404/);
         assert.ok(sent > 0, "the main sent a request");

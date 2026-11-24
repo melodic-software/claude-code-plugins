@@ -195,8 +195,6 @@
 //   TRACKER_CONFIG       the base tracker binding, for the human-gated
 //                        label (default .base/docs/conventions/work-items.yaml)
 //   RESOLVED_CONFIG      the resolve-config output, for the hold paths
-//   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
-//                        decision and the approvers who lift a hold path (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
 //   EVENT_PR             a pull_request_target run's pull request number, or a
 //                        PR-scoped workflow_dispatch's (inputs.pr), the only
@@ -235,7 +233,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../lib/github-client.mjs";
-import { readRawTrustedActors, TRUSTED_ACTORS_PATH, trustedListPath } from "../lib/trusted-actors.mjs";
+import { readRawTrustedActors, trustedListPath } from "../lib/trusted-actors.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { laneChecker } from "../lib/lane-binding.mjs";
 import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
@@ -1413,7 +1411,6 @@ const SKIP_CHUNK = 20;
 export const SKIP_MAIN_PATHS = Object.freeze([
   "docs/conventions/pr-pipeline.yaml",
   "docs/conventions/work-items.yaml",
-  TRUSTED_ACTORS_PATH,
   ".github/workflows/pr-merge.yml",
   ".github/actions",
   ".github/scripts",

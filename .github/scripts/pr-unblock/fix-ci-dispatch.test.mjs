@@ -1506,7 +1506,7 @@ test("a fix-ci stop is left on a head with a check failing or going, a run since
 });
 
 test("adoption leaves out Dependabot and the release and standards-sync Apps, whose PRs a lane commit breaks", () => {
-  const trusted = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
+  const trusted = JSON.parse(readFileSync(new URL("../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
   const ids = trusted.actors.map((actor) => actor.id);
   const adopted = adoptableOwnerIds(new Set(ids));
   const excluded = [49699333, 337859524, 300666570];

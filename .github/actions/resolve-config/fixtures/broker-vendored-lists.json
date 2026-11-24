@@ -23,11 +23,13 @@
     "config": "docs/conventions/pr-pipeline.yaml",
     "trust_files": {
       "schema": "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
-      "vocabulary": ".github/standards/github-actions-conventions/vocabulary.json",
       "laneRules": ".github/actions/resolve-config/lane-rules.json",
       "effectGrants": ".github/actions/resolve-config/effect-grants.json",
-      "activityRules": ".github/actions/resolve-config/activity-rules.json",
-      "trustedActors": ".github/standards/trusted-actors/trusted-actors.json"
+      "activityRules": ".github/actions/resolve-config/activity-rules.json"
+    },
+    "standards_lists": {
+      "vocabulary": "components/github-actions-conventions/vocabulary.json",
+      "trustedActors": "components/trusted-actors/trusted-actors.json"
     },
     "test_data": {
       "vocabulary": ".github/actions/resolve-config/fixtures/vocabulary.json"

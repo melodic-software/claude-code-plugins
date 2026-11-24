@@ -80,7 +80,7 @@ checkout="$(awk '$0 == "      - name: Check out the base commit'"'"'s hold confi
 for line in $'\n        id: base_config\n' 'continue-on-error: true' \
   "if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.hold_ref.outputs.sha != '' }}" \
   'ref: ${{ steps.hold_ref.outputs.sha }}' \
-  'persist-credentials: false' '/docs/conventions/work-items.yaml' '/.github/standards/trusted-actors/trusted-actors.json' \
+  'persist-credentials: false' '/docs/conventions/work-items.yaml' \
   'sparse-checkout-cone-mode: false' 'path: base-config'; do
   if [[ "$checkout" == *"$line"* ]]; then ok "the base checkout carries '${line//$'\n'/}'"; else fail "the base checkout lost '${line//$'\n'/}'"; fi
 done

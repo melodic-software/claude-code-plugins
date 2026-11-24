@@ -2093,6 +2093,9 @@ class Reader:
     _list_blob: str | None = None
     _list_read: bool = False
     _list_copy: bool | None = None
+    _list_standards: str | None = None
+    _list_changed_at: str | None = None
+    _list_changed_read: bool = False
     # Admission's `task-list` (`_task_list`), once read.
     _task_list_value: Any = None
     _task_list_read: bool = False
@@ -5372,7 +5375,7 @@ class Reader:
             record.get("spec_kind", "closes") == "refs"
         ):
             return SPEC_CHANGED
-        if self._list_changed(record):
+        if self._list_changed(record, started):
             return SPEC_CHANGED
         # No closing issue, then and now: the verdict judged the pull
         # request's own title and body, which only a trusted author's adopted
@@ -5386,17 +5389,18 @@ class Reader:
             return None if record.get("intent_sha256") == live_digest else SPEC_CHANGED
         return None if self._trusted_spec(record, pr, head) else UNTRUSTED_SPEC
 
-    def _list_changed(self, record: dict[str, Any]) -> bool:
+    def _list_changed(self, record: dict[str, Any], started: datetime) -> bool:
         """Whether the trusted list changed since the pass judged it, for a
         repository whose team YAML at the branch tip opts in to the standards
         list (`merge_policy.opts_in_to_standards`, the list
         `_read_trusted_list` reads): the `trusted_actors_blob` it records
         (write-verdict.mjs) is not the git blob id of that list now. A
-        record without one judged
-        the list the `.github/standards/` copy mirrors, so it stands while
-        that copy is at the branch tip and is stale once it is gone
-        (resolve-pr.mjs `specChanged` weighs the list's commit time instead).
-        A failed read raises `_Unreadable`."""
+        record without one judged the list the `.github/standards/` copy
+        mirrors, so it stands while that copy is at the branch tip; once the
+        copy is gone it is stale when the pass, which started at `started`,
+        did not start after the newest standards commit touching the list, as
+        resolve-pr.mjs `specChanged` weighs it. A failed read raises
+        `_Unreadable`."""
         tip = self._tip(self.branch)
         owner, _, name = self.repo.partition("/")
         try:
@@ -5413,6 +5417,7 @@ class Reader:
                 )
                 if standards and text is None:
                     raise _Unreadable("the standards trusted-actor list is absent")
+                self._list_standards = standards
                 self._list_blob = None if text is None else git_blob(text.encode())
                 self._list_read = True
             if self._list_blob is None:
@@ -5425,7 +5430,16 @@ class Reader:
                     or merge_policy._file_at(owner, name, TRUSTED_ACTORS_PATH, tip)
                     is not None
                 )
-            return not self._list_copy
+            if self._list_copy:
+                return False
+            if not self._list_changed_read:
+                self._list_changed_at = merge_policy.standards_list_changed_at(
+                    self._list_standards
+                )
+                self._list_changed_read = True
+            return self._list_changed_at is not None and started <= postmerge._time(
+                self._list_changed_at
+            )
         except merge_policy.PolicyReadError as exc:
             raise _Unreadable(f"trusted-actor list: {exc}") from exc
 

@@ -14,7 +14,6 @@
 // only when the net change against the base branch is the same at both (owner
 // decisions Q17 c and Q18 d on #9436).
 import assert from "node:assert/strict";
-import { Buffer } from "node:buffer";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -350,7 +349,7 @@ test("decisionGaps reads outside HTML comments and names each gap once", () => {
 });
 
 test("the cost hold's reason names what the linked decision comment lacks", () => {
-  const [reason] = holds("", [], ["infra/main.tf"], [], [], null, true, null, true, ["a row link"]);
+  const [reason] = holds("", [], ["infra/main.tf"], [], [], null, true, true, ["a row link"]);
   assert.match(reason, /owner-decisions record and the owner's words quoted verbatim/);
   assert.match(reason, /the linked decision comment lacks a row link$/);
   assert.doesNotMatch(holds("", [], ["infra/main.tf"], [], [], null)[0], /lacks/);
@@ -367,7 +366,7 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 });
 
 const BASELINE = "docs/upstream/claude-code-native-surfaces.min.json";
-function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue, pull, baselineFile = BASELINE } = {}) {
+function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, queue, pull, baselineFile = BASELINE } = {}) {
   const dir = tempDir("merge-holds-");
   const env = pull === undefined ? {} : { BABYSIT_VERIFY_PULL: join(dir, "pull"), LANES_APP_ID: "9", ...(baselineFile === null ? {} : { BASELINE_FILE: baselineFile }) };
   if (pull !== undefined) {
@@ -391,14 +390,6 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
   }
   const { github: decisions } = world(options);
   const github = async (method, path, data) => {
-    const listed = /^\/repos\/owner\/repo\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(path);
-    if (listed) {
-      assert.equal(method, "GET");
-      if (!(listed[1] in list)) {
-        throw new Error("not found");
-      }
-      return { type: "file", encoding: "base64", content: Buffer.from(list[listed[1]]).toString("base64") };
-    }
     if (data?.query !== BODY_WRITERS_QUERY) {
       return decisions(method, path, data);
     }
@@ -531,29 +522,13 @@ test("ci-status holds no other trusted path or manifest change, only a configure
   assert.match(held.out, /it changes docs\/held\.md, a hold path/);
 });
 
-const ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
-const KYLE = { id: 1, login: "kyle", kind: "human" };
-const LANES = { id: 2, login: "lanes[bot]", kind: "bot" };
-const listOf = (...actors) => `${JSON.stringify({ version: 1, actors }, null, 2)}\n`;
-test("ci-status holds a trusted-actor list widening until a trusted person approves the head, and passes a removal", async () => {
-  const modified = [{ filename: ACTORS, status: "modified" }];
-  const list = { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE, LANES) };
-  const widened = await ci(modified, { list });
-  assert.equal(widened.code, 1, widened.out);
-  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); an approving review of this head by a person on the trusted-actor list lifts it/);
-  const approved = await ci(modified, { list, reviews: [approve] });
-  assert.equal(approved.code, 0, approved.out);
-  assert.match(approved.out, /owner-person approved this head, which lifts its trusted-actor list hold/);
-  const stranger = { ...approve, user: { login: "stranger", id: 9, type: "User" } };
-  assert.equal((await ci(modified, { list, reviews: [stranger] })).code, 1);
-  const changed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE, { ...LANES, kind: "human" }) } });
-  assert.equal(changed.code, 1, changed.out);
-  const removed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE) } });
-  assert.equal(removed.code, 0, removed.out);
-  assert.match(removed.out, /no member veto and no hold path\./);
-  assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES) } })).code, 1);
-  assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE).replace('"version": 1', '"version": 1, "version": 1') } })).code, 1);
-  assert.equal((await ci([[ACTORS, ".github/standards/trusted-actors/old.json", "renamed"]], { list: { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE) } })).code, 1);
+test("ci-status holds no change to the retired synced trusted-actor list path: the list is read from standards", async () => {
+  const path = ".github/standards/trusted-actors/trusted-actors.json";
+  for (const change of [{ filename: path, status: "modified" }, { filename: path, status: "added" }, [path, ".github/standards/trusted-actors/old.json", "renamed"]]) {
+    const passed = await ci([change]);
+    assert.equal(passed.code, 0, passed.out);
+    assert.match(passed.out, /no member veto and no hold path\./);
+  }
 });
 
 test("ci-status holds no body hold text, even a person's; a hold path or a member's veto still holds", async () => {

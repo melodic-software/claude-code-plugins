@@ -13,9 +13,9 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
 
 - merge-holds.mjs `COST_PATHS` and `HOLD_PATH_CLASSES` rows: literals, because ci-status
   runs that file alone and it imports no repository file.
-- the review callers' `hold-paths`: the trusted-actor list, every floor glob, then the
-  security review's own files (scrutiny only).
-- ci-status's exempt-author `hold_patterns`: the same less those two, as bash patterns
+- the review callers' `hold-paths`: every floor glob, then the security review's own files
+  (scrutiny only).
+- ci-status's exempt-author `hold_patterns`: the same less the security review's, as bash patterns
   (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`). While pr-pipeline.yaml's
   `merge.diff-check.path-holds` is absent or false, a guard line after the list empties it for
   every author but Dependabot (owner decisions Q21 and Q24, 2026-10-29).
@@ -79,12 +79,11 @@ def gate_workflow_rows(indent: str) -> list[str]:
     ]
 
 
-TRUSTED_ACTORS = ".github/standards/trusted-actors/**"
 SCRUTINY_ONLY = (
     "plugins/review/skills/security-review/**",
     "plugins/review/evals/security-review-*/**",
 )
-HOLD_PATHS = (TRUSTED_ACTORS, *(g for g, _ in floor_classes()), *SCRUTINY_ONLY)
+HOLD_PATHS = (*(g for g, _ in floor_classes()), *SCRUTINY_ONLY)
 
 
 def bash_patterns(glob: str) -> list[str]:

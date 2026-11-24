@@ -316,7 +316,7 @@ test("a compare moves to the subscription token only when its pull request's aut
   }
 
   const { evaluateTrigger, loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
-  const list = loadTrustedList(fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url)));
+  const list = loadTrustedList(fileURLToPath(new URL("../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json", import.meta.url)));
   const owner = 153232337;
   const repository = "melodic-software/claude-code-plugins";
   const head = "a".repeat(40);
@@ -359,7 +359,7 @@ test("a compare on a pull request a bot wrote stays on the key", () => {
       writeFileSync(join(work, "bin/gh"), `#!/usr/bin/env bash\n${reply}\n`, { mode: 0o755 });
       return spawnSync("bash", ["-c", script], {
         cwd: work,
-        env: { PATH: `${join(work, "bin")}:${process.env.PATH}`, PR: "7", GITHUB_REPOSITORY: "o/r", LIST: ".base/.github/standards/trusted-actors/trusted-actors.json" },
+        env: { PATH: `${join(work, "bin")}:${process.env.PATH}`, PR: "7", GITHUB_REPOSITORY: "o/r", LIST: ".base/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json" },
         encoding: "utf8",
       });
     };

@@ -16,7 +16,7 @@ const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline
   "issue-status"
 ];
 const FIELD = 48484079;
-const TRUSTED = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
+const TRUSTED = JSON.parse(readFileSync(new URL("../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
 const LISTED = 153232337;
 const UNLISTED = 42;
 const issueStatus = (fieldValues, setter = LISTED) =>
