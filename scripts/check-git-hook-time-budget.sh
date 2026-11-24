@@ -19,18 +19,20 @@ pre-commit runs on a throwaway fixture repository with 10 staged files. pre-push
 the real checkout, whose size its entries' cost grows with: HEAD pushed as a new
 non-default branch, ranged from origin/main.
 
-The budget is calibrated per hook, so a slower runner does not flake: three reference
+The budget is calibrated per hook, so a slower runner does not flake: four reference
 parts that run none of the hooks' code and do not grow with the repository are timed in
-the same run, median of 5 each: pwsh (one start compiling a one-line type with Add-Type,
-since a bare start misses the assembly load and JIT the hooks pay, without timing a tool
-the hooks run), starts (bare python3, node, bash, git) and files (git status over a
-generated 400-file tree, one node process reading and parsing it). Their values on the
-host that set the budget are 307, 46 and 40 ms (Linux on WSL2, 24 CPUs, 2026-11-24, median
-of five runs), which put pre-commit at 1934 ms and pre-push at 1207 ms, HEAD one commit
-past origin/main. A hook's reference ratio weights each part's ratio to that host by the
-share of the hook's own time that kind of work takes on it: pre-commit 0.26 pwsh, 0.37
-starts, 0.37 files; pre-push 0.5 starts, 0.5 files, no pwsh. Its scaled budget is 3 s x
-that ratio. Every run prints the hooks' own ratio (total / desk total) beside the
+the same run: pwsh (one start compiling a one-line type with Add-Type, since a bare start
+misses the assembly load and JIT the hooks pay, without timing a tool the hooks run),
+starts (bare python3, node, bash, git), files (git status over a generated 400-file tree,
+one node process reading and parsing it), each median of 5, and spawn (S, below), since
+the hooks' scripts fork many short processes. Their values on the host that set the
+budget are 307, 46, 40 and 0.97 ms (Linux on WSL2, 24 CPUs, 2026-11-24, median of five
+runs), which put pre-commit at 1934 ms and pre-push at 1207 ms, HEAD one commit past
+origin/main. A hook's reference ratio weights each part's ratio to that host by the
+share of the hook's own time that kind of work takes, fitted to a CI run where pwsh ran
+2.7x the host, spawn 2.1x and starts and files 0.93x: pre-commit 0.26 pwsh, 0.29 starts,
+0.28 files, 0.17 spawn; pre-push 0.19 starts, 0.18 files, 0.63 spawn, no pwsh. Its scaled
+budget is 3 s x that ratio. Every run prints the hooks' own ratio (total / desk total) beside the
 reference ratio; in CI it warns when they differ by over 30%. Raw seconds, the ratio and
 the scaled budget all print; pass/fail is on the scaled budget.
 Under a tracer (TracerPid not 0) the times print and nothing is judged.

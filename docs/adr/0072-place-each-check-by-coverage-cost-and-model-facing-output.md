@@ -179,13 +179,13 @@ durations": CI installs every hook tool and times every shipped `pre-commit` ent
 branch, since pre-push cost grows with the repository (`scripts/check-git-hook-time-budget.sh`).
 A piped group counts as one unit. It runs when a change touches a hook config or a script an
 entry calls, or adds or removes a plugin, and on the scheduled full run of main, so growth
-alone can trip it. Each run times three reference parts that run no hook code and do not
+alone can trip it. Each run times four reference parts that run no hook code and do not
 grow with the repository: a pwsh start compiling a one-line type with Add-Type, bare starts
-of python3, node, bash and git, and a fixed git and node file part. Each hook's budget is
-3 s x its reference ratio: each part's time / its time on the desk that set the budget
-(Linux on WSL2, 2026-11-24), weighted by the share of that hook's desk time the same kind
-of work takes. pre-commit is about a quarter pwsh; pre-push runs none, so one reference
-cannot track both. A slower runner therefore does not flake; each run also prints the hooks'
+of python3, node, bash and git, a fixed git and node file part, and one short process
+spawn. Each hook's budget is 3 s x its reference ratio: each part's time / its time on the
+desk that set the budget (Linux on WSL2, 2026-11-24), weighted by the share of that hook's
+time the same kind of work takes. pre-commit is about a quarter pwsh; pre-push runs none
+and is mostly short process spawns, so one reference cannot track both. A slower runner therefore does not flake; each run also prints the hooks'
 own ratio to that desk, and CI warns when the two ratios differ by more than 30%. It fails a
 hook over that budget, an entry whose tool is missing, and a pre-push entry that skips a check
 or exits non-zero. A local run skips a missing tool (item 4's skip). Nothing kills a hook at
