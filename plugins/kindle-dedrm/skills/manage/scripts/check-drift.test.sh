@@ -72,8 +72,6 @@ assert_file "shipped versions.md sits next to the script" \
 assert_file "shipped sources.md sits next to the script" \
   "${SCRIPT_DIR}/../reference/sources.md"
 
-# Extract pin() from the SUT and run it against a fixture so a parser
-# regression fails here instead of as a silent skip in the live probe.
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 

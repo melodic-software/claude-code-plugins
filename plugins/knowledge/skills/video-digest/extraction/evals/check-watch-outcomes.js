@@ -379,7 +379,6 @@ function pushSessionCoverageChecks(checks, slice) {
     };
   });
 
-  // Zero parsed sessions would make both checks below pass over nothing.
   const noSessions =
     slice.parsedSessionCount > 0
       ? "no session in research/claim-inventory.md overlaps the watch.json timeRange"
