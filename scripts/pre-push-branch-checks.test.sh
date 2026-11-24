@@ -142,6 +142,13 @@ run_hook
 expect "an uncommitted repair leaves the committed fragment's format and the whole-branch checks to CI" 0 \
   "the pushed fragments' format is left to CI" "the working tree has uncommitted changes, so the whole-branch checks are left to CI"
 commit "$f" good-fragment
+fragment "$PLAIN" 89abcdef "Unfinished."
+run_hook
+expect "an untracked unfinished fragment does not block a valid push" 0 \
+  "the working tree has uncommitted changes, so the whole-branch checks are left to CI"
+rm -f "$f/.changes/$PLAIN/topic-89abcdef.md"
+run_hook
+expect "the valid branch passes once the untracked fragment is gone" 0
 
 topic
 fragment "$PARITY_PLUGIN" 0000000b
