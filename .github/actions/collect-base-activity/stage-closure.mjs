@@ -27,11 +27,6 @@ export function stage(base, script, dest) {
   if (!entry || entry.startsWith("..") || path.isAbsolute(script)) throw new Error(`${script} is outside the base`);
   const copies = new Set();
   const entryDir = path.dirname(entry);
-  if (entryDir !== ".") {
-    for (const entry of readdirSync(path.join(root, entryDir), { withFileTypes: true })) {
-      if (!entry.isDirectory()) copies.add(path.join(entryDir, entry.name));
-    }
-  }
   const seen = new Set();
   const visit = (file) => {
     const rel = path.relative(root, file);
@@ -43,6 +38,13 @@ export function stage(base, script, dest) {
     for (const next of loads(file)) visit(next);
   };
   visit(path.join(root, script));
+  if (entryDir !== ".") {
+    for (const sibling of readdirSync(path.join(root, entryDir), { withFileTypes: true })) {
+      if (sibling.isDirectory()) continue;
+      if (/\.test\.[cm]?js$|\.test\.sh$/.test(sibling.name)) copies.add(path.join(entryDir, sibling.name));
+      else visit(path.join(root, entryDir, sibling.name));
+    }
+  }
   for (const rel of copies) {
     mkdirSync(path.dirname(path.join(dest, rel)), { recursive: true });
     cpSync(path.join(root, rel), path.join(dest, rel), { recursive: true, verbatimSymlinks: true });

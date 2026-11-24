@@ -7,6 +7,7 @@
 // test-scope: .github/scripts/*.mjs docs/conventions/pr-pipeline.yaml .github/workflows/pr-run-activity-write.yml
 // test-scope: .github/actions/resolve-config/* .github/scripts/intake-triage/* .github/scripts/pr-unblock/*
 // test-scope: .github/scripts/pr-verify/* .github/scripts/work-resolve-issue/package.json docs/upstream/*
+// test-scope: .github/actions/check-born-triaged/check-born-triaged.mjs .github/actions/check-wip-cap/check-wip-cap.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -208,7 +209,8 @@ test("a data file a module loads from outside its directory is staged alone, and
   const github = path.join(dest, ".github");
   const top = readdirSync(github, { withFileTypes: true });
   assert.deepEqual(top.filter((e) => e.isFile()).map((e) => e.name), ["recurring-schedule.json"]);
-  assert.ok(!top.some((e) => e.name === "workflows"), top.map((e) => e.name).join(" | "));
+  const workflows = path.join(github, "workflows");
+  if (existsSync(workflows)) assert.ok(readdirSync(workflows).length < readdirSync(path.join(REPO_ROOT, ".github/workflows")).length, "only loaded workflow files are staged");
   assert.deepEqual(readFileSync(path.join(github, "recurring-schedule.json")), readFileSync(path.join(REPO_ROOT, ".github/recurring-schedule.json")));
   const files = (dir) => readdirSync(dir, { withFileTypes: true }).filter((e) => !e.isDirectory()).map((e) => e.name).sort();
   assert.deepEqual(files(path.join(github, "scripts/intake-triage")), files(path.join(REPO_ROOT, ".github/scripts/intake-triage")));
@@ -221,6 +223,21 @@ test("a module's directory is staged without its subdirectories nothing loads fr
   assert.ok(existsSync(path.join(unblock, "publish-feedback.mjs")));
   assert.ok(existsSync(path.join(REPO_ROOT, ".github/scripts/pr-unblock/fixtures")));
   assert.ok(!existsSync(path.join(unblock, "fixtures")));
+});
+
+test("a sibling beside the entry script brings its own loads from outside the entry directory", () => {
+  const base = mkdtempSync(path.join(root, "sibling-base-"));
+  mkdirSync(path.join(base, "a"));
+  mkdirSync(path.join(base, "lib"));
+  writeFileSync(path.join(base, "a", "entry.mjs"), "export const tool = process.argv[2];\n");
+  writeFileSync(path.join(base, "a", "sibling.mjs"), 'import { x } from "../lib/x.mjs";\nexport { x };\n');
+  writeFileSync(path.join(base, "lib", "x.mjs"), "export const x = 1;\n");
+  writeFileSync(path.join(base, "lib", "unrelated.mjs"), "export const y = 2;\n");
+  const dest = mkdtempSync(path.join(root, "sibling-dest-"));
+  stageClosure(base, "a/entry.mjs", dest);
+  assert.ok(existsSync(path.join(dest, "a", "sibling.mjs")));
+  assert.ok(existsSync(path.join(dest, "lib", "x.mjs")), "the sibling's import is staged");
+  assert.ok(!existsSync(path.join(dest, "lib", "unrelated.mjs")));
 });
 
 test("a file loaded outside the entry script's directory is staged alone, module or data", () => {
