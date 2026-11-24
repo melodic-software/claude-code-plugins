@@ -16,10 +16,12 @@ run-name: >-
 #   HOME and on PATH. The allow-real-servers input starts a case plugin's real
 #   MCP servers (plugins/testing/evals/browser-mcp-probe/README.md).
 # - When the `eval: run` label is added to a same-repository, non-draft pull
-#   request: the suite of each plugin whose skills/, agents/ or evals/ the pull
-#   request changes, deterministic graders only, with no tool beyond the
-#   read-only set, no scaffold, and env scrub on. Advisory: no ruleset or
-#   ci-status reads this job. Adding the label again runs the current head.
+#   request: the suite of each plugin whose skills/, agents/, context/ or
+#   evals/ the pull request changes, deterministic graders only, with no tool
+#   beyond the read-only set, no scaffold, and env scrub on. Advisory: no
+#   ruleset or ci-status reads this job. Adding the label again runs the
+#   current head. context/ is admitted by the owner decision at
+#   https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380.
 #
 # Before any model call the suite passes /evals:validate's validate-cases.py,
 # or the job fails. Each result goes through .github/scripts/plugin-eval/
@@ -40,10 +42,11 @@ run-name: >-
 # select-plugins.mjs lets a selected plugin through only when every change is
 # allowlisted: an eval case file (prompt.md, case.yaml, graders/*.md,
 # samples/**/*.json) that keeps allowed_tools, env, context and the other
-# run keys, or markdown under skills/ or agents/ that keeps its
+# run keys, or markdown under skills/, agents/ or context/ that keeps its
 # non-descriptive frontmatter and adds no shell preprocessing, in a plugin
 # whose tree holds no symlink or submodule and whose cases load only the
-# plugin itself or an unchanged directory inside it. Anything else is refused.
+# plugin itself or an unchanged directory inside it. Anything else is refused
+# (context/: https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380).
 #
 # Only an env allowlist (PATH, ANTHROPIC_*, CLAUDE_CODE_*, EVAL_*) reaches an
 # eval run (code.claude.com/docs/en/plugin-evals, "How runs are isolated", as

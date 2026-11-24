@@ -58,6 +58,10 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - In CI only, never on a local machine (Q3, Q7).
 - A cut, or a grader, prompt, fixture or scaffold change, runs its affected deterministic cases in a
   compare run before merge, whose PASS releases the eval hold (Q7).
+- A compare run's arms also carry the plugin's `context/**/*.md` under the markdown rules
+  `select-plugins.mjs` applies to `skills/` and `agents/`; `plugin.json` and `probes/` stay refused
+  (owner decision,
+  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380)).
 - A cut whose only covering cases are judged adds a deterministic case for the changed behavior in
   the same PR (Q45).
 - Four kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
