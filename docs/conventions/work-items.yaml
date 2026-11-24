@@ -1,8 +1,4 @@
 # yaml-language-server: $schema=../../plugins/work-items/schemas/work-items.schema.json
-# Team layer for the work-items plugin's settings.
-# Resolution: plugins/work-items/reference/ai-disclaimer.md (ai_disclaimer),
-# plugins/work-items/skills/morning-brief/scripts/morning-brief.sh (morning_brief keys),
-# plugins/bugs/reference/config.md (filing_posture, read by /bugs:scan --track).
 ai_disclaimer: false
 filing_posture: allowed
 label_as_code_repo: melodic-software/github-iac
@@ -40,6 +36,6 @@ tracker:
     lease_ttl_hours: 24
     github:
       status_trust:
-        trusted_actors: .github/standards/trusted-actors/trusted-actors.json
+        trusted_actors: standards:melodic-software/standards:components/trusted-actors/trusted-actors.json
         model: docs/conventions/pr-pipeline.yaml
         lanes_app: melodic-automation-lanes[bot]

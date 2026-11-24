@@ -115,7 +115,7 @@ const headRun = /(^|[\s;&|(])(\.\/|npm |npx |yarn |pnpm |make\b|pytest|python |n
 const offenders = after.filter((s) => s.run && headRun.test(s.run)).map((s) => s.name);
 say(offenders.length === 0, `no run step after the head checkout runs head code (${offenders.join(", ") || "none"})`);
 const script = byId("act-script").run ?? "";
-say(/"\$RUNNER_TEMP\/base-script\/\$\(basename "\$SCRIPT"\)"/.test(script), "a script activity runs from its base copy");
+say(/"\$RUNNER_TEMP\/base-script\/\$SCRIPT"/.test(script), "a script activity runs from its base copy");
 // No model runs beside the lane token: no step runs claude-code-action or
 // takes a Claude credential, and a skill fails red before the mint.
 say(!steps.some((s) => /claude-code-action/.test(s.uses ?? "")) && !/secrets\./.test(JSON.stringify(wf.jobs.run)) && !wf.on.workflow_call.secrets,
@@ -170,8 +170,10 @@ say(runDownload?.with?.name === "feedback-context-${{ inputs.review-run-attempt 
   && replyDownload?.with?.name === "feedback-replies-${{ inputs.lane }}-address-feedback-${{ inputs.review-replies-attempt }}",
   "the reply job downloads run.json and the replies by their writers' attempts, so a re-run of it alone still finds them");
 const actors = at((s) => s.id === "reply-actors");
-say(actors >= 0 && actors < checkout && /\.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json/.test(byId("reply-actors").run ?? ""),
-  "the reply script's trusted-actors list is copied from the base before the head checkout");
+const standards = at((s) => s.id === "standards");
+say(actors >= 0 && actors < checkout && standards >= 0 && standards < actors && byId("reply-actors").run === 'cp "$TRUSTED_ACTORS_PATH" "$COPY"'
+  && byId("reply-actors").env?.TRUSTED_ACTORS_PATH === "${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json",
+  "the reply script's trusted-actors list is copied from the standards checkout before the head checkout");
 say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invalid\)/.test(byId("act-script").run ?? "")
   && /\?\*:feedback-partial \| \?\*:feedback-incomplete \| \?\*:feedback-disputed\)/.test(byId("act-script").run ?? ""),
   "a script escalates only with the reply script's own reasons, and only in review-replies mode");
@@ -190,13 +192,6 @@ say(refuseDependency >= 0 && refuseDependency < mint && /steps\.config\.outputs\
   "a dependency-review activity fails red before the mint");
 say(!steps.some((s) => ["dependency-select", "dependency-collect"].includes(s.id)),
   "the write runner selects no dependency pull request and collects no verdict");
-// apply-patch runs from a base copy, so each sibling-directory module it or
-// its predicates import must be copied beside it.
-const siblingImports = ["apply-patch.mjs", "predicates.mjs"].flatMap((file) =>
-  [...readFileSync(`.github/scripts/apply-patch/${file}`, "utf8").matchAll(/from "\.\.\/([a-z-]+)\/([^"/]+)"/g)].map((m) => [m[1], m[2]]));
-say(siblingImports.length > 0 && siblingImports.every(([dir, name]) => (byId("apply-base").run ?? "").includes(`cp .base/.github/scripts/${dir}/${name} "$RUNNER_TEMP/${dir}/"`)
-  && new RegExp(`mkdir -p [^\\n]*"\\$RUNNER_TEMP/${dir}"`).test(byId("apply-base").run ?? "")),
-  "the apply-patch base copy holds every sibling-directory module apply-patch.mjs and its predicates import");
 say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
 say(/chmod -R a-w "\$DOCS_DIR"/.test(stage) && /disallowed="Edit\(\/\$DOCS_DIR\/\*\*\),Write\(\/\$DOCS_DIR\/\*\*\)"/.test(stage),
@@ -210,7 +205,7 @@ say(/sha256/.test(byId("tracker-config").run ?? ""), "the tracker config copy re
 const scriptEnv = byId("act-script").env ?? {};
 say(/base-script/.test(String(scriptEnv.TRACKER_CONFIG ?? "")), "the script step gets TRACKER_CONFIG from the base copy");
 const trackerCheck = script.search(/sum=\$\(sha256sum <"\$TRACKER_CONFIG"\)\n\s*if \[ "\$\{sum%% \*\}" != "\$TRACKER_SHA256" \]; then\n[^\n]*\n\s*exit 1/); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$RUNNER_TEMP/base-script/$(basename'),
+say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$RUNNER_TEMP/base-script/$SCRIPT"'),
   "the script step fails on a tracker config whose SHA-256 differs, before running the script");
 
 // Hash checks compare and fail, not merely run.

@@ -91,8 +91,11 @@ For another manager, use its own documented rebase trigger.
 A base repository runs pr-verify when its base commit has `.github/workflows/pr-verify.yml`.
 pr-verify judges the PR's author by `merge.verify-authors` in that commit's
 `docs/conventions/pr-pipeline.yaml`: `lane` (the default) judges only the lanes App
-(`merge.agent-identity`), `lane-or-owner` also an author on
-`.github/standards/trusted-actors/trusted-actors.json`, and `any` every author
+(`merge.agent-identity`), `lane-or-owner` also an author on the trusted list (the
+component `components/trusted-actors/trusted-actors.json` in the repository `standards_repository`
+names, when the base's `docs/conventions/source-control.yaml` sets
+`trusted_actors_source: standards`, else the
+repository's `.github/standards/trusted-actors/trusted-actors.json`), and `any` every author
 (`.github/scripts/pr-verify/resolve-pr.mjs`). Before that setting, the resolver skips a PR whose
 base is not the default branch, whose head is in a fork, or whose author is a dependency-manager
 Bot (`dependabot`, `dependabot-preview`, `renovate`, `renovate-bot`): pr-verify never judges one, so
@@ -128,8 +131,24 @@ AUTHOR=$(jq -r '"\(.user.id) \(.user.login)"' <<<"$PULL")
 CONF=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/pr-pipeline.yaml?ref=$BASE_SHA") || exit 1
 MODE=$(sed -n 's/^  verify-authors: *\([a-z-]*\).*/\1/p' <<<"$CONF" | head -n 1)
 LANE=$(sed -n 's/^  agent-identity: *\([^ #]*\).*/\1/p' <<<"$CONF" | head -n 1)
-TRUSTED=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA" \
-  | jq -r '.actors[].id') || exit 1
+PARSE="<plugin-root>/lib/parse-concern-value.sh"
+SRC=
+if TEAM=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/source-control.yaml?ref=$BASE_SHA" 2>&1); then
+  SRC=$(bash "$PARSE" --strict - trusted_actors_source <<<"$TEAM") || exit 1
+  [ -n "$SRC" ] || ! grep -Eq '^trusted_actors_source[[:blank:]]*:' <<<"$TEAM" || exit 1
+else
+  case "$TEAM" in *'HTTP 404'*) ;; *) echo "source-control.yaml read failed, hold: $TEAM" >&2; exit 1 ;; esac
+fi
+case "$SRC" in
+  '' | repository) LIST="repos/$REPO/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA" ;;
+  standards)
+    SREPO=$(bash "$PARSE" --strict - standards_repository <<<"$TEAM") || exit 1
+    [[ "$SREPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
+    STD=$(gh api "repos/$SREPO/git/ref/heads/main" --jq .object.sha) || exit 1
+    LIST="repos/$SREPO/contents/components/trusted-actors/trusted-actors.json?ref=$STD" ;;
+  *) echo "trusted_actors_source $SRC reads neither list, hold" >&2; exit 1 ;;
+esac
+TRUSTED=$(gh api -H 'Accept: application/vnd.github.raw' "$LIST" | jq -r '.actors[].id') || exit 1
 JUDGED=no
 case "${MODE:-lane}" in
   any) JUDGED=yes ;;

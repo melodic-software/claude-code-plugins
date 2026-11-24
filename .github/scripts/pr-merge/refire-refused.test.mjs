@@ -1,9 +1,3 @@
-// Expected values come from the broker's refusal format in
-// .github/actions/request-lane-token/action.yml: a lane run on a PR's current
-// head that failed at "Request the lane token" with reason workflow-modified
-// gets a new head (an empty commit) within one run, at most once per version
-// of the named workflow file, and only for a PR whose head
-// check-trusted-trigger would trust.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -44,15 +38,11 @@ const pr = (number, { user = OWNER, draft = false, repo = REPO, ref = `fix/${num
 });
 const denial = (path) => `lane-token-denied: the broker answered 403 with reason workflow-modified: ${path} differs from refs/heads/main`;
 const TOKEN_STEP = "Request the lane token";
-// A failed job's steps as the jobs API lists them in full: a job failing at a
-// later step ran the token step first, and it succeeded.
 const fullSteps = (step) => [
   { name: "Check the trigger", conclusion: "success" },
   ...(step === TOKEN_STEP ? [] : [{ name: TOKEN_STEP, conclusion: "success" }]),
   { name: step, conclusion: "failure" },
 ];
-// A failed pr-unblock run dispatched on main for PR `number`; `job` is its
-// failed job, `annotations` that job's. `steps` replaces the job's step list.
 const run = (
   id,
   {
@@ -62,7 +52,6 @@ const run = (
     headBranch = "main",
     step = TOKEN_STEP,
     steps = fullSteps(step),
-    // The write runner's job as the jobs API names it (`<caller> / Run`).
     jobName = "Apply Conflict Patch / Run",
     conclusion = "failure",
     messages = [denial(UNBLOCK)],
@@ -94,18 +83,11 @@ const linkedCheck = (id) => ({
 });
 const marker = (path, blob, head, { user = BOT, at = "2026-10-17T21:50:00Z" } = {}) => ({ user, created_at: at, body: refireComment(path, blob, head, LANE) });
 
-// `blobs` is main's blob per file; `changed` lists the files each head SHA
-// changes against its merge base with main.
-// `compare` is the status of a run's head against main; `moved` is a PR as a
-// fresh GET /pulls/{n} answers it, when it changed since the listing; `refs`
-// is each branch's tip as GET git/ref/heads/{branch} answers it: a SHA, null
-// for a 404, {status} for that error, or {} for an answer with no SHA.
 function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, refs = {}, mainTag = false, failOn } = {}) {
   const calls = [];
   const all = Object.values(runs).flat();
   const answer = (method, path, body) => {
     calls.push(body === undefined ? `${method} ${path}` : `${method} ${path} ${JSON.stringify(body)}`);
-    // `failOn` is a call prefix that answers 422, or {prefix, status}.
     const fail = typeof failOn === "string" ? { prefix: failOn, status: 422 } : failOn;
     if (fail && `${method} ${path}`.startsWith(fail.prefix)) {
       throw new GitHubError(fail.status, `${method} ${path}`);
@@ -145,7 +127,6 @@ function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN
       }
       return typeof tip === "string" ? { ref: `refs/heads/${match[1]}`, object: { sha: tip } } : { ref: `refs/heads/${match[1]}` };
     }
-    // Every main-side read names main's tip, never the name main.
     if ((match = /\/contents\/(.+)$/.exec(route))) {
       assert.equal(new URL(path, "https://x").searchParams.get("ref"), MAIN_TIP);
       return { sha: blobs[match[1]] };
@@ -177,8 +158,6 @@ function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN
   return { github: fn, actions: fn, calls };
 }
 
-// Each PR in `pulls` has one refused pr-unblock run whose failed check is on
-// the PR's current head; `runOptions` changes every run.
 const refusedWorld = (pulls, { runOptions = {}, ...options } = {}) =>
   world({
     pulls,
@@ -187,8 +166,6 @@ const refusedWorld = (pulls, { runOptions = {}, ...options } = {}) =>
     ...options,
   });
 
-// resolve-config's output file, holding merge.refire-skip-branches as the
-// repository's pr-pipeline.yaml sets it.
 const OWNED = "release/plugins";
 const resolvedConfig = (skip) => {
   const file = join(tempDir("refire-config-"), "resolved-config.json");
@@ -202,7 +179,6 @@ const env = {
   LANES_APP_SENDER_ID: String(BOT.id),
   RESOLVED_CONFIG_PATH: resolvedConfig([OWNED]),
 };
-// The lines main() logs, with its exit code.
 const logged = async (t, w, options = {}) => {
   const log = t.mock.method(console, "log", () => {});
   const code = await main({ env, github: w.github, actions: w.actions, now: NOW, ...options });
@@ -243,11 +219,9 @@ test("a dispatched pr-unblock run re-fires only when its failed check is on the 
   const elsewhere = world({ pulls: [pr(9)], runs: { [LANE]: [dispatched] }, checks: { [sha(9)]: [] } });
   assert.equal(await main({ env, github: elsewhere.github, actions: elsewhere.actions, now: NOW }), 0);
   assert.equal(pushes(elsewhere.calls).length, 0);
-  // A run on a tag named main: its commit is not on the branch.
   const tag = world({ pulls: [pr(9)], runs: { [LANE]: [dispatched] }, checks: { [sha(9)]: [linked] }, compare: "diverged" });
   assert.equal(await main({ env, github: tag.github, actions: tag.actions, now: NOW }), 0);
   assert.equal(pushes(tag.calls).length, 0);
-  // github-actions[bot] stands in only on a first attempt; a rerun needs a listed account.
   const rerun = world({
     pulls: [pr(9)],
     runs: { [LANE]: [{ ...dispatched, run_attempt: 2 }] },
@@ -279,8 +253,6 @@ test("a pr-refine.yml run is no longer read or re-fired", async () => {
   assert.deepEqual(posts(w.calls), []);
 });
 
-// The comment text pr-merge posted for every lane until now, verbatim: markers
-// already on open PRs carry it.
 const POSTED = (path, blob, head) =>
   `<!-- pr-lane-refire ${path}@${blob} head ${head} -->\nA lane run on this pull request's head failed because the token broker refused it as workflow-modified: \`${path}\` changed on main after the run's event, and a rerun keeps the old file. pr-merge pushes an empty commit so new runs start on main's files. It does this once per version of that file, so if a run fails the same way again, a person looks at it.`;
 const UNBLOCK_START =
@@ -365,13 +337,11 @@ test("a PR pushed, drafted or closed since the listing is not pushed to, and war
 
 test("a run for another PR or off main, a failure at another step, or another broker reason re-fires nothing", async () => {
   for (const runOptions of [
-    // The title names a PR that is not open.
     { title: "PR Unblock resolve-conflicts #10" },
     { headBranch: "fix" },
     { event: "pull_request" },
     { step: "Run the skill activity" },
     { messages: ["lane-token-denied: the broker answered 403 with reason untrusted-actor"] },
-    // The broker named a file this lane is not compared on.
     { messages: [denial(".github/workflows/release.yml")] },
   ]) {
     const w = refusedWorld([pr(9)], { runOptions });
@@ -382,15 +352,12 @@ test("a run for another PR or off main, a failure at another step, or another br
 });
 
 test("a failed job whose step list lacks the token step is judged by its annotations; one listing the token step as passed is not", async () => {
-  // The jobs API can answer a completed job with no steps or a cut list.
   for (const steps of [[], [{ name: "Check the trigger", conclusion: "success" }]]) {
     const w = refusedWorld([pr(9)], { runOptions: { steps } });
     assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
     assert.equal(pushes(w.calls).length, 1, JSON.stringify(steps));
     assert.equal(posts(w.calls).length, 1, JSON.stringify(steps));
   }
-  // The full list shows the token step passed, so even a refusal annotation
-  // re-fires nothing.
   const full = refusedWorld([pr(9)], { runOptions: { step: "Run the skill activity" } });
   assert.equal(await main({ env, github: full.github, actions: full.actions, now: NOW }), 0);
   assert.deepEqual(pushes(full.calls), []);
@@ -400,8 +367,6 @@ test("a failed job whose step list lacks the token step is judged by its annotat
 const annotationReads = (calls) => calls.filter((call) => /\/check-runs\/\d+\/annotations/.test(call));
 
 test("a job that is no write runner job, or did not fail, has its annotations unread even with no steps listed", async () => {
-  // Fix CI / Run is the read runner's job: it runs the model over PR content
-  // and requests no lane token, so its annotations are never trusted.
   for (const runOptions of [
     { jobName: "Fix CI / Run", steps: [] },
     { jobName: "fix-ci / run", steps: [] },
@@ -417,7 +382,6 @@ test("a job that is no write runner job, or did not fail, has its annotations un
 });
 
 test("every pr-unblock job that calls the write runner is read when its steps are missing", async () => {
-  // The callers come from pr-unblock.yml itself, so a new one is covered.
   const yml = readFileSync(join(HERE, "../../workflows/pr-unblock.yml"), "utf8");
   const callers = [...yml.matchAll(/^ {2}([a-z0-9-]+):\n {4}name: (.+)\n(?:(?! {2}\S).*\n)*? {4}uses: \.\/\.github\/workflows\/pr-run-activity-write\.yml/gm)].map((m) => m[2]);
   assert.ok(callers.includes("Apply Conflict Patch") && callers.length >= 8, JSON.stringify(callers));
@@ -448,7 +412,6 @@ test("only a head check-trusted-trigger trusts qualifies: no untrusted author, f
 });
 
 test("a PR already re-fired for this version of the file is never re-fired again, so a failing run cannot loop", async () => {
-  // The marker names the old head: the push landed, and the new head failed the same way.
   const w = refusedWorld([pr(9)], { comments: { 9: [marker(UNBLOCK, BLOB, sha(8))] } });
   assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
   assert.deepEqual(pushes(w.calls), []);
@@ -490,8 +453,6 @@ test("a failed marker comment pushes nothing and fails the run", async (t) => {
   assert.ok(lines.includes(`::error title=refire-refused::#9: POST /repos/${REPO}/issues/9/comments failed with status 422`), lines.join("\n"));
 });
 
-// A new commit object names only its tree and parent, so no branch move can
-// refuse it: any error writing it would hit every PR the same way.
 test("a 409 on the commit write fails the run at the first PR instead of warning for each", async (t) => {
   const w = refusedWorld([pr(9), pr(30)], { failOn: { prefix: `POST /repos/${REPO}/git/commits`, status: 409 } });
   const { code, lines } = await logged(t, w);
@@ -529,10 +490,6 @@ test("a failed run listing for a lane fails the run and pushes nothing", async (
   assert.ok(lines.some((line) => line.startsWith(`::error title=refire-refused::${LANE}:`)), lines.join("\n"));
 });
 
-// Run 41065454536: one PR's ref update answered 422, and the step failed the
-// whole merge job.
-// A 409 or 422 on the ref update is that branch moving under the push only
-// when a fresh read of the branch shows it moved or gone.
 test("one PR's failed ref update is a warning for that PR alone: the rest still re-fire and the run passes", async (t) => {
   const w = refusedWorld([pr(9), pr(30), pr(41)], { failOn: `PATCH /repos/${REPO}/git/refs/heads/fix/30`, refs: { "fix/30": sha(31) } });
   const { code, lines } = await logged(t, w);
@@ -657,8 +614,6 @@ test("the job token's client counts its readings as github-token while API_BUDGE
   }
 });
 
-// A token step that failed transiently, in request-lane-token/action.yml's
-// wording: no broker response, or a 5xx after the action's own retries.
 const UNREACHABLE = "broker-unreachable: the lanes token broker gave no response, after 503 with reason github-unavailable";
 const DENIED_5XX = "lane-token-denied: the broker answered 502 with reason internal-error: upstream timed out";
 const FEEDBACK = { title: "PR Unblock address-feedback #9", jobName: "Apply Feedback Patch / Run" };
@@ -757,12 +712,10 @@ test("a transient token failure of an activity pr-unblock-dispatch retries itsel
 });
 
 test("a transient re-fire is capped at one per failed run and two per head tree", async (t) => {
-  // This run was already re-fired: its marker names an older head.
   const sameRun = refusedWorld([pr(9)], { runOptions: { ...FEEDBACK, messages: [DENIED_5XX] }, comments: { 9: [transientMarker(90, sha(8))] } });
   assert.equal(await main({ env, github: sameRun.github, actions: sameRun.actions, now: NOW }), 0);
   assert.deepEqual(pushes(sameRun.calls), []);
   assert.deepEqual(posts(sameRun.calls), []);
-  // Two earlier runs were re-fired on the same tree (empty commits keep it).
   const atCap = refusedWorld([pr(9)], {
     runOptions: { ...FEEDBACK, messages: [DENIED_5XX] },
     comments: { 9: [transientMarker(70, sha(7)), transientMarker(80, sha(8))] },
@@ -772,7 +725,6 @@ test("a transient re-fire is capped at one per failed run and two per head tree"
   assert.equal(code, 0);
   assert.deepEqual(pushes(atCap.calls), []);
   assert.ok(lines.some((line) => line.startsWith("::warning title=refire-refused::#9 not re-fired: re-fired 2 times")), lines.join("\n"));
-  // One earlier re-fire on this tree, or two on another tree, leave room.
   for (const comments of [[transientMarker(80, sha(8))], [transientMarker(70, sha(7), { tree: "d".repeat(40) }), transientMarker(80, sha(8), { tree: "d".repeat(40) })]]) {
     const w = refusedWorld([pr(9)], { runOptions: { ...FEEDBACK, messages: [DENIED_5XX] }, comments: { 9: comments } });
     assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);

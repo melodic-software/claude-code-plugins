@@ -85,8 +85,6 @@ test("the label plan and rollup read the pre-grammar names merge-path:<path> and
   assert.deepEqual(result.paths, { "owner-agent": { merges: 2, reverts: 1, escapes: 0 } });
 });
 
-// A fake gh: answers the pull-request query from `nodes`, 404s each label in
-// `missing`, and logs every write.
 function fakeGh({ nodes, missing = [], failLabel = [] }) {
   const writes = [];
   const gh = (args) => {
@@ -174,7 +172,6 @@ test("rollup: a deleted path label still counts through its label event; a label
   ].map(toPr);
   const result = rollup({ repo: REPO, since: "2026-11-07", until: "2026-11-07", merged, revertRecords: [], identity: IDENTITY });
   assert.equal(result.paths["owner-agent"].merges, 2);
-  // #203's labels were taken off on purpose: it counts as other, and as no revert.
   assert.deepEqual(result.paths.other, { merges: 2, reverts: 0, escapes: 0 });
 });
 

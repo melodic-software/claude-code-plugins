@@ -45,7 +45,6 @@ const list = (value) => (Array.isArray(value) ? value : []);
 const num = (value) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 const fixed = (value) => (num(value) === null ? "–" : value.toFixed(2));
 const signed = (value) => (num(value) === null ? "–" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}`);
-// Table cells and health lines carry case names and errors from the result.
 const cell = (text) => String(text).replaceAll(/[\r\n]+/g, " ").replaceAll("|", "\\|").replaceAll("@", "@​");
 
 const readTrace = (path) => {
@@ -105,9 +104,6 @@ export function health(runs, { plugin, base, invoked = null }) {
   return { kept, loaded, fired };
 }
 
-// A case.yaml context key in block or flow form, read without a YAML parser
-// the way run-validity.py's context_value reads it; any other shape, or an
-// empty value continued on the next line, gives null.
 const CONTEXT_BLOCK = /^context:\s*(?:#.*)?$/;
 const CONTEXT_FLOW = /^context:\s*\{(.*)\}\s*(?:#.*)?$/;
 const scalar = (text) => {

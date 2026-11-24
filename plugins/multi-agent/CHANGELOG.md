@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.1] - 2026-11-24
+
+### Fixed
+
+- `vendor-state record` no longer fails with `ENOTEMPTY` when a concurrent record writes a trial into the key's trial folder while it is being removed. The folder is renamed to a unique name before removal, so the removal never walks a path a writer opens.
+
 ## [3.8.0] - 2026-11-24
 
 ### Added

@@ -5,6 +5,10 @@
 #
 #   scripts/run-zizmor.sh            (from the repository root; GH_TOKEN set)
 #
+# With BASE_SHA set, the config is the base commit's; when it has none, the
+# standards checkout's (STANDARDS_DIR, download-standards' `path`), else
+# standards main's read through the API.
+#
 # Two runs, because one online-audit request error aborts the whole run with
 # "no audit was performed", which would hide every offline finding too:
 #   1. --no-online-audits: the offline audits. Any non-zero exit fails.
@@ -30,7 +34,10 @@ if [[ -n "${BASE_SHA:-}" ]]; then
       break
     fi
   done
-  if [[ -z "$found" ]]; then
+  if [[ -z "$found" && -n "${STANDARDS_DIR:-}" ]]; then
+    cp "$STANDARDS_DIR/.github/zizmor.yml" "$config" || { echo "::error::.github/zizmor.yml could not be read from the standards checkout $STANDARDS_DIR."; exit 2; }
+    found=".github/zizmor.yml from the melodic-software/standards checkout"
+  elif [[ -z "$found" ]]; then
     gh api -H 'Accept: application/vnd.github.raw' repos/melodic-software/standards/contents/.github/zizmor.yml >"$config" || { echo "::error::melodic-software/standards .github/zizmor.yml could not be read."; exit 2; }
     found=".github/zizmor.yml from melodic-software/standards"
   fi

@@ -65,7 +65,6 @@ export function resolvePaths(paths) {
   return out;
 }
 
-// A queue actor's login as the alert keys it: lowercased, a Bot's with [bot].
 const actorKey = (actor) =>
   !actor?.login
     ? ""
@@ -299,17 +298,17 @@ function option(argv, name) {
   return i >= 0 ? argv[i + 1] : undefined;
 }
 
-async function loadConfig(basePath) {
+async function loadConfig(basePath, standardsDir) {
   const { postMergeFromBase } = await import(
     pathToFileURL(`${basePath}/.github/actions/resolve-config/resolve-config.mjs`).href
   );
-  return postMergeFromBase({ BASE_PATH: basePath });
+  return postMergeFromBase({ BASE_PATH: basePath, STANDARDS_DIR: standardsDir });
 }
 
 async function main(argv = process.argv.slice(2), env = process.env) {
   const [command] = argv;
   if (command === "label") {
-    const config = await loadConfig(env.BASE_PATH || ".base");
+    const config = await loadConfig(env.BASE_PATH || ".base", env.STANDARDS_DIR);
     const { failed } = label({
       repo: env.GITHUB_REPOSITORY,
       merged: numbersOf(option(argv, "--merged")),
@@ -326,7 +325,7 @@ async function main(argv = process.argv.slice(2), env = process.env) {
       throw new Error("rollup needs --since and --until as YYYY-MM-DD, since no later than until");
     }
     const root = env.BASE_PATH || resolve(fileURLToPath(import.meta.url), "../../../..");
-    const config = await loadConfig(root);
+    const config = await loadConfig(root, env.STANDARDS_DIR);
     const repo = option(argv, "--repo") || defaultGh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).trim();
     const result = readRollup({ repo, since, until, identity: config.agentIdentity });
     console.log(argv.includes("--json") ? JSON.stringify(result, null, 2) : formatRollup(result));

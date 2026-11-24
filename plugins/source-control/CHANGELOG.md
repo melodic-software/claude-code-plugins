@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.14.0] - 2026-11-24
+
+### Added
+
+- `trusted_actors_source: standards` in a repository's `docs/conventions/source-control.yaml` makes the babysit merge gate, the pr-verify evidence reader, the skip-unchanged key and the `ready` hold check read the trusted-actors list and the Dependabot policy from the `owner/repo` that `standards_repository` names, at one commit per process, instead of the repository's `.github/standards/` copies. Unset or `repository` reads the copies as before; any other value, or `standards` without a valid `standards_repository`, reads neither, so the lane adopts nothing and the hold check leaves the label holding.
+
+## [13.13.0] - 2026-11-24
+
+### Added
+
+- `standards_repository` in `docs/conventions/source-control.yaml`: the `<owner>/<repo>` whose `components/trusted-actors/trusted-actors.json` the guardrails merge guard and the review loosened-check reader read when `trusted_actors_source` is `standards`.
+
+## [13.12.0] - 2026-11-24
+
+### Added
+
+- The babysit merge policy reads the trusted-actor list and the Dependabot policy from `melodic-software/standards` (`components/trusted-actors/trusted-actors.json` and `components/dependabot-policy/policy.json`) when the repository's `docs/conventions/source-control.yaml` at the same ref sets `trusted_actors_source: standards`. It resolves the commit `main` names once per process and reads each file once. Without the key, or with `repository`, both lists are read from the repository's own copies at that ref, as before. Any other value, or a value that is not a scalar, reads neither list, so the lane adopts nothing.
+
 ## [13.11.0] - 2026-11-24
 
 ### Added
