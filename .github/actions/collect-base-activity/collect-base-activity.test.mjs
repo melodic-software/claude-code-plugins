@@ -217,6 +217,16 @@ test("a module's directory is staged without its subdirectories nothing loads fr
   assert.ok(!existsSync(path.join(unblock, "fixtures")));
 });
 
+test("a file loaded outside the entry script's directory is staged alone, module or data", () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/scripts/intake-triage/issue-spec.mjs", dest);
+  const files = (dir) => readdirSync(path.join(dest, dir), { withFileTypes: true }).filter((e) => !e.isDirectory()).map((e) => e.name);
+  assert.deepEqual(files("scripts"), ["upstream-drift-vendored-report.sh"]);
+  const publish = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/scripts/pr-verify/write-verdict.mjs", publish);
+  assert.deepEqual(readdirSync(path.join(publish, "lib")), ["publish-gate.mjs"]);
+});
+
 test("a staged resolve-config module still loads yaml and ajv from the copied node_modules", async () => {
   const dest = mkdtempSync(path.join(root, "closure-"));
   stageClosure(REPO_ROOT, ".github/actions/resolve-config/resolve.mjs", dest);

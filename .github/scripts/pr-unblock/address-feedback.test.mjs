@@ -1,4 +1,5 @@
 // test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/scripts/pr-unblock/* docs/upstream/*
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

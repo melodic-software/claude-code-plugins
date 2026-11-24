@@ -1,4 +1,5 @@
 // test-scope: .github/scripts/lib/* .github/scripts/pr-unblock/*
+// test-scope: docs/upstream/*
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";

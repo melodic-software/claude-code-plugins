@@ -24,22 +24,21 @@ const KEPT_TREES = [path.join(".github", "actions", "resolve-config", "node_modu
 export function stage(base, script, dest) {
   const root = path.resolve(base);
   const copies = new Set();
+  const entryDir = path.dirname(path.normalize(script));
+  if (entryDir !== ".") {
+    for (const entry of readdirSync(path.join(root, entryDir), { withFileTypes: true })) {
+      if (!entry.isDirectory()) copies.add(path.join(entryDir, entry.name));
+    }
+  }
   const seen = new Set();
   const visit = (file) => {
     const rel = path.relative(root, file);
     if (seen.has(file) || !rel || rel.startsWith("..") || path.isAbsolute(rel) || !existsSync(file)) return;
     seen.add(file);
-    if (statSync(file).isDirectory()) return copies.add(rel);
-    const module = moduleKind(file, readFileSync(file, "utf8"));
-    if (!module || path.dirname(rel) === ".") copies.add(rel);
-    else {
-      const dir = path.dirname(rel);
-      for (const entry of readdirSync(path.join(root, dir), { withFileTypes: true })) {
-        if (!entry.isDirectory()) copies.add(path.join(dir, entry.name));
-      }
-      for (const kept of KEPT_TREES) if (path.dirname(kept) === dir && existsSync(path.join(root, kept))) copies.add(kept);
-    }
-    if (module) for (const next of loads(file)) visit(next);
+    copies.add(rel);
+    if (statSync(file).isDirectory()) return;
+    for (const kept of KEPT_TREES) if (path.dirname(kept) === path.dirname(rel) && existsSync(path.join(root, kept))) copies.add(kept);
+    for (const next of loads(file)) visit(next);
   };
   visit(path.join(root, script));
   for (const rel of copies) {
