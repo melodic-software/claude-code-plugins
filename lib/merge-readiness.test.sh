@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json lib/merge-guard-option.mjs lib/plugin-options.mjs plugins/guardrails/hooks/merge-guard.sh plugins/guardrails/.claude-plugin/plugin.json plugins/source-control/skills/pull-request/scripts/merge-readiness.sh
+# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json lib/merge-guard-option.mjs lib/plugin-options.mjs plugins/guardrails/hooks/merge-guard.sh plugins/guardrails/.claude-plugin/plugin.json plugins/source-control/skills/pull-request/scripts/merge-readiness.sh plugins/guardrails/hooks/fixtures/check-runs-ci-status.json
 
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -153,8 +153,7 @@ pv_judged() {
   scenario none none green green
   echo '{"state":"open","head":{"sha":"abc123","ref":"feat/x","repo":{"full_name":"acme/widgets"}},"base":{"ref":"main","repo":{"full_name":"acme/widgets","default_branch":"main"}},"user":{"id":9,"login":"kyle","type":"User"},"labels":[]}' >"$FIX/pr.json"
   printf '{"data":{"repository":{"w":{"oid":"f00"},"c":{"text":"merge:\\n  verify-authors: any\\n"},"t":{"text":""}}}}\n' >"$FIX/graphql_scope.json"
-  jq -n --arg finished "$1" '{total_count: 1, check_runs: [{id: 901, name: "CI Status", app: {id: 1, slug: "github-actions"},
-    status: "completed", conclusion: "success", completed_at: $finished}]}' >"$FIX/checks.json"
+  jq --arg finished "$1" '.check_runs[0].completed_at = $finished' "$HOOK_DIR/fixtures/check-runs-ci-status.json" >"$FIX/checks.json"
 }
 pv_judged 2099-01-01T00:00:00Z
 check acme/widgets 42
@@ -163,6 +162,13 @@ pv_judged 2026-01-01T00:00:00Z
 check acme/widgets 42
 assert_exit "no pr-verify verdict past the wait -> READY" 0 "$RC"
 assert_contains "past the wait -> a notice says no verdict was read" "$OUT" "NOTICE: pr-verify has no verdict at abc123"
+pv_judged 2026-01-01T00:00:00Z
+jq '.check_runs += [.check_runs[0] | .id += 1 | .name = "integration" | .status = "in_progress" | .conclusion = null | .completed_at = null]
+  | .total_count = 2 | .check_runs[0].completed_at = "2026-01-01T00:00:00Z"' \
+  "$HOOK_DIR/fixtures/check-runs-ci-status.json" >"$FIX/checks.json"
+check acme/widgets 42 --auto
+assert_eq "no verdict, a check still running, --auto -> the wait has not started, BLOCKED no-verify-pass" \
+  "BLOCKED no-verify-pass" "$(head -n 1 <<<"$OUT")"
 
 echo
 # shellcheck disable=SC2154  # PASS and FAIL are the guardrails test helpers' counters

@@ -808,6 +808,8 @@ run "switched off" 'gh pr merge 42' 0 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_ENABLED=f
 assert_eq "switched off -> no gh call" "" "$(calls)"
 scenario unresolved none green green
 run "a bad switch value keeps the guard on" 'gh pr merge 42' 2 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_ENABLED=maybe
+scenario unresolved none green green
+run "a saved old-key false leaves the guard on" 'gh pr merge 42' 2 CLAUDE_PLUGIN_OPTION_BLOCK_UNRESOLVED_PR_MERGE_ENABLED=false
 
 scenario unresolved none green green
 D_ERR=$(env PATH="$BIN:$PATH" FAKE_GH_DIR="$FIX" bash "$HOOK_DIR/run-guards.sh" merge-guard.sh \

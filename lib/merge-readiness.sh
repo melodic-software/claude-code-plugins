@@ -370,9 +370,11 @@ _mg_verify() {
   # pr-verify starts when the head's checks finish, and a head it never judges
   # (a credit stop, an outage) would otherwise hold the merge for good:
   # https://github.com/melodic-software/claude-code-plugins/issues/18822.
-  local done_at now
-  done_at="$(jq -r '[.[] | select(.status == "completed") | .completed_at // empty | fromdateiso8601] | max // empty' \
-    <<<"$_mg_all" 2>/dev/null)" || done_at=""
+  # The wait starts only once no check is still running.
+  local done_at="" now
+  [[ -n "$_mg_running" ]] ||
+    done_at="$(jq -r '[.[] | select(.status == "completed") | .completed_at // empty | fromdateiso8601] | max // empty' \
+      <<<"$_mg_all" 2>/dev/null)" || done_at=""
   now="$(date +%s)"
   if [[ "$done_at" =~ ^[0-9]+$ ]] && ((now - done_at >= MG_VERIFY_WAIT_S)); then
     _mg_notices+=("pr-verify has no verdict at ${_mg_sha}, $(((now - done_at) / 60)) minutes after its last check finished, past the $((MG_VERIFY_WAIT_S / 60))-minute wait, so this merge goes ahead without one; a lanes App pull request still needs a pass in the merge queue.")
@@ -529,6 +531,7 @@ merge_readiness::check() {
   _mg_nonreq=""
   [[ -n "$_mg_failed" ]] && _mg_exempt
 
+  _mg_running="$_mg_pending"
   ((${MG_AUTO:-0})) && _mg_pending=""
   _mg_nonreq_line=""
   [[ -n "$_mg_nonreq" ]] &&

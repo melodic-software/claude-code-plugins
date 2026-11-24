@@ -8,25 +8,24 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=merge-guard-fixtures.sh
 source "$(dirname "${BASH_SOURCE[0]}")/merge-guard-fixtures.sh"
 
-thread_page() {
-  local resolved="$1" next="$2"
-  jq -n --argjson r "$resolved" --arg next "$next" '{data: {repository: {pullRequest: {reviewThreads: {
-    pageInfo: {hasNextPage: ($next != ""), endCursor: (if $next == "" then null else $next end)},
-    nodes: [{isResolved: $r, path: "src/page.py", line: 7, originalLine: 7,
-      comments: {nodes: [{body: "P1: on the second page", url: "https://github.com/acme/widgets/pull/42#discussion_r9"}]}}]}}}}}'
+CAPTURED="$HOOK_DIR/fixtures"
+thread_pages() {
+  local t=.data.repository.pullRequest.reviewThreads cursor
+  cursor="$(jq -r "$t.pageInfo.endCursor" "$CAPTURED/review-threads-page1.json")"
+  jq --argjson r "$1" "$t.nodes[].isResolved = \$r" "$CAPTURED/review-threads-page1.json" >"$FIX/graphql_threads.json"
+  jq --argjson r "$2" "$t.nodes[].isResolved = \$r | $t.pageInfo.hasNextPage = false" \
+    "$CAPTURED/review-threads-page2.json" >"$FIX/graphql_threads_$cursor.json"
 }
 
 scenario none none green green
-thread_page true p2 >"$FIX/graphql_threads.json"
-thread_page false "" >"$FIX/graphql_threads_p2.json"
+thread_pages true false
 rm -f "$FIX/ccr.json"
 run "an unresolved thread past the first 100 blocks" 'gh pr merge 42' 2
-assert_contains "the second page's thread is listed" "$ERR" "src/page.py:7"
+assert_contains "the second page's thread is listed" "$ERR" "lib/merge-readiness.sh:377"
 assert_eq "both thread pages are read" 2 "$(grep -c '^graphql$' "$FIX/calls")"
 
 scenario none none green green
-thread_page true p2 >"$FIX/graphql_threads.json"
-thread_page true "" >"$FIX/graphql_threads_p2.json"
+thread_pages true true
 run "every page resolved lets the merge run" 'gh pr merge 42' 0
 assert_absent "every page resolved -> nothing unchecked" "$OUT" "will run unchecked"
 
@@ -39,13 +38,18 @@ pv_judged() {
   echo '{"state":"open","head":{"sha":"abc123","ref":"feat/x","repo":{"full_name":"acme/widgets"}},"base":{"ref":"main","repo":{"full_name":"acme/widgets","default_branch":"main"}},"user":{"id":9,"login":"kyle","type":"User"},"labels":[]}' >"$FIX/pr.json"
   local conf='merge:\n  verify-authors: lane-or-owner\n'
   printf '{"data":{"repository":{"w":{"oid":"f00"},"c":{"text":"%s"},"t":{"text":"{\\"actors\\":[{\\"id\\":9}]}"}}}}\n' "$conf" >"$FIX/graphql_scope.json"
-  jq -n --arg finished "$1" '{total_count: 1, check_runs: [{id: 901, name: "CI Status", app: {id: 15368, slug: "github-actions"},
-    status: "completed", conclusion: "success", completed_at: $finished}]}' >"$FIX/checks.json"
+  jq --arg finished "$1" '.check_runs[0].completed_at = $finished' "$CAPTURED/check-runs-ci-status.json" >"$FIX/checks.json"
 }
 
 pv_judged 2026-01-01T00:00:00Z
 run "no pr-verify verdict 30 minutes after the checks finished: the merge goes ahead" 'gh pr merge 42' 0
 assert_contains "past the wait -> says no verdict was read" "$OUT" "goes ahead without one"
+
+pv_judged 2026-01-01T00:00:00Z
+jq '.check_runs += [.check_runs[0] | .id += 1 | .name = "integration" | .status = "in_progress" | .conclusion = null | .completed_at = null]
+  | .total_count = 2 | .check_runs[0].completed_at = "2026-01-01T00:00:00Z"' "$CAPTURED/check-runs-ci-status.json" >"$FIX/checks.json"
+run "no pr-verify verdict and a check still running: --auto is refused" 'gh pr merge 42 --auto' 2
+assert_contains "a check still running -> the wait has not started" "$ERR" "no pr-verify PASS or PASS-NOTES verdict at its head abc123"
 
 pv_judged 2099-01-01T00:00:00Z
 run "no pr-verify verdict inside the wait still blocks" 'gh pr merge 42' 2
