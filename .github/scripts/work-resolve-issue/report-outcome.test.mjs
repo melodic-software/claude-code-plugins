@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/work-resolve-issue/* .github/scripts/branch-cleanup/* .github/actions/check-born-triaged/check-born-triaged.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";

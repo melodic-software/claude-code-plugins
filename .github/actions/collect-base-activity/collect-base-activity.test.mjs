@@ -209,8 +209,7 @@ test("a data file a module loads from outside its directory is staged alone, and
   const github = path.join(dest, ".github");
   const top = readdirSync(github, { withFileTypes: true });
   assert.deepEqual(top.filter((e) => e.isFile()).map((e) => e.name), ["recurring-schedule.json"]);
-  const workflows = path.join(github, "workflows");
-  if (existsSync(workflows)) assert.ok(readdirSync(workflows).length < readdirSync(path.join(REPO_ROOT, ".github/workflows")).length, "only loaded workflow files are staged");
+  assert.ok(!top.some((e) => e.name === "workflows"), top.map((e) => e.name).join(" | "));
   assert.deepEqual(readFileSync(path.join(github, "recurring-schedule.json")), readFileSync(path.join(REPO_ROOT, ".github/recurring-schedule.json")));
   const files = (dir) => readdirSync(dir, { withFileTypes: true }).filter((e) => !e.isDirectory()).map((e) => e.name).sort();
   assert.deepEqual(files(path.join(github, "scripts/intake-triage")), files(path.join(REPO_ROOT, ".github/scripts/intake-triage")));
