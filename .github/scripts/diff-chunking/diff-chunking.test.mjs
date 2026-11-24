@@ -96,43 +96,74 @@ test("a hunk over the cap with its file's header is too large and writes nothing
   assert.equal(split(BIG + hunkPatch(1, 80), 110, 4).status, 3);
 });
 
-const row = (prefix, c) => `${prefix}${c.repeat(19)}\n`;
+function gitDiff(name, before, after, unified = 3) {
+  const dir = mkdtempSync(path.join(tmpdir(), "diff-chunking-git-"));
+  try {
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const git = (...args) => {
+      const run = spawnSync("git", ["-C", dir, ...args], { encoding: "utf8", env });
+      assert.equal(run.status, 0, run.stderr);
+      return run.stdout;
+    };
+    git("init", "-q");
+    const file = path.join(dir, name);
+    writeFileSync(file, before ?? after);
+    git("add", ...(before === null ? ["-N"] : []), name);
+    writeFileSync(file, after);
+    const patch = git("diff", "--no-color", "--no-ext-diff", `-U${unified}`);
+    const at = patch.indexOf("@@");
+    return { patch, head: patch.slice(0, at), hunk: patch.slice(at) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const row = (c) => `${c.repeat(19)}\n`;
 
 test("with --cut-lines a hunk over the cap is cut between its lines, each cut under a recounted header", () => {
-  const [ctx1, old, new1, new2, ctx2, ctx3] = [row(" ", "a"), row("-", "b"), row("+", "c"), row("+", "d"), row(" ", "e"), row(" ", "f")];
-  const patch = `${BIG}@@ -10,4 +10,5 @@ fn\n${ctx1}${old}${new1}${new2}${ctx2}${ctx3}`;
-  assert.equal(split(patch, 120, 4).status, 3);
-  const result = split(patch, 120, 4, 15000, undefined, ["--cut-lines"]);
+  const [a, b, c, d, e] = ["a", "b", "c", "d", "e"].map(row);
+  const lead = "1\n2\n3\n4\n5\n6\n7\n8\nfn\n";
+  const { patch, head, hunk } = gitDiff("big", `${lead}${a}${b}${e}9\n`, `${lead}${a}${c}${d}${e}9\n`, 1);
+  assert.equal(hunk, `@@ -10,3 +10,4 @@ fn\n ${a}-${b}+${c}+${d} ${e}`);
+  const cap = head.length + 77;
+  assert.equal(split(patch, cap, 4).status, 3);
+  const result = split(patch, cap, 4, 15000, undefined, ["--cut-lines"]);
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.chunks, {
-    "chunk-1.patch": `${BIG}@@ -10,2 +10,1 @@ fn\n${ctx1}${old}`,
-    "chunk-2.patch": `${BIG}@@ -11,0 +11,2 @@ fn\n${new1}${new2}`,
-    "chunk-3.patch": `${BIG}@@ -12,2 +13,2 @@ fn\n${ctx2}${ctx3}`,
+    "chunk-1.patch": `${head}@@ -10,2 +10,1 @@ fn\n ${a}-${b}`,
+    "chunk-2.patch": `${head}@@ -11,0 +11,2 @@ fn\n+${c}+${d}`,
+    "chunk-3.patch": `${head}@@ -12,1 +13,1 @@ fn\n ${e}`,
   });
   assert.equal(result.manifest, "chunk 1 piece 1 of 3 modified big\nchunk 2 piece 2 of 3 modified big\nchunk 3 piece 3 of 3 modified big\n");
-  const over = split(patch, 120, 2, undefined, undefined, ["--cut-lines"]);
+  const over = split(patch, cap, 2, undefined, undefined, ["--cut-lines"]);
   assert.equal(over.status, 3);
   assert.deepEqual(over.chunks, {});
   assert.match(over.stderr, /the diff needs 3 chunks, more than 2/);
 });
 
 test("with --cut-lines a new file's hunk counts from line 1, and a no-newline mark stays with its line", () => {
-  const added = "diff --git a/n b/n\nnew file mode 100644\n--- /dev/null\n+++ b/n\n";
-  const [l1, l2, l3] = [row("+", "a"), row("+", "b"), row("+", "c")];
+  const [a, b, c] = ["a", "b", "c"].map(row);
+  const { patch, head, hunk } = gitDiff("n", null, `${a}${b}${c.slice(0, -1)}`);
   const mark = "\\ No newline at end of file\n";
-  const result = split(`${added}@@ -0,0 +1,3 @@\n${l1}${l2}${l3}${mark}`, 140, 4, 15000, undefined, ["--cut-lines"]);
+  assert.match(head, /^new file mode /m);
+  assert.equal(hunk, `@@ -0,0 +1,3 @@\n+${a}+${b}+${c}${mark}`);
+  const result = split(patch, head.length + 78, 4, 15000, undefined, ["--cut-lines"]);
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.chunks, {
-    "chunk-1.patch": `${added}@@ -0,0 +1,2 @@\n${l1}${l2}`,
-    "chunk-2.patch": `${added}@@ -0,0 +3,1 @@\n${l3}${mark}`,
+    "chunk-1.patch": `${head}@@ -0,0 +1,2 @@\n+${a}+${b}`,
+    "chunk-2.patch": `${head}@@ -0,0 +3,1 @@\n+${c}${mark}`,
   });
 });
 
 test("with --cut-lines only a line over the cap with the headers is too large", () => {
-  const long = split(`${BIG}@@ -1 +1 @@\n+${"y".repeat(100)}\n`, 110, 4, undefined, undefined, ["--cut-lines"]);
-  assert.equal(long.status, 3);
-  assert.deepEqual(long.chunks, {});
-  assert.match(long.stderr, /^split-diff: a file has a line larger than one chunk of 110 bytes: modified big$/m);
+  const long = `${"y".repeat(100)}\n`;
+  const { patch, head, hunk } = gitDiff("big", "x\n", long);
+  assert.equal(hunk, `@@ -1 +1 @@\n-x\n+${long}`);
+  const cap = head.length + 67;
+  const result = split(patch, cap, 4, undefined, undefined, ["--cut-lines"]);
+  assert.equal(result.status, 3);
+  assert.deepEqual(result.chunks, {});
+  assert.match(result.stderr, new RegExp(`^split-diff: a file has a line larger than one chunk of ${cap} bytes: modified big$`, "m"));
 });
 
 test("a chunk of exactly the cap, and exactly the most chunks, still split", () => {
