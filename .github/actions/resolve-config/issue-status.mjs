@@ -1,11 +1,6 @@
-// The issue status (models.issue-status): an issue's state as its Work status
-// org issue field, keyed on field and option ids, and the state its labels
-// collapse to. Pure: the caller fetches the facts.
 import { trustedOption, trustedSetters } from "./dimensions.mjs";
 import { Rejection } from "./resolve.mjs";
 
-// The state an issue carrying no state label collapses to, and so the last in
-// order.
 const FLOOR = "needs-triage";
 
 // The field's two reads (REST values, field events) saw different writes:
@@ -40,11 +35,8 @@ export function statusOption(state, config) {
   return Number(option);
 }
 
-// The one state a bot-setters account's value never counts for.
 const PERSON_ONLY_STATE = "agent-ready";
-// The job token's bot, the one bot-setters entry trusted-actors.json does not list.
 const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]" };
-// The lanes App counts through trustedOption already, agent-ready included.
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 
 export function statusBotSetters(trustedActors, config) {

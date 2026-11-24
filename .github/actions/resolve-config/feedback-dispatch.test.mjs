@@ -84,7 +84,6 @@ ${addressFeedbackSlot}
         needs: [address-feedback, apply-feedback-patch]
 `;
 
-// The lane with no address-feedback slot: nothing needs it.
 const withoutSlot = (text) =>
   text.replace("      - activity: apply-feedback-patch\n        needs: [address-feedback]\n", "      - activity: apply-feedback-patch\n").replace(
     "        needs: [address-feedback, apply-feedback-patch]\n",
@@ -127,7 +126,6 @@ function fakes() {
         body: `<!-- claude-lane-reviewed-head lane=${lane} sha=${HEAD} -->`,
       })),
     listReviewThreads: async () => [
-      // A reviewer-bot finding on a review of the marked head.
       { isResolved: false, comments: { nodes: [{ author: CLAUDE, pullRequestReview: { author: CLAUDE, commit: { oid: HEAD } } }], pageInfo: { hasNextPage: false } } },
     ],
     listCheckRuns: async () => [],
@@ -137,7 +135,6 @@ function fakes() {
       return { workflowRunId: 38779200001 };
     },
   };
-  // resolve-config's PR reads.
   const github = async (method, path) => {
     reads.push(`${method} ${path}`);
     return pull;
@@ -200,8 +197,6 @@ test("a lane with no address-feedback slot skips without failing the run", async
 });
 
 test("a config the resolver refuses fails the run even when the lane has no address-feedback slot", async () => {
-  // The lane names an activity the config never defines, and has no
-  // address-feedback slot: the refusal is not an absent slot.
   const text = withoutSlot(config("      - activity: ghost"));
   await assert.rejects(run(null, text), (error) => error.name === "Rejection" && error.code === "undefined-activity");
 });
@@ -221,9 +216,6 @@ test("a disabled address-feedback slot dispatches nothing", async () => {
   assert.match(lines.at(-1), /no enabled address-feedback and publish-feedback slots/);
 });
 
-// The read runner's address-feedback hands on a patch and its replies; the
-// dispatcher resolves it as that runner does (the cases above), and still
-// refuses a key neither hands on.
 test("an address-feedback handing on a key the read runner does not is refused", async () => {
   const text = config("      - activity: address-feedback").replace("      feedback-replies: publish-feedback\n", "      feedback-replies: publish-feedback\n      work-outcome: publish-feedback\n");
   await assert.rejects(run(null, text), (error) => error.name === "Rejection" && error.code === "applied-by-unsupported");
