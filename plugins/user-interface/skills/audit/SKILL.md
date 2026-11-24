@@ -215,6 +215,11 @@ In `tree` or `launch` scope with more findings than one session should fix, whet
 /user-interface:write-animation, to build an opportunity or rework an animation the audit
 rejected.
 
+## Related
+
+- Fix CSS styling findings: /user-interface:write-css.
+- Evaluate UX usability and flows: /user-experience:evaluate.
+
 ## Gotchas
 
 - A lane reads only its own spokes, beside `principles.md`, which every run reads once. A finding

@@ -432,12 +432,17 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 ## Next
 
 - The fix landed with its regression test, or a documented seam gap: `/verification:confirm fix`, then `/review:quality-gate`; when Phase 2 kept a drive report whose recorded commit is the PR's base commit, name its `report.json` path as the `--before` evidence (from any other commit, name it as pre-fix evidence of that commit).
-- The report's lessons about driving the app: `/app-control:map refresh "<lesson>"`, one per lesson.
 - A `diagnose` run stopped at the cause: `/implementation:implement fix`, reusing the reported loop.
 - An artifact with no reproduction: `/debugging:analyze-profile`.
 - The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
 - No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
+
+## Related
+
+- Codify recurring defect check: /corrections:codify.
+- Record app-driving lessons in control skill: /app-control:map refresh "<lesson>", one per lesson.
+- Already a failing test: /testing:diagnose.
 
 ## When to escalate
 
