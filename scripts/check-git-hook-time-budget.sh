@@ -6,8 +6,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/gate-entry.sh" || exit 2
-base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=815
-ref_rounds=2 ref_files=400 desk_commit_ms=1688 desk_push_ms=1470 zero=0000000000000000000000000000000000000000
+base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=1000 ref_files=400
+parts_host_ms="307 46 40" share_commit="0.26 0.37 0.37" share_push="0 0.5 0.5"
+desk_commit_ms=1688 desk_push_ms=1470 zero=0000000000000000000000000000000000000000
 
 usage() {
   cat >&2 <<'EOF'
@@ -211,7 +212,16 @@ fx="$(mktemp -d)" || exit 2
 refdir="$(mktemp -d)" || exit 2
 trap 'rm -rf "$fx" "$refdir"' EXIT
 
-reference_once() {
+part_pwsh() {
+  pwsh -NoProfile -NonInteractive -Command "Add-Type -TypeDefinition 'public static class A { public static int F() { return 1; } }'" >/dev/null
+}
+part_starts() {
+  python3 -c 0
+  node -e 0
+  bash -c :
+  git --version >/dev/null
+}
+part_files() {
   git -C "$refdir" status --porcelain --untracked-files=all >/dev/null
   node -e '
     const fs = require("fs");
@@ -220,16 +230,19 @@ reference_once() {
       if (e.isFile()) n += JSON.stringify(JSON.parse(fs.readFileSync(e.parentPath + "/" + e.name, "utf8"))).length;
     process.stdout.write(String(n));
   ' "$refdir/tree" >/dev/null
-  local i
-  for ((i = 0; i < ref_rounds; i++)); do
-    pwsh -NoProfile -NonInteractive -Command "Add-Type -TypeDefinition 'public static class A { public static int F() { return 1; } }'" >/dev/null
-    python3 -c 0
-    node -e 0
-    bash -c :
-    git --version >/dev/null
-  done
 }
-if [[ -z "$ref_ms" ]]; then
+ratio_of() {
+  awk -v s="$1" -v m="${parts_ms[*]}" -v h="$parts_host_ms" 'BEGIN {
+    split(s, a, " "); split(m, b, " "); split(h, c, " ")
+    for (i = 1; i <= 3; i++) r += a[i] * b[i] / c[i]
+    printf "%.4f", r
+  }'
+}
+if [[ -n "$ref_ms" ]]; then
+  ratio_commit="$(awk -v a="$ref_ms" -v b="$ref_host_ms" 'BEGIN { printf "%.4f", a / b }')"
+  ratio_push=$ratio_commit
+  ref_line="reference workload: $ref_ms ms; reference host: $ref_host_ms ms; ratio $(awk -v r="$ratio_commit" 'BEGIN { printf "%.2f", r }') for both hooks"
+else
   for tool in pwsh python3 node; do
     command -v "$tool" >/dev/null 2>&1 || {
       echo "GIT HOOK TIME BUDGET: $tool is not installed, so the reference workload cannot run." >&2
@@ -241,13 +254,21 @@ if [[ -z "$ref_ms" ]]; then
   for ((i = 0; i < ref_files; i++)); do
     printf '{"name": "item-%d", "lines": ["one", "two", "three"], "n": %d}\n' "$i" "$i" >"$refdir/tree/$((i % 20))-$i.json"
   done
-  ref_ms="$(for _ in 1 2 3; do
-    t0=$(now_us)
-    reference_once
-    echo $((($(now_us) - t0) / 1000))
-  done | median)"
+  : >"$refdir/pwsh" && : >"$refdir/starts" && : >"$refdir/files"
+  for _ in 1 2 3 4 5; do
+    for p in pwsh starts files; do
+      t0=$(now_us)
+      "part_$p"
+      echo $((($(now_us) - t0) / 1000)) >>"$refdir/$p"
+    done
+  done
+  parts_ms=("$(median <"$refdir/pwsh")" "$(median <"$refdir/starts")" "$(median <"$refdir/files")")
+  ratio_commit="$(ratio_of "$share_commit")"
+  ratio_push="$(ratio_of "$share_push")"
+  read -r h_pwsh h_starts h_files <<<"$parts_host_ms"
+  ref_line="reference workload: $((parts_ms[0] + parts_ms[1] + parts_ms[2])) ms: pwsh ${parts_ms[0]} ms (desk $h_pwsh), starts ${parts_ms[1]} ms (desk $h_starts), files ${parts_ms[2]} ms (desk $h_files), median of 5 each"
 fi
-limit_us=$((budget_ms * 1000 * ref_ms / ref_host_ms))
+limit_of() { awk -v b="$budget_ms" -v r="$1" 'BEGIN { printf "%.0f", b * 1000 * r }'; }
 tracer="$(awk '/^TracerPid:/ { print $2 }' /proc/$$/status 2>/dev/null)"
 g() { git -C "$fx" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
 g init -q -b main
@@ -417,12 +438,13 @@ time_hook() {
     echo "  no entry ran"
     return
   fi
-  printf '  %-48s %9s  %7s  scaled budget %s\n' total "$(secs "$total")" "$(in_s "$total")" "$(secs "$limit_us")"
-  local desk_ms=$desk_commit_ms
-  [[ "$ev" == pre-push ]] && desk_ms=$desk_push_ms
-  awk -v t="$total" -v d="$desk_ms" -v r="$ref_ms" -v h="$ref_host_ms" -v ev="$ev" -v ci="${GITHUB_ACTIONS:-}" 'BEGIN {
-    hooks = t / 1000 / d; ref = r / h
-    printf "  hooks ratio %.2f (this total / desk total %d ms); reference ratio %.2f\n", hooks, d, ref
+  local desk_ms=$desk_commit_ms ratio=$ratio_commit limit_us
+  [[ "$ev" == pre-push ]] && desk_ms=$desk_push_ms && ratio=$ratio_push
+  limit_us="$(limit_of "$ratio")"
+  printf '  %-48s %9s  %7s\n' total "$(secs "$total")" "$(in_s "$total")"
+  awk -v t="$total" -v d="$desk_ms" -v ref="$ratio" -v l="$limit_us" -v ev="$ev" -v ci="${GITHUB_ACTIONS:-}" 'BEGIN {
+    hooks = t / 1000 / d
+    printf "  reference ratio %.2f; scaled budget %.3f s; hooks ratio %.2f (this total / desk total %d ms)\n", ref, l / 1e6, hooks, d
     if (ci == "true" && (hooks > ref * 1.3 || ref > hooks * 1.3))
       printf "::warning title=git-hook reference drift::%s hooks ratio %.2f and reference ratio %.2f differ by more than 30%%; the reference may not track what the hooks pay.\n", ev, hooks, ref
   }'
@@ -430,12 +452,12 @@ time_hook() {
     echo "  not judged: a tracer (pid $tracer) slows every syscall"
   elif ((total > limit_us)); then
     over=1
-    echo >&2 "FAIL: $ev took $(secs "$total"), over its scaled budget of $(secs "$limit_us") ($budget_ms ms x reference $ref_ms ms / $ref_host_ms ms; ADR 0072); slowest entry: $slow at $(secs "$slow_us"). Optimize it first; move it to CI only if it still risks the budget."
+    echo >&2 "FAIL: $ev took $(secs "$total"), over its scaled budget of $(secs "$limit_us") ($budget_ms ms x reference ratio $(awk -v r="$ratio" 'BEGIN { printf "%.2f", r }'); ADR 0072); slowest entry: $slow at $(secs "$slow_us"). Optimize it first; move it to CI only if it still risks the budget."
   fi
 }
 
 echo "S, one no-op bash -c : spawn, median of 21: $(awk -v us="$S" 'BEGIN { printf "%.2f ms", us / 1e3 }')"
-echo "reference workload: $ref_ms ms; reference host: $ref_host_ms ms; ratio $(awk -v a="$ref_ms" -v b="$ref_host_ms" 'BEGIN { printf "%.2f", a / b }'); scaled budget $(secs "$limit_us") per hook"
+echo "$ref_line"
 time_hook pre-commit "10 staged files on the fixture" "$fx"
 pp_remote="$(git -C "$ROOT" remote get-url origin 2>/dev/null || echo https://example.invalid/repo.git)"
 time_hook pre-push "HEAD of the real checkout as a new branch" "$ROOT" origin "$pp_remote"
