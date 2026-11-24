@@ -3,6 +3,13 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.3] - 2026-11-24
+
+### Changed
+
+- `/code-metrics:audit-coverage` and `/code-metrics:audit-duplication` gain a `## Related`
+  section for links that apply only in some runs.
+
 ## [1.7.2] - 2026-11-23
 
 ### Changed

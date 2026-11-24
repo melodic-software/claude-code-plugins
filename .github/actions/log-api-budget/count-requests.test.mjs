@@ -20,7 +20,6 @@ const API = "https://api.github.com";
 const READING = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" };
 const LINE = "200 5000 4990 10 1792751600 core\n";
 
-// A fetch that answers each request 200 with body and the core reading above.
 const fake = (body = {}) => {
   const sent = [];
   const fetch = async (url, init = {}) => {
@@ -30,9 +29,6 @@ const fake = (body = {}) => {
   return { sent, fetch };
 };
 
-// Runs fn with RUNNER_TEMP at a fresh directory and the given variables set
-// (undefined unsets one), then restores them; lines(name) reads a token's file
-// without each line's route, routes(name) only the routes.
 async function withBudget(vars, fn) {
   const dir = tempDir("count-requests-");
   const keys = ["RUNNER_TEMP", "API_BUDGET_TOKEN", "API_BUDGET_OVERRIDE_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", ...Object.keys(vars)];
@@ -220,10 +216,6 @@ for (const [name, run] of [
     }));
 }
 
-// A step's own api-calls line (API_BUDGET_SCRIPT): one child process sends
-// two core reads, a 304 and a GraphQL query on the step's token and one read
-// on a second token, so its line reads github-token=3 lanes-app=1
-// not-modified=1 graphql=1, and the job-end lines over the same files agree.
 const STEP_CALLS = `
 import { createGitHub } from ${JSON.stringify(new URL("../../scripts/lib/github-client.mjs", import.meta.url).href)};
 const answer = (status, resource) => new Response(status === 304 ? null : "{}", { status, headers: { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": resource } });

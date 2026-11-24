@@ -208,12 +208,17 @@ way.
 
 In `tree` or `launch` scope with more findings than one session should fix, whether or not
 `--fix` was given, offer a handoff instead of fixing: the report as the task for
-`/implementation:implement`, then `/verification:confirm`, when those are installed.
+`/implementation:implement` (if enabled), then `/verification:confirm` (if enabled).
 
 ## Next
 
 /user-interface:write-animation, to build an opportunity or rework an animation the audit
 rejected.
+
+## Related
+
+- Fix CSS styling findings: /user-interface:write-css.
+- Evaluate UX usability and flows: /user-experience:evaluate.
 
 ## Gotchas
 

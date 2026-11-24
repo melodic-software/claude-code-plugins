@@ -3,6 +3,15 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.7] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to six skills, matching the committed skill-link table
+
+  audit, check, delta, establish-hub, migrate and realign now list their
+  context-dependent links, one condition per line.
+
 ## [1.10.6] - 2026-11-23
 
 ### Changed

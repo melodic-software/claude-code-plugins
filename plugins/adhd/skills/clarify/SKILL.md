@@ -191,8 +191,8 @@ link or path, not the table a second time.
 - **Not a summarizer** (it keeps every decision) and **not an input form** (it renders a view to
   read and answer from).
 
-Routing: "I don't get it / explain simply / what does this mean" goes to `/education:explain`;
-"ELI5 / draw me this / show me a diagram" goes to `/education:illustrate`; "make this clear /
+Routing: "I don't get it / explain simply / what does this mean" goes to `/education:explain` (if enabled);
+"ELI5 / draw me this / show me a diagram" goes to `/education:illustrate` (if enabled); "make this clear /
 clarify this / what am I deciding" is this skill. Hand off to the first two through the Skill tool
 when the `education` plugin is enabled; when it is not, say which one the ask wants and give a
 faithful restructure.

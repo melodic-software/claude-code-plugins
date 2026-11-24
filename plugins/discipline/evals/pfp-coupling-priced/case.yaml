@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: pfp-coupling-priced
+graders:
+  - name: coupling-costs-named
+    type: regex
+    pattern: '^(?=[\s\S]*\babandon)(?=[\s\S]*\bpric(?:e|es|ing)\b)(?=[\s\S]*\blicen[cs])(?=[\s\S]*\bsecurity\b)(?=[\s\S]*(?:\bexit\b|cost of (?:leaving|removing|switching)|\block-?in\b|\brip(?:ping)? (?:it )?out\b|\bmigrat\w* (?:off|away)))'
+    flags: i
+    target: last_message
+  - name: research-not-recall
+    type: regex
+    pattern: '^(?=[\s\S]*(?:/discovery:research|\bresearch\b|\bprimary sources?\b|\bfetch\w*[^\n]{0,40}\b(?:sources?|docs)\b|\bcit(?:e|ed|ing)\b))(?=[\s\S]*(?:\bopen question\b|\bwithh[eo]ld|\bcan(?:not|.t) (?:verify|confirm|check|settle|judge)\b|\bno (?:network|verdict)\b|\b(?:won.t|will not|can.t|cannot) (?:approve|recommend|give a verdict)\b|\bwhich library\b|\bwhat library\b|\bname (?:of )?the library\b))'
+    flags: i
+    target: last_message

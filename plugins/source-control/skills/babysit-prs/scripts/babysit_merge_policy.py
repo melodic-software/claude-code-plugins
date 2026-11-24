@@ -5607,6 +5607,7 @@ def _dependabot_content(
     commits: list[dict[str, Any]],
     files: Callable[[str], list[str] | None],
     main_sha: str,
+    lane_identity: str | None = None,
 ) -> tuple[str | None, str | None, list[str] | None]:
     """(content reason, refusal, changed paths). The content reason,
     `dependabot-content:<x>`, names a diff that is not only covered manifests,
@@ -5614,13 +5615,22 @@ def _dependabot_content(
     `.github/dependabot.yml` names at both the base and the default branch
     head, `_dependabot_config`); it sends the pull request to tier
     `review`. A commit that is not Dependabot's (a lanes App fix) must pass
-    the fix rule (`_fix_commit_refusal`), and its paths then count as checked;
+    the fix rule or, as the lanes App (`lane_identity`), be the CDN pins sync
+    (`_fix_commit_refusal`), and its paths then count as checked;
     else `dependabot-fix-content:<why>` is the refusal, as is a commit whose file list cannot be read whole. The changed
     paths (either side of a rename) are None when the files listing was not
     read whole. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    head_ref = json_object(pr.get("head")).get("ref")
     config = _dependabot_config(owner, name, base_sha, main_sha)
     extra: set[str] = set()
+    read: list[frozenset[str] | None] = []
+
+    def cdn() -> frozenset[str] | None:
+        if not read:
+            read.append(_cdn_paths(owner, name, base_sha))
+        return read[0]
+
     for item in commits:
         if dependabot.is_dependabot_commit(item):
             continue
@@ -5629,7 +5639,9 @@ def _dependabot_content(
         if touched is None:
             # Unreadable (or past the listing cap) is not "touches nothing".
             return None, f"unreadable: commit files {sha[:12]}", None
-        refusal = _fix_commit_refusal(owner, name, sha, config)
+        refusal = _fix_commit_refusal(
+            owner, name, sha, config, lane_identity, cdn, head_ref
+        )
         if refusal:
             return None, f"dependabot-fix-content:{refusal}", None
         extra.update(touched)
@@ -5683,10 +5695,15 @@ def _fix_commit_refusal(
     name: str,
     sha: str,
     config: list[tuple[str, str]] | None,
+    lane_identity: str | None = None,
+    cdn: Callable[[], frozenset[str] | None] | None = None,
+    head_ref: str | None = None,
 ) -> str | None:
     """Why a lanes App commit is not a fix the lane may merge with
-    (`babysit_dependabot.fix_refusal` against its one parent), or None. The commit's files, modes and both sides' text are read here; a
-    read that fails is a refusal."""
+    (`babysit_dependabot.fix_refusal` against its one parent) nor the CDN
+    pins sync (`babysit_dependabot.cdn_sync_refusal` against the base
+    registry `cdn()` reads, on the pull request's `head_ref`), or None. The commit's files, modes and both
+    sides' text are read here; a read that fails is a refusal."""
     status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
     detail = json_object(payload)
     listing = detail.get("files")
@@ -5701,28 +5718,54 @@ def _fix_commit_refusal(
     parent = str(json_object(parents[0]).get("sha") or "") if parents else ""
     if len(parents) != 1 or not SHA_RE.fullmatch(parent):
         return f"commit-parents:{sha[:12]}"
-    trees: dict[str, list[Any]] = {}
+    trees: dict[tuple[str, str], list[Any]] = {}
 
-    def entry(path: str) -> Any:
+    def entry_at(ref: str, path: str) -> Any:
         folder = posixpath.dirname(path)
-        if folder not in trees:
+        if (ref, folder) not in trees:
             data = _graphql(
-                FIX_TREE, f"{sha[:12]} tree", o=owner, r=name, e=f"{sha}:{folder}"
+                FIX_TREE, f"{ref[:12]} tree", o=owner, r=name, e=f"{ref}:{folder}"
             )
             tree = json_object(json_object(data.get("repository")).get("object"))
-            trees[folder] = json_array(tree.get("entries"))
+            trees[ref, folder] = json_array(tree.get("entries"))
         base = posixpath.basename(path)
         return next(
-            (e for e in trees[folder] if json_object(e).get("name") == base), None
+            (e for e in trees[ref, folder] if json_object(e).get("name") == base),
+            None,
         )
 
     def text(side: str, path: str) -> str | None:
         return _raw_at(owner, name, path, parent if side == "before" else sha)
 
     try:
-        return dependabot.fix_refusal(listing, config, entry, text)
+        fix = dependabot.fix_refusal(
+            listing, config, lambda path: entry_at(sha, path), text
+        )
     except PolicyReadError as exc:
-        return f"fix-unreadable:{str(exc)[:120]}"
+        fix = f"fix-unreadable:{str(exc)[:120]}"
+    if fix is None or cdn is None:
+        return fix
+    try:
+        sync = dependabot.cdn_sync_refusal(
+            detail,
+            lane_identity,
+            cdn,
+            lambda side, path: entry_at(parent if side == "before" else sha, path),
+            head_ref,
+        )
+    except PolicyReadError as exc:
+        sync = f"cdn-sync-unreadable:{str(exc)[:120]}"
+    return f"{fix};{sync}" if sync else None
+
+
+def _cdn_paths(owner: str, name: str, base_sha: str) -> frozenset[str] | None:
+    """The base pins.json's paths (`babysit_dependabot.cdn_sync_paths`), or
+    None when it is absent, invalid or does not read."""
+    try:
+        text = _file_at(owner, name, dependabot.CDN_RECORD, base_sha)
+    except PolicyReadError:
+        return None
+    return dependabot.cdn_sync_paths(text)
 
 
 def _dependabot_policy(owner: str, name: str, sha: str) -> Any:
@@ -5928,7 +5971,7 @@ def dependabot_eligibility(
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         content, refusal, paths = _dependabot_content(
-            owner, name, number, pr, commits, files, main_sha
+            owner, name, number, pr, commits, files, main_sha, agent_identity
         )
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)

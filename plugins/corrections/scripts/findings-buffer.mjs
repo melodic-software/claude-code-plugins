@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-// Node half of tools/findings-buffer/buffer.sh. Three subcommands:
-//   adapter --project DIR   print the bound adapter: `local-file`, or the physical directory of the
-//                           adapter the user-scope binding names for this repository, else of the
-//                           plugin adapter <home>/findings-buffer.yaml (personal override .local.yaml) names,
-//                           both resolved through the config cascade (lib/config-cascade.mjs, ADR 0075).
-//                           The repository files are repository-writable, so they name only the
-//                           plugin's own tools/findings-buffer/adapters/. Repository code runs only
-//                           from the user-scope binding: the userConfig options
-//                           findings_buffer_adapter_repository (the git common directory it applies
-//                           to) and findings_buffer_adapter_path (relative to the checkout root), read
-//                           from user and managed settings only (lib/plugin-options.mjs).
-//                           A missing or unusable binding prints `local-file` and says why on stderr.
-//   prepare                 JSONL rows on stdin (already redacted) -> capped rows with obs_id and ts.
-//   dedupe                  JSONL rows on stdin -> the first row per obs_id, as read.
 // Exit: 0 ok, 1 failure (an unreadable row on dedupe), 2 usage or a line that is not a JSON object.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -24,13 +10,10 @@ import { parseArgs } from "node:util";
 import { resolve } from "./lib/config-cascade.mjs";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./lib/plugin-options.mjs";
 
-// The plugin root from this script's real path, never from the environment: it anchors the user settings read.
 const ROOT = resolvePath(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..");
 const PLUGIN = "findings-buffer";
 const DEFAULT_HOME = "docs/conventions";
 const CAP = 2048;
-// The stored row adds `"obs_id":"<16 hex>",` (28 bytes) and `"ts":"<ts>",` (8 + up to 30 bytes) to
-// the content, so the content is capped to a budget that holds for every ts this keeps.
 const BUDGET = CAP - 28 - 38;
 const FLOOR = 64;
 const OBS_ID = /^[0-9a-f]{16}$/;
@@ -38,7 +21,6 @@ const TS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
 const ADAPTERS = join(ROOT, "tools/findings-buffer/adapters");
 const VERBS = ["append.sh", "read.sh"];
 const NAME = /^[A-Za-z0-9._-]+$/;
-// The user-scope binding's keys, outside schemas/findings-buffer.schema.json, so the repository files never set them.
 const USER_KEYS = ["findings_buffer_adapter_repository", "findings_buffer_adapter_path"];
 const USER_SCHEMA = {
   type: "object",
@@ -46,7 +28,6 @@ const USER_SCHEMA = {
     findings_buffer: { type: "object", properties: { adapter_repository: { type: "string" }, adapter_path: { type: "string" } } },
   },
 };
-// A repository's settings env block reaches this process, and GIT_* there could point git at another repository.
 const GIT_ENV = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
 const SHOWN = 5;
 
@@ -58,7 +39,6 @@ function lines(text) {
   return text.split("\n").filter((line) => /\S/.test(line));
 }
 
-/** Each layer's first SHOWN errors on stderr, then a count of the rest, so a file of unknown keys cannot flood it. */
 function sayErrors(layers) {
   for (const { name, path, errors } of layers) {
     for (const error of errors.slice(0, SHOWN)) say(error);
@@ -66,7 +46,6 @@ function sayErrors(layers) {
   }
 }
 
-/** {home} or {home: null, why} from the project's pointer line, as lib/resolve-convention-home.sh reports it. */
 function conventionHome(project) {
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
   if (r.status === 0) return { home: r.stdout.trim() };
@@ -77,7 +56,6 @@ function conventionHome(project) {
   return { home: null, why: `the convention home is unresolved (${cause})` };
 }
 
-/** Why the adapter directory `candidate` is unusable, or {dir} with its physical path, which must lie inside `base`. */
 function checkAdapter(base, candidate, { where, missing }) {
   const root = physical(base);
   const dir = physical(candidate);
@@ -105,7 +83,6 @@ function checkAdapter(base, candidate, { where, missing }) {
   return { dir };
 }
 
-/** checkAdapter for the plugin adapter named `token`. */
 function pluginAdapter(token) {
   if (!NAME.test(token) || token === "." || token === "..") {
     return { why: "not the bare name of a plugin adapter; a repository path is bound only in user scope" };
@@ -113,7 +90,6 @@ function pluginAdapter(token) {
   return checkAdapter(ADAPTERS, join(ADAPTERS, token), { where: "the plugin's adapters directory", missing: "the plugin ships no adapter by that name" });
 }
 
-/** stdout of `git -C dir args...` with no GIT_* variables, or null when it fails. */
 function git(dir, ...args) {
   const r = spawnSync("git", ["-C", dir, ...args], { cwd: ROOT, encoding: "utf8", env: GIT_ENV });
   return r.status === 0 ? r.stdout.trim() : null;
@@ -127,8 +103,6 @@ function physical(path) {
   }
 }
 
-/** The adapter the user-scope binding names for the checkout at `project`: {dir}, {why} when it is
- * refused, or null when no binding is set or it names another repository. */
 function userBinding(project, scratch) {
   let options;
   try {
@@ -155,7 +129,6 @@ function userBinding(project, scratch) {
   if (isAbsolute(path)) return { why: "findings_buffer_adapter_path is not relative to the repository root" };
   const checked = checkAdapter(here.top, resolvePath(here.top, path), { where: "this checkout", missing: "no such directory in this checkout" });
   if (checked.why) return checked;
-  // The directory and each verb's real location belong to this checkout, not to a repository nested in it.
   for (const dir of [checked.dir, ...VERBS.map((verb) => dirname(realpathSync(join(checked.dir, verb))))]) {
     const found = owner(dir);
     if (found === null || found.top !== here.top || found.common !== here.common) return { why: "it lies inside another git repository nested in this one" };
@@ -163,7 +136,6 @@ function userBinding(project, scratch) {
   return checked;
 }
 
-/** The physical checkout root and git common directory git reports for `dir`, or null. */
 function owner(dir) {
   const out = git(dir, "rev-parse", "--show-toplevel", "--git-common-dir")?.split("\n");
   if (out?.length !== 2) return null;
@@ -172,7 +144,6 @@ function owner(dir) {
   return top === null || common === null ? null : { top, common };
 }
 
-/** The physical paths of the main checkout and every linked worktree git lists for the git common directory `common`. */
 function checkouts(common) {
   const out = git(common, "worktree", "list", "--porcelain");
   if (out === null) return [];
@@ -219,7 +190,6 @@ function fileBinding(project, scratch) {
   return checked.dir;
 }
 
-/** RFC 8785 canonical JSON: keys sorted by UTF-16 code units, leaves as JSON.stringify writes them. */
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (isContainer(value)) {
@@ -231,7 +201,6 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
-/** Every [holder, key] under `value`, depth first in sorted key order, whose value matches `pick`. */
 function slots(value, pick, out = []) {
   for (const key of Object.keys(value).sort()) {
     const v = value[key];
@@ -241,7 +210,6 @@ function slots(value, pick, out = []) {
   return out;
 }
 
-/** The slot with the largest serialized value; the first one wins a tie. */
 function largest(list) {
   let best = null;
   let size = -1;
@@ -252,7 +220,6 @@ function largest(list) {
   return best;
 }
 
-/** Caps `content` to BUDGET bytes without regard to ts, so a retried row keeps its obs_id. Mutates. */
 function cap(content) {
   if (bytes(content) <= BUDGET) return content;
   content.truncated = true;

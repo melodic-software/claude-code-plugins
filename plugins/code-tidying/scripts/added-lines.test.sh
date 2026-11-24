@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained contract tests for added-lines.sh (runs against throwaway git
-# repos under mktemp; never touches the enclosing repository).
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -82,14 +80,10 @@ out="$(cd "$REPO" && bash "$SCRIPT" "$base")"
 expected="2${TAB}2${TAB}app.py"$'\n'"10${TAB}1${TAB}app.py"
 assert_equal "one row per added hunk, start then count then path" "$expected" "$out"
 
-# Uncommitted edits count too: the diff is the working tree against the base. The
-# appended line 11 sits next to the committed line 10, so the two form one hunk.
 printf 'tail\n' >>"$REPO/app.py"
 out="$(cd "$REPO" && bash "$SCRIPT" "$base")"
 assert_equal "an uncommitted added line is reported" "10${TAB}2${TAB}app.py" "$(tail -n 1 <<<"$out")"
 
-# A base whose history moved on is read from the merge base, so lines added on the
-# base side never appear as this branch's additions.
 REPO="$TEST_TMPDIR/mergebase"
 make_repo "$REPO"
 printf 'shared\n' >"$REPO/s.py"
@@ -115,7 +109,6 @@ commit_all "$REPO" add
 out="$(cd "$REPO" && bash "$SCRIPT" "$base")"
 assert_equal "a file name with a space survives whole" "1${TAB}2${TAB}sub dir/my file.py" "$out"
 
-# A rename with one edited line reports the edit under the new path, not the whole file.
 REPO="$TEST_TMPDIR/rename"
 make_repo "$REPO"
 printf '%s\n' l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 >"$REPO/old.py"
@@ -127,7 +120,6 @@ commit_all "$REPO" rename
 out="$(cd "$REPO" && bash "$SCRIPT" "$base")"
 assert_equal "a rename reports only its added lines, under the new path" "11${TAB}1${TAB}new.py" "$out"
 
-# A path carrying a control character cannot be printed unambiguously, so the run fails.
 REPO="$TEST_TMPDIR/control"
 make_repo "$REPO"
 printf 'x\n' >"$REPO/seed.txt"
@@ -145,10 +137,6 @@ else
   skip "a path with a control character exits 2" "cannot create a file name holding a tab"
 fi
 
-# --- A configured external diff never reaches the parser ---------------------------
-# diff.external set to a driver that prints the new file verbatim: the file's text is a
-# crafted hunk header whose count is an array subscript holding a command. Parsing it as
-# arithmetic would create the marker file. The run must exit 0 or 2 and never execute it.
 
 REPO="$TEST_TMPDIR/extdiff"
 make_repo "$REPO"
@@ -190,13 +178,9 @@ for compat in default 51; do
   done
 done
 
-# The external driver is ignored, so the crafted file reads as one ordinary added line.
 out="$(cd "$REPO" && bash "$SCRIPT" "$base")"
 assert_equal "with diff.external set, rows come from git's own diff" "1${TAB}1${TAB}evil.txt" "$out"
 
-# --- A failing git diff fails the run ----------------------------------------------
-# A git wrapper prints the real output of one diff call and then exits 128, as a git
-# that dies partway would. Neither the listing nor a per-file diff may pass as success.
 
 REPO="$TEST_TMPDIR/gitfail"
 make_repo "$REPO"

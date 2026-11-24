@@ -278,8 +278,7 @@ it.
 commands before handing off**. Every Phase 4 check precedes it, so this pass is the only one that
 can reach them. A recorded command calls GNU grep explicitly (`ggrep`, or `grep` after
 `grep --version` shows GNU), because a plain `grep` can resolve to ugrep and change a count; the
-replay runs `grep --version` first and reports a non-GNU grep rather than comparing counts. Then hand off: invoke `/planning:interview` via the Skill tool over it when that
-plugin is enabled, otherwise present the artifact and stop. The pipeline ends at the handoff. Deciding what to build
+replay runs `grep --version` first and reports a non-GNU grep rather than comparing counts. Then hand off: invoke `/planning:interview` (if enabled) via the Skill tool over it, otherwise present the artifact and stop. The pipeline ends at the handoff. Deciding what to build
 from a verified slice is the interview's job, and building it belongs to the consuming repo's
 planning/implementation flow.
 

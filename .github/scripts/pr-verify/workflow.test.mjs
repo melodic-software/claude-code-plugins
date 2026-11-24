@@ -44,7 +44,7 @@ const list = (block, key) => {
 const chunkScript = readFileSync(new URL("./chunk-diff.sh", import.meta.url), "utf8");
 const CEILING = Number(/^MAX_CHUNKS=\$\{MAX_CHUNKS:-([1-9][0-9]*)\}$/m.exec(chunkScript)?.[1]);
 const SLOTS = Array.from({ length: CEILING }, (_, i) => i + 1);
-const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@[0-9a-f]{40} # \S/;
+const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@main/;
 // Each later leg's lane record names why the leg before it did not judge:
 // select-model-credential's fallback-reason, from the previous job's
 // next-reason (credential-legs.test.mjs holds it to the expressions before).
@@ -52,7 +52,7 @@ const FALLBACK_REASON = "${{ steps.credential.outputs.fallback-reason }}";
 const FB_REASON = FALLBACK_REASON;
 const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 // The one credential action every leg calls, and its call in each job.
-const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} # \S/m;
+const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@main/m;
 // check-intent's reads, which the subscription job's resolver takes through
 // env only (resolve-pr.mjs takeReads).
 const CARRIED = "          CARRIED: ${{ needs.check-intent.outputs.reads }}";
@@ -410,7 +410,7 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: credit-marker-scan$/m);
   assert.match(scanStep, /^ {8}if: always\(\) && steps\.credit-marker\.outcome == 'success'$/m);
-  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@main$/m);
   assert.match(scanStep, /^ {10}gate-path: \.base\/lib\/publish-gate\.mjs$/m);
   const uploadStep = step(upload);
   assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.credit-marker\.outcome == 'success'\) && steps\.credit-marker-scan\.outputs\.clean == 'true'$/m);
@@ -463,11 +463,11 @@ test("the key job writes, scans and uploads the gate's probing marker once a jud
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: probe-marker-scan$/m);
   assert.match(scanStep, /^ {8}if: always\(\) && steps\.probe-marker\.outcome == 'success'$/m);
-  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@main$/m);
   assert.match(scanStep, /^ {10}gate-path: \.base\/lib\/publish-gate\.mjs$/m);
   const uploadStep = step(upload);
   assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.probe-marker\.outcome == 'success'\) && steps\.probe-marker-scan\.outputs\.clean == 'true'$/m);
-  assert.match(uploadStep, /^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # \S/m);
+  assert.match(uploadStep, /^ {8}uses: actions\/upload-artifact@v7/m);
   assert.equal(input(uploadStep, "name"), probe);
   assert.equal(input(uploadStep, "path"), "${{ runner.temp }}/key-credit-probing/run-id");
   assert.equal(input(scanStep, "path"), input(uploadStep, "path"));
@@ -898,18 +898,10 @@ test("a handoff leaves one lane record per leg, the leg that handed off marked h
   }
 });
 
-test("every ci-workflows action is pinned to one commit, report-lane-outcome to its own", () => {
-  const all = [...text.matchAll(/uses: melodic-software\/ci-workflows\/([^@\s]+)@([0-9a-f]{40}) # \S.*$/gm)].map((m) => ({ action: m[1], sha: m[2] }));
-  assert.equal(all.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with a comment");
-  const isReport = (r) => r.action.endsWith("/report-lane-outcome");
-  const isSelect = (r) => r.action.endsWith("/select-model-credential");
-  const refs = all.filter((r) => !isReport(r) && !isSelect(r)).map((r) => r.sha);
-  const reportRefs = all.filter(isReport).map((r) => r.sha);
-  const selectRefs = all.filter(isSelect).map((r) => r.sha);
-  assert.ok(refs.length >= 6);
-  assert.equal(new Set(refs).size, 1, `one pin: ${[...new Set(refs)].join(", ")}`);
-  assert.equal(new Set(reportRefs).size, 1, `one report-lane-outcome pin: ${[...new Set(reportRefs)].join(", ")}`);
-  assert.equal(new Set(selectRefs).size, 1, `one select-model-credential pin: ${[...new Set(selectRefs)].join(", ")}`);
+test("every ci-workflows action tracks main", () => {
+  const uses = [...text.matchAll(/uses: melodic-software\/ci-workflows\/\S+/g)].map(([ref]) => ref);
+  assert.ok(uses.length >= 6);
+  for (const ref of uses) assert.match(ref, /@main$/, ref);
 });
 
 test("the resolver reads the trusted-actor list from main in both jobs", () => {
@@ -1176,8 +1168,8 @@ test("wake-pr-merge runs after every verdict job, only on an uploaded pass, hold
   const block = /^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1];
   assert.deepEqual([...block.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`), ["actions: write", "pull-requests: read", "contents: read"]);
   const [tipUses, ...uses] = [...job.matchAll(/^ {8}uses: (\S+)/gm)].map((m) => m[1]);
-  assert.match(tipUses, /^melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@[0-9a-f]{40}$/);
-  assert.deepEqual(uses, ["actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "./.base/.github/actions/log-api-budget"]);
+  assert.match(tipUses, /^melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@main$/);
+  assert.deepEqual(uses, ["actions/checkout@v7", "./.base/.github/actions/log-api-budget"]);
   assert.match(job, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {10}sparse-checkout-cone-mode: false\n/);
   assert.match(job, /^ {4}env:\n {6}API_BUDGET_TOKEN: github-token$/m);
   const script = wakeScript();

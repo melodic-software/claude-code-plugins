@@ -55,9 +55,24 @@ The spoke's queue read-back after a successful CLI merge reads these GraphQL fie
   [Understanding why your pull request was removed from the merge queue](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/merging-a-pull-request-with-a-merge-queue#understanding-why-your-pull-request-was-removed-from-the-merge-queue)
   live.
 
-## Rerun a rate-limited review
+## Rerun a lane run
 
-Rerun the whole workflow run with `gh run rerun <run-id>`, never `gh run rerun --failed`.
+- A review lane run (PR Review, PR Review Security) binds a re-run attempt only when attempt 1
+  left no verdict: a kill switch or the upstream-status gate stopped it, it held or failed on a
+  rate limit, it failed on a rejected credential or a failed install, an outage lost it before the
+  lane posted, or its lane job ended with `NO_OUTCOME`, left no record, and the lane had not
+  posted (`rerun_binds` in `babysit_review_evidence.py`). A third attempt never binds.
+- Never hand-rerun a lane run whose attempt 1 reviewed the head: the gate refuses the re-run
+  attempt as `evidence-unbound:<lane>` with the reason `rerun-not-allowed`. The merge gate's
+  whole-review request clears that hold with a new run at the same head. It runs once per head,
+  and a request a limit skipped (`running-jobs`, token share, the per-sweep claim) is retried on a
+  later pr-merge sweep. At the per-PR cap of two requests (`toggle-cap`), or once this head's
+  request has run, a new head clears the hold:
+  `gh pr update-branch <n>` when the branch is behind its base (it makes no new head on a current
+  branch), else a new commit.
+- A rate-limited review reruns the whole workflow run (`gh run rerun <run-id>`), never
+  `gh run rerun --failed`: a status job that reads another job's output would re-read the cached
+  failed result.
 
 ## Resolve identity on a person-opened PR
 

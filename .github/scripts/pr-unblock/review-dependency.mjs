@@ -23,7 +23,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
 import { runAsScript } from "../lib/run-main.mjs";
-import { readRawTrustedActors } from "../lib/trusted-actors.mjs";
+import { readRawTrustedActors, trustedListPath } from "../lib/trusted-actors.mjs";
 import { guardedFetch, createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
 import {
   classifierGaps,
@@ -32,9 +32,11 @@ import {
   DEPENDABOT_LOGIN,
   isDependabotCommit,
   parseConfig,
+  policyPath,
   provenanceReasons,
   withProvenance,
 } from "./dependency-classify.mjs";
+import { cdnRequest } from "./cdn-pins-sync.mjs";
 import { parseGroups, relockRequest, relockTarget } from "./dependency-relock.mjs";
 import { movePin, PACKAGE, unifiedDiff } from "./install-script-pin.mjs";
 
@@ -123,6 +125,7 @@ export const GATE_HOLD_SKIP = "gate-hold";
 const GATE_HOLDS = [
   ["person", /^#([1-9][0-9]*) is by an author no review lane reviews and changes trust-gate paths:/],
   ["verdict", /^#([1-9][0-9]*) by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths:/],
+  ["verdict", /^#([1-9][0-9]*) by Dependabot changes only the CDN pins record on trust-gate paths:/],
 ];
 export function gateHoldOnly(annotations, pr) {
   const failures = annotations.filter((note) => note?.annotation_level === "failure").map((note) => String(note.message ?? ""));
@@ -252,6 +255,7 @@ export async function select({
   dependabotId,
   config = null,
   groups = [],
+  baseDir,
   policy,
   repository = "",
   maxRounds = DEFAULT_MAX_ROUNDS,
@@ -303,8 +307,15 @@ export async function select({
   } catch (error) {
     relockError = error.message;
   }
+  let cdnError = "";
+  try {
+    const cdn = await cdnRequest({ files, changedFiles: pull.changed_files, baseDir, readText: (path) => api.getText(path, headSha, { exactUtf8: true }) });
+    if (cdn) return { decision: "cdn-sync", cdn, classification };
+  } catch (error) {
+    cdnError = error.message;
+  }
   if (gate.gateHold === "person") {
-    return { decision: "skip", skipReason: GATE_HOLD_SKIP, gateHold: true, classification, pinError, relockError };
+    return { decision: "skip", skipReason: GATE_HOLD_SKIP, gateHold: true, classification, pinError, relockError, cdnError };
   }
   const comments = await api.listIssueComments(pr);
   // One commit's check runs at a time: element 6's serial reads.
@@ -317,7 +328,7 @@ export async function select({
   const shas = whole ? commits.map((commit) => commit.sha) : null;
   const done = Math.max(countRounds(comments, appId, shas), countCheckRounds(checkRuns));
   if (done >= maxRounds) {
-    return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification, pinError, relockError };
+    return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification, pinError, relockError, cdnError };
   }
 
   return {
@@ -326,6 +337,7 @@ export async function select({
     classification,
     pinError,
     relockError,
+    cdnError,
     file: {
       version: 1,
       repository,
@@ -424,11 +436,10 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     "PR_NUMBER",
     "HEAD_SHA",
     "APP_SENDER_ID",
-    "TRUSTED_ACTORS",
     "DEPENDENCY_FILE",
     "CONTEXT_RUN_FILE",
     "DEPENDABOT_CONFIG",
-    "DEPENDABOT_POLICY",
+    ...(env.STANDARDS_DIR ? [] : ["TRUSTED_ACTORS", "DEPENDABOT_POLICY"]),
   ]);
   // Before any model turn and before the upload: no lanes App fix commit of
   // this round is older.
@@ -452,12 +463,13 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     pr,
     headSha: env.HEAD_SHA,
     appId: positive(env.APP_SENDER_ID, "APP_SENDER_ID"),
-    dependabotId: dependabotIdFrom(env.TRUSTED_ACTORS),
+    dependabotId: dependabotIdFrom(trustedListPath(env, env.TRUSTED_ACTORS)),
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
     config,
+    baseDir: env.BASE_DIR,
     groups: config === null ? [] : parseGroups(readFileSync(env.DEPENDABOT_CONFIG, "utf8")),
-    policy: readPolicy(env.DEPENDABOT_POLICY, log),
+    policy: readPolicy(policyPath(env, env.DEPENDABOT_POLICY), log),
     provenance,
   });
   if (result.file) {
@@ -489,6 +501,17 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     output("relock-sha256", createHash("sha256").update(request).digest("hex"));
     summary(`${result.relock.directory}: ${result.relock.name} ${result.relock.from} to ${result.relock.to}, relocked by review-dependency-relock and pushed by apply-dependency-relock with no model turn`);
   }
+  if (result.cdn) {
+    need(env, ["CDN_SYNC_DIR"]);
+    const request = `${JSON.stringify(result.cdn)}\n`;
+    writeFileSync(`${env.CDN_SYNC_DIR}/request.json`, request);
+    output("cdn-sync-state", "written");
+    output("cdn-sync-sha256", createHash("sha256").update(request).digest("hex"));
+    summary("The CDN pins sync runs before any dependency model turn");
+  }
+  if (result.cdnError) {
+    log("::warning::the CDN pins sync request could not be built; the model reviews the pull request as it stands");
+  }
   if (result.gateHold) {
     summary(`#${pr}: the only failing CI Status check is the trust-gate hold, which only a person on the trusted-actor list approving this head clears, so no dependency review ran and the update's content was not judged`);
   }
@@ -499,7 +522,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     log(`::warning::the dependency group's lagging directory was not relocked (${result.relockError}); the model reviews the pull request as it stands`);
   }
   output("proceed", String(result.decision === "proceed"));
-  output("skip-reason", { skip: result.skipReason, escalate: "awaiting-human", pin: "no-model-turn", relock: "no-model-turn" }[result.decision] ?? "");
+  output("skip-reason", { skip: result.skipReason, escalate: "awaiting-human", pin: "no-model-turn", relock: "no-model-turn", "cdn-sync": "no-model-turn" }[result.decision] ?? "");
   output("escalation-reason", result.escalationReason ?? "");
   const gaps = classifierGaps(result.classification?.tier === "review" ? result.classification.reasons : []);
   if (gaps.length) {

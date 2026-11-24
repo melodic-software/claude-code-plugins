@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "The mail sender is its own design fork, interviewed after the tree."},
+    {"answer": "Candidate 3 is a separate interview: the mail sender touches neither.", "why": "separate before mail"},
+    {"answer": "Mail sender: independent, handled separately.", "why": "independent"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "All three, mail sender included, form one tree.", "why": "folded in"},
+    {"answer": "Tax module first, then the invoice total.", "why": "mail not mentioned"}
+  ]
+}

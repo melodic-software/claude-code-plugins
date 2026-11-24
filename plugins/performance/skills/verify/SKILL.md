@@ -200,7 +200,7 @@ Rules that bind the report:
   instruction counts.
 
 A MET change that shipped behind a flag gets a field read before `/performance:protect`. For
-Claude Code's own hook behavior the source is `/harness-ops:observability latency`; for any other
+Claude Code's own hook behavior the source is `/harness-ops:observability latency` (if enabled); for any other
 subject it is the telemetry the project's own instructions name. Take the read before the release
 and again after it, and compare the two.
 

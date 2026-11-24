@@ -215,10 +215,6 @@ assert_eq "--help lists --check on the usage line" 0 "$?"
 assert_contains "--help states the --check exit codes" "$(bash "$SCRIPT" --help 2>&1)" \
   "Under \`--check\`, 1 means a changed file failed the rule, and 2"
 
-# No interpreter passes the floor probe: the shared cm_require_python prints
-# the prerequisite line under this script's name and exits 2. Failing stubs go
-# in front of the whole PATH, as python-resolve.test.sh does, rather than on a
-# bare PATH, so bash and the coreutils the script runs first still resolve.
 for name in python3 python py; do
   printf '#!/usr/bin/env bash\nexit 1\n' >"$NO_PYTHON/$name"
   chmod +x "$NO_PYTHON/$name"
@@ -230,10 +226,6 @@ assert_eq "no Python exits 2" 2 "$rc"
 assert_eq "no Python prints the prerequisite line" \
   "audit-size.sh: Python ${floor}+ not found (tried python3, python, py -3); it is a required prerequisite" "$err"
 
-# The 1000-line provenance is one sentence, owned by the bundled defaults and
-# repeated verbatim where a reader meets the number without the report: the
-# size action body and the principles threshold table. A rewording in one place
-# is a second story about where the number came from.
 provenance="$("$PY" -c '
 import json, sys
 doc = json.load(open(sys.argv[1]))

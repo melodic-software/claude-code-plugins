@@ -5,11 +5,11 @@ The skills of `plugins/songwriting`. Each one is driven with `<plugin-dir>` set 
 ## Parts
 
 - `co-write`: Co-writing sessions under the No-Free-Zone protocol and feedback discipline, the Title Game, title generation from an idea, and high-volume option dumps for ONE line or ONE section, with Pat Pattison's methods.
-- `diagnose`: Review, audit and rewrite a lyric with Pat Pattison's methods.
 - `metaphor`: Generate and diagnose metaphor with Pat Pattison's methods, the three types, the three expressed-identity forms, collision drills, playing in keys, the two metaphor-finder questions, participles, transitive vs intransitive, simile as focus control, and grounded-metaphor diagnosis.
 - `meter-prosody`: Make structure serve meaning with Pat Pattison's methods: meter, prosody, section stability and lyric-melody fit.
 - `object-writing`: Raw sensory material with Pat Pattison's methods.
 - `practice`: Build a songwriting practice habit with Pat Pattison's curriculum, the daily object-writing/craft routine and numbered exercises drawn from all four books.
+- `revise`: Review and revise a lyric with Pat Pattison's methods.
 - `rhyme`: Find and stress-test rhymes with Pat Pattison's discipline.
 - `setup`: Configure the songwriting plugin for this repository. No plain-words entry.
 - `song-form`: Song structure with Pat Pattison's methods.

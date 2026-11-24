@@ -35,8 +35,9 @@ banned API, a file written in the wrong place, a step skipped before a commit.
   that meets those three takes the [Hooks](#hooks) section's check-row format. A retro proposes a
   check without writing or proving one, so the row lists items 3-5 and 8 (precision, a message
   naming the fix, proof on a planted violation, a kill switch) as requirements the proposed check
-  must meet, and item 6 (the same command at edit time and in CI) too unless the rung's "runs at"
-  column names one place, which meets it, as the ladder's item 6 says. A finding that fails
+  must meet, and item 6 (the same command locally, at the stage check-placement assigns, and in
+  CI) too unless the rung's "runs at" column names one place, which meets it, as the ladder's
+  item 6 says. A finding that fails
   item 1, 2 or 7 goes on to the placement decision tree, since the ladder keeps it on the guidance
   tier. Give a finding that gets a check row no CLAUDE.md, `AGENTS.md` or rules-file row, a pointer
   to the check or a fallback in case the check is declined included: the check replaces the line.

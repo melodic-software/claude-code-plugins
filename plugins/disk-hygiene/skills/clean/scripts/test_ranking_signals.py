@@ -86,8 +86,6 @@ def build_audit_shaped_home(root: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"x" * size)
         os.utime(path, ns=(mtime, mtime))
-    # Every file exists before any directory time is set: creating a child
-    # moves its parent's mtime, setting a child's does not.
     for relative, mtime in directories:
         os.utime(root / relative, ns=(mtime, mtime))
 
@@ -241,8 +239,6 @@ class ScanRankingTests(unittest.TestCase):
             root = Path(temporary) / "home"
             root.mkdir()
             build_audit_shaped_home(root)
-            # The walk's records are the only input: with every filesystem call
-            # refused while ranking runs, the rank still comes out whole.
             target = root.resolve()
             policy = hygiene.load_policy(None)
             real_annotate = ranking.annotate
@@ -265,9 +261,7 @@ class ScanRankingTests(unittest.TestCase):
             snapshot = self.scan_fixture(temporary)
         entries = snapshot["entries"]
         self.assertEqual(76, len(entries))
-        # Before: a discovery hint reached 1 of 76 entries, the audit's figure.
         self.assertEqual(1, sum(1 for entry in entries if entry["hints"]))
-        # After: any review signal reached 25 of 76.
         summary = snapshot["review_ranking"]
         self.assertEqual(25, summary["ranked_entries"])
         self.assertEqual(51, summary["unranked_entries"])

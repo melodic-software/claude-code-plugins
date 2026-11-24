@@ -230,6 +230,11 @@ Never pad a quiet run by re-listing standing findings to look useful.
 - Findings moved: `/instruction-placement:realign`. It applies the moved findings the operator accepts.
 - Quiet run: none. Nothing moved, so there is nothing to apply.
 
+## Related
+
+- No baseline or artifact exists yet: /instruction-placement:audit.
+- Fast pass/fail CI gate for globs and index: /instruction-placement:check.
+
 ## Gotchas
 
 - **A quiet run is the expected outcome, not a failed one.** The pull toward finding *something* to

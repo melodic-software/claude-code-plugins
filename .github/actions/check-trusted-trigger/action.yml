@@ -24,6 +24,13 @@ inputs:
       cannot change the list it is judged by.
     required: false
     default: .base/.github/standards/trusted-actors/trusted-actors.json
+  standards-path:
+    description: >
+      A melodic-software/standards checkout (download-standards' `path`
+      output), checked out before any head code ran. When set, the list is
+      read from it and trusted-actors-path is ignored.
+    required: false
+    default: ""
   pr-number:
     description: The PR number on workflow_dispatch; ignored for other events.
     required: false
@@ -217,6 +224,7 @@ runs:
         EVENT_NAME: ${{ inputs.event-name }}
         EVENT_PATH: ${{ inputs.event-path }}
         TRUSTED_ACTORS_PATH: ${{ inputs.trusted-actors-path }}
+        STANDARDS_DIR: ${{ inputs.standards-path }}
         PR_NUMBER: ${{ inputs.pr-number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         DENIED_ACTOR_IDS: ${{ inputs.denied-actor-ids }}

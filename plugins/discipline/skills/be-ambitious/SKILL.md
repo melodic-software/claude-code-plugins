@@ -66,7 +66,7 @@ from another field would change what's possible here?"
 
 ## 3. Proposals, never actions
 
-- A crew of specialists: propose it as a hand-off to `/planning:plan`.
+- A crew of specialists: propose it as a hand-off to `/planning:plan` (if enabled).
 - A red team: propose it only for irreversible, shared-infrastructure or
   security work, for me to decide, and scope it to gaps that affect
   correctness or the stated requirements.
@@ -74,10 +74,10 @@ from another field would change what's possible here?"
   reduced version that works without it. Never refuse for lack of them.
 - When the raise is doing the same work faster (the session's or team's
   throughput, not the product's runtime): one line pointing at
-  `/performance:go-faster` or `/session-flow:orchestrate`, and no speed
+  `/performance:go-faster` (if enabled) or `/session-flow:orchestrate` (if enabled), and no speed
   method of your own; raise the rest as usual.
 - When the raised request leaves several open decisions: one line pointing
-  at `/planning:interview`.
+  at `/planning:interview` (if enabled).
 
 Show every skill pointer as bare text; invoke none.
 
@@ -131,13 +131,20 @@ The correctors re-anchor a standing discipline. This skill is a one-shot,
 user-fired raise or deepen: only the user knows they want more than they
 asked for or got, so the model never fires it, and it carries no
 `discipline-batch` tier.
-Nearest siblings, for routing: `/planning:brainstorm` when the user wants
+Nearest siblings, for routing: `/planning:brainstorm` (if enabled) when the user wants
 options rather than one raised request, and `/discipline:scrutinize-dont-coast`
 when the question is whether finished work is sound.
 
 ## Next
 
 `/planning:interview`, when the raised request leaves several open decisions; it locks them into a brief.
+
+## Related
+
+- Need divergent options rather than one raised request: /planning:brainstorm.
+- Check whether finished work is sound: /discipline:scrutinize-dont-coast.
+- Goal is session or team throughput: /performance:go-faster.
+- Crew of specialists proposed: /planning:plan.
 
 ## Gotchas
 

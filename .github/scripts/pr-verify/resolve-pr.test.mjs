@@ -1279,7 +1279,7 @@ test("do-not-merge still fails ci-status and the merge queue", () => {
   const step = (name) => new RegExp(`^ {6}- name: ${name}\\n((?: {8}.*\\n|\\n)*)`, "m").exec(workflow)?.[1] ?? "";
   const report = step("Aggregate lane results");
   assert.match(report, /^ {8}id: report$/m);
-  assert.match(report, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/report-ci-status@[0-9a-f]{40} /m);
+  assert.match(report, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/report-ci-status@main\b/m);
   assert.doesNotMatch(report, /do-not-merge-label|continue-on-error/m);
   const fail = step(CONTRACT_STEP);
   assert.match(fail, /^ {8}if: \$\{\{ !cancelled\(\) && \(steps\.report\.outputs\.contract != 'success' \|\| steps\.report\.outputs\.draft != 'success'\) \}\}$/m);

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for the audit-complexity entry point (audit-complexity.sh):
-# option parsing, the references it prints with their provenance, the lanes it
-# reports as unavailable, and exit-code passthrough from dispatch.sh.
-# Collectors are stubbed at runtime: a temporary bin/ prepended to a filtered
-# PATH carries fake `lizard`, `radon`, `multimetric`, `gocognit` and
-# `shellmetrics` replaying the committed captures under
-# fixtures/tool-output/ (design T13; nothing executable is committed).
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/scripts/yaml_subset.py
 # test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
 set -uo pipefail
@@ -84,8 +77,6 @@ assert_doc "the bash lane reports cyclomatic complexity from shellmetrics" "$out
   'any(r["lane"]=="bash" and r["values"].get("cyclomatic")==3 for r in d["measures"])'
 assert_doc "halstead difficulty is reported and never fabricated as zero" "$out" \
   'all(r["values"]["halstead_difficulty"] for r in d["measures"] if "halstead_difficulty" in r["values"])'
-# The five lane fixtures by name (cm-sample.ts, cm_sample.py, cm-sample.sh,
-# cm-sample.go, CmSample.cs): the assertion is also what maps them to this suite.
 assert_doc "the four measurable fixtures are measured and CmSample.cs is deferred" "$out" \
   'sorted({r["file"].rsplit("/",1)[1] for r in d["measures"]})==["cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py"] and any(r["lane"]=="dotnet" and r["status"]=="deferred" for r in d["run"])'
 

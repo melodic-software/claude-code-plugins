@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for codify-settings.mjs: the default, the team value, the personal override over the team value, and
-# invalid values falling back with a note on stderr, and the per-layer cap on those notes.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -100,9 +98,6 @@ DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "five unknown keys: all five print" test "$(grep -c 'team (.*unknown key' <<<"$ERR")" -eq 5
 check "five unknown keys: no count line" test "$(grep -c 'more$' <<<"$ERR")" -eq 0
 
-# 8. ratchet_offer and review_mining_prs: default, user option, team over user, and an invalid team
-# value falling to the default, never to the user option.
-# run_user <repo> <reader flags...>: as run, with the flags.
 run_user() {
   local dir="$1"
   shift

@@ -80,6 +80,7 @@
         "apply-dependency-verdict": { "name": "Apply Dependency Verdict", "calls": "./.github/workflows/pr-run-activity-write.yml" },
         "apply-dependency-pin": { "name": "Apply Dependency Pin", "calls": "./.github/workflows/pr-run-activity-write.yml" },
         "apply-dependency-relock": { "name": "Apply Dependency Relock", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-cdn-pins-sync": { "name": "Apply CDN Pins Sync", "calls": "./.github/workflows/pr-run-activity-write.yml" },
         "apply-patch": { "name": "Apply Patch", "calls": "./.github/workflows/pr-run-activity-write.yml" },
         "apply-patch-rung-up": { "name": "Apply Patch Rung Up", "calls": "./.github/workflows/pr-run-activity-write.yml" },
         "apply-shared-copies": { "name": "Apply Shared Copies", "calls": "./.github/workflows/pr-run-activity-write.yml" },

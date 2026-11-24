@@ -103,8 +103,8 @@ thread's own status. An uncovered row reads `none` in both.
 
 On PASS, and only on PASS, write the design into `## Design` of the topic's
 `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`). This is the copy that reaches the
-implementer: `/planning:plan` keeps it and audits its phases against it, and `/implementation:implement-dispatch`
-and `/work-items:decompose` quote from it, because a worker's worktree and a tracker item never
+implementer: `/planning:plan` keeps it and audits its phases against it, and `/implementation:implement-dispatch` (if enabled)
+and `/work-items:decompose` (if enabled) quote from it, because a worker's worktree and a tracker item never
 see the design directory. The section anatomy is
 `/planning:plan`'s PLAN.md template; fill its four subsections from the artifacts, never from
 memory:
@@ -138,8 +138,8 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
 - Resolved decisions with their recorded rationale (from `design-threads.md`)
 - **ADR candidates.** List each resolved decision whose thread records a rejected alternative,
   with that alternative quoted from `design-threads.md`; a decision with none is not listed.
-  "None" is the entry when no decision qualifies. When the `architecture` plugin is enabled, offer
-  to invoke `/architecture:adr` via the Skill tool for each listed decision, passing
+  "None" is the entry when no decision qualifies. Offer
+  to invoke `/architecture:adr` (if enabled) via the Skill tool for each listed decision, passing
   the decision, its recorded rationale and the rejected alternative. That skill owns and applies
   the admission test, the template and convention discovery; this step carries no copy of the test
   and judges none. Without the `architecture` plugin, list the

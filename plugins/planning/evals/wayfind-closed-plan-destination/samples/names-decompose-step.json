@@ -1,8 +1,12 @@
 {
   "pass": [
     {
-      "answer": "The map is closed and its destination is a plan of build work, so close the map issue and run `/work-items:decompose #<map-number>`; the map's closing comment states every decision.",
-      "why": "the skill's own hand-off"
+      "answer": "The map is closed and its destination is a plan of build work, so run `/planning:plan` with the closing comment's decisions and a `Source map: #<map-number>` line, then `/work-items:decompose` from that plan, and close the map issue.",
+      "why": "the skill's own hand-off: plan, then decompose"
+    },
+    {
+      "answer": "Its decisions already read as slices, so run `/work-items:decompose #<map-number>` straight away; the closing comment states every decision.",
+      "why": "the slices shortcut"
     },
     {
       "answer": "Don't restart charting. Run work-items:decompose next and point it at the map's decisions.",
@@ -24,7 +28,7 @@
     },
     {
       "answer": "Run /planning:design ahead of /planning:plan to write the implementation plan.",
-      "why": "the closure target before the map closed to prd, decompose or work"
+      "why": "routes to design and plan but never names the decompose step"
     },
     {
       "answer": "Run /planning:wayfind work to pick the next frontier item.",

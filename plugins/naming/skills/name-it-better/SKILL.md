@@ -98,8 +98,7 @@ pre-scoring filters could not match.
    - **Responsibility.** What the thing does, in one line.
    - **Domain terms.** When the target names a domain concept, the
      project's glossary entries for it: invoke
-     `/domain-driven-design:ubiquitous-language lookup` via the Skill tool
-     when that skill is available, else find and read the glossary
+     `/domain-driven-design:ubiquitous-language lookup` (if enabled) via the Skill tool, else find and read the glossary
      yourself. Canonical terms and chosen verbs feed the domain-lore lens;
      `Avoid:` words, and a verb in the parentheses of the entity's
      `Actions:` line (blocked only for that operation on that entity),
@@ -260,6 +259,11 @@ degrade to prose guidance when it is absent.
 - **Does not pick a house side on documented style conflicts.**
   Abbreviation policy, acronym casing, and casing style route to the
   consuming ecosystem's own style guide, never a baked-in verdict.
+
+## Related
+
+- Settling the underlying domain concept or glossary term: /domain-driven-design:ubiquitous-language.
+- Propagating an already-decided rename across call sites: /docs-hygiene:rename-references.
 
 ## Gotchas
 

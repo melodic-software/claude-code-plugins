@@ -132,7 +132,7 @@ bad argument/config · `4` prerequisite missing or repo/config unresolved.
 `local-worktree` (default, today's launch), `local-background` (`claude --bg` from the lane's linked
 worktree), `cloud-session` (`claude --cloud` with the stage-start probe, only under the cloud launch
 rule; a lane whose stage may read untrusted input, which today is every local-lane stage and any lane
-without a `stage`, is skipped with an error naming `/work-items:attend-queue` instead), or `cloud-routine`/`cloud-project` (setup steps printed, nothing launched). A lane's optional
+without a `stage`, is skipped with an error naming `/work-items:attend-queue` (if enabled) instead), or `cloud-routine`/`cloud-project` (setup steps printed, nothing launched). A lane's optional
 `stage` (`<plugin>:<skill>`) selects its `skill.<plugin>.<skill>` key. What the launcher does per
 value is in [context/config.md](context/config.md), "Execution target"; the contract is the
 execution-target convention, `docs/contracts/execution-target/` in the marketplace repository.
@@ -159,7 +159,7 @@ the lane says so. So `start`, `restart` and `status` print a `mods:` line under 
 The line reports and never changes the exit code. In `status` it describes what a launch
 would get now, not what a running lane got when it launched. Check a running lane from
 inside it by looking for `mcp__context-usage__status` in its tool list, or with
-`/rate-limits:setup`.
+`/rate-limits:setup` (if enabled).
 
 The causes, and which of them `claude plugin test` reports, belong to upstream; this skill
 keeps no list of them:
@@ -330,6 +330,12 @@ tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to
 Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
+## Related
+
+- Reading per-lane telemetry freshness: /work-items:morning-brief.
+- Full plugin fleet sync and scope convergence: /harness-ops:plugins.
+- Viewing lane hook latency and token telemetry: /harness-ops:observability.
+
 ## Gotchas
 
 - **No durable prompt home.** `.work/lanes` is a sanctioned home, not a durable one:
@@ -420,7 +426,7 @@ Pass the body as file contents (`--body-file PATH`) or pipe it (`--body-file -`)
 
 The failure is invisible from the outside: the comment's timestamp still
 moves, so any check keying on `updatedAt` reads the lane as **fresh** while it
-carries no data. (The reader `/work-items:morning-brief` is not that check: it parses `lane:` and `last-cycle:` out of the body, so a degraded comment makes
+carries no data. (The reader `/work-items:morning-brief` (if enabled) is not that check: it parses `lane:` and `last-cycle:` out of the body, so a degraded comment makes
 the lane vanish from its report rather than look healthy. What a degraded body
 deceives is any consumer that keys on the comment's timestamp instead of reading
 its body.)
@@ -446,5 +452,5 @@ succeeds while storing the previous body still verifies, and the read-back prove
 - `/harness-ops:plugins`, the authoritative, richer plugin-fleet sync (scope
   divergence, new-catalog installs). This skill's marketplace refresh is the light
   `claude plugin marketplace update` step of a launch, not a substitute.
-- `/work-items:morning-brief`. Reads the loop-lane **telemetry** (per-lane
+- `/work-items:morning-brief` (if enabled). Reads the loop-lane **telemetry** (per-lane
   last-cycle freshness). This skill starts/stops the lanes that emit it.

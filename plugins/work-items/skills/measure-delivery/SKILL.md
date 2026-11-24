@@ -115,7 +115,7 @@ they cover.
 ## Merge-risk failures (`--merge-risk`)
 
 With `--merge-risk` in `$ARGUMENTS`, also report whether merges rated `demote=true` by
-`/review:merge-risk` fail more often than those rated `demote=false`. It runs only where
+`/review:merge-risk` (if enabled) fail more often than those rated `demote=false`. It runs only where
 `docs/conventions/work-items.yaml` binds `tracker.provider: "github"` and the repository's merge
 lane records the rating (the `merge-risk-line` marker comment its pipeline convention defines);
 elsewhere, say the section does not apply. Run it after step 2, with the same window flags:

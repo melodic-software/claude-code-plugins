@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/songwriting/schemas/songwriting.schema.json",
   "title": "Songwriting team config",
-  "description": "Schema for songwriting.yaml in a repository's convention home (default docs/conventions): the verification level of the songwriting plugin, read by /songwriting:co-write and /songwriting:diagnose and listed in plugins/songwriting/README.md, Configuration. Template overrides stay under songwriting/templates/. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "description": "Schema for songwriting.yaml in a repository's convention home (default docs/conventions): the verification level of the songwriting plugin, read by /songwriting:co-write and /songwriting:revise and listed in plugins/songwriting/README.md, Configuration. Template overrides stay under songwriting/templates/. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

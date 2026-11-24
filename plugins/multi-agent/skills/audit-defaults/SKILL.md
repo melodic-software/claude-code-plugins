@@ -208,8 +208,8 @@ edits nothing.
    green.
 4. Verify with `plugins/multi-agent/hooks/registry-fetcher-gate.test.sh` and
    `plugins/multi-agent/tests/registry-audit.test.sh`.
-5. Open the pull request through `/source-control:pull-request create` (if
-   enabled); otherwise report the branch and diff so the user can open the pull
+5. Open the pull request through `/source-control:pull-request create` (if enabled);
+   otherwise report the branch and diff so the user can open the pull
    request manually.
 
 ## What this skill does not do
@@ -225,6 +225,10 @@ edits nothing.
 
 /multi-agent:route all
 Shows the resolved map after an accepted change lands.
+
+## Related
+
+- Overriding role defaults per user, team, or checkout: /multi-agent:setup.
 
 ## Gotchas
 

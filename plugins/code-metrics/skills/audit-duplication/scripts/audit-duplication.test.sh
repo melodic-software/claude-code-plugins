@@ -1,27 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
 # test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
-# Regression tests for the audit-duplication entry point
-# (audit-duplication.sh): the sanctioned-replication exclusion, the tunables it
-# exports for the collector adapters, option parsing, and exit codes.
-#
-# jscpd is stubbed at runtime: a temporary directory prepended to PATH holds a
-# fake `jscpd` that writes the committed capture
-# scripts/fixtures/tool-output/jscpd.json into the --output directory the
-# adapter passes and exits 1, the reporting exit code the contract says is not
-# a failure (design T13; no executable is committed). The fixture cluster is
-# scripts/fixtures/sources/cluster/{alpha,beta}/shared/shared-utils.sh and the
-# registry that sanctions it is scripts/fixtures/registry/cluster.txt. The
-# three-copy cases swap in the captures jscpd-aligned3.json and
-# jscpd-offset3.json, real jscpd 5.2.0 runs over
-# scripts/fixtures/clone-classes/{aligned,offset} rewritten to repo-relative
-# names.
-#
-# The last case is the Brief's own: this repository's real
-# plugins/*/hooks/hook-utils.sh cluster against
-# scripts/cross-plugin-source-registry.txt. It runs only when a real `jscpd`
-# already resolves on PATH, which this plugin never installs, and otherwise
-# prints a visible SKIP line.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -159,9 +138,6 @@ assert_contains "the ignore globs reach the collector" "$argv" "--ignore **/vend
 assert_contains "max_size reaches the collector one byte above the bound" "$argv" "--max-size 8193"
 assert_contains "a max_lines of 0 means no cap and reaches the collector as the explicit large value" "$argv" "--max-lines 2147483647"
 
-# 7. Three byte-identical copies are one clone class, its lines counted once.
-# jscpd pairs each later copy with the first, so the capture holds two pairs
-# that name the same instance of copy `a`.
 ALIGNED="$FIXTURES/clone-classes/aligned"
 out="$(CM_TEST_CAPTURE="$REPO_ROOT/$FIXTURES/tool-output/jscpd-aligned3.json" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$ALIGNED")"
 assert_eq "the aligned three-copy run exits 0" 0 "$?"
@@ -200,9 +176,6 @@ else
   printf 'SKIP jscpd (not on PATH): real hook-utils cluster case\n'
 fi
 
-# 11. The clone trend reads the newest earlier persisted document of the same
-# project and scope mode. Expected counts come from cases 1 and 2: the cluster
-# is 0 clone classes with its registry and 1 without.
 TREND_DIR="$WORK/trend-reports"
 mkdir -p "$TREND_DIR"
 out="$(CODE_METRICS_REPORT_DIR="$TREND_DIR" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$CLUSTER" --registry "$CLUSTER_REGISTRY")"
@@ -229,10 +202,6 @@ assert_contains "a shrinking count prints a negative delta against the newest ea
   "Clone trend: 0 clone class(es) now, 1 in the previous run"
 assert_contains "the negative delta is signed" "$out" "delta -1;"
 
-# 12. Earlier reports are untrusted input: a malformed, forged, oversized or
-# non-regular newest file is passed over for the next valid older one. Each
-# directory holds one valid baseline of 3 clone classes, so 3 is the expected
-# previous count whenever the newer file is rejected.
 ALPHA="$CLUSTER/alpha/shared/shared-utils.sh"
 trend_dir() {
   local dir="$WORK/trend-$1"
@@ -241,7 +210,6 @@ trend_dir() {
     >"$dir/audit-duplication-20261001T080000Z.json"
   printf '%s\n' "$dir"
 }
-# A hang becomes a failure where `timeout` exists; elsewhere the run is bare.
 TIMEOUT=()
 command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 60)
 trend_run() {
@@ -313,9 +281,6 @@ case "$out" in
 *) pass "a count above the cap never reaches the report" ;;
 esac
 
-# 13. code-metrics names the classes that grew, so a reader never opens the
-# earlier report. The cluster is one class of 2 copies whose first instance is
-# line 1 of the alpha copy (the jscpd capture).
 dir="$(trend_dir grown)"
 printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":41,"clone_groups":1},"measures":[{"instances":[{"file":"'"$ALPHA"'","start_line":1,"end_line":41}],"values":{"lines":41}}]}' \
   >"$dir/audit-duplication-20261002T080000Z.json"

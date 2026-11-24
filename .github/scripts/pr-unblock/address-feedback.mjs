@@ -53,7 +53,7 @@ import { runAsScript } from "../lib/run-main.mjs";
 import { bindingOf, FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "../lib/retry-fetch.mjs";
-import { loadTrustedList, readRawTrustedActors, trustedActorsPath } from "../lib/trusted-actors.mjs";
+import { loadTrustedList, readRawTrustedActors, trustedActorsPath, trustedListPath } from "../lib/trusted-actors.mjs";
 import { BODY_HOLD, LANE_HOLD, refsIssue, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
@@ -1221,7 +1221,7 @@ export async function linkedSpec(env, log) {
     const { linkedIssues } = await import("../pr-verify/resolve-pr.mjs");
     const { createGitHub } = await import("../lib/github-client.mjs");
     const { loadRules } = await import("../intake-triage/admit.mjs");
-    const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH || trustedActorsPath());
+    const trusted = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS_PATH || trustedActorsPath()));
     const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, keepGraphQLErrors });
     const identity = String(env.LANE_IDENTITY ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
     const taskList = loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname)["task-list"];
@@ -2010,7 +2010,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
     // as of 2026-10-21; recheck when that section changes its size limits);
     // null when the path is absent.
-    async getText(path, ref) {
+    async getText(path, ref, { exactUtf8 = false } = {}) {
       const url = `${repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`;
       const response = await fetch(url, { headers: { ...headers, Accept: "application/vnd.github.raw+json" } });
       if (response.status === 404) {
@@ -2019,7 +2019,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       if (!response.ok) {
         throw new Error(`GET ${url} returned ${response.status}`);
       }
-      return response.text();
+      return exactUtf8 ? new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await response.arrayBuffer()) : response.text();
     },
     async listThreads(pr) {
       const nodes = [];
@@ -2208,11 +2208,11 @@ export const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 export async function ownerAdoption(env, log = () => {}) {
   try {
     const { adoptionFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
-    const idleHours = adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" })["idle-hours"];
+    const idleHours = adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base", STANDARDS_DIR: env.STANDARDS_DIR })["idle-hours"];
     if (idleHours === undefined) {
       return NO_ADOPTION;
     }
-    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || trustedActorsPath(env.BASE_PATH)), idleHours };
+    return { ownerIds: trustedHumansFrom(trustedListPath(env, env.TRUSTED_ACTORS || trustedActorsPath(env.BASE_PATH))), idleHours };
   } catch (error) {
     log(`::warning::cannot read the base adoption section or trusted-actors list (${error.message}); no owner PR is served this run`);
     return NO_ADOPTION;

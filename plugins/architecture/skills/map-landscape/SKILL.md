@@ -181,7 +181,7 @@ End every run with this block, in this order, filled from the record and the scr
   - `edges=0`: the subject names no other repository. Lead by saying this is the wrong tool for the
     question: a landscape answers which systems exist and how they reference each other. How one
     deployable is built inside is `/architecture:map-components`. Module-design friction inside
-    that code is `/architecture:improve`. How the code behaves is `/discovery:explore`. Then offer
+    that code is `/architecture:improve`. How the code behaves is `/discovery:explore` (if enabled). Then offer
     `--repos <repository-that-names-others>,<this>`, the edge-supplying one first.
   - `unresolved_edges` above 0: no charted repository has the name the edges come from, so the
     repository that supplies them is not charted. Add it to `--repos`, first.

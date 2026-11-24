@@ -171,12 +171,17 @@ changed rows.
 - Does not print or read `env` or `headers` values, and does not read config files directly.
 - Does not edit configuration. It reports; the operator decides what to pin, replace, or remove.
 - Does not judge whether config is correct, whether a server is enabled or allowed, or whether a
-  permission rule is right. `/harness-config:audit` owns those.
+  permission rule is right. `/harness-config:audit` (if enabled) owns those.
 - Does not judge tool definition quality. `/mcp-tools:audit` owns that.
 
 ## Next
 
 /harness-config:audit to check the same MCP configuration for correctness, enablement, and allow or deny lists.
+
+## Related
+
+- Auditing author-side MCP tool definition quality: /mcp-tools:audit.
+- Full inventory of invocable Claude Code surfaces: /harness-ops:inventory.
 
 ## Gotchas
 

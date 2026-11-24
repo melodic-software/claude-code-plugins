@@ -35,8 +35,8 @@ editor (bare invocation mutates nothing at all).
 | Is this machine's install directory healthy? | `/harness-ops:audit-install-state` |
 | Is the plugin fleet current, and at what scope? | `/harness-ops:plugins-audit` |
 | What changed in the last CLI release? | `/harness-ops:changelog` |
-| Do our MCP tools duplicate each other or the built-ins? | `/mcp-tools:audit` |
-| Is this SKILL.md structurally sound, and is the listing over budget? | `/skill-quality:check` |
+| Do our MCP tools duplicate each other or the built-ins? | `/mcp-tools:audit` (if enabled) |
+| Is this SKILL.md structurally sound, and is the listing over budget? | `/skill-quality:check` (if enabled) |
 | Is each installed skill actually VISIBLE to the model right now, and why not? | `/harness-ops:audit-skill-visibility` |
 
 The line that matters most: `inventory` enumerates **what resolves**; this skill compares that
@@ -196,8 +196,8 @@ whole descriptions lowest-score-first. The score is decay-weighted and the walk 
 is not the exposure ranking and description length matters too; see
 [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md).
 
-So the report says what the baking would cost. When the `skill-quality` plugin is enabled, invoke
-`/skill-quality:check listing-budget` over the repo's plugin skill roots and fold its aggregate
+So the report says what the baking would cost. Invoke
+`/skill-quality:check listing-budget` (if enabled) over the repo's plugin skill roots and fold its aggregate
 estimate into the Budget exposure section. When that plugin is not enabled, state "budget
 exposure unavailable. `skill-quality` not enabled" and continue; never reach into another
 plugin's files by path to fake the number.
@@ -326,7 +326,7 @@ asked for this plugin by name. It emits one clause, front-loaded, carrying the p
 …"), the provenance class, and the routing split, and, when `integration` is `wrap` or
 `suggest`, the Native step section or the suggest sentence. Before writing, `description` plus
 `when_to_use` after baking must fit the per-entry cap the native-references convention records,
-measured by `/skill-quality:check <skill>` (when `skill-quality` is not enabled, state "description
+measured by `/skill-quality:check <skill>` (if enabled) (otherwise state "description
 length unmeasured. `skill-quality` not enabled" and do not bake); a row that would exceed
 the cap is not baked. Every wrapped or suggesting skill declares `--unattended` in its
 `argument-hint`. The
@@ -350,7 +350,7 @@ as one fleet-wide edit.
 **One plugin is one unit.** For each unit, in order:
 
 1. **Apply**. Bake the description phrases and Boundary sections for that plugin's rows only.
-2. **Verify**, the overlap self-check passes; `/skill-quality:check` passes for every touched
+2. **Verify**, the overlap self-check passes; `/skill-quality:check` (if enabled) passes for every touched
    skill; the plugin carries the repo's release record: a version bump plus CHANGELOG entry, or a
    changelog fragment where the repo uses them (see the repo's AGENTS.md).
 3. **PR**. Open one PR for that unit, with the affected store rows quoted in the body so a
@@ -391,6 +391,14 @@ Two upstream dependencies of this skill:
 |---|---|
 | We treat the description as the routing surface and measure a baked description against the per-entry cap and the listing budget, reading both values from the settings pointers here. For which entries overflow drops, we use the order our own binary reading records in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md); the docs page and that reading disagree on the drop order | [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short), [`skillListingMaxDescChars`](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars), [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction); the drop order is our binary reading |
 | We make no static availability claim for a native surface, because we treat settings and environment, plan, platform or provider, and host surface as each able to remove one | [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills), [environment variables](https://code.claude.com/docs/en/env-vars), [Commands](https://code.claude.com/docs/en/commands), [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions) |
+
+## Related
+
+- Enumerating invocable surfaces: /harness-ops:inventory.
+- Skill listing budget and structure: /skill-quality:check.
+- Live skill visibility and starvation: /harness-ops:audit-skill-visibility.
+- MCP tool overlap and quality: /mcp-tools:audit.
+- Tracking new CLI releases: /harness-ops:changelog.
 
 ## Gotchas
 

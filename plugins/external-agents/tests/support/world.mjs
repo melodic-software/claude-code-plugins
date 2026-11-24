@@ -39,7 +39,7 @@ export function world(scenario = {}, { local, team } = {}) {
   const set = (next) => writeFileSync(join(root, "scenario.json"), JSON.stringify({ record: calls, ...next }));
   set(scenario);
   return {
-    opts: { product: "codex", cwd, dataDir, binary: fakeCodex, warn: () => {}, env: { ...process.env, FAKE_SCENARIO: join(root, "scenario.json") } },
+    opts: { product: "codex", cwd, dataDir, binary: fakeCodex, warn: () => {}, userConfig: {}, env: { ...process.env, FAKE_SCENARIO: join(root, "scenario.json") } },
     cwd,
     dataDir,
     set,

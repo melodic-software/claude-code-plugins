@@ -51,8 +51,8 @@ it names the file holding your userConfig layer, and an empty or unsubstituted v
 A target form (`--repo <repo>` and the others) runs the script once per repository, as
 `${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says, and never passes the form to the
 script. Each run finds clones within its own repository and keeps its own trend baseline, and
-each registry path, named or configured, resolves against that repository's root. A file copied between repositories is not this script's to find: `/coupling:reduce`
-measures it when the `coupling` plugin is enabled.
+each registry path, named or configured, resolves against that repository's root. A file copied between repositories is not this script's to find: `/coupling:reduce` (if enabled)
+measures it.
 
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run"
 table (lane, collector, status, reason), then one row per clone group, largest first, listing
@@ -66,7 +66,7 @@ the signed delta, then how many classes are new since that run and how many gain
 lane`, offer the user the install command that headline carries (`npm install -g jscpd`, or a
 devDependency) and run it only when they confirm; never install silently and never `npx`-fetch it.
 Keep the `--json` document when the numbers feed a comparison:
-`/verification:measure metrics` consumes it when the `verification` plugin is enabled (treat a
+`/verification:measure metrics` (if enabled) consumes it (treat a
 report whose `status` is `empty` on either side as INCONCLUSIVE); otherwise keep the JSON beside
 your notes and compare by hand.
 
@@ -172,6 +172,10 @@ overrides are validated against the ladder file and an unknown name is dropped w
 
 - The numbers feed a before-and-after comparison: `/verification:measure metrics`.
 - A surviving clone is about to be called debt: `/code-metrics:principles`.
+
+## Related
+
+- Files copied across repositories: /coupling:reduce.
 
 ## Gotchas
 

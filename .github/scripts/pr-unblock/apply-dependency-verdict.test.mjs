@@ -109,6 +109,9 @@ const pushedOneByOne = (commits) =>
     .map((item, i) => ({ activity_type: i ? "push" : "branch_creation", before: i ? commits[i - 1].sha : "0".repeat(40), after: item.sha, actor: pusherOf(item) }))
     .reverse();
 
+const CDN_TARGETS = ["plugins/example/reference/view.md", "docs/cdn.md"];
+const PINS = JSON.stringify({ packages: { x: { version: "1.0.0" } }, targets: CDN_TARGETS.map((path) => ({ path, packages: ["x"] })) });
+
 // `texts` maps `${ref}:${path}` to a file's text, else BEFORE at HEAD and
 // AFTER anywhere else; `modes` maps a path to its tree entry, else a regular
 // file; `details` maps a sha to its commit with files; `activity` is the head
@@ -128,6 +131,7 @@ function fakeApi({
   texts = {},
   modes = {},
   config = CONFIG,
+  pins = PINS,
   activity = pushedOneByOne(commits),
 } = {}) {
   // State persists across calls, so a second apply() is a re-run.
@@ -152,15 +156,19 @@ function fakeApi({
     },
     async getText(path, ref) {
       if (path === ".github/dependabot.yml") return ref === BASE ? config : null;
+      if (path === "lib/cdn-pins/pins.json" && ref === BASE) {
+        if (pins instanceof Error) throw pins;
+        return pins;
+      }
       const key = `${ref}:${path}`;
       if (key in texts) return texts[key];
       return (ref === HEAD ? BEFORE : AFTER)[nameOf(path)] ?? null;
     },
     async listTree(sha, dir) {
-      const paths = [...Object.keys(modes), ...Object.values(details).flatMap((c) => (c.files ?? []).map((f) => f.filename)), ...(compare.files ?? []).map((f) => f?.filename ?? "")];
+      const paths = [...Object.keys(modes).map((key) => key.slice(key.indexOf(":") + 1)), ...Object.values(details).flatMap((c) => (c.files ?? []).map((f) => f.filename)), ...(compare.files ?? []).map((f) => f?.filename ?? "")];
       return [...new Set(paths)]
         .filter((path) => path.slice(0, Math.max(path.lastIndexOf("/"), 0)) === dir)
-        .map((path) => ({ name: nameOf(path), ...(modes[path] ?? { type: "blob", mode: 0o100644 }) }));
+        .map((path) => ({ name: nameOf(path), ...(modes[`${sha}:${path}`] ?? modes[path] ?? { type: "blob", mode: 0o100644 }) }));
     },
     // The lane token holds no actions permission.
     getRun: async () => {
@@ -741,6 +749,81 @@ test("a merge verdict on a lanes App install-script pin commit is marked for mer
   assert.match(api.calls.comments[0], /verdict=merge/);
   await refused(mergeWith([modified("package.json")], { texts: texts("2.1.318") }), "a pin the manifest does not name");
   await refused(mergeWith([modified("package.json")], { texts: texts("*") }), "a wildcard pin");
+});
+
+const SYNC_MESSAGE = "Sync the CDN pins to the bumped manifest on dependabot/npm_and_yarn/x-2.0.0 [dependabot skip]\n\nLane-Activity: pr-unblock/review-dependency\n";
+const SYNC_FILES = ["lib/cdn-pins/pins.json", CDN_TARGETS[0]];
+const syncCommit = ({ files = SYNC_FILES.map(modified), message = SYNC_MESSAGE, ...overrides } = {}) => {
+  const app = appCommit(files);
+  return { ...app, commit: { ...app.commit, message }, ...overrides };
+};
+const syncWith = (commit = syncCommit(), extra = {}) => fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), commit], details: { [FIX]: commit }, ...extra });
+const syncRefused = async (api, reason, why) => {
+  const lines = [];
+  const result = await go(api, mergeRun(), { log: (line) => lines.push(line) });
+  assert.equal(result.escalationReason, "dependency-fix-refused", why);
+  assert.match(lines.join("\n"), reason, why);
+  assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/, why);
+};
+
+test("a merge verdict on the lanes App's CDN pins sync commit is marked for merge", async () => {
+  const api = syncWith();
+  assert.deepEqual(await go(api, mergeRun()), { escalationReason: "", skipReason: "" });
+  assert.match(api.calls.comments[0], /verdict=merge/);
+  const every = syncWith(syncCommit({ files: ["lib/cdn-pins/pins.json", ...CDN_TARGETS].map(modified) }));
+  assert.equal((await go(every, mergeRun())).escalationReason, "", "the registry and every target");
+});
+
+test("a merge verdict refuses a CDN pins sync commit that is anything more than the base registry's files modified in place", async () => {
+  await syncRefused(syncWith(syncCommit({ files: [...SYNC_FILES, "src/x.js"].map(modified) })), /;cdn-sync-scope:src\/x\.js/, "an extra file");
+  await syncRefused(syncWith(syncCommit({ files: [...SYNC_FILES, "lib/cdn-pins/sync.mjs"].map(modified) })), /;cdn-sync-scope:lib\/cdn-pins\/sync\.mjs/, "the sync script");
+  const added = [modified("lib/cdn-pins/pins.json"), { filename: CDN_TARGETS[0], status: "added" }];
+  await syncRefused(syncWith(syncCommit({ files: added })), /;cdn-sync-status:plugins\/example/, "an added file");
+  const renamed = [{ filename: CDN_TARGETS[0], status: "renamed", previous_filename: "docs/old.md" }];
+  await syncRefused(syncWith(syncCommit({ files: renamed })), /;cdn-sync-status:/, "a rename");
+  await syncRefused(syncWith(syncCommit({ files: [{ filename: CDN_TARGETS[0], status: "removed" }] })), /;cdn-sync-status:/, "a deleted file");
+  for (const [side, mode] of [[HEAD, 0o100755], [FIX, 0o100755], [FIX, 0o120000]]) {
+    const modes = { [`${side}:${CDN_TARGETS[0]}`]: { type: "blob", mode } };
+    await syncRefused(syncWith(syncCommit(), { modes }), /;cdn-sync-mode:plugins\/example/, `mode ${mode.toString(8)} at ${side === HEAD ? "the parent" : "the commit"}`);
+  }
+  await syncRefused(syncWith(syncCommit({ message: "Sync the CDN pins" })), /;cdn-sync-message/, "no [dependabot skip]");
+});
+
+test("a merge verdict refuses a [dependabot skip] commit on CDN targets that is not the cdn-pins-sync row's own message", async () => {
+  const ref = "dependabot/npm_and_yarn/x-2.0.0";
+  const trailer = "\n\nLane-Activity: pr-unblock/review-dependency\n";
+  await syncRefused(syncWith(syncCommit({ message: `Fix the dependency update on ${ref} [dependabot skip]${trailer}` })), /;cdn-sync-message/, "another row's subject");
+  await syncRefused(syncWith(syncCommit({ message: SYNC_MESSAGE.replace(ref, "main") })), /;cdn-sync-message/, "another branch");
+  await syncRefused(syncWith(syncCommit({ message: `x ${SYNC_MESSAGE}` })), /;cdn-sync-message/, "the subject inside another line");
+  await syncRefused(syncWith(syncCommit({ message: SYNC_MESSAGE.split("\n")[0] })), /;cdn-sync-trailer/, "no trailer");
+  await syncRefused(syncWith(syncCommit({ message: SYNC_MESSAGE.replace("review-dependency", "fix-ci-context") })), /;cdn-sync-trailer/, "another activity");
+  await syncRefused(syncWith(syncCommit({ message: `${SYNC_MESSAGE}Lane-Thread: 1\n` })), /;cdn-sync-trailer/, "a second trailer");
+  const noFinalNewline = syncWith(syncCommit({ message: SYNC_MESSAGE.trimEnd() }));
+  assert.equal((await go(noFinalNewline, mergeRun())).escalationReason, "", "the message without its final newline");
+});
+
+test("a merge verdict refuses a CDN pins sync commit the lanes App did not make, or with two parents", async () => {
+  await syncRefused(syncWith(syncCommit({ author: { id: 5 } })), /;cdn-sync-author/, "another author");
+  await syncRefused(syncWith(syncCommit({ author: null })), /;cdn-sync-author/, "no author account");
+  await syncRefused(syncWith(syncCommit({ committer: { id: APP } })), /;cdn-sync-author/, "a committer other than web-flow");
+  const unsigned = syncCommit();
+  unsigned.commit = { ...unsigned.commit, verification: { verified: false, reason: "unsigned" } };
+  await syncRefused(syncWith(unsigned), /;cdn-sync-author/, "an unverified signature");
+  await syncRefused(syncWith(syncCommit({ parents: [{ sha: HEAD }, { sha: BASE }] })), /commit-parents:/, "two parents");
+});
+
+test("a merge verdict refuses a CDN pins sync commit when the base registry does not read", async () => {
+  const unreadable = /;cdn-sync-base-unreadable/;
+  await syncRefused(syncWith(syncCommit(), { pins: null }), unreadable, "no pins.json at the base");
+  await syncRefused(syncWith(syncCommit(), { pins: new Error("GET pins.json returned 502") }), unreadable, "a failed read");
+  await syncRefused(syncWith(syncCommit(), { pins: "{" }), unreadable, "not JSON");
+  await syncRefused(syncWith(syncCommit(), { pins: JSON.stringify({ targets: [{ path: "../x" }] }) }), unreadable, "an invalid target path");
+  await syncRefused(syncWith(syncCommit(), { pins: JSON.stringify({ targets: [{ path: "lib/cdn-pins/package.json" }] }) }), unreadable, "a target that is a bump path");
+});
+
+test("a fix verdict that lands the CDN pin files is refused: only the merge path admits a sync commit", async () => {
+  const api = fakeApi({ head: FIX, compare: landed({ files: SYNC_FILES.map(modified) }) });
+  assert.equal((await go(api, fix())).escalationReason, "dependency-fix-refused");
 });
 
 test("a merge verdict escalates when the branch's push history is unreadable, and never marks a merge", async () => {

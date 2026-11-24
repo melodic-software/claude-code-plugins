@@ -62,7 +62,7 @@ analytics MCP server or export, a design-tool MCP server).
 - **Evaluation plan**: pick the method from evaluation.md "Pick the method", with `Basis:`. When the
   plan includes a usability test, invoke `/user-experience:plan-user-research` via the Skill tool
   for the test script.
-- **Expert review**: heuristic sets come from `/user-interface:design` when it is enabled (invoke
+- **Expert review**: heuristic sets come from `/user-interface:design` (if enabled) (invoke
   it via the Skill tool); otherwise cite Nielsen's ten heuristics as evaluation.md "Heuristic
   evaluation" points. LLM inspection, this skill's included, is a pre-study filter: label its
   findings likely problems until people confirm them. For a live app, also run evaluation.md
@@ -95,6 +95,12 @@ that file's default.
 Nothing comes before the record's header block. Put the stage line and every note from Context and
 Route (the team file not read and its skipped reason, the route taken, the access that would help)
 after the record.
+
+## Related
+
+- Write a usability test script for an evaluation plan: /user-experience:plan-user-research.
+- Redesign flows after findings: /user-experience:structure.
+- Code-level UI craft audit: /user-interface:audit.
 
 ## Gotchas
 

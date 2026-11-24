@@ -45,9 +45,9 @@ LOUDNESS, STILLS = DEFAULTS['loudness'], DEFAULTS['stills']
 QUALITY = {'l': 'low_quality', 'm': 'medium_quality', 'h': 'high_quality'}
 TEXT_TYPES = ('Text', 'MarkupText', 'Paragraph', 'Tex', 'MathTex', 'SingleStringMathTex', 'Typst', 'MathTypst',
               'DecimalNumber', 'Integer', 'Code')
-MARGIN = 0.02      # scene units: boxes closer than this count as touching, not overlapping
-MAX_FRAMES = 24    # frames read back per render; longer scenes are sampled evenly, the last one always kept
-BLANK_RANGE = 8    # a frame whose gray levels span less than this shows nothing
+MARGIN = 0.02
+MAX_FRAMES = 24
+BLANK_RANGE = 8
 
 
 def overlaps(texts, margin=MARGIN):
@@ -149,7 +149,7 @@ def _shown(m):
         if not f.has_points():
             continue
         if not hasattr(f, 'get_fill_opacity'):
-            return True   # an image or point cloud: drawn whenever it has points
+            return True
         if f.get_fill_opacity() > 0 or (f.get_stroke_opacity() > 0 and f.get_stroke_width() > 0):
             return True
     return False
@@ -338,7 +338,7 @@ def main(argv=None):
             return 2
     try:
         movie, checkpoints, frame, marks = render(a.scene_file.resolve(), a.scene_class, out, a.quality)
-    except Exception as e:   # the scene's own error: report it, there is nothing to check
+    except Exception as e:
         import traceback
         traceback.print_exc()
         sys.stderr.write(f'explainer-video: the scene raised {type(e).__name__}; fix the scene and rerun.\n')

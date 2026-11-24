@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-11-24
+
+### Added
+
+- In a one-session profile, the session-start notice adds a line after `This session runs in profile <name>.`: `Plugins outside this profile are off. Ask for one in words, or reopen with: claude --resume <id> --profile-add <plugin>`, with this session's id. Claude Code rejects a typed `/plugin:skill` from a switched-off plugin as `Unknown command` before any hook runs, so the line gives the user a way to reach it. Folder profiles show no such line.
+
 ## [0.12.0] - 2026-11-23
 
 ### Changed

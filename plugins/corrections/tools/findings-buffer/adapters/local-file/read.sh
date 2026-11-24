@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # local-file findings buffer: read.sh [--since <UTC ISO-8601>]
-# Writes stored rows as JSONL. With --since, writes at least every row with ts >= since.
 # Exit: 0 ok, 1 read failure, 2 usage, 3 not in a repository or jq missing.
 set -uo pipefail
 
@@ -32,7 +31,6 @@ COMMON="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" &&
   exit 3
 }
 
-# The shared file, then the per-worktree file appends wrote before the buffer moved.
 FILES=()
 refuse_links() {
   local p
@@ -46,7 +44,6 @@ refuse_links() {
 refuse_links "$COMMON/findings-buffer" "$COMMON/findings-buffer/findings.jsonl"
 [[ -f "$COMMON/findings-buffer/findings.jsonl" ]] && FILES+=("$COMMON/findings-buffer/findings.jsonl")
 if TOP="$(git rev-parse --show-toplevel 2>/dev/null)" && [[ -n "$TOP" ]]; then
-  # A symlink on the legacy path skips only the legacy file, so the shared rows stay readable.
   LEGACY_OK=1
   for p in "$TOP/.work" "$TOP/.work/buffer" "$TOP/.work/buffer/findings.jsonl"; do
     if [[ -L "$p" ]]; then
@@ -69,8 +66,5 @@ command -v jq >/dev/null 2>&1 || {
   exit 3
 }
 
-# Compare the top-level ts to the second only: a fraction would sort wrongly against
-# a bare "Z", and the contract allows returning rows older than --since. A row with
-# no string ts is kept.
 jq -c --arg s "${SINCE:0:19}" \
   'select((.ts | type) != "string" or .ts[0:19] >= $s)' "${FILES[@]}" || exit 1

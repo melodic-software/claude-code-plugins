@@ -136,8 +136,6 @@ test("run reads once when the marker or the author already rules a skip out", as
   }
 });
 
-// The Work status field a trusted account set (read-status.mjs): with a status
-// label on the issue it only adds a hold; with none it decides; unset, the labels decide.
 const fieldRun = (labels, fields) =>
   run({
     fetchIssue: async () => issue({ labels }),
@@ -163,7 +161,6 @@ test("the two hold labels count as a status under their new names", async () => 
   }
 });
 
-// A field-only agent-ready, with no label, is a status: the label is going away.
 test("run lets the Work status field decide an issue's status, agent-ready included", async () => {
   assert.deepEqual(await fieldRun([], { 7: { state: "ready" } }), { skip: "true", reason: "born-triaged" });
   assert.deepEqual(await fieldRun(["needs-triage"], { 7: { state: "confirmed" } }), { skip: "true", reason: "born-triaged" });
@@ -371,8 +368,6 @@ test("CLI reports rate-limited=true and sends nothing while the job's rate guard
   }
 });
 
-// The CLI against a local API that serves `served` as the issue it reads,
-// with the tracker binding at TRACKER_CONFIG written from `binding`.
 async function runCliServed(served, binding, env = {}) {
   const dir = tempDir("born-triaged-served-");
   const server = createServer((request, response) => {
@@ -441,9 +436,6 @@ test("CLI with BORN_TRIAGED=false triages a born-triaged issue and prints no not
   assert.doesNotMatch(stdout, /::notice::/);
 });
 
-// The agent-ready label starts no lane run and admission writes the Work
-// status, so a born-triaged issue whose only status is that label, with the
-// field configured and unset, has no status: intake triages it, in one read.
 const labelOnlyRun = (labels, fields, { author, config = STATUS_CONFIG, attempts = 3 } = {}) => {
   let reads = 0;
   const result = run({

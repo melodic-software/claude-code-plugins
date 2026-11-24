@@ -216,7 +216,7 @@ refuses or parks it (`status: confirmed`, `attended`, `host-run`). It is the sec
 **approve**, at the point Kanban calls the commitment point
 ([`admit.mjs`](../.github/scripts/intake-triage/admit.mjs)). The local `work-loop`'s admission gate
 is the same step in a local loop. The ADR admission test
-([`adr`](../plugins/architecture/skills/adr/SKILL.md#admission-test-advisory))
+([`adr`](../plugins/architecture/skills/adr/actions/record.md#admission-test-advisory))
 is a separate sense.
 
 Distinct from the **queue**: the `agent-ready` issues admission let in, waiting for a build run.
@@ -259,7 +259,10 @@ Avoid: task, factory workflow
 **stage**
 
 The step in the chain a lane serves. For CI lanes it is the `stage` field in
-[`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json).
+[`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json). A step of the session
+workflow, interview through retro, is a workflow stage, the sense **phase boundary** uses.
+
+Avoid: explore (for intake triage)
 
 **software factory**
 

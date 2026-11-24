@@ -292,8 +292,6 @@ while IFS="$(printf '\t')" read -r file lineno form _tier action; do
 "
     ;;
   *)
-    # Either already applied (a resumed run) or drifted since the audit. Both
-    # are reported; neither is edited blind.
     if [[ "$RESUMING" -eq 1 ]]; then
       skipped=$((skipped + 1))
     else

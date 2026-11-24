@@ -39,7 +39,7 @@ resolution comment lists the interview's settled answers.>
 ## Not-yet-specified (fog)
 
 <One bullet per uncertainty you cannot yet phrase as a sharp question, each opening with a short
-bold label. A bullet graduates to a typed decision item only once working the map makes it
+bold label. A bullet becomes a typed decision item only once working the map makes it
 sharp. Fog is expected. An empty fog section on a young map usually means you haven't looked
 hard enough.>
 
@@ -49,7 +49,8 @@ hard enough.>
 
 <Explicitly excluded, decided not to pursue. This ledger is for **scope**, not sharpness.
 Fog (cannot yet phrase the question) stays in Not-yet-specified and never moves here for being
-unphrasable, only by the user's explicit scope ruling at closure, recorded with its reason.
+unphrasable, only by the user's explicit scope ruling, in any work session or at closure,
+recorded with its reason.
 Recording an exclusion is itself a decision; note why. A wrongly scoped existing decision item
 is closed with one line here linking it; it does not get a Decisions-so-far pointer. That
 index is for resolved-in-scope decisions.>
@@ -82,6 +83,7 @@ the user's intent or vision, whatever its type (SKILL.md "Readiness"). Extension
 1. <a check anyone can run or see, passed or failed>
 **On fail:** <what happens: which decision is reversed, which item opens>
 **Fallback:** <the named alternative taken on fail, or "none">
+**Leaves to:** <optional: the linked sibling item that owns a nearby question this prototype must not settle>
 ```
 
 ## Resolution comments
@@ -90,12 +92,13 @@ Every resolution comment is the decision's durable home. A type with no shape be
 `Resolved: <decision>. Basis: <one line>` (`tracker-mechanics.md`, "Graduate + close a decision
 item").
 
-- **Research:** the pick and why; its costs; how the alternatives compare; what could not be
-  verified; a link to the full findings file in the item's folder on the dossier branch.
+- **Research:** the pick and why, worded as a recommendation when a later interview item owns the
+  choice; its costs; how the alternatives compare; what could not be verified; what later items
+  inherit from it; a link to the full findings file in the item's folder on the dossier branch.
 - **Interview:** the agreed result as a table, then out of scope, deferred, glossary changes and
   what later items inherit from it.
-- **Prototype:** the verdict (each pass check passed or failed), what it confirms or reverses, and
-  a link to the item's folder on the dossier branch. When the item fell back to `/planning:design`
+- **Prototype:** the verdict (each pass check passed or failed), what it confirms or reverses,
+  what later items inherit from it (limits or gotchas it found), and a link to the item's folder on the dossier branch. When the item fell back to `/planning:design`
   (SKILL.md work step 5): the decision and a line saying no artifact was built, with no verdict
   and no folder link.
 - **Task routed to `/wizard:generate`:** what was set up, by name and location (an account, a

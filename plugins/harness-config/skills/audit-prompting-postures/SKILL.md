@@ -231,7 +231,7 @@ Then summarize in chat:
 
 Verdicts are a closed set of four tokens: `MISSING` (finding, with proposed addition as a fenced diff;
 a MISSING P7 instead carries the catalog's P7 "Proposal when MISSING": the named
-`/corrections:codify "<the rule>"` call when that skill is available, otherwise the strongest
+`/corrections:codify "<the rule>"` (if enabled) call, otherwise the strongest
 mechanism as a fenced diff of the file that would carry it, marked unproven),
 `PRESENT` (where it is), `NOT-APPLICABLE` (with the failed predicate), `info` (a Phase D verifier
 refuted it, always kept as a row, never dropped, never a proposal to apply). Two markers are
@@ -242,6 +242,13 @@ not verify this proposal; see "When dispatch is unavailable"). End with a covera
 inventoried, classified and unclassified, and a Sources line citing the pages fetched this run with
 dates. End every run with a verifier attestation line naming the surface batches verified, verified
 inline, or skipped, and which check the verifier ran on each: `proposals` or `verdicts`.
+
+## Related
+
+- Audit existing instruction text that is wrong or stale: /harness-config:audit-instructions.
+- Run a coordinated pass combining both lanes: /harness-config:audit-pass.
+- Pick strongest enforcement rung for a missing P7 destructive-action gate: /corrections:codify.
+- Structural skill lint: /skill-quality:check.
 
 ## Gotchas
 

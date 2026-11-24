@@ -35,8 +35,6 @@
 set -uo pipefail
 
 usage() {
-  # Sentinel range (not fixed line numbers) so the printed usage never silently
-  # truncates when the header grows or shrinks on a future edit.
   sed -n '/^# Deterministic gate/,/^# Output/ s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
@@ -76,11 +74,6 @@ if [[ ! -s "$ledger" ]]; then
   exit 2
 fi
 
-# The whole grade happens in awk so the Done column is read positionally within
-# each row rather than pattern-matched across the line: a `[ ]` written inside a
-# corpus item or a depth criterion is prose, not an unmarked row.
-#
-# awk exit codes mirror this script's: 0 complete, 1 incomplete, 2 ungradeable.
 awk '
 BEGIN {
   # The mandated ledger header, lowercased. Every one must appear exactly once
@@ -211,8 +204,6 @@ END {
 ' "$ledger"
 status=$?
 
-# awk exiting for a reason of its own (a broken interpreter, a signal) must not
-# read as "complete". Anything outside the three documented codes is ungradeable.
 case "$status" in
 0 | 1 | 2) exit "$status" ;;
 *)

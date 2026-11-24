@@ -51,7 +51,7 @@ from any workflow in the repository holding `actions: write`.
    earlier of its `updated_at` and ten minutes later. The PR author check still applies. Basis:
    [`check-trusted-trigger.mjs:196-292,376-390`](../../.github/actions/check-trusted-trigger/check-trusted-trigger.mjs);
    [README](../../.github/actions/check-trusted-trigger/README.md). The ten-minute cap is
-   judgment (`check-trusted-trigger.mjs:25-27`).
+   judgment (`check-trusted-trigger.mjs:21`).
 4. **The broker repeats the check.** The request carries `dispatcher_run_id`; when the OIDC actor
    is `github-actions[bot]`, the broker mints only after the same dispatcher checks, a
    byte-equal check of the dispatcher file against the tip (`workflow-modified`), and one read of
@@ -78,7 +78,7 @@ from any workflow in the repository holding `actions: write`.
   Rejected for the schedule in point 1: either sends a dispatcher run the gate and the broker
   refuse (a `github-actions[bot]` `workflow_dispatch`, or a `workflow_run` dispatcher with no
   review upstream), so both would need a new trust path. A schedule they already accept. Basis:
-  `check-trusted-trigger.mjs:27,684-696`; `melodic-software/azure-iac`
+  `check-trusted-trigger.mjs:18,684-696`; `melodic-software/azure-iac`
   `src/lanes-token-broker/src/dispatcher.mjs:32,141`; owner decision on #9496.
 
 ## Consequences

@@ -73,7 +73,10 @@ Claude Code itself has no `--profile` flag; the function adds it:
   with its candidates, and one that is not installed with its `claude plugin install` line. A later
   `claude --resume <id>` of that conversation keeps the plugin; `claude -c` (in the profile alone),
   new sessions and handoffs start without it. In a one-session profile the session-start hook tells the model this
-  line, again after compaction, so a pointer to an off plugin leads to the offer.
+  line, again after compaction, so a pointer to an off plugin leads to the offer. Its start notice
+  also says that plugins outside the profile are off and prints this line with the session's id.
+  Claude Code answers a typed `/plugin:skill` from an off plugin with `Unknown command` before any
+  hook runs, so ask for the plugin in words or copy that line.
   After three distinct conversations reopened with the same plugin in a profile since its last
   review, the start notice suggests `/plugin-profiles:profile setup`. Setup reviews this machine's
   last 30 days of exceptions and lets you add each plugin to its profile or keep it off.

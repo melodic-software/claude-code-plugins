@@ -3,6 +3,36 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.15.2] - 2026-11-24
+
+### Changed
+
+- Removes the wayfind eval case for the `/session-flow:workflow` route the skill no longer has.
+
+## [5.15.1] - 2026-11-23
+
+### Changed
+
+- Shared `yaml_subset.py` synced where this plugin carries it (comments removed, no behavior change); no other change to this plugin.
+
+## [5.15.0] - 2026-11-23
+
+### Changed
+
+- `/planning:wayfind` work mode reads each blocker's resolution, passes the settled decisions an item touches to the skill it routes to, and names an answer that contradicts one before recording it; a deferred question becomes a decision item or a fog bullet in the same step; the sweep comments on an open item a resolution changes; a prototype that confirms a provisional decision offers it to `/architecture:adr`; the user may rule fog out of scope in any work session; the map closes once the destination's skill reports its artifact. Chart offers `/domain-driven-design:ubiquitous-language seed` when no glossary exists, and a non-coding destination may name the finished thing itself.
+
+- Wayfind research and prototype resolution comments say what later items inherit, and a research pick reads as a recommendation when a later interview item owns the choice; a prototype item body may name the sibling item it leaves a nearby question to (`**Leaves to:**`); a fog bullet "becomes" a decision item, and the wayfind probe says "map".
+
+## [5.14.6] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to seven skills, matching the committed skill-link table
+
+  brainstorm, design, design-handoff, draft-goal-condition, interview, prd and
+  wayfind now list their context-dependent links after `## Next`, one
+  condition per line.
+
 ## [5.14.5] - 2026-11-23
 
 ### Changed

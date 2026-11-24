@@ -104,7 +104,7 @@ across findings, particularly the sweep: a straggler found after four renames
 cannot be attributed to one of them.
 
 The sweep covers the reference forms the plan did not classify. If
-`docs-hygiene` is enabled it runs `/docs-hygiene:rename-references`; without
+`docs-hygiene` is enabled it runs `/docs-hygiene:rename-references` (if enabled); without
 it, the recipe's own sweep over the tracked files does the same job.
 
 Report the script's five output rows as it wrote them. `DRIFTED` above zero is
@@ -159,6 +159,12 @@ the plan reads `blocked`, and the re-audit that settles it has been named.
   re-audited by the sibling.
 - **Accept a finding on the operator's behalf**, including one whose apply it
   just refused.
+
+## Related
+
+- Tree drifted or finding blocked: /docs-naming:audit-file-names.
+- Enforce the rule going forward: /docs-naming:generate-file-name-gate.
+- Ad-hoc reference sweep outside a plan: /docs-hygiene:rename-references.
 
 ## Gotchas
 

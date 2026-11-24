@@ -127,8 +127,6 @@ git -C "$root9" add -A >/dev/null
 git -C "$root9" commit -qm "a deep historical file and an unclaimed one" >/dev/null
 home9="$TEST_TMPDIR/home9-$RANDOM"
 mkdir -p "$home9/.claude"
-# A version-manager shim (mise) resolves jq through $HOME, so it breaks under the
-# fixture HOME; put the real jq, found while HOME is still real, first on PATH.
 jq9="$TEST_TMPDIR/jq-bin"
 mkdir -p "$jq9"
 ln -sf "$(mise which jq 2>/dev/null || command -v jq)" "$jq9/jq"

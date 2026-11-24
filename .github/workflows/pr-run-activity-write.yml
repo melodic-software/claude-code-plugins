@@ -20,537 +20,254 @@ on:
   workflow_call:
     inputs:
       lane:
-        description: The lane, its caller workflow's file stem.
         required: true
         type: string
       activity:
-        description: The activity to run from the lane's slots.
         required: true
         type: string
       config-path:
-        description: The config, relative to the base checkout. For test callers only.
         required: false
         type: string
         default: docs/conventions/pr-pipeline.yaml
       pr-number:
-        description: The PR on workflow_dispatch; ignored for other events.
         required: false
         type: string
         default: ""
       issue-number:
-        description: >-
-          Issue mode: the issue an issues lane works, on an issues event only.
-          There is no PR: the trusted base is the default branch tip, a script
-          commits to a new branch, and no check run is posted.
         required: false
         type: string
         default: ""
       app-field-id:
-        description: >-
-          Issue mode: the issue field the lanes App may set to app-field-option
-          to start the lane. Either empty keeps every App event stopped.
         required: false
         type: string
         default: ""
       app-field-option:
-        description: >-
-          Issue mode: the single-select option of app-field-id that starts the lane.
         required: false
         type: string
         default: ""
       reuse-branch:
-        description: >-
-          Issue mode, report-outcome: the lane branch the resolve-issue run
-          found an earlier run left with commits and no report, so it ran only
-          the read-only summary pass; its reuse-branch output. Empty otherwise.
         required: false
         type: string
         default: ""
       runner-checks:
-        description: >-
-          Issue mode, report-outcome: the caller's run-checks job output, the
-          activity's checks as the runner ran them, set only when that job
-          succeeded. Empty otherwise.
         required: false
         type: string
         default: ""
       verify-close:
-        description: >-
-          Issue mode, report-outcome: the sub-issue numbers, comma-joined,
-          of a finished parent (each closed as completed by a trusted close,
-          as the caller's check-admission job read them), which a verified-done stop
-          needs before it closes the issue. Empty otherwise.
         required: false
         type: string
         default: ""
       dimension-skip:
-        description: >-
-          Issue mode, report-outcome: the issue-dimension skip reason
-          (split-required, research-first or probe-first) that
-          kept the run from starting, where report-outcome routes the issue
-          with the next step and to no person (research-first and probe-first
-          park at status: confirmed, split-required goes back through
-          intake's size split); or outside-author, the check-admission job's stop on
-          an issue neither a listed human nor the lanes App wrote, where it
-          removes agent-ready and asks a listed human to re-file the work;
-          or workflow-stale, a resolve-issue call's stop on stale workflow
-          files, where it re-fires the issue at once on main's files.
-          Empty otherwise.
         required: false
         type: string
         default: ""
       timeout-minutes:
-        description: The run job's timeout in minutes.
         required: false
         type: number
         default: 30
       rate-limit-wait-seconds:
-        description: >-
-          The run job's rate-limit wait budget (rate-guard.mjs waitBudgetMs):
-          a GitHub API stop whose reset comes within it is waited out instead
-          of failing the job. 0 keeps the guard's 60 s; the run job's timeout
-          must hold the wait.
         required: false
         type: number
         default: 0
       issue-dimensions:
-        description: >-
-          Issue mode: the dimensions the caller resolved when it set
-          timeout-minutes (models.issue-dimensions); the run takes them
-          instead of reading the issue's fields again. Empty reads them.
         required: false
         type: string
         default: ""
       dispatcher-run-id:
-        description: >-
-          On a workflow_dispatch sent by github-actions[bot], the
-          pr-unblock-dispatch.yml or pr-dispatch-feedback.yml run that sent
-          it; empty otherwise.
         required: false
         type: string
         default: ""
       trusted-base:
-        description: >-
-          pr-base trusts the PR's base SHA; default-tip trusts the default
-          branch tip, for a lane whose PR keeps a stale base (a merge conflict).
         required: false
         type: string
         default: pr-base
       escalation-reason:
-        description: >-
-          For a report-escalation script activity, the escalation-reason output
-          of the run that escalated; in issue mode, for report-outcome,
-          apply-issue-patch's (a patch-* reason). Exported to the script as
-          ESCALATION_REASON.
         required: false
         type: string
         default: ""
       human-pull:
-        description: >-
-          Issue mode, report-outcome: the listed human's open pull request
-          for the issue that kept apply-issue-patch from pushing (the
-          caller's check-human-pull job), which the blocked-by-pr stop waits
-          on. Exported to the script as HUMAN_PULL. Empty otherwise.
         required: false
         type: string
         default: ""
       lease-comment-id:
-        description: >-
-          Issue mode: the lane lease comment id the read runner's check-broker
-          posted (its lease-comment-id output), which the report job ends with
-          the base's work-items tracker once the run job ends, whatever its
-          result: for report-outcome always, for any other activity only when
-          the run job stopped on the kill switch, which skips report-outcome.
         required: false
         type: string
         default: ""
       collect-refused:
-        description: >-
-          In issue mode, for report-outcome: the model run's scan-collect-refused
-          output, `true` when collect-patch.sh refused a stub name holding
-          content. Exported to the script as COLLECT_REFUSED; only `true` counts.
         required: false
         type: string
         default: ""
       hold-marker:
-        description: >-
-          For a hold job of monitor signal 13 (signals.mjs HOLD_LANES): a
-          script activity that holds writes a marker, which the run job keeps
-          as the lane-hold-<lane> artifact for a day.
         required: false
         type: boolean
         default: false
       review-replies:
-        description: >-
-          For the reply script of an address-feedback round: download the
-          review-thread replies the model run uploaded in this workflow run
-          and pass them to the script as FEEDBACK_REPLIES_DIR.
         required: false
         type: boolean
         default: false
       review-run-sha256:
-        description: >-
-          With review-replies, the SHA-256 of the run.json the caller's select
-          job wrote (pr-unblock's address-feedback-select run-sha256); the
-          reply script refuses a run.json with any other SHA-256.
         required: false
         type: string
         default: ""
       expected-upstream-head:
-        description: >-
-          For a job after pr-unblock's model job on a pr-dispatch-feedback.yml
-          dispatch, that job's head-sha output: the gate accepts the review of
-          that head while the PR is at it or at pushed-commit. The broker gets
-          it too. Empty otherwise.
         required: false
         type: string
         default: ""
       pushed-commit:
-        description: >-
-          With expected-upstream-head, the pushed-commit output of the
-          caller's apply-feedback-patch job: the one commit the gate accepts
-          after that head. The broker gets it too. Empty when it pushed
-          nothing, and on every other job.
         required: false
         type: string
         default: ""
       review-run-attempt:
-        description: >-
-          With review-replies, the select job's context-attempt output: the
-          attempt whose feedback-context-<attempt> artifact holds run.json.
-          Empty downloads nothing, which the reply script refuses as
-          feedback-invalid.
         required: false
         type: string
         default: ""
       review-replies-attempt:
-        description: >-
-          With review-replies, the read runner's feedback-attempt output, set
-          only by its scan job: the attempt whose
-          feedback-replies-<lane>-address-feedback-<attempt> artifact holds
-          the scanned replies, and the model run the round marker names. Empty
-          downloads none: with no replies, no patch and no scan refusal, the
-          reply script posts a no-model-turn skip.
         required: false
         type: string
         default: ""
       review-replies-sha256:
-        description: >-
-          With review-replies, the read runner's feedback-sha256 output, set
-          only by its scan job from the replies it uploaded. A replies file
-          with another SHA-256 is refused as feedback-invalid.
         required: false
         type: string
         default: ""
       review-patch-state:
-        description: >-
-          With review-replies, the same read runner call's scan-patch-state.
-          With no replies, the reply script skips no-model-turn only when this,
-          review-replies-attempt and review-replies-sha256 are empty and no
-          scan refusal marker downloaded.
         required: false
         type: string
         default: ""
       review-adjudication-attempt:
-        description: >-
-          With review-replies, pr-unblock's adjudicate-feedback job's attempt
-          output: the attempt whose feedback-adjudication-<attempt> artifact
-          holds the verdicts on the round's INCORRECT replies. Empty downloads
-          none, and the reply script escalates each INCORRECT thread as
-          feedback-unadjudicated.
         required: false
         type: string
         default: ""
       review-adjudication-sha256:
-        description: >-
-          With review-replies, that job's sha256 output, from the verdicts it
-          uploaded. Verdicts with another SHA-256 read as none.
         required: false
         type: string
         default: ""
       dependency-verdict:
-        description: >-
-          For the verdict script of a review-dependency round: download the
-          select job's context.json and the verdict the read runner's scan job
-          uploaded in this workflow run, and pass both to the script as
-          DEPENDENCY_VERDICT_DIR.
         required: false
         type: boolean
         default: false
       dependency-context-attempt:
-        description: >-
-          With dependency-verdict, the select job's context-attempt output: the
-          attempt whose dependency-context-<attempt> artifact holds
-          context.json. Empty downloads nothing, which the verdict script
-          refuses as dependency-invalid.
         required: false
         type: string
         default: ""
       dependency-run-sha256:
-        description: >-
-          With dependency-verdict, the SHA-256 of the context.json the caller's
-          select job wrote (pr-unblock's review-dependency-select run-sha256);
-          the verdict script refuses a context.json with any other SHA-256.
         required: false
         type: string
         default: ""
       dependency-head-sha:
-        description: >-
-          With dependency-verdict, the head the select job read, which the
-          verdict script requires context.json to name.
         required: false
         type: string
         default: ""
       dependency-run-attempt:
-        description: >-
-          With dependency-verdict, the read runner's dependency-attempt output,
-          set only by its scan job: the attempt whose
-          dependency-verdict-<lane>-review-dependency-<attempt> artifact holds
-          the scanned verdict, and the model run the round marker names. Empty
-          downloads none: no verdict arrived.
         required: false
         type: string
         default: ""
       dependency-verdict-sha256:
-        description: >-
-          With dependency-verdict, the read runner's dependency-sha256 output,
-          set only by its scan job from the verdict it uploaded. A verdict with
-          another SHA-256 is refused as dependency-invalid.
         required: false
         type: string
         default: ""
       dependency-patch-state:
-        description: >-
-          With dependency-verdict, the same read runner call's scan-patch-state.
-          With no verdict, the verdict script skips no-model-turn only when
-          this is empty and no scan refusal marker downloaded.
         required: false
         type: string
         default: ""
       patch-state:
-        description: >-
-          For a prepare: apply-patch script, the model job's patch-state
-          output (written or empty); anything else escalates ci-fix-invalid.
         required: false
         type: string
         default: ""
       patch-sha256:
-        description: With patch-state written, the model job's patch-sha256 output.
         required: false
         type: string
         default: ""
       patch-attempt:
-        description: >-
-          With patch-state written, the model job's patch-attempt output: the
-          attempt whose patch-<lane>-<activity>-<attempt> artifact to download.
         required: false
         type: string
         default: ""
       patch-activity:
-        description: The activity that wrote the patch and the report, which names both artifacts.
         required: false
         type: string
         default: ""
       patch-prepare:
-        description: >-
-          The patch-activity's prepare mode in the base config (ci-context for
-          fix-ci), which picks its patch-rules.json row; docs for fix-docs,
-          which has no prepare mode and takes the markdown-only row; empty for
-          none.
         required: false
         type: string
         default: ""
       patch-head-sha:
-        description: >-
-          The model job's head-sha output: the head the patch was made on. A
-          gated head that differs skips superseded-sha.
         required: false
         type: string
         default: ""
       patch-merge-base-sha:
-        description: >-
-          apply-patch with patch-prepare merge-base: the default branch commit
-          the caller's select job pinned and merged, the merge commit's second
-          parent; it must be on the default branch.
         required: false
         type: string
         default: ""
       patch-merge-state:
-        description: >-
-          apply-patch with patch-prepare merge-base: the select job's
-          merge-state, clean (committed with no patch) or conflicted.
         required: false
         type: string
         default: ""
       patch-conflict-tree:
-        description: >-
-          apply-patch with patch-prepare merge-base: the conflict tree the
-          select job's merge reached. This job merges patch-merge-base-sha into
-          the gated head again and fails red unless it reaches the same state
-          and tree, then applies the patch to that tree.
         required: false
         type: string
         default: ""
       patch-threads-attempt:
-        description: >-
-          apply-patch with patch-prepare review-threads: the attempt whose
-          feedback-context-<attempt> artifact holds the caller's select job's
-          thread file, whose kept threads the kept-threads rule reads.
         required: false
         type: string
         default: ""
       patch-threads-sha256:
-        description: With patch-threads-attempt, that thread file's SHA-256.
         required: false
         type: string
         default: ""
       patch-replies-attempt:
-        description: >-
-          apply-patch with patch-prepare review-threads: the read runner's
-          feedback-attempt output, the attempt whose
-          feedback-replies-<lane>-<patch-activity>-<attempt> artifact holds
-          the scanned replies; the commit's Lane-Thread lines name the kept
-          threads their VALID replies name.
         required: false
         type: string
         default: ""
       patch-replies-sha256:
-        description: With patch-replies-attempt, the replies' SHA-256 from the scan job.
         required: false
         type: string
         default: ""
       patch-verdict-attempt:
-        description: >-
-          apply-patch with patch-prepare dependency-review: the read runner's
-          dependency-attempt output, the attempt whose
-          dependency-verdict-<lane>-review-dependency-<attempt> artifact holds
-          the scanned verdict the row's dependency-verdict requirement reads.
         required: false
         type: string
         default: ""
       patch-verdict-sha256:
-        description: With patch-verdict-attempt, that verdict's SHA-256 from the scan job.
         required: false
         type: string
         default: ""
       patch-human-gate:
-        description: >-
-          apply-patch: a base-code job's verdict on the human-gated label, the
-          kind of gate it worked past. `fix-request` leaves the label out of
-          the holds: under review-threads the select job kept only threads a
-          trusted person with write access asked the lane to fix.
-          `lane-escalation` leaves it out only when gate-recheck.mjs reads a
-          lane escalation again right before the push: a lane escalation put
-          it on (address-feedback.mjs, lane-hold.mjs, fix-ci-context.mjs).
-          Anything else keeps it.
         required: false
         type: string
         default: ""
       patch-model-rung:
-        description: >-
-          apply-patch: the model rung the patch's producer ran at, empty or 0
-          its profile's, 1 the rung above. At 0 an empty fix-ci patch whose
-          report escalated only unfixed or not-reproducible checks skips
-          rung-up instead of escalating, so the caller runs the producer once
-          more at rung 1. A rung-1 run's verdict artifact carries its own name.
         required: false
         type: string
         default: ""
       patch-weaken-retry:
-        description: >-
-          apply-patch: `true` when fix-ci-context found no lane stop on the
-          head yet, so an empty fix-ci patch whose report escalated
-          weaken-required stops ci-fix-weaken-retry (a fail route the
-          dispatcher retries with the no-weaken brief) instead of
-          ci-fix-weaken-required, which holds for a person.
         required: false
         type: string
         default: ""
       patch-base-sha:
-        description: >-
-          Issue mode, apply-patch: the read runner's scan-base-sha output, the
-          default branch commit a new run's patch was made on, as its
-          check-issue-fields job checked it; the new lane branch starts there.
         required: false
         type: string
         default: ""
       patch-resume-tip:
-        description: >-
-          Issue mode, apply-patch: the read runner's scan-resume-tip output,
-          the earlier lane branch tip a resumed run's patch was made on, as its
-          check-issue-fields job re-derived it; the new lane branch starts there
-          instead. Empty otherwise.
         required: false
         type: string
         default: ""
       reply-attempt:
-        description: >-
-          The model job's reply-attempt output: the attempt whose skill-reply
-          artifact holds its report. Empty reads no report.
         required: false
         type: string
         default: ""
       role:
-        description: >-
-          The lane's funding role, as in docs/conventions/pr-pipeline.yaml
-          `funding:`. Callers pass it as they do to the read runner; this
-          file takes no secret and reads it nowhere.
         required: true
         type: string
     outputs:
       escalation-reason:
-        description: >-
-          Why the activity stopped (report-escalation routes it to a person or
-          to a failing status, escalation-routes.json): for the review-replies
-          script feedback-uncertain, feedback-not-landed or feedback-invalid,
-          feedback-partial, feedback-incomplete, (feedback-publish-failed is the
-          caller's, for a reply job that failed), feedback-disputed,
-          feedback-stood-open, feedback-verifier-open, feedback-unadjudicated,
-          feedback-question-intent, feedback-question-design or
-          feedback-question-security; for the dependency-verdict script
-          dependency-invalid, dependency-fix-not-landed,
-          dependency-config-unreadable, dependency-files-truncated,
-          dependency-control-uncited, dependency-workflow-unpinned,
-          dependency-fix-refused, dependency-security-close or
-          dependency-escalate-<owner reason> (intent, design, security, cost or
-          none); for apply-patch, before the mint, ci-fix-empty, ci-fix-invalid,
-          ci-fix-escalated, ci-fix-protected-path, ci-fix-weaken-retry or
-          ci-fix-weaken-required, and from its script ci-fix-invalid,
-          ci-fix-protected-path or ci-fix-not-applied; for issue-mode
-          apply-patch, patch-empty, patch-invalid, patch-credential,
-          patch-not-applied or patch-protected-path; for apply-patch under
-          patch-prepare merge-base, unresolved-conflict, workflow-staged,
-          unexpected-path-staged, conflict-patch-invalid,
-          conflict-patch-not-applied or conflict-patch-protected-path; for
-          apply-patch under patch-prepare install-script-pin or
-          dependency-relock, dependency-pin-invalid, dependency-pin-not-applied or
-          dependency-pin-protected-path; empty otherwise. Set only by runner
-          steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       rung-up:
-        description: >-
-          apply-patch: `true` when the patch's select skipped rung-up, so the
-          caller runs the producer once more one model rung up; else `false`.
         value: ${{ jobs.run.outputs.rung-up }}
       patch-skip-reason:
-        description: >-
-          apply-patch: the skip reason the patch's select gave, empty when it
-          proceeded.
         value: ${{ jobs.run.outputs.patch-skip-reason }}
       skip-reason:
-        description: >-
-          Why the run did no work: the kill switch's or trigger gate's reason,
-          or the skip reason its check run posts (a script's own, such as the
-          reply script's no-model-turn); empty when it acted. A caller that
-          reads a success result as a landed attempt checks this is empty.
         value: ${{ jobs.run.outputs.skip-reason }}
       head-sha:
-        description: The PR head the gate passed, before any push of this run. Set only by runner steps.
         value: ${{ jobs.run.outputs.head-sha }}
       pushed-commit:
-        description: >-
-          The commit apply-patch.mjs pushed onto the PR branch, empty when it
-          pushed none. Set only by the base's script step.
         value: ${{ jobs.run.outputs.pushed-commit }}
 
 permissions: {}
@@ -748,7 +465,7 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: ${{ github.event.repository.default_branch }}
 
@@ -757,7 +474,7 @@ jobs:
       # the gated base SHA's ancestry.
       - name: Check out the default branch tip
         id: base
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
@@ -775,7 +492,7 @@ jobs:
           chmod -R a-w "$dest"
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false
@@ -816,6 +533,11 @@ jobs:
             .github/workflows/pr-review-security-hosted.yml
           # Or a listed human's review comment, relayed (ADR 0088).
           run-dispatcher-relay: .github/workflows/pr-review-comment-relay.yml
+          reconciler-workflow: >-
+            ${{ github.event_name == 'workflow_dispatch'
+            && github.event.sender.login == 'github-actions[bot]'
+            && inputs.dispatcher-run-id != ''
+            && '.github/workflows/maintenance-reconcile-lost-runs.yml' || '' }}
           # A job after the model job: the review was of the head that job
           # gated, and the PR is at it or at the commit the push job pushed.
           expected-upstream-head: ${{ inputs.expected-upstream-head }}
@@ -943,7 +665,7 @@ jobs:
           steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
           && inputs.patch-state == 'written' && inputs.patch-attempt != ''
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: patch-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-attempt }}
           path: ${{ runner.temp }}/lane-patch
@@ -953,7 +675,7 @@ jobs:
           steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
           && inputs.reply-attempt != ''
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: skill-reply-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.reply-attempt }}
           path: ${{ runner.temp }}/lane-patch-report
@@ -967,7 +689,7 @@ jobs:
           steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
           && inputs.patch-prepare == 'review-threads'
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: feedback-context-${{ inputs.patch-threads-attempt }}
           path: ${{ runner.temp }}/lane-patch-threads
@@ -1001,7 +723,7 @@ jobs:
           steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
           && inputs.patch-prepare == 'review-threads'
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: feedback-replies-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-replies-attempt }}
           path: ${{ runner.temp }}/lane-patch-replies
@@ -1036,7 +758,7 @@ jobs:
           steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
           && inputs.patch-prepare == 'dependency-review'
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: dependency-verdict-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-verdict-attempt }}
           path: ${{ runner.temp }}/lane-patch-verdict
@@ -1116,7 +838,7 @@ jobs:
         if: >-
           steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
           && steps.patch-select.outputs.proceed != 'false'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: actions/github-script@v9
         env:
           EFFECT: ${{ steps.config.outputs.effect }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -1245,7 +967,7 @@ jobs:
           steps.lane-token.outputs.token != '' && inputs.review-replies
           && steps.config.outputs.kind == 'script' && inputs.review-run-attempt != ''
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           # The other jobs' attempts, not this one: "Re-run failed jobs" on
           # this job alone keeps their outputs from their attempt.
@@ -1257,7 +979,7 @@ jobs:
           steps.lane-token.outputs.token != '' && inputs.review-replies
           && steps.config.outputs.kind == 'script' && inputs.review-replies-attempt != ''
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: feedback-replies-${{ inputs.lane }}-address-feedback-${{ inputs.review-replies-attempt }}
           path: ${{ runner.temp }}/feedback-replies
@@ -1267,7 +989,7 @@ jobs:
           steps.lane-token.outputs.token != '' && inputs.review-replies
           && steps.config.outputs.kind == 'script' && inputs.review-adjudication-attempt != ''
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: feedback-adjudication-${{ inputs.review-adjudication-attempt }}
           path: ${{ runner.temp }}/feedback-adjudication
@@ -1283,7 +1005,7 @@ jobs:
           steps.lane-token.outputs.token != '' && inputs.dependency-verdict
           && steps.config.outputs.kind == 'script' && inputs.dependency-context-attempt != ''
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           # The other jobs' attempts, not this one: "Re-run failed jobs" on
           # this job alone keeps their outputs from their attempt.
@@ -1295,7 +1017,7 @@ jobs:
           steps.lane-token.outputs.token != '' && inputs.dependency-verdict
           && steps.config.outputs.kind == 'script' && inputs.dependency-run-attempt != ''
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: dependency-verdict-${{ inputs.lane }}-review-dependency-${{ inputs.dependency-run-attempt }}
           path: ${{ runner.temp }}/dependency-verdict
@@ -1314,7 +1036,7 @@ jobs:
           steps.lane-token.outputs.token != '' && (inputs.review-replies || inputs.dependency-verdict || inputs.issue-number != '')
           && steps.config.outputs.kind == 'script'
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           pattern: scan-refused-${{ inputs.lane }}-${{ inputs.issue-number != '' && 'resolve-issue' || inputs.review-replies && 'address-feedback' || 'review-dependency' }}-*
           path: ${{ runner.temp }}/scan-refused
@@ -1470,6 +1192,14 @@ jobs:
             mkdir -p "$DEST/scripts"
             git -C .base show "$MERGE_BASE_SHA:scripts/shared-copies.txt" >"$DEST/scripts/shared-copies.txt"
           fi
+          if [ "$PATCH_PREPARE" = cdn-pins-sync ]; then
+            mkdir -p "$DEST/lib/cdn-pins"
+            for file in pins.json sync.mjs; do
+              if [ -f ".base/lib/cdn-pins/$file" ]; then
+                cp ".base/lib/cdn-pins/$file" "$DEST/lib/cdn-pins/$file"
+              fi
+            done
+          fi
           echo "dir=$DEST" >>"$GITHUB_OUTPUT"
 
       # Nothing after this step needs sudo or docker.
@@ -1502,7 +1232,7 @@ jobs:
       # only the trusted base checkout, and .base stays in place.
       - name: Check out the PR head
         if: steps.lane-token.outputs.token != '' && steps.config.outputs.checkout != 'base'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: >-
             ${{ inputs.issue-number != ''
@@ -1577,7 +1307,7 @@ jobs:
           steps.lane-token.outputs.token != '' && inputs.issue-number != ''
           && steps.config.outputs.kind == 'script'
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: work-outcome-${{ inputs.issue-number }}
           path: ${{ runner.temp }}/work-outcome
@@ -1589,7 +1319,7 @@ jobs:
           steps.lane-token.outputs.token != '' && inputs.issue-number != ''
           && steps.config.outputs.kind == 'script' && inputs.reuse-branch != ''
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: reuse-summary-${{ inputs.issue-number }}
           path: ${{ runner.temp }}/reuse-summary
@@ -1735,15 +1465,15 @@ jobs:
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
-            # apply-patch under the merge-base, install-script-pin and
-            # shared-copies rows gives that row's own reasons alone.
+            # These apply-patch rows give their own reasons alone.
             case "$PREPARE:$PATCH_PREPARE" in
-              apply-patch:merge-base | apply-patch:install-script-pin | apply-patch:dependency-relock | apply-patch:shared-copies | apply-patch:test-scope)
+              apply-patch:merge-base | apply-patch:install-script-pin | apply-patch:dependency-relock | apply-patch:cdn-pins-sync | apply-patch:shared-copies | apply-patch:test-scope)
                 case "$PATCH_PREPARE:$escalation" in
                   merge-base:unresolved-conflict | merge-base:workflow-staged | merge-base:unexpected-path-staged) ;;
                   merge-base:conflict-patch-invalid | merge-base:conflict-patch-not-applied | merge-base:conflict-patch-protected-path) ;;
                   install-script-pin:dependency-pin-invalid | install-script-pin:dependency-pin-not-applied | install-script-pin:dependency-pin-protected-path) ;;
                   dependency-relock:dependency-pin-invalid | dependency-relock:dependency-pin-not-applied | dependency-relock:dependency-pin-protected-path) ;;
+                  cdn-pins-sync:dependency-pin-invalid | cdn-pins-sync:dependency-pin-not-applied | cdn-pins-sync:dependency-pin-protected-path) ;;
                   shared-copies:shared-copy-workflow-staged | shared-copies:shared-copy-unexpected-path-staged) ;;
                   shared-copies:shared-copy-patch-invalid | shared-copies:shared-copy-patch-not-applied | shared-copies:shared-copy-patch-protected-path) ;;
                   test-scope:test-scope-invalid | test-scope:test-scope-not-applied | test-scope:test-scope-protected-path) ;;
@@ -1807,7 +1537,7 @@ jobs:
         id: scan-upload-2
         if: >-
           inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch' && steps.act-script.outcome == 'success' && steps.act-script.outputs.branch != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           path: |
             ${{ runner.temp }}/work-outcome/lane.json
@@ -1817,7 +1547,7 @@ jobs:
       - name: Upload the named issue outcome
         if: >-
           (inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch' && steps.act-script.outcome == 'success' && steps.act-script.outputs.branch != '') && steps.scan-upload-2.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: work-outcome-${{ inputs.issue-number }}
           path: |
@@ -1878,7 +1608,7 @@ jobs:
         id: scan-upload-3
         if: >-
           always()
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           path: ${{ runner.temp }}/verdict/verdict.json
           gate-path: ${{ runner.temp }}/scan-gate/lib/publish-gate.mjs
@@ -1886,7 +1616,7 @@ jobs:
       - name: Upload the verdict
         if: >-
           (always()) && steps.scan-upload-3.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.patch-model-rung == '1' && '-rung-up' || '' }}
           path: ${{ runner.temp }}/verdict/verdict.json
@@ -1902,7 +1632,7 @@ jobs:
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: actions/github-script@v9
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
@@ -1949,7 +1679,7 @@ jobs:
       - name: Keep the lane hold marker
         if: steps.hold-marker.outputs.held == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: lane-hold-${{ inputs.lane }}
           path: ${{ runner.temp }}/lane-hold/${{ inputs.lane }}
@@ -2032,12 +1762,12 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: ${{ github.event.repository.default_branch }}
 
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
@@ -2059,7 +1789,7 @@ jobs:
 
       - name: Set up Node
         if: inputs.issue-number == ''
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false
@@ -2069,7 +1799,7 @@ jobs:
       - name: Download the verdict
         if: inputs.issue-number == ''
         continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.patch-model-rung == '1' && '-rung-up' || '' }}
           path: ${{ runner.temp }}/verdict

@@ -608,9 +608,6 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
                 unread=True,
             )
         records.append(rec)
-    # Probe each layer for INSTALLED-ness directly: a missing analyzer reported as a clean
-    # zero makes every later count read as an improvement. Neither `sources["lines"]` nor
-    # `scc_counts` can tell, since both come back None on an empty scope too.
     have_layer = (use_scc and scc_available()) or (
         use_pygments and pygments_available()
     )
@@ -641,8 +638,6 @@ def totals(records: list[dict], dedupe: bool) -> dict:
         "comment_ratio": round(cl / lines, 4) if lines else 0.0,
         "comment_bytes": cb,
         "approx_tokens": cb // 4,
-        # Unreadable files count 0, indistinguishable from comment-free ones in the totals,
-        # so carry the count and let the report say coverage is partial.
         "unread_files": sum(1 for r in chosen if r.get("unread")),
     }
 

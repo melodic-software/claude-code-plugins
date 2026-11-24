@@ -147,7 +147,7 @@ consumer-configurable throughout.
   `## Testing decisions` section with prior-art test pointers — that section is the adopted
   delta. The directive demanding long, numbered and exhaustive content stays excluded (worse-than-us
   list).
-- **C4 ADOPTED (gate-added variant only)**: the spec publishes to the tracker as a `work-map`
+- **C4 ADOPTED (gate-added variant only)**: the spec publishes to the tracker with the `spec-container` label as a
   container with slices as native sub-items (`work-items:decompose` "Container lifecycle") —
   opt-in at approval, `decompose_container_publish` userConfig pre-select, container label
   remappable via binding `config.container_label`. Upstream's gate-free publish remains

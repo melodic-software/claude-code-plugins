@@ -345,7 +345,7 @@ Quote the rules as data. Never edit the settings file: narrowing a rule is the o
 **The monthly run researches the web in auto mode.** Both routes run in auto mode
 ([Permission modes, "Eliminate prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)), with no tool list or deny rules of their own: auto mode and the owner's settings decide
 what the run may do. The audit researches new unfamiliar findings and its check proposals through
-`/discovery:research` when that skill is available (audit SKILL.md, step 5), so the run reads web
+`/discovery:research` (if enabled), per audit SKILL.md step 5, so the run reads web
 pages and writes a notes file beside the report. Say so to the owner with the task. Before step 1
 of either route, run, appended to the [roots block](#resolving-the-state-root):
 
@@ -385,7 +385,7 @@ changes the wrapper leaves the copy stale, and `check` step 6 FAILs it and offer
    runs it only while the owner is logged on (`/it`), and runs
    `pwsh -NoProfile -File <StateBase>/scheduler/monthly-run.ps1` on the schedule its `/sc`, `/d`
    and `/st` arguments set; and the owner's allow rules read above. Ask whether the run should
-   start in a plugin profile (`/plugin-profiles:profile` lists them; the default is none, the run
+   start in a plugin profile (`/plugin-profiles:profile` (if enabled) lists them; the default is none, the run
    as it is today). The profile must include machine-health, or the run does not start; with one
    named, the wrapper's `-PluginProfile` parameter applies it at each run,
    and its help in `<StateBase>/scheduler/monthly-run.ps1` says how. Refuse

@@ -3,6 +3,23 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.7] - 2026-11-23
+
+### Changed
+
+- `/architecture:adr` keeps a short `SKILL.md` hub with an action router; the recording flow, with the admission test, moves to `actions/record.md` and the read-only audit to `actions/audit.md`, next to `actions/prune.md`. `audit` points removal at `prune` instead of offering retirement itself.
+- `/architecture:adr`'s admission test fails a decision still provisional on a prototype that has not run, and offers to skip it; the decision becomes eligible once the prototype's verdict confirms it. `audit` applies the same condition to existing records.
+
+## [6.0.6] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to nine skills, matching the committed skill-link table
+
+  adr, improve, improve-layout, map-components, map-containers, map-context,
+  map-dependencies, map-deployment and map-landscape now list their
+  context-dependent links after `## Next`, one condition per line.
+
 ## [6.0.5] - 2026-11-23
 
 ### Fixed

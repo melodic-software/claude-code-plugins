@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for scripts/build-view.mjs: the blindspot view builds through
-# the shared view builder, passes the interactive profile, keeps hostile data as
-# text, and binds every key its template names. When a Chrome or Chromium binary
-# is found (CHROME, google-chrome, chromium, or Playwright's headless shell) the
-# page is also opened from file:// to prove the runtime renders it.
-#
-#   bash plugins/discovery/scripts/build-view.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 

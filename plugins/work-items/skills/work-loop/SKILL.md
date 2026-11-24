@@ -259,9 +259,9 @@ an earlier run that paused).
    none of them. Loop-level deltas only:
    - **Worker-side provisioning, owned by `/work-items:work`.** The dispatched subagent
      materializes its own out-of-tree worktree first and works against it via `git -C` without
-     entering it; the orchestrator never invokes `/source-control:worktree create`, whose
+     entering it; the orchestrator never invokes `/source-control:worktree create` (if enabled), whose
      `EnterWorktree` terminal would transition this long-lived loop session. `/work-items:work` and
-     `/implementation:implement-dispatch` own that behavior; this loop inherits it and restates
+     `/implementation:implement-dispatch` (if enabled) own that behavior; this loop inherits it and restates
      nothing beyond this caution.
    - **Dispatch discipline.** Worker briefs enumerate the required skills per phase and carry the
      convention's subagent discipline preamble (presence-gated discipline sweep with the inline
@@ -297,13 +297,13 @@ an earlier run that paused).
    that directory out of the tree this lane runs its gates against.
    **Background-job launch mode.** Launch a background lane from inside an isolated linked git
    worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
-   `/harness-ops:lanes` launches) to keep the record Write in place: from a linked worktree outside
+   `/harness-ops:lanes` (if enabled) launches) to keep the record Write in place: from a linked worktree outside
    `.claude/worktrees` the record Write lands with no refusal (probed with `claude --bg` on Claude Code 2.1.285),
    and from a checkout that is not a linked worktree it can be refused (evidence: the issue the pointer below names).
-   When `/plugin-profiles:profile` is among the available skills, the launching session first invokes
-   `/plugin-profiles:profile launch [<profile>] --unattended --json` from that worktree via the Skill tool and
-   runs its `argv` followed by `--bg -n <name> --permission-mode auto`; on exit 1 it launches nothing and
-   reports the reason the tool printed. Otherwise it runs the command as written.
+   The launching session first invokes
+   `/plugin-profiles:profile launch [<profile>] --unattended --json` (if enabled); otherwise it runs the command as written.
+   When the `plugin-profiles` plugin is enabled, it invokes that skill from that worktree via the Skill tool and runs its `argv` followed by
+   `--bg -n <name> --permission-mode auto`; on exit 1 it launches nothing and reports the reason the tool printed.
    Either way the tracker marker comment is the escalation of record, and a refused record Write does not stop
    the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator), so
    isolation comes from where the operator launches it. Foreground on the default-branch checkout
@@ -362,7 +362,7 @@ the no-progress streak. `/work-items:work`'s dispatch-time staleness pre-check d
 this: it runs only for dispatched items, never an escalated one.
 
 **Labeler precondition (after the in-flight check).** A label is admission
-evidence only when someone allowed to grant admission applied it. On GitHub a labeler need not
+evidence only when someone allowed to approve work applied it. On GitHub a labeler need not
 hold `write` (role mapping: pointer below), so the label alone does not show that. For each remaining
 candidate, run the bound adapter's `label-provenance` operation over the autonomous-eligible role
 label only:
@@ -391,7 +391,7 @@ Hard gates:
   `provenance: untrusted` is human-gated.
   Step 5 escalates it as `kind=escalated`; it is never dispatched.
 - **Provenance-removal hold.** The provenance hold tests only whether a label is present, so its
-  absence counts only when someone allowed to grant admission removed it. For each candidate, and
+  absence counts only when someone allowed to approve work removed it. For each candidate, and
   for each of `provenance: untrusted` and
   `provenance: signal`, run the bound adapter's "Label-removal provenance" operation (GitHub: the
   adapter README section of that name). Its latest-removal read names the actor of the label's latest removal, and its actor-permission read
@@ -444,11 +444,11 @@ apply the manifest default:
 the provider's API budget names ([`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Gotchas"), never a retry loop. The streak counter and cap persist in durable state.
 
 **Composed budget:** total in-flight subagents ≤ item cap × the per-item dispatch wave cap owned
-by `/implementation:implement-dispatch`, that skill's resolved cap (`--wave-cap` argument, then
+by `/implementation:implement-dispatch` (if enabled), that skill's resolved cap (`--wave-cap` argument, then
 `implement_dispatch_wave_cap`, then the internal default), which includes the `${user_config.work_dispatch_concurrency_cap}` ceiling
 `/work-items:work` threads through as `--wave-cap` when the operator sets it. This loop body's
 arithmetic over those two factors is an upper bound only: the wave cap
-changes behavior only under commit authority `orchestrator`, which `/implementation:implement-dispatch` sets from the consuming plan; under worker authority the
+changes behavior only under commit authority `orchestrator`, which `/implementation:implement-dispatch` (if enabled) sets from the consuming plan; under worker authority the
 effective wave is one row.
 
 ## No-progress detector

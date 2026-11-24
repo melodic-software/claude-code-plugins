@@ -35,9 +35,7 @@ const LANES_APP = { id: 337595936, login: "melodic-automation-lanes[bot]", type:
 const ACTIONS_BOT = { id: 41898282, login: "github-actions", type: "Bot" };
 const NUMBER = 42;
 const FIELD = "48484079";
-// The checkout whose models.issue-status every run reads and writes by.
 const ROOT = new URL("../../..", import.meta.url).pathname;
-// One GraphQL Work status field event, as the API answers it.
 const fieldNode = (type, actor, values = {}, field = FIELD) => ({
   __typename: type,
   createdAt: "2026-11-06T00:00:00Z",
@@ -45,7 +43,6 @@ const fieldNode = (type, actor, values = {}, field = FIELD) => ({
   issueField: { fullDatabaseId: field },
   ...values,
 });
-// The Work status the field events leave: the newest one's value, or null.
 const fieldState = (nodes) =>
   nodes.filter((node) => node.issueField.fullDatabaseId === FIELD).reduce((state, node) => (node.__typename === "IssueFieldRemovedEvent" ? null : (node.newValue ?? node.value)), null);
 const DECISION = "**Decision recorded.**\n\nOption 1.";
@@ -168,8 +165,6 @@ const expectDispatched = (w) => {
     ["POST", `/repos/${REPO}/actions/workflows/intake-triage.yml/dispatches`, { ref: "main", inputs: { "issue-number": "42" } }],
   ]);
 };
-// The issue went back to triage: `labels` are left and the Work status field
-// reads needs-triage, with no needs-triage label added.
 const expectTriage = (w, labels, why) => {
   assert.deepEqual(w.labels(), labels, why);
   assert.equal(w.field(), "needs-triage", why);
@@ -367,8 +362,6 @@ test("a hand-confirmed issue stays put for a stranger's decision, needs-human, o
   ]) {
     const w = world({ labels, comments: [{ id: 1, user, body: DECISION }] });
     assert.equal(await run(w, 1), 0);
-    // With needs-info also on, the reply answers needs-info instead; the
-    // confirmed path leaves status: confirmed on either way.
     assert.ok(w.labels().includes("status: confirmed"), name);
     if (name !== "needs-info") {
       assert.deepEqual([...w.labels()].sort(), [...labels].sort(), name);
@@ -484,8 +477,6 @@ test("a run that loses the status label to another run dispatches nothing", asyn
   );
 });
 
-// The Work status field a trusted account set (read-status.mjs): with a status
-// label on the issue it only adds a hold; with none it decides; unset, the labels decide.
 const fieldEnv = { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), COMMENT_ID: "1", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), BASE_PATH: ROOT };
 const runWithField = (w, fields) => {
   const github = withFields(w.github, fields);
@@ -521,7 +512,6 @@ const runWithFieldEnv = (w, fields, env) => {
   return main({ github, log: () => {}, statusOf: statusReader({ github, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }), env: { ...fieldEnv, ...env } });
 };
 
-// A reply sets needs-triage, which would overwrite a hold only the field holds.
 test("a reply to a stale needs-info label leaves a person's field-only hold, and answers once no other hold stands", async () => {
   for (const state of ["needs-human", "needs-owner-decision", "needs-spec"]) {
     const w = world({ labels: ["needs-reporter-info"], author: AUTHOR, comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }] });
@@ -533,7 +523,6 @@ test("a reply to a stale needs-info label leaves a person's field-only hold, and
   expectTriage(answered, []);
 });
 
-// A Work status read that fails could hide a hold, so neither path writes.
 test("a failed Work status read lifts nothing on the comment path or the needs-human lift path", async () => {
   const reply = world({ labels: ["needs-reporter-info"], comments: [{ id: 1, user: OWNER, body: "It is the Windows host." }] });
   assert.equal(await runWithField(reply, { [NUMBER]: new Error("HTTP 502") }), 1);
@@ -588,8 +577,6 @@ test("the issue author's reply on a field-only needs-reporter-info hold re-enter
   assert.deepEqual(stranger.writes, [], "a stranger's reply answers nothing");
 });
 
-// work-unblock's Refs handoff, or any other removal, can leave an open issue
-// with no status label; a listed human's decision still sends it to intake.
 test("a listed human's decision on an issue with no status label sends it to triage once", async () => {
   const w = world({ labels: ["priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
   assert.equal(await run(w, 1), 0);
@@ -660,8 +647,6 @@ for (const [name, fail] of failures) {
   });
 }
 
-// No status to set back: the field stays at needs-triage, the claim a re-run
-// reads, and the triage sweep dispatches the issue.
 test("a failed dispatch on an issue with no status label leaves it at needs-triage for the triage sweep", async () => {
   const w = world({ labels: ["priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }], fail: `POST ${DISPATCH}` });
   assert.equal(await run(w, 1), 1);
@@ -716,8 +701,6 @@ test("the kill switch stops the run before any API call", async () => {
   assert.equal(calls, 0);
 });
 
-// A listed human lifting `needs-human` (an `issues: unlabeled` run) re-enters
-// intake with no comment. The newest unlabeled needs-human event names who.
 const lift = (actor, name = "needs-human") => ({ event: "unlabeled", actor, label: { name }, created_at: "2026-10-24T00:00:00Z" });
 const runLift = (w) => run(w, "", { EVENT_NAME: "issues", COMMENT_ID: "" });
 
@@ -749,8 +732,6 @@ test("a lift on a lanes App issue sends it back to triage", async () => {
   expectDispatched(w);
 });
 
-// A decision the needs-human hold kept from re-entering leaves the issue at
-// needs-owner-decision; the listed human's lift is the answer that sends it on.
 test("a listed human lifting needs-human re-enters an issue at needs-owner-decision", async () => {
   const w = world({ labels: ["needs-human", "priority: medium", "needs-owner-decision"], comments: [{ id: 1, user: OWNER, body: DECISION }], events: [lift(OWNER)] });
   assert.equal(await run(w, 1), 0);
@@ -779,8 +760,6 @@ test("a failed dispatch after a lift at needs-decision restores it, and a re-run
   assert.equal(w.dispatches().length, 2);
 });
 
-// The lift reads statusEvents: a listed human's change of the field away from
-// needs-human is their removal, newer than a stranger's label removal.
 test("a listed human's field change away from needs-human counts as the newest removal", async () => {
   const w = world({ labels: [], events: [lift(STRANGER)], fieldNodes: [fieldNode("IssueFieldAddedEvent", LANES_APP, { value: "needs-human" }), fieldNode("IssueFieldRemovedEvent", OWNER)] });
   assert.equal(await runLift(w), 0);
@@ -788,9 +767,6 @@ test("a listed human's field change away from needs-human counts as the newest r
   expectDispatched(w);
 });
 
-// The lanes App's unpark no longer starts this run (the triage sweep re-sends
-// an unparked issue): a status: confirmed removal changes nothing, even with a
-// listed human's older needs-human removal in the events.
 test("a status: confirmed removal changes nothing, whoever made it", async () => {
   const CONFIRMED = "status: confirmed";
   for (const actor of [LANES_APP, OWNER]) {
@@ -907,8 +883,6 @@ test("a status: confirmed removal starts no job, a bot's or a person's", () => {
   }
 });
 
-// A field-only needs-reporter-info hold has no label the gate can read, so the
-// issue author's comment starts the job; anyone else's plain comment does not.
 test("the issue author's comment starts the job with no status label", () => {
   const reply = (id) => reenterGate({ event: "issue_comment", comment: { type: "User", body: "Here is the log.", id }, labels: [], author: AUTHOR.id });
   assert.equal(reply(AUTHOR.id), true);
@@ -916,19 +890,13 @@ test("the issue author's comment starts the job with no status label", () => {
   assert.equal(reenterGate({ event: "issue_comment", comment: { type: "Bot", body: "Log.", id: AUTHOR.id }, labels: [], author: AUTHOR.id }), false, "a bot account");
 });
 
-// A Work status field change: a listed human releasing a hold that exists
-// only on the field (no status label) re-enters intake once. The field events
-// are the GraphQL ones; the run reads the live models.issue-status from this
-// checkout.
 const runField = (w, action, sender = OWNER) =>
   run(w, "", { EVENT_NAME: "issues", EVENT_ACTION: action, SENDER_ID: String(sender.id), COMMENT_ID: "", BASE_PATH: ROOT });
 const heldBy = (actor = LANES_APP, value = "needs-human") => fieldNode("IssueFieldAddedEvent", actor, { value });
 const changed = (actor, previousValue, newValue) => fieldNode("IssueFieldChangedEvent", actor, { previousValue, newValue });
 const removed = (actor, createdAt) => fieldNode("IssueFieldRemovedEvent", actor, createdAt ? { createdAt } : {});
 const fieldWrites = (w) => w.writes.filter(([, path]) => path === FIELD_WRITE);
-// The release records the job token left on the issue, by their first line.
 const records = (w) => w.comments().filter((c) => c.user.login === "github-actions[bot]").map((c) => c.body.split("\n")[0]);
-// The record's first line names the person whose event left the hold and that event's time.
 const OWNER_RELEASE = `<!-- intake-reenter:release ${OWNER.id} 2026-11-06T00:00:00Z -->`;
 
 test("a listed human moving a field-only hold to needs-triage records the release, writes no label or field, and dispatches once", async () => {
@@ -1109,8 +1077,6 @@ for (const [name, options, action, sender] of fieldQuiet) {
   });
 }
 
-// The unlabel path reads statusEvents, where the person's field removal of
-// needs-human is their removal; it writes the field and adds no claim label.
 test("a field change with no action reads as a label removal, whose history holds the person's field removal", async () => {
   const w = world({ labels: [], events: [], fieldNodes: [heldBy(), removed(OWNER)] });
   assert.equal(await run(w, "", { EVENT_NAME: "issues", COMMENT_ID: "", SENDER_ID: String(OWNER.id), BASE_PATH: ROOT }), 0);
@@ -1218,10 +1184,6 @@ test("a field release changes nothing while a renamed hold label stays on the is
   }
 });
 
-// /planning:wayfind and /work-items:decompose route an issue with a routing
-// label (the binding's container label, default `spec-container`, or a label
-// starting with its wayfind prefix, default `wayfind:`), and intake skips it
-// (check-born-triaged.mjs), so no answer, lift or release sends it to triage.
 const runRouted = (w, env, { log = () => {}, routing } = {}) =>
   main({
     github: w.github,

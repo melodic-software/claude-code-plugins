@@ -1,10 +1,10 @@
 ---
-description: "A finished draft brought to the start-here router is handed to the diagnose skill, which names one dominant problem, rather than a scenario menu"
+description: "A finished draft brought to the start-here router is handed to the revise skill, whose diagnose action names one dominant problem, rather than a scenario menu"
 tags: [songwriting, workflow, outcome, group-b]
 max_turns: 10
 timeout_seconds: 300
 allowed_tools: [Skill, Read, Glob, Grep]
-expected_outcome: "The workflow skill treats the pasted full draft as diagnosis and invokes /songwriting:diagnose through the Skill tool; the reply names the dominant problem in Pattison terms and does not show the scenario menu."
+expected_outcome: "The workflow skill treats the pasted full draft as diagnosis and invokes /songwriting:revise through the Skill tool; the reply names the dominant problem in Pattison terms and does not show the scenario menu."
 ---
 
 /songwriting:workflow I finished a full draft last night. Here it is, what's not working?

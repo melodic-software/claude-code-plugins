@@ -18,8 +18,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# An inherited GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) would point `git init` at the
-# caller's repository (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
@@ -42,8 +40,6 @@ MOD_PY = """# a comment
 x = 1
 """
 
-# Hash-comment-free: every prose line is a Python docstring (String.Doc). On a
-# census that only counts pygments Comment tokens this file reports 0.
 DOCSTRING_ONLY_PY = '''"""Module docstring the census must count."""
 
 def _watchdog_fire():
@@ -131,8 +127,6 @@ class PygmentsLayer(unittest.TestCase):
     def test_heredoc_bodies_and_param_expansion_are_not_comments(self):
         rep = self.report()
         sh = next(r for r in rep["files"] if r["path"].endswith("a.sh"))
-        # Lines 2, 7 are comments; the shebang is a directive; heredoc lines are data;
-        # ${v#prefix} is an expansion.
         self.assertEqual(sh["comment_lines"], 2, sh)
         self.assertGreater(sh["comment_bytes"], 0)
 
@@ -172,8 +166,6 @@ class PygmentsLayer(unittest.TestCase):
         py = next(
             r for r in self.report()["files"] if r["path"].endswith("docs_only.py")
         )
-        # Module docstring (1) plus the three-line function docstring. Ordinary
-        # String / String.Double / String.Single on later lines are not comments.
         self.assertEqual(py["comment_lines"], 4, py)
         self.assertGreater(py["comment_bytes"], 0)
 

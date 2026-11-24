@@ -140,11 +140,16 @@ line into the report. Tell the operator to save the report so the next run can d
 
 - Does not load, run or edit a mod, and does not change any setting or plugin.
 - Does not read the Desktop app's bundled install from the terminal.
-- Does not judge whether settings are correct; `/harness-config:audit` owns that.
+- Does not judge whether settings are correct; `/harness-config:audit` (if enabled) owns that.
 
 ## Next
 
 /harness-config:audit-permission-state to see which deny rules are in effect beside these mods.
+
+## Related
+
+- Built-in mod coverage via binary extraction: /harness-ops:inventory.
+- Settings correctness: /harness-config:audit.
 
 ## Gotchas
 

@@ -136,16 +136,16 @@ after a cancellation because the remaining work still looks long.
 
 ## Boundaries
 
-- **Not action-first formatting.** `/adhd:shape` shapes every response
+- **Not action-first formatting.** `/adhd:shape` (if enabled) shapes every response
   action-first and shows the user the whole list; this posture deliberately
   withholds the rest of the list.
-- **Not a message repair.** `/adhd:clarify` reshapes one dense message already
+- **Not a message repair.** `/adhd:clarify` (if enabled) reshapes one dense message already
   on screen. `/discipline:wait-what` re-pitches a message that did not land.
   Neither one phases the remaining work.
-- **Not a generated script.** `/wizard:generate` writes a bash script the human
+- **Not a generated script.** `/wizard:generate` (if enabled) writes a bash script the human
   runs alone, with no assistant in the loop. This posture keeps the assistant in
   the loop between every phase, which is what makes the per-phase check possible.
-- **Not stage routing.** `/session-flow:workflow` says which stage comes next;
+- **Not stage routing.** `/session-flow:workflow` (if enabled) says which stage comes next;
   it does not write the commands for that stage.
 - **Does not change what the work is.** Phasing is a delivery shape. It adds no
   steps, removes none, and reorders only where a dependency requires it.

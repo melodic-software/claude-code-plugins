@@ -165,6 +165,12 @@ Non-interactive contexts skip the offer and take the no-op branch. The fallback 
 
 Audit action output: table with `target`, `expected_yield_pct`, `classify` (SKIP/COMPRESS/UNCERTAIN), `reason`.
 
+## Related
+
+- In-page noise shapes rather than flavor: /docs-hygiene:audit-noise.
+- Replace recaps of another doc with citations: /docs-hygiene:extract-ssot.
+- Reshape prose for scanning human readers: /writing:be-concise.
+
 ## Gotchas
 
 - **Self-audit drifts toward expansion.** Run the semantic-diff dispatch as a separate fresh-context audit, never a self-audit by the model that produced the edits: self-audit re-adds words just removed ("preserve clarity"; an observed failure, see ## Sources). Prefer a cross-vendor advisor for that audit **when one is enabled and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository). For batch fan-out follow `context/fan-out-orchestration.md`: the main session dispatches separate compress + audit subagents and reconciles per finding, so every audit stays under its control rather than inside a compressor's context.

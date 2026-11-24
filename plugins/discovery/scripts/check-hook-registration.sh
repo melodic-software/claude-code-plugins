@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# check-hook-registration.sh
-# Read-only. Prints TSV rows `check<TAB>PASS|FAIL<TAB>detail` for node, the
-# WebFetch truncation hook's registration in hooks/hooks.json, and the hook's
-# answer to a sample truncated WebFetch result. Exits 1 when any row fails.
-# Installs nothing. Takes no arguments: the plugin root is always the one this
-# script ships in.
 set -uo pipefail
 
 HR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

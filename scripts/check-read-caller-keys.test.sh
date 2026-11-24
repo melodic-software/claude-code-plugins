@@ -250,7 +250,7 @@ run_case "a check-broker checkout of another repository fails" 1 \
 append_tip_job() {
   {
     printf '  check-broker:\n    permissions:\n      id-token: write\n    runs-on: ubuntu-24.04\n    steps:\n      - id: tip\n'
-    printf '        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@0123456789abcdef0123456789abcdef01234567\n        with:\n          branch: %s\n' "$1"
+    printf '        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main\n        with:\n          branch: %s\n' "$1"
     cat <<'EOF'
       - uses: actions/checkout@v7
         with:
@@ -278,8 +278,8 @@ run_case "a tip step on the PR head branch fails" 1 \
 run_case "a tip step running another action fails" 1 \
   "append_tip_job main && rewrite sed 's#/resolve-branch-tip@#/other-tip@#'" "$TIP_FAIL"
 
-run_case "a tip step pinned by tag fails" 1 \
-  "append_tip_job main && rewrite sed 's#@0123456789abcdef0123456789abcdef01234567#@v1#'" "$TIP_FAIL"
+run_case "a tip step at a tag fails" 1 \
+  "append_tip_job main && rewrite sed 's#resolve-branch-tip@main#resolve-branch-tip@v1#'" "$TIP_FAIL"
 
 run_case "a tip step reading another repository fails" 1 \
   "append_tip_job main && rewrite awk '{ print } NR == 23 { print \"          repository: other/repo\" }'" "$TIP_FAIL_25"

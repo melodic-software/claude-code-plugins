@@ -3,6 +3,12 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.10] - 2026-11-23
+
+### Changed
+
+- Before a configuration stage that a person would click through in a vendor dashboard, `/wizard:generate` checks the vendor's docs for a management API or CLI; when one exists, the wizard keeps only the token stage and the agent does the configuration afterwards as code.
+
 ## [0.10.9] - 2026-11-21
 
 ### Changed

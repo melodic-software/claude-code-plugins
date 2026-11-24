@@ -50,8 +50,7 @@ releases.
 
 What clears each dimension resolves down the same ladder as the discipline
 itself: what the consuming project declares wins; failing that, the contract
-`/discovery:research` states as mandatory disciplines, when the `discovery`
-plugin is enabled; failing both, the floor below. The floor is this skill's
+`/discovery:research` (if enabled) states as mandatory disciplines; failing both, the floor below. The floor is this skill's
 own baseline, deliberately lighter than a research pass's numbers, because it
 settles one claim mid-conversation:
 
@@ -119,9 +118,8 @@ yet settled is audited too, whether it is an option, verdict, default, or
 next step. Apply the contract in
 [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md):
 ground the affected code and its consumers or blast radius through
-`/discovery:explore`, and the authoritative sources the contract names
-through `/discovery:research`,
-when the `discovery` plugin is enabled; without it, do the same reads and
+`/discovery:explore` (if enabled), and the authoritative sources the contract names
+through `/discovery:research` (if enabled); without the `discovery` plugin, do the same reads and
 fetches inline. Report each as old → new → why when the evidence moved it,
 or unchanged with why, in one of the contract's three outcomes:
 `Basis: verified`, `Basis: judgment` (never on a consequential one), or
@@ -169,6 +167,11 @@ comment-hygiene tool fits those.
 
 When a claim needs a new multi-source research pass rather than a check of
 what the session already said.
+
+## Related
+
+- Ground local code and consumers for pending recommendations: /discovery:explore.
+- Run all core discipline correctors together: /discipline:sweep-all.
 
 ## Gotchas
 

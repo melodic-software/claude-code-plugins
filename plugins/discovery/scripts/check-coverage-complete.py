@@ -27,8 +27,6 @@ from pathlib import Path
 REQUIRED = ("#", "corpus item", "depth criterion", "done")
 MARKED = re.compile(r"^\[[xX]\]\s*$")
 UNMARKED = re.compile(r"^\[[ \t]*\]\s*$")
-# --help output: the module docstring verbatim (single source, like the shell
-# twin printing its own header), plus the caller-facing sections below it.
 USAGE = (
     __doc__
     + """
@@ -45,7 +43,6 @@ On status=incomplete each unmarked row is named on stderr.
 
 
 def cells(line: str) -> list[str]:
-    # A backslash-escaped pipe is CONTENT, not a delimiter.
     protected = line.replace("\\|", "\x1e")
     raw = protected.split("|")
     out: list[str] = []
@@ -68,8 +65,6 @@ def grade(ledger_path: Path) -> int:
     try:
         text = ledger_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        # Exit 2 matches the shell gate: unreadable / non-UTF-8 is ungradeable,
-        # not "incomplete" (exit 1 is reserved for a parsed ledger with unmarked rows).
         print(f"error: ledger unreadable: {ledger_path}: {exc}", file=sys.stderr)
         return 2
     if text == "":

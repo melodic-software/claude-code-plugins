@@ -59,8 +59,6 @@ class Python(unittest.TestCase):
         self.assertEqual(rows[0]["end"], 5)
 
     def test_long_commented_out_block_is_one_finding(self):
-        # Each two-line fragment of this block fails to parse on its own; only
-        # the whole run parses, so a merge cap would turn it into a false negative.
         src = (
             "x = 1\n"
             "# def old_path(a):\n"
@@ -152,8 +150,6 @@ class Toml(unittest.TestCase):
         self.assertEqual(rows[0]["end"], 4)
 
     def test_prose_vs_pair(self):
-        # The bare-word comment is the third case: TOML parses a lone key as an
-        # ERROR, so it must stay unflagged even though it is one token, not prose.
         src = (
             "# retries are capped at 3\n"
             "timeout = 30\n"

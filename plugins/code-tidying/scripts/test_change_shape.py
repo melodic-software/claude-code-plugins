@@ -40,8 +40,6 @@ def grammar_available(ext: str) -> bool:
 
 
 def powershell_available() -> bool:
-    # Not `!= 3`: a missing PowerShell host is exit 2, the same code a mapped
-    # extension never returns when the backend works.
     code, _, _ = run("$x = 1\n", "$x = 1\n", ".ps1")
     return code == 0
 
@@ -361,7 +359,6 @@ class PythonVerdicts(unittest.TestCase):
         self.assertIn('"retry_budget": "max_attempts"', out)
 
     def test_rename_that_misses_a_reference_is_code_changed(self):
-        # Only the declaration is renamed; the read in run() still says retry_budget.
         after = PY_BASE.replace("retry_budget = 3", "max_attempts = 3")
         code, out, _ = run(PY_BASE, after, ".py", "--json")
         self.assertEqual(code, 20, out)
@@ -385,8 +382,6 @@ class CSharpVerdicts(unittest.TestCase):
         self.assertEqual(code, 0, out)
 
     def test_xml_doc_deletion_is_comment_only_by_token_proof(self):
-        # The proof is about code tokens; exempting public XML docs is the
-        # skill's job (never touched), not the classifier's.
         after = CS_BASE.replace("/// <summary>Public doc.</summary>\n", "")
         code, out, _ = run(CS_BASE, after, ".cs")
         self.assertEqual(code, 0, out)
@@ -468,8 +463,6 @@ class PowerShellVerdicts(unittest.TestCase):
         self.assertEqual(code, 0, out)
 
     def test_help_block_deletion_is_comment_only(self):
-        # The proof is honest: comment-based help is an ordinary comment token.
-        # Protecting it is the skill's exempt-surfaces job, not the proof's.
         after = PS_BASE.replace("<#\n.SYNOPSIS\n    Emits a banner.\n#>\n", "")
         code, out, _ = run(PS_BASE, after, ".ps1")
         self.assertEqual(code, 0, out)
@@ -502,7 +495,6 @@ class PowerShellVerdicts(unittest.TestCase):
         self.assertEqual(code, 20, out)
 
     def test_function_rename_is_code_changed(self):
-        # A command name is `Generic`, a cross-file contract, never a rename.
         after = PS_BASE.replace("Get-Thing", "Get-Other")
         code, out, _ = run(PS_BASE, after, ".ps1")
         self.assertEqual(code, 20, out)
@@ -524,8 +516,6 @@ class PowerShellVerdicts(unittest.TestCase):
         self.assertEqual(code, 20, out)
 
     def test_statements_merging_behind_a_comment_deletion_is_code_changed(self):
-        # Deleting the comment also deletes the newline that separated two
-        # commands, so `Write-Output $a` swallows `$b` as an argument.
         before = "$a = 1\n$b = 2\nWrite-Output $a # c\n$b\n"
         after = "$a = 1\n$b = 2\nWrite-Output $a $b\n"
         code, out, _ = run(before, after, ".ps1")
@@ -573,8 +563,6 @@ class PowerShellRenames(unittest.TestCase):
         self.assertEqual(code, 20, out)
 
     def test_rename_onto_a_name_only_seen_inside_a_string_is_code_changed(self):
-        # `$new` appears nowhere but inside the string, so the collision is
-        # visible only because interpolated references are read out.
         src = '$old = 1\nWrite-Output "$new"\nWrite-Output $old\n'
         code, out, _ = run(src, self.bare_only(src), ".ps1")
         self.assertEqual(code, 20, out)
@@ -601,7 +589,6 @@ class PowerShellRenames(unittest.TestCase):
         self.assertIn("reserved variable", out)
 
     def test_case_only_respelling_is_not_a_rename(self):
-        # PowerShell variable names are case-insensitive, so nothing moved.
         src = "$Old = 1\nWrite-Output $Old\n"
         after = src.replace("$Old", "$old")
         code, out, _ = run(src, after, ".ps1", "--json")
@@ -666,8 +653,6 @@ class Degradation(unittest.TestCase):
         self.assertIn("--lang", err)
 
     def test_missing_powershell_host_is_exit_2_not_a_tacit_pass(self):
-        # Exit 2, the "unproven edit" code, never exit 3: exit 3 lets a coarser
-        # reading layer apply the deletion anyway.
         with tempfile.TemporaryDirectory() as tmp:
             b = Path(tmp, "a.ps1")
             a = Path(tmp, "b.ps1")

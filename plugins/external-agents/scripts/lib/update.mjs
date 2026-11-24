@@ -107,10 +107,21 @@ export function factsDir(ctx, record, version) {
   return dir;
 }
 
+const EXCERPT_CHARS = 200;
+const EMAIL = /[^\s@<>()"',;:]{1,64}@[^\s@<>()"',;:]{1,255}\.[A-Za-z]{2,63}/g;
+
+function excerpt(got) {
+  const text = oneLine((got.stderr.trim() ? got.stderr : got.stdout).replace(EMAIL, "<email>"));
+  return text.length > EXCERPT_CHARS ? `${text.slice(0, EXCERPT_CHARS - 3)}...` : text;
+}
+
 /** Runs one fact command and caches what it printed as <name>.txt; returns the text, or why it was skipped. */
 export function cacheFact(dir, name, args, ask) {
   const got = ask(args);
-  if (got.code !== 0) return { skipped: `${name}: ${args.join(" ")} exited ${got.code ?? reasonOf(got.error)}` };
+  if (got.code !== 0) {
+    const said = excerpt(got);
+    return { skipped: `${name}: ${args.join(" ")} exited ${got.code ?? reasonOf(got.error)}${said ? `: ${said}` : ""}` };
+  }
   const text = got.stdout.trim() ? got.stdout : got.stderr;
   if (!text.trim()) return { skipped: `${name}: ${args.join(" ")} printed nothing` };
   writeFileSync(join(dir, `${name}.txt`), text);

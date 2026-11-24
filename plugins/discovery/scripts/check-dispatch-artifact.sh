@@ -108,8 +108,6 @@
 set -uo pipefail
 
 usage() {
-  # Sentinel range (not fixed line numbers) so the printed usage never silently
-  # truncates when the header grows or shrinks on a future edit.
   sed -n '/^# Deterministic acceptance gate/,/^# Output/ s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
@@ -119,12 +117,6 @@ expect_sidecars=""
 newer_than=""
 expect_index=""
 
-# Resolve a path to its canonical directory plus its basename, so that two
-# spellings of one file compare equal. Deliberately not `realpath`, which is not
-# everywhere, and deliberately NOT resolving the basename itself — the question
-# is which file the payload named, not what a symlink points at. A path whose
-# directory does not exist is returned unchanged, which cannot match a real
-# index, and mismatch is the correct verdict for a pointer into nowhere.
 canonical() {
   local path="$1" dir base
   dir="$(dirname "$path")"
@@ -149,10 +141,6 @@ while [[ $# -gt 0 ]]; do
     ;;
   --index-name)
     require_opt_value check-dispatch-artifact.sh "$@"
-    # The name is not just echoed — its stem becomes the sidecar-matching
-    # pattern below, so it is constrained to characters that carry no meaning in
-    # an ERE. A name with a `.` or a `*` in its stem would silently widen that
-    # pattern and start counting files the run never wrote as sidecars.
     if [[ ! "$2" =~ ^[A-Za-z0-9_-]+\.md$ ]]; then
       echo "error: --index-name must be <NAME>.md with NAME in [A-Za-z0-9_-], got: $2" >&2
       exit 2
@@ -199,20 +187,12 @@ if [[ -z "$slice" ]]; then
   exit 2
 fi
 
-# No default. The two artifact families this gate serves differ only in this
-# name, so guessing one would grade a research slice against EXPLORE.md, find
-# nothing, and report `unusable` for a run that in fact succeeded — or, worse,
-# find an unrelated EXPLORE.md a prior exploration left in the same slice and
-# report a research dispatch that wrote nothing as usable.
 if [[ -z "$index_name" ]]; then
   echo "error: --index-name is required (EXPLORE.md or RESEARCH.md)" >&2
   exit 2
 fi
 sidecar_prefix="${index_name%.md}"
 
-# A trailing slash would turn `$slice/$index_name` into a double-slashed path in
-# every message this gate prints, and the printed path is what the parent acts
-# on. Strip it, while leaving a bare `/` intact.
 while [[ "$slice" == */ && "$slice" != "/" ]]; do
   slice="${slice%/}"
 done
@@ -222,21 +202,14 @@ if [[ ! -d "$slice" ]]; then
   exit 2
 fi
 
-# A baseline that is not there makes freshness ungradeable, and the parent asked
-# for it — so this is an envelope error (2), never a quiet downgrade to
-# `freshness=unchecked`. Downgrading would turn the check the caller requested
-# into one it only appeared to get.
 if [[ -n "$newer_than" && ! -e "$newer_than" ]]; then
   echo "error: --newer-than baseline does not exist: $newer_than" >&2
   exit 2
 fi
 
-# Reported in every verdict line, so an opt-in check that did not run says so
-# rather than looking like one that passed.
 freshness="unchecked"
 pointer="unchecked"
 
-# verdict <index> <sidecars> <missing> <status>
 verdict() {
   printf 'index=%s sidecars=%s missing=%s freshness=%s pointer=%s status=%s\n' \
     "$1" "$2" "$3" "$freshness" "$pointer" "$4"
@@ -256,31 +229,6 @@ if [[ ! -s "$index" ]]; then
   exit 1
 fi
 
-# A dispatched agent writes its index skeleton early with the marker in a
-# reserved slot and replaces it only in its final write, so an index whose slot
-# still holds it is a run that stopped short. Checked before the sidecar scan
-# so a bare skeleton reports this reason rather than "names no sidecar".
-#
-# The slot is the first non-blank line after the first level-1 title heading
-# (a line starting with one hash and a space), after dropping a UTF-8 BOM and
-# every CR, skipping leading YAML front matter, and ignoring heading-shaped
-# lines inside a code fence. Nothing else is read, so a restated task or quoted
-# source text carrying the marker's literal line is content, and an index with
-# no marker in its slot grades as before. The match tolerates case, spacing, a
-# tab, and `in-progress` / `in_progress`; words after the marker, or markdown
-# around it, make it prose.
-#
-# Front matter: line 1 `---` opens it only when a `---` or `...` closer exists
-# and every line between is YAML-shaped (blank, indented, a hash comment, a
-# list item, or a `key:` line). Otherwise line 1 is a horizontal rule and the
-# parse starts there. That needs a look ahead, so awk reads the file twice:
-# the first pass finds the closer, the second reads the slot.
-#
-# Fences follow CommonMark: an opener is three or more backticks or tildes
-# after at most three spaces; only a run of the SAME character, at least as
-# long and followed by nothing but whitespace, closes it.
-#
-# Plain awk (tolower, index, substr, match) so it runs in any POSIX awk.
 slot_state="$(awk '
   function norm(s) {
     sub(/\r+$/, "", s)
@@ -329,19 +277,6 @@ if [[ "$slot_state" == "in-progress" ]]; then
   exit 1
 fi
 
-# Sidecar references are harvested by filename pattern rather than by parsing
-# the index's section -> file table. The table's markdown shape is free to
-# change; the sidecar filename contract (`<PREFIX>-<section>.md`, a sibling of
-# the index) is the part the artifact-shape spoke pins down, so keying on it
-# keeps this gate from breaking on a formatting edit. The angle-bracketed
-# placeholder itself does not match, so an index that only ever wrote
-# `<PREFIX>-<section>.md` reads as naming no sidecar — which it does not.
-#
-# The prefix is interpolated into an ERE, which is safe because `--index-name`
-# already refused every character that would mean anything in one.
-#
-# Read with a while loop rather than `mapfile`, which is bash 4+ only; this
-# gate has to run wherever a consuming project's shell does.
 referenced=()
 while IFS= read -r name; do
   [[ -n "$name" ]] || continue
@@ -350,9 +285,6 @@ done < <(grep -oE "${sidecar_prefix}-[A-Za-z0-9._-]+\.md" "$index" | sort -u)
 
 if [[ ${#referenced[@]} -eq 0 ]]; then
   echo "unusable: index names no ${sidecar_prefix}-<section>.md sidecar: $index" >&2
-  # Through `verdict`, not a hand-rolled printf, so this failure path emits
-  # the `freshness=`/`pointer=` fields the header documents and a parent
-  # grepping the verdict line for them finds them here too.
   verdict "$index" 0 0 unusable
   exit 1
 fi
@@ -372,10 +304,6 @@ done
 count=${#referenced[@]}
 unusable=$((missing > 0 ? 1 : 0))
 
-# `-nt` compares mtimes without `stat`, whose flags differ across platforms. It
-# is strict, so an index written inside the filesystem's mtime granularity of
-# the baseline reads as stale — a false halt, which is the safe direction, and
-# not a realistic one for a run that reads a codebase first.
 if [[ -n "$newer_than" ]]; then
   if [[ "$index" -nt "$newer_than" ]]; then
     freshness="newer"
@@ -386,11 +314,6 @@ if [[ -n "$newer_than" ]]; then
   fi
 fi
 
-# Pointer agreement. The gate finds the index from the parent's own slice path,
-# so a payload whose `artifact:` names some OTHER file is not corroborating what
-# was graded — and its `verification_request.target` would aim the sibling
-# verifier at a file this gate never looked at. Disagreement is a defect in the
-# payload, not a naming preference to reconcile silently.
 if [[ -n "$expect_index" ]]; then
   if [[ "$(canonical "$expect_index")" == "$(canonical "$index")" ]]; then
     pointer="matches"
@@ -411,9 +334,6 @@ if [[ "$unusable" -ne 0 ]]; then
   exit 1
 fi
 
-# The index frontmatter's `verification:` value, or `unrecorded`. Informational:
-# it never changes the exit status. It is printed so a parent that stops at this
-# gate still sees an artifact whose sibling verifier has not run yet.
 verification="$(awk '
   BEGIN { bom = "\357\273\277" }
   { sub(/\r+$/, "") }
