@@ -1,6 +1,6 @@
 {
   "repository": "melodic-software/azure-iac",
-  "commit": "5ed895c6ef991e04d63b3f224e55d85724955f19",
+  "commit": "6bfa0f7bc50aac6f41baf5f5618dce929801955a",
   "loader": {
     "path": "src/lanes-token-broker/src/resolve-config-loader.mjs",
     "entry": "resolve.mjs",
@@ -8,15 +8,17 @@
     "packages": ["ajv", "yaml"],
     "dependency_files": ["package.json", "package-lock.json"]
   },
-  "fetch": {
-    "path": "scripts/deploy/fetch-resolve-config.sh",
-    "test_files": [
-      ".github/actions/resolve-config/lane-rules.json",
-      ".github/actions/resolve-config/effect-grants.json",
-      ".github/actions/resolve-config/activity-rules.json",
-      ".github/actions/resolve-config/fixtures/vocabulary.json",
-      "docs/conventions/pr-pipeline/pr-pipeline.schema.json"
-    ]
+  "tests": {
+    "path": "src/lanes-token-broker/test/helpers.mjs",
+    "served": {
+      "config": "src/lanes-token-broker/test/fixtures/pr-pipeline.yaml",
+      "schema": "src/lanes-token-broker/test/fixtures/resolve-config/test-data/pr-pipeline.schema.json",
+      "laneRules": "src/lanes-token-broker/test/fixtures/resolve-config/test-data/lane-rules.json",
+      "effectGrants": "src/lanes-token-broker/test/fixtures/resolve-config/test-data/effect-grants.json",
+      "activityRules": "src/lanes-token-broker/test/fixtures/resolve-config/test-data/activity-rules.json",
+      "vocabulary": "src/lanes-token-broker/test/fixtures/resolve-config/test-data/vocabulary.json",
+      "trustedActors": "src/lanes-token-broker/test/fixtures/trusted-actors.json"
+    }
   },
   "binding": {
     "path": "src/lanes-token-broker/src/binding.mjs",
@@ -28,15 +30,16 @@
       "activityRules": ".github/actions/resolve-config/activity-rules.json"
     },
     "standards_lists": {
-      "vocabulary": "components/github-actions-conventions/vocabulary.json",
-      "trustedActors": "components/trusted-actors/trusted-actors.json"
-    },
-    "test_data": {
-      "vocabulary": ".github/actions/resolve-config/fixtures/vocabulary.json"
+      "path": "src/lanes-token-broker/src/standards-lists.mjs",
+      "repository": "melodic-software/standards",
+      "files": {
+        "vocabulary": "components/github-actions-conventions/vocabulary.json",
+        "trustedActors": "components/trusted-actors/trusted-actors.json"
+      }
     }
   },
   "calls": {
-    "path": "src/lanes-token-broker/src/ports.mjs",
+    "path": "src/lanes-token-broker/src/resolve-config-loader.mjs",
     "exports": ["loadConfig", "resolveGrant"]
   }
 }
