@@ -29,7 +29,6 @@ SUT="$TMP/scripts/check-plugin-manifest-presence.sh"
 MARKETPLACE="$TMP/.claude-plugin/marketplace.json"
 
 make_plugin() {
-  # plugin name, manifest name (defaults to plugin name if omitted)
   local plugin="$1" manifest_name="${2:-$1}"
   mkdir -p "$TMP/plugins/$plugin/.claude-plugin"
   printf '{"name": "%s", "version": "0.1.0", "description": "fixture"}\n' "$manifest_name" \
@@ -37,7 +36,6 @@ make_plugin() {
 }
 
 write_marketplace() {
-  # one "name<TAB>source" pair per line on stdin
   {
     echo '{'
     echo '  "name": "fixture-marketplace",'
@@ -79,7 +77,7 @@ if [[ $rc -eq 1 ]] && grep -q 'MISSING MANIFEST' <<<"$out" && grep -q "'alpha'" 
 else
   fail "missing manifest should fail (rc=$rc): $out"
 fi
-make_plugin alpha # restore for the next case
+make_plugin alpha
 
 # --- 3. A whole plugin directory vanishing (not just the manifest). --------
 rm -rf "$TMP/plugins/beta"
@@ -90,7 +88,7 @@ if [[ $rc -eq 1 ]] && grep -q 'MISSING PLUGIN DIRECTORY' <<<"$out" && grep -q "'
 else
   fail "vanished plugin directory should fail (rc=$rc): $out"
 fi
-make_plugin beta # restore for the next case
+make_plugin beta
 
 # --- 4. Name/key mismatch: manifest exists but declares a different name. --
 make_plugin beta "not-beta"
@@ -101,7 +99,7 @@ if [[ $rc -eq 1 ]] && grep -q 'NAME MISMATCH' <<<"$out" && grep -q "'beta'" <<<"
 else
   fail "name mismatch should fail (rc=$rc): $out"
 fi
-make_plugin beta # restore ("beta" name again)
+make_plugin beta
 
 # --- 5. Malformed manifest: present but no readable "name" field. ----------
 mkdir -p "$TMP/plugins/beta/.claude-plugin"
@@ -113,7 +111,7 @@ if [[ $rc -eq 1 ]] && grep -q 'MALFORMED MANIFEST' <<<"$out"; then
 else
   fail "manifest without a name field should fail (rc=$rc): $out"
 fi
-make_plugin beta # restore
+make_plugin beta
 
 # --- 6. Inverse check: a plugin directory the catalog never registered. ----
 make_plugin gamma
@@ -138,7 +136,7 @@ if [[ $rc -eq 1 ]] && grep -q 'UNSAFE CATALOG SOURCE' <<<"$out" && grep -q 'evil
 else
   fail "path-escaping catalog source should fail (rc=$rc): $out"
 fi
-printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # restore
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
 
 # --- 6c. Equivalent spellings of the SAME registered directory must not be
 #     reported as unregistered. A trailing slash, a doubled slash and a "."
@@ -153,7 +151,7 @@ if [[ $rc -eq 0 ]]; then
 else
   fail "equivalent source spellings should pass (rc=$rc): $out"
 fi
-printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # restore
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
 
 # --- 6d. ...and canonicalization must not launder a traversal: dot segments
 #     and doubled slashes wrapped around a ".." still have to reach the
@@ -166,7 +164,7 @@ if [[ $rc -eq 1 ]] && grep -q 'UNSAFE CATALOG SOURCE' <<<"$out" && grep -q 'evil
 else
   fail "obfuscated path-escaping source should fail (rc=$rc): $out"
 fi
-printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # restore
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
 
 # --- 6e. A top-level bin/ with content fails (#5850); an empty one is a
 #     checkout leftover and passes; a bin/ nested deeper is not top-level.

@@ -20,8 +20,6 @@ SCRIPT="$SELF_DIR/check-plugin-imports.sh"
 f=""
 RULE='breaks the boundary rule "a plugin'"'"'s code never loads a file from a sibling plugin"'
 
-# tree <file> <content> [<file> <content>]...: a fresh fixture with beta's
-# library and the given files, all tracked, in $f.
 tree() {
   fixture_tree::build f --sut "$SCRIPT" --git --plugins --label plugin-imports || return 2
   mkdir -p "$f/plugins/beta/lib" "$f/docs"
@@ -34,7 +32,6 @@ tree() {
   git_test_config "$f" add -A >/dev/null
 }
 
-# run_check: sets RC, OUT and ERR for the check run in $f.
 run_check() {
   RC=0
   OUT="$(cd "$f" && bash scripts/check-plugin-imports.sh 2>"$f.err")" || RC=$?
@@ -42,7 +39,6 @@ run_check() {
   rm -f "$f.err"
 }
 
-# expect_pass <name>: the check exits 0 with its statement on stdout.
 expect_pass() {
   run_check
   if [[ $RC == 0 && $OUT == "No plugin loads a file from a sibling plugin"* && -z $ERR ]]; then
@@ -52,8 +48,6 @@ expect_pass() {
   fi
 }
 
-# expect_crossing <name> <path:line> <target>: the check exits 1, naming the
-# rule, the line and where it lands, on stderr only.
 expect_crossing() {
   run_check
   if [[ $RC == 1 && -z $OUT && $ERR == *"$2: $RULE"*"resolves to $3 in the beta plugin"* ]]; then
@@ -65,7 +59,6 @@ expect_crossing() {
 
 A=plugins/alpha/scripts
 
-# --- each load form that lands in a sibling plugin fails ----------------------
 tree "$A/a.sh" $'#!/usr/bin/env bash\nsource "$SCRIPT_DIR/../../beta/lib/x.sh"'
 expect_crossing "a source after \$SCRIPT_DIR into a sibling fails" "$A/a.sh:2" plugins/beta/lib/x.sh
 
@@ -140,10 +133,7 @@ tree "$A/a.ps1" $'. "$PSScriptRoot\\..\\..\\beta\\lib\\x.ps1"\n$p = Join-Path $P
 expect_crossing "a PowerShell dot-source with backslashes fails" "$A/a.ps1:1" plugins/beta/lib/x.ps1
 expect_crossing "a PowerShell Join-Path fails" "$A/a.ps1:2" plugins/beta/lib/y.ps1
 
-# --- shapes that are not crossings, each beside the same path as a load -------
-# Every pair holds the same path twice: the case passes only when the data line
-# is skipped and the load line is still caught.
-pair() { # <name> <file> <data line> <load line>
+pair() {
   tree "$2" "$3"
   expect_pass "$1: alone it passes"
   tree "$2" "$3"$'\n'"$4"

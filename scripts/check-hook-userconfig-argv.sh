@@ -136,7 +136,7 @@ for plugin in plugins/*/; do
     fi
     check_require_true "$manifest" "$manifest" .hooks
     ;;
-  *) ;; # null, absent, or unparsable manifest (manifest validity has its own gate)
+  *) ;;
   esac
 done
 

@@ -46,15 +46,9 @@ fi
 seal_dir="$(mktemp -d)"
 probe_out="$seal_dir/probe.out"
 trap 'rm -rf "$seal_dir"' EXIT
-# The probe's working directory sits 4 levels below seal_dir, so the ancestor rung's 4
-# parents are all inside seal_dir and none holds a repository.
 probe_cwd="$seal_dir/a/b/c/d"
 mkdir -p "$seal_dir/home" "$seal_dir/xdg" "$seal_dir/project" "$seal_dir/probe" "$probe_cwd"
 
-# Seal config/project env so probes never reach a maintainer fleet config or an
-# incidental project-scoped rung. No network, no gh, no discovery.
-# The probe also runs from a non-Git directory with no ghq and no ancestor holding
-# repositories, so the collector's no-scope ladder finds nothing either.
 script_abs="$(cd "$(dirname "$SCRIPT")" && pwd)/$(basename "$SCRIPT")"
 run_sealed() {
   (cd "$probe_cwd" && env -i \
@@ -91,15 +85,12 @@ classify_bare_positional() {
   fi
 }
 
-# argument-hint carries a bare positional form when it documents [<dir>], not
-# merely --root <dir> / --repo <dir> as flag values.
 argument_hint_has_bare() {
   local hint
   hint="$(grep -m1 -E '^argument-hint:' "$SKILL" || true)"
   [[ "$hint" == *'[<dir>]'* ]]
 }
 
-# Leading code span of each Input-resolution grammar bullet (structured surface).
 grammar_spans() {
   awk '
     /^## Input resolution/ { p = 1; next }
@@ -123,9 +114,6 @@ grammar_covers_token() {
   return 1
 }
 
-# No-scope probe: must stop non-zero with the remedy block, never a report.
-# Parse scope tokens from the script's own remedy (first field of each indented
-# form line), so the expected set tracks the script without a hand list.
 probe_no_scope_and_collect_tokens() {
   local tokens_file="$1" rc=0
   run_sealed || rc=$?
@@ -154,7 +142,6 @@ probe_no_scope_and_collect_tokens() {
   while IFS= read -r line; do
     case "$line" in
     '  <dir>'* | '  --'[a-z]*)
-      # First field; for "--root <dir>" keep only --root.
       # shellcheck disable=SC2086 # intentional word-split of the indented form line
       set -- $line
       printf '%s\n' "$1" >>"$tokens_file"
@@ -203,7 +190,6 @@ tokens_tmp="$seal_dir/tokens"
 probe_no_scope_and_collect_tokens "$tokens_tmp"
 
 while IFS= read -r token; do
-  # Bare <dir> is already asserted against the bare-positional probe above.
   [[ "$token" == '<dir>' ]] && continue
   if ! grammar_covers_token "$token"; then
     echo "MISSING GRAMMAR BULLET: remedy names $token but Input resolution has no matching bullet" >&2

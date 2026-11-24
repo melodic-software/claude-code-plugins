@@ -50,7 +50,6 @@ fi
 RULE="a plugin's code never loads a file from a sibling plugin"
 exceptions=scripts/plugin-imports-exceptions.txt
 
-# norm <dir> <rel>: sets REPLY to <dir>/<rel> with `.` and `..` segments folded.
 norm() {
   local rest="$1/$2/" p k=0
   local -a out=()
@@ -77,14 +76,12 @@ norm() {
   for ((p = 0; p < k; p++)); do REPLY+="${REPLY:+/}${out[p]}"; done
 }
 
-# up <n>: sets REPLY to n `..` segments joined by `/`.
 up() {
   local i
   REPLY=.
   for ((i = 0; i < $1; i++)); do REPLY+=/..; done
 }
 
-# The token after an anchor ends at whitespace, a quote, or a shell or code delimiter.
 path_chars='[^][:space:]"'"'"'`;)|&<>,}$]*'
 re_anchor='(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|\$\{[A-Za-z_][A-Za-z0-9_]*%/\*\}|\$\(dirname[^)]*\)|__dirname|import\.meta\.dirname)(/'"$path_chars"')'
 re_spec='(from|require\(|import\(|import)[[:space:]]*["'"'"'`](\.\.?/[^"'"'"'`]*)["'"'"'`]'
@@ -186,8 +183,6 @@ for _pd in plugins/*/; do
   plugin_dirs["${_pd%/}"]=1
 done
 
-# consider <file> <line no> <rel> [<base>]: records a crossing when <rel>, resolved
-# against <base> (default <file>'s directory), lands in another plugin's directory.
 consider() {
   local file="$1" n="$2" rel="$3" own sib
   [[ "$rel" == *..* || $# -gt 3 ]] || return 0
@@ -202,7 +197,6 @@ consider() {
   crossing_keys["$file $sib"]=1
 }
 
-# literals <text>: sets REPLY to the quoted literals in <text> joined by `/`.
 literals() {
   local text="$1"
   REPLY=.
@@ -226,7 +220,6 @@ scan_line() {
   *) [[ "$s" == \#* ]] && return 0 ;;
   esac
 
-  # Each form is tried only on a line holding its keyword: a regex match costs far more.
   rest="$line"
   while [[ "$rest" == */* && ("$rest" == *'$'* || "$rest" == *__dirname* || "$rest" == *import.meta.dirname*) ]] && [[ "$rest" =~ $re_anchor ]]; do
     whole="${BASH_REMATCH[0]}" rel="${BASH_REMATCH[2]}" name="${BASH_REMATCH[1]#\$}"

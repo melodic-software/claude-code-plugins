@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-skill-count-claims.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway plugins/ tree with
-# fixture plugins whose prose makes known-good and known-bad count claims, runs
-# the checker against it, and asserts on exit code + output. Mutates only its own
-# mktemp dir. The SUT resolves its paths relative to its own location, so the
-# fixture tree carries a copy of it.
-#
-# The load-bearing assertions are the NEGATIVE ones. A gate that only proves it
-# catches a wrong number is half a gate: this defect's failure mode in practice
-# is a detector so eager that contributors reword around it, so the cases
-# asserting that ordinary prose ("gate one skill", "nine skills moved into three
-# new plugins") does NOT flag matter as much as the ones asserting a drift does.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,7 +36,6 @@ run_rc() {
   printf '%d' "$?"
 }
 
-# alpha: 3 skills, every claim correct, in several grammars.
 make_skill alpha one
 make_skill alpha two
 make_skill alpha three
@@ -58,9 +44,6 @@ readme alpha \
   'Three skills, one concern: fixtures.' \
   'Only the first has prerequisites; the other two skills are zero-config.'
 
-# beta: 4 skills but the prose still says two, in both grammars. Also carries a
-# spelled claim inside the manifest description, which is where a plugin's count
-# is most often read and least often re-read.
 make_skill beta a
 make_skill beta b
 make_skill beta c
@@ -72,8 +55,6 @@ mkdir -p "$TMP/plugins/beta/.claude-plugin"
 printf '{\n  "description": "Toolkit of two skills: a, b."\n}\n' \
   >"$TMP/plugins/beta/.claude-plugin/plugin.json"
 
-# gamma: 2 skills, and prose that a naive number-and-the-word-skills detector
-# would flag but which asserts nothing about the plugin's size.
 make_skill gamma a
 make_skill gamma b
 readme gamma \
@@ -85,9 +66,6 @@ readme gamma \
   'The two skills this must not be confused with live elsewhere.' \
   'Emphasize deliberate practice: small tasks focused on 1-2 skills at a time.'
 
-# delta: a CHANGELOG whose historical count is deliberately wrong for today's
-# tree. Rewriting it would falsify the release it describes, so it is out of
-# scope by design and must not flag.
 make_skill delta a
 make_skill delta b
 make_skill delta c
@@ -95,41 +73,25 @@ readme delta 'Three skills, one concern: history.'
 printf '%s\n' '- The plugin now bundles two skills.' \
   >"$TMP/plugins/delta/CHANGELOG.md"
 
-# epsilon: a digit-form claim, wrong. Number words are the common form, but the
-# remediation must speak whichever notation the author used.
 make_skill epsilon a
 make_skill epsilon b
 readme epsilon 'A plugin bundling 5 skills for one job.'
 
-# zeta: a plugin whose LAST skill was removed, so skills/ is gone entirely, while
-# the README keeps its "One skill" line. Removal is the drift this gate most needs
-# to catch, and skipping a plugin with no skills/ directory reports it as success.
 mkdir -p "$TMP/plugins/zeta"
 readme zeta \
   'One skill, one job: being deleted.' \
   'Only the observer needs setup; the other three skills are zero-config.'
 
-# eta: a claim split by an ordinary markdown wrap. Reflowing a paragraph must not
-# be able to disable the gate for a claim it previously held.
 make_skill eta a
 make_skill eta b
-# The wrap must fall INSIDE the claim phrase, so neither line matches alone —
-# mirroring plugins/naming/README.md, where "One" ends one line and "skill, one
-# job" opens the next. A fixture whose second line still matches on its own would
-# pass even with line joining removed.
 readme eta \
   'A Claude Code plugin for evaluating wrapped prose. Two' \
   'skills, one concern: straddling a line break.'
 
-# theta: an all-caps claim. The cheap prefilter must not decide, ahead of the case
-# fold, which capitalizations the gate can see.
 make_skill theta a
 make_skill theta b
 readme theta '## IT SHIPS THREE SKILLS' 'Body text.'
 
-# iota: an ordinary correct claim with a blank line above it, and a heading above
-# that. Joining must not report the same claim twice — once at its own line and
-# again through the previous line's join — nor glue a heading to a claim.
 make_skill iota a
 make_skill iota b
 readme iota \
@@ -137,10 +99,6 @@ readme iota \
   '' \
   'Two skills, one concern: not being counted twice.'
 
-# kappa: one sentence satisfying TWO grammars at once — the verb form only across
-# the join ("It ships" + "two skills"), the appositive form on the second line
-# alone ("two skills, one concern"). A duplicate guard that only re-tests the
-# form that matched reports this single claim at both line numbers.
 make_skill kappa a
 make_skill kappa b
 readme kappa \
@@ -149,96 +107,78 @@ readme kappa \
 
 out="$(run)"
 
-# 1. Correct claims in several grammars are reported ok.
 if [[ "$(grep -c '^ok .*alpha' <<<"$out")" -eq 3 ]]; then
   ok "all three correct alpha claims verify"
 else
   fail "expected 3 ok rows for alpha: $out"
 fi
 
-# 2. The "other N skills" idiom is measured against total minus one.
 if grep -q 'alpha .*two -> two (total minus one)' <<<"$out"; then
   ok "other-N idiom resolves to total minus one"
 else
   fail "other-N idiom should compare against total-1: $out"
 fi
 
-# 3. A stale count flags, in prose and in the manifest alike.
 if [[ "$(grep -c '^MISMATCH.*beta' <<<"$out")" -eq 3 ]]; then
   ok "stale count flags in README prose and plugin manifest"
 else
   fail "expected 3 beta mismatches (2 README, 1 manifest): $out"
 fi
 
-# 4. Ordinary prose that merely mentions a number and skills does not flag.
 if ! grep -q 'gamma' <<<"$(grep '^MISMATCH' <<<"$out")"; then
   ok "non-claim prose does not flag"
 else
   fail "gamma prose should not produce any mismatch: $out"
 fi
 
-# 5. A definite-article reference is deliberately not a recognized form.
 if ! grep -q 'the two skills this must not' <<<"$out"; then
   ok "definite-article reference is not treated as a claim"
 else
   fail "'the two skills' should not be a recognized claim form: $out"
 fi
 
-# 6. CHANGELOG.md is out of scope: its historical count must not flag.
 if ! grep -q 'CHANGELOG' <<<"$out"; then
   ok "CHANGELOG.md is not scanned"
 else
   fail "CHANGELOG.md must be out of scope: $out"
 fi
 
-# 7. Digit-form claims are detected and answered in digits.
 if grep -qE 'MISMATCH.*epsilon .*5 -> 2$' <<<"$out"; then
   ok "digit-form claim flags and its remediation stays numeric"
 else
   fail "epsilon should flag as 5 -> 2 in digits: $out"
 fi
 
-# 7b. A plugin whose skills/ directory is gone is still scanned, with a count of
-#     zero — the stale-count-by-removal case.
 if grep -qE 'MISMATCH.*zeta/README.md:1 .*one -> zero' <<<"$out"; then
   ok "plugin with no skills/ directory is scanned as zero, not skipped"
 else
   fail "zeta should flag as one -> zero: $out"
 fi
 
-# 7c. A claim split across a markdown wrap is found, and reported at the line the
-#     claim begins on.
 if grep -qE '^ok .*eta/README.md:1 ' <<<"$out"; then
   ok "wrapped claim is found and anchored to its opening line"
 else
   fail "eta's wrapped claim should verify at line 1: $out"
 fi
 
-# 7d. An all-caps claim survives the prefilter.
 if grep -qE 'MISMATCH.*theta/README.md:1 .*three -> two' <<<"$out"; then
   ok "all-caps claim is not dropped by the prefilter"
 else
   fail "theta's SKILLS claim should flag as three -> two: $out"
 fi
 
-# 7e. Line joining must not double-report a claim, nor glue a heading to one.
 if [[ "$(grep -c 'iota/README.md' <<<"$out")" -eq 1 ]]; then
   ok "a claim adjacent to a blank line is reported exactly once"
 else
   fail "iota's claim should appear exactly once: $out"
 fi
 
-# 7f. A sentence matching two grammars across a wrap is still ONE claim.
 if [[ "$(grep -c 'kappa/README.md' <<<"$out")" -eq 1 ]]; then
   ok "a claim satisfying two forms across a wrap is reported once"
 else
   fail "kappa's claim should appear exactly once: $out"
 fi
 
-# 7g. The FAIL text for a zero-skill plugin on the minus-one basis must not
-#     contradict itself. `expected` is clamped at zero there, so reconstructing
-#     the real count as `expected + 1` reports "has one" directly above "should
-#     be zero".
 out_check="$(run --check)"
 if grep -q 'plugin zeta has zero' <<<"$out_check" &&
   grep -q 'the number should be zero' <<<"$out_check"; then
@@ -247,7 +187,6 @@ else
   fail "zeta's minus-one FAIL should say 'has zero' and 'should be zero': $out_check"
 fi
 
-# 8. --check fails while any mismatch stands.
 rc="$(run_rc --check)"
 if [[ "$rc" -eq 1 ]]; then
   ok "--check fails on a stale count"
@@ -255,7 +194,6 @@ else
   fail "--check should exit 1 with mismatches present (rc=$rc)"
 fi
 
-# 9. The failure message names the site and the correction in words.
 out="$(run --check)"
 if grep -q 'plugins/beta/README.md' <<<"$out" && grep -q 'Change it to "four"' <<<"$out"; then
   ok "failure names the site and the corrected spelled number"
@@ -263,7 +201,6 @@ else
   fail "failure should name site and corrected word: $out"
 fi
 
-# 10. An exemption suppresses a specific line, matched by substring.
 printf 'plugins/beta/README.md|It ships two skills\n' >"$EXEMPTIONS"
 out="$(run)"
 if grep -q '^exempt .*beta/README.md' <<<"$out" &&
@@ -273,7 +210,6 @@ else
   fail "exemption should suppress one beta line only: $out"
 fi
 
-# 11. A stale exemption is itself a failure, so the list can only shrink.
 printf 'plugins/beta/README.md|a sentence that is not there\n' >"$EXEMPTIONS"
 out="$(run --check)"
 if grep -q 'no longer produces a mismatch' <<<"$out"; then
@@ -287,8 +223,6 @@ else
   fail "expected the shared STALE BASELINE diagnostic: $out"
 fi
 
-# 11b. A final exemption row with no trailing newline is still loaded: dropping
-#      it would let the mismatch it excuses red-line a clean tree.
 printf 'plugins/beta/README.md|It ships two skills' >"$EXEMPTIONS"
 out="$(run --check)"
 if ! grep -q 'STALE BASELINE' <<<"$out"; then
@@ -297,7 +231,6 @@ else
   fail "unterminated final exemption row was dropped: $out"
 fi
 
-# 12. An exemption pointing at a deleted file fails with that reason named.
 printf 'plugins/omega/README.md|anything\n' >"$EXEMPTIONS"
 out="$(run --check)"
 if grep -q 'no longer exists' <<<"$out"; then
@@ -306,7 +239,6 @@ else
   fail "missing-file exemption should fail: $out"
 fi
 
-# 13. A malformed exemption is a usage error, not a silent pass.
 printf 'no-separator-here\n' >"$EXEMPTIONS"
 rc="$(run_rc --check)"
 if [[ "$rc" -eq 2 ]]; then
@@ -315,8 +247,6 @@ else
   fail "malformed exemption should exit 2 (rc=$rc)"
 fi
 
-# 14. A clean tree passes, and says how many claims it verified -- a gate that
-#     found zero claims and one that verified twenty must not report alike.
 : >"$EXEMPTIONS"
 rm -rf "$TMP/plugins/beta" "$TMP/plugins/epsilon" \
   "$TMP/plugins/zeta" "$TMP/plugins/theta"
@@ -328,7 +258,6 @@ else
   fail "clean tree should pass with a count (rc=$rc): $out"
 fi
 
-# 15. A tree with no claims at all says so rather than reporting success.
 fixture_tree::build CLEAN --sut "$SUT_SRC" --plugins
 mkdir -p "$CLEAN/plugins/solo/skills/only"
 printf -- '---\nname: only\n---\n' >"$CLEAN/plugins/solo/skills/only/SKILL.md"
@@ -341,7 +270,6 @@ else
 fi
 rm -rf "$CLEAN"
 
-# 16. Unknown mode is a usage error.
 rc="$(run_rc --bogus)"
 if [[ "$rc" -eq 2 ]]; then
   ok "unknown mode exits 2"

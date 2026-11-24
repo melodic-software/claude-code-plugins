@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for check-fleet-audit-doc-grammar.sh. Synthetic trees prove each
-# assertion and the inconclusive-probe guard; a historical extract of a6be07f9
-# proves the gate goes red on the docs-only silent revert.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,12 +15,10 @@ SCRIPT="$SELF_DIR/check-fleet-audit-doc-grammar.sh"
 # declaring the out-vars here is what tells it (SC2154) the names are written.
 repo="" hist=""
 
-# Minimal stub collector: classifies the bare-positional probe and the no-scope
-# probe from argv / emptiness without touching git or the network.
 write_stub_script() {
   local path="$1"
-  local bare_mode="$2"    # accept | reject | ignore | noise
-  local noscope_mode="$3" # remedy | report | noise | zero
+  local bare_mode="$2"
+  local noscope_mode="$3"
   cat >"$path" <<EOF
 #!/usr/bin/env bash
 set -uo pipefail
@@ -119,7 +114,7 @@ write_skill() {
   } >"$path"
 }
 
-mk_tree() { # <out-var>
+mk_tree() {
   fixture_tree::build "$1" --sut "$SCRIPT" --plugins || return 1
   mkdir -p "${!1}/plugins/repo-fleet-hygiene/skills/audit/scripts"
 }
@@ -129,7 +124,6 @@ run_check() {
   (cd "$repo" && bash scripts/check-fleet-audit-doc-grammar.sh --check)
 }
 
-# Aligned tree: bare accepted + hint + grammar bullets covering remedy tokens.
 mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
@@ -138,7 +132,6 @@ write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
 if run_check "$repo" >/dev/null; then ok "aligned skill+parser passes --check"; else fail "aligned tree wrongly flagged"; fi
 rm -rf "$repo"
 
-# Bare accepted but argument-hint omits [<dir>].
 mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
@@ -153,7 +146,6 @@ else
 fi
 rm -rf "$repo"
 
-# Bare accepted but Input-resolution grammar omits the <dir> bullet.
 mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
@@ -168,7 +160,6 @@ else
 fi
 rm -rf "$repo"
 
-# Remedy names --repo but skill omits that bullet.
 mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
@@ -183,7 +174,6 @@ else
 fi
 rm -rf "$repo"
 
-# Hint documents bare positional but parser rejects it.
 mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" reject remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
@@ -198,7 +188,6 @@ else
 fi
 rm -rf "$repo"
 
-# No-scope produces a report instead of a clean stop.
 mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept report
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
@@ -213,7 +202,6 @@ else
 fi
 rm -rf "$repo"
 
-# Inconclusive bare-positional probe → exit 2 (never a pass).
 mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" noise remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
@@ -228,7 +216,6 @@ else
 fi
 rm -rf "$repo"
 
-# Inconclusive no-scope probe → exit 2.
 mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept noise
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
@@ -243,8 +230,6 @@ else
 fi
 rm -rf "$repo"
 
-# Historical proof: a6be07f9's SKILL.md + audit-fleet.sh must go red,
-# naming the missing bare positional form.
 if changed_files::verify_base a6be07f9; then
   fixture_tree::build hist --sut "$SCRIPT"
   mkdir -p "$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/scripts"
@@ -269,13 +254,9 @@ if changed_files::verify_base a6be07f9; then
   fi
   rm -rf "$hist"
 else
-  # Historical proof-of-red must fail closed when the anchor is unavailable —
-  # scoring the skip as ok would let a shallow clone or rewritten history
-  # report green while proving nothing.
   fail "historical proof unavailable (a6be07f9 not in this clone)"
 fi
 
-# Live tree must pass.
 if (cd "$SELF_DIR/.." && bash scripts/check-fleet-audit-doc-grammar.sh --check) >/dev/null; then
   ok "repository skill+parser passes --check"
 else

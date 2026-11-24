@@ -31,7 +31,6 @@ fixture_tree::build scratch --label lane-coverage
 NONE="$scratch/no-optouts.txt"
 : >"$NONE"
 
-# Runs the gate and asserts exit code plus (optionally) a substring of output.
 expect() {
   local label="$1" want_rc="$2" want_text="$3"
   shift 3
@@ -48,8 +47,6 @@ expect() {
   ok "$label"
 }
 
-# A minimal but structurally faithful workflow: two lanes, an aggregate, and a
-# body shaped like the real file (comments, block scalars, nested `if:` keys).
 write_workflow() {
   local path="$1" extra_job_block="$2" needs_block="$3"
   cat >"$path" <<YAML
@@ -94,15 +91,6 @@ needs_of() {
   for n in "$@"; do printf '      - %s\n' "$n"; done
 }
 
-# The step-level shape: a `lint` job whose lanes are `continue-on-error` steps,
-# with an aggregator feed reading their outcomes back out of a block scalar. The
-# caller supplies the steps and the feed rows so each case can break exactly one
-# side of the pairing. A `noop` lane rides along so `ci-status.needs` is never
-# empty, which is its own exit-2 shape.
-#
-# An annotation on `lint` also takes `lint` OUT of needs, because an annotated
-# job that IS in needs is a stale opt-out — a different defect from the one such
-# a fixture is built to exercise.
 write_step_workflow() {
   local path="$1" steps_block="$2" feed_block="$3" job_annotation="${4:-}"
   local needs_rows='      - noop'
@@ -141,10 +129,6 @@ ${needs_rows}
 YAML
 }
 
-# A steps block, from one `<kind>:<id>` spec per step:
-#   gate  — `continue-on-error: true` plus an id, the pairable shape
-#   plain — an id but no absorb flag, so the step fails its job on its own
-#   anon  — the absorb flag with no id, so nothing can read its outcome
 steps_of() {
   local spec kind id
   for spec in "$@"; do
@@ -185,14 +169,6 @@ write_workflow "$scratch/covered.yml" "" "$(needs_of alpha beta)"
 expect "every job in needs passes" 0 "all 2 lane(s) reachable" \
   --check "$scratch/covered.yml" ci-status "$NONE"
 
-# --- a lane that fans out across a matrix -----------------------------------
-#
-# Sharding a lane leaves the LANE LIST alone: the job key is unchanged, so one
-# `needs` entry still covers every leg. What is new is the `strategy:` block,
-# whose 6- and 8-space lines this structural parser must fall through rather
-# than read as job keys or as needs entries. It is pinned here because
-# check-lane-coverage.sh exits 2 on any shape it does not model, and an
-# inconclusive gate on the real pr-require-checks.yml would block every pull request.
 write_workflow "$scratch/sharded.yml" "  gamma:
     runs-on: ubuntu-24.04
     strategy:
@@ -222,7 +198,6 @@ expect "a literal matrix block parses too" 0 "all 3 lane(s) reachable" \
   --check "$scratch/sharded-static.yml" ci-status "$NONE"
 
 write_workflow "$scratch/optout.yml" "" "$(needs_of alpha)"
-# Annotate `beta` via the contiguous comment block immediately above its key.
 annotate_above() {
   local file="$1" job="$2" comment="$3"
   awk -v job="  ${job}:" -v c="$comment" '
@@ -250,7 +225,6 @@ annotate_above "$scratch/stale-optout.yml" beta "  # lane-coverage-ok: no longer
 expect "opt-out on a job that IS in needs fails as stale" 1 "STALE OPT-OUT: job 'beta'" \
   --check "$scratch/stale-optout.yml" ci-status "$NONE"
 
-# An annotation separated from its job key by a blank line must NOT carry over.
 write_workflow "$scratch/detached-optout.yml" "" "$(needs_of alpha)"
 awk '
   $0 == "  beta:" { print "  # lane-coverage-ok: this comment is not contiguous"; print "" }
@@ -263,8 +237,6 @@ expect "non-contiguous annotation does not exempt the job" 1 "UNGATED LANE: job 
 write_workflow "$scratch/dangling.yml" "" "$(needs_of alpha beta gamma)"
 expect "needs entry with no defined job fails" 1 "DANGLING NEED" \
   --check "$scratch/dangling.yml" ci-status "$NONE"
-
-# --- unrecognized shapes must be inconclusive, never green ------------------
 
 write_workflow "$scratch/flow-needs.yml" "" "    needs: [alpha, beta]"
 expect "flow-sequence needs exits 2, not 0" 2 "not a block sequence" \
@@ -294,14 +266,6 @@ write_workflow "$scratch/missing-agg.yml" "" "$(needs_of alpha beta)"
 expect "unknown aggregate job exits 2" 2 "is not defined" \
   --check "$scratch/missing-agg.yml" no-such-job "$NONE"
 
-# --- STEP level: the gate set and the feed set must be equal ----------------
-#
-# A lane is a step
-# carrying `continue-on-error: true`; the flag absorbs its failure, so the only
-# thing that turns anything red is the aggregator reading `steps.<id>.outcome`
-# back. A gate the feed does not read is decoration, and the job-level check
-# above cannot see it, because the JOB is in `needs`.
-
 write_step_workflow "$scratch/steps-paired.yml" \
   "$(steps_of gate:shellcheck gate:typos)" "$(feed_of shellcheck typos)"
 expect "every gate step fed to the aggregator passes" 0 "all 2 gate step(s) fed" \
@@ -330,17 +294,12 @@ expect "a feed row for a step without continue-on-error fails" 1 \
   "does not carry 'continue-on-error: true'" \
   --check "$scratch/steps-feed-without-flag.yml" ci-status "$NONE"
 
-# The feed carries an override on a docs-only diff; the row still names exactly
-# one step, and that is the only part this gate reads. (Which overrides are
-# sanctioned is scripts/check-docs-only-gate.sh's question, not this one.)
 write_step_workflow "$scratch/steps-overridden-feed.yml" \
   "$(steps_of gate:shellcheck)" \
   "            shellcheck=\${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.shellcheck.outcome }}"
 expect "an overridden feed row still pairs with its gate step" 0 "all 1 gate step(s) fed" \
   --check "$scratch/steps-overridden-feed.yml" ci-status "$NONE"
 
-# Steps of a job that is itself an annotated opt-out cannot gate a merge
-# whatever they do, so the step-level check does not second-guess them.
 write_step_workflow "$scratch/steps-annotated-job.yml" \
   "$(steps_of gate:shellcheck gate:typos)" "$(feed_of shellcheck)" \
   "  # lane-coverage-ok: advisory lane, findings routed to code scanning
@@ -388,8 +347,6 @@ expect "an opt-out with no reason fails" 1 "BARE STEP OPT-OUT" \
   --check "$scratch/steps-optout.yml" ci-status \
   "$(optout_list "$scratch/ol-bare.txt" "lint/resolver")"
 
-# A whole-line comment is prose about the list. It never stands in as the reason
-# for the entry under it, so the reason cannot drift away from what it excuses.
 expect "a comment line above an entry is not its reason" 1 "BARE STEP OPT-OUT" \
   --check "$scratch/steps-optout.yml" ci-status \
   "$(optout_list "$scratch/ol-above.txt" "# resolver's own step, fails open by design" "lint/resolver")"
@@ -409,12 +366,6 @@ expect "an opt-out for a step that is not a gate fails as stale" 1 \
 expect "a malformed opt-out entry exits 2" 2 "malformed entry in" \
   --check "$scratch/steps-paired-again.yml" ci-status \
   "$(optout_list "$scratch/ol-malformed.txt" "lint:typos  the separator is a slash")"
-
-# --- ACROSS workflows: a check name another workflow also carries -----------
-#
-# The peer directory holds the workflow under test and its peers. A job id, a
-# literal `name:` and a reusable-workflow job (whose checks are `<job> /
-# <inner job>`, so never a plain twin) each take one case.
 
 peers="$scratch/peers"
 mkdir -p "$peers"
