@@ -43,8 +43,9 @@ for review, below), is the gate's `defer-minutes` when set, else github-token's 
 `defer-run-minutes`. `defer-run-minutes-pr-merge` is 6: the p90 of the 29 first-attempt pr-merge
 arm runs listed on 2026-11-20 is 327 s. `defer-run-minutes-review` is 8, for both hosted review
 callers' gates, under their p90 of 10.4 minutes (418 hosted review runs of 2 minutes or more, listed
-on 2026-11-21): replayed over the 48 busiest windows of 2026-11-22 to 2026-11-24, 8 started the
-most deferred reviews of the values tried while leaving no window newly at or under `stop-floor`. The github-token values are read from `resolved-config`'s `limits.api` (`pr-pipeline.yaml`) over `rate-limits.json`
+on 2026-11-21): replayed over the 48 busiest windows of 2026-11-22 to 2026-11-24, 8 is the shortest
+horizon that leaves every window not already at `stop-floor` at least one review's calls above it
+(130 left at the tightest; 7 leaves 102). The github-token values are read from `resolved-config`'s `limits.api` (`pr-pipeline.yaml`) over `rate-limits.json`
 (`defer-project` 0.3, `defer-run-minutes` 15: on the mean burn curve of the 16 windows that ran
 out between 2026-11-18 and 2026-11-20, at a median of minute 50, those values start deferring at
 about minute 23, and the mean curve of the 17 windows that did not run out never reaches them). `defer-project` 0
