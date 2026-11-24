@@ -213,54 +213,35 @@ import { branchActivity, LANES_APP_LOGIN as DEFAULT_BOT, laneChange, OUTSIDE_ACT
 import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
 const REASON = /^- Reason: `([a-z-]+)`$/m;
-// An outside actor's hold is a person's to lift: an item carrying the
-// security-outside-actor label keeps its needs-human whatever else cleared.
 const outsideActorHeld = (labels) => (labels ?? []).some((item) => same(item?.name, OUTSIDE_ACTOR));
 const OUTSIDE_ACTOR_KEPT = `it carries ${OUTSIDE_ACTOR}, which a person lifts`;
 const CREDENTIAL_KEPT = "pr-verify holds it for a credential, which a person lifts";
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
-// babysit_merge.py's verifier-refusal escalation, reasons comment, shared-copy
-// escalation and Dependabot-major escalation: the marker on the first or
-// second line, the next line naming `at head `<sha>``.
 const PR_MERGE_MARKERS = Object.freeze([
   "<!-- babysit-merge-verify-escalation -->",
   "<!-- babysit-merge-risk -->",
   "<!-- babysit-merge-shared-copy-escalation -->",
   "<!-- babysit-merge-dependabot-major -->",
 ]);
-// The work-items escalation line pr-merge writes above a marker: pr-merge's
-// own, so it neither unpairs the comment nor counts as another lane's marker.
 const PR_MERGE_ESCALATION = "<!-- work-items:escalation lane=pr-merge kind=escalated -->";
 const prMergeLine = (line) => PR_MERGE_MARKERS.includes(line) || line === PR_MERGE_ESCALATION;
 const AT_HEAD = / at head `([^`]*)`/g;
 const HEAD_MOVED = "head-moved";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-// report-escalation.sh's fix-ci stops, each judged by ciPasses. Not
-// ci-fix-protected-path or ci-fix-weaken-required: a session builder makes
-// their fix (needs-session), so an older human-gated label on them clears only
-// once the head's checks read failed, the lane's failing status holding it.
 const CI_FIX = Object.freeze(["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-escalated"]);
-// The only conclusions a check's latest run at the head may have for a ci-fix
-// stop to clear; action_required, stale, null and any other keep it.
 const PASSING = new Set(["success", "neutral", "skipped"]);
 // fix-ci's aggregate check, CI Status, with its ci-status alias: the
 // human-gated label itself fails both. Literals, since ci-status's sparse hold
 // config checkout holds only the modules this file loads.
 const AGGREGATE = "CI Status";
 const AGGREGATE_JOBS = new Set([AGGREGATE, "ci-status"]);
-// Check-run pages read at a head; a head with more stays unread.
 const CHECK_PAGES = 3;
 const SHA = /^[0-9a-f]{40}$/;
 // The compare API lists at most 300 files, the PR files API at most 3000.
 const COMPARE_CAP = 300;
 const FILES_CAP = 3000;
-// Each clear lets the lanes run on the PR again (judgment).
 export const CLEARS_PER_RUN = 5;
-// Each reader run takes up to enable-auto-merge's VERIFY_TIMEOUT_MS; the
-// step's timeout-minutes (pr-merge.yml) allows this many (judgment).
 export const NATIVE_READS_PER_RUN = 3;
-// A kept label is read again every run, so reads are capped, not just clears
-// (judgment: the same five; rotated reaches the rest on later runs).
 export const SESSION_CHECKS_PER_RUN = 5;
 const REFUSAL_CLEARED = "refusal-cleared";
 // The causes the lanes clear, by READER_HOLDS kind: the only recorded ones
@@ -288,15 +269,11 @@ export const LANE_CAUSES = Object.freeze({
   risk: Object.freeze(["files-incomplete", "evidence-unbound:", "manifest-review-required"]),
 });
 
-// Whether the `kind` reason (verifyHold's) names only causes the lanes clear:
-// each "; "-separated code on LANE_CAUSES[kind].
 function laneCause(kind, reason) {
   const codes = reason.slice(READER_HOLDS[kind].length, -1).split("; ").map((part) => part.split(": ")[0]);
   return codes.every((code) => LANE_CAUSES[kind].some((entry) => (entry.endsWith(":") ? code.startsWith(entry) : code === entry)));
 }
 
-// `head`'s check runs, CHECK_PAGES pages at most, or null when a page does
-// not read or the listing may be cut short.
 async function checkRuns(reader, repo, head) {
   const all = [];
   for (let page = 1; page <= CHECK_PAGES; page += 1) {
@@ -312,15 +289,8 @@ async function checkRuns(reader, repo, head) {
   return null;
 }
 
-// The workflow whose lanes ci-status aggregates. An advisory lane's failure
-// (pr-test-platforms) leaves ci-status green once the label is off, so only
-// this workflow's checks count.
 const REQUIRED_WORKFLOW = "pr-require-checks.yml";
 
-// Whether a lane check of a pr-require-checks run on the head (not ci-status)
-// failed. Every such run counts: a contract-only run posts its lanes skipped,
-// and failingChecks prefers a lane's real result over that skip. One read per
-// PR; a listing that fails, or may be cut short, reads as not failing.
 async function headFailing({ checks, repo, pull }) {
   try {
     const required = (await checks("GET", `/repos/${repo}/actions/workflows/${REQUIRED_WORKFLOW}/runs?head_sha=${pull.head.sha}&per_page=100`))?.workflow_runs;
@@ -339,25 +309,14 @@ async function headFailing({ checks, repo, pull }) {
 }
 
 const reasonOf = ({ body }) => REASON.exec(body.join("\n"))?.[1];
-// A comment's last write: its creation or its last edit, NaN when one does not parse.
 const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
   console.log(`::error title=clear-escalations::#${number}: ${escapeCommand(error?.message ?? error)}`);
 
-// The only escalations a lanes App push may lift with clean review lanes
-// (reviewLanesClean) in a person's place: the lane's own stops. Any other
-// escalation recorded against the label (a person-held path, a security
-// finding, a merge-risk hold, an owner reason, an unknown one) keeps it for a
-// person or a trusted push (owner direction on the security finding).
 export const LANE_ONLY = Object.freeze(["feedback-not-landed"]);
 const ANY_ESCALATION = "<!-- work-items:escalation";
 
-// The first escalation recorded against the label since it was last removed
-// (ever, when it never was) that is not on LANE_ONLY, or undefined: a
-// pr-unblock escalation's reason, or a pr-merge marker or another lane's
-// escalation line on a lanes App comment written or edited since then. A
-// reason that does not parse, or a time that does not parse, counts.
 function personEscalation({ appComments, lifted }) {
   return appComments
     .filter((item) => !(lastWrite(item) < lifted))
@@ -369,9 +328,6 @@ function personEscalation({ appComments, lifted }) {
     .find((reason) => !LANE_ONLY.includes(reason));
 }
 
-// Why each reason no longer holds at `pull`'s head, or { held } saying why it
-// still does. `moved` and `mainMerged` read with the job token (`reader`) and
-// answer null on any doubt, an unreadable read included.
 const CHECKS = Object.freeze({
   "workflow-staged": async (context) => {
     const { github, repo, pull, mainSha } = context;
@@ -382,8 +338,6 @@ const CHECKS = Object.freeze({
     if (listed && changed === undefined) {
       return `main changes nothing under .github/workflows/ since its merge base with ${pull.head.sha}`;
     }
-    // The merge the lane would not push is in place: a trusted push moved the
-    // head, and the head contains main as it was when the lane escalated.
     const moved = await context.moved();
     const merged = moved === null ? null : await context.mainMerged("workflow-staged");
     if (merged !== null) {
@@ -400,11 +354,6 @@ const CHECKS = Object.freeze({
       ? { held: "the pull request changes a protected path, or its file listing may be cut short" }
       : "the pull request changes nothing under .github/workflows/";
   },
-  // address-feedback's fix did not reach its resume key. Gone once the head
-  // is none of those keys, no review thread the lane replied to is open, and
-  // a trusted push moved the head or, when every escalation recorded against
-  // the label is on LANE_ONLY, both review lanes read it clean: a lanes App
-  // push alone must not clear its own stop.
   "feedback-not-landed": async (context) => {
     const head = context.pull.head.sha;
     if (context.keysOf("feedback-not-landed").includes(head)) {
@@ -417,8 +366,6 @@ const CHECKS = Object.freeze({
     if (open > 0) {
       return { held: `${open} unresolved review thread(s) carry a lanes App comment` };
     }
-    // The review threads before the job token's reads: a person's reply
-    // there keeps the label whatever the trusted move or the lanes answer.
     const speaker = await context.speaker();
     if (speaker !== undefined) {
       return { spoke: speaker };
@@ -436,14 +383,6 @@ const CHECKS = Object.freeze({
       ? { held: `a push no trusted person made moved the head; waiting for clean review lanes at ${head}` }
       : `the head moved off the resume key to ${head}, no review thread the lane replied to is unresolved, and ${clean}`;
   },
-  // A fix-ci reason escalation-routes.json now routes to a failing status
-  // rather than a person, on a label an older lane run set: once the head's
-  // checks read failed, so it stays red without the label. Otherwise a ci-fix
-  // stop still clears as ciPasses decides (a trusted push fixed it). Every
-  // other fail-routed reason but feedback-not-landed is a person's here: a
-  // lane posts a pr-unblock/* status on a head only when it stops there or
-  // clears its own failure (report-escalation.sh), so nothing on a new head
-  // proves its cause gone or fails that head in the label's place.
   ...Object.fromEntries(
     Object.keys(ROUTES)
       .filter((reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) === "fix-ci")
@@ -459,8 +398,6 @@ const CHECKS = Object.freeze({
   ),
 });
 
-// A ci-fix stop: the lane could not fix CI at its resume key. Gone once a
-// trusted push moved the head and checksHeld finds the new head's checks pass.
 async function ciPasses(context) {
   const moved = await context.moved();
   if (moved === null) {
@@ -470,11 +407,6 @@ async function ciPasses(context) {
   return held === null ? `${moved}, and no check other than ${AGGREGATE} fails, runs or was cancelled at it` : { held };
 }
 
-// Why `head`'s checks do not pass, or null when they do: no check fails, runs
-// or was cancelled (fix-ci's failingChecks over every run, so a later skip
-// hides no failure), each check's latest run ended in PASSING, and one passed.
-// CI Status and its ci-status alias are left out: the label fails them. `read` runs a read with a token
-// that holds checks: read and answers null when the read fails.
 async function checksHeld(read, repo, head) {
   const runs = await read((reader) => checkRuns(reader, repo, head));
   const others = (runs ?? []).filter((run) => !AGGREGATE_JOBS.has(run?.name));
@@ -496,12 +428,6 @@ async function checksHeld(read, repo, head) {
   return null;
 }
 
-// The review lanes reviewLanesClean reads, as pr-require-checks.yml's
-// `Require both review lanes on this head` step names them: the workflow, the
-// lane its completion record names, its status job's names (as pr-review-cli.yml
-// names it, under the caller's display name first; the lower-case caller is a
-// head tested before the rename, `Status` its Title Case job name and
-// `Publish Review` its planned one), and whether only a whole review counts.
 export const LANE_RECORDS = Object.freeze([
   {
     file: "pr-review-hosted.yml",
@@ -524,19 +450,12 @@ export const LANE_RECORDS = Object.freeze([
   },
 ]);
 const RECORD_TITLE = "claude-lane-review-complete";
-// A review's completion record (babysit_review_evidence.py RECORD_RE); a skip
-// record matches none of it, so it reviewed nothing here.
 const REVIEW_RECORD =
   /^claude-lane-review-complete lane=([\w-]+) sha=([0-9a-f]{40}) findings=\d{1,6} inline=\d{1,6} scope=(whole|incremental since=[0-9a-f]{40})(?: account=fallback)?$/;
-// The security lane's reviewed-head marker, the first line of the comment
-// that carries its summary, and the summary's and each inline comment's
-// severity lines (babysit_review_evidence.py MARKER_RE, SUMMARY_CRITICAL_RE,
-// SEVERITY_RE).
 const SECURITY_REVIEWED_HEAD = /^<!-- claude-lane-reviewed-head lane=claude-security-review sha=([0-9a-f]{40}) -->$/;
 const MARKER_AUTHOR = "github-actions[bot]";
 const CRITICAL_FINDINGS = /^\s*`?critical-findings: (\d{1,6})`?\s*$/gm;
 const newestById = (items) => items.reduce((newest, item) => (newest === undefined || item.id > newest.id ? item : newest), undefined);
-// The newest job named by the first of `names` any job carries.
 const newestNamed = (jobs, names) => names.map((name) => newestById(jobs.filter((item) => item?.name === name))).find((job) => job !== undefined);
 
 // Whether both review lanes read `pull`'s head clean: a description, or null
@@ -611,8 +530,6 @@ async function reviewLanesClean(context) {
   return "both review lanes completed a review of it, the security review whole with critical-findings: 0, and no unresolved review thread carries a CRITICAL or unreadable severity";
 }
 
-// main's tip when the newest `reason` escalation was written, when the head
-// contains it (the compare from it to the head is behind by none), or null.
 async function mainMergedAt({ read, repo, pull, escalations }, reason) {
   const times = escalations.filter((item) => reasonOf(item) === reason).map((item) => item.at);
   if (times.length === 0 || !times.every(Number.isFinite)) {
@@ -635,7 +552,6 @@ function mergeable(pull) {
     : { held: `GitHub reports mergeable ${pull.mergeable ?? "unknown"} (${pull.mergeable_state ?? "unknown"})` };
 }
 
-// Review-thread pages read for feedback-not-landed; a PR with more stays unread.
 const THREAD_PAGES = 10;
 const LANE_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -661,8 +577,6 @@ async function openLaneThreads({ threads, bot }) {
   return open === null ? null : open.filter((thread) => thread.comments.nodes.some((comment) => lane(comment?.author))).length;
 }
 
-// The unresolved review threads on `pull`, or null when a listing may be cut
-// short.
 async function unresolvedThreads({ github, repo, pull }) {
   const [owner, name] = repo.split("/");
   const open = [];
@@ -702,8 +616,6 @@ export const clearedComment = (reason, head, why, label) =>
     ? `${clearedMarker(reason, head)}\nThe pr-merge lane escalated this pull request, and its head has moved (\`${HEAD_MOVED}\`): ${why}. pr-merge removed \`${label}\` so it judges \`${head}\` afresh, and escalates again if its refusal still holds. ${keepNote(label)}`
     : `${clearedMarker(reason, head)}\nThe pr-unblock lane escalated this pull request as \`${reason.replaceAll(",", "`, `")}\`, and that no longer holds at \`${head}\`: ${why}. pr-merge removed \`${label}\`, so the lanes run on it again. ${keepNote(label)}`;
 
-// The newest lanes App comment carrying each pr-merge marker, with the head it
-// names: null when that line names none, or more than one, as 40-hex.
 function prMergeEscalations(appComments) {
   return PR_MERGE_MARKERS.flatMap((marker) => {
     const newest = appComments.filter((item) => lines(item.body).slice(0, 2).includes(marker)).at(-1);
@@ -716,10 +628,6 @@ function prMergeEscalations(appComments) {
   });
 }
 
-// enable-auto-merge's person refusal comment, when it is the only pr-merge
-// escalation in `merged`, names `head`, verifyHold wrote its reason, and
-// nothing edited it since (enable-auto-merge posts a person's anew):
-// { kind, reason }, kind a READER_HOLDS key.
 function nativeRefusal(appComments, merged, label, head) {
   if (merged.length !== 1 || merged[0].marker !== REFUSAL_MARKER || merged[0].head !== head) {
     return null;
@@ -733,12 +641,6 @@ function nativeRefusal(appComments, merged, label, head) {
   return kind !== undefined ? { kind, reason } : null;
 }
 
-// Whether the reader's `evidence` at `head` lifts the `kind` refusal, whose
-// recorded cause the caller has found the lanes' (laneCause): nothing
-// refuses, or what refuses now is the lanes' too and the reader got at least
-// as far as the recorded cause. It reads the link, then the verdict, then the
-// risk score (READER_HOLDS order), each only once the one before passes, so a
-// refusal that stops earlier hides the recorded cause.
 function liftsRefusal(kind, evidence, head) {
   const held = verifyHold(evidence, head);
   if (held === null) {
@@ -749,12 +651,6 @@ function liftsRefusal(kind, evidence, head) {
   return order.indexOf(now) >= order.indexOf(kind) && laneCause(now, held);
 }
 
-// Whether the lanes App comment written last at or before `since` that carries
-// any marker other than this script's own is pr-merge's alone, and was written
-// within PAIRED_MS of it (pr-merge writes its comment, then the label) or
-// carries pr-merge's escalation line, under which enable-auto-merge puts a
-// missing label back with no new comment. A comment's writes are its
-// creation and its last edit; a tie fails closed.
 function pairedWithPrMerge(appComments, since) {
   let newest = -Infinity;
   let ours = false;
@@ -773,45 +669,14 @@ function pairedWithPrMerge(appComments, since) {
   return ours && (since - newest <= PAIRED_MS || escalated);
 }
 
-// A STALE HOLD (staleHoldEvidence, which clear-escalations runs before the
-// App removes the label and ci-status runs again through recheckStaleHold).
-// The holds since the label was last removed no longer stand only when every
-// hold comment names a head (`sha=`), none names the current one, and at the
-// judged head (the current one; for ci-status, the head the App cleared):
-// - a trusted move took the branch off the newest held head: every push since
-//   the one that landed it is by a `human` of trusted-actors.json, never the
-//   lanes App;
-// - a push since each held head is not a merge, so an `Update branch` alone
-//   lifts nothing, and a critical-security hold's lane left at least one
-//   CRITICAL inline finding at its held head, each in a file a pushed commit
-//   changed and on lines changed since: a finding only the summary carried,
-//   or one whose lines no push touched, stays for a person;
-// - the head changes neither review caller (merge-holds laneChange), which a
-//   pull_request run takes from the head and so could forge its notices;
-// - both review lanes passed: each caller's newest pull_request run on the
-//   head, from this repository, has its status job succeeded, recording one
-//   review-complete notice for the lane and the head and no hold notice;
-// - every lane's review was whole, so a finding at an older head was looked
-//   at again, and none leaves a CRITICAL finding: the security lane's summary
-//   reads `critical-findings: 0`; a strict lane (the security lane, or one a
-//   hold names) counted every finding inline; and no unresolved thread a lane
-//   opened is at CRITICAL, or, for a strict lane, has no one readable
-//   `severity:` line. An IMPORTANT or SUGGESTION finding is reported and
-//   keeps nothing (docs/conventions/pr-pipeline/README.md).
-// A read that fails, or a listing that may be cut short, keeps the hold.
-
 export const STALE_HOLD = "stale-review-hold";
 const LANE_OF = Object.freeze(Object.fromEntries(LANE_RECORDS.map(({ file, lane }) => [file, lane])));
 const SECURITY_LANE = "claude-security-review";
-// The security lane's per-finding severity line (/review:security-review
-// "Reporting"; babysit_review_evidence's SEVERITY_RE); its summary line is
-// CRITICAL_FINDINGS.
 const SEVERITY = /^\s*`?severity: (CRITICAL|IMPORTANT|SUGGESTION)`?\s*$/gm;
 const HOLD_LANE = /^<!-- claude-lane-hold lane=([a-z-]+) /;
 const HOLD_CRITERIA = / criteria=([a-z,-]+) -->$/;
 // The most files GitHub lists for a commit; a listing that long may be cut short.
 const COMPARE_FILES = 300;
-// The most fix commits whose files a critical-security clear reads (judgment).
 const FIX_COMMITS = 20;
 const LANE_TAG = /^\s*`?claude-lane: ([\w-]+)`?\s*$/m;
 const REVIEW_THREAD_PAGES = 10;
@@ -826,10 +691,6 @@ const REVIEW_THREADS_QUERY = `query($owner: String!, $name: String!, $number: In
   }
 }`;
 
-// The review lane a review comment (GraphQL author) is from: a Claude App
-// comment's tag, ANY_LANE when it has none, or a github-actions comment's last
-// non-blank line as its footer (babysit_review_evidence._lane_comment); null
-// for any other comment.
 const ANY_LANE = "*";
 function commentLane(author, body) {
   if (author?.__typename !== "Bot") {
@@ -843,14 +704,8 @@ function commentLane(author, body) {
   return ["github-actions", "github-actions[bot]"].includes(author.login) ? (LANE_TAG.exec(last)?.[1] ?? null) : null;
 }
 
-// The most pages of a run's artifact listing read; a run with more is unread.
 const ARTIFACT_PAGES = 10;
 
-// lane-binding's checker for pull request `pr`: `read` (a createGitHub
-// client whose token holds actions: read) reads the run and its artifact
-// listing and the pull request, `download` an artifact's zip bytes.
-// `laneReads` ({ getPull, getRun, listArtifacts, download }) replaces those
-// reads.
 export function restLaneChecker({ read, download, repo, pr, laneReads }) {
   return laneChecker({
     pr,
@@ -899,8 +754,6 @@ const stdinText = async () => {
 };
 
 const LANE_HOLD_LINE = /(^|\n)<!-- claude-lane-hold lane=/;
-// Whether a REST issue comment is a github-actions[bot] review-lane hold
-// comment ending in a lane footer: the only comments filterLaneHolds checks.
 const footedHold = (comment) =>
   comment?.user?.login === "github-actions[bot]" && LANE_HOLD_LINE.test(String(comment.body ?? "")) && laneFooter(comment.body) !== null;
 
@@ -961,12 +814,6 @@ export async function filterLaneHolds({ env = process.env, input, write = (text)
   }
 }
 
-// Each review thread a review lane opened, as { lane, severity, resolved,
-// path, commit, lines } (its root comment's `severity:` values, the commit it
-// was made on and the [first, last] lines it names there, or null); null when
-// the listing does not read or may be cut short. A github-actions root comment
-// counts only when `check` finds it its lane's own, and is read through
-// withoutBinding; a check that fails to read throws.
 async function laneThreads({ github, repo, number, check }) {
   const [owner, name] = repo.split("/");
   const open = [];
@@ -1010,9 +857,6 @@ async function laneThreads({ github, repo, number, check }) {
   return null;
 }
 
-// One review caller's verdict at `head`, read with the job token: { findings,
-// inline, whole } from its review-complete notice, or { held } saying why it
-// has not passed there.
 async function laneReview({ checks, repo, head }, [file, names]) {
   const lane = LANE_OF[file];
   try {
@@ -1050,12 +894,6 @@ async function laneReview({ checks, repo, head }, [file, names]) {
   }
 }
 
-// Why a lane's review of `head` may leave a CRITICAL finding, or null when
-// none does. Every lane's review must be whole, so a finding at an older head
-// was looked at again. A lane is strict when it is the security lane or a hold
-// names it: every finding it counted must be inline, and an open thread of it
-// with no one readable `severity:` line counts as CRITICAL. Any lane's open
-// thread at CRITICAL counts.
 function findingsHeld({ head, timeline, threads }, reviews, heldLanes) {
   for (const review of reviews) {
     if (!review.whole) {
@@ -1134,7 +972,6 @@ export function holdsSince(timeline, lifted) {
   };
 }
 
-// A compare as { commits, files }, or null when its commits do not read whole.
 async function compareCommits(github, repo, from, to) {
   const compare = await github("GET", `/repos/${repo}/compare/${from}...${to}`);
   const commits = compare?.commits;
@@ -1167,12 +1004,6 @@ export function patchTouches(patch, [first, last]) {
   return false;
 }
 
-// Why the pushes from held head `held` to `head` fix nothing a hold could
-// name, or null. Only the pull request's own commits since `held` count (not
-// reachable from the base branch, so an `Update branch` brings in none), and
-// one of them must not be a merge. A critical-security hold's lane must have
-// left a CRITICAL inline finding at `held`, each in a file one of those
-// commits changed, on lines the diff from `held` changed. A listing that does not read whole keeps the hold.
 async function heldCauseUnchanged({ github, repo, base, head, threads }, held, critical) {
   const since = await compareCommits(github, repo, held, head);
   const own = await compareCommits(github, repo, base, head);
@@ -1245,7 +1076,6 @@ export async function staleHoldEvidence({ github, checks, reader, repo, number, 
   if (changed !== null) {
     return { reason: `the head's lane runs prove nothing: it changes ${changed}` };
   }
-  // The push that landed the newest held head anchors the trusted move.
   const ref = String(pull.head?.ref ?? "");
   let activity = null;
   if (reader !== null && ref !== "") {
@@ -1328,9 +1158,6 @@ export async function recheckStaleHold({ env = process.env, github, laneReads } 
       console.log(`stale-review-hold: no removal of ${label} since it went on is recorded`);
       return 1;
     }
-    // Judged as the App saw it: the timeline, review comments and reviews
-    // written up to the removal (an edit after it still counts), whose actor
-    // ci-status checked is the lanes App.
     const until = Math.min(...removed);
     const removal = timeline.find((item) => item.event === "unlabeled" && same(item.label?.name, label) && Date.parse(item.created_at) === until);
     const written = (item) => !(Date.parse(item?.created_at ?? item?.submitted_at ?? "") > until);
@@ -1358,11 +1185,8 @@ export async function recheckStaleHold({ env = process.env, github, laneReads } 
   }
 }
 
-// The accounts a review lane's hold step adds the label as.
 const LANE_LABELERS = Object.freeze(["github-actions[bot]", "claude[bot]"]);
 
-// Why check-signed-commits' or pr-verify's credential hold since `lifted`
-// keeps the label, or null.
 function commitHold(timeline, lifted) {
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return "check-signed-commits holds it: a lane commit could not be verified";
@@ -1370,8 +1194,6 @@ function commitHold(timeline, lifted) {
   return openCredentialHold(timeline, lifted) !== undefined ? CREDENTIAL_KEPT : null;
 }
 
-// Why `pull` is not an open pull request into main that carries `label` and
-// no outside actor's hold, or null.
 function notOpenHeld(pull, label) {
   if (pull?.state !== "open" || pull.base?.ref !== "main" || !SHA.test(String(pull.head?.sha))) {
     return "not an open pull request into main";
@@ -1382,10 +1204,6 @@ function notOpenHeld(pull, label) {
   return outsideActorHeld(pull.labels) ? OUTSIDE_ACTOR_KEPT : null;
 }
 
-// Why something besides the review-lane holds keeps the label, from the
-// timeline, or null: commitHold, a lanes App (`bot`) marker other than an
-// address-feedback round's or a clear's since the label went on, or a person
-// who spoke since. clear-escalations and ci-status's recheck both run it.
 function standingStop({ timeline, lifted, since, bot, label }) {
   const hold = commitHold(timeline, lifted);
   if (hold !== null) {
@@ -1400,8 +1218,6 @@ function standingStop({ timeline, lifted, since, bot, label }) {
   return speaker === undefined ? null : spokeReason(speaker, label);
 }
 
-// A label a review lane added: what to clear as STALE_HOLD, or { reason }
-// saying why nothing is.
 async function staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted, checkerFor }) {
   const stop = standingStop({ timeline, lifted, since, bot, label });
   if (stop !== null) {
@@ -1427,9 +1243,6 @@ async function staleReviewHold({ github, checks, repo, number, label, bot, timel
   };
 }
 
-// Why a stale-review-hold clear no longer stands at a fresh read of the head
-// and the timeline, or null: the head moved, or the hold comments since the
-// label was last removed are not the ones judged.
 async function staleHoldMoved({ github, repo, number, label, result, check }) {
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
   if (pull?.head?.sha !== result.head) {
@@ -1444,11 +1257,8 @@ async function staleHoldMoved({ github, repo, number, label, result, check }) {
   return holds.length !== result.holds || holds.some((sha) => sha === undefined || sha === result.head) ? "a review lane wrote a hold since it was judged" : null;
 }
 
-// What to clear on `number`, or { reason } saying why nothing is.
 async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted, checkerFor }) {
   const timeline = await laneTimeline(github, repo, number, checkerFor(number));
-  // A removal lifts a review lane's hold only when a person on the trusted
-  // list made it, as ci-status reads a lift; without that list none does.
   const { labeled, since, lifted, reviewLabeled } = labelHistory(timeline, label, trusted ?? new Set());
   if (LANE_LABELERS.some((login) => isApp(labeled?.actor, login))) {
     return staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted, checkerFor });
@@ -1456,8 +1266,6 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   if (!isApp(labeled?.actor, bot)) {
     return { reason: `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App` };
   }
-  // A comment's writes are its creation and its last edit; a tie, or a time
-  // that does not parse, keeps the label.
   const held = openReviewHold(timeline, lifted, reviewLabeled);
   if (held !== undefined) {
     return { reason: `a review lane holds it: ${holdText(held).slice(0, 120)}` };
@@ -1466,8 +1274,6 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   if (hold !== null) {
     return { reason: hold };
   }
-  // Every escalation since the label went on: a later one posts no new label
-  // event, so each reason it recorded must have cleared.
   const appComments = timeline.filter((item) => item.event === "commented" && isApp(item.user, bot));
   const escalations = escalationsSince(appComments, since);
   const merged = escalations.length === 0 && pairedWithPrMerge(appComments, since) ? prMergeEscalations(appComments) : [];
@@ -1482,13 +1288,6 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
       return { reason: `an escalation reason since the label (${decided ?? "none"}) is one a person decides` };
     }
   }
-  // The App also escalates for other lanes (a work-items:escalation from
-  // another lane, a pr-merge marker this script does not judge) without adding
-  // the label again. Any marker on an App comment written or edited since the
-  // label that is not the escalation being judged or this script's own keeps
-  // it, so a marker this script does not know fails closed.
-  // address-feedback's round record and model-run line, which it posts after
-  // a round it works on the escalated PR, are pr-unblock's own too.
   const known =
     merged.length > 0
       ? prMergeLine
@@ -1497,8 +1296,6 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   if (foreign !== undefined) {
     return { reason: `a lanes App comment since ${label} went on carries another marker: ${foreign.slice(0, 120)}` };
   }
-  // Only a person speaking keeps the label; an account GitHub marks Bot does
-  // not. An unknown author counts as a person.
   const speaker = personSince(timeline.flatMap(spoken), since);
   if (speaker !== undefined) {
     return { reason: spokeReason(speaker, label) };
@@ -1514,7 +1311,6 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     if (unread !== undefined) {
       return { reason: `the pr-merge comment carrying ${unread.marker} names no head this script can read` };
     }
-    // A refusal at an old head takes the head-moved path below.
     const native = lanePrs === "native" && isApp(pull.user, bot) ? nativeRefusal(appComments, merged, label, pull.head.sha) : null;
     // A person's recorded cause stays until a person removes the label or the
     // head moves (owner decision Q-CLEAR B): no reader answer lifts it.
@@ -1522,8 +1318,6 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
       return { reason: `enable-auto-merge's refusal at ${pull.head.sha} is one a person clears (${native.reason})` };
     }
     if (native !== null) {
-      // The review threads first: a person's reply there keeps the label
-      // whatever the reader answers, so it spends none of the run's reads.
       const speaker = await threadSpeaker(github, repo, number, since);
       if (speaker !== undefined) {
         return { reason: spokeReason(speaker, label) };
@@ -1555,8 +1349,6 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   } else {
     let red;
     const failing = () => (red ??= headFailing({ checks, repo, pull }));
-    // A job-token read that fails keeps the label and leaves the run green:
-    // it is retried on the next schedule.
     const read = async (fn) => {
       if (reader === null) {
         return null;
@@ -1593,7 +1385,6 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   return cleared(timeline, bot, since, reasons, pull.head.sha, why);
 }
 
-// The clear of `reasons` at `head`, and whether its comment is already posted.
 function cleared(timeline, bot, since, reasons, head, why) {
   const recorded = reasons.join(",");
   const marker = clearedMarker(recorded, head);
@@ -1605,8 +1396,6 @@ function cleared(timeline, bot, since, reasons, head, why) {
 
 const spokeReason = (speaker, label) => `${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on`;
 
-// `number`'s review comments written or edited after `since` and its reviews.
-// A failed read throws, which keeps the label.
 async function reviewActivity(github, repo, number, since) {
   const comments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`);
   const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
@@ -1640,23 +1429,12 @@ async function threadsSettled(github, repo, number, since, readAt, label) {
   return opened === undefined ? undefined : `a review thread was opened by ${opened.user?.login ?? "an account"} while its reads ran`;
 }
 
-// THE SESSION-BUILDER QUEUE LABEL. A fail-routed stop whose escalation-routes.json
-// entry names a `label` (needs-session) puts it on before its lane-stopped
-// comment, and report-escalation.sh `clear` posts success over the stop's
-// failing status when a same-head retry lands, which leaves the label on.
-// Every label the table names is a session label.
 export const SESSION_LABELS = Object.freeze([...new Set(Object.values(ROUTES).map((entry) => entry?.label).filter((label) => typeof label === "string"))]);
 const STOP_ACTIVITY = /^<!-- pr-unblock:lane-stopped activity=([a-z]+(?:-[a-z]+)*) -->$/;
 const STOP_HEAD = /^- Head: `([0-9a-f]{40})`$/m;
-// report-escalation.sh's status context for an activity.
 const stopContext = (activity) => (activity === "resolve-conflicts" ? "pr-unblock/conflict" : `pr-unblock/${activity}`);
 
-// A stop the new-head lift leaves on: the route marks a workflow or action
-// change beyond a full-SHA pin swap, which green checks do not judge, so only
-// its lane's own clear on the stop's head removes the label.
 const SAME_HEAD_ONLY = Object.freeze(["dependency-workflow-unpinned"]);
-// The newest status for `context` by github-actions[bot] in `statuses`
-// (newest first), or undefined.
 const laneStatus = (statuses, context) => statuses.find((status) => status?.context === context && status?.creator?.login === "github-actions[bot]");
 
 /**
@@ -1669,7 +1447,6 @@ const laneStatus = (statuses, context) => statuses.find((status) => status?.cont
  */
 export const MENDED_OUTPUT = "mended-heads";
 const VERIFIER_MENDS = Object.freeze(["feedback-disputed", "feedback-untaken-threads", "feedback-uncertain"]);
-/** babysit_verify_evidence.py PASSES. */
 const PASS_VERDICTS = Object.freeze(["pass", "pass-notes"]);
 const SESSION_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -1686,7 +1463,6 @@ const SESSION_THREADS_QUERY = `query($owner: String!, $name: String!, $number: I
   }
 }`;
 
-/** Every review thread on `number`, resolved or not, each with its root comment, or null when a listing may be cut short. */
 async function allThreads(github, repo, number) {
   const [owner, name] = repo.split("/");
   const all = [];
@@ -1833,7 +1609,6 @@ async function sessionVerdict({ github, checks, repo, number, label, bot, truste
   if (routed.length === 0) {
     return { reason: `no lane stop routed to ${label} since it went on` };
   }
-  // A read that fails keeps the label and leaves the run green.
   const guarded = async (fn) => {
     try {
       return await fn();
@@ -1897,17 +1672,12 @@ async function sessionVerdict({ github, checks, repo, number, label, bot, truste
   return { reason: null, why: why.join("; ") };
 }
 
-// The open pull requests carrying `label`.
 async function labeledPulls(github, repo, label) {
   return (await paginate(github, `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}`)).filter(
     (item) => item.pull_request && Number.isSafeInteger(item.number) && item.number > 0,
   );
 }
 
-// Takes each session label off where sessionVerdict finds its stop cleared,
-// reading at most SESSION_CHECKS_PER_RUN pull requests a label a run. No
-// comment: the label queues a session and holds nothing a person must see
-// lifted. The failures counted.
 async function clearSessionLabels({ github, checks, repo, bot, runNumber, trusted, verify, reads, mended }) {
   let failed = 0;
   for (const label of SESSION_LABELS) {
@@ -1938,11 +1708,6 @@ async function clearSessionLabels({ github, checks, repo, bot, runNumber, truste
   return failed;
 }
 
-// The ids whose push is a trusted move: every `human` of trusted-actors.json,
-// matched by id. Not the lanes App: every lane that sets check-trusted-trigger's
-// denied-actor-ids denies its sender id, and its own push must not clear its
-// own stop.
-// Null when the list does not read.
 function trustedIds(path) {
   try {
     return new Set(loadTrustedList(path).humans);
@@ -1967,8 +1732,6 @@ export async function main({ env = process.env, github, checks, verify, reader, 
     const client = (token) => createGitHub({ token, apiUrl: env.GITHUB_API_URL || undefined });
     github ??= client(env.GH_TOKEN);
     checks ??= client(env.CHECKS_TOKEN);
-    // The review lanes' runs and comment records, read with the job token
-    // (actions: read); one checker per pull request.
     const download = artifactDownload({ token: env.CHECKS_TOKEN, repo, apiUrl: env.GITHUB_API_URL || undefined });
     const checkers = new Map();
     const checkerFor = (number) => {
@@ -1979,9 +1742,6 @@ export async function main({ env = process.env, github, checks, verify, reader, 
     };
     verify ??= pythonVerify(env);
     const reads = { left: NATIVE_READS_PER_RUN };
-    // The job's own token reads branch activity, check runs and main's
-    // history; without it, or without the trusted list, no stop clears on a
-    // trusted move.
     reader = env.BABYSIT_VERIFY_GH_TOKEN ? (reader ?? client(env.BABYSIT_VERIFY_GH_TOKEN)) : null;
     const trusted = trustedIds(env.TRUSTED_ACTORS_PATH || trustedActorsPath());
     // MAIN_TIP_SHA is the step's git ls-remote of refs/heads/main.
@@ -2008,21 +1768,13 @@ export async function main({ env = process.env, github, checks, verify, reader, 
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;
         }
-        // The review threads again right before the removal, on every path,
-        // even when a check read them earlier (threadsSettled).
         const unsettled = await threadsSettled(github, repo, number, result.since, readAt, label);
         if (unsettled !== undefined) {
           console.log(`clear-escalations: #${number} kept: ${unsettled}`);
           continue;
         }
-        // A stale hold is judged again before the comment and again before
-        // the delete: a hold a lane wrote since (the label already on, so no
-        // labeled event) or a moved head keeps it, with no comment saying
-        // the label came off.
         const recheck = async () => (result.recorded === STALE_HOLD ? await staleHoldMoved({ github, repo, number, label, result, check: checkerFor(number) }) : null);
         let moved = await recheck();
-        // The comment first: a failed removal is retried by the next sweep,
-        // which finds the comment and posts no second one.
         const base = `/repos/${repo}/issues/${number}`;
         if (moved === null && !result.explained) {
           await github("POST", `${base}/comments`, { body: clearedComment(result.recorded, result.head, result.why, label) });
