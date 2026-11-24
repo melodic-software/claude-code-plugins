@@ -60,7 +60,6 @@ check_fail_closed "a file the parser rejects" \
 check_fail_closed "a tab inside a quoted step name, turned into a space," \
   $'pre_ready:\n  - step: "lint\\tx"\n    enabled: false\n' "unknown step 'lint x' in pre_ready"
 
-# The reader is at least as strict as schemas/source-control.schema.json.
 check_fail_closed "an item holding only unknown keys before an unknown step" \
   $'pre_ready:\n  - step: code-review\n    enabled: false\n  - note: x\n  - step: lint\n    enabled: false\n' "pre_ready item 1 has an unknown key 'note'"
 check_fail_closed "an empty flow-mapping item between two steps" \
@@ -77,7 +76,6 @@ check_fail_closed "a nested list item" \
   $'pre_ready:\n  -\n    - verify\n' "pre_ready item 0 is not a {step, enabled} mapping"
 check_fail_closed "a repeated pre_ready key" \
   $'pre_ready: []\npre_ready:\n  - step: verify\n    enabled: false\n' "pre_ready appears more than once"
-# The parser emits no record for an empty value or an empty item, so these are found in the text.
 check_fail_closed "an empty flow list as a value" \
   $'pre_ready:\n  - step: verify\n    enabled: false\n    why: []\n' "pre_ready item has a key with no value"
 check_fail_closed "an unknown key with an empty value" \
