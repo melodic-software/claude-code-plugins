@@ -5,6 +5,8 @@
 // instruction to commit; a merge-base skill runs on run-claude-cli alone.
 // test-scope: .github/actions/resolve-config/package.json .github/scripts/apply-patch/* plugins/skill-quality/*
 // test-scope: .github/scripts/*.mjs docs/conventions/pr-pipeline.yaml .github/workflows/pr-run-activity-write.yml
+// test-scope: .github/actions/resolve-config/* .github/scripts/intake-triage/* .github/scripts/pr-unblock/*
+// test-scope: .github/scripts/pr-verify/* .github/scripts/work-resolve-issue/package.json docs/upstream/*
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
