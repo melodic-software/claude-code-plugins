@@ -179,21 +179,22 @@ def powershell_leaves(record: dict) -> list[tuple[str, str]]:
     return out
 
 
-def powershell_comment_spans(text: str, record: dict) -> list[tuple[int, int]]:
-    """Character spans of the comments, from their 1-based line and column.
+def powershell_layout(record: dict) -> tuple[str, list[tuple[int, int]]]:
+    """The text pwsh parsed, with CRLF and CR as LF, and the comment spans in it.
 
-    `text` comes from read_text(), which turns every CRLF and CR into LF; the
-    body pwsh reports keeps them, so it is measured in the same form."""
-    starts = [0]
-    for line in text.split("\n"):
-        starts.append(starts[-1] + len(line) + 1)
-    spans = []
-    for line, _, column, body in record["comments"]:
-        start = starts[line - 1] + column - 1
-        spans.append(
-            (start, start + len(body.replace("\r\n", "\n").replace("\r", "\n")))
-        )
-    return spans
+    pwsh offsets count UTF-16 code units; `at` maps each unit to its index in
+    the returned text, so a non-BMP character or a CRLF does not shift a span."""
+    raw = record["text"]
+    out: list[str] = []
+    at: list[int] = []
+    for i, ch in enumerate(raw):
+        if ch == "\n" and raw[i - 1 : i] == "\r":
+            at.append(len(out) - 1)
+            continue
+        at.extend([len(out)] * (2 if ord(ch) > 0xFFFF else 1))
+        out.append("\n" if ch == "\r" else ch)
+    at.append(len(out))
+    return "".join(out), [(at[s], at[e]) for s, e in record["spans"]]
 
 
 def powershell_rename_defect(mapping: dict[str, str], reserved: set[str]) -> str | None:
@@ -578,12 +579,8 @@ def main(argv: list[str] | None = None) -> int:
             fold=str.lower,
         )
         if verdict == "COMMENT-ONLY":
-            texts = [p.read_text(encoding="utf-8-sig") for p in (args.before, args.after)]
             verdict, code, detail = layout_change(
-                texts[0],
-                powershell_comment_spans(texts[0], records[0]),
-                texts[1],
-                powershell_comment_spans(texts[1], records[1]),
+                *powershell_layout(records[0]), *powershell_layout(records[1])
             ) or (verdict, code, detail)
         if verdict == "RENAME-ONLY":
             reserved = {n.lower() for n in records[1]["reserved"]}

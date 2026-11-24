@@ -20,11 +20,15 @@ SCRIPT = Path(__file__).with_name("change-shape.py")
 
 
 def run(before: str, after: str, ext: str, *extra: str) -> tuple[int, str, str]:
+    return run_bytes(before.encode(), after.encode(), ext, *extra)
+
+
+def run_bytes(before: bytes, after: bytes, ext: str, *extra: str) -> tuple[int, str, str]:
     with tempfile.TemporaryDirectory() as tmp:
         b = Path(tmp, f"before{ext}")
         a = Path(tmp, f"after{ext}")
-        b.write_text(before)
-        a.write_text(after)
+        b.write_bytes(before)
+        a.write_bytes(after)
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), *extra, str(b), str(a)],
             capture_output=True,
@@ -567,6 +571,23 @@ class PowerShellVerdicts(unittest.TestCase):
     def test_crlf_multiline_block_comment_deletion_is_comment_only(self):
         before = "<#\r\nnote\r\n#>\r\n$x = 1\r\n"
         code, out, _ = run(before, "$x = 1\r\n", ".ps1")
+        self.assertEqual(code, 0, out)
+
+    def test_utf16_le_bom_comment_deletion_is_comment_only(self):
+        before = "\ufeff# note\r\n$x = 1\r\n".encode("utf-16-le")
+        after = "\ufeff$x = 1\r\n".encode("utf-16-le")
+        code, out, err = run_bytes(before, after, ".ps1")
+        self.assertEqual(code, 0, out + err)
+
+    def test_windows_1252_non_ascii_comment_deletion_is_comment_only(self):
+        before = "$s = 'caf\xe9' # note\r\n".encode("cp1252")
+        after = "$s = 'caf\xe9'\r\n".encode("cp1252")
+        code, out, err = run_bytes(before, after, ".ps1")
+        self.assertEqual(code, 0, out + err)
+
+    def test_trailing_comment_after_non_bmp_char_deletion_is_comment_only(self):
+        before = 'Write-Output "\U0001f600" # note\n$y = 2\n'
+        code, out, _ = run(before, 'Write-Output "\U0001f600"\n$y = 2\n', ".ps1")
         self.assertEqual(code, 0, out)
 
 
