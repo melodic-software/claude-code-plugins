@@ -1,5 +1,23 @@
 # Changelog: session-flow plugin
 
+## [9.22.10] - 2026-11-24
+
+### Fixed
+
+- `continue-in-background` reads an earlier handoff's section by name, following a section moved to the hop file.
+- `orient` resolves the handoffs directory from the save-point memory root, never Claude Code's auto-memory directory.
+- `find-handoff` treats a waiver in the request as no confirmation and still stops for the operator's yes.
+
+## [9.22.9] - 2026-11-24
+
+### Changed
+
+- the workflow continuation step reads its docs pointers through the shared docs cache
+
+  When the `discovery` plugin is not enabled, each Remote Control and cloud-session pointer is
+  fetched with `scripts/fetch-docs.sh --cache` per `reference/docs-lookup-procedure.md`, not
+  WebFetch.
+
 ## [9.22.8] - 2026-11-24
 
 ### Changed

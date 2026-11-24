@@ -370,7 +370,9 @@ If the audit finds no discrepancies, report a clean bill of health:
 
 Genre: reports. The report feeds a fix pass (`/implementation:implement` (if enabled)), so it offers a view and
 never builds one. The report stays the record; a view is a second presentation of it, never a
-place a finding first appears. In a session with no one reading, skip this section. When `medium`
+place a finding first appears. In a session with no one reading, skip this section. With a person
+reading, run the resolver below on every run, whatever the number of findings and whether or not
+the run has a `--medium` value, and print its report line and notices. When `medium`
 resolves to `terminal`, make no offer and print no unavailable line. Otherwise, with
 `visualization:visualize` installed, offer it in one line after the report, before any `--fix`
 handoff. Without that plugin, say in one line that the optional view is unavailable, and never

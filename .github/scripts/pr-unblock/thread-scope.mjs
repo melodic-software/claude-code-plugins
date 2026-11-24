@@ -34,8 +34,6 @@ export function isProtectedPath(path) {
   return /^\.github\/workflows(\/|$)/i.test(String(path));
 }
 
-// Submodule, code-owner, agent permission and package manifest files, each
-// matched as the whole last segment.
 const INSTRUCTION_PATH =
   /(^|\/)(\.gitmodules|codeowners|settings[^/]*\.json|package(-lock)?\.json|requirements[^/]*\.txt)$/i;
 export const isInstructionPath = (path) => INSTRUCTION_PATH.test(String(path));
@@ -46,25 +44,13 @@ const EVAL_PATH = /^plugins\/[^/]+\/(skills\/[^/]+\/)?evals\//;
 const TEST_FILE = /^(test_[^/]*\.py|[^/]*_test\.py|[^/]*\.(test|spec)\.[^/]+)$/;
 const dirOf = (path) => path.slice(0, path.lastIndexOf("/") + 1);
 
-// An empty, . or .. segment, so a leading or doubled / too.
 const BAD_SEGMENT = /(^|\/)\.{0,2}(\/|$)/;
-// ASCII letters, digits and _@+.- in /-separated segments: no backslash,
-// space, control or non-ASCII character.
 const PLAIN_PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
 const isPlainPath = (path) => PLAIN_PATH.test(path) && !BAD_SEGMENT.test(path);
 
-// Control-plane and agent-instruction surfaces outside plugins/<p>/: anything
-// under .github/ (which holds the pr-merge HIGH floor's trusted-actor list,
-// trusted-trigger check and resolve-config, and this pipeline's own scripts
-// and actions), CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, and a .claude or
-// .claude-plugin directory.
 const CONTROL_PATH = /^\.github\/|(^|\/)(CLAUDE\.md|AGENTS\.md|\.mcp\.json|\.lsp\.json)$|(^|\/)\.claude(-plugin)?\//i;
 const isControlPath = (path) => pluginOf(path) === undefined && CONTROL_PATH.test(path);
 
-// A path a pull request changes that a fix may also change: plain, in normal
-// form, and neither under .github/workflows/, an instruction path nor a
-// control-plane or agent-instruction surface outside plugins/. A thread on
-// such a path still reaches it through the thread's own scope.
 const prPathAllowed = (path) =>
   typeof path === "string" &&
   isPlainPath(path) &&

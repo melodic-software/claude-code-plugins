@@ -53,9 +53,6 @@ fi
 bytes=$(python3 -I "$chunking" parts "$DATA/diff" "$PART_BYTES" "$PART_LINES" --file-parts "$DATA/file-parts.txt" "${wrap[@]}")
 rm "$DATA/diff.patch"
 
-# Each manifest line, in file order, gains the part its file starts in, and
-# the list is cut into files one Read returns whole. Each line is shorter than
-# its file's lines in the diff, so the cap above never cuts the list.
 paths=0
 if [[ -f "$DATA/manifest.txt" ]]; then
   mkdir "$DATA/manifest"

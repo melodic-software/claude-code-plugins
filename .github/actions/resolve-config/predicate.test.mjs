@@ -39,7 +39,6 @@ test("paths-ignore drops matched paths, and one path must pass both lists", () =
   const run = (changedPaths) => applies(predicate, { changedPaths });
   assert.deepEqual(run(["docs/generated/api.md"]), { applies: false, skipReason: "not-applicable-paths" });
   assert.deepEqual(run(["docs/generated/api.md", "docs/guide.md"]), { applies: true, skipReason: null });
-  // A path outside paths does not rescue an ignored one.
   assert.deepEqual(run(["src/app.js", "docs/generated/api.md"]), { applies: false, skipReason: "not-applicable-paths" });
 });
 
@@ -77,7 +76,6 @@ test("an events miss gives not-applicable, and an unmapped event misses", () => 
   );
 });
 
-// No key reads a work class, so a class decides nothing.
 test("an issue with no work class and a structural one get the same answer", () => {
   const predicate = { events: ["labeled"], labels: ["agent-ready"], "labels-absent": ["needs-human"] };
   for (const labels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {

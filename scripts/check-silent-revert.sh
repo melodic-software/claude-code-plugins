@@ -358,6 +358,7 @@ WINDOW="${SILENT_REVERT_WINDOW:-40}"
 # worth quoting (a bare brace tells a reader nothing).
 SAMPLES="${SILENT_REVERT_SAMPLES:-5}"
 SAMPLE_MIN_LEN=25
+MOVED_LINE_MIN_LEN=25
 
 INCIDENTS_FILE="${SILENT_REVERT_INCIDENTS:-scripts/silent-revert-incidents.txt}"
 ACK_FILE="${SILENT_REVERT_ACK:-scripts/silent-revert-acknowledged.txt}"
@@ -798,13 +799,13 @@ attribute_file() {
         if (had_sha) re_added[key]++
       }
     }
-    /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; next } }
+    /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; ln = $3; next } }
     /^\t/ {
       if (sha == "") next
       text = substr($0, 2)
       key = sha_normalized(text)
       if (had_sha && re_added[key] > 0) { re_added[key]--; next }
-      printf "%s\t%s\n", sha, text
+      printf "%s\t%d\t%s\n", sha, ln, text
     }
   ' "$blame_out"
   rm -f "$blame_out" "$added_out"
@@ -827,6 +828,247 @@ run_attributing_git() {
   ((rc == 0)) || err="$(<"$err_file")"
   rm -f "$err_file"
   ((rc == 0)) || die "$what (exit $rc): ${err:-no stderr}"
+}
+
+discount_moved_lines() {
+  local parent="$1" sha="$2" attributed="$3" added kept headers blob fresh file
+  local -a files
+  [[ -s "$attributed" ]] || return 0
+  added="$(mktemp)" || die "mktemp failed"
+  kept="$(mktemp)" || die "mktemp failed"
+  headers="$(mktemp)" || die "mktemp failed"
+  blob="$(mktemp)" || die "mktemp failed"
+  fresh="$(mktemp)" || die "mktemp failed"
+  run_attributing_git "$added" \
+    "git diff failed listing the lines $sha added" \
+    -c core.quotePath=false -c diff.suppressBlankEmpty=false diff --no-ext-diff --no-textconv \
+    --no-relative --unified=100000000 --no-color --no-prefix --diff-algorithm=myers -M -l0 \
+    "$parent" "$sha" -- .
+  run_attributing_git "$blob" "git log failed listing the paths the window before $sha touched" \
+    -c core.quotePath=false log --first-parent --diff-merges=first-parent --no-show-signature \
+    --no-renames --format= --name-only -n "$WINDOW" "$parent"
+  run_attributing_git "$fresh" "git diff failed listing the paths $sha added" \
+    -c core.quotePath=false diff --no-relative --name-only --diff-filter=A -M -l0 "$parent" "$sha"
+  awk 'NR == FNR { touched[$0] = 1; next }
+    { base = tolower($0); sub(/.*\//, "", base) }
+    !($0 in touched) && ("/" $0 "/") !~ /\/\.changes\// &&
+      base !~ /^(changelog|history|changes|news|release-notes)/' \
+    "$blob" "$fresh" >"$kept" || die "awk failed listing the new paths $sha added"
+  mv -f "$kept" "$fresh" || die "could not record the new paths $sha added"
+  awk -F '\t' '!seen[$2]++ { print $2 }' "$attributed" >"$blob" ||
+    die "awk failed listing the files $sha deleted lines from"
+  mapfile -t files <"$blob"
+  for file in "${files[@]}"; do
+    run_attributing_git "$blob" "git cat-file failed reading $file at $parent" \
+      cat-file blob "$parent:$file"
+    LC_ALL=C awk -v f="$file" '
+      BEGIN { md = f ~ /\.md$/ }
+      /^[[:space:]]*$/ { start = 0; next }
+      {
+        if (!start) start = FNR
+        run_of[FNR] = start
+        run_end[start] = FNR
+        lines[++n] = FNR
+        match($0, /^[ \t]*/)
+        ind = RLENGTH
+        while (depth > 0 && indent[depth] >= ind) depth--
+        h = depth > 0 ? line[depth] : 0
+        if (h) has_child[h] = 1
+        lvl = 0
+        if (md) {
+          if (/^</) lt = 1
+          lt_at[FNR] = lt
+          match($0, /^ ? ? ?/)
+          rest = substr($0, RLENGTH + 1)
+          mark = ""
+          if (match(rest, /^(`+|~+)/)) mark = substr(rest, 1, RLENGTH)
+          if (fence) {
+            h = fence
+            if (mark == fence_mark && rest ~ /^(```|~~~)[ \t\r]*$/) fence = 0
+            else if (length(mark) >= 3) poison = 1
+          } else if (length(mark) >= 3) {
+            fence = FNR
+            fence_mark = mark
+            if (length(mark) > 3) poison = 1
+          } else if (/^#+([ \t\r]|$)/) { match($0, /^#+/); lvl = RLENGTH > 6 ? 0 : RLENGTH }
+          if (h == 0)
+            for (k = (lvl ? lvl - 1 : 6); k > 0; k--) if (at[k] > h) h = at[k]
+          if (lvl) at[lvl] = FNR
+        }
+        heading[FNR] = lvl > 0
+        up[FNR] = h
+        atx[FNR] = lvl > 0 || (h && atx[h])
+        bad[FNR] = md && (poison || !atx[FNR])
+        indent[++depth] = ind
+        line[depth] = FNR
+      }
+      END {
+        for (k = 1; k <= n; k++)
+          for (a = lines[k]; a; a = up[a]) last[a] = lines[k]
+        for (k = 1; k <= n; k++) {
+          ln = lines[k]
+          if (ln > reach) unit = ln
+          unit_of[ln] = unit
+          hi = run_end[run_of[ln]]
+          if (last[ln] > hi) hi = last[ln]
+          if (hi > reach) reach = hi
+        }
+        for (k = 1; k <= n; k++) {
+          ln = lines[k]
+          unit = unit_of[ln]
+          printf "%s\t%d\t%d\t%d\t%d\n", f, ln, unit, bad[ln],
+            (md ? heading[unit] && !lt_at[unit] : has_child[unit] + 0)
+        }
+      }
+    ' "$blob" >>"$headers" || die "awk failed reading the blocks of $file at $parent"
+  done
+  LC_ALL=C awk -v min="$MOVED_LINE_MIN_LEN" -v triple="'''" -v heredoc_re="<<-?[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*" '
+    function long_enough(line) {
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      return length(line) >= min
+    }
+    function blank(line) { return line ~ /^[[:space:]]*$/ }
+    function indent_of(line) { match(line, /^[ \t]*/); return RLENGTH }
+    function count(s, x,   n, k) {
+      while ((k = index(s, x)) > 0) { n++; s = substr(s, k + length(x)) }
+      return n + 0
+    }
+    function last_at(s, x,   at, k, off) {
+      while ((k = index(substr(s, off + 1), x)) > 0) { at = off + k; off = at }
+      return at + 0
+    }
+    function still_open(was, s, opener, closer,   o, c) {
+      o = last_at(s, opener)
+      c = last_at(s, closer)
+      return o > c ? 1 : c > o ? 0 : was
+    }
+    function scan(p,   i, t, l, low, word, dq, sq, comment, block, pre, fence, heredoc) {
+      scanned[p] = 1
+      low = 1e9
+      heredoc = ""
+      for (i = 1; i <= last_ln[p]; i++) {
+        t = new_text[p, i]
+        l = tolower(t)
+        if (heredoc != "") {
+          word = t
+          gsub(/^[ \t]+|[ \t\r]+$/, "", word)
+          if (word == heredoc) heredoc = ""
+        } else if (fence) {
+          if (t ~ /^[ \t]*(```|~~~)/) fence = 0
+        } else {
+          if (t ~ /^[ \t]*(```|~~~)/) fence = 1
+          dq = (dq + count(t, "\"\"\"")) % 2
+          sq = (sq + count(t, triple)) % 2
+          comment = still_open(comment, l, "<!--", "-->")
+          block = still_open(block, t, "/*", "*/")
+          pre = still_open(pre, l, "<pre", "</pre")
+          if (match(t, heredoc_re)) {
+            heredoc = substr(t, RSTART, RLENGTH)
+            sub(/^<<-?[ \t]*/, "", heredoc)
+            gsub(/[^A-Za-z0-9_]/, "", heredoc)
+          } else if (index(t, "<<")) heredoc = "\001"
+        }
+        if (t ~ /[:{][ \t\r]*$/ && indent_of(t) < low) low = indent_of(t)
+        wrapped_by[p, i] = dq || sq || comment || block || pre || fence || heredoc != ""
+        lowest_opener[p, i] = low
+      }
+    }
+    function placed(p, pos, f, u,   k, i, ind) {
+      ind = indent_of(deleted[f, member[f, u, 1]])
+      if (!(p in scanned)) scan(p)
+      if (pos > 1 && (wrapped_by[p, pos - 1] || (p !~ /\.md$/ && lowest_opener[p, pos - 1] < ind))) return 0
+      i = pos
+      for (k = 1; k <= size[f, u]; k++) {
+        while (i <= last_ln[p] && blank(new_text[p, i])) i++
+        if (i > last_ln[p] || !((p, i) in added) || ((p, i) in taken) ||
+          new_text[p, i] != deleted[f, member[f, u, k]]) return 0
+        slot[k] = i++
+      }
+      while (i <= last_ln[p] && blank(new_text[p, i])) i++
+      if (p !~ /\.md$/ && i <= last_ln[p] && indent_of(new_text[p, i]) > ind) return 0
+      for (k = 1; k <= size[f, u]; k++) taken[p, slot[k]] = 1
+      return 1
+    }
+    function unit_moved(f, u,   k, first, q, p, j) {
+      if ((f, u) in moved) return moved[f, u]
+      if (size[f, u] < 3 || !((f, u) in headed)) return moved[f, u] = 0
+      for (k = 1; k <= size[f, u]; k++)
+        if (!((f, member[f, u, k]) in deleted)) return moved[f, u] = 0
+      first = deleted[f, member[f, u, 1]]
+      for (q = 1; q <= path_count[first]; q++) {
+        p = paths[first, q]
+        if (p == f || !(p in fresh)) continue
+        for (j = 1; j <= at_count[p, first]; j++)
+          if (placed(p, at[p, first, j], f, u)) return moved[f, u] = 1
+      }
+      return moved[f, u] = 0
+    }
+    FILENAME == ARGV[1] {
+      if (/^diff --git /) { in_header = 1; path = ""; old = ""; next }
+      if (in_header) {
+        if (/^--- /) {
+          old = substr($0, 5)
+          sub(/\t$/, "", old)
+          if (old == "/dev/null" || substr(old, 1, 1) == "\"") old = ""
+        } else if (/^\+\+\+ /) {
+          path = substr($0, 5)
+          sub(/\t$/, "", path)
+          if (path == "/dev/null" || substr(path, 1, 1) == "\"") path = ""
+        } else if (/^@@ /) {
+          in_header = 0
+        }
+        if (!/^@@ /) next
+      }
+      if (/^@@ /) {
+        split($2, a, ",")
+        old_ln = substr(a[1], 2) + 0
+        split($3, a, ",")
+        new_ln = substr(a[1], 2) + 0
+        next
+      }
+      mark = substr($0, 1, 1)
+      text = substr($0, 2)
+      if (mark == "-") {
+        if (old != "") deleted[old, old_ln] = text
+        old_ln++
+        next
+      }
+      if (mark != " " && mark != "+") next
+      if (mark == " ") old_ln++
+      if (path != "") {
+        new_text[path, new_ln] = text
+        last_ln[path] = new_ln
+        if (mark == "+") {
+          added[path, new_ln] = 1
+          if (!((text, path) in seen)) { seen[text, path] = 1; paths[text, ++path_count[text]] = path }
+          at[path, text, ++at_count[path, text]] = new_ln
+        }
+      }
+      new_ln++
+      next
+    }
+    FILENAME == ARGV[2] {
+      split($0, h, "\t")
+      u = h[3] + 0
+      unit_of[h[1], h[2] + 0] = u
+      member[h[1], u, ++size[h[1], u]] = h[2] + 0
+      if (h[4] + 0) bad[h[1], h[2] + 0] = 1
+      if (h[5] + 0) headed[h[1], u] = 1
+      next
+    }
+    FILENAME == ARGV[3] { fresh[$0] = 1; next }
+    {
+      split($0, r, "\t")
+      file = r[2]
+      ln = r[3] + 0
+      text = substr($0, length(r[1]) + length(r[2]) + length(r[3]) + 4)
+      if (long_enough(text) && !((file, ln) in bad) && ((file, ln) in unit_of) &&
+        unit_moved(file, unit_of[file, ln])) next
+      printf "%s\t%s\t%s\n", r[1], file, text
+    }
+  ' "$added" "$headers" "$fresh" "$attributed" >"$kept" || die "awk failed discounting moved lines in $sha"
+  mv -f "$kept" "$attributed" || die "could not replace the attribution of $sha"
+  rm -f "$added" "$headers" "$blob" "$fresh"
 }
 
 # ---------------------------------------------------------------------------
@@ -948,6 +1190,7 @@ scan_commit() {
       "$file_attr" >>"$attributed"
   done <"$enum_list"
   rm -f "$file_attr" "$enum_list"
+  discount_moved_lines "$parent" "$sha" "$attributed"
 
   # Keep only lines whose culprit is inside the recency window.
   local in_window

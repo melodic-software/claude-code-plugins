@@ -1,0 +1,439 @@
+{
+  "jobs": [
+    {
+      "id": 138215374010,
+      "name": "Check Dispatcher Current",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:34Z"
+    },
+    {
+      "id": 138215609830,
+      "name": "Review Dependency Select",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:14Z"
+    },
+    {
+      "id": 138215611875,
+      "name": "Fix Test Scope Select",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215611917,
+      "name": "Address Feedback Select",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215611981,
+      "name": "Sync Shared Copies Select",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612141,
+      "name": "Resolve Conflicts Select",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612281,
+      "name": "Address Feedback",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612418,
+      "name": "Fix CI",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612491,
+      "name": "Fix CI Context",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612567,
+      "name": "Resolve Conflicts Not Run",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612583,
+      "name": "Fix CI Not Run",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612600,
+      "name": "Apply Shared Copies",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612684,
+      "name": "Sync Shared Copies Not Run",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612718,
+      "name": "Fix Test Scope Not Run",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612828,
+      "name": "Address Feedback Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215612950,
+      "name": "Resolve Conflicts",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215613274,
+      "name": "Fix CI Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215613290,
+      "name": "Address Feedback Not Run",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215613494,
+      "name": "Apply Test Scope",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215613547,
+      "name": "Address Feedback Subscription",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215613705,
+      "name": "Address Feedback Subscription Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215614079,
+      "name": "Resolve Conflicts Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215614099,
+      "name": "Fix CI Subscription Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215614294,
+      "name": "Resolve Conflicts Subscription Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215614308,
+      "name": "Fix CI Subscription",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215614696,
+      "name": "Resolve Conflicts Subscription",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215614905,
+      "name": "Resolve Conflicts Fallback",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215615028,
+      "name": "Address Feedback Fallback",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215615332,
+      "name": "Fix CI Fallback",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215615411,
+      "name": "Check Adjudicator Key Credit",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215615423,
+      "name": "Check Conflict Scan Refusal",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215615546,
+      "name": "Adjudicate Feedback",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215615565,
+      "name": "Apply Patch",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:57Z"
+    },
+    {
+      "id": 138215615802,
+      "name": "Apply Conflict Patch",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215615881,
+      "name": "Fix CI Rung Up",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215616257,
+      "name": "Apply Feedback Patch",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215616504,
+      "name": "Fix CI Rung Up Subscription",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215617089,
+      "name": "Fix CI Rung Up Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215617091,
+      "name": "Resolve Feedback Threads",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215617648,
+      "name": "Publish Feedback",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215617801,
+      "name": "Fix CI Rung Up Fallback",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215617902,
+      "name": "Fix CI Rung Up Subscription Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215618051,
+      "name": "Apply Patch Rung Up",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215618578,
+      "name": "Fix CI Unreported",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:22:58Z"
+    },
+    {
+      "id": 138215932406,
+      "name": "Review Dependency Not Run",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:24:32Z"
+    },
+    {
+      "id": 138215933697,
+      "name": "Review CDN Pins Sync",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215934139,
+      "name": "Apply Dependency Pin",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215934358,
+      "name": "Review Dependency Relock Patch",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215934360,
+      "name": "Review CDN Pins Sync Patch",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215934469,
+      "name": "Review Dependency Relock",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215934652,
+      "name": "Upload Key Credit Markers",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215934783,
+      "name": "Review Dependency",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215934860,
+      "name": "Review Dependency Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215934862,
+      "name": "Apply Dependency Relock",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215934912,
+      "name": "Review Dependency Subscription Handoff",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215935328,
+      "name": "Review Dependency Subscription",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215935878,
+      "name": "Apply CDN Pins Sync",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215936058,
+      "name": "Apply Dependency Patch",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215936365,
+      "name": "Review Dependency Fallback",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215937066,
+      "name": "Apply Dependency Verdict",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:48Z"
+    },
+    {
+      "id": 138215937169,
+      "name": "Report Stop Status",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:49Z"
+    },
+    {
+      "id": 138215938029,
+      "name": "Report Escalation",
+      "run_attempt": 1,
+      "run_id": 45325911125,
+      "started_at": "2026-11-24T04:23:49Z"
+    }
+  ],
+  "total_count": 62
+}

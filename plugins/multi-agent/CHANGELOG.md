@@ -3,6 +3,48 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.1] - 2026-11-24
+
+### Fixed
+
+- `vendor-state record` no longer fails with `ENOTEMPTY` when a concurrent record writes a trial into the key's trial folder while it is being removed. The folder is renamed to a unique name before removal, so the removal never walks a path a writer opens.
+
+## [3.8.0] - 2026-11-24
+
+### Added
+
+- `/multi-agent:audit-defaults registry` proposes promoting a shipped `support-only` benchmark row to `permanent` once it has passed every check (page read live, dated within 6 months, an error range stated, current models tested from every vendor its work types need) in at least 3 audits spanning at least 30 days, listing the audit dates as evidence. The promotion ships only through the existing reviewed apply step.
+- The registry judge returns closed `error_range` and `tests_required_vendors` fields (`yes`, `no` or `unclear`). Promotion reads `tests_required_vendors`. Demotion still reads only `tests_current_models`, so a row that tests current models from only some vendors is not demoted.
+- Each completed registry audit records its per-row check outcomes in this machine's plugin data directory (`registry-history/`) through `skills/audit-defaults/scripts/registry-history.mjs`, keeping only the records the promotion window needs plus a margin.
+- New settings `vendors.promotion_audits` (default 3) and `vendors.promotion_days` (default 30), resolved through the usual config layers.
+
+## [3.7.0] - 2026-11-24
+
+### Added
+
+- Nine `support-only` rows in `reference/benchmarks.json`, so every work type has candidate sources for a consensus once they pass longevity, accuracy and coverage: `vals-terminal-bench` and `arena-agent-code` (coding), `vals-vibe-code` and `designarena-code` (web-ui), `vals-finance-agent` and `arena-agent-work` (knowledge), `arena-text-to-image` and `designarena-image` (image), and `aa-intelligence-index` (coding, knowledge). `www.designarena.ai` joins the `registry-fetcher` gate and `workflows/registry-audit.js`.
+
+### Changed
+
+- The vendor-routing audit names the failing-test skill `/testing:fix-failing`.
+
+### Fixed
+
+- `/multi-agent:route vendors` counts a board record that names a model without the effort
+  suffix the vendor's current ids carry (a base name such as `gemini-4-neon` for
+  `gemini-4-neon-high`), canonicalized to `<model>-<record effort>` when that id exists, else to
+  the first such id the vendor lists; it no longer abstains for that vendor. A version or other
+  non-effort suffix still abstains.
+- Route's board fetch (`fetch-boards`) passes each registry row's `expect` marker and
+  `--render-fallback`, so a blocked or script-drawn board page renders through the Firecrawl CLI
+  when the docs-cache `renderer` is `firecrawl`, and a page without its marker is unread.
+
+- `vendor-decide` takes `--use <investigate|task>` (default `task`). With `investigate`, the
+  `--needs-tools` gate checks the vendor's `read_only_tools` from `external-agents models`,
+  falling back to `tools` when the entry has none, so a read-only brief no longer routes to a
+  vendor whose read-only mode refuses a tool it needs. The route skill passes the brief's use, and
+  a research or fact-check brief names `web` in `--needs-tools`.
+
 ## [3.6.5] - 2026-11-24
 
 ### Changed

@@ -1,10 +1,3 @@
-// sweep-summary.mjs: one pr-merge sweep's verdicts as data. Expected values
-// come from the request that the counts aggregate across PRs
-// (`in-flight:unverified-auto-merge:#8099` counts as
-// `in-flight:unverified-auto-merge`, `post-merge:failure:dispatch#...` as
-// `post-merge:failure`), the summary step's rules in pr-merge.yml (a missing
-// reason reads `not ready`; a blocker loses CR, LF and backticks and keeps 300
-// characters) and the row shapes the gate step writes; counts are by hand.
 import assert from "node:assert/strict";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -269,8 +262,6 @@ test("a gate that ended early on success is a budget stop naming where the next 
   });
 });
 
-// A row the skip step carried, as babysit_merge_skip.py writes it; the skip
-// step leaves only the gated candidates in candidates.json.
 const carried = (pr) =>
   row(pr, {
     exit: 10,
@@ -279,7 +270,6 @@ const carried = (pr) =>
   });
 
 test("skipped rows are neither reached nor missing from the listed count", () => {
-  // 10 listed, 6 skipped, the budget stopped after 1 of the 4 gated.
   const rows = [8801, 8802, 8803, 8804, 8805, 8806].map(carried);
   const out = summarize({
     ...meta,

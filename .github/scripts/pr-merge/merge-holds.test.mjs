@@ -31,9 +31,6 @@ const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const BASE = "89abcdef0123456789abcdef0123456789abcdef";
 const OLD = "fedcba9876543210fedcba9876543210fedcba98";
 const CHECKS = { "pr-review-hosted.yml": "PR Review / review-status", "pr-review-security-hosted.yml": "PR Review Security / review-status" };
-// A review lane's pull_request run on `sha`, started at `created`, whose
-// status job (or `job`) finished at `at` and recorded a hold notice naming
-// `notice`, with its head in `repo`.
 const laneRun = (sha, at = "2026-10-22T11:00:00Z", { criteria = "cost", lane = "pr-review-hosted.yml", job = CHECKS[lane], notice = sha, created = "2026-10-22T10:30:00Z", repo = REPO } = {}) => ({
   lane,
   repo,
@@ -43,34 +40,23 @@ const laneRun = (sha, at = "2026-10-22T11:00:00Z", { criteria = "cost", lane = "
   created,
   notes: [{ annotation_level: "notice", message: `claude-lane-hold lane=claude-review sha=${notice} criteria=${criteria} label=needs-human` }],
 });
-// The head branch's history as the repository activity API lists it, newest
-// first: a push of `after` at `timestamp`.
 const push = (after, timestamp) => ({ after, timestamp, activity_type: "push", ref: "refs/heads/fix/cost" });
 const newestFirst = (moves) => [...moves].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
-// By default each run's head was pushed five minutes before its first status
-// job finished.
 const pushesOf = (runs) =>
   newestFirst(
     Object.entries(
       runs.reduce((first, run) => ({ ...first, [run.sha]: Math.min(first[run.sha] ?? Infinity, Date.parse(run.at)) }), {}),
     ).map(([sha, at]) => push(sha, new Date(at - 300_000).toISOString())),
   );
-// A compare answer: the pull request's files against the base.
 const TF = { filename: "infra/main.tf", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
 const net = (...files) => ({ files });
-// A base commit a merge of the base names as its second parent.
 const MAIN = "5".repeat(40);
-// `answer` (a compare of base...sha) with the commits a history of base
-// merges lists unless it names its own: OLD alone for OLD, OLD and a merge
-// HEAD of the base for HEAD, the head alone for any other.
 const history = (sha, answer) => {
   if (answer === null || typeof answer !== "object" || "commits" in answer || !("files" in answer)) return answer;
   const commits = [{ sha: sha === HEAD ? OLD : sha, parents: [{ sha: MAIN }] }, ...(sha === HEAD ? [{ sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }] : [])];
   return { ...answer, commits, total_commits: commits.length };
 };
 
-// What a cost decision comment carries besides its first line: a row link
-// into the owner-decisions record and the owner's verbatim words.
 const ROW = "https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10";
 const PROOF = `\n\nRow: ${ROW}\nOwner, verbatim: "Approve it."`;
 const comment = (changes = {}) => ({
@@ -83,12 +69,6 @@ const comment = (changes = {}) => ({
   ...changes,
 });
 
-// A GitHub that answers the decision reads: the pull request's creation time
-// and closing issues, the linked issue (`target`), comment 7, and its edit
-// time; then the head reads: the review lanes' `runs` on the head branch (a
-// cost notice at HEAD by default), their jobs and annotations, and a
-// `compares` answer per head against `base` (a run's head answers net(TF)
-// unless given). `fail` names a read that throws.
 function world({
   row = comment(),
   closing = [{ number: 40, repository: { nameWithOwner: REPO } }],
@@ -120,8 +100,6 @@ function world({
       const link = activity.length > page * 100 ? `<https://api.github.com/repositories/1/activity?per_page=100&after=c${page + 1}>; rel="next"` : null;
       return Object.defineProperty(rows, Symbol.for("github.link"), { value: link });
     }
-    // The base branch resolves to TIP; a merged parent against it, of
-    // which MAIN is in the base.
     if (path.startsWith("/repos/owner/repo/git/ref/heads/")) {
       reads.push("ref");
       if (fail === "ref") throw new Error("ref failed");
@@ -165,8 +143,6 @@ function world({
       return runs[Number(notes[1]) - 1].notes;
     }
     if (compare) {
-      // Every compare, the lane-change vet's and the carry's, names the
-      // base's tip commit, never the branch.
       assert.equal(compare[1], TIP);
       if (!(compare[2] in answers)) {
         throw new Error("no such commit");
@@ -222,7 +198,6 @@ test("one on the pull request itself clears with no check against the pull reque
   const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
   const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: "2026-10-21T09:00:00Z", body: `**Decision recorded.** Cost: approve it.${PROOF}`});
   assert.equal((await decide(own, { row, closing: [], runs: [laneRun(HEAD, "2026-10-21T08:00:00Z", { created: "2026-10-21T07:50:00Z" })] })).link, own);
-  // With no time it decides no head, so it carries to none.
   assert.equal((await decide(own, { row: { ...row, created_at: null }, closing: [] })).link, null);
 });
 
@@ -243,7 +218,6 @@ test("with no closing issue, one on the issue the Refs line names counts the sam
   for (const body of [`Refs: #41\n\n${LINK}`, `Refs: #40\nRefs: #41\n\n${LINK}`, `Refs: #40, #41\n\n${LINK}`, `\`\`\`\nRefs: #40\n\`\`\`\n\n${LINK}`, `<!-- Refs: #40 -->\n\n${LINK}`]) {
     assert.equal((await decide(body, { closing: [] })).link, null, body);
   }
-  // A closing issue wins over the Refs line, as babysit's _linked_issue reads it.
   assert.equal((await decide(refs, { closing: [{ number: 12, repository: { nameWithOwner: REPO } }] })).link, null);
 });
 
@@ -254,7 +228,6 @@ test("a Refs number that names a pull request, or cannot be read, consults no is
   assert.deepEqual(reads, ["pull", "GET /repos/owner/repo/issues/40"]);
   assert.equal((await decide(refs, { closing: [], target: { number: 41 } })).link, null);
   assert.equal((await decide(refs, { closing: [], fail: "GET /repos/owner/repo/issues/40" })).link, null);
-  // The pull request's own decision still counts, with no read of the Refs target.
   const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
   const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: `**Decision recorded.** Cost: approve it.${PROOF}`});
   const mine = await decide(`Refs: #40\n\n${own}\n`, { closing: [], row, target: { number: 40, pull_request: {} } });
@@ -349,8 +322,6 @@ test("a cost decision clears only with a row link and a verbatim owner quote, an
   for (const text of ['verbatim: ""', 'verbatim: "  "', "verbatim: yes", 'verbatim:\n"yes"', `<!-- ${quote} -->`, 'Owner, quoted: "yes"', 'The owner, verbatim as typed: "yes"']) {
     assert.equal((await lacks(`${line}\n${ROW}\n${text}`)).link, null, text);
   }
-  // A comment that fails an older condition names nothing it lacks: only a
-  // near miss does.
   const missing = [];
   const { github } = world({ row: comment({ body: line, performed_via_github_app: { slug: "x" } }) });
   assert.equal(await costDecision(github, REPO, 99, `Closes #40\n\n${LINK}`, HUMANS, HEAD, github, missing), null);
@@ -358,7 +329,6 @@ test("a cost decision clears only with a row link and a verbatim owner quote, an
 });
 
 test("the row and quote only tighten: with both present, every older failing condition still holds", async () => {
-  // comment() carries both; each case below breaks one older condition.
   for (const [name, options] of Object.entries({
     "posted through an App": { row: comment({ performed_via_github_app: { slug: "cursor" } }) },
     edited: { node: { lastEditedAt: "2026-10-22T13:00:00Z" } },
@@ -369,8 +339,6 @@ test("the row and quote only tighten: with both present, every older failing con
     assert.match(comment(options.row ?? {}).body, /verbatim: "/, name);
     assert.equal((await decide(undefined, options)).link, null, name);
   }
-  // And each comment the new rule accepts, stripped of row and quote, the
-  // old rule accepted too: the new rule adds rejects only.
   assert.equal((await decide()).link, LINK);
   assert.equal((await decide(undefined, { row: comment({ body: "**Decision recorded.** Cost: approve the larger runner for #99." }) })).link, null);
 });
@@ -394,18 +362,10 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
     assert.match(costHold([path], null), new RegExp(`it changes ${path.replaceAll(".", "\\.")}, a cost path`), path);
     assert.equal(costHold([path], LINK), null, path);
   }
-  // Owner ruling 2026-10-24: a model or effort default is no real charge.
   assert.equal(costHold(["docs/a.md", "plugins/multi-agent/reference/defaults.yaml", "Pulumi.md"], null), null);
   assert.equal(costHold(null, null), null);
 });
 
-// ci-status: merge-holds.mjs's command line on the live files, as the
-// workflow step runs it, with a GitHub for the decision reads.
-// A `files` entry is a path, or a files API row; `denied` is the config's
-// denied paths; `writers` answers BODY_WRITERS_QUERY, or "fail"; `list`
-// maps a ref (BASE, HEAD) to the trusted-actor list's text there.
-// `queue` adds the merge queue's verdict inputs: { verdicts, link, evidence },
-// each written as given (a string as it is), `evidence` left out when undefined.
 const BASELINE = "docs/upstream/claude-code-native-surfaces.min.json";
 function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue, pull, baselineFile = BASELINE } = {}) {
   const dir = tempDir("merge-holds-");
@@ -464,16 +424,6 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
 }
 const approve = { user: { login: "owner-person", id: 5, type: "User" }, state: "APPROVED", commit_id: HEAD, submitted_at: "2026-10-23T11:00:00Z" };
 
-// Owner direction 2026-10-24: a trusted path alone holds nothing, and a
-// manifest change is the security lane's finding, not a hold; a configured
-// denied path still holds. Owner decision Q-FLOOR (B) keeps a narrow floor:
-// resolve-config, request-lane-token, check-trusted-trigger,
-// check-kill-switch, the rate guard, CODEOWNERS and .gitmodules hold with no
-// configured glob, and so do the files that enforce it (owner decision
-// Q-ENFORCE (A)); a trusted person's approval of the head lifts them as it
-// lifts a configured one. Owner decision Q26 option B: only the `trust` and
-// `gate` entries hold here; an `enforcement` one is the merge gate's, which a
-// clean security review bound to the head clears (ENFORCEMENT_FILES).
 const FLOOR_FILES = [
   ".github/actions/resolve-config/resolve.mjs",
   ".github/actions/Resolve-Config/lane-rules.json",
@@ -542,7 +492,6 @@ test("ci-status leaves an enforcement path to the merge gate's security review",
     const passed = await ci([{ filename: path, status: "modified" }]);
     assert.equal(passed.code, 0, `${path}: ${passed.out}`);
   }
-  // Beside a gate path it still holds on that one.
   const both = await ci([{ filename: ENFORCEMENT_FILES[0], status: "modified" }, { filename: ".github/scripts/pr-merge/who.mjs", status: "modified" }]);
   assert.equal(both.code, 1, both.out);
   assert.ok(both.out.includes("it changes .github/scripts/pr-merge/who.mjs, a hold path"), both.out);
@@ -602,14 +551,11 @@ test("ci-status holds a trusted-actor list widening until a trusted person appro
   const removed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE) } });
   assert.equal(removed.code, 0, removed.out);
   assert.match(removed.out, /no member veto and no hold path\./);
-  // A side that does not read, a repeated key, or a rename holds.
   assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES) } })).code, 1);
   assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE).replace('"version": 1', '"version": 1, "version": 1') } })).code, 1);
   assert.equal((await ci([[ACTORS, ".github/standards/trusted-actors/old.json", "renamed"]], { list: { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE) } })).code, 1);
 });
 
-// ci-status judges no body hold text, whoever wrote it: the lanes App's hold
-// line puts on `do-not-merge`. A hold path or a member's veto beside it holds.
 test("ci-status holds no body hold text, even a person's; a hold path or a member's veto still holds", async () => {
   const body = "Closes #40\n\nHold: wait for the release.\n\ndo not merge";
   const person = { __typename: "User" };
@@ -648,7 +594,6 @@ test("ci-status lifts a cost hold for the head the decision decided, and re-hold
   const later = await ci(["infra/main.tf"], { body, options: { row, runs: [laneRun(OLD)], compares: { [OLD]: net(TF), [HEAD]: net(TF, { filename: "infra/b.tf", status: "added", patch: "@@ -0,0 +1 @@\n+c" }) } } });
   assert.equal(later.code, 1, later.out);
   assert.match(later.out, /a cost path/);
-  // The same decision on the closing issue, which names no pull request, holds.
   const unnamed = await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}`, options: { row: comment({ body: `**Decision recorded.** Cost: approve it.${PROOF}`}) } });
   assert.equal(unnamed.code, 1);
   assert.match(unnamed.out, /on its linked issue naming this pull request/);
@@ -668,12 +613,9 @@ test("a base merge after the decision carries it, and a pull request commit afte
 test("a base merge with the same net change carries whatever order the files list in, and a rebase or a non-merge commit does not", async () => {
   const doc = { filename: "docs/a.md", status: "added", patch: "@@ -0,0 +1 @@\n+a" };
   assert.equal((await later({ [OLD]: net(TF, doc), [HEAD]: net(doc, TF) })).link, LINK);
-  // A merge that drops one of its files is a change of its own.
   assert.equal((await later({ [OLD]: net(TF, doc), [HEAD]: net(TF) })).link, null);
-  // A rebase or force push rewrites OLD away, even with the same net change.
   const rebased = { ...net(TF), commits: [{ sha: "6".repeat(40), parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: "6".repeat(40) }] }], total_commits: 2 };
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: rebased })).link, null);
-  // A commit of its own that leaves the net change the same is still not a merge.
   const plain = { ...net(TF), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }], total_commits: 2 };
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: plain })).link, null);
 });
@@ -700,7 +642,6 @@ test("a compare of 300 files or more, a file with no patch, a filename listed tw
     assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { fail: read })).link, null, read);
   }
   assert.equal((await later({ [OLD]: net(TF, TF), [HEAD]: net(TF, TF) })).link, null);
-  // A patchless pure rename never carries.
   const moved = { filename: "b.tf", status: "renamed", previous_filename: "a.tf" };
   assert.equal((await later({ [OLD]: net(moved), [HEAD]: net(moved) })).link, null);
   for (const base of ["-main", "a..b", "a b", "", "x".repeat(256), null]) {
@@ -718,7 +659,6 @@ test("at the decided head the decision carries with no net-change compare", asyn
     reads.filter((read) => read.startsWith("compare")),
     [`compare ${HEAD}`],
   );
-  // With no usable base name no run can be vetted, so nothing carries.
   assert.equal((await decide(undefined, { base: "" })).link, null);
 });
 
@@ -735,7 +675,6 @@ test("with no cost hold notice before the decision nothing carries, even at the 
 test("the decided head is read from the lanes' check-run notices, never from a comment", async () => {
   const { reads } = await decide();
   assert.ok(!reads.some((read) => /\/issues\/99\/comments/.test(read)), reads.join(", "));
-  // The lane-run reads go to the reader given for them, the rest to github.
   const { github, reads: all } = world();
   const seen = [];
   const actions = async (method, path, body) => {
@@ -767,13 +706,9 @@ test("the decision is the newest on the pull request, else the newest on its lin
     return costDecision(github, REPO, 99, body, HUMANS, HEAD);
   };
   const all = `Closes #40\n${LINK}\n${onPull(8)}\n${onPull(9)}`;
-  // The pull request's newest (9, at 11:30) is the one judged, over the issue's newer one.
   assert.equal(await pick(all, [laneRun(HEAD, "2026-10-22T11:15:00Z")]), onPull(9));
-  // Its decided head is not this head, and the older one at this head is not consulted.
   assert.equal(await pick(all, [laneRun(HEAD, "2026-10-22T10:00:00Z", { created: "2026-10-22T09:50:00Z" }), laneRun(OLD, "2026-10-22T11:15:00Z")]), null);
   assert.equal(await pick(`Closes #40\n${LINK}`, [laneRun(HEAD)]), LINK);
-  // A newer decision on the pull request that lacks the row and quote is
-  // still the one judged: the complete one on the issue does not stand in.
   rows[9] = { ...rows[9], body: "**Decision recorded.** Cost: approve it." };
   const missing = [];
   const { github: base } = world({ runs: [laneRun(HEAD, "2026-10-22T11:15:00Z")] });
@@ -789,21 +724,17 @@ test("the decision is the newest on the pull request, else the newest on its lin
 test("the decided head is the newest cost notice a lane's status job recorded before the decision", async () => {
   const same = { [OLD]: net(TF), [HEAD]: net(TF, { filename: "b.tf", status: "added", patch: "+b" }) };
   const runs = (...extra) => decide(undefined, { runs: [laneRun(OLD), ...extra], compares: same });
-  // An older notice at the current head does not outweigh the latest one before the decision.
   assert.equal((await decide(undefined, { runs: [laneRun(HEAD, "2026-10-22T10:40:00Z"), laneRun(OLD, "2026-10-22T11:30:00Z")], compares: same })).link, null);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z"))).link, LINK);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml" }))).link, LINK);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { criteria: "cost,trust-gate" }))).link, LINK);
-  // A head tested before the caller jobs' rename names the status job by the caller's id.
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / review-status" }))).link, LINK);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml", job: "pr-review-security / review-status" }))).link, LINK);
-  // pr-review-cli.yml's Title Case status job name, under either caller name.
   for (const [lane, job] of [
     ["pr-review-hosted.yml", "PR Review / Status"],
     ["pr-review-hosted.yml", "pr-review / Status"],
     ["pr-review-security-hosted.yml", "PR Review Security / Status"],
     ["pr-review-security-hosted.yml", "pr-review-security / Status"],
-    // Its planned name.
     ["pr-review-hosted.yml", "PR Review / Publish Review"],
     ["pr-review-hosted.yml", "pr-review / Publish Review"],
     ["pr-review-security-hosted.yml", "PR Review Security / Publish Review"],
@@ -834,9 +765,7 @@ test("the decided head is the newest cost notice a lane's status job recorded be
   })) {
     assert.equal((await runs(extra)).link, null, name);
   }
-  // Two heads noticed at the newest time decide nothing.
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:00:00Z", { lane: "pr-review-security-hosted.yml" }))).link, null);
-  // A run that started after the decision is not read at all.
   const late = await decide(undefined, { runs: [laneRun(HEAD), laneRun(OLD, "2026-10-22T12:30:00Z", { created: "2026-10-22T12:10:00Z" })] });
   assert.ok(!late.reads.includes("jobs 2"), late.reads.join(", "));
 });
@@ -849,7 +778,6 @@ test("a lane run on a head that changes a review-lane workflow, or whose compare
     "no file list": { status: "diverged" },
   })) {
     assert.equal((await decide(undefined, { compares: { [HEAD]: answer } })).link, null, name);
-    // Even a vetted later notice does not stand in for it.
     const mixed = await decide(undefined, { runs: [laneRun(OLD, "2026-10-22T10:40:00Z"), laneRun(HEAD)], compares: { [OLD]: answer } });
     assert.equal(mixed.link, null, name);
   }
@@ -865,10 +793,8 @@ test("a head pushed between the decided head and the decision with no run of eve
   const history = (...moves) => newestFirst([push(OLD, "2026-10-22T10:25:00Z"), ...moves]);
   const plain = (sha, lane) => laneRun(sha, "2026-10-22T11:20:00Z", { criteria: "trust-gate", lane, created: "2026-10-22T11:12:00Z" });
   const carried = (runs, activity, options = {}) => decide(undefined, { runs: [laneRun(OLD), ...runs], compares: same, activity, ...options });
-  // No deletion: both lanes ran on the newer head, which noticed no cost.
   const both = [plain(NEW, "pr-review-hosted.yml"), plain(NEW, "pr-review-security-hosted.yml")];
   assert.equal((await carried(both, history(push(NEW, "2026-10-22T11:10:00Z")))).link, LINK);
-  // A head pushed after the decision needs no run here.
   assert.equal((await carried([], history(push(NEW, "2026-10-22T12:10:00Z")))).link, LINK);
   for (const [name, runs] of Object.entries({
     "both lanes' runs deleted": [],
@@ -881,12 +807,8 @@ test("a head pushed between the decided head and the decision with no run of eve
     assert.equal(kept.link, null, name);
     assert.ok(kept.reads.includes("activity"), name);
   }
-  // Pushing the decided head again after the decision makes it the head: the
-  // gap before the decision still keeps the hold.
   const back = history(push(NEW, "2026-10-22T11:10:00Z"), push(OLD, "2026-10-22T12:30:00Z"));
   assert.equal((await carried([], back, { head: OLD })).link, null);
-  // A history that shows no push of the decided head before the decision, or
-  // a read that fails, keeps the hold.
   assert.equal((await carried(both, [push(NEW, "2026-10-22T11:10:00Z")])).link, null);
   assert.equal((await carried(both, [push(OLD, "2026-10-22T12:30:00Z")])).link, null);
   assert.equal((await carried(both, history(), { fail: "activity" })).link, null);
@@ -900,18 +822,14 @@ test("the head branch's push history is read past its first page", async () => {
   const NEW = "1111111111111111111111111111111111111111";
   const same = { [OLD]: net(TF), [HEAD]: net(TF) };
   const carried = (activity, options = {}) => decide(undefined, { runs: [laneRun(OLD)], compares: same, activity, ...options });
-  // 149 pushes after the decision, then the decided head: 150 entries.
   const after = Array.from({ length: 149 }, (_, i) => push(NEW, new Date(Date.parse("2026-10-22T12:10:00Z") + i * 1000).toISOString()));
   const long = newestFirst([...after, push(OLD, "2026-10-22T10:25:00Z")]);
   const kept = await carried(long);
   assert.equal(kept.link, LINK);
   assert.deepEqual(kept.reads.filter((read) => read.startsWith("activity")), ["activity", "activity 2"]);
-  // A push with no lane run between the decided head and the decision, as
-  // entry 119, on the second page, keeps the hold.
   const gap = newestFirst([...after.slice(0, 118), push(NEW, "2026-10-22T11:10:00Z"), push(OLD, "2026-10-22T10:25:00Z")]);
   assert.equal(gap[118].timestamp, "2026-10-22T11:10:00Z");
   assert.equal((await carried(gap)).link, null);
-  // A read that fails on the second page keeps the hold.
   assert.equal((await carried(long, { fail: "activity 2" })).link, null);
 });
 
@@ -928,24 +846,18 @@ test("branchActivity follows the Link cursor, and fails closed on a bad page or 
     };
     return { read, paths };
   };
-  // A full page of 100 entries, ids from `from`.
   const full = (from = 0) => Array.from({ length: 100 }, (_, i) => ({ id: from + i }));
   const first = "/repos/o/r/activity?ref=refs%2Fheads%2Fchore%2Fstandards-sync&direction=desc&per_page=100";
-  // The cursor is passed on as the link spells it; a short page ends the read.
   const two = reader([page(full(), "Y3Vy%2Bc29y"), page([{ id: 100 }])]);
   assert.deepEqual(await holdsModule.branchActivity(two.read, "o/r", "chore/standards-sync"), [...full(), { id: 100 }]);
   assert.deepEqual(two.paths, [first, `${first}&after=Y3Vy%2Bc29y`]);
-  // A full page with no next link may not be the end.
   await assert.rejects(holdsModule.branchActivity(reader([page(full())]).read, "o/r", "b"), /full page with no next link/);
   await assert.rejects(holdsModule.branchActivity(reader([page(full(), "a"), page(full(100))]).read, "o/r", "b"), /full page with no next link/);
-  // A later page that is no list is unreadable, as unranHead names it.
   assert.equal(await holdsModule.branchActivity(reader([page(full(), "a"), { message: "Not Found" }]).read, "o/r", "b"), null);
   assert.equal(await holdsModule.branchActivity(reader([page(full(), "a"), null]).read, "o/r", "b"), null);
   await assert.rejects(holdsModule.branchActivity(reader([page(full(), "a"), new Error("502")]).read, "o/r", "b"), /502/);
-  // A next link with no cursor, or one repeating a cursor, would loop.
   await assert.rejects(holdsModule.branchActivity(reader([Object.defineProperty(full(), LINKED, { value: '<https://api.github.com/x>; rel="next"' })]).read, "o/r", "b"), /no new page/);
   await assert.rejects(holdsModule.branchActivity(reader([page(full(), "a"), page(full(), "a")]).read, "o/r", "b"), /no new page/);
-  // Twenty pages are read; a twenty-first is refused.
   const twenty = reader(Array.from({ length: 20 }, (_, i) => (i < 19 ? page(full(i * 100), `c${i}`) : page([{ id: 1900 }]))));
   assert.equal((await holdsModule.branchActivity(twenty.read, "o/r", "b")).length, 1901);
   const more = reader(Array.from({ length: 21 }, (_, i) => page(full(i * 100), `c${i}`)));
@@ -965,7 +877,6 @@ test("unranHead names the first head pushed after the decided head with no run o
   assert.match(unranHead(moves, [[NEW], [NEW]], OLD, "not a time"), /no push of/);
   assert.match(unranHead([{ after: NEW, timestamp: "soon" }, ...moves], [[NEW], [NEW]], OLD, at), /unreadable/);
   assert.match(unranHead("nope", [[], []], OLD, at), /unreadable/);
-  // Only the moves after the decided head's last push before the decision count.
   assert.equal(unranHead([push(OLD, "2026-10-22T11:30:00Z"), ...moves], [[OLD], [OLD]], OLD, at), null);
 });
 
@@ -1003,24 +914,16 @@ test("sameNetChange compares filename, status, previous_filename and patch", () 
   assert.equal(sameNetChange(null, net(TF)), false);
 });
 
-// The live link a pass binds, by the gate's rule (README "Eligibility"): one
-// closing issue in this repository, or, with none, one plain `Refs: #<n>`
-// issue; a pass binds only the issue it judged, linked the same way
-// (babysit_verify_evidence.py _pass_refusal: verify:spec-changed otherwise).
 test("linkHold binds a pass to the issue and link kind it judged", () => {
   const closes = (...numbers) => ({ totalCount: numbers.length, nodes: numbers.map((number) => ({ number, repository: { nameWithOwner: "o/r" } })) });
   const record = (number, spec_kind) => ({ linked_issues: [{ number }], ...(spec_kind ? { spec_kind } : {}) });
   assert.equal(linkHold(record(5, "closes"), "Closes #5", closes(5), "o/r"), null);
-  // A record from before the kind was written judged a closing issue.
   assert.equal(linkHold(record(5), "Closes #5", closes(5), "O/R"), null);
   assert.equal(linkHold(record(5, "refs"), "Refs: #5\n\n## Summary", closes(), "o/r"), null);
   assert.match(linkHold(record(5, "refs"), "Closes #6", closes(6), "o/r"), /link changed since pr-verify passed it: it closes #6, and the pass judged #5 \(refs\)/);
   assert.match(linkHold(record(5, "refs"), "Closes #5", closes(5), "o/r"), /link changed/);
   assert.match(linkHold(record(5, "closes"), "Refs: #5", closes(), "o/r"), /link changed/);
   assert.match(linkHold(record(5, "refs"), "Refs: #6", closes(), "o/r"), /refs #6, and the pass judged #5/);
-  // A link of several issues that still names the judged one binds; the
-  // fix loop rewrites it. A link that drops the judged issue holds, and so
-  // does one removed, a Refs: line hidden in a comment included.
   assert.equal(linkHold(record(5, "refs"), "Refs: #5\nRefs: #6", closes(), "o/r"), null);
   assert.equal(linkHold(record(5, "closes"), "Closes #5", closes(5, 6), "o/r"), null);
   assert.match(linkHold(record(5, "closes"), "Closes #6", closes(6, 7), "o/r"), /it closes #6, #7, and the pass judged #5/);
@@ -1029,10 +932,7 @@ test("linkHold binds a pass to the issue and link kind it judged", () => {
   assert.match(linkHold(record(5, "refs"), "<!-- Refs: #5 -->", closes(), "o/r"), /it refs no issue/);
   assert.match(linkHold(record(5, "refs"), "Refs: #6\nRefs: #7", closes(), "o/r"), /it refs #6, #7, and the pass judged #5/);
   assert.match(linkHold(record(5, "refs"), "Refs: x/y#5", closes(), "o/r"), /it refs no issue/);
-  // A pass judged as a Refs slice never covers a body that closes the issue,
-  // with other issues or alone.
   assert.match(linkHold(record(5, "refs"), "Closes #5, #6", closes(5, 6), "o/r"), /it closes #5, #6, and the pass judged #5 \(refs\)/);
-  // Closing issues all in another repository drop the judged one.
   const foreign = { number: 5, repository: { nameWithOwner: "x/y" } };
   assert.match(linkHold(record(5, "closes"), "Closes x/y#5", { totalCount: 1, nodes: [foreign] }, "o/r"), /it closes x\/y#5, and the pass judged #5/);
   assert.equal(linkHold(record(5, "closes"), "Closes x/y#5\nCloses #5", { totalCount: 2, nodes: [foreign, ...closes(5).nodes] }, "o/r"), null);
@@ -1042,8 +942,6 @@ test("linkHold binds a pass to the issue and link kind it judged", () => {
   assert.match(linkHold(record(5), "Closes #5", { totalCount: 11, nodes: [] }, "o/r"), /closing issues could not be read/);
 });
 
-// ci-status writes [filename, previous_filename, status]; an older line has
-// no status, which holds a manifest.
 test("changeOf reads a files line with and without its status", () => {
   assert.deepEqual(changeOf(["a.md", null, "modified"]), { path: "a.md", previous: null, status: "modified" });
   assert.deepEqual(changeOf(["b.md", "a.md", "renamed"]), { path: "b.md", previous: "a.md", status: "renamed" });
@@ -1052,8 +950,6 @@ test("changeOf reads a files line with and without its status", () => {
   assert.throws(() => changeOf("a.md"), /does not read/);
 });
 
-// The merge queue's FAIL check: babysit_verify_evidence.py's report for the
-// head, as ci-status runs that reader from main's checkout.
 const PASS_RUN = {
   id: 11,
   path: ".github/workflows/pr-verify.yml",
@@ -1096,12 +992,10 @@ test("in the merge queue, a lane push after the arm holds the pushed head the pi
   const pushed = await queued(report(null), [pinRow(HEAD, "2026-10-23T09:00:00Z"), pinRow(OLD, "2026-10-23T10:00:00Z")]);
   assert.equal(pushed.code, 1, pushed.out);
   assert.match(pushed.out, PIN_HELD);
-  // The pin naming the head, or no pin at all, holds nothing.
   for (const reviews of [[pinRow(OLD, "2026-10-23T09:00:00Z"), pinRow(HEAD, "2026-10-23T10:00:00Z")], []]) {
     const through = await queued(report(null), reviews);
     assert.equal(through.code, 0, through.out);
   }
-  // A person's pin comment is no pin.
   const forged = await queued(report(null), [{ ...pinRow(OLD, "2026-10-23T10:00:00Z"), user: { login: "someone", id: 8, type: "User" } }]);
   assert.equal(forged.code, 0, forged.out);
 });
@@ -1115,8 +1009,6 @@ test("in the merge queue, a trusted approval of the pushed head lifts the pin ho
   assert.doesNotMatch(event.out, PIN_HELD);
 });
 
-// enable-auto-merge's pinMoved disarms on an edited pin only on its next
-// run, so the queue holds one too, whatever head its first line names now.
 const PIN_EDITED = /^::error::#99: the lanes App's newest pin comment was edited, or its edit time did not read, so the head its arm judged does not read;/m;
 
 test("in the merge queue, an edited pin holds even when it names the head", async () => {
@@ -1124,13 +1016,11 @@ test("in the merge queue, an edited pin holds even when it names the head", asyn
   const edited = await ci(["docs/a.md"], { reviews: pinned, options: { node: { lastEditedAt: "2026-10-23T11:00:00Z" } }, queue: { verdicts: [QUEUE_PASS], link: QUEUE_LINK, evidence: report(null) } });
   assert.equal(edited.code, 1, edited.out);
   assert.match(edited.out, PIN_EDITED);
-  // An edit time that does not read holds the same.
   for (const options of [{ fail: "edited" }, { node: null }, { node: {} }]) {
     const unread = await ci(["docs/a.md"], { reviews: pinned, options, queue: { verdicts: [QUEUE_PASS], link: QUEUE_LINK, evidence: report(null) } });
     assert.equal(unread.code, 1, `${JSON.stringify(options)}: ${unread.out}`);
     assert.match(unread.out, PIN_EDITED);
   }
-  // A trusted approval of the head lifts it.
   const lifted = await ci(["docs/a.md"], { reviews: [...pinned, approve], options: { node: { lastEditedAt: "2026-10-23T11:00:00Z" } }, queue: { verdicts: [QUEUE_PASS], link: QUEUE_LINK, evidence: report(null) } });
   assert.equal(lifted.code, 0, lifted.out);
 });
@@ -1140,11 +1030,9 @@ test("pinHold reads the lanes App's newest pin", async () => {
   assert.equal(pinHold(items(), HEAD), null);
   assert.equal(pinHold(items(pinRow(HEAD, "2026-10-23T10:00:00Z")), HEAD), null);
   assert.match(pinHold(items(pinRow(HEAD, "2026-10-23T09:00:00Z"), pinRow(OLD, "2026-10-23T10:00:00Z")), HEAD), /^its head is not fedcba98/);
-  // An edited pin, or one whose edit time was never read, names no head.
   const pin = fromRest(pinRow(HEAD, "2026-10-23T10:00:00Z"));
   assert.match(pinHold([{ ...pin, lastEditedAt: "2026-10-23T11:00:00Z" }], HEAD), /^the lanes App's newest pin comment was edited/);
   assert.match(pinHold([pin], HEAD), /^the lanes App's newest pin comment was edited/);
-  // withPinEdit reads the newest pin's edit time by its node id, and only that pin's.
   const asked = [];
   const github = async (method, path, body) => {
     asked.push([method, path, body.query === COMMENT_EDITED_QUERY, body.variables]);
@@ -1217,14 +1105,11 @@ test("in the merge queue, the lanes App's configured baseline file needs no veri
   assert.doesNotMatch(vetoed.out, /no member veto/);
 });
 
-// Owner decision 2026-11-04, "Hold until re-judged": a stale pass holds in the
-// queue even when the pass is read; an approval of the head lifts it.
 test("in the merge queue, a pass the linked issue changed after holds until pr-verify judges the head again", async () => {
   const { code, out } = await queued(report("verify:spec-changed"));
   assert.equal(code, 1, out);
   assert.match(out, /^#99: no pr-verify FAIL hold: the reader refuses this head only on its pass \(verify:spec-changed\)\.$/m);
   assert.match(out, /#99: pr-verify's pass on this head is stale \(verify:spec-changed\): its linked issue changed after pr-verify judged it; wait for pr-verify to pass it/);
-  // The other pass refusals still leave a read pass standing.
   for (const refusal of ["verify:missing", "verify:untrusted-spec"]) {
     const read = await queued(report(refusal));
     assert.equal(read.code, 0, `${refusal}: ${read.out}`);
@@ -1238,8 +1123,6 @@ test("in the merge queue, a pass refusal with no pass names read holds on that r
   assert.doesNotMatch(refused.out, /pr-verify has not passed this head/);
   const stale = await ci(["docs/a.md"], { queue: { verdicts: [], link: QUEUE_LINK, evidence: report("verify:spec-changed") } });
   assert.match(stale.out, /pr-verify's pass on this head is stale \(verify:spec-changed\)/);
-  // No refusal, one for another head, or a FAIL class (evidenceHold's) keeps
-  // the missing-pass text and never calls a FAIL a pass refusal.
   for (const evidence of [report(null), report("verify:spec-changed", { head: OLD }), report("verify:fail")]) {
     const missing = await ci(["docs/a.md"], { queue: { verdicts: [], link: QUEUE_LINK, evidence } });
     assert.equal(missing.code, 1, missing.out);
@@ -1304,25 +1187,16 @@ const OTHER_HELD = { filename: ".github/actions/resolve-config/resolve.test.mjs"
 const HELPER = { filename: "scripts/helper.sh", status: "modified", patch: "@@ -1 +1 @@\n-x\n+y" };
 const APPROVED_AT = "2026-10-27T23:26:14Z";
 const OTHER = "7".repeat(40);
-// The base branch's tip commit, which `refs/heads/main` resolves to.
 const TIP = "3".repeat(40);
 const review = (state, commit, at = APPROVED_AT, id = 5, type = "User") => ({ id: 41, user: { login: id === 5 ? "owner-person" : "someone", id, type }, state, commit_id: commit, submitted_at: at });
-// The merge bases of the approved head and of the head with the base's tip.
 const MB_OLD = "1".repeat(40);
 const MB_HEAD = "2".repeat(40);
 const merged = (files) => ({ files, merge_base_commit: { sha: MB_HEAD }, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 2 });
 const atOld = (files = [HELD_PATCH]) => ({ files, merge_base_commit: { sha: MB_OLD }, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }], total_commits: 1 });
-// What the merges brought into the approved head (compare OLD...HEAD), and
-// what the base changed over the same range (compare MB_OLD...MB_HEAD).
 const BASE_DOC = { filename: "docs/base.md", status: "modified", patch: "@@ -1 +1 @@\n-p\n+q" };
 const brought = (files = [BASE_DOC], extra = {}) => ({ status: "ahead", behind_by: 0, files, commits: [{ sha: MAIN }, { sha: HEAD }], total_commits: 2, ...extra });
 const baseRange = (files = [BASE_DOC], extra = {}) => ({ status: "ahead", behind_by: 0, files, commits: [{ sha: MB_HEAD }], total_commits: 1, ...extra });
 const ranges = (merges = brought(), based = baseRange()) => ({ [`${OLD}...${HEAD}`]: merges, [`${MB_OLD}...${MB_HEAD}`]: based });
-// The owner's decision Q10 of 2026-10-28: an approval of OLD carries to HEAD
-// when the diff OLD...HEAD touches no hold path, whatever the commits since
-// are. Each case below fails the base-merge carry, but what OLD...HEAD
-// brought (its `across`: docs/base.md alone) touches no hold path and no
-// file a hold path loads, so the approval carries.
 const UNGATED_CARRIES = new Set([
   "a base that changed a file the merges did not bring",
   "a crafted merge whose second parent the base does not hold",
@@ -1332,31 +1206,21 @@ const UNGATED_CARRIES = new Set([
   "a merge whose parents are not commit objects",
   "a non-merge commit after the approval",
 ]);
-// A recursive tree answer: each entry [path, mode].
 const treeOf = (entries, extra = {}) => ({ truncated: false, tree: entries.map(([path, mode = "100644"]) => ({ path, mode, type: "blob", sha: "b".repeat(40) })), ...extra });
 const FILES_AT = [["docs/base.md"], [".github/actions/collect-base-activity/collect-base-activity.test.mjs"], [".github/actions/resolve-config/live-config.test.mjs"], ["scripts/helper.sh"], ["scripts/lib.mjs"]];
-// The trees of the head and of its merge base with the tip, which the exact
-// carry reads for file modes.
 const trees = (head = treeOf(FILES_AT), base = treeOf(FILES_AT)) => ({ [HEAD]: head, [MB_HEAD]: base });
 const liftWorld = ({
   reviews = [review("APPROVED", OLD)],
   compares = { [OLD]: atOld(), [HEAD]: merged([HELD_PATCH]) },
-  // The two range compares the exact carry reads, consistent by default.
   across = ranges(),
   modes = trees(),
-  // The pull request's base branch and the repository's default branch.
   base = "main",
   defaultBranch = "main",
   fork = false,
-  // The issue timeline, read for the review_dismissed events.
   timeline = [],
-  // The base's answer per merged parent against its tip.
   bases = { [MAIN]: "ahead" },
   tip = TIP,
-  // The pull request's own count of changed files; the head compare's by default.
   changed = null,
-  // A label history and push history the earlier reader bound a removal by,
-  // served so a test proves no reader counts them now.
   events = [],
   activity = [push(HEAD, "2026-10-27T23:32:00Z"), push(OLD, "2026-10-27T23:00:00Z")],
   fail = "",
@@ -1388,8 +1252,6 @@ const liftWorld = ({
   };
   return { github, reads };
 };
-// main over `files` with liftWorld's reads; `reviews` also go in the
-// discussion file, as ci-status writes it.
 async function lifting(world, { files = [HELD], reviews = [], queue = false } = {}) {
   const dir = tempDir("merge-holds-lift-");
   writeFileSync(join(dir, "body"), "Closes #40");
@@ -1482,9 +1344,6 @@ test("a label removal lifts no hold path", async () => {
   }
 });
 
-// The owner's decision of 2026-10-28 (part a): an approval GitHub dismissed
-// as stale on the push of a base merge still counts, bound to its own commit,
-// and lifts the head only through the carry.
 test("an approval GitHub dismissed as stale on a base merge's push carries", async () => {
   for (const [name, options] of Object.entries({
     "the same net change": { reviews: [DISMISSED_OLD], timeline: [STALE] },
@@ -1514,7 +1373,6 @@ test("a dismissal with a message, by a person, or not by the push the carry chec
     "a dismissal commit that is no sha": { timeline: [stale({ dismissal_commit_id: null })] },
     "no dismissal event": { timeline: [] },
     "an unreadable timeline": { timeline: [STALE], fail: "/timeline?" },
-    // Approve the head, push X, force-push the head back: no range, no lift.
     "a dismissed approval of the head itself": { reviews: [review("DISMISSED", HEAD, "2026-10-27T23:31:57Z")], timeline: [stale()] },
     "a request for changes after the dismissed approval": { reviews: [DISMISSED_OLD, { ...review("CHANGES_REQUESTED", HEAD, "2026-10-27T23:40:00Z"), id: 43 }], timeline: [STALE] },
     "a dismissed approval by a person off the trusted-actor list": { reviews: [review("DISMISSED", OLD, APPROVED_AT, 77)], timeline: [STALE] },
@@ -1553,7 +1411,6 @@ test("#10224's shape carries when the merges brought exactly the base's changes"
     assert.match(run.out, /which lifts its hold path/, name);
     assert.ok(world.reads.includes(`/repos/owner/repo/compare/${OLD}...${HEAD}`) && world.reads.includes(`/repos/owner/repo/compare/${MB_OLD}...${MB_HEAD}`), world.reads.join(" "));
   }
-  // The same net change needs neither range compare.
   const world = liftWorld();
   assert.equal((await lifting(world)).code, 0);
   assert.ok(!world.reads.some((path) => path.includes(`/compare/${OLD}...`) || path.includes(`/compare/${MB_OLD}...`)), world.reads.join(" "));
@@ -1599,8 +1456,6 @@ test("a merge that adds anything beyond the base's changes, or a range not read 
 
 test("no adversarial history, approval or reviewer carries a lift to the head", async () => {
   const cases = {
-    // Each merge that writes a change of its own lists it in what the merges
-    // brought (OLD...HEAD) too, beside the base's own change.
     "a merge that also edits a hold path (an evil merge)": {
       compares: { [OLD]: atOld(), [HEAD]: merged([{ ...HELD_PATCH, patch: "@@ -1 +1 @@\n-a\n+evil" }]) },
       across: ranges(brought([BASE_DOC, { ...HELD_PATCH, patch: "@@ -1 +1 @@\n-b\n+evil" }])),
@@ -1616,8 +1471,6 @@ test("no adversarial history, approval or reviewer carries a lift to the head", 
       compares: { [OLD]: atOld(), [HEAD]: merged([HELD_PATCH, { filename: "scripts/lib.mjs", status: "modified", patch: "@@ -1 +1 @@\n-base\n+evil" }]) },
       across: ranges(brought([BASE_DOC, { filename: "scripts/lib.mjs", status: "modified", patch: "@@ -1 +1 @@\n-base\n+evil" }]), baseRange([BASE_DOC, { filename: "scripts/lib.mjs", status: "modified", patch: "@@ -1 +1 @@\n-lib\n+base" }])),
     },
-    // The base took in the same change to one of the approved head's files,
-    // so the merges brought less than the base changed: it fails closed.
     "a merge after which the base holds one of the approved head's files": {
       compares: { [OLD]: atOld([HELD_PATCH, OTHER_HELD]), [HEAD]: merged([HELD_PATCH]) },
       across: ranges(brought(), baseRange([BASE_DOC, OTHER_HELD])),
@@ -1626,7 +1479,6 @@ test("no adversarial history, approval or reviewer carries a lift to the head", 
     "a merge of a branch other than the base": {
       compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: OTHER }] }], total_commits: 3 } },
     },
-    // A crafted merge commit (itself a merge of base commits) as the second parent.
     "a crafted merge whose second parent the base does not hold": {
       compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: MAIN }, { sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: OTHER }] }], total_commits: 3 } },
     },
@@ -1637,11 +1489,9 @@ test("no adversarial history, approval or reviewer carries a lift to the head", 
     },
     "a history longer than the compare lists": { compares: { [OLD]: atOld(), [HEAD]: { ...merged([HELD_PATCH]), total_commits: 251 } } },
     "a head in a fork": { fork: true },
-    // A compare listing fewer files than the pull request changes is cut short.
     "a compare that lists fewer files than the pull request changes": { changed: 2 },
     "a base branch that does not resolve to a commit": { tip: "main" },
     "an unreadable base ref": { fail: "/git/ref/" },
-    // A dismissed approval with no stale-dismissal event never counts.
     "an approval later dismissed": { reviews: [review("DISMISSED", OLD)] },
     "an approval followed by a request for changes on another head": { reviews: [review("APPROVED", OLD), review("CHANGES_REQUESTED", "8".repeat(40), "2026-10-27T23:40:00Z")] },
     "an approval by a person off the trusted-actor list": { reviews: [review("APPROVED", OLD, APPROVED_AT, 77)] },
@@ -1703,13 +1553,11 @@ test("the exact carry reads file modes from the trees, and a non-default base ca
     assert.equal(run.code, 1, `${name}: ${run.out}`);
     assert.match(run.out, HOLD_REASON, name);
   }
-  // A removed base file is absent from both trees, and that carries.
   const removed = { filename: "docs/gone.md", status: "removed", patch: "@@ -1 +0,0 @@\n-x" };
   const world = liftWorld({ ...REPLAY, across: ranges(brought([BASE_DOC, SHARED_BASE, removed]), baseRange([BASE_DOC, SHARED_BASE, removed])) });
   const run = await lifting(world);
   assert.equal(run.code, 0, run.out);
   assert.ok(world.reads.includes(`/repos/owner/repo/git/trees/${HEAD}?recursive=1`) && world.reads.includes(`/repos/owner/repo/git/trees/${MB_HEAD}?recursive=1`), world.reads.join(" "));
-  // An approval of the head itself needs no default-branch read.
   const exact = liftWorld({ base: "release", reviews: [review("APPROVED", HEAD)] });
   assert.equal((await lifting(exact, { reviews: [] })).code, 0);
 });
@@ -1722,7 +1570,6 @@ test("baseMergesOnly and baseMergeCarry read their inputs strictly", () => {
   assert.deepEqual(mergedParents(then, merged([])), [MAIN]);
   assert.equal(baseMergesOnly(then, { commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }] }, OLD, inBase), false);
   assert.equal(baseMergesOnly(then, merged([]), "9".repeat(40), inBase), false);
-  // The whole net change decides: any file the merge changes differently.
   assert.equal(baseMergeCarry(atOld([HELD_PATCH, HELPER]), merged([HELPER, HELD_PATCH]), OLD, [MAIN]), true);
   assert.equal(baseMergeCarry(atOld([HELD_PATCH, HELPER]), merged([HELD_PATCH, { ...HELPER, patch: "+z" }]), OLD, [MAIN]), false);
   assert.equal(baseMergeCarry(atOld([HELD_PATCH]), merged([HELD_PATCH, HELPER]), OLD, [MAIN]), false);
@@ -1731,27 +1578,20 @@ test("baseMergesOnly and baseMergeCarry read their inputs strictly", () => {
 
 test("exactBaseCarry, approvalCarry and autoDismissed read their inputs strictly", () => {
   const { approvalCarry, autoDismissed, exactBaseCarry } = holdsModule;
-  // Both directions: the base's files equal what the merges brought, and
-  // each brought file has the base's mode in the head's tree.
   const same = [treeOf(FILES_AT), treeOf(FILES_AT)];
   assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC]), same), true);
   assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC])), false);
   assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC, SHARED_BASE]), same), false);
   assert.equal(exactBaseCarry(brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC]), same), false);
-  // A base that did not move: nothing brought, nothing changed.
   assert.equal(exactBaseCarry(brought([]), { status: "identical", behind_by: 0, files: [], commits: [], total_commits: 0 }, same), true);
   assert.equal(exactBaseCarry(brought(), null, same), false);
   assert.equal(exactBaseCarry(brought(undefined, { behind_by: undefined }), baseRange(), same), false);
   assert.equal(exactBaseCarry(brought(undefined, { commits: undefined }), baseRange(), same), false);
-  // The compare API reports no file mode, so a merge that also flips a base
-  // file's mode lists as the base's changes alone; the trees show it.
   assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC]), [treeOf([["docs/base.md", "100755"]]), treeOf([["docs/base.md"]])]), false);
   assert.equal(exactBaseCarry(brought([BASE_DOC]), baseRange([BASE_DOC]), [treeOf([["docs/base.md"]], { truncated: true }), treeOf([["docs/base.md"]])]), false);
-  // A file the base removed is in neither tree.
   const gone = { filename: "docs/gone.md", status: "removed", patch: "-x" };
   assert.equal(exactBaseCarry(brought([gone]), baseRange([gone]), same), true);
   assert.equal(exactBaseCarry(brought([gone]), baseRange([gone]), [treeOf([["docs/gone.md"]]), treeOf([])]), false);
-  // A renamed file's old path is in neither tree.
   const moved = { ...BASE_DOC, status: "renamed", previous_filename: "docs/old.md" };
   assert.equal(exactBaseCarry(brought([moved]), baseRange([moved]), same), true);
   assert.equal(exactBaseCarry(brought([moved]), baseRange([moved]), [treeOf([...FILES_AT, ["docs/old.md"]]), treeOf(FILES_AT)]), false);
@@ -1761,11 +1601,8 @@ test("exactBaseCarry, approvalCarry and autoDismissed read their inputs strictly
   assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, null, modes), true);
   assert.equal(approvalCarry(then, now, OLD, [], merges, based, null, modes), false);
   assert.equal(approvalCarry(then, now, OLD, [MAIN], null, null, null, modes), false);
-  // The exact path needs both trees; the same net change needs neither.
   assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based), false);
   assert.equal(approvalCarry(atOld(), merged([HELD_PATCH]), OLD, [MAIN], null, null), true);
-  // A restored approval carries only when its dismissal commit is one the
-  // merges pushed since the approved head.
   assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, HEAD, modes), true);
   assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, OLD, modes), false);
   assert.equal(approvalCarry(then, now, OLD, [MAIN], merges, based, OTHER, modes), false);
@@ -1787,7 +1624,6 @@ const carriesQ10 = (merges, holdPaths = [], dismissal = null) => approvalCarry(n
 test("Q10: an approval carries over a push that touches no hold path", () => {
   assert.equal(carriesQ10(pushed(["docs/a.md", "plugins/work-items/README.md"])), true);
   assert.equal(carriesQ10(pushed(["docs/a.md"]), [], H1), true, "a stale dismissal by the push it checks");
-  // No hold paths read: this path does not run, and the base-merge path alone decides.
   assert.equal(approvalCarry(null, null, H0, [], pushed(["docs/a.md"]), null, null, null), false);
 });
 
@@ -1924,9 +1760,6 @@ test("queueHolds: a pull request or label list that does not read throws", () =>
   assert.throws(() => holdsModule.queueHolds({ pull: queuedPull({ labels: null }) }), /labels are not a list/);
 });
 
-// A member naming "the do-not-merge label" is not asking to hold the merge.
-// A sentence that says not to merge still holds, and so does a comma list,
-// which cannot be told from a comma clause.
 test("a member naming the do-not-merge label is no veto; saying not to merge is", () => {
   const said = (body) => [{ login: "kyle-sexton", isUser: true, association: "OWNER", at: "2026-10-30T01:00:00Z", body }];
   for (const body of [

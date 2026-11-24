@@ -7658,6 +7658,10 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             (f"trusted_actors_source: standards\nstandards_repository: [{STANDARDS_REPO}]\n", STANDARDS_HEAD, none),
             ("trusted_actors_source: other\n", STANDARDS_HEAD, none),
             ("trusted_actors_source: [standards]\n", STANDARDS_HEAD, none),
+            ("trusted_actors_source: Standards\n", STANDARDS_HEAD, none),
+            ("trusted_actors_source:\n", STANDARDS_HEAD, none),
+            ("trusted_actors_source:\n  - standards\n", STANDARDS_HEAD, none),
+            ('"trusted_actors_source":\n  - standards\n', STANDARDS_HEAD, none),
         ):  # fmt: skip
             with self.subTest(team=team, main=main):
                 standards_cleared(self)

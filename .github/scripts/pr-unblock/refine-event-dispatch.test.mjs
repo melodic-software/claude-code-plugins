@@ -1,8 +1,3 @@
-// Expected values come from ADR 0090 and the trusted-trigger gate's contract
-// for a pull_request_target dispatcher: one pr-refine.yml fix-docs dispatch
-// on refs/heads/main naming this run as dispatcher-run-id, for the event's PR
-// alone, under fix-docs-dispatch.mjs's once-per-PR rule (check name
-// `pr-refine / fix-docs`, limits.fix-docs-per-run 0 turning it off).
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -109,7 +104,6 @@ test("a draft, a PR with no Markdown file, a closed PR or fix-docs-per-run 0 dis
   }
 });
 
-// The gate vouches only for a dispatcher run the lanes App or a listed human started.
 test("an event the lanes App or a listed human sent dispatches; any other sender reads and dispatches nothing", async () => {
   const app = fakeApi();
   await run(app, { sender: "1" });
@@ -188,8 +182,6 @@ test("by default the sender check reads the humans of the base's trusted-actor l
   }
 });
 
-// refine-dispatch.activities (owner decision 2026-11-12): each listed id is one
-// more pr-refine.yml dispatch on main with the same three inputs as fix-docs's.
 const markerDispatch = { workflow: "pr-refine.yml", ref: "refs/heads/main", inputs: { "pr-number": "77", activity: "fix-marker", "dispatcher-run-id": "555" } };
 
 test("the allowlist holds fix-marker alone", () => {

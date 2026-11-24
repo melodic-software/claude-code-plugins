@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { openBreaker, readBreaker } from "../scripts/lib/breaker.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { effortChoices, models } from "../scripts/lib/models.mjs";
-import { update, configKeys, versionSource } from "../scripts/lib/update.mjs";
+import { update, configKeys, readCachedPage, versionSource } from "../scripts/lib/update.mjs";
 import { usage } from "../scripts/lib/usage.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -34,13 +34,15 @@ function web({ latest = "rust-v0.168.0", docs = 200, reference = referenceText }
     calls.push({ url, method: init.method ?? "GET" });
     if (url === RELEASES) return { ok: true, status: 200, json: async () => ({ tag_name: latest }) };
     if (url === DOCS) return { ok: docs === 200, status: docs };
-    if (url === REFERENCE) {
-      if (reference instanceof Error) throw reference;
-      return { ok: true, status: 200, text: async () => reference };
-    }
     throw new Error(`unexpected fetch ${url}`);
   };
-  return { fetch, calls };
+  const readPage = (url) => {
+    calls.push({ url, method: "cached read" });
+    if (url !== REFERENCE) throw new Error(`unexpected page ${url}`);
+    if (reference instanceof Error) throw reference;
+    return reference;
+  };
+  return { fetch, readPage, calls, opts: { fetch, readPage } };
 }
 
 let count = 0;
@@ -61,7 +63,7 @@ describe("update", () => {
   test("a present, logged-in CLI reports its version and login, caches its help per version, and checks release, docs and config keys", async () => {
     const w = world();
     const net = web();
-    const got = await update({ ...w.opts, fetch: net.fetch });
+    const got = await update({ ...w.opts, ...net.opts });
     const facts = join(w.dataDir, "cli-facts", "codex", "0.168.0");
     assert.equal(got.stdout, [
       "codex: ready",
@@ -84,8 +86,8 @@ describe("update", () => {
 
   test("a second update the same day says the daily checks already ran", async () => {
     const w = world();
-    await update({ ...w.opts, fetch: web().fetch });
-    const again = await update({ ...w.opts, fetch: web().fetch });
+    await update({ ...w.opts, ...web().opts });
+    const again = await update({ ...w.opts, ...web().opts });
     assert.ok(lines(again).includes("version check: already checked today"), again.stdout);
     assert.ok(lines(again).includes("routing: checked earlier today"), again.stdout);
     assert.equal(again.code, 0);
@@ -93,13 +95,13 @@ describe("update", () => {
 
   test("a CLI behind its latest release gets the configured update hint", async () => {
     const w = world({}, { local: "schema: 1\ncodex:\n  update_hint: Run the dotfiles update.\n" });
-    const got = await update({ ...w.opts, fetch: web({ latest: "rust-v0.171.0" }).fetch });
+    const got = await update({ ...w.opts, ...web({ latest: "rust-v0.171.0" }).opts });
     assert.ok(lines(got).includes("version check: codex 0.168.0 is behind 0.171.0. Run the dotfiles update."), got.stdout);
   });
 
   test("a config key missing from both the help and the config reference is reported as drift", async () => {
     const w = world();
-    const got = await update({ ...w.opts, fetch: web({ reference: 'key: "approval_policy",\nkey: "model_reasoning_effort",\nallowed_sandbox_modes\n' }).fetch });
+    const got = await update({ ...w.opts, ...web({ reference:'key: "approval_policy",\nkey: "model_reasoning_effort",\nallowed_sandbox_modes\n' }).opts });
     assert.equal(lines(got)[0], "codex: ready (check: config keys)");
     assert.ok(lines(got).includes(`config keys: drift: sandbox_mode is in neither the CLI help nor ${REFERENCE}`), got.stdout);
     assert.equal(got.code, 0);
@@ -107,13 +109,13 @@ describe("update", () => {
 
   test("a config reference that cannot be read leaves the keys unverified, not drifted", async () => {
     const w = world();
-    const got = await update({ ...w.opts, fetch: web({ reference: new Error("getaddrinfo ENOTFOUND") }).fetch });
+    const got = await update({ ...w.opts, ...web({ reference: new Error("getaddrinfo ENOTFOUND") }).opts });
     assert.ok(lines(got).includes(`config keys: unverified: approval_policy, sandbox_mode, model_reasoning_effort are not in the CLI help, and ${REFERENCE} could not be read (getaddrinfo ENOTFOUND)`), got.stdout);
   });
 
   test("a model list command that fails is named under cli facts", async () => {
     const w = world({ answers: { "debug models": { exit: 2 } } });
-    const got = await update({ ...w.opts, fetch: web().fetch });
+    const got = await update({ ...w.opts, ...web().opts });
     assert.equal(lines(got)[0], "codex: ready (check: cli facts)");
     assert.ok(lines(got).includes(`cli facts: ${join(w.dataDir, "cli-facts", "codex", "0.168.0")} (models: debug models exited 2)`), got.stdout);
   });
@@ -147,14 +149,14 @@ describe("update", () => {
 
   test("an unreachable docs index is reported", async () => {
     const w = world();
-    const got = await update({ ...w.opts, fetch: web({ docs: 404 }).fetch });
+    const got = await update({ ...w.opts, ...web({ docs: 404 }).opts });
     assert.equal(lines(got)[0], "codex: ready (check: docs index)");
     assert.ok(lines(got).includes(`docs index: unreachable (HTTP 404, ${DOCS})`), got.stdout);
   });
 
   test("a help command the CLI rejects is named and leaves no file", async () => {
     const w = world({ help: { "--help": realHelp["--help"], "exec --help": realHelp["exec --help"] } });
-    const got = await update({ ...w.opts, fetch: web().fetch });
+    const got = await update({ ...w.opts, ...web().opts });
     const facts = join(w.dataDir, "cli-facts", "codex", "0.168.0");
     assert.equal(lines(got)[0], "codex: ready (check: cli facts)");
     assert.ok(lines(got).includes(`cli facts: ${facts} (exec-review: exec review --help exited 2)`), got.stdout);
@@ -164,7 +166,7 @@ describe("update", () => {
 
   test("help a CLI prints on stderr with an empty stdout is cached", async () => {
     const w = world({ help_stderr: ["--help"] });
-    const got = await update({ ...w.opts, fetch: web().fetch });
+    const got = await update({ ...w.opts, ...web().opts });
     const facts = join(w.dataDir, "cli-facts", "codex", "0.168.0");
     assert.equal(lines(got)[0], "codex: ready", got.stdout);
     assert.equal(readFileSync(join(facts, "codex.txt"), "utf8"), readFileSync(realHelp["--help"], "utf8"));
@@ -172,7 +174,7 @@ describe("update", () => {
 
   test("a help command that prints nothing is named, leaves no file, and keeps update from reading plain ready", async () => {
     const w = world({ help_empty: ["exec review --help"] });
-    const got = await update({ ...w.opts, fetch: web().fetch });
+    const got = await update({ ...w.opts, ...web().opts });
     const facts = join(w.dataDir, "cli-facts", "codex", "0.168.0");
     assert.equal(lines(got)[0], "codex: ready (check: cli facts)");
     assert.ok(lines(got).includes(`cli facts: ${facts} (exec-review: exec review --help printed nothing)`), got.stdout);
@@ -182,7 +184,7 @@ describe("update", () => {
   test("a logged-out CLI is unavailable, and the breaker it opened stays open", async () => {
     const w = world({ login_exit: 1 });
     openBreaker(w.dataDir, "codex", { failureClass: "not-logged-in", reason: "not logged in", now: noon, cooldownHours: 24 });
-    const got = await update({ ...w.opts, fetch: web().fetch });
+    const got = await update({ ...w.opts, ...web().opts });
     assert.equal(lines(got)[0], "codex: unavailable: not logged in. Log in with codex, then run: external-agents update codex");
     assert.ok(lines(got).includes("login: not logged in"), got.stdout);
     assert.equal(got.code, 4);
@@ -192,7 +194,7 @@ describe("update", () => {
   test("a present, logged-in CLI closes an open breaker", async () => {
     const w = world();
     openBreaker(w.dataDir, "codex", { failureClass: "not-logged-in", reason: "not logged in", now: noon, cooldownHours: 24 });
-    await update({ ...w.opts, fetch: web().fetch });
+    await update({ ...w.opts, ...web().opts });
     assert.equal(readBreaker(w.dataDir, "codex"), null);
   });
 
@@ -201,7 +203,7 @@ describe("update", () => {
     const empty = join(w.opts.cwd, "empty-path");
     mkdirSync(empty);
     const net = web();
-    const got = await update({ ...w.opts, binary: undefined, env: { PATH: empty, PATHEXT: ".EXE" }, fetch: net.fetch });
+    const got = await update({ ...w.opts, binary: undefined, env: { PATH: empty, PATHEXT: ".EXE" }, ...net.opts });
     assert.match(got.stdout, /^codex: unavailable: codex not found \(tried .*\)\. This command never installs anything: install codex through your dotfiles install, or set codex\.binary_path, then run: external-agents update codex\n$/);
     assert.equal(got.code, 4);
     assert.ok(!existsSync(join(w.dataDir, "cli-facts")));
@@ -210,7 +212,7 @@ describe("update", () => {
 
   test("a CLI that prints no version is failed", async () => {
     const w = world({ version: "something odd\n" });
-    const got = await update({ ...w.opts, fetch: web().fetch });
+    const got = await update({ ...w.opts, ...web().opts });
     assert.equal(got.stdout, "codex: failed (codex --version printed no version)\n");
     assert.equal(got.code, 1);
   });
@@ -219,7 +221,7 @@ describe("update", () => {
     const w = world();
     const file = join(w.dataDir, "file");
     writeFileSync(file, "");
-    const got = await update({ ...w.opts, dataDir: join(file, "x"), fetch: web().fetch });
+    const got = await update({ ...w.opts, dataDir: join(file, "x"), ...web().opts });
     assert.match(got.stdout, /^codex: failed \([^\n]+\)\n$/);
     assert.equal(got.stderr, "");
     assert.equal(got.code, 1);
@@ -237,7 +239,7 @@ describe("what update checks, from the provider record", () => {
     const text = readFileSync(join(here, "..", "providers", "codex.yaml"), "utf8");
     writeFileSync(join(root, "providers", "codex.yaml"), text.replace(/^login_status:\n {2}args: \[login, status\]\n/m, ""));
     const w = world();
-    const got = await update({ ...w.opts, providersRoot: root, fetch: web().fetch });
+    const got = await update({ ...w.opts, providersRoot: root, ...web().opts });
     assert.equal(lines(got)[0], "codex: ready");
     assert.ok(lines(got).includes("login: not checked (no login_status in the record)"), got.stdout);
     assert.equal(got.code, 0);
@@ -259,6 +261,28 @@ describe("what update checks, from the provider record", () => {
     assert.match(problems, /version\.markers\.pip/);
     assert.match(problems, /config_reference/);
     assert.deepEqual(validateProvider(loadProvider("antigravity", fixtures)), []);
+  });
+});
+
+describe("the config reference read", () => {
+  function pageEnv(name, pages = {}) {
+    const root = join(scratch, name);
+    const pagesDir = join(root, "pages");
+    for (const [slug, text] of Object.entries(pages)) {
+      mkdirSync(dirname(join(pagesDir, slug)), { recursive: true });
+      writeFileSync(join(pagesDir, slug), text);
+    }
+    return { ...process.env, FETCH_DOCS_FIXTURE_DIR: pagesDir, DOCS_CACHE_DIR: join(root, "cache"), FETCH_DOCS_CLAUDE_BIN: "" };
+  }
+
+  test("goes through the plugin's fetch-docs.sh copy and the docs cache, and returns the page's text", () => {
+    const env = pageEnv("page-read", { "learn-chatgpt-com/docs/config-file/config-reference.md": referenceText });
+    assert.equal(readCachedPage(REFERENCE, env), referenceText);
+    assert.ok(existsSync(join(scratch, "page-read", "cache")), "the read is stored in the docs cache");
+  });
+
+  test("a page fetch-docs.sh leaves unread throws with its reason", () => {
+    assert.throws(() => readCachedPage(REFERENCE, pageEnv("page-missing")), /fixture-missing/);
   });
 });
 
@@ -300,6 +324,7 @@ describe("models", () => {
       efforts: ["low", "medium", "high"],
       efforts_source: "agy --help (--effort)",
       tools: ["file", "shell", "web", "mcp", "invoke_subagent", "define_subagent", "manage_subagents", "send_message", "run_workflow", "generate_image"],
+      read_only_tools: ["file"],
       image: true,
       breaker: { open: false, reason: null, reset_at: null },
       docs_index: "https://antigravity.google/docs/cli",
@@ -357,8 +382,21 @@ describe("models", () => {
     assert.equal(doc.cli.version, "0.168.0");
     assert.ok(!("efforts" in doc));
     assert.deepEqual(doc.tools, ["file", "shell", "web", "mcp", "image_generation"]);
+    assert.deepEqual(doc.read_only_tools, ["file", "shell", "web", "mcp"]);
     assert.equal(doc.image, true);
     assert.deepEqual(doc.breaker, { open: false, reason: null, reset_at: null });
+  });
+
+  test("a record with no read_only_tools reports read_only_tools equal to tools", async () => {
+    const root = join(scratch, "no-read-only-tools-record");
+    mkdirSync(join(root, "providers"), { recursive: true });
+    const text = readFileSync(join(here, "..", "providers", "codex.yaml"), "utf8");
+    const stripped = text.replace(/^ {2}read_only_tools: .*\n/m, "");
+    assert.notEqual(stripped, text, "fixture setup: the codex record carries a read_only_tools line to remove");
+    writeFileSync(join(root, "providers", "codex.yaml"), stripped);
+    const doc = JSON.parse((await models({ ...world().opts, providersRoot: root })).stdout);
+    assert.equal(doc.status, "ok");
+    assert.deepEqual(doc.read_only_tools, ["file", "shell", "web", "mcp", "image_generation"]);
   });
 
   test("an open breaker is reported in models output, and an expired breaker reports closed", async () => {

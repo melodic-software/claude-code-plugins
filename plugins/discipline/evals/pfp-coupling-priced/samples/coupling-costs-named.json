@@ -1,13 +1,40 @@
 {
   "pass": [
-    {"answer": "Every dependency is a coupling point. Before adopting it, weigh: abandonment (who maintains it), a pricing pivot, a license change, its security posture, and the exit cost of removing it later."},
-    {"answer": "- Abandoned upstream?\n- Price changes\n- Licensing terms\n- Security record\n- Cost of switching away", "why": "switching for exit cost"},
-    {"answer": "Coupling costs: abandonment risk, pricing, licensing, security, and lock-in if we need to rip it out.", "why": "lock-in for exit cost"}
+    {
+      "answer": "Every dependency is a coupling point. Before adopting it, weigh: abandonment (who maintains it), a pricing pivot, a license change, its security posture, and the exit cost of removing it later."
+    },
+    {
+      "answer": "- Abandoned upstream?\n- Price changes\n- Licensing terms\n- Security record\n- Cost of switching away",
+      "why": "switching for exit cost"
+    },
+    {
+      "answer": "Coupling costs: abandonment risk, pricing, licensing, security, and lock-in if we need to rip it out.",
+      "why": "lock-in for exit cost"
+    },
+    {
+      "answer": "- Read its upkeep, license, security history and adoption from the sources.\n- Price the coupling: abandonment by the maintainer, a license or pricing shift, and how hard removal would be later.",
+      "why": "removal for exit cost"
+    }
   ],
   "fail": [
-    {"answer": ""},
-    {"answer": "Check abandonment, license and security before adding it.", "why": "missing pricing and exit cost"},
-    {"answer": "Looks good, add it with npm install.", "why": "no coupling weighed"},
-    {"answer": "The native platform offers a date API; use that.", "why": "different answer"}
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Check abandonment, license and security before adding it.",
+      "why": "missing pricing and exit cost"
+    },
+    {
+      "answer": "Looks good, add it with npm install.",
+      "why": "no coupling weighed"
+    },
+    {
+      "answer": "The native platform offers a date API; use that.",
+      "why": "different answer"
+    },
+    {
+      "answer": "I will check upkeep, license and size, then remove the old date helper.",
+      "why": "remove present, abandonment, pricing and security missing"
+    }
   ]
 }

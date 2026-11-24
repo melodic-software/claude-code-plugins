@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.330",
+  "suite": "wizard",
+  "partial": false,
+  "cases": [
+    {
+      "name": "una-author-elevated",
+      "dir": "evals-selected/una-author-elevated",
+      "runsPerCase": 3,
+      "maxTurns": 25,
+      "timeoutSeconds": 900,
+      "promptMarkdown": "(prompt removed)",
+      "arms": {
+        "with": [
+          {
+            "score": 0.75,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.11747709999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 20,
+            "startedAt": "2026-11-24T01:05:39.635Z",
+            "error": null,
+            "tracePath": "$HOME/.ev/claude-eval-R8F6KU/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": []
+          }
+        ],
+        "without": [
+          {
+            "score": 0.5,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.0551914,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-11-24T01:06:00.069Z",
+            "error": null,
+            "tracePath": "$HOME/.ev/claude-eval-RxXgft/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": []
+          }
+        ]
+      }
+    }
+  ]
+}

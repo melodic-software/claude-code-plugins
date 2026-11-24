@@ -5021,8 +5021,8 @@ _TRUSTED_IDS: dict[tuple[str, ...], tuple[tuple[int, ...], tuple[int, ...]]] = {
 def trusted_actors(
     repo: str, ref: str, exclude: Collection[str] = ()
 ) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    """Every account id on `TRUSTED_ACTORS_PATH` at `ref`, people and Apps
-    alike (whose pull requests the lane adopts), but those whose login
+    """Every account id on the trusted list `trusted_listing` reads for `ref`,
+    people and Apps alike (whose pull requests the lane adopts), but those whose login
     (`_login_key`) is in `exclude`, and the ids of kind `human` (the people;
     a GitHub User may be a model's account). A list that cannot be read or
     does not match its schema is empty, which adopts nothing."""
@@ -5058,7 +5058,10 @@ def opts_in_to_standards(text: str | None) -> str | None:
             f"{repo_config.YAML_CONFIG_PATH}: the shared YAML reader rejects it"
         )
     for key in keys:
-        if not values[key] and repo_config._yaml_writes(text, key):
+        if not values[key] and (
+            repo_config._yaml_writes(text, key)
+            or (key in text and _records_below(text, key))
+        ):
             raise PolicyReadError(
                 f"{repo_config.YAML_CONFIG_PATH}: {key} is not a scalar value"
             )
