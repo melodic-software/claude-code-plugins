@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# get-item: offline contract tests. The happy path drives the REAL normalizer against a
-# canned Gitea issue through a mocked curl — no live Gitea call.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/get-item.sh"
 D="$(dirname "$S")"
@@ -14,14 +12,12 @@ assert_usage_error "$S" --nope
 assert_usage_error "$S"
 assert_usage_error "$S" "not-an-id"
 assert_usage_error "$S" "#12"
-# Well-formed grammar, wrong provider → rejected before any I/O.
 assert_usage_error "$S" "github:o/r#1"
 assert_usage_error "$S" "gitea:acme/webapp#12" extra
 
 gitea_fixture_init
 trap 'rm -rf "$GITEA_FIX"' EXIT
 
-# --- the declared scope is an authorization boundary, not a filter ---
 rc="$(gitea_run "$S" "gitea:other/repo#5")"
 assert_eq "an undeclared repo is refused → exit 2" "2" "$rc"
 assert_contains "the refusal names config.gitea.scopes" "$(gitea_err)" "config.gitea.scopes"
@@ -34,8 +30,6 @@ gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'a real issue')"
 rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "get-item exit 0" "0" "$rc"
 assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(gitea_out)")"
-# The ID is rebuilt from the payload, not echoed from the argument — a normalizer that
-# silently dropped `number` would still look right if the argument were echoed.
 assert_eq "id is fully qualified" "gitea:acme/webapp#12" "$(jq -r '.id' <<<"$(gitea_out)")"
 assert_eq "title" "a real issue" "$(jq -r '.title' <<<"$(gitea_out)")"
 assert_eq "state normalized" "open" "$(jq -r '.state' <<<"$(gitea_out)")"
@@ -56,16 +50,12 @@ rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "closed issue → exit 0" "0" "$rc"
 assert_eq "closed state normalized" "closed" "$(jq -r '.state' <<<"$(gitea_out)")"
 
-# --- blocked_by_count counts OPEN blockers only ---
-# Counting closed blockers is the bug that keeps an item off the frontier forever: the
-# blocker is resolved, but the item never becomes eligible.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 "$(jq -cn '[{number:1,state:"open"},{number:2,state:"closed"},{number:3,state:"open"}]')"
 gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'blocked one')"
 rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "blocked issue → exit 0" "0" "$rc"
 assert_eq "blocked_by_count counts only open blockers" "2" "$(jq -r '.blocked_by_count' <<<"$(gitea_out)")"
-# No close reason to read: the closed blocker is resolved, never won't-do.
 assert_eq "blocked_by_wont_do_count is 0 (unsupported)" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$(gitea_out)")"
 
 # A repo with the dependencies unit disabled answers 404 on that endpoint while the
@@ -77,10 +67,6 @@ rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "dependencies unit disabled still returns the item" "0" "$rc"
 assert_eq "and reports zero blockers" "0" "$(jq -r '.blocked_by_count' <<<"$(gitea_out)")"
 
-# A dependencies request that fails for any OTHER reason is not "no visible edges": the
-# count is unknown, and reporting 0 would put a blocked item on the frontier. The status
-# cases below fail the ISSUE fetch and never reach the count, so these seed a healthy
-# issue and break only the second request.
 gitea_reset_routes
 gitea_seed "/dependencies" 401 '{"message":"token required"}'
 gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'issue ok, deps refused')"
@@ -96,7 +82,6 @@ gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'issue ok, deps down')"
 rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "unavailable dependencies read → exit 8" "8" "$rc"
 
-# --- HTTP status mapping ---
 gitea_reset_routes
 gitea_seed "/issues/12" 404 '{"message":"issue does not exist"}'
 rc="$(gitea_run "$S" "gitea:acme/webapp#12")"

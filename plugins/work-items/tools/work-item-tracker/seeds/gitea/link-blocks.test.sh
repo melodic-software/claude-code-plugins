@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# link-blocks: offline contract tests. Edge direction, cross-repo edges, and the
-# instance-setting refusal are driven through a mocked curl — no live Gitea call.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/link-blocks.sh"
 D="$(dirname "$S")"
@@ -33,7 +31,6 @@ assert_eq "out-of-scope blocker → exit 2" "2" "$rc"
 assert_contains "the refusal names the blocker repo" "$(gitea_err)" "other/repo"
 assert_eq "still nothing requested" "" "$(gitea_requests)"
 
-# --- happy path: direction matters ---
 # Gitea documents POST /issues/{index}/dependencies as "make the issue in the url
 # depend on the issue in the form", so the URL carries the BLOCKED item and the body
 # carries the BLOCKER. Getting this backwards would invert every dependency edge, and
@@ -49,7 +46,6 @@ assert_eq "linked" "true" "$(jq -r '.linked' <<<"$(gitea_out)")"
 assert_contains "the blocked item is the URL subject" "$(gitea_requests)" \
   "POST https://git.example.invalid/api/v1/repos/acme/webapp/issues/12/dependencies"
 
-# --- cross-repository edges ---
 # Gitea's IssueMeta carries owner and repo, so a blocker may live in another declared
 # repository (features.cross_repo_edges=true).
 gitea_write_binding '{"scopes":["acme/webapp","acme/api"]}'

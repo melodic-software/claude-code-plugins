@@ -13,9 +13,6 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The seam's test helper lives with the engine, which for a consumer-local adapter is
-# the read-only plugin directory. Resolve it the same way common.sh resolves lib/,
-# and say so plainly rather than failing with a bare "file not found".
 TESTS_LIB=""
 for candidate in \
   "${WIT_SEAM_TESTS_DIR:-}/lib.sh" \
@@ -46,8 +43,6 @@ for fn in wit_require_gitea_id wit_need_gitea_config \
   assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
-# --- id grammar: foreign providers are refused before any I/O ---
-
 assert_fails "rejects foreign-provider id" "reject" "accepted" \
   wit_require_gitea_id "github:o/r#1"
 if wit_require_gitea_id "gitea:acme/webapp#12"; then
@@ -58,7 +53,6 @@ else
 fi
 
 # --- scope membership is the authorization boundary ---
-
 WIT_GITEA_SCOPES='["acme/webapp"]'
 assert_succeeds "declared scope accepted" "in" "out" \
   wit_gitea_scope_in_scope "acme/webapp"
@@ -96,9 +90,6 @@ check_map "429 → unavailable (8)" "429" "8"
 check_map "503 → unavailable (8)" "503" "8"
 
 # --- credential-egress guards (all exit 3, all pre-network) ---
-
-# write_binding <json-of-the-gitea-subtree> — a binding whose provider
-# subtree is exactly what the case under test wants to assert on.
 write_binding() {
   jq -cn --argjson sub "$1" \
     '{schema_version:"1.0", provider:"gitea", config:({lease_ttl_hours:24} + {"gitea": $sub})}' \
@@ -116,8 +107,6 @@ config_rc() {
   printf '%s' "$?"
 }
 
-# config_err <subtree-json> — the same, capturing STDERR only (stdout is discarded
-# inside the group so the 2>&1 that follows redirects only what is left).
 config_err() {
   write_binding "$1"
   { WORK_ITEM_TRACKER_BINDING="$FIX/binding.json" \
@@ -134,7 +123,6 @@ assert_eq "missing auth_env → exit 3" "3" \
   "$(config_rc "$(jq -c 'del(.auth_env)' <<<"$GOOD")")"
 assert_eq "missing scopes → exit 3" "3" \
   "$(config_rc "$(jq -c 'del(.scopes)' <<<"$GOOD")")"
-# A scalar passes a naive `length > 0`; it must not pass here.
 assert_eq "scopes as a scalar string → exit 3" "3" \
   "$(config_rc "$(jq -c '.scopes = "acme/webapp"' <<<"$GOOD")")"
 assert_eq "empty scopes array → exit 3" "3" \
@@ -173,7 +161,6 @@ assert_eq "and denies a hyphenated lookalike" "3" \
   "$(config_rc "$(jq -c '.host = "attacker-mycompany.com"' <<<"$DOTLESS")")"
 assert_eq "a real subdomain under a dot-less pin is accepted" "0" \
   "$(config_rc "$(jq -c '.host = "git.mycompany.com"' <<<"$DOTLESS")")"
-# The apex IS the pinned domain: rejecting it would break a single-host deployment.
 assert_eq "the apex itself is accepted" "0" \
   "$(config_rc "$(jq -c '.host = "mycompany.com"' <<<"$DOTLESS")")"
 
@@ -199,7 +186,6 @@ WORK_ITEM_TRACKER_BINDING="$FIX/binding.json" \
 assert_eq "unset credential env var → exit 4" "4" "$?"
 
 # --- transport: the credential never reaches argv ---
-
 MOCKDIR="$FIX/mock"
 mkdir -p "$MOCKDIR"
 cat >"$MOCKDIR/curl" <<'MOCK'
@@ -245,8 +231,6 @@ assert_not_contains "redirects are not followed (-L)" "$ARGV" "-L"
 assert_not_contains "redirects are not followed (--location)" "$ARGV" "--location"
 assert_contains "request URL is https" "$STDIN_CFG" "https://git.example.com/api/v1/probe"
 
-# A transport failure (curl exits non-zero, no status) is provider-unavailable (8),
-# never a silent success with an empty body.
 cat >"$MOCKDIR/curl" <<'MOCK'
 #!/usr/bin/env bash
 cat >/dev/null 2>&1
@@ -260,14 +244,6 @@ WORK_ITEM_TRACKER_BINDING="$FIX/binding.json" \
   _ "$SCRIPT_DIR" >/dev/null 2>&1
 assert_eq "curl transport failure → exit 8" "8" "$?"
 
-# --- the ceiling the code enforces IS the manifest's ---
-# Every paginated walk in this adapter stops at WIT_GITEA_LIST_ITEMS_MAX, and callers learn
-# the bound from limits.list_items_max in capabilities.json. common.sh reads the constant
-# from the manifest at load time, so the two cannot drift. The first assertion pins the
-# shipped pair, but on its own a hardcoded copy that happens to agree with the manifest
-# satisfies it too; the second sources a copy of common.sh beside a manifest declaring a
-# different ceiling and checks the constant followed it. That second assertion, and the
-# null-ceiling case below, are what fail on a return to a hardcoded copy.
 assert_eq "WIT_GITEA_LIST_ITEMS_MAX is limits.list_items_max from capabilities.json" \
   "$(jq -r '.limits.list_items_max' "$SCRIPT_DIR/capabilities.json")" "$WIT_GITEA_LIST_ITEMS_MAX"
 if [[ "$WIT_GITEA_LIST_ITEMS_MAX" =~ ^[1-9][0-9]*$ ]]; then
@@ -283,9 +259,6 @@ ALT_MAX="$(WIT_SEAM_LIB_DIR="${WIT_SEAM_LIB_DIR:-$SCRIPT_DIR/../../lib}" \
   bash -c 'source "$1/common.sh"; printf "%s" "$WIT_GITEA_LIST_ITEMS_MAX"' _ "$ALT_FIX" 2>/dev/null)"
 assert_eq "and a manifest declaring 7 loads a ceiling of 7: the constant is read, not copied" "7" "$ALT_MAX"
 
-# A manifest that declares no usable ceiling is a setup error at load, not an unbounded
-# walk: the bound is also what stops a server that keeps answering full pages. Exercised on
-# a copy of common.sh beside a manifest declaring null, the schema's "no ceiling" value.
 CEIL_FIX="$FIX/no-ceiling"
 mkdir -p "$CEIL_FIX"
 cp "$SCRIPT_DIR/common.sh" "$CEIL_FIX/"

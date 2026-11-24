@@ -73,11 +73,8 @@ function shellMatcher(tools) {
 // it is data (a pattern, a message), not a run.
 const literalsBlanked = (line) => line.replace(/'[^']*'/g, "''");
 
-// A case arm label such as `node | python | dotnet)`.
 const CASE_LABEL = /^\s*[\w.*"'-]+(\s*\|\s*[\w.*"'-]+)*\s*\)/;
 
-// A call that runs the tool: spawn("jq", ...), execSync("jq -r"),
-// subprocess.run(["gh", ...]), shutil.which("uv").
 function callMatcher(tools) {
   return new RegExp(
     String.raw`\b(?:spawn|spawnSync|execFile|execFileSync|exec|execSync|execa|which|run|call|check_call|check_output|Popen|system)\s*\(\s*\[?\s*[rbfu]?["'\x60](${alternation(tools)})(?=["'\x60\s])`,
@@ -107,8 +104,6 @@ function shellLines(file, text) {
   return out;
 }
 
-// Drop heredoc bodies: help text and embedded programs, not commands. The line
-// that opens the heredoc stays, so `python3 - <<'PY'` still counts.
 function withoutHeredocs(lines) {
   const out = [];
   let end = null;
@@ -130,8 +125,6 @@ function isComment(line, ext) {
   return t.startsWith("#");
 }
 
-// Process calls in JS, TS and Python often span lines, so the matcher runs over the whole
-// text with comment lines blanked, and a hit is reported on the line the tool name is on.
 function callUses(re, ext, text) {
   const lines = text.split(/\r?\n/);
   const masked = lines.map((l) => (isComment(l, ext) ? "" : l)).join("\n");

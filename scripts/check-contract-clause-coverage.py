@@ -103,11 +103,6 @@ DEFAULT_REGISTRY = "scripts/contract-clause-registry.json"
 CLAUSE_ID = r"[A-Za-z0-9][A-Za-z0-9._-]*"
 
 
-# A marker is a COMPLETE comment, never a loose substring: an HTML comment that
-# closes on the same line, or a `#`/`//` line comment that runs to end of line.
-# Anchoring this way keeps a prose mention of the vocabulary ("tag the passage
-# with contract-restatement") from registering as a tag, and keeps this file's
-# own docstring out of its own scan.
 def _marker_body(suffix: str) -> str:
     return (
         r"contract-restatement(?P<kind" + suffix + r">-begin|-end)?:"
@@ -176,7 +171,6 @@ def _compile(pattern: str, where: str) -> re.Pattern[str]:
 
 
 def load_registry(path: Path) -> tuple[Clause, ...]:
-    """Read the clause registry, or fail closed."""
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
@@ -234,11 +228,6 @@ def load_registry(path: Path) -> tuple[Clause, ...]:
 
 
 def tracked_markdown(root: Path) -> list[str]:
-    """Every tracked *.md path, repo-relative and sorted.
-
-    Tracked-file discovery, not a filesystem walk: an untracked scratch file
-    is not a surface anyone reads, and a build tree is not authored prose.
-    """
     try:
         out = subprocess.run(
             ["git", "-C", str(root), "ls-files", "-z", "--", "*.md"],
@@ -251,13 +240,6 @@ def tracked_markdown(root: Path) -> list[str]:
 
 
 def _markers_on(line: str) -> list[tuple[str | None, str]]:
-    """Every marker on one line, in order.
-
-    All of them, not the first: a single-line passage that restates two
-    clauses carries two tags, and stopping at the first would silently leave
-    the second unchecked — the exact "well-formed but uninspected" shape this
-    gate exists to close.
-    """
     found: list[tuple[str | None, str]] = []
     for match in MARKER_RE.finditer(line):
         kind = match.group("kind_html") or match.group("kind_line")
@@ -273,18 +255,6 @@ def _strip_markers(line: str) -> str:
 
 
 def flatten(numbered: list[tuple[int, str]]) -> tuple[str, list[int]]:
-    """Marker-stripped text with every whitespace run collapsed to one space.
-
-    Prose wraps wherever the column limit falls, so a qualifier phrase is
-    routinely split across a newline ("a defect this\\nchange is shipping").
-    Matching the raw text would then miss the phrase and report a gap the
-    surface does not have — a false positive that teaches authors to distrust
-    the gate. Normalizing first makes a match independent of where the line
-    happened to break.
-
-    The parallel `origins` list maps each character of the normalized text
-    back to the line it came from, so a finding still cites a real line.
-    """
     parts: list[str] = []
     origins: list[int] = []
     for lineno, line in numbered:
@@ -300,7 +270,6 @@ def flatten(numbered: list[tuple[int, str]]) -> tuple[str, list[int]]:
 
 
 def collect_spans(path: str, lines: list[str], known: set[str]) -> list[Span]:
-    """Build every declared restatement span, or fail closed on a malformed one."""
     spans: list[Span] = []
     open_spans: dict[str, int] = {}
     for index, line in enumerate(lines, start=1):
@@ -339,12 +308,6 @@ def collect_spans(path: str, lines: list[str], known: set[str]) -> list[Span]:
 
 
 def residual_chunks(lines: list[str], spans: list[Span]) -> list[tuple[str, list[int]]]:
-    """Every contiguous run of lines covered by no span, normalized.
-
-    Chunked rather than concatenated: a `restates` pattern spanning the seam
-    between two non-adjacent runs would report a restatement that no passage
-    actually makes.
-    """
     covered: set[int] = set()
     for span in spans:
         covered.update(range(span.start, span.end + 1))
@@ -363,7 +326,6 @@ def residual_chunks(lines: list[str], spans: list[Span]) -> list[tuple[str, list
 
 
 def _missing_qualifiers(clause: Clause, spans: list[Span]):
-    """Yield (span, qualifier) for every qualifier a span's text does not carry."""
     for span in spans:
         for qualifier in clause.qualifiers:
             if not qualifier.pattern.search(span.text):
@@ -381,17 +343,6 @@ def check_clause(
     spans = [s for s in all_spans if s.clause_id == clause.id]
 
     if path == clause.canonical:
-        # The canonical surface OWNS the clause, and is held to the SAME
-        # span-scoped standard as every copy: it declares where the clause
-        # lives and must carry every qualifier inside those bounds. Checking
-        # the canonical file-wide instead would reproduce the exact defect
-        # this gate rejects everywhere else — a qualifier three sections away
-        # clearing a passage that does not carry it.
-        #
-        # The one asymmetry, deliberate: the untagged-restatement check does
-        # not run here. A canonical's other passages referring to its own
-        # clause ARE the clause, not copies of it, so reporting them would
-        # demand the owner tag every mention of what it owns.
         report.owned += 1
         if not spans:
             report.findings.append(
@@ -487,8 +438,6 @@ def run(root: Path, registry_path: Path, excludes: tuple[str, ...]) -> Report:
         if any(path == e or path.startswith(e.rstrip("/") + "/") for e in excludes):
             continue
         if Path(path).name == "CHANGELOG.md":
-            # A changelog records what changed; it is not an instruction
-            # surface a lane reads to decide what to do.
             continue
         try:
             text = (root / path).read_text(encoding="utf-8")
@@ -496,9 +445,6 @@ def run(root: Path, registry_path: Path, excludes: tuple[str, ...]) -> Report:
             raise GateError(f"could not read {path}: {exc}") from exc
         lines = text.splitlines()
         flat_text, _ = flatten(list(enumerate(lines, start=1)))
-        # Spans are collected ONCE per file against the full clause set: a
-        # per-clause pass would see a sibling clause's marker as a tag no
-        # clause backs and fail closed on a correctly tagged file.
         all_spans = collect_spans(path, lines, known)
         for clause in clauses:
             check_clause(clause, path, flat_text, lines, all_spans, report)

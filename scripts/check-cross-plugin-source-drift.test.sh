@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-cross-plugin-source-drift.sh. Builds a tiny synthetic
-# plugins/ tree per scenario in a temp dir (not the real repo tree, which is
-# large and would make these tests slow and coupled to live content) and
-# invokes the script against it directly -- the script's own
-# `cd "$(dirname "$0")/.."` makes this work unmodified: copy it to
-# <fixture>/scripts/ and it operates on <fixture>/plugins and
-# <fixture>/scripts/cross-plugin-source-registry.txt.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,13 +13,10 @@ SCRIPT="$SELF_DIR/check-cross-plugin-source-drift.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-# new_fixture <out-var> → a fresh <tmp>/scripts + <tmp>/plugins tree with the
-# script and the shared libraries it sources copied in, ready to populate.
-new_fixture() { # <out-var>
+new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --plugins
 }
 
-# plugin_file <fixture> <plugin> <relpath> <content>
 plugin_file() {
   local fixture="$1" plugin="$2" rel="$3" content="$4"
   mkdir -p "$(dirname "$fixture/plugins/$plugin/$rel")"

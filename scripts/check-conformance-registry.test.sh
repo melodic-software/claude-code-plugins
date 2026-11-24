@@ -21,7 +21,6 @@ HEADER='| id | concern | owner | lane | checks | ci | scope |
 |---|---|---|---|---|---|---|'
 GOOD_ROW='| dim-1 | a concern | docs/owner.md#The rule | judgment: does it hold? | `scripts/existing.sh`, `/p:s`, `/local`, judgment | yes | plugin |'
 
-# mk_tree <out-var> <row>...: a tree whose registry holds the given rows.
 mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --label conformance-registry || return 1
@@ -41,7 +40,6 @@ mk_tree() {
   } >"$dir/docs/conformance-dimensions.md"
 }
 
-# run_case <label> <expected-rc> <expected-substring> <row>...
 run_case() {
   local label="$1" expected="$2" needle="$3" tree out rc
   shift 3
@@ -85,7 +83,6 @@ run_case "an unknown scope fails" 1 "dim-8" \
   '| dim-8 | c | docs/owner.md#The rule | judgment: q | judgment | no | galaxy |'
 run_case "a duplicate id fails" 1 "dim-1" "$GOOD_ROW" "$GOOD_ROW"
 
-# Missing registry file is an environment error, not a finding.
 tree=""
 if mk_tree tree "$GOOD_ROW"; then
   rm "$tree/docs/conformance-dimensions.md"

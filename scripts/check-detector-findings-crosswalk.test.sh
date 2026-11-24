@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for check-detector-findings-crosswalk.sh.
-#
-# Every case is discriminating: it FAILS if the detector stops detecting. A
-# gate whose test only ever feeds it a conforming document proves nothing,
-# which is the failure mode this suite exists to rule out for a gate whose
-# whole job is noticing an argument that was never made.
 set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,21 +20,12 @@ separator='|---|---|---|---|---|'
 good_row='| a-plugin/a-skill/rule-thing | it fired | argued from the test because the limb matches | IMPORTANT | No |'
 
 write_doc() {
-  # $1 = destination, remaining args = body lines
   dest="$1"
   shift
   printf '%s\n' "# Doc" "" "$@" >"$dest"
 }
 
 expect() {
-  # $1 = label, $2 = expected exit status, $3 = doc path,
-  # $4 = OPTIONAL expected stderr substring.
-  #
-  # Asserting the message matters where a case could pass for the wrong reason:
-  # a malformed fixture fails on exit status whatever the detector noticed, so a
-  # status-only assertion would keep passing after the specific check it was
-  # written for stopped working. Every case with a single intended cause names
-  # it.
   label="$1"
   want="$2"
   doc="$3"
@@ -81,15 +66,10 @@ write_doc "$tmp/unescaped-pipe.md" "$header" "$separator" \
   '| a-plugin/a-skill/rule-thing | fired on a|b | argued from the test | IMPORTANT | No |'
 expect "an unescaped pipe fails rather than shifting cells" 1 "$tmp/unescaped-pipe.md" "MALFORMED"
 
-# The shape REQUIRES a literal pipe to be written \|, and this table is prose
-# about rules -- regex alternation, shell pipelines, type unions. Rejecting a
-# correctly escaped author would dead-end them in a required CI gate.
 write_doc "$tmp/escaped-pipe.md" "$header" "$separator" \
   '| a-plugin/a-skill/rule-thing | fired on a\|b | argued from the test | IMPORTANT | No |'
 expect "a correctly ESCAPED pipe passes" 0 "$tmp/escaped-pipe.md"
 
-# An escaped pipe must not be able to smuggle a cell past the emptiness checks
-# by restoring into one.
 write_doc "$tmp/escaped-pipe-empty-test.md" "$header" "$separator" \
   '| a-plugin/a-skill/rule-thing | fired on a\|b |  | IMPORTANT | No |'
 expect "an escaped pipe does not mask an empty test cell" 1 "$tmp/escaped-pipe-empty-test.md" "EMPTY test cell"
@@ -115,8 +95,6 @@ write_doc "$tmp/restated.md" "$header" "$separator" "$good_row" "" \
   '| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |'
 expect "a restated findings-file table fails" 1 "$tmp/restated.md" "RESTATED"
 
-# A stray table elsewhere in the document must neither satisfy the check nor be
-# dragged into it: the real table is located by its exact header.
 write_doc "$tmp/stray-table.md" \
   '| Outcome | Determined by | Home |' \
   '|---|---|---|' \

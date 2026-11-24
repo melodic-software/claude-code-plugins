@@ -258,14 +258,8 @@ PAIRS_DEFAULT=(
   "plugins/harness-config/skills/audit-permission-grants/scripts/permission-rule-check.sh|plugins/harness-config/skills/audit-permission-grants/evals/evals.json|P[0-9]+[a-z]?"
 )
 
-# The check-id SHAPE the stopping rule recognizes across skills it has never
-# seen. Deliberately wider than any row's own pattern: this one only has to
-# decide "is this a check-id vocabulary at all", and the row that follows states
-# the real spelling.
 QUALIFYING_ID_ERE='[A-Z][A-Za-z]*[0-9]+[A-Za-z0-9]*'
 
-# Argv is exact: ignoring trailing words (`--check extra`) reads as a mode the
-# gate accepted and did not run.
 mode="${1:-discover}"
 if [[ "$#" -gt 1 || ("$mode" != discover && "$mode" != --check) ]]; then
   echo "usage: $(basename "$0") [--check]" >&2
@@ -560,9 +554,6 @@ for row in "${pairs[@]}"; do
     exit 2
   fi
 
-  # A suite that covers no id is a real answer (every emitted id is then
-  # uncovered, which is a finding). A suite that does not PARSE, or that is not
-  # the SHAPE coverage can be read out of, is not an answer at all.
   if ! jq -e . "$evals" >/dev/null 2>&1; then
     echo "check-detector-eval-coverage: $evals is not valid JSON; the eval-named id set cannot be read" >&2
     exit 2
@@ -573,7 +564,6 @@ for row in "${pairs[@]}"; do
     exit 2
   fi
 
-  # Emitted ids, with every candidate call site accounted for.
   if ! scan_emits "$detector" "$id_re" "$scan_tmp"; then
     echo "check-detector-eval-coverage: $detector has an emit call site shfmt could not parse; the emitted id set cannot be read" >&2
     exit 2
@@ -590,8 +580,6 @@ for row in "${pairs[@]}"; do
     exit 2
   fi
 
-  # Eval-named and eval-COVERING ids, read only out of entries of `evals` and
-  # only out of the two fields the runner grades against.
   jq -r '.evals[] | (.expected_output, .expectations) | .. | strings | @json' "$evals" >"$strings_tmp"
   awk -v idre="$id_re" "$COVERAGE_AWK" "$strings_tmp" >"$scan_tmp"
   sed -n 's/^NAMED //p' "$scan_tmp" | sort -u >"$named_tmp"
@@ -601,9 +589,6 @@ for row in "${pairs[@]}"; do
   emitted_count="$(grep -c . "$emitted_tmp")"
   named_count="$(grep -c . "$named_tmp")"
 
-  # A detector that emits nothing under the row's pattern means the extraction
-  # broke (an emitter renamed, an id shape changed), not that the suite is
-  # complete. Passing here would be the false-green this gate exists to stop.
   if [[ "$emitted_count" -eq 0 ]]; then
     echo "check-detector-eval-coverage: no check ids extracted from $detector with /${id_re}/; the extraction, not the eval suite, is broken" >&2
     exit 2
@@ -638,9 +623,6 @@ for row in "${pairs[@]}"; do
       if grep -Fxq -- "$id" "$covering_tmp"; then
         continue
       fi
-      # An id named ONLY inside a negated clause is an advisory, never a
-      # finding: see NEGATIVE ASSERTIONS in the header for why this direction
-      # gave up failing, and what it costs.
       if grep -Fxq -- "$id" "$disclaimed_tmp"; then
         printf 'DISCLAIMED CHECK ID: %s is emitted by %s and named in %s only inside a negated clause, so nothing there exercises it (advisory, not a finding)\n' \
           "$id" "$detector" "$evals" >>"$advisory_tmp"
@@ -651,7 +633,6 @@ for row in "${pairs[@]}"; do
       errors=$((errors + 1))
     done <"$emitted_tmp"
 
-    # The direction that catches a suite asserting a scope the detector outgrew.
     while IFS= read -r id; do
       if ! grep -Fxq -- "$id" "$emitted_tmp"; then
         echo "UNEMITTABLE CHECK ID: $id is named in $evals and $detector cannot emit it" >&2
@@ -661,8 +642,6 @@ for row in "${pairs[@]}"; do
   fi
 done
 
-# The stopping rule. Runs after the rows so an unregistered pair is reported
-# alongside them rather than instead of them.
 registered_detectors=""
 for row in "${pairs[@]}"; do
   registered_detectors+="${row%%|*}"$'\n'

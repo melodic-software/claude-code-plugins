@@ -490,8 +490,6 @@ wit_gitea_blocked_by_count() {
     # regression against a case that needs 50+ blockers on a single issue to appear.
     ((got < WIT_GITEA_PAGE_SIZE)) && break
     page=$((page + 1))
-    # The same overall bound list-items uses, so a pathological dependency graph cannot
-    # make one item's count run unbounded.
     ((page * WIT_GITEA_PAGE_SIZE > WIT_GITEA_LIST_ITEMS_MAX)) && break
   done
   printf '%s' "$total"
