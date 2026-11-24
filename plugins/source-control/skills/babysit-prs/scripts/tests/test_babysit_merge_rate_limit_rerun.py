@@ -54,7 +54,6 @@ SECURITY_CHECK = {
 # pr-review-cli.yml's status jobs, which share the name `review-status`.
 CLI_CHECK = {**CHECK, "name": "PR Review / review-status"}
 CLI_SECURITY_CHECK = {**SECURITY_CHECK, "name": "PR Review Security / review-status"}
-# The same under the lower-case caller: a head tested before the rename.
 RENAMED_CLI_CHECK = {**CHECK, "name": "pr-review / review-status"}
 
 

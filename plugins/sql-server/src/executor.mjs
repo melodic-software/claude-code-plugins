@@ -83,7 +83,6 @@ FROM reached AS r
 LEFT JOIN sys.foreign_keys AS fk ON fk.object_id = r.fk_id
 ORDER BY r.depth, [table], [foreignKey];`;
 
-// One row per trigger and event it fires on.
 const PREVIEW_TRIGGERS = `${CASCADE_REACH}
 SELECT OBJECT_SCHEMA_NAME(tr.parent_id) + N'.' + OBJECT_NAME(tr.parent_id) AS [table], tr.name AS [name],
   te.type_desc AS [event], tr.is_instead_of_trigger AS [insteadOf], tr.is_disabled AS [disabled]
@@ -149,7 +148,6 @@ const toJson = (value) => {
 
 const toObjects = ({ columns, rows }) => rows.map((row) => Object.fromEntries(columns.map((column, i) => [column, row[i]])));
 
-// run stops at a capped result set, so the sets after it are missing; they read as empty.
 const NO_ROWS = Object.freeze({ columns: [], rows: [], truncated: false });
 const padSets = (sets, count) => Array.from({ length: count }, (_, i) => sets[i] ?? NO_ROWS);
 const anyTruncated = (sets) => sets.some((set) => set.truncated);
@@ -176,8 +174,6 @@ export function createTediousExecutor(
   let open = 0;
   let closed = false;
 
-  // A failed load is not kept, so installing the dependencies or a credential
-  // that comes back later takes effect on the next call.
   const getDriver = () => {
     driverReady ??= loadTedious().catch((error) => {
       driverReady = undefined;
@@ -215,7 +211,6 @@ export function createTediousExecutor(
         database,
         appName: APP_NAME,
         encrypt: true,
-        // The executor's own timer cancels a call; see run().
         requestTimeout: 0,
         enableImplicitTransactions: false,
         abortTransactionOnError: true,
@@ -272,7 +267,6 @@ export function createTediousExecutor(
         clearTimeout(entry.timer);
         return entry;
       }
-      // A full pool with an idle connection to another database gives up that one.
       if (open >= maxConnections && idle.length > 0) discard(idle.shift());
       if (open < maxConnections) {
         open += 1;
@@ -299,9 +293,6 @@ export function createTediousExecutor(
     });
   }
 
-  // Runs statements one after another on one connection between the guard
-  // batch and the transaction check, all under one request timeout. Each
-  // result set stops at the row cap: the row past it cancels the request.
   async function run(database, statements) {
     const tedious = await getDriver();
     const entry = await acquire(database);
@@ -310,7 +301,6 @@ export function createTediousExecutor(
     let capped = false;
     let reusable = false;
     const timer = setTimeout(() => {
-      // A cancel the row cap sent is already on its way.
       if (capped) return;
       timedOut = true;
       connection.cancel();

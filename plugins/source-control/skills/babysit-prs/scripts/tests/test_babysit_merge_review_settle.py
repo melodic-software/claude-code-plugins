@@ -31,7 +31,6 @@ import babysit_postmerge
 from repo_config_fake import RepoConfigFake
 
 HEAD = "a" * 40
-# The base compare the freshness hold reads for an otherwise-ready PR.
 UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 STALE = "b" * 40
 REVIEWER = "chatgpt-codex-connector"
@@ -42,8 +41,6 @@ SETTLE = merge.ReviewSettleConfig(
     reviewer_logins=frozenset({REVIEWER}), settle_seconds=600
 )
 
-# Protected base needing one approving review and no required status contexts,
-# so nothing but the hold under test can block an otherwise-clean PR.
 RULES = [{"type": "pull_request", "parameters": {"required_approving_review_count": 1}}]
 
 
@@ -205,8 +202,6 @@ class HoldFiresWhileAReviewIsDue(SettleHarness):
         self.assertFalse(result["reviewSettle"]["currentHeadReview"])
 
     def test_a_review_of_another_head_does_not_clear_the_hold(self) -> None:
-        # The stale review is by the configured reviewer but on the previous
-        # head -- the case a login-only check would wrongly treat as reviewed.
         result = self._evaluate(reviews=[_review(STALE, state="APPROVED")])
         self.assertEqual(result["reviewSettle"]["state"], "settling")
 
@@ -487,8 +482,6 @@ class ReviewCorpusIsFetchedOnce(unittest.TestCase):
             )
         self.assertEqual(reviews_mock.call_count, 1)
         self.assertEqual(review_comments_mock.call_count, 1)
-        # Call counts alone would still pass if the tier were handed a corpus it
-        # could not read, so assert it reached its verdict on the injected one.
         self.assertEqual(
             result["autopilotMergeTier"]["distinctBotApproval"]["author"],
             "approver-bot",
@@ -566,9 +559,6 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         self.assertIn("at least one second", out)
 
     def test_sub_second_windows_are_refused_rather_than_truncated_to_zero(self) -> None:
-        # A positive window that converts to zero seconds passes a bare
-        # greater-than-zero test and then holds nothing, which is precisely the
-        # active-looking inert configuration the paired-flag rule forbids.
         for value in ("0.008", "1e-9"):
             with self.subTest(value=value):
                 code, out = self._run(
@@ -581,8 +571,6 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
                 self.assertIn("at least one second", out)
 
     def test_a_valid_pair_reaches_evaluate_as_seconds(self) -> None:
-        # Without this, dropping the `* 60` conversion or the `settle=settle`
-        # argument entirely would leave every other test in this file green.
         captured: dict[str, Any] = {}
 
         def fake_evaluate(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -811,8 +799,6 @@ class SettleConfigUnit(unittest.TestCase):
         self.assertIsNone(merge.parse_github_timestamp("   "))
 
 
-# The tracker's human-gated label read an autonomous gate makes: stubbed so
-# no test reads GitHub.
 _role_label = mock.patch.object(
     babysit_postmerge, "_role_label", return_value="needs-human"
 )

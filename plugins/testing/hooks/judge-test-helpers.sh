@@ -77,8 +77,6 @@ export CLAUDE_PLUGIN_DATA="$TMP/data" CLAUDE_PROJECT_DIR="$REPO" HOME="$TMP/home
 export TEST_SCAN_SKIP_ROOT="$TMP/judge-skip-root"
 export CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true
 export TEST_JUDGE_DEBOUNCE=0 TEST_JUDGE_CMD="$TMP/judge-stub.sh" STUB_DIR="$TMP/stub"
-# Every js_file test has the same body, so verdict reuse would answer most
-# judge runs these suites count; the reuse cases turn it back on.
 export TEST_JUDGE_REUSE=0
 DATA="$TMP/data"
 TDIR="$TMP/transcripts/-repo"

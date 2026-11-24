@@ -1,13 +1,3 @@
-"""pr-merge's skip of unchanged refusals: a candidate is set aside only when
-the last run that gated it refused it on the same key, and never allowed.
-
-Expected values come from the owner's design for this cut: the key covers the
-head, `updatedAt`, labels, the base the gate reads its config at, the check
-rollup, review and thread state, the verdict artifacts and the default
-branch's config and gate code; a skip repeats only an allow-listed refusal,
-inside a recheck limit, and any doubt gates the candidate.
-"""
-
 from __future__ import annotations
 
 import copy

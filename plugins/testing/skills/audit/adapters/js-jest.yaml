@@ -100,24 +100,14 @@ mock:
     - 'calledThrice'
     - 'calledWith'
     - 'callCount'
-  # Whole mock-interaction chains, removed before deciding whether a value
-  # assertion remains. [^()]*(\([^()]*\)[^()]*)* allows one nesting level; a
-  # deeper chain survives the strip and reads as a value assertion.
   strip:
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*(\.[[:space:]]*not)?[[:space:]]*\.[[:space:]]*(toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast)[A-Za-z]*[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
     - 'sinon\.assert\.[A-Za-z]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
-# Up to the matcher's opening parenthesis, so an inline snapshot whose
-# template spans lines still reads as one.
 snapshot:
   - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*(toMatchSnapshot|toMatchInlineSnapshot|toMatchFileSnapshot|toThrowErrorMatchingSnapshot|toThrowErrorMatchingInlineSnapshot)[[:space:]]*\('
-# fast-check: the expected value is derived from generated inputs on purpose.
-# js-vitest, js-node-test and js-playwright inherit this list. A marker exempts
-# only the test whose body holds it.
 property_markers:
   - 'fc[[:space:]]*\.[[:space:]]*(assert|property|asyncProperty)[[:space:]]*\('
 equality:
-  # Inequality asserts are deliberately absent: Assert.NotEqual(f(2), f(2)) is
-  # an always-fail defect, not a recomputed expectation.
   call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]
   receiver: [expect.toBe, expect.toEqual, expect.toStrictEqual]
 suppress_marker: 'cant-fail-ok:'

@@ -26,7 +26,6 @@ export HOME="$T/home"
 mkdir -p "$HOME"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
 
-# run <args...>: rc, out (stdout) and err (stderr) of one script call.
 run() {
   rc=0
   out="$("$BASH" "$VC" "$@" 2>"$T/stderr")" || rc=$?
@@ -34,8 +33,6 @@ run() {
 }
 
 LOCK_HASH="$(sha256sum "$HERE/package-lock.json" | cut -c1-12)"
-
-# --- network-free group -------------------------------------------------------
 
 run --help
 assert_eq "--help exits 0" 0 "$rc"
@@ -45,7 +42,6 @@ assert_eq "no subcommand exits 2" 2 "$rc"
 run frobnicate
 assert_eq "an unknown subcommand exits 2" 2 "$rc"
 
-# install --dry-run reads the lockfile and the install directory, nothing else.
 run install --deps-dir "$T/deps" --dry-run
 assert_eq "install --dry-run exits 0" 0 "$rc"
 assert_contains "it prints the hashed install directory under the base" "$out" "install_dir=$T/deps/visual-compare/$LOCK_HASH"
@@ -69,7 +65,6 @@ assert_contains "a cached install's data id names its marketplace" "$out" "insta
 out="$(CLAUDE_CONFIG_DIR="$T/cfg" "$BASH" "$T/plain/testing/skills/check-visual-parity/scripts/visual-compare.sh" install --dry-run 2>&1)"
 assert_contains "a copy outside the cache is an inline plugin" "$out" "install_dir=$T/cfg/plugins/data/testing-inline/visual-compare/$LOCK_HASH"
 
-# shim <dir> <command...>: a PATH directory holding only the named commands.
 shim() {
   local d="$1" c p
   shift
@@ -96,7 +91,6 @@ assert_contains "it says to install Node.js" "$err" "install Node.js"
 assert_not_contains "and prints no npm repair line" "$err" "repair:"
 assert_eq "and nothing on stdout" "" "$out"
 
-# Argument errors exit 2 before anything is read or installed.
 run compare --after "$T/a" --tolerance 0 --diff-dir "$T/d" --dry-run
 assert_eq "compare without --baseline exits 2" 2 "$rc"
 run compare --baseline "$T/b" --after "$T/a" --tolerance -1 --diff-dir "$T/d" --dry-run
@@ -116,7 +110,6 @@ assert_eq "manifest with a viewport that is not WxH exits 2" 2 "$rc"
 run config
 assert_eq "config without --repo exits 2" 2 "$rc"
 
-# manifest records a sha256 per image and refuses to replace an existing one.
 mkdir -p "$T/m"
 printf 'not really a png' >"$T/m/home page.png"
 run manifest --dir "$T/m" --browser "chromium 140" --viewport 1280x720 --scale 2
@@ -138,7 +131,6 @@ mkdir -p "$T/empty"
 run manifest --dir "$T/empty" --browser "chromium 140" --viewport 1280x720 --scale 1
 assert_eq "manifest over a directory with no PNG exits 2" 2 "$rc"
 
-# layer <file> <pixels> [reason]: a testing.yaml holding the map.
 layer() {
   mkdir -p "$(dirname "$1")"
   if (($# > 2)); then
@@ -147,7 +139,6 @@ layer() {
     printf 'pixel_tolerance:\n  pixels: %s\n' "$2" >"$1"
   fi
 }
-# repo <dir>: a git repository with no origin and no layers.
 repo() {
   rm -rf "$1"
   mkdir -p "$1"
@@ -231,7 +222,6 @@ assert_eq "and dropped while the team value still decides" \
   "pixel_tolerance=2 source=team (working tree, no origin) reason=fonts: hinting differs" "$out"
 rm -f "$R/$PERSONAL"
 
-# An invalid layer is named and dropped; the others still decide; never exit 2.
 layer "$R/$TEAM" 2 "team reason"
 layer "$R/$PERSONAL" -1 "x"
 run config --repo "$R"
@@ -270,7 +260,6 @@ run config --repo "$R"
 assert_eq "with no valid layer, the default 0" "pixel_tolerance=0 source=default reason=" "$out"
 assert_eq "and exit 0" 0 "$rc"
 
-# A symlinked personal override is skipped with a warning.
 layer "$R/$TEAM" 2 "team reason"
 layer "$T/elsewhere.yaml" 0
 ln -s "$T/elsewhere.yaml" "$R/$PERSONAL"
@@ -279,7 +268,6 @@ assert_contains "a symlinked personal override is skipped" "$out" "pixel_toleran
 assert_contains "with a warning" "$err" "symlink"
 rm -f "$R/$PERSONAL"
 
-# The team layer is read from origin's default branch when there is an origin.
 O="$T/origin.git"
 git init -q --bare "$O"
 repo "$R"
@@ -305,8 +293,6 @@ BASH_COMPAT=51 run config --repo "$odd"
 assert_contains "a path holding \$(...) resolves" "$out" "pixel_tolerance=2 source=team"
 if [[ -e "$T/pwned" ]]; then fail "and runs nothing" "$T/pwned exists"; else pass "and runs nothing"; fi
 
-# --- pixel group --------------------------------------------------------------
-
 deps_base="${VISUAL_COMPARE_DEPS_DIR:-}"
 [[ -z "$deps_base" || "$deps_base" == /* ]] || deps_base="$PWD/$deps_base"
 pixel=0
@@ -326,7 +312,6 @@ fi
 
 if ((pixel)); then
   DEPS="$deps_base/visual-compare/$LOCK_HASH"
-  # png <file> <width> <height> [x y]: a black image, one white pixel at x,y.
   png() {
     node -e '
       const { createRequire } = require("node:module");
@@ -338,7 +323,6 @@ if ((pixel)); then
       require("node:fs").writeFileSync(file, PNG.sync.write(img));
     ' "$DEPS" "$@"
   }
-  # capture <dir> <browser> then png specs: a directory of images and its manifest.
   capture() {
     local d="$1" browser="$2"
     rm -rf "$d"
