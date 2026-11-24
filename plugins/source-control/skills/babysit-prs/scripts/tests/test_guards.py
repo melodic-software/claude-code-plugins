@@ -1,17 +1,4 @@
 # test-scope: plugins/source-control/*.md
-"""Executes the guard contract in `guard_contract.py` against the real entry points.
-
-Every assertion here exercises a fact a consumer is told to rely on, and fails
-with the prose claim that just became false rather than a bare exit-code
-mismatch. The refusal rows need no gh stub: a fail-closed guard rejects on
-argument shape alone, before any network call. The effect rows run offline
-against a throwaway state directory, and the predicate rows call the classifier
-directly because their conditions are boolean expressions over fetched API data
-that no argument shape can express.
-
-The contract's markdown rendering in `../reference/guard-contract.md` is what
-consumers cite; `GeneratedDocIsCurrent` is what keeps it honest.
-"""
 
 import argparse
 import contextlib
@@ -35,12 +22,10 @@ import guard_contract as contract
 
 BASH = shutil.which("bash")
 
-# A long option as it appears in a usage block or a documented command line.
 LONG_OPTION = re.compile(r"(?<![\w-])--[a-z0-9][a-z0-9-]*")
 
 
 def invoke(entry_point: str, argv: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
-    """Run an entry point the way an operator would -- wrapper via bash, CLI via Python."""
     target = contract.plugin_path(entry_point)
     command = (
         [BASH, str(target), *argv]
@@ -51,14 +36,11 @@ def invoke(entry_point: str, argv: tuple[str, ...]) -> subprocess.CompletedProce
         command,
         capture_output=True,
         text=True,
-        # A foreign cwd proves the wrappers' self-location, and keeps a stray
-        # repo-relative default from being read as a guard holding.
         cwd=tempfile.gettempdir(),
     )
 
 
 def envelope(proc: subprocess.CompletedProcess[str]) -> dict[str, object]:
-    """The engine's JSON refusal envelope, or {} when the refusal never reached Python."""
     if not proc.stdout.strip():
         return {}
     try:
@@ -69,7 +51,6 @@ def envelope(proc: subprocess.CompletedProcess[str]) -> dict[str, object]:
 
 
 def state_fingerprint(state_dir: pathlib.Path) -> dict[str, bytes]:
-    """Durable state contents, ignoring the advisory .lock files every run creates."""
     return {
         str(path.relative_to(state_dir)): path.read_bytes()
         for path in sorted(state_dir.rglob("*"))
@@ -78,14 +59,6 @@ def state_fingerprint(state_dir: pathlib.Path) -> dict[str, bytes]:
 
 
 def observed_delta(before: dict[str, bytes], after: dict[str, bytes]) -> str:
-    """Which way the state directory's file set moved.
-
-    Directional, because a boolean cannot tell deletion from a rewrite: a reap
-    that rewrote the expired lease instead of removing it would satisfy
-    `before != after` and pass a row whose claim is deletion. Compared over the
-    key set rather than named paths -- a path literal in a drift-detection
-    artifact couples it to the writer's internal layout.
-    """
     if before == after:
         return contract.UNCHANGED
     kept, arrived = set(before), set(after)
@@ -102,8 +75,6 @@ def seed(fixture: str, state_dir: pathlib.Path) -> None:
     if fixture == contract.EMPTY_STATE:
         return
     if fixture == contract.EXPIRED_WORKER_LEASE:
-        # Acquire a real lease so the file shape stays the engine's, then age it
-        # past expiry -- a hand-written record would drift from the writer.
         proc = invoke(
             contract.LEASE_CLI,
             (
@@ -204,8 +175,6 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                         because(row.id, row.claim, f"{key}={payload[key]!r}"),
                     )
                 if row.entry_point.startswith("scripts/"):
-                    # The observable bash-vs-Python discriminator: a wrapper-level
-                    # refusal never reaches the interpreter, so it emits no envelope.
                     if row.refused_by == contract.BASH_WRAPPER:
                         self.assertEqual(
                             payload,
@@ -226,11 +195,6 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                         )
 
     def test_the_recording_shim_is_reachable(self) -> None:
-        # Guards the guard. The replay below asserts a NEGATIVE -- the sentinel
-        # was never written -- so a shim the isolated PATH cannot execute makes
-        # every row pass while proving nothing. Resolve and invoke it through
-        # the lane's own subprocess seam, so a change to how `gh` is located
-        # cannot leave this probe agreeing with a shim the product would miss.
         if BASH is None:
             self.skipTest("bash unavailable; the gh shim needs it")
         with tempfile.TemporaryDirectory() as tmp:
@@ -259,12 +223,6 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
         )
 
     def test_scope_refusal_precedes_every_network_call(self) -> None:
-        # The rows claiming "no gh invocation at all" are replayed against a
-        # recording shim rather than an emptied PATH. Emptying PATH proves only
-        # that the refusal survives gh being unreachable -- a swallowed lookup
-        # failure falling through to the same exit code would pass it while the
-        # claim stayed false. The shim is the only executable on PATH, so any
-        # attempt to resolve `@me` leaves a sentinel behind.
         rows = [row for row in contract.REFUSALS if row.gh_free]
         self.assertTrue(rows, "no refusal row claims network-free refusal")
         for row in rows:
@@ -324,8 +282,6 @@ class PredicatesHoldOverRuntimeData(unittest.TestCase):
                 )
 
     def test_anchor_symbol_exists(self) -> None:
-        # The anchors are the contract's substitute for line numbers; a rename
-        # must fail here rather than leave the doc pointing at nothing.
         for row in contract.PREDICATES:
             module, _, symbol = row.enforced_at.partition("::")
             with self.subTest(row=row.id):
@@ -485,17 +441,12 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
 
 class EntryPointCatalogueIsComplete(unittest.TestCase):
     def test_every_executable_script_is_classified(self) -> None:
-        # A new entry point must arrive with its mutation classification, or a
-        # consumer's permission rule silently has no row to cite for it.
         catalogued = {entry.path for entry in contract.ENTRY_POINTS}
         present = {
             f"skills/babysit-prs/scripts/{path.name}"
             for path in contract.SCRIPTS.glob("*.py")
             if "__main__" in path.read_text(encoding="utf-8")
         }
-        # The lane is not confined to the skill's own scripts directory: SKILL.md
-        # invokes the plugin-level readiness gate by name, and a shell entry point
-        # there would otherwise evade this gate entirely.
         present |= {
             f"scripts/{path.name}"
             for path in (contract.PLUGIN_ROOT / "scripts").glob("babysit-*.sh")
@@ -560,11 +511,6 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
                 )
 
     def test_read_only_entry_points_cite_no_mutation_evidence(self) -> None:
-        # The one direction of the Class column CI can bind offline. The reverse
-        # -- proving a mutating class -- cannot be bound for the four entry
-        # points whose mutation is a GitHub write, because every row here runs
-        # without network access; the generated doc's "Not covered here" section
-        # states that gap rather than letting the column read as proven.
         moves_state = {
             row.id for row in contract.EFFECTS if row.delta != contract.UNCHANGED
         }
@@ -587,17 +533,6 @@ WRAPPER_COMMAND = re.compile(
 
 
 def documented_commands(text: str) -> list[tuple[str, str]]:
-    """Wrapper commands in a document, each paired with its argument tail.
-
-    A command runs to the end of its inline-code span or fenced block, which
-    prose wraps across lines, so the tail is truncated at the first blank line
-    rather than the first newline. The truncation is done here instead of in the
-    pattern: expressing the stop set as an alternation backtracks
-    catastrophically on a document this size. A fenced block may hold several
-    commands, so a tail also stops at the next wrapper invocation -- one greedy
-    tail swallowing its successors would check the later commands' flags against
-    the first command's CLI, or skip them entirely.
-    """
     matches = list(WRAPPER_COMMAND.finditer(text))
     commands = []
     for index, match in enumerate(matches):
@@ -643,8 +578,6 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
         return flags | {"--help"}
 
     def test_prose_only_flags_are_not_read_as_accepted(self) -> None:
-        # The regression this parse exists to prevent, pinned: `--admin` appears
-        # in the merge gate's description and is rejected by its parser.
         self.assertNotIn("--admin", self._accepted_flags(contract.MERGE_CLI))
 
     def test_every_documented_wrapper_command(self) -> None:
@@ -677,11 +610,6 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
                                 f"{row.doc} spells `{flag}`, which {cli} does not accept",
                             ),
                         )
-                        # The wrapper's accepted set is the narrower of the two.
-                        # A flag the CLI registers but the wrapper filters out is
-                        # a documented command that always exits 2, and checking
-                        # the parser alone would bless exactly the invocation the
-                        # wrapper exists to prevent.
                         self.assertFalse(
                             contract.wrapper_denies(wrapper, flag),
                             because(
@@ -693,9 +621,6 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
                         )
 
     def test_wrapper_denied_flags_are_proven_by_a_refusal_row(self) -> None:
-        # The denial table is data; a refusal row is the evidence. A flag listed
-        # as wrapper-refused with nothing invoking the wrapper to prove it would
-        # be an unbacked claim, which is the shape this contract exists to catch.
         for wrapper, denied in contract.WRAPPER_DENIED_FLAGS.items():
             for flag in denied:
                 with self.subTest(wrapper=wrapper, flag=flag):
@@ -711,24 +636,10 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
                     )
 
     def test_every_wrapper_refusal_row_reaches_the_denial_table(self) -> None:
-        # The other direction of the same binding. The check above proves every
-        # LISTED flag is refused; without this one a new bash-wrapper refusal row
-        # could prove a second refused flag while the table stayed silent, and a
-        # document could then spell that flag unchallenged -- the table would be
-        # a subset of the wrapper's behavior while reading as its statement.
         for row in contract.REFUSALS:
             if row.refused_by != contract.BASH_WRAPPER:
                 continue
-            # `error_contains`, not `argv`: a row's argv also carries the flags
-            # that reached the wrapper legitimately, while the error names the
-            # one the refusal is about.
             flags = [token for token in row.error_contains if token.startswith("--")]
-            # `error_contains` is a tuple of asserted output substrings with no
-            # invariant that any of them is a flag, so a row with an empty tuple
-            # -- or one naming its rejected option without the leading dashes --
-            # would yield nothing and pass this check vacuously, leaving exactly
-            # the omission it exists to catch. A wrapper refusal is ABOUT a flag;
-            # a row that cannot name one cannot be bound, so demand it here.
             self.assertTrue(
                 flags,
                 f"`{row.id}` is a bash-wrapper refusal whose error_contains names"
@@ -745,11 +656,6 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
                     )
 
     def test_the_denied_flag_is_one_its_own_cli_accepts(self) -> None:
-        # The premise the separate wrapper check rests on. The merge parser
-        # registers the flag the wrapper exists to remove, which is exactly why a
-        # CLI-only check cannot see the refusal. If this stops holding, the two
-        # checks have collapsed into one and the narrowing is no longer
-        # load-bearing -- the wrapper row would need re-deriving, not renaming.
         self.assertIn("--allow-unpinned-head", self._accepted_flags(contract.MERGE_CLI))
         self.assertTrue(
             contract.wrapper_denies(contract.MERGE_WRAPPER, "--allow-unpinned-head")
@@ -757,11 +663,7 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
         self.assertFalse(contract.wrapper_denies(contract.MERGE_WRAPPER, "--merge"))
 
     def test_every_doc_naming_a_wrapper_is_covered(self) -> None:
-        # A second document growing its own copy of a command line must be added
-        # to DOC_COMMAND_SOURCES, not left unchecked.
         covered = {row.doc for row in contract.DOC_COMMAND_SOURCES}
-        # The whole plugin, not just the babysit skill: a command line copied
-        # into a command, agent, or sibling skill drifts exactly the same way.
         naming = {
             str(path.relative_to(contract.PLUGIN_ROOT)).replace("\\", "/")
             for path in contract.PLUGIN_ROOT.rglob("*.md")

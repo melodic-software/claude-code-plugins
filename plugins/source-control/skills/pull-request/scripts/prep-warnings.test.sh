@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for prep-warnings.sh against a fixture repository. Expected
-# lines come from the rules prep_warnings.py states: a cut to an existing
-# SKILL.md or agent body warns unless its eval home changes too, and a path in
-# the floor's person-held globs, the configured denied paths or a manifest warns.
 
 set -uo pipefail
 
@@ -43,7 +39,6 @@ write README.md "readme"
 g add -A
 g commit -q -m base
 
-# branch <name>: a fresh branch off main with a clean tree.
 branch() {
   g checkout -q -f main
   g clean -fdq

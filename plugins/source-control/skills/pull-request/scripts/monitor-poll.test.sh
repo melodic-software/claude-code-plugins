@@ -15,8 +15,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 
-# The watch runs from a directory outside every checkout; <checkout> names a checkout whose one
-# GitHub remote is acme/app, so the repository can come only from <checkout>.
 CHECKOUT="$TEST_TMPDIR/checkout" OUTSIDE="$TEST_TMPDIR/outside"
 git init -q "$CHECKOUT"
 git -C "$CHECKOUT" remote add origin https://github.com/acme/app.git

@@ -53,7 +53,6 @@ const STYLELINT_CONFIG = /^(\.stylelintrc(\.(json|ya?ml|js|cjs|mjs))?|stylelint\
 const ESLINT_CONFIG = /^eslint\.config\.(js|cjs|mjs|ts|cts|mts)$/;
 const ESLINT_CSS = ["@eslint/css", "eslint-plugin-css"];
 const CSS_IN_JS = ["styled-components", "@emotion/react", "@emotion/styled", "@vanilla-extract/css", "@stitches/react", "@linaria/core", "@pandacss/dev"];
-// Style kind by lowercased extension; a component kind counts only when the file holds a <style> block.
 const STYLE_EXT = { ".css": "css", ".scss": "scss", ".sass": "sass", ".less": "less", ".styl": "stylus" }; // spellchecker:disable-line
 const COMPONENT_EXT = { ".vue": "vue", ".svelte": "svelte", ".astro": "astro" };
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", "coverage", "out"]);
@@ -127,8 +126,6 @@ function hasStyleBlock(file) {
   }
 }
 
-/** The kinds of styling the project holds, from file extensions (any case) and css-in-js packages.
- * Skips dot-directories, dependency and build output folders, and stops after MAX_ENTRIES entries. */
 function styleFiles(deps) {
   const kinds = new Set(deps.some((d) => CSS_IN_JS.includes(d)) ? ["css-in-js"] : []);
   const stack = [opts.project];
@@ -191,7 +188,6 @@ function conventionHome() {
   return { home: null, error: `convention home unresolved (${cause}); the team and local layers are not read` };
 }
 
-/** True when `path` exists and its real path lies outside the project's, as the resolver judges a home. */
 function escapesProject(path) {
   try {
     const rel = relative(realpathSync(opts.project), realpathSync(path));
@@ -201,7 +197,6 @@ function escapesProject(path) {
   }
 }
 
-/** {value} parsed from the --user-config file, {error} when it cannot be read, {} without one. */
 function readUserConfig(file) {
   if (!file) return {};
   let text;
@@ -229,7 +224,6 @@ function scratchHome(home) {
     try {
       copyFileSync(opts.team, join(dir, `${PLUGIN}.yaml`));
     } catch {
-      // a missing team file leaves the team layer absent
     }
   }
   if (home === null) return { dir, names };
@@ -238,7 +232,7 @@ function scratchHome(home) {
   for (const name of [`${PLUGIN}.md`, `${PLUGIN}.local.yaml`, `${PLUGIN}.local.md`]) {
     const from = join(real, name);
     const to = join(dir, name);
-    names.set(to, from); // an absent file is still reported at its real path
+    names.set(to, from);
     let st;
     try {
       st = lstatSync(from);
@@ -257,11 +251,6 @@ const relabel = (v, names) => {
   return isMapping(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, relabel(x, names)])) : v;
 };
 
-/** Checks the team `routing` key entry by entry, naming each problem on the team layer: an unknown
- * key drops only that key, a row, disable or deny entry that still fails drops alone, and an unknown
- * version drops routing. A row matching a bundled concern plus id may re-rank it, so it needs only
- * concern and id; a new or complete row needs the full row schema. Returns how many problems it
- * named, since team.errors also holds the layer's other problems. */
 function checkRouting(out, bundledRows) {
   const routing = out.values.routing;
   if (!isMapping(routing)) return 0;
@@ -294,9 +283,6 @@ function checkRouting(out, bundledRows) {
     if (!Array.isArray(routing[key])) fail([`routing.${key}: must be an array, dropped`]) && delete routing[key];
     else routing[key] = routing[key].filter((v, i) => !fail(check(v, `routing.${key}[${i}]`)));
   };
-  // A valid entry whose concern no bundled row has is kept, with a note in the layer's `warnings`
-  // (not `errors`, which mean a dropped value): it is most often a renamed concern, so a disable
-  // entry naming it silently stops disabling anything.
   const concerns = new Set([...bundled].map((k) => k.split("\0")[0]));
   const warnConcern = (errors, v, at) => {
     if (errors.length === 0 && !concerns.has(v.concern)) (team.warnings ??= []).push(`team (${team.path}): ${at}.concern: ${v.concern} names no bundled concern; kept as a new concern (if it is an old id that was renamed, use the new one)`);
@@ -313,8 +299,6 @@ function config(bundled) {
   const user = readUserConfig(opts["user-config"]);
   const seam = opts.team || home === null ? scratchHome(home) : null;
   const schema = JSON.parse(readFileSync(join(ROOT, "reference/team.schema.json"), "utf8"));
-  // The resolver checks a team-only key as one leaf, so one bad entry would drop all of routing;
-  // checkRouting checks it entry by entry instead.
   schema.properties.routing = { type: "object" };
   try {
     const out = resolve({
@@ -363,10 +347,6 @@ const nameOf = (detect) => (detect.includes("@") ? detect.slice(0, detect.lastIn
 /** The plugin or skill name a row's id names: `name@market` for a plugin, `/plugin:skill` or `/skill`. */
 const idName = (row) => (row.kind === "plugin" ? nameOf(row.id) : row.id.match(/^\/([^:]+)/)?.[1]);
 
-/** Why the routing-as-data team-file limit refuses a merged team row, one `rule: reason` string
- * per broken rule ([] admits it); the rule names match user-experience's team-policy.mjs. `present`
- * is the row's own presence from its kind and detect, null when the installed list is unreadable.
- * Team values appear in reasons as JSON strings. */
 function teamRowRejections(row, bundled, present) {
   const id = JSON.stringify(row.id);
   const sameId = bundled.filter((b) => b.id === row.id);
@@ -384,19 +364,10 @@ function teamRowRejections(row, bundled, present) {
   return reasons;
 }
 
-/** The routes with the resolved team `routing` applied, per the routing-as-data Team layer: a row
- * with a bundled concern plus id overrides it key by key, a new one adds a row, each only when
- * teamRowRejections admits it, and `disable` and `deny` skip. checkRouting has already dropped
- * invalid entries. Returns {rows, skipped, notes}: `skipped` lists each route a team entry removed,
- * with the team file as its source, and `notes` the disclosures (a degraded team file, a merged row
- * that fails the row schema or the team-file limit). `routingProblems` is checkRouting's count;
- * `presence` maps a row list to each row's own presence. */
 function applyRouting(bundled, cfg, routingProblems, presence) {
   const team = cfg.layers.find((l) => l.name === "team");
   const notes = [];
   if (cfg.home_error) notes.push(`${cfg.home_error}; built-in routes used, with no team overrides or deny floor`);
-  // team.errors also holds problems with other keys, so count only those that cost routing:
-  // checkRouting's, else the resolver's errors tagged with the `routing` key or with none (file-level).
   const costsRouting = (key) => key === null || key === "routing";
   const n = isMapping(cfg.values.routing) || routingProblems > 0 ? routingProblems : team?.error_keys.filter(costsRouting).length ?? 0;
   if (n > 0) {
@@ -444,7 +415,6 @@ function applyRouting(bundled, cfg, routingProblems, presence) {
 const project = projectSignals();
 const { rows: bundled } = JSON.parse(readFileSync(ROUTING, "utf8"));
 const { resolved, routingProblems } = opts.config ? config(bundled) : {};
-/** A reader that runs once: installed() is asked twice when a team file adds rows. */
 const once = (read) => {
   let text;
   return () => (text ??= read());
@@ -454,8 +424,6 @@ const lists = {
   mcpList: once(() => fromFileOr(opts["mcp-list"], ["mcp", "list"])),
 };
 const detectRows = (rows) => installed(rows, { pluginRoot: ROOT, home: opts.home, projectDir: opts.project, projectMcpServers: project.mcp_servers, ...lists });
-/** Each row's presence (true, false, or null when unknown) from its own kind and detect: installed()
- * answers by id, so each row gets an id no other row shares, keeping its prefix for the skill shape. */
 const presence = (rows) => {
   const { installed: ids } = detectRows(rows.map((r, i) => ({ ...r, id: `${r.id}\u0000${i}` })));
   return rows.map((r, i) => (ids ? ids.includes(`${r.id}\u0000${i}`) : null));

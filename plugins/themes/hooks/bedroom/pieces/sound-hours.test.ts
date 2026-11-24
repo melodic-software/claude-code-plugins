@@ -42,7 +42,6 @@ test('the insects follow the hour when dry: cicadas from mid-afternoon through d
   expect(chosenName(savedOf({ bank: { night: 'katydids' } }), 'night')).toBe('katydids')
 })
 
-/** On a local date, `minutesIn` after the cicadas' build starts (BUILD_FROM_MIN before that day's sunset), and the build's span in ms. */
 function intoBuild(year: number, month: number, day: number, minutesIn: number): { at: number; span: number; sunset: number } {
   const { sunrise, sunset } = seasonOf(new Date(year, month, day, 12).getTime())
   const from = sunset - BUILD_FROM_MIN

@@ -69,8 +69,6 @@ check "Summary holds an h1 and nothing else" FAIL "$(mk '# Not prose, an h1')"
 check "Summary holds prose" PASS "$(mk 'Real prose.')"
 check "lowercase ## summary heading" PASS "$(printf 'Closes #1\n\n## summary\nReal prose.\n\n%s' "$tail_ok")"
 check "heading with a trailing space" PASS "$(printf 'Closes #1\n\n## Summary \nReal prose.\n\n%s' "$tail_ok")"
-# Section bounds and tab-indented code: expected verdicts hand-transcribed from a
-# reading of the analyzer, not recorded by running it.
 check "Fix is only tab-indented code" FAIL "$(printf 'Closes #1\n\n## Summary\nx\n\n## Fix\n\tcode\n\n## Verification\nx\n\n## Related\nx')"
 check "a deeper subsection is Related's content" PASS "${head_ok}"$'## Related\n\n### Prior art\n\n- x\n\n## Test plan\n\n- ran it'
 check "a same-level heading terminates Related, leaving it empty" FAIL "${head_ok}"$'## Related\n## Extra\n\n- x'

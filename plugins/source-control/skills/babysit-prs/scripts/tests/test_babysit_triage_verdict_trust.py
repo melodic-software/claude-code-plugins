@@ -61,7 +61,6 @@ def verdict_comment(
 ) -> dict[str, Any]:
     """The lanes App's intake-triage verdict comment as GraphQL answers it,
     its last line stamping `title` and `body` (none when `body` is None)."""
-
     def digest(text: str) -> str:
         return ve.hashlib.sha256(text.encode()).hexdigest()
 

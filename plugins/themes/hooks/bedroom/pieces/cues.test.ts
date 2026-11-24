@@ -5,7 +5,6 @@ import { CUES, EVENTS, WORLD } from '../core/signals.gen.js'
 import { QUIET, startRoom, type Room } from '../core/testing.js'
 import { BUILT } from './index.js'
 
-/** Runs /bedroom <args>, then reads the Shader element every 250 ms for `ms`: the reply, and each world code shown in order. */
 async function track(room: Room, args: string, ms = 20_000): Promise<{ reply: string; codes: number[] }> {
   const codes = [(await room.values())?.world ?? -1]
   const reply = await room.run(args)
