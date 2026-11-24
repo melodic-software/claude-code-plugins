@@ -184,8 +184,6 @@ export async function runWatchCli(argv) {
     return 1;
   }
 
-  // Until watch.json records the temp dirs, nothing else points at them, so a
-  // failure removes the ones this run made. Once recorded, --recover needs them.
   /** @type {TempDirs} */
   const temp = { dirs: {}, recorded: false, interrupted: false };
   const children = trackChildren(temp);
@@ -201,9 +199,6 @@ export async function runWatchCli(argv) {
   let running = null;
   const signalHandlers = Object.entries(SIGNAL_EXIT_CODES).map(([signal, code]) => {
     const handler = () => {
-      // Stop the work first: end the yt-dlp/ffmpeg children and flag the run so
-      // watchUrl creates and records nothing more. The dirs go only once watchUrl
-      // has settled, so nothing is still writing into them or creating them.
       children.interrupt();
       const settled = Promise.race([
         Promise.resolve(running).catch(() => {}),
@@ -479,8 +474,6 @@ async function watchUrl({
     await fs.writeFile(harvestPath, `${JSON.stringify(harvestedLinks, null, 2)}\n`, "utf8");
     let next = markPhaseComplete(current, "harvest", { linkCount: harvestedLinks.length });
 
-    // Record the skip in the phase map so resume (which derives nextPhase from
-    // watch.json alone) advances past research instead of re-routing into it.
     if (skipResearch) {
       next = markPhaseComplete(next, "research", { skipped: true });
     }
@@ -550,9 +543,6 @@ async function watchUrl({
         }))
       : []);
 
-  // Persist state + tempSession before the long extraction phase so an
-  // interrupt during ffmpeg/contact-sheet work leaves a watch.json that
-  // detectRecoverableBootstrap can discover (it requires the file to exist).
   state.status = "watching";
   writeStderr("watch: watching start");
   throwIfInterrupted();

@@ -248,8 +248,7 @@ check_uint() {
   return 1
 }
 
-# Stores one value-taking option; the integer options are validated first.
-set_opt() { # <flag> <value>
+set_opt() {
   case "$1" in
   --config) CONFIG="$2" ;;
   --repo) REPO="$2" ;;
@@ -301,8 +300,6 @@ parse_args() {
       set_opt "${1%%=*}" "${1#*=}"
       ;;
     --app-slug)
-      # An empty value is allowed: the lanes skill always passes the rendered
-      # lane_app_slug option, which is empty when the operator left it unset.
       if (($# < 2)) || [[ "$2" == -* ]]; then
         err "option '$1' requires a non-option argument"
         exit 3
@@ -341,7 +338,6 @@ parse_args() {
   fi
 }
 
-# --- Prerequisites ------------------------------------------------------------
 require_jq() {
   command -v jq >/dev/null 2>&1 || {
     err "jq not found (required)"
@@ -349,12 +345,6 @@ require_jq() {
   }
 }
 
-# Does every telemetry read this run performs come from --telemetry-json? Then
-# nothing goes off the network: no gh binary is needed and no target repo has to
-# be resolved. A real `run` still upserts its OWN status comment over the
-# network, so the action and the two suppressors are part of the test. One
-# definition, because gh's prerequisite check and the target-repo resolution
-# must never disagree about whether this run touches the forge.
 telemetry_fully_fixtured() {
   [[ -n "$TELEMETRY_JSON_FILE" ]] || return 1
   [[ "$ACTION" != "run" ]] || ((NO_TELEMETRY)) || ((DRY_RUN))
@@ -368,8 +358,6 @@ require_gh() {
   }
 }
 
-# The login whose comments count as lane telemetry (WRITE IDENTITY in the
-# header). Returns 1 when none resolves; the caller acts on nothing.
 resolve_write_identity() {
   local who=""
   if who="$(gh api user --jq '.login + " " + .type' 2>/dev/null | tr -d '\r')" && [[ "$who" == *" User" ]]; then
@@ -400,7 +388,6 @@ require_claude() {
   }
 }
 
-# --- Resolution ---------------------------------------------------------------
 resolve_repo() {
   if [[ -n "$REPO" ]]; then
     [[ -d "$REPO" ]] || {
@@ -516,7 +503,6 @@ ledger_relpath() { printf '%s/restart-consumer.jsonl' "$(repo_marker_key)"; }
 
 ledger_path() { printf '%s/%s' "$(resolve_data_dir)" "$(ledger_relpath)"; }
 
-# --- Cross-process lock -------------------------------------------------------
 LOCK_DIR=""
 OWN_LOCK=0
 # A run hard-killed mid-flight (reboot, Task Scheduler kill) never reaches its
@@ -529,9 +515,6 @@ OWN_LOCK=0
 # and the age bound only gates when we bother to ask.
 LOCK_STALE_SECONDS=3600
 
-# Best-effort teardown: every file a lock holder may have written, then the
-# directory itself. One definition, so a lock file added to the writer can never
-# be forgotten in one of the two removers (the EXIT release and the reclaim).
 remove_lock_dir() {
   rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" "$LOCK_DIR/boot-id" 2>/dev/null || true
   rmdir "$LOCK_DIR" 2>/dev/null || true
@@ -544,9 +527,6 @@ release_lock() {
   remove_lock_dir
 }
 
-# A lock file holding a single non-negative integer. Missing, unreadable, or
-# holding anything else all read as 0, which the callers treat as "not recorded"
-# rather than as a value.
 lock_uint_file() {
   local value=""
   value="$(tr -d '\r\n' <"$1" 2>/dev/null)" || value=""
@@ -591,12 +571,8 @@ lock_owner_alive() {
 
   recorded_boot="$(lock_boot_id)"
   if current_boot="$(boot_identity)" && [[ -n "$recorded_boot" ]]; then
-    # Booted since the lock was taken: the owner cannot have survived, whatever
-    # process wears its PID now.
     [[ "$recorded_boot" == "$current_boot" ]] || return 1
   else
-    # No boot identity to compare. A live PID is suggestive, not proof, so it
-    # only defers the reclaim — it can never defer it forever.
     ((age >= LOCK_HARD_STALE_SECONDS)) && return 1
   fi
 
@@ -638,15 +614,11 @@ acquire_lock() {
   local now="$1" stamp pid parent boot_now
   LOCK_DIR="$(dirname "$(ledger_path)")/.restart-consumer-lock"
   parent="$(dirname "$LOCK_DIR")"
-  # The data dir does not exist until the first ledger write, so materialize the
-  # parent — but a failure here is a storage fault, never contention.
   if ! mkdir -p "$parent" 2>/dev/null && [[ ! -d "$parent" ]]; then
     err "cannot create the lock directory's parent: $parent"
     return 2
   fi
   if ! take_lock_dir; then
-    # Not taken. Contention writes a stamp we can read; a storage fault does
-    # not even leave a directory behind.
     if [[ ! -d "$LOCK_DIR" ]]; then
       err "cannot create the lock directory: $LOCK_DIR"
       return 2
@@ -658,8 +630,6 @@ acquire_lock() {
       return 1
     fi
     ((now - stamp < LOCK_STALE_SECONDS)) && return 1
-    # Aged out — but age alone never reclaims. A recorded owner that is still
-    # running means a legitimately long run, not an abandoned lock.
     if lock_owner_alive "$pid" "$((now - stamp))"; then
       warn "lock held since epoch $stamp is past the stale bound but its owner (pid $pid) is alive on the same boot; leaving it held: $LOCK_DIR"
       return 1
@@ -672,16 +642,12 @@ acquire_lock() {
   trap release_lock EXIT
   write_lock_file "$LOCK_DIR/acquired-at" "$now" || return 2
   write_lock_file "$LOCK_DIR/owner-pid" "$$" || return 2
-  # Best-effort: absent on platforms without a boot identity, which the
-  # liveness check handles by bounding the wedge instead of trusting the PID.
   if boot_now="$(boot_identity)"; then
     write_lock_file "$LOCK_DIR/boot-id" "$boot_now" || return 2
   fi
   return 0
 }
 
-# A lock whose stamp cannot be persisted is not a lock — silently continuing
-# would let the next tick reclaim it as unstamped while this run is live.
 write_lock_file() {
   local path="$1" value="$2"
   printf '%s\n' "$value" >"$path" 2>/dev/null && return 0
@@ -727,10 +693,6 @@ iso_utc() {
 # public comment body: one line, no table-breaking pipes, bounded length.
 sanitize() { printf '%s' "$1" | tr -d '\r\n|`' | cut -c1-200; }
 
-# --- Session list -------------------------------------------------------------
-# Loaded once in the main shell so every lane sees one consistent snapshot, and
-# so a genuine live-list failure aborts instead of being coerced to an empty list
-# — which would make every lane look stopped and relaunch lanes that are alive.
 SESSIONS_JSON=""
 
 read_sessions() {
@@ -774,7 +736,6 @@ confirm_running() {
   return 1
 }
 
-# --- Config + telemetry reads -------------------------------------------------
 lane_field() { jq -r --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // ""' "$CONFIG"; }
 lane_telemetry_field() { jq -r --argjson i "$1" --arg k "$2" '(.lanes[$i].telemetry // {})[$k] // ""' "$CONFIG"; }
 
@@ -842,10 +803,6 @@ resolve_issue_by_title() {
 lane_comment_bodies() {
   local lane="$1" repo="$2" issue="$3" raw
   if [[ -n "$TELEMETRY_JSON_FILE" ]]; then
-    # The fixture read gets the same contract as the network read: a missing,
-    # unreadable, malformed, or wrongly-shaped file is a FAILURE, not an empty
-    # comment list. An unconditional `return 0` here would report `no-state` —
-    # indistinguishable from "the lane did not ask".
     jq -c --arg l "$lane" '[ (.[$l] // [])[] | .body // "" ]' "$TELEMETRY_JSON_FILE" 2>/dev/null || return 1
     return 0
   fi
@@ -932,9 +889,6 @@ ledger_decision() {
   esac
 }
 
-# Can the ledger take an append right now? Probed before a relaunch so a lane
-# whose attempt could not be counted is never launched. `check` and dry runs
-# never append, so nothing is claimed about them.
 ledger_writable() {
   local ledger dir
   ((DRY_RUN)) && return 0
@@ -950,11 +904,6 @@ ledger_writable() {
   (: >>"$ledger") 2>/dev/null || return 1
 }
 
-# Returns non-zero when the row could not be persisted. The breaker
-# (`--max-restarts`) is computed by querying this ledger, so an attempt that
-# never lands is an attempt the breaker cannot count: a launcher that keeps
-# failing would be retried on every polling tick, forever, without reaching the
-# cap. Persistence failure is therefore a run failure, not a warning.
 append_ledger() {
   local row="$1" ledger dir
   ((DRY_RUN)) && return 0
@@ -974,13 +923,10 @@ append_ledger() {
   fi
 }
 
-# --- Report accumulation ------------------------------------------------------
 declare -a REPORT_ROWS=()
 declare -a FLAGS=()
 EXIT_STATUS=0
 
-# Propagates append_ledger's status so a caller that is about to mutate (relaunch)
-# can refuse when its attempt could not be recorded.
 record() {
   local lane="$1" decision="$2" detail="$3" request="$4" now="$5"
   REPORT_ROWS+=("| $lane | $decision | $detail |")
@@ -996,7 +942,6 @@ fail_lane() {
   EXIT_STATUS="$2"
 }
 
-# --- Per-lane evaluation ------------------------------------------------------
 lane_selected() {
   ((${#TARGET_LANES[@]})) || return 0
   local t
@@ -1064,12 +1009,6 @@ process_lane() {
     state="$(extract_state_block "$body")" || continue
     found=1
     req="$(jq -c '.restart_request' <<<"$state")"
-    # An instance-suffixed comment names ONE machine's writer. Unless this
-    # binding pins that instance (`instance` key, or the suffix written into
-    # `marker`), its request is a SIBLING's: relaunching the locally
-    # configured lane because another machine's writer asked would start
-    # unintended instances on every stopped consumer that shares the issue.
-    # Sibling requests are surfaced (`unbound-instance`), never acted on.
     comment_marker="${body#*"$SENTINEL_PREFIX"}"
     comment_marker="${comment_marker%%[[:space:]]*}"
     if [[ "$comment_marker" == *@* && "$marker" != *@* && -z "$instance" ]]; then
@@ -1079,10 +1018,6 @@ process_lane() {
       fi
       continue
     fi
-    # A bound writer asking is a request: the predicate's not-running
-    # condition (3) is what keeps one relaunch from firing twice, and a lane
-    # whose only asking bound comment sits further down the issue — behind a
-    # quiet one — would otherwise never be restarted at all.
     request="$req"
     [[ "$request" != "null" ]] && break
   done
@@ -1100,8 +1035,6 @@ process_lane() {
     return 0
   fi
 
-  # The optional object form is read for the REPORT only; the predicate stays
-  # "non-null", which is the shape the producers actually emit.
   reason="$(sanitize "$(jq -r '
     if type == "object"
     then (.reason // "unspecified" | tostring)
@@ -1125,15 +1058,6 @@ process_lane() {
     return 0
   fi
 
-  # Recheck liveness against a FRESH list immediately before mutating. The
-  # snapshot above is loaded once per run, so a lane started since — by a
-  # concurrent operator invocation — still reads as stopped. `lane-launcher.sh
-  # restart` deliberately STOPS a running lane before relaunching it, so acting
-  # on the stale snapshot would interrupt a healthy session, which the documented
-  # "not currently running" predicate promises never to do.
-  # Fail CLOSED on a failed re-read. `read_sessions && lane_is_running` would
-  # fall through to the launcher on a transient read failure, still holding the
-  # stale snapshot — which is precisely the race this recheck exists to prevent.
   if ! read_sessions; then
     record "$lane" "error" "could not re-read the session list immediately before relaunching; not restarting on a stale snapshot" "$request" "$now" || true
     fail_lane "session-recheck-failed($lane)" 5
@@ -1144,11 +1068,6 @@ process_lane() {
     return 0
   fi
 
-  # Prove the outcome row can land BEFORE mutating. The breaker counts attempts
-  # by querying the ledger, so a relaunch whose `restarted`/`failed` row cannot
-  # be written is invisible to `--max-restarts` — a launcher that keeps failing
-  # would be retried on every polling tick forever. Probing first keeps the
-  # breaker's memory intact without adding a second row per attempt.
   if ! ledger_writable; then
     record "$lane" "error" "run ledger is not writable; refusing to relaunch a lane whose attempt cannot be counted" "$request" "$now" || true
     fail_lane "ledger-unwritable($lane)" 5
@@ -1184,7 +1103,6 @@ process_lane() {
   fi
 }
 
-# --- The consumer's own telemetry --------------------------------------------
 upsert_own_telemetry() {
   local now="$1" issue body flagstr row upsert
   ((NO_TELEMETRY || DRY_RUN)) && return 0
@@ -1207,8 +1125,6 @@ upsert_own_telemetry() {
   [[ -n "$issue" ]] || issue="$(gh issue list --repo "$TARGET_REPO" --state open \
     --search "loop-lane telemetry running per-lane status in:title" --limit 100 \
     --json number 2>/dev/null | jq -r 'sort_by(.number) | .[0].number // empty')"
-  # A --telemetry-json run skips the identity read, and the title fallback
-  # selects by it; an unresolved identity selects nothing.
   if [[ -z "$issue" && -z "$WRITE_IDENTITY" ]] && ! resolve_write_identity; then
     WRITE_IDENTITY=""
   fi
@@ -1261,30 +1177,17 @@ print_report_header() {
   info "|---|---|---|"
 }
 
-# --- print-schedule -----------------------------------------------------------
 action_print_schedule() {
   local self claude_bin run_cmd win_repo win_claude data_dir opts opts_sq perm_flags cli_ver
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-  # Behavior-affecting options must survive into every emitted command. This
-  # action runs BEFORE resolve_config/resolve_target_repo, so these hold exactly
-  # what the operator passed — empty means "defaulted", and a defaulted option is
-  # the one case it is safe to omit. Dropping a passed one would silently
-  # schedule a run against `<repo>/.work/lanes/lanes.json` and the checkout's own
-  # repository: a different lane configuration and a different telemetry
-  # repository than the command that generated it.
   opts=""
   [[ -n "$CONFIG" ]] && opts+=" --config $CONFIG"
   [[ -n "$TARGET_REPO" ]] && opts+=" --target-repo $TARGET_REPO"
   [[ -n "$APP_SLUG" ]] && opts+=" --app-slug $APP_SLUG"
-  # Single-quoted variant for the cron and offline forms, which quote their args.
   opts_sq=""
   [[ -n "$CONFIG" ]] && opts_sq+=" --config '$CONFIG'"
   [[ -n "$TARGET_REPO" ]] && opts_sq+=" --target-repo '$TARGET_REPO'"
   [[ -n "$APP_SLUG" ]] && opts_sq+=" --app-slug '$APP_SLUG'"
-  # The offline form's --data-dir must be COPY-PASTEABLE, because the warning
-  # under it is that a second data dir splits the breaker ledger. When the caller
-  # passed one, echo it back; otherwise keep the placeholder that says what to
-  # substitute.
   data_dir="${DATA_DIR_OVERRIDE:-<the CLAUDE_PLUGIN_DATA dir skill runs use>}"
   claude_bin="$(command -v claude 2>/dev/null)" || claude_bin="claude"
   # Windows-form paths for the schtasks payload: cmd.exe cannot use the
@@ -1364,7 +1267,6 @@ bash '$self' run --repo '$REPO' --data-dir '$data_dir'${opts_sq}
 EOF
 }
 
-# --- Main ---------------------------------------------------------------------
 main() {
   parse_args "$@"
   require_jq
@@ -1386,9 +1288,6 @@ main() {
   local now n i lock_rc=0
   now="$(now_epoch)"
 
-  # Held across the whole read -> decide -> relaunch -> append span, and across
-  # the telemetry upsert, so a losing tick writes nothing at all. Only a real
-  # `run` mutates, so only a real `run` contends.
   if [[ "$ACTION" == "run" ]] && ((!DRY_RUN)); then
     acquire_lock "$now" || lock_rc=$?
     # 2 = the lock store itself is unusable. Exiting 0 here would let an

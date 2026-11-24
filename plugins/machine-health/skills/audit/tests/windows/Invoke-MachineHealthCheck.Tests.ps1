@@ -1,15 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Orchestrator-level tests for scripts/windows/Invoke-MachineHealthCheck.ps1:
-the run lock, the synced-StateBase mode and both elevated-pass modes.
-
-.DESCRIPTION
-Each run uses a StateBase whose catalog overlay disables every shipped check,
-so the real orchestrator runs end to end in seconds. Required snapshot fields
-come from reference/shared/output-schema.md, "RunSnapshot".
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1" -LibScript @(
@@ -92,8 +82,6 @@ Describe 'Invoke-MachineHealthCheck run lock' -Tag 'orchestrator' {
     }
 
     It 'releases run.lock when the run throws after taking it' {
-        # A copy of the skill whose check selection throws, run in this process so only
-        # the orchestrator's own finally can release the handle.
         $copy = Join-Path $script:root 'skill'
         New-Item -ItemType Directory -Path $copy | Out-Null
         foreach ($part in @('SKILL.md', 'catalog', 'reference', 'scripts')) {
@@ -272,7 +260,6 @@ Describe 'Invoke-MachineHealthCheck run artifacts in latest.json' -Tag 'orchestr
         $script:root = New-MachineHealthTempDir -Prefix 'machine-health-orch-stamp'
         $script:stateBase = Initialize-QuietStateBase (Join-Path $script:root 'state-base')
         $script:outputBase = Join-Path $script:root 'output'
-        # Two checks re-enabled at monthly cadence that ran three days ago: a weekly run defers both.
         $deferred = @($script:QuietOverlay | ConvertFrom-Json).checks | Select-Object -First 2
         $overlay = $script:QuietOverlay | ConvertFrom-Json
         foreach ($c in $overlay.checks | Where-Object { $_.id -in $deferred.id }) {
@@ -382,8 +369,6 @@ Describe 'Invoke-MachineHealthCheck without -OutputBase' -Tag 'orchestrator' {
         $script:root = New-MachineHealthTempDir -Prefix 'machine-health-orch-default'
         $script:stateBase = Initialize-QuietStateBase (Join-Path $script:root 'state-base')
         $script:profile = Join-Path $script:root 'profile'
-        # A scheduled run omits -OutputBase when the report option is unset; the default must be
-        # the one the audit SKILL.md roots block applies.
         $roots = (Get-Content -LiteralPath (Join-Path $script:SkillRoot 'SKILL.md') -Raw) -match "Join-Path \`$env:USERPROFILE '([^']+)'"
         $roots | Should -BeTrue
         $script:Expected = Join-Path $script:profile $Matches[1]
