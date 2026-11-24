@@ -82,8 +82,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - Only the compare run's own record that it cannot start counts. A run that passes its
   dispatcher, input and head checks and then finds `CLAUDE_EVALS_DISABLED` not `false`
   (`evals-disabled`) or `compare-arms.sh` refusing the PR (`compare-refused`) runs no arm and
-  succeeds its `Compare Cannot Start: <cause>` job. pr-merge's release step lifts the eval hold on
-  the newest such run for the current head, read back under the same checks as a compare record,
+  succeeds its `Compare Cannot Start: <cause>` job. pr-merge's release step lifts the eval hold when
+  the newest compare run at the current head since the label was last added is such a run, read back under the same checks as a compare record,
   and comments `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run id> -->`; a
   missing record alone keeps the hold
   ([`release-eval-hold.mjs`](../../.github/scripts/pr-merge/release-eval-hold.mjs)).
