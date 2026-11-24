@@ -6,8 +6,8 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/gate-entry.sh" || exit 2
-base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=1254
-ref_node_starts=38 ref_files=400 zero=0000000000000000000000000000000000000000
+base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=465
+ref_rounds=2 ref_files=400 desk_commit_ms=1943 desk_push_ms=255 zero=0000000000000000000000000000000000000000
 
 usage() {
   cat >&2 <<'EOF'
@@ -19,11 +19,14 @@ the real checkout, whose size its entries' cost grows with: HEAD pushed as a new
 non-default branch, ranged from origin/main.
 
 The budget is calibrated, so a slower runner does not flake: a reference workload that
-runs none of the hooks' code and does not grow with the repository (git status over a
-generated 400-file tree, one node process reading and parsing it, then 38 bare node
-starts; median of 3) is timed in the same run. Its value on the host that set the
-budget is 1254 ms (Linux on WSL2, 24 CPUs, 2026-11-24, median of five runs: 1260, 1235,
-1254, 1240, 1325 ms). The scaled budget is 3 s x this run's reference / 1254 ms. Raw
+runs none of the hooks' code and does not grow with the repository is timed in the same
+run: git status over a generated 400-file tree, one node process reading and parsing it,
+then two rounds of one bare start of each interpreter the shipped entries use (pwsh,
+python3, node, bash, git); median of 3. Its value on the host that set the budget is
+465 ms (Linux on WSL2, 24 CPUs, 2026-11-24, median of five runs: 496, 463, 465, 461, 466
+ms); the same runs put pre-commit at 1943 ms and pre-push at 255 ms. The scaled budget
+is 3 s x this run's reference / 465 ms. In CI the hooks' own ratio (total / desk
+total) prints beside the reference ratio, with a warning when they differ by over 30%. Raw
 seconds, the ratio and the scaled budget all print; pass/fail is on the scaled budget.
 Under a tracer (TracerPid not 0) the times print and nothing is judged.
 
@@ -46,7 +49,7 @@ the gate with the tool's name, since CI installs every hook tool first.
   --runs <n>       runs per entry; an entry's time is the median (default 3)
   --budget-ms <ms> the budget of each hook on the reference host (default 3000)
   --ref-ms <ms>    use this as the run's reference instead of timing it
-  --ref-host-ms <ms> the reference host's value (default 1254)
+  --ref-host-ms <ms> the reference host's value (default 465)
   --scope-only     time nothing: print applies=true or applies=false on stdout (the
                    form GITHUB_OUTPUT takes), every other line on stderr
 
@@ -143,6 +146,34 @@ if ((! force)); then
       while IFS= read -r a; do watched+=("$plugin/$a"); done < <(jq -r '.entries[].assets[]?' "$ROOT/$plugin/git-hooks/entries.json")
     fi
   done
+  queue=()
+  for line in "${jobs[@]}"; do
+    IFS=$'\037' read -r cfg _ _ _ kind val _ <<<"$line"
+    [[ "$cfg" == lefthook.yml && "$kind" == run ]] || continue
+    first=${val%% *}
+    [[ -f "$ROOT/$first" ]] && queue+=("$first")
+  done
+  declare -A seen=()
+  while ((${#queue[@]})); do
+    f=${queue[0]}
+    queue=("${queue[@]:1}")
+    [[ -z "${seen[$f]:-}" ]] || continue
+    seen[$f]=1
+    watched+=("$f")
+    while IFS= read -r token; do
+      while [[ -n "$token" ]]; do
+        if [[ -f "$ROOT/${f%/*}/$token" ]]; then
+          queue+=("$(realpath -m --relative-to="$ROOT" "$ROOT/${f%/*}/$token")")
+          break
+        elif [[ -f "$ROOT/$token" ]]; then
+          queue+=("$token")
+          break
+        fi
+        [[ "$token" == */* ]] || break
+        token=${token#*/}
+      done
+    done < <(grep -oE '[A-Za-z0-9_./-]+\.(sh|mjs|py|awk)' "$ROOT/$f" | sort -u)
+  done
   hit=""
   while IFS=$'\t' read -r status f; do
     if [[ "$status" == [AD] && "$f" == plugins/*/.claude-plugin/plugin.json ]]; then
@@ -185,13 +216,21 @@ reference_once() {
     process.stdout.write(String(n));
   ' "$refdir/tree" >/dev/null
   local i
-  for ((i = 0; i < ref_node_starts; i++)); do node -e 0; done
+  for ((i = 0; i < ref_rounds; i++)); do
+    pwsh -NoProfile -NonInteractive -Command 0 >/dev/null
+    python3 -c 0
+    node -e 0
+    bash -c :
+    git --version >/dev/null
+  done
 }
 if [[ -z "$ref_ms" ]]; then
-  command -v node >/dev/null 2>&1 || {
-    echo "GIT HOOK TIME BUDGET: node is not installed, so the reference workload cannot run." >&2
-    exit 2
-  }
+  for tool in pwsh python3 node; do
+    command -v "$tool" >/dev/null 2>&1 || {
+      echo "GIT HOOK TIME BUDGET: $tool is not installed, so the reference workload cannot run." >&2
+      exit 2
+    }
+  done
   git init -q "$refdir"
   mkdir -p "$refdir/tree"
   for ((i = 0; i < ref_files; i++)); do
@@ -374,6 +413,14 @@ time_hook() {
     return
   fi
   printf '  %-48s %9s  %7s  scaled budget %s\n' total "$(secs "$total")" "$(in_s "$total")" "$(secs "$limit_us")"
+  local desk_ms=$desk_commit_ms
+  [[ "$ev" == pre-push ]] && desk_ms=$desk_push_ms
+  awk -v t="$total" -v d="$desk_ms" -v r="$ref_ms" -v h="$ref_host_ms" -v ev="$ev" -v ci="${GITHUB_ACTIONS:-}" 'BEGIN {
+    hooks = t / 1000 / d; ref = r / h
+    printf "  hooks ratio %.2f (this total / desk total %d ms); reference ratio %.2f\n", hooks, d, ref
+    if (ci == "true" && (hooks > ref * 1.3 || ref > hooks * 1.3))
+      printf "::warning title=git-hook reference drift::%s hooks ratio %.2f and reference ratio %.2f differ by more than 30%%; the reference may not track what the hooks pay.\n", ev, hooks, ref
+  }'
   if [[ -n "$tracer" && "$tracer" != 0 ]]; then
     echo "  not judged: a tracer (pid $tracer) slows every syscall"
   elif ((total > limit_us)); then

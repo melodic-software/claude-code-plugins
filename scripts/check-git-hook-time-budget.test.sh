@@ -258,4 +258,40 @@ else
   fail "--scope-only should print applies=false for a plugin.json edit, got: $out"
 fi
 
+r="$TMP/runscope"
+make_root "$r" ':' ':'
+mkdir -p "$r/scripts/lib"
+printf '%s\n' 'pre-push:' '  jobs:' '    - name: local-push' '      run: scripts/pp.sh {1}' >>"$r/lefthook.yml"
+# shellcheck disable=SC2016
+printf '%s\n' '#!/usr/bin/env bash' 'SCRIPT_DIR="$(dirname "$0")"' '. "$SCRIPT_DIR/lib/helper.sh"' 'gate="$SCRIPT_DIR/check-x.sh"' '"$gate"' >"$r/scripts/pp.sh"
+printf '%s\n' 'helper() { :; }' >"$r/scripts/lib/helper.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$r/scripts/check-x.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$r/scripts/other.sh"
+g "$r" add -A
+g "$r" commit -q -m "a local pre-push run entry"
+printf '%s\n' 'exit 0' >>"$r/scripts/check-x.sh"
+g "$r" commit -q -am "touch only the script the entry calls"
+out="$(gate --root "$r" --base HEAD~1 --scope-only 2>/dev/null)"
+if [[ "$out" == applies=true ]]; then
+  ok "a change to a script a lefthook.yml run: entry calls makes the gate apply"
+else
+  fail "--scope-only should print applies=true after scripts/check-x.sh changed, got: $out"
+fi
+printf '%s\n' 'helper2() { :; }' >>"$r/scripts/lib/helper.sh"
+g "$r" commit -q -am "touch only the file the entry sources"
+out="$(gate --root "$r" --base HEAD~1 --scope-only 2>/dev/null)"
+if [[ "$out" == applies=true ]]; then
+  ok "a change to a file a lefthook.yml run: entry sources makes the gate apply"
+else
+  fail "--scope-only should print applies=true after scripts/lib/helper.sh changed, got: $out"
+fi
+printf '%s\n' 'exit 0' >>"$r/scripts/other.sh"
+g "$r" commit -q -am "touch an unrelated script"
+out="$(gate --root "$r" --base HEAD~1 --scope-only 2>/dev/null)"
+if [[ "$out" == applies=false ]]; then
+  ok "a change to a script no entry reaches leaves the gate not applicable"
+else
+  fail "--scope-only should print applies=false after scripts/other.sh changed, got: $out"
+fi
+
 test_harness::report
