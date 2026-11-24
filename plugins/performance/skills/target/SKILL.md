@@ -164,6 +164,11 @@ On a re-scan after a MET result, look first for the next slow spot in the same j
 - No candidates yet and a whole-process sweep wanted: /performance:go-faster.
 - A check count growing with the repository: /toolchain:ratchet <the counter>.
 
+## Related
+
+- Have a captured CPU profile or heap snapshot: /debugging:analyze-profile.
+- Diagnosing a slow Claude Code install: /harness-ops:audit-performance.
+
 ## Gotchas
 
 - **A plausible mechanism is not evidence.** The WDAC diagnosis above is the worked example. Ask what

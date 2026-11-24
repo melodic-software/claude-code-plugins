@@ -115,6 +115,10 @@ placeholder before running a command (where Claude Code substitutes it:
 - Mechanism found in a bug: /debugging:debug.
 - Mechanism found in a performance target: /performance:goal.
 
+## Related
+
+- No profile or trace captured yet: /app-control:drive.
+
 ## Gotchas
 
 - **Line numbers in V8 call frames start at 0.** The converter stores them 1-based in `frames.line`;
