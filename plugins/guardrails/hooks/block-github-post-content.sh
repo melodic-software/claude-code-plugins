@@ -111,7 +111,6 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 _BGPC_CWD="${HOOK_JQ_FIELDS[2]:-$PWD}"
 [[ -n "$COMMAND" ]] || exit 0
 
-# Cheap pre-filter: every post names gh or curl.
 _bgpc_re_cli='(^|[^a-z0-9_.-])(gh|curl)(\.exe)?([^a-z0-9_-]|$)'
 [[ "${COMMAND,,}" =~ $_bgpc_re_cli ]] || exit 0
 
@@ -123,7 +122,6 @@ emit_tel() {
   hook::emit_telemetry "block-github-post-content" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# block_secret <form> <labels>
 block_secret() {
   printf '%s\n' \
     "BLOCKED: this command would post a secret/credential pattern to GitHub ($1): $2." \
@@ -132,8 +130,6 @@ block_secret() {
   exit 2
 }
 
-# Past the row's shared ceiling the command is not parsed; one holding a secret
-# is refused unread.
 MAX_COMMAND_LEN=16384
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   ((_bgpc_secrets)) && secrets::any_match "$COMMAND" && block_secret "too-long" "a secret pattern"
