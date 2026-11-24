@@ -164,8 +164,6 @@ async function main() {
     await surface(owner, "Inbox page", ".vf-inboxpage", { opener: owner.locator(".vf-bell") });
     await surface(owner, "keyboard shortcuts (?)", ".vf-keys", { opener: owner.locator(".vf-q").first(), key: "?" });
 
-    // ---------- the guest's surfaces on a desktop ----------
-    // Below 1100 px wide the chat covers the page, so it is a modal dialog (WAI-ARIA APG dialog pattern): Tab stays in it.
     await gus.setViewportSize({ width: 1024, height: 900 });
     await surface(gus, "chat over the page (1024 wide)", "section.vf-chat", { opener: gus.locator(".vf-fab") });
     await gus.setViewportSize(DESK.viewport);
