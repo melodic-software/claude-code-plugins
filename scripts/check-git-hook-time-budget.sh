@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/gate-entry.sh" || exit 2
 base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=1000 ref_files=400
-parts_host_ms="307 46 40" share_commit="0.26 0.37 0.37" share_push="0 0.5 0.5"
+parts_host_ms="307 46 40 0.97" share_commit="0.26 0.29 0.28 0.17" share_push="0 0.19 0.18 0.63"
 desk_commit_ms=1934 desk_push_ms=1207 zero=0000000000000000000000000000000000000000
 
 usage() {
@@ -236,7 +236,7 @@ part_files() {
 ratio_of() {
   awk -v s="$1" -v m="${parts_ms[*]}" -v h="$parts_host_ms" 'BEGIN {
     split(s, a, " "); split(m, b, " "); split(h, c, " ")
-    for (i = 1; i <= 3; i++) r += a[i] * b[i] / c[i]
+    for (i = 1; i <= 4; i++) r += a[i] * b[i] / c[i]
     printf "%.4f", r
   }'
 }
@@ -264,11 +264,11 @@ else
       echo $((($(now_us) - t0) / 1000)) >>"$refdir/$p"
     done
   done
-  parts_ms=("$(median <"$refdir/pwsh")" "$(median <"$refdir/starts")" "$(median <"$refdir/files")")
+  parts_ms=("$(median <"$refdir/pwsh")" "$(median <"$refdir/starts")" "$(median <"$refdir/files")" "$(awk -v s="$S" 'BEGIN { printf "%.2f", s / 1e3 }')")
   ratio_commit="$(ratio_of "$share_commit")"
   ratio_push="$(ratio_of "$share_push")"
-  read -r h_pwsh h_starts h_files <<<"$parts_host_ms"
-  ref_line="reference workload: $((parts_ms[0] + parts_ms[1] + parts_ms[2])) ms: pwsh ${parts_ms[0]} ms (desk $h_pwsh), starts ${parts_ms[1]} ms (desk $h_starts), files ${parts_ms[2]} ms (desk $h_files), median of 5 each"
+  read -r h_pwsh h_starts h_files h_spawn <<<"$parts_host_ms"
+  ref_line="reference workload: $((parts_ms[0] + parts_ms[1] + parts_ms[2])) ms: pwsh ${parts_ms[0]} ms (desk $h_pwsh), starts ${parts_ms[1]} ms (desk $h_starts), files ${parts_ms[2]} ms (desk $h_files), median of 5 each; spawn S ${parts_ms[3]} ms (desk $h_spawn)"
 fi
 limit_of() { awk -v b="$budget_ms" -v r="$1" 'BEGIN { printf "%.0f", b * 1000 * r }'; }
 tracer="$(awk '/^TracerPid:/ { print $2 }' /proc/$$/status 2>/dev/null)"
