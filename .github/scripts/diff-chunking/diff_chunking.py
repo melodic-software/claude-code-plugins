@@ -1,7 +1,7 @@
 """Cut a review's patch into chunks one run reads, and each chunk into parts
 one Read returns whole. pr-review-main and pr-verify both cut with it.
 
-usage: diff_chunking.py split <patch> <out-dir> <max-bytes> <max-chunks> <manifest> <manifest-bytes> [<max-files>]
+usage: diff_chunking.py split <patch> <out-dir> <max-bytes> <max-chunks> <manifest> <manifest-bytes> [<max-files>] [--cut-lines]
        diff_chunking.py parts <diff-dir> <part-bytes> <part-lines> [--file-parts <list>] [--wrap <bytes>]
 
 split writes <out-dir>/chunk-<k>.patch, k from 1, each at most max-bytes and,
@@ -12,8 +12,11 @@ max-bytes, each repeating the file's header (its lines before the first
 hunk), in order; a piece counts as one file, and two pieces of a file never
 share a chunk. A file with a hunk that, with that header, is over max-bytes,
 or a patch that needs more than max-chunks chunks, is too large: nothing is
-written, the error names each such file, and the exit status is 3. An empty
-patch writes no chunk.
+written, the error names each such file, and the exit status is 3. With
+--cut-lines such a hunk is cut between its lines instead, each cut under an
+`@@` header recounted for its lines, so the chunks hold every line but no
+longer the patch's bytes alone; only a line over max-bytes with the headers
+is then too large. An empty patch writes no chunk.
 
 With more than one chunk split also writes <manifest>, each file of the patch
 in order as `chunk <k> <status> <path>`, status added, deleted, renamed (the
@@ -35,6 +38,7 @@ part it starts in, relative to <diff-dir>'s parent, to that list.
 """
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -42,6 +46,7 @@ TOO_LARGE = 3
 LONG_LINE_BYTES = 1800
 MARK = b"\\ continued: "
 MIN_WRAP = 40
+HUNK = re.compile(rb"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)", re.S)
 
 
 class TooLarge(Exception):
@@ -65,11 +70,66 @@ def files_of(data: bytes) -> list[list[bytes]]:
     return files
 
 
-def pieces_of(lines: list[bytes], max_bytes: int) -> list[bytes] | None:
+def cut_hunk(hunk: bytes, room: int) -> list[bytes] | None:
+    """A hunk as hunks of at most room bytes, cut between its lines, each
+    under an `@@` header recounted for its own lines, so every line keeps
+    its place in the file. A `\\ No newline` line stays with the line before
+    it. None when the header is not git's, or one line is over room with a
+    header. starts holds the first line number of each side; a side git
+    counts 0 names the line before, so it starts one later. No cut's numbers
+    pass the whole hunk's end, so reserve, a header with those, is the
+    longest any cut needs."""
+    lines = lines_of(hunk)
+    match = HUNK.match(lines[0])
+    if not match or len(lines) < 2:
+        return None
+    starts = [
+        int(start) + (count == b"0")
+        for start, count in ((match[1], match[2]), (match[3], match[4]))
+    ]
+    tail = match[5]
+    units: list[bytes] = []
+    for line in lines[1:]:
+        if line.startswith(b"\\") and units:
+            units[-1] += line
+        else:
+            units.append(line)
+    n = len(units)
+    reserve = len(header(starts[0] + n, n, starts[1] + n, n, tail))
+    out: list[bytes] = []
+    body: list[bytes] = []
+    size = 0
+    for unit in units + [b""]:
+        if body and (not unit or reserve + size + len(unit) > room):
+            olds = sum(u[:1] in b" -" for u in body)
+            news = sum(u[:1] in b" +" for u in body)
+            out.append(header(starts[0], olds, starts[1], news, tail) + b"".join(body))
+            starts = [starts[0] + olds, starts[1] + news]
+            body, size = [], 0
+        if not unit:
+            break
+        if reserve + len(unit) > room:
+            return None
+        body.append(unit)
+        size += len(unit)
+    return out
+
+
+def header(old: int, olds: int, new: int, news: int, tail: bytes) -> bytes:
+    return (
+        b"@@ -%d,%d +%d,%d @@" % (old - (olds == 0), olds, new - (news == 0), news)
+        + tail
+    )
+
+
+def pieces_of(
+    lines: list[bytes], max_bytes: int, cut_lines: bool = False
+) -> list[bytes] | None:
     """A file's diff whole, or cut at its hunks into pieces of at most
-    max_bytes under its header; None when a hunk with the header is over.
-    A content line starts with a prefix byte, so only a hunk header starts
-    `@@`."""
+    max_bytes under its header; None when a hunk with the header is over,
+    unless cut_lines cuts such a hunk at its lines (None then only when one
+    line is over). A content line starts with a prefix byte, so only a hunk
+    header starts `@@`."""
     whole = b"".join(lines)
     if len(whole) <= max_bytes:
         return [whole]
@@ -80,6 +140,16 @@ def pieces_of(lines: list[bytes], max_bytes: int) -> list[bytes] | None:
         if line.startswith(b"@@"):
             hunks.append(b"")
         hunks[-1] += line
+    if cut_lines:
+        cut: list[bytes] = []
+        for hunk in hunks:
+            if len(head) + len(hunk) <= max_bytes:
+                cut.append(hunk)
+            elif (parts := cut_hunk(hunk, max_bytes - len(head))) is None:
+                return None
+            else:
+                cut += parts
+        hunks = cut
     if not hunks or len(head) + max(map(len, hunks)) > max_bytes:
         return None
     pieces = [head + hunks[0]]
@@ -96,20 +166,25 @@ Unit = tuple[bytes, PieceNumber, PiecesOfFileOrZeroWhenWhole]
 
 
 def split(
-    data: bytes, max_bytes: int, max_chunks: int, max_files: int = 0
+    data: bytes,
+    max_bytes: int,
+    max_chunks: int,
+    max_files: int = 0,
+    cut_lines: bool = False,
 ) -> list[list[Unit]]:
     units: list[Unit] = []
     over = []
     for lines in files_of(data):
-        pieces = pieces_of(lines, max_bytes)
+        pieces = pieces_of(lines, max_bytes, cut_lines)
         if pieces is None:
             over.append(entry(lines).decode(errors="replace"))
             continue
         count = len(pieces) if len(pieces) > 1 else 0
         units += [(piece, i, count) for i, piece in enumerate(pieces, 1)]
     if over:
+        what = "line" if cut_lines else "hunk"
         raise TooLarge(
-            f"a file has a hunk larger than one chunk of {max_bytes} bytes: {', '.join(over)}"
+            f"a file has a {what} larger than one chunk of {max_bytes} bytes: {', '.join(over)}"
         )
     chunks: list[list[Unit]] = []
     size = 0
@@ -249,6 +324,7 @@ def main(argv: list[str]) -> int:
     ):
         s.add_argument(name, type=kind)
     s.add_argument("max_files", nargs="?", type=int, default=0)
+    s.add_argument("--cut-lines", action="store_true")
     p = sub.add_parser("parts")
     p.add_argument("diff_dir", type=Path)
     p.add_argument("part_bytes", type=int)
@@ -263,7 +339,9 @@ def main(argv: list[str]) -> int:
         print(",".join(map(str, sizes)))
         return 0
     try:
-        chunks = split(a.patch.read_bytes(), a.max_bytes, a.max_chunks, a.max_files)
+        chunks = split(
+            a.patch.read_bytes(), a.max_bytes, a.max_chunks, a.max_files, a.cut_lines
+        )
     except TooLarge as error:
         print(f"split-diff: {error}", file=sys.stderr)
         return TOO_LARGE
