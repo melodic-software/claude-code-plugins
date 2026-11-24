@@ -79,12 +79,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   on the default branch, scoped to the affected cases, follows; a rename's run uses
   `credential: subscription` and `runs: 3`. For a judged case, the dispatching session posts the
   record by hand under [Graders](#graders).
-- Any eval-held PR whose compare run cannot start also merges first, and its affected cases run
-  the same way on the default branch after (owner decision,
-  [owner-decisions.md#L400](https://github.com/melodic-software/architecture/blob/5e9bdfd176c86f3ce17d0659b4121fdcb0bc6c04/docs/owner-decisions.md#L400),
-  extending the row at
-  [L371](https://github.com/melodic-software/architecture/blob/5e9bdfd176c86f3ce17d0659b4121fdcb0bc6c04/docs/owner-decisions.md#L371)). Only the compare run's own record of the cause counts: a run that
-  passes its dispatcher, input and head checks and then finds `CLAUDE_EVALS_DISABLED` not `false`
+- Only the compare run's own record that it cannot start counts. A run that passes its
+  dispatcher, input and head checks and then finds `CLAUDE_EVALS_DISABLED` not `false`
   (`evals-disabled`) or `compare-arms.sh` refusing the PR (`compare-refused`) runs no arm and
   succeeds its `Compare Cannot Start: <cause>` job. pr-merge's release step lifts the eval hold on
   the newest such run for the current head, read back under the same checks as a compare record,
@@ -92,10 +88,10 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   missing record alone keeps the hold
   ([`release-eval-hold.mjs`](../../.github/scripts/pr-merge/release-eval-hold.mjs)).
 - The session that merged the PR dispatches that run, states its cost first and watches it; it
-  fixes or reverts a failing case, and a FAIL on a PR merged on a `cannot-start` release reverts it.
-  With no live session, the next session that takes up the PR's follow-up does (Q57); a search for
-  `eval-hold-released` with `cannot-start=` finds the merged PRs that owe their run. While
-  `CLAUDE_EVALS_DISABLED` is not `false` that run cannot start either, so it waits for the switch.
+  fixes or reverts a failing case. With no live session, the next session that takes up the PR's
+  follow-up does (Q57); a search for `eval-hold-released` with `cannot-start=` finds the merged
+  PRs that owe their run. While `CLAUDE_EVALS_DISABLED` is not `false` that run cannot start
+  either, so it waits for the switch.
 - An eval-pair record names one head. A push before the hold releases needs a new compare run (Q58).
 - Every run uses the maintenance API key and stops at its credit stop, except a compare run
   dispatched with `credential: subscription`: both its passes run on the maintenance subscription
