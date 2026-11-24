@@ -39,7 +39,6 @@ import { AGENT_READY } from "../lib/lane-vocabulary.mjs";
 const fold = (name) => String(typeof name === "string" ? name : name?.name).toLowerCase();
 const annotate = (line) => String(line).replaceAll(/[\r\n%]/g, " ");
 
-// The models.issue-status state whose labels include `name`, without case.
 const stateOf = (name, config) =>
   typeof name === "string" ? Object.keys(config.labels).find((state) => config.labels[state].some((label) => fold(label) === fold(name))) : undefined;
 
@@ -62,7 +61,6 @@ export function translateLabel(event, config) {
   return { why: "a status label taken off, which only a release path writes" };
 }
 
-// The state agent-ready taken off by a person leaves the field at.
 export const STOPPED_STATE = "confirmed";
 
 // One label event. `status` holds `fieldState(number)` (the field's trusted
@@ -104,8 +102,6 @@ export async function main({ env = process.env, log = console.log } = {}) {
       throw new Error("this runs only on an issue label event");
     }
     const repository = env.GITHUB_REPOSITORY;
-    // resolve-config.mjs loads the packages the job installs, so it loads
-    // here, after the kill switch.
     const { issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
     const config = issueStatusFromBase(env);
     if (!config) {

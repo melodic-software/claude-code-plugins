@@ -73,7 +73,6 @@ check "changed canonical: the committed copy carries the new canonical" 1 "$(gre
 check "changed canonical: the commit merges main" 3 "$(g "$repo" rev-list --parents -n1 HEAD | wc -w | tr -d ' ')"
 check "changed canonical: the drift check passes on the commit" 0 "$( (cd "$repo" && bash scripts/sync-shared-copies.sh --check >/dev/null 2>&1) && echo 0 || echo 1)"
 
-# A head that registers a new copy outside any plugin: refused, no patch.
 repo=$(fixture registry)
 g "$repo" checkout -q pr
 printf 'lib/shared.sh plugins/p/lib/shared.sh\nlib/shared.sh .github/workflows/evil.yml\n' >"$repo/scripts/shared-copies.txt"
@@ -85,7 +84,6 @@ check "head alters the registry: exit 3" 3 "$rc"
 check "head alters the registry: refused" refused=shared-copy-tooling-changed "$out"
 check "head alters the registry: nothing written outside the merge" "" "$(g "$repo" ls-files --others)"
 
-# A head that edits the sync script: refused before the script runs.
 repo=$(fixture script)
 g "$repo" checkout -q pr
 # shellcheck disable=SC2016  # the planted line expands when the head's script runs
@@ -98,7 +96,6 @@ check "head alters the script: exit 3" 3 "$rc"
 check "head alters the script: refused" refused=shared-copy-tooling-changed "$out"
 check "head alters the script: the head's script never ran" no "$([[ -e $repo/pwned ]] && echo yes || echo no)"
 
-# A head that adds a file under scripts/lib: refused.
 repo=$(fixture lib)
 g "$repo" checkout -q pr
 printf 'x\n' >"$repo/scripts/lib/extra.sh"
@@ -109,7 +106,6 @@ rc=0
 out=$(run "$repo" "$TMP/lib-base") || rc=$?
 check "head alters scripts/lib: refused" refused=shared-copy-tooling-changed "$out"
 
-# A run that writes a path the base registry does not list: refused, no patch.
 repo=$(fixture stray)
 printf 'printf x >.github-stray\n' >>"$TMP/stray-base/scripts/sync-shared-copies.sh"
 rc=0

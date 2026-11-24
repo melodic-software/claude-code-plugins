@@ -32,6 +32,6 @@ graders:
     target: last_message
   - name: first-question-on-tax
     type: regex
-    pattern: '(?:^|[.!?\n])[^.!?\n]*(?:\btax\w*|\bquote\(|\bcandidate 1\b|\bentry point\b)[^.!?\n]*\?[^?]*$'
+    pattern: '(?:\bfirst question|\bquestion 1\b)[*_ \t]*[(:—–-][ \t]*[^\n)?:.]{0,40}?(?:\btax\w*|\bquote\(|\bcandidate 1\b)[\s\S]{0,600}\?|(?:^|[.!?\n])[^.!?\n]*(?:\btax\w*|\bquote\(|\bcandidate 1\b|\bentry point\b)[^.!?\n]*\?[^?]*$'
     flags: i
     target: last_message

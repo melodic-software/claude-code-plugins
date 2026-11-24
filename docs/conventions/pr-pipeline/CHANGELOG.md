@@ -1,5 +1,25 @@
 # Changelog for the PR pipeline convention
 
+## [12.8.2] - 2026-11-24
+
+### Changed
+
+- `CI Status`'s trust-gate hold lets a Dependabot pull request through when it only moves an official vendor action (`actions`, `github`, `dependabot`, `microsoft`, `azure`, `anthropics`, `openai`, any case) from one version tag (`vN`, `vN.N`, `vN.N.N`) to another that exists in the action's repository, the same as a full-SHA swap to a tagged commit (owner decision 2026-11-23, [#18604](https://github.com/melodic-software/claude-code-plugins/issues/18604)). A first-party or third-party tag swap, a tag moved to a branch, a non-version tag or a SHA, a SHA moved to a tag, and a changed action path still keep the hold.
+
+- The read lane's `setup-env` copy takes the CI Node dependencies from `scripts/ci-deps/package.json` and `package-lock.json` instead of the synced `.github/standards/runner-policy` manifests.
+
+## [12.8.1] - 2026-11-24
+
+### Fixed
+
+- `collect-base-activity` stages `.github/scripts/apply-patch/cdn-paths.mjs` beside a script activity's base copy, so pr-unblock's `apply-dependency-verdict` and the `cdn-pins-sync.mjs` module `review-dependency.mjs` imports load again instead of failing with `ERR_MODULE_NOT_FOUND` on every Dependabot pull request.
+
+## [12.8.0] - 2026-11-24
+
+### Changed
+
+- `CI Status`'s trust-gate hold clears for a Dependabot pull request whose one trust-gate path is `lib/cdn-pins/pins.json`, modified in place as the lanes App's CDN pins sync commit leaves it, once the lanes App's newest review-dependency round marker names the current head with `verdict=merge` (owner decision Q154 A). Until the verdict, the hold reads `#<n> by Dependabot changes only the CDN pins record on trust-gate paths`. `review-dependency-select` sends that hold to the model with `merge_clears_gate_hold: true` instead of skipping it as `gate-hold`, and the pr-unblock dispatcher re-runs the head's `CI Status` job after the verdict.
+
 ## [12.7.2] - 2026-11-24
 
 ### Changed

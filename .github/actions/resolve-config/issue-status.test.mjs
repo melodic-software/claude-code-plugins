@@ -16,8 +16,6 @@ const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline
   "issue-status"
 ];
 const FIELD = 48484079;
-// A listed human in the live trusted-actor list, an account not on it, and
-// the lanes App.
 const TRUSTED = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
 const LISTED = 153232337;
 const UNLISTED = 42;
@@ -95,7 +93,6 @@ test("read: an issue with no Work status value reads null", () => {
   assert.equal(issueStatus([{ field: 15462270, option: 27053568 }]), null);
 });
 
-// A row with no option fails like issueDimensions does with one.
 test("read: a trusted row with no option fails closed", () => {
   assert.throws(() => issueStatus([{ field: FIELD, option: null }]), (error) => error instanceof Rejection && error.code === "unmapped-status");
 });
@@ -110,9 +107,6 @@ test("write: a state no option maps is rejected", () => {
   assert.throws(() => statusOption("blocked", CONFIG), (error) => error instanceof Rejection && error.code === "undefined-status");
 });
 
-// The owner's rule for Work status bot setters: the job token's bot and
-// the melodic- Apps count for every state but agent-ready; third-party bots
-// never count; agent-ready counts only from a listed human or the lanes App.
 const ACTIONS_BOT = 41898282;
 const MELODIC_AI = 288071998;
 const CLAUDE_BOT = 209825114;
@@ -240,9 +234,6 @@ test("bot setters: github-actions[bot], then the listed melodic- bots but the la
   assert.equal(readStatus({ fieldValues: ready, fieldSetters: { [FIELD]: LANES_APP } }, CONFIG, list), "agent-ready");
 });
 
-// The trusted-actor list may drop or rename a melodic- bot before the config
-// follows: that entry stops counting, so its value reads as unset and the
-// labels decide, and the config still loads.
 test("read: a melodic- bot-setter the trusted-actor list no longer holds as that bot is ignored, not rejected", () => {
   const dropped = { ...TRUSTED, actors: TRUSTED.actors.filter((actor) => actor.id !== MELODIC_AI) };
   const renamed = { ...TRUSTED, actors: TRUSTED.actors.map((actor) => (actor.id === MELODIC_AI ? { ...actor, login: "ai-2[bot]" } : actor)) };
@@ -253,7 +244,6 @@ test("read: a melodic- bot-setter the trusted-actor list no longer holds as that
     assert.equal(readStatus({ fieldValues: row, fieldSetters: setters }, CONFIG, list), null, why);
   }
   assert.equal(readStatus({ fieldValues: row, fieldSetters: setters }, CONFIG, TRUSTED), "needs-human");
-  // github-actions[bot] is not on the list and counts without it.
   assert.equal(readStatus({ fieldValues: row, fieldSetters: { [FIELD]: ACTIONS_BOT } }, CONFIG, { actors: [] }), "needs-human");
 });
 

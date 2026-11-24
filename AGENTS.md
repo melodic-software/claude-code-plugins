@@ -205,6 +205,7 @@ already in context, read the file directly.
 | `.claude/rules/mod-authoring.md` | `plugins/*/hooks/**` | Mods: before adding or changing a hooks module, load the built-in `plugin-authoring` skill and follow the mod-authoring convention, which points at the upstream mods pages and ADR 0052 |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as our decision plus a section-anchored pointer (an as-of date and recheck trigger only on a copied or measured upstream number or string), name their successor in `## Next` and context-dependent links in `## Related`, and mark optional-plugin mentions `(if enabled)`; read before editing any skill body |
+| `docs/adr/AGENTS.md` | `docs/adr/**` | ADRs: retired records live in git history |
 | `plugins/attribution/skills/audit/AGENTS.md` | `plugins/attribution/skills/audit/**` | Editing the attribution audit skill: contributor conventions |
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |

@@ -24,13 +24,12 @@ mismatch, so a visibility change must land together with the matching posture
 change in this repository's workflows.
 
 Workflow source contains no organization runner label, host name, or GitHub
-App identifier. Reviewed reusable workflows from `melodic-software/ci-workflows`
-are pinned to the full commit SHA recorded as an approved contract in the
-standards-distributed `.github/standards/runner-policy/policy.json`, and each
-call passes its `runner` input explicitly (`ubuntu-24.04`). GitHub documents a
-full commit SHA as the safest reusable-workflow reference. Dependabot watches
-the GitHub Actions dependency, but every executable pin update remains a
-reviewed pull request.
+App identifier. Each reusable workflow from `melodic-software/ci-workflows` is
+called at `@main` and has an approved contract in
+[`components/runner-policy/policy.json`](https://github.com/melodic-software/standards/blob/main/components/runner-policy/policy.json)
+of `melodic-software/standards`, which the `lint-repo` job's runner-policy step
+reads at the run's standards commit. Each call passes its `runner` input
+explicitly (`ubuntu-24.04`).
 
 ## Routing and failure behavior
 

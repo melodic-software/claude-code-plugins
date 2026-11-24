@@ -51,6 +51,7 @@ any change a consumer could notice bumps `schema`.
 | `models_source` | The command the list came from. |
 | `efforts`, `efforts_source` | The effort levels the CLI's help lists for its effort flag, and that help command; absent when the CLI reports effort per model instead. A help whose effort line lists no choices this plugin can read makes the result `failed`, never `ok` without levels. |
 | `tools` | List of tool names the harness offers (from the provider record when the CLI does not list them itself). |
+| `read_only_tools` | The subset of `tools` that still works under `--mode read-only` (an `investigate` run or a review), from the provider record; equal to `tools` when the record names no such list. |
 | `image` | Boolean: whether the harness can generate images headless. |
 | `breaker` | `{ open, reason, reset_at }` read from the product's breaker file (`open: false` and `null` fields when closed or absent). |
 | `docs_index` | The vendor's docs index, for facts no command reports. |

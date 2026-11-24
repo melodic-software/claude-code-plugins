@@ -1,6 +1,3 @@
-// Expected values come from report-escalation.sh's comment format and the
-// review lanes' hold marker (docs/conventions/pr-pipeline/README.md, "Review-lane
-// holds"), and from GitHub's GraphQL LabeledEvent and UnlabeledEvent shapes.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -60,14 +57,10 @@ test("report-escalation.sh's lane-stopped comment, posted or edited since the la
     { ...commented(APP, "<!-- pr-unblock:lane-stopped activity=fix-ci -->\nStopped.", "2026-10-18T09:00:00Z"), updated_at: "2026-10-18T10:30:00Z" },
   ];
   assert.equal(source(timeline), "lane-escalation");
-  // Only that marker's exact shape is known.
   const odd = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalation(), commented(APP, "<!-- pr-unblock:lane-stopped activity=Fix_CI -->", "2026-10-18T10:30:00Z")];
   assert.equal(source(odd), "unknown");
 });
 
-// The write runner's escalation enum (pr-run-activity-write.yml, its first
-// step) is the list of reasons a run may hand report-escalation.sh; the
-// routing table must route each one, and route nothing else.
 test("escalation-routes.json routes every reason the write runner accepts, each to one activity and one route", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-run-activity-write.yml", import.meta.url), "utf8");
   const block = workflow.slice(workflow.indexOf("case $ESCALATION_REASON in"), workflow.indexOf("patch-empty | patch-invalid"));
@@ -77,7 +70,6 @@ test("escalation-routes.json routes every reason the write runner accepts, each 
   for (const [reason, entry] of Object.entries(ROUTES)) {
     assert.ok(["resolve-conflicts", "address-feedback", "review-dependency", "fix-ci", "sync-shared-copies", "fix-test-scope"].includes(entry.activity), reason);
     assert.ok(["hold", "fail"].includes(entry.route), reason);
-    // Only a fail route names a label, the session-builder queue's.
     assert.ok(!Object.hasOwn(entry, "label") || (entry.route === "fail" && entry.label === "needs-session"), reason);
     assert.equal(escalationActivity(reason), entry.activity);
     assert.equal(escalationRoute(reason), entry.route);
@@ -85,7 +77,6 @@ test("escalation-routes.json routes every reason the write runner accepts, each 
   }
   assert.equal(escalationActivity("bogus"), null);
   assert.equal(escalationRoute("constructor"), null);
-  // Fail-safe: a reason the table does not list waits for a person.
   assert.equal(stopSkip("bogus"), "awaiting-human");
 });
 
@@ -103,10 +94,6 @@ test("an escalation more than a minute after the label is unknown", () => {
   assert.equal(source([label("labeled", APP, "2026-10-18T10:00:00Z"), escalation("2026-10-18T10:05:00Z")]), "unknown");
 });
 
-// ci-status (pr-require-checks.yml, "Fail a review-lane hold an untrusted
-// account lifted") lifts a review-lane hold only on a removal by a `human` of
-// trusted-actors.json, not through an App, and counts github-actions[bot]'s or
-// claude[bot]'s `labeled` event as a hold. OWNER is that list's one human.
 const STRANGER = { login: "drive-by", id: 99, type: "User" };
 const CLAUDE = { login: "claude[bot]", id: 209825114, type: "Bot" };
 const afterLift = (remover) => [hold(OLD, "2026-10-18T08:00:00Z"), label("unlabeled", remover, "2026-10-18T09:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
@@ -117,7 +104,6 @@ test("only a trusted person's unlabel lifts a review-lane hold", () => {
   assert.equal(source(afterLift(APP)), "review-hold");
   const viaApp = afterLift(OWNER).map((item) => (item.event === "unlabeled" ? { ...item, performed_via_github_app: { slug: "some-app" } } : item));
   assert.equal(source(viaApp), "review-hold");
-  // `trusted` replaces the base's list.
   assert.equal(gateSource({ timeline: afterLift(STRANGER), label: "needs-human", head: HEAD, isLanesApp, trusted: new Set([STRANGER.id]) }).source, "lane-escalation");
   assert.equal(gateSource({ timeline: afterLift(OWNER), label: "needs-human", head: HEAD, isLanesApp, trusted: new Set() }).source, "review-hold");
 });
@@ -161,15 +147,11 @@ test("the newest labeled event is read by its time, not its place in the list", 
   assert.equal(source(reordered), "lane-escalation");
 });
 
-// An escalation comment as report-escalation.sh writes it, with its Reason line.
 const escalated = (reason, at = "2026-10-18T10:00:05Z") =>
   commented(APP, `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\nThe pr-unblock lane stopped.\n\n- Reason: \`${reason}\`\n- Resume key: \`${OLD}\``, at);
 const allows = (timeline, activity, { reviewComments = [], reviews = [] } = {}) =>
   laneEscalationAllows({ timeline, reviewComments, reviews, label: "needs-human", head: HEAD, isLanesApp, activity }).allowed;
 
-// report-escalation.sh maps each reason to the activity that resumes it:
-// feedback-* address-feedback, dependency-* review-dependency, ci-fix-* fix-ci,
-// any other resolve-conflicts.
 test("a lane escalation holds only the activity it belongs to", () => {
   const by = (reason) => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated(reason)];
   for (const activity of ["fix-ci", "resolve-conflicts", "fix-docs"]) {
@@ -370,9 +352,6 @@ test("prHold's review reader asks for the review comments since a second before 
   ]);
 });
 
-// Element 6 of the outage posture (docs/conventions/pr-pipeline/README.md#outage-posture): reads are
-// serial, so the reviews read starts only after the comments read ends, and a
-// failed comments read sends no reviews read.
 test("the review reader sends its two reads one after the other, and stops after a failed first read", async () => {
   const events = [];
   const api = {
@@ -450,8 +429,6 @@ test("listLabelEvents maps GraphQL label events to timeline items across pages",
   ]);
 });
 
-// pr-merge's shared-copy escalation as babysit_merge.py writes it: the comment,
-// then the label.
 const sharedCopy = (head = HEAD, reason = "shared-copy-sources-changed:lib/x.sh changed on main since merge base c", at = "2026-10-18T09:59:58Z") =>
   commented(
     APP,
@@ -473,7 +450,6 @@ test("sync-shared-copies stays held unless the refusal names this head, this rea
   assert.equal(allows(refused(sharedCopy(HEAD, undefined, "2026-10-18T09:50:00Z")), "sync-shared-copies"), false);
   assert.equal(allows([sharedCopy(), label("labeled", OWNER, "2026-10-18T10:00:00Z")], "sync-shared-copies"), false);
   assert.equal(allows(refused({ ...sharedCopy(), user: OWNER }), "sync-shared-copies"), false);
-  // A pr-unblock escalation alone is not pr-merge's refusal.
   assert.equal(allows([label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("unresolved-conflict")], "sync-shared-copies"), false);
 });
 
@@ -483,8 +459,6 @@ test("sync-shared-copies stays held once a person spoke or another lane marked t
   assert.equal(allows([...refused(), escalated("unresolved-conflict", "2026-10-18T11:00:00Z")], "sync-shared-copies"), false);
 });
 
-// A review lane, check-signed-commits or pr-verify posts its hold while the
-// label is already on, so the hold adds no `labeled` event.
 test("sync-shared-copies stays held by a review-lane, signed-commits or credential hold posted after the refusal", () => {
   const at = "2026-10-18T10:05:00Z";
   for (const [why, comment] of [

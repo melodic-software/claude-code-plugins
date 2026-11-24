@@ -440,7 +440,7 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 
 - Codify recurring defect check: /corrections:codify.
 - Record app-driving lessons in control skill: /app-control:map refresh "<lesson>", one per lesson.
-- Already a failing test: /testing:diagnose.
+- Already a failing test: /testing:fix-failing.
 
 ## When to escalate
 

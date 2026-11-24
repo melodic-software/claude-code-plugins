@@ -81,7 +81,9 @@ reason, and covers the rest.
   harness whose `tools` lacks a required tool and any model whose `context_window` is below
   `--context`, each with one note. Claude's `context_window` comes from its `claude` entry in
   `--models` (filled live from the model overview pointer above); when unknown, Claude is not
-  skipped.
+  skipped. With `--use investigate` (a read-only brief), the tool check reads the vendor's
+  `read_only_tools` instead, falling back to `tools` when the entry has none; `--use task`, the
+  default, reads `tools`.
 - **Usage tiebreak**: plan usage is queried only when the resolved `vendors.tiebreak` names
   `most-usage-left`, via `external-agents usage <product>` per in-use vendor outside delegated
   runs, and from the `rate-limits` status tool (`mcp__rate-limits__status`) for Claude when that
@@ -133,7 +135,9 @@ Without the external-agents plugin, route covers only Claude, so the step runs h
 Benchmark sources live as pointers only in [`benchmarks.json`](benchmarks.json) (closed schema:
 [`../schemas/benchmark-registry.schema.json`](../schemas/benchmark-registry.schema.json)). Every
 page is fetched through `fetch-boards` (wrapping the shared docs cache; default freshness window
-one day, overridable per row via `freshness_seconds`), read in isolation by the Read-only
+one day, overridable per row via `freshness_seconds`; a page without the row's `expect` marker is
+unread, and when the docs-cache `renderer` is `firecrawl` a blocked page or one drawn by script is
+rendered through the Firecrawl CLI, as the registry fetcher does), read in isolation by the Read-only
 `multi-agent:board-reader` agent into closed-schema `VerdictRecord` entries
 ([`../schemas/verdict-record.schema.json`](../schemas/verdict-record.schema.json)), and counted by
 `vendor-decide`, which stamps `source_id`, `page_date` and `read` state from the fetch manifest.
@@ -148,13 +152,23 @@ Trust-model rules enforced by `vendor-decide`:
 - **Error range**: a lead counts only outside the board's stated error range; a score with no
   error range is support-only.
 - **Current models**: a board that does not test a vendor's current model ids abstains for that
-  vendor.
+  vendor. A board model named without the effort suffix a vendor's ids carry (`<model>` for
+  `<model>-high`, where the suffix is one of that id's effort levels) matches them, and counts as
+  `<model>-<record effort>` when that id exists, else as the first such id in the vendor's listed
+  order. Any other suffix, such as a version (`<model>-5`), does not match.
 - **Provider-own results**: a provider's own published results (`provider_own: true`) are
   support-only and support only that provider's own models.
 - **Freshness and page dates**: a page must be dated within 6 months (a dated row, release column
   or changelog entry counts as the page date). Undated or older pages are ineligible.
 - **Source maturity**: new sources start `support-only` and become `permanent` once they pass
-  longevity, accuracy and coverage.
+  longevity, accuracy and coverage: every check below in each of at least
+  `vendors.promotion_audits` registry audits (default 3) spanning at least
+  `vendors.promotion_days` days (default 30), with no failed check in between. Per audit, the page
+  reads live (reachable, not partial), is dated within 6 months, states an error range, and tests
+  a current model of every vendor the row's work types need (for image, only the vendors that make
+  images). `/multi-agent:audit-defaults registry` runs the checks, keeps their history per machine
+  ([`config.md`](config.md) "Registry audit history") and proposes the promotion; it ships only
+  through that skill's reviewed apply step.
 - **Degradation on fetch failure**: a cached copy served after a failed fetch is flagged stale
   with its age and shown as support-only. A gone page (404, 410, off-site redirect) is unread,
   named as unread in the reply, and its work type stays on its default.

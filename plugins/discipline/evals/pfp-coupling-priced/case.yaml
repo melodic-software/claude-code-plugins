@@ -3,7 +3,7 @@ name: pfp-coupling-priced
 graders:
   - name: coupling-costs-named
     type: regex
-    pattern: '^(?=[\s\S]*\babandon)(?=[\s\S]*\bpric(?:e|es|ing)\b)(?=[\s\S]*\blicen[cs])(?=[\s\S]*\bsecurity\b)(?=[\s\S]*(?:\bexit\b|cost of (?:leaving|removing|switching)|\block-?in\b|\brip(?:ping)? (?:it )?out\b|\bmigrat\w* (?:off|away)))'
+    pattern: '^(?=[\s\S]*\babandon)(?=[\s\S]*\bpric(?:e|es|ing)\b)(?=[\s\S]*\blicen[cs])(?=[\s\S]*\bsecurity\b)(?=[\s\S]*(?:\bexit\b|cost of (?:leaving|removing|switching)|\block-?in\b|\brip(?:ping)? (?:it )?out\b|\bmigrat\w* (?:off|away)|\bremov(?:e|al|ing)\b))'
     flags: i
     target: last_message
   - name: research-not-recall

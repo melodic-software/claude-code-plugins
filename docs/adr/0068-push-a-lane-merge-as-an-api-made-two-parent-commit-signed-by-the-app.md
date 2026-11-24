@@ -30,7 +30,7 @@ The runner, not the model, makes the merge commit through the Git Data API
    that can write. The write runner branches on the resolved `prepare` output, never on the
    skill's name. Basis:
    [`pr-pipeline.schema.json:171-186`](../conventions/pr-pipeline/pr-pipeline.schema.json);
-   [`resolve.mjs:198-207`](../../.github/actions/resolve-config/resolve.mjs);
+   [`resolve.mjs:207-219`](../../.github/actions/resolve-config/resolve.mjs);
    [`pr-run-activity-write.yml:359,434`](../../.github/workflows/pr-run-activity-write.yml).
 2. Before any model turn, the base's `prepare.sh` runs `git merge --no-commit --no-ff` of the
    trusted base ([ADR 0069](0069-trust-the-default-branch-tip-for-a-conflicting-pr.md)) into the

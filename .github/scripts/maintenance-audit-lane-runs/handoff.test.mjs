@@ -1,7 +1,3 @@
-// The judge's handoff markers: a leg hands its unit on only with a collector
-// unit id and a reason from its leg's closed set, a leg with a permission
-// denial hands nothing on, and the route job turns only well-formed markers
-// into the next leg's matrix.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -19,7 +15,6 @@ test("a marker takes a collector unit and its leg's handoff reasons only", () =>
   assert.deepEqual(marker("key", "d8", "no-key"), { unit: "d8", reason: "no-key" });
   assert.deepEqual(marker("subscription", "c2", "limit-stop"), { unit: "c2", reason: "limit-stop" });
   assert.throws(() => marker("key", "a1", "limit-stop"), /not a key handoff reason/);
-  // An empty subscription token hands on as an empty key does.
   assert.deepEqual(marker("subscription", "c3", "no-key"), { unit: "c3", reason: "no-key" });
   assert.throws(() => marker("subscription", "a1", "bogus"), /not a subscription handoff reason/);
   assert.throws(() => marker("key", "a9", "auth"), /not a collector id/);
@@ -47,7 +42,6 @@ test("the route builds the next leg's matrix from the downloaded markers", (t) =
       { unit: "c1", reason: "auth" },
     ],
   });
-  // A marker under another unit's name, another leg's name or with an unknown reason fails the route.
   put("judge-handoff-d1.json", { unit: "d2", reason: "auth" });
   assert.throws(() => route("key", dir), /holds unit 'd2'/);
   rmSync(join(dir, "judge-handoff-d1.json"));

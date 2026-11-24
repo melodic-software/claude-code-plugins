@@ -1,6 +1,9 @@
 # Move the harness-ops session event log into a mod
 
-- Status: accepted; amended 2026-11-16 (registration follows the event categories)
+- Status: accepted; amended 2026-11-16 (registration follows the event categories); superseded in
+  part by [ADR 0109](0109-switch-plugin-sets-by-profile-and-gate-optional-calls-on-enabled-skills.md)
+  Decision 5: the module lives in the hook-only `session-telemetry` plugin
+  (`plugins/session-telemetry/hooks/register.ts`), not in harness-ops
 - Date: 2026-10-04
 
 ## Context

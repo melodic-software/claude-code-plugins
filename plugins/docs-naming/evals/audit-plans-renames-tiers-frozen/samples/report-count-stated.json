@@ -23,6 +23,10 @@
     },
     {
       "answer": "**Four** `report` sites stay as written."
+    },
+    {
+      "answer": "**Report-only sites (`report`, frozen):** 4 of them, and none will change.",
+      "why": "bold heading with backticked tier before the count"
     }
   ],
   "fail": [
@@ -36,7 +40,7 @@
       "answer": "2 review sites need a human."
     },
     {
-      "answer": "| `docs/CATALOG.md` \u2192 `docs/catalog.md` | 4 | 1 current (edit), 2 current (review), 1 released (report) |"
+      "answer": "| `docs/CATALOG.md` → `docs/catalog.md` | 4 | 1 current (edit), 2 current (review), 1 released (report) |"
     },
     {
       "answer": "- **CHANGELOG.md:** 3 sites are marked `report`. The ADR has one `report` site."
@@ -49,6 +53,10 @@
     },
     {
       "answer": "4 sites will be edited."
+    },
+    {
+      "answer": "**Frozen sites (`report`):** none in this tree, though 4 files were scanned.",
+      "why": "count names files, beyond the gap"
     }
   ]
 }
