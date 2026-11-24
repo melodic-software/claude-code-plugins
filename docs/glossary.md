@@ -7,7 +7,7 @@ This file records **vocabulary only**: what a term is, and which names were cons
 rejected for it. The reasoning behind a decision lives in the artifact that made it; entries cite
 that artifact rather than restating it. New terms are curated through
 `/domain-driven-design:ubiquitous-language curate` rather than hand-written, so the entry discipline stays
-uniform.
+uniform. An `Avoid:` line marks words we rejected for that entry; use the entry's term instead.
 
 This marketplace is a single language context, so there is no glossary index: every entry below
 applies repository-wide.
@@ -39,11 +39,10 @@ Avoid: design concept
 
 **context load**
 
-What a surface costs an agent that reads it: the tokens, charged on every session for always-loaded
-ones, and the adherence it costs, since the agent follows a longer instruction file less reliably
-([memory: write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions),
-read 2026-11-21). Paired with cognitive load below; the two are distinct budgets and cutting one
-can overspend the other.
+What a surface costs an agent that reads it: its tokens, charged on every session for always-loaded
+ones, and the adherence a longer instruction file loses
+([memory: write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions)).
+A budget separate from cognitive load below.
 
 **cognitive load**
 
@@ -72,7 +71,7 @@ handoff file the prompt points to.
 
 Pushed commits with no pull request are PR-less, not a save-point.
 
-Avoid: checkpoint
+Avoid: checkpoint (for a save-point)
 
 **primary source**
 
@@ -84,8 +83,7 @@ Avoid: original source
 **secondary source**
 
 A description or summary standing in for a primary source: the model-visible conversation after
-compaction, a header comment describing code beneath it, another agent's summary. Usable, but a
-claim resting on one is verified against the primary before it ships.
+compaction, a header comment describing code beneath it, another agent's summary.
 
 **light zone**
 
@@ -96,17 +94,7 @@ Avoid: smart zone
 
 **unknowns quadrants**
 
-The four-way pre-prompt breakdown used to decide which unknown-finding pass a task needs: known
-knowns, known unknowns, unknown knowns, unknown unknowns. Owned by
-[`finding-your-unknowns.md`](finding-your-unknowns.md); entries cite it rather than restating the
-quadrants.
-
-**blindspot finding type**
-
-One type in the taxonomy a blindspot pass reports its findings in: Landmine (breaks something
-non-obvious), History (a constraint the code no longer shows), Convention (an unwritten team
-rule), Missing concept (a domain idea the prompt never named). The output contract lives in
-`discovery:blindspot`; the taxonomy's rationale in
+The four-way pre-prompt breakdown used to decide which unknown-finding pass a task needs, owned by
 [`finding-your-unknowns.md`](finding-your-unknowns.md).
 
 **seam**
@@ -131,12 +119,9 @@ Each sense keeps its name by a recorded decision.
 
 **harness**
 
-The program that runs a model as an agent: it gives the model its tools, gates their use, loads
-its instructions and memory, and repeats the model-then-tools cycle. Bare *harness* means Claude
-Code, the sense in the `harness-config`, `harness-memory` and `harness-ops` plugin names
-([Claude Code glossary](https://code.claude.com/docs/en/glossary), read 2026-11-21). In **vendor
-routing** it is any agent CLI a delegated task runs in (Claude Code, Codex CLI, Antigravity CLI),
-the sense benchmark rows use when they name the agent a model ran inside.
+The program that runs a model as an agent, giving it tools and instructions and repeating the
+model-then-tools cycle ([Claude Code glossary](https://code.claude.com/docs/en/glossary)). Bare
+*harness* means Claude Code; in **vendor routing** it is any agent CLI a delegated task runs in.
 
 ### Work items
 
@@ -147,10 +132,19 @@ review.
 
 Also called: ticket, issue
 
+States: escalated (a lane handed it to a person), parked (the operator set it aside for a person),
+deferred (admission held it until there is room)
+
 **container**
 
-An ordinary work item marked as a navigable graph root (a wayfind map or a decompose breakdown),
-grouping the items beneath it. It is never claimable, so it is never on its own frontier.
+A work item carrying the container label, grouping the items beneath it
+([`label-taxonomy.md`](../plugins/work-items/reference/label-taxonomy.md#maps-and-containers)).
+
+**wayfind map**
+
+A work item carrying a wayfind-prefixed label, the root of one `/planning:wayfind` map of decision
+items ([`label-taxonomy.md`](../plugins/work-items/reference/label-taxonomy.md#maps-and-containers)).
+Not a container.
 
 **spec container**
 
@@ -159,16 +153,16 @@ journey (discovery through review) whose items share one execution shape.
 
 **frontier**
 
-The set of work items ready to take now: open, unblocked, unassigned, and not a container. Scoped
-to one container, it is that container's frontier.
+The set of work items ready to take now: open, unblocked, unassigned, and neither a container nor
+a wayfind map item ([`CONTRACT.md`](../plugins/work-items/tools/work-item-tracker/CONTRACT.md)
+`list-frontier`). Scoped to one container, it is that container's frontier.
 
 For the model level the word is **frontier tier**, a capability tier.
 
 **slice**
 
-The per-topic working folder `<memory_dir>/<topic-slug>/` (default `.work/`) that holds a topic's
-plans and research. Checkout-local and never committed. Also written **memory slice** or **topic
-slice**; a folder nested inside one is a **sub-slice**.
+The per-topic working folder that holds a topic's plans and research, never committed. Also
+written **memory slice** or **topic slice**; a folder nested inside one is a **sub-slice**.
 
 A work item cut through every layer is a **vertical slice**.
 
@@ -199,14 +193,6 @@ irreversible act, a person's consent, a secret, an unmade design choice, a secur
 
 Shown to users as: configurable per binding (default `needs-human`)
 
-**escalated item**
-
-A work item a lane handed to a person.
-
-**operator-parked item**
-
-A work item the operator set aside for a person.
-
 **approve**
 
 The step that decides a work item will be built, in two pieces: the triage verdict, a judgment of
@@ -215,29 +201,22 @@ capacity with no model.
 
 **admission**
 
-The check, with no model, that moves an issue from `status: ready` to `agent-ready`, or defers,
-refuses or parks it (`status: confirmed`, `attended`, `host-run`). It is the second piece of
-**approve**, at the point Kanban calls the commitment point
-([`admit.mjs`](../.github/scripts/intake-triage/admit.mjs)). The local `work-loop`'s admission gate
-is the same step in a local loop. The ADR admission test
-([`adr`](../plugins/architecture/skills/adr/actions/record.md#admission-test-advisory))
-is a separate sense.
+The check, with no model, that lets a triage-approved issue into the build queue or defers,
+refuses or parks it: the second piece of **approve**
+([`admit.mjs`](../.github/scripts/intake-triage/admit.mjs)). The ADR admission test
+([`adr`](../plugins/architecture/skills/adr/actions/record.md#admission-test-advisory)) is a
+separate sense.
 
 Distinct from the **queue**: the `agent-ready` issues admission let in, waiting for a build run.
 
 Avoid: approval, commitment point
-
-**deferred**
-
-The state of an issue admission has deferred. The `admission-deferred` label and the `deferred`
-Work status option both mean it; it is admitted once there is room.
 
 **work class**
 
 One of the classes (C1 to C5) a unit of work falls into, assigned by its blast radius,
 reversibility, input provenance and verifiability, not by its description.
 
-Avoid: risk class
+Avoid: risk class (for a work class)
 
 **security-surface work**
 
@@ -262,7 +241,7 @@ Avoid: task, factory workflow
 
 **stage**
 
-The step in the chain a lane serves. For CI lanes it is the `stage` field in
+The lifecycle step a lane serves, declared per CI lane in
 [`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json). A step of the session
 workflow, interview through retro, is a workflow stage, the sense **phase boundary** uses.
 
@@ -276,7 +255,7 @@ Also called: kitchen
 
 **lane leg**
 
-One Claude Code session inside one CI lane run: the key, subscription or fallback leg
+One Claude Code session inside one CI lane run, on one credential
 ([`pull.mjs`](../scripts/lane-transcripts/pull.mjs) `LEGS`).
 
 **brake**
@@ -319,8 +298,8 @@ A level of merge authority a repository grants its lanes, from human-only merge 
 
 **merge-risk rating**
 
-A model's rating of one pull request head, from LOW to CRITICAL, written as the pull request's
-`Merge-Risk:` body line.
+A model's rating of one pull request head, from LOW to CRITICAL, posted by the lanes App
+([pr-pipeline convention](conventions/pr-pipeline/README.md)).
 
 Avoid: risk score (that is the diff risk score)
 
@@ -334,6 +313,38 @@ Avoid: merge risk, babysit risk (merge risk is the merge-risk rating)
 
 A note a pull request adds for each plugin it changes, declaring the version bump (or none) and the
 release notes. A release turns a plugin's pending fragments into one version and changelog entry.
+
+### Ceilings and baselines
+
+**ratchet**
+
+A checked-in ceiling on a count that fails CI when the count rises and is lowered as the count
+falls, so the count only moves down. Any counter can be ratcheted: lint violations, suppressions,
+performance or check counts ([`/toolchain:ratchet`](../plugins/toolchain/skills/ratchet/SKILL.md)).
+
+**ceiling**
+
+The highest count a ratchet allows for one counter, recorded in the ceilings file.
+
+**baseline**
+
+A word with two senses; say which one is meant.
+
+- check: the checked-in list of offenders a check lets through while they are paid down, one entry
+  per file, rule hit or exemption; a ceiling holds a count, a baseline its members
+  ([`zero-entries.md`](../plugins/toolchain/skills/ratchet/reference/zero-entries.md)). For a lint
+  rule it is the linter's own baseline file, or a per-file counter where the linter has none.
+- measurement: the value measured before a change, which the after value is compared against
+  (`/performance:snapshot`, `/verification:measure`).
+
+Actions: clear (Avoid: graduate, promote), deleting a check baseline once it is empty
+
+**baselined rule**
+
+A lint rule enforced at error severity whose existing violations a baseline holds
+([`linters.md`](review/linters.md)).
+
+Avoid: lenient rule, paying-down rule
 
 ### Models
 
@@ -366,8 +377,13 @@ included), web UI, knowledge work or image generation.
 
 **workload**
 
-The subject matter a benchmark measures within a work type, such as terminal work or multi-file
-editing within coding. Sources are counted per workload.
+A word with two senses; say which one is meant.
+
+- benchmark workload: the subject matter a benchmark measures within a work type, such as terminal
+  work or multi-file editing within coding. Sources are counted per benchmark workload.
+- routing workload: a category of work a `/multi-agent:route` role can give its own model and
+  effort, such as `mechanical`
+  ([`config.md`](../plugins/multi-agent/reference/config.md)).
 
 Avoid: slice (bare **slice** is the topic folder)
 
@@ -378,17 +394,13 @@ a page; the scores stay on the page.
 
 **permanent row**
 
-A benchmark registry row that has passed the longevity, accuracy and coverage tests. A row not yet
-permanent is a support-only source.
+A benchmark registry row with status `permanent`: it has passed the longevity, accuracy and
+coverage tests. A new row starts with status `support-only`
+([`vendors.md`](../plugins/multi-agent/reference/vendors.md)).
 
 **leading source**
 
 A permanent row that publishes an error range for its scores, so it can show a lead or a tie.
-
-**support-only source**
-
-A source whose scores can back a routing choice but never lead one: a score with no error range,
-a provider's results for its own models, or a row not yet permanent.
 
 **abstain**
 
@@ -401,15 +413,34 @@ The plus-or-minus a benchmark states beside a score. A lead smaller than it is a
 
 **trial**
 
-Routing work to one model, version and effort not yet proven on a machine, with Claude reviewing
-each result, until the trial ends.
+Routing work to a vendor's model, version and effort not yet proven on a machine
+([`vendors.md`](../plugins/multi-agent/reference/vendors.md)).
 
-States: running, then proven or failed.
+States: running, then proven (routing may send it work on that machine with no new trial) or failed.
 
-**proven**
+### Configuration
 
-The state of a model, version and effort whose trial succeeded on a machine: routing sends it work
-there without a new trial, until the user sends it back to trial.
+**personal override**
+
+The gitignored per-person layer of the config cascade, the highest of its four layers
+([`locations.md`](contracts/config-cascade/locations.md)).
+
+Avoid: overlay
+
+**fallback chain**
+
+The one order of media a view steps down when its preferred medium is unreachable, owned by the
+medium registry ([rendered views](contracts/rendered-views/README.md#reachability-and-the-fallback-chain)).
+The word it replaced is retired in [`vocabulary-senses.json`](../scripts/vocabulary-senses.json).
+
+### Planning
+
+**Brief**
+
+The section of a `PLAN.md` that `/planning:interview` locks for an engineering task: its goal,
+constraints, acceptance criteria and assumptions.
+
+Avoid: contract
 
 ### Upstream records
 

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
-# seed-copy.sh: a first run copies a seed, an untouched copy fast-forwards when the seed
-# changes, and an edited copy stops with a diff and is left as it was.
 # test-scope: plugins/work-items/tools/work-item-tracker/seeds/*
 set -uo pipefail
 
@@ -24,7 +22,6 @@ printf 'mock\n' >"$SEEDS/acme/mock.sh"
 printf 'check\n' >"$SEEDS/acme/schema-check/fidelity.sh"
 chmod +x "$SEEDS/acme/get-item.sh"
 
-# run_copy <args...>: OUT holds stdout, RC the exit code.
 run_copy() {
   OUT="$(WIT_SEEDS_DIR="$SEEDS" bash "$COPY" "$@" 2>"$TMP_ROOT/err")"
   RC=$?
@@ -79,7 +76,6 @@ assert_contains "…and the diff shows the local edit" "$OUT" "+local fix"
 assert_contains "…against the current seed" "$OUT" "-v3"
 assert_eq "the edited file is left as it was" "$(printf 'v2\nlocal fix')" "$(<"$DEST/get-item.sh")"
 
-# A file the consumer added is an edit too: fast-forwarding would delete it.
 printf 'v2\n' >"$DEST/get-item.sh"
 printf 'v2\n' >"$SEEDS/acme/get-item.sh"
 printf 'mine\n' >"$DEST/extra.sh"
@@ -88,16 +84,12 @@ assert_eq "an added file → exit 1" "1" "$RC"
 assert_eq "the added file is kept" "mine" "$(<"$DEST/extra.sh")"
 rm -f "$DEST/extra.sh"
 
-# A directory with no hash record was not copied from a seed, so it is never replaced.
 rm -f "$DEST/.seed-hash"
 run_copy acme --root "$ROOT"
 assert_eq "no hash record → exit 1" "1" "$RC"
 assert_eq "no hash record → edited" "edited" "$(head -n 1 <<<"$OUT")"
 assert_fails "…and no record is written" "absent" "present" test -e "$DEST/.seed-hash"
 
-# --- a real seed runs from its copy ------------------------------------------
-# The copied jira seed has no ../../lib beside it; the dispatcher's WIT_SEAM_LIB_DIR
-# must carry it, through the consumer-local adapter resolution.
 JROOT="$TMP_ROOT/jira-repo"
 mkdir -p "$JROOT"
 OUT="$(bash "$COPY" jira --root "$JROOT" 2>/dev/null)"
@@ -110,7 +102,6 @@ CAPS="$(CLAUDE_PROJECT_DIR="$JROOT" WORK_ITEM_TRACKER_BINDING="$JROOT/binding.js
 assert_eq "the dispatcher runs the copied jira adapter" "0" "$?"
 assert_eq "…which names its provider" "jira" "$(jq -r '.provider' <<<"$CAPS" 2>/dev/null)"
 
-# With no copy the dispatcher points at setup instead of a bare not-found.
 rm -rf "$JROOT/tools"
 CLAUDE_PROJECT_DIR="$JROOT" WORK_ITEM_TRACKER_BINDING="$JROOT/binding.json" \
   bash "$TRACKER" capabilities >/dev/null 2>"$TMP_ROOT/err"

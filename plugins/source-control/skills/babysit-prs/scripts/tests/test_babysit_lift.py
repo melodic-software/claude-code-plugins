@@ -177,8 +177,6 @@ class DeletedLines(unittest.TestCase):
             self.assertEqual(lift.canary_lines(repo.dir, [clean]), [])
 
     def test_the_canary_scans_from_a_relative_repo_dir(self) -> None:
-        # The alert passes `--repo-dir .base`, relative to its working
-        # directory.
         repo = Fixture(self)
         repo.commit("base", {"keep.txt": "k\n"})
         repo.commit("feat: add (#5)", {"f.txt": "one\ntwo\nthree\nfour\n"})
@@ -359,8 +357,6 @@ class CloseLifted(unittest.TestCase):
             self.assertEqual((self.run_close(gh), gh.writes), (0, []), other)
 
     def test_a_field_repository_close_removes_a_legacy_label(self) -> None:
-        # A record filed before the repository set models.issue-status still
-        # carries the label; post-merge-file-demotion-issues.yml removes it on close.
         gh = Gh({9: REVERT}, [merged_pull()])
         self.assertEqual(self.run_close(gh, status=object()), 1)
         self.assertEqual(
@@ -383,8 +379,6 @@ class CloseLifted(unittest.TestCase):
         self.assertIn("the deleted content is on main at", comment)
 
     def test_a_copy_the_deletion_left_behind_closes_nothing(self) -> None:
-        # The close runs the merge gate's own rule: a deleted line the file
-        # still held at the record's SHA is no restore.
         body = REVERT + "\n" + policy.lift_block([("f.py", b"gone")])
         files = {
             f"repos/{REPO}/contents/f.py?ref={FIX_MERGE}": "gone\n",
@@ -394,8 +388,6 @@ class CloseLifted(unittest.TestCase):
         self.assertEqual((self.run_close(gh), gh.writes), (0, []))
 
     def test_a_failed_evidence_comment_leaves_the_record_open(self) -> None:
-        # The comment carries the lift evidence; without it the record must
-        # stay open and labeled for the next run to retry.
         gh = Gh({9: REVERT}, [merged_pull()])
 
         def comment_fails(args: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:

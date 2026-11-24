@@ -10,7 +10,6 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { validate } from "./routing-validate.mjs";
 
-/** Why `path` is not a file under `root`, or null when it is one. */
 const fileError = (root, path) => {
   const full = resolve(root, path);
   const rel = relative(root, full);
@@ -32,7 +31,6 @@ export function checkConcerns(table, { pluginRoot, schema, routing }) {
   };
   table.concerns.forEach((c, i) => {
     const at = `$.concerns[${i}]`;
-    // A row that repeats an id is reported once, as the duplicate id.
     if (seen.has(c.id)) errors.push(`${at}.id: duplicate id ${c.id}`);
     else if (orders.has(c.audit.order)) errors.push(`${at}.audit.order: duplicate order ${c.audit.order}, also ${orders.get(c.audit.order)}`);
     seen.add(c.id);

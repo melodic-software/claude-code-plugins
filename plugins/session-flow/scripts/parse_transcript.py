@@ -104,7 +104,6 @@ import transcript_reader  # noqa: E402  (beside this script)
 
 
 def parse_timestamp(ts_str: str) -> datetime | None:
-    """Parse ISO 8601 timestamp string to datetime."""
     if not ts_str:
         return None
     try:
@@ -186,7 +185,6 @@ def _new_inline_subagent(sub_id: str, spawn: dict[str, Any]) -> dict[str, Any]:
 
 
 def _count_inline_subagent(event: dict[str, Any], subs: dict[str, dict[str, Any]], spawns: dict[str, dict[str, Any]]) -> None:
-    """Tally one lane-leg message a subagent wrote, keyed by the Agent call that started it."""
     sub_id = str(event.get("parent_tool_use_id"))
     sub = subs.setdefault(sub_id, _new_inline_subagent(sub_id, spawns.get(sub_id, {})))
     content = _as_list(_as_dict(event.get("message")).get("content"))
@@ -417,7 +415,6 @@ def _compute_turn_deltas_ms(timestamps: list[str]) -> list[int]:
 
 
 def parse_subagents(subagent_dir: Path) -> list[dict[str, str]]:
-    """Parse subagent meta files for inventory."""
     if not subagent_dir.is_dir():
         return []
 
@@ -440,7 +437,6 @@ def parse_subagents(subagent_dir: Path) -> list[dict[str, str]]:
 
 
 def compute_duration_stats(durations_ms: list[int]) -> dict[str, int]:
-    """Compute stats from a list of durations in milliseconds."""
     if not durations_ms:
         return {
             "count": 0,
@@ -463,7 +459,6 @@ def compute_session_duration(
     first_ts: str | None,
     last_ts: str | None,
 ) -> dict[str, str | float | None]:
-    """Compute session duration from first and last timestamp strings."""
     start = parse_timestamp(first_ts or "")
     end = parse_timestamp(last_ts or "")
 
@@ -502,8 +497,6 @@ def _emit_multi_and_exit(
 def build_session_data(
     session_id: str, metrics: dict[str, Any], subagents: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """Convert parsed metrics + subagents into the `data` block emitted in single-session
-    output AND embedded per-session in multi-session output."""
     session_duration = compute_session_duration(
         metrics["first_timestamp"], metrics["last_timestamp"]
     )
@@ -566,9 +559,6 @@ def build_session_data(
 
 
 def parse_one_session(session_id: str, base_path: Path) -> dict[str, Any]:
-    """Parse a single session's transcript + subagents. Returns either a fully
-    populated `data` block per build_session_data() OR an error stub
-    {"transcript_present": False, ...}."""
     main_jsonl = base_path / f"{session_id}.jsonl"
     subagent_dir = base_path / session_id / "subagents"
 
@@ -595,12 +585,6 @@ def parse_one_session(session_id: str, base_path: Path) -> dict[str, Any]:
 def extract_chain_from_handoff(
     handoff_file: Path, base_path: Path, limit: int = 1000
 ) -> list[str]:
-    """The session ids on `handoff_file`'s chain, newest first, through
-    `handoff_chain.journey`: the hot files the walk reaches, plus every hop whose
-    hot file is gone but whose hop file remains. Callers prepend the current
-    $CLAUDE_CODE_SESSION_ID themselves if they want it. A pointer cycle or a
-    chain past `limit` ends the walk with a stderr warning rather than
-    truncating silently."""
     walk = handoff_chain.journey(handoff_file, limit=limit)
     if walk.stop is not None:
         print(f"warning: handoff chain {walk.stop}; stopping walk", file=sys.stderr)
@@ -608,9 +592,6 @@ def extract_chain_from_handoff(
 
 
 def handoff_journey(handoff_file: Path) -> list[dict[str, Any]]:
-    """Each hop of the chain, newest first: hop number, session id, the file its
-    sections came from, and its Direction changes, This session and
-    Observations, a section moved to a hop file read from there."""
     return [
         {
             "hop": hop.hop,
@@ -687,7 +668,6 @@ def _scan_project(
 def build_multi_session_output(
     session_ids: list[str], base_path: Path, topic: str | None = None
 ) -> dict[str, Any]:
-    """Parse each session-id and aggregate."""
     if not session_ids:
         return {
             "status": "error",
@@ -794,11 +774,6 @@ def build_multi_session_output(
 
 
 def parse_one_leg(path: Path) -> dict[str, Any]:
-    """One sealed lane leg's `data` block, or an error stub when the file is missing.
-
-    A leg has no session id of its own here: its id is the file's name without `.json.gz`. Timing
-    comes from message timestamps when the messages carry them, else the session duration from the
-    result's `duration_ms` with no per-turn timing (`timing_source` says which)."""
     leg_id = path.name.removesuffix(".gz").removesuffix(".json")
     metrics = parse_main_transcript(path, lane_leg=True)
     if metrics is None:
@@ -816,7 +791,6 @@ def parse_one_leg(path: Path) -> dict[str, Any]:
 
 
 def build_legs_output(paths: list[Path]) -> dict[str, Any]:
-    """Parse each sealed lane leg and aggregate, as the multi-session form does for sessions."""
     legs = [parse_one_leg(p) for p in dict.fromkeys(paths)]
     present = [leg for leg in legs if leg["transcript_present"]]
     totals = dict.fromkeys(_AGGREGATE_TOTALS, 0)

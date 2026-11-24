@@ -45,19 +45,21 @@ Re-check all check runs for any state changes, then re-check for new comments si
    consuming repo runs an overlapping-path CI gate, treat it as the tripwire; it covers the
    stale-**base** class only, and only a post-merge silent-revert detector catches a head that is
    current in history but stale in content. A consuming repo may have neither.
-3. **pr-verify's verdict at `HEAD_SHA`.** When the base repository runs pr-verify and pr-verify
-   judges the PR's author, read its verdict at `HEAD_SHA` by the pass names the merge queue's own
-   check reads
-   ([GitHub](../../../reference/providers/github/pull-request/merge.md#read-the-pr-verify-verdict)),
-   and merge or enqueue on a pass. While the read answers `missing` (pr-verify has not judged that
-   head yet), read it again every 90 seconds, for up to 30 minutes. A FAIL at the head, a moved
-   head or a failed read is a hold to report. Still `missing` after 30 minutes (pr-verify down, or
-   a head it skips) is not a hold: merge or enqueue, and report that no verdict was read. Where
-   the guardrails plugin's `block-unresolved-pr-merge` hook is enabled, it refuses that merge until
-   a pass exists at the head, so report the PR as held for its verdict instead; only the owner
-   releases it, by turning the hook's `block_unresolved_pr_merge_enabled` switch off. The wait exists because the merge queue removes a PR whose head
-   pr-verify fails, so a PR queued before the verdict spends a queue entry and a removal. This step applies whether the user approves the merge (step 5) or §4.2.1
-   clears it.
+3. **Mechanical readiness at `HEAD_SHA`.** Run the shared readiness check pinned to `HEAD_SHA`
+   ([GitHub](../../../reference/providers/github/pull-request/merge.md#check-merge-readiness)).
+   It is the same script the guardrails merge guard runs, so it owns every mechanical condition:
+   hold labels in any case, unresolved review threads, a changes-requested review, failed and
+   pending checks, and the pr-verify verdict. This phase owns the judgment and process around it
+   (security triage, the cooldown, the stale-base guard, `CLEAN`, unattended eligibility), and the
+   repository's rulesets stay the server-side backstop. Merge or enqueue only on `READY`, and
+   carry each `NOTICE:` line into the report. On `BLOCKED no-verify-pass` (pr-verify has not judged
+   the head yet), run it again every 90 seconds: the script ends that wait itself 30 minutes after
+   the head's last check finished, then reads `READY` with a notice that no verdict was read. Any
+   other `BLOCKED`, and `UNCHECKED` (a read failed), is a hold to report: unlike the guard, which
+   lets a merge run when it cannot read the PR, this phase never merges on evidence it did not
+   read. The pr-verify wait exists because the merge queue removes a PR whose head pr-verify
+   fails, so a PR queued before the verdict spends a queue entry and a removal. This step applies
+   whether the user approves the merge (step 5) or §4.2.1 clears it.
 4. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exempt by size and blast radius, not file type: only diffs the user can review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) still gets the quiz: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
 5. Wait for user approval (merge is irreversible) unless the PR qualifies for
    the merge after AI review under §4.2.1

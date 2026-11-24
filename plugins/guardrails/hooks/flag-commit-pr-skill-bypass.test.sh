@@ -118,7 +118,7 @@ assert_contains "project true overrides user-global false" "$out" "gh pr create"
 # `claude plugin install --scope local` writes enabledPlugins to
 # settings.local.json as a first-class state) — a local value participates in
 # per-key resolution whether or not the project settings.json declares the key.
-LOCAL_ONLY_OFF="$(make_project '' false)" # project {} (no key), local=false
+LOCAL_ONLY_OFF="$(make_project '' false)"
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$LOCAL_ONLY_OFF" HOME="$HOME_ENABLED")
 assert_silent "local-only false overrides user-global true (no project key)" "$out"
 

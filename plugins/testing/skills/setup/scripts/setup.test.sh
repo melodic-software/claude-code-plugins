@@ -87,8 +87,6 @@ assert_contains "the hook-entry section points at /testing:audit" "$out" "none: 
 assert_contains "and names the consumer glob the test-weaken rows skip" "$out" "/testing:audit scans *.it.ts too"
 assert_eq "and prints no settings hook entry" "" "$(grep -F -e 'PostToolUse' -e '"if":' -e 'test-scan.sh' <<<"$out")"
 
-# A paths.include glob adds no basename to the hook's `if` rows, so it needs
-# no entry.
 cp "$TY" "$T/kept.yaml"
 run apply --include 'legacy/**' --include 'tests/*.py'
 run check
@@ -97,7 +95,6 @@ assert_eq "and no scans-too line" "" "$(grep -F 'scans' <<<"$out")"
 assert_eq "and no Write(**) or Write(*.py) row" "" "$(grep -F -e 'Write(**)' -e 'Write(*.py)' <<<"$out")"
 cp "$T/kept.yaml" "$TY"
 
-# Interleaved --extend flags still write one mapping per adapter.
 run apply --extend js-vitest.files='*.it.ts' --extend py-pytest.files='check_*.py' \
   --extend js-vitest.assertion.calls='verify'
 assert_eq "apply accepts --extend flags that interleave adapters" 0 "$rc"
@@ -110,8 +107,6 @@ expected="extend:
 assert_eq "and groups each adapter's fields under one key" "$expected" "$(sed -n '/^extend:/,$p' "$TY")"
 cp "$T/kept.yaml" "$TY"
 
-# A test file only an extend.*.files glob or a consumer adapter claims still
-# gets the lint check.
 L="$T/lintonly"
 mkdir -p "$L/.claude" "$L/adapters"
 git -C "$L" init -q
@@ -130,9 +125,6 @@ out="$(bash "$SETUP" check --root "$L" 2>&1)" || rc=$?
 assert_line "an adapter_dirs adapter's files glob gets it too" "$out" '^js +vitest/valid-expect +FINDING'
 assert_not_contains "a shipped language draws no no-lint-check line" "$out" "has no lint check for"
 
-# A detected language setup has no arm for is named, not passed over. The
-# shipped loader admits only the shipped languages, so this copy of the plugin
-# runs a loader that admits any lowercase name.
 P="$T/plugin"
 PLUGIN_DIR="$(cd "$(dirname "$SETUP")/../../.." && pwd)"
 mkdir -p "$P/skills/setup/scripts" "$P/skills/audit/scripts"
@@ -184,7 +176,6 @@ assert_eq "and leaves the file as it was after a line break" "$(cat "$T/kept.yam
 run apply --rule weak-oracle=loud
 assert_eq "apply refuses a rule level other than off, warn or error" 2 "$rc"
 
-# apply never writes through a symlink a repository commits.
 S="$T/sym"
 mkdir -p "$S/.claude" "$S/elsewhere"
 git -C "$S" init -q
@@ -224,8 +215,6 @@ assert_eq "apply refuses a symlinked .claude directory holding the team file" 2 
 assert_eq "and leaves that file alone" "paths:
   exclude: [a]" "$(cat "$S/elsewhere/testing.yaml")"
 
-# The target: testing.yaml when it exists, else the docs block when the docs file has one, else .claude/testing.yaml
-# when that is the file in use, else a new testing.yaml. Other text in the docs file stays.
 G="$T/target"
 mkdir -p "$G/.claude" "$G/docs/conventions"
 git -C "$G" init -q

@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/*.json
 """The settled marker of the post-merge check (`babysit_postmerge`).
 
 Expected values come from the marker contract the module documents: a merge
@@ -10,7 +11,6 @@ readable check judged it verified with no red run or running canary in its
 window and no empty record listing behind it, and a failed post is a
 warning. Each fixture states its marker by construction.
 """
-
 from __future__ import annotations
 
 import contextlib
@@ -52,8 +52,6 @@ from test_babysit_postmerge import (  # noqa: E402
 )
 from test_babysit_postmerge import pin as pin_comment  # noqa: E402
 
-# Forty days after the merge: past the dispatch deadline and the 30-day
-# retention of its pr-merge-dispatched record.
 LATE = datetime(2026, 11, 21, 10, 0, tzinfo=UTC)
 SOON = datetime(2026, 10, 12, 11, 0, tzinfo=UTC)
 NUMBER = 7001
@@ -140,8 +138,6 @@ class AMarkerSettlesTheMerge(SettledCase):
     def test_a_marker_keeps_the_merge_verified_after_its_record_expired(
         self,
     ) -> None:
-        # Without the marker the same runs hold the lane as an unlisted
-        # record; with it the merge is verified and nothing about it is read.
         self.lane_dispatch(recorded=False)
         unsettled = self.settled_check()
         self.assertFalse(unsettled.readable)
@@ -176,7 +172,6 @@ class AMarkerSettlesTheMerge(SettledCase):
         self.assertEqual(len(reads), 1)
 
     def test_only_the_settled_merge_skips_its_runs(self) -> None:
-        # A later merge with no marker is judged on its runs as before.
         later = identity_merge(
             number=7002,
             url=f"https://github.com/{REPO}/pull/7002",
@@ -280,8 +275,6 @@ class WhatGetsSettled(SettledCase):
     def test_a_merge_verified_past_an_empty_record_listing_is_not_listed(
         self,
     ) -> None:
-        # The lane's run in time read empty twice; a later recorded lane run
-        # verifies the merge, but the empty listing leaves it unsettled.
         self.lane_dispatch(recorded=False)
         late = dispatch_run(
             12, actor=BOT, triggering_actor=BOT, created_at="2026-10-12T17:00:00Z"
@@ -303,10 +296,6 @@ class WhatGetsSettled(SettledCase):
         self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
 
     def test_a_pre_existing_red_run_in_the_window_is_not_listed(self) -> None:
-        # Schedule run 31, red again on the identity's re-run inside the
-        # window, fails only a check already failing on run 30 before the
-        # merge: charged to no merge, but a quarantine or baseline change
-        # could still charge it, so the merge stays unsettled.
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.green_canary()
         self.gh.add_runs(
@@ -330,8 +319,6 @@ class WhatGetsSettled(SettledCase):
         self.assertEqual(verdict.report()["settle"], [])
 
     def test_a_superseded_red_run_in_the_window_is_not_listed(self) -> None:
-        # Red attempt 1 of run 11, then green run 12 on a later commit that
-        # descends from it: run 11 reads settled, within the compare budget.
         self.gh.descendants.add(TIP_SHA)
         self.gh.add_runs(
             "pr-require-checks.yml",
@@ -346,7 +333,6 @@ class WhatGetsSettled(SettledCase):
         self.assertEqual(verdict.report()["settle"], [])
 
     def test_a_flake_in_the_window_is_not_listed(self) -> None:
-        # Attempt 1 red, the identity's one re-run green.
         self.gh.add_runs(
             "pr-require-checks.yml",
             "workflow_dispatch",
@@ -373,7 +359,6 @@ class WhatGetsSettled(SettledCase):
         self.green_canary()
 
     def test_a_flake_inside_its_quarantine_window_is_not_listed(self) -> None:
-        # Six days after the run: inside the default 7-day merge.quarantine-days.
         self.flake_on_rerun()
         verdict = self.settled_check(now=datetime(2026, 10, 18, 11, 0, tzinfo=UTC))
         self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
@@ -382,8 +367,6 @@ class WhatGetsSettled(SettledCase):
     def test_a_flake_past_its_quarantine_window_with_no_demotion_is_listed(
         self,
     ) -> None:
-        # Eight days after the run, past the default 7-day quarantine, and no
-        # open demotion record names the run.
         self.flake_on_rerun()
         verdict = self.settled_check(now=datetime(2026, 10, 20, 11, 0, tzinfo=UTC))
         self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
@@ -394,7 +377,6 @@ class WhatGetsSettled(SettledCase):
         )
 
     def test_a_demoted_flake_past_its_quarantine_window_is_not_listed(self) -> None:
-        # The demotion workflow filed a record against attempt 1 of run 11.
         self.flake_on_rerun()
         self.gh.issues = [
             {
@@ -421,8 +403,6 @@ class WhatGetsSettled(SettledCase):
     def test_a_flake_whose_demotion_read_fails_is_not_listed_and_stays_readable(
         self,
     ) -> None:
-        # Past the quarantine, but the open-issue listing fails: the flake is
-        # not final, as before its reads existed, and the verdict stays readable.
         self.flake_on_rerun()
         self.gh.fail_reads.add("issues?state=open")
         verdict = self.settled_check(now=datetime(2026, 10, 20, 11, 0, tzinfo=UTC))
@@ -435,8 +415,6 @@ class WhatGetsSettled(SettledCase):
     def test_a_superseded_flake_past_the_quarantine_window_is_not_listed(
         self,
     ) -> None:
-        # Red attempt 1 of run 11, then green run 12 on the same commit: a
-        # flake read through the compare budget, never final.
         self.gh.add_runs(
             "pr-require-checks.yml",
             "workflow_dispatch",
@@ -451,7 +429,6 @@ class WhatGetsSettled(SettledCase):
     def test_a_merge_another_app_enqueued_is_neither_listed_nor_settled(
         self,
     ) -> None:
-        # The fixture's merge: a sync App enqueued it.
         self.gh.merged = [merged_pr()]
         self.gh.pin_comments = [marker()]
         self.lane_dispatch()
@@ -501,7 +478,6 @@ class SettledForTheAnchor(SettledCase):
         state = verdict.merges[0]
         self.assertTrue(state.settled and state.final_by_runs)
         self.assertGreater(self.window_reads(), 0)
-        # The verdict reads as it would without the second judgment.
         self.assertEqual(verdict.report(), plain.report())
         self.assertFalse(plain.merges[0].final_by_runs)
         merged_at = pm._time(state.merge.merged_at)
@@ -510,8 +486,6 @@ class SettledForTheAnchor(SettledCase):
         self.assertEqual(self.gh.writes(), [])
 
     def test_unreadable_runs_hold_it_and_leave_the_verdict_readable(self) -> None:
-        # Its record expired: judged on its runs alone it is an unlisted-record
-        # hold, which here only keeps it from passing.
         self.lane_dispatch(recorded=False)
         verdict = self.rejudged(now=LATE)
         self.assertTrue(verdict.ok, verdict.reason)
@@ -532,8 +506,6 @@ class SettledForTheAnchor(SettledCase):
         self.assertIsNone(pm.advance_anchor(verdict, None))
 
     def test_the_merges_after_the_first_not_final_are_not_judged(self) -> None:
-        # The anchor stops at that merge, so judging later ones spends reads
-        # that cannot move it.
         merges = [
             pm.AutoMerge(n, MERGE_SHA, HEAD_SHA, "2026-10-12T10:00:00+00:00")
             for n in (1, 2, 3)
@@ -600,9 +572,6 @@ class Settle(SettledCase):
         self.assertEqual(self.gh.writes(), [])
 
     def test_a_merge_already_marked_is_not_marked_again(self) -> None:
-        # A reused report, or two runs at once, lists a merge whose marker
-        # already stands: nothing is posted. A marker that does not stand
-        # (another author, edited, another commit) still gets one.
         for comments, expected in (
             ([marker()], []),
             ([marker(author=HUMAN)], [NUMBER]),

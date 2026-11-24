@@ -33,7 +33,6 @@ from repo_config_fake import RepoConfigFake
 import babysit_merge as merge
 
 HEAD = "c" * 40
-# The base compare the freshness hold reads for an otherwise-ready PR.
 UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 LAYER1 = "1" * 40
 LAYER2 = "2" * 40
@@ -1224,10 +1223,6 @@ class RateLimitedQueueRemovalsAreNotCounted(unittest.TestCase):
         self.now = merge.parse_github_timestamp("2026-11-12T04:50:00Z")
         self.assert_counted([REMOVED_AT, REMOVED_AT])
 
-    # A server error hold (a 5xx whose only signal was Retry-After) in the
-    # guards whose rate-limit wording of it matched before: a gate that failed
-    # on those lines alone is not counted once the hold has passed, and is
-    # before.
     SERVER_ERROR_GATE: ClassVar[list[dict[str, Any]]] = [
         _annotation("failure", "Process completed with exit code 75."),
         _annotation(
@@ -1811,7 +1806,6 @@ def _listed(number: int, sha: str, *, merged: bool = False) -> dict[str, Any]:
     }
 
 
-# The harness PR is #1; #2 is the open layer below it, evaluated at LAYER2.
 AS_EVALUATED = [_listed(2, LAYER2), _listed(1, HEAD)]
 LANDED = [_listed(2, LAYER2, merged=True), _listed(1, HEAD, merged=True)]
 

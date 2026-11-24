@@ -4,7 +4,6 @@ import { bedroomSvg } from '../scene.ts'
 import { savedOf } from './saved.js'
 import { QUIET, STORE_KEY, startRoom } from './testing.js'
 
-/** What themes 0.2.1 stored under `bedroom:saved`, exactly in its shape: switches, dim, window shape, panels and the four titles. */
 const OLD = {
   state: { tv: false, tape: true, console: true, pc: false, light: true, lamp: true, lava: true, posters: 'plain' },
   dim: 0.3,

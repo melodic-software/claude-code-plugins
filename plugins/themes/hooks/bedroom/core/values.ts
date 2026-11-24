@@ -61,22 +61,10 @@ let screen: Screen = { hurry: 0, hall: 0, tape: 0, tapeSeq: 0, console: 0, conso
 export type ScreenChange = { field: 'hurry' } | { field: 'hall' | 'tape' | 'console'; value: number }
 const screenQueue: ScreenChange[] = []
 let screenAt = -Infinity
-/** When a hurry flip was last sent since the shader started. */
 let hurryAt = -Infinity
-/** By when the shader can have taken the last screen code sent, under every ease the app may use. */
 let takenBy = -Infinity
-/**
- * By when the shader can have taken a code that holds the last flip sent. hurry is one bit, so a second flip sent before
- * then can turn the number back to the bit the shader holds, and neither lands. A tape, console or hall send after a flip
- * carries its bit, so it delays the flip's taking and never cancels it.
- */
 let flipTakenBy = -Infinity
-/** The tape and the console when a change for them has been sent since the shader started. */
 const screenSent = new Set<'tape' | 'console'>()
-/**
- * The tape and the console, with their saved state, the time of the last click on them and how many times the state
- * has been sent once more, when a click came while a change for them may not have landed.
- */
 const unsure = new Map<'tape' | 'console', { value: number; clickedAt: number; sends: number }>()
 /**
  * How long the screen number rests before a noted switch's state is sent once more: first when the eases that settle
@@ -86,7 +74,6 @@ const unsure = new Map<'tape' | 'console', { value: number; clickedAt: number; s
  * that came later: a send never follows a click at once, where it could land over the next click.
  */
 export const SCREEN_RESTS_MS = [10_000, 32_000] as const
-/** How long a noted switch's next rest has run. */
 const restedFor = (entry: { clickedAt: number }, now: number): number => now - Math.max(screenAt, entry.clickedAt)
 
 export const encodeScreen = (s: Screen): number =>
@@ -143,9 +130,7 @@ let sunSent = 0
  * its ease and the shader's 2.5 s hold, with room for a slow ease), then sends the atmosphere's code back.
  */
 export const CUE_HOLD_MS = 12_000
-/** Until when the code of the cue last sent is held. */
 let cueUntil = -Infinity
-/** A cue asked while world could not move yet; a later one replaces it. */
 let cueWaiting: number | undefined
 
 /**
@@ -179,7 +164,6 @@ export function cueFree(now: number): boolean {
   return cueWaiting === undefined && worldWaiting === undefined && now >= Math.max(cueUntil, worldAt + WORLD_GAP_MS)
 }
 
-/** Sends world if 6 s have passed since the last send and no cue holds it, else keeps it waiting (a later one replaces it). */
 function offerWorld(code: number, now: number): number | undefined {
   if (cueWaiting !== undefined) {
     worldWaiting = code
@@ -204,7 +188,6 @@ function offerWorld(code: number, now: number): number | undefined {
   return WORLD_GAP_MS - (now - worldAt)
 }
 
-/** The number last sent for each direction switch. The shader turns a switch the way its number moves, so a click in the room never changes it. */
 let sent: Record<Direction, number> = { tv: 0, lava: 0, pc: 0, lamp: 0, light: 0 }
 
 /**
@@ -326,7 +309,6 @@ export async function sendCue($: EngineInterface, id: number, why: string): Prom
   return worldSent === WORLD.top + id ? delay + WORLD_GAP_MS : delay
 }
 
-/** Offers the world that waits once its 6 s have passed; a shader start since the timer was armed moves them later. */
 function armWorld($: EngineInterface, delay: number): void {
   worldTimer = true
   $.clock.after(delay, () => {
@@ -341,7 +323,6 @@ function armWorld($: EngineInterface, delay: number): void {
   })
 }
 
-/** Arms one timer for the next screen send; a sooner one replaces a later (a held flip's can be 32 s off). */
 function armScreen($: EngineInterface, now: number, delay: number): void {
   const at = now + delay
   if (screenTimer !== undefined && screenTimer.at <= at) return
@@ -394,7 +375,6 @@ export function confirmScreen(now: number): void {
 }
 
 let confirmTimer: { at: number; timer: Timer } | undefined
-/** Arms one timer for the next rest; a sooner rest, after a new click, replaces a later one. A send starts the rest again. */
 function armConfirm($: EngineInterface, now: number): void {
   const left = restLeft(now)
   if (left === undefined) return

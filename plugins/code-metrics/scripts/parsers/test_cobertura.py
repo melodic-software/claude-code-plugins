@@ -32,18 +32,11 @@ MULTI_ROOT = FIXTURES / "cobertura-multi-root.xml"
 BASH_FIXTURE = "plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh"
 REPO_ROOT = SCRIPT_DIR.parents[3]
 SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
-# `cluster/{alpha,beta}` is borrowed, not owned here. It is the duplication
-# fixture that skills/audit-duplication/scripts/audit-duplication.test.sh and
-# scripts/collectors/test_jscpd.py assert against, sanctioned by
-# scripts/fixtures/registry/cluster.txt. The multi-root cases need one filename
-# that exists under two roots and that pair already is one, so it is read here
-# instead of copied. Moving or pruning it breaks these tests too.
 ALPHA = SOURCES + "/cluster/alpha"
 BETA = SOURCES + "/cluster/beta"
 
 
 def _env(scan_root: str | None) -> dict[str, str]:
-    """The environment a case runs in: `CODE_METRICS_SCAN_ROOT` set, or unset."""
     env = dict(os.environ)
     env.pop("CODE_METRICS_SCAN_ROOT", None)
     if scan_root is not None:
@@ -173,9 +166,6 @@ class MultiRootTests(unittest.TestCase):
         self.assertNotIn(_posix(first) + "/cm-later.sh", document)
 
     def test_absent_absolute_source_roots_fall_back_to_the_first(self) -> None:
-        # The CI shape: absolute roots from the machine that produced the
-        # report, none of which exist here. Every probe misses and rule 4
-        # keys the class under the first root.
         body = _multi_root_xml(["/ci/build/alpha", "/ci/build/beta"], "later.sh")
         with (
             tempfile.TemporaryDirectory() as scan,

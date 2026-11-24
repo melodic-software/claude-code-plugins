@@ -83,7 +83,6 @@ def load_registry(data_dir: Path) -> dict[str, Any]:
 
 
 def save_registry(data_dir: Path, data: dict[str, Any]) -> None:
-    """Atomic write: temp file, fsync, close, os.replace."""
     data_dir.mkdir(parents=True, exist_ok=True)
     target = data_dir / REGISTRY_FILENAME
     with tempfile.NamedTemporaryFile(
@@ -127,7 +126,6 @@ def find_by_key(
 
 
 def _searchable_text(issue: dict[str, Any]) -> str:
-    """Build lowercase search corpus from issue fields."""
     parts = [
         str(issue.get("number", "")),
         issue.get("title", ""),
@@ -143,7 +141,6 @@ def find_by_query(
     issues: list[dict[str, Any]],
     query: str,
 ) -> list[dict[str, Any]]:
-    """Fuzzy case-insensitive substring match."""
     query_lower = query.lower()
     return [i for i in issues if query_lower in _searchable_text(i)]
 
@@ -155,13 +152,6 @@ def _is_stale(
     *,
     missing_is_stale: bool,
 ) -> bool:
-    """Has this issue gone unchecked for `days` or more?
-
-    An unparsable `last_checked` always counts as stale — the check date cannot
-    be trusted. A MISSING one is the callers' one disagreement, so it stays a
-    parameter: `list --stale` reports it (nothing proves it was ever checked)
-    while `stats` does not count it.
-    """
     checked = issue.get("last_checked")
     if not checked:
         return missing_is_stale
@@ -172,7 +162,6 @@ def _is_stale(
 
 
 def validate_issue(issue: dict[str, Any], index: int) -> list[str]:
-    """Validate a single issue entry. Returns list of error strings."""
     errors: list[str] = []
     prefix = f"issues[{index}]"
 
@@ -242,7 +231,6 @@ def _error(action: str, message: str, data: Any = None) -> dict[str, Any]:
 def _invalid_choice(
     action: str, field: str, value: str, valid: set[str]
 ) -> dict[str, Any]:
-    """Error result for an out-of-set category/status value."""
     choices = ", ".join(sorted(valid))
     return _error(action, f"Invalid {field} '{value}'. Valid: {choices}")
 
@@ -250,7 +238,6 @@ def _invalid_choice(
 def _ambiguous(
     action: str, number: int, matches: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """Error result for a bare number matching entries in several repos."""
     repos = ", ".join(str(i.get("repo")) for i in matches)
     return _error(
         action, f"#{number} is ambiguous across repos ({repos}) — pass --repo"
@@ -297,7 +284,6 @@ def action_get(
     query: str,
     repo: str | None = None,
 ) -> dict[str, Any]:
-    """Find issue(s) by number or fuzzy query."""
     try:
         number = int(query)
         matches = find_by_key(issues, number, repo)
@@ -341,7 +327,6 @@ def action_add(
     blocked_work: str | None = None,
     related: list[int] | None = None,
 ) -> dict[str, Any]:
-    """Add new issue with duplicate detection."""
     if category not in VALID_CATEGORIES:
         return _invalid_choice("add", "category", category, VALID_CATEGORIES)
     if status not in VALID_STATUSES:
@@ -412,7 +397,6 @@ def action_remove(
     number: int,
     repo: str | None = None,
 ) -> dict[str, Any]:
-    """Remove issue by (repo, number)."""
     matches = find_by_key(data["issues"], number, repo)
     if not matches:
         return _not_found("remove", f"No issue with number {number}")
@@ -625,7 +609,6 @@ def output_result(
     result: dict[str, Any],
     exit_code: int = 0,
 ) -> None:
-    """Print JSON to stdout and exit."""
     print(json.dumps(result, indent=2))
     sys.exit(exit_code)
 

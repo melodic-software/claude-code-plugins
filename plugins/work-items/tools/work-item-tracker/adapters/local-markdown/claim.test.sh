@@ -11,9 +11,6 @@ assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S" "github:o/r#1"
 
-# The claim record is derived from the lease claim.sh stores, so pin the two
-# together: the optional fields the record reports must be the ones the marker
-# carries, and an absent --session-id must report as an explicit null.
 ADAPTER="$(dirname "$S")"
 STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 ITEM="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/create-item.sh" --title "claim record")"
@@ -31,15 +28,12 @@ ITEM2="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/create-item.sh" --title "no ses
 RECORD2="$(WIT_STORAGE_DIR="$STORE" bash "$S" "$(jq -r '.id' <<<"$ITEM2")" --ttl-hours 24)"
 assert_eq "an absent --session-id reports as an explicit null" "null" "$(jq -r '.session_id' <<<"$RECORD2")"
 assert_eq "an absent --ttl-minutes is omitted, not zero" "null" "$(jq -r '.ttl_minutes // "null"' <<<"$RECORD2")"
-# A TTL over the lease cap is refused before the item file is written.
 ITEM3="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/create-item.sh" --title "over cap")"
 ITEM3_FILE="$(jq -r '.url' <<<"$ITEM3" | sed 's#^file://##')"
 BEFORE="$(cat "$ITEM3_FILE")"
 WIT_STORAGE_DIR="$STORE" assert_usage_error "$S" "$(jq -r '.id' <<<"$ITEM3")" --ttl-hours 169
 assert_eq "a refused over-cap claim leaves the item file unchanged" "$BEFORE" "$(cat "$ITEM3_FILE")"
 
-# --phase writes the field into the stored lease; no --phase stores none (an
-# implementation claim); an unknown phase is refused before the item file is written.
 ITEM4="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/create-item.sh" --title "triage claim")"
 ITEM4_FILE="$(jq -r '.url' <<<"$ITEM4" | sed 's#^file://##')"
 WIT_STORAGE_DIR="$STORE" bash "$S" "$(jq -r '.id' <<<"$ITEM4")" --ttl-hours 24 --phase triage >/dev/null

@@ -18,7 +18,6 @@ trap 'rm -rf "$W"' EXIT
 export CLAUDE_PLUGIN_DATA="$W/data" CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true HOME="$W/home"
 mkdir -p "$HOME"
 
-# The same team config in both locations: two excludes, a rule level, an extend list.
 BODY="paths:
   exclude:
     - 'vendor/**'
@@ -55,7 +54,6 @@ payload() {
 hook_arm() { payload "$1" "$2" | CLAUDE_PROJECT_DIR="$W/$1" bash "$HOOK" >/dev/null 2>&1; }
 resolver_arm() { bash "$RESOLVER" --quick --root "$W/$1" >/dev/null 2>&1; }
 
-# us <command...>: wall time of the command in microseconds.
 us() {
   local t0=$EPOCHREALTIME
   "$@"

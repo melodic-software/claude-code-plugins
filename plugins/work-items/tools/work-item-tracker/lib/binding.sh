@@ -9,13 +9,9 @@ _WIT_BINDING_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=labels.sh
 source "$_WIT_BINDING_LIB_DIR/labels.sh"
 
-# The repository's one YAML parser and its convention-home resolver, as the plugin's
-# generated copies (scripts/shared-copies.txt). Without them no binding resolves.
 WIT_YAML_PARSER="$_WIT_BINDING_LIB_DIR/../../../skills/triage/scripts/yaml-subset.awk"
 WIT_HOME_RESOLVER="$_WIT_BINDING_LIB_DIR/../../../lib/resolve-convention-home.sh"
 readonly WIT_DEFAULT_CONVENTION_HOME="docs/conventions"
-# The retired repo-root binding file. Discovery never reads it; its presence only
-# names the fix (wit_no_binding_reason), and /work-items:setup apply copies it.
 readonly WIT_LEGACY_BINDING=".work-item-tracker.json"
 # What an empty flow sequence reads as while the parser reads a binding, which turns
 # back into []. It opens with a control character no YAML scalar can hold (raw, it is
@@ -68,7 +64,6 @@ wit_wayfind_labels() {
   fi
   if binding="$(wit_find_binding)"; then
     wit_read_binding "$binding" && json="$(wit_effective_binding_json "$binding")" || return 1
-    # wit_role_label stringifies any value, so a list or number would print as the label.
     jq -e '.config.role_labels["human-gated"] | . == null or type == "string"' <<<"$json" >/dev/null || {
       wit_invalid "$binding" config.role_labels.human-gated "$(jq -c '.config.role_labels["human-gated"]' <<<"$json")"
       return 1
@@ -377,9 +372,6 @@ wit_read_binding() {
   [[ "$minutes" =~ ^[0-9]+$ && "$minutes" -le 59 ]] || { wit_invalid "$path" config.lease_ttl_minutes "$minutes"; return 1; }
   storage="$(jq -r '.config.storage_dir // empty' <<<"$json")"
   [[ "$provider" != "local-markdown" || -n "$storage" ]] || { wit_invalid "$path" config.storage_dir "$storage"; return 1; }
-  # A relative storage_dir is rooted at the binding's directory (a YAML binding's
-  # project root), never the caller's CWD, so a verb run from a subdirectory reads
-  # the same store.
   if [[ -n "$storage" && "$storage" != /* ]]; then
     storage="$(wit_storage_root "$path")/$storage"
   fi
@@ -392,8 +384,6 @@ wit_read_binding() {
     { wit_invalid "$path" config.container_label "$(jq -c '.config.container_label' <<<"$json")"; return 1; }
   owner_decision="$(wit_role_label "$json" "owner-decision" "$WIT_DEFAULT_OWNER_DECISION_LABEL")"
   session_owned="$(wit_role_label "$json" "session-owned" "$WIT_DEFAULT_SESSION_OWNED_LABEL")"
-  # The hold lists and the wayfind prefix: absent or empty keeps the lib/labels.sh
-  # default; a present value of the wrong shape is a config error, never a fallback.
   hold_labels="$(wit_config_list "$json" hold_labels \
     "$(wit_with_owner_decision "$owner_decision" "${WIT_HUMAN_FLOOR_STATUS_LABELS[@]}")")" ||
     { wit_invalid "$path" config.hold_labels "$(jq -c '.config.hold_labels' <<<"$json")"; return 1; }

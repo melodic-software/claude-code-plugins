@@ -56,3 +56,11 @@ sessions run, and a dotfiles-managed file must never be written at run time.
 - A new machine starts with no proven pairs and reruns trials.
 - Turning auto-delegation on is one line in the user's own file; no repository can do it for them.
 - Widening `delegate`'s accepted flags loosens a security control and needs the owner's decision.
+
+## Amendment (2026-11-24): proven pairs keep being checked
+
+This amends decision 4. A proven pair keeps its newest `trials_prove` review verdicts and goes back
+to trial when `trials_fail` of them are rejected (owner, 2026-11-24: "go with recommendations" on
+trial sample size). Three accepts against two rejects proves a vendor accepted half the time about
+one time in three, and a vendor can change a model without changing its id, so proof is checked
+for as long as routing uses it. Records now exist while a trial runs or a pair is proven.

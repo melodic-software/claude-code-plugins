@@ -1,5 +1,5 @@
 ---
-description: "Write a mid-session save-point for /clear-and-resume: a durable handoff file or a copy-paste resume prompt. Use when: 'handoff', 'checkpoint this', the session is heavy, or responses drift or loop. Background continuation: /session-flow:continue-in-background."
+description: "Write a mid-session save-point for /clear-and-resume: a copy-paste resume prompt, plus a durable handoff file when the work needs one. Use when: 'handoff', 'checkpoint this', the session is heavy, or responses drift or loop. Background continuation: /session-flow:continue-in-background."
 argument-hint: "[file|prompt] [--unattended] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
@@ -18,8 +18,8 @@ one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion r
 
 ## Purpose
 
-When work leaves this session with state that must survive, capture a save-point, a handoff
-document, or a copy-paste resume prompt when follow-ups are small, and `/clear`.
+When work leaves this session with state that must survive, capture a save-point, a copy-paste
+resume prompt plus a handoff document unless follow-ups are small, and `/clear`.
 
 **What licenses a handoff.** The trigger is the user's own
 report, an instrument that measures the window, or visible decay in the responses themselves,

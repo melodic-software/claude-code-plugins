@@ -16,7 +16,7 @@ terminal with no downstream consumer (a general decision, per SKILL.md Step 5), 
 This skill treats model and effort as two separate levers. Recommend against the right one,
 because they are not interchangeable:
 
-- **Model tier (capability).** Raise the model when the assistant would be
+- **Capability tier.** Raise the model when the assistant would be
   **confidently wrong despite full context**, where the failure is a reasoning ceiling,
   not missing information. Signals from the interview: the task turned on subtle
   correctness, dense cross-module invariants, or tradeoffs the user themselves found

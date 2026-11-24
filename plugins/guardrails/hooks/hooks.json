@@ -64,7 +64,7 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "--lib",
               "lib/powershell/ps-command.sh",
-              "block-unresolved-pr-merge.sh"
+              "merge-guard.sh"
             ],
             "timeout": 60,
             "onFailure": "block",
@@ -121,7 +121,7 @@
               "block-exported-msys-pathconv.sh",
               "block-root-delete-target.sh",
               "block-credential-read.sh",
-              "block-unresolved-pr-merge.sh",
+              "merge-guard.sh",
               "block-lane-pr-disable-auto.sh",
               "block-fix-request-post.sh",
               "block-github-post-content.sh",

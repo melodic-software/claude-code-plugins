@@ -7,10 +7,6 @@ import { BUILT } from './index.js'
 const workOf = (world: number) => Math.floor(world / 40) % 2
 const zoneIn = (world: number) => Math.floor(world / 80)
 
-/**
- * Moves the clock in 100 ms steps for `ms`, noting each change of the Shader element's world and when it was first
- * seen: read before the first step too, so a change made by the event just raised is timed at that event.
- */
 async function watch(room: Room, ms: number, changes: { at: number; world: number }[]): Promise<void> {
   for (let gone = 0; gone <= ms; gone += 100) {
     if (gone > 0) await room.clock.advance(100)

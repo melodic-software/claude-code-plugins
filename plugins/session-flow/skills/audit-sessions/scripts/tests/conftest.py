@@ -1,10 +1,3 @@
-"""Shared helpers for the audit-sessions suite.
-
-The one place the suite puts `AS/scripts` and `plugins/session-flow/scripts` on `sys.path`, so
-tests import `transcript_reader`, `redact`, `census` and `collect` plainly; no test file inserts
-paths itself.
-"""
-
 from __future__ import annotations
 
 import json
@@ -50,7 +43,6 @@ def data_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def copy_fixture(tmp_path: Path):
     """Copy a named fixture tree under `fixtures/` to `tmp_path` and return the copy."""
-
     def _copy(name: str) -> Path:
         dest = tmp_path / "projects" / name
         shutil.copytree(FIXTURES / name, dest)

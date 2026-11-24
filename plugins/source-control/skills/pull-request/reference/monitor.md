@@ -387,10 +387,10 @@ Log work runs inline in the main session for fast classification, or in a CI-log
 
 | Log signature | Meaning | Action |
 |--------------|---------|--------|
-| `Workflow validation failed` on an OIDC-based review action | PR modifies the workflow file, and OIDC requires the file to match the default branch | Informational. Expected when the PR touches that workflow |
-| Usage/quota exhaustion messages (e.g. `out of extra usage`) | The review bot's subscription limit | Not informational: the lane reviewed nothing, so it is ABSENT ([readiness.md](readiness.md) Gate 2). Report the exact message and stand a local review in its place per B2 |
+| `Workflow validation failed` on an OIDC-based review action | PR modifies the workflow file, and OIDC requires the file to match the default branch | Expected when the PR touches that workflow. The readiness script's workflow-file exemption passes it when the base branch does not require it and its run loaded the base branch's copy; otherwise it blocks until it passes |
+| Usage/quota exhaustion messages (e.g. `out of extra usage`) | The review bot's subscription limit | The lane reviewed nothing, so it is ABSENT ([readiness.md](readiness.md) Gate 2). Report the exact message and stand a local review in its place per B2 |
 | `error_max_turns` or similar truncation | Reviewer ran out of turns before completing | The review may be incomplete: check whether it posted anything for this round; a lane that produced nothing is ABSENT per B2, with a local review in its place |
-| OIDC / authentication errors | Token-exchange failure | Informational. Often intermittent; retry or classify |
+| OIDC / authentication errors | Token-exchange failure | Often intermittent: re-run the check. It blocks until it passes, unless `merge_guard_ignored_checks` names it |
 | Actual code/tool errors | Real failure | Investigate |
 
 Report the **exact error message** from logs, not a classification label.
@@ -532,7 +532,7 @@ When all readiness gates pass:
 ## PR Monitoring Complete: All Readiness Gates Passed
 
 **PR:** #N, title
-**Check runs:** X passed, Y skipped, Z failed-informational
+**Check runs:** X passed, Y skipped, Z named in merge_guard_ignored_checks
 **Security:** [scanner] evaluated, N findings classified
 **Comments:** X from N reviewers, Y fixed, Z deferred (structural, urgent, or fix blocked on research; item ids), W incorrect
 **Review threads:** 0 unresolved

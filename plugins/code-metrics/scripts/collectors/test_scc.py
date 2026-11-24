@@ -168,7 +168,6 @@ class SccAdapterTests(unittest.TestCase):
                 env_extra={"CODE_METRICS_ARGV_BUDGET": "1"},
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            # Two invocations, each carrying the four fixed arguments plus one path.
             self.assertEqual(calls.read_text(encoding="utf-8").split(), ["4", "4"])
             rows = [json.loads(line)["file"] for line in result.stdout.splitlines()]
             self.assertEqual(

@@ -423,7 +423,6 @@ def classify_name(rel: str) -> tuple[str, str]:
 
 
 def extract_pid(rel: str) -> int | None:
-    """Extract the PID from a name already classified as carrying one."""
     match = re.search(r"(\d+)", PurePosixPath(rel).name)
     return int(match.group(1)) if match else None
 
@@ -479,11 +478,6 @@ def probe_pid(pid: int) -> tuple[str, str]:
 
 
 def verdict_for(rel: str, probe=probe_pid) -> NameVerdict:
-    """Classify a name, then probe liveness only when the number IS a PID.
-
-    `probe` is injectable so the test suite can assert it is never called for a
-    non-PID name -- the gate is a tested property, not a convention.
-    """
     meaning, note = classify_name(rel)
     if meaning != PID:
         return NameVerdict(
@@ -572,11 +566,6 @@ def classify_entry(rel: str) -> tuple[str, str]:
 
 
 def find_deliberate_state(root: Path) -> list[dict]:
-    """Locate revert ledgers anywhere in the tree, hotspots first.
-
-    Returns one record per ledger found. Every directory named here, and its
-    whole subtree, is deny-listed for the rest of the run.
-    """
     found: list[dict] = []
     seen: set[str] = set()
 
@@ -805,7 +794,6 @@ def read_retention(root: Path) -> dict:
 
 
 def managed_settings_paths() -> list[Path]:
-    """Documented machine-scope managed-settings locations, by platform."""
     system = platform.system()
     if system == "Darwin":
         return [Path("/Library/Application Support/ClaudeCode/managed-settings.json")]
@@ -816,7 +804,6 @@ def managed_settings_paths() -> list[Path]:
 
 
 def count_files(root: Path, exclude: set[str] | None = None) -> dict[str, int]:
-    """Cheap per-top-level-entry file count, for resampling a live tree."""
     exclude = exclude or set()
     counts: dict[str, int] = {}
     for dirpath, _dirnames, filenames in os.walk(root, followlinks=False):
@@ -842,7 +829,6 @@ def walk_tree(
     probe=probe_pid,
     exclude: set[str] | None = None,
 ) -> tuple[list[FileRow], list[dict]]:
-    """Enumerate every file once, classifying as it goes."""
     exclude = exclude or set()
     rows: list[FileRow] = []
     errors: list[dict] = []
@@ -886,11 +872,6 @@ def rollup(
     authored_threshold: int,
     opened: frozenset[str] = frozenset(),
 ) -> list[dict]:
-    """Group per top-level entry, splitting listed surfaces from rolled-up bulk.
-
-    `opened` holds the relpaths a later read step actually opened; the registry and
-    the per-version markers count as read only when they are in it.
-    """
     groups: dict[str, list[FileRow]] = {}
     for row in rows:
         groups.setdefault(top_level_name(row.relpath), []).append(row)
@@ -943,7 +924,6 @@ def rollup(
 
 
 def staleness_reading(entry: dict, retention_days: int) -> dict:
-    """The one place a staleness verdict is produced, so it cannot be produced elsewhere."""
     if entry["deny_listed"]:
         return {
             "verdict": "deny-listed",
@@ -1037,7 +1017,6 @@ _DIGIT_RUN = re.compile(r"\d+")
 
 
 def name_shape(basename: str) -> str:
-    """`wml-2010.xsd` -> `wml-<n>.xsd`. Presentation only: never feeds classification."""
     return _DIGIT_RUN.sub("<n>", basename)
 
 
@@ -1071,7 +1050,6 @@ def _parent_from_proc(pid: int) -> int | None:
 
 
 def _parent_map_from_command(cmd: list[str]) -> dict[int, int]:
-    """`pid ppid` pairs, one per line, from a single process-table listing."""
     try:
         out = subprocess.run(
             cmd, capture_output=True, text=True, timeout=15, check=False
@@ -1091,7 +1069,6 @@ def _parent_map_from_command(cmd: list[str]) -> dict[int, int]:
 
 
 def _process_table() -> tuple[dict[int, int] | None, str]:
-    """A pid->ppid map for the whole table, or None when /proc can be walked directly."""
     if Path("/proc").is_dir():
         return None, WALK_PROC
     if os.name == "nt":
@@ -1162,20 +1139,6 @@ def summarize_numeric(
     self_pids: set[int] | None = None,
     self_pids_walk: str | None = None,
 ) -> dict:
-    """Counts per (meaning, liveness), PID rows grouped by PID, unknown names by shape.
-
-    PID rows are grouped because a plugin cache holds one `.in_use/<pid>` marker
-    per enabled plugin version, all carrying the same PID: seventy identical
-    rows say less than one row with a count. A group whose PID belongs to the
-    auditing process's own ancestry is marked `self_held`.
-
-    Unrecognized numeric names are the ones a future scheme table should learn,
-    so the sample groups them by SHAPE (digit runs collapsed to `<n>`) with a
-    count per shape and a histogram by top-level directory. One repeated
-    schema-file shape can no longer fill the whole sample. Shape derivation is
-    presentational: `classify_name` never sees it, and the fail-closed default
-    is untouched.
-    """
     if self_pids is None:
         self_pids, self_pids_walk = auditor_ancestry()
     buckets: Counter[str] = Counter()
@@ -1408,12 +1371,6 @@ def largest_subtrees(
     max_depth: int = 6,
     passthrough: float = 0.95,
 ) -> list[dict]:
-    """Top directories by bytes under every rolled-up entry.
-
-    A directory whose single child holds `passthrough` of its bytes is dropped
-    in favor of that child, so the list names `.../node_modules` rather than
-    five nested prefixes of it. Every figure is the sum of measured sizes.
-    """
     rolled = {e["entry"] for e in entries if e.get("listing") == "rolled-up"}
     agg: dict[str, list[int]] = {}
     for row in rows:
@@ -1515,15 +1472,6 @@ def unreferenced_versions(
     now: float | None = None,
     opened: set[str] | None = None,
 ) -> tuple[list[dict], str | None]:
-    """Plugin cache version directories that no `installPath` references, largest first.
-
-    Reuses the bytes already measured in `rows`. Reads only the registry and each
-    candidate's `.orphaned_at` marker, and never writes. When the registry cannot
-    vouch for the cache (missing, unparsable, or no path in it lands under this
-    root's cache), the result is an empty list and a note: a missing registry is
-    not evidence that every directory is unreferenced. Each file it opens is added
-    to `opened` when given.
-    """
     opened = set() if opened is None else opened
     sizes: Counter[tuple[str, str, str]] = Counter()
     for row in rows:
@@ -1574,7 +1522,6 @@ def unreferenced_versions(
 
 
 def engine_version() -> str:
-    """The owning plugin's manifest version, or `unknown` outside a plugin layout."""
     try:
         manifest = _LIB_DIR.parent / ".claude-plugin" / "plugin.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
@@ -1599,7 +1546,6 @@ SENTINELS: dict[str, str] = {
 
 
 def sentinels_block(root: Path) -> dict:
-    """One record per sentinel; `content_read` is true only when its bytes were actually opened."""
     out: dict[str, dict] = {}
     for rel, role in SENTINELS.items():
         present = (root / rel).is_file()
@@ -1765,13 +1711,6 @@ def csv_safe(value: object) -> object:
 
 
 def write_csv(rows: list[FileRow], path: Path) -> int:
-    """Emit EVERY file as a row, so "every file" literally exists as an artifact.
-
-    This is deliberately independent of `--authored-threshold`. That flag decides
-    only which entries the JSON summary LABELS `per-file` versus `rolled-up`; it
-    must never decide how much of the tree reaches the artifact, or the report
-    silently drops most of the install while its own prose claims completeness.
-    """
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(

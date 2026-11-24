@@ -56,7 +56,6 @@ SCANNER="$HERE/../../scripts/cant-fail-scan.sh"
 LABELS="$HERE/labels.tsv"
 ROOT="${1:-$HOME/repos/github.com/melodic-software}"
 
-# shuffle: the input lines in Park-Miller Fisher-Yates order, seeded by $1.
 shuffle() {
   awk -v st="$1" '{ a[++n] = $0 }
     END {
@@ -65,14 +64,6 @@ shuffle() {
     }'
 }
 
-# resolve <repo> <commit> <test path> <test file>: print, one per line and at
-# most CAP, the repository paths at <commit> of the code the test imports or
-# calls: files named by the test's stem (foo.test.ts -> foo.ts, test_foo.py ->
-# foo.py, Foo.Tests.ps1 -> Foo.ps1, FooTests.cs -> Foo.cs), every path or
-# relative import the text names, Python modules it imports, the package's
-# other files for Go, and the files declaring the C# types it names. A name is
-# tried against the test's directory, then the repository root, then as a path
-# suffix anywhere, nearest the test first. Other test files are left out.
 # ponytail: one level only (what the test names, not what that code imports); text heuristics, so a path built at run time is missed.
 resolve() {
   local r="$1" c="$2" p="$3" f="$4" d stem ids
@@ -150,7 +141,6 @@ resolve() {
   echo "sample.sh: no $LABELS" >&2
   exit 2
 }
-# Columns are read by header name; C is the awk rule that names them.
 # shellcheck disable=SC2016 # an awk rule
 C='FNR == 1 { for (i = 1; i <= NF; i++) c[$i] = i }'
 awk -F'\t' "$C"' FNR == 1 { n = split("id source language file test note stratum split", k, " ")
@@ -182,8 +172,6 @@ for spec in "${REPOS[@]}"; do
       }'
 done | LC_ALL=C sort -u >"$TMP/pairs"
 
-# Phase 1: the first PAIRS pairs, every block each changed. Pool lines:
-# pair, ordinal, start, end, pre-screen hit (0 or 1), name.
 skipped=0 unresolved=0 unresolved_blocks=0 k=0
 : >"$TMP/pool"
 while IFS=$'\t' read -r name commit path; do
@@ -195,7 +183,6 @@ while IFS=$'\t' read -r name commit path; do
     skipped=$((skipped + 1))
     continue
   }
-  # The lines this commit added or changed in the file, as "start-end" ranges.
   git -C "$ROOT/$name" show --no-renames --format= -U0 "$commit" -- "$path" |
     sed -nE 's/^@@ -[0-9,]+ \+([0-9]+)(,([0-9]+))? @@.*/\1 \3/p' |
     awk '{ n = ($2 == "" ? 1 : $2); if (n > 0) printf "%s%d-%d", (k++ ? "," : ""), $1, $1 + n - 1 }' >"$TMP/p$k/ranges"
@@ -226,7 +213,6 @@ while IFS=$'\t' read -r name commit path; do
     }' "$TMP/p$k/scan" >>"$TMP/pool"
 done < <(shuffle "$SEED" <"$TMP/pairs" | head -n "$PAIRS")
 
-# Phase 2: TARGET blocks of the pool, written in pool order.
 shuffle "$SEED" <"$TMP/pool" | head -n "$TARGET" | sort -t$'\t' -k1,1n -k3,3n >"$TMP/drawn"
 find "$HERE/cases" -mindepth 1 -maxdepth 1 -name 'u[0-9]*' -exec rm -rf {} +
 : >"$TMP/rows"
@@ -242,20 +228,17 @@ while IFS=$'\t' read -r p ord _ _ _ bname; do
       mkdir -p "$(dirname "$HERE/cases/$id/$c")"
       git -C "$ROOT/$name" show "$commit:$c" >"$HERE/cases/$id/$c.fixture"
     done <"$TMP/p$p/code"
-    # A fixture whose first line is a shebang stays runnable.
     find "$HERE/cases/$id" -name '*.fixture' -exec sh -c 'for f; do [ "$(head -c 2 "$f")" = "#!" ] && chmod +x "$f"; done' sh {} +
     adapter="$(sed -n 's/^  adapter: //p' "$TMP/p$p/scan" | head -n 1)"
   fi
   j=$((j + 1))
   test="$bname"
   ((ord > 1)) && test+=" #$ord"
-  # id, source, language, file, test, note, stratum: placed by name below.
   printf '%s-%d\t%s:%s@%s\t%s\tcases/%s/%s.fixture\t%s\tchanged %s; code under test: %s\tin-use\n' \
     "$id" "$j" "$name" "$path" "$commit" "$adapter" "$id" "$path" "$test" "$(<"$TMP/p$p/ranges")" \
     "$(paste -sd' ' "$TMP/p$p/code")" >>"$TMP/rows"
 done <"$TMP/drawn"
 
-# Keep the authored strata, replace in-use, then split every stratum by file.
 {
   head -n 1 "$LABELS"
   awk -F'\t' "$C"' FNR > 1 && $c["stratum"] != "in-use"' "$LABELS"

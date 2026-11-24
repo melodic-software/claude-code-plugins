@@ -11,12 +11,9 @@ test_start:
 body_skip:
   - '\.[[:space:]]*(Skip|Skipf|SkipNow)[[:space:]]*\('
 assertion:
-  # Any receiver: a helper's tb.Fatal counts, and so does err.Error(), which
-  # costs a finding rather than inventing one.
   calls:
     - '\.[[:space:]]*(Error|Errorf|Fatal|Fatalf|Fail|FailNow)[[:space:]]*\('
     - 'panic[[:space:]]*\('
-    # A helper handed the test's t reports through it.
     - '[(,][[:space:]]*t[[:space:]]*[,)]'
     - '[Aa]ssert'
     - '(require|Require)'
@@ -33,7 +30,6 @@ assertion:
   inert:
     - 'if[[:space:]][^{]*(!=|==)[^{]*\{[[:space:]]*\}$'
     - 'if[[:space:]]+(([^{]*[^A-Za-z0-9_.])?(got|want|expected|actual|result)[A-Za-z0-9_]*[^{]*(!=|==)|[^{]*(!=|==)([^{]*[^A-Za-z0-9_.])?(got|want|expected|actual|result)[A-Za-z0-9_]*)[^{]*\{[[:space:]]*(t[[:space:]]*\.[[:space:]]*Logf?[[:space:]]*\([^{}]*\)[[:space:]]*;?[[:space:]]*)+\}$'
-  # The same joined if statement: a nil check whose branch only fails.
   weak:
     - '^if[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*==[[:space:]]*nil[[:space:]]*\{[[:space:]]*t[[:space:]]*\.[[:space:]]*(Fatal|Fatalf|Error|Errorf|Fail|FailNow)[[:space:]]*\([^{}]*\)[[:space:]]*;?[[:space:]]*\}$'
   count:
@@ -42,9 +38,6 @@ assertion:
     - '\.[[:space:]]*(Error|Errorf|Fatal|Fatalf|Fail|FailNow)[[:space:]]*\('
 snapshot:
   - '(snaps[[:space:]]*\.[[:space:]]*Match[A-Za-z]*|cupaloy[[:space:]]*\.[[:space:]]*Snapshot[A-Za-z]*|\.[[:space:]]*SnapshotT)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
-# testing/quick and rapid: the expected value is derived from generated inputs on purpose.
-# A marker exempts only the test whose body holds it, so these are the calls that run
-# a property, not the import paths, which sit outside every test.
 property_markers:
   - '(^|[^A-Za-z0-9_])quick[[:space:]]*\.[[:space:]]*(Check|CheckEqual)[[:space:]]*\('
   - '(^|[^A-Za-z0-9_])rapid[[:space:]]*\.[[:space:]]*(Check|MakeCheck|MakeFuzz)[[:space:]]*\('

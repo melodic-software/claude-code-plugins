@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
-# github.sh is a sourceable conformance binding — assert it sources cleanly and
-# exposes the cb_setup/cb_teardown contract without touching the network.
-#
-# It does NOT run the suite: that mutates real sandbox issues, so github stays an
-# on-demand binding run by hand.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

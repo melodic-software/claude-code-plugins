@@ -31,8 +31,6 @@ const ROW_SCHEMA = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.
 const TEAM_SCHEMA = JSON.parse(readFileSync(join(ROOT, "reference/team.schema.json"), "utf8"));
 const PLUGIN = "user-experience";
 const TEAM_FILE = `${PLUGIN}.yaml`;
-// What the resolver is told of the team file's shape: each key is an open leaf, because this script
-// checks the values itself, entry by entry, so one bad value drops alone with its own warning.
 const TEAM_LAYOUT = { type: "object", properties: Object.fromEntries(Object.keys(TEAM_SCHEMA.properties).map((k) => [k, {}])) };
 const DEFAULT_HOME = "docs/conventions";
 const SETUP = "/user-experience:setup";
@@ -104,13 +102,11 @@ function claude(args) {
   return r.stdout;
 }
 const fromFileOr = (file, args) => () => (file ? readFileSync(file, "utf8") : claude(args));
-/** A reader that runs once: installed() is asked twice when a team file adds rows. */
 const once = (read) => {
   let text;
   return () => (text ??= read());
 };
 
-/** A team-file value as JSON data, cut short, for a warning or a reason. */
 const quote = (value) => {
   const cut = (text) => (text.length > 80 ? `${text.slice(0, 80)}...` : text);
   return typeof value === "string" ? JSON.stringify(cut(value)) : cut(String(JSON.stringify(value)));
@@ -168,9 +164,6 @@ function teamSurface() {
 
 const notRead = (e) => (e.code === "ENOENT" ? "not found" : `unreadable (${e.code ?? e.message})`);
 
-/** {path, doc, notes} for a team file that resolves at a known version, or {path, cause}. The
- * shared resolver finds and parses the file; a --team file is copied under a scratch home first,
- * so it stands in for the one the convention home names and the other layers are not read. */
 function readTeam({ path, file, home, seam, cause }) {
   if (cause) return { path, cause };
   if (!seam) return checkTeam(path, home, false);
@@ -189,26 +182,20 @@ function readTeam({ path, file, home, seam, cause }) {
   }
 }
 
-/** The resolver's merged team settings in `home`, held to the layout versions this plugin reads. */
 function checkTeam(path, home, seam) {
-  // Under --team the scratch home is also the user home, so only the --team file is read.
   const out = resolveConfig({ plugin: PLUGIN, projectRoot: opts.project, home, schema: TEAM_LAYOUT, teamOnly: ["routing", "version"], userHome: seam ? home : opts.home });
   const layer = out.layers.find((l) => l.name === "team");
   const prefix = `team (${layer.path}): `;
   const shown = (m) => m.replaceAll(layer.path, path);
   const own = layer.errors.filter((e) => e.startsWith(prefix)).map((e) => e.slice(prefix.length));
-  // A file-level refusal or parse error; a rejected value starts with its quoted key.
   const fileError = own.find((m) => !m.startsWith('"'));
   const outside = layer.errors.find((e) => e.includes("resolves outside the project"));
   if (outside) return { path, cause: "resolves outside the project" };
   if (fileError) return { path, cause: /^(is a symlink|is not a regular file)/.test(fileError) ? `unreadable (${fileError})` : `malformed: ${fileError === "the top level must be a mapping" ? "the top level is not a mapping" : fileError}` };
   if (!existsSync(layer.path)) return { path, cause: "not found" };
-  // The resolver reads an empty file as an empty mapping; for this plugin it is malformed.
   if (parseYaml(readFileSync(layer.path, "utf8")) == null) return { path, cause: "malformed: the top level is not a mapping" };
-  // The user and local layers merge into out.values too, so their refusals are warnings as well.
   const notes = out.layers.filter((l) => ["team", "local", "user"].includes(l.name)).flatMap((l) => l.errors).map((e) => shown(e));
   const doc = out.values;
-  // A setting's warning names the local layer when that layer supplied the value.
   const local = out.layers.find((l) => l.name === "local");
   const from = (k) => (out.provenance[k] === "local" ? `local (${local.path}): ` : "");
   const { version, routing: routingSchema } = TEAM_SCHEMA.properties;
@@ -223,7 +210,6 @@ function checkTeam(path, home, seam) {
   return { path, doc, notes, from };
 }
 
-/** Errors for `value` against the row-schema keywords routing.schema.json uses. */
 function violations(s, value, at = "row") {
   const errors = [];
   const fail = (msg) => errors.push(`${at} ${msg}`);
@@ -248,7 +234,6 @@ function violations(s, value, at = "row") {
   return errors;
 }
 
-/** The team file's list at `label`, or [] with a warning when it is not a list. */
 function listAt(value, label, warn) {
   if (value == null) return [];
   if (Array.isArray(value)) return value;
@@ -256,7 +241,6 @@ function listAt(value, label, warn) {
   return [];
 }
 
-/** A copy of `entry` holding only `allowed` keys; each other key drops with a warning naming it. */
 function knownKeys(entry, allowed, label, warn) {
   const kept = {};
   for (const [k, v] of Object.entries(entry)) {
@@ -270,9 +254,6 @@ function knownKeys(entry, allowed, label, warn) {
 // skill detect onto the skills directories, so a team row must not reach outside them.
 const DETECT_NAME = /^(?!\.\.?(?:@|$))[A-Za-z0-9._-]+(?:@[A-Za-z0-9._-]+)?$/;
 
-/** Bundled rows with the team's routing applied: `rows` re-rank or add (each admitted by
- * team-policy), `disable` and `deny` skip. Returns the rows and the set the team changed, which win
- * rank ties. `presence` maps a row list to each row's own presence. */
 function mergeRoutes(bundled, teamRouting, path, warn, presence) {
   const key = (r) => `${r.job}\u0000${r.id}`;
   const routingProps = TEAM_SCHEMA.properties.routing.properties;
@@ -331,7 +312,6 @@ function mergeRoutes(bundled, teamRouting, path, warn, presence) {
 
 const DEFAULTS = { jtbd_school: "unset", research_paths: [], persona_paths: [], output_home: null };
 
-/** The team file's settings beyond routing; a bad value falls back to its default with a warning. */
 function teamSettings(doc, warn, from) {
   const props = TEAM_SCHEMA.properties;
   const at = (k) => (m) => warn(`${from(k)}${m}`);
@@ -369,7 +349,6 @@ function teamSettings(doc, warn, from) {
     const r = resolved(rel);
     return resolvesToRoot(r) || reserved(r.real) ? null : rel;
   };
-  // Why `p` is not usable: the repository root has its own reason.
   const why = (p) => {
     const rel = inside(p);
     return rel === "." || (rel !== null && resolvesToRoot(resolved(rel)))

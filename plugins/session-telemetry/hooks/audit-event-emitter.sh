@@ -248,9 +248,6 @@ InstructionsLoaded)
   emit::instructions_loaded_row
   ;;
 UserPromptExpansion)
-  # The only row with an output that does not need a sink, so it runs before
-  # the telemetry gate. harness-ops-paths.sh is sourced here, not at the top:
-  # the other six rows never touch the second store and must not parse it.
   hook::is_enabled "SKILL_USAGE_AUDIT" || exit 0
   # shellcheck source=harness-ops-paths.sh
   source "$HOOK_DIR/harness-ops-paths.sh"

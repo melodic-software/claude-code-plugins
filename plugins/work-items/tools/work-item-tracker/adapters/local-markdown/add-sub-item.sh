@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$parent" ]] || wit_usage_error "--parent is required"
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id"
-number="$WIT_ID_NUMBER" # capture before the parent parse overwrites WIT_ID_NUMBER
+number="$WIT_ID_NUMBER"
 wit_require_local_id "$parent" || wit_usage_error "malformed or non-local-markdown --parent id: $parent"
 parent_number="$WIT_ID_NUMBER"
 

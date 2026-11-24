@@ -49,7 +49,6 @@ class LinuxTreeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not _proc_syscall_readable():
-            # A skip would leave the stdin acceptance test green without running.
             if os.environ.get("CI"):
                 raise AssertionError("this CI host hides /proc/<pid>/syscall")
             raise unittest.SkipTest("this host hides /proc/<pid>/syscall")

@@ -275,8 +275,6 @@ layer "${CASE_REPO}/.claude/source-control.local.md" 'ZQXMARK(['
 run_cfg "invalid-ERE note omits the raw pattern" \
   "feat/42-x" "" - "" 1 'source-control\.local\.md.*stopped' 'ZQXMARK'
 
-# Section parsing. The branch `feat/12-widget-34` makes a wrong source visible:
-# the intended trailing-number pattern gives 34, the built-in default gives 12.
 WN="feat/12-widget-34"
 
 new_case
@@ -400,8 +398,6 @@ new_case
 layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/([{]x{2}|[0-9]{1,16})-'
 run_cfg "bounds up to 16 and a literal brace in brackets allowed" "feat/42-x" "" - "42" 0 empty
 
-# Home-rooted session: team and personal override collapse onto ~/.claude and must not
-# be read as team. Personal override at home is skipped; user-global is the only layer.
 HOME_NOTE='team and personal override not applicable: project root is the home directory'
 
 new_case
@@ -449,9 +445,6 @@ if mklink "$CASE_HOME" "$CASE_REPO" "a symlink alias of home skips team and pers
     "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
 fi
 
-# The repo's personal override file is a symlink to the user-global file. It must be
-# read once, as user-global, and the note must name the user-global path, never
-# the repo-side spelling of it.
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '(['
 mkdir -p "${CASE_REPO}/.claude"

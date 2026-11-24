@@ -45,7 +45,7 @@ table records the measurement and the verdict for each one. It holds aggregate c
 | block-hook-bypass (logged, sample of 40) | 1,684 | 14 of 40 | 26 of 40 | 35% | below the bar; retired, the `pre-commit-content` git hook checks what a shell write commits | removed |
 | secret-pattern-detection (logged) | 2 | not classified | not classified | not measured | insufficient data, default unchanged | on |
 | hardcoded-path-check | 0 | 0 | 0 | undefined | insufficient data, default unchanged | on |
-| block-unresolved-pr-merge | 0 | 0 | 0 | undefined | insufficient data, default unchanged | on |
+| merge-guard | 0 | 0 | 0 | undefined | insufficient data, default unchanged | on |
 | block-convention-violation | 0 | 0 | 0 | undefined | insufficient data, default unchanged | on |
 | block-windows-drive-tmp | 0 | 0 | 0 | undefined | insufficient data on a Linux host, default unchanged | on |
 | block-exported-msys-pathconv | 0 | 0 | 0 | undefined | insufficient data on a Linux host, default unchanged | on |

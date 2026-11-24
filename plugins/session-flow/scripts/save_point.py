@@ -374,7 +374,6 @@ COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
 
 
 def relaunch_line(start_command: str) -> str:
-    """The line above COPY_LINE when the next session starts in another plugin profile."""
     return f"The next phase runs in another plugin profile: exit this session, start the next one with `{start_command}`, then in it:"
 
 
@@ -561,12 +560,6 @@ class Doc:
 
 
 def legacy_chain(pred: Doc, limit: int = 1000) -> list[str]:
-    """The chain a shape-1 predecessor implies, oldest first and ending with
-    it: its `previous_handoff` pointers walked back to the first file with
-    none, or to a shape-2 ancestor whose own `chain:` is taken whole. The walk
-    stays in the predecessor's directory, as every pointer must, and stops at a
-    pointer it cannot follow or a cycle, so an old chain yields what it can
-    rather than refusing the successor."""
     walked = [pred.basename]
     cursor = pred
     here = os.path.normcase(os.path.realpath(pred.path.parent))
@@ -660,9 +653,6 @@ class Entry:
 
 
 def parse_entries(body: list[str]) -> list[Entry]:
-    """Entries are top-level bullets (with indented continuation lines) or
-    paragraphs. A `Superseded:` marker line flips every later entry to
-    superseded; the marker itself is not an entry."""
     entries: list[Entry] = []
     current: Entry | None = None
     superseded = False
@@ -1098,10 +1088,6 @@ def validate_doc(
     hop_text: str | None = None,
     standing: str | None = None,
 ) -> tuple[Findings, int]:
-    """Return findings plus the exit code (0/1/3). `shallow` skips the
-    predecessor walk (used when a successor validates its own predecessor);
-    `hop_text` and `standing` stand in for this hop's file and the chain's
-    standing-rules file on disk (`amend` validates before it writes)."""
     f = Findings()
     fm = doc.frontmatter
     shape = doc.shape
@@ -4110,10 +4096,6 @@ def build_skeleton(
 def hop_file_text(
     *, chain_root: str, hop: int, session_id: str, pred: Doc | None
 ) -> str:
-    """The archive file hop N writes: every predecessor section the hot file
-    does not carry forward, verbatim and in the predecessor's order (its
-    `Original goal` too when the predecessor is shape 1 or 2, since the first
-    shape-3 hop re-forms it). Rewritten only by a retry of the same session."""
     lines = [
         "---",
         f"type: {ARCHIVE_TYPE}",

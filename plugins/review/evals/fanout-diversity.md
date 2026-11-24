@@ -21,9 +21,9 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
   whose only skill, `route`, prints the role map the real plugin's bundled defaults resolve to
   with no config layer. `/multi-agent:route` gives the role map that `model` spreads the review
   over. A case loads only plugins under `review`, and a plugin shipped with a case only from the
-  case's own subdirectory, so each M case carries its own copy. With fewer than two distinct tiers
+  case's own subdirectory, so each M case carries its own copy. With fewer than two distinct fan-out models
   the sweep runs `lens`, and the arm check fails. Run every arm with the same `--model`, one whose
-  role map resolves two or more distinct fan-out tiers (`opus` or `fable`). When the real
+  role map resolves two or more distinct fan-out models (`opus` or `fable`). When the real
   `multi-agent` bundled defaults change, update the stub's JSON to match.
 - The X arms cannot pass as committed. Fanout runs Codex through the `external-agents review
   codex` command, which only the `external-agents` plugin puts on the Bash `PATH`. A
@@ -143,9 +143,9 @@ ran or did not run against the arm), so count the run as invalid rather than as 
 | `lx` | `^(?=[\s\S]*fanout_diversity: lens \((?:repository\|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)` |
 
 The `\|` in the `m` and `mx` rows is a table escape; the grader file holds a bare `|`. Under
-`model`, the sweep labels its leaves `model:<tier>` (`plugins/review/workflows/fanout-sweep.js`)
-and runs only with two or more tiers, so the `m` and `mx` checks need two non-Codex `model:`
-leaves (or two `lane-verifier` leaves from the main-thread fallback). Codex listed as a tier does
+`model`, the sweep labels its leaves `model:<alias>` (`plugins/review/workflows/fanout-sweep.js`)
+and runs only with two or more fan-out models, so the `m` and `mx` checks need two non-Codex `model:`
+leaves (or two `lane-verifier` leaves from the main-thread fallback). Codex listed as a fan-out model does
 not count toward the two.
 
 ### `codex-ran.md`

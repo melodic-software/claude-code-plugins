@@ -475,8 +475,6 @@ disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarde
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a reply still records beside the body record" 0 "$?"
 
-# The replies file has one 49152-byte cap (the read runner's carry step): the
-# body record never costs a reply.
 REPLIES_CAP=49152
 filler() {
   jq -nc --arg note "$(printf 'n%.0s' $(seq 1 "$1"))" '{thread:"PRRT_fill",disposition:"UNCERTAIN",evidence:[],fix_sha:"",note:$note}' >>"$STUB/replies.jsonl"
