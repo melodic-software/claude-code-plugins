@@ -110,10 +110,11 @@ listed as reported and passes, as the review plugin's size-crossing note treats 
 `crossing-or-growth` is for a repository that wants long files held where they are. Both counts
 use the bundled counter's non-blank rule, whichever collector filled the report, so an unchanged
 file never reads as grown; the base count follows a rename, a file new since the base counts 0
-there, and each copy a sanctioned-replication row stands for is checked on its own. A file a
-`scope.registries` cluster line (`<canonical> -> <member>...`) names as a member is a copy measured
-at its canonical: it is listed with the canonical's path and never fails, and the canonical keeps
-the rule.
+there, and each copy a sanctioned-replication row stands for is checked on its own. A generated
+copy is measured at its canonical: it is listed with the canonical's path and never fails, and the
+canonical keeps the rule. A file is such a copy only when a `scope.registries` cluster line
+(`<canonical> -> <member>...`) names it as a member and `size.copies_manifest` lists the
+`<canonical> <copy>` pair.
 
 The report gains a "Size check" section (the `size_check` block under `--json`): each listed file
 with its base and head counts, then a `PASS` or `FAIL` line. A `FAIL` line says what to do: split

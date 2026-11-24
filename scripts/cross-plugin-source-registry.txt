@@ -14,7 +14,8 @@
 # canonical copy, then the plugin paths or globs that carry it. It is read only
 # by code-metrics: the duplication audit (registry-filter.py) excludes the
 # canonical plus every copy as one sanctioned class, and the size check
-# (size_check.py) measures each copy at its canonical; this script skips it.
+# (size_check.py) measures a copy at its canonical when scripts/shared-copies.txt
+# also lists the pair; this script skips it.
 
 # Dedicated check: scripts/sync-shared-copies.sh --check
 hooks/hook-utils.sh

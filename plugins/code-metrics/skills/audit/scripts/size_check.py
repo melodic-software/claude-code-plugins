@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The opt-in size check over a change-scoped size report.
 
-  size_check.py add --config <resolved.json> [--registry <file>]... <report.json>
+  size_check.py add --config <resolved.json> [--registry <file>]... [--manifest <file>] <report.json>
                                      add `size_check` in place; exit 0 pass, 1 fail, 2 cannot decide
   size_check.py render <report.json> print the markdown section for it
 
@@ -21,12 +21,13 @@ under its earlier name when git sees a rename, and 0 when the base has no such
 file. Every copy a replica row stands for is checked on its own. A `file_lines`
 run row that did not measure its lane leaves the check undecided.
 
-A file a registry's cluster line `<canonical> -> <member>...` names as a member
-(and that is not the canonical itself) is a generated copy measured at its
-canonical: a row it would have produced carries `canonical` and never fails.
-The canonical keeps the rule. Members are literal root-relative paths or
-gitignore-style globs, and the first matching line in file order names the
-canonical.
+A file is a generated copy measured at its canonical only when both sources
+agree: a registry's cluster line `<canonical> -> <member>...` names it as a
+member (members are literal root-relative paths or gitignore-style globs, and
+the file is not the canonical itself), and the copies manifest
+(`size.copies_manifest`, one `<canonical> <copy>` pair per line) lists that
+exact pair. A row such a copy would have produced carries `canonical` and never
+fails; the canonical keeps the rule. Without a manifest nothing is exempt.
 """
 
 from __future__ import annotations
@@ -136,10 +137,30 @@ def read_clusters(paths: list[str]) -> list[tuple[str, list[str]]]:
     return clusters
 
 
-def canonical_of(path: str, clusters: list[tuple[str, list[str]]]) -> str | None:
+def read_manifest(path: str | None) -> set[tuple[str, str]]:
+    pairs: set[tuple[str, str]] = set()
+    if not path:
+        return pairs
+    with open(path, encoding="utf-8") as handle:
+        for raw in handle:
+            fields = raw.split()
+            if len(fields) >= 2 and not fields[0].startswith("#"):
+                pairs.add((_clean(fields[0]), _clean(fields[1])))
+    return pairs
+
+
+def canonical_of(
+    path: str,
+    clusters: list[tuple[str, list[str]]],
+    manifest: set[tuple[str, str]],
+) -> str | None:
     path = _clean(path)
     for canonical, members in clusters:
-        if path != canonical and any(glob_matches(m, path) for m in members):
+        if (
+            path != canonical
+            and (canonical, path) in manifest
+            and any(glob_matches(m, path) for m in members)
+        ):
             return canonical
     return None
 
@@ -152,9 +173,13 @@ def _reference(document: dict) -> tuple[float | None, str]:
 
 
 def add(
-    document: dict, config: dict, clusters: list[tuple[str, list[str]]] | None = None
+    document: dict,
+    config: dict,
+    clusters: list[tuple[str, list[str]]] | None = None,
+    manifest: set[tuple[str, str]] | None = None,
 ) -> int:
     clusters = clusters or []
+    manifest = manifest or set()
     rule = (config.get("size") or {}).get("check") or "report"
     layer = (config.get("_layers") or {}).get("size.check", "bundled default")
     reference, reference_layer = _reference(document)
@@ -216,7 +241,7 @@ def add(
             "kind": kind,
             "fails": fails,
         }
-        canonical = canonical_of(path, clusters)
+        canonical = canonical_of(path, clusters, manifest)
         if canonical:
             row.update(canonical=canonical, fails=False)
         block["rows"].append(row)
@@ -276,20 +301,26 @@ def render(document: dict) -> str:
 def main(argv: list[str]) -> int:
     try:
         pairs = argv[3:-1]
+        flags = pairs[::2]
         if (
             len(argv) >= 4
             and argv[:2] == ["add", "--config"]
             and len(pairs) % 2 == 0
-            and all(flag == "--registry" for flag in pairs[::2])
+            and all(flag in ("--registry", "--manifest") for flag in flags)
+            and flags.count("--manifest") <= 1
         ):
             with open(argv[2], encoding="utf-8") as handle:
                 config = json.load(handle)
-            clusters = read_clusters(pairs[1::2])
+            given = list(zip(flags, pairs[1::2]))
+            clusters = read_clusters([v for f, v in given if f == "--registry"])
+            manifest = read_manifest(
+                next((v for f, v in given if f == "--manifest"), None)
+            )
             report = argv[-1]
             with open(report, encoding="utf-8") as handle:
                 document = json.load(handle)
             try:
-                status = add(document, config, clusters)
+                status = add(document, config, clusters, manifest)
             except CannotDecide as exc:
                 print(f"size_check.py: {exc}", file=sys.stderr)
                 status = 2
