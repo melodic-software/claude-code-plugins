@@ -1904,6 +1904,13 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     let laneApp;
     let listTime;
     const listChanged = env.STANDARDS_SHA ? () => (listTime ??= listChangedAt(call, env.STANDARDS_SHA)) : undefined;
+    const listChangedOrNone =
+      listChanged &&
+      (() =>
+        listChanged().catch((error) => {
+          passRateLimit(error);
+          return undefined;
+        }));
     if (env.TRUSTED_ACTORS_PATH) {
       const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
       laneApp = env.LANE_IDENTITY ? trusted.logins.get(env.LANE_IDENTITY.toLowerCase()) : undefined;
@@ -1920,7 +1927,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
           laneIdentity: env.LANE_IDENTITY,
           ownerIds: [...trusted.ids],
           specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
-          trustedListChangedAt: listChanged,
+          trustedListChangedAt: listChangedOrNone,
         });
     }
     let settled = { runs: new Map(), jobs: new Map(), passes: new Map() };

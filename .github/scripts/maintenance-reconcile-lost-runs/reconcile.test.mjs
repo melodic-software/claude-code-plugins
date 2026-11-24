@@ -22,6 +22,7 @@ import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
+import { listCommits } from "../lib/trusted-actors.fixtures.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -2219,7 +2220,7 @@ test("a pass the standards trusted list changed under re-runs the head's passed 
         wrap(async (method, apiPath, body) => {
           if (apiPath.startsWith("/repos/melodic-software/standards/")) {
             reads.push(apiPath);
-            return [{ commit: { committer: { date: changed } } }];
+            return listCommits(changed);
           }
           return github(method, apiPath, body);
         });
@@ -2228,6 +2229,23 @@ test("a pass the standards trusted list changed under re-runs the head's passed 
       assert.deepEqual(result.reruns, reruns, changed);
       assert.deepEqual(reads, [listPath], "one read a run, shared by the pre-filter and the resolver");
     }
+  });
+});
+
+test("a failed standards list read still re-runs a head whose issue was edited after its pass", async () => {
+  await withTrustedList(async (env) => {
+    const { setup } = specChanged({ edited: "2026-10-19T19:45:00Z" });
+    const wrap = setup.github;
+    setup.github = (github) =>
+      wrap(async (method, apiPath, body) => {
+        if (apiPath.startsWith("/repos/melodic-software/standards/")) {
+          throw new Error("HTTP 502");
+        }
+        return github(method, apiPath, body);
+      });
+    const result = await reconcile({ ...setup, env: { ...env, STANDARDS_SHA: "5".repeat(40) } });
+    assert.equal(result.code, 0);
+    assert.deepEqual(result.reruns, [601]);
   });
 });
 

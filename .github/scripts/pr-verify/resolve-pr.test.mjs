@@ -30,6 +30,7 @@ import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
 import { recordBody } from "../lib/admission-record.mjs";
+import { listCommits } from "../lib/trusted-actors.fixtures.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "example-org/example-repo";
@@ -2448,7 +2449,7 @@ test("main reads the list's last change at STANDARDS_SHA from the standards comm
     const github = async (method, apiPath, body) => {
       if (apiPath.startsWith("/repos/melodic-software/standards/")) {
         reads.push(apiPath);
-        return [{ sha: "6".repeat(40), commit: { committer: { date: changed } } }];
+        return listCommits(changed);
       }
       return base(method, apiPath, body);
     };
