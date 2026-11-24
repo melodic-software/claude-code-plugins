@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/powershell-format/git-hooks/entries.json plugins/powershell-format/git-hooks/psscriptanalyzer.ps1 plugins/powershell-format/git-hooks/adapters.sh
 # test-scope: plugins/powershell-format/lib/git-hooks/check-lib.sh plugins/powershell-format/lib/git-hooks/resolve-tool.sh
+# test-scope: plugins/powershell-format/git-hooks/format.sh
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT CLAUDE_PLUGIN_DATA
@@ -197,6 +198,58 @@ expect "--resolve: the repository row names the adapter, its tool and the settin
 expect "--resolve: pwsh off PATH is found no" \
   "powershell-format	lint	adapter:psscriptanalyzer	pwsh	no	config PSScriptAnalyzerSettings.psd1; binary pwsh on PATH" \
   "$(cd "$REPO" && PATH="$NOPWSH" sh "$CHECK" --resolve)"
+
+FORMAT="$HERE/format.sh"
+mkdir -p "$WORK/stub"
+printf '#!/bin/sh\n: >"%s/stub-ran"\nexit 99\n' "$WORK" >"$WORK/stub/pwsh"
+chmod +x "$WORK/stub/pwsh"
+lint_with_stub() {
+  rm -f "$WORK/stub-ran"
+  local out rc
+  out="$(cd "$1" && PATH="$WORK/stub:$PATH" bash "$CHECK" 2>&1)"
+  rc=$?
+  printf '%s|%s|%s' "$rc" "$out" "$([[ -e "$WORK/stub-ran" ]] && echo pwsh-started || echo no-pwsh)"
+}
+cached() { find "$1/.git/powershell-format-lint" -type f 2>/dev/null | wc -l | tr -d ' '; }
+
+new_repo
+printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/a.ps1"
+git -C "$REPO" add a.ps1
+want="$(cd "$REPO" && bash "$CHECK" 2>&1)"
+want="$?|$want|no-pwsh"
+new_repo
+printf 'get-childitem .\n$global:foo = 1\n' >"$REPO/a.ps1"
+git -C "$REPO" add a.ps1
+(cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
+expect "shared run: after format, lint reports what a lint-only run reports, with no pwsh start of its own" \
+  "$want" "$(lint_with_stub "$REPO")"
+expect "shared run: lint consumes the result format left" "0" "$(cached "$REPO")"
+
+new_repo
+printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/a.ps1"
+git -C "$REPO" add a.ps1
+(cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
+printf 'Get-ChildItem .\nGet-Date\n' >"$REPO/a.ps1"
+git -C "$REPO" add a.ps1
+expect "shared run: a file changed after format makes lint start pwsh itself" "pwsh-started" \
+  "$(lint_with_stub "$REPO" | sed 's/.*|//')"
+
+new_repo
+git -C "$REPO" config checks.powershell-format.lint.declined true
+printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/a.ps1"
+git -C "$REPO" add a.ps1
+(cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
+expect "shared run: a declined lint entry makes format lint nothing" "0" "$(cached "$REPO")"
+git -C "$REPO" config checks.powershell-format.lint.declined false
+(cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
+expect "shared run: a lint entry opted back in is linted by format again" "2" "$(cached "$REPO")"
+
+new_repo
+printf 'pre-commit:\n  jobs:\n    - name: powershell-format-remote\n      group:\n        jobs:\n          - name: powershell-format-remote-lint\n            skip: true\n' >"$REPO/lefthook-local.yml"
+printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/a.ps1"
+git -C "$REPO" add a.ps1
+(cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
+expect "shared run: a lint job skipped in lefthook-local.yml makes format lint nothing" "0" "$(cached "$REPO")"
 
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))
