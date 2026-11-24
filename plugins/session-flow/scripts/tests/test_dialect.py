@@ -47,7 +47,6 @@ pytestmark = pytest.mark.skipif(os.name == "nt", reason="the stub typos is a she
 
 
 def bin_dir(root: Path, name: str, typos: bool) -> str:
-    """A PATH holding git and, when `typos`, the stub typos."""
     folder = root / name
     folder.mkdir()
     (folder / "git").symlink_to(shutil.which("git"))

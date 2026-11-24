@@ -21,7 +21,7 @@ result comes from a live listing or a page read through the shared cache at run 
    a better one for this work type. Basis: the section or consensus that supports the step.
 3. **Never below the default for code.** Work that changes code, verifies a change or is likely to
    hit edge cases never gets a lower effort than the vendor's default (`vendor-decide` raises any
-   lower `coding` consensus or trial effort to the selected model's default with one note).
+   lower `coding` consensus effort to the selected model's default with one note).
 4. **Only levels the CLI accepts.** A Codex or Gemini effort must appear in that product's
    `external-agents models` output (`efforts`, or the model's own `efforts`); a model must be one
    of its `models[].id`.
@@ -129,8 +129,8 @@ Without the external-agents plugin, route covers only Claude, so the step runs h
 Benchmark sources live as pointers only in [`benchmarks.json`](benchmarks.json) (closed schema:
 [`../schemas/benchmark-registry.schema.json`](../schemas/benchmark-registry.schema.json)).
 `fetch-boards` fetches only rows that can lead (`status` not `support-only`, `provider_own`
-false), plus support-only and provider-own rows while trials are active, since their records seed
-trial candidates; a row it skips is listed as `not-read`. Each fetched
+false); a row it skips is listed as `not-read`. A trial runs the first model each vendor's
+`external-agents models` lists, at that model's default effort, so no board record picks it. Each fetched
 page goes through `fetch-boards` (wrapping the shared docs cache; default freshness window
 one day, overridable per row via `freshness_seconds`; a page without the row's `expect` marker is
 unread, and when the docs-cache `renderer` is `firecrawl` a blocked page or one drawn by script is

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for ready-skip-comment.sh. Expected comments follow the skip-record
-# contract in reference/ready-for-review.md: one line per skipped step in run
-# order, with the reason as inert data.
 
 set -uo pipefail
 
@@ -37,7 +34,6 @@ out=$(build --reason "Closes: 4, resolved 5, Do Not   merge" --step verify)
 assert_contains "each closing keyword and the hold phrase are broken, in any case" "$out" \
   "Closes-4, resolved-5, Do Not-merge"
 
-# The neutralized comment, read as a PR body, holds nothing; a real hold still holds.
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"

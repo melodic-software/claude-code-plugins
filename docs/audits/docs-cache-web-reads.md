@@ -121,7 +121,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | speech | `reference/elevenlabs.md:58` | curl download of the ElevenLabs OpenAPI spec | kept | A JSON spec too large for a page read, not a page |
 | speech | `scripts/assets.py:76` | Model file download | kept | Binary download |
 | speech | `scripts/elevenlabs.py:183` | ElevenLabs API | kept | Authenticated API call, not a page |
-| speech | `scripts/narrate.py:429` | OpenAI speech API | kept | Authenticated API call, not a page |
+| speech | `scripts/narrate.py:428` | OpenAI speech API | kept | Authenticated API call, not a page |
 | user-interface | `skills/write-css/SKILL.md:60` | WebFetch on official docs when context7 and discovery are absent | kept | Fallback for when `/context7:lookup` and `/discovery:research` are not enabled; the plugin carries no cache copy |
 | user-interface | `skills/write-animation/SKILL.md:65` | WebFetch on official docs as the fourth route | kept | Used when `/context7:lookup` and `/discovery:research` give no answer; the plugin carries no cache copy |
 | wizard | `skills/generate/template.sh:761` | curl in an example stage | kept | Example text the author deletes; an API call, not a page |

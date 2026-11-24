@@ -22,8 +22,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_classify as bc
 
-# The caller's own posting identity, shared by every fixture that exercises
-# self-authored classification rows.
 SELF = bc.normalize_self_logins(["me[bot]"])
 
 
@@ -280,9 +278,7 @@ class EffectiveClassifiedTests(unittest.TestCase):
             },
         ]
         self.assertEqual(bc.count_findings(comments, SELF), 1)
-        # Raw counter still sees the stale row (documents the defect surface).
         self.assertEqual(bc.count_classified(comments, SELF), 1)
-        # Per-surface credit closes the fail-open.
         self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
         self.assertLess(
             bc.count_effective_classified(comments, SELF),
@@ -290,10 +286,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         )
 
     def test_pr_level_finding_and_pr_level_classification_still_pass(self) -> None:
-        # The D5-mandated flow: issue/review-summary findings answered by a
-        # detached PR-level classification. Both are non-thread, so they share a
-        # bucket and the classification credits normally -- restricting credit to
-        # threads would have permanently blocked this path.
         comments = [
             {
                 "author": "claude[bot]",
@@ -308,8 +300,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_effective_classified(comments, SELF), 2)
 
     def test_open_thread_finding_covered_by_in_thread_classification(self) -> None:
-        # A finding and its classification both carried in the same open thread
-        # balance within the thread bucket.
         comments = [
             {"author": "codex[bot]", "body": "[CRITICAL] a", "in_review_thread": True},
             {
@@ -361,9 +351,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
 
     def test_explicit_stamp_wins_over_type_tag(self) -> None:
-        # An explicit `in_review_thread: false` (a live PR-level comment) is
-        # authoritative even if a stray `type` is present -- it is never
-        # re-inferred as a thread.
         self.assertEqual(
             bc.comment_surface(
                 {"in_review_thread": False, "type": "inline", "body": ""}
@@ -372,10 +359,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         )
 
     def test_unsignaled_provenance_is_isolated_from_known_surfaces(self) -> None:
-        # Fail-closed defense: a finding bearing neither an `in_review_thread`
-        # stamp nor a `type` tag lands in the isolated unknown bucket, where a
-        # PR-level classification row cannot offset it, so the gate still blocks.
-        # (Production paths always signal; this guards a malformed snapshot.)
         comments = [
             {"author": "codex[bot]", "body": "[CRITICAL] unsignaled finding"},
             {"type": "review", "author": "me[bot]", "body": "| 1 | x | VALID | y |"},
@@ -385,8 +368,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
 
     def test_resolved_thread_contributes_to_neither_bucket(self) -> None:
-        # A resolved thread's finding and classification both drop (thread_is_open
-        # discount), so a fresh PR-level finding stays uncovered.
         comments = [
             {
                 "author": "codex[bot]",

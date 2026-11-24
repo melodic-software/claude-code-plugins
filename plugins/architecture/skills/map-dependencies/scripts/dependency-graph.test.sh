@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Every fixture is built in a mktemp directory and torn down on exit; nothing
-# here reads or writes a real repository.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -114,7 +112,6 @@ assert_not_contains "basic: a using in Program.cs is not an edge" "$basic_json" 
 assert_contains "basic: unread ruby manifest is named, not drawn as empty" "$basic_json" 'Not read: ruby (Gemfile)'
 assert_contains "basic: node_threshold documented in the record" "$basic_json" '"node_threshold": 40'
 
-# One object per line: a node line parses as one JSON object.
 node_line="$(printf '%s\n' "$basic_json" | grep '"kind":"project"' | head -1)"
 assert_contains "basic: a project node is one line" "$node_line" '"ecosystem":"dotnet"'
 
@@ -250,9 +247,6 @@ assert_contains "global.json alone: result unknown" "$sdk_json" '"result": "unkn
 assert_contains "global.json alone: names the file" "$sdk_json" "global.json"
 assert_contains "global.json alone: does not invent an empty graph" "$sdk_json" "did not invent an empty graph"
 
-# A solution member the .NET reader does not handle is an unread-manifest
-# finding that cites the solution file and the skipped declaration; a solution
-# folder is not one.
 unread="$(make_tree unread-manifest)"
 mkdir -p "$unread/src/App" "$unread/db"
 printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"></Project>' >"$unread/src/App/App.csproj"
@@ -282,7 +276,6 @@ unread_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-unread/dependency-gr
 assert_contains "unread-manifest: the summary counts the file once" "$unread_summary" "unread_files=1"
 assert_contains "unread-manifest: the artifact lists the skipped declaration" "$(cat "$TEST_TMPDIR/out-unread/dependency-graph.md")" 'Db.vbproj'
 
-# A record of more than one ecosystem names them.
 cat >"$TEST_TMPDIR/out-unread/mixed.json" <<'EOF'
 {
   "schema_version": 1,
@@ -353,7 +346,6 @@ assert_equals "collector without a path exits 2" "$?" "2"
 bash "$GRAPH" "$TEST_TMPDIR/no-such-dir" >/dev/null 2>&1
 assert_equals "collector missing path exits 1" "$?" "1"
 
-# The portfolio collector still sees the same Include names after the move.
 port_repo="$(make_tree port)"
 mkdir -p "$port_repo/src"
 cat >"$port_repo/src/Billing.csproj" <<'CSPROJ'
@@ -419,8 +411,6 @@ bash "$GRAPH" --out "$TEST_TMPDIR/no-such-dir/out.json" "$date_repo" >/dev/null 
 assert_equals "--out: an unwritable path exits 1" "$?" "1"
 assert_contains "--out: an unwritable path says so" "$(cat "$TEST_TMPDIR/unwritable.err")" "cannot write --out file"
 
-# A csproj at <dir>/<name>.csproj whose ProjectReferences point at the given
-# directories' projects (sibling layout, so the Include is ..\<dir>\<Dir>.csproj).
 sibling_proj() {
   local root="$1" dir="$2" refs="" ref
   shift 2
@@ -437,8 +427,6 @@ cycle_ids() {
   printf '%s\n' "$1" | grep '^    {"id":.* -> '
 }
 
-# The reader takes the tag, not the line: a multi-line tag, a single-quoted
-# Include and a commented-out reference (which would close a phantom cycle).
 blind="$(make_tree blind)"
 mkdir -p "$blind/app" "$blind/lib" "$blind/two" "$blind/ghost"
 cat >"$blind/app/App.csproj" <<'CSPROJ'
@@ -505,7 +493,6 @@ assert_contains "props: Directory.Packages.props GlobalPackageReference is a fin
 assert_not_contains "props: a consumed Directory.Build.props is not a finding" "$props_json" '"path":"src/Directory.Build.props"'
 assert_contains "props: no cycle" "$props_json" '"cycles": []'
 
-# A skipped tag in a project file is reported, and the count is exact.
 unread="$(make_tree unread)"
 mkdir -p "$unread/web"
 cat >"$unread/web/Web.csproj" <<'CSPROJ'
@@ -526,8 +513,6 @@ unread_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-unread/dependency-gr
 assert_contains "unread: the summary counts the file, not a membership" "$unread_summary" "membership=0 unread_files=1"
 assert_contains "unread: the markdown lists the finding" "$(cat "$TEST_TMPDIR/out-unread/dependency-graph.md")" "web/Web.csproj: 2 reference tag(s) not read"
 
-# A dense DAG: every project references every earlier one. Enumerating paths
-# would not finish; the search is linear and finds no cycle.
 dense="$(make_tree dense)"
 dense_names=()
 for n in $(seq -w 1 22); do
@@ -546,7 +531,6 @@ else
   fail "dense: 22 projects finish quickly" "took $dense_secs seconds"
 fi
 
-# A real 3-cycle inside a dense graph is reported once, and only it.
 sibling_proj "$dense" y x p01
 sibling_proj "$dense" z y p01
 sibling_proj "$dense" x p01 z
@@ -555,21 +539,15 @@ assert_equals "dense cycle: one cycle line" "$(cycle_ids "$dense_cycle_json" | w
 assert_contains "dense cycle: the 3-cycle is the witness" "$dense_cycle_json" '"id":"x/X.csproj -> z/Z.csproj -> y/Y.csproj -> x/X.csproj"'
 assert_contains "dense cycle: the search did not truncate" "$dense_cycle_json" '"cycles_truncated": false'
 
-# A back edge inside a dense graph makes one strongly connected group, and one
-# witness cycle is reported for it.
 sibling_proj "$dense" p01 p03
 back_json="$(bash "$GRAPH" "$dense")"
 assert_equals "dense back edge: one cycle line for the group" "$(cycle_ids "$back_json" | grep -c 'p01/P01.csproj -> p03/P03.csproj -> p01/P01.csproj')" "1"
 
-# A project that references itself is a cycle of one.
 selfref="$(make_tree selfref)"
 sibling_proj "$selfref" a a
 selfref_json="$(bash "$GRAPH" "$selfref")"
 assert_contains "self reference: reported as a cycle" "$selfref_json" '"id":"a/A.csproj -> a/A.csproj"'
 
-# --cycles-only compares whole segments: root A.csproj -> b/B.csproj is not on
-# the cycle a/A.csproj -> b/B.csproj -> a/A.csproj even though its text is a
-# suffix of a member.
 suffix="$(make_tree suffix)"
 sibling_proj "$suffix" a b
 sibling_proj "$suffix" b a
@@ -584,7 +562,6 @@ suffix_md="$(cat "$TEST_TMPDIR/out-suffix/dependency-graph.md")"
 assert_contains "suffix: --cycles-only draws the cycle members" "$suffix_md" '["a/A.csproj"]'
 assert_not_contains "suffix: --cycles-only does not draw a non-cycle edge" "$suffix_md" '["A.csproj"]'
 
-# The schema_version check is anchored: 10, 11 and 1.5 are not version 1.
 for v in 10 11 1.5; do
   printf '%s\n' "$cycle_json" | sed "s/\"schema_version\": 1,/\"schema_version\": $v,/" >"$TEST_TMPDIR/out-cycle/v-$v.json"
   bad="$(bash "$RENDER" --record "$TEST_TMPDIR/out-cycle/v-$v.json" --out "$TEST_TMPDIR/out-bad" 2>&1)"
@@ -612,8 +589,6 @@ assert_contains "test: schema_version stays 1" "$fields_json" '"schema_version":
 
 T=$'\t'
 
-# Node workspaces. Members are the package folders the workspaces globs expand
-# to; a package elsewhere on disk is never matched by name.
 put() {
   mkdir -p "$(dirname "$1")"
   printf '%s\n' "$2" >"$1"
@@ -676,8 +651,6 @@ nodews_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-nodews/dependency-gr
 assert_equals "node: renderer exits 0" "$?" "0"
 assert_contains "node: renderer counts the unread manifests" "$nodews_summary" "unread_files=3"
 
-# pnpm-workspace.yaml globs, the workspace: alias and path forms, and scope: a
-# package outside every workspace does not see the members by name.
 pnpm="$(make_tree pnpm)"
 put "$pnpm/pnpm-workspace.yaml" "packages:
   - 'apps/*'
@@ -702,14 +675,12 @@ assert_contains "pnpm: ** reaches a nested member" "$pnpm_json" '"from":"apps/we
 assert_contains "pnpm: a package outside every workspace sees a member name as external" "$pnpm_json" '{"from":"tools/cli/package.json","to":"pkg:node:ui","kind":"package","status":"resolved","evidence":"tools/cli/package.json: \"ui\": \"^1.0.0\""}'
 assert_not_contains "pnpm: the yaml catalog raises no finding" "$pnpm_json" 'unread-manifest'
 
-# A flow-list packages key in the yaml is unread.
 pnpmflow="$(make_tree pnpmflow)"
 put "$pnpmflow/pnpm-workspace.yaml" 'packages: [apps/*]'
 put "$pnpmflow/package.json" '{ "name": "root" }'
 pnpmflow_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$pnpmflow")"
 assert_contains "pnpm: a flow-list packages key is an unread-manifest finding" "$pnpmflow_json" '{"kind":"unread-manifest","path":"pnpm-workspace.yaml","evidence":"pnpm-workspace.yaml: packages: [apps/*]"}'
 
-# Node beside .NET is one mixed record.
 nodemix="$(make_tree nodemix)"
 put "$nodemix/src/App/App.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
 put "$nodemix/web/package.json" '{ "name": "web", "dependencies": { "left-pad": "1.0.0" } }'
@@ -717,7 +688,6 @@ nodemix_json="$(bash "$GRAPH" "$nodemix")"
 assert_contains "node beside dotnet: ecosystem is mixed" "$nodemix_json" '"ecosystem": "mixed"'
 assert_contains "node beside dotnet: each node keeps its own ecosystem" "$nodemix_json" '"id":"web/package.json","name":"web","path":"web/package.json","ecosystem":"node"'
 
-# Go modules: replace, go.work membership, and everything else external.
 gotree="$(make_tree gotree)"
 put "$gotree/app/go.mod" "module example.com/acme/app
 
@@ -761,7 +731,6 @@ assert_contains "go: a use line with no go.mod is an unread-manifest finding" "$
 go_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$gotree")"
 assert_equals "go: two runs are byte-identical" "$go_again" "$go_json"
 
-# A single-line require is read, and Go beside Node is one mixed record.
 gomix="$(make_tree gomix)"
 put "$gomix/svc/go.mod" 'module example.com/svc
 require github.com/pkg/errors v0.9.1'
@@ -770,7 +739,6 @@ gomix_json="$(bash "$GRAPH" "$gomix")"
 assert_contains "go beside node: ecosystem is mixed" "$gomix_json" '"ecosystem": "mixed"'
 assert_contains "go: a single-line require is an external edge" "$gomix_json" '"from":"svc/go.mod","to":"pkg:go:github.com/pkg/errors"'
 
-# Python: path references are internal, names are external, setup.py is unread.
 pytree="$(make_tree pytree)"
 put "$pytree/pyproject.toml" '[project]
 name = "acme-app"
@@ -827,7 +795,6 @@ assert_not_contains "python: -e . is not an edge to itself" "$py_json" '"evidenc
 py_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$pytree")"
 assert_equals "python: two runs are byte-identical" "$py_again" "$py_json"
 
-# Python uv workspace: members expand against the pyproject.toml files found.
 uvws="$(make_tree uvws)"
 put "$uvws/pyproject.toml" '[project]
 name = "root"
@@ -852,7 +819,6 @@ assert_contains "python: a member glob the reader cannot resolve is unread" "$uv
 uvws_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$uvws")"
 assert_equals "python: uv workspace runs are byte-identical" "$uvws_again" "$uvws_json"
 
-# Python beside Go is one mixed record.
 pymix="$(make_tree pymix)"
 put "$pymix/svc/go.mod" 'module example.com/svc'
 put "$pymix/app/requirements.txt" 'click'
@@ -860,7 +826,6 @@ pymix_json="$(bash "$GRAPH" "$pymix")"
 assert_contains "python beside go: ecosystem is mixed" "$pymix_json" '"ecosystem": "mixed"'
 assert_contains "python beside go: each node keeps its own ecosystem" "$pymix_json" '"id":"app/requirements.txt","name":"requirements.txt","path":"app/requirements.txt","ecosystem":"python"'
 
-# Rust: path dependencies are internal, crates are external, target tables are unread.
 rstree="$(make_tree rstree)"
 put "$rstree/Cargo.toml" '[package]
 name = "app"
@@ -902,7 +867,6 @@ assert_not_contains "rust: a target-specific dependency draws no edge" "$rs_json
 rs_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$rstree")"
 assert_equals "rust: two runs are byte-identical" "$rs_again" "$rs_json"
 
-# Rust workspace: members expand against the Cargo.toml files found; workspace = true resolves.
 rsws="$(make_tree rsws)"
 put "$rsws/Cargo.toml" '[workspace]
 members = ["crates/*", "tools/cli", "missing/one", "pkgs/{a,b}", "."]
@@ -947,7 +911,6 @@ assert_not_contains "rust: a workspace entry no member inherits draws no edge" "
 rsws_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$rsws")"
 assert_equals "rust: workspace runs are byte-identical" "$rsws_again" "$rsws_json"
 
-# workspace = true with no [workspace] ancestor at all is unread.
 rsorph="$(make_tree rsorph)"
 put "$rsorph/Cargo.toml" '[package]
 name = "orphan"
@@ -956,7 +919,6 @@ core = { workspace = true }'
 rsorph_json="$(bash "$GRAPH" "$rsorph")"
 assert_contains "rust: workspace = true with no workspace root is unread" "$rsorph_json" '{"kind":"unread-manifest","path":"Cargo.toml","evidence":"Cargo.toml: core = { workspace = true }"}'
 
-# Rust beside Python is one mixed record.
 rsmix="$(make_tree rsmix)"
 put "$rsmix/svc/Cargo.toml" '[package]
 name = "svc"'
@@ -965,7 +927,6 @@ rsmix_json="$(bash "$GRAPH" "$rsmix")"
 assert_contains "rust beside python: ecosystem is mixed" "$rsmix_json" '"ecosystem": "mixed"'
 assert_contains "rust beside python: each node keeps its own ecosystem" "$rsmix_json" '"id":"svc/Cargo.toml","name":"svc","path":"svc/Cargo.toml","ecosystem":"rust"'
 
-# Gradle (Groovy): include and project(':x') are internal edges.
 gr="$(make_tree gr)"
 put "$gr/settings.gradle" "rootProject.name = 'demo'
 include ':app', ':core', ':lib:util', ':nobuild', ':ghost'
@@ -999,7 +960,6 @@ assert_not_contains "gradle: the message does not name JVM as unread" "$gr_json"
 gr_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$gr")"
 assert_equals "gradle: two runs are byte-identical" "$gr_again" "$gr_json"
 
-# Gradle (Kotlin DSL) with a settings file and no root build file.
 grk="$(make_tree grk)"
 put "$grk/settings.gradle.kts" 'include(":api")
 include(":impl")'
@@ -1012,13 +972,11 @@ assert_contains "kotlin dsl: a settings file with no build file is a project nod
 assert_contains "kotlin dsl: an include is an edge from the settings project" "$grk_json" '{"from":"settings.gradle.kts","to":"api/build.gradle.kts","kind":"project","status":"resolved","evidence":"settings.gradle.kts: include(\":api\")"}'
 assert_contains "kotlin dsl: project(\":x\") is an internal edge" "$grk_json" '{"from":"api/build.gradle.kts","to":"impl/build.gradle.kts","kind":"project","status":"resolved","evidence":"api/build.gradle.kts: dependencies { implementation(project(\":impl\")) }"}'
 
-# A build file with no settings file above it cannot resolve a project path.
 grn="$(make_tree grn)"
 put "$grn/loose/build.gradle.kts" 'dependencies { implementation(project(":api")) }'
 grn_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$grn")"
 assert_contains "kotlin dsl: a build file with no settings file above it is unresolved" "$grn_json" '{"from":"loose/build.gradle.kts","to":":api","kind":"project","status":"unresolved","evidence":"loose/build.gradle.kts: dependencies { implementation(project(\":api\")) }"}'
 
-# Maven: <modules> are internal edges.
 mv="$(make_tree mv)"
 # shellcheck disable=SC2016 # fixture text with a literal ${dyn}
 put "$mv/pom.xml" '<project>
@@ -1049,7 +1007,6 @@ assert_contains "maven: a module outside the root is unresolved" "$mv_json" '"to
 assert_contains "maven: a property module is an unread-manifest finding" "$mv_json" '{"kind":"unread-manifest","path":"pom.xml","evidence":"pom.xml: <module>${dyn}</module>"}'
 assert_not_contains "maven: the other manifest kinds are not unread" "$mv_json" 'Not read: jvm'
 
-# JVM beside another ecosystem is one mixed record; Ruby beside JVM is still named unread.
 jvmix="$(make_tree jvmix)"
 put "$jvmix/svc/pom.xml" '<project><artifactId>svc</artifactId></project>'
 put "$jvmix/app/requirements.txt" 'click'

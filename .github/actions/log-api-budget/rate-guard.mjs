@@ -106,7 +106,7 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 
 const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1, "stop-floor": 0.02 };
 export const BUILT_IN_LIMITS = Object.freeze({
-  "github-token": { ...SHARES, pace: 0.2, "pace-pr-merge": 0.3, "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 21, "defer-project": 0.3, "defer-run-minutes": 15, "defer-run-minutes-pr-merge": 6, "defer-run-minutes-review": 11 },
+  "github-token": { ...SHARES, pace: 0.2, "pace-pr-merge": 0.3, "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 21, "defer-project": 0.3, "defer-run-minutes": 15, "defer-run-minutes-pr-merge": 6, "defer-run-minutes-review": 8 },
   "lanes-app": SHARES,
   graphql: SHARES,
   "owner-token": SHARES,

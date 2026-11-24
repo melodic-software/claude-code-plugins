@@ -4,6 +4,9 @@ import { test } from "node:test";
 
 import { escalationActivity, escalationRoute, gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, ROUTES, CREDENTIAL_HOLD, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
+
+process.env.STANDARDS_DIR ||= standardsCheckout();
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const ACTIONS = { login: "github-actions[bot]", id: 41898282, type: "Bot" };

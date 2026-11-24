@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for revert-cases.sh on a throwaway repository: list finds a pair by each revert form and
-# skips a revert that removes no line its original added or no longer reverses cleanly; build
-# writes a case whose scaffold rebuilds the change and whose grader matches the reverted lines;
-# report counts caught and missed revert- cases and marks a small total as indicative.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -35,14 +31,13 @@ CASES="$WORK/evals/revert-cases.sh"
 
 git init -q -b main "$REPO"
 g() { git -C "$REPO" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
-commit() { # <file> <content> <subject> [<git commit args>...]: prints the new commit
+commit() {
   printf "%b" "$2" >"$REPO/$1"
   g add -A
   g commit -q -m "$3" "${@:4}"
   g rev-parse HEAD
 }
 
-# app.sh is committed executable, so build's copies keep the exec bit.
 touch "$REPO/app.sh"
 chmod +x "$REPO/app.sh"
 commit app.sh 'a\nb\nc\n' "chore: seed (#1)" >/dev/null

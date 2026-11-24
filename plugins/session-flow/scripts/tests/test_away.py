@@ -239,7 +239,6 @@ def ctx(tmp_path: Path) -> Away:
 
 
 def fill_report(path: Path, needs_you: str = "None.\n") -> None:
-    """Give every hand-written section content while keeping the generated blocks."""
     text = path.read_text(encoding="utf-8")
     start = text.index("## Needs you")
     end = text.index("## Decided while you were away")
@@ -1178,7 +1177,6 @@ def test_file_walk_budget(ctx, monkeypatch):
 
 
 def test_file_scan_cut_short_leaves_an_honest_line(ctx, monkeypatch):
-    """A caller's timeout can kill the walk; the report then says the list is incomplete, not None."""
     ctx.start()
     monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(ctx.data))
     monkeypatch.setenv("HOME", str(ctx.home))

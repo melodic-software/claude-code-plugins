@@ -45,8 +45,6 @@ for f in CLAUDE.md .claude/CLAUDE.md; do
     break
   }
 done
-# Same fallback instruction-load-stats.sh applies, so the header's name and its
-# line count are about the same file.
 if [[ "$root_file" == "none" ]]; then
   agents_root="$(agents_md_native_files | head -1)"
   [[ -n "$agents_root" ]] && root_file="$agents_root"

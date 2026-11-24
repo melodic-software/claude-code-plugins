@@ -32,8 +32,6 @@ if str(HERE) not in sys.path:
 
 MODEL_ID = "claude-opus-5-5"
 
-# The Brief's first tool state change: edit, write, push, merge, ready, agent
-# dispatch, message. A plain-text reply is not one.
 STATE_CHANGE_TOOLS = frozenset(
     {"Edit", "Write", "NotebookEdit", "Agent", "Task", "SendMessage"}
 )
@@ -154,8 +152,6 @@ def codex_command(prompt: str, *, model: str, workdir: str, reply: str) -> list[
 
 
 GIB = 1024**3
-# Floors checked before every batch (PLAN.md Approach, host resources): /tmp is a small
-# tmpfs that guard hooks and other sessions need, and RAM is shared with them.
 RESOURCE_FLOORS = (
     ("root_free", lambda v: v < 50 * GIB, "root disk under 50 GB free"),
     ("tmp_free", lambda v: v < 500 * 1024**2, "/tmp under 500 MB free"),
@@ -477,15 +473,9 @@ def render_history(
     return lines
 
 
-# --- grading ------------------------------------------------------------------
-#
-# Check kinds and their fields: plugins/session-flow/evals/resume-eval.md. A
-# must-act probe passes when its check matches; a must-not-do probe when it does not.
-
-
 @dataclass
 class GradeContext:
-    reader: str  # "claude-code" or "codex"
+    reader: str
     events: list[dict]
     gh_calls: list[str]
     repo: Path | None
@@ -599,7 +589,6 @@ def check_matches(check: dict, ctx: GradeContext) -> bool:
         raise ValueError(f"unknown check kind: {kind}")
     lines = pools[kind](ctx)
     if check.get("after"):
-        # Only what came after the first line matching `after` (e.g. a watch after a dispatch).
         gate = re.compile(check["after"])
         first = next((i for i, line in enumerate(lines) if gate.search(line)), None)
         lines = [] if first is None else lines[first + 1 :]
@@ -652,14 +641,7 @@ def write_stub_gh(
     return stub
 
 
-# --- one run: seed, write, read, grade ------------------------------------------
-#
-# Real-setup mechanics: .work/handoff-efficiency/phase1-design.md. Every CLI call goes
-# through `RunConfig.call`, so the flow is testable without a model call.
-
 ARMS = ("before", "after", "after-promoted", "free-hand", "compact")
-# A state of an arm that shares its writer and reader prompts and plugin copy: the
-# restated-preference case's promoted state is `after` plus an instruction fixture.
 ARM_BASE = {"after-promoted": "after"}
 
 
@@ -684,9 +666,9 @@ EXCLUDE_MARKERS = (
 
 @dataclass
 class RunConfig:
-    root: Path  # the eval root: plugin copies, base repo, run dirs; outside any repository
-    tmpdir: str  # short TMPDIR for children (probes.md P9)
-    copies: dict  # arm -> plugin copy dir, or None for the without-skills arms
+    root: Path
+    tmpdir: str
+    copies: dict
     codex_model: str
     call: object = None  # (cmd, cwd, env, stdin_text) -> (returncode, stdout, stderr)
     python: str = "python3"
@@ -1080,7 +1062,7 @@ def seed_run(
     by `arm`'s copy of `save_point.py`, a local bare `origin`, the stub `gh`, settings,
     an empty MCP config, and the seeded writer session written into this repo's
     project key."""
-    import resume_cases  # sibling module; imported here so grading works without it
+    import resume_cases
 
     call = cfg.call or default_call
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -1290,8 +1272,6 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
         extra = _instruction_flags(case, arm)
         session = written.get("continue_session")
         if hop.get("scripted"):
-            # Deterministic hop: the owner and agent turns are synthetic, so no live model
-            # turn can change what the hop does; only its handoff is written live.
             turns, salt = hop["scripted_turns"], f"hop{hop['hop']}/"
             if not session:
                 first = _lead_prompt(case, arm, written["delivery"])
@@ -1459,7 +1439,7 @@ def grade_run(
         if not applies(probe, arm):
             continue
         if probe.get("requires") and not results.get(probe["requires"]):
-            continue  # graded only when the probe it depends on passed
+            continue
         if probe["grade"] == "text":
             results[probe["id"]] = judge(
                 probe["question"], probe["criteria"], read["followup_text"]
@@ -1615,8 +1595,6 @@ def run_once(
         run = seed_run(case, run_dir, base_repo, cfg, arm)
         written = write_stage(case, arm, run, cfg)
         if case["writer"].get("hops"):
-            # File checks grade the final reader, so they compare against the workspace the
-            # last writer hop left, not the seed.
             run["seeded"] = {
                 rel: (run["repo"] / rel).read_bytes()
                 for rel in run["seeded"]

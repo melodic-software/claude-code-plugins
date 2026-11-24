@@ -311,9 +311,6 @@ if [[ -z "$raw_path" ]]; then
   exit 2
 fi
 
-# Print the repo-relative path of base/raw with . and .. resolved, or return 1
-# when the path is absolute or escapes the repository root. The target does
-# not have to exist. Nothing outside the root is looked up.
 normalize_within_root() {
   local base="$1" raw="$2" rel combined part
   local -a stack=()
@@ -366,7 +363,6 @@ is_proj_suffix() {
   [[ "$ext" == "csproj" || "$ext" == "fsproj" ]]
 }
 
-# Solution project paths. One line per declared path: path<TAB>citation.
 sln_declared_projects() {
   local file="$1" ext
   ext="${file##*.}"
@@ -410,7 +406,6 @@ node_paths=()
 node_kinds=()
 node_ecos=()
 
-# The reader that is running; the dispatch below sets it.
 CUR_ECO=""
 
 add_node() {
@@ -452,7 +447,6 @@ finding_evidence=()
 add_finding() {
   local kind="$1" path="$2" evidence="$3" key
   key="${kind}"$'\x1f'"${path}"
-  # One unread-manifest finding per skipped declaration, not per file.
   [[ "$kind" == "unread-manifest" ]] && key+=$'\x1f'"$evidence"
   [[ -n "${FINDING_SEEN[$key]+x}" ]] && return 0
   FINDING_SEEN[$key]=1
@@ -461,12 +455,10 @@ add_finding() {
   finding_evidence+=("$evidence")
 }
 
-# A declaration in manifest $1 whose shape the running reader does not handle.
 add_unread_manifest() {
   add_finding "unread-manifest" "$1" "$1: $2"
 }
 
-# Set JSON_OBJ to a one-line object of the string fields given as key/value pairs.
 JSON_OBJ=""
 json_object() {
   local out=""
@@ -478,8 +470,6 @@ json_object() {
   JSON_OBJ="{$out}"
 }
 
-# Optional node fields, read from the project file itself: namespace is
-# RootNamespace, else AssemblyName, else absent; test is "yes" for a test project.
 node_namespace() {
   local ns
   ns="$(dotnet_project_property "$root/$1" RootNamespace)"
@@ -487,8 +477,6 @@ node_namespace() {
   printf '%s\n' "$ns"
 }
 
-# Print "key": [...] with items $3... sorted, one per line, and $2 after the
-# closing bracket.
 emit_array() {
   local key="$1" after="$2" i sep=","
   shift 2
@@ -575,18 +563,10 @@ for rel in "${files[@]+"${files[@]}"}"; do
   esac
 done
 
-# Readers. A reader is a pair of functions. has_<name> succeeds when the
-# manifests it reads are present. read_<name> adds their nodes, edges and
-# findings through add_node, add_edge, add_finding and add_unread_manifest.
-# <name> is the ecosystem name that lands in each node's "ecosystem" field, and
-# it is the key a manifest gets in OTHER above once a reader ships. READERS
-# lists the shipped readers, in the order they run. A reader parses in its own
-# file, lib/<name>-references.sh, sourced above.
 READERS=(dotnet node go python rust jvm)
 readers_list="${READERS[*]}"
 readers_list="${readers_list// /, }"
 
-# A manifest whose ecosystem has a shipped reader is that reader's to read.
 for eco in "${READERS[@]}"; do
   unset "OTHER[$eco]"
 done
@@ -600,13 +580,10 @@ if [[ ${#OTHER[@]} -gt 0 ]]; then
   done < <(printf '%s\n' "${!OTHER[@]}" | LC_ALL=C sort)
 fi
 
-# The value of the first "$1<TAB>value" record on stdin.
 record_value() {
   awk -F '\t' -v key="$1" '$1 == key { print $2; exit }'
 }
 
-# Project node for manifest $1, named $2, else after its folder (the root's
-# own folder for a manifest at the top).
 add_project_node() {
   local label
   label="$(proj_dir_of "$1")"
@@ -614,11 +591,6 @@ add_project_node() {
   add_node "$1" "${2:-${label##*/}}" "$1" "project"
 }
 
-# Edges from workspace manifest $1 to each manifest in $4... whose folder a
-# members glob in records $2 matches under $1's folder, less the folders an
-# exclude glob matches. A glob node_glob_regex refuses is unread. A literal
-# member that matches no folder is an unresolved edge. $3 is "skip-dot" when a
-# "." member (the workspace root itself) draws nothing.
 add_member_edges() {
   local rel="$1" records="$2" dot="$3" wdir kind glob decl re cand cdir under ex hit m
   local -a excl=() mems=()
@@ -674,7 +646,6 @@ read_dotnet() {
     [[ -n "${FILE_RECORDS[$1]+x}" ]] || FILE_RECORDS[$1]="$(dotnet_reference_records "$root/$1")"
   }
 
-  # Nearest ancestor file called $2, from directory $1 up to the root.
   nearest_build_file() {
     local dir="$1" name="$2" cand
     while :; do
@@ -691,10 +662,6 @@ read_dotnet() {
     done
   }
 
-  # Edges that the references in source file $3 give project $1. $2 is that
-  # file's records. A relative Include resolves from the project's folder even
-  # when the tag sits in an imported file. $4 is "props" when the file is not
-  # the project itself: such a file cannot make a project reference itself.
   add_reference_edges() {
     local proj_rel="$1" records="$2" source_rel="$3" via="$4"
     local proj_dir rec rec_kind rec_rest rec_inc rec_decl normalized
@@ -741,8 +708,6 @@ read_dotnet() {
     done
   done
 
-  # Reference tags that are not an edge in this record are counted, so an
-  # empty or short edge list never reads as "declares no references".
   for unread_rel in "${proj_files[@]}" "${msbuild_files[@]+"${msbuild_files[@]}"}"; do
     unread_n="$(dotnet_reference_unmatched_count "$root/$unread_rel")"
     if ! is_proj_suffix "$unread_rel" && [[ -z "${FILE_CONSUMED[$unread_rel]+x}" ]]; then
@@ -782,15 +747,12 @@ read_node() {
   local rel name rec decl
   local us=$'\x1f'
 
-  # Every package.json outside node_modules is a project node.
   for rel in "${node_files[@]}"; do
     pkg_recs[$rel]="$(node_manifest_records "$root/$rel")"
     pkg_name[$rel]="$(printf '%s\n' "${pkg_recs[$rel]}" | record_value name)"
     add_project_node "$rel" "${pkg_name[$rel]}"
   done
 
-  # Workspace declarations by the folder they sit in ("." is the root). Each
-  # line is source<TAB>glob<TAB>declaration.
   read_ws_records() {
     local src="$1" records="$2" base
     base="$(proj_dir_of "$src")"
@@ -809,9 +771,6 @@ read_node() {
     read_ws_records "$rel" "$(node_pnpm_workspace_records "$root/$rel")"
   done
 
-  # A workspace member is a package folder a glob expands to, matched against
-  # the package.json files this run found and no others. The workspace root's
-  # own package and each member it lists may name the members.
   local ws_dir ws_rel line src glob re cand cdir under mkey
   if [[ ${#ws_decls[@]} -gt 0 ]]; then
     while IFS= read -r ws_dir; do
@@ -847,7 +806,6 @@ read_node() {
     done < <(printf '%s\n' "${!ws_decls[@]}" | LC_ALL=C sort)
   fi
 
-  # The member package.json that package $1 reaches by name $2, if any.
   member_named() {
     local d
     local -a roots
@@ -860,8 +818,6 @@ read_node() {
     return 1
   }
 
-  # An edge from package $1 to the package folder that path $3 names. $2 is the
-  # spec as declared, kept as the target of an unresolved edge.
   add_path_edge() {
     local from="$1" spec="$2" path="$3" evidence="$4" normalized target
     if normalized="$(normalize_within_root "$(proj_dir_of "$from")" "$path")"; then
@@ -878,7 +834,7 @@ read_node() {
   for rel in "${node_files[@]}"; do
     while IFS= read -r rec; do
       [[ "$rec" == dep$'\t'* ]] || continue
-      rec="${rec#*$'\t'}" # drop the kind, then the section
+      rec="${rec#*$'\t'}"
       rec="${rec#*$'\t'}"
       name="${rec%%$'\t'*}"
       rec="${rec#*$'\t'}"
@@ -924,7 +880,6 @@ read_go() {
   local rel rec decl target old is_local normalized cand
   local us=$'\x1f'
 
-  # Every go.mod is a project node; its id is its repo-relative path.
   for rel in "${go_files[@]+"${go_files[@]}"}"; do
     mod_recs[$rel]="$(go_mod_records "$root/$rel")"
     mod_name[$rel]="$(printf '%s\n' "${mod_recs[$rel]}" | record_value module)"
@@ -934,9 +889,6 @@ read_go() {
     done <<<"${mod_recs[$rel]}"
   done
 
-  # A replace whose target is a local path is an internal edge to the go.mod in
-  # that folder; a missing or out-of-root folder is unresolved. The replaced
-  # module path is then not also drawn as an external requirement.
   for rel in "${go_files[@]+"${go_files[@]}"}"; do
     while IFS= read -r rec; do
       [[ "$rec" == replace$'\t'* ]] || continue
@@ -955,9 +907,6 @@ read_go() {
     done <<<"${mod_recs[$rel]}"
   done
 
-  # go.work use lines are membership: modules used by one go.work resolve each
-  # other's module paths. A use line naming no go.mod in the root is unread.
-  # ws_members[go.work] holds one member per line: go.mod<US>use declaration.
   local work
   for work in "${gowork_files[@]+"${gowork_files[@]}"}"; do
     while IFS= read -r rec; do
@@ -980,8 +929,6 @@ read_go() {
     done <<<"$(go_work_records "$root/$work")"
   done
 
-  # Requirements. Internal only through a local replace (above) or a shared
-  # go.work; otherwise the module path is an external package.
   local mod hit hit_decl line
   for rel in "${go_files[@]+"${go_files[@]}"}"; do
     while IFS= read -r rec; do
@@ -1021,8 +968,6 @@ read_python() {
   for rel in "${py_files[@]+"${py_files[@]}"}"; do is_pyproject[$rel]=1; done
   for rel in "${setup_files[@]+"${setup_files[@]}"}"; do is_setup[$rel]=1; done
 
-  # The project a manifest in the same folder belongs to: pyproject.toml, else
-  # setup.py, else the requirements file itself.
   py_owner() {
     local pre
     pre="$(proj_dir_of "$1")"
@@ -1036,7 +981,6 @@ read_python() {
     fi
   }
 
-  # The project a path names: the pyproject.toml, else setup.py, in that folder.
   py_target() {
     local n
     n="$(normalize_within_root "$1" "$2")" || return 1
@@ -1050,7 +994,6 @@ read_python() {
     fi
   }
 
-  # An edge from project $1 for the path $3 written in file $2 as declaration $4.
   py_path_edge() {
     local id
     if id="$(py_target "$(proj_dir_of "$2")" "$3")"; then
@@ -1065,7 +1008,6 @@ read_python() {
     add_edge "$1" "pkg:python:$2" "package" "resolved" "$3: $4"
   }
 
-  # Every manifest folder is one project node; setup.py is reported, not read.
   for rel in "${py_files[@]+"${py_files[@]}"}"; do
     recs[$rel]="$(py_project_records "$root/$rel")"
     add_project_node "$rel" "$(printf '%s\n' "${recs[$rel]}" | record_value name)"
@@ -1078,8 +1020,6 @@ read_python() {
     [[ "$(py_owner "$rel")" == "$rel" ]] && add_node "$rel" "${rel##*/}" "$rel" "project"
   done
 
-  # A named requirement whose entry names a local path is that internal edge
-  # only, not also an external package.
   for rel in "${py_files[@]+"${py_files[@]}"}"; do
     while IFS= read -r rec; do
       IFS=$'\t' read -r kind a b c <<<"$rec"
@@ -1098,15 +1038,10 @@ read_python() {
     done <<<"${recs[$rel]}"
   done
 
-  # [tool.uv.workspace] members name the pyproject.toml files under the
-  # workspace root's folder.
   for rel in "${py_files[@]+"${py_files[@]}"}"; do
     add_member_edges "$rel" "${recs[$rel]}" keep-dot "${py_files[@]}"
   done
 
-  # A requirements file, and the files it includes with -r that sit inside the
-  # root, belong to its folder's project. An include that is missing or leaves
-  # the root is unread.
   py_read_req() {
     local file="$1" owner="$2" inc rec kind a b c
     seen[$file]=1
@@ -1141,8 +1076,6 @@ read_rust() {
 
   for rel in "${cargo_files[@]}"; do is_cargo[$rel]=1; done
 
-  # An edge from project $1 for the path $3 written relative to file $2, with
-  # the citation $4.
   rust_path_edge() {
     local n id
     if n="$(normalize_within_root "$(proj_dir_of "$2")" "$3")" && [[ -n "${is_cargo[${n:+$n/}Cargo.toml]+x}" ]]; then
@@ -1158,14 +1091,11 @@ read_rust() {
     add_edge "$1" "pkg:rust:$2" "package" "resolved" "$3"
   }
 
-  # Every Cargo.toml is one project node; its id is its repo-relative path.
   for rel in "${cargo_files[@]}"; do
     recs[$rel]="$(rust_manifest_records "$root/$rel")"
     add_project_node "$rel" "$(printf '%s\n' "${recs[$rel]}" | record_value name)"
   done
 
-  # Direct dependencies. [workspace.dependencies] entries are kept for the
-  # workspace = true lookup below and draw no edge of their own.
   for rel in "${cargo_files[@]}"; do
     while IFS= read -r rec; do
       IFS=$'\t' read -r kind a b c d <<<"$rec"
@@ -1181,8 +1111,6 @@ read_rust() {
     done <<<"${recs[$rel]}"
   done
 
-  # workspace = true: the entry in the nearest ancestor (or own) Cargo.toml
-  # with a [workspace] table. No entry to resolve it is unread.
   local wroot cur entry
   for rel in "${cargo_files[@]}"; do
     while IFS= read -r rec; do
@@ -1213,8 +1141,6 @@ read_rust() {
     done <<<"${recs[$rel]}"
   done
 
-  # [workspace] members name the Cargo.toml files under the workspace root's
-  # folder; a "." member is the root itself.
   for rel in "${cargo_files[@]}"; do
     [[ -n "${has_ws[$rel]+x}" ]] || continue
     add_member_edges "$rel" "${recs[$rel]}" skip-dot "${cargo_files[@]}"
@@ -1228,8 +1154,6 @@ read_jvm() {
   local -A is_pom=() gnode=() is_settings=()
   local rel dir rec kind a b n cur sdir
 
-  # An edge from project $1 to the Gradle project path $3, resolved from folder
-  # $2, with the citation $4. A path with no leading colon is relative to $2.
   gradle_edge() {
     local p="${3#:}" t
     p="${p//://}"
@@ -1240,8 +1164,6 @@ read_jvm() {
     fi
   }
 
-  # A Gradle project is its folder. Its node is the folder's build file, else
-  # its settings file when the folder has one.
   for rel in "${gradle_files[@]+"${gradle_files[@]}"}"; do
     dir="$(proj_dir_of "$rel")"
     add_project_node "$rel" ""
@@ -1267,8 +1189,6 @@ read_jvm() {
     done < <(jvm_settings_records "$root/$rel")
   done
 
-  # project(':x') resolves from the nearest settings file at or above the
-  # build file; a path with no colon resolves from the build file's folder.
   for rel in "${gradle_files[@]+"${gradle_files[@]}"}"; do
     dir="$(proj_dir_of "$rel")"
     sdir=""
@@ -1298,8 +1218,6 @@ read_jvm() {
     done < <(jvm_build_records "$root/$rel")
   done
 
-  # A pom is a project node named by its artifactId. A <module> is a folder
-  # holding a pom.xml, or a pom file, relative to the aggregating pom.
   for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
     is_pom[$rel]=1
   done
@@ -1368,10 +1286,6 @@ if [[ ${#edge_from[@]} -gt 0 ]]; then
     fi
   done
   if [[ -n "$cycle_feed" ]]; then
-    # Tarjan's strongly connected components, then one shortest witness cycle
-    # through the smallest id of each component with more than one project or a
-    # self-reference. O(projects + edges). The recursion depth is the longest
-    # dependency chain.
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
       json_object id "$line"

@@ -1,8 +1,3 @@
-"""Contract tests for handoff_chain.py: the section-table guards, the move-pointer
-form, the chain walk's link statuses, and retired-id collection. Expected values
-come from reference/structure.md ("Shape 3: hot file and per-hop archive", "Shape 4") and from the
-hand-written fixture files below."""
-
 from __future__ import annotations
 
 import sys

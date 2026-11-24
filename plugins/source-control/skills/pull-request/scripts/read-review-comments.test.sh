@@ -230,10 +230,6 @@ assert_eq "merged order: exit 0" 0 "$RC"
 assert_eq "merged order: the two merged last, newest first" "42 43" \
   "$(grep -o 'pulls/[0-9]*/reviews' "$M/calls.log" | grep -o '[0-9]*' | paste -sd' ')"
 
-# Crowd-out: the 6 most recently updated merged PRs (61-66) are old merges
-# with new activity; the 2 merged last (67, 68) are 7th and 8th by update
-# time. The first read (limit 6) cannot rule out an unread later merge, so the
-# read widens to 12 and picks 68 then 67.
 C="$TEST_TMPDIR/crowd-out"
 mkdir -p "$C"
 cp "$F/repo.json" "$C/"

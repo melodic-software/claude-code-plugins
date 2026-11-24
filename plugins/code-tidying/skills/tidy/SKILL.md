@@ -40,7 +40,7 @@ repository's bound convention home, else `docs/conventions`), the last two from 
 above (`${CLAUDE_SKILL_DIR}/scripts/comment-settings.sh`). `auto` means `necessary`; `strict`, `balanced` and `conservative` read as `explanatory`, `aggressive` as
 `necessary`. An unexpanded or empty `userConfig` value is unset, and any other value outside `auto`,
 `none`, `necessary`, `explanatory` is named with its layer and dropped. The posture decides what
-tidyings #14 and P-5 may add ([reference/tidyings.md](reference/tidyings.md)).
+tidyings Beck 14 and P-5 may add ([reference/tidyings.md](reference/tidyings.md)).
 
 ## Purpose
 
@@ -221,7 +221,7 @@ Examples:
 
 Body facts to supply:
 
-- Which lane, which tidyings, and the anchor commit.
+- Which lane, which tidyings, and the anchor commit. Name a tidying without a bare `#` (`Beck 8, Explaining Variables`), so the number is not [autolinked as an issue or PR reference](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls#issues-and-pull-requests).
 - Verification commands run and their results.
 
 `/source-control:pull-request create` (if enabled) reports the created `<pr_number>`. Immediately post one follow-up comment on that PR with `tidy`'s audit trail:
@@ -230,7 +230,7 @@ Body facts to supply:
 gh pr comment <pr_number> --body-file - <<'EOF'
 ## Tidyings applied
 
-<table: tidying type → file → line range → LOC delta>
+<table: tidying type, no bare `#` → file → line range → LOC delta>
 
 ## Deferred items
 
