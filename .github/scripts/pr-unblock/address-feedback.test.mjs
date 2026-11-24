@@ -2832,6 +2832,8 @@ test("runRecord pins each offered section's text by SHA-256 and never copies the
   assert.deepEqual(run.body_sections, [{ heading: "Verification", sha256: "ec2843419a369ae8ad6942a47380f6d20dce87c1e93570cced345d44df1b384d" }]);
 });
 
+const LINKED_SPEC = async () => [{ number: 7, spec_kind: "closes", source: "issue", body: "Done when the parser exists.", comments: [] }];
+
 test("main select writes the offered sections to the thread file unless pr_body_refresh is false", async (t) => {
   const dir = tempDir("address-feedback-body-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -2841,7 +2843,7 @@ test("main select writes the offered sections to the thread file unless pr_body_
   writeFileSync(pull, JSON.stringify({ number: 42, head: { sha: HEAD }, user: { id: APP, type: "Bot" }, labels: [], body: REFRESH_BODY }));
   const go = async (name, extra, api = fakeApi()) => {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, PULL_FILE: pull, ...extra };
-    await main(["select"], env, { plan: noPlan, api, log: () => {} });
+    await main(["select"], env, { plan: noPlan, api, readSpec: LINKED_SPEC, log: () => {} });
     return [JSON.parse(readFileSync(env.THREAD_FILE, "utf8")), JSON.parse(readFileSync(env.RUN_FILE, "utf8"))];
   };
   const [threads, run] = await go("on", { BODY_SECTIONS: "Verification" });
@@ -2855,6 +2857,35 @@ test("main select writes the offered sections to the thread file unless pr_body_
   }
 });
 
+test("main select leaves the body of a PR that links no issue unrefreshed, as pr-verify reads it as the spec", async (t) => {
+  const dir = tempDir("address-feedback-own-spec-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }, { id: HUMAN, login: "kyle-sexton", kind: "human" }] }));
+  const body = readFileSync(fileURLToPath(new URL("./fixtures/pr-18807-body.txt", import.meta.url)), "utf8");
+  const pull = join(dir, "pull.json");
+  writeFileSync(pull, JSON.stringify({ number: 18807, head: { sha: HEAD }, user: { id: HUMAN, login: "kyle-sexton", type: "User" }, labels: [], body }));
+  const go = async (name, readSpec, extra = {}) => {
+    const logged = [];
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "18807", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, PULL_FILE: pull, ...extra };
+    await main(["select"], env, { plan: noPlan, api: fakeApi(), readSpec, log: (line) => logged.push(line) });
+    return [JSON.parse(readFileSync(env.THREAD_FILE, "utf8")), JSON.parse(readFileSync(env.RUN_FILE, "utf8")), logged];
+  };
+  const [ownThreads, ownRun, ownLog] = await go("own-spec", async () => []);
+  assert.equal("body_sections" in ownThreads, false, "PR 18807's owner body, which the lanes App rewrote at 18:05Z before pr-verify failed with no trusted spec, offers no section");
+  assert.equal("body_sections" in ownRun, false, "run.json offers none, so the reply job has no section to PATCH");
+  assert.ok(ownLog.some((line) => line.startsWith("body refresh skipped:")), "the round logs why it skipped the refresh");
+  const [linkedThreads, linkedRun] = await go("linked", LINKED_SPEC);
+  const headings = linkedThreads.body_sections.map((section) => section.heading);
+  for (const heading of ["Fix", "Verification"]) {
+    assert.ok(headings.includes(heading), `the same body under a closing issue still offers ${heading}, a section the lanes App rewrote on PR 18807`);
+  }
+  assert.deepEqual(linkedRun.body_sections.map((section) => section.heading), headings);
+  const [offThreads, offRun] = await go("off", LINKED_SPEC, { BODY_REFRESH: "false" });
+  assert.equal("body_sections" in offThreads, false, "pr_body_refresh false still turns the refresh off");
+  assert.equal("body_sections" in offRun, false);
+});
+
 test("main select shows every ## section in body_view, a Summary over the refresh cap included, and offers only the rewritable ones", async (t) => {
   const dir = tempDir("address-feedback-view-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -2862,12 +2893,12 @@ test("main select shows every ## section in body_view, a Summary over the refres
   writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }, { id: HUMAN, login: "kyle-sexton", kind: "human" }] }));
   const summary = "s".repeat(4809);
   const long = "x".repeat(9000);
-  const body = `No related issue: a test\n\n## Summary\n\n${summary}\n\n## Fix\n\nShort fix.\n\n## Verification\n\nRan the suite.\n\n## Notes\n\n${long}\n\n## Related\n\nNone.\n`;
+  const body = `Closes #7\n\n## Summary\n\n${summary}\n\n## Fix\n\nShort fix.\n\n## Verification\n\nRan the suite.\n\n## Notes\n\n${long}\n\n## Related\n\nNone.\n`;
   const pull = join(dir, "pull.json");
   writeFileSync(pull, JSON.stringify({ number: 42, head: { sha: HEAD }, user: { id: APP, type: "Bot" }, labels: [], body }));
   const go = async (name, extra) => {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, PULL_FILE: pull, ...extra };
-    await main(["select"], env, { plan: noPlan, api: fakeApi(), log: () => {} });
+    await main(["select"], env, { plan: noPlan, api: fakeApi(), readSpec: LINKED_SPEC, log: () => {} });
     return [JSON.parse(readFileSync(env.THREAD_FILE, "utf8")), JSON.parse(readFileSync(env.RUN_FILE, "utf8"))];
   };
   const [threads, run] = await go("on", {});
