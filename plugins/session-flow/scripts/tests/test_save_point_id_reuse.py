@@ -1,4 +1,4 @@
-"""Contract tests for the `id_reuse` check (PLAN.md AC2): a handoff file stamped
+"""Contract tests for the `id_reuse` check (PLAN.md AC2): a hot file stamped
 `checks: 3` or higher that reuses an id retired anywhere earlier in its chain for a
 different entry fails `validate`. Expected values come from AC2's wording and the
 Design's check rules: same id with different text fails, same text does not, and an

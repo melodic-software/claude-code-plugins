@@ -1,7 +1,7 @@
 """Contract tests for reading a chain's journey: retro gets
 every hop's Direction changes, This session and Observations from a shape-4 chain
-whose sections moved to archive files, and a finished chain shrunk by `clean --apply`
-keeps its newest handoff file, every archive file and every shape-2 handoff file, so every
+whose sections moved to hop files, and a finished chain shrunk by `clean --apply`
+keeps its newest hot file, every hop file and every shape-2 hot file, so every
 session id comes back.
 Expected values are the per-hop slot values `shape4_chain.hop_values` writes."""
 
@@ -71,8 +71,8 @@ def test_chain_from_output_carries_the_journey(tmp_path):
 
 
 def shrink(tmp_path: Path, paths: list[Path]) -> subprocess.CompletedProcess[str]:
-    """Close the chain at its newest handoff file, age every file past the window,
-    give each handoff file a merged PR, and run `clean --apply`."""
+    """Close the chain at its newest hot file, age every file past the window,
+    give each hot file a merged PR, and run `clean --apply`."""
     edit(paths[-1], "Next:\nDo the next thing\n", f"{CLOSED}\n")
     stamp = 1_700_000_000
     for path in paths:
@@ -119,8 +119,8 @@ def test_a_shrunk_finished_chain_gives_back_every_session_id(tmp_path):
 
 
 def test_a_shrunk_2_to_3_to_4_chain_keeps_its_shape2_hot_files(tmp_path):
-    """No archive file holds a shape-2 hop's sections, so the shrink keeps every
-    shape-2 handoff file and the journey still reaches each session id."""
+    """No hop file holds a shape-2 hop's sections, so the shrink keeps every
+    shape-2 hot file and the journey still reaches each session id."""
     from test_save_point import model_fill
     from test_save_point_shape4_writer import hop, new
 
