@@ -13,7 +13,6 @@ const SWITCHES = ['tv', 'tape', 'console', 'pc', 'light', 'lamp', 'lava'] as con
 const SETTLE_MS = 7000
 const STATUS = 'on: tv, pc. off: tape, console, light, lamp, lava. posters: plain. dim: 0'
 
-/** Hooks that stand for the engine beneath the plugin. Answers the session's surfaces, records each placed row's id and each theme call. */
 function engine(on: On, surfaces: readonly ('terminal' | 'desktop')[], placed: string[], themeCalls: string[] = [], registered: string[] = []): MockClock {
   on('command.register', (_, e) => {
     registered.push(e.name)
@@ -70,22 +69,18 @@ const BACKDROP = {
   props: { plugin: 'themes', scene: 'bedroom', glass: { blur: 0, opacity: 0 } },
 } as const
 
-/** The room drawn with every switch as it stands, as the mod draws it with no shader. */
 function wholeRoom(state: Partial<State>, dim: number, titles: State['titles'] = {}): string {
   return bedroomSvg({ ...DEFAULT_STATE, ...state, titles }, dim)
 }
 
-/** The room the shader runs over: the ceiling light on, the things the shader draws as it expects them. */
 function shaderRoom(dim: number, titles: State['titles'] = {}): string {
   return bedroomSvg({ ...DEFAULT_STATE, tv: true, lava: false, pc: true, lamp: false, tape: false, console: false, light: true, titles, underShader: true }, dim)
 }
 
-/** Shows the four title fields, behind the card's titles button. */
 async function showTitles(ui: { find: (q: { key: string }) => Promise<unknown>; press: (q: { key: string }) => Promise<unknown> }): Promise<void> {
   if ((await ui.find({ key: 'title-console' })) === undefined) await ui.press({ key: 'titles' })
 }
 
-/** How many times the room has been sent, from /bedroom stats. */
 async function roomSends($: Engine): Promise<number> {
   return Number(/room sent: (\d+)/.exec(await bedroom($, 'stats'))?.[1])
 }
@@ -121,11 +116,6 @@ test('/bedroom alone keeps its answer and shows a card listing every switch with
   await ui.unmount()
 })
 
-/**
- * A row's width in the app, in px, estimated from the owner's screenshot of the card at about 1,130 px: a button is 30 px
- * and 8.5 px a character ("console: off" 135 px, "reset" 73 px), a text 8.5 px a character, 14 px between items and 40
- * px between groups. The card's rows have 1,105 px inside its border.
- */
 function widthOf(row: unknown): number {
   let px = 0
   let items = 0
@@ -159,10 +149,6 @@ function widthOf(row: unknown): number {
   return px + 14 * Math.max(0, items - 1) + 26 * groups
 }
 const INSIDE_PX = 1105
-/**
- * A title field's width: its label above or beside a text box that holds its longest title at 8.5 px a character with
- * 24 px of padding, and its submit button as any button (30 px and 8.5 px a character), 14 px apart.
- */
 const fieldPx = (label: number, longest: number, submit: number): number => 8.5 * label + 14 + (24 + 8.5 * longest) + 14 + (30 + 8.5 * submit)
 
 test('the card is six rows with titles or the sound bank open: no row or field wider than the card, the time from earliest to latest, no shader button', { timeoutMs: CARD_START_MS }, async ($, on) => {

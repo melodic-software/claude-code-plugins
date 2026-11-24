@@ -355,7 +355,6 @@ judge::stale() {
   local pid="" host="" start=""
   [[ -e "$1" ]] || return 0
   read -r pid host start <"$1" 2>/dev/null
-  # Empty: its writer is between create and write, unless it is minutes old.
   [[ -n "$pid" ]] || {
     [[ -n "$(find "$1" -mmin +3 2>/dev/null)" ]]
     return
@@ -747,8 +746,6 @@ judge::run() {
   n=0
   while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
   budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
-  # The file as the judge reads it, kept under its blob id, so a quote can be
-  # told stale (the file changed since) from made up.
   blob=""
   if [[ -n "$repo" ]]; then
     blob="$(unset GIT_DIR GIT_WORK_TREE && git -C "$repo" hash-object --no-filters -- "$file" 2>/dev/null)"
@@ -756,7 +753,6 @@ judge::run() {
     if [[ ! "$blob" =~ ^[0-9a-f]{40,64}$ ]]; then
       blob=""
     elif [[ -f "$dir/blob-$blob" ]]; then
-      # A newer verdict names it: the 7-day prune goes by mtime.
       touch -- "$dir/blob-$blob" 2>/dev/null
     else
       cp -- "$file" "$dir/.blob-$blob.$BASHPID" 2>/dev/null && mv -f -- "$dir/.blob-$blob.$BASHPID" "$dir/blob-$blob" || blob=""
@@ -790,7 +786,7 @@ judge::run() {
       judge::release_run "$res"
       return 0
     }
-    res="" # the judge starts: the run's reservation is kept
+    res=""
     # The repository is the run's working directory, where reads need no
     # rule; the absolute rule states the same scope. Not --add-dir: that
     # would repeat the working directory, and an added directory also loads
@@ -807,8 +803,6 @@ judge::run() {
     grep -q '"error_max_budget_usd"' "$raw" 2>/dev/null && judge::log "malfunction: judge run on $file hit its \$$budget budget"
     denied="$(jq -r 'objects | .permission_denials | arrays | select(length > 0)
       | [.[] | (objects | .tool_name | strings) // "a tool"] | unique | join(", ")' "$raw" 2>/dev/null)"
-    # A run cut at its bound gives no verdict, even if it printed one after
-    # the watchdog killed its tools: that answer was made without them.
     if ((rc > 128)); then
       rc="judge timed out after $t s"
     else
@@ -878,10 +872,6 @@ judge::comment_only() {
       if [[ -z "$body" ]]; then
         comment=1
       elif [[ "$style" == slash ]]; then
-        # The /* */ state follows the new file (context and added lines),
-        # opened only by a line that starts with /* and does not close it.
-        # Inside it, a `* text` margin or a line ending the block is a
-        # comment; a /* ... */ line is one only when nothing follows `*/`.
         if ((open)) && [[ "$body" == *\*/* ]]; then
           rest="${body#*\*/}"
           [[ -z "${rest//[[:space:]]/}" ]] && comment=1
@@ -901,10 +891,6 @@ judge::comment_only() {
           fi
         fi
       elif [[ "$style" == powershell ]]; then
-        # <# #> follows the new file the same way; every new-file line inside
-        # it is a comment, and the closing line is one when nothing follows
-        # `#>`. A removed line inside it is code: the state says nothing about
-        # the old file.
         if ((open)) && [[ "$body" == *'#>'* ]]; then
           rest="${body#*'#>'}"
           [[ -z "${rest//[[:space:]]/}" ]] && comment=1
@@ -1004,7 +990,7 @@ judge::validate() {
   elif [[ "$GROUND" == stale ]]; then
     why="the test file changed after the judge read it: a quoted line is no longer in it" kind=stale
   elif [[ "$verdict" == FLAG && -z "$diff" && "$reused" == reused ]]; then
-    : # a FLAG copied from an identical body's validated FLAG: its diff passed there
+    :
   elif [[ "$verdict" == FLAG && -z "$diff" ]]; then
     why="the FLAG proposes no diff" kind=no-diff
   elif [[ "$verdict" == FLAG && -z "$repo" ]]; then
@@ -1023,7 +1009,6 @@ judge::validate() {
   fi
   if [[ -n "$why" ]]; then
     verdict=UNKNOWN
-    # Only the reason is shown: the evidence, source and diff failed.
     json="$(jq -c --arg why "$why" --arg kind "$kind" --arg origin "$origin" '.verdict = "UNKNOWN" | .reason = $why
       | .reason_kind = $kind | .origin = $origin | .evidence = [] | .source = "" | .diff = ""' <<<"$json")" || return 0
   fi

@@ -6,7 +6,6 @@ block_model: indent
 files: ['test_*.py', '*_test.py']
 test_start:
   - '^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+test[A-Za-z0-9_]*[[:space:]]*\('
-# Decorators on the lines above a test_start.
 test_skip:
   - '^[[:space:]]*@[[:space:]]*(pytest[[:space:]]*\.[[:space:]]*mark[[:space:]]*\.[[:space:]]*)?skip(if)?([^A-Za-z0-9_]|$)'
   - '^[[:space:]]*@[[:space:]]*unittest[[:space:]]*\.[[:space:]]*skip'
@@ -26,9 +25,6 @@ assertion:
   # Mock, which is truthy and asserts nothing.
   inert:
     - '[A-Za-z_][A-Za-z0-9_.]*\.[[:space:]]*called(_once)?_with[[:space:]]*\('
-  # Not None, and a raises that accepts any exception: Exception or
-  # BaseException with no match=. The fix names the error type callers branch
-  # on; a match= on the message is a contract only where something reads it.
   weak:
     - 'assert[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*(\([^()]*\))?[[:space:]]+is[[:space:]]+not[[:space:]]+None[[:space:]]*$'
     - 'pytest[[:space:]]*\.[[:space:]]*raises[[:space:]]*\([[:space:]]*(Exception|BaseException)[[:space:]]*\)'
@@ -56,19 +52,13 @@ mock:
     - 'call_count'
     - 'mock_calls'
     - '\.called([^A-Za-z0-9_]|$)'
-  # Second entry: an assert statement WHOSE SUBJECT is a mock property. The
-  # property tokens carry word-boundary guards so a real attribute that merely
-  # contains one (result.called_back) is never stripped.
   strip:
     - '\.assert_(called|any_call|has_calls|not_called|awaited)[a-z_]*[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
     - 'assert[[:space:]][^\n]*([^A-Za-z0-9_](call_count|mock_calls)([^A-Za-z0-9_]|$)|\.called([^A-Za-z0-9_]|$))[^\n]*'
-# syrupy's snapshot fixture, and snapshottest's assertMatchSnapshot.
 snapshot:
   - 'assert[[:space:]].*==[[:space:]]*snapshot([[:space:]]*\([^()]*\))?[[:space:]]*$'
   - 'assert[[:space:]]+snapshot([[:space:]]*\([^()]*\))?[[:space:]]*==.*$'
   - '(self[[:space:]]*\.[[:space:]]*)?assertMatchSnapshot[[:space:]]*\('
-# Hypothesis: the expected value is derived from generated inputs on purpose.
-# py-unittest inherits this list. @given exempts only the test it decorates.
 property_markers:
   - '@[[:space:]]*(hypothesis[[:space:]]*\.[[:space:]]*)?given[[:space:]]*\('
 equality:

@@ -292,7 +292,6 @@ MASK_AWK="$SCRIPT_DIR/mask-js.awk"
 CONFIG_AWK="$SCRIPT_DIR/runner-config-scan.awk"
 RETRY_AWK="$SCRIPT_DIR/retry-config-scan.awk"
 require_readable() {
-  # require_readable <path> <what it is>
   [[ -r "$1" ]] && return 0
   printf 'ERROR: %s not found: %s\n' "$2" "$1" >&2
   exit 2
@@ -355,8 +354,6 @@ if [[ ! -d "$ROOT" ]]; then
   exit 2
 fi
 
-# One temporary directory holds every scratch file: each mktemp is a process.
-# The parallel engine's numbered records share it, beside these named files.
 SCRATCH="$(mktemp -d)" || {
   printf 'ERROR: could not create a temporary directory; refusing to scan.\n' >&2
   exit 2
@@ -383,13 +380,6 @@ REPO_PREFIX=""
 TOP="${TOP//$'\r'/}"
 REPO_PREFIX="${REPO_PREFIX//$'\r'/}"
 
-# --- Config -------------------------------------------------------------------
-# The testing config, resolved by scripts/resolve-config.sh. With no layer
-# file present nothing below runs, so a repository without one pays five file
-# tests. Removals (adapters.disable, paths.exclude, rules off) apply here, so
-# every caller of this script goes silent with no plugin change.
-# The team and local layers are the scanned repository's own, so a file in a
-# sibling worktree gets that worktree's config.
 CFG_ROOT="${TOP:-${CLAUDE_PROJECT_DIR:-$ROOT}}"
 tc_layers=0 tc_read=0
 for f in ${HOME:+"$HOME/.claude/testing.yaml"} "$CFG_ROOT/docs/conventions/testing.yaml" "$CFG_ROOT/docs/conventions/testing.md" \
@@ -447,21 +437,14 @@ if ((tc_layers)); then
     esac
   done <<<"$tc_out"
 fi
-# adapter_on <id>: disable wins; a non-empty enable list is an allowlist.
 adapter_on() {
   [[ -z "${tc_off[$1]:-}" ]] && [[ ${#tc_enable[@]} -eq 0 || -n "${tc_on[$1]:-}" ]]
 }
 
-# --- Adapters -----------------------------------------------------------------
-# Every adapter is validated up front: a malformed one refuses the whole run
-# (exit 2), never a per-file engine error the aggregate could absorb.
 if ! awk -v EXTEND="$EXTEND_FILE" -f "$LOADER" "$ADAPTER_DIR"/*.yaml ${tc_extra[@]+"${tc_extra[@]}"} >"$ADAPTER_TABLE"; then
   printf 'ERROR: adapter load failed (see above); refusing to scan.\n' >&2
   exit 2
 fi
-# A disabled adapter still loads and still claims files: pick_adapter runs over
-# every adapter, and a file whose winner is off is not scanned, rather than
-# handed to a sibling that also matches its name (js-jest for a Vitest file).
 adapter_ids=()
 declare -A a_lang=() a_globs=() a_cglobs=() a_cregex=() a_detect=() a_advisory=()
 all_globs=()
@@ -484,15 +467,12 @@ while IFS=$'\t' read -r id key val; do
   esac
 done <"$ADAPTER_TABLE"
 
-# regex_args <newline-separated EREs>: sets PATS to grep's -e arguments.
 regex_args() {
   local re
   PATS=()
   while IFS= read -r re; do [[ -n "$re" ]] && PATS+=(-e "$re"); done <<<"$1"
 }
 
-# claims <id> <file>: a files: glob of <id> names the file, or a
-# claim_by_content.files glob does and the content matches its any_regex.
 claims() {
   local base="${2##*/}" glob
   while IFS= read -r glob; do
@@ -510,16 +490,10 @@ claims() {
   return 1
 }
 
-# pick_adapter <file>: the adapter claiming <file>; among several, the first in
-# load order whose detect.any_regex matches the content, else the first in load
-# order with no detect list, else the first in load order, set in PICKED (no
-# command substitution, so no subshell per file); empty when none claims it.
 pick_adapter() {
   local id first="" first_detects=""
   for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
     claims "$id" "$1" || continue
-    # The fallback is the first claimant with no detect list (the default
-    # for its language, as cs-xunit is), else the first claimant.
     if [[ -z "$first" || (-n "$first_detects" && -z "${a_detect[$id]:-}") ]]; then
       first="$id"
       first_detects="${a_detect[$id]:-}"
@@ -533,13 +507,6 @@ pick_adapter() {
   PICKED="$first"
 }
 
-# --- Walk ---------------------------------------------------------------------
-# Pruned: VCS/dependency/build trees, memory tiers, and evals/fixtures corpora
-# (a detector's fixture corpus is deliberately defective test code; scanning it
-# reports planted defects as the consumer's own). With --file the walk starts
-# at that one file, so the prune never applies and only its name is tested.
-# A leading -print or -print0 leaves the walk unsorted, for a caller that sorts
-# what it reads from it anyway; -print0 feeds xargs with no tr stage.
 collect_files() {
   local prune=(\( -name .git -o -name node_modules -o -name vendor -o -name dist
     -o -name build -o -name out -o -name obj -o -name bin -o -name target
@@ -554,10 +521,6 @@ collect_files() {
   find "${FILE:-$ROOT}" "${prune[@]}" -o -type f \( "$@" \) -print 2>>"$WALK_ERR" | sort
 }
 
-# The walk takes the union of every adapter's files: globs, plus the files
-# content_files claims. Each file is then bucketed by its adapter's language,
-# and the buckets scan in the fixed order js, python, cs, bash, pwsh, go, so
-# finding order does not depend on adapter file names.
 name_args=()
 declare -A glob_seen=()
 for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
@@ -570,9 +533,6 @@ for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
 done
 [[ ${#name_args[@]} -gt 0 ]] || name_args=(-name '')
 
-# content_files: files a claim_by_content.files glob names whose content
-# matches that adapter's any_regex. Adapters sharing both lists (cs-nunit
-# inherits cs-xunit's) walk once.
 content_files() {
   local id glob args key
   local -A walked=()
@@ -590,9 +550,6 @@ content_files() {
   done
 }
 
-# include_files: files under the root that a paths.include glob names, walked
-# past the prunes above (only .git and node_modules stay pruned); each still
-# needs an adapter to claim it.
 # ponytail: walks the whole root per run when include is set; walk each glob's
 # literal leading directory instead if that shows up in a large tree.
 include_files() {
@@ -609,7 +566,6 @@ include_files() {
   done < <(find "$ROOT" \( -name .git -o -name node_modules \) -prune -o -type f -print 2>>"$WALK_ERR")
 }
 
-# excluded <file>: a paths.exclude glob names its repo-relative path.
 excluded() {
   local rel="$REPO_PREFIX${1#"$ROOT"/}" re
   for re in ${tc_exclude_re[@]+"${tc_exclude_re[@]}"}; do
@@ -667,9 +623,6 @@ done < <(
   include_files
 )
 
-# --- Inventory ----------------------------------------------------------------
-# The texts are judged with the --file path's adapter; the path itself decided
-# exclusion and adapter choice above, so a fragment needs no git root or import.
 if [[ "$mode" == inventory ]]; then
   for key in "${!rule_level[@]}"; do printf 'rule\t%s\t%s\n' "$key" "${rule_level[$key]}"; done
   id="${file_adapter[$FILE]:-}"
@@ -718,7 +671,6 @@ if [[ -z "$LINES" ]]; then
     xargs -0 -r grep -lE 'retryTimes' -- 2>/dev/null | sort)
 fi
 
-# --- Denominator --------------------------------------------------------------
 enum_js="${#js_files[@]}"
 enum_py="${#py_files[@]}"
 enum_cs="${#cs_files[@]}"
@@ -735,8 +687,6 @@ cfg_examined=0
 cfg_shadowed=0
 cfg_unparsed=0
 cfg_unreadable=0
-# Retry settings: per runner, configs enumerated, examined and shadowed; Jest
-# files read. Their findings share rule-flaky-passes-suite, counted apart.
 rc_py_enum=0
 rc_py_exam=0
 rc_py_shadow=0
@@ -749,7 +699,6 @@ n_rcfg=0
 x_rcfg=0
 d_rcfg=0
 
-# Findings: parallel arrays, file order.
 f_rule=()
 f_loc=()
 f_detail=()
@@ -766,8 +715,6 @@ x_cfg1=0
 x_cfg2=0
 d_cfg1=0
 d_cfg2=0
-# Report-only rules: counted, printed, never in gating, advisory or n_adv;
-# n_ca (conditional-assertion) and n_ia (inert-assertion) gate as n_cf1 does.
 n_ia=0
 n_cr=0
 n_st=0
@@ -777,11 +724,6 @@ n_so=0
 n_wo=0
 n_to=0
 
-# source_target <test file> <path>: the repo-relative path <path> names when
-# resolved against the test file's directory, then the repository root, and
-# only when it is a git-tracked file with a source extension that no adapter
-# claims as a test file. Prints nothing otherwise: the engine cannot see git,
-# so this is where a candidate read becomes a finding or is dropped.
 SOURCE_EXT_RE='\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|cs|razor|go|sh|bash|ps1|psm1|vue|svelte)$'
 source_target() {
   local file="$1" path="$2" cand dir rel glob top
@@ -827,15 +769,11 @@ rule_override() {
 }
 
 engine() {
-  # engine <file>: the per-file rule engine's records for <file>.
   awk -v ADAPTER="${file_adapter[$1]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v SCOPE="$LINES" -v BLOCKS="$list_blocks" \
     -f "$MASK_AWK" -f "$AWK_PROG" "$1"
 }
 
 engine_records() {
-  # engine_records <file> <scan index>: the records the parallel pass left for
-  # the file, else the engine's run now. A missing result is logged, so the
-  # scan fails closed instead of reading it as a file with no findings.
   if [[ -z "$ENGINE_DIR" ]]; then
     engine "$1" 2>>"$WALK_ERR"
   elif [[ -f "$ENGINE_DIR/$2" ]]; then
@@ -847,7 +785,6 @@ engine_records() {
 }
 
 scan_one() {
-  # scan_one <file> <scan index>
   local file="$1" rel kind slug line detail target gates
   rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
@@ -895,7 +832,6 @@ scan_one() {
       throw-only-oracle) n_to=$((n_to + 1)) ;;
       *) printf 'engine drift: unknown finding rule %s\n' "$slug" >>"$WALK_ERR" ;;
       esac
-      # An advisory adapter's findings of the four gating rules stay out of the gate.
       case "$slug" in
       zero-assertion | recomputed-expectation | conditional-assertion | inert-assertion) [[ -n "${a_advisory[${file_adapter[$file]}]:-}" ]] && n_adv=$((n_adv + 1)) ;;
       *) ;;
@@ -905,9 +841,6 @@ scan_one() {
       exempted=$((exempted + 1))
       case "$slug" in
       zero-assertion) x_cf1=$((x_cf1 + 1)) ;;
-      # Recognized, no per-rule tally: nothing consumes an exempt count for the
-      # line-scoped rules — x_cf1/x_cf3 feed the block-rule fired/declined math
-      # below, and the aggregate `exempted` above already counted this record.
       recomputed-expectation | inert-assertion | constant-restatement | source-text-read | conditional-assertion | recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle) ;;
       mock-only-oracle) x_cf3=$((x_cf3 + 1)) ;;
       *) printf 'engine drift: unknown exempt rule %s\n' "$slug" >>"$WALK_ERR" ;;
@@ -920,14 +853,9 @@ scan_one() {
 }
 
 scan_config() {
-  # scan_config <playwright config file>
   local file="$1" rel kind slug line detail
   rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
-    # Counted against the CONFIG denominator, never the test-file one: the
-    # test-file counters and their messages speak only about test files. The
-    # logged line keeps the run fail-closed through walk_errors, because an
-    # enumerated input the scan could not read is never a clean one.
     cfg_unreadable=$((cfg_unreadable + 1))
     printf 'unreadable playwright config: %s\n' "$rel" >>"$WALK_ERR"
     return 0
@@ -935,9 +863,6 @@ scan_config() {
   while IFS=$'\t' read -r kind slug line detail; do
     case "$kind" in
     C)
-      # An unanchorable config is a coverage boundary, not a rule decline: it is
-      # counted as enumerated and not examined, the same statement the test-file
-      # denominator makes about a file of another ecosystem.
       if [[ "$slug" == "1" ]]; then
         cfg_examined=$((cfg_examined + 1))
       else
@@ -995,8 +920,6 @@ if [[ "$max_jobs" -gt 1 ]]; then
       wait -n
       running=$((running - 1))
     fi
-    # The rename marks a finished engine run, whatever its exit status, as the
-    # serial run reads the records either way; a file without one is logged.
     { engine "$f" >"$ENGINE_DIR/$i.part" 2>"$ENGINE_DIR/$i.err"; mv "$ENGINE_DIR/$i.part" "$ENGINE_DIR/$i"; } &
     running=$((running + 1))
   done
@@ -1030,12 +953,9 @@ for d in ${cfg_dirs[@]+"${cfg_dirs[@]}"}; do
 done
 
 scan_retry() {
-  # scan_retry <pytest|vitest|jest> <file>
   local kind="$1" file="$2" rel rec slug line detail
   rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
-    # Logged, so the run stays fail-closed through walk_errors, and counted in
-    # the retry-settings denominator, never as an unreadable test file.
     rc_unreadable=$((rc_unreadable + 1))
     printf 'unreadable %s retry setting file: %s\n' "$kind" "$rel" >>"$WALK_ERR"
     return 0
@@ -1133,7 +1053,6 @@ walk_errors=0
 while IFS= read -r err_line || [[ -n "$err_line" ]]; do
   [[ "$err_line" == *[!$' \t']* ]] && walk_errors=$((walk_errors + 1))
 done <"$WALK_ERR"
-# read_gap: some input the scan enumerated was not fully read.
 read_gap() {
   ((unreadable > 0 || cfg_unreadable > 0 || walk_errors > 0))
 }
@@ -1147,8 +1066,6 @@ rule_id() {
 }
 
 threshold_of() {
-  # threshold_of <slug> [<lexer language>]: the retry settings of the other
-  # runners share flaky-passes-suite and state their own condition.
   case "$1:${2:-}" in
   flaky-passes-suite:config-pytest) printf 'threshold: --reruns, --force-reruns or reruns > 0 or not an integer, --fail-on-flaky absent from addopts' ;;
   flaky-passes-suite:config-vitest) printf 'threshold: retry or retry.count under a test key > 0 or an expression; Vitest has no fail-on-flaky option' ;;
@@ -1171,10 +1088,6 @@ threshold_of() {
 }
 
 action_of() {
-  # action_of <slug> <lexer language>. Repair, not pruning — every Action
-  # proposes an assertion, never a deletion. The inert-assertion remedy is
-  # scoped to the language it fires in: "await" means nothing to a Python
-  # tuple, and "assert_*" nothing to a Playwright matcher.
   case "$1:${2:-}" in
   inert-assertion:js)
     printf 'Make the assertion evaluate: await (or return) the async matcher so it settles before the test ends, and call a matcher on every expect(...).'
@@ -1236,7 +1149,6 @@ action_of() {
   throw-only-oracle:*)
     printf 'Assert what the constructed value should hold (a property the constructor sets, a result its first call returns) instead of only that it exists. A smoke test kept to prove construction or wiring succeeds records that with a cant-fail-ok: <why> annotation.'
     ;;
-  # inert-assertion in a language with no remedy above has no Action.
   inert-assertion:*) ;;
   zero-assertion:*)
     printf 'Add an assertion on the observable behavior this test exercises.'
@@ -1263,19 +1175,6 @@ action_of() {
 }
 
 confidence_of() {
-  # zero-assertion / recomputed-expectation / inert-assertion: the fired
-  # condition IS the defect —
-  # confidence-of-realness is high. mock-only-oracle: the pattern is certain but
-  # its defect-hood is not (interaction-style tests are legitimate), so the
-  # field is omitted per the contract's high-or-omitted rule — never 'low'.
-  # The two config rules omit it for the same reason: the configuration state is
-  # read exactly, but whether it is a defect is a team policy call (a team may
-  # accept flaky tolerance, or trust review to catch a committed .only).
-  # constant-restatement and source-text-read omit it too: a contract constant
-  # or a codegen test is the known benign case. So do the five heuristic rules:
-  # an if whose branch always runs, a derivation checked on purpose, a reviewed
-  # snapshot, a null check that is the contract and a smoke test kept to prove
-  # wiring are benign cases the text cannot tell apart.
   case "$1" in
   zero-assertion | recomputed-expectation | inert-assertion) printf 'high' ;;
   *) ;;
@@ -1283,10 +1182,6 @@ confidence_of() {
 }
 
 tier_of() {
-  # The two change-detector rules flag tests that CAN fail, on a harmless
-  # change, and a derived expectation, a snapshot, a weak oracle or a throwing
-  # constructor can fail too, so all six sit below the can't-fail rules
-  # (detector-findings crosswalk).
   case "$1" in
   constant-restatement | source-text-read | recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle) printf 'SUGGESTION' ;;
   *) printf 'IMPORTANT' ;;
@@ -1356,19 +1251,12 @@ coverage_block() {
 }
 
 config_findings_note() {
-  # Appended to the two 0-examined-test-files refusals. Config findings are
-  # reported wherever they are found, but a config file is not a test file:
-  # without an examined test file the run has no test denominator, so the
-  # findings are named rather than gated or persisted.
   if [[ "$cfg_findings" -gt 0 ]]; then
     printf ' (%d config finding(s) were reported; they are not gated or persisted without an examined test file)' "$cfg_findings"
   fi
 }
 
 advisory_note() {
-  # Printed only when the gate is not strict. One switch escalates
-  # mock-only-oracle and both config rules together, so the note counts them
-  # apart and names the switch.
   if [[ "$strict" -eq 0 && "$advisory" -gt 0 ]]; then
     local ids
     ids="$(printf '%s\n' "${!a_advisory[@]}" | sort | paste -sd, - | sed 's/,/, /g')"
@@ -1376,7 +1264,6 @@ advisory_note() {
       "$advisory" "$n_cf3" "$((n_cfg1 + n_cfg2))" "$ids" "$n_adv" \
       "$( ((n_rcfg)) && printf ', pytest/vitest/jest retry settings %d' "$n_rcfg")"
   fi
-  # A rule raised to error in the testing config gates, so it is not listed.
   local pair n=0 list=""
   for pair in "constant-restatement $n_cr" "source-text-read $n_st" \
     "recomputed-derived $n_rd" "snapshot-only $n_so" "weak-oracle $n_wo" "throw-only-oracle $n_to"; do
@@ -1389,11 +1276,6 @@ advisory_note() {
   fi
 }
 
-# --- Project context ----------------------------------------------------------
-# Each C# finding names its owning test project (the nearest .csproj above the
-# file), whether a repository workflow's `dotnet test` or `dotnet build` targets
-# it, and a project kind. All of it is read from files; no project is ever built
-# or run. Anything the evidence does not settle is `unknown`, never a guess.
 PJ_BASE="${TOP:-$ROOT}"
 f_proj=()
 f_ci=()
@@ -1407,7 +1289,6 @@ wf_unsure=0
 wf_targets=()
 declare -A pj_ci=() pj_kind=()
 
-# norm_path <path>: set NP to it with / separators and no ., .. or empty segment.
 norm_path() {
   local p="${1//\\//}" seg segs out=() IFS=/
   read -r -a segs <<<"$p"
@@ -1486,7 +1367,6 @@ load_workflows() {
   done
 }
 
-# sln_has <solution> <project>: true when the solution lists the project.
 sln_has() {
   local f="$1" proj="$2" d="" m pat='"[^"]+\.csproj"'
   if [[ "$f" == */* ]]; then d="${f%/*}"; fi
@@ -1500,7 +1380,6 @@ sln_has() {
   return 1
 }
 
-# ci_of <project>: set CI_R to yes, no or unknown.
 ci_of() {
   local proj="$1" t kind path f any
   load_workflows
@@ -1539,9 +1418,6 @@ ci_of() {
   fi
 }
 
-# kind_of_project <project>: set KIND_R. A project_kinds override wins; else the
-# kinds named by the project's name tokens and package references must agree,
-# except that operational, then live, win a disagreement so a warning is not lost.
 kind_of_project() {
   local proj="$1" i toks tk ks=() k pf="$PJ_BASE/$1"
   for i in ${tc_pk_re[@]+"${!tc_pk_re[@]}"}; do
@@ -1551,7 +1427,6 @@ kind_of_project() {
     fi
   done
   toks=" $(sed -E 's/([a-z0-9])([A-Z])/\1.\2/g' <<<"${proj%.csproj}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n' ' ') "
-  # <name token>=<kind>, in the order the kinds are collected.
   for tk in unit=unit integration=integration smoke=live functional=functional \
     architecture=architecture provisioning=operational; do
     [[ "$toks" == *" ${tk%=*} "* ]] && ks+=("${tk#*=}")
@@ -1577,8 +1452,6 @@ kind_of_project() {
   KIND_R="${ks[0]}"
 }
 
-# resolve_contexts: fill f_proj, f_ci and f_kind per finding, and f_order, the
-# emission order: findings in CI-run unit projects first, the rest as found.
 resolve_contexts() {
   ((f_ctx_done)) && return 0
   f_ctx_done=1
@@ -1620,8 +1493,6 @@ resolve_contexts() {
   f_order=(${first[@]+"${first[@]}"} ${rest[@]+"${rest[@]}"})
 }
 
-# ctx_text <i>: the project, CI and kind of finding <i>, with a warning for a
-# project of kind operational or live.
 ctx_text() {
   local i="$1"
   printf '[project: %s; ci: %s; kind: %s]' "${f_proj[$i]}" "${f_ci[$i]}" "${f_kind[$i]}"
@@ -1702,10 +1573,6 @@ emit_findings_file() {
     exit 2
   fi
   if [[ "$blocks" -eq 0 && "$walk_errors" -gt 0 ]]; then
-    # Dead-engine guard: files were enumerated but nothing parsed and errors
-    # occurred. Emitting here would hand the consumer a conforming file that
-    # asserts zero findings from a scan that read nothing — a caller that
-    # redirects stdout and drops the exit code would persist that lie.
     printf 'ERROR: --findings refused — 0 test blocks were parsed and %d error line(s) occurred; the scan did not actually read its inputs.\n' "$walk_errors" >&2
     exit 2
   fi
@@ -1732,7 +1599,6 @@ print_findings_lines() {
   local i a
   resolve_contexts
   if ((brief)); then
-    # One Action per distinct rule and text: inert-assertion's differs by language.
     local -A seen=()
     for i in ${f_order[@]+"${f_order[@]}"}; do
       printf 'finding [rule-%s] %s: %s%s\n' "${f_rule[$i]}" "${f_loc[$i]}" "${f_detail[$i]}" \
@@ -1772,10 +1638,6 @@ check)
     advisory_note
   fi
   coverage_block
-  # The 0-examined refusal is decided BEFORE the gating count, so a tree holding
-  # only a Playwright config exits 2 under --strict as well: a config file is
-  # not a test denominator, and every gating test-body finding implies an
-  # examined test file, so this order changes no test-file path.
   if [[ "$examined" -eq 0 ]]; then
     printf '\nFAIL (closed): 0 test files were examined — a scan of nothing is not a clean gate. A wrong or empty scan root and a healthy suite must not share an exit code; point the gate at a tree that contains test files.%s\n' "$(config_findings_note)"
     exit 2

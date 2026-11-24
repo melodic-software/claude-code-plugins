@@ -6,8 +6,6 @@ language: pwsh
 block_model: brace
 files: ['*.Tests.ps1']
 # spellchecker:off
-# The script block must open on the It line; an It whose -ForEach table spans
-# lines before its { is not judged.
 test_start:
   - '^[[:space:]]*[Ii]t[[:space:]].*\{'
 test_skip:
@@ -27,14 +25,12 @@ assertion:
   # opens with a pipe (the PowerShell 7 leading-pipe form).
   inert:
     - '\$[A-Za-z][A-Za-z0-9_.]*[[:space:]]+-[CcIi]?([Ee][Qq]|[Nn][Ee]|[Gg][Tt]|[Gg][Ee]|[Ll][Tt]|[Ll][Ee])[[:space:]][^|;`]*$'
-  # Not null or empty, and a -Throw that names no exception type or message.
   weak:
     - '[Ss]hould[[:space:]]+-[Nn]ot[[:space:]]+-[Bb]e[Nn]ull[Oo]r[Ee]mpty[[:space:]]*$'
     - '[Ss]hould[[:space:]]+-[Tt]hrow[[:space:]]*$'
   count:
     - '\.[[:space:]]*([Cc]ount|[Ll]ength)([^A-Za-z0-9_]|$)'
     - '-[Hh]ave[Cc]ount'
-  # A throw in an if or catch is that branch's assertion.
   fail:
     - '(^|[^A-Za-z0-9_$.-])[Tt]hrow([[:space:]]|$)'
 mock:
