@@ -38,7 +38,6 @@ PROBE = (
     'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
     'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
 )
-# The initializer the reader keeps when it misses a later write.
 INITIAL = (["Agent", "Edit", "Artifact"], "literal")
 PARTIAL = (["Agent"], "partial")
 
@@ -255,7 +254,6 @@ class TestOpenFindings(unittest.TestCase):
             ("gn(1,{hook:!1})", False),
             ('gn(1,{hook:(x)=>x==="Edit"})', False),
             ('gn(1,{hook:(x,i,a)=>a.push("B")})', True),
-            # A getter: reading `hook` runs it and yields the pushing callback.
             ('gn(1,{get hook(){return(x,i,a)=>a.push("B")}})', True),
         ):
             with self.subTest(use=use):
@@ -348,7 +346,6 @@ class TestOpenFindings(unittest.TestCase):
             + '}}new X;pY.includes("x")',
             "var X=class extends function(){return Array.prototype}{constructor(){"
             "super();this.includes=" + patch + '}};new X;pY.includes("x")',
-            # Code built from a string, which no rule sees into.
             "(0,eval)('Array.prototype.includes=function(){this.push(\"B\");return!0}');"
             'pY.includes("x")',
             "Function('Array.prototype.includes=function(){this.push(\"B\");return!0}')();"
@@ -357,7 +354,6 @@ class TestOpenFindings(unittest.TestCase):
             'pY.includes("x")',
             "globalThis.eval('Array.prototype.includes=function(){this.push(\"B\");return!0}');"
             'pY.includes("x")',
-            # A write whose key names nothing can write `includes` too.
             'function s(o,k,v){o[k]=v}s(Array.prototype,"inc"+"ludes",'
             + patch
             + ');pY.includes("x")',
@@ -456,7 +452,6 @@ class TestOpenFindings(unittest.TestCase):
             True, caller, 'function g(a,b){b.push("B")}export{g};'
         )
         self.assert_across_modules(True, caller, "export function g(a,b){b.pop()}")
-        # A `g` with no `export` of its own stays partial too.
         self.assert_across_modules(True, caller, "function g(a,b){}")
 
     def test_an_imported_callee_binds_the_exports_own_local(self) -> None:
@@ -548,17 +543,13 @@ class TestOpenFindings(unittest.TestCase):
         see with the namespace in hand, so the list reads partial."""
         named = 'import{pY}from"/a.js";var c=[...pY];'
         for module in (
-            # A namespace read by name: a method call passes it as `this`.
             'import.meta.require("/a.js").f();',
             '(import.meta.require("/a.js")?.f)();',
             # Destructuring: a rest element takes every export.
             'var{q,...o}=await import("/a.js");o.pY.push("B");',
             'var o={...await import("/a.js")};',
-            # import.meta must be read only by name.
             'import.meta.require=(p)=>Q;var x=import.meta.require("/a.js").q;',
             'var m=import.meta;var x=m.require("/a.js").q;',
-            # A record: a computed read, an escape, `||`, an accessor, a
-            # second write, a method call.
             'var e={names:import.meta.require("/a.js")};e.names[k].push("B");',
             'var e={names:import.meta.require("/a.js")};f(e);',
             'var e={names:import.meta.require("/a.js")},x=e||0;',
@@ -566,11 +557,9 @@ class TestOpenFindings(unittest.TestCase):
             'var e={names:import.meta.require("/a.js")};e={};',
             'var e={names:import.meta.require("/a.js"),f(){return this.names}};e.f();',
             'var e={names:import.meta.require("/a.js"),f(){return this.names}};(e?.f)();',
-            # Promise.all: a rest element, a local `Promise`, no array pattern.
             'var[...r]=await Promise.all([import("/a.js")]);',
             'var Promise={all:(a)=>a};var[{q}]=await Promise.all([import("/a.js")]);',
             'var r=await Promise.all([import("/a.js")]);r[0][k].push("B");',
-            # A promise not awaited directly.
             'var p=import("/a.js");',
         ):
             with self.subTest(module=module):
@@ -865,7 +854,6 @@ class TestOpenFindings(unittest.TestCase):
         for module in (
             self.INQUIRE.replace("/^/", "/^r?/"),
             'eval("' + "a" * 40 + '!".replace(/(a+)+$/,"x"));',
-            # Folds to `require` and spaces, which parses, but is too long.
             self.INQUIRE.replace('"quire"', '"quire' + " " * 300 + '"'),
         ):
             with self.subTest(module=module[:80]):
@@ -920,7 +908,6 @@ class TestOpenFindings(unittest.TestCase):
         for module in (
             'var x=require("/c.js").q,t=typeof require,p=require.resolve("/c.js");',
             "function f(require){return 1}var o={require:1};",
-            # A computed key known to be no `require`.
             'var k="other";f(Q[k]);',
         ):
             with self.subTest(module=module):

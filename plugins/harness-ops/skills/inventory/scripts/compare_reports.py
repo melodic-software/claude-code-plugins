@@ -107,8 +107,6 @@ def _diff(
             _diff(a, b, child, sa, sb, out)
         return
     if isinstance(old, list) and isinstance(new, list):
-        # A list of names reads as a whole, so an inserted name does not
-        # shift every later index into a spurious value->value.
         if all(map(_scalar, old + new)):
             if not _same_scalars(old, new):
                 out.append(_change(pointer, old, new, src_old, src_new))

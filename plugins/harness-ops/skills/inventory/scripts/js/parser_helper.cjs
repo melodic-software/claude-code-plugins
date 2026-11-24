@@ -155,7 +155,6 @@ function evalRead(call) {
   return { name: expr.name, trusts: folded.trusts };
 }
 
-// Calls `visit` on each AST node directly under `node`, in key order.
 function forEachChild(node, visit) {
   for (const key of Object.keys(node)) {
     const child = node[key];
@@ -218,7 +217,6 @@ function analyze(source) {
   return { ast, manager, top, refs, decls, globals, evals, folds, parents: null };
 }
 
-// Each node's parent, built on the module's first `writes` request.
 function parentsOf(entry) {
   if (entry.parents) return entry.parents;
   const parents = new Map();
@@ -311,7 +309,6 @@ function binding(req) {
 
 const isLoop = (n) => n?.type === "ForInStatement" || n?.type === "ForOfStatement";
 
-// What a write reference to `id` is, read from the nodes around it.
 function writeKind(parents, id) {
   let node = id;
   let parent = parents.get(node);
@@ -767,7 +764,6 @@ class Flow {
     this.callback(call.callee, index);
   }
 
-  // `fn` is called with the array as parameter `index`.
   callback(fn, index) {
     if (fn.type === "SpreadElement") throw new Unresolved("a spread callback", fn.start);
     for (const value of this.values(fn, new Map())) {
@@ -777,7 +773,6 @@ class Flow {
     }
   }
 
-  // The array as parameter `index` of the function node `fn`.
   parameter(fn, index) {
     if (!this.once(`${fn.start}:${index}`)) return;
     const params = fn.params;
@@ -790,7 +785,6 @@ class Flow {
     this.variable(this.entry.decls.get(id.start));
   }
 
-  // `node` is returned from its function: every call of it yields the array.
   returned(node) {
     let fn = this.parents.get(node);
     while (fn && !FUNCTIONS.has(fn.type)) fn = this.parents.get(fn);
@@ -800,7 +794,6 @@ class Flow {
     this.calls(v);
   }
 
-  // Every call of the function variable `v` yields the array.
   calls(v) {
     if (!this.once(`calls:${v.defs[0]?.name.start}`)) return;
     const exported = this.exportedName(v);
@@ -1044,7 +1037,6 @@ function flow(req) {
   return { ok: true, safe: true, exits: walk.exits, trusted: [...new Set([...walk.trusted, ...entry.folds])].sort() };
 }
 
-// The file name a module specifier ends in; loads match files by it.
 const fileName = (spec) => spec.split("/").at(-1);
 // What `loads` lists for a load whose file the scan cannot name.
 const UNKNOWN_FILE = "*";
@@ -1151,7 +1143,6 @@ class Namespace {
     this.metaChecked = true;
   }
 
-  // Where the namespace `node` evaluates to goes next.
   value(node) {
     this.step(node.start);
     const parent = this.parents.get(node);
@@ -1239,7 +1230,6 @@ class Namespace {
     }
   }
 
-  // Every read of the variable `v`, which may hold the namespace.
   binding(v) {
     if (!v) throw new Unresolved("an undeclared name", null);
     if (this.seen.has(v)) return;
@@ -1642,7 +1632,6 @@ function definerOf(n) {
   return definerNamed(homeName(n.object), name);
 }
 
-// The definer `home`'s method `name` is, as `definerOf` describes it, or null.
 function definerNamed(home, name) {
   if (home === "Object" && ["defineProperty", "defineProperties", "assign", "setPrototypeOf"].includes(name)) {
     return { name, receiver: false, keyed: name === "defineProperty" };
@@ -1708,7 +1697,6 @@ const BUILTIN_CONSTRUCTORS = new Set([
   "WeakSet",
 ]);
 
-// Whether the variable `v` is written only by its one declaration.
 const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
 
 // What makes a target in the analyzed module `entry` (`analyze`) a fresh
@@ -2158,7 +2146,6 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     if (p?.type === "LogicalExpression") return p.right === n && discarded(p);
     return p?.type === "ChainExpression" && discarded(p);
   };
-  // Whether the property key `key` may be `constructor`.
   const maySpellConstructor = (key, computed) => {
     const name = keyName(key, computed);
     return name === null ? spells(key, "constructor") : name === "constructor";

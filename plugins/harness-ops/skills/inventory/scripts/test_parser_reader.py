@@ -467,7 +467,6 @@ class TestBindingQuery(unittest.TestCase):
         for n in range(20):
             other = f"var pY={n};"
             self.reader.binding(other, 0, len(other), "pY", 4)
-        # One character into the name: not asked before, so not memoized.
         self.assertEqual(self._at("pY=[", 1), first)
 
     def test_an_unparsable_module_resolves_nothing(self) -> None:
@@ -874,8 +873,6 @@ class TestFlowQuery(unittest.TestCase):
                 ["definer-escape"],
             ),
             ("Function(\"return import('/b.js')\")();", ["function-constructor"]),
-            # Cleared: a trusted name or computed key on a fresh object, or
-            # a name nothing trusted.
             ("var o={};o.includes=f;o[k]=1;", []),
             # #5901 slice 6: a `Function` build that runs no unknown code.
             ('Function("return this")();', []),
@@ -997,7 +994,6 @@ class TestFlowQuery(unittest.TestCase):
                 "function get(o,k){return o[k]}",
                 ["function-constructor", "unknown-load"],
             ),
-            # A loop counter is a number, which spells neither.
             ("for(let i=0;i<n;i++)f(a[i]);", []),
             ("var{constructor:C}=f;C(s)();", ["function-constructor"]),
             # A method can be called with a function as `this`.
@@ -1012,7 +1008,6 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof x.constructor;a instanceof x.constructor;",
                 [],
             ),
-            # A branch or right operand whose whole value is thrown away.
             ("r?x.constructor:null;a&&x.constructor;a??x.constructor;", []),
             ("(r?x.constructor:g)(s)();", ["function-constructor"]),
             ("var C=a&&x.constructor;", ["function-constructor"]),
@@ -1053,7 +1048,6 @@ class TestFlowQuery(unittest.TestCase):
             ),
             ('const J=(e,n)=>e[n];J(o,"runInThisContext");', ["vm-string-code"]),
             ('const J=(e,n)=>e[n];J(o,"__defineGetter__");', ["definer-escape"]),
-            # A destructured key reads its member as a computed read does.
             ('const J=(o,k)=>{const{[k]:f}=o;return f};J(globalThis,"eval")(s);', ["indirect-eval"]),
             (
                 'const J=(o,k)=>{const{[k]:F}=o;return F};J(globalThis,"Function")(s)();',
@@ -1139,8 +1133,6 @@ class TestFlowQuery(unittest.TestCase):
             ],
         )
         self.assert_unsafe("var pY=[1];var z=pY[k];", "pY[k]")
-        # The literal's own elements reach no prototype; past them, or
-        # after a hole, an index read does.
         for src, trusted in (
             ('var pY=[1,2];var a=pY[1],b=pY["0"],c=pY[2];', ["2"]),
             ("var pY=[1,,3];var a=pY[0];", ["0"]),
