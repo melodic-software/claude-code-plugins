@@ -1,26 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Case seeding for the resume-accuracy eval (PLAN.md Phase 1).
-
-A case directory under `plugins/session-flow/evals/re-<name>/` holds one
-`resume-eval.json`. This module turns its `seed` into what every arm starts from:
-
-- `build_predecessor_chain` writes the case's handoff chain through the real
-  `save_point.py new`, hop by hop, with deterministic lane-like content, plus the
-  case's injected entries at their hops. Shape 2, sized like the audited chains, is
-  the default; `"shape": 3` or `4` builds hot files and hop files filled through
-  `save_point.py fill`, whose `retire` moves each injection with a `retire` hop
-  into that hop's file. Every hop passes `save_point.py validate --strict-transcript`.
-- `seed_history` returns the session the writer resumes from: the pasted resume
-  prompt of the newest handoff, the reads a real resume makes of it (tool turns whose
-  results are real slices of the file), and the case's work turns.
-
-The generated files embed absolute paths (`transcript:`, Prior-sessions rows, the
-`Read @` line), so `out_dir` must be the run's repository itself and the files must
-stay where they were written, predecessor transcripts included.
-
-Stdlib only; Python 3.10+.
-"""
 
 from __future__ import annotations
 
@@ -52,11 +31,6 @@ TASK_RELATIONS = ("same", "boundary")
 HANDOFF_SHAPE_RE = re.compile(r"^HANDOFF_SHAPE = (\d+)$", re.MULTILINE)
 NAMESPACE = uuid.UUID("3c1f9a52-7d4e-5b60-9e1a-2f8c4d6b7a90")
 
-# Entries written per hop into each cumulative slot, with each slot's share of the
-# base entry width in characters. With a Prior-sessions row this lands near the
-# audit's median growth of 6.4-7.0 KB a hop, split close to its section shares
-# (AUDIT.md Q1, Q5: Constraints 24%, Findings and Decisions 19%, Side effects 16%,
-# Prior sessions 11%, Approaches 7%).
 ENTRIES_PER_HOP = {
     "constraints": (5, 1.0),
     "side-effects": (4, 0.8),
@@ -74,9 +48,6 @@ SECTION_SLOTS = {
     "abandoned": "Approaches tried and abandoned",
     "findings": "Findings that cost effort to discover",
 }
-# Generic lines appended to the newest hop's own text in these hot sections, so each
-# carries about the audited 0.8-2.5 KB without adding a file, PR or rule a probe asks
-# about.
 HOT_PADDING = {
     "environment": (
         "No services run for this lane; the commands below re-read live state.",
@@ -93,7 +64,6 @@ HOT_PADDING = {
         "/session-flow:handoff for the next save-point.",
     ),
 }
-# Sections rewritten whole at every hop, filled by `_hot`.
 HOT_SLOTS = (
     "brief",
     "criteria",
@@ -116,8 +86,6 @@ def _pick(key: str, seq):
 
 
 def _num(key: str, lo: int, hi: int) -> int:
-    """A number in [lo, hi], re-drawn while it is one the case itself names, so no
-    generated line mentions a trap PR, issue or run."""
     salt = 0
     while (value := lo + _n(f"{key}#{salt}" if salt else key) % (hi - lo + 1)) in (
         _RESERVED.get()
@@ -126,7 +94,6 @@ def _num(key: str, lo: int, hi: int) -> int:
     return value
 
 
-# Numbers the case spec names (its PRs, issues, runs), set per build.
 _RESERVED: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
     "reserved", default=frozenset()
 )
@@ -289,13 +256,10 @@ def _session_id(case: str, hop: int) -> str:
 
 
 def _final(pred: dict, hop: int) -> dict:
-    """The case's final-hop text at the newest hop, else nothing."""
     return (pred.get("final") or {}) if hop == int(pred["hops"]) else {}
 
 
 def _hot(pred: dict, hop: int, name: str, lane: str) -> list[str]:
-    """A rewritten (hot) section's lines: the case's final-hop text at the newest hop,
-    generic lane text before it."""
     final = _final(pred, hop)
     if final.get(name):
         return [*final[name], *HOT_PADDING.get(name, ())]
@@ -351,7 +315,6 @@ def _did_left(pred: dict, hop: int, lane: str) -> tuple[str, str]:
 
 
 def _injection_items(pred: dict, hop: int, slot: str) -> tuple[list[dict], list[dict]]:
-    """The case's injections into `slot` at `hop`: the `first` ones, then the rest."""
     items = [
         item
         for item in pred.get("injections", [])
@@ -369,7 +332,6 @@ def _injections(pred: dict, hop: int, slot: str) -> tuple[list[str], list[str]]:
 
 
 def _fill(path: Path, pred: dict, hop: int, width: int, lane: str) -> int:
-    """Replace every FILL slot; return the characters of generated entry text."""
     generated = 0
     out: list[str] = []
     for line in path.read_text(encoding="utf-8").split("\n"):
@@ -424,13 +386,6 @@ def _fill(path: Path, pred: dict, hop: int, width: int, lane: str) -> int:
     return generated
 
 
-# --- shape 3 ---------------------------------------------------------------------
-#
-# A shape-3 predecessor is filled through `save_point.py fill`, so its retirements are
-# the script's own: an injection's `retire` names the hop that retires it, and `fill`
-# moves the entry into that hop's file under its retire heading and points Review
-# before you continue at it.
-
 SHAPE3_SECTIONS = ("amendment", "trail", "rules", "open-questions", "decisions")
 ID_PREFIX = {"rules": "R", "open-questions": "Q", "decisions": "D"}
 SHAPE3_RULES = 3
@@ -476,7 +431,6 @@ def _check_shape3_spec(pred: dict, hops: int) -> None:
 
 
 def _slots(path: Path) -> dict[str, bool]:
-    """Slot name to whether it is optional, from the skeleton `new` wrote."""
     return {
         m.group(1): bool(m.group(2))
         for m in SLOT_RE.finditer(path.read_text(encoding="utf-8"))
@@ -490,8 +444,6 @@ def _section_body(text: str, title: str) -> list[str]:
 
 
 def _ordinal(lines: list[str], body, text: str, what: str) -> int:
-    """1-based ordinal, among the lines `body` maps to a string, of the one line whose
-    body is exactly `text`'s first line."""
     first = text.split("\n")[0]
     bodies = [b for b in map(body, lines) if b is not None]
     hits = [i for i, b in enumerate(bodies, 1) if b == first]
@@ -512,11 +464,6 @@ def _fill_3(
     steer_count: int = 0,
     stated: bool = False,
 ) -> int:
-    """Fill a shape-3 skeleton through `save_point.py fill`; return the characters of
-    generated rule text. `live` carries, hop to hop, the id-carrying lines of Open
-    questions and Decisions in force and the ref each injection was given. A hop after
-    the first adds `steer_count` generated rules; rules stay in the hot file, so their
-    count steers its size."""
     from save_point import AMENDMENT_RE  # hop_chain put the scripts dir on sys.path
 
     final = _final(pred, hop)
@@ -537,7 +484,6 @@ def _fill_3(
         return f"[{prefix}{n}]"
 
     def id_lines(section: str, generated: list[str]) -> list[str]:
-        """This hop's new entries for an id section: injections around generated text."""
         prefix = ID_PREFIX[section]
         firsts, rest = _injection_items(pred, hop, section)
 
@@ -609,7 +555,6 @@ def _fill_3(
     )
 
     def put(section: str, added: list[str]) -> None:
-        """A section `new` carried off disk takes only this hop's new lines."""
         live[section] += added
         if f"{section}-new" not in slots:
             values[section] = "\n".join(live[section])
@@ -622,8 +567,6 @@ def _fill_3(
         + [f"- {new_id('Q')} {text}" for text in final.get("open-questions", [])],
     )
 
-    # Each hop settles a new batch cap and retires the last one, so every hop file
-    # carries a retire listing and Review before you continue a pointer to it.
     retire: list[dict] = []
     decisions = (
         [
@@ -676,7 +619,6 @@ def _fill_3(
         "the re-scan read the lossless on-disk transcript; no compaction occurred."
     )
 
-    # Ordinals count in the file as `fill` writes it, before any retirement.
     text = path.read_text(encoding="utf-8")
     goal = [
         new
@@ -772,8 +714,6 @@ def seed_hash(out_dir: Path, memory_dir: Path | None = None) -> str:
 def _expected_fail(
     pred: dict, case: str, hops: int, arm: str | None
 ) -> dict[int, re.Pattern[str]]:
-    """`expected_fail` as {hop: pattern}: that hop must FAIL `validate`, and every one
-    of its FAIL lines must match the pattern. An entry naming `arms` holds only there."""
     stated: dict[int, re.Pattern[str]] = {}
     for item in pred.get("expected_fail", []):
         if "arms" in item and arm not in item["arms"]:
@@ -940,8 +880,6 @@ def _build(
         if hop == 1:
             base_chars = generated
         elif target and hop < hops:
-            # Steer the entry width so the newest hop lands on target_bytes: the
-            # growth not made of generated entries is measured, not assumed.
             overheads.append(sizes[-1] - sizes[-2] - generated)
             overhead = sorted(overheads)[len(overheads) // 2]
             need = (int(target) - sizes[-1]) / (hops - hop)

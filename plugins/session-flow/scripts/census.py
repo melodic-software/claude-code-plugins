@@ -61,7 +61,6 @@ UNKNOWN_ENTRYPOINT = "unknown"
 AUTOMATED_ENTRYPOINTS = frozenset({"sdk-cli", "sdk-ts", "sdk-py"})
 DEFAULT_MIN_COUNT = 20
 DEFAULT_VERSIONS = 3
-# Sessions the newest version needs before a missing canary counts as lost.
 DEFAULT_SESSION_FLOOR = 3
 
 
@@ -230,14 +229,11 @@ def drift(records: list[dict], canaries: list[dict], *, min_count: int, versions
             ):
                 changes.append({"class": "new", "key": key, "model": model, "count": newest_count, "first_seen_version": newest})
         for model, key in series:
-            # Each model gets its own window: the versions where it has min_count records.
             model_window = [v for v in window if model_records(v, model) >= min_count]
             model_recent, model_baseline = model_window[-versions:], model_window[:-versions]
             if not model_baseline:
                 continue
             seen = sum(count(v, model, key) for v in model_baseline)
-            # Every version from the start of the recent window on, thin ones included: a key still
-            # seen in any of them has not vanished.
             since_window = ordered[ordered.index(model_recent[0]) :]
             if seen >= min_count and not any(count(v, model, key) for v in since_window):
                 last = max((v for v in ordered if count(v, model, key)), key=version_key)
