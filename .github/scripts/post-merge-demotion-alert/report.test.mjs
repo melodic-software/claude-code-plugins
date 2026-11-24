@@ -1,7 +1,12 @@
 // report() against a fake GitHub: hand-built runs, merges and issues, with
 // the expected decision taken from the red-main rule (README.md, "Red main").
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { LOG_MARKER, MARKER_PATTERN } from "./red-main.mjs";
 import { report } from "./report.mjs";
@@ -448,4 +453,19 @@ test("a note is no report: its run stays unreported and unlogged, and it neither
   assert.equal(result.posted, true, "the note's run is not already reported");
   assert.match(result.body, /run-41 at `a{12}`/);
   assert.equal(decisionOf(result.body), "auto-revert", "two decisions and a note stay under the cap of three");
+});
+
+test("main hands BASE_PATH and STANDARDS_DIR to redMainFromBase", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "report-base-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  mkdirSync(join(base, ".github/actions/resolve-config"), { recursive: true });
+  writeFileSync(
+    join(base, ".github/actions/resolve-config/resolve-config.mjs"),
+    "export const redMainFromBase = (args) => { throw new Error(`loaded ${JSON.stringify(args)}`); };\n",
+  );
+  const run = spawnSync(process.execPath, [fileURLToPath(new URL("./report.mjs", import.meta.url))], {
+    env: { BASE_PATH: base, STANDARDS_DIR: "/standards", REPOSITORY: REPO, RUN_SHA: "a".repeat(40), RUN_ID: "41", RUN_CREATED: "2026-10-21T12:00:00Z" },
+    encoding: "utf8",
+  });
+  assert.equal(run.stdout.trim(), `::error::loaded ${JSON.stringify({ BASE_PATH: base, STANDARDS_DIR: "/standards" })}`, run.stderr);
 });

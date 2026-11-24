@@ -2,7 +2,12 @@
 // and a Co-Authored-By: Claude trailer), the path a merge takes, the labels the
 // canary pass writes, and the rollup read back from them.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { formatRollup, isAgentAuthored, label, labelPlan, pathOf, resolvePaths, rollup, toPr } from "./merge-path.mjs";
 
@@ -209,4 +214,19 @@ test("rollup: merges, reverts and escapes per path for merges in the window", ()
       "| owner-agent | 2 | 1 | 1 |",
     ].join("\n"),
   );
+});
+
+test("label and rollup hand BASE_PATH and STANDARDS_DIR to postMergeFromBase", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "merge-path-base-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  mkdirSync(join(base, ".github/actions/resolve-config"), { recursive: true });
+  writeFileSync(
+    join(base, ".github/actions/resolve-config/resolve-config.mjs"),
+    "export const postMergeFromBase = (args) => { throw new Error(`loaded ${JSON.stringify(args)}`); };\n",
+  );
+  const script = fileURLToPath(new URL("./merge-path.mjs", import.meta.url));
+  for (const argv of [["label", "--merged", "1", "--reverted", ""], ["rollup", "--since", "2026-10-17", "--until", "2026-10-19"]]) {
+    const run = spawnSync(process.execPath, [script, ...argv], { env: { BASE_PATH: base, STANDARDS_DIR: "/standards", GITHUB_REPOSITORY: "o/r" }, encoding: "utf8" });
+    assert.equal(run.stdout.trim(), `::error::loaded ${JSON.stringify({ BASE_PATH: base, STANDARDS_DIR: "/standards" })}`, `${argv[0]}: ${run.stderr}`);
+  }
 });
