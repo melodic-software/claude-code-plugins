@@ -228,6 +228,22 @@ def file_payload(text: str) -> dict[str, Any]:
     }
 
 
+CAPTURED_LIST_COMMITS = (
+    pathlib.Path(__file__).resolve().parents[6]
+    / ".github/scripts/lib/fixtures/standards-list-commits.json"
+)
+
+
+def list_commits(date: str | None) -> list[Any]:
+    """The captured `GET /repos/{owner}/{repo}/commits?path=...&per_page=1`
+    response, its newest commit dated `date`; none when `date` is None."""
+    if date is None:
+        return []
+    commits = json.loads(CAPTURED_LIST_COMMITS.read_text())
+    commits[0]["commit"]["committer"]["date"] = date
+    return commits
+
+
 class FakeGitHub:
     """Answers the reader's reads: the artifact listing, runs, a compare of a
     run head against main, the pull request's commits, the trusted-actor list,
@@ -594,8 +610,7 @@ class FakeGitHub:
             f"repos/{STANDARDS_REPO}/commits?path={policy.STANDARDS_TRUSTED_ACTORS}"
             f"&sha={STANDARDS_SHA}&per_page=1"
         ):
-            changed = self.standards_list_changed
-            return ok([] if changed is None else [{"commit": {"committer": {"date": changed}}}])
+            return ok(list_commits(self.standards_list_changed))
         if path.startswith(f"repos/{REPO}/contents/"):
             # Read at main's tip only, never by the branch's name.
             if not path.endswith(f"?ref={MAIN_SHA}") or self.actors is None:

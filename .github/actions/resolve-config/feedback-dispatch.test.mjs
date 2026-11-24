@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/lib/fixtures/standards/*
 // pr-dispatch-feedback.yml's slot read through the real resolver: the
 // dispatcher script resolves only the address-feedback slot of a pr-unblock
 // lane whose resolve-conflicts slot has a mergeable predicate (runs

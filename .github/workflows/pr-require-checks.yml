@@ -6724,9 +6724,7 @@ jobs:
       # the approval carries to a later head whose every change since is a
       # merge of the base changing no hold path or other file beyond it
       # (merge-holds.mjs liftersOf, which reads with this step's GH_TOKEN),
-      # then re-runs ci-status. A trusted-actor list
-      # change that adds or widens an entry (merge-holds.mjs actorsHold, both
-      # sides read at BASE_SHA and the head) holds too, lifted the same way.
+      # then re-runs ci-status.
       # A changed cost path (merge-holds.mjs COST_PATHS) also holds,
       # and only the owner's cost decision linked from the body lifts it; the
       # module reads that decision with this step's GH_TOKEN, only when the

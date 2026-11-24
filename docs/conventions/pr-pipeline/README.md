@@ -1736,9 +1736,7 @@ the rules that only tighten in
   says and whatever an adopted author's own paths leave off the floor. The gate compares the
   base and head entries: a change that only removes entries merges; an added or changed entry,
   any other key changed, a side that cannot be read or parsed or repeats a key, and an added,
-  removed, renamed or copied list hold. An owner cost decision does not clear it. `ci-status`
-  holds the same widening on a lanes App pull request pushed after auto-merge is armed
-  (`merge-holds.mjs` `actorsHold`), lifted as a hold path is (see below).
+  removed, renamed or copied list hold. An owner cost decision does not clear it.
 - **Security findings.** The security lane flags; only a CRITICAL finding, its top tier, holds the
   merge, as `security-finding`. Its inline comments and summary carry the severity lines
   `/review:security-review` defines, and a finding whose severity the gate cannot read counts as
@@ -2336,11 +2334,10 @@ so one added after arming stops the merge without waiting for this job: its step
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
 `merge.diff-check.denied-paths` plus the path floor (`HOLD_PATH_FLOOR`, a constant of the module
-main has, so a pull request cannot rewrite it), and holds a trusted-actor list change that
-adds or widens an entry, both sides read at `BASE_SHA` and the head (`actorsHold`), on each pull
-request event and in the merge queue, where a red group removes the pull request. A push that
-adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list
-(as main has it) lifts either by approving that head (their newest review of it that approves,
+main has, so a pull request cannot rewrite it), on each pull request event and in the merge
+queue, where a red group removes the pull request. A push that adds a hold path fails `ci-status`
+on its own head. A person on the trusted-actor list (as main has it) lifts it by approving that
+head (their newest review of it that approves,
 requests changes or was dismissed must approve). Then re-run `ci-status`, since a review does not.
 Only an approving review lifts it: removing the human-gated label does not. The approval carries
 to a later head whose every change since is a merge of the base (`merge-holds.mjs` `liftersOf`
