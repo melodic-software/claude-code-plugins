@@ -1,10 +1,3 @@
-// The monitoring lane's incident issues, found by the marker on their first
-// body line: at most one open per signal, filed only once the signal has
-// stayed on past its open threshold and closed once it has stayed clear past
-// its close threshold (pr-pipeline.yaml monitor.incidents). A state change
-// rewrites the body and adds no comment. Every run's status goes to the job
-// summary. Platform incidents are logged there and never filed. The earlier
-// rolling issues still open are retired. No network.
 import { createHash } from "node:crypto";
 
 export const SIGNALS = [
@@ -27,9 +20,6 @@ const MUTED = new Set(["not_planned", "duplicate"]);
 const MARKER = /^<!-- factory-monitor key=([a-z0-9][a-z0-9:._-]{0,79}) fp=([0-9a-f]{16}) -->$/;
 const INCIDENT = "incident:";
 
-// The issue a signal files: a plain title, as docs/standards/issue-tracker.md
-// "Issue titles" asks, and the Priority field's value. Priority follows the
-// intake rubric: a red main is critical, what blocks the pipeline is high.
 export const FILING = {
   "1 main red": { title: "Restore the failing required checks on main", priority: "critical" },
   "2 ceiling": { title: "Bring API or Actions usage back under its ceiling", priority: "high" },
@@ -58,17 +48,12 @@ export function readMarker(body) {
   return m ? { key: m[1], fingerprint: m[2] } : null;
 }
 
-// The incident's state: its findings' keys, which change only when what is
-// wrong changes, so a body an admission read stays as it was while the same
-// fault goes on. No finding is the clear state.
 export const stateFingerprint = (findings) =>
   createHash("sha256")
     .update(JSON.stringify(findings.map((f) => f.key).sort()))
     .digest("hex")
     .slice(0, 16);
 
-// Run, job, status-page and URL text is data: inside a fence longer than any
-// backtick run it holds, no mention, link, reference or tag works.
 export const fenced = (lines) => {
   const body = lines.join("\n");
   const fence = "`".repeat(Math.max(3, ...(body.match(/`+/g) ?? []).map((run) => run.length + 1)));
@@ -106,8 +91,6 @@ export function renderBody({ signal, findings }, runUrl) {
 export const renderRetire = (runUrl) =>
   `The monitoring lane no longer keeps a rolling issue per signal: [each run's job summary](${runUrl}) shows every signal's state, and a signal that stays on past its threshold files one incident issue. Closing this issue; its history stays here.`;
 
-// The thresholds for every signal from pr-pipeline.yaml's monitor.incidents,
-// keyed by signal, or a throw naming what is missing or out of range.
 export function incidentRules(raw) {
   const rules = {};
   const hours = (value, name) => {
@@ -121,7 +104,6 @@ export function incidentRules(raw) {
   return rules;
 }
 
-// The signals each collect source feeds, by the name collect gives its gap.
 const SOURCES = {
   "pr-merge api budget": ["2 ceiling", "3 throttling"],
   "lane api budget": ["2 ceiling", "3 throttling"],
@@ -143,15 +125,10 @@ const SOURCES = {
   "githubstatus.com": [],
 };
 
-// The signals each partly-read gap feeds: what was read is a floor on the
-// whole, so a finding stands, but no finding is no proof the signal is clear.
-// A failed marker list leaves the scan's reads, a floor too.
 const PARTLY_READ = { "lane holds partly read": ["13 lane holds"], "lane hold markers": ["13 lane holds"] };
 
 const sourceOf = (gap, names) => names.find((name) => String(gap).startsWith(`${name}:`));
 
-// The signals a run's gaps leave unread. A gap from a source not named above
-// leaves every signal unread.
 export function unreadSignals(gaps = []) {
   const unread = new Set();
   for (const gap of gaps) {
@@ -168,14 +145,6 @@ export function partlyReadSignals(gaps = []) {
 const hoursSince = (iso, now) => (now.getTime() - Date.parse(iso)) / 3600_000;
 const inHours = (hours) => `${Math.round(hours * 10) / 10}h`;
 
-// existing: every issue the lane's two identities filed, any state, carrying
-// a marker. episodes: the last run's {signal: {onSince, clearSince}}, empty
-// when no carry was read, so a timer restarts: an issue opens later, never
-// earlier. unread: signals a source failed for, whose timers and issue stay as
-// they are. partly: signals read in part (partlyReadSignals), handled as read
-// while on and as unread while clear, so only a whole read clears one.
-// rules: incidentRules. The result's `episodes` is what the next run carries;
-// `status` is one line of state per signal for the job summary.
 export function planIssues({ findings, existing, unread = new Set(), partly = new Set(), rules, episodes = {}, now = new Date() }) {
   const bySignal = new Map(SIGNALS.map((s) => [s, []]));
   const logged = [];

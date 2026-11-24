@@ -1,14 +1,3 @@
-// The hourly triage sweep's rules, from the owner-approved design: an open
-// issue qualifies when it is not a pull request, is over an hour old, its
-// author is one the intake lane admits on open, and it has no `status:` label
-// and no agent-ready, needs-human or needs-spec (the needs-triage floor label
-// is not one), whatever comments intake left (owner 2026-10-24, rows S2 and
-// S3); or it was born triaged in `status: ready` with nothing admitting it
-// and nothing holding it (row S1). Each pass dispatches at most 5, and
-// after 2 dispatches that reached intake and left the issue untriaged (or 6
-// dispatches whatever reached intake) the sweep labels it
-// needs-triage, says so in its comment on the issue, and stops dispatching it.
-// Owner rule 2026-10-24: no new issues; comment on the original instead.
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -57,9 +46,6 @@ const issue = (number, over = {}) => ({
 const APP = 337595936;
 const authors = new Set([String(HUMAN), String(APP)]);
 
-// The needs-triage floor label lands on open whether or not intake runs, so
-// it does not mark an issue triaged. Priority and work-class labels are no
-// verdict either: only a status label, agent-ready or a person's hold is.
 test("a candidate has no status label, agent-ready or hold, is no PR, over an hour old, by an admitted author", () => {
   const issues = [
     issue(1),
@@ -85,10 +71,6 @@ test("a candidate has no status label, agent-ready or hold, is no PR, over an ho
   );
 });
 
-// /work-items:decompose publishes an issue already triaged, so intake never
-// ran admission on it: one in status: ready with nothing admitting or holding
-// it, and no open blocker (work-unblock labels those when the blocker closes),
-// is dispatched so intake's admission takes it.
 test("a born-triaged issue in status: ready with no agent-ready, deferral, hold or open blocker is a candidate", () => {
   const born = (number, labels = [], over = {}) =>
     issue(number, { body: "Fix it.\n\n<!-- work-items:born-triaged -->", labels: [{ name: "status: ready" }, ...labels.map((name) => ({ name }))], ...over });
@@ -103,7 +85,6 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
     born(8, ["priority: high"]),
     issue(9, { labels: [{ name: "status: ready" }] }),
     born(10, [], { user: { id: OUTSIDER } }),
-    // A quoted marker mid-body is not the publisher's last line.
     born(11, [], { body: "<!-- work-items:born-triaged -->\nmore text" }),
     born(12, ["provenance: untrusted"]),
     // #14801: a tracker whose sub-issues are open waits in admission.
@@ -116,10 +97,6 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
   );
 });
 
-// /planning:wayfind and /work-items:decompose route an issue with a routing
-// label (the binding's container label, default `spec-container`, or a label
-// starting with its wayfind prefix, default `wayfind:`); intake skips it, so
-// a dispatch would only count toward a needless hand-off.
 test("an issue whose own labels hold a routing label is no candidate, as the binding names it", () => {
   const issues = [
     issue(1, { labels: [{ name: "wayfind: design" }] }),
@@ -142,10 +119,6 @@ test("the field never makes a routing-labeled issue a candidate", () => {
   assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors, statusLabels: new Map([[1, []]]) }).map((i) => i.number), [2]);
 });
 
-// A GitHub whose Work status values live in `fields` (read-status.fixtures.mjs
-// withFields' shape, setter defaulting to the listed human): a field POST sets
-// one as github-actions[bot], the job token's account, and the open issues
-// listing (resolve-config.mjs issuesByStatus) answers from them.
 function fieldWorld(issues, fields = {}) {
   const field = { fullDatabaseId: String(FIELD) };
   const github = async (method, path, body) => {
@@ -175,8 +148,6 @@ function fieldWorld(issues, fields = {}) {
 const listing = (issues, fields) =>
   statusListing({ github: fieldWorld(issues, fields), repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, issuesByStatus });
 
-// The Work status field a trusted account set (read-status.mjs statusLabels):
-// it decides the queue state, a hold label still holds, and unset, the labels decide.
 const fieldSelect = async (issues, fields) =>
   selectCandidates({ issues, now: NOW, authorIds: authors, statusLabels: await listing(issues, fields) }).map((i) => i.number);
 
@@ -205,7 +176,6 @@ test("the Work status field drops a candidate, adds one a stale label hid, and a
     issue(3, born),
     issue(4, { labels: [{ name: "agent-ready" }] }),
     issue(5, { labels: [{ name: "status: confirmed" }] }),
-    // Deferred on the field: its label set reads admission-deferred alone.
     issue(6, born),
     issue(7, { labels: [{ name: "needs-human" }] }),
   ];
@@ -218,12 +188,10 @@ test("the Work status field drops a candidate, adds one a stale label hid, and a
     6: { state: "deferred" },
     7: { state: "needs-triage" },
   };
-  // #4's agent-ready label is stale under a needs-triage field, so it is a candidate again.
   assert.deepEqual(await fieldSelect(issues, fields), [2, 4, 5]);
   assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number), [1, 2, 3, 6]);
 });
 
-// Plan case (b): flag.mjs writes needs-human with the job token.
 test("a needs-human the job token writes to the field reads back and a later selection drops the issue", async () => {
   const issues = [issue(1)];
   const fields = {};
@@ -240,7 +208,6 @@ test("a needs-human the job token writes to the field reads back and a later sel
 
 test("an issue the listing leaves out mid-write is not dispatched this pass, whatever its labels say", async () => {
   const issues = [issue(1), issue(2)];
-  // #2's value and newest event disagree, in the listing and on its own read.
   const fields = { 1: { state: "needs-triage" }, 2: { state: "needs-triage", named: "ready" } };
   const noWait = (github, repository, states, options) => issuesByStatus(github, repository, states, { ...options, sleep: async () => {} });
   const original = console.log;
@@ -261,16 +228,12 @@ test("with no models.issue-status the listing maps nothing and reads nothing", a
   assert.deepEqual(map, new Map());
 });
 
-// models.issue-status bot-setters: a hold the job token (github-actions[bot])
-// set drops the issue; its agent-ready does not count, so its labels choose.
 test("a hold github-actions[bot] set on the field drops the issue, and its agent-ready leaves the issue to its labels", async () => {
   const issues = [issue(1), issue(2)];
   const fields = { 1: { state: "needs-human", setter: BOT.id }, 2: { state: "agent-ready", setter: BOT.id } };
   assert.deepEqual(await fieldSelect(issues, fields), [2]);
 });
 
-// models.issue-status bot-setters: a hold the job token (github-actions[bot])
-// set drops the issue; its agent-ready does not count, so its labels choose.
 test("a hold github-actions[bot] set on the field drops the issue, and its agent-ready leaves the issue to its labels", async () => {
   const issues = [issue(1), issue(2)];
   const fields = { 1: { state: "needs-human", setter: BOT.id }, 2: { state: "agent-ready", setter: BOT.id } };
@@ -325,7 +288,6 @@ test("the sweep state round-trips and is read only from the bot's comment", () =
     reached: new Map(),
   });
   assert.deepEqual(readState([]), { commentId: null, runs: [], filed: null, reached: new Map() });
-  // Each run read records its mark; an unmarked id is unread.
   const marked = renderState({ runs: [11, 22, 33, 44], filed: null, runUrl: "u", reached: new Map([[11, "+"], [22, "-"], [44, "~"]]) });
   assert.ok(marked.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,33,44~ filed= -->\n"));
   assert.deepEqual(readState([{ id: 7, user: BOT, body: marked }]), {
@@ -372,14 +334,11 @@ test("the hand-off comment names every dispatched run and asks a maintainer to t
   assert.ok(body.includes("Triage it by hand"));
 });
 
-// A fake GitHub holding issues, comments and runs, recording every write.
-// `jobs` maps a run id to its job list; a run with none fails the jobs read.
 function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {}, annotations = {}, failPatch = () => false, filedIssues = [], handedIssues = [], graphqlError = false }) {
   const writes = [];
   let nextRun = 900;
   let nextIssue = 5000;
   let nextComment = 100;
-  // The Work status write (statusWriter's set), recorded among the writes.
   const setStatus = async (number, state) => {
     writes.push({ method: "STATUS", path: `/repos/o/r/issues/${number}`, body: { state } });
   };
@@ -427,7 +386,6 @@ function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {}, annotations =
       if (!(m[1] in jobs)) throw new Error(`GET ${path}: HTTP 502`);
       return { total_count: jobs[m[1]].length, jobs: jobs[m[1]] };
     }
-    // A check run with no annotations listed fails the read.
     if (method === "GET" && (m = /^\/repos\/o\/r\/check-runs\/(\d+)\/annotations\?per_page=100$/.exec(path))) {
       if (!(m[1] in annotations)) throw new Error(`GET ${path}: HTTP 502`);
       return annotations[m[1]];
@@ -543,9 +501,6 @@ test("no github-actions issue is a candidate, an upstream-drift one included", a
   assert.deepEqual(result.dispatched, [4]);
 });
 
-// Row S3: an intake comment with no verdict label left the issue untriaged.
-// Row S2: the lanes App opened the issue, so apply-verdict's --check refused
-// the App as actor; a dispatch by this job's token passes it.
 test("an issue with an intake comment but no status label is dispatched again, and so is one the lanes App opened", async () => {
   const gh = fakeGitHub({
     issues: [issue(1), issue(2, { user: { id: APP } })],
@@ -625,8 +580,6 @@ test("after 2 untriaged dispatches the sweep sets its Work status and hands it o
   assert.deepEqual(second.writes, []);
 });
 
-// The hand-off's field write lands, through the job token's writer, where the
-// listing of the next pass reads it: the handed issue is skipped unread.
 test("a hand-off at needs-triage on the field alone is skipped unread on the next pass", async () => {
   const issues = [issue(1)];
   const fields = {};
@@ -648,7 +601,6 @@ test("a hand-off at needs-triage on the field alone is skipped unread on the nex
   assert.equal(reads.filter((p) => p.includes("/comments")).length, 0);
 });
 
-// A failed field write leaves no record, so the next pass hands the issue off again.
 test("a hand-off whose field write fails writes no hand-off record", async () => {
   const gh = fakeGitHub({
     issues: [issue(1)],
@@ -695,7 +647,6 @@ test("an agent-ready issue the listing read stale as needs-triage is left as is 
     const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: set, statusLabels: stale });
     return { result, writes: gh.writes };
   };
-  // ready too: admission's wait and work-unblock write it after the listing.
   for (const state of ["agent-ready", "deferred", "confirmed", "ready"]) {
     const fields = { 1: { state, setter: APP } };
     const { result, writes } = await handOffPass(fields);
@@ -709,12 +660,10 @@ test("an agent-ready issue the listing read stale as needs-triage is left as is 
   assert.deepEqual(result.handed, [1]);
   assert.deepEqual(result.left, []);
   assert.equal(readState([{ id: 5, user: BOT, body: writes.at(-1).body.body }]).filed, HANDED);
-  // A born-triaged issue the listing saw at status: ready, still ready, intake never admitted.
   const born = { 1: { state: "ready", setter: APP } };
   const handed = await handOffPass(born, ["status: ready"]);
   assert.deepEqual(handed.result.handed, [1]);
   assert.deepEqual(born[1].state, "needs-triage");
-  // Listed at status: ready, admitted since after an old admission wait: still never demoted.
   const admitted = { 1: { state: "agent-ready", setter: APP } };
   const oldWait = { id: 6, user: { login: "melodic-automation-lanes[bot]", id: APP }, body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: sub-issue #9 is open.` };
   const late = await handOffPass(admitted, ["status: ready"], [oldWait]);
@@ -735,9 +684,6 @@ test("a run still in progress holds the issue for a later pass", async () => {
   assert.deepEqual(result.waiting, [1]);
 });
 
-// Job lists as the jobs API returns them: one where intake ran, one the kill
-// switch stopped (run 41591527742: kill-switch succeeded, everything after it
-// skipped), and one cancelled before intake.
 const job = (name, conclusion) => ({ name, status: "completed", conclusion });
 const RAN = [job("Kill Switch", "success"), job("Born Triaged", "success"), job("Intake Triage / claude-intake-triage", "success"), job("Intake Triage / claude-intake-triage-skipped", "skipped"), job("Apply Verdict", "success")];
 const KILLED = [job("Born Triaged", "success"), job("Kill Switch", "success"), job("Intake Triage", "skipped"), job("Apply Verdict", "skipped")];
@@ -794,16 +740,9 @@ test("a run the kill switch skipped leaves an attempt: the sweep dispatches agai
   assert.ok(gh.writes[2].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,901 filed= -->"));
 });
 
-// Reading every run's jobs on every pass, before the dispatch cap demotes an
-// issue to stop, cost 20 issues at 5 runs each about 140 calls, past the
-// 120-call budget, so the newest issues starved. Each run's result is recorded
-// once read, so a pass reads only the run that finished since. Every write
-// records the runs read, so only the newest dispatch is unmarked; a state an
-// older sweep wrote holds at most 2 runs, since it handed off at 2.
 test("recorded runs are not read again: 20 issues at 5 killed runs fit one 120-call pass", async () => {
   const issues = Array.from({ length: 20 }, (_, i) => issue(i + 1));
   const ids = (n) => [1, 2, 3, 4, 5].map((k) => n * 10 + k);
-  // As the sweep wrote it when it dispatched the fifth run: four read, one not.
   const recorded = (n) => new Map(ids(n).slice(0, 4).map((id) => [id, "-"]));
   const gh = fakeGitHub({
     issues,
@@ -827,7 +766,6 @@ test("recorded runs are not read again: 20 issues at 5 killed runs fit one 120-c
   assert.ok(reads.includes("/repos/o/r/issues/20/comments?per_page=100&page=1"));
   const jobReads = reads.filter((p) => p.endsWith("/jobs?per_page=100"));
   assert.deepEqual(jobReads, issues.map(({ number: n }) => `/repos/o/r/actions/runs/${n * 10 + 5}/jobs?per_page=100`));
-  // The capped issues record their fifth run, so the next pass reads no jobs.
   const capped = gh.writes.filter((w) => w.method === "PATCH" && Number(/comments\/(\d+)$/.exec(w.path)[1]) > 5);
   assert.equal(capped.length, 15);
   for (const w of capped) assert.deepEqual([...readState([{ id: 1, user: BOT, body: w.body.body }]).reached.values()], ["-", "-", "-", "-", "-"]);
@@ -957,12 +895,6 @@ test("a failing jobs read counts the run, as before: two runs hand the issue off
   assert.deepEqual(result.dispatched, []);
 });
 
-// Runs that reached a verdict and stopped for a reason a later run clears do
-// not count: apply-verdict failed on a 500 (run 41814429466), it wrote the
-// labels but missed edges and the status field on a 5xx (run 41814435576), or
-// the reusable deferred an otherwise clean triage on a permission denial and
-// apply-verdict skipped (run 41807993284). Annotations as the check-runs API
-// returned them for those runs.
 const cr = (id) => `https://api.github.com/repos/o/r/check-runs/${id}`;
 const withUrl = (name, conclusion, id) => ({ ...job(name, conclusion), check_run_url: cr(id) });
 const reachedWith = (...rest) => [job("Kill Switch", "success"), job("Intake Triage / claude-intake-triage", "success"), ...rest];
@@ -1033,15 +965,12 @@ test("a run whose apply failed for a reason a retry does not clear counts", asyn
   }
   const mixed = transientRuns(FAILED_500, { 220: [note("failure", "POST /x failed with status 500"), note("failure", "the reasons comment was not written: 403")] });
   assert.deepEqual((await sweep(mixed)).handed, [1]);
-  // One edge annotation that joins a 500 and a 403 (apply-verdict's
-  // missedAnnotation) counts: not every failure it reports is transient.
   const joined = transientRuns(MISSED_502, {
     220: [note("warning", "blocked-by edges not written: #2 not written (GitHub answered 500), #3 not written (GitHub answered 403); the verdict's labels are written without status: ready")],
   });
   assert.deepEqual((await sweep(joined)).handed, [1]);
   const held = transientRuns(MISSED_502, { 220: [note("notice", "held: POST /repos/o/r/issues/1/labels failed with status 403")] });
   assert.deepEqual((await sweep(held)).handed, [1]);
-  // So does an apply-verdict that skipped with no deferral, or failed with no annotation.
   assert.deepEqual((await sweep(transientRuns(DEFERRED, { 221: [] }))).handed, [1]);
   assert.deepEqual((await sweep(transientRuns(FAILED_500, { 220: [] }))).handed, [1]);
 });
@@ -1063,10 +992,7 @@ test("the first 24 transient runs do not count and the 25th does", async () => {
       runs: Object.fromEntries(ids.map((id) => [id, { status: "completed", conclusion: "failure" }])),
     });
   };
-  // 24 transient runs and one that counts: one attempt, so it dispatches.
   assert.deepEqual((await sweep(marked(24))).dispatched, [1]);
-  // A 25th transient run counts: two attempts hand it off, without reading
-  // the transient runs' conclusions.
   const gh = marked(25);
   const reads = [];
   const result = await runSweep({
@@ -1112,8 +1038,6 @@ test("after RUN_LIMIT dispatches that never reached intake the sweep hands the i
   assert.ok(gh.writes[1].body.body.includes("- https://github.com/o/r/actions/runs/66 (success, intake did not run)"));
 });
 
-// A comment flood past the pages read would hide the state comment and force
-// a dispatch every pass.
 test("an issue with more comments than the sweep reads goes to a maintainer, undispatched", async () => {
   const flood = Array.from({ length: 300 }, (_, i) => ({ id: i, user: { login: "someone", id: 9 }, body: "spam" }));
   const gh = fakeGitHub({ issues: [issue(1)], comments: { 1: flood } });
@@ -1133,9 +1057,6 @@ test("a pass stops dispatching when the budget left cannot record the run", asyn
     left -= 1;
     return gh.call(...args);
   };
-  // issues page 1, the two hand-off searches, comments of #1, dispatch, state
-  // write: 6 calls; #2's comments leave 1, too few for a dispatch and its
-  // state write.
   const result = await runSweep({
     call,
     remaining: () => left,
@@ -1193,7 +1114,6 @@ test("issues an older sweep filed a hand-off for are skipped without reading the
       title: `Intake triage left #${i.number} untriaged after 2 dispatches`,
       user: BOT,
     })),
-    // The same title from anyone else excludes nothing.
     { number: 7000, title: "Intake triage left #119 untriaged after 2 dispatches", user: { login: "someone" } },
   ];
   const gh = fakeGitHub({
@@ -1231,13 +1151,9 @@ const handBack = (user, at) => ({ id: 6, user, body: "<!-- work-unblock handed t
 const triaged = { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } };
 const LANES = { login: "melodic-automation-lanes[bot]", id: APP };
 
-// The issue lane's intake route (a split-required skip, owner Q93) sends an
-// issue back the same way, so its comment starts a new cycle too.
 const intakeBack = (user, at) => ({ id: 7, user, body: "<!-- work-resolve-issue outcome=intake run=9 -->\nThe work-resolve-issue lane stopped on this issue (`split-required`).", created_at: at });
-// A pushback that may name a security risk marks its intake comment `security`.
 const securityBack = (user, at) => ({ id: 7, user, body: "<!-- work-resolve-issue outcome=intake security run=9 -->\nThe work-resolve-issue lane stopped on this issue (`pushback-means`).", created_at: at });
 
-// work-unblock's hand-back before it parks a split refusal at needs-triage.
 const splitBack = (user, at) => ({ id: 8, user, body: splitHandBack("- [ ] Line 3 says nineteen.\n- [ ] Run it on a Windows 11 host."), created_at: at });
 
 test("a lanes App hand-back newer than the state comment starts a new cycle of dispatches in the same comment", async () => {
@@ -1381,11 +1297,6 @@ test("a needs-triage search hit with the bot's hand-off and a newer hand-back fr
   assert.deepEqual(gh.writes, []);
 });
 
-// Admission's re-triage over a blocker's report-delivered close (admit.mjs
-// retriageNote) hands the issue back as work-unblock does, so a dependent
-// that used both dispatches is judged again instead of handed to a
-// maintainer. The admission comment is edited in place, so its last edit
-// counts; any other admission comment hands nothing back.
 const admissionAt = (user, text, at) => ({ id: 7, user, body: `${ADMIT_MARKER}\n${text}`, created_at: "2026-10-16T00:00:00Z", updated_at: at });
 const retriage = retriageNote("blocker #5 was closed report-delivered", [{ number: 5, url: "u", reason: "the report" }]);
 
@@ -1462,8 +1373,6 @@ test("an issue past the comment pages at needs-triage on the field alone is not 
   assert.deepEqual(result.handedOff, []);
 });
 
-// work-unblock's unpark sets the field to needs-triage and posts this marker
-// as the lanes App, so the sweep re-sends the issue as for its other hand-backs.
 const unparked = (user, at) => ({ id: 8, user, body: "<!-- work-unblock unparked triage -->\nwork-unblock sent this issue back to intake triage.", created_at: at });
 
 test("an issue at needs-triage with the lanes App's unpark marker is re-sent; the marker from anyone else is not", async () => {
@@ -1482,7 +1391,6 @@ test("an issue at needs-triage with the lanes App's unpark marker is re-sent; th
     assert.deepEqual(result.dispatched, dispatched, name);
   }
   assert.deepEqual(readState([stateAt([11, 22], HANDED, "2026-10-17T06:00:00Z"), unparked(LANES, "2026-10-18T08:00:00Z")], String(APP)).runs, []);
-  // The marker counts only as the comment's first line.
   const quoted = { ...unparked(LANES, "2026-10-18T08:00:00Z"), body: "> <!-- work-unblock unparked triage -->" };
   assert.deepEqual(readState([stateAt([11, 22], null, "2026-10-17T06:00:00Z"), quoted], String(APP)).runs, [11, 22]);
 });

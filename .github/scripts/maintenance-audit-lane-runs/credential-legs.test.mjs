@@ -1,17 +1,3 @@
-// maintenance-audit-lane-runs.yml picks each assess-units leg's credential through
-// ci-workflows' select-model-credential, fetched at the pin the workflow
-// names: collect's start call, then in each matrix leg a credential call and,
-// in the key and subscription legs, a next-leg call whose verdict the handoff
-// marker records. A matrix job's outputs are not per unit, so the chain runs
-// per unit through the markers and the route jobs; this truth table follows
-// one unit through every combination of credit verdict, secrets set or empty,
-// a model that resolves or not, a step failing before the leg or the marker
-// upload failing after it, every launcher outcome run-claude-cli's own
-// handoffReason can produce, and the leg check clean or not, and holds each
-// state to the expressions the workflow used before the action (quoted from
-// 5599e627fc): the same jobs start for the unit, each leg gets the same
-// present and fallback-ready, each later leg's record the same fallback
-// reason, and each marker the same reason.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -33,14 +19,10 @@ const LEGS = [
   ["assess-units-fallback", "fallback", ""],
 ];
 
-// The shared evaluator reads only needs/steps/github/vars/inputs/secrets
-// names; matrix.x is read as inputs.matrix.x.
 const m = (expression) => expression.replace(/\bmatrix\./g, "inputs.matrix.");
 const runs = (expression, ctx) => runsRaw(m(expression), ctx);
 const value = (expression, ctx) => valueRaw(m(expression), ctx);
 
-// The old conditions and expressions, at 5599e627fc, under the job ids of
-// that commit (the judge jobs, since renamed to assess-units).
 const OLD = {
   key: "needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]' && needs.collect.outputs.skip-key != 'true'",
   handoffs: "${{ !cancelled() && (needs.judge.result != 'skipped' || needs.collect.outputs.skip-key == 'true' && needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]') }}",
@@ -61,8 +43,6 @@ const prefixed = (prefix, map) => Object.fromEntries(Object.entries(map).map(([k
 const stepBlock = (job, name) => wf.job(job).split(/\n(?= {6}- name: )/).find((b) => b.startsWith(`      - name: ${name}\n`));
 const envOf = (block, name) => new RegExp(`^ {10}${name}: (.*)$`, "m").exec(block)[1];
 
-// The judge step and its leg check: the judge runs on a present credential
-// when no step before it failed; the check passes on a clean handoff.
 function legSteps(present, s, outcome, check) {
   const ran = present === "true" && s.failAt !== "before-run";
   const ctx = { "steps.judge.outcome": ran ? "success" : "skipped" };
@@ -71,9 +51,6 @@ function legSteps(present, s, outcome, check) {
   return { ran, ctx };
 }
 
-// The marker a leg uploads, from its record step's condition and REASON:
-// handoff.mjs refuses a reason outside its closed set, and a failed upload
-// leaves none.
 function uploaded(leg, recorded, reason, s) {
   if (!recorded || s.failAt === "before-run") return null;
   let record;
@@ -85,8 +62,6 @@ function uploaded(leg, recorded, reason, s) {
   return s.failAt === "after-upload" ? null : record;
 }
 
-// One unit's run, given how each leg job decides it: `decide(job, leg, ctx,
-// s, outcome, check)` returns { leg record, marker }.
 function chain(s, collect, decide, ifs) {
   const out = { started: [], legs: {} };
   const ctx = { "needs.collect.outputs.units": UNITS, ...collect, ...prefixed("secrets", Object.fromEntries(Object.entries(SECRETS).map(([k, n]) => [n, s[k] ? "set" : ""]))) };
@@ -97,7 +72,6 @@ function chain(s, collect, decide, ifs) {
     out.legs["assess-units"] = r.record;
     routed = r.marker;
   }
-  // OLD.handoffs reads the key job under its old id, the workflow under its new one.
   ctx["needs.assess-units.result"] = ctx["needs.judge.result"] = out.started.includes("assess-units") ? "success" : "skipped";
   if (!runs(ifs.handoffs, ctx)) return out;
   out.started.push("collect-key-handoffs");
@@ -144,7 +118,6 @@ function newDecide(job, leg, ctx, s, outcome, check) {
   if (leg === "fallback") return { record, marker: null };
   const next = wf.step(job, "next");
   assert.equal(next.if, "", `${job}'s next-leg call has no if, as the record step after it has none`);
-  // No if: it runs only when every step before it passed.
   if (s.failAt !== "before-run") {
     const input = (name) => value(next.inputs[name], steps);
     Object.assign(steps, prefixed("steps.next.outputs", S.next({ state: input("state"), handoff: input("handoff"), handoffReason: input("handoff-reason") })));
@@ -171,7 +144,6 @@ function newRun(s) {
   });
 }
 
-// Each launcher outcome, and for a handoff the leg check clean or not.
 function outcomes(leg, fallbackReady) {
   return launcherOutcomes(S.handoffReason, leg, fallbackReady).flatMap((o) => (o.handoff === "true" ? [true, false].map((clean) => ({ ...o, clean })) : [o]));
 }

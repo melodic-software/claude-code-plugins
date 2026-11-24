@@ -71,9 +71,9 @@ prefixed repository; a `.github/` or `docs/` path with no prefix is this reposit
   Those classes cover workflows and CODEOWNERS, not `.github/actions/**` or `.github/standards/**`.
   Every workflow job that runs a model holds no write scope, write credential or dependency cache
   ([`.github/scripts/lib/model-job-permissions.test.mjs`](../../.github/scripts/lib/model-job-permissions.test.mjs)).
-- **Only intake calls ci-workflows today**, for its model jobs (`.github/workflows/intake-triage.yml:216`);
-  its write job mints from the caller file (`intake-triage.yml:361-375`). The review lanes call
-  `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml:172`) and sit outside the broker.
+- **Only intake calls ci-workflows today**, for its model jobs (`.github/workflows/intake-triage.yml:297`);
+  its write job mints from the caller file (`intake-triage.yml:440-447`). The review lanes call
+  `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml:260`) and sit outside the broker.
 
 ### Corrected premise
 

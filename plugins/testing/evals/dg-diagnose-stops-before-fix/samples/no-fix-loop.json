@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/p/plugins/testing/skills/fix-failing/context/investigate.md" } }],
+      "why": "stops after investigate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/plugins/testing/skills/fix-failing/context/investigate.md" } },
+        { "tool": "Read", "input": { "file_path": "/p/plugins/testing/skills/fix-failing/context/loop.md" } }
+      ],
+      "why": "went on into the fix loop"
+    }
+  ]
+}

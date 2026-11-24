@@ -1,7 +1,3 @@
-// The judge's output is untrusted: write-findings keeps at most three
-// well-formed findings and names what it dropped; the filer drops any finding
-// with a failed claim before planning, stamps each kept one with its
-// fingerprint, and writes them into one rolling digest issue.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -118,7 +114,6 @@ function writeUnits(units) {
   return dir;
 }
 
-// One finding per unit through prepareItems; returns what survived and what was dropped.
 function prepareOne(t, unitData, over) {
   const base = tempDir("lane-sweep-file-");
   writeFileSync(join(base, "a.yml"), "if: true\n");
@@ -419,13 +414,9 @@ const store = (issues = []) => {
   return { issues, calls, call };
 };
 const ROOT = new URL("../../..", import.meta.url).pathname;
-// The org Work status field and the option ids it maps, written by hand.
 const FIELD = 48484079;
 const OPTION = { "needs-triage": 84879216, "needs-owner-decision": 84879218, "agent-ready": 84879220 };
 const HUMAN = 153232337;
-// One issue's Work status field reading `state`, last set by account `setter`,
-// behind a real statusWriter. A POST sets it as the lanes App, or throws
-// `postError`; `written` lists the states POSTed.
 function workStatus(state, setter, postError) {
   const written = [];
   const value = () => (state === null ? [] : [{ issue_field_id: FIELD, single_select_option: { id: OPTION[state] } }]);
@@ -610,9 +601,6 @@ test("a failed filing is recorded", async () => {
   assert.deepEqual(result, { ...nothing, failed: [{ target: "digest", error: "POST /repos/o/r/issues: HTTP 422" }] });
 });
 
-// Only the sweep's own issues can be adopted as the digest or rewritten: the
-// listing names github-actions[bot] as creator, and a body the sweep did not
-// write is dropped.
 test("listSweepIssues lists only github-actions[bot]'s digest and finding issues, at most ten pages", async () => {
   const paths = [];
   const digest = { number: 1, body: "<!-- lane-sweep-digest -->\nx" };
@@ -625,8 +613,6 @@ test("listSweepIssues lists only github-actions[bot]'s digest and finding issues
   for (const path of paths) assert.equal(new URL(path, "https://x").searchParams.get("creator"), "github-actions[bot]");
 });
 
-// The 50-call budget is a hard stop: spend() throws before the request, and
-// the throw ends the write before the PATCH that carries the new state.
 test("a budget spent mid-rewrite stops before the PATCH and reports the failure", async () => {
   const s = store([{ number: 100, state: "open", state_reason: null, labels: [], body: "" }]);
   const budget = createBudget(1);

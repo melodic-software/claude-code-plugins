@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.10.5] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+### Fixed
+
+- babysit-prs: a Dependabot CDN-pin bump carrying the lanes App's pins sync commit no longer waits for a person. When its one trust-gate path is `lib/cdn-pins/pins.json`, modified in place, `CI Status` clears the hold once the lanes App's newest review-dependency round marker names the head with `verdict=merge` (owner decision Q154 A). Until then it fails with `#<n> by Dependabot changes only the CDN pins record on trust-gate paths`, which review-dependency reviews rather than skipping as `gate-hold`. Any other trust-gate path, a rename, a marker for another head or by another account, or an unreadable read keeps the hold.
+
+- babysit-prs: the unattended CDN pins sync no longer trusts whatever jsDelivr serves. For each bumped package it now requires `lib/cdn-pins/package-lock.json` to lock that version at its canonical `registry.npmjs.org` tarball with a sha512 integrity, fetches the tarball, checks the sha512, and records the SRI hash only when jsDelivr's file equals `package/<file>` inside the tarball byte for byte. Any mismatch, missing entry or unreadable tarball exits 1 and writes nothing, as a jsDelivr 404 does.
+
+- babysit-prs: the pr-merge lane's Dependabot gate takes a CDN pins sync commit only when its message is exactly the `cdn-pins-sync` row's: the subject `Sync the CDN pins to the bumped manifest on <head ref> [dependabot skip]` on the pull request's own head ref, then the one trailer `Lane-Activity: pr-unblock/review-dependency`. A `[dependabot skip]` commit with another row's subject, another branch, or a missing or different trailer now refuses (`cdn-sync-message`, `cdn-sync-trailer`).
+
 ## [13.10.4] - 2026-11-24
 
 ### Fixed
