@@ -189,10 +189,8 @@ _bfv_git() { hook::git_untrusted -C "$_BFV_ROOT" "$@"; }
 
 _bfv_origin=$(_bfv_git remote get-url origin 2>/dev/null) || _bfv_origin=""
 _bfv_slug_to _BFV_SELF "$_bfv_origin" || _BFV_SELF=""
-if [[ -n "$_BFV_TARGET" ]]; then
-  [[ -n "$_BFV_SELF" && "$_BFV_TARGET" == "$_BFV_SELF" ]] || exit 0
-fi
-_BFV_REPO="${_BFV_SELF:-this repository}"
+[[ -n "$_BFV_SELF" ]] || exit 0
+[[ -z "$_BFV_TARGET" || "$_BFV_TARGET" == "$_BFV_SELF" ]] || exit 0
 
 _bfv_note() { printf 'guardrails: block-body-format-violation: %s\n' "$1" >&2; }
 
@@ -372,7 +370,7 @@ if ((${#_BFV_PROBLEMS[@]} == 0)); then
 fi
 
 {
-  printf 'BLOCKED: this pull request body breaks the body format %s declares:\n' "$_BFV_REPO"
+  printf 'BLOCKED: this pull request body breaks the body format %s declares:\n' "$_BFV_SELF"
   if [[ -n "$_BFV_SECTIONS_SRC" ]]; then
     _bfv_list=""
     for _bfv_h in "${_BFV_SECTIONS[@]}"; do _bfv_list+="${_bfv_list:+, }$_bfv_h"; done

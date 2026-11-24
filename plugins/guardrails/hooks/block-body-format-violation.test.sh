@@ -36,6 +36,8 @@ BRIEF=$(mkrepo brief 'pr_body_required_sections: briefing')
 OFF=$(mkrepo off $'pr_body_required_sections:\n  - Summary\npr_body_format_gate: false')
 LOCALOFF=$(mkrepo localoff $'pr_body_required_sections:\n  - Summary')
 printf 'pr_body_format_gate: false\n' >"$LOCALOFF/docs/conventions/source-control.local.yaml"
+NOORIGIN=$(mkrepo noorigin $'pr_body_required_sections:\n  - Summary')
+git -C "$NOORIGIN" remote remove origin
 
 GOOD=$'Closes #12\n\n## Summary\nWhy it changes.\n\n## Fix\nWhat changed.'
 NOFIX=$'Closes #12\n\n## Summary\nWhy it changes.'
@@ -111,6 +113,7 @@ pass "-R naming another repository" "gh pr create -R other/repo --title t --body
 pass "after a cd" "cd /tmp && gh pr create --title t --body $(q "$NOFIX")" "$FULL"
 pass "PowerShell" "gh pr create --title t --body 'x'" "$FULL" PowerShell
 pass "a repository that declares no format" "gh pr create --title t --body x" "$NONE"
+pass "a checkout with a declared format and no origin remote" "gh pr create --title t --body x" "$NOORIGIN"
 pass "a team file without the key" "gh pr create --title t --body x" "$NOKEY"
 pass "pr_body_required_sections: none" "gh pr create --title t --body x" "$NONEKW"
 deny "briefing preset" "gh pr create --title t --body $(q $'## Why\nx\n## What changed\ny')" "$BRIEF" 'Missing a "## Scope" section'
