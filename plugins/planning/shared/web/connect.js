@@ -1,6 +1,3 @@
-// Connect your Claude (R2-12, AC 70): the prompts a guest hands their own Claude, the links that open it with a
-// prompt filled in (never sent), and reading a pasted answer back. The server knows only `runner: self`; everything
-// surface-specific lives here. Upstream link formats: plugins/planning/shared/README.md "Connect your Claude".
 (function (root) {
   "use strict";
 
@@ -24,7 +21,6 @@
   };
   const KIND = { ask: "Ask", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
 
-  /** A fresh random marker per prompt: text quoted inside the data block cannot guess it, so cannot close the block. */
   function nonce() {
     const b = new Uint8Array(8);
     globalThis.crypto.getRandomValues(b);
@@ -34,8 +30,6 @@
   const LOOKS = { "А": "A", "а": "a", "Α": "A", "α": "a", "Е": "E", "е": "e", "Ε": "E", "ε": "e", "І": "I", "і": "i", "Ι": "I", "ι": "i",
     "О": "O", "о": "o", "Ο": "O", "ο": "o", "Ѕ": "S", "ѕ": "s", "Т": "T", "т": "t", "Τ": "T", "τ": "t", "Ν": "N", "Н": "N", "Δ": "D", "ԁ": "d" };
   const fold = s => s.replace(/./gu, c => LOOKS[c] || c);
-  // A "SESSION DATA" marker however it is dressed: dash runs (spaced or not) around it, any separator between the words.
-  // One dash character per repetition, so a long dash run with no marker after it fails in linear time.
   const MARKER = /(?:[\p{Pd}−_=~*#]\s*)*(?:END[\s_\p{Pd}−]*)?SESSION[\s_\p{Pd}−]*DATA(?:\s*[\p{Pd}−_=~*#])*/giu;
 
   /** Session text for inside the data block: NFKC-normalized, format characters (zero-width and the like) dropped,
