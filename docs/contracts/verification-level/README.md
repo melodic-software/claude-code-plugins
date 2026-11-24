@@ -120,7 +120,7 @@ every run.
 | `/multi-agent:audit-defaults` | the `drift-audit` workflow's skeptic panel, the product: `light` reports every finding `unverified` and proposes no diff |
 | `/playbooks:fable-5` | the fresh-context verifier gate (orchestration chapter, "Fresh-context verification"); the self-review floor runs at every level, and `strict` drops the mechanical-batch exemption |
 | `/plugin-quality:audit` | the adversarial re-examination step, the product: `light` labels the findings `unverified`; `standard` keeps its `high`-effort gate and `strict` runs it at every effort |
-| `/songwriting:co-write`, `/songwriting:diagnose` | the hard gate's skeptic refutation row; `standard` keeps it skippable by the writer's named reason, and `strict` runs it on every batch; the rubric's counted passes run at every level |
+| `/songwriting:co-write`, `/songwriting:revise` | the hard gate's skeptic refutation row; `standard` keeps it skippable by the writer's named reason, and `strict` runs it on every batch; the rubric's counted passes run at every level |
 | `/work-items:work` | the bug path's step 2 capture check, a fresh-context subagent per reproduction capture; `light` leaves the runs unconfirmed |
 | `/codebase-health:audit` | the Phase 2 separate false-positive validator; `strict` dispatches it after an inline Phase 1 too, and `light` reports the findings `unverified` |
 | `/developer-experience:build-cli` | the review mode's fresh-context reviewer, the product: `light` runs the review in the main session and labels every gap `unverified`; `strict` dispatches the reviewer for every review |

@@ -240,6 +240,11 @@ Never claim resolved without re-verifying. For everything else `apply` only poin
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
+## Related
+
+- Run repo-configured spell-checkers on request: /toolchain:lint.
+- Persist a custom spelling lint-cmd record: /toolchain:setup.
+
 ## What this skill does not do
 
 - Run the spell-checker. `git commit` exercises the installed pre-commit entry.

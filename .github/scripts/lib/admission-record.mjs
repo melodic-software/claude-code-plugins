@@ -1,9 +1,3 @@
-// The issue lane's admission record: one new lanes-App comment per admission
-// (admit.mjs, report-outcome.mjs redispatch), carrying the sha256 of the
-// title and body the admission read, and the resolver that finds the
-// admission a run freezes its text at (write-issue.mjs) and counts its
-// restarts from (report-outcome.mjs). Self-contained: report-outcome runs
-// from a copy of its own directory beside this lib.
 import { createHash } from "node:crypto";
 
 export const ADMISSION_RECORD_MARKER = "<!-- issue-admission-record -->";
@@ -96,7 +90,6 @@ export function admittedAt({ comments, appId, fieldEvents, fieldId, state = "age
       : personAdmissions(fieldEvents, { fieldId, state, humans })
           .filter((one) => !personSender || one.actorId === sender)
           .map(({ at }) => ({ at, kind: "person", record: null }));
-  // A record and a person's set in one second: the person's is later.
   const all = [...records, ...people].sort((a, b) => a.at - b.at || (a.kind === "person") - (b.kind === "person"));
   const bounded = Number.isFinite(triggerAt) ? (all.filter((one) => one.at <= triggerAt).at(-1) ?? all.find((one) => one.at > triggerAt)) : all.at(-1);
   if (!bounded) {

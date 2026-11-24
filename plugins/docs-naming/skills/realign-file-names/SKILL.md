@@ -160,6 +160,12 @@ the plan reads `blocked`, and the re-audit that settles it has been named.
 - **Accept a finding on the operator's behalf**, including one whose apply it
   just refused.
 
+## Related
+
+- Tree drifted or finding blocked: /docs-naming:audit-file-names.
+- Enforce the rule going forward: /docs-naming:generate-file-name-gate.
+- Ad-hoc reference sweep outside a plan: /docs-hygiene:rename-references.
+
 ## Gotchas
 
 - **A blanket yes is the failure this skill exists to prevent.** The cost of

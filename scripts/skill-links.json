@@ -2417,7 +2417,7 @@
     },
     "songwriting:co-write": {
       "next": [
-        "/songwriting:diagnose"
+        "/songwriting:revise audit"
       ],
       "related": [
         "Sensory raw material before lines: /songwriting:object-writing",
@@ -2426,7 +2426,7 @@
         "Rhyme partners for swaps: /songwriting:rhyme"
       ]
     },
-    "songwriting:diagnose": {
+    "songwriting:revise": {
       "next": [],
       "related": [
         "Blank page, seed, or stuck fragment: /songwriting:workflow",
@@ -2446,7 +2446,7 @@
         "Sensory raw material feeding collisions or cliche repair: /songwriting:object-writing",
         "Rhyme partner for metaphor key word: /songwriting:rhyme",
         "Structural placement of image: /songwriting:song-form",
-        "Whole-draft diagnosis: /songwriting:diagnose"
+        "Whole-draft diagnosis: /songwriting:revise diagnose"
       ]
     },
     "songwriting:meter-prosody": {
@@ -2456,7 +2456,7 @@
       "related": [
         "Section identification, form-fit, and hook placement: /songwriting:song-form",
         "Rhyme position and stability: /songwriting:rhyme",
-        "Whole-draft diagnosis: /songwriting:diagnose"
+        "Whole-draft diagnosis: /songwriting:revise diagnose"
       ]
     },
     "songwriting:object-writing": {
@@ -2467,7 +2467,7 @@
       "related": [
         "Rhyme choice and rhyme cliche: /songwriting:rhyme",
         "Daily practice curriculum and numbered exercises: /songwriting:practice",
-        "Whole-draft diagnosis: /songwriting:diagnose",
+        "Whole-draft diagnosis: /songwriting:revise diagnose",
         "Section placement judgment: /songwriting:song-form",
         "Scansion or stress-map claim: /songwriting:meter-prosody"
       ]
@@ -2503,7 +2503,7 @@
         "Metaphor systems across a form: /songwriting:metaphor",
         "Stability and scansion of sections: /songwriting:meter-prosody",
         "Rhyme within sections: /songwriting:rhyme",
-        "Whole-draft diagnosis: /songwriting:diagnose"
+        "Whole-draft diagnosis: /songwriting:revise diagnose"
       ]
     },
     "songwriting:suno": {
@@ -2521,7 +2521,7 @@
         "Scansion, prosody, and melody fit: /songwriting:meter-prosody",
         "Song structure, hooks, and bridges: /songwriting:song-form",
         "Co-write rules, titles, and line dumps: /songwriting:co-write",
-        "Draft diagnosis, audit, and rewrites: /songwriting:diagnose",
+        "Draft diagnosis, audit, and rewrites: /songwriting:revise",
         "Daily practice curriculum: /songwriting:practice",
         "Suno v5.5 prompt formatting: /songwriting:suno"
       ]

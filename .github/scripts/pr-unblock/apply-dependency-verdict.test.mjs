@@ -789,6 +789,19 @@ test("a merge verdict refuses a CDN pins sync commit that is anything more than 
   await syncRefused(syncWith(syncCommit({ message: "Sync the CDN pins" })), /;cdn-sync-message/, "no [dependabot skip]");
 });
 
+test("a merge verdict refuses a [dependabot skip] commit on CDN targets that is not the cdn-pins-sync row's own message", async () => {
+  const ref = "dependabot/npm_and_yarn/x-2.0.0";
+  const trailer = "\n\nLane-Activity: pr-unblock/review-dependency\n";
+  await syncRefused(syncWith(syncCommit({ message: `Fix the dependency update on ${ref} [dependabot skip]${trailer}` })), /;cdn-sync-message/, "another row's subject");
+  await syncRefused(syncWith(syncCommit({ message: SYNC_MESSAGE.replace(ref, "main") })), /;cdn-sync-message/, "another branch");
+  await syncRefused(syncWith(syncCommit({ message: `x ${SYNC_MESSAGE}` })), /;cdn-sync-message/, "the subject inside another line");
+  await syncRefused(syncWith(syncCommit({ message: SYNC_MESSAGE.split("\n")[0] })), /;cdn-sync-trailer/, "no trailer");
+  await syncRefused(syncWith(syncCommit({ message: SYNC_MESSAGE.replace("review-dependency", "fix-ci-context") })), /;cdn-sync-trailer/, "another activity");
+  await syncRefused(syncWith(syncCommit({ message: `${SYNC_MESSAGE}Lane-Thread: 1\n` })), /;cdn-sync-trailer/, "a second trailer");
+  const noFinalNewline = syncWith(syncCommit({ message: SYNC_MESSAGE.trimEnd() }));
+  assert.equal((await go(noFinalNewline, mergeRun())).escalationReason, "", "the message without its final newline");
+});
+
 test("a merge verdict refuses a CDN pins sync commit the lanes App did not make, or with two parents", async () => {
   await syncRefused(syncWith(syncCommit({ author: { id: 5 } })), /;cdn-sync-author/, "another author");
   await syncRefused(syncWith(syncCommit({ author: null })), /;cdn-sync-author/, "no author account");

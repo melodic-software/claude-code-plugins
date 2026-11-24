@@ -198,6 +198,12 @@ by layer:
   `/docs-naming:audit-file-names`.
 - The sweep edited code or config and the build must still pass: `/toolchain:check`.
 
+## Related
+
+- Curate domain glossary terms behind a rename: /domain-driven-design:ubiquitous-language.
+- Record ADR for persisted stored names left unchanged: /architecture:adr.
+- Sweep a changed config value rather than an identifier: /coupling:reduce.
+
 ## Gotchas
 
 - **A single-pattern grep is never evidence of a clean sweep.** Token-only grep reaches Forms 1 and

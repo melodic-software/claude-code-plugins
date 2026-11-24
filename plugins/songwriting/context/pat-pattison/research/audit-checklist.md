@@ -591,7 +591,7 @@ repo wants an audit conducted, not because Pat says it.*
 - Do not list every miss. Surface the dominant problem first.
 - If the dominant problem is upstream (title doesn't fit form, form doesn't fit emotion), fixing downstream lines won't help.
 - "There are no rules, only tools." applies to the audit itself: the writer can refuse any box, but should know they're refusing.
-- After the audit, run one focused revision pass, not a sweep.
+- After the audit, offer one focused revision pass (`/songwriting:revise rewrite`), not a sweep.
 
 ## Cross-references
 

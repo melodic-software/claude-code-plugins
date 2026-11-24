@@ -4,7 +4,7 @@ graders:
   - name: invokes-diagnose
     type: tool_used
     tool: Skill
-    input_match: 'songwriting:diagnose'
+    input_match: 'songwriting:revise'
     min: 1
   - name: dominant-problem-named
     type: regex

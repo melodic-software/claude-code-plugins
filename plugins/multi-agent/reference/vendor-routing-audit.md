@@ -266,7 +266,7 @@ by the skill's own design.
 | session-flow:workflow | `plugins/session-flow/skills/workflow/context/pre-pr.md:15`: pre-PR review of the diff | coding | route | brief carries the diff and conventions |
 | session-flow:workflow | `plugins/session-flow/skills/workflow/context/steps.md:210`: outcome verification against intent | coding | route | brief carries the Brief and the diff |
 | songwriting:co-write | `plugins/songwriting/skills/co-write/SKILL.md:99`: refuting candidate lyric lines | knowledge work | route | brief carries the candidates, map, rubric and filter |
-| songwriting:diagnose | `plugins/songwriting/skills/diagnose/SKILL.md:63`: refuting rewrite candidates | knowledge work | route | brief carries the candidates, map, rubric and filter |
+| songwriting:revise | `plugins/songwriting/skills/revise/SKILL.md:64`: refuting rewrite candidates | knowledge work | route | brief carries the candidates, map, rubric and filter |
 | songwriting:object-writing | `plugins/songwriting/skills/object-writing/SKILL.md:54`: timed object-writing dives | knowledge work | route | brief carries the seed, timer, category and output path |
 | source-control:babysit-loop | `plugins/source-control/skills/babysit-loop/reference/pre-escalation-dispatch.md:14`: resolving a blocker before escalation | coding | route | brief carries the blocker and the PR |
 | source-control:babysit-prs | `plugins/source-control/skills/babysit-prs/SKILL.md:242`: per-PR fix and triage worker | coding | route | prompt carries the PR, reasons, worktree and fenced fields |

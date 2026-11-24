@@ -222,6 +222,11 @@ does the work under its own cadence.
 - A lever-check answer goes back to its caller: /implementation:implement
 - A deterministic check that recurs needs a standing hook: /harness-config:audit-automation-gaps
 
+## Related
+
+- Fan-out worker lever-check caller: /implementation:implement-dispatch.
+- Count and prove a recurring check: /corrections:codify.
+
 ## Gotchas
 
 - "Reason over the output" here means *where the computation happens*: let
