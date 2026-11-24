@@ -7762,7 +7762,12 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertFalse(any(tag in c[1] for c in gh.calls))
 
     def test_an_unset_or_repository_source_reads_the_copy(self) -> None:
-        for team in (None, "trusted_actors_source: repository\n"):
+        for team in (
+            None,
+            "trusted_actors_source: repository\n",
+            f"standards_repository: {STANDARDS_REPO}\n",
+            f"trusted_actors_source: repository\nstandards_repository: {STANDARDS_REPO}\n",
+        ):
             with self.subTest(team=team):
                 standards_cleared(self)
                 policy._TRUSTED_IDS.clear()
@@ -11112,7 +11117,13 @@ class DependabotEligibility(unittest.TestCase):
             (OPTED_IN, 502, valid, False),
             (OPTED_IN, STANDARDS_HEAD, 502, False),
             ("trusted_actors_source: elsewhere\n", STANDARDS_HEAD, valid, False),
-        ):
+            (f"standards_repository: {STANDARDS_REPO}\n", STANDARDS_HEAD, valid, True),
+            (f"trusted_actors_source: repository\nstandards_repository: {STANDARDS_REPO}\n", STANDARDS_HEAD, valid, True),
+            (f"standards_repository: {STANDARDS_REPO}\n", 502, valid, False),
+            ("standards_repository: nope\n", STANDARDS_HEAD, valid, False),
+            (f"standards_repository: [{STANDARDS_REPO}]\n", STANDARDS_HEAD, valid, False),
+            ("trusted_actors_source: repository\nstandards_repository: nope\n", STANDARDS_HEAD, valid, False),
+        ):  # fmt: skip
             with self.subTest(team=team, head=head, theirs=theirs):
                 standards_cleared(self)
                 gh = self.fake()

@@ -189,7 +189,14 @@ done
 printf 'trusted_actors_source: repository\n' >"$TEST_TMPDIR/team.yaml"
 run 7 >/dev/null 2>&1
 assert_exit "a repository source with no copy leaves the label holding" 3 "$?"
+printf 'standards_repository: example-org/standards\n' >"$TEST_TMPDIR/team.yaml"
+run 7 >/dev/null 2>&1
+assert_exit "a standards_repository without the standards source reads no standards list" 3 "$?"
 mv "$TEST_TMPDIR/standards-trusted.json" "$TEST_TMPDIR/trusted.json"
+run 7 >/dev/null 2>&1
+assert_exit "a standards_repository without the standards source reads the copy" 0 "$?"
+assert_not_contains "the standards list is not read" "$(cat "$TEST_TMPDIR/calls")" "repos/example-org/standards/"
+printf 'trusted_actors_source: repository\n' >"$TEST_TMPDIR/team.yaml"
 run 7 >/dev/null 2>&1
 assert_exit "a repository source reads its own copy" 0 "$?"
 rm -f "$TEST_TMPDIR/team.yaml" "$TEST_TMPDIR/trusted.json"
