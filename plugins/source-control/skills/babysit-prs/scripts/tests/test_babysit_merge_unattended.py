@@ -59,15 +59,11 @@ BASE = "c" * 40
 PR = fixtures.PR_NUMBER
 OPERATOR_LOGIN = "operator"
 IDENTITY = "agent-lanes[bot]"
-# A person on the trusted-actor list, kind human.
 PERSON_ID = 4242
 INERT = policy.UnattendedPolicy(reason="authority-unconfigured")
 INERT_BLOCKER = "unattended merge refused: authority-unconfigured"
 REAL_ROLE_LABEL = postmerge._role_label
 
-# The report keys `evaluate()` returned before the unattended path existed,
-# copied from its return statement. A run without a policy must return exactly
-# these, so no consumer of the report sees a new or missing key.
 PRE_UNATTENDED_KEYS = frozenset(
     {
         "pr",
@@ -110,7 +106,6 @@ PRE_UNATTENDED_KEYS = frozenset(
     }
 )
 
-# Fixtures from the existing gate suite: (name, PR view, expected head, tier).
 FIXTURES: list[tuple[str, dict[str, Any], str, Any]] = [
     ("ready", fixtures._pr(), HEAD, None),
     ("ready under the tier", fixtures._pr(), HEAD, fixtures.TIER),
@@ -136,10 +131,7 @@ FIXTURES: list[tuple[str, dict[str, Any], str, Any]] = [
     ),
 ]
 
-# The fixtures the base gate must call ready; every other fixture carries a hold.
 READY_FIXTURES = frozenset({"ready", "ready under the tier"})
-# A base compare showing the head three commits behind a base that does not
-# require up-to-date branches: a hold the gate adds after every other one.
 BEHIND = {"status": "behind", "ahead_by": 0, "behind_by": 3}
 BEHIND_BLOCKER = (
     "head is 3 commit(s) behind base 'main', which does not require up-to-date "
@@ -158,8 +150,6 @@ def _evaluate(
     review_comments: list[dict[str, Any]] | None = None,
     reviews: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Run `evaluate` over one fixture with every gh seam stubbed."""
-
     def gh_json(args: list[str]) -> Any:
         if args[0] == "api" and "/compare/" in args[1]:
             return compare
@@ -356,7 +346,6 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
         self.assertEqual(prefilter.hold({"labels": ["Needs-Human"]}), "needs-human")
 
     def test_needs_human_holds_the_autopilot_merge_tier(self) -> None:
-        # The tier merges with no person present, like --unattended.
         result = _evaluate(
             fixtures._pr(labels=[{"name": "needs-human"}]), HEAD, fixtures.TIER
         )
@@ -492,7 +481,6 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
         self.assertEqual(result["blockers"], [])
 
     def test_blocking_words_without_a_veto_hold_nothing(self) -> None:
-        # The tier's wider vocabulary is not the lane's: these are not vetoes.
         for body in (
             "Fixed the regression you flagged.",
             "Pushed a fix, this is no longer blocking.",
@@ -728,7 +716,6 @@ QUEUE_RULES = [*fixtures.RULES, {"type": "merge_queue", "parameters": {}}]
 LOW_FILE = ChangedFile(
     "docs/guide.md", None, "modified", 3, 1, True, "100644", "100644"
 )
-# A configured high path: the floor itself holds none.
 HELD = ("**/.gitmodules",)
 BOUND = tuple(
     LaneEvidence(lane, True, None, 0)
@@ -738,7 +725,6 @@ UNBOUND = tuple(
     LaneEvidence(lane, False, "no-marker", None)
     for lane in ("claude-review", "claude-security-review")
 )
-# An open CRITICAL security finding: a hold only a person clears.
 PERSON_HELD = (BOUND[0], LaneEvidence("claude-security-review", True, None, 1))
 PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
@@ -808,14 +794,9 @@ class Unattended(unittest.TestCase):
         self.timeline: list[dict[str, Any]] = []
         self.timeline_error: Exception | None = None
         self.timeline_reads: list[dict[str, Any]] = []
-        # The trusted-actor list's people, and each ref it was read at.
         self.trusted_humans: tuple[int, ...] = (PERSON_ID,)
         self.trusted_refs: list[str] = []
-        # The repository's default branch as `repository_default_branch` reads it.
         self.repo_default: str | None = "main"
-        # Each branch's tip as `base_tip` resolves it; one absent here fails.
-        # The default branch head is `main`'s tip (`main_head`): the base, so
-        # the in-flight cap is `self.config`'s.
         self.tips: dict[str, str] = {"main": BASE, "trunk": "f" * 40}
         self.files = ((LOW_FILE,), True)
         self.pr_view = fixtures._pr()
@@ -823,59 +804,40 @@ class Unattended(unittest.TestCase):
         self.entries = [entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
         self.queued: list[int] = []
         self.holds: dict[int, str] = {}
-        # Every queued entry the sweep judged, in order.
         self.hold_reads: list[int] = []
         self.dequeue_error: Exception | None = None
-        # The permission reader the policy builds, and what a queued entry's
-        # hold read does with its keyword arguments first.
         self.permission_reader: Any = lambda repo: lambda login: "write"
         self.hold_hook: Any = lambda kwargs: None
         self.prior: dict[str, Any] | None = None
         self.log: list[str] = []
         self.pin_lines: list[str] = []
         self.rules = QUEUE_RULES
-        # -1: the queue re-read is whole; any other count truncates it.
         self.entries_total: int | None = -1
         self.node_id = "PR_self"
         self.rerun = mock.Mock(return_value=[])
         self.dispatch_error: Exception | None = None
         self.scored_head = HEAD
         self.default_branch: str | None = "main"
-        # The opt-in re-read beside the second kill-switch read.
         self.opt_in_recheck: str | None = None
-        # Raised by the lane evidence read in place of its answer.
         self.lane_error: Exception | None = None
-        # The pr-merge lane's eligibility and its re-read before the enqueue.
         self.lane_eligible = policy.Eligibility(True, None, "C2", 41)
         self.lane_recheck: str | None = None
         self.lane_recheck_kwargs: list[dict[str, Any]] = []
-        # True runs the real re-read over a stubbed `_graphql`.
         self.real_lane_recheck = False
-        # The base-branch read (the default branch's name).
         self.base_now: str | None = None
         self.base_reads: list[tuple[Any, ...]] = []
-        # The pull request's REST author, and the Dependabot class's reads:
-        # the assessment's, then the re-read before the enqueue.
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
         self.pr_head_ref = "feat"
         # REST `mergeable_state`; "dirty" is a conflict with the base.
         self.pr_mergeable_state: str | None = None
-        # The REST `state` and `merged` fields; None leaves them out.
         self.pr_rest_state: tuple[str, bool] | None = None
-        # The pull request's commits and the compare answers, by endpoint,
-        # for the Dependabot rebase request; None leaves the reads unfaked.
         self.pr_commits: list[dict[str, Any]] | None = None
         self.compare_answers: dict[str, Any] = {}
         self.pr_labels: list[dict[str, Any]] = []
         self.pr_stack: Any = None
         self.dependabot_reads: list[policy.Eligibility] = []
         self.dependabot_kwargs: list[dict[str, Any]] = []
-        # Reads of the pipeline config at `main_head` when it is not the
-        # base, in order (the merge config's, the in-flight cap's, the room
-        # check's): a config, or an exception to raise. Empty reads
-        # `self.config`.
         self.head_configs: list[Any] = []
-        # True runs the real `enabled_since` over the stubbed reads.
         self.real_enabled_since = False
 
     def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
@@ -943,8 +905,6 @@ class Unattended(unittest.TestCase):
     def _get(self, endpoint: str) -> tuple[int | None, Any]:
         if endpoint == "repos/owner/repo/git/ref/heads/main":
             return 200, {"object": {"sha": self.main_head}}
-        # A test's own patch of `policy._get` answers the rest; the real reader
-        # would reach GitHub, so a read nothing answers raises instead.
         if self._outer_get is _REAL_GET:
             raise AssertionError(f"unexpected policy._get call: {endpoint}")
         return self._outer_get(endpoint)
@@ -1209,7 +1169,6 @@ class LaneMode(Unattended):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
-        # D16 replaces the local promotion read: an unpromoted cell must not hold.
         self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
 
@@ -1225,8 +1184,6 @@ class LaneMode(Unattended):
         )
 
     def test_an_adopted_pr_scores_only_paths_its_author_did_not_write(self) -> None:
-        # Owner decision 2026-10-22: a trusted author's own denied-path lines
-        # need no person; a denied path a lane commit touched still holds.
         self.config = dataclasses.replace(self.config, denied_paths=("notes/**",))
         self.files = ((dataclasses.replace(LOW_FILE, path="notes/x.md"),), True)
         self.lane_eligible = policy.Eligibility(
@@ -1253,9 +1210,6 @@ class LaneMode(Unattended):
     def test_a_trusted_persons_gate_path_clears_on_a_clean_security_review(
         self,
     ) -> None:
-        # Owner direction 2026-10-27: the gate path leaves `high-path:` for
-        # `review-path:`, which BOUND's clean security review clears; the
-        # lanes App's own pull request keeps the person's hold.
         gate = ".github/scripts/pr-merge/who.mjs"
         self.config = dataclasses.replace(
             self.config, adoption_idle_hours=24, denied_paths=()
@@ -1284,8 +1238,6 @@ class LaneMode(Unattended):
                 )
 
     def test_path_holds_off_skips_the_floor_and_reports_it(self) -> None:
-        # Owner decision Q15: off, a lanes App gate-script change scores LOW
-        # and the gate report names the hold it skipped; on, it holds.
         gate = ".github/scripts/pr-merge/clear-escalations.mjs"
         self.config = dataclasses.replace(self.config, denied_paths=())
         self.files = ((dataclasses.replace(LOW_FILE, path=gate),), True)
@@ -1301,8 +1253,6 @@ class LaneMode(Unattended):
                 self.assertEqual(risk["pathHoldsSkipped"], skipped)
 
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
-        # Owner decision Q14 (c): a model-driven App's own lines skip the
-        # denied paths only under plugins/*/scripts/.
         self.config = dataclasses.replace(self.config, high_path_floor=True)
         self.lane_eligible = policy.Eligibility(
             True, None, "C2", 41, adoption="trusted-app"
@@ -1680,9 +1630,6 @@ class LaneMode(Unattended):
                 ):
                     self.assertEqual(merge.main(), 2)
 
-    # merge.gate-candidate-minutes: the lane passes the limit in seconds; a
-    # fake clock stands in for time, and `true` for the command a read or a
-    # write starts through the one subprocess seam.
     def _clocked(self, *flags: str) -> tuple[int, dict[str, Any]]:
         self.now = 0.0
         with mock.patch.object(util, "_clock", lambda: self.now):
@@ -2180,8 +2127,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
                 policy.Demotion(True, "#9 open", (9,)),
                 "rung-off:demotion",
             ),
-            # Local review of ed841af72: a doubtful default-branch read must
-            # not skip the dequeue a hold or the kill switch would make.
             "default branch unreadable": (
                 "default_branch",
                 None,
@@ -2200,9 +2145,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
     def test_an_authority_differing_on_the_default_branch_dequeues_the_identitys_entries(
         self,
     ) -> None:
-        # Switching merge.authority on main stops the lane as rung: off does,
-        # so the identity's queued entries leave.
-        # Unsetting merge.agent-identity on main switches the lane off too.
         for change in ({"authority": "pr-merge"}, {"agent_identity": None}):
             with self.subTest(change=change):
                 self.setUp()
@@ -2479,7 +2421,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(self.log, [])
 
     def test_a_base_without_a_merge_queue_is_refused(self) -> None:
-        # C4: an unattended merge only ever enqueues.
         self.rules = fixtures.RULES
         code, out = self.run_main()
         self.assert_no_merge(code)
@@ -2507,7 +2448,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
     def test_a_med_with_an_open_code_review_finding_merges(self) -> None:
-        # Q25: a code-review finding is reported and does not hold.
         self.files = ((self.BINARY,), True)
         self.lanes = (LaneEvidence("claude-review", True, None, 1), BOUND[1])
         code, out = self.run_main()
@@ -2535,7 +2475,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
 
     def test_a_cost_hold_holds(self) -> None:
-        # Infrastructure as code can start a real charge.
         self.files = ((dataclasses.replace(LOW_FILE, path="infra/main.tf"),), True)
         code, out = self.run_main()
         self.assert_no_merge(code)
@@ -2544,7 +2483,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(codes, ["cost-review-required"])
 
     def test_subscription_spend_is_reported_and_merges(self) -> None:
-        # A pipeline spend line draws on the subscription: no real charge.
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         pipeline = dataclasses.replace(
             LOW_FILE, path="plugins/foo/pr-pipeline.yaml", patch=patch
@@ -3093,7 +3031,6 @@ class UpdateError(unittest.TestCase):
 
 class OneUnattendedMergeInFlight(Unattended):
     def test_two_identity_entries_the_later_dequeues_itself(self) -> None:
-        # Another host enqueued #5 first in the same window (D4).
         self.entries = [
             entry(5, "2026-10-12T09:59:00Z", "PR_other"),
             entry(PR, "2026-10-12T10:00:00Z", "PR_self"),
@@ -3161,8 +3098,6 @@ class OneUnattendedMergeInFlight(Unattended):
                 )
 
     def test_a_failed_room_check_read_keeps_the_lower_applied_cap(self) -> None:
-        # The gate applied main's cap of 1; the re-read fails, and the base's
-        # 5 would leave room, so the lower cap holds and the entry leaves.
         self.main_head = "d" * 40
         self.config = dataclasses.replace(self.config, max_in_flight=5)
         self.head_configs = [
@@ -3188,7 +3123,6 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assertNotIn("dequeue-self:id=PR_self", self.log)
 
     def test_a_hold_on_a_queued_identity_entry_dequeues_it(self) -> None:
-        # D3: a hold that appears after the enqueue removes the entry.
         self.flight = policy.InFlight(False, "identity-entry-queued:#5")
         self.queued = [5, 6]
         self.holds = {5: "do-not-merge"}
@@ -3232,9 +3166,6 @@ class OneUnattendedMergeInFlight(Unattended):
     def test_a_queued_entry_whose_rung_lost_promotion_dequeues_itself(
         self,
     ) -> None:
-        # The rung's cells stop qualifying after the enqueue (a demotion
-        # restarted the window, or the resolver became unreadable): the armed
-        # entry leaves the queue instead of merging without evidence.
         for promotion, hold in (
             (
                 policy.Promotion(
@@ -3257,8 +3188,6 @@ class OneUnattendedMergeInFlight(Unattended):
     def test_a_queued_entry_whose_issue_was_relabeled_structural_stays(
         self,
     ) -> None:
-        # Owner decision (option a): no class ceiling, so a relabel to a
-        # structural class, or to none, leaves an eligible entry queued.
         for work_class in ("C4", None):
             with self.subTest(work_class=work_class):
                 self.log = []
@@ -3626,7 +3555,6 @@ class ReasonsComment(Unattended):
         self.assertIn(HEAD, body)
 
     def test_a_floor_hold_says_a_human_merges_it(self) -> None:
-        # Owner decision Q648: only the owner merges a floor-held PR.
         self.config = dataclasses.replace(self.config, denied_paths=HELD)
         self.files = ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True)
         self.run_main()
@@ -3639,7 +3567,6 @@ class ReasonsComment(Unattended):
         self.assertIn("a human merges it in person, never an agent or a lane", body)
 
     def test_a_trust_gate_hold_says_a_human_merges_it(self) -> None:
-        # A trusted-actor widening waits for the owner.
         gate = merge.diff_risk.Reason(
             merge.diff_risk.TRUST_GATE_CODE,
             merge.diff_risk.Risk.HIGH,
@@ -4362,7 +4289,6 @@ class ReasonsComment(Unattended):
         self.assertNotIn("risk-comment:POST", self.log)
 
 
-# Held only by a finding a clean whole review of the head would close.
 CARRIED = (
     LaneEvidence("claude-review", True, None, 0),
     LaneEvidence("claude-security-review", True, None, 1, True),
@@ -4474,8 +4400,6 @@ class WholeReviewRequest(Unattended):
             self.assertTrue(merge.whole_review.recorded(posted, head), head)
 
     def test_deleted_records_do_not_reset_the_timeline_cap(self) -> None:
-        # The lane deleted the record lines from the reasons comment; its two
-        # conversions to draft stay on the timeline.
         self.earlier_sweep(merge.whole_review.RECORD_RE.sub("", self.two_toggles()))
         self.lane_toggles = 2
         _, out = self.run_main()
@@ -4862,7 +4786,6 @@ class HeadPushers(unittest.TestCase):
         listed = [
             {"sha": f"{n:040x}", "author": bot, "committer": bot} for n in range(250)
         ]
-        # An unreadable count is no better than a larger one.
         for total in (251, "missing", "251"):
             with self.subTest(total=total):
                 with self.assertRaises(merge.HeadPusherUnproven) as raised:
@@ -4952,7 +4875,6 @@ class LaneEvidenceReadToken(unittest.TestCase):
             with self.subTest(kind):
                 self.assertTrue(any(kind in args[1] for args in carried), kind)
         self.assertEqual(len(carried), 2 + 2 * 4)
-        # The commits read is shared with other readers and keeps its token.
         others = [args[1] for args, env in calls if env is None]
         self.assertEqual(others, [f"repos/owner/repo/pulls/{PR}/commits?per_page=100"])
 
@@ -5137,9 +5059,6 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
         self.assertEqual([lane.bound for lane in lanes], [True, True])
         self.assertEqual([lane.open_findings for lane in lanes], [0, 0])
         self.assertEqual(len(comments), 2)
-        # No mark carries the refusal to later candidates: every evidence
-        # read is under the read token, and only the shared commits read
-        # keeps the process token.
         lane = [e for e, token in calls if token == "lane-tok"]
         self.assertEqual(lane, [f"repos/owner/repo/pulls/{PR}/commits?per_page=100"])
         self.assertNotIn("rate_limit", [e for e, _ in calls])
@@ -5515,7 +5434,6 @@ class AgentIdentityCannotUsePlainMerge(MainHarness):
         self.assertTrue(self.gh_capture.called)
 
     def test_plain_merge_never_passes_the_policy_to_evaluate(self) -> None:
-        # The policy resolved for the identity check must not hold plain merges.
         self._main("--merge", "--expected-head", HEAD, resolved=self.CONFIGURED)
         self.assertIsNone(self.evaluate.call_args.kwargs["unattended"])
         self.assess.assert_not_called()
@@ -5543,7 +5461,6 @@ class LandedRequestUnderARefusingCheck(async_fixtures.AsyncMergeHarness):
         self.assertEqual((code, self.output["merge"]["status"]), (10, "pending"))
 
     def _check(self, *flags: str) -> int:
-        # The verdict evaluate() returns under the refusing policy.
         return self._run(
             async_fixtures._proc(),
             [async_fixtures._async("merged")],
@@ -5568,8 +5485,6 @@ class LandedRequestUnderARefusingCheck(async_fixtures.AsyncMergeHarness):
         self.assertEqual(self.output["blockers"], [])
 
 
-# The tracker's human-gated label read an autonomous gate makes: stubbed so
-# no test reads GitHub.
 _role_label = fixtures.role_label_stub()
 
 
@@ -5842,7 +5757,6 @@ class DependabotMajorEscalation(unittest.TestCase):
         match = re.fullmatch(grammar, body.split("\n", 1)[0])
         self.assertIsNotNone(match)
         self.assertIn(f"`{match['kind']}`", kinds)
-        # attend-queue lists `escalated` and `routed-advisory` as escalated rows.
         self.assertIn(match["kind"], ("escalated", "routed-advisory"))
 
     def test_an_old_format_comment_is_reposted_as_a_new_escalation(self) -> None:
@@ -5957,8 +5871,6 @@ class AdoptionHoldLabel(unittest.TestCase):
     def test_the_policy_proves_unchanged_runs_with_the_post_merge_reader(
         self,
     ) -> None:
-        # A shared answer past the unverified age is kept only on the
-        # post-merge check's own verifying-run proof, for this repository.
         assess = self.run_assess(policy.PR_MERGE, mock.Mock(return_value=None))
         runs_unchanged = assess.call_args.kwargs["runs_unchanged"]
         with mock.patch.object(

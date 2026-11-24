@@ -81,7 +81,6 @@ def validate_current_candidate(
     # A Dependabot head passes every gate a refresh does, then is asked to
     # rebase instead of being updated.
     dependabot_head = dependabot.is_dependabot_head(current.get("headRefName"), author)
-    # The same repository policy the merge gate resolves; an unreadable one raises.
     extra = repo_policy.resolve(repo, fallback or {}).extra_dependency_manager_logins
     if not dependabot_head and is_dependency_author(author, extra):
         raise RuntimeError(
