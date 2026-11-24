@@ -1,5 +1,3 @@
-// Expected values come from report-escalation.sh (its label, then its comment
-// with a Reason line) and its reason-to-activity map.
 import assert from "node:assert/strict";
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -12,7 +10,6 @@ const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot"
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
 const HEAD = "a".repeat(40);
 
-// createGitHubApi's error for a refused answer: a plain Error with the status.
 const refused = (status) => Object.assign(new Error(`GET returned ${status}`), { status });
 
 function fakeApi({ labels = ["needs-human"], actor = APP, reason = "feedback-disputed", reviewComments = [], reviews = [], pullError = null, timelineError = null } = {}) {
@@ -89,9 +86,6 @@ test("a person's inline review-thread reply since the label, or an unread review
   assert.equal(await outputs("resolve-conflicts", { reviewComments: new Error("GET pulls/7/comments returned 404") }), "held=true\nlane-escalated=false\n");
 });
 
-// Outage posture element 2: a fault leaves the hold unknown, so the step holds
-// green with unread=true and neither held nor lane-escalated, which every
-// caller reads as "run nothing, post nothing".
 test("a GitHub fault on the pull, timeline or review read holds the step unread", async () => {
   const unread = "unread=true\n";
   for (const status of [502, 503, 429]) {
@@ -118,8 +112,6 @@ test("no human-gated label is no hold; do-not-merge is left to the activity's ap
   assert.equal(await outputs("resolve-conflicts", { labels: ["do-not-merge"] }), "held=false\nlane-escalated=false\n");
 });
 
-// The default client goes through the rate guard, so each answer leaves its
-// reading for the job-end api-budget notice (log-api-budget's action).
 test("the default client keeps each answer's rate-limit reading under API_BUDGET_TOKEN", async () => {
   const dir = tempDir("lane-hold-");
   const saved = { fetch: globalThis.fetch, token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };

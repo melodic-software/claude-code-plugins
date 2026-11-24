@@ -1,7 +1,3 @@
-// chunk-diff.sh, run as the "Write the diff" step runs it, on fixture patches:
-// a diff over one verifier's read budget becomes chunks of whole files, each
-// cut into parts one Read returns whole, and a diff no slot can hold leaves no
-// chunk and names why.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -204,19 +200,15 @@ test("a diff that needs more chunks than the job has slots stops and says so", (
   assert.match(stdout, /^::error::.*needs 3 chunks, more than 2/m);
 });
 
-// The limits the "Write the diff" step runs under: its env in pr-verify.yml,
-// and no MAX_CHUNKS, so the script's own ceiling holds.
 const WORKFLOW = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
 const LIMITS = {
   ...Object.fromEntries(["MAX_DIFF_BYTES", "PART_BYTES", "PART_LINES"].map((key) => [key, new RegExp(`^ +${key}: "(\\d+)"$`, "m").exec(WORKFLOW)[1]])),
   MAX_CHUNKS: undefined,
 };
 const CEILING = Number(/^MAX_CHUNKS=\$\{MAX_CHUNKS:-(\d+)\}$/m.exec(readFileSync(SCRIPT, "utf8"))[1]);
-// A file of about `bytes` bytes: each content line is `+x\n`, 3 bytes.
 const sized = (name, bytes) => file(name, Math.floor(bytes / 3));
 
 test("under the workflow's limits a 3 MB diff is judged in as many chunks as it needs, with no stop", () => {
-  // Each file over half a chunk, so each takes a chunk of its own: 12 chunks.
   const patch = Array.from({ length: 12 }, (_, i) => sized(`src/file-${i + 1}.mjs`, 250000)).join("");
   assert.ok(Buffer.byteLength(patch) > 3000000);
   const { status, data, outputs, stdout } = run(patch, LIMITS);

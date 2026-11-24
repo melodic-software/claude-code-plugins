@@ -1,6 +1,3 @@
-// Test fixtures for the Work status readers (read-status.mjs): the live
-// models.issue-status, a trusted-actor list, and a client wrapper that answers
-// the field reads.
 import { readFileSync } from "node:fs";
 
 import { parse } from "yaml";
@@ -12,7 +9,6 @@ export const STATUS_CONFIG = parse(readFileSync(new URL("../../../docs/conventio
   "issue-status"
 ];
 const FIELD = STATUS_CONFIG["field-id"];
-// The option id of each state, from the config's map.
 export const OPTION = Object.fromEntries(Object.entries(STATUS_CONFIG.options).map(([id, state]) => [state, Number(id)]));
 export const HUMAN_ID = 11;
 export const STRANGER_ID = 99;

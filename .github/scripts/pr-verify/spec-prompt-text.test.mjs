@@ -1,5 +1,3 @@
-// spec-prompt.md carries the chunk verifiers' spec rules word for word, so a
-// final judge cannot read the spec more loosely than a chunk does.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -50,7 +48,6 @@ test("nothing a chunk reports is cut from the final judge", () => {
 test("a verifier is told every line is readable, so no prose or data part is passed unread", () => {
   assert.match(chunk, /`\\ continued:`/);
   assert.doesNotMatch(chunk, /line cut short/);
-  // A binary lockfile or compiled code still fails; an image does not.
   assert.ok(chunk.includes("a workflow, an action, a script, a hook, compiled code or a library, or a file a workflow, script or hook runs"));
   assert.match(chunk, /takes the side of the line it continues/);
   assert.match(chunk, /a package or plugin manifest, a lockfile, or agent or skill instructions/);

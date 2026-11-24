@@ -12,7 +12,7 @@
 # after the leak scan and in both modes, renders the act-turns.json it wrote. Runs each step's
 # github-script body against a canned execution file with a stub `core` whose
 # summary records its code blocks.
-# test-scope: .github/workflows/pr-run-activity-read.yml .github/scripts/lib/act-turns.mjs .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-run-activity-read.yml .github/scripts/lib/act-turns.mjs scripts/ci-deps/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,7 +27,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-const require = createRequire(`${process.cwd()}/.github/standards/runner-policy/package.json`);
+const require = createRequire(`${process.cwd()}/scripts/ci-deps/package.json`);
 const YAML = require("yaml");
 
 // The step loads the base's act-turns.mjs only when its bytes match the hash
@@ -238,7 +238,7 @@ for (const lane of ["read"]) {
 EOF
 )
 if [[ -z "$results" ]]; then
-  fail "the check printed nothing; is .github/standards/runner-policy installed?"
+  fail "the check printed nothing; is scripts/ci-deps installed?"
 fi
 while IFS=$'\t' read -r verdict text; do
   [[ -n "$verdict" ]] || continue

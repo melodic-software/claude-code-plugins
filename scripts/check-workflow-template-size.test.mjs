@@ -1,4 +1,4 @@
-// test-scope: .github/workflow-template-size.json .github/standards/runner-policy/package.json
+// test-scope: .github/workflow-template-size.json scripts/ci-deps/package.json
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
@@ -167,15 +167,15 @@ describe("check-workflow-template-size.sh", () => {
   const reusable = "on: workflow_call\njobs:\n  x:\n    runs-on: ubuntu-24.04\n";
   const tree = ({ calls, figure, margin = 0, extra = {} }) => {
     const root = tempDir("template-size-tree-");
-    const policy = path.join(root, ".github/standards/runner-policy");
+    const deps = path.join(root, "scripts/ci-deps");
     mkdirSync(path.join(root, "scripts"), { recursive: true });
     mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
-    mkdirSync(policy, { recursive: true });
+    mkdirSync(deps, { recursive: true });
     for (const file of ["check-workflow-template-size.sh", "check-workflow-template-size.mjs"]) {
       copyFileSync(path.join(REPO, "scripts", file), path.join(root, "scripts", file));
     }
-    copyFileSync(path.join(REPO, ".github/standards/runner-policy/package.json"), path.join(policy, "package.json"));
-    symlinkSync(path.join(REPO, ".github/standards/runner-policy/node_modules"), path.join(policy, "node_modules"));
+    copyFileSync(path.join(REPO, "scripts/ci-deps/package.json"), path.join(deps, "package.json"));
+    symlinkSync(path.join(REPO, "scripts/ci-deps/node_modules"), path.join(deps, "node_modules"));
     const jobs = Array.from({ length: calls }, (_, i) => `  j${i}:\n    uses: ./.github/workflows/r.yml\n`).join("");
     const files = { "c.yml": `on: push\njobs:\n${jobs}`, "r.yml": reusable, "plain.yaml": reusable, ...extra };
     for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, ".github/workflows", name), text);

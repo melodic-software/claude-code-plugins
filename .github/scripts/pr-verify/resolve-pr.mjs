@@ -84,7 +84,6 @@ import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/
 
 export { refsIssue, vendoredRows };
 
-// The name grammar lives with its writer; the resolver checks names against it.
 export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
 
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
@@ -112,9 +111,6 @@ const MAX_PAGES = 100;
 // A 200 whose completeness check failed: a list shorter than its count, or a
 // field the answer lacks. The verdict is unknown, so closing holds on it.
 const incomplete = (message) => Object.assign(new Error(message), { incomplete: true });
-// A list read short of its count. Past `cap`, the most the query reads, every
-// re-read meets the same limit, so it stays red; at or under it, a re-read can
-// return it whole, so it holds (incomplete).
 const shortList = (message, count, cap) => (Number.isSafeInteger(count) && count > cap ? new Error(message) : incomplete(message));
 
 const COMMENT_FIELDS = "totalCount pageInfo { hasNextPage endCursor } nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } }";
@@ -122,7 +118,6 @@ const ISSUE_FIELDS = `number repository { nameWithOwner } title body lastEditedA
           author { ...actor } editor { ...actor } labels(first: 50) { totalCount nodes { name } }
           comments(first: 100) { ${COMMENT_FIELDS} }`;
 const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
-// The pages after the first of an issue's comments.
 const COMMENT_PAGE_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) { number comments(first: 100, after: $after) { ${COMMENT_FIELDS} } }
@@ -133,10 +128,6 @@ ${ACTOR}`;
 // spec and the merge gate compares that set whole, so no page may be skipped;
 // past the cap the read stays red and says so.
 export const COMMENT_PAGES = 10;
-// resolvePull's spec read also takes RELINK_QUERY's fields (`links` its
-// timelineItems) and, when the body may be the spec, the first page of the
-// title renames select-trusted-text's TITLE_RENAMES reads (`renames`), so one
-// read serves linkedIssues, the relink rules and titleIsIntent.
 const RELINK_FIELDS = `userContentEdits(first: 100) { totalCount nodes { editedAt editor { ...actor } } }
       links: timelineItems(first: 100, itemTypes: [CONNECTED_EVENT, DISCONNECTED_EVENT]) {
         filteredCount nodes { ... on ConnectedEvent { createdAt actor { ...actor } } ... on DisconnectedEvent { createdAt actor { ...actor } } }
@@ -167,8 +158,6 @@ const REFS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
 }
 ${ACTOR}`;
 
-// A pull request a closing pull request's `Siblings:` line names, with what
-// creditedSiblings checks before crediting it.
 const SIBLING_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issueOrPullRequest(number: $number) {
@@ -179,8 +168,6 @@ const SIBLING_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
 }
 ${ACTOR}`;
 
-// A size split's sub-issue's native parent, with the text admit.mjs specOf
-// reads, for splitChildBody.
 const PARENT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
@@ -203,16 +190,8 @@ export const RELINK_QUERY =
   "... on DisconnectedEvent{createdAt actor{...actor}}}}}}}" +
   "fragment actor on Actor{__typename login ... on User{databaseId} ... on Bot{databaseId}}";
 
-// A User on the trusted list's humans: never the lanes App or another Bot.
 const trustedHuman = (actor, humans) => actor?.__typename === "User" && humans.has(actor.databaseId);
 
-// Whether at least one body edit or issue connect or disconnect on the pull
-// request falls from `since` on (a body edit, under `bodyEdit`), and every
-// one there was a trusted person's (babysit_verify_evidence
-// `_relinked_by_people`, which ends the window at a pass run's completion).
-// None there means the link changed some way this read cannot see. A failed
-// read, a list cut short, or an act with no readable time is false. `read`
-// lets one judgment share one RELINK_QUERY read.
 async function actedByPeople(github, repository, number, humans, since, bodyEdit, read) {
   const start = Date.parse(since ?? "");
   const acts = await actsFrom(github, repository, number, start, read);
@@ -226,9 +205,6 @@ export const relinkedByPeople = (github, repository, number, humans, since, read
 // request's last FAIL at the head, on, and every act there was such a person's.
 export const editedByPeople = (github, repository, number, humans, since, read) => actedByPeople(github, repository, number, humans, since, true, read);
 
-// Every body edit and issue connect or disconnect on the pull request, each
-// [time, actor, "edit" or "link"], read whole (RELINK_QUERY); null for a
-// failed read, a list cut short, or an act with no readable time.
 async function relinkActs(github, repository, number) {
   const [o, r] = repository.split("/");
   let pull;
@@ -240,7 +216,6 @@ async function relinkActs(github, repository, number) {
   return actsOf(pull?.userContentEdits, pull?.timelineItems);
 }
 
-// relinkActs' acts from the two connections RELINK_QUERY reads.
 function actsOf(edits, events) {
   // totalCount counts every timeline item; filteredCount the kinds asked.
   if (!Array.isArray(edits?.nodes) || edits.totalCount !== edits.nodes.length || !Array.isArray(events?.nodes) || events.filteredCount !== events.nodes.length) {
@@ -250,8 +225,6 @@ function actsOf(edits, events) {
   return acts.some(([at]) => Number.isNaN(Date.parse(at ?? ""))) ? null : acts;
 }
 
-// The acts through `read`, else relinkActs; null, read nothing, when `start`
-// is no time.
 const actsFrom = async (github, repository, number, start, read) =>
   Number.isNaN(start) ? null : (read ?? (() => relinkActs(github, repository, number)))();
 
@@ -370,7 +343,6 @@ async function heldShape(read) {
     if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
       return null;
     }
-    // The gate's job: CI Status, whose ci-status alias only repeats its conclusion.
     const ci = gateEntries(jobs);
     if (ci.length !== 1 || ci[0].conclusion !== "failure" || !Number.isSafeInteger(ci[0].id)) {
       return null;
@@ -417,7 +389,6 @@ async function heldOnly(readLog, { ciId, names }, number) {
   }
 }
 
-// The latest attempt's jobs of run `runId`, one page.
 const latestJobs = (github, repository, runId) => github("GET", `/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
 
 // pr-require-checks.yml's ci-status step that runs only when the run's event
@@ -447,10 +418,6 @@ export async function draftRun(github, repository, runId, read) {
     return conclusion === "success";
   }
   const message = `run ${runId}'s draft state could not be read: ci-status lists no conclusion for ${DRAFT_STEP}`;
-  // Only steps listed empty or cut short (one ci-status job, the step absent)
-  // can come back whole on a re-read, so only that holds. No single ci-status
-  // job, or the step listed with another conclusion, reads the same every
-  // time, so it stays red rather than holding the head unverified unseen.
   throw ci.length === 1 && steps.length === 0 ? incomplete(message) : new Error(message);
 }
 
@@ -509,7 +476,6 @@ export function draftJudgments(github, repository, head) {
 const emptyListingTags = new WeakMap();
 const ETAG_FORM = /^(W\/)?"[!#-~]{1,200}"$/;
 
-// Every artifact with exactly this name; a read that fails throws.
 async function artifactsNamed(github, repository, name, { emptyIsSafe = false } = {}) {
   const artifacts = [];
   for (let page = 1; page <= MAX_PAGES; page += 1) {
@@ -563,7 +529,6 @@ export const ofOrigin = (run, { path, repository, base = "main" }) =>
   run.head_repository?.full_name === repository &&
   SHA.test(run.head_sha ?? "");
 
-// countedBy's run record, or null when it would not count.
 async function countedRun({ github, repository, runId, verdict, base }) {
   let run;
   try {
@@ -587,8 +552,6 @@ async function countedRun({ github, repository, runId, verdict, base }) {
   }
 }
 
-// Every pull request the commit belongs to, read through GraphQL when the
-// REST pages fail (commitPulls); a read that fails both ways throws.
 async function pullsOfCommit(github, repository, head) {
   const readRest = async () => {
     const pulls = [];
@@ -671,7 +634,6 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
       }
     }
     if (created.length > 0) {
-      // NaN for any missing time, which relinkedByPeople refuses.
       const at = (time) => (Number.isNaN(time) ? "" : new Date(time).toISOString());
       return { fail: false, passes, ownFail: at(Math.min(...created)), ownLast: at(Math.max(...created)) };
     }
@@ -719,14 +681,6 @@ export function siblingNumbers(body) {
   return numbers.size <= SIBLINGS_MAX ? [...numbers] : [];
 }
 
-// The siblings a closing pull request's body names (siblingNumbers) that
-// delivered part of one of its issues: each written by a trusted person or the
-// lanes App (`laneAppId`), merged into `base` in this repository, closing no
-// issue, with a `Refs:` line (refsIssue) naming that issue, and its body
-// unedited unless a trusted person edited it last, or the lanes App did
-// before the merge, with that body, which says the part. Read from GitHub,
-// never from the body's prose. A number that names nothing credits nothing;
-// any other failed read throws.
 async function creditedSiblings(readRefs, repository, number, body, base, humans, laneAppId) {
   const [owner, name] = repository.split("/");
   const lanesApp = (actor) => laneAppId !== undefined && actor?.__typename === "Bot" && actor.databaseId === laneAppId;
@@ -800,11 +754,6 @@ export function upstreamPages(dir = fileURLToPath(new URL("../../../docs/upstrea
   return pages;
 }
 
-// Path segments a vendored sync never writes and an agent or a user's
-// machine may run: a skill's own scripts (the next issue-lane run executes
-// its update script), hooks, shared libraries, the plugin manifest and MCP
-// config, and eval suites
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
 const VENDORED_UNSAFE = new Set(["scripts", "hooks", "lib", ".claude-plugin", ".mcp.json", "evals", "..", "."]);
 const VENDOR_INERT = /(?:\.md|\.jsonc|^LICENSE)$/;
 // Whether `name` is a path a vendored sync of `plugin` may write: a
@@ -1041,7 +990,6 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   let nodes = refs.nodes;
   const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
   if (named !== null) {
-    // `readRefs` keeps GraphQL errors, so a NOT_FOUND reaches namesNothing.
     const answer = await readRefs("POST", "/graphql", { query: REFS_QUERY, variables: { owner, name, number: named } });
     // Only an exact NOT_FOUND names nothing; a null without it is no answer.
     const node = answer?.data?.repository?.issueOrPullRequest;
@@ -1055,16 +1003,11 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   for (const issue of nodes.filter((item) => item?.repository?.nameWithOwner === repository && Number.isSafeInteger(item.number))) {
     issues.push({ ...issue, comments: await wholeComments(github, repository, issue.number, issue.comments, issue.number, "the issue") });
   }
-  // The split sub-issues' bodies that count, by issue number.
   const childBodies = new Map();
   for (const issue of issues) {
     if (laneAppId === undefined || issue.author?.__typename !== "Bot" || issue.author.databaseId !== laneAppId || !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
       continue;
     }
-    // A parent read short of its comments stops the run, as the issue's own
-    // comments do above: a judgment without the child's criteria would leave
-    // a pass the gate counts once the parent reads whole again (an outsider
-    // padding the parent past the page, then deleting the padding).
     const read = (await github("POST", "/graphql", { query: PARENT_QUERY, variables: { owner, name, number: issue.number } }))?.data?.repository?.issue;
     if (read === null || typeof read !== "object" || !Object.hasOwn(read, "parent")) {
       throw incomplete(`#${issue.number}: the split parent could not be read`);
@@ -1077,8 +1020,6 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       childBodies.set(issue.number, body);
     }
   }
-  // The drift specs, by issue number: closing issues only, the changed files
-  // read once and only when an issue has the workflow's author and title.
   const driftBodies = new Map();
   const driftShaped = (issue) => issue.author?.__typename === "Bot" && issue.author.databaseId === ACTIONS_BOT_ID && DRIFT_TITLE.test(String(issue.title ?? ""));
   if (named === null && typeof drift.changedFiles === "function" && issues.some(driftShaped)) {
@@ -1094,7 +1035,6 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   const pullRequest = data.data.repository.pullRequest;
   const siblings = base !== undefined && named === null && issues.length > 0 ? await creditedSiblings(readRefs, repository, number, pullRequest.body, base, humans, laneAppId) : [];
   return {
-    // Who last edited the pull request's own body: null when never edited.
     bodyEditor: pullRequest.lastEditedAt == null ? null : (pullRequest.editor?.databaseId ?? 0),
     bodyEditedAt: pullRequest.lastEditedAt ?? null,
     linkedIssues: issues.map((issue) => ({
@@ -1102,24 +1042,15 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       ...actorFields(issue.author, "author"),
       last_edited_at: typeof issue.lastEditedAt === "string" ? issue.lastEditedAt : null,
       ...actorFields(issue.editor, "editor"),
-      // The humans' spec comments the model gets, which the gate recomputes
-      // with the same filter (babysit_verify_evidence._spec_comments); the
-      // refinement stays out, since that filter is human-only.
       spec_comments: issue.comments.nodes
         .filter(written)
         .map((comment) => ({ id: comment.databaseId, updated_at: comment.updatedAt })),
     })),
-    // How the spec was linked: `closes` for closing issues, `refs` for the one
-    // issue a `Refs:` line names, which the verifier judges as a partial slice.
     specKind: issues.length === 0 ? "none" : named !== null ? "refs" : "closes",
     specText: issues.map((issue) => {
       const newest = written(issue) ? refinementSpec(issue.comments.nodes, laneAppId) : undefined;
       const refinement = Date.parse(newest?.createdAt ?? "") < Date.parse(pullRequest.createdAt ?? "") ? newest : undefined;
-      // Under admission's guards and web hosts (admit.mjs personChecks).
       const checks = refinement === undefined ? [] : personChecks({ ...issue, comments: issue.comments.nodes }, humans, laneAppId, taskList, webHosts);
-      // A split refinement whose record does not stand reaches the verifier
-      // in no form, so its prose names no item a person runs; a split drafts
-      // no criteria (refine.mjs validateOutput), so nothing else goes with it.
       const counted = refinement !== undefined && (checks.length > 0 || !carriesSplit(refinement.body)) ? refinement : undefined;
       const items = taskItems(issue.body, taskList);
       const marked = written(issue) ? items.flatMap(({ text }, i) => (text.startsWith(PERSON_CHECK) ? [i + 1] : [])) : [];
@@ -1137,8 +1068,6 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
         drift: driftBodies.get(issue.number) ?? null,
         incident: mainRedIncident(issue) ? MAIN_RED_SPEC : null,
       });
-      // A trusted target-subset part's Scope line (admit.mjs splitScope):
-      // its done-when lines apply only to these targets.
       const scope = !written(issue) && childBody !== undefined ? splitScope(childBody) : null;
       return {
         number: issue.number,
@@ -1173,9 +1102,6 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   ) {
     return skip("not-a-passing-run");
   }
-  // One read of the run's jobs serves heldShape, draftRun and, through
-  // keepJobs, upstream-jobs.mjs. A failed run whose jobs are not a hold's
-  // shape skips before the commit's pull requests are read.
   let jobs;
   const readJobs = () => (jobs ??= latestJobs(github, repository, upstreamRunId));
   const shape = run.conclusion === "failure" && typeof readLog === "function" ? await heldShape(readJobs) : null;
@@ -1223,9 +1149,6 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
       return skip("native-baseline");
     }
   }
-  // An unreadable draft state throws, as any other failed read here does: the
-  // step holds before its judgment (closing), so it writes no verdict, and the
-  // lost-run reconciler re-runs it once (reconcile.mjs faultHeld).
   const notDraftRun = async () => {
     if (await draftRun(github, repository, upstreamRunId, readJobs)) {
       return false;
@@ -1233,13 +1156,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     keepJobs?.((await readJobs()).jobs);
     return true;
   };
-  // The judged head's changed files, read only for a drift issue (driftSpec).
   const drift = { pages, changedFiles: () => compareFiles(github, repository, pull.base.sha, head) };
-  // Another workflow's reads of the same pull request (pr-rate-merge-risk.yml):
-  // `rated` answers whether its own artifact for this head already stands, and
-  // the verifier's judged-head rules do not apply. The closing issues are read
-  // as for a judgment; the body is never the spec here, since that workflow
-  // reads only a lanes App pull request.
   if (rated !== undefined) {
     if (await rated({ github, repository, number: pull.number, head, base })) {
       return skip("already-rated");
@@ -1256,10 +1173,6 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (fail) {
     return skip("already-judged");
   }
-  // The spec read carries the relink fields and, when the body may be the
-  // spec (bodyIsIntent's author half), the title renames' first page.
-  // `specPull` is the pull request of the latest answer, the one specRead
-  // comes from: undefined before any answer, null for an answer without one.
   const bodyMayBeSpec = humans.has(pull.user?.id) || specFromBodyApps.includes(pull.user?.id);
   let specPull;
   const readSpec = async (variables) => {
@@ -1268,19 +1181,11 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     return answer;
   };
   const readSpecIssues = () => linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, readSpec, base, schedule, drift);
-  // One relink read per judgment, shared by every rule that weighs it: the
-  // spec answer's, where a missing or malformed field reads as a failed
-  // read, or RELINK_QUERY's when no spec read answered.
   let acts;
   const readActs = () => (acts ??= specPull === undefined ? relinkActs(github, repository, pull.number) : Promise.resolve(actsOf(specPull?.userContentEdits, specPull?.links)));
-  // Why a judged head is judged again: `relinked` or `body-edited`.
   let reopened;
   let specRead;
   if (ownFail !== undefined) {
-    // This PR's plain FAIL stands unless it now links issues a FAIL name
-    // carries, which differ from the none or too many the FAIL recorded, and
-    // only trusted people changed the link since, or a trusted person edited
-    // the body since and every act was such a person's. A failed read keeps it.
     specRead = await readSpecIssues().catch(() => null);
     const suffix = specRead && issuesSuffix(specRead.linkedIssues.map((issue) => issue.number));
     const relinked = Boolean(suffix) && isVerdictName(`pr-verify-${pull.number}-${head}-fail${suffix}`) && (await relinkedByPeople(github, repository, pull.number, humans, ownFail, readActs));
@@ -1294,19 +1199,6 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     }
   }
   specRead ??= await readSpecIssues();
-  // No closing issue here: the title and body of a trusted person's PR, or
-  // of an App whose bodies a script writes (adoption.spec-from-body-apps),
-  // are the spec. A model-written body, the lanes App's included, never is:
-  // the run that wrote the diff would have written its spec too.
-  // A person is a kind human id on the trusted list, not a GitHub User: a
-  // model's account may be a User (babysit_merge_policy.lane_eligibility's twin).
-  // A body someone else edited is not the author's intent, unless a trusted
-  // person did it; an editor GitHub cannot name is someone else. The title
-  // follows the same rule through its latest rename (titleRenamers, shared
-  // with select-trusted-text, which keeps a title only when every renamer is
-  // listed). The spec answer holds the renames' first page; a longer list is
-  // read whole through titleRenamers, and a page with no node list stops the
-  // run as titleRenamers does.
   const { bodyEditor, bodyEditedAt, ...spec } = specRead;
   const byAuthorOrPerson = (id) => Number.isSafeInteger(id) && (id === pull.user?.id || humans.has(id));
   const bodyIsIntent = bodyMayBeSpec && (bodyEditor === null || byAuthorOrPerson(bodyEditor));
@@ -1323,10 +1215,6 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     spec.specKind = "pull-request";
     spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
   }
-  // A pass judged before the spec last changed is one the gate refuses, so
-  // the head is judged again against the spec as it is now. A pass that still
-  // stands decides as a FAIL would, so the FAIL named with this PR's issues
-  // (read only now: the name records them) is looked up only past it.
   if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt })) {
     return skip("already-judged");
   }
@@ -1336,9 +1224,6 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     return skip("already-judged");
   }
   if (named.ownFail !== undefined) {
-    // This PR's FAIL named with its issues stands unless a trusted person
-    // edited the body after its last FAIL here, plain or named, and every
-    // act since was such a person's. A time that cannot be read keeps it.
     const times = [ownLast, named.ownLast].filter((time) => time !== undefined).map((time) => Date.parse(time));
     const last = times.some(Number.isNaN) ? "" : new Date(Math.max(...times)).toISOString();
     if (!(await editedByPeople(github, repository, pull.number, humans, last, readActs))) {
@@ -1352,7 +1237,6 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   return {
     proceed: true,
     reason: reopened ?? (passes.length > 0 ? "spec-changed" : "ok"),
-    // A re-opened head's pass may supersede the FAIL there, so it is kept as long.
     relinkSinceHead: reopened !== undefined || (await relinkedSince(github, repository, pull.number, run.head_commit?.timestamp, readActs)),
     prNumber: pull.number,
     headSha: head,
@@ -1438,7 +1322,6 @@ export function carryMain(env = process.env) {
   } catch {
     packed = "";
   }
-  // Checked as the taker will, so a bad bundle is never handed on.
   if (packed !== "" && takeReads(packed, env.GITHUB_RUN_ATTEMPT) === null) {
     packed = "";
   }
@@ -1476,8 +1359,6 @@ export function ratedBy(env) {
   };
 }
 
-// The lane a failure or hold names: pr-verify unless RESOLVE_LANE names
-// another reader of the same pull request.
 const laneOf = (env) => (/^[a-z][a-z0-9-]{0,40}$/.test(env?.RESOLVE_LANE ?? "") ? env.RESOLVE_LANE : "pr-verify");
 
 const writeJson = (file, value) => writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
@@ -1543,24 +1424,16 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
   let jobs;
   const result = await resolvePull({
     github: github ?? api(false),
-    // The Refs read needs GraphQL errors back to tell a typo from a failure.
     readRefs: github ?? api(true),
     readLog,
     repository: env.GITHUB_REPOSITORY,
     upstreamRunId: env.UPSTREAM_RUN_ID,
     humans: trusted.humans,
-    // pr-verify.yml reads both from main's pr-pipeline.yaml; unset is `lane`.
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
-    // The lanes App's id: merge.agent-identity's entry on the trusted list,
-    // with or without its [bot] suffix.
     laneAppId: trusted.logins.get(`${loginKey(env.LANE_IDENTITY)}[bot]`),
     baselineFile: env.BASELINE_FILE,
-    // Admission's task-list marker, from the checkout this script runs from
-    // (main's, in pr-verify.yml): a split sub-issue counts only by it.
     taskList: loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"],
-    // The issue lane's web hosts, which pr-verify.yml reads from main's
-    // pr-pipeline.yaml as admission does (resolve-config issueLaneWebHostsFromBase).
     webHosts: webHostsFrom(env.ISSUE_LANE_WEB_HOSTS),
     ownerIds: [...trusted.ids],
     specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
@@ -1575,7 +1448,6 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
   if (result.proceed) {
     writeJson(env.SPEC_FILE, result.linkedIssues);
     writeJson(env.SPEC_TEXT_FILE, result.specText);
-    // The run's jobs, read whole, for upstream-jobs.mjs (keptJobs).
     const keptFile = jobs !== undefined && keptJobsPath(env);
     if (keptFile) {
       writeFileSync(keptFile, `${JSON.stringify(shapeJobs(env.UPSTREAM_RUN_ID, jobs))}\n`);
