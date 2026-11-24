@@ -147,8 +147,6 @@ class TestCommandExtraction(unittest.TestCase):
         self.assertEqual(self._extract(src)["usage"]["aliases"], ["cost", "stats"])
 
     def test_shell_builtin_is_not_a_command(self) -> None:
-        # `alias` and `todos` carry a name but no `type:` - both were wrongly
-        # reported as slash commands by an earlier regex-only pass.
         src = (
             'x={name:"alias",description:"Create or list command aliases",'
             'args:{name:"definition"}}'
@@ -172,8 +170,6 @@ class TestCommandExtraction(unittest.TestCase):
         )
 
     def test_factory_parameter_name_is_not_resolved(self) -> None:
-        # `name:e` in a factory is whatever the caller passes, never the
-        # nearest `e="..."` in scope.
         src = 'var e="wrong";function t1t(e,n){return{type:"local-jsx",name:e,description:n}}'
         self.assertEqual(self._extract(src), {})
 
@@ -252,8 +248,6 @@ class TestBundledSkills(unittest.TestCase):
         self.assertEqual(skills["code-review"]["aliases"], ["review"])
 
     def test_a_rebound_constant_resolves_to_its_nearest_binding(self) -> None:
-        # An identifier bound to two different strings resolves by locality:
-        # the binding nearest before the registration is the one in scope.
         src = self.BUNDLE + 'var zz="a-one";var zz="a-two";xu({name:zz});'
         skills, notes = inv.extract_bundled_skills(src, inv.build_brace_map(src))
         self.assertIn("a-two", skills)
@@ -312,9 +306,6 @@ class TestIntegrity(unittest.TestCase):
         )
 
     def test_canary_missing_breaks_the_builtin_lane_only(self) -> None:
-        # One rule for one state: a broken lane beside a healthy one is a
-        # degraded run whose advisory names the lane, never a broken run that
-        # voids the healthy lane's counts.
         src = (
             'x={type:"local",name:"help",description:"d"};'
             + f'"{inv.VALIDATED_AGAINST}";' * 30
@@ -388,8 +379,6 @@ class TestIntegrity(unittest.TestCase):
         self.assertFalse(any("computed name" in a for a in got["advisories"]))
 
     def test_registrations_below_the_floor_degrade_the_bundled_lane(self) -> None:
-        # A literal in a run under the floor was never read, so the roster is
-        # a floor even when every read registration resolved.
         src = self._src()
         got = inv.check_integrity(
             src,
@@ -420,7 +409,6 @@ class TestIntegrity(unittest.TestCase):
         self.assertEqual(got["lanes"]["bundled_skills"]["status"], "degraded")
 
     def test_degraded_on_unknown_registrar(self) -> None:
-        # The silent-drift signal: a registration path the script does not know.
         src = self._src("pt(Q,{registerSomethingNewSkill:()=>zz});")
         got = inv.check_integrity(
             src,
@@ -445,8 +433,6 @@ class TestIntegrity(unittest.TestCase):
         self.assertTrue(any("floor" in a for a in got["advisories"]))
 
     def test_low_yield_breaks_the_builtin_lane(self) -> None:
-        # Many registration tokens present but few commands resolved means the
-        # brace reader stopped working - the exact shape of a quiet shortfall.
         src = self._src() + 'x={type:"local"};' * 200
         got = inv.check_integrity(
             src,
@@ -528,8 +514,6 @@ class TestReadBundleRegionRule(unittest.TestCase):
         self.assertIn("no bundle marker", meta["region_rule"])
 
     def test_read_bundle_counts_a_registration_below_the_floor(self) -> None:
-        # A run shorter than the floor carrying a registration is counted,
-        # never silently lost.
         tiny = b'eo({name:"tiny"});'
         layout = (
             self.MARKER
@@ -715,8 +699,6 @@ class TestNameLocality(unittest.TestCase):
         self.assertEqual(notes["dynamic_roster_patterns"], ["`artifact-${e}`"])
 
     def test_a_same_identifier_call_without_a_name_is_not_a_registration(self) -> None:
-        # Another module's `eo(...)` taking an options object: no `name:`,
-        # so it is neither a registration nor an unresolved one.
         src = (
             self.HEAD
             + 'eo({check:"overwrite",tx:e});eo({name:"run",menuDescription:"Launch"});'
@@ -865,8 +847,6 @@ class TestInvocationFieldsAndCollisions(unittest.TestCase):
         self.assertEqual(len(inv.registrations_of(design)), 2)
 
     def test_a_flag_driven_twin_of_a_constant_field_is_a_collision(self) -> None:
-        # Same boolean reading, different basis: one fixed, one decided at
-        # runtime. That difference is evidence, so both registrations stay.
         fixed = 'eo({name:"verify",description:As,userInvocable:!0,disableModelInvocation:!0});'
         skills, notes = self._skills(self.HEAD + fixed + self.VERIFY)
         self.assertIsInstance(skills["verify"], list)
@@ -2946,7 +2926,6 @@ def _plugin_modules(**swap: str) -> list[str]:
         'function _r(){Z_({name:b,description:"Claude Test",version:g,isAvailable:xe,'
         "skills:Fe,get mcpServers(){return 1},hooksModule:VU(1,I,()=>rt())})}"
         "export{_r as registerPlugin};",
-        # Another module's own `Z_` is not the registrar.
         "foreign": 'function Z_(e){return e}var q=Z_({seccompConfig:1,name:"bwrap"});',
     }
     modules.update(swap)
@@ -2989,7 +2968,6 @@ class TestBuiltinPlugins(unittest.TestCase):
         entry = 'a.CLAUDE_CODE_ENTRYPOINT!=="local-agent"'
         self.assertEqual(plugins["cc-plugin-mermaid"]["load_guards"], [entry])
         self.assertEqual(plugins["cc-plugin-tips"]["load_guards"], [entry, "!c7r()"])
-        # `if(i)` reads the declaration `let i=...`.
         self.assertEqual(
             plugins["cc-plugin-claude-test"]["load_guards"], [entry + "&&!c7r()"]
         )
@@ -3091,8 +3069,6 @@ class TestBuiltinPlugins(unittest.TestCase):
         self.assertIn("skills", rec["partial"])
 
     def test_every_field_an_unresolved_spread_hides_is_partial(self) -> None:
-        # No isAvailable, hooksModule or manifest of its own: each could sit
-        # in the unresolved spread, so each is unknown and named in `partial`.
         agents = _plugin_modules()[3].replace(
             "Z_({name:K,description:H,isAvailable:B,userConfig:ne})",
             "Z_({...zz,name:K,description:H})",
@@ -3136,7 +3112,6 @@ class TestBuiltinPlugins(unittest.TestCase):
     def test_unresolved_manifest_calls_leave_commands_partial(self) -> None:
         rec = self._test_module('calls:["mcp.connect"]', "calls:QQ")
         self.assertIn("commands", rec["partial"])
-        # A manifest that declares no calls at all registers none: absent.
         rec = self._test_module('calls:["mcp.connect"]', 'other:["x"]')
         self.assertNotIn("commands", rec["partial"])
 
@@ -3302,7 +3277,6 @@ class TestBuiltinPlugins(unittest.TestCase):
         lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
         self.assertEqual(lane["status"], "degraded")
 
-    # Final-round verifier repros. Each is the simplest fail-closed reading.
 
     def _loader(self, before: str) -> dict:
         """The plugins with `before` inserted ahead of the loader's first call."""
@@ -3338,10 +3312,8 @@ class TestBuiltinPlugins(unittest.TestCase):
             'Z_({...h,defaultEnabled:!1,...unk,name:"cc-plugin-mermaid",',
         )
         rec = _plugins(mermaid=mermaid)[0]["cc-plugin-mermaid"]
-        # defaultEnabled sits before `...unk`, which may override it.
         self.assertIsNone(rec["default_enabled"])
         self.assertIn("default_enabled", rec["partial"])
-        # hooksModule after the last unresolved spread stays read.
         self.assertIs(rec["hooks_module"], True)
 
     def test_a_name_before_an_unresolved_spread_leaves_the_registration_unresolved(
@@ -3413,7 +3385,6 @@ class TestBuiltinPlugins(unittest.TestCase):
             self.assertIn("hook_events", rec["partial"], decl)
 
     def test_the_default_rule_is_read_only_where_the_registry_is_walked(self) -> None:
-        # The real rule removed from the walk; a decoy elsewhere in the bundle.
         registrar = _plugin_modules()[0].replace("n.defaultEnabled??!0", "n.x")
         decoy = "function other(o){return o.defaultEnabled??!0}"
         plugins, notes = _plugins(registrar=registrar, decoy=decoy)
@@ -3421,7 +3392,6 @@ class TestBuiltinPlugins(unittest.TestCase):
         rec = plugins["cc-plugin-agents-md"]
         self.assertIsNone(rec["default_enabled"])
         self.assertIn("default_enabled", rec["partial"])
-        # Two disagreeing defaults in the walk are ambiguous, not true.
         registrar = _plugin_modules()[0].replace(
             "a=n.defaultEnabled??!0", "a=n.defaultEnabled??!0,b=n.defaultEnabled??!1"
         )
@@ -3447,12 +3417,10 @@ class TestBuiltinPlugins(unittest.TestCase):
             loader = _plugin_modules()[1].replace(old, new)
             return _plugins(loader=loader)[0]["cc-plugin-claude-test"]
 
-        # A guarded call followed by an unguarded one: it always loads.
         rec = loaded(f"if(i){call};{call}}}")
         self.assertEqual(rec["load"], "unconditional")
         self.assertEqual(rec["load_guards"], [])
         self.assertNotIn("load", rec["partial"])
-        # Two sites guarded differently: one guard list cannot hold either-or.
         rec = loaded(f"if(i){call};if(q()){call}}}")
         self.assertIsNone(rec["load"])
         self.assertIsNone(rec["load_guards"])
@@ -3536,7 +3504,6 @@ class TestBuiltinPlugins(unittest.TestCase):
             "",
         )
         plugins, notes = _plugins(loader=loader)
-        # The test-seat registration (`name:r`) is a factory, never listed here.
         self.assertEqual(notes["registered_not_loaded"], ["cc-plugin-claude-test"])
         self.assertEqual(notes["factory_registrations"], 1)
         self.assertIs(plugins["cc-plugin-claude-test"]["in_loader"], False)
