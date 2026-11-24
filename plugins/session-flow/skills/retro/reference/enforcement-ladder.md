@@ -54,7 +54,8 @@ The code is changed so the mistake cannot be expressed.
 
 A machine asserts the rule and can block. The "runs at" column says where each check runs. Unless
 a row says otherwise, the same command runs locally, at the stage the check-placement contract
-(`docs/contracts/check-placement/README.md`) assigns, and in CI, which is the default to aim for.
+assigns, and in CI, which is the default to aim for. The contract:
+<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md>.
 
 | Rung | What it is | Runs at |
 |---|---|---|
