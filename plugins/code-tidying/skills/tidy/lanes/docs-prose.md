@@ -29,7 +29,7 @@ When a project lane at `.claude/tidy-lanes/docs-prose.md` includes a `## Merge s
 
 - **P-1, Dead-link removal**: internal cross-references to files/sections that no longer exist. Broken relative `(./x.md)` paths are the common case. Grep for relative markdown links and walk the matches
 - **P-2, Stale cross-reference repair**: references to merged-but-renamed files
-- **P-3, Redundant-paragraph dedup**: when two docs explain the same concept, the canonical explanation should live in one place; the other should reference it. Beck #13 (One Pile) for prose
+- **P-3, Redundant-paragraph dedup**: when two docs explain the same concept, the canonical explanation should live in one place; the other should reference it. Beck 13 (One Pile) for prose
 - **P-4, Reading order in prose**: within a single doc, sections should flow from "what is it" → "how to use it" → "when not to use it" → "advanced". When the order is inverted without cause, fix it
 - **P-5, Explaining comments**: for code-shaped prose (CLI commands, configuration snippets), an inline `# explains the next line` comment often beats a separate paragraph above the snippet
 - **P-6, Delete redundant prose**: boilerplate like "This document explains..." at the top of a doc whose title already explains it

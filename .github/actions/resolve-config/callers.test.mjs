@@ -33,6 +33,7 @@ import { TRAILER as TEST_SCOPE_TRAILER } from "../../scripts/pr-unblock/declare-
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
 import { contractAtPin, fetchAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { openRecord, parsePrivateKey } from "../open-lane-output/open.mjs";
@@ -2134,7 +2135,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
 // own record; the stub answers that read alone, with `rerunner` (the sender by
 // default).
 const RUN_ID = "39500000001";
-async function admitOn(sender, rerunner = sender) {
+async function admitOn(sender, rerunner = sender, standards = standardsCheckout()) {
   const { jobs } = workflow("work-resolve-issue.yml");
   const gate = jobs["check-admission"].steps.find((s) => s.id === "gate");
   const action = parse(read("../check-trusted-trigger/action.yml"));
@@ -2157,7 +2158,7 @@ async function admitOn(sender, rerunner = sender) {
     const values = {
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
       "github.triggering_actor": rerunner.login,
-      "steps.standards.outputs.path": "",
+      "steps.standards.outputs.path": standards,
     };
     // The event and run the runner would pass through the action's defaults.
     const env = {
@@ -2174,7 +2175,6 @@ async function admitOn(sender, rerunner = sender) {
       const given = String(gate.with[input]);
       env[name] = /^\$\{\{/.test(given) ? evaluate(given, values) : given;
     }
-    env.TRUSTED_ACTORS_PATH = fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url));
     const reads = [];
     const github = async (method, path) => {
       reads.push(`${method} ${path}`);
@@ -2209,6 +2209,7 @@ test("work-resolve-issue.yml: an unlisted sender's agent-ready field write is re
   assert.deepEqual(await admitOn(listedBot), { proceed: "false", runs: false }, "a listed bot is not a human");
   const human = { login: "kyle-sexton", id: 153232337, type: "User" };
   assert.deepEqual(await admitOn(human), { proceed: "true", runs: true }, "a listed human's field write is admitted");
+  assert.deepEqual(await admitOn(human, human, ""), { proceed: "false", runs: false }, "with no standards checkout no one is listed: the synced copy is never read");
   assert.deepEqual(await admitOn(human, stranger), { proceed: "false", runs: false }, "an unlisted re-runner of a listed human's run is refused");
   const app = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
   assert.deepEqual(await admitOn(app), { proceed: "true", runs: true }, "the lanes App's own agent-ready is admitted");

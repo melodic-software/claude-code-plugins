@@ -53,7 +53,6 @@ function parseArgs(argv) {
   return opts;
 }
 
-/** The layout settings, where each came from, and the settings files' layout errors. */
 function settingsOf(opts, root) {
   const defaults = { layout: Object.fromEntries(KEYS.map((key) => [key, layoutSchema.properties[key].default])) };
   const values = { ...defaults.layout };
@@ -90,7 +89,6 @@ const append = (map, key, value) => {
   map.get(key).push(value);
 };
 
-/** The commits of the window, newest first, each {hash, author, files}. */
 function readHistory(root, count, paths) {
   const args = ["-C", root, "-c", "core.quotepath=off", "-c", "log.showSignature=false", "log", "--no-color", "--no-merges", "--no-renames", "--full-diff", "--name-only", `--max-count=${count}`, "--format=%x1e%H%x1f%an"];
   if (paths.length) args.push("--", ...paths);

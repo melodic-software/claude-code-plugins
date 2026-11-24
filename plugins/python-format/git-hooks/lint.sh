@@ -70,8 +70,6 @@ fi
 contract="$CHECKS_TMP/contract"
 : >"$contract"
 failed=0
-# Every group's tool first: a missing one skips its own group only, and an
-# agent's missing tool fails the entry after the other groups have reported.
 runs=()
 for ((i = 0; i < RT_GN; i++)); do
   rt_use "$i"

@@ -1,7 +1,4 @@
 async page => {
-  // The dock's Controls tab on the host page: the tabs by keyboard, each control type writing its
-  // target in the framed mockup and showing its value, Copy config, a note carrying every manifest
-  // id, the built-in data and content entries, and Reset controls leaving the data alone.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + JSON.stringify(detail) + "]" : ""));
   const focused = () => page.evaluate(() => document.activeElement.id);
   const selected = (id) => page.getAttribute(id, "aria-selected");
@@ -13,7 +10,6 @@ async page => {
     await page.waitForFunction(() => !document.getElementById("pick").disabled, null, { timeout: 10000 });
     const frame = page.frames().find((f) => f !== page.mainFrame());
     const inFrame = page.frameLocator("#page");
-    // A CSS variable on the root, or an attribute on the root or on variant A's element.
     const css = (name) => frame.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
     const attr = (name, variant) => frame.evaluate(([n, v]) => (v ? document.querySelector(`[data-variant="${v}"]`) : document.documentElement).getAttribute(n), [name, variant]);
     const shown = (label) => page.locator(".uifc-row", { has: page.getByLabel(label, { exact: true }) }).locator("output").textContent();
@@ -138,7 +134,6 @@ async page => {
     ok("a control that cannot be drawn is refused, not thrown", typeof drawn === "string", drawn);
     ok("no handler in a manifest string ran", await page.evaluate(() => window.__xss) === undefined && await frame.evaluate(() => window.__xss) === undefined);
 
-    // The registry's own check, which the schema cannot state, over the shared fixtures.
     const registry = __REGISTRY__;
     for (const { why, manifest } of registry.valid) ok(`the registry admits: ${why}`, await page.evaluate((m) => window.uiFeedbackControls.refused(m.controls), manifest) === null);
     for (const { why, manifest } of registry.invalid) {
@@ -146,7 +141,6 @@ async page => {
       ok(`the registry refuses: ${why}`, typeof said === "string", said);
     }
 
-    // A second document in the frame: the host page stops listening, so the Controls tab stops too.
     await frame.evaluate(() => { location.href = "about:blank"; });
     await page.waitForFunction(() => document.getElementById("pick").disabled, null, { timeout: 5000 });
     ok("after the frame loads another page, the controls, Copy config and Reset controls are off and the tab says why",

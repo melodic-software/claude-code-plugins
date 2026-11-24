@@ -121,8 +121,6 @@ read_runs() {
   return 1
 }
 
-# skipped_validation <run-id>: true when the run failed only because the pull
-# request edits the caller workflow. A run with no failed job keeps its verdict.
 skipped_validation() {
   local jobs ids id ann hit
   jobs=$(gh api "repos/$REPO/actions/runs/$1/jobs?per_page=100") || die 2 "cannot read the jobs of run $1"

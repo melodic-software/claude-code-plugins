@@ -21,6 +21,7 @@ import { test } from "node:test";
 import { WIP_DEFAULTS } from "../../scripts/work-resolve-issue/limits.mjs";
 import { BLOCKER_READS, isHeld, listedStatusOf, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { HUMAN_ID, mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../resolve-config/read-status.mjs";
 
@@ -685,7 +686,7 @@ async function runMain(answers, extraEnv = {}, config) {
     }
     return github(method, path, body, ...rest);
   };
-  await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github: listed, now: NOW, log: (line) => logs.push(line) });
+  await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, STANDARDS_DIR: standardsCheckout(), GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github: listed, now: NOW, log: (line) => logs.push(line) });
   const text = readFileSync(output, "utf8");
   const value = (name) => new RegExp(`${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1`).exec(text)?.[2];
   return { capped: value("capped"), held: value("held"), admissionOpen: value("admission-open"), wip: JSON.parse(value("wip")), output: text, summary: readFileSync(summary, "utf8"), logs, paths };

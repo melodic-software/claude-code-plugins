@@ -158,25 +158,30 @@ test("readDocsFixCandidate reads the one PR with the listing's fields and lists 
   assert.deepEqual((await closed.readDocsFixCandidate(77)).pullRequests.nodes, []);
 });
 
-test("by default the sender check reads the humans of the base's trusted-actor list: a listed human dispatches, a listed bot or an unlisted id does not", async () => {
+test("by default the sender check reads the humans of the standards checkout's trusted-actor list: a listed human dispatches, a listed bot or an unlisted id does not, and the base's copy is never read", async () => {
   const base = mkdtempSync(join(tmpdir(), "refine-event-base-"));
   try {
-    mkdirSync(join(base, ".github/standards/trusted-actors"), { recursive: true });
-    writeFileSync(
-      join(base, ".github/standards/trusted-actors/trusted-actors.json"),
-      JSON.stringify({ version: 1, actors: [{ id: 4242, login: "someone", kind: "human" }, { id: 31337, login: "helper[bot]", kind: "bot" }] }),
-    );
+    const list = JSON.stringify({ version: 1, actors: [{ id: 4242, login: "someone", kind: "human" }, { id: 31337, login: "helper[bot]", kind: "bot" }] });
+    for (const dir of [".github/standards/trusted-actors", "standards/components/trusted-actors"]) {
+      mkdirSync(join(base, dir), { recursive: true });
+      writeFileSync(join(base, dir, "trusted-actors.json"), list);
+    }
     for (const [sender, dispatched] of [["4242", 1], ["31337", 0], ["999", 0]]) {
       const dir = mkdtempSync(join(tmpdir(), "refine-event-"));
       try {
         const api = fakeApi();
-        const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: "77", APP_SENDER_ID: "1", SENDER_ID: sender, RUN_ATTEMPT: "1", BASE_PATH: base };
+        const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: "77", APP_SENDER_ID: "1", SENDER_ID: sender, RUN_ATTEMPT: "1", BASE_PATH: base, STANDARDS_DIR: join(base, "standards") };
         assert.equal(await main(env, { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], readGateLabel: () => null }), 0);
         assert.equal(api.calls.dispatch.length, dispatched, `sender ${sender}`);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
     }
+    const api = fakeApi();
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(base, "ids"), PR_NUMBER: "77", APP_SENDER_ID: "1", SENDER_ID: "4242", RUN_ATTEMPT: "1", BASE_PATH: base };
+    const deps = { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], readGateLabel: () => null };
+    await assert.rejects(main(env, deps), /STANDARDS_DIR is unset/, "with no standards checkout the base's copy, which lists 4242, is not read");
+    assert.equal(api.calls.dispatch.length, 0);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
