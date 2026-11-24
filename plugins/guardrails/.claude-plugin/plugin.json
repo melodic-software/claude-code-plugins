@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "22 toggleable guards. Blocks: secret writes, machine paths, hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, drive-root /tmp, exported MSYS_NO_PATHCONV, cd && git, foreground waits, unsafe rm -r, expanding commit -m, off-convention titles, local-only Artifacts; opt-in, credential reads, main-checkout edits. Asks: settings writes. Warns: Workflow fan-out, bare gh pr create. Git hooks: commits, secrets, paths, CLI flags, skill refs, removed paths.",
+  "description": "23 toggleable guards. Blocks: secret writes, machine paths, hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, off-format PR bodies, drive-root /tmp, exported MSYS_NO_PATHCONV, cd && git, foreground waits, unsafe rm -r, expanding commit -m, off-convention titles, local-only Artifacts; opt-in, credential reads, main-checkout edits. Asks: settings writes. Warns: Workflow fan-out, bare gh pr create. Git hooks: commits, secrets, paths, CLI flags, skill refs, removed paths.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -128,6 +128,12 @@
       "type": "boolean",
       "title": "Block-github-post-content guard",
       "description": "Blocks a Bash or PowerShell gh or curl command whose GitHub post body holds a secret or a hardcoded machine path, using the secret-pattern-detection and hardcoded-path-check patterns; their options also turn off their half here. On by default.",
+      "default": true
+    },
+    "block_body_format_violation_enabled": {
+      "type": "boolean",
+      "title": "Block-body-format-violation guard",
+      "description": "Blocks a gh pr create, a gh pr edit with a body, or a GitHub MCP pull request create or update whose body breaks the format the target repository declares in docs/conventions/source-control.yaml. A repository that declares none is not judged; pr_body_format_gate: false there turns it off per repository. On by default.",
       "default": true
     },
     "block_windows_drive_tmp_enabled": {
