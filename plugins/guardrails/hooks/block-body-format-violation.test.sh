@@ -86,7 +86,7 @@ pass "--body, Fixed: and an owner/repo reference" "gh pr create --title t --body
 deny "--body, a heading only inside a fence" "gh pr create --title t --body $(q "$FENCED")" "$FULL" 'Missing a "## Fix" section'
 pass "a four-backtick fence holding a three-backtick example closes only on its own delimiter" "gh pr create --title t --body-file nested-fence.md" "$FULL"
 deny "a tilde fence closes only on tildes at least as long, so a heading inside it stays hidden" "gh pr create --title t --body-file mixed-fence.md" "$FULL" 'Missing a "## Fix" section'
-pass "--body-file, compliant""gh pr create --title t --body-file good.md" "$FULL"
+pass "--body-file, compliant" "gh pr create --title t --body-file good.md" "$FULL"
 deny "--body-file, a section missing" "gh pr create --title t --body-file nofix.md" "$FULL" 'Missing a "## Fix" section'
 deny "-F, a section missing" "gh pr create --title t -F $FULL/nofix.md" "$FULL" 'Missing a "## Fix" section'
 pass "--body-file, a file the command writes first" "printf x > nofix.md && gh pr create --title t --body-file nofix.md" "$FULL"
@@ -107,7 +107,7 @@ pass "gh pr edit with a PR URL of another repository" "gh pr edit https://github
 deny "gh pr edit with a PR URL of this repository" "gh pr edit https://github.com/Acme/widgets/pull/12 --body $(q "$NOFIX")" "$FULL" 'Missing a "## Fix" section'
 pass "a PR URL of another repository beside -R naming this one" "gh pr edit -R acme/widgets https://github.com/other/repo/pull/12 --body $(q "$NOFIX")" "$FULL"
 deny "a body that is only a PR URL is a body, not a target" "gh pr edit 5 --body https://github.com/other/repo/pull/12" "$FULL" 'Missing a "## Summary" section'
-pass "-R naming another repository""gh pr create -R other/repo --title t --body $(q "$NOFIX")" "$FULL"
+pass "-R naming another repository" "gh pr create -R other/repo --title t --body $(q "$NOFIX")" "$FULL"
 pass "after a cd" "cd /tmp && gh pr create --title t --body $(q "$NOFIX")" "$FULL"
 pass "PowerShell" "gh pr create --title t --body 'x'" "$FULL" PowerShell
 pass "a repository that declares no format" "gh pr create --title t --body x" "$NONE"
