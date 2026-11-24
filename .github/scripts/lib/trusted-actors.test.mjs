@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import process from "node:process";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -12,7 +13,7 @@ import { TRUSTED_ACTORS_PATH as HOLDS_PATH } from "../pr-merge/merge-holds.mjs";
 import { reviewerIdFrom, trustedHumansFrom } from "../pr-unblock/address-feedback.mjs";
 import { dependabotIdFrom } from "../pr-unblock/review-dependency.mjs";
 import { readHumans } from "../work-resolve-issue/report-outcome.mjs";
-import { loadTrustedList, readRawTrustedActors, SAME_TREE_LIST, TRUSTED_ACTORS_PATH, trustedActorsPath } from "./trusted-actors.mjs";
+import { loadTrustedList, readRawTrustedActors, SAME_TREE_LIST, STANDARDS_LIST_PATH, TRUSTED_ACTORS_PATH, trustedActorsPath, trustedListPath } from "./trusted-actors.mjs";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const SCRIPTS = join(ROOT, ".github/scripts");
@@ -23,6 +24,20 @@ test("the list path is the one under .github/standards, under .base unless a bas
   assert.equal(trustedActorsPath(""), ".base/.github/standards/trusted-actors/trusted-actors.json");
   assert.equal(trustedActorsPath("/b"), "/b/.github/standards/trusted-actors/trusted-actors.json");
   assert.equal(fileURLToPath(SAME_TREE_LIST), join(ROOT, TRUSTED_ACTORS_PATH));
+});
+
+test("a standards checkout named in STANDARDS_DIR wins over the fallback; none, or an empty one, keeps it", () => {
+  assert.equal(STANDARDS_LIST_PATH, "components/trusted-actors/trusted-actors.json");
+  assert.equal(trustedListPath({ STANDARDS_DIR: "/s" }, "/fallback"), "/s/components/trusted-actors/trusted-actors.json");
+  assert.equal(trustedListPath({}, "/fallback"), "/fallback");
+  assert.equal(trustedListPath({ STANDARDS_DIR: "" }, SAME_TREE_LIST), SAME_TREE_LIST);
+});
+
+test("read-status reads the list from STANDARDS_DIR before TRUSTED_ACTORS_PATH and BASE_PATH", () => {
+  const standards = tempDir("trusted-actors-standards-");
+  mkdirSync(dirname(join(standards, STANDARDS_LIST_PATH)), { recursive: true });
+  writeFileSync(join(standards, STANDARDS_LIST_PATH), '{"marker":2}');
+  assert.deepEqual(statusList({ STANDARDS_DIR: standards, TRUSTED_ACTORS_PATH: "/missing", BASE_PATH: "/missing" }), { marker: 2 });
 });
 
 test("merge-holds, read-status and resolve-config, which import nothing from scripts/lib, name the same path", () => {
@@ -150,6 +165,26 @@ test("every reader, permissive ones included, returns what main returned on each
     RECORDED_ON_MAIN[name].forEach((want, i) => {
       assert.deepEqual(got[i], want === RAW ? JSON.parse(text) : want, `${COLUMNS[i]} on the ${name} list returns what main returned ("!Name" is a throw)`);
     });
+  }
+});
+
+test("gate-source reads the standards checkout STANDARDS_DIR names over its same-tree list", async () => {
+  const tree = gateSourceCopyBesideFixture();
+  writeFileSync(join(tree, TRUSTED_ACTORS_PATH), doc([h]));
+  const standards = tempDir("trusted-actors-gate-standards-");
+  mkdirSync(dirname(join(standards, STANDARDS_LIST_PATH)), { recursive: true });
+  writeFileSync(join(standards, STANDARDS_LIST_PATH), doc([{ id: 11, login: "Other", kind: "human" }]));
+  const gate = await import(`${pathToFileURL(join(tree, ".github/scripts/pr-unblock/gate-source.mjs")).href}?case=standards`);
+  const saved = process.env.STANDARDS_DIR;
+  process.env.STANDARDS_DIR = standards;
+  try {
+    assert.deepEqual([...gate.trustedHumans()], [11]);
+  } finally {
+    if (saved === undefined) {
+      delete process.env.STANDARDS_DIR;
+    } else {
+      process.env.STANDARDS_DIR = saved;
+    }
   }
 });
 
