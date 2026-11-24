@@ -1,10 +1,10 @@
 name: PR Run Plugin Evals
-# release-eval-hold.mjs reads a compare run's pull request and head from this
-# name, since the runs API returns no dispatch inputs
+# release-eval-hold.mjs reads a compare run's pull request, head and target
+# plugin from this name, since the runs API returns no dispatch inputs
 # (https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
 run-name: >-
   ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
-  && format('eval-compare pr={0} head={1}', inputs.pr, inputs.head-sha) || '' }}
+  && format('eval-compare pr={0} head={1} target={2}', inputs.pr, inputs.head-sha, inputs.target) || '' }}
 
 # Runs `claude plugin eval` on a fresh GitHub-hosted runner, two ways:
 #
@@ -1760,6 +1760,7 @@ jobs:
       before-sha256: ${{ steps.arms.outputs.before-sha256 }}
       after-artifact-id: ${{ steps.after.outputs.artifact-id }}
       after-sha256: ${{ steps.arms.outputs.after-sha256 }}
+      cannot-start: ${{ steps.arms.outputs.cannot-start }}
       subscription: ${{ steps.author.outputs.proceed == 'true' && steps.human.outcome == 'success' }}
     env:
       API_BUDGET_TOKEN: github-token
@@ -1918,7 +1919,15 @@ jobs:
           HEAD_SHA: ${{ inputs.head-sha }}
           PLUGIN: ${{ steps.inputs.outputs.plugin }}
           OUT: ${{ runner.temp }}/arms
-        run: bash .base/.github/scripts/plugin-eval/compare-arms.sh
+        run: |
+          status=0
+          bash .base/.github/scripts/plugin-eval/compare-arms.sh || status=$?
+          if [ "$status" = 3 ] && grep -qx 'refused=true' "$GITHUB_OUTPUT"; then
+            echo "::notice::cannot-start=compare-refused: compare mode refuses this pull request, so no arm runs"
+            echo "cannot-start=compare-refused" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit "$status"
 
       - name: Scan the before patch for credentials
         id: scan-before
@@ -1977,6 +1986,7 @@ jobs:
     needs: compare-prepare
     if: >-
       needs.compare-prepare.result == 'success'
+      && needs.compare-prepare.outputs.cannot-start == ''
       && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
     cache-mode: read
     permissions:
@@ -2005,6 +2015,7 @@ jobs:
     needs: compare-prepare
     if: >-
       needs.compare-prepare.result == 'success'
+      && needs.compare-prepare.outputs.cannot-start == ''
       && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
     cache-mode: read
     permissions:
@@ -2027,6 +2038,22 @@ jobs:
     secrets:
       EVALS_CLAUDE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
       EVALS_CLAUDE_CODE_OAUTH_TOKEN: ${{ needs.compare-prepare.outputs.subscription == 'true' && secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN || '' }}
+
+  compare-cannot-start:
+    name: "Compare Cannot Start: ${{ needs.compare-prepare.outputs.cannot-start }}"
+    needs: compare-prepare
+    if: >-
+      needs.compare-prepare.result == 'success'
+      && needs.compare-prepare.outputs.cannot-start == 'compare-refused'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Record the cause
+        env:
+          CAUSE: ${{ needs.compare-prepare.outputs.cannot-start }}
+        run: |
+          echo "::notice::cannot-start=${CAUSE}: this compare run ran no arm and posts no record (docs/review/evals.md)"
 
   compare-verdict:
     name: Compare Verdict
