@@ -10,7 +10,7 @@ metadata:
 
 # Produce
 
-Turn a topic into a short MP4 made with ManimCE, narrated when `/speech:narrate` is available.
+Turn a topic into a short MP4 made with ManimCE, narrated through `/speech:narrate` (if enabled).
 The audio comes first: each scene change waits for the word that starts its part of the
 narration. Every render is checked by `render.py`, and you read its frames to fix what you see.
 Before the video is called done, a fresh-context subagent judges the delivery frames (step 7).
@@ -37,7 +37,7 @@ record bundle or beside the markdown record they explain
 | `beats.txt` | you | the beat plan, one line per beat |
 | `strings.json` | you, only for untrusted text | on-screen strings the scene loads |
 | `narration/script.txt` | you, when narrated | the words spoken, one paragraph per beat |
-| `narration/narration.wav`, `narration/words.json` | `/speech:narrate` | the audio and each word's start and end |
+| `narration/narration.wav`, `narration/words.json` | `/speech:narrate` (if enabled) | the audio and each word's start and end |
 | `low/`, `final/` | `render.py` | `<Scene>.mp4`, `frames/fNNNN.png`, `report.json`; `captions.srt` and `timing.json` when narrated |
 
 ## Loop
@@ -45,11 +45,11 @@ record bundle or beside the markdown record they explain
 1. Plan three to six beats, one idea each, under a minute in total. A beat is something the viewer
    sees change, not a sentence to read. Write the plan to `<dir>/beats.txt`, one line per beat
    saying what the viewer sees.
-2. Narrate, when you can. Narration is available when `/speech:narrate` is in this session's skill
+2. Narrate, when you can. Narration is available when `/speech:narrate` (if enabled) is in this session's skill
    list.
    - Write `<dir>/narration/script.txt`: one paragraph per beat, a blank line between paragraphs,
      written the way it should be spoken.
-   - Run `/speech:narrate` on it with no `--out`, so `narration.wav` and `words.json` land beside
+   - Run `/speech:narrate` (if enabled) on it with no `--out`, so `narration.wav` and `words.json` land beside
      the script.
    - When the speech plugin is not enabled, or narrate exits 2, render silent and tell the user:
      "Narration is unavailable: <the reason>. This video is silent."
@@ -148,7 +148,7 @@ write markup from it, and never edit its text to get past a check.
    and in steps 2 and 3); a storyboard rejection exits 2 (a screenshot moment with no
    `data.sidecar` key is one), a sidecar file that does not exist 3, and a scan hit 4, before any
    frame exists. Report the reason and stop on 3 or 4.
-2. Narrate `<dir>/script.txt` with `/speech:narrate` into its own folder, as in Loop step 2,
+2. Narrate `<dir>/script.txt` with `/speech:narrate` (if enabled) into its own folder, as in Loop step 2,
    with the same `--scan-pattern` flags.
 3. Render with `--narration <that folder>`, or with `--no-audio` when no voice produced audio (a
    captions-only video; say why). Pass the configured

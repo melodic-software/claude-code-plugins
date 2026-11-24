@@ -1,13 +1,3 @@
-// intake-triage.yml's refine chain picks each leg's credential through
-// ci-workflows' select-model-credential, fetched at the pin the workflow
-// names. This truth table drives the workflow's own conditions and inputs
-// through every combination of refine pick and mode, gate verdict, secrets
-// set or empty, a credential step reached or not, a step failing before or
-// after the leg, and every launcher outcome run-claude-cli's own
-// handoffReason can produce, and holds each state to the expressions the
-// workflow used before the action (quoted from 5599e627fc): the same jobs
-// start, the gate's skipped-key record runs alike, and each leg gets the same
-// present, fallback-ready and fallback-reason.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -36,16 +26,12 @@ const OLD = {
   fallbackReason: "${{ needs.refine-issue-subscription.outputs.handoff-reason || needs.refine-issue-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}",
 };
 
-// The gate's skipped-key record, found by name (it has no id).
 const skipRecordIf = () => {
   const found = wf.job(GATE).split(/\n(?= {6}- name: )/).filter((s) => /^ {6}- name: Report the skipped key leg$/m.test(s));
   assert.equal(found.length, 1, "the skipped key leg's record");
   return /^ {8}if: (.*)$/m.exec(found[0])[1];
 };
 
-// A leg's run step: it starts only on a set credential and when no step
-// before it failed; its handoff is the launcher's. Its lane record, which
-// carries the fallback reason, runs only when it did.
 const legRan = (present, failAt) => present === "true" && failAt !== "before-run";
 const ran = (present, failAt, outcome) => (legRan(present, failAt) ? { handoff: outcome.handoff, "handoff-reason": outcome.reason } : { handoff: "", "handoff-reason": "" });
 const prefixed = (prefix, map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [`${prefix}.${k}`, v]));
@@ -84,8 +70,6 @@ function oldChain(s) {
   return out;
 }
 
-// One leg job as the workflow now runs it: the credential call, the leg, and
-// the next-leg call, each from the workflow's own inputs.
 function newLeg(id, legName, ctx, s, outcome) {
   const call = wf.step(id, "credential");
   assert.equal(call.inputs.leg, legName, `${id} credential leg`);
@@ -173,8 +157,6 @@ test("the refine chain starts the same legs with the same credential decisions a
     assert.deepEqual(after, before, JSON.stringify(s));
     started.add(before.started.filter((id) => id !== GATE).join(","));
   }
-  // Every shape of the chain is reached: none, key only, key then
-  // subscription, the subscription alone (a gate skip), and on to fallback.
   for (const shape of ["", LEGS[0], LEGS.slice(0, 2).join(","), LEGS.join(","), LEGS[1], LEGS.slice(1).join(",")]) {
     assert.ok(started.has(shape), `reached ${shape || "no leg"}`);
   }

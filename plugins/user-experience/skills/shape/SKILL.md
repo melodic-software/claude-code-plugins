@@ -49,7 +49,7 @@ State these few lines before recommending anything:
   label every claim about users an assumption to test.
 - **Audience**: when the users are developers, say so. Journeys, flows and research stay here; CLI
   content, help text, errors, developer onboarding and API or SDK ergonomics belong to
-  developer-experience tooling, and how a CLI looks to `/user-interface:design`.
+  developer-experience tooling, and how a CLI looks to `/user-interface:design` (if enabled).
 - **Evidence**: each source from `project.research`, `project.personas`, `team.research_paths`,
   `team.persona_paths` and `project.analytics`, with its kind (research, persona, analytics,
   journey, flow) and trust untrusted; or "none found". Use it before generic guidance.
@@ -93,7 +93,7 @@ Pick the jobs the question needs and invoke each via the Skill tool, in this ord
   a fair-choice check. A legacy redesign runs evaluate alone for the UX-debt inventory and
   baselines; the other jobs wait until the user picks what to redesign.
 - **Look and response** (layout, controls, wording, accessibility conformance) are not a UX job:
-  when the `handoff-ui` route is present, invoke `/user-interface:design` via the Skill tool with
+  when the `handoff-ui` route is present, invoke `/user-interface:design` (if enabled) via the Skill tool with
   the flow's path; otherwise say that skill owns it.
 - Every method or tool you recommend carries `Basis:` per
   `${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md` (verified, judgment, or withheld as an

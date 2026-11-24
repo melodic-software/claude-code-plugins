@@ -5,7 +5,7 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "songwriting:diagnose",
+            "skill": "songwriting:revise",
             "args": "demo"
           }
         }
@@ -22,7 +22,7 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "songwriting:diagnose"
+            "skill": "songwriting:revise"
           }
         }
       ]
@@ -47,7 +47,7 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "/plugins/songwriting/skills/diagnose/SKILL.md"
+            "file_path": "/plugins/songwriting/skills/revise/SKILL.md"
           }
         }
       ]

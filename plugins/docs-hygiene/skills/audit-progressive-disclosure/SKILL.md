@@ -38,7 +38,7 @@ threshold, routing rule, or citation posture (Anthropic-prescribed vs corroborat
 
 | Lane | Shape | What it looks like | Default tier | Treatment |
 |---|---|---|---|---|
-| split | `oversize` | File at/approaching its tier's size guidance (SKILL.md approaching the line cap `/playbooks:skill-authoring` `## Body` records and `/skill-quality:check` enforces; CLAUDE.md approaching the memory page's size target; references per the TOC bands). Ceilings, not targets. Size alone below the cap is no finding | 2 | Add a hierarchy layer: name the sections to push into spokes, each behind a conditioned pointer |
+| split | `oversize` | File at/approaching its tier's size guidance (SKILL.md approaching the line cap `/playbooks:skill-authoring` (if enabled) `## Body` records and `/skill-quality:check` (if enabled) enforces; CLAUDE.md approaching the memory page's size target; references per the TOC bands). Ceilings, not targets. Size alone below the cap is no finding | 2 | Add a hierarchy layer: name the sections to push into spokes, each behind a conditioned pointer |
 | split | `mixed-concerns` | Mutually-exclusive contexts co-resident (content that never co-executes), category straddle, multi-topic rules file, cross-file contradiction | 2 | Split by concern. One topic per file; name the proposed split seams |
 | split | `tier-mismatch` | Content at the wrong tier: a procedure grown inside CLAUDE.md (→ skill), path-local rules in a global file (→ scoped rule), reference detail inline in a hub (→ spoke), always-loaded content not needed every session (→ demote behind a pointer) | 1 when an official routing rule decides it; else 2 | Route down-tier per the rule, unless owned upstream (see Hard rules); the finding names source section and destination surface |
 | structure | `blind-pointer` | Pointer with no when-to-read clause, unmarked execute-vs-read intent, or a vague target name (`doc2.md`, `utils`) | 2 | Attach the condition and intent; rename the target descriptively. On skill descriptions, a missing when-not-to-use clause is advisory color (community-sourced), never a violation |
@@ -100,8 +100,8 @@ sibling divergences it owns.
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash` ops; the author owns every treatment edit.
 - **Tier semantics** (identical to the sibling audits): Tier 1 = definite; Tier 2 = review needed;
   Tier 3 = likely legitimate, surfaced for awareness and carrying no treatment.
-- **Citation posture.** Skill size and description caps are `/playbooks:skill-authoring`'s (`## Body`,
-  `## Descriptions`); the other vendor-defined numbers (CLAUDE.md target, listing budget, per-skill metadata cost,
+- **Citation posture.** Skill size and description caps belong to `/playbooks:skill-authoring` (if enabled), sections `## Body`
+  and `## Descriptions`; the other vendor-defined numbers (CLAUDE.md target, listing budget, per-skill metadata cost,
   compaction re-attach budgets) are cited as Anthropic-prescribed; their owning pages, as-of date, and recheck trigger live in the
   provenance record in [context/tier-model.md](context/tier-model.md), which is re-verified rather
   than trusted. Reserve consensus language for independently corroborated claims; label
@@ -186,7 +186,7 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 - **Not `/docs-hygiene:audit-noise`**. In-page noise shapes (citations, ghost-refs, preambles).
 - **Not `/docs-hygiene:audit-derivability`**. Whether a whole doc should exist at all.
 - **Not `/docs-hygiene:extract-ssot`**. Content repeated across files is deduplication territory.
-- **Not `/skill-quality:check`**. Frontmatter validation, listing budgets, and description QA are
+- **Not `/skill-quality:check` (if enabled)**. Frontmatter validation, listing budgets, and description QA are
   its static gates; this skill audits loading structure, and cross-references rather than
   duplicates those checks.
 

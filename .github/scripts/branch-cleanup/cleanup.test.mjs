@@ -1,6 +1,3 @@
-// plan() and remove() against a fake GitHub: hand-built branches, pull requests and
-// issues, with each expected verdict taken from the branch-cleanup rule
-// (docs/conventions/pr-pipeline/README.md, "Branch cleanup").
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -71,7 +68,6 @@ function world({ branches, pulls = {}, issues = {}, comments = {}, ahead = {}, r
   return { call, respond, writes };
 }
 
-// Both stages, the candidate list passed through JSON as the artifact carries it.
 async function run(w, { dryRun = false, config = {} } = {}) {
   const ledger = [];
   const env = { REPOSITORY: REPO, DRY_RUN: dryRun ? "true" : "false" };
@@ -82,7 +78,6 @@ async function run(w, { dryRun = false, config = {} } = {}) {
   return { ...planned, ...removed, ledger, verdict, deletes: w.writes.map((x) => deletePath(x.name)) };
 }
 
-// The real client over a stubbed fetch that answers from a world.
 function stubFetch(t, w, onWrite = () => {}) {
   t.mock.method(globalThis, "fetch", async (url, { method, body }) => {
     const path = String(url).slice("https://api.test".length);
@@ -318,7 +313,6 @@ test("493 kept branches ahead of 8 deletable: successive runs reach and delete a
     const name = `feat/b-${i}`;
     const tip = i.toString(16).padStart(40, "0");
     branches.push({ name, sha: tip });
-    // A kept branch costs two reads: its pull requests and its open linked issue.
     pulls[name] = [mergedPull(i, tip, OLD, i <= 493 ? "Closes #7000" : "")];
   }
   const w = world({ branches, pulls, issues: { 7000: openIssue } });
@@ -342,10 +336,6 @@ test("493 kept branches ahead of 8 deletable: successive runs reach and delete a
   assert.equal(branches.length, 493);
 });
 
-// A branch count that divides the stride gave every run the same start, so
-// costly kept branches early in the listing hid the later ones from every run.
-// 118 branches under a 600-call budget (stride 118): the first 100 link four
-// closed issues and an open one, six reads each.
 test("118 branches when the count divides the stride: successive runs evaluate every branch", async (t) => {
   const branches = [];
   const pulls = {};
@@ -389,7 +379,6 @@ test("a tip that moved after the delete-time re-read is not deleted and is repor
   assert.equal(r.skipped.length, 1);
   assert.equal(r.skipped[0].name, "feat/raced");
   assert.match(r.skipped[0].reason, /^the tip moved to 7{40} before the delete/);
-  // The write-ahead line stays; a second line records that the branch was not deleted.
   assert.deepEqual(r.ledger, [
     { repo: REPO, branch: "feat/raced", sha: sha("2"), rule: "pr-merged", issue: null, pr: 4, deletedAt: NOW },
     { repo: REPO, branch: "feat/raced", sha: sha("2"), notDeletedAt: NOW, reason: r.skipped[0].reason },

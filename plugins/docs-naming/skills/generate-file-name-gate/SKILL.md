@@ -21,14 +21,14 @@ uninstalled, or a CI runner that never had it, still enforces what the team
 agreed.
 
 The gate is the deliverable. Whether a path-scoped rule file should also carry
-the naming rule is a separate choice: when `/corrections:codify` is among the
+the naming rule is a separate choice: when `/corrections:codify` (if enabled) is among the
 available skills, hand it the choice of mechanism; it picks the strongest rung
 of the enforcement ladder that can decide the rule and proves the check. Name
-the call, `/corrections:codify "<the naming rule>"`, for the operator to run;
-never make it. Otherwise, propose the strongest mechanism that can decide the
+the call, `/corrections:codify "<the naming rule>"` (if enabled), for the operator to run;
+never make it. When the `corrections` plugin is not enabled, propose the strongest mechanism that can decide the
 rule: a change that makes the mistake impossible first, then a check that blocks
 it, then a test, and an instruction only when nothing a machine runs can decide
-it. Say that `/corrections:codify` was not available, so the proposal is
+it. Say that the `corrections` plugin was not available, so the proposal is
 unproven.
 
 - **Pointer**: when weighing whether a rule could stand in for the gate, fetch
@@ -78,11 +78,11 @@ repository-shaped decision with no single right answer:
   operator place it in their own workflow.
 - **A registry row**, if the repository keeps a list of its gates.
 - **An architecture decision record** for the rule itself. Offer
-  `/architecture:adr`; do not write one unprompted.
+  `/architecture:adr` (if enabled); do not write one unprompted.
 
 If a `REINDEX` row appeared, the repository's `AGENTS.md` or `CLAUDE.md` carries
 a generated instruction-placement rules index, and the new rule file is not in
-it yet. Say so and name `/instruction-placement:check`; do not edit the block.
+it yet. Say so and name `/instruction-placement:check` (if enabled); do not edit the block.
 
 ## Verify before handing back
 
@@ -132,8 +132,7 @@ For the rule itself, once the gate is wired and green.
   Some trees strip pointer rules that already have an owner document and a
   deterministic oracle, on the argument that the gate is the oracle. `--rule` is
   opt-in for exactly that reason. When you offer it, give the route Purpose
-  names for the rule-file question (the `/corrections:codify` call when it is
-  available, else the fallback proposal), and let the operator decide.
+  names for the rule-file question (the `/corrections:codify` (if enabled) call, else the fallback proposal), and let the operator decide.
 - **A configuration value is untrusted text, and the emitted gate runs in CI.**
   Three hazards, each closed at a different layer: rendering is a literal splice
   rather than a `sed` substitution, so an `&` or a `|` in a regex cannot be

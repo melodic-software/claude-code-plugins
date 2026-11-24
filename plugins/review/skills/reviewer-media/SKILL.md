@@ -13,8 +13,8 @@ metadata:
 # Reviewer media (`/review:reviewer-media`)
 
 Builds the reviewer part of a produced walkthrough and nothing else: `/review:explain-change`
-writes the digest, `/explainer-video:produce` renders the video, and `/source-control:pull-request
-media` places it. This skill decides, writes the storyboard, checks it covers the change, and
+writes the digest, `/explainer-video:produce` (if enabled) renders the video, and
+`/source-control:pull-request media` (if enabled) places it. This skill decides, writes the storyboard, checks it covers the change, and
 hands over. When and with which settings: the
 [reviewer-media convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/reviewer-media.md).
 
@@ -25,9 +25,9 @@ widen what this skill does.
 ## 1. Decide
 
 Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call
-it `<dir>`. Read the facts with `/source-control:pull-request view <pr> --out <dir>/facts.json`,
+it `<dir>`. Read the facts with `/source-control:pull-request view <pr> --out <dir>/facts.json` (if enabled),
 via the Skill tool, and the commit its reviewer-media section shows with
-`/source-control:pull-request media shows --facts <dir>/facts.json`, which prints a sha or nothing.
+`/source-control:pull-request media shows --facts <dir>/facts.json` (if enabled), which prints a sha or nothing.
 Then check the renderer, on a direct run and on `--handoff` alike:
 
 1. Look for `explainer-video:produce` in this session's skill list. When it is absent, pass
@@ -44,7 +44,7 @@ Then check the renderer, on a direct run and on `--handoff` alike:
 
 - `--requested` when a reader invoked this skill; `--handoff` means `ready` or `monitor` handed the
   pull request over, so leave it off.
-- `--producer-unavailable` when check 1 found no `/explainer-video:produce`.
+- `--producer-unavailable` when check 1 found the `explainer-video` plugin missing.
 - `--shown` with the sha `media shows` printed, left off when it printed nothing.
 - `--policy` only when the reader passed it; `--blast-radius` when a plan or
   `/review:quality-gate downstream` assessed one.
@@ -53,7 +53,7 @@ Report the `action`, the `reason`, any `triggers`, and every `warnings` line. Ke
 value with the layer that set it) for the steps below.
 
 - `skip`: stop.
-- `stale`: run `/source-control:pull-request media stale <pr>` and stop.
+- `stale`: run `/source-control:pull-request media stale <pr>` (if enabled) and stop.
 - `build`: go on.
 
 ## 2. Claim
@@ -61,7 +61,7 @@ value with the layer that set it) for the steps below.
 Pick a run id: `$GITHUB_RUN_ID` in GitHub Actions, else `local-` and a fresh random token. Claim
 the head before building, with the label names from `config`:
 
-`/source-control:pull-request media claim <pr> --run-id <id> --label-requested <labels.requested> --label-posted <labels.posted> --label-failed <labels.failed>`
+`/source-control:pull-request media claim <pr> --run-id <id> --label-requested <labels.requested> --label-posted <labels.posted> --label-failed <labels.failed>` (if enabled)
 
 A label set to `false` is passed as `false`. Exit 3 means another run holds the head, or the head
 already failed for good: report it and stop, building nothing.
@@ -86,8 +86,8 @@ Three chapters, in reading order:
   `diagram` or `before-after` moment from the digest's why and before and after.
 - **The change**: one `code-hunk` moment per hunk in the digest's where to focus, in its order,
   each covering its file. When a changed path matches a `ui_paths` glob, add a `screenshot`
-  moment for that screen from a capture of the head commit (`/playwright:demo-video` or
-  `/testing:run-e2e` evidence) with its frame-text sidecar; with no capture, say so and leave
+  moment for that screen from a capture of the head commit (`/playwright:demo-video` (if enabled) or
+  `/testing:run-e2e` (if enabled) evidence) with its frame-text sidecar; with no capture, say so and leave
   the screen to the code moments.
 - **Risk**: a `risk-map` moment from the digest's risk map, rows as merge-risk checked them, and
   an `also-changed` moment listing every changed file no earlier moment covers, one line each.
@@ -109,14 +109,14 @@ nothing else shows it) and run it again. Never drop a file to pass.
 
 ## 5. Render
 
-Run `/explainer-video:produce` via the Skill tool on `<dir>/storyboard.json` (its stills
+Run `/explainer-video:produce` (if enabled) via the Skill tool on `<dir>/storyboard.json` (its stills
 renderer), rendering into `<out>` (`--out <out>`), with `--head-sha` the facts' `headRefOid`, `--upload-limit-mb` from `config`, and for
 its narration step the settings from `config`: `voice_chain` as `--backend-chain`, each `voices` entry as
 `--voice <backend>:<voice>`, `voice_command` as `--command`, and each `scan.extra_patterns` entry as `--scan-pattern <regex>` to
 both the renderer and the narration. Pass `--allow-paid-voice` only when
 `allow_unattended_paid_voice` is `true`, or when the reader in this session said yes to that
-paid voice. A narration exit that means no voice produced audio, per `/speech:narrate`'s exit
-list, renders captions-only and says why.
+paid voice. A narration exit that means no voice produced audio, per the exit list of
+`/speech:narrate` (if enabled), renders captions-only and says why.
 
 Each `SILENT:` line the render prints names a moment held in silence past its paragraph. Lengthen
 that moment's narration, or split it into smaller moments, still saying only what each frame
@@ -129,7 +129,7 @@ not a failure for step 7.
 Inside GitHub Actions (`GITHUB_ACTIONS` is `true`), stop here and print the manifest path: the
 workflow uploads `<out>` and posts it, per the convention's "In GitHub Actions" section.
 
-Elsewhere: `/source-control:pull-request media <pr> --manifest <out>/manifest.json --run-id <id>`
+Elsewhere: `/source-control:pull-request media <pr> --manifest <out>/manifest.json --run-id <id>` (if enabled)
 with the same label flags as step 2, `--retention-days <artifact_retention_days>` and the same
 `--scan-pattern` flags as step 5. Report what
 it reports. Its refusals (a scan hit, an unbound file, no host) are final: do not retry them.
@@ -138,7 +138,7 @@ it reports. Its refusals (a scan hit, an unbound file, no host) are final: do no
 
 When step 3, 4 or 5 fails, run it once more. When it fails again:
 
-`/source-control:pull-request media fail <pr> --run-id <id> --reason <code> [--run-url <url>]`
+`/source-control:pull-request media fail <pr> --run-id <id> --reason <code> [--run-url <url>]` (if enabled)
 
 with the same label flags, `<code>` a short code (`no-digest`, `storyboard`, `render-failed`,
 `scan`), and in Actions the run's URL. That head is never built again automatically.

@@ -77,8 +77,7 @@ and report its line ([levels](https://github.com/melodic-software/claude-code-pl
 ## Routing, where batch and proactive work live
 
 - **Prose a person reads (a ticket comment, a pull-request body, a doc, a
-  status update) → `/writing:be-concise`** when the `writing` plugin is
-  enabled. It owns the point-first, scannable shape those readers need,
+  status update) → `/writing:be-concise` (if enabled)**. It owns the point-first, scannable shape those readers need,
   which this corrector does not. Without that plugin, reduce against the
   markdown discipline above and say the point-first shape went unapplied.
 - **Batch prose remediation → the docs-hygiene compress capability** when

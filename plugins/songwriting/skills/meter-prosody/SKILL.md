@@ -102,4 +102,4 @@ was skipped.
 
 - Section identification, form-fit, and hook placement: /songwriting:song-form.
 - Rhyme position and stability: /songwriting:rhyme.
-- Whole-draft diagnosis: /songwriting:diagnose.
+- Whole-draft diagnosis: /songwriting:revise diagnose.

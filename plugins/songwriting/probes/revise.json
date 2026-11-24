@@ -1,7 +1,7 @@
 {
-  "skill": "songwriting:diagnose",
+  "skill": "songwriting:revise",
   "plugin": "songwriting",
-  "skill_dir": "plugins/songwriting/skills/diagnose",
+  "skill_dir": "plugins/songwriting/skills/revise",
   "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
   "competitors": [
     "songwriting:rhyme",

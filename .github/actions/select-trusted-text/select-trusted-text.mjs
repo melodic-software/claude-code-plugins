@@ -14,6 +14,7 @@ import {
   isListed,
   loadTrustedActors,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { trustedListPath } from "../../scripts/lib/trusted-actors.mjs";
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
@@ -310,7 +311,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
     if (!PR_NUMBER.test(env.PR_NUMBER ?? "") || !REPOSITORY.test(env.REPOSITORY ?? "")) {
       throw new Error("pr-number or repository is malformed");
     }
-    const ids = loadTrustedActors(env.TRUSTED_ACTORS_PATH);
+    const ids = loadTrustedActors(trustedListPath(env, env.TRUSTED_ACTORS_PATH));
     const context = await buildTrustedContext({
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
       repository: env.REPOSITORY,

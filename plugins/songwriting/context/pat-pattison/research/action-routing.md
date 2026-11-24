@@ -18,7 +18,7 @@ content under `context/pat-pattison/`.
 | `/songwriting:meter-prosody` | scansion/meter, prosody, phrasing, stability, lyric-melody fit |
 | `/songwriting:song-form` | form, song forms, hook, repetition, verse, bridge, box model |
 | `/songwriting:co-write` | co-write protocol, Title Game, titles, high-volume line/section dumps |
-| `/songwriting:diagnose` | demo review, full-draft diagnosis, pre-lock audit, variations, rewrite |
+| `/songwriting:revise` | demo review, full-draft diagnosis, pre-lock audit, variations, rewrite |
 | `/songwriting:practice` | daily curriculum, numbered exercises |
 | `/songwriting:suno` | Suno v5.5 prompt formatting (separate capability) |
 
@@ -30,8 +30,8 @@ content under `context/pat-pattison/`.
 | "I have nothing, just want to write something." | `/songwriting:workflow brainstorm` (Scenario 8) |
 | "I have an image / phrase / feeling, no title." | `/songwriting:workflow idea` (Scenario 9) |
 | "This line / verse / fragment is stuck." | `/songwriting:workflow fragment` (Scenario 10) |
-| "This demo is partway done. What's missing?" | `/songwriting:diagnose demo` (Scenario 11) |
-| "Review my full draft." | `/songwriting:diagnose diagnose` (or `/songwriting:workflow` Scenario 2 / 6) |
+| "This demo is partway done. What's missing?" | `/songwriting:revise demo` (Scenario 11) |
+| "Review my full draft." | `/songwriting:revise diagnose` (or `/songwriting:workflow` Scenario 2 / 6) |
 | "I have a title. What next?" | `/songwriting:workflow` Scenario 3, then `/songwriting:co-write title` + `/songwriting:rhyme worksheet` |
 | "I have a melody for these lyrics." | `/songwriting:meter-prosody align-melody` (Scenario 4) |
 | "Co-write tonight." | `/songwriting:co-write` + `/songwriting:co-write title-game` (Scenario 5) |
@@ -40,7 +40,7 @@ content under `context/pat-pattison/`.
 | "Find rhymes for X that aren't cliche." | `/songwriting:rhyme` (internal first), supplement with `/songwriting:rhyme datamuse` if needed |
 | "Syllable count of this line." | `/songwriting:rhyme datamuse` |
 | "Why does this rhyme feel weak?" | `/songwriting:rhyme` |
-| "Make this verse less abstract." | `/songwriting:object-writing` + `/songwriting:diagnose rewrite` |
+| "Make this verse less abstract." | `/songwriting:object-writing` + `/songwriting:revise rewrite` |
 | "Give me a 90-second writing prompt." | `/songwriting:object-writing` or `/songwriting:practice` |
 | "You do the object writing. I don't want to." | `/songwriting:object-writing generate` (dispatches the `object-writer` agent) |
 | "I need a metaphor for trust." | `/songwriting:metaphor collide` |
@@ -59,8 +59,8 @@ content under `context/pat-pattison/`.
 | "Title Game / vowel cascade." | `/songwriting:co-write title-game` |
 | "Write me a bridge." | `/songwriting:song-form bridge` |
 | "What goes in verse 2 / 3?" | `/songwriting:song-form box-model` |
-| "Audit this line before I lock it." | `/songwriting:diagnose audit` |
-| "Give me 5 versions of line 3." | `/songwriting:diagnose variations` |
+| "Audit this line before I lock it." | `/songwriting:revise audit` |
+| "Give me 5 versions of line 3." | `/songwriting:revise variations` |
 | "This line sounds cliched." | `/songwriting:object-writing cliche` |
 | "Who is speaking in this lyric?" | `/songwriting:object-writing pov` |
 | "My lyric and melody don't fit." | `/songwriting:meter-prosody align-melody` |
@@ -110,10 +110,10 @@ content under `context/pat-pattison/`.
 /songwriting:co-write title-game
 /songwriting:co-write line-brainstorm "<paste line>"
 /songwriting:co-write section-brainstorm chorus
-/songwriting:diagnose diagnose "<paste verse>"
-/songwriting:diagnose demo "<paste any-stage lyric>"
-/songwriting:diagnose audit "<paste line or section>"
-/songwriting:diagnose variations "<paste line>"
+/songwriting:revise diagnose "<paste verse>"
+/songwriting:revise demo "<paste any-stage lyric>"
+/songwriting:revise audit "<paste line or section>"
+/songwriting:revise variations "<paste line>"
 /songwriting:practice
 /songwriting:practice exercise 4.6
 ```

@@ -63,7 +63,7 @@ When the target skill does not exist, create it before writing any reference fil
 
 For a web corpus, settle these before fetching anything, instead of surveying a book. Ask the user only for what you can't infer. Record the enumerated piece count in the progress file; it is the boundary the finished skill claims.
 
-1. **Who, and which corpus.** One person or company, and their primary published body of work. Pick the source they actually write in: essays site, blog archive, talk transcripts, newsletter archive, docs. A corpus is one place, taken whole. Never sample it and never pad it with what you remember about them. The reason the skill is trustworthy is that its boundary is exact. When the person names a practitioner but not where they publish, or you cannot tell whether a source is their own primary work, find and grade it with `/discovery:research` first.
+1. **Who, and which corpus.** One person or company, and their primary published body of work. Pick the source they actually write in: essays site, blog archive, talk transcripts, newsletter archive, docs. A corpus is one place, taken whole. Never sample it and never pad it with what you remember about them. The reason the skill is trustworthy is that its boundary is exact. When the person names a practitioner but not where they publish, or you cannot tell whether a source is their own primary work, find and grade it with `/discovery:research` (if enabled) first.
 2. **Source type decides how you collect.**
 
    ```text
