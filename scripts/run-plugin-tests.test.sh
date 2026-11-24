@@ -251,8 +251,8 @@ assert_output_has "a global setting one suite writes does not reach the next" "o
 r="$(make_root multicorejit)"
 # shellcheck disable=SC2016
 write_suite "$r" plugins/a/env.test.sh 'echo "jit=${DOTNET_MultiCoreJitMinNumCpus-unset} xdg=${XDG_CACHE_HOME-unset}"'
-XDG_CACHE_HOME=/host/cache PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a suite reports its .NET and cache environment" --root "$r"
-assert_output_has "a suite runs with MultiCoreJit off and the host's XDG_CACHE_HOME" "jit=65535 xdg=/host/cache"
+DOTNET_MultiCoreJitMinNumCpus=1 XDG_CACHE_HOME=/host/cache PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a suite reports its .NET and cache environment" --root "$r"
+assert_output_has "a suite runs with MultiCoreJit off over the host's value, and the host's XDG_CACHE_HOME" "jit=65535 xdg=/host/cache"
 
 # --- parallelism and the serial allowlist -------------------------------------
 #
