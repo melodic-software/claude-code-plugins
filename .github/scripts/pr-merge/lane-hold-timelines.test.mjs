@@ -1,6 +1,3 @@
-// clear-escalations.mjs and enable-auto-merge.mjs read a review lane's hold
-// from the issue timeline: a hold comment counts only when its lane's run
-// recorded it (lib/lane-binding.mjs), a legacy one while the cutoff is unset.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

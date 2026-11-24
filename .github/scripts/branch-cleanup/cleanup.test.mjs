@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { DELETE_REF, ZERO_OID, client, deleteBudget, plan, readList, remove } from "./cleanup.mjs";
 import { linkedIssues } from "./rules.mjs";
@@ -412,4 +417,19 @@ test("the delete stage refuses a list for another repository, over the cap, or w
     assert.throws(() => readList({ repo: REPO, planned: [bad] }, ctx), /refuses/, JSON.stringify(bad));
   }
   assert.throws(() => readList({ repo: REPO, planned: [good, good] }, ctx), /refuses/);
+});
+
+test("main hands BASE_PATH and STANDARDS_DIR to branchCleanupFromBase", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "cleanup-base-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  mkdirSync(join(base, ".github/actions/resolve-config"), { recursive: true });
+  writeFileSync(
+    join(base, ".github/actions/resolve-config/resolve-config.mjs"),
+    "export const branchCleanupFromBase = (args) => { throw new Error(`loaded ${JSON.stringify(args)}`); };\n",
+  );
+  const run = spawnSync(process.execPath, [fileURLToPath(new URL("./cleanup.mjs", import.meta.url))], {
+    env: { BASE_PATH: base, STANDARDS_DIR: "/standards", STAGE: "plan", REPOSITORY: REPO },
+    encoding: "utf8",
+  });
+  assert.equal(run.stdout.trim(), `::error::loaded ${JSON.stringify({ BASE_PATH: base, STANDARDS_DIR: "/standards" })}`, run.stderr);
 });

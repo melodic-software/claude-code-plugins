@@ -57,7 +57,6 @@ export function movePin(packageText, lockText, name = PACKAGE) {
   return { text, from: from.slice(name.length + 1), to };
 }
 
-/** One [kind, line] per line by longest common subsequence: kind " " kept, "-" removed or "+" added. */
 function editScript(a, b) {
   const width = b.length + 1;
   const common = new Uint32Array((a.length + 1) * width);

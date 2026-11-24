@@ -25,8 +25,12 @@ const LEG_CHECK_RUN = `          case "$LANE_CLASS" in
 const TRIGGER = `    if: >-
       github.ref == 'refs/heads/main'
 `;
-const TRUSTED_ACTORS = "          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json\n";
+const TRUSTED_ACTORS =
+  "          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json\n          STANDARDS_DIR: ${{ steps.standards.outputs.path }}\n";
+const STANDARDS = "        uses: melodic-software/ci-workflows/.github/actions/download-standards@main\n";
 const shared = (carriedComment) => [
+  [STANDARDS, `${STANDARDS}        with:\n          ref: \${{ needs.check-intent.outputs.standards-sha }}\n`, 1],
+  ["      standards-sha: ${{ steps.standards.outputs.sha }}\n", "", 1],
   [`      reads: \${{ steps.carry.outputs.reads }}\n`, "", 1],
   [
     `${TRUSTED_ACTORS}        run: |`,

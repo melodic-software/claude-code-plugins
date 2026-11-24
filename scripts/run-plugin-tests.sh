@@ -189,6 +189,8 @@ if [[ "${1:-}" == "--worker" ]]; then
   fi
   rc=0
   test_git_env::isolate "$log.gitconfig" || exit 2
+  # Concurrent pwsh starts sharing one MultiCoreJit profile can crash: https://github.com/dotnet/runtime/issues/121977
+  export DOTNET_MultiCoreJitMinNumCpus=65535
   start=$SECONDS
   bash "$suite" >"$log.out" 2>&1 || rc=$?
   secs=$((SECONDS - start))

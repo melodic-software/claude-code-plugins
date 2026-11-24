@@ -3,6 +3,14 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.60] - 2026-11-24
+
+### Changed
+
+- **chore(deps-dev): Bump the npm-minor-patch group in /plugins/miro/server with 2 updates** (#18633).
+  - `@vitest/coverage-v8` 5.1.0→5.1.1
+  - `vitest` 5.1.0→5.1.1
+
 ## [0.6.59] - 2026-11-21
 
 ### Changed

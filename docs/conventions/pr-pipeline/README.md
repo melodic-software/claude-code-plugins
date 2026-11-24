@@ -1569,12 +1569,14 @@ the rules that only tighten in
   `git diff --text`, so a file git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
   boundaries with each file whole, except that a file over 300000 bytes is cut at its hunks into
-  pieces, each under the file's header and no two in one chunk (`diff_chunking.py`); each chunk is
+  pieces, each under the file's header and no two in one chunk, and a hunk over 300000 bytes with
+  that header is cut between its lines, each cut under an `@@` header recounted for its lines
+  (`diff_chunking.py split --cut-lines`); each chunk is
   reviewed by its own run, in
   order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
   any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
-  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single hunk
-  over 300000 bytes with its file's header, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
+  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single line
+  over 300000 bytes with its headers, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
   review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
   until a dynamic chunk count lifts it
   ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). A chunked
@@ -2810,9 +2812,10 @@ sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
 label or body-edit re-run skips `select-tests` and every suite, so its list is no
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
-whole but one over 300000 bytes, cut at its hunks into pieces the manifest lists as
+whole but one over 300000 bytes, cut at its hunks (a hunk over a chunk between its lines, under
+recounted `@@` headers) into pieces the manifest lists as
 `piece <i> of <n>` (`chunk-diff.sh`, `diff_chunking.py`; the same chunk budget as `pr-review-main`),
-and a file with one hunk over a chunk gets no verdict; each chunk
+and a file with one line over a chunk gets no verdict; each chunk
 gets its own judge step with the same spec, cut into parts one Read returns whole; a line over 1800
 bytes carries on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
 (`manifest/part-*.txt`) names the part each file starts in, so a judge reads another chunk's part when

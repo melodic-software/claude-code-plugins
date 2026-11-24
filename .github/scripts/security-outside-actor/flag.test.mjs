@@ -14,7 +14,6 @@ const LISTED = { id: 153232337, login: "kyle-sexton", type: "User" };
 const LISTED_BOT = { id: 209825114, login: "claude[bot]", type: "Bot" };
 const ACTIONS_BOT = { id: ACTIONS_BOT_ID, login: "github-actions[bot]", type: "Bot" };
 const REPO = "melodic-software/claude-code-plugins";
-// The checkout whose models.issue-status the Work status write reads.
 const ROOT = new URL("../../..", import.meta.url).pathname;
 const FIELD = STATUS_CONFIG["field-id"];
 const NEEDS_HUMAN_WRITE = { issue_field_values: [{ field_id: FIELD, value: "needs-human" }] };
@@ -31,8 +30,6 @@ const events = {
   pull_request_target: (user, association) => ({ action: "opened", pull_request: pull(user, association) }),
 };
 
-// A fake GitHub that records every call, answers the comment list, and keeps
-// the Work status option each field POST names.
 function fakeGitHub(comments = []) {
   const calls = [];
   const github = async (method, apiPath, body) => {
@@ -69,7 +66,6 @@ function run(eventName, payload, { comments, list = "valid", github, base = ROOT
   }
   const fake = github ?? fakeGitHub(comments);
   const lines = [];
-  // The Work status writer reads the list after main's first await.
   return main({
     env: { GITHUB_REPOSITORY: REPO, GITHUB_EVENT_NAME: eventName, GITHUB_EVENT_PATH: eventPath, TRUSTED_ACTORS_PATH: listPath, BASE_PATH: base },
     github: fake.github,
@@ -80,7 +76,6 @@ function run(eventName, payload, { comments, list = "valid", github, base = ROOT
 }
 
 const posts = (calls) => calls.filter((call) => call.method === "POST");
-// The POSTs by what they write: labels, field values, or a comment.
 const post = (calls, kind) => posts(calls).find((call) => call.apiPath.endsWith(`/${kind}`));
 const written = (calls) => posts(calls).map((call) => call.apiPath).sort();
 
@@ -107,7 +102,6 @@ test("a COLLABORATOR or CONTRIBUTOR association alone does not trust", async () 
   }
 });
 
-// An issue's needs-human is its Work status field; a pull request's stays a label.
 for (const [eventName, number, kind, onField] of [
   ["issues", 5, "issue opened", true],
   ["issue_comment", 5, "comment created", true],
@@ -229,8 +223,6 @@ test("a marker written by anyone but github-actions[bot] is ignored", async () =
   assert.ok(post(calls, "comments"), "the spoofed markers do not suppress the comment");
 });
 
-// The Work status writer's plain set needs no trusted-actor list, so an issue
-// still gets its needs-human.
 test("an unreadable or malformed trusted-actor list fails closed and flags a listed id", async () => {
   for (const list of ["missing", "malformed"]) {
     const pr = await run("pull_request_target", events.pull_request_target(LISTED, "CONTRIBUTOR"), { list });
@@ -313,8 +305,6 @@ test("a failed label write still posts the comment and fails the run", async () 
 
 test("a failed Work status write still writes the label and the comment, and fails the run", async () => {
   const fake = fakeGitHub();
-  // A slow label write is recorded when it lands, so a field write sent
-  // beside it would be recorded first.
   const github = async (method, apiPath, body) => {
     if (apiPath.endsWith("/issue-field-values")) {
       fake.calls.push({ method, apiPath, body });
@@ -340,8 +330,6 @@ test("with the Work status config unloadable, as when resolve-config's install f
   assert.ok(lines.some((line) => /^::error::.*models\.issue-status could not be read/.test(line)), lines.join("\n"));
 });
 
-// Plan case (b): the job token's needs-human on an issue's field is a hold the
-// readers count, so the triage sweep drops the issue.
 test("an outside issue's needs-human, written by github-actions[bot], reads back and the triage sweep drops the issue", async () => {
   const fields = {};
   const calls = [];
@@ -372,8 +360,6 @@ test("readEvent takes the comment's author before the issue's and the review's b
   assert.equal(readEvent("pull_request_review_comment", events.pull_request_review_comment(OUTSIDER, "NONE")).number, 9);
 });
 
-// Only a listed person removes security: outside-actor; any other removal is
-// undone and named once.
 const unlabel = (sender, { name = LABEL, item = "pull_request", author = OUTSIDER, association = "NONE" } = {}) => ({
   action: "unlabeled",
   label: { name },
@@ -403,7 +389,6 @@ test("a member not on the list, a listed Bot, or anyone under an unreadable list
     [LISTED, "missing", "OWNER"],
   ]) {
     const { code, calls } = await run("issues", unlabel(sender, { item: "issue", author: LISTED, association }), { list });
-    // An unreadable list does not stop the issue's Work status write.
     assert.equal(code, 0, `${sender.login} ${list}`);
     assert.deepEqual(written(calls).map((apiPath) => apiPath.split("/").pop()), ["comments", "issue-field-values", "labels"], `${sender.login} ${list}`);
     assert.deepEqual(post(calls, "labels").body, { labels: [LABEL] });

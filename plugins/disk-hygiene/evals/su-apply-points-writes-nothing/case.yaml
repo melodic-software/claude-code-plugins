@@ -46,6 +46,6 @@ graders:
     arm: both
   - name: guidance-only
     type: llm
-    criteria: 'Pass only if the trace shows the check probes ran, the reply presents the status table before remediation and gives guidance for each FAIL, and the run changes no files or settings and claims no changes. The reply names disk_hygiene_enabled as a native Claude Code plugin option and directs any toggle change through native plugin configuration.'
+    criteria: 'Pass only if the trace shows the check probes ran, the reply presents the status table before remediation and gives guidance for each FAIL, and the run changes no files or settings and claims no changes. The reply names disk_hygiene_enabled. When the kill-switch probe shows it off, the reply directs the change through native Claude Code plugin configuration; when every probe passes, reporting already configured with no toggle guidance also passes. Fail if the reply says it changed a setting or offers a plugin config file of its own.'
     focus: trace
     arm: both

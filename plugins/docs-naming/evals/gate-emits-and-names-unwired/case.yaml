@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: gate-emits-and-names-unwired
-description: "Happy path. The bundled emitter writes the checker and its suite, both are run, the checker's exit 1 on the seeded offender is reported as a finding rather than a failed run, and the three unwired items (CI step, registry row, decision record) are said out loud with no CI file edited and no rule file emitted. Source: case 1 of the skill's legacy evals.json, rewritten for this format. Hard because the checker exits 1 on docs/Release_Notes.md, which a run can misread as its own failure, and because the unwired items are easy to drop once the files exist."
+description: "Happy path. The bundled emitter writes the checker and its suite, both are run, the checker's exit 1 on the seeded offender is reported as a finding rather than a failed run, and the three unwired items (CI step, registry row, decision record) are said out loud with no CI file edited and no rule file emitted. Source: case 1 of the skill's legacy evals.json, rewritten for this format. The prompt names tools/ as the output directory because the eval sandbox masks scripts/ and .github in the workspace, so the default directory cannot be created there. Hard because the checker exits 1 on docs/Release_Notes.md, which a run can misread as its own failure, and because the unwired items are easy to drop once the files exist."
 tags: [generate-file-name-gate, docs-naming, hard]
-expected_outcome: "emit-gate.sh runs without --rule and creates scripts/check-file-names.sh and scripts/check-file-names.test.sh; both are run; the reply reports docs/Release_Notes.md as an offender of the lower-kebab rule, says the CI step invoking the checker is not wired, and names the registry row and the architecture decision record as left to the operator; no Write or Edit touches .github/workflows."
+expected_outcome: "emit-gate.sh runs without --rule and creates tools/check-file-names.sh and tools/check-file-names.test.sh; both are run; the reply reports docs/Release_Notes.md as an offender of the lower-kebab rule, says the CI step invoking the checker is not wired, and names the registry row and the architecture decision record as left to the operator; no Write or Edit touches .github/workflows."
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -23,11 +23,11 @@ graders:
     arm: with-only
   - name: checker-created
     type: file_exists
-    path: scripts/check-file-names.sh
+    path: tools/check-file-names.sh
     arm: both
   - name: suite-created
     type: file_exists
-    path: scripts/check-file-names.test.sh
+    path: tools/check-file-names.test.sh
     arm: both
   - name: ran-checker
     type: tool_used

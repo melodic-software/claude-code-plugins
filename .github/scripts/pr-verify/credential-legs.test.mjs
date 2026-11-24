@@ -1,14 +1,3 @@
-// pr-verify.yml picks each judge job's credential through ci-workflows'
-// select-model-credential, fetched at the pin the workflow names; the key job
-// reads its credit history inside its credential call. This truth table
-// drives the workflow's own conditions, inputs and outputs through every
-// combination of credit verdict, secrets set or empty, the chunk that ends
-// the leg (the first, a middle one, the whole-spec one), how it ends (a
-// verdict, a failure, or each handoff run-claude-cli's own handoffReason can
-// produce, clean or refused by the leg check), and a step failing after the
-// leg, and holds each state to the expressions the workflow used before the
-// action (quoted from 5599e627fc): the same jobs start, and each leg gets the
-// same present, fallback-ready and fallback-reason.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -35,7 +24,6 @@ const RUN = {
 };
 const TRIGGER = "github.ref == 'refs/heads/main' && github.event.workflow_run.event == 'pull_request' && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure') && github.event.workflow_run.head_repository.full_name == github.repository";
 
-// The old job conditions, outputs and reasons, at 5599e627fc.
 const OLD = {
   sub: `!cancelled() && ${TRIGGER} && ((needs.${KEY}.result == 'success' && ((needs.${KEY}.outputs.handoff == 'true' && needs.${KEY}.outputs.key-leg-clean == 'true') || needs.${KEY}.outputs.credential-present == 'false' || needs.${KEY}.outputs.skip-key == 'true')))`,
   fallback: `!cancelled() && needs.${SUB}.result == 'success' && ${TRIGGER} && (needs.${SUB}.outputs.handoff == 'true' && needs.${SUB}.outputs.leg-clean == 'true' || needs.${SUB}.outputs.credential-present == 'false' && needs.${SUB}.outputs.fallback-ready == 'true')`,
@@ -63,9 +51,6 @@ const failIf = (job) => wf.step(job, "credential") && /^ {6}- name: Fail without
 const prefixed = (prefix, map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [`${prefix}.${k}`, v]));
 const evalMap = (map, ctx) => Object.fromEntries(Object.entries(map).map(([k, v]) => [k, value(v, ctx)]));
 
-// The judge steps' outputs when the leg ran and ended at chunk `at` in
-// `end`: earlier chunks judged and handed nothing on. `legStep` is the job's
-// leg check (key-leg or sub-leg), which passes on a clean handoff.
 function legSteps(ran, at, end, legStep) {
   const ctx = {};
   if (!ran) return ctx;
@@ -82,7 +67,6 @@ function legSteps(ran, at, end, legStep) {
   return ctx;
 }
 
-// A job's result: a step that failed after the leg, or its own last check.
 const result = (failAt, failExpr, ctx) => (failAt === "after-leg" || runs(failExpr, ctx) ? "failure" : "success");
 
 function ends(handoffReason, leg, fallbackReady) {
@@ -96,7 +80,6 @@ function ends(handoffReason, leg, fallbackReady) {
 function oldRun(s) {
   const out = { started: [], legs: {} };
   const base = { ...RUN, "steps.agree.outcome": s.agree ? "success" : "skipped" };
-  // check-intent
   const keyCtx = { ...base };
   if (s.agree) keyCtx["steps.credit.outputs.skip-key"] = { ok: "false", skip: "true", failed: "" }[s.gate];
   if (s.agree && keyCtx["steps.credit.outputs.skip-key"] !== "true") keyCtx["steps.credential.outputs.present"] = String(s.key);
@@ -118,7 +101,6 @@ function oldRun(s) {
   return out;
 }
 
-// One job as the workflow now runs it.
 function newJob(job, leg, s, needs, end, legStep) {
   const base = { ...RUN, ...needs, "steps.agree.outcome": s.agree ? "success" : "skipped", ...prefixed("secrets", Object.fromEntries(Object.entries(SECRETS).map(([k, name]) => [name, s[k] ? "set" : ""]))) };
   // The key job's credit read is its own step under continue-on-error: a read
@@ -135,7 +117,6 @@ function newJob(job, leg, s, needs, end, legStep) {
   let credential = {};
   if (runs(call.if, base)) {
     const input = (name) => (call.inputs[name] === undefined ? "" : value(call.inputs[name], base));
-    // The key call reads the credit history itself when it names key-job.
     const held = leg === "key" && input("key-job") !== "" && s.gate === "skip";
     credential = S.leg({ leg, role: input("role"), credentialSet: input("credential-set"), fallbackSet: input("fallback-set"), keyOff: input("key-off"), selected: input("selected"), held, reason: input("reason") }).outputs;
   }
@@ -157,9 +138,6 @@ const apiKeySwitch = (on) => ({ "vars.CLAUDE_API_KEYS_DISABLED": on ? "true" : "
 function newRun(s, { switchAtKeyJob = apiKeySwitch(s.keyOff), switchAtLaterJobs = switchAtKeyJob } = {}) {
   const key = runs(wf.jobIf(KEY), { ...RUN, ...switchAtKeyJob }) ? newJob(KEY, "key", s, switchAtKeyJob, s.keyEnd, "key-leg") : null;
   const out = { started: key ? [KEY] : [], legs: {} };
-  // A held key's present is now `false` where the skipped step left it
-  // empty; whether the key's judge runs, the one reader that matters, is
-  // compared. The fail step reads key-skipped beside present.
   if (key) out.legs[KEY] = { runs: key.credential.present === "true" };
   const needs = key ? { [`needs.${KEY}.result`]: key.outputs.result, ...prefixed(`needs.${KEY}.outputs`, key.outputs) } : { [`needs.${KEY}.result`]: "skipped" };
   Object.assign(needs, switchAtLaterJobs);
@@ -185,7 +163,6 @@ function* states() {
               for (const at of ["", "-3", "-spec"])
                 for (const keyEnd of ends(S.handoffReason, "api-key", false))
                   for (const subEnd of ends(S.handoffReason, "subscription", fallback))
-                    // A run the gates stop judges nothing: one state of it is enough.
                     if (agree || (gate === "ok" && failAt === "none" && at === "" && keyEnd.kind === "verdict" && subEnd.kind === "verdict")) yield { agree, gate, key, sub, fallback, failAt, at, keyEnd, subEnd };
 }
 

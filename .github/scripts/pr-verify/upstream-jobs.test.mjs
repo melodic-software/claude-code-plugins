@@ -42,7 +42,6 @@ test("every page of the run's latest jobs is read, keeping only each name, concl
   assert.deepEqual(listed.jobs.at(0), { name: "job-1", conclusion: "success", url: jobUrl(1) });
   assert.deepEqual(listed.jobs.slice(-2), [
     { name: "job-101", conclusion: "skipped", url: jobUrl(101) },
-    // A job with no html_url lists a null url.
     { name: "ci-status", conclusion: null, url: null },
   ]);
 });
@@ -67,11 +66,9 @@ test("a Node suite with a sibling .test.sh at the head is listed with its wrappe
     "c/d.test.sh",
     "e/h.fixtures.test.mjs",
     "e/h.fixtures.test.sh",
-    // No sibling wrapper: test-node runs these.
     "j/k.test.mjs",
     "e/i.fixtures.test.mjs",
     "e/i.test.sh",
-    // A shell suite with no Node sibling, and a file that is no suite.
     "f/g.test.sh",
     "f/g.mjs",
   ]);
@@ -113,8 +110,6 @@ test("main writes the list to JOBS_FILE, and writes nothing when the read fails"
   assert.equal(existsSync(noTree.JOBS_FILE), false);
 });
 
-// resolve-pr.mjs keeps the jobs it read whole for draftRun in RUNNER_TEMP
-// (KEPT_JOBS); main takes them instead of reading the same list again.
 test("main takes the resolver's kept jobs with no read, and reads when they are missing, for another run or malformed", async (t) => {
   t.mock.method(console, "log", () => {});
   const dir = tempDir("pr-verify-upstream-jobs-");
@@ -141,7 +136,6 @@ test("main takes the resolver's kept jobs with no read, and reads when they are 
     await main(env, { github });
     return { paths, jobs: JSON.parse(readFileSync(env.JOBS_FILE, "utf8")).jobs };
   };
-  // The file as resolve-pr.mjs writes it: no read, and its jobs.
   assert.deepEqual(await run(`${JSON.stringify(shapeJobs(RUN, kept))}\n`), { paths: [], jobs: [{ name: "job-3", conclusion: "skipped", url: jobUrl(3) }] });
   const read = { paths: [`/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100&page=1`], jobs: shapeJobs(RUN, live).jobs };
   for (const [label, content] of [
@@ -156,7 +150,6 @@ test("main takes the resolver's kept jobs with no read, and reads when they are 
   ]) {
     assert.deepEqual(await run(content), read, label);
   }
-  // With no RUNNER_TEMP there is nowhere to look, so it reads.
   const { github, paths } = paged(live);
   await main({ ...env, RUNNER_TEMP: "" }, { github });
   assert.equal(paths.length, 1);

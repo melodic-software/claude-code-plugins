@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.9] - 2026-11-24
+
+### Fixed
+
+- `verify` dispatches its verifier with the Agent tool, and reports no independent verifier only when that tool is unavailable or denied.
+
 ## [0.16.8] - 2026-11-24
 
 ### Changed

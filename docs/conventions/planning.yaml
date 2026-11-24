@@ -1,4 +1,3 @@
 # yaml-language-server: $schema=../../plugins/planning/schemas/planning.schema.json
-# Team layer for the planning plugin's settings: plugins/planning/reference/config.md.
 
 unattended_finish_check: CI Status

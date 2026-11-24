@@ -3,6 +3,18 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.8] - 2026-11-24
+
+### Fixed
+
+- `clean` asks a separate question confirming the unrecoverable `.env*` deletion when a tree reset includes `--include-secrets`.
+
+## [0.22.7] - 2026-11-24
+
+### Fixed
+
+- `clean` lists stash-cleanup requests among its triggers.
+
 ## [0.22.6] - 2026-11-24
 
 ### Changed

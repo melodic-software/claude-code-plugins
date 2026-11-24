@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.4] - 2026-11-24
+
+### Changed
+
+- The agent contract sync test reads each reference frontmatter key once per check.
+
 ## [0.48.3] - 2026-11-24
 
 ### Changed

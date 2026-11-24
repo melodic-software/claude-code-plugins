@@ -6,6 +6,10 @@
     {
       "answer": "Plan: tax module, then invoice total in the same tree; mail sender separately.\n\nShould TaxExemptions stay behind the tax module's entry point, or be passed in by the caller?",
       "why": "question names TaxExemptions"
+    },
+    {
+      "answer": "**Order**: tax and invoice total as one tree, tax first; mail sender separately.\n\n**First question (Tax module, inputs).** `quote(order)` will be called per invoice line. What should it take as input?\n\n- (a) the whole order. I recommend this.\n- (b) a single line.\n\nWhich do you prefer?",
+      "why": "header names tax; a closing question follows the options"
     }
   ],
   "fail": [
@@ -31,6 +35,14 @@
     {
       "answer": "Candidates 1 and 2 form one tree (tax module first, then invoice total); the mail sender is its own fork, and I'll start with it since it stands alone.\n\nFirst question, mail sender: should SMTP and the recording adapter share one port?",
       "why": "review example: tax in the plan, question on the mail sender"
+    },
+    {
+      "answer": "**First question (Mail sender).** Should SMTP and the recording adapter share one port?\n\nThe tax module comes after.",
+      "why": "header names the mail sender; tax only after the question"
+    },
+    {
+      "answer": "Before the first question, the order: tax module with invoice total, then mail sender.\n\nShould SMTP and the recording adapter share one port?",
+      "why": "review example: first question named in the plan line, the question is on the mail sender"
     }
   ]
 }

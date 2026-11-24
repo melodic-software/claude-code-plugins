@@ -27,7 +27,6 @@ const LANES_APP = 337595936;
 
 const checkRun = (name, app = ACTIONS) => ({ __typename: "CheckRun", name, checkSuite: { app: { databaseId: app } } });
 
-// A ready PR a person opened that changes a Markdown file, with no fix-docs run.
 function pr(number, { paths = ["docs/guide.md"], more = false, checks = [], ...overrides } = {}) {
   const head = String(number).padStart(40, "d");
   return {
@@ -44,8 +43,6 @@ function pr(number, { paths = ["docs/guide.md"], more = false, checks = [], ...o
   };
 }
 
-// Per PR number, the check-run counts on each of its last commits; absent is
-// none. `earlier` gives the counts under the earlier check name.
 const history = (counts = [], earlier = counts.map(() => 0)) => ({
   commits: {
     nodes: counts.map((count, index) => ({
@@ -67,8 +64,6 @@ function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory 
   };
   return {
     calls,
-    // Per run id, its status and latest jobs, null when it is gone, or the
-    // error the read throws.
     async readRunJobs(runId) {
       calls.jobs.push(runId);
       return jobsOf(runId);
@@ -78,11 +73,9 @@ function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory 
       const read = jobsOf(runId);
       return read === null ? null : { jobs: read.jobs };
     },
-    // The REST issue timeline: its comments, then its label events.
     async listTimeline(number) {
       return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
     },
-    // The REST review comments and reviews, with an inline reply's in_reply_to_id.
     async listReviewComments(number) {
       return reviewComments.get(number) ?? [];
     },
@@ -178,7 +171,6 @@ test("a draft, a fork, a PR into another base, or a held PR is not dispatched", 
   assert.deepEqual(api.calls.history, [], "no history read for a PR the listing drops");
 });
 
-// report-escalation.sh's comment and label, by the lanes App, or the label by a person.
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: LANES_APP, type: "Bot" };
 const labeledBy = (actor) => [{ event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" }];
 const escalation = [
@@ -245,9 +237,6 @@ test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the 
 });
 
 const LANES_BOT = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP };
-// Small cutoffs in resolve-issue's tidy.cutoffs shape (pr-pipeline.yaml), so
-// each bound sits a step from its value; areas as the README's tidy entry
-// defines them.
 const CUTOFFS = { "max-files": 2, "max-lines": 10, "max-areas": 1, "shared-paths": [".github/", "AGENTS.md"] };
 // The lane run's one commit as PULL_QUERY lists it, in the shape GraphQL
 // returned for a work-resolve-issue PR's API commit: a valid signature, the
@@ -260,8 +249,6 @@ const laneCommitNode = (head, overrides = {}) => ({
   statusCheckRollup: { contexts: { nodes: [], pageInfo: { hasNextPage: false } } },
   ...overrides,
 });
-// A lane PR exactly at the cutoffs: 2 files, 6 + 4 lines, one area
-// (plugins/x with its .changes/x fragment), and one lane commit at its head.
 const lanePr = (number, { paths = ["plugins/x/a.md", ".changes/x/f.md"], commit = {}, commitCount = 1, ...overrides } = {}) =>
   pr(number, {
     author: LANES_BOT,
@@ -291,7 +278,6 @@ test("a work-resolve-issue PR over any tidy cutoff was not tidied in its run and
     lanePr(44, { paths: ["plugins/x/a.md", "plugins/y/b.md"] }),
     lanePr(45, { paths: ["docs/a/x.md", "docs/b/y.md"] }),
     lanePr(46, { more: true }),
-    // Within: a shared file's name elsewhere, and two files of one docs dir.
     lanePr(47, { paths: ["plugins/x/AGENTS.md"] }),
     lanePr(48, { paths: ["docs/a/x.md", "docs/a/y.md"] }),
   ];
@@ -387,7 +373,6 @@ test("a fix-docs run still queued or going for the PR holds the dispatch", async
 const ran = (id, number, conclusion) => ({ id, status: "completed", conclusion, display_title: `PR Refine fix-docs #${number}` });
 
 test("a PR whose fix-docs run completed without a check run is not dispatched again, and its head is recorded", async () => {
-  // success: the run job stopped at its trigger gate or emitted an empty head.
   for (const conclusion of ["success", "skipped"]) {
     const record = emptyRecord();
     record.docsRuns.set(pr(54).headRefOid, ["9"]);
@@ -421,14 +406,8 @@ test("a PR whose only fix-docs run was lost without a check run is dispatched on
 // (pr-run-activity-read.yml's Check Broker, Record Broker Allow, Run and Report).
 const job = (name, conclusion, status = "completed") => ({ name, status, conclusion });
 const ended = (...jobs) => ({ status: "completed", jobs });
-// fix-docs-head found a person's hold: the call never started.
 const HELD = ended(job("Fix Docs Head", "success"), job("Fix Docs", "skipped"));
 
-// Outage posture element 3: the PR's next event is the probe. A red run names no
-// cause (a read that failed, or a broker that refused, both end red), so at most
-// limits.limit-stops-per-head (3, README's limits table) go again before it ends
-// the PR, which bounds a refusal; a red run that posted its check is ended by
-// that check, not by its conclusion.
 test("a red fix-docs run with no check run does not end the PR: the next run dispatches it, until three red runs do", async () => {
   const reds = (...ids) => ids.map((id) => ran(id, 54, "failure"));
   for (const runs of [reds(9), reds(10, 9)]) {
@@ -494,9 +473,6 @@ test("a green fix-docs run that held on a failed handoff read is dispatched agai
   assert.deepEqual(numbers(mixed.api), [], "a red run and a held one count together");
 });
 
-// fix-docs-head's hold on an unread PR head (outage posture element 2) ends the
-// run green with fix-docs skipped, as a person's hold does; only pr-refine.yml's
-// fix-docs-head-held job, which runs on the unread output alone, tells them apart.
 const UNREAD = ended(job("Fix Docs Head", "success"), job("Fix Docs Head Held", "success"), job("Fix Docs", "skipped"));
 
 test("heldHead: only a fix-docs-head-held job that succeeded shows an unread head", () => {
@@ -544,7 +520,6 @@ test("a run whose jobs cannot be read holds the PR with a warning: not dispatche
 });
 
 test("a same-repository PR whose fix-docs dispatch stopped at the trigger gate does not take a dispatch slot on later runs", async () => {
-  // Lowest number first: #57 would take the first of the two slots each run.
   const { api, lines } = await run({ pages: [[pr(57), pr(58), pr(59)]], workflowRuns: [ran(14, 57, "success")] });
   assert.deepEqual(numbers(api), ["58", "59"]);
   assert.ok(!lines.some((line) => line.startsWith("defer fix-docs")), lines.join("\n"));
@@ -561,8 +536,6 @@ test("a fix-docs run an outage lost before its check gets a fresh dispatch from 
 });
 
 test("a fix-docs run that pushed its lanes App commit is left alone: its check is on the commit before the push", async () => {
-  // pr-refine.yml's push job runs after the report job posted the check on
-  // fix-docs-head, so a pushed run's check sits one commit below the new head.
   const { api, record } = await run({ pages: [[pr(53)]], histories: { 53: history([0, 1]) } });
   assert.deepEqual(numbers(api), []);
   assert.ok(isHandled(record, CHECK, pr(53).headRefOid));
@@ -579,7 +552,6 @@ test("every listing page is read", async () => {
   assert.deepEqual(numbers((await run({ pages: [[pr(70)], [pr(71)]] })).api), ["70", "71"]);
 });
 
-// The broker allowed it and its run job emitted an empty head: no check posted.
 const EMPTY_HEAD = ended(
   job("Fix Docs Head", "success"),
   job("Fix Docs / Check Broker", "success"),
@@ -609,7 +581,6 @@ test("docsRunState: only a succeeded record-broker-allow job counts; a run that 
   assert.equal(docsRunState(ended(job("Fix Docs / Run", "success"))), "done", "a run job's success is not the broker's allow");
 });
 
-// A run started before the rename lists its jobs by their ids.
 test("heldHandoff, heldHead and docsRunState read a run whose jobs are named by their ids", () => {
   const byIds = (...jobs) => ended(job("fix-docs-head", "success"), ...jobs);
   const handedOff = byIds(
@@ -631,8 +602,6 @@ test("heldHandoff, heldHead and docsRunState read a run whose jobs are named by 
   assert.equal(docsRunState(byIds(job("fix-docs / record-broker-allow", "skipped"))), "done");
 });
 
-// The record-broker-allow job's name from before its rename, `broker-allowed`,
-// counts as the current one does, by display name and by id.
 test("heldHandoff and docsRunState read the record-broker-allow job under its earlier name", () => {
   const earlier = (name, scan) => [job(`${name} / Broker Allowed`, "success"), job(`${name} / Run`, "success"), job(`${name} / Scan`, scan)];
   assert.equal(heldHandoff(ended(job("Fix Docs Head", "success"), ...earlier("Fix Docs", "skipped"), read("Fix Docs"), job("Fix Docs Subscription", "skipped"))), true);
@@ -648,7 +617,6 @@ test("heldHandoff and docsRunState read the record-broker-allow job under its ea
   assert.equal(docsRunState(ended(job("Fix Docs / Record Broker", "success"))), "done", "a job of another name is no allow");
 });
 
-// Run ids the dispatch record keeps for a head.
 const kept = (record, number, ids) => record.docsRuns.set(pr(number).headRefOid, ids);
 
 test("a head whose fix-docs runs reach the per-head cap with no check run is not dispatched, recorded, and warned about once; a head below it is dispatched", async () => {

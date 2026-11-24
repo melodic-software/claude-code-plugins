@@ -5,6 +5,8 @@ run over a set.
 
 ## 1. Present, before asking
 
+This step runs for a finding the operator already accepted as well: print the block, the review sites and the form table first, then apply.
+
 Print this block from the record, not from your own reading of the tree:
 
 ```text

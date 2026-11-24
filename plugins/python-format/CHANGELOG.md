@@ -3,6 +3,12 @@
 All notable changes to the `python-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.2] - 2026-11-24
+
+### Fixed
+
+- `setup check` reads `hooks/python-format.sh` with the Read tool, gives every check step its row when the request adds questions, and explains a resolved config by the files the walk passed over.
+
 ## [3.3.1] - 2026-11-24
 
 ### Changed

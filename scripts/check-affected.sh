@@ -503,16 +503,19 @@ typos_check() {
   fi
   typos --config "$1" --force-exclude "${excludes[@]}" -- "${changed[@]}" || return 1
 }
-typos_config="$tools/_typos.toml"
-[[ -f "$typos_config" ]] || typos_config="$PWD/_typos.toml"
+typos_rel=_typos.toml
+[[ -f "$hygiene_workflow" ]] && typos_rel=$(step_input typos config | head -n 1)
+typos_rel=${typos_rel:-_typos.toml}
+typos_config="$tools/$typos_rel"
+[[ -f "$typos_config" ]] || typos_config="$PWD/$typos_rel"
 if ((${#changed[@]} == 0)); then
   skip typos "no changed files"
 elif ! command -v typos >/dev/null 2>&1; then
   skip typos "typos not installed"
 elif [[ ! -f "$typos_config" ]]; then
-  skip typos "no _typos.toml"
+  skip typos "no $typos_rel"
 else
-  run_check typos "typos --config _typos.toml ${changed[*]}" typos_check "$typos_config"
+  run_check typos "typos --config $typos_rel ${changed[*]}" typos_check "$typos_config"
 fi
 
 # comment-hygiene: the patterns come from the ci-workflows SHA the merge-base's

@@ -57,13 +57,10 @@ const VERSION = 1;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const ID = /^[1-9][0-9]{0,15}$/;
 const SHA = /^[0-9a-f]{40}$/;
-// babysit_verify_evidence.py RECORD_SECTION.
 const RECORD_SECTION = "fail-head-ref";
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-// The map's head refs, by id, or an error for any other shape; the reader
-// (babysit_verify_evidence.py `load_head_refs`) applies the same rules.
 export function parseMap(text, repo) {
   const data = JSON.parse(text);
   if (!isObject(data) || data.version !== VERSION || data.repo !== repo || !isObject(data.head_refs)) {
@@ -96,8 +93,6 @@ export function forgetMainTip() {
   mainTip = undefined;
 }
 
-// Whether commit `sha` ran main's own code: that tip read held, and `sha` is
-// main's tip or behind it (requireBehindTip). Any failed read is a no.
 export async function onMain({ repo, actions, sha, env = process.env }) {
   if (!SHA.test(sha ?? "")) return false;
   const listed = env.PR_MERGE_MAIN_TIP ?? "";
@@ -110,7 +105,6 @@ export async function onMain({ repo, actions, sha, env = process.env }) {
   }
 }
 
-// The newest trusted run's map, by id, or undefined when no run has one.
 export async function readMap({ repo, runId, actions: client, download, shared }) {
   const actions = sharedReads(client, shared);
   const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
@@ -118,8 +112,6 @@ export async function readMap({ repo, runId, actions: client, download, shared }
   return id === undefined ? undefined : { run: id, refs: parseMap(download(id), repo) };
 }
 
-// The next run's map: `previous` and this run's downloads (`runCache`), for
-// ids `listing` lists unexpired.
 export function nextMap({ previous = {}, runCache, listing, repo }) {
   const listed = new Set(
     (Array.isArray(listing?.artifacts) ? listing.artifacts : [])

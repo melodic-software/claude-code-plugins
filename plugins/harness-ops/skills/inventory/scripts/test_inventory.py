@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# test-scope: plugins/harness-ops/scripts/docs-cache.sh plugins/harness-ops/scripts/fetch-docs.sh
+# test-scope: plugins/harness-ops/scripts/docs-cache.sh plugins/harness-ops/scripts/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs-generic.sh
 """Deterministic tests for the inventory extractor.
 
 Every case runs against a synthetic minified fragment rather than a real

@@ -3,6 +3,13 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.37] - 2026-11-24
+
+### Changed
+
+- **Bump node-pptx-parser from 1.0.1 to 1.0.2 in /plugins/ai-briefing/skills/generate/output/build in the npm-minor-patch group** (#18635).
+  - `node-pptx-parser` 1.0.1→1.0.2
+
 ## [1.0.36] - 2026-11-24
 
 ### Changed

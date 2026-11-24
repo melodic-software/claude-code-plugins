@@ -125,8 +125,6 @@ export async function rangePulls({ github, repository, before, after }) {
   return [...numbers].sort((a, b) => a - b);
 }
 
-// A fence longer than any backtick run in the text, so model text cannot
-// close it and render as markdown.
 const fenced = (text) => {
   const fence = "`".repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)));
   return `${fence}text\n${text}\n${fence}`;
@@ -211,11 +209,7 @@ export async function main(env = process.env, { github } = {}) {
       : await mergedPulls({ github: client, repository: env.REPOSITORY, sha: env.AFTER });
   const context = { before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY };
   appendFileSync(env.GITHUB_STEP_SUMMARY, render({ ...parsed, ...context }));
-  // `result` is set only when no error or stop came first.
   const { result } = parsed;
-  // A comment is posted only when a survivor or an uncovered mutant needs action,
-  // and only on the one pull request that merged the audited range. Every other
-  // outcome is in the summary; an earlier comment from the same head stays as it is.
   let actionable = false;
   if (result) {
     const { count } = scores(result.mutants);

@@ -165,8 +165,6 @@ export function frontmatter(text) {
   return null;
 }
 
-// Each inline line, and each fenced block as its whole text, so a changed
-// command inside a kept block is a new unit.
 const preprocessUnits = (text) => {
   const lines = String(text ?? "").split(/\r?\n/);
   const units = new Set();
@@ -185,7 +183,6 @@ const preprocessUnits = (text) => {
   return units;
 };
 
-// The text after a leading frontmatter block, or the whole text.
 const body = (text) => {
   const raw = String(text ?? "").replace(/^\uFEFF/, "");
   const lines = raw.split("\n");
@@ -220,22 +217,15 @@ export function proseRefusal(base, head) {
   if ([...preprocessUnits(head)].some((unit) => !known.has(unit))) {
     return "adds or changes a ! shell-preprocessing line";
   }
-  // A kept ! line can start running when the text around it changes (an
-  // enclosing fence removed), so a file that already has one keeps its body.
   if (known.size && body(base) !== body(head)) {
     return "changes the body of a file that has a ! shell-preprocessing line";
   }
   return null;
 }
 
-// A case file's top-level keys as key -> text; prompt.md is read through its
-// frontmatter, case.yaml as a whole document. null when the shape cannot be
-// read.
 const caseKeys = (path, text) =>
   path.endsWith(".md") ? frontmatter(text) : frontmatter(`---\n${String(text ?? "").replace(/^\uFEFF/, "")}\n---\n`);
 
-// The execution block's own keys, read the same way after removing its
-// two-space indent; null when a line is not that shape.
 const executionKeys = (entry) => {
   if (entry === undefined) {
     return new Map();
@@ -306,7 +296,7 @@ export function caseLoadRefusals(paths, plugins, tree = () => undefined, read = 
   for (const plugin of plugins) {
     const entries = tree(plugin);
     if (entries === undefined) {
-      continue; // linkRefusals refuses an unread tree.
+      continue;
     }
     for (const { path } of entries) {
       if (!CASE_DEFINITION.test(path)) {
