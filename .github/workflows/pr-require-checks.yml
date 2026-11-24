@@ -2923,7 +2923,7 @@ jobs:
             *) base='' ;;
           esac
           if [ -z "$base" ]; then
-            echo applies=false >>"$GITHUB_OUTPUT"
+            echo applies=true >>"$GITHUB_OUTPUT"
           elif ! scripts/check-git-hook-time-budget.sh --base "$base" --scope-only >>"$GITHUB_OUTPUT"; then
             echo applies=true >>"$GITHUB_OUTPUT"
           fi
@@ -2961,7 +2961,7 @@ jobs:
           elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
             scripts/check-git-hook-time-budget.sh --base "origin/$BASE_REF"
           else
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            scripts/check-git-hook-time-budget.sh --force
           fi
       - name: Check performance counter ceilings
         if: needs.select-tests.outputs.run_tests == 'true'

@@ -6,14 +6,27 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/gate-entry.sh" || exit 2
-base="" force=0 scope_only=0 runs=3 budget_ms=3000
+base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=1254
+ref_node_starts=38 ref_files=400 zero=0000000000000000000000000000000000000000
 
 usage() {
   cat >&2 <<'EOF'
 Time every pre-commit and pre-push entry that the root lefthook.yml and every shipped
-plugins/*/git-hooks/*.yml config hold, on a throwaway fixture repository (a 10-file
-staged change, then a two-commit push), and fail a hook whose entries that ran together
+plugins/*/git-hooks/*.yml config hold, and fail a hook whose entries that ran together
 take longer than its budget: ADR 0072, pre-commit 3 s on a 10-file commit, pre-push 3 s.
+pre-commit runs on a throwaway fixture repository with 10 staged files. pre-push runs on
+the real checkout, whose size its entries' cost grows with: HEAD pushed as a new
+non-default branch, ranged from origin/main.
+
+The budget is calibrated, so a slower runner does not flake: a reference workload that
+runs none of the hooks' code and does not grow with the repository (git status over a
+generated 400-file tree, one node process reading and parsing it, then 38 bare node
+starts; median of 3) is timed in the same run. Its value on the host that set the
+budget is 1254 ms (Linux on WSL2, 24 CPUs, 2026-11-24, median of five runs: 1260, 1235,
+1254, 1240, 1325 ms). The scaled budget is 3 s x this run's reference / 1254 ms. Raw
+seconds, the ratio and the scaled budget all print; pass/fail is on the scaled budget.
+Under a tracer (TracerPid not 0) the times print and nothing is judged.
+
 The fixture sets checks.skipmissing (ADR 0072 item 4) to every tool the entries.json
 files name, so an entry whose tool is not installed reports SKIPPED. Locally it is
 listed as skipped with the tool, outside the total; under GITHUB_ACTIONS=true it fails
@@ -21,27 +34,34 @@ the gate with the tool's name, since CI installs every hook tool first.
 
   scripts/check-git-hook-time-budget.sh [--base <ref> | --force] [--root <dir>]
                                         [--runs <n>] [--budget-ms <ms>] [--scope-only]
+                                        [--ref-ms <ms>] [--ref-host-ms <ms>]
 
   --base <ref>     run only when the diff from <ref> touches lefthook.yml, .lefthook/**,
                    plugins/*/git-hooks/**, a hook plugin's lib/git-hooks/**, an asset
-                   its git-hooks/entries.json lists or this script; otherwise
-                   report not applicable
+                   its git-hooks/entries.json lists or this script, or adds or removes
+                   a plugins/*/.claude-plugin/plugin.json; otherwise report not
+                   applicable
   --force          run whatever the diff
   --root <dir>     the repository whose hook entries are timed (default: this one)
   --runs <n>       runs per entry; an entry's time is the median (default 3)
-  --budget-ms <ms> the budget of each hook (default 3000)
+  --budget-ms <ms> the budget of each hook on the reference host (default 3000)
+  --ref-ms <ms>    use this as the run's reference instead of timing it
+  --ref-host-ms <ms> the reference host's value (default 1254)
   --scope-only     time nothing: print applies=true or applies=false on stdout (the
                    form GITHUB_OUTPUT takes), every other line on stderr
 
 Each entry runs the way lefthook runs a remote's job: the remote's root is linked under
 the fixture's .git/info/lefthook-remotes/, and the entry's script runs from there with
-its runner and the fixture as the working directory. A pre-push entry gets the remote
-name and URL as arguments and one new feature branch on stdin, ranged from the
-fixture's origin/main; a run: command gets lefthook's {1} and {2} filled and a relative
-command resolved against the repository, and every run starts from the
-same staged files, so a formatter's rewrite does not carry over. Times print in seconds
-and in S, one no-op `bash -c :` spawn measured in the same run (docs/contracts/hook-budget/README.md), so a
-slow runner shows as a larger S; the pass/fail line is the budget in seconds.
+its runner. A pre-push entry gets the remote name and URL as arguments and the pushed
+ref on stdin; a run: command gets lefthook's {1} and {2} filled and a relative command
+resolved against the repository. Every pre-commit run starts from the same staged files,
+so a formatter's rewrite does not carry over between runs; a group with piped: true runs
+its members in order on one staged state, as lefthook does, and is timed as one unit. S, one no-op `bash -c :` spawn measured in
+the same run (docs/contracts/hook-budget/README.md), also prints.
+
+Under GITHUB_ACTIONS=true, a pre-push entry that exits non-zero or prints "left to CI"
+or "was not checked" fails the gate: the pushed-and-passing run must execute every check.
+Locally it is a warning.
 
 Exit 0 within budget or not applicable, 1 over budget, a tool missing in CI or an entry
 that could not start (exit 126 or 127), 2 usage or setup error. Findings print on stderr.
@@ -57,11 +77,14 @@ while (($#)); do
     --root) ROOT="$(cd "${2:-}" && pwd)" || exit 2 && shift ;;
     --runs) runs="${2:-}" && shift ;;
     --budget-ms) budget_ms="${2:-}" && shift ;;
+    --ref-ms) ref_ms="${2:-}" && shift ;;
+    --ref-host-ms) ref_host_ms="${2:-}" && shift ;;
     *) usage ;;
   esac
   shift
 done
-[[ "$runs" =~ ^[1-9][0-9]*$ && "$budget_ms" =~ ^[1-9][0-9]*$ ]] || usage
+[[ "$runs" =~ ^[1-9][0-9]*$ && "$budget_ms" =~ ^[1-9][0-9]*$ && "$ref_host_ms" =~ ^[1-9][0-9]*$ ]] || usage
+[[ -z "$ref_ms" || "$ref_ms" =~ ^[1-9][0-9]*$ ]] || usage
 ((force)) || [[ -n "$base" ]] || usage
 if ((scope_only)); then
   exec 3>&1 1>&2
@@ -83,13 +106,20 @@ done
 jobs_of() {
   awk -v cfg="$1" '
     function flush() {
-      if (kind != "") printf "%s\037%s\037%s\037%s\037%s\037%s\n", cfg, ev, (name == "" ? val : name), runner, kind, val
+      if (kind != "") printf "%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\n", cfg, ev, (name == "" ? val : name), runner, kind, val, (gind >= 0 ? cfg ":" gname : ""), piped
       name = ""; runner = ""; kind = ""; val = ""
     }
     function value(line) { sub(/^[^:]*:[ \t]*/, "", line); gsub(/^["\047]|["\047][ \t]*$/, "", line); return line }
-    /^[^ #]/ { flush(); ev = $0; sub(/:.*/, "", ev); next }
+    BEGIN { gind = -1; piped = 0 }
+    /^[^ #]/ { flush(); ev = $0; sub(/:.*/, "", ev); gind = -1; piped = 0; next }
     ev != "pre-commit" && ev != "pre-push" { next }
-    /^[ \t]*-[ \t]/ { flush(); sub(/-/, " ") }
+    /^[ \t]*-[ \t]/ {
+      flush(); match($0, /^[ \t]*/); item = RLENGTH
+      if (gind >= 0 && item <= gind) { gind = -1; piped = 0 }
+      sub(/-/, " ")
+    }
+    /^[ \t]+group:/ { gname = name; gind = item; piped = 0; name = ""; next }
+    /^[ \t]+piped:[ \t]*true/ { if (gind >= 0) piped = 1 }
     /^[ \t]+name:/ { name = value($0) }
     /^[ \t]+runner:/ { runner = value($0) }
     /^[ \t]+(script|run):/ { kind = ($0 ~ /^[ \t]+script:/ ? "script" : "run"); val = value($0) }
@@ -114,14 +144,17 @@ if ((! force)); then
     fi
   done
   hit=""
-  while IFS= read -r f; do
+  while IFS=$'\t' read -r status f; do
+    if [[ "$status" == [AD] && "$f" == plugins/*/.claude-plugin/plugin.json ]]; then
+      hit="$f" && break
+    fi
     for w in "${watched[@]}"; do
       # shellcheck disable=SC2053
       [[ "$f" == $w ]] && hit="$f" && break 2
     done
-  done < <(git -C "$ROOT" diff --name-only "$base"...HEAD --)
+  done < <(git -C "$ROOT" diff --no-renames --name-status "$base"...HEAD --)
   if [[ -z "$hit" ]]; then
-    not_applicable "the change touches no git-hook config, hook script or script a hook entry calls."
+    not_applicable "the change touches no git-hook config, hook script or script a hook entry calls, and adds or removes no plugin."
   fi
   echo "GIT HOOK TIME BUDGET: $hit changed; timing the git-hook entries."
 fi
@@ -139,13 +172,46 @@ S="$(for _ in {1..21}; do t0=$(now_us) && bash -c : && echo $(($(now_us) - t0));
 ((S > 0)) || S=1
 
 fx="$(mktemp -d)" || exit 2
-trap 'rm -rf "$fx"' EXIT
+refdir="$(mktemp -d)" || exit 2
+trap 'rm -rf "$fx" "$refdir"' EXIT
+
+reference_once() {
+  git -C "$refdir" status --porcelain --untracked-files=all >/dev/null
+  node -e '
+    const fs = require("fs");
+    let n = 0;
+    for (const e of fs.readdirSync(process.argv[1], { recursive: true, withFileTypes: true }))
+      if (e.isFile()) n += JSON.stringify(JSON.parse(fs.readFileSync(e.parentPath + "/" + e.name, "utf8"))).length;
+    process.stdout.write(String(n));
+  ' "$refdir/tree" >/dev/null
+  local i
+  for ((i = 0; i < ref_node_starts; i++)); do node -e 0; done
+}
+if [[ -z "$ref_ms" ]]; then
+  command -v node >/dev/null 2>&1 || {
+    echo "GIT HOOK TIME BUDGET: node is not installed, so the reference workload cannot run." >&2
+    exit 2
+  }
+  git init -q "$refdir"
+  mkdir -p "$refdir/tree"
+  for ((i = 0; i < ref_files; i++)); do
+    printf '{"name": "item-%d", "lines": ["one", "two", "three"], "n": %d}\n' "$i" "$i" >"$refdir/tree/$((i % 20))-$i.json"
+  done
+  ref_ms="$(for _ in 1 2 3; do
+    t0=$(now_us)
+    reference_once
+    echo $((($(now_us) - t0) / 1000))
+  done | median)"
+fi
+limit_us=$((budget_ms * 1000 * ref_ms / ref_host_ms))
+tracer="$(awk '/^TracerPid:/ { print $2 }' /proc/$$/status 2>/dev/null)"
 g() { git -C "$fx" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
 g init -q -b main
 mkdir -p "$fx/.git/no-hooks" "$fx/.git/info/lefthook-remotes" "$fx/docs/conventions"
 g config core.hooksPath "$fx/.git/no-hooks"
 tools="$(cat "$ROOT"/plugins/*/git-hooks/entries.json 2>/dev/null | jq -rs '[.[].entries[].tools[]?] + ["pygments"] | unique | join(",")' 2>/dev/null)"
 g config checks.skipmissing "${tools:-pygments}"
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=checks.skipmissing GIT_CONFIG_VALUE_0="${tools:-pygments}"
 ln -s "$ROOT" "$fx/.git/info/lefthook-remotes/repo"
 find "$ROOT/docs/conventions" -maxdepth 1 -type f -exec cp {} "$fx/docs/conventions/" \; 2>/dev/null
 for f in .editorconfig .shellcheckrc _typos.toml ruff.toml biome.json .markdownlint-cli2.jsonc PSScriptAnalyzerSettings.psd1; do
@@ -212,66 +278,115 @@ run_entry() {
 }
 
 over=0
+counted=0
+judge_entry() {
+  local k=$1 name=$2 ev=$3 log="$fx/.git/m$1.log" rc=0 us missing
+  counted=0
+  us="$(median <"$fx/.git/m$k.us")"
+  [[ -s "$fx/.git/m$k.rc" ]] && rc="$(head -n 1 "$fx/.git/m$k.rc")"
+  missing="$(sed -n 's/.*SKIPPED: \(.*\) (missing).*/\1/p; s/.*NOTICE: \([^ ]*\) missing.*/\1/p' "$log" | head -n 1)"
+  if [[ -n "$missing" && "${GITHUB_ACTIONS:-}" == true ]]; then
+    printf '  %-48s %9s  FAIL: %s is not installed on this runner\n' "$name" - "$missing" >&2
+    over=1
+    return
+  elif [[ -n "$missing" ]]; then
+    printf '  %-48s %9s  skipped: %s is not installed\n' "$name" - "$missing"
+    return
+  fi
+  printf '  %-48s %9s  %7s  exit %s\n' "$name" "$(secs "$us")" "$(in_s "$us")" "$rc"
+  if ((rc == 126 || rc == 127)); then
+    echo "FAIL: $name could not start (exit $rc), so its time was not measured:" >&2
+    sed -n '1,5s/^/    | /p' "$log" >&2
+    over=1
+    return
+  elif [[ "$ev" == pre-push ]] && { ((rc != 0)) || grep -qE 'left to CI|was not checked' "$log"; }; then
+    if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+      echo "FAIL: $name did not run every check on the pushed range (exit $rc):" >&2
+      sed -n '1,5s/^/    | /p' "$log" >&2
+      over=1
+    else
+      echo "    WARNING: $name did not run every check on the pushed range (exit $rc); in CI this fails:"
+      sed -n '1,5s/^/    | /p' "$log"
+    fi
+  elif ((rc != 0)); then
+    echo "    WARNING: $name exited $rc on the fixture, so its time may not cover a full run:"
+    sed -n '1,5s/^/    | /p' "$log"
+  fi
+  counted=1
+}
+
 time_hook() {
-  local ev=$1 what=$2 line cfg e name runner kind val us total=0 slow="" slow_us=0 rc missing tree
-  shift 2
-  tree="$(g write-tree)"
-  local push_ref
-  push_ref="refs/heads/feature $(g rev-parse HEAD) refs/heads/feature 0000000000000000000000000000000000000000"
+  local ev=$1 what=$2 repo=$3 line cfg e name runner kind val grp piped g2 total=0 slow="" slow_us=0 tree="" push_ref
+  local i j k n unit_us unit_name
+  local -a rows=() parts
+  shift 3
+  [[ "$repo" == "$fx" ]] && tree="$(g write-tree)"
+  push_ref="refs/heads/hook-budget-check $(git -C "$repo" rev-parse HEAD) refs/heads/hook-budget-check $zero"
   echo
-  echo "$ev ($what), median of $runs run(s) per entry:"
+  echo "$ev ($what), median of $runs run(s) per entry; a piped group runs its members in order on one staged state:"
   for line in "${jobs[@]}"; do
-    IFS=$'\037' read -r cfg e name runner kind val <<<"$line"
-    [[ "$e" == "$ev" ]] || continue
-    rc=0
-    us="$(for _ in $(seq 1 "$runs"); do
-      g read-tree "$tree" && g checkout-index -a -f
-      t0=$(now_us)
-      (cd "$fx" && run_entry "$cfg" "$runner" "$kind" "$val" "$ev" "$@" <<<"$push_ref") >"$fx/.git/entry.log" 2>&1 || echo "rc $?" >&2
-      echo $(($(now_us) - t0))
-    done 2>"$fx/.git/entry.rc" | median)"
-    [[ -s "$fx/.git/entry.rc" ]] && rc="$(awk '{ print $2; exit }' "$fx/.git/entry.rc")"
-    missing="$(sed -n 's/.*SKIPPED: \(.*\) (missing).*/\1/p; s/.*NOTICE: \([^ ]*\) missing.*/\1/p' "$fx/.git/entry.log" | head -n 1)"
-    if [[ -n "$missing" && "${GITHUB_ACTIONS:-}" == true ]]; then
-      printf '  %-48s %9s  FAIL: %s is not installed on this runner\n' "$name" - "$missing" >&2
-      over=1
-      continue
-    elif [[ -n "$missing" ]]; then
-      printf '  %-48s %9s  skipped: %s is not installed\n' "$name" - "$missing"
-      continue
+    IFS=$'\037' read -r _ e _ <<<"$line"
+    [[ "$e" == "$ev" ]] && rows+=("$line")
+  done
+  n=${#rows[@]}
+  i=0
+  while ((i < n)); do
+    IFS=$'\037' read -r _ _ name _ _ _ grp piped <<<"${rows[i]}"
+    j=$((i + 1))
+    if [[ -n "$grp" && "$piped" == 1 ]]; then
+      while ((j < n)); do
+        IFS=$'\037' read -r _ _ _ _ _ _ g2 _ <<<"${rows[j]}"
+        [[ "$g2" == "$grp" ]] || break
+        j=$((j + 1))
+      done
     fi
-    printf '  %-48s %9s  %7s  exit %s\n' "$name" "$(secs "$us")" "$(in_s "$us")" "$rc"
-    if ((rc == 126 || rc == 127)); then
-      echo "FAIL: $name could not start (exit $rc), so its time was not measured:" >&2
-      sed -n '1,5s/^/    | /p' "$fx/.git/entry.log" >&2
-      over=1
-      continue
-    elif ((rc != 0)); then
-      echo "    WARNING: $name exited $rc on the fixture, so its time may not cover a full run:"
-      sed -n '1,5s/^/    | /p' "$fx/.git/entry.log"
+    for ((k = i; k < j; k++)); do : >"$fx/.git/m$k.us" && : >"$fx/.git/m$k.rc"; done
+    for _ in $(seq 1 "$runs"); do
+      [[ -z "$tree" ]] || { g read-tree "$tree" && g checkout-index -a -f; }
+      for ((k = i; k < j; k++)); do
+        IFS=$'\037' read -r cfg _ name runner kind val _ <<<"${rows[k]}"
+        t0=$(now_us)
+        (cd "$repo" && run_entry "$cfg" "$runner" "$kind" "$val" "$ev" "$@" <<<"$push_ref") >"$fx/.git/m$k.log" 2>&1 || echo "$?" >>"$fx/.git/m$k.rc"
+        echo $(($(now_us) - t0)) >>"$fx/.git/m$k.us"
+      done
+    done
+    ((j - i > 1)) && echo "  group ${grp#*:} (piped):"
+    parts=()
+    for ((k = i; k < j; k++)); do
+      IFS=$'\037' read -r _ _ name _ <<<"${rows[k]}"
+      judge_entry "$k" "$name" "$ev"
+      ((counted)) && parts+=("$fx/.git/m$k.us")
+    done
+    if ((${#parts[@]})); then
+      unit_us="$(paste "${parts[@]}" | awk '{ s = 0; for (f = 1; f <= NF; f++) s += $f; print s }' | median)"
+      unit_name=$name
+      if ((j - i > 1)); then
+        unit_name="group ${grp#*:}"
+        printf '  %-48s %9s  %7s\n' "$unit_name total" "$(secs "$unit_us")" "$(in_s "$unit_us")"
+      fi
+      total=$((total + unit_us))
+      ((unit_us > slow_us)) && slow_us=$unit_us && slow=$unit_name
     fi
-    total=$((total + us))
-    ((us > slow_us)) && slow_us=$us && slow=$name
+    i=$j
   done
   if [[ -z "$slow" ]]; then
     echo "  no entry ran"
     return
   fi
-  local budget_us=$((budget_ms * 1000))
-  printf '  %-48s %9s  %7s  budget %s (%s)\n' total "$(secs "$total")" "$(in_s "$total")" "$(secs "$budget_us")" "$(in_s "$budget_us")"
-  if ((total > budget_us)); then
+  printf '  %-48s %9s  %7s  scaled budget %s\n' total "$(secs "$total")" "$(in_s "$total")" "$(secs "$limit_us")"
+  if [[ -n "$tracer" && "$tracer" != 0 ]]; then
+    echo "  not judged: a tracer (pid $tracer) slows every syscall"
+  elif ((total > limit_us)); then
     over=1
-    echo >&2 "FAIL: $ev took $(secs "$total"), over its $(secs "$budget_us") budget (ADR 0072); slowest entry: $slow at $(secs "$slow_us"). Move a check over budget to the pre-PR check or CI, or make it faster."
+    echo >&2 "FAIL: $ev took $(secs "$total"), over its scaled budget of $(secs "$limit_us") ($budget_ms ms x reference $ref_ms ms / $ref_host_ms ms; ADR 0072); slowest entry: $slow at $(secs "$slow_us"). Optimize it first; move it to CI only if it still risks the budget."
   fi
 }
 
 echo "S, one no-op bash -c : spawn, median of 21: $(awk -v us="$S" 'BEGIN { printf "%.2f ms", us / 1e3 }')"
-time_hook pre-commit "10 staged files"
-g commit -q -m "fixture: ten files" || exit 2
-printf 'echo "one more line"\n' >>"$fx/src/one.sh"
-printf 'One more line.\n' >>"$fx/docs/nine.md"
-g commit -q -am "fixture: two edits" || exit 2
-time_hook pre-push "2 pushed commits, 10 files" origin https://example.invalid/fixture.git
+echo "reference workload: $ref_ms ms; reference host: $ref_host_ms ms; ratio $(awk -v a="$ref_ms" -v b="$ref_host_ms" 'BEGIN { printf "%.2f", a / b }'); scaled budget $(secs "$limit_us") per hook"
+time_hook pre-commit "10 staged files on the fixture" "$fx"
+pp_remote="$(git -C "$ROOT" remote get-url origin 2>/dev/null || echo https://example.invalid/repo.git)"
+time_hook pre-push "HEAD of the real checkout as a new branch" "$ROOT" origin "$pp_remote"
 
 echo
 if ((over)); then

@@ -166,12 +166,17 @@ This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
 ## Addendum (2026-11-24): CI times the git hooks
 
 Owner decision. For git hooks only, this amends Decision item 3's "CI enforces counts, not
-durations": when a change touches a hook config or a script a hook entry calls, CI installs
-every hook tool, runs every shipped `pre-commit` and `pre-push` entry on a fixed fixture (a
-10-file commit, a two-commit push), prints each entry's time in seconds and in S, and fails a
-hook whose total is over its 3 s budget, or an entry whose tool is missing
-(`scripts/check-git-hook-time-budget.sh`). A local run skips such an entry (item 4's skip).
-Nothing kills a hook at run time.
+durations": CI installs every hook tool and times every shipped `pre-commit` entry on a
+10-file staged fixture and every `pre-push` entry on the real checkout, HEAD pushed as a new
+branch, since pre-push cost grows with the repository (`scripts/check-git-hook-time-budget.sh`).
+A piped group counts as one unit. It runs when a change touches a hook config or a script an
+entry calls, or adds or removes a plugin, and on the scheduled full run of main, so growth
+alone can trip it. Each run times a reference workload that runs no hook code and does not
+grow with the repository; the budget is 3 s x that reference / its value on the desk that set
+the budget (1254 ms, Linux on WSL2, 2026-11-24), so a slower runner does not flake. It fails a
+hook over that budget, an entry whose tool is missing, and a pre-push entry that skips a check
+or exits non-zero. A local run skips a missing tool (item 4's skip). Nothing kills a hook at
+run time.
 
 **Over or near budget** (near: within 10% of it, a judgment threshold). In order: measure it on
 the fixture; confirm every entry reads only the staged files (`pre-commit`) or the pushed range
