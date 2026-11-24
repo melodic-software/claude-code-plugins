@@ -4,19 +4,21 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
-base="" force=0 runs=3 budget_ms=3000
+base="" force=0 scope_only=0 runs=3 budget_ms=3000
 
 usage() {
   cat >&2 <<'EOF'
 Time every pre-commit and pre-push entry that the root lefthook.yml and every shipped
-plugins/*/git-hooks/*.yml config hold, on a throwaway fixture repository (a 10-file staged change, then a two-commit push), and fail a hook
-whose entries that ran together take longer than its budget: ADR 0072, pre-commit 3 s
-on a 10-file commit, pre-push 3 s. The fixture sets checks.skipmissing (ADR 0072 item 4)
-to every tool the entries.json files name, so an entry whose tool is not installed
-reports SKIPPED and is listed as skipped with the tool, outside the total.
+plugins/*/git-hooks/*.yml config hold, on a throwaway fixture repository (a 10-file
+staged change, then a two-commit push), and fail a hook whose entries that ran together
+take longer than its budget: ADR 0072, pre-commit 3 s on a 10-file commit, pre-push 3 s.
+The fixture sets checks.skipmissing (ADR 0072 item 4) to every tool the entries.json
+files name, so an entry whose tool is not installed reports SKIPPED. Locally it is
+listed as skipped with the tool, outside the total; under GITHUB_ACTIONS=true it fails
+the gate with the tool's name, since CI installs every hook tool first.
 
   scripts/check-git-hook-time-budget.sh [--base <ref> | --force] [--root <dir>]
-                                        [--runs <n>] [--budget-ms <ms>]
+                                        [--runs <n>] [--budget-ms <ms>] [--scope-only]
 
   --base <ref>     run only when the diff from <ref> touches lefthook.yml, .lefthook/**,
                    plugins/*/git-hooks/**, a hook plugin's lib/git-hooks/**, an asset
@@ -26,16 +28,18 @@ reports SKIPPED and is listed as skipped with the tool, outside the total.
   --root <dir>     the repository whose hook entries are timed (default: this one)
   --runs <n>       runs per entry; an entry's time is the median (default 3)
   --budget-ms <ms> the budget of each hook (default 3000)
+  --scope-only     time nothing: exit 0 when the gate applies, 3 when it does not
 
 Each entry runs the way lefthook runs a remote's job: the remote's root is linked under
 the fixture's .git/info/lefthook-remotes/, and the entry's script runs from there with
 its runner and the fixture as the working directory. A pre-push entry gets the remote
 name and URL as arguments and one pushed ref on stdin, and every run starts from the
-same staged files, so a formatter's rewrite does not carry over. Times print in seconds and in S, one no-op
-`bash -c :` spawn measured in the same run (docs/contracts/hook-budget/README.md), so a
+same staged files, so a formatter's rewrite does not carry over. Times print in seconds
+and in S, one no-op `bash -c :` spawn measured in the same run (docs/contracts/hook-budget/README.md), so a
 slow runner shows as a larger S; the pass/fail line is the budget in seconds.
 
-Exit 0 within budget or not applicable, 1 over budget, 2 usage or setup error.
+Exit 0 within budget or not applicable, 1 over budget or a tool missing in CI, 2 usage
+or setup error, 3 not applicable under --scope-only.
 EOF
   exit 2
 }
@@ -44,6 +48,7 @@ while (($#)); do
   case "$1" in
     --base) base="${2:-}" && shift ;;
     --force) force=1 ;;
+    --scope-only) scope_only=1 ;;
     --root) ROOT="$(cd "${2:-}" && pwd)" || exit 2 && shift ;;
     --runs) runs="${2:-}" && shift ;;
     --budget-ms) budget_ms="${2:-}" && shift ;;
@@ -53,12 +58,13 @@ while (($#)); do
 done
 [[ "$runs" =~ ^[1-9][0-9]*$ && "$budget_ms" =~ ^[1-9][0-9]*$ ]] || usage
 ((force)) || [[ -n "$base" ]] || usage
+not_applicable() {
+  echo "GIT HOOK TIME BUDGET: not applicable: $1"
+  exit $((scope_only ? 3 : 0))
+}
 
 config="$ROOT/lefthook.yml"
-[[ -f "$config" ]] || {
-  echo "GIT HOOK TIME BUDGET: not applicable: $config does not exist."
-  exit 0
-}
+[[ -f "$config" ]] || not_applicable "$config does not exist."
 
 configs=("lefthook.yml")
 for c in "$ROOT"/plugins/*/git-hooks/*.yml; do
@@ -84,8 +90,7 @@ jobs_of() {
 
 mapfile -t jobs < <(for c in "${configs[@]}"; do jobs_of "$c"; done)
 if ((${#jobs[@]} == 0)); then
-  echo "GIT HOOK TIME BUDGET: not applicable: no hook config holds a pre-commit or pre-push entry."
-  exit 0
+  not_applicable "no hook config holds a pre-commit or pre-push entry."
 fi
 
 if ((! force)); then
@@ -110,11 +115,11 @@ if ((! force)); then
     done
   done < <(git -C "$ROOT" diff --name-only "$base"...HEAD --)
   if [[ -z "$hit" ]]; then
-    echo "GIT HOOK TIME BUDGET: not applicable: the change touches no git-hook config, hook script or script a hook entry calls."
-    exit 0
+    not_applicable "the change touches no git-hook config, hook script or script a hook entry calls."
   fi
   echo "GIT HOOK TIME BUDGET: $hit changed; timing the git-hook entries."
 fi
+((scope_only)) && exit 0
 
 now_us() { printf '%s' "${EPOCHREALTIME//[!0-9]/}"; }
 median() { sort -n | awk '{ v[NR] = $1 } END { print v[int((NR + 1) / 2)] }'; }
@@ -206,7 +211,11 @@ time_hook() {
     done 2>"$fx/.git/entry.rc" | median)"
     [[ -s "$fx/.git/entry.rc" ]] && rc="$(awk '{ print $2; exit }' "$fx/.git/entry.rc")"
     missing="$(sed -n 's/.*SKIPPED: \(.*\) (missing).*/\1/p; s/.*NOTICE: \([^ ]*\) missing.*/\1/p' "$fx/.git/entry.log" | head -n 1)"
-    if [[ -n "$missing" ]]; then
+    if [[ -n "$missing" && "${GITHUB_ACTIONS:-}" == true ]]; then
+      printf '  %-48s %9s  FAIL: %s is not installed on this runner\n' "$name" - "$missing"
+      over=1
+      continue
+    elif [[ -n "$missing" ]]; then
       printf '  %-48s %9s  skipped: %s is not installed\n' "$name" - "$missing"
       continue
     fi

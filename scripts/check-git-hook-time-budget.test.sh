@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GITHUB_ACTIONS
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-git-hook-time-budget.sh"
@@ -87,6 +87,16 @@ else
   fail "pre-push should stay within budget: $out"
 fi
 
+r="$TMP/ci"
+make_root "$r" ':' ':'
+out="$(env GITHUB_ACTIONS=true bash "$SCRIPT" --root "$r" --force --runs 1 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"skip-entry"*"FAIL: no-such-tool is not installed on this runner"* ]]; then
+  ok "in CI an entry whose tool is missing fails the gate with the tool's name"
+else
+  fail "expected exit 1 naming no-such-tool under GITHUB_ACTIONS=true (rc $rc): $out"
+fi
+
 r="$TMP/scoped"
 make_root "$r" "touch '$TMP/scoped/rec/ran'" ':'
 printf 'more\n' >>"$r/README.md"
@@ -106,6 +116,20 @@ if [[ $rc -eq 0 && "$out" == *"lefthook.yml changed"* && -e "$r/rec/ran" ]]; the
   ok "a change to lefthook.yml times the entries"
 else
   fail "expected the entries to run after a lefthook.yml change (rc $rc): $out"
+fi
+bash "$SCRIPT" --root "$r" --base HEAD~1 --scope-only >/dev/null 2>&1
+rc=$?
+if ((rc == 0)); then
+  ok "--scope-only exits 0 when the change touches a hook config"
+else
+  fail "--scope-only should exit 0 after a lefthook.yml change, got $rc"
+fi
+bash "$SCRIPT" --root "$r" --base HEAD --scope-only >/dev/null 2>&1
+rc=$?
+if ((rc == 3)); then
+  ok "--scope-only exits 3 when the change touches no hook surface"
+else
+  fail "--scope-only should exit 3 on an empty change, got $rc"
 fi
 
 test_harness::report

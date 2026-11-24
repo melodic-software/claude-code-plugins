@@ -2751,20 +2751,6 @@ jobs:
           else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
           fi
-      - name: Verify every git hook stays within its time budget
-        id: git_hook_time_budget
-        continue-on-error: true
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        shell: bash scripts/run-hygiene-gate.sh git-hook-time-budget {0}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            scripts/check-git-hook-time-budget.sh --base 'HEAD^1'
-          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            scripts/check-git-hook-time-budget.sh --base "origin/$BASE_REF"
-          else
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-          fi
       - name: Verify a release consumes every pending fragment for the plugins it bumps
         id: changelog_fragments_release
         continue-on-error: true
@@ -2926,6 +2912,55 @@ jobs:
         uses: $/.github/actions/setup-pinned-shfmt
         with:
           cache-dir: ~/.cache/ci-tools
+      - name: Decide whether the git-hook time budget applies
+        id: hook_budget_scope
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+            merge_group) base='HEAD^1' ;;
+            pull_request) base="origin/$BASE_REF" ;;
+            *) base='' ;;
+          esac
+          applies=false
+          if [ -n "$base" ]; then
+            rc=0
+            scripts/check-git-hook-time-budget.sh --base "$base" --scope-only || rc=$?
+            [ "$rc" -eq 3 ] || applies=true
+          fi
+          echo "applies=$applies" >>"$GITHUB_OUTPUT"
+      - name: Install pinned typos for the git-hook time budget
+        if: steps.hook_budget_scope.outputs.applies == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/typos@main
+        with:
+          config: _typos.toml
+          paths: lefthook-remote.yml
+          annotations: 'false'
+      - name: Install pinned Go and goimports for the git-hook time budget
+        if: steps.hook_budget_scope.outputs.applies == 'true'
+        run: bash .github/scripts/lib/install-pinned-goimports.sh "$RUNNER_TEMP/gobin" "$HOME/.cache/ci-tools"
+      - name: Install the package.json pins of biome and markdownlint-cli2 for the git-hook time budget
+        if: steps.hook_budget_scope.outputs.applies == 'true'
+        run: |
+          biome=$(jq -er '.devDependencies["@biomejs/biome"] // .dependencies["@biomejs/biome"]' package.json)
+          mdl=$(jq -er '.devDependencies["markdownlint-cli2"] // .dependencies["markdownlint-cli2"]' package.json)
+          npm install --no-save --no-package-lock --no-audit --no-fund --prefix "$RUNNER_TEMP/hook-tools" \
+            "@biomejs/biome@$biome" "markdownlint-cli2@$mdl"
+          echo "$RUNNER_TEMP/hook-tools/node_modules/.bin" >>"$GITHUB_PATH"
+      - name: Verify every git hook stays within its time budget
+        id: git_hook_time_budget
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        shell: bash scripts/run-hygiene-gate.sh git-hook-time-budget {0}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            scripts/check-git-hook-time-budget.sh --base 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scripts/check-git-hook-time-budget.sh --base "origin/$BASE_REF"
+          else
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+          fi
       - name: Check performance counter ceilings
         if: needs.select-tests.outputs.run_tests == 'true'
         run: |
