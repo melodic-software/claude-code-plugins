@@ -1246,7 +1246,7 @@ jobs:
             exit 0
           fi
           deps=scripts/ci-deps
-          mkdir -p "$DEST/$deps"
+          mkdir -p "$DEST/$deps" "$DEST/.github"
           for file in scripts/setup-env.sh .python-version .github/requirements-ci.txt \
             package.json package-lock.json "$deps/package.json" "$deps/package-lock.json"; do
             cp ".base/$file" "$DEST/$file"
