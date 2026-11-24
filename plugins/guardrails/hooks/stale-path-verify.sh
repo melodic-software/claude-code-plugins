@@ -641,8 +641,8 @@ spv_git_common_to() {
 
 declare -A DELETED=()
 DELETED_BUILT=0
-# shellcheck disable=SC2016
-SPV_CACHE_LOOKUP='
+IFS= read -r -d '' SPV_CACHE_LOOKUP <<'EOF' || true
+
 FNR == NR { want[$0] = 1; next }
 FNR == 1 && $0 "" != sha "" { bad = 1; exit }
 FNR == 2 && $0 != "ok" { bad = 1; exit }
@@ -653,7 +653,9 @@ $0 in want { hit[++h] = $0 }
 END {
   if (bad || !after_end || last != ("end " (FNR - 3))) exit 1
   for (i = 1; i <= h; i++) print hit[i]
-}'
+}
+EOF
+SPV_CACHE_LOOKUP=${SPV_CACHE_LOOKUP%$'\n'}
 SHALLOW=0
 WALK_FAILED=0
 
