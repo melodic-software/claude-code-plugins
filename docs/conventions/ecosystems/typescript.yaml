@@ -1,4 +1,3 @@
-# JavaScript and TypeScript in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
 globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"]
 project-discovery: ["package.json"]
 build-cmd: "test ! -f tsconfig.json || npx tsc --noEmit"

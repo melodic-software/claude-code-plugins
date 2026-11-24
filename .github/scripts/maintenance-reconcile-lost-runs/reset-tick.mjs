@@ -12,10 +12,8 @@
 // A window that began at most ELIGIBLE_MINUTES ago makes the tick due, once
 // GRACE_SECONDS into it, with pass-after naming the window's start for recent-pass.mjs,
 // which skips the tick when a full pass already started after it; an older
-// window makes it due=false, still naming the window's start, so the tick can
-// follow up the reviews that window's full pass left waiting. Any other
-// event, or a read that fails, writes due=true with no pass-after, so the
-// pass runs as before.
+// window makes it due=false. Any other event, or a read that fails, writes
+// due=true with no pass-after, so the pass runs as before.
 
 import { appendFileSync } from "node:fs";
 import process from "node:process";
@@ -36,11 +34,10 @@ export function tickPlan(reset, now) {
     return null;
   }
   const since = WINDOW_SECONDS - ahead;
-  const passAfter = reset - WINDOW_SECONDS;
   if (since > ELIGIBLE_MINUTES * 60) {
-    return { due: false, since, passAfter };
+    return { due: false, since };
   }
-  return { due: true, since, wait: Math.max(0, Math.ceil(GRACE_SECONDS - since)), passAfter };
+  return { due: true, since, wait: Math.max(0, Math.ceil(GRACE_SECONDS - since)), passAfter: reset - WINDOW_SECONDS };
 }
 
 export async function main(env = process.env, { fetchImpl = fetch, now = () => Date.now() / 1000, wait = (seconds) => sleep(seconds * 1000) } = {}) {
@@ -65,7 +62,7 @@ export async function main(env = process.env, { fetchImpl = fetch, now = () => D
         await wait(plan.wait);
         Object.assign(outputs, { "post-reset": true, "pass-after": plan.passAfter });
       } else {
-        Object.assign(outputs, { due: false, "pass-after": plan.passAfter });
+        outputs.due = false;
       }
     } catch (error) {
       console.log(`::warning title=reset-tick::the GITHUB_TOKEN reset was not read (${String(error?.message ?? error).replace(/[\r\n%]/g, " ")}); the pass runs unless one ran in the last hour`);

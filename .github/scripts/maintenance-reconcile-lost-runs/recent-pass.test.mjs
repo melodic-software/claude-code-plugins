@@ -139,105 +139,18 @@ test("the reconciler workflow gates its plan and act steps on the check, after t
   const check = steps[at("Skip a run right after a full pass")]?.s ?? "";
   assert.match(check, /\n {8}id: recent\n/);
   assert.match(check, /\n {8}continue-on-error: true\n/);
-  assert.match(check, /\n {8}if: steps\.reset\.outputs\.due != 'false' \|\| steps\.reset\.outputs\.pass-after != ''\n/, "the check runs on every due run, and on a late tick that names its window");
+  assert.match(check, /\n {8}if: steps\.reset\.outputs\.due != 'false'\n/, "the check runs on every due run");
   assert.match(check, /\n {10}MIN_GAP_MINUTES: "60"\n/, "the gap is an hour, one token window");
   assert.match(check, /\n {10}PASS_AFTER: \$\{\{ steps\.reset\.outputs\.pass-after \}\}\n/);
   assert.match(check, /\n {10}FORCE: \$\{\{ inputs\.force \}\}\n/);
   assert.match(check, /\n {10}EVENT_NAME: \$\{\{ github\.event_name \}\}\n/);
-  assert.match(check, /\n {10}FOLLOWUP_PATH: \$\{\{ runner\.temp \}\}\/reconcile-followup\.json\n/);
   assert.match(check, /\n {8}run: node \.base\/\.github\/scripts\/maintenance-reconcile-lost-runs\/recent-pass\.mjs$/);
   assert.ok(at("Check the token window's reset") < at("Skip a run right after a full pass"), "the reset is read first");
-  assert.ok(at("Skip a run right after a full pass") < at("Check the kill switch"), "a follow-up tick knows it has a queue before the budget gate");
-  assert.match(steps[at("Check the kill switch")].s, /\n {8}if: steps\.reset\.outputs\.due != 'false' \|\| steps\.recent\.outputs\.followup == 'true'\n/, "the budget gate stops a follow-up too");
-  assert.match(steps[at("Check the kill switch")].s, /\n {10}budget: "true"$/);
-  const followPath = /\n {10}FOLLOWUP_PATH: \$\{\{ runner\.temp \}\}\/reconcile-followup\.json\n/;
-  assert.match(steps[at("Find lost runs")].s, /\n {10}FOLLOWUP: \$\{\{ steps\.recent\.outputs\.followup \}\}\n/);
-  assert.match(steps[at("Find lost runs")].s, followPath, "the plan reads the queue the check wrote");
+  for (const name of ["Check the kill switch", "Find lost runs", "Re-run lost runs"]) {
+    assert.match(steps[at(name)].s, /\n {8}if: steps\.reset\.outputs\.due != 'false'(?: && |\n)/, `${name} waits on a due tick`);
+  }
   for (const name of ["Find lost runs", "Re-run lost runs"]) {
     assert.ok(at(name) > at("Skip a run right after a full pass"), `${name} follows the check`);
-    assert.match(
-      steps[at(name)].s,
-      /\n {8}if: \(steps\.reset\.outputs\.due != 'false' && steps\.pace\.outputs\.paced != 'true' && steps\.recent\.outputs\.skip != 'true'\) \|\| steps\.recent\.outputs\.followup == 'true'\n/,
-      `${name}: the full pass's gate, unchanged, or a follow-up`,
-    );
+    assert.match(steps[at(name)].s, /\n {8}if: steps\.reset\.outputs\.due != 'false' && steps\.pace\.outputs\.paced != 'true' && steps\.recent\.outputs\.skip != 'true'\n/, name);
   }
-  const carry = steps.filter((step) => step.name === "Carry the settled runs" || /\n {8}id: scan-upload-4\n/.test(step.s));
-  assert.equal(carry.length, 2);
-  for (const step of carry) {
-    assert.match(step.s, /steps\.recent\.outputs\.followup != 'true'/, `${step.name}: a follow-up uploads no marker, so it never reads as the window's full pass`);
-  }
-});
-
-const WRITTEN = JSON.parse(readFileSync(new URL("./fixtures/settled-waiting.json", import.meta.url), "utf8"));
-const WAITING = WRITTEN.waiting_reviews;
-const carryAs = (change) => {
-  const carry = structuredClone(WRITTEN);
-  change(carry);
-  return JSON.stringify(carry);
-};
-
-const followRun = async (carryText, { artifactId = 77, env = {} } = {}) => {
-  const dir = tempDir("recent-pass-follow-");
-  const followPath = join(dir, "followup.json");
-  const { github, calls } = fakeGitHub([startedAt(42837000020, "2026-11-10T14:34:00Z", "2026-11-10T14:35:10Z")], { 42837000020: [settled(artifactId)] });
-  const downloads = [];
-  const download = (id) => {
-    downloads.push(id);
-    if (carryText instanceof Error) {
-      throw carryText;
-    }
-    return carryText;
-  };
-  const output = join(dir, "output");
-  writeFileSync(output, "");
-  const lines = [];
-  const log = console.log;
-  console.log = (line) => lines.push(line);
-  try {
-    await main(
-      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: WRITTEN.repository, GITHUB_RUN_ID: String(THIS_RUN), GITHUB_OUTPUT: output, EVENT_NAME: "schedule", MIN_GAP_MINUTES: "60", PASS_AFTER, FOLLOWUP_PATH: followPath, ...env },
-      { github, now: () => NOW, download },
-    );
-  } finally {
-    console.log = log;
-  }
-  let queued;
-  try {
-    queued = JSON.parse(readFileSync(followPath, "utf8"));
-  } catch {}
-  return { output: readFileSync(output, "utf8"), lines, downloads, calls, queued };
-};
-
-test("a late tick whose window's full pass left reviews waiting downloads that pass's artifact by id and queues them for the follow-up", async () => {
-  assert.equal(WAITING.length, 2, "the captured full pass left two reviews waiting");
-  const result = await followRun(JSON.stringify(WRITTEN));
-  assert.equal(result.output, "skip=true\nfollowup=true\n");
-  assert.deepEqual(result.downloads, [77], "the archive is fetched once, by the artifact id the listing gave");
-  assert.deepEqual(result.queued, { run_id: 42837000020, waiting_reviews: WAITING });
-  assert.ok(result.lines.includes("::notice title=recent-pass::run 42837000020 left 2 reviews waiting on a checks run; this tick follows them up"));
-});
-
-test("an empty, missing or unreadable queue follows up nothing, and the tick still skips", async () => {
-  for (const [label, text] of [
-    ["an empty queue", carryAs((c) => (c.waiting_reviews = []))],
-    ["a carry from before the queue", carryAs((c) => delete c.waiting_reviews)],
-    ["a row naming a lane that is not a hosted review", carryAs((c) => (c.waiting_reviews[1].path = ".github/workflows/pr-verify.yml"))],
-    ["a row with no checks run", carryAs((c) => delete c.waiting_reviews[0].checksRunId)],
-    ["a row with a short head", carryAs((c) => (c.waiting_reviews[0].head = c.waiting_reviews[0].head.slice(1)))],
-    ["queue rows that are not a list", carryAs((c) => (c.waiting_reviews = c.waiting_reviews[0]))],
-    ["another settled version", carryAs((c) => (c.version += 1))],
-    ["another repository's carry", carryAs((c) => (c.repository = "x/y"))],
-    ["a failed download", new Error("HTTP 410")],
-  ]) {
-    const result = await followRun(text);
-    assert.equal(result.output, "skip=true\n", label);
-    assert.equal(result.queued, undefined, label);
-  }
-});
-
-test("only a scheduled tick matched by its window follows up: a gap hit, or no FOLLOWUP_PATH, downloads nothing", async () => {
-  const gapHit = await followRun(JSON.stringify(WRITTEN), { env: { PASS_AFTER: "" } });
-  assert.deepEqual([gapHit.output, gapHit.downloads], ["skip=true\n", []]);
-  const unset = await followRun(JSON.stringify(WRITTEN), { env: { FOLLOWUP_PATH: "" } });
-  assert.deepEqual([unset.output, unset.downloads], ["skip=true\n", []]);
 });

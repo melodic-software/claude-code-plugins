@@ -67,7 +67,6 @@ export const FAILED_LABEL = "pr-verify-failed";
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
-// Whether github-actions[bot] wrote the comment and its first line is `line`.
 const markedBy = (comment, line) => comment.user?.id === MARKER_AUTHOR_ID && firstLine(comment.body) === line;
 
 const bullets = (notes) => notes.map((note) => `- ${note}`);
@@ -134,7 +133,6 @@ export function failComment({ head, summary, notes }) {
 // carries them, so the check costs no call of its own.
 const hasLabel = async (api, pull, pr, name = FAILED_LABEL) => (Array.isArray(pull?.labels) ? pull.labels : await api.listLabels(pr)).some((label) => label.name === name);
 
-// Runs every step, so one failure leaves the others done, then throws the first.
 async function everyStep(log, steps) {
   const failures = [];
   for (const step of steps) {
@@ -152,7 +150,6 @@ async function everyStep(log, steps) {
   }
 }
 
-// Called after the label, so a re-queue meets ci-status's label read.
 async function leaveQueue({ api, pr, log }) {
   const entry = await api.readQueueEntry(pr);
   if (!entry.queued) {
@@ -203,7 +200,6 @@ async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedL
   log(`#${pr}: withheld fail at ${head}; held for a person`);
 }
 
-// A person's pull request at the FAIL's head: its fail comment, then the label.
 async function holdPersonPull({ api, pull, verdict, log }) {
   const { pr, head } = verdict;
   const body = failComment(verdict);
@@ -220,8 +216,6 @@ async function holdPersonPull({ api, pull, verdict, log }) {
   log(`#${pr}: a person's pull request; the fail at ${head} is in its fail comment and the ${FAILED_LABEL} label holds it`);
 }
 
-// Whether the dot-joined numbers a name carries are the issues the verdict
-// records, as sets.
 const sameIssues = (named, recorded) => {
   if (!Array.isArray(recorded)) return false;
   const a = new Set(named.split(".").map(Number));
@@ -313,8 +307,6 @@ async function postAtHead({ api, pull, verdict, appId, log }) {
     await holdPersonPull({ api, pull, verdict, log });
     return false;
   }
-  // A note in a resolved thread is not posted: a pass that superseded an
-  // earlier FAIL at this head resolved it, and this FAIL needs an open thread.
   const resolved = new Set((await api.listThreads(pr)).filter((thread) => thread.isResolved === true).flatMap((thread) => (thread.comments?.nodes ?? []).map((comment) => comment.databaseId)));
   const posted = new Set(
     (await api.listReviewComments(pr))
@@ -346,7 +338,6 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      // Each answer's rate-limit reading, for the job-end api-budget notice.
       fetch: rateLimitLatch.guard(globalThis.fetch),
     });
   if (verdict.verdict !== "fail") {

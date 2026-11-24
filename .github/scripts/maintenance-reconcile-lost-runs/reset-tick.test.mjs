@@ -13,7 +13,7 @@ const WINDOW_START = at("2026-11-21T18:55:00Z");
 test("a tick up to 30 minutes into the window that began 18:55Z is due, counting passes started from 18:55Z", () => {
   assert.deepEqual(tickPlan(RESET, at("2026-11-21T19:09:00Z")), { due: true, since: 14 * 60, wait: 0, passAfter: WINDOW_START });
   assert.equal(tickPlan(RESET, at("2026-11-21T19:25:00Z")).due, true, "30 minutes in");
-  assert.deepEqual(tickPlan(RESET, at("2026-11-21T19:25:01Z")), { due: false, since: 30 * 60 + 1, passAfter: WINDOW_START }, "past 30 minutes, still naming the 18:55Z start for the follow-up");
+  assert.deepEqual(tickPlan(RESET, at("2026-11-21T19:25:01Z")), { due: false, since: 30 * 60 + 1 }, "past 30 minutes");
 });
 
 test("a tick less than 90 s into the window waits out the rest of the 90 s", () => {
@@ -78,9 +78,9 @@ test("a due tick reads the reset once and names the window's pass-after", async 
   assert.deepEqual(lines, [`::notice title=reset-tick::reset=${RESET} now=${at("2026-11-21T19:09:00Z")} since_window_start=840 due=true wait_seconds=0`]);
 });
 
-test("a tick past the window's first 30 minutes is not due, and names the window's start so it can follow up that window's pass", async () => {
+test("a tick past the window's first 30 minutes is not due", async () => {
   const { output, waits } = await run({ EVENT_NAME: "schedule" }, () => response(), at("2026-11-21T19:34:00Z"));
-  assert.deepEqual([waits, output], [[], `due=false\npost-reset=false\npass-after=${WINDOW_START}\n`]);
+  assert.deepEqual([waits, output], [[], "due=false\npost-reset=false\npass-after=\n"]);
 });
 
 test("a dispatched run is due and reads nothing", async () => {

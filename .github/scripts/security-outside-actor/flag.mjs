@@ -64,7 +64,6 @@ const SENDER_ACTIONS = new Set(["edited", "synchronize", "reopened"]);
 // names under `issue`.
 const isPull = (payload) => Boolean(payload.pull_request ?? payload.issue?.pull_request);
 
-// The payload's issue or pull request number, or null.
 const itemNumber = (payload) => {
   const number = payload.issue?.number ?? payload.pull_request?.number;
   return Number.isInteger(number) && number >= 1 ? number : null;
@@ -124,12 +123,6 @@ export function commentBody(author) {
 export const isOwnMarker = (comment, marker) =>
   comment?.user?.id === ACTIONS_BOT_ID && comment?.user?.type === "Bot" && String(comment.body ?? "").startsWith(marker);
 
-// The label and the comment, then an issue's Work status hold, set through
-// `setStatus(number, state)` (write-status.mjs statusWriter's set); a pull
-// request's hold is the label. The field write needs resolve-config's
-// packages, so it comes last: when it fails, the label and comment are
-// already written. Each write is tried whatever the others did; any failure
-// is thrown after all were tried. Returns `comment`'s outcome.
 async function writeFlag({ github, base, item, setStatus, comment, what }) {
   const results = await Promise.allSettled([comment(), github("POST", `${base}/labels`, { labels: item.pull ? [LABEL, NEEDS_HUMAN] : [LABEL] })]);
   if (!item.pull) {
@@ -142,8 +135,6 @@ async function writeFlag({ github, base, item, setStatus, comment, what }) {
   return results[0].value;
 }
 
-// The comment is written once per marker: a marker github-actions[bot]
-// already posted answers `seen` instead.
 const commentOnce = (github, base, marker, body, seen, posted) => async () => {
   const comments = await paginate(github, `${base}/comments`);
   if (comments.some((comment) => isOwnMarker(comment, marker))) {
@@ -196,14 +187,11 @@ export async function restore({ github, repository, remover, setStatus }) {
   return writeFlag({ github, base, item: remover, setStatus, comment, what: `restoring ${LABEL} on #${remover.number}` });
 }
 
-// The job token's Work status write, over the base checkout's config.
 const fieldSetter = (env, github) => async (number, state) =>
   (await statusWriter({ env, github, repository: env.GITHUB_REPOSITORY })).set(number, state);
 
 const clientFor = (env, github) => github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
 
-// The trusted-actor list, or null sets when it cannot be read; `then` names
-// what the warning says happens next.
 function readTrusted(env, log, then) {
   try {
     return loadTrustedList(env.TRUSTED_ACTORS_PATH);

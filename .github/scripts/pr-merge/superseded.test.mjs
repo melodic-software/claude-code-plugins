@@ -30,8 +30,6 @@ const LISTING = `/repos/${REPO}/actions/workflows/pr-merge.yml/runs?status=pendi
 const dir = tempDir("superseded-");
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-// `actor` started the run and `rerunner` (its triggering_actor) started
-// attempt `attempt`.
 const pending = (id, event, actor = OWNER, { rerunner = actor, branch = "main", attempt = 1 } = {}) => ({
   id,
   event,
@@ -43,13 +41,10 @@ const pending = (id, event, actor = OWNER, { rerunner = actor, branch = "main", 
 });
 
 const jobsOf = (id) => `/repos/${REPO}/actions/runs/${id}/jobs?filter=latest&per_page=100`;
-// Each job's display name in pr-merge.yml, which the jobs API lists it by.
 const NAMES = { merge: "Merge", "enable-auto-merge": "Enable Auto Merge" };
 const waiting = (job = "merge", status = "pending") => [{ name: NAMES[job], status }];
 
 let n = 0;
-// `jobs` maps a run id to its jobs read; a run missing from it has `job`
-// waiting. `jobsFail` is thrown by every jobs read.
 async function check({ event = "schedule", runs = [], fail, body, job, jobs = {}, jobsFail, env: extra = {} } = {}) {
   n += 1;
   const output = join(dir, `output-${n}`);
@@ -124,8 +119,6 @@ test("a pending run a listed human started by hand supersedes a pull_request_tar
   assert.equal(run.superseded, true);
 });
 
-// An event run gates only its own pull request (pr-merge.yml EVENT_PR), so
-// another event's run does not do this one's work.
 test("a pending pull_request_target run supersedes no other pull_request_target run", async () => {
   const run = await check({ event: "pull_request_target", runs: [pending(600, "pull_request_target")] });
   assert.equal(run.superseded, false);
@@ -215,7 +208,6 @@ test("an unknown current event, or an unknown job, does its work without a listi
   assert.deepEqual(run.calls, []);
 });
 
-// Run 40113925144 above: pending only because another of its jobs waits.
 test("a pending run whose merge job already ran supersedes nothing", async () => {
   const run = await check({
     runs: [pending(600, "schedule", QUEUE_BOT)],
@@ -283,9 +275,6 @@ test("enable-auto-merge: a waiting merge job, or an enable-auto-merge job a cond
   }
 });
 
-// A re-run keeps its event, and the who step lets a scheduled run's later
-// attempt on only when a listed human started that attempt; a scheduled run's
-// actor is whoever last changed the schedule, often a bot.
 test("a scheduled run counts on its first attempt, or on a later one a listed human started", async () => {
   const first = await check({ runs: [pending(600, "schedule", QUEUE_BOT)] });
   assert.equal(first.superseded, true);

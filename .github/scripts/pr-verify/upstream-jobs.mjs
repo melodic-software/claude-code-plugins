@@ -42,7 +42,6 @@ export function keptJobs(env, runId) {
     kept?.run_id === Number(runId) &&
     Array.isArray(kept.jobs) &&
     kept.jobs.every((job) => typeof job?.name === "string" && [job.conclusion, job.url].every((value) => value === null || typeof value === "string"));
-  // shapeJobs reads html_url, which the kept file names url.
   return valid ? shapeJobs(runId, kept.jobs.map((job) => ({ ...job, html_url: job.url }))) : null;
 }
 

@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2] - 2026-11-24
+
+### Fixed
+
+- `reach` names both lane routes for a session on this machine whose lane is not known.
+
 ## [0.5.1] - 2026-11-22
 
 ### Changed

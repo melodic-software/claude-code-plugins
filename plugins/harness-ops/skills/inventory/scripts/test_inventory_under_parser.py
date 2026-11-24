@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # test-scope: plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
 # test-scope: plugins/harness-ops/scripts/docs-cache.sh plugins/harness-ops/scripts/fetch-docs.sh plugins/harness-ops/skills/inventory/scripts/js/package.json
+# test-scope: plugins/harness-ops/scripts/fetch-docs-generic.sh
 """Every test_inventory.py case again, with inventory.py's binding lookups
 answered by the parser reader (parser_reader.py driving
 js/parser_helper.cjs) instead of the regex reader. Naming those three files

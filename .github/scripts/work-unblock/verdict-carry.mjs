@@ -59,14 +59,9 @@ import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-
 export const CARRY_ARTIFACT = "work-unblock-verdicts";
 export const CARRY_FILE = "work-unblock-verdicts.json";
 const WORKFLOW_PATH = ".github/workflows/work-unblock.yml";
-// Judgment: an agent-ready issue's runs stay in the sweep for days, and an
-// entry each sweep uses is kept fresh; 14 days outlasts a stalled issue's
-// backoff (24 hours at most) many times over.
 export const CARRY_DAYS = 14;
-// Judgment: a sweep read about 44 runs and 31 logs on 2026-11-10.
 export const JOBS_MAX = 300;
 export const REFUSALS_MAX = 2000;
-// Judgment: about 210 issues were open on 2026-11-10.
 export const DECIDED_MAX = 1000;
 // The longest wait the sweep sets (limits.mjs STRANDED_BACKOFF_MAX).
 export const WAIT_MAX_HOURS = 24;
@@ -84,7 +79,6 @@ const DAY_MS = 86_400_000;
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const warn = (what, error) => console.log(`::warning title=verdict-carry::${what}: ${escapeCommand(error?.message ?? error)}`);
-// Writes beside `to` first, so a reader never sees a half-written file.
 const writeWhole = (to, text) => {
   writeFileSync(`${to}.tmp`, text);
   renameSync(`${to}.tmp`, to);
@@ -104,7 +98,6 @@ const isJob = (job) =>
 const validJobs = (entry) => typeof entry.updated_at === "string" && Array.isArray(entry.jobs) && entry.jobs.every(isJob);
 const validRefusal = (entry) => entry.value === null || (typeof entry.value === "string" && REASON.test(entry.value));
 
-// A job as the sweep reads it: no log text, URL or runner name is kept.
 function slimJob(job) {
   const out = { id: job.id, name: job.name, conclusion: job.conclusion ?? null, runner_id: job.runner_id ?? null, started_at: job.started_at ?? null };
   if (Array.isArray(job.steps)) out.steps = job.steps.map((step) => ({ name: String(step?.name ?? ""), conclusion: step?.conclusion ?? null }));
@@ -166,7 +159,6 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
   const use = (map, key, entry) => map.set(key, { ...entry, at });
   return {
     counts,
-    // A completed run's carried jobs while its listing still matches, else undefined.
     jobsOf(run) {
       const key = runKey(run);
       const entry = key && run.status === "completed" ? jobs.get(key) : undefined;
@@ -181,7 +173,6 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
       counts.jobsRead += 1;
       jobs.set(key, { at, updated_at: run.updated_at, jobs: listed.map(slimJob) });
     },
-    // { value } for a carried refusal, else undefined.
     refusal(jobId, mode) {
       const key = refusalKey(jobId, mode);
       const entry = key ? refusals.get(key) : undefined;
@@ -196,21 +187,17 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
       counts.refusalsRead += 1;
       refusals.set(key, { at, value });
     },
-    // When issue `number` was last decided as the file has it (ms), else undefined.
     decidedAt(number) {
       const entry = decided.get(String(number));
       return entry && Date.parse(entry.at);
     },
-    // The carried wait of issue `number`, else undefined.
     carriedWait(number) {
       return decided.get(String(number))?.wait;
     },
-    // Records this sweep's decision of issue `number`, with `wait` when it is one.
     keepDecided(number, wait) {
       if (!ISSUE_KEY.test(String(number))) return;
       decided.set(String(number), wait && validWait(wait) ? { at, wait: { reason: wait.reason, due: wait.due, updated: wait.updated, key: wait.key } } : { at });
     },
-    // Writes the file the next sweep reads; true once written.
     save(to) {
       const newest = (map, max) => Object.fromEntries([...map].sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at)).slice(0, max));
       try {
