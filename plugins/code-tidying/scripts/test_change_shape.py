@@ -70,10 +70,35 @@ class TypeScriptVerdicts(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertTrue(out.startswith("COMMENT-ONLY"), out)
 
-    def test_reindent_is_comment_only(self):
+    def test_reindent_is_code_changed(self):
         after = TS_BASE.replace("  return", "      return").replace("  //", "      //")
         code, out, _ = run(TS_BASE, after, ".ts")
+        self.assertEqual(code, 20, out)
+        self.assertIn("whitespace changed on a code line", out)
+
+    def test_whitespace_change_on_a_code_line_is_code_changed(self):
+        before = "const seen = new Set();\nconst x = (\n  1\n);\n"
+        after = "const seen =new Set();\nconst x =(\n  1\n);\n"
+        code, out, _ = run(before, after, ".ts", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn('"line": 1', out)
+
+    def test_whitespace_change_beside_a_comment_deletion_is_code_changed(self):
+        before = 'const s = "a"; // the label\n'
+        after = 'const s="a";\n'
+        code, out, _ = run(before, after, ".ts")
+        self.assertEqual(code, 20, out)
+
+    def test_trailing_comment_removal_is_comment_only(self):
+        after = TS_BASE.replace("return x + 1;", "return x + 1; // plus one")
+        code, out, _ = run(after, TS_BASE, ".ts")
         self.assertEqual(code, 0, out)
+
+    def test_line_join_behind_a_comment_deletion_is_code_changed(self):
+        before = "const y = [\n  1, // one\n  2,\n];\n"
+        after = "const y = [\n  1, 2,\n];\n"
+        code, out, _ = run(before, after, ".ts")
+        self.assertEqual(code, 20, out)
 
     def test_consistent_rename_is_rename_only_with_mapping(self):
         after = TS_BASE.replace("helper", "incrementByOne")
@@ -191,6 +216,12 @@ class PythonVerdicts(unittest.TestCase):
         )
         code, out, _ = run(PY_BASE, after, ".py")
         self.assertEqual(code, 0, out)
+
+    def test_whitespace_change_beside_a_docstring_removal_is_code_changed(self):
+        before = 'def _f():\n    """Return one."""\n    return 1\n\n\nx = _f()\n'
+        after = "def _f():\n    return 1\n\n\nx =_f()\n"
+        code, out, _ = run(before, after, ".py")
+        self.assertEqual(code, 20, out)
 
     def test_plain_docstring_removal_is_docstring_only(self):
         after = (
@@ -520,6 +551,12 @@ class PowerShellVerdicts(unittest.TestCase):
         after = "$a = 1\n$b = 2\nWrite-Output $a $b\n"
         code, out, _ = run(before, after, ".ps1")
         self.assertEqual(code, 20, out)
+
+    def test_whitespace_change_on_a_code_line_is_code_changed(self):
+        after = PS_BASE.replace("Write-Output $banner", "Write-Output  $banner")
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 20, out)
+        self.assertIn("whitespace changed on a code line", out)
 
     def test_blank_line_change_is_still_comment_only(self):
         before = "$a = 1\n\n# c\n\n$b = 2\n"
