@@ -451,11 +451,12 @@ done
 # the edit adds the recommendation gain-and-cost sentence to the question template and to "Alternatives carry their tradeoffs"; no-silent-resolve is unchanged
 # only the quality-bar title rule and the discovery-only shape of the rethink question changed; the no-silent-resolve and auto-guard text is untouched
 # Only optional-plugin guards changed in the Stance section; the in-round no-silent-resolve rule and both defenses are unchanged.
+# Round 1 asks the quality bar as a decision question when the survey cites evidence for one, else as a discovery question; either form stays open until the user answers and is never settled by evidence, so no row resolves silently and the no-silent-resolve and auto-guard text is byte-identical.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "da00ce1da1f6eae9bf57e362b92b83ba296d72ecc7315e529d93a9fe428864b5"
+  "cd04a7e858fbdc9510553eb519d3ad8630c77e8b26638f1f87a252424fe95474"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -585,11 +586,12 @@ pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\`
 # Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
 # Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 # Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
+# Unattended path gains one paragraph: the quality bar takes rung 3 in either form, so a bar recommended from survey evidence is a blocked USER-RESERVED row, never auto-resolved; it resolves no row, and rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical.
 pin_section "loop.md Unattended path section is unchanged (the ladder lives here)" \
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "fd049b8e15a5dcc646e5a69e778d17f60b3e3df17353d0f2d5d72d6919a7f0f7"
+  "08c2539a439ea7b544d4f5655d93046b0554f81484f40b5a7c30238866e3a85c"
 
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \

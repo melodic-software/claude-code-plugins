@@ -15,13 +15,13 @@ List every unknown the task depends on and sort each into exactly one kind:
   lookup runs" below says, and its result is stated with its source.
 - **Discovery question:** what only the user knows and no evidence can propose: the problem and
   why it matters to them, who it is for, what is in and out of scope, where they start, where it
-  heads, and the quality bar when the request does not state it. It is asked open (SKILL.md "A
-  discovery question carries no recommendation").
+  heads, and the quality bar when the request does not state it and the survey holds no evidence
+  for one. It is asked open (SKILL.md "A discovery question carries no recommendation").
 - **Decision question:** a choice with a live alternative, asked with a recommendation once the
   discovery answers and lookups it rests on are in.
 
 A decision the evidence leaves one viable answer is settled by evidence, not asked (SKILL.md "Name
-the evidence-settled decisions in the round header"). An unknown that needs a fact before it is a
+the evidence-settled decisions in the round header"), except the quality bar, which is always asked. An unknown that needs a fact before it is a
 choice is a lookup now and a decision question once the lookup returns.
 
 A doubt that a solution the request names, beside its stated problem, will cover that problem is
@@ -34,7 +34,9 @@ solution", and is never a question in any round.
 When the triage leaves discovery questions, round 1 is the intake round. It asks only those, each
 registered `open` with `kind:: discovery`, and keeps the round header and the closing probe of any
 round. Decision questions wait for round 2, because their recommendations rest on the intake
-answers.
+answers. The one exception is the quality bar when the survey holds evidence for one: it goes out
+in round 1 as a decision question beside the intake questions (SKILL.md "Ask the quality bar in
+round 1"), and round 1 stays the intake round for every other rule.
 
 The problem questions of [`problem-framing.md`](../../../context/problem-framing.md) are intake
 questions, asked in this round in discovery shape:
@@ -56,7 +58,7 @@ Three things still go out in round 1 and are not intake questions:
   round's questions and before the closing probe, naming the skill, why, with its evidence label
   and source, and what yes does: `Suggested next: /planning:prd, because who uses this and how
   success is measured are not settled (user, round 1). Say yes to run it first.` It is never a
-  `My recommendation:` block, which an intake round does not show; the wayfind line is still
+  `My recommendation:` block, which an intake round shows only for the quality bar; the wayfind line is still
   registered at ask-time;
 - a candidate for an unknown Problem field, drawn from the repository, the conversation or a
   lookup, stated with its source and a request to confirm or correct it ([`problem-framing.md`](../../../context/problem-framing.md) "Candidates
