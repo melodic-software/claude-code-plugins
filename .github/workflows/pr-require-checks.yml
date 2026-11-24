@@ -1666,7 +1666,7 @@ jobs:
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/typos@main
         with:
-          config: _typos.toml
+          config: .github/typos-local.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
           # The managed config cannot carry a consumer-local exclusion, so the
           # exemptions live on the caller. A vendored baseline (a skill pack's,
