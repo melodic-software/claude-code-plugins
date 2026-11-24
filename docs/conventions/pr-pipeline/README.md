@@ -2931,6 +2931,11 @@ intake admission admits (below), so a lane pull request never supplies its own s
 human's comment on such an issue reaches the verifier, but it never makes the issue trusted, and
 neither does a listed human's edit of its body. To give any other work a Bot filed a spec, a listed
 human opens an issue that restates it, and the pull request links that one.
+Work the owner starts in a session with no issue gets its spec from a tracking issue that quotes the
+owner's words verbatim with their dates and marks process notes (proof tooling, batching, checks) as
+not part of the goal (owner decision 2026-11-24). Each pull request of that work opens its body with
+a plain `Refs: #<n>` line, nothing after the number, and names the slice it delivers in its Summary;
+`REFS_PLAIN` reads any other `Refs:` form as no linked issue.
 One Bot issue is its own spec (owner decision 2026-11-16): the issue
 `maintenance-file-upstream-drift-issues.yml` files for one upstream, when github-actions[bot] wrote
 it and nobody else last edited it, its title is `Upstream drift: <owner>/<repo>` and its first
