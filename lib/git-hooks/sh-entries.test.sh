@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/instruction-placement/scripts/lib/discover.sh plugins/instruction-placement/scripts/render-index.sh
 # No git-hook file the plugins install reaches bash by name. Every entry script a
 # plugin's git-hooks/entries.json names, the check lib (canonical and copies),
 # the plain dispatcher install.mjs writes, the convention resolver (canonical
