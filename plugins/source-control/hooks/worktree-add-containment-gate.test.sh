@@ -34,11 +34,6 @@ REPO="$(mkrepo)"
 EXT="$TEST_TMPDIR/external"
 mkdir -p "$EXT"
 
-# run <cwd> <command> [env pairs...] — one hook invocation; sets RC and ERR.
-# The payload is built with jq so a command containing quotes survives intact,
-# and env pairs prefix the hook process only. Every locating override is
-# cleared first: the hook must judge the payload, not this harness's plugin
-# environment.
 RC=0
 ERR=""
 run() {
@@ -77,7 +72,6 @@ assert_allow "a non-git command passes" "$REPO" "echo hello"
 assert_allow "a git command that is not worktree passes" "$REPO" "git status"
 assert_allow "git worktree list passes (not add)" "$REPO" "git worktree list"
 assert_allow "git worktree remove passes (not add)" "$REPO" "git worktree remove wt"
-# The pre-filter must not be fooled by the words appearing outside a git call.
 assert_allow "echo naming git worktree add is not a git call" "$REPO" \
   "echo git worktree add $REPO/wt"
 
@@ -100,9 +94,6 @@ git init -q --bare "$BARE" >/dev/null 2>&1
 assert_block "a target inside a bare repository blocks" "$UNRELATED" \
   "git worktree add $BARE/wt-in-bare"
 
-# `..` after a nonexistent component resolves lexically INTO the repo; the
-# nearest-existing-ancestor walk alone would stop at the missing component and
-# miss it (same hazard the creation helper documents).
 assert_block "'..' after a nonexistent component still blocks" "$UNRELATED" \
   "git worktree add $TEST_TMPDIR/nope/../${REPO##*/}/wt-dotdot"
 
@@ -149,15 +140,12 @@ assert_not_contains "the block message does not offer the model its kill switch"
 assert_contains "with nothing configured, the remedy is the git config key" "$ERR" \
   "git config --global worktreeroot.path"
 
-# When the target repository carries worktreeroot.path, the message names
-# that root — most specific first, same precedence as the creation helper.
 KEYREPO="$(mkrepo)"
 git -C "$KEYREPO" config worktreeroot.path "$TEST_TMPDIR/key-root"
 run "$KEYREPO" "git worktree add $KEYREPO/wt-keyed"
 assert_exit "a keyed repo still blocks the nested target" 2 "$RC"
 assert_contains "the message names the git-key root" "$ERR" "$TEST_TMPDIR/key-root"
 
-# The plugin option backs the message only when the key is absent.
 run "$REPO" "git worktree add $REPO/wt-opt" \
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$TEST_TMPDIR/option-root"
 assert_contains "absent the key, the message names the plugin-option root" "$ERR" \
@@ -169,7 +157,6 @@ assert_contains "the key outranks the plugin option in the message" "$ERR" \
 assert_not_contains "the outranked option root is not the named remedy" "$ERR" \
   "$TEST_TMPDIR/option-root"
 
-# A retired alias still names the root when the current key is unset, and is rewritten.
 LEGACYREPO="$(mkrepo)"
 git -C "$LEGACYREPO" config melodic.worktreeroot "$TEST_TMPDIR/legacy-root"
 run "$LEGACYREPO" "git worktree add $LEGACYREPO/wt-legacy"
@@ -197,7 +184,6 @@ assert_not_contains "an empty last worktreeroot value is not the preceding path"
 assert_contains "an empty last worktreeroot value falls through to the plugin option" \
   "$ERR" "$TEST_TMPDIR/option-root"
 
-# An unexpanded placeholder is an unset value, not a root to recommend.
 # shellcheck disable=SC2016
 run "$REPO" "git worktree add $REPO/wt-token" \
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT='${user_config.worktree_root}'

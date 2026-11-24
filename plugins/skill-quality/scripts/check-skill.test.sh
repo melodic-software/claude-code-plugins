@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-skill.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway git repo with fixture
-# skills, runs the checker, and asserts on exit code + output. Mutates only its
-# own mktemp dir. markdownlint (check 6) is skipped via the documented test seam
-# so the suite needs no Node/npx.
-#
 # shellcheck disable=SC2016  # fixture SKILL.md bodies are literal bytes passed in single quotes (backticks and ! are content, never shell expansion)
 set -uo pipefail
 
@@ -22,7 +15,6 @@ fail() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Fresh repo, isolated from any ambient git-hook env that would leak into it.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_CONFIG 2>/dev/null || true
 git -C "$TMP" init -q
@@ -68,10 +60,6 @@ run_require_evals() {
       bash "$SUT" --require-evals "$@")
 }
 
-# Root-mode wrapper. The parent still carries CHECK_SKILL_SKILLS_ROOT so a bare
-# skill name keeps resolving (the mixed-call and regression cases need that),
-# and the cwd is a variable so the relative-root case can run from a
-# subdirectory of the fixture repo.
 run_roots() {
   (cd "${ROOTS_CWD:-$TMP}" &&
     CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
@@ -185,9 +173,6 @@ else
   fail "missing bare-name skill should hint at CHECK_SKILL_SKILLS_ROOT: $out"
 fi
 
-# 4b. A plugin:skill name gets targeted installed-skill guidance (exit 1, no
-#     cache-layout reverse-engineering — the checker points the operator at the
-#     root instead).
 out="$(run source-control:setup 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] &&
@@ -200,10 +185,6 @@ else
   fail "plugin:skill name should get installed-skill guidance (rc=$rc): $out"
 fi
 
-# 4c. A leaf carrying shell syntax is escaped in the pasteable command (paste
-#     safety — a copied command must not execute a substitution). Scope the
-#     check to the rerun-command line: the diagnostic prefix echoes the raw
-#     name (single-quoted, not pasteable) and that echo is fine.
 out="$(run 'x:$(touch pwn)' 2>&1)"
 cmd_line="$(grep 'check-skill.sh' <<<"$out")"
 if grep -qF '$(touch pwn)' <<<"$cmd_line"; then
@@ -215,10 +196,6 @@ else
 fi
 [[ -e "$TMP/pwn" ]] && fail "escaping test must not create a file"
 
-# 5. Dropping a committed single-quoted trigger phrase WARNS and passes (check 3
-#    is advisory: the warning names the phrase and asks the reviewer to confirm
-#    the intent is still named or restore it; exercises the git-backed
-#    SKILL_REL resolution).
 trig_head='---
 name: trig-skill
 description: "Trigger fixture. Use when: '"'"'alpha trigger'"'"', '"'"'beta trigger'"'"'."
@@ -251,9 +228,6 @@ else
   fail "dropped trigger phrase should warn, name the phrase, and pass (rc=$rc): $out"
 fi
 
-# 5b. A dropped trigger phrase that reappears verbatim in a SIBLING skill's
-#     description is a trigger MOVE: warns, names the host, and passes — the
-#     listing still routes the phrase (check 3's move exception).
 make_skill mover-src '---
 name: mover-src
 description: "Move fixture. Use when: '"'"'gamma trigger'"'"', '"'"'delta trigger'"'"'."
@@ -295,10 +269,6 @@ else
   fail "moved trigger phrase should warn, name the host, and pass (rc=$rc): $out"
 fi
 
-# 5c. Coincidental overlap is NOT a move: when the sibling already carried the
-#     phrase at the base ref, dropping it here is a real trigger loss for this
-#     skill's routing and reports as a dropped phrase (advisory warn, exit 0),
-#     never as a move (the move exception's base-ref condition).
 make_skill coinc-src '---
 name: coinc-src
 description: "Overlap fixture. Use when: '"'"'epsilon trigger'"'"', '"'"'shared trigger'"'"'."
@@ -341,8 +311,6 @@ else
   fail "pre-existing sibling overlap should warn as dropped, not count as a move (rc=$rc): $out"
 fi
 
-# 6. A relative skills root resolves against CLAUDE_PROJECT_DIR, not the cwd,
-#    even when invoked from a subdirectory.
 mkdir -p "$TMP/subdir"
 out="$(cd "$TMP/subdir" &&
   CLAUDE_PROJECT_DIR="$TMP" CHECK_SKILL_SKILLS_ROOT=".claude/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
@@ -372,8 +340,6 @@ else
   fail "preamble before fence should fail check 1 (rc=$rc): $out"
 fi
 
-# 8. A block-scalar `description: |` is unfolded, so a trigger phrase dropped
-#    from inside the block is still surfaced by check 3 (advisory warn).
 make_skill blk-skill '---
 name: blk-skill
 description: |
@@ -404,8 +370,6 @@ else
   fail "block-scalar trigger drop should warn without failing (rc=$rc): $out"
 fi
 
-# 9. An unquoted `Use when:` list passes with no trigger-phrasing warning:
-#    check 3 tracks its items, so check 12 has no quoting gap to report.
 make_skill unq-skill '---
 name: unq-skill
 description: "Do the thing. Use when: you need it, or someone asks."
@@ -427,8 +391,6 @@ else
   fail "unquoted triggers should pass with no Use-when warning (rc=$rc): $out"
 fi
 
-# 9a. Dropping a committed unquoted `Use when:` item WARNS and passes: check 3
-#     tracks each comma-separated item of the clause, not only 'quoted' ones.
 make_skill unq-drop '---
 name: unq-drop
 description: "Do the thing. Use when you need it, a build breaks, or someone asks. Other prose: x."
@@ -502,9 +464,6 @@ else
   fail "when_to_use triggers should satisfy check 12 (rc=$rc): $out"
 fi
 
-# 10. CHECK_SKILL_BASE_REF surfaces an ALREADY-COMMITTED trigger drop that the
-#     default working-tree-vs-HEAD comparison misses (HEAD == tree). Both runs
-#     exit 0 (check 3 is advisory); only the base-ref run carries the warning.
 make_skill baseref-skill '---
 name: baseref-skill
 description: "Thing. Use when: '"'"'ref alpha'"'"', '"'"'ref beta'"'"'."
@@ -541,8 +500,6 @@ else
   fail "base-ref audit should warn on a committed drop HEAD misses, without failing (rc_head=$rc_head rc_base=$rc_base): head=$out_head base=$out_base"
 fi
 
-# 11. A block header with the chomp indicator BEFORE the indent indicator
-#     (`|-2`, a legal YAML order) is still recognized and unfolded.
 make_skill blkord-skill '---
 name: blkord-skill
 description: |-2
@@ -573,8 +530,6 @@ else
   fail "sign-first block header should be unfolded and the drop should warn without failing (rc=$rc): $out"
 fi
 
-# 12. A block header with a trailing `# comment` (legal YAML) is still
-#     recognized and unfolded.
 make_skill blkcmt-skill '---
 name: blkcmt-skill
 description: | # trigger notes
@@ -605,9 +560,6 @@ else
   fail "commented block header should be unfolded and the drop should warn without failing (rc=$rc): $out"
 fi
 
-# 13. A block whose first content line is MORE indented than a later line
-#     (e.g. under an explicit `|2`) still captures the later line's triggers —
-#     the column-0 boundary is used, not the first line's indent.
 make_skill blkindent-skill '---
 name: blkindent-skill
 description: |2
@@ -639,9 +591,6 @@ else
   fail "trigger on a less-indented block line should be tracked and warn without failing (rc=$rc): $out"
 fi
 
-# 14. Frontmatter name diverging from the skill directory fails (check 1). The
-#     directory name is what the skill is namespaced by, so a mismatch silently
-#     relocates the invocation the doctrine says the skill has.
 make_skill misnamed-skill '---
 name: some-other-name
 description: "Name does not match its directory. Use when: '"'"'checking the name gate'"'"'."
@@ -663,8 +612,6 @@ else
   fail "name/directory mismatch should fail (rc=$rc): $out"
 fi
 
-# 15. A matching name does not trip the gate — guards the false-positive
-#     direction, and proves a quoted value reaches the comparison unquoted.
 make_skill quoted-name '---
 name: "quoted-name"
 description: "Quoted name matching its directory. Use when: '"'"'checking quoted names'"'"'."
@@ -686,8 +633,6 @@ else
   fail "quoted matching name should not trip the gate (rc=$rc): $out"
 fi
 
-# 16. A trailing YAML comment is not part of the scalar, so a correctly named
-#     skill carrying one must not trip the gate (false-positive direction).
 make_skill commented-name '---
 name: commented-name # kept for the migration note
 description: "Name carries a trailing YAML comment. Use when: '"'"'checking comment stripping'"'"'."
@@ -709,9 +654,6 @@ else
   fail "commented name should not trip the gate (rc=$rc): $out"
 fi
 
-# 16b. A YAML escape sequence is reported as the name defect it is, rather than
-#      surfacing as a confusing directory mismatch. Constraining the accepted
-#      syntax is the alternative to decoding YAML in bash.
 make_skill escaped-name '---
 name: "escaped\x2dname"
 description: "Name carries a YAML escape. Use when: '"'"'checking the charset gate'"'"'."
@@ -779,8 +721,6 @@ else
   fail "a 65-codepoint name should fail the length cap (rc=$rc): $out"
 fi
 
-# 17b-boundary. Exactly 64 is conforming: the spec says a maximum, so 64 passes
-#               and 65 is the first breach.
 edge_leaf='abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-fghi'
 make_skill "$edge_leaf" '---
 description: "Sixty-four character leaf. Use when: '"'"'checking the name length boundary'"'"'."
@@ -825,8 +765,6 @@ else
   fail "a leaf containing 'claude' should warn and pass (rc=$rc): $out"
 fi
 
-# 17d. Declared-name form of 17c: the same rule reads the declared field when
-#      there is one, and names it as the thing to rename.
 make_skill anthropic-notes '---
 name: anthropic-notes
 description: "Reserved word in the declared name. Use when: '"'"'checking reserved names'"'"'."
@@ -850,8 +788,6 @@ else
   fail "a declared name containing 'anthropic' should warn and pass (rc=$rc): $out"
 fi
 
-# 18a. A fenced shell block of read-only context-gathering commands, with no `!`
-#      injection anywhere, warns (precompute opportunity) but passes.
 make_skill precompute-cand '---
 name: precompute-cand
 description: "Gather repo context. Use when: '"'"'gathering repo context'"'"'."
@@ -878,8 +814,6 @@ else
   fail "read-only context block should warn as a precompute opportunity (rc=$rc): $out"
 fi
 
-# 18b. A skill that already injects context with inline `!` is silent even when
-#      it also carries a qualifying shell block (the whole-file gate).
 make_skill precompute-injects '---
 name: precompute-injects
 description: "Already precomputes. Use when: '"'"'already injecting context'"'"'."
@@ -906,8 +840,6 @@ else
   fail "skill already injecting with ! should not warn precompute (rc=$rc): $out"
 fi
 
-# 18c. A shell block that builds / runs a script is not a read-only context
-#      block, so it is not flagged.
 make_skill precompute-sideeffect '---
 name: precompute-sideeffect
 description: "Builds things. Use when: '"'"'building the project'"'"'."
@@ -932,8 +864,6 @@ else
   fail "build/deploy block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18d. A git block with write subcommands is disqualified by the write-token
-#      denylist even though `git` leads every line.
 make_skill precompute-gitwrite '---
 name: precompute-gitwrite
 description: "Commits work. Use when: '"'"'committing changes'"'"'."
@@ -958,8 +888,6 @@ else
   fail "git add/commit block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18e. A mutating git subcommand outside the read-only allowlist (git stash /
-#      git clean) is not classified read-only, so no injection is suggested.
 make_skill precompute-gitmutate '---
 name: precompute-gitmutate
 description: "Cleans the tree. Use when: '"'"'cleaning the worktree'"'"'."
@@ -1007,8 +935,6 @@ else
   fail "json block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18g. A read-only gh subcommand nested after the object (gh pr diff, gh run
-#      list) is a valid candidate — the object/verb allowlist, not a flat token.
 make_skill precompute-ghread '---
 name: precompute-ghread
 description: "Reads PR state. Use when: '"'"'reading pr context'"'"'."
@@ -1033,8 +959,6 @@ else
   fail "gh read-only block should warn precompute (rc=$rc): $out"
 fi
 
-# 18h. A read-only head piped into a mutating sink (`git status | tee f`) is NOT
-#      a candidate — the first token is read-only but the pipeline sink writes.
 make_skill precompute-pipesink '---
 name: precompute-pipesink
 description: "Snapshots the tree. Use when: '"'"'snapshotting the tree'"'"'."
@@ -1058,8 +982,6 @@ else
   fail "piped mutation should not warn precompute (rc=$rc): $out"
 fi
 
-# 18i. A logical `|| echo` fallback (our recommended defensive form) is not a
-#      pipe, so a read-only block using it is still a candidate.
 make_skill precompute-orfallback '---
 name: precompute-orfallback
 description: "Reads status. Use when: '"'"'reading tree status'"'"'."
@@ -1083,8 +1005,6 @@ else
   fail "|| echo fallback block should warn precompute (rc=$rc): $out"
 fi
 
-# 18j. A command-launching primary (`find -exec`) is not read-only — it runs an
-#      arbitrary command — so a block using it is not a candidate.
 make_skill precompute-findexec '---
 name: precompute-findexec
 description: "Runs cleanup. Use when: '"'"'running find exec'"'"'."
@@ -1108,8 +1028,6 @@ else
   fail "find -exec block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18k. A shell continuation after a read-only command (`&&`, `;`) chains a
-#      mutation, so the line fails closed.
 make_skill precompute-chain '---
 name: precompute-chain
 description: "Marks state. Use when: '"'"'chaining a marker'"'"'."
@@ -1133,8 +1051,6 @@ else
   fail "&& continuation block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18l. A command substitution (`$(...)`) executes during expansion, so a line
-#      carrying one is not read-only.
 make_skill precompute-cmdsubst '---
 name: precompute-cmdsubst
 description: "Expands a subst. Use when: '"'"'expanding a substitution'"'"'."
@@ -1158,8 +1074,6 @@ else
   fail "command-substitution block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18m. A file-output option on an allowlisted git reader (`git diff --output`)
-#      writes a file, bypassing the redirection guard, so it fails closed.
 make_skill precompute-gitoutput '---
 name: precompute-gitoutput
 description: "Writes a patch. Use when: '"'"'writing a patch file'"'"'."
@@ -1183,8 +1097,6 @@ else
   fail "git diff --output block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18n. An external-program diff option (`git diff --ext-diff`) can run a
-#      configured diff.external helper, so it fails closed.
 make_skill precompute-extdiff '---
 name: precompute-extdiff
 description: "External diff. Use when: '"'"'running an external diff'"'"'."
@@ -1208,8 +1120,6 @@ else
   fail "git diff --ext-diff block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18o. Only `|| echo` is a sanctioned continuation; a `||` into any other command
-#      (`|| bash x`) is a real operator that fails closed.
 make_skill precompute-ornonecho '---
 name: precompute-ornonecho
 description: "Runs a fallback. Use when: '"'"'running an or fallback'"'"'."
@@ -1233,8 +1143,6 @@ else
   fail "|| bash continuation block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18p. find's null-separated file-output primary (`-fprint0`) writes a file, like
-#      -fprint/-fprintf, so it fails closed.
 make_skill precompute-fprint0 '---
 name: precompute-fprint0
 description: "Writes a file list. Use when: '"'"'writing a file list'"'"'."
@@ -1258,9 +1166,6 @@ else
   fail "find -fprint0 block should not warn precompute (rc=$rc): $out"
 fi
 
-# 19. vendor/ diff paired with an upstream-version bump is a legitimate sync
-#     (check 8's exception, exercised via the maintainer-run `update` flow) —
-#     passes rather than tripping the byte-identical guarantee.
 mkdir -p "$SKILLS/vendor-skill-ok/vendor"
 printf 'v1\n' >"$SKILLS/vendor-skill-ok/vendor/UPSTREAM.txt"
 make_skill vendor-skill-ok '---
@@ -1306,8 +1211,6 @@ else
   fail "version-paired vendor/ diff should pass (rc=$rc): $out"
 fi
 
-# 20. vendor/ diff WITHOUT an upstream-version bump still fails — regression
-#     guard for the original hand-edit protection check 8 exists for.
 mkdir -p "$SKILLS/vendor-skill-bad/vendor"
 printf 'v1\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
 make_skill vendor-skill-bad '---
@@ -1337,8 +1240,6 @@ else
   fail "unpaired vendor/ diff should still fail (rc=$rc): $out"
 fi
 
-# 20b. A pure rename inside vendor/ keeps every byte, so check 8 passes it
-#      without an upstream-version bump; the staged rename is what git sees.
 git -C "$TMP" checkout -q -- "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
 git -C "$TMP" mv "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt" "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md"
 out="$(run vendor-skill-bad 2>&1)"
@@ -1357,10 +1258,6 @@ fi
 git -C "$TMP" mv -f "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md" "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
 printf 'v2 - hand edited\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
 
-# 20c. Upstream can change bytes without bumping its version: a vendor/ diff
-#      paired with an upstream-sha bump that equals the recomputed content
-#      hash (dotfiles left out) passes; one whose sha does not match the
-#      content fails, naming both hashes.
 vendor_sha_fixture() {
   make_skill vendor-skill-sha '---
 name: vendor-skill-sha
@@ -1384,7 +1281,7 @@ None known.
 sha256_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi | awk '{print $1}'; }
 mkdir -p "$SKILLS/vendor-skill-sha/vendor"
 printf 'v1\n' >"$SKILLS/vendor-skill-sha/vendor/UPSTREAM.txt"
-printf '{}\n' >"$SKILLS/vendor-skill-sha/vendor/.markdownlint-cli2.jsonc" # dotfile: left out of the hash
+printf '{}\n' >"$SKILLS/vendor-skill-sha/vendor/.markdownlint-cli2.jsonc"
 vendor_sha_fixture "$(printf 'v1\n' | sha256_of)"
 git -C "$TMP" add -A
 git -C "$TMP" commit -qm 'add vendor-skill-sha'
@@ -1411,8 +1308,6 @@ else
 fi
 git -C "$TMP" checkout -q -- "$SKILLS/vendor-skill-sha"
 
-# 21. A `!` injection with a `shell:` declaration is silent — the author has
-#     taken explicit responsibility for the shell (check 19).
 make_skill inj-shell-ok '---
 name: inj-shell-ok
 description: "Injects context. Use when: '"'"'injecting with a shell decl'"'"'."
@@ -1434,8 +1329,6 @@ else
   fail "injection + shell: decl should not warn/fail check 19 (rc=$rc): $out"
 fi
 
-# 22. A `!` injection with bash-only syntax (/dev/null) and NO `shell:` fails
-#     (check 19 — the census regression this gate exists for).
 make_skill inj-bashonly-fail '---
 name: inj-bashonly-fail
 description: "Injects context. Use when: '"'"'injecting bash-only syntax'"'"'."
@@ -1456,8 +1349,6 @@ else
   fail "bash-only injection + no shell: should fail check 19 (rc=$rc): $out"
 fi
 
-# 23. A `!` injection whose commands look portable, with no `shell:`, WARNs
-#     (portability is not statically provable) but passes (check 19).
 make_skill inj-portable-warn '---
 name: inj-portable-warn
 description: "Injects context. Use when: '"'"'injecting portable commands'"'"'."
@@ -1478,8 +1369,6 @@ else
   fail "portable injection + no shell: should warn not fail (rc=$rc): $out"
 fi
 
-# 24. A ```! FENCED injection with bash-only syntax (| head) and no `shell:`
-#     fails — exercises the fenced-block extraction feeding check 19.
 make_skill inj-fenced-fail '---
 name: inj-fenced-fail
 description: "Injects a block. Use when: '"'"'injecting a fenced block'"'"'."
@@ -1503,8 +1392,6 @@ else
   fail "bash-only fenced injection should fail check 19 (rc=$rc): $out"
 fi
 
-# 25. The over-reach guard: a bash-only token in a PLAIN ```bash block (not an
-#     injection) must NOT flag check 19/20 — the scan is scoped to injected text.
 make_skill inj-plainblock-safe '---
 name: inj-plainblock-safe
 description: "Shows an example. Use when: '"'"'showing a plain shell example'"'"'."
@@ -1528,8 +1415,6 @@ else
   fail "plain bash code block should not trip the injection checks (rc=$rc): $out"
 fi
 
-# 26. An injected command with no `|| <fallback>` warns (check 20), isolated
-#     from check 19 by a `shell:` declaration.
 make_skill inj-nofallback-warn '---
 name: inj-nofallback-warn
 description: "Injects context. Use when: '"'"'injecting without a fallback'"'"'."
@@ -1551,8 +1436,6 @@ else
   fail "missing || fallback should warn (rc=$rc): $out"
 fi
 
-# 27. A `|| printf` fallback satisfies check 20 — the gate matches the `||`
-#     continuation, not the literal `echo`.
 make_skill inj-printf-fallback '---
 name: inj-printf-fallback
 description: "Injects context. Use when: '"'"'injecting with a printf fallback'"'"'."
@@ -1574,9 +1457,6 @@ else
   fail "|| printf should count as a fallback (rc=$rc): $out"
 fi
 
-# 28. Anchor guard: a mid-token `!`` in prose (an inline `#!` code span) is NOT
-#     an injection, so a no-shell skill carrying one is not scanned (checks 19/20
-#     stay silent). The inline form is recognized only at start / after space.
 make_skill inj-prose-hashbang '---
 name: inj-prose-hashbang
 description: "Mentions a shebang. Use when: '"'"'mentioning a shebang in prose'"'"'."
@@ -1729,8 +1609,6 @@ else
   fail "delegation prose should satisfy check 21 (rc=$rc): $out"
 fi
 
-# 34a. Check 21: a self-check that gates "called done" with no declaration WARNs.
-# The phrase wraps across lines the way the miss did; the second line holds it.
 make_skill fe-called-done '---
 name: fe-called-done
 description: "Fresh-eyes fixture. Use when: '"'"'fe called done fixture'"'"'."
@@ -1799,8 +1677,6 @@ else
   fail "valid exemption directive should satisfy check 21 (rc=$rc): $out"
 fi
 
-# 36. Check 21: literal directive examples and judgment phrases inside code
-#     fences and inline spans are ignored (self-reference guard).
 make_skill fe-fenced '---
 name: fe-fenced
 description: "Fresh-eyes fixture. Use when: '"'"'fe fenced fixture'"'"'."
@@ -1829,8 +1705,6 @@ else
   fail "fenced fresh-eyes content should be ignored (rc=$rc): $out"
 fi
 
-# 37a. Check 21: judgment language with BOTH delegation wording and a valid
-#      directive in window passes with the contradictory-declaration INFO.
 make_skill fe-contradictory '---
 name: fe-contradictory
 description: "Fresh-eyes fixture. Use when: '"'"'fe contradictory fixture'"'"'."
@@ -1853,9 +1727,6 @@ else
   fail "both-declared case should pass with contradictory INFO (rc=$rc): $out"
 fi
 
-# 37b. Check 21: an info-string fence line inside an open fence is content, not
-#      a closer — the literal directive after it stays fenced (CommonMark:
-#      closers allow only trailing spaces).
 make_skill fe-fence-info '---
 name: fe-fence-info
 description: "Fresh-eyes fixture. Use when: '"'"'fe fence info fixture'"'"'."
@@ -1880,8 +1751,6 @@ else
   fail "info-string fence line should not desync the fence guard (rc=$rc): $out"
 fi
 
-# 37c. Check 21: a line with backtick runs is structurally ambiguous — literal
-#      directive examples in inline code yield no hard verdict.
 make_skill fe-span-double '---
 name: fe-span-double
 description: "Fresh-eyes fixture. Use when: '"'"'fe span double fixture'"'"'."
@@ -1903,8 +1772,6 @@ else
   fail "backtick-bearing line should not FAIL on a literal directive (rc=$rc): $out"
 fi
 
-# 37d. Check 21: bare fresh-context wording naming no worker does not declare —
-#      the judgment line still WARNs.
 make_skill fe-bare-wording '---
 name: fe-bare-wording
 description: "Fresh-eyes fixture. Use when: '"'"'fe bare wording fixture'"'"'."
@@ -1926,8 +1793,6 @@ else
   fail "worker-less fresh-context wording should not satisfy check 21 (rc=$rc): $out"
 fi
 
-# 37e. Check 21: an unrelated verification word next to fresh-context wording
-#      names no worker — the judgment line still WARNs.
 make_skill fe-verification-word '---
 name: fe-verification-word
 description: "Fresh-eyes fixture. Use when: '"'"'fe verification word fixture'"'"'."
@@ -1949,9 +1814,6 @@ else
   fail "verification-word bypass should not satisfy check 21 (rc=$rc): $out"
 fi
 
-# 37f. Check 21: a four-space-indented backtick run is an indented code block,
-#      not a fence opener (CommonMark) — a malformed directive after it is
-#      still scanned and still blocks.
 make_skill fe-indented-fence '---
 name: fe-indented-fence
 description: "Fresh-eyes fixture. Use when: '"'"'fe indented fence fixture'"'"'."
@@ -1976,9 +1838,6 @@ else
   fail "malformed directive after indented code block should FAIL (rc=$rc): $out"
 fi
 
-# 37g. Check 21: a backtick run whose info string carries a backtick is prose,
-#      not a fence opener (CommonMark) — a malformed directive after it is
-#      still scanned and still blocks.
 make_skill fe-backtick-info '---
 name: fe-backtick-info
 description: "Fresh-eyes fixture. Use when: '"'"'fe backtick info fixture'"'"'."
@@ -2003,8 +1862,6 @@ else
   fail "malformed directive after invalid backtick opener should FAIL (rc=$rc): $out"
 fi
 
-# 37h. Check 21: an embedded worker stem ("agentless") is not a whole-word
-#      worker token — the judgment line still WARNs.
 make_skill fe-agentless '---
 name: fe-agentless
 description: "Fresh-eyes fixture. Use when: '"'"'fe agentless fixture'"'"'."
@@ -2026,8 +1883,6 @@ else
   fail "agentless stem should not satisfy check 21 (rc=$rc): $out"
 fi
 
-# 37i. Check 21: a line with a backtick run is structurally ambiguous — a
-#      directive fragment on the same line yields no hard verdict.
 make_skill fe-span-crossline '---
 name: fe-span-crossline
 description: "Fresh-eyes fixture. Use when: '"'"'fe crossline span fixture'"'"'."
@@ -2050,8 +1905,6 @@ else
   fail "backtick-bearing line should not FAIL on a literal directive (rc=$rc): $out"
 fi
 
-# 37j. Check 21: a stray backtick on one line does not blind later lines — the
-#      scanner does not carry span state across lines.
 make_skill fe-span-stray '---
 name: fe-span-stray
 description: "Fresh-eyes fixture. Use when: '"'"'fe stray backtick fixture'"'"'."
@@ -2075,9 +1928,6 @@ else
   fail "directive after a stray-backtick line should still FAIL (rc=$rc): $out"
 fi
 
-# 37k. Check 21: a fence nested in a blockquote is still a fence — its literal
-#      directive example must not be parsed. Tildes, so the cross-line span
-#      carry cannot mask the body incidentally and pass the test for free.
 make_skill fe-quoted-fence '---
 name: fe-quoted-fence
 description: "Fresh-eyes fixture. Use when: '"'"'fe quoted fence fixture'"'"'."
@@ -2105,9 +1955,6 @@ else
   fail "directive inside a blockquoted fence should not be parsed (rc=$rc): $out"
 fi
 
-# 37l. Check 21: a line with backtick runs is structurally ambiguous — the
-#      scanner does not pair spans or resolve escapes, so a directive shown
-#      between escaped backticks yields no hard verdict rather than a FAIL.
 make_skill fe-escaped-span '---
 name: fe-escaped-span
 description: "Fresh-eyes fixture. Use when: '"'"'fe escaped span fixture'"'"'."
@@ -2129,8 +1976,6 @@ else
   fail "backtick-bearing line should not FAIL on a literal directive (rc=$rc): $out"
 fi
 
-# 37m. Check 21: each directive on a shared line is classified on its own, so a
-#      malformed one cannot hide beside a valid one.
 make_skill fe-two-directives '---
 name: fe-two-directives
 description: "Fresh-eyes fixture. Use when: '"'"'fe two directives fixture'"'"'."
@@ -2154,8 +1999,6 @@ else
   fail "shared-line malformed directive should FAIL (rc=$rc): $out"
 fi
 
-# 37n. Check 21: "Refresh context" is not the fresh-context wording — the
-#      judgment line still WARNs even though a worker term appears.
 make_skill fe-refresh-context '---
 name: fe-refresh-context
 description: "Fresh-eyes fixture. Use when: '"'"'fe refresh context fixture'"'"'."
@@ -2177,10 +2020,6 @@ else
   fail "\"Refresh context\" should not satisfy check 21 (rc=$rc): $out"
 fi
 
-# 37o. Check 21: container-prefix stripping must not close a fence from inside
-#      its own quoted example. The inner runs are the SAME length as the opener,
-#      so a strip applied in-fence would treat "> ```" as the closer and leak the
-#      rest of the block to the detectors.
 make_skill fe-nested-quoted-fence '---
 name: fe-nested-quoted-fence
 description: "Fresh-eyes fixture. Use when: '"'"'fe nested quoted fence fixture'"'"'."
@@ -2239,9 +2078,6 @@ else
   fail "escaped angle-bracket comment should not parse as a directive (rc=$rc): $out"
 fi
 
-# 37q. Check 21: an UNCLOSED fence inside a blockquote ends with the blockquote,
-#      so a malformed directive in later top-level prose still blocks. Without
-#      the container reset the fence swallows the rest of the file and PASSes.
 make_skill fe-runaway-quoted-fence '---
 name: fe-runaway-quoted-fence
 description: "Fresh-eyes fixture. Use when: '"'"'fe runaway quoted fence fixture'"'"'."
@@ -2268,8 +2104,6 @@ else
   fail "directive after a runaway quoted fence should FAIL (rc=$rc): $out"
 fi
 
-# 37r. Check 21: a fence opened by a list marker suppresses its indented body and
-#      still closes on the indented closer, and the item's end releases it.
 make_skill fe-list-fence '---
 name: fe-list-fence
 description: "Fresh-eyes fixture. Use when: '"'"'fe list fence fixture'"'"'."
@@ -2298,9 +2132,6 @@ else
   fail "list fence body should be suppressed and the line-14 directive FAIL (rc=$rc): $out"
 fi
 
-# 37s. Check 21: a line with a backtick run is structurally ambiguous — the
-#      scanner does not pair spans, so a directive after an inline-code
-#      fragment on the same line yields no hard verdict.
 make_skill fe-span-literal-backslash '---
 name: fe-span-literal-backslash
 description: "Fresh-eyes fixture. Use when: '"'"'fe span literal backslash fixture'"'"'."
@@ -2322,10 +2153,6 @@ else
   fail "backtick-bearing line should not FAIL on a literal directive (rc=$rc): $out"
 fi
 
-# 37v. Check 21: a directive at four-space indent is structurally ambiguous —
-#      indented code block or list continuation, the scanner cannot tell — so it
-#      declines the hard verdict rather than FAILing an author on a parser
-#      artifact. See the parsing contract in reference/fresh-eyes-declarations.md.
 make_skill fe-indented-ambiguous '---
 name: fe-indented-ambiguous
 description: "Fresh-eyes fixture. Use when: '"'"'fe indented ambiguous fixture'"'"'."
@@ -2351,12 +2178,6 @@ else
   fail "ambiguous indented directive should not FAIL (rc=$rc): $out"
 fi
 
-# 37t. Check 21: a fence opened at blockquote depth two ends when the lines fall
-#      back to depth one — the inner quote is over, so a directive there is real.
-#      Depth, not mere marker presence, decides. No blank line between: a blank
-#      line would end the quote on its own and make this pass without the depth
-#      comparison, which is exactly how the first version of this fixture was
-#      non-discriminating.
 make_skill fe-quote-depth '---
 name: fe-quote-depth
 description: "Fresh-eyes fixture. Use when: '"'"'fe quote depth fixture'"'"'."
@@ -2380,8 +2201,6 @@ else
   fail "directive at lower quote depth should FAIL (rc=$rc): $out"
 fi
 
-# 37u. Check 21: Form 1 is visible prose by contract, so delegation wording hidden
-#      in an HTML comment declares nothing and the judgment line still WARNs.
 make_skill fe-comment-wording '---
 name: fe-comment-wording
 description: "Fresh-eyes fixture. Use when: '"'"'fe comment wording fixture'"'"'."
@@ -2405,8 +2224,6 @@ else
   fail "commented wording should not satisfy check 21 (rc=$rc): $out"
 fi
 
-# 37u2. Check 21: multi-line HTML comment state carries until the closing
-#       `-->`, so delegation wording on a middle line does not satisfy Form 1.
 make_skill fe-comment-multiline '---
 name: fe-comment-multiline
 description: "Fresh-eyes fixture. Use when: '"'"'fe comment multiline fixture'"'"'."
@@ -2432,9 +2249,6 @@ else
   fail "multi-line commented wording should not satisfy check 21 (rc=$rc): $out"
 fi
 
-# 37w. Check 21: the directive name needs a terminator. An ordinary comment about
-#      "fresh-eyes-exemption" shares the prefix but is not a directive, and a
-#      prefix-only match FAILed the skill on prose.
 make_skill fe-name-prefix '---
 name: fe-name-prefix
 description: "Fresh-eyes fixture. Use when: '"'"'fe name prefix fixture'"'"'."
@@ -2456,8 +2270,6 @@ else
   fail "fresh-eyes-exemption prose should not parse as a directive (rc=$rc): $out"
 fi
 
-# 37x. Check 21: an ambiguous directive cannot satisfy a judgment step either. A
-#      literal exemption inside an indented example must not silence the WARN.
 make_skill fe-ambiguous-proximity '---
 name: fe-ambiguous-proximity
 description: "Fresh-eyes fixture. Use when: '"'"'fe ambiguous proximity fixture'"'"'."
@@ -2483,9 +2295,6 @@ else
   fail "indented literal exemption should not silence the WARN (rc=$rc): $out"
 fi
 
-# 37y. Check 21: YAML frontmatter is not markdown. A block-scalar description
-#      carrying an example fence opened a fence that the closing --- never ended,
-#      which swallowed the whole body and passed the file silently.
 make_skill fe-frontmatter-fence '---
 name: fe-frontmatter-fence
 description: >-
@@ -2510,8 +2319,6 @@ else
   fail "directive after a frontmatter fence should FAIL (rc=$rc): $out"
 fi
 
-# 37. Check 21: a skill with no judgment language emits nothing from check 21
-#     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && ! grep -qE 'fresh-eyes|same-context judgment' <<<"$out"; then
@@ -2520,11 +2327,6 @@ else
   fail "check 21 should stay silent on good-skill (rc=$rc): $out"
 fi
 
-# 29. Check 2 counts the 3-char " - " joiner: desc(1500) + wtu(34) = 1534,
-#     under the 1536 cap WITHOUT the joiner (the pre-fix bug would pass this),
-#     but + the 3-char joiner = 1537 — one char over. FAILing here proves
-#     item 2's fix (check-skill.sh check 2) at the exact boundary, not merely an
-#     already-overflowing entry that would fail either way.
 desc_1500="$(printf 'd%.0s' $(seq 1 1500))"
 wtu_34="$(printf 'w%.0s' $(seq 1 34))"
 make_skill joiner-boundary "---
@@ -2547,8 +2349,6 @@ else
   fail "check 2 should count the 3-char joiner and fail at 1537/1536 (rc=$rc): $out"
 fi
 
-# 38a. Check 22: a summary of exactly 100 codepoints passes (boundary
-#      guard — the cap is >100, not >=100).
 sum_100="$(printf 's%.0s' $(seq 1 100))"
 make_skill cap-pass "---
 name: cap-pass
@@ -2597,9 +2397,6 @@ else
   fail "101-codepoint summary should FAIL (rc=$rc): $out"
 fi
 
-# 38c. Check 22: 99 ASCII chars + an em-dash = 100 CODEPOINTS but 102 UTF-8
-#      bytes — passing proves the gate counts codepoints, not bytes (a
-#      byte-counting regression would read 102 and fail this fixture).
 sum_mb="$(printf 's%.0s' $(seq 1 99))—"
 make_skill cap-multibyte "---
 name: cap-multibyte
@@ -2678,11 +2475,6 @@ else
   fail "quoted summary should FAIL with a rewording remedy (rc=$rc): $out"
 fi
 
-# 38f. Check 22 reads the metadata BLOCK, not the first indented `summary:` line
-#      anywhere in the frontmatter. An indented line inside a `description:`
-#      block scalar would be read as the summary while the cheat-sheet
-#      generator reads the real one: two readers disagreeing about WHICH value
-#      they are reading. The decoy here would fail the contract if read.
 make_skill summary-decoy '---
 name: summary-decoy
 description: |
@@ -2708,8 +2500,6 @@ else
   fail "decoy summary inside a block scalar should not be read (rc=$rc): $out"
 fi
 
-# 33. An omitted `name` passes: the field is optional and defaults to the
-#     directory name, which is already what the checker resolves the skill by.
 make_skill nameless-skill '---
 description: "Declares no name. Use when: '"'"'checking the optional name field'"'"'."
 ---
@@ -2730,9 +2520,6 @@ else
   fail "omitted name should pass (rc=$rc): $out"
 fi
 
-# 34. In a PLUGIN skill a matching name is redundant but not inert — it registers
-#     the bare alias the picker echoes in parentheses — so it WARNs without
-#     failing. The plugin layout is what distinguishes it from case 15 above.
 PLUGIN_SKILLS="$TMP/plugins/demo/skills"
 mkdir -p "$PLUGIN_SKILLS/aliased-skill" "$TMP/plugins/demo/.claude-plugin"
 printf '{"name":"demo","version":"0.1.0"}\n' >"$TMP/plugins/demo/.claude-plugin/plugin.json"
@@ -2760,21 +2547,12 @@ else
   fail "redundant plugin name should warn, not fail (rc=$rc): $out"
 fi
 
-# 35. Outside a plugin, `name` is the display label and repeating the directory
-#     is unremarkable — the warning must not fire there (false-positive guard).
 if ! grep -q 'repeats the plugin skill' <<<"$(run quoted-name 2>&1)"; then
   pass "a non-plugin skill repeating its directory name does not warn"
 else
   fail "redundancy warning should be plugin-scoped"
 fi
 
-# 36a. Check 5: a bare path that misses under the citing skill but resolves under
-#      a SIBLING skill is most likely a cross-skill citation, not a missing file.
-#      It still FAILs (the bare form really does resolve against the citing
-#      skill), but in a plugin-shaped skills root the message must name the host
-#      sibling and the `${CLAUDE_PLUGIN_ROOT}` form — the default wording alone
-#      sends the author hunting under their own skill, where the file will never
-#      be. The hand-verify caveat stays: the hit is evidence, not proof.
 mkdir -p "$PLUGIN_SKILLS/xref-host/context" "$PLUGIN_SKILLS/xref-citer"
 printf 'Sibling-owned supporting file.\n' >"$PLUGIN_SKILLS/xref-host/context/suppression.md"
 printf '%s' '---
@@ -2815,9 +2593,6 @@ else
   fail "sibling-hosted ref should name the sibling and the plugin-root form (rc=$rc): $out"
 fi
 
-# 36b. Same detection outside a plugin: `${CLAUDE_PLUGIN_ROOT}` is undefined
-#      there, so the message must name the layout-free sibling-relative form
-#      instead of advertising a variable the consumer does not have.
 mkdir -p "$SKILLS/plain-host/reference"
 printf 'Sibling-owned supporting file.\n' >"$SKILLS/plain-host/reference/scaling.md"
 make_skill plain-host '---
@@ -2855,8 +2630,6 @@ else
   fail "non-plugin sibling message should name ../plain-host/... (rc=$rc): $out"
 fi
 
-# 36c. False-positive guard: a ref no sibling hosts is still a plain broken
-#      internal ref, with the original hand-verify wording intact.
 make_skill orphan-citer '---
 description: "Cites a file nobody owns. Use when: '"'"'checking the broken-ref message'"'"'."
 ---
@@ -2911,10 +2684,6 @@ else
   fail "backslash pointers should fail in both citation forms (rc=$rc): $out"
 fi
 
-# 36e. False-positive guard: a prose escape is not a path. An escaped pipe in a
-#      usage synopsis, an escaped underscore, and a `\n` in a code span all carry
-#      a backslash near an internal-dir token and none has the dir, backslash,
-#      filename-with-extension shape the limb requires.
 mkdir -p "$SKILLS/escape-prose/scripts"
 printf 'echo update\n' >"$SKILLS/escape-prose/scripts/update.sh"
 make_skill escape-prose '---
@@ -2937,11 +2706,6 @@ else
   fail "prose escapes should not trip the backslash limb (rc=$rc): $out"
 fi
 
-# 36f. The backslash limb reads the spokes too, at any depth: a pointer inside
-#      `reference/usage.md` or a nested `reference/topic/notes.md` resolves
-#      against the same skill root and ships the same load-time defect, and the
-#      authoring checklist counts the forward-slash row as mechanically decided
-#      only because the spokes are scanned. The finding names the citing file.
 mkdir -p "$SKILLS/backslash-spoke/scripts" "$SKILLS/backslash-spoke/reference/topic"
 printf 'echo helper\n' >"$SKILLS/backslash-spoke/scripts/helper.py"
 make_skill backslash-spoke '---
@@ -3027,12 +2791,7 @@ else
   fail "CHECK_SKILL_REQUIRE_EVALS=1 should fail without evals (rc=$rc): $out"
 fi
 
-# 46. Non-git plugin-cache tree: static gates still run.
-#     Marketplace installs are plain dirs with no .git. Point
-#     CHECK_SKILL_SKILLS_ROOT at a cache-shaped skills root from a cwd that is
-#     not inside any git repository — must not exit 2 with "not in a git repo".
 CACHE_TMP="$(mktemp -d)"
-# Nested trap: remove cache fixture after the outer TMP trap still fires.
 trap 'rm -rf "$TMP" "$CACHE_TMP"' EXIT
 CACHE_SKILLS="$CACHE_TMP/marketplace/disk-hygiene/0.17.9/skills"
 mkdir -p "$CACHE_SKILLS/clean"
@@ -3068,8 +2827,6 @@ else
   fail "non-git plugin-cache tree should PASS with git checks skipped (rc=$rc): $out"
 fi
 
-# 46b. Outside a git repo with no skills root is still an environment error —
-#      degrade only when a root is resolvable, never silently invent one.
 out="$(
   cd "$CACHE_TMP" &&
     env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
@@ -3084,8 +2841,6 @@ else
   fail "outside git with no skills root should exit 2 (rc=$rc): $out"
 fi
 
-# 23a. A numbered procedure of 3+ steps with no completion-criteria signal
-#      token anywhere in the block warns (advisory) but passes.
 make_skill cc-signal-missing '---
 name: cc-signal-missing
 description: "Rotate the config. Use when: '"'"'rotating the config'"'"'."
@@ -3109,8 +2864,6 @@ else
   fail "signal-free numbered procedure should warn (rc=$rc): $out"
 fi
 
-# 23b. The same procedure whose final step states an observable done-condition
-#      is silent — the block carries a completion signal.
 make_skill cc-signal-present '---
 name: cc-signal-present
 description: "Rotate the config safely. Use when: '"'"'rotating the config safely'"'"'."
@@ -3134,8 +2887,6 @@ else
   fail "signal-carrying procedure should not warn (rc=$rc): $out"
 fi
 
-# 23g. A literal ~~~ line inside a backtick fence does not close it — the
-#      numbered list after it is still masked (matching-marker close semantics).
 make_skill cc-signal-mixed-fence '---
 name: cc-signal-mixed-fence
 description: "Show fence forms. Use when: '"'"'showing fence forms'"'"'."
@@ -3165,8 +2916,6 @@ else
   fail "mixed fence markers should not unmask fenced content (rc=$rc): $out"
 fi
 
-# 23e. Two independent 2-step lists separated only by a blank line do NOT merge
-#      into one 4-step block — numbering restart after a blank closes the block.
 make_skill cc-signal-adjacent '---
 name: cc-signal-adjacent
 description: "Two short flows. Use when: '"'"'running two short flows'"'"'."
@@ -3192,8 +2941,6 @@ else
   fail "adjacent short lists should not merge into a warnable block (rc=$rc): $out"
 fi
 
-# 23f. A LOOSE ascending list (blank lines between items, numbering continues)
-#      is still ONE block — a signal-free 3-step loose procedure warns.
 make_skill cc-signal-loose '---
 name: cc-signal-loose
 description: "Rotate the loose config. Use when: '"'"'rotating the loose config'"'"'."
@@ -3219,8 +2966,6 @@ else
   fail "loose signal-free procedure should still warn (rc=$rc): $out"
 fi
 
-# 23d. A signal-free numbered list inside a TILDE-fenced code block is ignored
-#      (both CommonMark fence forms are illustrative content).
 make_skill cc-signal-tilde '---
 name: cc-signal-tilde
 description: "Show a tilde sample plan. Use when: '"'"'showing a tilde sample plan'"'"'."
@@ -3246,8 +2991,6 @@ else
   fail "tilde-fenced list should not fire the completion-criteria warn (rc=$rc): $out"
 fi
 
-# 23c. A signal-free numbered list inside a fenced code block is ignored
-#      (illustrative content never fires the heuristic).
 make_skill cc-signal-fenced '---
 name: cc-signal-fenced
 description: "Show a sample plan. Use when: '"'"'showing a sample plan'"'"'."
@@ -3273,8 +3016,6 @@ else
   fail "fenced list should not fire the completion-criteria warn (rc=$rc): $out"
 fi
 
-# 24a. An explicit `disable-model-invocation: false` reports the fleet default
-#      and raises no missing-key finding.
 make_skill dmi-explicit-false '---
 name: dmi-explicit-false
 description: "State the mode. Use when: '"'"'stating the mode'"'"'."
@@ -3298,9 +3039,6 @@ else
   fail "explicit false should report the model-invoked default (rc=$rc): $out"
 fi
 
-# 24b. Outside the marketplace plugin tree a missing key WARNs, never fails —
-#      the absent-key default is already false, so a consumer's own skill is
-#      informed, not broken, by this fleet's convention.
 out="$(run good-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'WARN: frontmatter has no explicit disable-model-invocation key' <<<"$out"; then
@@ -3309,8 +3047,6 @@ else
   fail "missing key outside plugins/ should warn, not fail (rc=$rc): $out"
 fi
 
-# 24c. Inside plugins/*/skills/* the same omission FAILs — the rubric is this
-#      fleet's convention and the fleet is normalized to it.
 mkdir -p "$PLUGIN_SKILLS/dmi-plugin-missing"
 printf '%s' '---
 name: dmi-plugin-missing
@@ -3334,8 +3070,6 @@ else
   fail "missing key inside plugins/ should fail (rc=$rc): $out"
 fi
 
-# 24d. A non-boolean value fails wherever it appears — the key is a boolean and
-#      a typo'd value would otherwise read as an unreviewed mode.
 make_skill dmi-bad-value '---
 name: dmi-bad-value
 description: "State a bad mode. Use when: '"'"'stating a bad mode'"'"'."
@@ -3389,9 +3123,6 @@ None known.
 for spelling in yes YES on 1; do assert_dmi_spelling "$spelling" user-invoked; done
 for spelling in no OFF 0; do assert_dmi_spelling "$spelling" model-invoked; done
 
-# 24d-quoted. A QUOTED boolean is a YAML string, not the boolean the key takes —
-#      stripping the quotes before validating would let malformed invocation
-#      metadata ship while the check reported PASS.
 make_skill dmi-quoted-value '---
 name: dmi-quoted-value
 description: "Quote the mode. Use when: '"'"'quoting the mode'"'"'."
@@ -3414,9 +3145,6 @@ else
   fail "quoted boolean should fail (rc=$rc): $out"
 fi
 
-# 24d-internal-space. Whitespace is trimmed at the ends only. Deleting it
-#      wholesale would splice a scalar broken by an internal space back into a
-#      passing boolean.
 make_skill dmi-split-value '---
 name: dmi-split-value
 description: "Split the mode. Use when: '"'"'splitting the mode'"'"'."
@@ -3439,8 +3167,6 @@ else
   fail "internally-spaced value should fail (rc=$rc): $out"
 fi
 
-# 24d-comment. A trailing YAML comment is the sanctioned way to record which
-#      exception class a `true` claims, so it must not turn the value invalid.
 make_skill dmi-commented-value '---
 name: dmi-commented-value
 description: "Annotate the mode. Use when: '"'"'annotating the mode'"'"'."
@@ -3463,8 +3189,6 @@ else
   fail "commented boolean should stay valid (rc=$rc): $out"
 fi
 
-# 24e. A non-setup `true` is noted for hand-verification against the exception
-#      classes — never warned, because no static scan can clear it.
 make_skill dmi-true-nonsetup '---
 name: dmi-true-nonsetup
 description: "Hide from the model. Use when: '"'"'hiding from the model'"'"'."
@@ -3488,8 +3212,6 @@ else
   fail "non-setup true should emit a hand-verify note (rc=$rc): $out"
 fi
 
-# 24f. A `setup` skill's true is class (ii) by the setup contract — the one
-#      attribution a static scan can make on its own.
 make_skill setup '---
 name: setup
 description: "Install the thing. Use when: '"'"'installing the thing'"'"'."
@@ -3512,8 +3234,6 @@ else
   fail "setup skill should be attributed to class (ii) (rc=$rc): $out"
 fi
 
-# 25a. Report-only verb (audit) whose description lead advertises mutation
-#      without override language warns (the listing-surface defect).
 make_skill audit '---
 name: audit
 description: "Rewrites the files it reviews. Use when: '"'"'rewriting reviewed files'"'"'."
@@ -3628,8 +3348,6 @@ else
   fail "mutate-desc+never-mutate-body should fail (rc=$rc): $out"
 fi
 
-# 25f. A Use-when trigger phrase containing "fix" does not advertise mutation
-#      — polarity is the lead clause only.
 make_skill audit-trigger-fix '---
 name: audit-trigger-fix
 description: "Emit a findings report. Use when: '"'"'fix the formatting'"'"'."
@@ -3652,8 +3370,6 @@ else
   fail "trigger-list fix should not warn (rc=$rc): $out"
 fi
 
-# 25g. "read-only by default" on a mutate verb is a default-then-override
-#      shape, not a never-mutates claim.
 make_skill clean '---
 name: clean
 description: "Inventory leftovers and optionally remove them after approval. Read-only by default. Use when: '"'"'cleaning leftovers'"'"'."
@@ -3676,8 +3392,6 @@ else
   fail "read-only-by-default should not warn (rc=$rc): $out"
 fi
 
-# 25h. "remediation" as a noun and a negated "or rewrites" list are not
-#      mutate-advertising — the false-positive pair the prototype caught.
 make_skill audit-noun '---
 name: audit-noun
 description: "Emits a findings report; remediation only when pre-approved. It never deletes, prunes, or rewrites. Use when: '"'"'auditing with a noun'"'"'."
@@ -3725,8 +3439,6 @@ else
   fail "fenced body example should not warn (rc=$rc): $out"
 fi
 
-# 25j. A consistent mutate verb (fix + rewrites the files + body mutates)
-#      is silent — the check is mismatch-only.
 make_skill fix-ok '---
 name: fix-ok
 description: "Rewrites the files that fail the gate. Use when: '"'"'rewriting failing files'"'"'."
@@ -3771,8 +3483,6 @@ else
   fail "never-rewrites-the-files should not warn (rc=$rc): $out"
 fi
 
-# 25l. A mutate lead with a scoped "does not modify X" is not a never-mutates
-#      claim — the restriction is on a particular target.
 make_skill fix-scoped '---
 name: fix-scoped
 description: "Fixes the source files but does not modify vendored dependencies. Use when: '"'"'fixing sources only'"'"'."
@@ -3795,8 +3505,6 @@ else
   fail "scoped does-not-modify should not warn (rc=$rc): $out"
 fi
 
-# 25m. CHECK_SKILL_ONLY=25 runs check 25 alone: the same mismatch FAILs, and no
-#      other check speaks (check 2's length note is absent).
 out="$(CHECK_SKILL_ONLY=25 run audit 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q "leaf verb 'audit' is a read-only findings report" <<<"$out" &&
@@ -3823,9 +3531,6 @@ else
   fail "CHECK_SKILL_ONLY=7 should exit 2 (rc=$rc): $out"
 fi
 
-# 26a. A reference spoke over 300 lines with no table of contents in its first
-#      40 lines WARNs (advisory: the run still passes). 301 lines is the first
-#      count over the threshold.
 toc_hub='---
 description: "Routes to a long spoke. Use when: '"'"'checking the spoke TOC heuristic'"'"'."
 disable-model-invocation: false
@@ -3854,8 +3559,6 @@ else
   fail "a 301-line spoke without a TOC should WARN (rc=$rc): $out"
 fi
 
-# 26b. The same length with three in-page anchor links up front is a TOC by
-#      the heuristic (mirrors audit-progressive-disclosure's has_toc), so no WARN.
 make_skill toc-present "$toc_hub"
 mkdir -p "$SKILLS/toc-present/reference"
 {
@@ -3870,8 +3573,6 @@ else
   fail "a long spoke with a TOC should not warn (rc=$rc): $out"
 fi
 
-# 26c. Under the threshold nothing fires: the 100-to-300 band belongs to
-#      audit-progressive-disclosure's judgment, not this gate.
 make_skill toc-short "$toc_hub"
 mkdir -p "$SKILLS/toc-short/reference"
 {
@@ -3886,9 +3587,6 @@ else
   fail "a 150-line spoke without a TOC should not warn (rc=$rc): $out"
 fi
 
-# 26d. Nested spoke layouts are a supported shape, so the walk is recursive: a
-#      long file at `reference/topic/details.md` is checked like one at the top
-#      of the directory, and the finding names it relative to the skill root.
 make_skill toc-nested '---
 description: "Routes to a nested long spoke. Use when: '"'"'checking the nested spoke TOC heuristic'"'"'."
 disable-model-invocation: false
@@ -3942,11 +3640,7 @@ fi
 INTERVAL_RE='\{[0-9]+(,[0-9]*)?\}'
 interval_hits="$(
   {
-    # Regex literals in the embedded awk programs, comment lines exempt (the
-    # rule is documented in prose that necessarily names the forbidden syntax).
     grep -nE "/[^/]*${INTERVAL_RE}[^/]*/" "$SUT" | grep -vE '^[0-9]+:[[:space:]]*#'
-    # The judge regex is a POSIX ERE that awk compiles, even though it is
-    # written as a shell string and never appears between slashes.
     grep -nE "^[[:space:]]*FRESH_EYES_JUDGE_RE=.*${INTERVAL_RE}" "$SUT"
   } 2>/dev/null
 )"
@@ -3956,17 +3650,7 @@ else
   pass "awk regexes are free of ERE interval expressions (mawk-portable)"
 fi
 
-# Check 2b: description FIELD cap (1024, Agent Skills spec) is a separate limit
-# from check 2's listing-entry cap (1536). The discriminating case is the middle
-# band — a description over 1024 but whose assembled entry is under 1536 — which
-# check 2 passes and only check 2b catches. Without that case a single cap could
-# satisfy both assertions, so it is the one that proves the layers are distinct.
 
-# The three bands are walked at their exact boundaries below — 992/993 for the
-# WARN margin's lower edge, 1024/1025 for the cap itself — because a guard that
-# only fires on a wildly oversized description proves nothing about where it
-# fires. Every case names the count it expects back, so an off-by-one in either
-# direction breaks a specific assertion rather than sliding through.
 
 run_with_baseline() {
   local baseline="$1"
@@ -3977,9 +3661,6 @@ run_with_baseline() {
       bash "$SUT" "$@")
 }
 
-# 2b-i. One codepoint over the field maximum FAILs. The Skills API rejects the
-#       description at upload; nothing local does, so before this was a FAIL the
-#       breach could only be found by an audit, after the edit had shipped.
 desc_1025="$(printf 'd%.0s' $(seq 1 1025))"
 make_skill field-cap-over "---
 name: field-cap-over
@@ -3999,10 +3680,6 @@ else
   fail "check 2b should FAIL at 1025/1024 (rc=$rc): $out"
 fi
 
-# 2b-ii. Boundary guard: exactly 1024 is legal — the spec says "Maximum 1024
-#        characters", so the FAIL comparison is >1024 and never >=1024. It sits
-#        inside the approach margin, so it WARNs with 0 codepoints left: the
-#        author is told the next clause breaches, and is not blocked today.
 desc_1024="$(printf 'd%.0s' $(seq 1 1024))"
 make_skill field-cap-exact "---
 name: field-cap-exact
@@ -4024,9 +3701,6 @@ else
   fail "check 2b should WARN with 0 left, not FAIL, at exactly 1024 (rc=$rc): $out"
 fi
 
-# 2b-ii-b. The margin's own lower edge. 993 is the first count inside the band
-#          (>1024-32) and 992 the last one outside it, so this pair pins the
-#          margin exactly rather than asserting "somewhere near the cap".
 desc_993="$(printf 'd%.0s' $(seq 1 993))"
 make_skill field-cap-margin-in "---
 name: field-cap-margin-in
@@ -4068,10 +3742,6 @@ else
   fail "check 2b should not warn at 992 (rc=$rc): $out"
 fi
 
-# 2b-iii. The discriminating case: desc(1100) + joiner(3) + wtu(40) = 1143 —
-#         comfortably under check 2's 1536 listing cap, so check 2 passes and
-#         reports no overflow, while the description alone breaches 1024. Proves
-#         the two caps are independent layers rather than one limit checked twice.
 desc_1100="$(printf 'd%.0s' $(seq 1 1100))"
 wtu_40="$(printf 'w%.0s' $(seq 1 40))"
 make_skill field-cap-independent "---
@@ -4121,12 +3791,6 @@ else
   fail "check 2b must count codepoints: 600 'é' is 600 chars, not 1200 bytes (rc=$rc): $out"
 fi
 
-# 2b-iv-b. The unit at the boundary that matters, which 2b-iv does not reach: a
-#          description of exactly 1024 codepoints that is NOT 1024 bytes. 1000
-#          'd' plus 24 'é' is 1024 codepoints and 1048 bytes, so a byte count
-#          reports 1048 and hard-FAILs a description the spec allows. The mix is
-#          deliberate: 1024 'é' would be 2048 bytes and trip check 2's own 1536
-#          listing cap, which would mask what this case is asserting.
 desc_1024_multibyte="$(printf 'd%.0s' $(seq 1 1000))$(printf 'é%.0s' $(seq 1 24))"
 make_skill field-cap-multibyte-exact "---
 name: field-cap-multibyte-exact
@@ -4148,10 +3812,6 @@ else
   fail "check 2b must not fail 1024 multibyte codepoints (2048 bytes) (rc=$rc): $out"
 fi
 
-# 2b-v. A recorded pre-existing breach downgrades from FAIL to WARN, so turning
-#       check 2b into a FAIL did not strand the skills that already breached.
-#       The row is addressed by repo-relative skill path, the only identifier
-#       unique across plugins.
 printf '# recorded breach\n.claude/skills/field-cap-over\n' >"$TMP/desc-baseline.txt"
 out="$(run_with_baseline "$TMP/desc-baseline.txt" field-cap-over 2>&1)"
 rc=$?
@@ -4161,9 +3821,6 @@ else
   fail "a baselined breach should WARN, not FAIL (rc=$rc): $out"
 fi
 
-# 2b-vi. Shrink-only: a row whose skill no longer breaches is stale and FAILs,
-#        so a description fixed once cannot be quietly re-licensed by a row left
-#        behind in the baseline.
 printf '.claude/skills/field-cap-exact\n' >"$TMP/desc-baseline-stale.txt"
 out="$(run_with_baseline "$TMP/desc-baseline-stale.txt" field-cap-exact 2>&1)"
 rc=$?
@@ -4173,9 +3830,6 @@ else
   fail "a stale baseline row should FAIL (rc=$rc): $out"
 fi
 
-# 2b-vii. A baseline path naming a file that is not there is a configuration
-#         error, not "no recorded rows" — the quiet reading would turn every
-#         downgrade back into a clean run without saying so.
 out="$(run_with_baseline "$TMP/no-such-baseline.txt" field-cap-over 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'does not exist' <<<"$out"; then
@@ -4242,8 +3896,6 @@ else
   fail "unlisted skill should still fail --require-evals (rc=$rc): $out"
 fi
 
-# 48b. A single-file plugin case.yaml whose tags name the skill satisfies --require-evals;
-#      one whose tags only start with the skill's name does not.
 mkdir -p "$TMP/plugins/p1/evals/c1"
 printf '%s\n' 'schema_version: 1' 'tags: [listed-other, hard]' >"$TMP/plugins/p1/evals/c1/case.yaml"
 out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
@@ -4264,9 +3916,6 @@ else
   fail "a case tagged listed should satisfy --require-evals (rc=$rc): $out"
 fi
 
-# 48c. The shape convert-evals-json.py writes: an untagged case.yaml beside a
-#      prompt.md whose front matter carries the tag. A tags line in the prompt
-#      body, after the front matter, does not count.
 printf '%s\n' 'schema_version: "1.1"' "name: 'listed-c1'" 'graders:' >"$TMP/plugins/p1/evals/c1/case.yaml"
 printf '%s\n' '---' "tags: ['other']" '---' '' "tags: ['listed']" >"$TMP/plugins/p1/evals/c1/prompt.md"
 out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
@@ -4305,7 +3954,6 @@ rm -rf "${TMP:?}/plugins/p1/evals"
 # deliberately outside a git repo and anchored on a relative root, which is the
 # shape that reproduces the fixed point on Linux as well as Windows.
 WALK_TMP="$(mktemp -d)"
-# Nested trap: remove the walk fixture alongside the dirs the outer traps own.
 trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP"' EXIT
 mkdir -p "$WALK_TMP/plugins/p1/skills/walkroot"
 cat >"$WALK_TMP/plugins/p1/skills/walkroot/SKILL.md" <<'EOF'
@@ -4335,9 +3983,6 @@ else
   fi
 fi
 
-# Check 27: the `## Next` successor section. Absence is INFO and never a
-# warning; a conforming section is silent; a misplaced or malformed one warns
-# and still passes (advisory).
 out="$(run good-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q "INFO: no '## Next' section" <<<"$out" && ! grep -q "WARN: '## Next'" <<<"$out"; then
@@ -4603,10 +4248,6 @@ else
   fail "'## Next' with 'this enabled' should not warn (rc=$rc): $out"
 fi
 
-# 27b. A stage-bearing skill (metadata.workflow-stage in the stage list) with no
-# '## Next' and no older routing heading warns; any routing heading, a
-# conforming '## Next', a non-stage value, or `interview` keeps today's verdict.
-# make_stage_skill <name> <workflow-stage-line-value> <extra-section>
 make_stage_skill() {
   make_skill "$1" '---
 name: '"$1"'
@@ -4690,10 +4331,6 @@ fi
 make_stage_skill stage-interview interview ''
 stage_quiet_case stage-interview "an interview-stage skill with no '## Next' does not warn (interview routes through its slice)"
 
-# --- R1-R12: explicit skills roots as positionals -----------------------------
-# One or more existing directories run the gate over every skill under each,
-# grouped per root with a rollup. Roots live under $TMP/roots so the fixtures
-# above are untouched.
 
 ROOTS_CWD="$TMP"
 mkdir -p "$TMP/roots/a/root-pass-a" "$TMP/roots/b/root-fail-b" \
@@ -4719,12 +4356,8 @@ printf '%s' '# no frontmatter here
 just a heading
 ' >"$TMP/roots/b/root-fail-b/SKILL.md"
 
-# R1. Two roots, one passing skill and one failing skill.
 out="$(run_roots "$TMP/roots/a" "$TMP/roots/b" 2>&1)"
 rc=$?
-# The per-skill verdict lines are what discriminate: a pre-root-mode script
-# checking a single skill can reach rc 1 too, but it can never report on two
-# skills under two different roots in one run.
 if [[ $rc -eq 1 ]] &&
   grep -q '^=== .*/roots/a ===$' <<<"$out" &&
   grep -q '^=== .*/roots/b ===$' <<<"$out" &&
@@ -4736,7 +4369,6 @@ else
   fail "R1: two roots should exit 1 with both headers, both verdict lines and '1 passed, 1 failed' (rc=$rc): $out"
 fi
 
-# R2. Two roots, every skill passing.
 out="$(run_roots "$TMP/roots/a" "$TMP/roots/c" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q '^2 passed, 0 failed$' <<<"$out"; then
@@ -4745,8 +4377,6 @@ else
   fail "R2: two all-passing roots should exit 0 with '2 passed, 0 failed' (rc=$rc): $out"
 fi
 
-# R3. A valid root plus a path that does not exist is an environment error, not
-#     a silently omitted subtree.
 out="$(run_roots "$TMP/roots/a" "$TMP/roots/nope" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'roots/nope' <<<"$out"; then
@@ -4755,8 +4385,6 @@ else
   fail "R3: an unresolvable path should exit 2 naming it (rc=$rc): $out"
 fi
 
-# R4. A root that exists but holds no skills is reported, not an error (the
-#     sibling listing-budget checker reports and exits 0 in the same case).
 out="$(run_roots "$TMP/roots/empty" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] &&
@@ -4767,7 +4395,6 @@ else
   fail "R4: an empty root should be named at exit 0 (rc=$rc): $out"
 fi
 
-# R5. A resolving skill name mixed with a root is ambiguous; refuse it.
 out="$(run_roots good-skill "$TMP/roots/a" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'mixed skill name and skills root' <<<"$out"; then
@@ -4776,9 +4403,6 @@ else
   fail "R5: a mixed call should exit 2 (rc=$rc): $out"
 fi
 
-# R6. Skill-name resolution wins over directory existence, so a same-named
-#     directory relative to the cwd cannot hijack the bare-name call the repo's
-#     own CI gate makes.
 mkdir -p "$TMP/good-skill"
 out="$(run good-skill 2>&1)"
 rc=$?
@@ -4788,7 +4412,6 @@ else
   fail "R6: a bare skill name should stay single-skill mode (rc=$rc): $out"
 fi
 
-# R7. --require-evals reaches every child run.
 out="$(run_roots --require-evals "$TMP/roots/ev" 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] &&
@@ -4799,8 +4422,6 @@ else
   fail "R7: --require-evals should reach the children (rc=$rc): $out"
 fi
 
-# R8. --help still prints the whole header block, now including the root form,
-#     and still stops at the first code line.
 out="$(run_roots --help 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] &&
@@ -4811,7 +4432,6 @@ else
   fail "R8: --help should print the root usage line and stop at the code (rc=$rc): $out"
 fi
 
-# R9. Zero positionals (and a bare --) keep the existing usage-error path.
 out="$(run_roots 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'Usage: check-skill.sh' <<<"$out"; then
@@ -4827,8 +4447,6 @@ else
   fail "R9: a bare -- should keep the usage-error path (rc=$rc): $out"
 fi
 
-# R10. Two skill names with no root is refused rather than silently dropping
-#      every positional after the first.
 out="$(run_roots good-skill bad-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'more than one skill name' <<<"$out"; then
@@ -4837,11 +4455,6 @@ else
   fail "R10: two skill names should exit 2 (rc=$rc): $out"
 fi
 
-# R11. A relative root resolves against the CALLER's cwd. The single-skill body
-#      anchors a relative CHECK_SKILL_SKILLS_ROOT at the project or repo root,
-#      so the parent has to absolutize every root before enumerating it or
-#      handing it to a child; otherwise the parent walks one tree and every
-#      child checks another.
 abs_out="$(run_roots "$TMP/roots/a" 2>&1)"
 abs_rc=$?
 ROOTS_CWD="$TMP/roots"
@@ -4857,8 +4470,6 @@ else
   fail "R11: a relative root should match the absolute run (rel=$rel_rc abs=$abs_rc): $rel_out"
 fi
 
-# R12. A trailing slash must not defeat the /plugins/<x>/skills$ plugin-root
-#      branch (the evals-warrant lookup). Both spellings resolve it.
 noslash_out="$(run_roots --require-evals "$TMP/plugins/p1/skills" 2>&1)"
 noslash_rc=$?
 slash_out="$(run_roots --require-evals "$TMP/plugins/p1/skills/" 2>&1)"
@@ -4871,10 +4482,6 @@ else
   fail "R12: a trailing-slash root should match the plain spelling (slash=$slash_rc plain=$noslash_rc): $slash_out"
 fi
 
-# R13. A directory that itself holds SKILL.md is a SKILL directory, not a skills
-#      root. Treating it as a root walks its subdirectories, finds no SKILL.md in
-#      any of them, and reports "no skills" at exit 0, so a CI lane written that
-#      way (tab completion produces exactly this argument) is permanently green.
 out="$(run_roots "$TMP/roots/a/root-pass-a" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] &&
@@ -4885,10 +4492,6 @@ else
   fail "R13: a skill directory as a root should exit 2 (rc=$rc): $out"
 fi
 
-# R14. A LONE nonexistent root is an environment error too. Reporting it only
-#      when some other root happened to resolve let a typo'd path fall through to
-#      the single-skill body, which answered a plain path with the plugin:skill
-#      cache guidance at exit 1.
 out="$(run_roots "$TMP/roots/nope" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] &&
@@ -4899,9 +4502,6 @@ else
   fail "R14: a lone nonexistent root should exit 2 naming it (rc=$rc): $out"
 fi
 
-# R14b. The same path an UNMATCHED glob takes: `check-skill.sh plugins/*/skills`
-#       with no match passes the literal pattern through, which must not be
-#       mistaken for a skill name either.
 out="$(run_roots "$TMP/no-such-dir/*/skills" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'no-such-dir' <<<"$out"; then
@@ -4928,11 +4528,6 @@ else
   fail "R15: a relative root should ignore CDPATH (rc=$rc): $out"
 fi
 
-# R16. The motivating case for deferring the skills-root resolution error: an
-#      EXPLICIT root positional has to work with no CHECK_SKILL_SKILLS_ROOT, no
-#      CLAUDE_PROJECT_DIR and no git repo (the marketplace plugin-cache install).
-#      Every other root case runs inside the fixture repo with the env set, so
-#      without this one the deferral is unexercised.
 NOGIT_TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP"' EXIT
 mkdir -p "$NOGIT_TMP/roots/x/nogit-skill"
@@ -4953,15 +4548,6 @@ else
   fail "R16: an explicit root should work with no env and no git (rc=$rc): $out"
 fi
 
-# R17. Each child's git context is the DISPATCHED tree's, never the caller's.
-#      Both halves of every git-backed check derive from cwd: REPO_ROOT from
-#      `rev-parse --show-toplevel`, SKILL_REL from `rev-parse --show-prefix`
-#      inside the skill dir. A child left at the caller's cwd takes those from
-#      two DIFFERENT repositories and checks 3/8/9/13 join them, so a path
-#      tracked in the caller's repo is reported against a skill that lives
-#      somewhere else. The fixture plants a tracked node_modules artifact in the
-#      caller's repo at the SAME relative path the external skill occupies, so
-#      the wrong-repo answer FAILs and the right-repo answer PASSes.
 XREPO="$(mktemp -d)"
 trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO"' EXIT
 mkdir -p "$XREPO/caller/skills/xskill/node_modules" "$XREPO/external/skills/xskill"
@@ -4987,8 +4573,6 @@ else
   fail "R17: the caller's repo must not answer for the dispatched tree (rc=$rc): $out"
 fi
 
-# R17b. The same root gated from INSIDE its own repo must agree. A verdict that
-#       depends on where the operator happened to stand is the defect.
 out2="$(cd "$XREPO/external" &&
   env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
     CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" "$XREPO/external/skills" 2>&1)"
@@ -5020,10 +4604,6 @@ else
   fail "R18: a non-git root should name the absent repo (rc=$rc): $out"
 fi
 
-# R19. CHECK_SKILL_BASE_REF is validated against the DISPATCHED repo. The
-#      parent validates before the dispatch against the CALLER's repo, so that
-#      verdict is deferred; a ref that exists only in the dispatched repo must
-#      not be rejected before anything runs.
 git -C "$XREPO/external" branch -q dispatched-only
 out="$(cd "$XREPO/caller" &&
   env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
@@ -5036,8 +4616,6 @@ else
   fail "R19: a dispatched-repo base ref should be accepted (rc=$rc): $out"
 fi
 
-# R19b. A ref absent from the dispatched repo is still an environment error in
-#       that child, surfacing as the run's exit 2 rather than a check failure.
 out="$(cd "$XREPO/caller" &&
   env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
     CHECK_SKILL_BASE_REF=no-such-ref-anywhere CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
@@ -5068,8 +4646,6 @@ else
   fail "R20: markdownlint should run from the repo top level (npx saw: $ml_log): $out"
 fi
 
-# R20b. A workspace-local install above the skill (invisible to npx from the
-#       repo top level) is used directly, still from the repo top level.
 mkdir -p "$XREPO/external/skills/node_modules/.bin"
 printf '#!/usr/bin/env bash\nprintf "local|%%s|%%s\\n" "$PWD" "$1" >"%s/npx.log"\n' "$XREPO" \
   >"$XREPO/external/skills/node_modules/.bin/markdownlint-cli2"
@@ -5086,8 +4662,6 @@ else
   fail "R20b: the workspace-local install should run (saw: $ml_log): $out"
 fi
 
-# R20c. The local install needs no npx: with every PATH entry holding npx
-#       dropped, check 6 still lints instead of reporting npx missing.
 no_npx_path=""
 IFS=: read -ra path_dirs <<<"$PATH"
 for d in "${path_dirs[@]}"; do
@@ -5142,7 +4716,6 @@ else
   fail "spaced model should fail (rc=$rc): $out"
 fi
 
-# Provider-format ids carry ':', '/' and '@'; only empty or spaced values fail.
 model_case() {
   make_skill "$1" "---
 name: $1
@@ -5167,7 +4740,6 @@ model_case model-flow-map 'model: {}' 1 "frontmatter model unquoted flow mapping
 model_case model-bool 'model: true' 1 "frontmatter model unquoted boolean fails"
 model_case model-quoted-bool 'model: "true"' 0 "frontmatter model quoted string passes"
 
-# The colon check reads the whole plain scalar, not only its first line.
 desc_case() {
   make_skill "$1" "---
 name: $1
@@ -5206,9 +4778,6 @@ desc_case desc-block-multi 'description: >
   a thing.
 compatibility: Requires git.' 0 "multi-line block-scalar description with colon-space passes"
 
-# Check 7 runs a skill's script tests with stdin closed, so a test that reads
-# stdin sees EOF instead of blocking; a long failing test is replayed as its
-# last 100 lines with a truncation line naming the command.
 make_skill script-stdin "$good_body"
 mkdir -p "$SKILLS/script-stdin/scripts"
 printf '#!/usr/bin/env bash\nif read -r -t 2 _x; then exit 1; fi\nexit 0\n' >"$SKILLS/script-stdin/scripts/x.test.sh"
@@ -5230,8 +4799,6 @@ if grep -q 'output truncated to the last 100 lines; run bash .*x.test.sh for all
 else
   fail "check 7 should truncate a 300-line failing test: $out"
 fi
-# CHECK_SKILL_SKIP_SCRIPT_TESTS=1 skips check 7 with a note: the failing test
-# above does not run.
 out="$(CHECK_SKILL_SKIP_SCRIPT_TESTS=1 run script-long 2>&1)"
 if grep -q 'script tests skipped (CHECK_SKILL_SKIP_SCRIPT_TESTS=1)' <<<"$out" &&
   ! grep -q 'script test failed' <<<"$out" && ! grep -qx '300' <<<"$out"; then
@@ -5240,10 +4807,6 @@ else
   fail "CHECK_SKILL_SKIP_SCRIPT_TESTS=1 should skip check 7: $out"
 fi
 
-# PLUGIN_TEST_DEADLINE ends check 7: no script test starts once it has passed.
-# make_script_tests <skill> <first-test-body> writes a.test.sh and b.test.sh;
-# each touches a marker named after itself before its body, so a case can tell
-# which ran.
 make_script_tests() {
   local skill="$1" body="$2" name
   make_skill "$skill" "${good_body//good-skill/$skill}"
@@ -5256,7 +4819,6 @@ make_script_tests() {
 }
 b_skip_line() { printf 'SKIP .claude/skills/%s/scripts/b.test.sh (past the deadline, left to CI)' "$1"; }
 
-# No deadline: every script test runs and the skill passes, as CI runs it.
 make_script_tests deadline-none 'exit 0'
 rc=0
 out="$(run deadline-none 2>&1)" || rc=$?
@@ -5267,8 +4829,6 @@ else
   fail "with no deadline check 7 should run every script test (rc=$rc): $out"
 fi
 
-# A deadline already past: nothing starts, each test is named, and the exit and
-# the verdict line say the run was not a pass.
 make_script_tests deadline-past 'exit 0'
 rc=0
 out="$(PLUGIN_TEST_DEADLINE=1 run deadline-past 2>&1)" || rc=$?
@@ -5282,8 +4842,6 @@ else
   fail "past its deadline check 7 should start nothing and exit 3 (rc=$rc): $out"
 fi
 
-# The first test starts inside a deadline 5 s away, far enough for a loaded host,
-# and runs 6 s past it, so the second does not start.
 make_script_tests deadline-mid 'sleep 6; exit 0'
 printf -v now '%(%s)T' -1
 rc=0
@@ -5306,7 +4864,6 @@ else
   fail "a failed script test should fail the run past its deadline (rc=$rc): $out"
 fi
 
-# A script test may start a checker of its own, which must not inherit the deadline.
 make_script_tests deadline-inherit '[[ -z "${PLUGIN_TEST_DEADLINE+x}" ]]'
 printf -v now '%(%s)T' -1
 rc=0
@@ -5326,7 +4883,6 @@ else
   fail "a bad deadline should exit 2 (rc=$rc): $out"
 fi
 
-# Root form: a skill that left tests is in neither tally, and the run says so.
 deadline_root="$TMP/deadline-root"
 mkdir -p "$deadline_root/root-skill/scripts"
 printf '%s' "${good_body//good-skill/root-skill}" >"$deadline_root/root-skill/SKILL.md"
@@ -5341,11 +4897,6 @@ else
   fail "root form should exit 3 for a skill that left script tests (rc=$rc): $out"
 fi
 
-# Check 7 runs a skill's script tests only when the skill sits in the invoking
-# cwd's git work tree; anywhere else (another repo, no repo, or a cwd in no
-# repo) it skips them with a note. Root mode runs each child at its dispatched
-# root, so the parent's answer must reach the child. Each fixture test touches
-# a marker and exits 1, so a run shows as the marker and a failure.
 SCOPE_TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO" "$SCOPE_TMP"' EXIT
 for scope_r in other nogit; do
@@ -5357,7 +4908,6 @@ done
 git -C "$SCOPE_TMP/other" init -q
 git -C "$SCOPE_TMP/other" add skills
 mkdir -p "$SCOPE_TMP/plaincwd"
-# scope_case LABEL CWD SKILLS-ROOT MARKER single|root run|skip [NOTE]
 scope_case() {
   rm -f "$4"
   local out rc
@@ -5398,9 +4948,6 @@ scope_case "skips a repo's test from a cwd in no repo (single mode)" "$SCOPE_TMP
   "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" single skip
 scope_case "skips a repo's test from a cwd in no repo (root mode)" "$SCOPE_TMP/plaincwd" \
   "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root skip
-# A plugin copy git never tracked, under a directory that is itself a work
-# tree (a home-directory repo), shares the invoker's toplevel, but its skills
-# root holds no tracked file: skipped with a note.
 mkdir -p "$SCOPE_TMP/home/cache/skills/good-skill/scripts"
 git -C "$SCOPE_TMP/home" init -q
 printf '%s' "$good_body" >"$SCOPE_TMP/home/cache/skills/good-skill/SKILL.md"
@@ -5413,8 +4960,6 @@ scope_case "skips an untracked test under the invoking work tree (root mode)" "$
   "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" root skip \
   'script test skipped: scripts/x.test.sh is not committed in the current repository yet'
 
-# Only the invoking repository's index vouches for a test: a nested repo under
-# a skill's scripts/ that commits its own test is not part of it.
 mkdir -p "$SCOPE_TMP/other/skills/nested-skill/scripts/inner"
 printf '%s' "$good_body" >"$SCOPE_TMP/other/skills/nested-skill/SKILL.md"
 printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/nested.ran" \
@@ -5435,16 +4980,11 @@ else
   fail "check 7 should skip a test a nested repository vouches for: $out"
 fi
 
-# An untracked, not-ignored test runs when its skills root already holds a
-# tracked file (a lane writes a new skill before it commits); one in a
-# brand-new skills root, or an ignored one, is skipped with a note.
-# scope_file SKILLS-ROOT SKILL MARKER: a skill whose test touches MARKER.
 scope_file() {
   mkdir -p "$1/$2/scripts"
   printf '%s' "$good_body" >"$1/$2/SKILL.md"
   printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$3" >"$1/$2/scripts/x.test.sh"
 }
-# scope_single LABEL SKILLS-ROOT SKILL MARKER run|skip [NOTE]
 scope_single() {
   rm -f "$4"
   local out
@@ -5475,8 +5015,6 @@ scope_single "skips an ignored test" \
   "$SCOPE_TMP/other/skills" ignored-skill "$SCOPE_TMP/ignored.ran" skip \
   'script test skipped: scripts/x.test.sh is not tracked in the current repository'
 
-# An exported GIT_DIR and GIT_WORK_TREE naming the skill's repo must not make
-# it the invoking repo: both toplevel probes ignore them.
 rm -f "$SCOPE_TMP/other.ran"
 out="$(cd "$TMP" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
   GIT_DIR="$SCOPE_TMP/other/.git" GIT_WORK_TREE="$SCOPE_TMP/other" \
@@ -5489,8 +5027,6 @@ else
   fail "check 7 should skip a test an exported GIT_DIR points at: $out"
 fi
 
-# The usage error carries no bash-internal prefix and points at --help; the
-# header names the markdownlint seam.
 out="$(run_roots 2>&1)"
 if ! grep -q 'line [0-9]*:' <<<"$out" && grep -q 'run with --help' <<<"$out"; then
   pass "no positionals prints a clean usage line that points at --help"
@@ -5503,10 +5039,6 @@ else
   fail "--help should document CHECK_SKILL_SKIP_MARKDOWNLINT"
 fi
 
-# --- Check 28: metadata keys come from the registry (WARN) --------------------
-# Expected values: the registry the design names holds `summary` and
-# `workflow-stage` (consumer: the cheat-sheet generator); `favorite-color` has
-# no consumer anywhere.
 make_skill meta-registered '---
 description: "Do a thing. Use when: '"'"'a thing'"'"' is needed."
 disable-model-invocation: false
@@ -5556,8 +5088,6 @@ else
   fail "check 28 should WARN on favorite-color only, exit 0 (rc=$rc): $out"
 fi
 
-# --- Check 29: this repo's history references in a SKILL.md body (WARN) -------
-# hist_case <name> <expect: warn|quiet> <label>, body text on stdin.
 hist_case() {
   local body
   body="$(cat)"
@@ -5595,9 +5125,6 @@ EOF
 hist_case hist-todo warn "check 29 WARNs on a TODO(#9) in the body" <<'EOF'
 TODO(#9): tighten this step.
 EOF
-# Copied verbatim from the /harness-ops:observability skill body: a pointer
-# record whose As of and Recheck trigger sit on
-# different bullets of one block, plus a cross-repo citation above it.
 hist_case hist-pointer-block quiet "check 29 stays quiet inside a multi-line pointer-record block" <<'EOF'
 `compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record over `api_request` events; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193), the open upstream report on missing `api_request` events. Events above the metric are flagged, never clamped, since that report does not cover them. `compare` sums data points only for delta temporality, so a non-delta token or cost metric exits 2.
 
@@ -5651,10 +5178,6 @@ else
   fail "check 29 should not read the frontmatter: $out"
 fi
 
-# --- Check 30: skill size against Pocock's measured max and the base ref -----
-# Expected values come from the plan: max description 419 characters, max body
-# 160 lines (lines after the closing frontmatter fence), medians 130 / 70.
-# size_skill <name> <description chars> <body lines>
 size_skill() {
   local desc body i
   desc="Do a thing. Use when: 'a thing' is needed."
@@ -5681,9 +5204,6 @@ if [[ $rc -eq 0 ]] && grep -q "WARN: description is 420 chars, above the descrip
 else
   fail "check 30 should WARN on 420 chars, exit 0 (rc=$rc): $out"
 fi
-# The description settings: target 250 and warn 419 by default, read from
-# docs/conventions/skill-quality.yaml (this fixture repo binds no home) and the
-# .local.yaml beside it, a later layer winning; 1024 stays the fixed FAIL.
 size_skill sz-setting 300 10
 out="$(run sz-setting 2>&1)"
 if grep -q 'INFO: description settings: target 250 (default), warn above 419 (default), fail above 1024 (fixed)' <<<"$out" &&
@@ -5718,9 +5238,6 @@ if grep -q "WARN: docs/conventions/skill-quality.local.yaml: description_warn is
 else
   fail "check 30 should name the invalid value and fall back to the default 419: $out"
 fi
-# A repository whose AGENTS.md region binds a home reads the layers from that
-# home, never from docs/conventions; a region that does not resolve WARNs and
-# reads no layer.
 rm -f "$TMP/docs/conventions/skill-quality.local.yaml"
 printf 'description_warn: 280\n' >"$TMP/docs/conventions/skill-quality.yaml"
 mkdir -p "$TMP/team-conv"
@@ -5768,8 +5285,6 @@ if [[ $rc -eq 0 ]] && grep -q "WARN: SKILL.md body is 161 lines, above Pocock's 
 else
   fail "check 30 should WARN on 161 body lines, exit 0 (rc=$rc): $out"
 fi
-# This fixture repo has no origin remote, so with no CHECK_SKILL_BASE_REF the
-# growth half has no base and says so.
 if grep -q 'INFO: no base ref for the size-growth comparison' <<<"$out"; then
   pass "check 30 skips growth with an INFO when no base ref resolves"
 else
@@ -5803,9 +5318,6 @@ if grep -q 'INFO: no HEAD version (new skill): size growth skipped' <<<"$out" &&
 else
   fail "check 30 should skip growth for a new skill: $out"
 fi
-# Router cap: 5000 tokens, estimated as whole-file codepoints / 4 rounded up,
-# so 20000 chars is exactly at the cap and 20001 is the first over it.
-# router_skill <name> <total SKILL.md chars>
 router_skill() {
   local md pad
   md=$'---\ndescription: "Do a thing. Use when: \'a thing\' is needed."\ndisable-model-invocation: false\n---\n'
@@ -5831,11 +5343,6 @@ else
   fail "check 30 should WARN above the router cap, exit 0 (rc=$rc): $out"
 fi
 
-# Check 31: a settings token as the subject of a condition with no fallback.
-# The flagged and passing shapes are the ones the check's spec names: the
-# misread "When `${user_config.x}` is true", the `/code-tidying:tidy` fallback
-# sentence, the "when non-empty, else the root default" form, and a token in a
-# fenced shell block.
 st_skill() {
   make_skill "$1" "---
 name: $1
@@ -6050,10 +5557,6 @@ else
   fail "check 31 should FAIL a missing named baseline (rc=$rc): $out"
 fi
 
-# Check 31 severity follows whether a baseline applies to the run. A consumer
-# that names its own baseline (the empty-file cases above) is strict. With no
-# baseline named, only a run of the checker on its own repository applies the
-# default baseline; a consumer repository or a plain tree gets WARNs, exit 0.
 run_st_default() {
   (cd "$1" && env -u CHECK_SKILL_SETTINGS_TOKEN_BASELINE \
     CHECK_SKILL_SKILLS_ROOT="$3" CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$2" "$4")
