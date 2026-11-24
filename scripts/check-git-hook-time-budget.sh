@@ -6,8 +6,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/gate-entry.sh" || exit 2
-base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=815
-ref_rounds=2 ref_files=400 desk_commit_ms=1688 desk_push_ms=1470 zero=0000000000000000000000000000000000000000
+base="" force=0 scope_only=0 runs=3 budget_ms=3000 ref_ms="" ref_host_ms=1000 ref_files=400
+parts_host_ms="307 46 40 0.97" share_commit="0.26 0.29 0.28 0.17" share_push="0 0.19 0.18 0.63"
+desk_commit_ms=1934 desk_push_ms=1207 zero=0000000000000000000000000000000000000000
 
 usage() {
   cat >&2 <<'EOF'
@@ -18,18 +19,22 @@ pre-commit runs on a throwaway fixture repository with 10 staged files. pre-push
 the real checkout, whose size its entries' cost grows with: HEAD pushed as a new
 non-default branch, ranged from origin/main.
 
-The budget is calibrated, so a slower runner does not flake: a reference workload that
-runs none of the hooks' code and does not grow with the repository is timed in the same
-run: git status over a generated 400-file tree, one node process reading and parsing it,
-then two rounds of one start of each interpreter the shipped entries use (pwsh compiling
-a one-line type with Add-Type, since a bare start misses the assembly load and JIT the
-hooks pay, without timing a tool the hooks run; bare python3, node, bash, git); median of 3.
-Its value on the host that set the budget is 815 ms (Linux on WSL2, 24 CPUs, 2026-11-24,
-median of five runs: 820, 815, 763, 764, 829 ms); the same runs put pre-commit at 1688 ms
-and pre-push at 1470 ms. The scaled budget
-is 3 s x this run's reference / 815 ms. Every run prints the hooks' own ratio (total / desk
-total) beside the reference ratio; in CI it warns when they differ by over 30%. Raw
-seconds, the ratio and the scaled budget all print; pass/fail is on the scaled budget.
+The budget is calibrated per hook, so a slower runner does not flake: four reference
+parts that run none of the hooks' code and do not grow with the repository are timed in
+the same run: pwsh (one start compiling a one-line type with Add-Type, since a bare start
+misses the assembly load and JIT the hooks pay, without timing a tool the hooks run),
+starts (bare python3, node, bash, git), files (git status over a generated 400-file tree,
+one node process reading and parsing it), each median of 5, and spawn (S, below), since
+the hooks' scripts fork many short processes. Their values on the host that set the
+budget are 307, 46, 40 and 0.97 ms (Linux on WSL2, 24 CPUs, 2026-11-24, median of five
+runs), which put pre-commit at 1934 ms and pre-push at 1207 ms, HEAD one commit past
+origin/main. A hook's reference ratio weights each part's ratio to that host by the
+share of the hook's own time that kind of work takes, fitted to a CI run where pwsh ran
+2.7x the host, spawn 2.1x and starts and files 0.93x: pre-commit 0.26 pwsh, 0.29 starts,
+0.28 files, 0.17 spawn; pre-push 0.19 starts, 0.18 files, 0.63 spawn, no pwsh. Its scaled
+budget is 3 s x that ratio. Every run prints the hooks' own ratio (total / desk total) beside the
+reference ratio; in CI it warns when they differ by over 30%. Raw seconds, the ratio and
+the scaled budget all print; pass/fail is on the scaled budget.
 Under a tracer (TracerPid not 0) the times print and nothing is judged.
 
 The fixture sets checks.skipmissing (ADR 0072 item 4) to every tool the entries.json
@@ -50,8 +55,8 @@ the gate with the tool's name, since CI installs every hook tool first.
   --root <dir>     the repository whose hook entries are timed (default: this one)
   --runs <n>       runs per entry; an entry's time is the median (default 3)
   --budget-ms <ms> the budget of each hook on the reference host (default 3000)
-  --ref-ms <ms>    use this as the run's reference instead of timing it
-  --ref-host-ms <ms> the reference host's value (default 815)
+  --ref-ms <ms>    time no reference: both hooks' ratio is <ms> / --ref-host-ms
+  --ref-host-ms <ms> the divisor for --ref-ms (default 1000)
   --scope-only     time nothing: print applies=true or applies=false on stdout (the
                    form GITHUB_OUTPUT takes), every other line on stderr
 
@@ -211,7 +216,16 @@ fx="$(mktemp -d)" || exit 2
 refdir="$(mktemp -d)" || exit 2
 trap 'rm -rf "$fx" "$refdir"' EXIT
 
-reference_once() {
+part_pwsh() {
+  pwsh -NoProfile -NonInteractive -Command "Add-Type -TypeDefinition 'public static class A { public static int F() { return 1; } }'" >/dev/null
+}
+part_starts() {
+  python3 -c 0
+  node -e 0
+  bash -c :
+  git --version >/dev/null
+}
+part_files() {
   git -C "$refdir" status --porcelain --untracked-files=all >/dev/null
   node -e '
     const fs = require("fs");
@@ -220,16 +234,19 @@ reference_once() {
       if (e.isFile()) n += JSON.stringify(JSON.parse(fs.readFileSync(e.parentPath + "/" + e.name, "utf8"))).length;
     process.stdout.write(String(n));
   ' "$refdir/tree" >/dev/null
-  local i
-  for ((i = 0; i < ref_rounds; i++)); do
-    pwsh -NoProfile -NonInteractive -Command "Add-Type -TypeDefinition 'public static class A { public static int F() { return 1; } }'" >/dev/null
-    python3 -c 0
-    node -e 0
-    bash -c :
-    git --version >/dev/null
-  done
 }
-if [[ -z "$ref_ms" ]]; then
+ratio_of() {
+  awk -v s="$1" -v m="${parts_ms[*]}" -v h="$parts_host_ms" 'BEGIN {
+    split(s, a, " "); split(m, b, " "); split(h, c, " ")
+    for (i = 1; i <= 4; i++) r += a[i] * b[i] / c[i]
+    printf "%.4f", r
+  }'
+}
+if [[ -n "$ref_ms" ]]; then
+  ratio_commit="$(awk -v a="$ref_ms" -v b="$ref_host_ms" 'BEGIN { printf "%.4f", a / b }')"
+  ratio_push=$ratio_commit
+  ref_line="reference workload: $ref_ms ms; reference host: $ref_host_ms ms; ratio $(awk -v r="$ratio_commit" 'BEGIN { printf "%.2f", r }') for both hooks"
+else
   for tool in pwsh python3 node; do
     command -v "$tool" >/dev/null 2>&1 || {
       echo "GIT HOOK TIME BUDGET: $tool is not installed, so the reference workload cannot run." >&2
@@ -241,13 +258,21 @@ if [[ -z "$ref_ms" ]]; then
   for ((i = 0; i < ref_files; i++)); do
     printf '{"name": "item-%d", "lines": ["one", "two", "three"], "n": %d}\n' "$i" "$i" >"$refdir/tree/$((i % 20))-$i.json"
   done
-  ref_ms="$(for _ in 1 2 3; do
-    t0=$(now_us)
-    reference_once
-    echo $((($(now_us) - t0) / 1000))
-  done | median)"
+  : >"$refdir/pwsh" && : >"$refdir/starts" && : >"$refdir/files"
+  for _ in 1 2 3 4 5; do
+    for p in pwsh starts files; do
+      t0=$(now_us)
+      "part_$p"
+      echo $((($(now_us) - t0) / 1000)) >>"$refdir/$p"
+    done
+  done
+  parts_ms=("$(median <"$refdir/pwsh")" "$(median <"$refdir/starts")" "$(median <"$refdir/files")" "$(awk -v s="$S" 'BEGIN { printf "%.2f", s / 1e3 }')")
+  ratio_commit="$(ratio_of "$share_commit")"
+  ratio_push="$(ratio_of "$share_push")"
+  read -r h_pwsh h_starts h_files h_spawn <<<"$parts_host_ms"
+  ref_line="reference workload: $((parts_ms[0] + parts_ms[1] + parts_ms[2])) ms: pwsh ${parts_ms[0]} ms (desk $h_pwsh), starts ${parts_ms[1]} ms (desk $h_starts), files ${parts_ms[2]} ms (desk $h_files), median of 5 each; spawn S ${parts_ms[3]} ms (desk $h_spawn)"
 fi
-limit_us=$((budget_ms * 1000 * ref_ms / ref_host_ms))
+limit_of() { awk -v b="$budget_ms" -v r="$1" 'BEGIN { printf "%.0f", b * 1000 * r }'; }
 tracer="$(awk '/^TracerPid:/ { print $2 }' /proc/$$/status 2>/dev/null)"
 g() { git -C "$fx" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
 g init -q -b main
@@ -417,12 +442,13 @@ time_hook() {
     echo "  no entry ran"
     return
   fi
-  printf '  %-48s %9s  %7s  scaled budget %s\n' total "$(secs "$total")" "$(in_s "$total")" "$(secs "$limit_us")"
-  local desk_ms=$desk_commit_ms
-  [[ "$ev" == pre-push ]] && desk_ms=$desk_push_ms
-  awk -v t="$total" -v d="$desk_ms" -v r="$ref_ms" -v h="$ref_host_ms" -v ev="$ev" -v ci="${GITHUB_ACTIONS:-}" 'BEGIN {
-    hooks = t / 1000 / d; ref = r / h
-    printf "  hooks ratio %.2f (this total / desk total %d ms); reference ratio %.2f\n", hooks, d, ref
+  local desk_ms=$desk_commit_ms ratio=$ratio_commit limit_us
+  [[ "$ev" == pre-push ]] && desk_ms=$desk_push_ms && ratio=$ratio_push
+  limit_us="$(limit_of "$ratio")"
+  printf '  %-48s %9s  %7s\n' total "$(secs "$total")" "$(in_s "$total")"
+  awk -v t="$total" -v d="$desk_ms" -v ref="$ratio" -v l="$limit_us" -v ev="$ev" -v ci="${GITHUB_ACTIONS:-}" 'BEGIN {
+    hooks = t / 1000 / d
+    printf "  reference ratio %.2f; scaled budget %.3f s; hooks ratio %.2f (this total / desk total %d ms)\n", ref, l / 1e6, hooks, d
     if (ci == "true" && (hooks > ref * 1.3 || ref > hooks * 1.3))
       printf "::warning title=git-hook reference drift::%s hooks ratio %.2f and reference ratio %.2f differ by more than 30%%; the reference may not track what the hooks pay.\n", ev, hooks, ref
   }'
@@ -430,12 +456,12 @@ time_hook() {
     echo "  not judged: a tracer (pid $tracer) slows every syscall"
   elif ((total > limit_us)); then
     over=1
-    echo >&2 "FAIL: $ev took $(secs "$total"), over its scaled budget of $(secs "$limit_us") ($budget_ms ms x reference $ref_ms ms / $ref_host_ms ms; ADR 0072); slowest entry: $slow at $(secs "$slow_us"). Optimize it first; move it to CI only if it still risks the budget."
+    echo >&2 "FAIL: $ev took $(secs "$total"), over its scaled budget of $(secs "$limit_us") ($budget_ms ms x reference ratio $(awk -v r="$ratio" 'BEGIN { printf "%.2f", r }'); ADR 0072); slowest entry: $slow at $(secs "$slow_us"). Optimize it first; move it to CI only if it still risks the budget."
   fi
 }
 
 echo "S, one no-op bash -c : spawn, median of 21: $(awk -v us="$S" 'BEGIN { printf "%.2f ms", us / 1e3 }')"
-echo "reference workload: $ref_ms ms; reference host: $ref_host_ms ms; ratio $(awk -v a="$ref_ms" -v b="$ref_host_ms" 'BEGIN { printf "%.2f", a / b }'); scaled budget $(secs "$limit_us") per hook"
+echo "$ref_line"
 time_hook pre-commit "10 staged files on the fixture" "$fx"
 pp_remote="$(git -C "$ROOT" remote get-url origin 2>/dev/null || echo https://example.invalid/repo.git)"
 time_hook pre-push "HEAD of the real checkout as a new branch" "$ROOT" origin "$pp_remote"
