@@ -139,6 +139,13 @@ when the question is whether finished work is sound.
 
 `/planning:interview`, when the raised request leaves several open decisions; it locks them into a brief.
 
+## Related
+
+- Need divergent options rather than one raised request: /planning:brainstorm.
+- Check whether finished work is sound: /discipline:scrutinize-dont-coast.
+- Goal is session or team throughput: /performance:go-faster.
+- Crew of specialists proposed: /planning:plan.
+
 ## Gotchas
 
 - **Keep the outside check even when the request already says "don't

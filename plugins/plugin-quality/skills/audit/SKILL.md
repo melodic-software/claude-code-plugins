@@ -457,13 +457,6 @@ the gate does not cover, because it produces no external effect; there is still 
 > user override. Here the unconditional draft+confirm surface is that override: the user approves
 > the exact `gh issue create` at the mutation point.
 
-## Recurring concerns. Apply every audit
-
-Walk `reference/recurring-concerns.md` before finalizing findings, the accumulated
-design-failure checklist (silent bypass surfaces, enforcement scope/tiers including a claimed
-property the producer can break, SSOT/drift, coupling, cross-platform, escape hatches,
-observability).
-
 ## What this composes
 
 This audit calls, and replaces none of: `/session-flow:running-retro` (`arm`, and the ledger
@@ -484,13 +477,19 @@ record in [evidence-packet.md](reference/evidence-packet.md#layout-and-files).
 
 `/work-items:work` in the audited plugin's own repository, which claims the emitted item and executes it.
 
+## Related
+
+- Static skill QA in isolation without behavioral evidence: /skill-quality:check.
+- Auditing an MCP server: /mcp-tools:audit.
+- General code review of a change set: /review:quality-gate.
+
 ## Reference index. Load on demand
 
 | File | Load when |
 |------|-----------|
 | `reference/evidence-packet.md` | Before step 1 writes the packet, and before any step reads it. |
 | `reference/categories.md` | Before step 2 writes findings, and before step 3 grades the ledger. |
-| `reference/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
+| `reference/recurring-concerns.md` | Every audit, walked before finalizing findings: the design-failure checklist (silent bypass surfaces, enforcement scope/tiers including a claimed property the producer can break, SSOT/drift, coupling, cross-platform, escape hatches, observability). |
 | `reference/session-mode.md` | Running `session` or `arm`, applying the evidence bar or research gate, or resolving step 5's role seams. |
 | `reference/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
 | `reference/component-types/skill-component.md` | Auditing a skill (frontmatter, disclosure, triggering). |
