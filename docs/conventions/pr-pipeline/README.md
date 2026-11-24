@@ -198,7 +198,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread or a trusted person's top-level comment addressed to the lane, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
+| `work-unblock` | an issue closing, by a listed human, and a sweep every 15 minutes ([the work-unblock sweep](#the-work-unblock-sweep)) of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -387,6 +387,60 @@ any text holds a line a gate reads or the body's gate-read lines would change. I
 those sections and its `## Follow-ups` entries. `fix-ci` rewrites no body section; an attended
 session does ([`monitor.md`](../../../plugins/source-control/skills/pull-request/reference/monitor.md)
 §3.3.2 step 5).
+
+### The work-unblock sweep
+
+`work-unblock.yml` sweeps on its schedule every 15 minutes, at minutes 13, 28, 43 and 58, from
+`main` only; its `publish-lane-level` job runs only after the minute-28 sweep, so it still decides
+once an hour. A sweep applies the close path's rules to every issue a listed human or a merge (a
+merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
+An issue a bot closes (the lanes App, or a PR merge a bot ran) starts no close run, since the broker
+would refuse that mint; the sweep covers it. Two other events start the same sweep:
+
+- **A finished issue lane run.** Each `work-resolve-issue` run that finishes, unless it ran no job,
+  starts it at once through `workflow_run`, so a freed slot admits the next deferred issue then,
+  unless a full sweep finished under `limits.sweep-gap-minutes` ago. That run executes `main`'s
+  code only, for a same-repository run, and reads no artifact of the triggering run; it reads only
+  the `work-unblock-verdicts` artifact of `main`'s own last successful sweep (`verdict-carry.mjs`,
+  `sweepRun`).
+- **A hand start.** A `workflow_dispatch` runs exactly as the schedule's sweep: after an outage
+  ends it re-fires the runs the upstream-status stop skipped without waiting for the next scheduled
+  sweep. It mints only where the token broker lists `workflow_dispatch` among `work-unblock.yml`'s
+  events, and then only for a listed human.
+
+After an outage or a kill switch, the next of these sweeps is the probe: nothing re-arms it.
+
+Each sweep also does the following, with at most `limits.restarts-per-run` restarts, re-fires and
+relabels a run in all:
+
+- **Restarts** an issue the usage limit stopped: once the limit has reset, the lanes App removes
+  and re-adds `agent-ready`. After `limits.limit-stops-per-issue` limit or funding stops since a
+  person added `agent-ready`, it stops restarting the issue, removes `agent-ready` and adds no
+  label.
+- **Re-fires** the same way an issue whose `work-resolve-issue` run did no work and left no report:
+  a crash; a rerun the token broker refused as `workflow-modified` (a rerun keeps its first event's
+  workflow files); a run that waited in its slot past a lane workflow change and stopped at
+  `Stop on stale workflow files` (its own report-outcome re-fires it at once, until its mint is
+  refused or `limits.limit-stops-per-issue` re-fires; then the sweep does); or a run cancelled after
+  `check-admission` and before `resolve-issue` started (`pick-slot`'s timeout). A run a newer
+  `agent-ready` run replaced is not re-fired. It re-fires once per issue per version of the lane's
+  two workflow files on `main`, recorded in a comment, and after that on a backoff (its cause's
+  `limits.stranded-backoff-hours`, doubling each time, at most 24), recorded in one comment it
+  edits; it never adds `needs-human` for it. An open pull request of a listed human's for the issue
+  counts as work running on it.
+- **Relabels** a red-main fix issue `post-merge-file-demotion-issues.yml` reopened on a repeat
+  failure: that reopen keeps `agent-ready` but, made with the workflow's `GITHUB_TOKEN`, starts no
+  run. Matched by the issue's `<!-- post-merge-fix check=... -->` first line and the workflow's
+  recurrence comment, the App removes and re-adds `agent-ready` once per such comment, unless the
+  issue is held, has an open lane PR or a lane run in flight.
+- **Hands back** an `agent-ready` issue whose lanes App PR merged with `Refs:` or was closed
+  unmerged: after a comment, the App sets its Work status to `needs-triage` and takes `agent-ready`
+  off, so the hourly triage sweep sends it back to intake triage. A `Refs:` PR merging or closing
+  unmerged also lifts a `needs-human` refs-hold already on the issue for it; report-outcome does not
+  set that hold, so only an existing one is lifted.
+
+The queued cap paces the sweep's new `agent-ready` labels and never its restarts, re-fires or
+relabels ([WIP cap](#wip-cap)).
 
 ### Outage posture
 
@@ -1446,7 +1500,7 @@ the rules that only tighten in
   whose fix issue was closed reopens that issue with a comment naming the new range, keeping
   `agent-ready` and sending it to intake triage no second time, so a repeat goes straight back to
   agents (a first failure still waits for the owner's ratification). That reopen starts no run, so
-  work-unblock's hourly sweep removes and re-adds `agent-ready` with the lanes App token, once per
+  work-unblock's sweep removes and re-adds `agent-ready` with the lanes App token, once per
   recurrence comment, unless the issue is held or has an open lane PR or a lane run in flight; one closed
   as not planned or duplicate stays closed and mutes the check. Closing a fix issue releases
   nothing on the record.
@@ -3923,7 +3977,7 @@ and `attended` labels, and a retry adds them to a part it reuses.
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
 (`size-split.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
-for what the parent blocks. It checks the rule when a sub-issue closes, and on the hourly sweep for
+for what the parent blocks. It checks the rule when a sub-issue closes, and on each sweep for
 up to `limits.parent-rescan-per-run` open parents whose sub-issues all show completed and whose
 number is the UTC hour modulo 24, so a parent whose last sub-issue closed outside the sweep window
 still closes. A sub-issue closed as not planned, as a duplicate or with no reason
@@ -4155,7 +4209,7 @@ after the read. A page that fails or is not a list leaves the queued count unrea
 one more issue as queued, and admissions pause (`queued_truncated: true`).
 
 work-unblock is the one lane that adds `agent-ready` to a new issue. Past the room it labels a
-ready issue `admission-deferred` instead, and each hourly sweep revisits the open
+ready issue `admission-deferred` instead, and each sweep revisits the open
 `admission-deferred` issues oldest first, before the issues closed in its window. Only an issue
 whose newest `admission-deferred` was added by the lanes App or a listed human (by id) is
 revisited; any other is left as is with a warning annotation, since re-admitting it adds the App's
@@ -4194,7 +4248,7 @@ finds them.
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
 group with one waiting run, which a newer run replaces), so a burst of closes or finished issue runs,
-or a close run beside the hourly sweep, cannot each admit the full room. The next sweep does a
+or a close run beside a scheduled sweep, cannot each admit the full room. The next sweep does a
 replaced run's work: it reads the whole state, and its closed-issue window repeats a close run's. An `agent-ready` label added moments before may still be missing from
 the issues listing, so a run right after another may read the room as one admission too wide.
 
