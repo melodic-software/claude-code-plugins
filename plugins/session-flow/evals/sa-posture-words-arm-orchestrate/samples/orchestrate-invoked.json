@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:orchestrate"
+          }
+        }
+      ],
+      "why": "qualified skill name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "orchestrate",
+            "args": "work the task file"
+          }
+        }
+      ],
+      "why": "bare skill name with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:handoff"
+          }
+        }
+      ],
+      "why": "another skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/greet.py"
+          }
+        }
+      ],
+      "why": "no orchestrate call"
+    }
+  ]
+}
