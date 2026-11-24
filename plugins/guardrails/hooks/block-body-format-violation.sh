@@ -147,6 +147,18 @@ _bfv_bash() {
     r="${r//[\"\']/}"
     _bfv_slug_to _BFV_TARGET "$r" || exit 0
   fi
+  local i w u re_url='^https?://[^/[:space:]]+/([^/[:space:]]+/[^/[:space:]]+)/pull/[0-9]+/?([?#].*)?$'
+  for ((i = 0; i < ${#GHPOST_TEXTS[@]}; i++)); do
+    w="${GHPOST_TEXTS[i]}"
+    [[ "$w" =~ $re_url ]] || continue
+    case "${GHPOST_TEXTS[i - 1]-}" in
+    -b | --body | -t | --title) continue ;;
+    *) ;;
+    esac
+    _bfv_slug_to u "${BASH_REMATCH[1]}" || exit 0
+    [[ -z "$_BFV_TARGET" || "$_BFV_TARGET" == "$u" ]] || exit 0
+    _BFV_TARGET="$u"
+  done
   _bfv_body || exit 0
 }
 
@@ -287,15 +299,19 @@ while [[ "$_bfv_text" == *'<!--'* ]]; do
   fi
 done
 mapfile -t _BFV_LINES <<<"$_bfv_text"
-_bfv_fenced=0
-_bfv_re_fence='^ {0,3}(```|~~~)'
+_bfv_fence=""
+_bfv_re_fence='^ {0,3}(`{3,}|~{3,})(.*)$'
 for _bfv_i in "${!_BFV_LINES[@]}"; do
-  if [[ "${_BFV_LINES[_bfv_i]}" =~ $_bfv_re_fence ]]; then
-    _bfv_fenced=$((1 - _bfv_fenced))
-    _BFV_LINES[_bfv_i]=""
-  elif ((_bfv_fenced)); then
-    _BFV_LINES[_bfv_i]=""
+  _bfv_l="${_BFV_LINES[_bfv_i]}"
+  if [[ -z "$_bfv_fence" ]]; then
+    [[ "$_bfv_l" =~ $_bfv_re_fence ]] || continue
+    [[ "${BASH_REMATCH[1]:0:1}" == '`' && "${BASH_REMATCH[2]}" == *'`'* ]] && continue
+    _bfv_fence="${BASH_REMATCH[1]}"
+  elif [[ "$_bfv_l" =~ $_bfv_re_fence && "${BASH_REMATCH[1]:0:1}" == "${_bfv_fence:0:1}" &&
+    ${#BASH_REMATCH[1]} -ge ${#_bfv_fence} && "${BASH_REMATCH[2]}" =~ ^[[:space:]]*$ ]]; then
+    _bfv_fence=""
   fi
+  _BFV_LINES[_bfv_i]=""
 done
 
 _bfv_trim_to() {
