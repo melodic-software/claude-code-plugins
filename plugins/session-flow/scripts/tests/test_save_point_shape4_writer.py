@@ -3,7 +3,7 @@
 Expected values come from reference/structure.md ("Shape 4"), the 24,600-byte cap, the Read tool's
 58,500-byte page cap, and the slot budgets: the 95th percentile of the Resumption
 brief (979 bytes) and of a non-empty below-the-rails note (281 bytes) over the
-143 shape-3 hot files dated in the 7-day audit window (2026-11-11T18:46Z to
+143 shape-3 handoff files dated in the 7-day audit window (2026-11-11T18:46Z to
 2026-11-18T18:46Z)."""
 
 from __future__ import annotations

@@ -15,10 +15,10 @@ RETIRED_PREFIX = "Retired:"
 
 @dataclass(frozen=True)
 class SectionSpec:
-    """One hot-file section. `binding` never leaves the hot file to meet the
-    cap, `movable` may move to the hop file, `carried` is written by `new`
+    """One handoff-file section. `binding` never leaves the handoff file to meet the
+    cap, `movable` may move to the archive file, `carried` is written by `new`
     alone; `id_prefix` names the `[<prefix><n>]` ids its entries carry and
-    `retire_heading` the hop-file heading an entry leaving it is listed under."""
+    `retire_heading` the archive-file heading an entry leaving it is listed under."""
 
     name: str
     binding: bool = False
@@ -38,7 +38,7 @@ class SectionSpec:
 @dataclass(frozen=True)
 class IdSpec:
     """One family of `[<prefix><n>]` ids: the sections holding them, the
-    hop-file heading listing each id that leaves with why, and the frontmatter
+    archive-file heading listing each id that leaves with why, and the frontmatter
     key holding the next unused id."""
 
     prefix: str
@@ -332,7 +332,7 @@ def id_of(prefix: str, text: str) -> tuple[int | None, str]:
 def retired_listings(
     archived: str, heading: str
 ) -> list[tuple[tuple[str, ...], str | None]]:
-    """Each listing under `## <heading>` in a hop file: the entry's lines and the
+    """Each listing under `## <heading>` in an archive file: the entry's lines and the
     reason on the `Retired:` line closing it, or None for a line no `Retired:`
     line closes (the one-line `- [R<n>] <reason>` rule shape)."""
     found: list[tuple[tuple[str, ...], str | None]] = []
@@ -391,7 +391,7 @@ MOVE_POINTER_RE = re.compile(
 @dataclass(frozen=True)
 class MovePointer:
     """`archive/<chain>/h<k>-<sid8>.md#<Section heading>`: where a section moved
-    out of the hot file now lives, relative to the hot file's directory."""
+    out of the handoff file now lives, relative to the handoff file's directory."""
 
     file: str
     heading: str
@@ -427,7 +427,7 @@ class MovePointer:
 
 
 def moved_heading(name: str, hop: int) -> str:
-    """The heading a hop's own moved section takes in its hop file, which holds
+    """The heading a hop's own moved section takes in its archive file, which holds
     the predecessor's copy of that section under the plain name."""
     return f"{name} (h{hop})"
 
@@ -490,7 +490,7 @@ def follow(body: list[str], name: str, base: Path) -> list[str] | None:
 
 @dataclass(frozen=True)
 class Link:
-    """One hot file on a chain. `status` is `ok`, `missing`, `unreadable` or
+    """One handoff file on a chain. `status` is `ok`, `missing`, `unreadable` or
     `unsupported_shape` (a shape no table here describes; its frontmatter is
     still read)."""
 
@@ -504,7 +504,7 @@ class Link:
 
     def section(self, name: str) -> list[str] | None:
         """The section's body lines; a body that is only a move pointer to this
-        heading is read from the hop file it names, None when that file or
+        heading is read from the archive file it names, None when that file or
         heading is not there."""
         body = next((list(b) for title, b in self.sections if title == name), None)
         return None if body is None else follow(body, name, self.path.parent)
@@ -526,9 +526,9 @@ class Chain:
     stop: str | None = None
 
     def retired_ids(self) -> dict[str, dict[int, str | None]]:
-        """Per id prefix, each id listed under its retire heading in any hop
+        """Per id prefix, each id listed under its retire heading in any archive
         file on the chain, to the retired entry's text (None when a one-line
-        listing gives only a reason and the hop file holds no copy). The oldest
+        listing gives only a reason and the archive file holds no copy). The oldest
         retirement of an id wins."""
         found: dict[str, dict[int, str | None]] = {}
         for link in reversed(self.links):
@@ -548,9 +548,9 @@ class Chain:
 
 
 def retired_in(text: str, spec: ShapeSpec) -> dict[str, dict[int, str | None]]:
-    """Per id prefix of `spec`, each id one hop file's text lists under its
+    """Per id prefix of `spec`, each id one archive file's text lists under its
     retire heading, to the retired entry's text: the listed entry's, or for a
-    one-line `- [<prefix><n>] <reason>` listing the hop file's own copy of the
+    one-line `- [<prefix><n>] <reason>` listing the archive file's own copy of the
     entry (None when it holds none)."""
     lines = text.splitlines()
     found: dict[str, dict[int, str | None]] = {}
@@ -651,8 +651,8 @@ HOP_FILE_RE = re.compile(r"^h(\d+)-[0-9a-f]{8}\.md$")
 @dataclass(frozen=True)
 class Hop:
     """One session of a chain as retro reads it: hop number (None for a shape-1
-    file), session id, hot-file name (empty when only its hop file is left),
-    the file its sections were read from (its hot file, else the next hop's
+    file), session id, handoff-file name (empty when only its archive file is left),
+    the file its sections were read from (its handoff file, else the next hop's
     file holding their copy) and those sections, whole moves followed."""
 
     hop: int | None
@@ -709,13 +709,13 @@ def _row_sessions(body: list[str] | None) -> dict[str, tuple[str, str]]:
 
 
 def journey(path: Path, limit: int = 1000) -> Journey:
-    """Every hop of `path`'s chain still on disk: the hot files `read_chain`
-    reaches, then, from the chain's hop files, each hot file that is gone
-    (read from the copy the next hop's file holds) and any older hot file a
-    hop file names that the walk did not reach. Only hop files at or below
+    """Every hop of `path`'s chain still on disk: the handoff files `read_chain`
+    reaches, then, from the chain's archive files, each handoff file that is gone
+    (read from the copy the next hop's file holds) and any older handoff file a
+    archive file names that the walk did not reach. Only archive files at or below
     `path`'s hop and on its own branch count: a fork's branches share the
-    archive directory, so a hop file is read only when its hop and session
-    are one the walk reached, or the predecessor a read hop file moved from."""
+    archive directory, so an archive file is read only when its hop and session
+    are one the walk reached, or the predecessor a read archive file moved from."""
     handoffs = path.parent
     chain = read_chain(path, limit=limit)
     found: dict[str, Hop] = {}

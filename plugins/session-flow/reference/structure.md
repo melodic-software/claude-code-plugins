@@ -8,8 +8,8 @@ Reader is a session with no prior context. It will act on this file. Be specific
 costs the next session a re-investigation, which is the cost this document exists to avoid.
 
 **Shape 4.** A handoff written by this procedure is the shape `new` writes by default,
-`handoff_shape: 4`: a hot file plus one archive file per hop
-([Shape 3](#shape-3-hot-file-and-per-hop-archive), with the order and moves of
+`handoff_shape: 4`: a handoff file plus one archive file per hop
+([Shape 3](#shape-3-handoff-file-and-per-hop-archive), with the order and moves of
 [Shape 4](#shape-4)). Shape-2 and shape-3 files
 ([Body sections (shape 2)](#body-sections-shape-2)) still validate and read unchanged, and a
 shape-2 or shape-3 chain's next hop writes shape 4. Every
@@ -23,7 +23,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
 
 ## Contents
 
-- [Shape 3: hot file and per-hop archive](#shape-3-hot-file-and-per-hop-archive)
+- [Shape 3: handoff file and per-hop archive](#shape-3-handoff-file-and-per-hop-archive)
   - [Shape 4](#shape-4)
     - [Role chains: the standing-rules file](#role-chains-the-standing-rules-file)
 - [Body sections (shape 2)](#body-sections-shape-2)
@@ -52,18 +52,18 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
   - [Chain continuity, same task only](#chain-continuity-same-task-only)
   - [Legacy predecessors and unfinished skeletons](#legacy-predecessors-and-unfinished-skeletons)
 
-## Shape 3: hot file and per-hop archive
+## Shape 3: handoff file and per-hop archive
 
-A shape-3 handoff is two files. The **hot file** is what a resume reads: a direct child of the
-handoffs directory, named and discovered like every other handoff. The **hop file**,
-`handoffs/archive/<chain-root-stem>/h<N>-<session8>.md`, is what this hop moved out of the hot
-file: `new` writes it once, with every predecessor section the hot file does not carry, verbatim.
-No reader globs the archive; a hot file names the archive section a question needs, and one
-targeted read (a search or a section read of one hop file) answers it. A hop file is
-append-only. Before validating, content this hop writes but the hot file cannot hold may be
+A shape-3 handoff is two files. The **handoff file** is what a resume reads: a direct child of the
+handoffs directory, named and discovered like every other handoff. The **archive file**,
+`handoffs/archive/<chain-root-stem>/h<N>-<session8>.md`, is what this hop moved out of the handoff
+file: `new` writes it once, with every predecessor section the handoff file does not carry, verbatim.
+No reader globs the archive; a handoff file names the archive section a question needs, and one
+targeted read (a search or a section read of one archive file) answers it. An archive file is
+append-only. Before validating, content this hop writes but the handoff file cannot hold may be
 appended to this hop's own file; content from earlier hops is already in their files. After
 emit, only `save_point.py amend` changes the tip hop's pair: it appends each replaced section and
-each retired entry to the hop file under `## Amended …` and the retire headings, and never edits
+each retired entry to the archive file under `## Amended …` and the retire headings, and never edits
 what is there. An earlier hop's file is never edited.
 
 The sections and their order are the file's `ShapeSpec` in
@@ -82,10 +82,10 @@ What the writer owns, since no script can judge it:
 - **A preference leaves once its instruction file holds it.** A rule that binds beyond this
   chain's goal stays under Standing preferences, marked pending promotion, until the instruction
   file it belongs in carries it; then it leaves through `retire` with the reason `promoted to
-  <instruction file>`, and the hot file keeps only the pointer under Review before you continue.
+  <instruction file>`, and the handoff file keeps only the pointer under Review before you continue.
   Auto memory is not a destination; an edit to the user's own instruction files goes through the
   owner.
-- **No live GitHub fact.** Issue, PR, check and review state goes stale between hops. The hot
+- **No live GitHub fact.** Issue, PR, check and review state goes stale between hops. The handoff
   file lists the re-read command instead, taken from the source-control plugin's surface (for a
   pull request, `/source-control:pull-request` names its status read); `validate` warns on a
   state claim it recognizes.
@@ -93,7 +93,7 @@ What the writer owns, since no script can judge it:
   content alone is over the cap, the answer is a relevance call, never a cut.
 - **Keep by relevance; retire with a reason.** Relevance is the writer's call. An amendment,
   direction-change line, question or decision that is superseded, answered or done may leave the
-  hot file; every amendment that still binds stays. An amendment unit with any clause still
+  handoff file; every amendment that still binds stays. An amendment unit with any clause still
   binding stays whole, or that clause is first written as a rule `[R<n>]` and the unit retired
   `codified in [R<n>]`; a unit is never split. Retire through the `retire` list of `fill` (before
   emit) or `amend` (after), never by deleting lines; each slot's instruction names the ref form for
@@ -108,19 +108,19 @@ What the writer owns, since no script can judge it:
   decision or updating its `cost:` changes its text, so it ends `Rewritten h<N>: <why>`. A resumed
   session reads the three fields before building on the decision (`/session-flow:reanchor`).
 
-**From shape 2.** The first hop file of a shape-2 chain, written by its first shape-4 hop (or a
+**From shape 2.** The first archive file of a shape-2 chain, written by its first shape-4 hop (or a
 shape-3 hop written earlier), reads the predecessor as usual: its
 cumulative sections, every Prior-sessions row and its other sections land in that hop's file
 verbatim, and `new` replaces the `Opening ask: see <root>` pointer with the root's own verbatim
 ask. The writer then states the rules still in force under Current rules, with ids, reading the
-predecessor's Constraints in the hop file, and writes the direction trail so far. Hop numbers
-count from the chain root, shape-1 and shape-2 hops included; hop files start at that first
-hop-file hop (`archive_from`).
+predecessor's Constraints in the archive file, and writes the direction trail so far. Hop numbers
+count from the chain root, shape-1 and shape-2 hops included; archive files start at that first
+archive-file hop (`archive_from`).
 
 ### Shape 4
 
-A shape-4 file (`handoff_shape: 4`) has the same frontmatter, hop files and id rules as shape 3,
-with its sections in another order: binding sections stay whole in the hot file, and movable ones
+A shape-4 file (`handoff_shape: 4`) has the same frontmatter, archive files and id rules as shape 3,
+with its sections in another order: binding sections stay whole in the handoff file, and movable ones
 may move to this hop's file (the shape-4 `ShapeSpec` marks which). Bare `new` writes shape 4, the
 default, and continues a shape-4 chain as shape 4. Its stderr
 `budget:` line gives the bytes left for the written slots and each size-classed slot's budget:
@@ -128,30 +128,30 @@ write the slots to it. `fill` does the rest (fit, moves with pointers, the slot-
 prints the verdict and the rails.
 
 - **A history pointer** in Review before you continue uses the form of `fill`'s move pointer,
-  `archive/<chain-stem>/h<k>-<session8>.md#<heading>`, naming an exact hop file and section;
+  `archive/<chain-stem>/h<k>-<session8>.md#<heading>`, naming an exact archive file and section;
   `validate` fails one whose file or heading is not on disk.
 
 #### Role chains: the standing-rules file
 
 A role chain is a long-running session for an ongoing role, such as a monitor, whose rules
-outgrow the hot file. Start one with `new --standing-rules`; every later hop keeps it, flag or
+outgrow the handoff file. Start one with `new --standing-rules`; every later hop keeps it, flag or
 not, because `new` reads the predecessor's `standing_rules` key.
 
 - **Where the rules live.** `fill` moves Current rules and Standing preferences into
-  `archive/<chain-root-stem>/standing-rules.md`, one file per chain beside its hop files, so it is
-  gitignored with the rest of the memory tier. Each section stays in its usual place in the hot
+  `archive/<chain-root-stem>/standing-rules.md`, one file per chain beside its archive files, so it is
+  gitignored with the rest of the memory tier. Each section stays in its usual place in the handoff
   file as one line, `- Standing rules: archive/<chain-root-stem>/standing-rules.md#<section>`. The
   binding order and the rule mechanics (ids, rewrite in place, `retire`) do not change.
-- **How a resume loads them.** The directive reads `Read @<standing-rules file> then @<hot file>,
-  …`, so the rules load before the hot file. A standing-rules file over one Read page makes the
+- **How a resume loads them.** The directive reads `Read @<standing-rules file> then @<handoff file>,
+  …`, so the rules load before the handoff file. A standing-rules file over one Read page makes the
   directive say to page it.
 - **History.** Each hop's `fill` rewrites the file, and `new` copies the predecessor's rules into
-  the new hop file as usual. `validate` therefore reads an older hot file's rules from its
-  successor's hop file, and fails a rule that leaves the file without a retirement, as in the hot
+  the new archive file as usual. `validate` therefore reads an older handoff file's rules from its
+  successor's archive file, and fails a rule that leaves the file without a retirement, as in the handoff
   file. `read --section`, `chain` and other readers that follow a pointer read the file as it is
   now, the tip's rules.
 - **Changing rules after emit.** `amend` reads the file, applies `sections` and `retire` to the
-  rules there, and writes the file, the hop file and the hot file together.
+  rules there, and writes the file, the archive file and the handoff file together.
 - **No forks.** One file serves one line of hops, so `fill` and `amend` refuse a hop when another
   session's handoff follows the same predecessor. A retry by the same session is not a fork.
 
@@ -641,7 +641,7 @@ to, never authored:
 
 `new` copies the predecessor's rows unchanged (on shapes 3 and 4 only the newest, so that with the
 new row the table holds at most `PRIOR_ROWS_KEPT` rows, per `save_point.py`; older rows stay in the
-hop files) and appends the predecessor's own row: its `date`,
+archive files) and appends the predecessor's own row: its `date`,
 `session_id`, and `transcript` from its frontmatter, its `## This session` line as `did/left`, its
 filename. A shape-1 predecessor has no `This session` line, so its cell reads
 `UNVERIFIED (shape-1 predecessor; brief: <first line of its Resumption brief>)`. Hop 1 writes the
@@ -682,10 +682,10 @@ drifts silently.
 
 **Readers go through the script.** A section is read by name with
 `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" read <file> --section "<name>"`, which
-follows a move to the hop file, and a chain is walked with `save_point.py chain <file> --json`:
-every hot file the walk reaches (a missing or unreadable one is a link with that status, not an
+follows a move to the archive file, and a chain is walked with `save_point.py chain <file> --json`:
+every handoff file the walk reaches (a missing or unreadable one is a link with that status, not an
 error), and every hop's date, session id, Direction changes, This session and Observations, read
-from the next hop's file when a hot file is gone. Neither reads by position, so shapes 2, 3 and 4
+from the next hop's file when a handoff file is gone. Neither reads by position, so shapes 2, 3 and 4
 read alike, and both exit 3 on a shape newer than the script knows. What each reader uses:
 
 | Skill | Reads |
@@ -842,13 +842,13 @@ JSON and a re-run of the same `fill`, never a hand-edit; nothing is half-applied
 
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
 (`validator unavailable: no python3/python on PATH`), write the file by hand from this document:
-after a shape-3 or shape-4 predecessor, a shape-4 hot file (the frontmatter below with
+after a shape-3 or shape-4 predecessor, a shape-4 handoff file (the frontmatter below with
 `handoff_shape: 4` and the `checks:` value `CHECKS` names in `save_point.py`, then the sections
-in the table below, in order) and its hop file holding the predecessor's sections other than
+in the table below, in order) and its archive file holding the predecessor's sections other than
 Original goal and Resume prompt, copied with the Read and Write tools, never retyped; otherwise a
 shape-2 file (the 17 headings of [Body sections (shape 2)](#body-sections-shape-2), in order).
 Both end in the `## Resume prompt` section in the engine doc's full-path form. Nothing moves on
-this path: every section stays in the hot file. Mark the checklist box
+this path: every section stays in the handoff file. Mark the checklist box
 `validate: SKIPPED (no interpreter)`, and still emit the rails from the file's `## Resume prompt`
 section. Never a shape-1 file, never a silent skip. This path is unchanged by `fill`: with no
 interpreter there is no `fill` either, so the hand-written file needs no slots JSON.
@@ -866,7 +866,7 @@ interpreter there is no `fill` either, so the hand-written file needs no slots J
 | 9 | Pending commands | every command waiting on the user, verbatim |
 | 10 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
 | 11 | This session | the `did: … · left: …` line and its `Re-scan: …` line |
-| 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; every `- Retired entries:` line the predecessor holds, carried forward verbatim, plus one per hop file and retire heading this hop used |
+| 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; every `- Retired entries:` line the predecessor holds, carried forward verbatim, plus one per archive file and retire heading this hop used |
 | 13 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, a remaining action that serves no recorded goal or detour flagged `DRIFT`; copied off disk each hop with the predecessor's `- Folded:` line kept verbatim; a superseded line leaves only as a retire listing |
 | 14 | Observations | session-wide observations, summarized |
 | 15 | Suggested skills | which skills to invoke for the remaining work |
@@ -876,16 +876,16 @@ interpreter there is no `fill` either, so the hand-written file needs no slots J
 Without a script, the hand-writer owns the carry that `new`, `fill` and `retire` own otherwise:
 
 - **Copy, never retype.** Every entry, `- Retired entries:` line and `- Folded:` line the
-  predecessor's hot file holds is copied with the Read and Write tools. Fold nothing by hand: a
+  predecessor's handoff file holds is copied with the Read and Write tools. Fold nothing by hand: a
   Direction changes line stays until a later `new` folds it.
 - **Retire by moving, with a reason.** An entry that no longer binds (an answered question, a
   settled decision, a retired rule or promoted preference, a superseded amendment unit or trail
-  line) leaves the hot file only by moving into this hop's file under its retire heading: the
+  line) leaves the handoff file only by moving into this hop's file under its retire heading: the
   entry verbatim, then a line `Retired: <reason>`. The `retire` list's `[h<k>]#<i>` ref names the
   i-th line tagged `[h<k>]`; by hand, move that line itself. An entry never leaves to meet the
   size cap.
 
-  | Hot-file section | Retire heading in the hop file |
+  | Handoff-file section | Retire heading in the archive file |
   |---|---|
   | Original goal (amendment units) | `## Retired goal amendments` |
   | Direction changes | `## Retired direction changes` |
@@ -894,7 +894,7 @@ Without a script, the hand-writer owns the carry that `new`, `fill` and `retire`
   | Decisions in force | `## Retired decisions` |
 
 - **Point at every retirement.** For each retire heading but `## Retired rules` that this hop used,
-  add `- Retired entries: <hop file> § <heading>` to Review before you continue, and keep every
+  add `- Retired entries: <archive file> § <heading>` to Review before you continue, and keep every
   such line the predecessor holds: a dropped one leaves earlier retirements unreachable, and no
   check runs without an interpreter to catch it.
 - **Carry each id floor, and raise it.** Copy `next_rule_id`, `next_question_id` and
@@ -917,7 +917,7 @@ previous_handoff: <prior-filename>.md     # CONDITIONAL — omit at the first ho
 chain_root: <root-filename>.md            # replaces chain:
 hop: <N>                                  # counted from the chain root, every shape included
 archive: archive/<chain-root-stem>/       # relative to the handoffs directory
-archive_from: <M>                         # first hop-file hop (shape 3 or 4); hop files exist from M on
+archive_from: <M>                         # first archive-file hop (shape 3 or 4); archive files exist from M on
 standing_rules: archive/<chain-root-stem>/standing-rules.md  # CONDITIONAL — role chains only
 next_rule_id: <K>                         # first [R<n>] id this hop may assign; never lowered
 next_question_id: <K>                     # first [Q<n>] id this hop may assign; never lowered
@@ -927,8 +927,8 @@ repo: <the Handoff origin: line's first slot>
 ```
 
 `new` writes every key; `date`, `topic`, `session_id`, `transcript` and `previous_handoff` mean
-what they mean in shape 2. A fork (two successors of one predecessor) gives two hot files with the
-same `hop` and two sibling hop files, told apart by their session prefix.
+what they mean in shape 2. A fork (two successors of one predecessor) gives two handoff files with the
+same `hop` and two sibling archive files, told apart by their session prefix.
 
 ### Frontmatter shape 2
 
@@ -996,20 +996,20 @@ absent field.
 
 **Carrying the goal forward: read it off disk, never out of memory.** With `--previous`, `new`
 opens that file and reproduces its `Original goal` verbatim quote and every recorded amendment
-into this handoff unchanged, with the rest of the carry ([Shape 3](#shape-3-hot-file-and-per-hop-archive)).
+into this handoff unchanged, with the rest of the carry ([Shape 3](#shape-3-handoff-file-and-per-hop-archive)).
 Rebuilding the goal from the conversation is how the drift starts: the conversation is what
 already lost it, and each rebuild is individually plausible, which is why the loss is invisible
 until many hops later. The prior file is on disk and one read away. A writer that did not open it
 has not carried the goal forward, whatever its text ends up saying. Same rule as the live
 `TaskList` call in a session that has the task tools: the check is that the read happened, not that the result looks right. The
-validator checks the copy: whatever the predecessor held must survive in the hot file or this
+validator checks the copy: whatever the predecessor held must survive in the handoff file or this
 hop's file (shapes 3 and 4), or in the successor in place or under `Superseded:` (shape 2); its FAIL
 lines name what went missing.
 
 ### Legacy predecessors and unfinished skeletons
 
 **Shape-1 predecessors are read, never rewritten.** `--previous` accepts a shape-1 file. `new`
-moves the sections it has into the hop file verbatim (a `--shape 2` successor instead maps it: an
+moves the sections it has into the archive file verbatim (a `--shape 2` successor instead maps it: an
 absent cumulative section becomes `None. (shape-1 predecessor had no <section>)`); the
 older 7-section body (`## Task`, `## Progress`, `## Decisions made`, …) is not aliased onto the
 14-section names; an absent `Original goal` becomes a

@@ -29,7 +29,7 @@ working-docs convention in `CLAUDE.md` / `.claude/rules/`) wins as the memory-ti
 at **`<memory_dir>/handoffs/`** (default `.work/handoffs/`), in files named `<TS>-handoff-<topic>.md`
 with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). A shape-3 hop also
 writes one archive file under `<memory_dir>/handoffs/archive/` (structure doc, "Shape 3"), which
-is handoff state like the hot file and is never globbed as a save-point. On the session's first
+is handoff state like the handoff file and is never globbed as a save-point. On the session's first
 memory-tier write, verify the resolved memory root's `.gitignore` exists and contains `*`, creating
 it (announced) when absent; never edit the consumer's root `.gitignore`.
 
@@ -213,7 +213,7 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 [`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md).
 Walk it while writing the file; never write the section list from memory.
 
-**The file is a hot file plus its hop file, and a script owns its deterministic tier.** This
+**The file is a handoff file plus its archive file, and a script owns its deterministic tier.** This
 flow describes the shape `new` writes by default, shape 4.
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has five subcommands, run through the interpreter
 ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.10+, stdlib only):
@@ -227,9 +227,9 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   position keys, the headings in order, what it carries off the predecessor, the last
   `## Prior sessions` rows, and the whole `## Resume prompt` block except its `Next:` headlines),
   writes this hop's archive file with the predecessor's other sections verbatim, and prints the
-  hot file's absolute forward-slash path. It also prints a `budget:` line on stderr:
+  handoff file's absolute forward-slash path. It also prints a `budget:` line on stderr:
   write the slot values to it. Only the `<!-- FILL: <name> — <instruction> -->` slots are the
-  model's, and `fill` is what applies them. It never overwrites an existing handoff; it rewrites a hop file only when a retry
+  model's, and `fill` is what applies them. It never overwrites an existing handoff; it rewrites an archive file only when a retry
   of the same session writes it again. `--shape 2` writes the shape-2 single file instead (the eval and
   projection harnesses build shape-2 chains with it); it refuses a shape-3 predecessor.
 - `save_point.py fill <file> --slots <json>` replaces every slot in the file from one JSON object
@@ -239,7 +239,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   file's own line terminator; an optional slot (`goal-first`, `goal-after`, `below-rail`,
   `<section>-new`) left out of the object has its line deleted. Every refusal names the slot or key
   and what to change, and leaves the file byte-identical, so nothing is ever half-applied. It
-  fits the hot file to the cap itself and prints the verdict and the `emit` output. The
+  fits the handoff file to the cap itself and prints the verdict and the `emit` output. The
   slots JSON lives beside the handoff as `<same stem>.slots.json` and is left in place. `fill`
   never judges a value against its slot's instruction; `validate` is the gate.
 - `save_point.py validate <file>` prints PASS/WARN/FAIL lines and exits 0 on pass (shape 1: one
@@ -250,7 +250,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   dropped predecessor entry are all failures. `--strict-transcript` turns the honest
   `unresolved (…)` transcript from WARN into FAIL (the acceptance harness passes it). It also runs
   a WARN-only secret-shape scan; the model rules on each hit under the redaction pass above. On a
-  shape-3 or shape-4 file it also checks the carry against the predecessor and both hop files, and
+  shape-3 or shape-4 file it also checks the carry against the predecessor and both archive files, and
   the size; each FAIL line names the fix.
 - `save_point.py emit <file>` prints the `## Resume prompt` section body verbatim (heading
   excluded, leading and trailing blank lines trimmed) and exits 1 on a shape-1 file (no section,
@@ -267,7 +267,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   before it writes, prints the verdict and then the `emit` output, and never blocks on a size
   finding. It refuses a no-op, a carried section other than `Next:`, an unfilled skeleton and a
   file that is not the chain's tip (naming the successor's `amend` command); `amend --help` lists
-  the keys. Same-session `new` refuses to rewrite a hop file that holds amended or retired
+  the keys. Same-session `new` refuses to rewrite an archive file that holds amended or retired
   content, so `amend` is the only way to fold a late event in.
 
 The rails on screen are the `emit` output, so the file is validated before the prompt exists on
@@ -276,7 +276,7 @@ screen and the two cannot disagree ("Emit the copy/paste resume prompt", full-pa
 `new` never overwrites, so there is no "extend an earlier turn's write" path: a skeleton that an
 earlier turn left unfinished (compaction mid-fill) stays on disk carrying `FILL` slots, is never
 emitted, and a fresh `new` writes a new timestamped file beside it. Legacy shape-1 files are read
-and never rewritten. The script is read-only on the repository except the handoff file and hop
+and never rewritten. The script is read-only on the repository except the handoff file and archive
 file it creates; the self-ignore guard is the skill's own bash step (structure doc), which `new` verifies
 and refuses without.
 

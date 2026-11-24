@@ -12,7 +12,7 @@
     "decision": "ADR 0091 decision 1: every amendment still in force stays verbatim; a unit with any still-binding clause stays whole or is codified first; units are never split.",
     "risk": "PLAN.md Risks: a writer retires a still-binding amendment (likelihood M, impact H)."
   },
-  "description": "A five-hop shape-3 report-export predecessor whose Original goal holds seven amendments, none retired: three superseded by later ones (the report-<date>.csv naming, the 06:00 run, and the weekly/ path), one mixed (the weekly/ path, superseded, joined to a still-binding ban on the internal_account_id column), and one old hop-2 amendment that still binds (amounts as integer cents). The writer decides what to retire; the probes check that the written hot file keeps both binding clauses and that the reader adds refunds as integer cents without the internal id.",
+  "description": "A five-hop shape-3 report-export predecessor whose Original goal holds seven amendments, none retired: three superseded by later ones (the report-<date>.csv naming, the 06:00 run, and the weekly/ path), one mixed (the weekly/ path, superseded, joined to a still-binding ban on the internal_account_id column), and one old hop-2 amendment that still binds (amounts as integer cents). The writer decides what to retire; the probes check that the written handoff file keeps both binding clauses and that the reader adds refunds as integer cents without the internal id.",
   "seed": {
     "repo_files": {
       "README.md": "# report-export\n\nSynthetic lane repository for the resume eval.\n",

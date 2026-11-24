@@ -3,15 +3,15 @@
 """Save-point engine for /session-flow:handoff: new / fill / amend / validate / emit.
 
 Owns every deterministic field of a handoff file so the model writes only the
-reasoning slots. `new` writes shape 4 by default: a hot file plus one archive
+reasoning slots. `new` writes shape 4 by default: a handoff file plus one archive
 file per hop, `handoffs/archive/<chain-root-stem>/h<N>-<session8>.md`, holding
-the predecessor sections the hot file does not carry and any section `fill`
+the predecessor sections the handoff file does not carry and any section `fill`
 moved; `--shape 3` keeps the shape-3 layout. Shape 2 (`--shape 2`)
 stays writable, and shape-1 and shape-2 files validate and read unchanged.
 Stdlib only; Python 3.10+. Read-only on the repository except the files `new`
 creates (it never writes a `.gitignore` and never rewrites an existing
-handoff; it rewrites a hop file only on a retry by the same session), and the
-hot file and hop file `fill` and `amend` rewrite.
+handoff; it rewrites an archive file only on a retry by the same session), and the
+handoff file and archive file `fill` and `amend` rewrite.
 
 Usage:
     save_point.py new --topic <slug> (--previous <file> | --no-previous)
@@ -35,7 +35,7 @@ Exit codes:
                 id, predecessor outside the handoffs dir or not a handoff file,
                 target already exists, a shape-3 or shape-4 predecessor
                 continued as an older shape, or
-                a hop file owned by another session, or a same-session hop
+                an archive file owned by another session, or a same-session archive
                 file holding `## Amended …` or `## Retired …` content (run
                 `amend` instead)
               2 usage (neither or both of --previous / --no-previous, bad slug)
@@ -46,7 +46,7 @@ Exit codes:
     fill      0 every slot replaced from the JSON, file written once; shape 2
                 and 3 print nothing; shape 4 moves whole movable sections
                 (Observations, Suggested skills, Direction changes) to this
-                hop's file behind a pointer until the hot file is under the
+                hop's file behind a pointer until the handoff file is under the
                 cap, then prints the validate verdict (an OVER-CAP line when
                 binding content alone is over it) and the emit output
               1 (shapes 3 and 4) a Resumption brief or below-the-rails note
@@ -89,13 +89,13 @@ Exit codes:
                 `<!-- FILL` slot (unfinished skeleton, never emitted)
               2 usage / unreadable
     read      0 printed the section body; a body that is only a move pointer
-                is read from the hop file it names
+                is read from the archive file it names
               1 no such section, or its move pointer names no file or heading
                 on disk
               2 usage / unreadable
               3 `handoff_shape` newer than this script knows
-    chain     0 printed each hot file the walk reaches and each hop's
-                sections (hot file, else the next hop's file), and the
+    chain     0 printed each handoff file the walk reaches and each hop's
+                sections (handoff file, else the next hop's file), and the
                 session ids; a missing link is a link, not a failure
               2 usage / unreadable
               3 `handoff_shape` newer than this script knows
@@ -3329,7 +3329,7 @@ def _amend_payload(raw: dict) -> str | None:
 
 
 def cmd_amend(args: argparse.Namespace) -> int:
-    """Fold a late event into a filled shape-3 hot file and its hop file.
+    """Fold a late event into a filled shape-3 handoff file and its archive file.
 
     Byte rules follow `cmd_fill`: bytes in, each file keeps its own line
     terminators, `\\r\\n` becomes `\\n` in JSON values only, and every refusal

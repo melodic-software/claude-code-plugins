@@ -71,8 +71,8 @@ from).
 
 When the request asks to carry what an earlier handoff in the handoffs directory says, read that
 section by name with `save_point.py read <file> --section "<name>"`, which follows a section moved
-to the hop file, and put what it holds into the save-point.
-When the request names a topic rather than a section, also read the Observations section that way, or open each `- Moved:` pointer's hop file with Read, before you report the handoff says nothing on that topic.
+to the archive file, and put what it holds into the save-point.
+When the request names a topic rather than a section, also read the Observations section that way, or open each `- Moved:` pointer's archive file with Read, before you report the handoff says nothing on that topic.
 
 The launched session has its own session id, so hand it this session's worktree claims exactly as
 the sibling `handoff` skill's "Hand worktree claims to the resuming session" does. On the full
@@ -169,7 +169,7 @@ fallback), then:
    lists files inside untracked directories individually; the default collapses a brand-new
    handoff directory into one directory entry, which both defeats the exemption below and can
    hide other dirt behind it) and ignore save-point files under the handoff location, the
-   just-written one and any prior sessions', with the shape-3 hop files under its `archive/`
+   just-written one and any prior sessions', with the shape-3 archive files under its `archive/`
    subdirectory counted as save-point files (this skill never commits them; they are
    session-chain artifacts, part of the launch rather than disqualifying dirty state; the
    background session starts in this working directory, so it reads the handoff file before any

@@ -2,7 +2,7 @@
 
 - Status: accepted; Decision 1 is superseded in part by
   [ADR 0115](0115-write-handoff-shape-4-with-binding-sections-first-and-a-tool-owned-byte-budget.md)
-  (the tool, not the writer, fits the hot file by moving movable sections; binding content over
+  (the tool, not the writer, fits the handoff file by moving movable sections; binding content over
   the cap reports OVER-CAP)
 - Date: 2026-11-07
 - Supersedes: decision 6 of
@@ -28,7 +28,7 @@ take in late events (owner, 2026-11-07).
 
 1. **Keep by relevance, account for every move.** The goal quote, intent, vision, opening ask,
    and every amendment or Direction-changes line still in force stay verbatim. An entry that is
-   superseded or done leaves the hot file only when this hop's file lists it verbatim under
+   superseded or done leaves the handoff file only when this hop's file lists it verbatim under
    `## Retired goal amendments` or `## Retired direction changes` with a reason. An instruction
    that still binds is first codified (a rule, an instruction-file line, or an owner-decisions
    row), then retired with a pointer to it. `save_point.py validate` fails an entry that is in
@@ -38,11 +38,11 @@ take in late events (owner, 2026-11-07).
    frontmatter floors carry the same retire-with-reason check as rule ids. Observations and
    Completion criteria stay free-form.
 3. **Retirement is a script operation.** `fill` and `amend` take references (`[R|Q|D<n>]`,
-   `[h<k>]#<i>`, `amendment#<i>`) and copy the bytes themselves; the hot file carries a pointer to
+   `[h<k>]#<i>`, `amendment#<i>`) and copy the bytes themselves; the handoff file carries a pointer to
    each retire listing forward.
 4. **Amend late events.** `save_point.py amend` replaces written sections, may rewrite the
    `Next:` lines and raise id floors, appends the replaced text to this hop's file, re-validates
-   and prints the resume prompt again. A hop file becomes append-only through `amend` instead of
+   and prints the resume prompt again. An archive file becomes append-only through `amend` instead of
    never edited. The handoff skill checks each event that arrives after emit and until `/clear`
    or a successor `new`, and runs `amend` when one changes a section.
 
@@ -59,7 +59,7 @@ take in late events (owner, 2026-11-07).
 ## Consequences
 
 - Size stays the writer's judgment of relevance, checked for losslessness by `validate`; a wrong
-  relevance call is recoverable from the hop file the pointer names.
+  relevance call is recoverable from the archive file the pointer names.
 - `amend` never blocks on a size finding, so a late event is never lost to the cap.
 - The resume eval reruns on this change, as ADR 0084 requires, with two cases that grade the new
   read path: a writer keeping a still-binding amendment, and a reader answering from a retired

@@ -362,7 +362,7 @@
         "kind": "handoff_contains",
         "text": "Merges are the owner's: for each green PR, hand the owner a `!` command to merge it."
       },
-      "note": "The hot file rewrites a changed rule in place; the superseded [h2] text belongs in the archive only."
+      "note": "The handoff file rewrites a changed rule in place; the superseded [h2] text belongs in the archive only."
     },
     {
       "id": "artifact-no-distorted-preference",
@@ -375,7 +375,7 @@
         "kind": "handoff_contains",
         "text": "Owner preference: before merging any PR, post a comment on it asking the owner to confirm, and wait for the reply."
       },
-      "note": "The owner dropped the [h55] preference in the seeded session, so the hot file must not carry it."
+      "note": "The owner dropped the [h55] preference in the seeded session, so the handoff file must not carry it."
     },
     {
       "id": "decision-no-confirm-comment",

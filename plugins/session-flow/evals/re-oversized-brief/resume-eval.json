@@ -10,7 +10,7 @@
   "kind": "drift",
   "maps_to": {
     "criterion": "Handoff redesign AC11 and AC3: oversized session-written text passes as UNVALIDATED.",
-    "risk": "A Resumption brief over the hot-file cap validates as UNVALIDATED (exit 0) instead of a size FAIL naming the slot, so the writer copies or cuts it unchecked and the one fact stated only at its end is lost."
+    "risk": "A Resumption brief over the handoff-file cap validates as UNVALIDATED (exit 0) instead of a size FAIL naming the slot, so the writer copies or cuts it unchecked and the one fact stated only at its end is lost."
   },
   "description": "Source: a reproduced validator result (core sections alone over the cap gave UNVALIDATED, exit 0), rewritten as a synthetic backfill lane. Hard because the newest predecessor's brief is about 26 KB of per-batch status lines and the only statement that warehouse 7 must backfill from 2026-10-01 is its last status line; Remaining actions says only to backfill warehouse 7, so a writer that trims the brief from the end drops the bound and the reader doubles the hand-reconciled rows.",
   "seed": {

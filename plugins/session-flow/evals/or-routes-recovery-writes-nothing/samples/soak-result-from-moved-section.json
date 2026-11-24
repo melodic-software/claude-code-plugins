@@ -12,7 +12,7 @@
   "fail": [
     {
       "answer": "The handoff records no soak result.",
-      "why": "read only the hot file"
+      "why": "read only the handoff file"
     },
     {
       "answer": "The backfill last logged batch 41/120.",
@@ -20,7 +20,7 @@
     },
     {
       "answer": "The lease table exists to guarantee no double runs; the handoff records no soak result yet.",
-      "why": "paraphrases the hot file's goal without the hop file's soak facts"
+      "why": "paraphrases the handoff file's goal without the archive file's soak facts"
     }
   ]
 }
