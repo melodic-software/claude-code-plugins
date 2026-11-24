@@ -46,7 +46,7 @@ Each context file owns its family's full discipline: claim-to-metric mapping, me
 
 ## Prerequisite. Green mechanical state (both phases)
 
-Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before either phase, `baseline` capture or `compare`, confirm the mechanical pass is green: reuse a `/toolchain:check` or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:check` via the Skill tool when the `toolchain` plugin is enabled, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
+Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before either phase, `baseline` capture or `compare`, confirm the mechanical pass is green: reuse a `/toolchain:check` (if enabled) or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:check` (if enabled) via the Skill tool, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
 
 ## Integration
 
@@ -83,7 +83,7 @@ with no verdict. A `baseline` phase records nothing.
 - **Does not confirm intent/outcome**. "did we build the right thing" is `/verification:confirm` (`outcome` / `fix` / `refactor` criteria).
 - **Does not review for ship-readiness**. That's the project's review gate; the measure-delta vs review-for-ship boundary is stated in "Purpose" above.
 - **Does not capture baselines after the fact**, a post-change "baseline" is not a baseline. Missing baseline → honest "cannot quantify", plus a current-state measurement for the record.
-- **Does not run the mechanical pass**. `/toolchain:check` owns build+test+lint; this skill only requires its result to be green.
+- **Does not run the mechanical pass**. `/toolchain:check` (if enabled) owns build+test+lint; this skill only requires its result to be green.
 
 ## Next
 
@@ -94,5 +94,5 @@ with no verdict. A `baseline` phase records nothing.
 
 - **Baseline before the change, compared under the same conditions after.** Condition drift invalidates the comparison, the run/warm-up/conditions methodology is owned by [context/performance.md](context/performance.md).
 - **Noise floor first.** If the projected saving sits within run-to-run variance, the change is unmeasurable. Surface that before the work, not after (detail: [context/performance.md](context/performance.md)).
-- **A drifting host needs more than a noise-floor warning.** When the machine's own spread makes a wall-clock comparison meaningless (a bimodal no-op-spawn signature, arms that cannot be run in one pass, no drift-immune counter agreed), route to `/performance:snapshot` when the `performance` plugin is enabled: it qualifies the host before measuring, interleaves the arms within one run, ranks a drift-immune counter above any duration, and refuses a wall-clock claim this skill would still report with a warning. This skill remains SSOT for baseline capture, storage, and the compare mechanics that plugin builds on.
+- **A drifting host needs more than a noise-floor warning.** When the machine's own spread makes a wall-clock comparison meaningless (a bimodal no-op-spawn signature, arms that cannot be run in one pass, no drift-immune counter agreed), route to `/performance:snapshot` (if enabled): it qualifies the host before measuring, interleaves the arms within one run, ranks a drift-immune counter above any duration, and refuses a wall-clock claim this skill would still report with a warning. This skill remains SSOT for baseline capture, storage, and the compare mechanics that plugin builds on.
 - **Never fabricate numbers.** No baseline, high variance, or differing conditions → INCONCLUSIVE / NOT CONFIRMED, stated plainly.

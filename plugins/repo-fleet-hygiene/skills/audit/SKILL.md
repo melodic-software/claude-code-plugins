@@ -217,14 +217,14 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    linkage problem but **manual review only**. Missing/prunable registrations never trigger pruning.
    Linked, unlocked registrations with reliable admin emit one `MEDIUM` `worktree-status-handoff`
    per repository naming those paths. Disposability (stranded / unknown / safe) is owned by
-   `/source-control:worktree status`, and this collector emits no `git status`-based substitute
+   `/source-control:worktree status` (if enabled), and this collector emits no `git status`-based substitute
    verdict. Separately, every linked worktree that passes existence and root-verifiability checks
    is classified against its own repository's configured worktree root (`worktreeroot.path` read
    with `git -C <canonical>`, which honors `includeIf`, else the project directory's key, then
    source-control `worktree_root`):
    conforming, outside/wrong-layout
    (expected `<root>/<owner>-<repo>-<slug>` or `<root>/<repo>-<slug>` without origin, matching
-   `/source-control:worktree create`; create-shaped basenames stay conforming after branch
+   `/source-control:worktree create` (if enabled); create-shaped basenames stay conforming after branch
    rename/detach; comparisons use physical paths so symlink aliases of the configured root do not
    false-positive), or tool-owned (Codex/Cursor).
    Missing, prunable, non-root, and root-unverifiable registrations keep their own finding kinds and
@@ -353,19 +353,19 @@ Related fleet contracts that remain separate:
 
 | Finding | Handoff (not executed here) |
 |---|---|
-| `merged-local-branch` | Run `/repo-hygiene:clean git` in the named canonical repository |
+| `merged-local-branch` | Run `/repo-hygiene:clean git` (if enabled) in the named canonical repository |
 | `merged-remote-branch` | Optional preview only: `git push --delete --dry-run <remote> <branch>` in the canonical repository (never executed here). Enabling GitHub `delete_branch_on_merge` is complementary and owned by the repository's settings automation. This audit does not change it |
 | `unmerged-remote-branch` | Gated delete: `apply-plan.sh --plan-file <path> --apply --remote-branches` in the operator's own terminal, one prompt per branch, deleted only at the recorded tip; `/repo-fleet-hygiene:apply --remote-branches` from a session without a terminal only previews. Preview by hand: `git push --delete --dry-run <remote> <branch>` in the canonical repository |
 | `unmerged-remote-branch-unverified` | Confirm `git ls-remote --heads` works by hand, then rerun. No deletion is planned |
 | `unmerged-remote-branch-review` | Manual review of the branch and its closed PRs; never a deletion candidate |
 | `remote-branch-family` | None. Report only: no deletion and no deletion preview. Read the family, age and on-default fields and decide by hand |
-| `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
-| `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not enabled, name the listed worktree targets and the missing collaborator. Emit no porcelain-based substitute verdict |
+| `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` (if enabled) in the canonical repository |
+| `worktree-status-handoff` | Run `/source-control:worktree status` (if enabled) in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not enabled, name the listed worktree targets and the missing collaborator. Emit no porcelain-based substitute verdict |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |
 | `worktree-not-a-root` | Manual inspection of the registered path; a `git -C` probe of it describes the containing repository, so no cleanup handoff is safe until the path is resolved |
 | `worktree-root-unverifiable` | Manual inspection of the registered path. Root-ness is unproven here rather than disproven. The probe itself failed, so infer nothing about the path in either direction |
-| `worktree-nested-in-repository` | Recreate at an external root with `/source-control:worktree create`, then remove the nested one |
-| `worktree-outside-configured-root` | Recreate at the expected location named in evidence with `/source-control:worktree create`, then remove the misplaced one |
+| `worktree-nested-in-repository` | Recreate at an external root with `/source-control:worktree create` (if enabled), then remove the nested one |
+| `worktree-outside-configured-root` | Recreate at the expected location named in evidence with `/source-control:worktree create` (if enabled), then remove the misplaced one |
 | `worktree-wrong-layout` | Recreate at the expected `<owner>-<repo>-<slug>` path under the configured root, then remove the wrong-layout one |
 | `worktree-tool-owned` | Leave to Codex/Cursor lifecycle, or migrate deliberately to the configured root |
 | `worktree-root-conformance` | Read the per-worktree outside/wrong-layout findings for expected paths; migrate toward the configured root |

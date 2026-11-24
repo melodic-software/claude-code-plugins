@@ -289,7 +289,7 @@ layers and any problems; for each round its file path and finding counts by tier
 proof stage ran its counts by evidence label and its `## Dismissed` lines; with scores on, the mark table; unresolved rows; files changed outside fix;
 other producers' Not applied rows listed, not reviewed; the run file path. A run whose fix pass
 changed any file adds: "Fixes from the council's rounds are unbuilt and untested; run
-/verification:confirm before committing."
+/verification:confirm (if enabled) before committing."
 
 ## Next
 

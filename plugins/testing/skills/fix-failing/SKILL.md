@@ -66,21 +66,21 @@ relevant context file before proceeding.
 
 | After phase | Suggest |
 |-------------|---------|
-| `investigate` | Enter the `loop` phase if a fix is needed, or report root cause. Root cause in test infrastructure → fix the test, not production code. Genuine bug → document, then fix via `/implementation:implement fix` |
-| `loop` | `/verification:confirm fix` (when the `verification` plugin is enabled) when all green after the regression pass (the `fix` criterion: symptom resolved + no regression) |
+| `investigate` | Enter the `loop` phase if a fix is needed, or report root cause. Root cause in test infrastructure → fix the test, not production code. Genuine bug → document, then fix via `/implementation:implement fix` (if enabled) |
+| `loop` | `/verification:confirm fix` (if enabled) when all green after the regression pass (the `fix` criterion: symptom resolved + no regression) |
 
 The regression test takes its expected value from the bug report, not from the fixed code:
 `testing:test-value` (if enabled).
 
 ## Integration with /implementation:implement
 
-When `/implementation:implement` hits a test failure during its TDD cadence it chains here for the
+When `/implementation:implement` (if enabled) hits a test failure during its TDD cadence it chains here for the
 reproduce→fix→retest cycle, then resumes after the loop exits green. Invoked standalone, the loop
-drives the full cycle including code edits and suggests `/verification:confirm` afterwards.
+drives the full cycle including code edits and suggests `/verification:confirm` (if enabled) afterwards.
 
 ## What this skill does not do
 
-- **Does not run the suite wholesale**. `/toolchain:check` is SSOT for CLI invocation; this skill runs targeted reproductions
+- **Does not run the suite wholesale**. `/toolchain:check` (if enabled) is SSOT for CLI invocation; this skill runs targeted reproductions
 - **Does not author new feature tests**. `/testing:write` (the loop's reproduce step writes only the failing test capturing the bug)
 
 ## Next

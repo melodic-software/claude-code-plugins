@@ -90,6 +90,10 @@ condition 1 and the actor and author parts of condition 2).
     listed in `run-dispatcher-upstreams`, `event` `pull_request`, `repository` and
     `head_repository` both this repository, an `actor` and `triggering_actor` that are the lanes
     App (`lanes-app-id`) or a listed human, and `head_sha` equal to the PR's current head. With
+    `reconciler-workflow` set, a `triggering_actor` of `github-actions[bot]` at attempt 2 or 3 is
+    accepted instead through the reconciler's record of that attempt, checked as for a
+    `workflow_run` upstream (the reconciler section below); the `actor` must still be the lanes
+    App or a listed human. With
     `expected-upstream-head`, `head_sha` must equal it instead, and the PR head must be it or
     `pushed-commit`, the commit this run's apply-feedback-patch job pushed. Any other head stops
     the run, a verified lanes App commit included: a signature proves an App token made a commit,

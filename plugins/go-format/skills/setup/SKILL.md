@@ -44,10 +44,10 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. Go formatting and linting are two concerns. The hooks run only the
 plugin's shipped format adapter (goimports, formatting and import ordering only) and never run a
-command from the repository's go record (`docs/conventions/ecosystems/go.yaml`), which `/toolchain:lint`
-and `/toolchain:check` run on request. The plugin ships no lint adapter, so the hooks run nothing
+command from the repository's go record (`docs/conventions/ecosystems/go.yaml`), which `/toolchain:lint` (if enabled)
+and `/toolchain:check` (if enabled) run on request. The plugin ships no lint adapter, so the hooks run nothing
 for Go linting. The only consumer-project files this plugin owns are its git-hook entry copies,
-which `apply install-git-hooks` writes; the record is written by `/toolchain:setup apply go`,
+which `apply install-git-hooks` writes; the record is written by `/toolchain:setup apply go` (if enabled),
 never here. Unlike its sibling formatter plugins, whose adapters run only where their tool's own
 config opts a file in, the format adapter has no consumer-config opt-in gate, so the tunables
 are the native `userConfig` options: `go_format_enabled`, `go_format_lint_gitignored` and
@@ -108,10 +108,10 @@ commit outside Claude Code and reads no toggle.
      linter, find the repository's own linter by the steps in
      [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md) and draft a
      `lint-cmd` holding `<files>` that only reports, with findings as `<path>:<line>` lines. Hand
-     the draft to `/toolchain:setup apply go`, the one writer of that key, so `/toolchain:lint` and
-     `/toolchain:check` can run it on request.
+     the draft to `/toolchain:setup apply go` (if enabled), the one writer of that key, so `/toolchain:lint` (if enabled) and
+     `/toolchain:check` (if enabled) can run it on request.
    A detail saying a go record exists is INFO beside the row: the hooks never run it, and
-   `/toolchain:lint` or `/toolchain:check` runs it on request.
+   `/toolchain:lint` (if enabled) or `/toolchain:check` (if enabled) runs it on request.
 6. **Hook toggle.** Report the effective `go_format_enabled` value:
    `${user_config.go_format_enabled}` (unexpanded or empty means default `true`).
 7. **Gitignored files.** Report the effective `go_format_lint_gitignored` value:
@@ -238,7 +238,7 @@ re-verifying. For everything else `apply` only points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-- Go linting: `check` step 5's draft, for `/toolchain:setup apply go`. The plugin ships no lint
+- Go linting: `check` step 5's draft, for `/toolchain:setup apply go` (if enabled). The plugin ships no lint
   adapter and adds no linter of its own.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
@@ -253,7 +253,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the formatter or a linter. Editing any `.go` file exercises the hook end-to-end; `git commit`
   exercises the installed pre-commit entry.
-- Write the go record: `/toolchain:setup apply go` does.
+- Write the go record: `/toolchain:setup apply go` (if enabled) does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Install `goimports`. Installation is always the consumer's own choice and command, at the
   machine level, never a project dependency this skill records.

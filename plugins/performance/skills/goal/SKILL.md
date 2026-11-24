@@ -153,8 +153,8 @@ If the user wants p99, say what it costs: 100 samples on a host where one spawn 
 ## Output
 
 Write the goal into the topic's `PLAN.md`, and keep baselines in the memory tier
-(`.work/<topic-slug>/baselines/`, machine-bound, never committed). That is `/verification:measure`'s
-layout, followed here whether or not the `verification` plugin is installed, so the two never keep
+(`.work/<topic-slug>/baselines/`, machine-bound, never committed). That is the layout of
+`/verification:measure` (if enabled), followed here whether or not the `verification` plugin is installed, so the two never keep
 two different baseline stores.
 
 ```text
@@ -178,9 +178,8 @@ Target (from /performance:target): <candidate> @ <E1..E4>
 
 - **Does not measure the baseline.** That is `/performance:snapshot`; this phase measures only the
   floor, an input to the goal rather than a result of it.
-- **Does not implement.** The change is `/implementation:implement`.
-- **Does not store baselines.** `/verification:measure` owns baseline capture and storage when the
-  `verification` plugin is enabled; this plugin depends on it rather than reimplementing it.
+- **Does not implement.** The change is `/implementation:implement` (if enabled).
+- **Does not store baselines.** `/verification:measure` (if enabled) owns baseline capture and storage; this plugin depends on it rather than reimplementing it.
 
 ## Next
 

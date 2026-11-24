@@ -90,7 +90,7 @@ written count before they are committed. A scope path narrows them. With `--exer
 the files under that test file or folder replace the changed files, the mapping starts from them,
 and every step below that reads "the test set" means the tests under that path. That is not the scope path, which only narrows the changed files.
 
-**Which files are tests.** For each candidate file, invoke `/testing:audit --file <path>` through
+**Which files are tests.** For each candidate file, invoke `/testing:audit --file <path>` (if enabled) through
 the Skill tool and read the `adapter:` line of its coverage block:
 
 - `adapter: <id>`: a test, in the set.
@@ -193,7 +193,7 @@ Under `--exercised`, run them in the order [The exercised scope](#the-exercised-
   restoring a known state; uncommitted edits in the target make "revert" ambiguous and risk
   discarding the user's work. Ask them to commit or stash first. This is a hard stop, not a warning.
 - **Baseline suite red** → stop and report the failure. A red suite kills every mutant and reports a
-  perfect score. Invoke `/testing:fix-failing` via the Skill tool when the `testing` plugin is enabled; otherwise diagnose
+  perfect score. Invoke `/testing:fix-failing` (if enabled) via the Skill tool; otherwise diagnose
   with the project's own test command before returning here.
 
 Record the baseline run's result and wall-clock. Every later "killed" verdict is meaningful only
@@ -414,7 +414,7 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
 
 ## Remediation. Delegated
 
-- **Write the killing tests**. `/testing:write` when the `testing` plugin is enabled, handed the
+- **Write the killing tests**. `/testing:write` (if enabled), handed the
   survivor list. Otherwise report the survivors and let the user author tests with their project's
   own conventions; do not author them here. An `input-gap` survivor can be closed by a property (a
   generator over the input class the mutant hides in) as well as by one more example; name both
@@ -488,5 +488,5 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 - Write suppressions without the user accepting them.
 - Fail a build on a score. There is no threshold to configure; see the `principles` skill's
   `scaling-and-suppression.md`.
-- Answer test-design questions. Those belong to `/tdd:principles` when enabled; otherwise use the
+- Answer test-design questions. Those belong to `/tdd:principles` (if enabled); otherwise use the
   project's own test-design guidance.

@@ -12,7 +12,7 @@ metadata:
 
 Autonomous live verification of a running application: choose the entry points a change touches,
 run each, judge it against its expected outcome, and report per entry point. When
-`/app-control:drive` can run the app, it launches, operates and captures, and this skill judges what it recorded; otherwise
+`/app-control:drive` (if enabled) can run the app, it launches, operates and captures, and this skill judges what it recorded; otherwise
 this skill drives the app itself ([context/own-driving.md](context/own-driving.md)). UI changes
 follow the mandatory evidence contract in [context/e2e.md](context/e2e.md); non-UI runtime surfaces
 route to the smoke-test playbook. The consuming project's conventions supply the e2e-orchestrator
@@ -33,7 +33,7 @@ e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e n
   writes `e2e-summary.json` (Step 5). The bare word `unattended` is not this flag: it is scenario
   text, and the run is attended.
 - `app=<app>`, `base=<ref>`, `trusted-root=<dir>`, optional, in any order, as the first tokens left
-  once `--unattended` is out or right after `worst-case [--keep]`: the app `/app-control:drive` runs, the ref the change is diffed from, and the only
+  once `--unattended` is out or right after `worst-case [--keep]`: the app `/app-control:drive` (if enabled) runs, the ref the change is diffed from, and the only
   root drive reads control skills from. `<app>` and `--trusted-root <dir>` go to every drive call,
   `ready` included; `--base <ref>` goes only to `affected`. Without `base=`, the base is the
   default branch's remote-tracking ref, `git symbolic-ref --short refs/remotes/origin/HEAD`. When
@@ -66,15 +66,15 @@ e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e n
 UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) take the e2e route, where the UI
 evidence contract applies.
 
-A non-UI run skips Step 1: its rows run test suites and handshakes, which `/app-control:drive` does
+A non-UI run skips Step 1: its rows run test suites and handshakes, which `/app-control:drive` (if enabled) does
 not. Its last row, a running CLI, TUI or service, is an app to drive and takes Step 1 like the e2e
 route.
 
 ## Step 1: Choose who drives
 
-The testing plugin works without app-control and never requires it. Check first whether
-`/app-control:drive` resolves in this session. When it does, invoke
-`/app-control:drive affected [<app>] --base <ref> --out <run dir>/affected` through the Skill tool,
+The testing plugin works without app-control and never requires it. Check first whether the
+`app-control` plugin is enabled. When it is, invoke
+`/app-control:drive affected [<app>] --base <ref> --out <run dir>/affected` (if enabled) through the Skill tool,
 adding `--unattended` on an `--unattended` run and `--trusted-root <dir>` when given, and read
 `<run dir>/affected/affected.json` as data: a non-null `control_skill` is a control skill found,
 `null` is none. When `affected` writes no `affected.json`, take its `blocked:` line into the report
@@ -82,14 +82,14 @@ and count the control skill as none.
 
 | app-control | Control skill | Attended | `--unattended` |
 |---|---|---|---|
-| `/app-control:drive` resolves | found | Say the run goes through `/app-control:drive` and that the person can decline, then use it | Use `/app-control:drive` with `--unattended` |
-| `/app-control:drive` resolves | none | Offer to create one with `/app-control:map create`; ask and wait for the answer | Own driving; the report records the suggestion |
+| `/app-control:drive` (if enabled) resolves | found | Say the run goes through `/app-control:drive` (if enabled) and that the person can decline, then use it | Use `/app-control:drive` (if enabled) with `--unattended` |
+| `/app-control:drive` (if enabled) resolves | none | Offer to create one with `/app-control:map create` (if enabled); ask and wait for the answer | Own driving; the report records the suggestion |
 | does not resolve | either | Suggest enabling the app-control plugin, installing it first if it is not installed; ask and wait for the answer | Own driving; the report records the suggestion |
 
 A decline at any row ("No, I'm good. Just use what you have.") takes own driving, and so does a
-session instruction that names a driver. A yes to onboarding runs `/app-control:map create`, then
+session instruction that names a driver. A yes to onboarding runs `/app-control:map create` (if enabled), then
 this step again. This skill installs and enables nothing: a yes to the suggestion is the person's to
-carry out, and the run goes on with own driving until `/app-control:drive` resolves in a later
+carry out, and the run goes on with own driving until `/app-control:drive` (if enabled) resolves in a later
 session. Ask once per run.
 
 The evidence output opens with the route:
@@ -108,10 +108,10 @@ trigger: that section moves or changes how a plugin is installed.
 ### Feature map
 
 The app's control skill is its feature map: a `.claude/skills/control-<app>/` project skill that
-`/app-control:map` writes and keeps current. Which features a change touches comes only from
-`/app-control:drive affected` (Step 1); this skill never matches changed files against the index
+`/app-control:map` (if enabled) writes and keeps current. Which features a change touches comes only from
+`/app-control:drive affected` (if enabled) (Step 1); this skill never matches changed files against the index
 itself. On own driving with a control skill in reach (the person declined drive, or
-`/app-control:drive` does not resolve), its hub is read only for own driving's Ready and driving
+`/app-control:drive` (if enabled) does not resolve), its hub is read only for own driving's Ready and driving
 tool and for Step 5's `## Mask` scan, and a feature file only for its stated results
 ([Expected outcome](#expected-outcome)). With `trusted-root=<dir>`, the hub is read from
 `<dir>/.claude/skills/control-<app>/SKILL.md` or not at all, never from the checkout, so a checkout
@@ -124,7 +124,7 @@ these rules. With none, the run drives what the scenario names.
 
 A legacy testing-format map (`.claude/skills/feature-map/SKILL.md`, or the directory a
 `feature_map_dir:` line in `docs/conventions/testing.yaml` or `.claude/testing.local.yaml` names) is
-not read. Warn that it is present and name `/app-control:map refresh <its path>`, which converts it;
+not read. Warn that it is present and name `/app-control:map refresh <its path>` (if enabled), which converts it;
 the run continues.
 
 This plugin still reads `.claude/testing.local.yaml` and reports `.claude/skills/feature-map/SKILL.md`
@@ -137,7 +137,7 @@ where [config locations](../../reference/config-locations.md) says. The control 
 The touched features are the `features` list of `affected.json`. Drive every entry point each one
 lists (`entry_points[].text`), not only the one the scenario names; an entry point with
 `driven: false` is reported `not driven (<reason>)` from its `reason`. The scenario still adds
-whatever it names on top. When `/app-control:drive` does not resolve, no feature is matched: the
+whatever it names on top. When `/app-control:drive` (if enabled) does not resolve, no feature is matched: the
 report carries `touched features not matched (app-control not installed)` and the run drives what
 the scenario names. When `affected.json` lists no feature and the scenario names none, there is
 nothing to drive: Steps 3 and 4 launch and refresh nothing, and the report says so.
@@ -145,7 +145,7 @@ nothing to drive: Steps 3 and 4 launch and refresh nothing, and the report says 
 A feature's id is its index path without `features/` and the trailing `/README.md`, or `.md` for a
 legacy flat file: `features/billing/export/README.md` gives `billing/export`, and
 `features/cart.md` gives `cart`. A scenario that names a feature by id adds that feature, on either
-route, its file resolved in `/app-control:drive`'s order: `features/<id>/README.md` when it exists,
+route, its file resolved in the order `/app-control:drive` (if enabled) uses: `features/<id>/README.md` when it exists,
 and then never open the legacy `features/<id>.md`; only without that README, the legacy file.
 
 ### Expected outcome
@@ -186,7 +186,7 @@ failed scenario returns a failure packet path with the evidence paths.
 
 ### Drive route
 
-The subagent invokes `/app-control:drive [<app>] <feature> --out <run dir>/<feature>` through the
+The subagent invokes `/app-control:drive [<app>] <feature> --out <run dir>/<feature>` (if enabled) through the
 Skill tool once per touched feature, adding `--unattended` on an `--unattended` run and
 `--trusted-root <dir>` when given. Each feature gets its own directory, since drive writes one
 `report.md` and `report.json` per run directory; the subagent returns every feature's report paths.
@@ -221,7 +221,7 @@ commands carry values only this file expands; the context files say when each ru
 ### When a drive step fails
 
 A failed step (a missing element, a timeout, an error page, a refused connection) is not yet a
-product failure. Re-check health first: on the drive route, `/app-control:drive ready` (with
+product failure. Re-check health first: on the drive route, `/app-control:drive ready` (if enabled) (with
 `<app>` and `--trusted-root <dir>` when given); on own driving, the health check in
 [context/e2e.md](context/e2e.md) (workflow step 2), plus a control skill's Ready when one exists.
 If a resource is down, the address no longer answers or Ready fails, report an environment failure
@@ -236,9 +236,9 @@ describes, rather than trusting the app's success message.
 
 After the run and its cleanup, bring each touched feature's control skill (one in `affected.json`'s
 `features`, Step 2) back in line under its feature id. A `map` pass skips this step.
-`/app-control:map` is the only writer of a control skill; this skill never edits one.
+`/app-control:map` (if enabled) is the only writer of a control skill; this skill never edits one.
 
-- `/app-control:map` resolves: invoke `/app-control:map refresh <feature id>` through the Skill tool
+- `/app-control:map` (if enabled) resolves: invoke `/app-control:map refresh <feature id>` (if enabled) through the Skill tool
   once per touched feature, adding `--unattended` on an `--unattended` run, and report each pass's
   `clean`, `changed` or `blocked` result. A blocked pass is reported, never a failed run.
 - It does not resolve: no feature was matched (Step 2), so nothing is refreshed; the
@@ -247,7 +247,7 @@ After the run and its cleanup, bring each touched feature's control skill (one i
 - `trusted-root=` was given: the control skill came from outside this checkout, so nothing is
   refreshed; report `control skill not refreshed (trusted-root run)` per touched feature.
 
-Refresh drives the feature again through `/app-control:drive`, so it never runs inside the Step 3
+Refresh drives the feature again through `/app-control:drive` (if enabled), so it never runs inside the Step 3
 subagent. A caller that splits one drive across several runs of this skill tells each to skip this
 step and runs it once itself over the merged report, so two runs never refresh the same feature.
 
@@ -287,7 +287,7 @@ fails no entry point: the summary records why, and the run does not fail for it.
 captures joins. Raw captures and every path in a `secrets_mark` list never join.
 
 `e2e-summary.json` joins last. Write it without its own path in `publishable`, then scan the text
-it would hold with that path appended, using the sources `/app-control:drive`'s "Mask post-check"
+it would hold with that path appended, using the sources the "Mask post-check" of `/app-control:drive` (if enabled)
 uses, applied the way it applies them: the values the `values:` line of the Mask in effect
 resolves to, held in memory and never written to any file, and the generic credential pattern. The
 hub is the file `affected.json`'s `control_skill` names on the drive route, and the hub Step 2 reads
@@ -301,7 +301,7 @@ source resolving to `none:`, the generic pattern alone scans it; a hand-off is n
 with no `values:` line. Only a clean scan rewrites the file with its own path at the end of
 `publishable`. A hit, a hand-off target that cannot be read, a `values:` source that fails or
 yields no value without a `none:` result (a non-zero exit, empty output, or a `none:` line with any
-other line beside it), or a scan that cannot run (`/app-control:drive` does not resolve) leaves it
+other line beside it), or a scan that cannot run (`/app-control:drive` (if enabled) does not resolve) leaves it
 out, and the report names the hit's kind (a mask value or the credential pattern) or the failure,
 never the matched text or a value.
 
@@ -312,7 +312,7 @@ lists every entry of the control skill, drives them one after another on the dri
 each failed stated result and each observed breakage as a finding, and writes `findings.json` and
 `e2e-summary.json` at the top of its run directory. It labels each finding NEW, PRE-EXISTING or GONE
 against `baseline=` and, under `file_findings: new`, hands each NEW finding at or above the floor to
-`/bugs:write`. Steps 3 and 5 apply as it says. It never
+`/bugs:write` (if enabled). Steps 3 and 5 apply as it says. It never
 refreshes a control skill and edits no tracked file. These three commands carry values only this
 file expands:
 
@@ -326,7 +326,7 @@ On own driving, when no orchestrator governs the start and the app is not alread
 subagent launches through the bundled `run` skill when it resolves in this session.
 [context/own-driving.md § Native step](context/own-driving.md#native-step-run-bundled-skill) holds
 the identity check, the mutation fingerprint, the Already running table, the skip report and the
-result block. The drive route never invokes `run`: `/app-control:drive` launches.
+result block. The drive route never invokes `run`: `/app-control:drive` (if enabled) launches.
 
 ## Worst-case content
 
@@ -345,13 +345,13 @@ dispatch, resolve `<home>` with the convention-home command, pick that file or t
 [context/e2e-config.md § Convention home and old paths](context/e2e-config.md#convention-home-and-old-paths),
 print any warning it calls for, and pass the chosen path, or none, to the subagent. The action
 edits no component code; fixes go to the user. It always takes own driving and skips Step 1:
-`/app-control:drive` injects no data.
+`/app-control:drive` (if enabled) injects no data.
 
 ## Handoff
 
 - Surface verification available → the bundled `/verify` skill covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: its start stays with the user, and this skill's orchestrator path runs unchanged either way. Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), which says which bundled skills Claude invokes on its own.
-- All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending → invoke `/review:quality-gate` via the Skill tool when the `review` plugin is enabled; otherwise the consuming setup's review step
-- All scenarios pass after review → invoke `/verification:confirm outcome` via the Skill tool when the `verification` plugin is enabled (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
+- All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending → invoke `/review:quality-gate` (if enabled) via the Skill tool; otherwise the consuming setup's review step
+- All scenarios pass after review → invoke `/verification:confirm outcome` (if enabled) via the Skill tool (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
 - Visual bugs or API errors found → for API errors, read the orchestrator's structured logs for the root cause first; then invoke `/testing:fix-failing` via the Skill tool, passing each failed scenario's failure packet ([context/e2e.md](context/e2e.md), Failure packet) as its input rather than a summary, redacted at write time with its framing line and app-output block intact, so diagnose treats the app-sourced fields as data
 - Scenario planning needed first → invoke `/testing:plan` via the Skill tool
 
@@ -363,7 +363,7 @@ the request is "run it and see":
 - **`run` (bundled skill)**: launches and drives the app so a change can be looked at; what it
   does and its sibling skills are [skills § Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app)'s
   to state. It captures no evidence to a contract and has no non-UI mode.
-- **This skill (marketplace plugin).** Starts the app through `/app-control:drive`, the consuming
+- **This skill (marketplace plugin).** Starts the app through `/app-control:drive` (if enabled), the consuming
   project's orchestrator configuration, or `run` where none governs the start, drives UI and API
   flows, and captures evidence under the contract in
   [context/e2e.md](context/e2e.md); its non-UI smoke lane has no native counterpart.
@@ -393,8 +393,8 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 ## What this skill does NOT do
 
 - **Does not own browser-automation mechanics**. Sessions, snapshots and tracing belong to the browser tool the project uses; this skill owns the broader orchestrator + API + UI story
-- **Does not replace `/verification:confirm`**. That skill orchestrates the mechanical prerequisite (build+test+lint) + outcome verification
-- **Does not restate `/app-control:drive`**. On the drive route, drive's body owns launching, operating, capturing and cleanup; this skill chooses the entry points and judges
+- **Does not replace `/verification:confirm` (if enabled)**. That skill orchestrates the mechanical prerequisite (build+test+lint) + outcome verification
+- **Does not restate `/app-control:drive` (if enabled)**. On the drive route, drive's body owns launching, operating, capturing and cleanup; this skill chooses the entry points and judges
 
 ## Next
 

@@ -135,8 +135,7 @@ An unavailable category is reported as a gap, never skipped in silence.
 
 Repo-local git archaeology is delegated by invoking `/discovery:explore git` via the Skill tool
 when that skill is enabled, rather than reimplemented here; without it, read the history directly
-and say so. Tracker access routes through `/work-items:track`, invoked via the Skill tool, when the
-`work-items` plugin is enabled, which owns the
+and say so. Tracker access routes through `/work-items:track` (if enabled), invoked via the Skill tool, which owns the
 provider-neutral seam; without it, use whatever tracker interface the session actually has, and when
 none resolves, report the tracker category as unavailable.
 
