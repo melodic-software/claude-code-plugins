@@ -17,7 +17,7 @@ import { STOP_REASONS } from "../../scripts/lib/stop-reason.mjs";
 import { LIMITS, UNPLAIN_PATTERN, VERDICT_KEYS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { loads } from "./stage-closure.mjs";
+import { loads, stage as stageClosure } from "./stage-closure.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -193,6 +193,17 @@ test("every module and file a runner's script activity loads resolves in the sta
     walk(entry);
   }
   assert.deepEqual(missing, {});
+});
+
+test("a data file a module loads from outside its directory is staged alone, and the module's directory whole", () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/scripts/intake-triage/admit.mjs", dest);
+  const github = path.join(dest, ".github");
+  const top = readdirSync(github, { withFileTypes: true });
+  assert.deepEqual(top.filter((e) => e.isFile()).map((e) => e.name), ["recurring-schedule.json"]);
+  assert.ok(!top.some((e) => e.name === "workflows"), top.map((e) => e.name).join(" | "));
+  assert.deepEqual(readFileSync(path.join(github, "recurring-schedule.json")), readFileSync(path.join(REPO_ROOT, ".github/recurring-schedule.json")));
+  assert.deepEqual(readdirSync(path.join(github, "scripts/intake-triage")).sort(), readdirSync(path.join(REPO_ROOT, ".github/scripts/intake-triage")).sort());
 });
 
 // #8595: the lanes run the latest CLI, so the comment above shell_denied

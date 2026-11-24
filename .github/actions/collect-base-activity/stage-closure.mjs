@@ -5,12 +5,18 @@ import { pathToFileURL } from "node:url";
 const JS_LOADS = /(?:^\s*(?:import|export)\b[^;]*?\bfrom\s*|^\s*import\s+|\bimport\(\s*|\bnew URL\(\s*)["'](\.\.?\/[^"']+)["']/gm;
 const SH_LOADS = /(?:\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)|\$\{BASH_SOURCE\[0\]%\/\*\})\/([^"\s]+)/g;
 
+function moduleKind(file, text) {
+  if (/\.(sh|bash)$/.test(file) || /^#!.*\b(?:bash|sh)\b/.test(text)) return "shell";
+  if (/\.[mc]?js$/.test(file) || /^#!.*\bnode\b/.test(text)) return "js";
+  return null;
+}
+
 export function loads(file) {
   const text = readFileSync(file, "utf8");
-  const shell = /\.(sh|bash)$/.test(file) || /^#!.*\b(?:bash|sh)\b/.test(text);
-  if (!shell && !/\.m?js$/.test(file) && !/^#!.*\bnode\b/.test(text)) return [];
-  const code = text.replace(shell ? /^\s*#.*$/gm : /^\s*\/\/.*$/gm, "");
-  return [...code.matchAll(shell ? SH_LOADS : JS_LOADS)].map((m) => path.resolve(path.dirname(file), m[1]));
+  const kind = moduleKind(file, text);
+  if (!kind) return [];
+  const code = text.replace(kind === "shell" ? /^\s*#.*$/gm : /^\s*\/\/.*$/gm, "");
+  return [...code.matchAll(kind === "shell" ? SH_LOADS : JS_LOADS)].map((m) => path.resolve(path.dirname(file), m[1]));
 }
 
 export function stage(base, script, dest) {
@@ -22,8 +28,9 @@ export function stage(base, script, dest) {
     if (seen.has(file) || !rel || rel.startsWith("..") || path.isAbsolute(rel) || !existsSync(file)) return;
     seen.add(file);
     if (statSync(file).isDirectory()) return targets.add(rel);
-    targets.add(path.dirname(rel) === "." ? rel : path.dirname(rel));
-    for (const next of loads(file)) visit(next);
+    const module = moduleKind(file, readFileSync(file, "utf8"));
+    targets.add(!module || path.dirname(rel) === "." ? rel : path.dirname(rel));
+    if (module) for (const next of loads(file)) visit(next);
   };
   visit(path.join(root, script));
   for (const rel of targets) {
