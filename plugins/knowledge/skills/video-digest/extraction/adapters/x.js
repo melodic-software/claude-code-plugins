@@ -844,9 +844,6 @@ export async function acquireXMedia(url, context) {
       (entry) =>
         entry.endsWith(".srt") && mediaIds.some((id) => path.basename(entry).startsWith(`${id}.`)),
     );
-    // Backups are deletable only when every tagged VTT has its own converted
-    // .srt — a partial conversion (multi-video post) must not pass on the
-    // strength of the entries that did convert.
     const unconverted = taggedVtts.filter(
       (filePath) => !srtPaths.includes(filePath.replace(/\.vtt$/, ".srt")),
     );
@@ -908,8 +905,6 @@ export async function acquireXMedia(url, context) {
     statusId,
     typeof resultIdRaw === "string" ? resultIdRaw : null,
   );
-  // Media ids always differ from the status id; only a FLAGGED aliasing (media
-  // minted far before the URL's status) is recorded in slice metadata.
   const aliasing = aliasingDelta?.aliasSuspected ? aliasingDelta : null;
 
   const orderedVideos = orderTwitterVideos(inspected.twitterVideos, inspected.twitterPlaylist);

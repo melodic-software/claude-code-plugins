@@ -7,9 +7,6 @@
 
 set -uo pipefail
 
-# Captured pins — parsed from reference/versions.md (single source of truth;
-# a re-pin edits that file once and this script follows). Parsing is fail-hard:
-# a pin this script cannot read is a pin it must not silently skip verifying.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSIONS_MD="${SCRIPT_DIR}/../reference/versions.md"
 SOURCES_MD="${SCRIPT_DIR}/../reference/sources.md"
@@ -63,7 +60,6 @@ echo
 echo "Captured baselines from reference/versions.md (see each row's Captured date)."
 echo
 
-# --- Source 1: Kindle for PC installer URL ---
 echo "Kindle for PC installer:"
 HTTP=$(http_status "${PINNED_KFC_URL}")
 case "${HTTP}" in
@@ -77,7 +73,6 @@ case "${HTTP}" in
 esac
 echo
 
-# --- Source 2: DeDRM_tools latest pre-release ---
 echo "DeDRM_tools (Satsuoni fork) latest pre-release:"
 LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.prerelease == true)][0].tag_name' 2>/dev/null || echo "")
 if [[ -z "${LATEST_TAG}" ]]; then
@@ -121,7 +116,6 @@ case "${ART_HTTP}" in
 esac
 echo
 
-# --- Source 5: Local download SHAs ---
 echo "Local downloads (verify SHA256 if files present):"
 DL_DIR="${HOME}/Downloads"
 verify_sha() {

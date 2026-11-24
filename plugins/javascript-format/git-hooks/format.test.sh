@@ -42,7 +42,7 @@ chmod +x "$BIN/stubfmt"
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -53,7 +53,7 @@ expect() { # <label> <want> <got>
 }
 
 n=0
-new_repo() { # [biome.json body; "NONE" for no config]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -229,7 +229,6 @@ printf 'export const a=1\n' >"$REPO/a.ts"
 expect "--worktree: the format entry rewrites nothing and passes" "0||" "$(check "$REPO" --worktree)"
 expect "--worktree: the file keeps its bytes" "export const a=1" "$(cat "$REPO/a.ts")"
 
-# A PATH with the tools the script runs, git and no biome.
 NOBIOME="$WORK/nobiome"
 mkdir -p "$NOBIOME"
 for t in git bash sh sed awk cat mktemp rm dirname grep tr env head; do
@@ -324,7 +323,6 @@ new_repo NONE
 printf '{}\n' >"$REPO/.biome.json"
 expect "--resolve with nothing resolved says why the adapter did not opt in" "javascript-format	format	none		n/a	no Biome config: a hidden .biome.json does not opt in" "$(cd "$REPO" && PATH="$BIN:$PATH" bash "$CHECK" --resolve)"
 
-# End to end through the plugin's vendored installer and real commits.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(PATH="$BIN:$PATH" node "$INSTALL" copy --scope local --repo "$REPO")"

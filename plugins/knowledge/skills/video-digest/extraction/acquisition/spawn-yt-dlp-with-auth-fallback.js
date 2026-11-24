@@ -30,7 +30,6 @@ import {
  * @typedef {(authOverride?: YtDlpAuthOverride) => string[]} BuildYtDlpArgs
  */
 
-/** Empty pattern table: classifies nothing, so no fallback can fire. */
 const NO_ERROR_PATTERNS = Object.freeze({
   retryable: Object.freeze([]),
   fatal: Object.freeze([]),
