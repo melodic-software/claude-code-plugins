@@ -28,11 +28,11 @@ from decode import MID, end, frames, is_repeat, modes, per_area, probe  # noqa: 
 import workdir  # noqa: E402
 from render import WORKERS  # noqa: E402
 
-S, EPS, INTERP = 4, 0.25, 'cubic'   # supersample, approxPolyDP epsilon (source px), upsampler
-SHARP = (2.0, 0.9)                   # (amount, sigma) unsharp mask before tracing, or None
-LEVELS = (50, 90, 165, 205)          # extra gray isolines traced as tone layers
-TINT_RG, TINT_SIGN_RG, TINT_SIGN_PX = 4, 6, 15000   # warm paper: median R-G >= 4; a 'sign' is one >15k px region at >= 6
-TINT_MIN_PX = 300                    # smallest paper region a tint is read from (pixel counts scale by decode.per_area)
+S, EPS, INTERP = 4, 0.25, 'cubic'
+SHARP = (2.0, 0.9)
+LEVELS = (50, 90, 165, 205)
+TINT_RG, TINT_SIGN_RG, TINT_SIGN_PX = 4, 6, 15000
+TINT_MIN_PX = 300
 
 
 def decode(video, work):
@@ -80,10 +80,10 @@ def stats(rgb, g):
     ink, paper = g < T, g >= T
     core_i, core_p = np.abs(g.astype(int) - ink_g) <= 8, np.abs(g.astype(int) - paper_g) <= 8
 
-    def col(core, mode):   # an all-paper or all-ink frame leaves one core empty: fall back to its mode gray
+    def col(core, mode):
         return hexcol(np.median(rgb[core], 0) if core.any() else (mode,) * 3)
 
-    def r2(a, f):   # None, not NaN, for a class the frame lacks
+    def r2(a, f):
         return round(float(f(a)), 2) if a.size else None
     return dict(ink=col(core_i, ink_g), paper=col(core_p, paper_g), T=T, gray=dict(
         ink_mode=ink_g, paper_mode=paper_g,
@@ -94,7 +94,7 @@ def stats(rgb, g):
 
 
 def trace(gray, T, s=S, eps=EPS, interp=INTERP, sharp=SHARP):
-    if sharp:   # unsharp mask undoes the source blur so render-side blur restores it
+    if sharp:
         g = gray.astype(np.float32)
         sg = g + sharp[0] * (g - cv2.GaussianBlur(g, (0, 0), sharp[1]))
         # the blur reflects the dark row 1 onto row 0, pushing a near-T border row across T; keep the raw border
@@ -113,7 +113,7 @@ def trace(gray, T, s=S, eps=EPS, interp=INTERP, sharp=SHARP):
     out = []
     for i, c in enumerate(cs):
         if hier[i][3] != -1:
-            continue   # holes are collected under their parent
+            continue
         holes, j = [], hier[i][2]
         while j != -1:
             holes.append(flat(cs[j]))

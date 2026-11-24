@@ -31,8 +31,6 @@ WARNSIGN=$'\xe2\x9a\xa0'
 LQUO=$'\xe2\x80\x9c'
 RQUO=$'\xe2\x80\x9d'
 
-# --- Fixtures (built inline) ----------------------------------------------------
-
 SLOP="$TEST_TMPDIR/slop.md"
 cat >"$SLOP" <<EOF
 # A pivotal document
@@ -165,8 +163,6 @@ These are great questions for the reviewer to work through.
 The team found the smoking guns in yesterday's logs.
 EOF
 
-# --- Seed-rule cases -------------------------------------------------------------
-
 out="$(bash "$DETECT" "$SLOP" 2>&1)"
 rc=$?
 assert_exit "slop fixture: exit 0" 0 "$rc"
@@ -180,8 +176,6 @@ rc=$?
 assert_exit "clean fixture: exit 0" 0 "$rc"
 assert_not_contains "clean fixture: no findings from any rule" "$out" "Finding:"
 assert_contains "clean fixture: summary reports zero" "$out" "Summary total: 0 findings"
-
-# --- Full-roster pattern rules ---------------------------------------------------
 
 out="$(bash "$DETECT" "$ALLRULES" 2>&1)"
 assert_contains "roster: emoji-formatting fires on bullet line" "$out" "Finding: rule=ai-slop/audit/rule-emoji-formatting"
@@ -229,8 +223,6 @@ out="$(bash "$DETECT" "$BQCODE" 2>&1)"
 assert_contains "emoji: the real callout in a quote fires" "$out" "rule=ai-slop/audit/rule-emoji-formatting findings=1"
 assert_not_contains "emoji negative: an indented code line inside a quote does not fire" "$out" "literal code"
 
-# --- General-prose rules -----------------------------------------------------------
-
 out="$(bash "$DETECT" "$GENPROSE" 2>&1)"
 assert_contains "general-prose: chatbot-artifacts fires" "$out" "Finding: rule=ai-slop/audit/rule-chatbot-artifacts"
 assert_contains "general-prose: filler-phrases fires" "$out" "Finding: rule=ai-slop/audit/rule-filler-phrases"
@@ -259,8 +251,6 @@ chatbot_row="$(LC_ALL=C grep -m1 'rule-chatbot-artifacts' "$TEST_TMPDIR/findings
 assert_contains "general-prose: chatbot-artifacts emits at IMPORTANT (crosswalk mirror)" "$chatbot_row" "IMPORTANT"
 filler_row="$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TEST_TMPDIR/findings/general-prose.md")"
 assert_contains "general-prose: filler-phrases emits at SUGGESTION (crosswalk mirror)" "$filler_row" "SUGGESTION"
-
-# --- Quotation exemption (wording vs typography rule classes) --------------------
 
 QUOTED="$TEST_TMPDIR/quoted.md"
 cat >"$QUOTED" <<EOF
@@ -362,8 +352,6 @@ EOF
 printf '# Deep\n\nWritten in order to test star depth.\n' >"$WIDE/sub/deep/nested.md"
 out="$(CLAUDE_PROJECT_DIR="$WIDE" bash "$DETECT" "$WIDE/sub/deep/nested.md" 2>&1)"
 assert_contains "glob semantics: * crosses / (case fnmatch, no FNM_PATHNAME)" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=1"
-
-# --- Model-era phrase rule (rule-model-era-phrases) ------------------------------
 
 PHRASES_FIX="$TEST_TMPDIR/model-phrases.md"
 cat >"$PHRASES_FIX" <<'EOF'
@@ -479,8 +467,6 @@ else
   fail "catalog gate: no locally-observed entry ships as a script rule" "no slugs" "$grade_violations"
 fi
 
-# --- Exemptions ------------------------------------------------------------------
-
 out="$(bash "$DETECT" "$MARKED" 2>&1)"
 assert_not_contains "line marker: em dash on marked line not flagged" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
 assert_contains "line marker: declined count nonzero" "$out" "declined=1"
@@ -509,8 +495,6 @@ assert_contains "mixed marker line: the real line marker still declines" "$out" 
 out="$(bash "$DETECT" "$MIDFILEMARK" 2>&1)"
 assert_not_contains "mid-file file marker: whole file exempt, nothing scanned" "$out" "Finding:"
 assert_contains "mid-file file marker: counted as declined file" "$out" "(1 files declined)"
-
-# --- CLI contract ----------------------------------------------------------------
 
 out="$(bash "$DETECT" --paths-file "$TEST_TMPDIR/nope" 2>&1)"
 rc=$?
@@ -569,8 +553,6 @@ out="$(CLAUDE_PROJECT_DIR="$EPREPO" bash "$DETECT" --paths-file "$TEST_TMPDIR/em
 assert_not_contains "empty paths-file: the repository listing is not scanned" "$out" "tracked.md"
 assert_contains "empty paths-file: stderr says the list is empty" "$out" "lists no paths"
 assert_contains "empty paths-file: zero-file Summary" "$out" "0 findings across 0 files scanned"
-
-# --- Config cascade --------------------------------------------------------------
 
 cfgdir="$TEST_TMPDIR/repo/docs/conventions"
 mkdir -p "$cfgdir"
@@ -748,8 +730,6 @@ printf '%s\n' '{ "thresholds": { "ai_vocabulary": 999 } }' >"$okdir/ai-slop.json
 out="$(HOME="$TEST_TMPDIR/trunc-ok-home" bash "$DETECT" --show-config 2>&1)"
 assert_contains "malformed layer: the same value from a well-formed layer still applies" "$out" "threshold_ai_vocabulary=999 (rule"
 
-# --- YAML team layer (docs/conventions/ai-slop.yaml) -------------------------------
-
 OLDREPO="$TEST_TMPDIR/old-json-repo"
 mkdir -p "$OLDREPO/.claude"
 make_repo "$OLDREPO"
@@ -809,8 +789,6 @@ rm -f "$YREPO/docs/conventions/ai-slop.local.yaml"
 out="$(cd "$YREPO" && CLAUDE_PROJECT_DIR="$YREPO" bash "$DETECT" --list-targets "$YREPO/doc.md" 2>&1)"
 assert_not_contains "yaml: excluded_paths from the YAML drops the target" "$out" "doc.md"
 
-# --- Portability -----------------------------------------------------------------
-
 a="$(bash "$DETECT" "$ALLRULES" 2>&1)"
 b="$(LC_ALL=C bash "$DETECT" "$ALLRULES" 2>&1)"
 if [[ "$a" == "$b" ]]; then
@@ -818,8 +796,6 @@ if [[ "$a" == "$b" ]]; then
 else
   fail "portability: output identical under LC_ALL=C" "identical" "differs"
 fi
-
-# --- Fences (CommonMark indentation + opener-char tracking) -----------------------
 
 FENCY="$TEST_TMPDIR/fency.md"
 cat >"$FENCY" <<EOF
@@ -837,8 +813,6 @@ EOF
 out="$(bash "$DETECT" "$FENCY" 2>&1)"
 assert_contains "fences: prose after close still flags" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 "
 assert_not_contains "fences: indented fence content exempt, tilde does not close backtick fence" "$out" "delve"
-
-# --- Fences opened behind a list marker (CommonMark container blocks) -------------
 
 LISTFENCE="$TEST_TMPDIR/listfence.md"
 cat >"$LISTFENCE" <<EOF
@@ -955,8 +929,6 @@ EOF
 out="$(bash "$DETECT" "$GENUNCLOSED" 2>&1)"
 assert_contains "generated region: an unclosed one is reported" "$out" "generated region opened at line 3 is never closed"
 
-# --- Directory target expansion ---------------------------------------------------
-
 DIRT="$TEST_TMPDIR/dirt"
 mkdir -p "$DIRT/sub"
 cat >"$DIRT/a.md" <<EOF
@@ -1005,8 +977,6 @@ assert_contains "dir target with a trailing slash: the emitted path is not doubl
 assert_not_contains "dir target with a trailing slash: no doubled separator" "$out" "file=$GITDIR/docs//tracked.md"
 assert_contains "dir target with a trailing slash: only the tracked file counts" "$out" "1 files scanned"
 
-# --- Bare invocation (no paths) ---------------------------------------------------
-
 BAREREPO="$TEST_TMPDIR/barerepo"
 mkdir -p "$BAREREPO/unicode"
 git -C "$BAREREPO" init -q
@@ -1034,8 +1004,6 @@ EOF
 chmod +x "$BADLS_BIN/git"
 out="$(cd "$BAREREPO" && PATH="$BADLS_BIN:$PATH" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
 assert_contains "bare invocation, listing fails: the summary reports 0 files scanned" "$out" "0 files scanned"
-
-# --- Prose extraction retry --------------------------------------------------------
 
 REAL_AWK="$(command -v awk)"
 make_failing_awk() {
@@ -1079,8 +1047,6 @@ rc=$?
 assert_exit "extraction fails without an abort: the scan exits 2" 2 "$rc"
 assert_eq "extraction fails without an abort: no retry runs" "$(cat "$TEST_TMPDIR/bin-awk-error/calls")" "1"
 
-# --- Excerpt truncation at the byte boundary --------------------------------------
-
 LONGLINE="$(printf 'x%.0s' $(seq 1 75)) em${EM}dash tail"
 BOUNDARY="$TEST_TMPDIR/boundary.md"
 printf '%s\n' "$LONGLINE" >"$BOUNDARY"
@@ -1092,8 +1058,6 @@ elif LC_ALL=C grep -q $'\xe2' <<<"$out"; then
 else
   pass "excerpt truncation: partial sequence dropped cleanly"
 fi
-
-# --- emit-findings.sh ------------------------------------------------------------
 
 EMIT="$SCRIPT_DIR/emit-findings.sh"
 EMITSRC="$TEST_TMPDIR/emitsrc.md"
@@ -1198,7 +1162,6 @@ else
   fi
 fi
 
-# --- emit: branch names that are YAML indicators ---------------------------------
 emit_branch_line() {
   local b="$1" out="$TEST_TMPDIR/findings/ybranch.md"
   rm -f "$TEST_TMPDIR/findings/ybranch"*.md
@@ -1241,8 +1204,6 @@ done
 assert_branch_line '@with"quote' 'branch: "@with\"quote"' \
   "emit: a quote character inside an indicator branch is escaped"
 
-# --- Roster agreement: every rule's tier is asserted -----------------------------
-
 EXPECTED_IMPORTANT="rule-knowledge-cutoff-disclaimer rule-llm-citation-artifacts rule-chatbot-artifacts"
 EXPECTED_SUGGESTION="rule-em-dash rule-emoji-formatting rule-curly-artifacts rule-significance-inflation rule-negative-parallelism rule-challenges-conclusion rule-utm-params rule-filler-phrases rule-stacked-hedging rule-model-era-phrases rule-ai-vocabulary rule-copulative-avoidance"
 
@@ -1283,8 +1244,6 @@ assert_contains "action: filler-phrases carries its substitution, not the generi
 assert_contains "action: stacked-hedging names the one-hedge repair" \
   "$(LC_ALL=C grep -m1 'rule-stacked-hedging' "$TIEROUT")" "states the real uncertainty"
 
-# --- Quotation exemption across a soft line break -------------------------------
-
 WRAPQ="$TEST_TMPDIR/wrapq.md"
 cat >"$WRAPQ" <<'EOF'
 # Wrapped quotes
@@ -1306,8 +1265,6 @@ assert_contains "wrapped quote: documented phrases across a line break stay exem
 assert_contains "wrapped quote: exempt candidates counted under the quote cause" "$out" "rule=ai-slop/audit/rule-challenges-conclusion findings=0 declined=2 declined_marker=0 declined_quote=2 declined_config=0"
 assert_contains "wrapped quote: an unmatched quote resets at the next list item; an inch mark opens nothing" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=4"
 
-# --- Vocabulary: the noun "underscore" is not a tell ------------------------------
-
 UNDERSCORE="$TEST_TMPDIR/underscore.md"
 cat >"$UNDERSCORE" <<'EOF'
 # Naming
@@ -1318,8 +1275,6 @@ and a field whose underscore is trailing fails too. Count the underscore once.
 EOF
 out="$(bash "$DETECT" "$UNDERSCORE" 2>&1)"
 assert_contains "vocab: the noun underscore does not fire the density rule" "$out" "rule=ai-slop/audit/rule-ai-vocabulary findings=0"
-
-# --- Declined counts split by cause ------------------------------------------------
 
 SPLITMARK="$TEST_TMPDIR/splitmark.md"
 cat >"$SPLITMARK" <<EOF
@@ -1333,8 +1288,6 @@ out="$(bash "$DETECT" "$QUOTED" 2>&1)"
 assert_contains "split declined: quote-exempt hits count under quote" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=2 declined_marker=0 declined_quote=2 declined_config=0"
 out="$(CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" 2>&1)"
 assert_contains "split declined: a rule_allowed_paths exemption counts under config" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=1 declined_marker=0 declined_quote=0 declined_config=1"
-
-# --- Marker declines are charged per rule ------------------------------------------
 
 ATTRIB="$TEST_TMPDIR/attrib.md"
 cat >"$ATTRIB" <<EOF
@@ -1380,8 +1333,6 @@ out="$(bash "$DETECT" "$FILEMARK" 2>&1)"
 assert_contains "whole-file marker: a rule the prose matches is charged one file decline" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=1 declined_quote=0 declined_config=0"
 assert_contains "whole-file marker: a rule the prose does not match is charged one file decline too" "$out" "rule=ai-slop/audit/rule-utm-params findings=0 declined=1 declined_marker=1 declined_quote=0 declined_config=0"
 
-# --- emit: chunked detector output is summed ---------------------------------------
-
 CHUNK_A="$TEST_TMPDIR/chunk-a.txt"
 CHUNK_B="$TEST_TMPDIR/chunk-b.txt"
 cat >"$CHUNK_A" <<'EOF'
@@ -1408,8 +1359,6 @@ assert_contains "emit chunked: a rule with zero findings in every chunk returns 
 assert_not_contains "emit chunked: a rule that fired in one chunk is not called no-result" "$ccontent" "Returned no result: [ai-slop/audit/rule-em-dash"
 assert_contains "emit chunked: the declined-file row survives" "$ccontent" "Declined: file=vendor/x.md cause=excluded-glob"
 assert_contains "emit chunked: the finding row from the first chunk is present" "$ccontent" "a.md:3"
-
-# --- Result ---------------------------------------------------------------------
 
 echo
 TOTAL=$((CASE_NUM + SKIPPED))

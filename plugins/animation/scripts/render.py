@@ -37,8 +37,8 @@ import produce
 import workdir
 
 HERE = Path(__file__).resolve().parent
-WORKERS = min(8, os.cpu_count() or 1)   # pages capture.mjs renders in parallel; every worker default routes here
-FORMATS = {fmt: f'animation-{fmt}' for fmt in ('mp4', 'webm', 'gif')}   # delivered format -> media_encode profile
+WORKERS = min(8, os.cpu_count() or 1)
+FORMATS = {fmt: f'animation-{fmt}' for fmt in ('mp4', 'webm', 'gif')}
 
 
 class Roots(http.server.SimpleHTTPRequestHandler):
@@ -74,7 +74,6 @@ def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORK
     """Capture a scene into out; return the render.json dict. Exits 1 when the scene fails, 2 when a tool is missing."""
     prereq.require(['node'])
     scene, out = Path(scene).resolve(), Path(out)
-    # stale images from an earlier render would be read (or encoded) as this one's: a film owns every fNNNN.png
     for f in workdir.frames(out) if drawings is None else [workdir.drawing(out, k) for k in drawings]:
         f.unlink(missing_ok=True)
     served = [str(scene.parent), str(HERE), *map(str, roots)]
@@ -117,7 +116,7 @@ def encode(frames, fmt, fps, out):
                           '-framerate', f'{fps:g}', '-i', '-', *media_encode.PROFILES[FORMATS[fmt]]['video'], str(out)],
                          stdin=subprocess.PIPE)
     pipe = p.stdin
-    assert pipe is not None   # stdin=PIPE always opens it
+    assert pipe is not None
     try:
         pipe.write(first.tobytes())
         for img in frames:
@@ -166,7 +165,7 @@ def main(argv=None):
         if err or not isinstance(last, dict) or 't1' not in last or not {'fps', 'size'} <= set(shots):
             ap.error(f'--shots {a.shots}: {err or "needs fps, size and shots ending in a t1"}; '
                      'run produce.py shots on it first')
-    if a.encode != 'none':   # fail before the render, not after it
+    if a.encode != 'none':
         prereq.require(['ffmpeg', 'numpy', 'opencv', *encoders(a.encode)])
     meta = render(a.scene, a.out, a.fps, a.drawings, a.query, [r.resolve() for r in a.root], a.workers,
                   a.playwright_core)
