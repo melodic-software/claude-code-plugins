@@ -109,6 +109,7 @@ fi
 
 # Extract the latest valid non-future YYYY-MM-DD date from a page file
 # (ISO dates, "Mon DD, YYYY", or "DD Mon YYYY").
+# Date suffixes on model names and ids are not page dates.
 extract_page_date() {
   local file="$1"
   [[ -s "$file" ]] || return 0
@@ -137,8 +138,15 @@ extract_page_date() {
     }
     {
       s = $0
+      off = 0
       while (match(s, /[0-9]{4}-[0-9]{2}-[0-9]{2}/)) {
-        consider(substr(s, RSTART, RLENGTH))
+        abs = off + RSTART
+        prev = abs > 1 ? substr($0, abs - 1, 1) : ""
+        nextc = abs + RLENGTH <= length($0) ? substr($0, abs + RLENGTH, 1) : ""
+        if (prev !~ /[A-Za-z0-9_-]/ && !(prev == "(" && nextc == ")")) {
+          consider(substr(s, RSTART, RLENGTH))
+        }
+        off += RSTART + RLENGTH - 1
         s = substr(s, RSTART + RLENGTH)
       }
       s = tolower($0)

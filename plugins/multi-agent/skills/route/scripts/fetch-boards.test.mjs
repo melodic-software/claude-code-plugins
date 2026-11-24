@@ -30,6 +30,21 @@ test('AC6: second fetch-boards run on a fixture row within its window has source
   assert.equal(m2.boards[0].page_date, '2026-11-18')
 })
 
+test('fetch-boards does not date a page from a model-name or model-id date suffix', (t) => {
+  if (skipWithoutBash(t)) return
+  const withPageDate = runFetchBoardsCacheFixture(t, {
+    page: '# Terminal-Bench Leaderboard\n\nUpdated Nov 18, 2026\n\n| Model | Score |\n|---|---|\n| Qwen Image 2.0 Pro (2026-11-20) | 82.0% |\n| [Mini](/models/openai_gpt-5.4-mini-2026-11-21) | 78.0% |\n',
+  })
+  assert.equal(withPageDate.run1.status, 0, withPageDate.run1.stderr)
+  assert.equal(withPageDate.m1.boards[0].page_date, '2026-11-18')
+
+  const suffixOnly = runFetchBoardsCacheFixture(t, {
+    page: '# Terminal-Bench Leaderboard\n\n| Model | Score |\n|---|---|\n| Qwen Image 2.0 Pro (2026-04-22) | 82.0% |\n',
+  })
+  assert.equal(suffixOnly.run1.status, 0, suffixOnly.run1.stderr)
+  assert.equal(suffixOnly.m1.boards[0].page_date, null)
+})
+
 test('fetch-boards checks each row expect marker: a page lacking it is unread no-content', (t) => {
   if (skipWithoutBash(t)) return
   const page = '# Leaderboard\n\nUpdated 2026-11-18\n\n| Model | Score |\n|---|---|\n| sparrow-1 | 82.0% |\n'

@@ -1001,3 +1001,43 @@ test('caller contract: the decision is the same with auto-delegation on or off',
   assert.equal(off.json.vendor, 'codex')
   assert.deepEqual(on.json, off.json)
 })
+
+test('a board-reader record carrying a display-name version is dropped; the same record with a null version counts', (t) => {
+  const resDropped = twoBoards(t, [
+    rec('board-a', 'codex', 'sparrow-1', 'lead', { version: 'Sparrow 1' }),
+    rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    rec('board-b', 'codex', 'sparrow-1', 'lead'),
+    rec('board-b', 'claude', 'kestrel-1', 'behind'),
+  ])
+  assert.equal(resDropped.code, 0, resDropped.stderr)
+  assert.ok(resDropped.json.notes.includes("dropped record for 'board-a': invalid version value"))
+  assert.equal(resDropped.json.vendor, 'claude')
+  assert.equal(resDropped.json.basis, 'default')
+
+  const resKept = twoBoards(t, [
+    rec('board-a', 'codex', 'sparrow-1', 'lead', { version: null }),
+    rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    rec('board-b', 'codex', 'sparrow-1', 'lead'),
+    rec('board-b', 'claude', 'kestrel-1', 'behind'),
+  ])
+  assert.equal(resKept.code, 0, resKept.stderr)
+  assert.equal(resKept.json.notes.some((n) => n.startsWith('dropped record for')), false)
+  assert.equal(resKept.json.vendor, 'codex')
+  assert.equal(resKept.json.model, 'sparrow-1')
+  assert.equal(resKept.json.basis, 'consensus')
+  assert.deepEqual(resKept.json.sources.map((s) => s.source_id).sort(), ['board-a', 'board-b'])
+  assert.ok(resKept.json.sources.every((s) => s.read === 'live' && s.role === 'leading'))
+})
+
+test('verdict-record schema patterns accept ids and reject display names', () => {
+  const schema = JSON.parse(readFileSync(VERDICT_SCHEMA, 'utf8'))
+  for (const f of ['model', 'version', 'effort']) {
+    const re = new RegExp(schema.properties[f].pattern)
+    for (const valid of ['gpt-6.2-astra', '2026-11-18', 'high']) {
+      assert.equal(re.test(valid), true, `${f} should match ${valid}`)
+    }
+    for (const invalid of ['GPT-6.2 Astra', '']) {
+      assert.equal(re.test(invalid), false, `${f} should reject ${JSON.stringify(invalid)}`)
+    }
+  }
+})

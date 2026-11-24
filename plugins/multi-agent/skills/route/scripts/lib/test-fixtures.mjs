@@ -137,7 +137,10 @@ export function tieWithTokensRecords() {
   ]
 }
 
-export function runFetchBoardsCacheFixture(t) {
+const DEFAULT_BENCHMARK_PAGE =
+  '# Terminal-Bench Leaderboard\n\nUpdated 2026-11-18\n\n| Model | Score | CI |\n|---|---|---|\n| sparrow-1 | 82.0% | +/- 1.1% |\n| kestrel-1 | 78.0% | +/- 1.2% |\n'
+
+export function runFetchBoardsCacheFixture(t, { page = DEFAULT_BENCHMARK_PAGE } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'fetch-boards-test-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const fixtureDir = join(dir, 'fixtures')
@@ -147,10 +150,7 @@ export function runFetchBoardsCacheFixture(t) {
   const regPath = join(dir, 'benchmarks.json')
 
   mkdirSync(join(fixtureDir, 'www-tbench-ai'), { recursive: true })
-  writeFileSync(
-    join(fixtureDir, 'www-tbench-ai', 'leaderboard.md'),
-    '# Terminal-Bench Leaderboard\n\nUpdated 2026-11-18\n\n| Model | Score | CI |\n|---|---|---|\n| sparrow-1 | 82.0% | +/- 1.1% |\n| kestrel-1 | 78.0% | +/- 1.2% |\n',
-  )
+  writeFileSync(join(fixtureDir, 'www-tbench-ai', 'leaderboard.md'), page)
   writeFileSync(
     regPath,
     JSON.stringify({
