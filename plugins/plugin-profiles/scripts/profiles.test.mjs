@@ -4077,7 +4077,7 @@ test("#18314 D5: a profile session's start hook tells the model the reopen line,
   assert.match(context, /claude --resume abc-1 --profile-add <plugin or plugin:skill>/);
   assert.match(context, /claude plugin install/);
   assert.ok(context.split(/\s+/).length < 80, `${context.split(/\s+/).length} words`);
-  assert.match(start.systemMessage, /This session runs in profile build\./);
+  assert.match(start.systemMessage, /^This session runs in profile build\.\nPlugins outside this profile are off\. Ask for one in words, or reopen with: claude --resume abc-1 --profile-add <plugin>$/m);
   const compact = hookJson(w, { session_id: "abc-1", source: "compact" }, plain);
   assert.deepEqual(Object.keys(compact), ["hookSpecificOutput"], "after compaction only the context");
   assert.equal(compact.hookSpecificOutput.additionalContext, context);
@@ -4092,6 +4092,7 @@ test("#18314 D5: a profile session's start hook tells the model the reopen line,
   assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
   const folder = hookJson(w, { session_id: "plain-2", source: "startup" });
   assert.equal(folder.hookSpecificOutput, undefined, "a folder profile without a one-session profile gets no reopen line");
+  assert.doesNotMatch(folder.systemMessage, /Plugins outside this profile are off/, "nor the notice's reopen line");
   assert.equal(hookJson(w, { session_id: "plain-2", source: "compact" }), null, "nor after compaction");
 });
 

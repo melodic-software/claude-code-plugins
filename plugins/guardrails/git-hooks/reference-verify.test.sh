@@ -288,10 +288,7 @@ expect "an awk that fails while merging a copy's lines fails the push" \
   "1|reference-verify.sh: awk exited 2 while merging the lines a copy adds into the changed lines, so this change was not fully checked; fix that failure, then push again" \
   "$(push_failing 'copy[$0] = 1' 1 refs/heads/main "$tip" "$pushed")"
 
-# A file whose verifier input cannot be built is reported unchecked and fails
-# the push, never skipped. The pushed text is clean, so the injected failure is
-# the only finding.
-push_unchecked() { # <marker> <ref> <local-sha> <remote-sha> -> "<rc>|<first finding line>"
+push_unchecked() {
   local err rc
   rm -f "$WORK/shim-count"
   err="$(cd "$REPO" && printf '%s %s %s %s\n' "$2" "$3" "$2" "$4" |

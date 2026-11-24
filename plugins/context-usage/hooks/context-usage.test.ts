@@ -1,19 +1,13 @@
 import { expect, mock, test as kitTest } from 'claude-code/testing'
 
-// Most cases test what Claude is told, so they run with model_notices on; a case that sets it keeps
-// its own value, and the 'defaults:' cases call kitTest to run on the manifest's defaults.
 const test = (name: string, ...rest: [any] | [any, any]) =>
   rest.length === 1 ? kitTest(name, { options: { model_notices: true } }, rest[0]) : kitTest(name, { ...rest[0], options: { model_notices: true, ...rest[0].options } }, rest[1])
 
-// Fixture time, computed by hand: 2026-10-03T18:00:00Z is 1791050400 s.
 const T0 = 1_791_050_400_000
 const HOME = '/srv/u'
 const CTX = '/srv/u/.claude/context-usage/context'
 const ZONES = '/srv/u/.claude/context-usage/zones.json'
-// The engine hands fs hooks the resolved path, which on Windows gains a drive and backslashes
-// (D:\srv\u\.claude.json); the fake fs keys files by the POSIX path the mod built.
 const key = (path: string) => path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
-// Each zone with its rank of three, as the lines name it.
 const VERDICT = {
   light: 'light zone (1 of 3)',
   moderate: 'moderate zone (2 of 3)',
@@ -29,7 +23,6 @@ type World = {
   tokens: number | undefined
   output: number
   window: number
-  // The auto-compact window the breakdown reports as rawMaxTokens; unset, the model's window.
   compactWindow?: number
   version: string
   sid: string
@@ -48,16 +41,11 @@ type World = {
   ran: string[]
   exits: (number | 'throw')[]
   toolMs: number
-  // A helper run waits on this promise when set.
   gate?: Promise<void>
-  // Called after each toast is recorded.
   onToast?: () => void
-  // session.surfaces throws when set.
   surfacesFail?: boolean
 }
 
-// The world beneath the plugin. `percent` drives the reading; tokens follow it on a 200000 window
-// unless a test sets them, so the token shape agrees with the percentage shape.
 const world = (stub: any, init: Partial<World> = {}, env: Record<string, string> = { HOME }, omit: string[] = []) => {
   const on = (event: string, ...rest: unknown[]) => (omit.includes(event) ? undefined : stub(event, ...rest))
   const w: World = {
@@ -127,7 +115,6 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   on('process.run', async ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
     w.runs.push({ argv: e.argv, stdin: e.init?.stdin })
     await w.gate
-    // A helper run takes the next queued exit; 'throw' is a run that did not start.
     const exit = e.argv[0] === 'node' ? (w.exits.shift() ?? 0) : 0
     if (exit === 'throw') throw new Error('spawn failed')
     return { value: { exitCode: exit, stdout: '', stderr: exit === 0 ? '' : 'write-snapshot: rename failed' } }
@@ -173,10 +160,8 @@ const write = ($: any, file_path = '/work/a.ts', agentId?: string) =>
 const prompt = ($: any, kind = 'sdk', extra: object = {}) => $.prompt.submit({ text: 'go', wait: false, origin: { kind }, ...extra })
 const OPTIONS =
   'context-usage: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose; /context shows what fills the window. A zone never calls for terser output, fewer agents, or lower quality.'
-// The verdict lines; the options line that follows them is asserted on its own.
 const own = (context: readonly string[] | undefined) => (context ?? []).filter(c => c.startsWith('context-usage') && c !== OPTIONS)
 const options = (context: readonly string[] | undefined) => (context ?? []).filter(c => c === OPTIONS)
-// Steps the reading through each percentage, one Bash call each, and returns each call's own lines.
 const walk = async ($: any, w: World, steps: (number | undefined)[]) => {
   const seen: string[][] = []
   for (const p of steps) {
@@ -193,7 +178,6 @@ const BAND = {
   props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120, scroll: { offset: 0, bodyRows: 9 }, view: {} },
 } as const
 
-// ---- Crossing lines and the once-per-zone cycle ----------------------------------------------
 
 test('lines: one line at each crossing into a worse zone, appended after the context beneath', async ($, on) => {
   const { w } = world(on, { below: ['below'] })
@@ -281,7 +265,6 @@ test('lines: a reading session.measure carries reaches Claude at the next carrie
   await bash($)
   w.percent = 60
   await $.session.measure({ context: { window: 200_000, percent: 60, tokens: 120_000 }, rateLimits: [], changed: ['context'] } as any)
-  // The prompt itself reads nothing, so only the measure can have seen the crossing.
   w.percent = undefined
   expect(own((await prompt($)).context)).toEqual([crossing('moderate')])
 })
@@ -356,7 +339,6 @@ test(
   },
 )
 
-// ---- Approach lines, zones.json additions and line data --------------------------------------
 
 const approach = (zone: Verdict, toward: string) => `context-usage: ${VERDICT[zone]}, nearing ${toward}.`
 const zonesFile = (w: World, zones: unknown, mtimeMs = 1) => {
@@ -408,7 +390,6 @@ test('zones.json: custom edges move the crossings, and a later edit takes effect
   expect((await walk($, w, [20, 31])).flat()).toEqual([])
 })
 
-// Migration: remove with EARLIER_DIR in register.tsx.
 test('zones.json: bands left under the earlier plugin directory act until the new file exists', async ($, on) => {
   const { w } = world(on)
   const earlier = `${HOME}/.claude/context-guard/zones.json`
@@ -499,16 +480,11 @@ test('zones.json: an extra threshold gets its approach line and its line once pe
   ])
 })
 
-// On a 1000000-token window with the shipped bands, 26% used (260000 tokens) reads moderate:
-// the reader contract's 1M row puts the heavy edge past 500000 tokens.
 test('shipped bands, 1000000 window: 26% used announces moderate, never heavy; 51% announces heavy', async ($, on) => {
   const { w } = world(on, { window: 1_000_000 })
   expect(await walk($, w, [5, 26, 51])).toEqual([[], [crossing('moderate')], [crossing('heavy')]])
 })
 
-// A lowered auto-compact window: the breakdown's rawMaxTokens. On a 200000 window
-// with a 100000 compaction window the percentage edges sit at 25 and 37.5 points of the window
-// (50 and 75 of 100000), while 30% and 40% (60000 and 80000 tokens) stay light in the token shape.
 test('compaction window: a lowered window pulls the percentage edges toward it', async ($, on) => {
   const { w } = world(on, { compactWindow: 100_000 })
   expect(await walk($, w, [10, 30, 40])).toEqual([[], [crossing('moderate')], [crossing('heavy')]])
@@ -528,8 +504,6 @@ test('compaction window: a zones.json threshold follows it too', async ($, on) =
   expect(await walk($, w, [10, 31])).toEqual([[], [crossing('moderate'), passed]])
 })
 
-// The threshold fired at 30 points (60 of 100000); the window then grows to the model's, which
-// moves the edge to 60 points. 61% is past it, still moderate, still the same cycle.
 test('compaction window: a threshold that fired stays fired when the window changes mid-cycle', async ($, on) => {
   const { w } = world(on, { compactWindow: 100_000 })
   zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
@@ -539,7 +513,6 @@ test('compaction window: a threshold that fired stays fired when the window chan
   expect(await walk($, w, [61])).toEqual([[]])
 })
 
-// 400000 of 1000000: the edges at 20 and 30 points (50 and 75 of 400000), the margin at 2.
 test('compaction window: the status tool publishes the edges in force and the window they follow', async ($, on) => {
   world(on, { window: 1_000_000, compactWindow: 400_000, percent: 9 })
   const answer = JSON.parse(String((await $.tool.call({ tool: 'mcp__context-usage__status' } as any)).result))
@@ -551,8 +524,6 @@ test('compaction window: the status tool publishes the edges in force and the wi
   ])
 })
 
-// The token edges of a 1000000-token window at 210000 and 410000; the percentage edges there
-// (50% and 75%) sit at 500000 and 750000 tokens, so the token shape decides both crossings.
 const TOKEN_EDGES = { token_bands: { '1000000': { light_max_tokens: 210_000, moderate_max_tokens: 410_000 } } }
 
 test('approach, token shape: one line 50000 tokens before each token edge on a 1000000 window', async ($, on) => {
@@ -633,7 +604,6 @@ test('zones.json: invalid additions fall back to the defaults', async ($, on) =>
   expect((await walk($, w, [30, 45, 80])).flat()).toEqual([approach('light', 'moderate'), crossing('heavy')])
 })
 
-// ---- Malformed zones.json: one toast to the person per distinct content ----------------------
 
 const ZONES_TOAST = (notices: string) => `${ZONES}: shipped defaults replace malformed ${notices} · /context-usage:setup check`
 const INVERTED = { light_max_used_percentage: 80, moderate_max_used_percentage: 60 }
@@ -697,12 +667,9 @@ test('switch: model_notices false sends no line', { options: { model_notices: fa
   expect((await walk($, w, [30, 45, 60, 80])).flat()).toEqual([])
 })
 
-// The manifest's defaults: Claude's context gets nothing from the module, at a prompt or a tool
-// result, while the person's toast and transcript line still arrive.
 kitTest('defaults: nothing reaches Claude at a crossing, an approach, a threshold or a restatement; the person still sees the crossing', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
-  // Everything added to the context, whatever its prefix (the world adds nothing beneath).
   const mine = (context: readonly string[] | undefined) => [...(context ?? [])]
   const seen: string[] = []
   for (const p of [30, 47, 60, 72, 80]) {
@@ -722,7 +689,6 @@ test('switch: context_usage_hooks_enabled false sends no line',{ options: { cont
   expect((await walk($, w, [30, 45, 60, 80])).flat()).toEqual([])
 })
 
-// ---- Restatement: compaction, resume, reload, /clear -------------------------------------------
 
 const restated = (zone: Verdict, tail = '') => `context-usage: ${VERDICT[zone]}.${tail}`
 const compact = ($: any, trigger: string, extra: object = {}) => $.session.compact({ trigger, messages: MESSAGES, ...extra } as any)
@@ -805,7 +771,6 @@ test('compaction: the settings hook marker alone is reported once, beside the zo
   expect((await walk($, w, [10, 12])).flat()).toEqual([restated('lightCompacted')])
 })
 
-// Migration: remove with EARLIER_DIR in register.tsx.
 test('compaction: a marker left under the earlier plugin directory is reported once', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30])
@@ -831,8 +796,6 @@ test('resume: a verdict past light is restated once after an in-process resume',
   expect(own((await prompt($)).context)).toEqual([])
 })
 
-// session.start with earlier turns is a fresh load in a running session: a reload, a worker respawn,
-// an enable, or a --resume launch, which session.start cannot tell apart.
 test('reload: a load with earlier turns in the light zone sends nothing', async ($, on) => {
   world(on, { turns: 3 })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
@@ -872,10 +835,7 @@ test('/clear: nothing on the first prompt, and the new session starts a fresh cy
   expect((await walk($, w, [60])).flat()).toEqual([crossing('moderate')])
 })
 
-// ---- No gate: a zone never denies a tool call (#7135) -----------------------------------------
 
-// The settings that armed the removed blocking gate: they are ignored, every call runs, and the
-// heavy line carries no gate sentence.
 const FORMER_BLOCKING = { options: { zone_hook_mode: 'blocking', zone_gate_grace_calls: 0, zone_block_unattended: 'same-as-typed' } }
 
 test('no gate: the former blocking settings deny nothing in the heavy zone, typed or unattended, before or after a compaction', FORMER_BLOCKING, async ($, on) => {
@@ -905,9 +865,7 @@ test('no gate: a block threshold reads as none and keeps its boundary line, with
   expect(lines.join(' ')).not.toContain('stop delegating')
 })
 
-// ---- Bad option values: the module loads, uses the default and says so once -----------------
 
-// A session raises session.start once per load of the module; the kit leaves it to the test.
 const load = ($: any) => $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
 const optionLines = (w: World) => w.logs.filter(l => l.startsWith('context-usage: option '))
 const dataLine = (items: string) =>
@@ -934,7 +892,6 @@ test('options: an empty zone_line_data is the default, not a bad value', { optio
   expect(optionLines(w)).toEqual([])
 })
 
-// A choice outside its list reaches the module as the default, and the engine logs that itself.
 test('options: zone_report_mode outside its list loads as automatic', { options: { zone_report_mode: 'quiet' } }, async ($, on) => {
   const { w } = world(on)
   await load($)
@@ -957,7 +914,6 @@ test('options: a bad option gives one log line, and later events add none', { op
   expect(optionLines(w)).toEqual([dataLine('"pct"')])
 })
 
-// The debug log holds exactly what Claude was told, line for line.
 const debugWorld = (on: any, init: object = {}) => {
   const debug: string[] = []
   const { w } = world(on, init, { HOME }, ['ui.log'])
@@ -980,18 +936,14 @@ test('debug mirror: each line sent to Claude at a tool call or a prompt is writt
   expect(debug.filter(l => l.startsWith('context-usage: ') && l.includes('zone ('))).toEqual([...atTool, ...atPrompt])
 })
 
-// ---- Operator mode, the operator's menu, the band, the command and the pull tool ------------
 
 const OPERATOR = { options: { zone_report_mode: 'operator' } }
 const MENU = (from: string, to: string) =>
   `context-usage: ${from} → ${to} · options: continue, /compact, /clear, or /session-flow:handoff then /clear · more: /context-usage`
 const TOAST = (from: string, to: string) => `${from} → ${to} · continue, /compact, /clear or handoff`
 type Surface = 'terminal' | 'desktop' | 'vscode'
-// The operator offer: one prefix, the verdict line, then the options line.
 const offer = (line: string) => `FYI, ${line} ${OPTIONS.replace('context-usage: ', '')}`
-// The band row, matched whole, since it starts with the plugin's prefix as a crossing notice does.
 const BAND_ROW = /^context-usage: (-|([a-z]+(, compacted)? )?[\d.]+%)$/
-// The notice row: the one Text other than the band row carrying the plugin's prefix, which every notice starts or follows FYI with.
 const notice = async ($: any, surface: Surface = 'terminal') => {
   const ui = await $.ui.mount({ ...BAND, surface })
   const found = (await ui.findAll({ type: 'Text', text: /context-usage:/ })).filter((t: { text: string }) => !BAND_ROW.test(t.text))
@@ -1007,7 +959,6 @@ test('operator mode: a typed turn holds the line and offers it at turn end with 
   w.percent = 60
   expect(own((await bash($)).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  // Written out once in full, so the offer helper's join is pinned against a literal.
   const offered =
     'FYI, context-usage: moderate zone (2 of 3). options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose; /context shows what fills the window. A zone never calls for terser output, fewer agents, or lower quality.'
   expect(offer(crossing('moderate'))).toBe(offered)
@@ -1093,8 +1044,6 @@ test('operator mode: a typed turn with no drawing surface gets the automatic lin
   expect(own((await bash($)).context)).toEqual([crossing('moderate')])
 })
 
-// A shown suggestion nobody took (a --bg launch turn reads as typed) is handed to Claude at the next
-// turn no person started, as the ordinary automatic line.
 const shownThenUntaken = async ($: any, w: World, p = 60) => {
   await prompt($, 'composer')
   w.percent = p
@@ -1377,7 +1326,6 @@ test('menu: the toast option off keeps the transcript line and drops only the to
 test('menu: a toast that fails drops neither Claude\'s line nor the transcript line', async ($, on) => {
   let tried = 0
   const { w } = world(on, {}, { HOME }, ['ui.toast'])
-  // A stub that throws is skipped; with no implementation left the engine drops the toast itself.
   on('ui.toast', () => {
     tried += 1
     throw new Error('toast unavailable')
@@ -1467,13 +1415,10 @@ test('command: no argument prints the status and details', async ($, on) => {
   const { w } = world(on, { percent: 60 })
   zonesFile(w, { approach_margin: 4 })
   const text = String((await cmd($)).text)
-  // Claude Code puts the plugin's name before a command's reply, so the reply carries none of its own.
   expect(text.startsWith('moderate zone (2 of 3), ')).toBe(true)
   expect(text).not.toContain('context-usage: ')
   for (const part of [
     '60% of a 200000-token window used (120000 tokens)',
-    // The token band of the session's window class is shown beside the percent band, since the
-    // worse of the two decides the zone.
     'Bands (the worse decides): light up to 50% and 100000 tokens, moderate up to 75% and 150000 tokens',
     'approach margin 4 points',
     'band row off',
@@ -1482,8 +1427,6 @@ test('command: no argument prints the status and details', async ($, on) => {
   ]) {
     expect(text).toContain(part)
   }
-  // The reply is a transcript row Claude reads, so the router pointer and the links go to a
-  // transcript line Claude does not read.
   for (const part of ['session-flow', 'https://']) expect(text).not.toContain(part)
   expect(w.logs).toEqual([
     'context-usage: next step: route it with /session-flow:workflow (if installed), or see https://code.claude.com/docs/en/context-window#when-your-context-fills-up · more: https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/context-usage/README.md',
@@ -1582,12 +1525,9 @@ test('pull tool: unknown before the first response, and still unknown, now degra
   void w
 })
 
-// ---- Hook telemetry (docs/contracts/hook-telemetry) -----------------------------------------
 
 const SINK = '/opt/sink.sh'
-// The sink receives one envelope per dispatch on stdin; these are the dispatches the world recorded.
 const envelopes = (w: World, sink = SINK) => w.runs.filter(r => r.argv[0] === sink && r.argv.length === 1).map(r => JSON.parse(String(r.stdin)))
-// The envelope schema's required fields and types (envelope.schema.json), checked by hand.
 const checkEnvelope = (e: Record<string, unknown>) => {
   expect(e.schema_version).toBe('1.1')
   expect(String(e.timestamp)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
@@ -1641,7 +1581,6 @@ test('telemetry: a relative sink path resolves against the session project root'
   expect(envelopes(w, '/repo/.claude/hooks/sink.sh')).toHaveLength(1)
 })
 
-// session-telemetry keeps its launcher at <config dir>/plugins/data/session-telemetry-<marketplace>/hook-telemetry-sink.sh.
 const dataDir = (on: any, base: string, names: string[]) =>
   on('fs.list', ($: unknown, e: { path: string }) => {
     if (key(e.path) !== base) throw new Error(`ENOENT: ${e.path}`)
@@ -1719,7 +1658,6 @@ test('telemetry: no sink set, nothing dispatched', async ($, on) => {
   expect(w.runs.every(r => r.argv[0] === 'node')).toBe(true)
 })
 
-// ---- The snapshot writer ----------------------------------------------------------------------
 
 const TARGET = `${CTX}/sess-1.json`
 const bodies = (w: World) => w.runs.map(r => JSON.parse(String(r.stdin)))
@@ -1748,8 +1686,6 @@ test('snapshot: the snapshot body the helper reads on stdin, the per-session tar
   )
 })
 
-// The published zone contract a status line reads: the zone this body resolves to and the edges
-// after zones.json, written whatever model_notices says.
 kitTest('snapshot: publishes the zone and the bands in force from zones.json, and a compaction as degraded beside the zone', async ($, on) => {
   const { w } = world(on, { percent: 65 })
   zonesFile(w, { light_max_used_percentage: 40, moderate_max_used_percentage: 60 })
@@ -1870,7 +1806,6 @@ test('snapshot: a session that never read its usage writes nothing at session.en
   expect(w.runs).toEqual([])
 })
 
-// The helper's write as it lands on disk: the mock process records the run but writes nothing.
 const landed = (w: World, target = TARGET) => {
   w.files[target] = { text: String(w.runs[w.runs.length - 1].stdin), mtimeMs: T0 }
 }
@@ -1908,7 +1843,6 @@ test('snapshot: after /clear the new session writes its own populated body at it
   w.sid = 'sess-2'
   w.percent = 5
   await bash($)
-  // The end flush is the same body inside the 60 s floor, so it starts no process.
   expect(w.runs.map(r => r.argv[2])).toEqual([TARGET, `${CTX}/sess-2.json`])
   expect(bodies(w).map(b => [b.session_id, b.context_window.used_percentage])).toEqual([
     ['sess-1', 30],
@@ -1994,7 +1928,6 @@ test('fallback: where $.process.run is unavailable, nothing is written, it is lo
   const called = await bash($)
   expect(called.text).toBe('ok')
   expect(own(called.context)).toEqual([crossing('moderate')])
-  // A stub that throws is skipped, so the engine answers that nothing implements process.run.
   expect(debug.filter(l => l.includes('snapshot'))).toHaveLength(1)
   expect(debug.find(l => l.includes('snapshot'))).toMatch(/^context-usage: snapshot write did not run: /)
 })

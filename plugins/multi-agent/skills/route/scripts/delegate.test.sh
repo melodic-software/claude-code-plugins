@@ -71,6 +71,9 @@ printf 'x' | run_as "$T/home/missing.yaml" codex >/dev/null 2>&1
 check "refuses when the user layer file is missing" 2 "$?"
 printf 'x' | run_as "$T/repo/on.yaml" codex >/dev/null 2>&1
 check "refuses a user file inside a git work tree" 2 "$?"
+# shellcheck disable=SC2088 # the unexpanded ~/ is the input under test
+out="$(printf 'x' | (cd "$T" && HOME="$T/home" PATH="$T/bin:$PATH" "$HERE/delegate" --user-file '~/on.yaml' codex) 2>&1)"
+check "expands a leading ~/ in --user-file to HOME" "[run][codex][--use][task][--mode][write][--prompt-file]" "$(head -1 <<<"$out" | sed 's/\[[^]]*prompt\.md\]//')"
 printf 'x' | (cd "$T" && PATH="$T/bin:$PATH" "$HERE/delegate" codex) >/dev/null 2>&1
 check "refuses without --user-file" 2 "$?"
 

@@ -3,6 +3,15 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1] - 2026-11-24
+
+### Changed
+
+- `/mutation-testing:audit`, `/mutation-testing:principles` and `/mutation-testing:seed-faults`
+  gain a `## Related` section for links that apply only in some runs.
+- `/mutation-testing:setup` no longer carries a `## Next` section, matching the accepted
+  skill-link table, which marks it as carrying neither section.
+
 ## [0.23.0] - 2026-11-23
 
 ### Changed

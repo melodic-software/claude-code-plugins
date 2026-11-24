@@ -134,7 +134,6 @@
       { "name": "reconcile-lost-runs", "status": "in-use" },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },
-      { "name": "repin-ci-workflows", "status": "in-use" },
       { "name": "scan-secrets", "status": "in-use" },
       { "name": "sweep-closed-pr-branches", "status": "in-use" },
       { "name": "sync-standards", "status": "in-use" },

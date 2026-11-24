@@ -1,0 +1,5 @@
+{
+  "name": "corrections",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the corrections plugin: the codify skill with its rules action, so a retro can name it as the route for a standards file, with no scripts."
+}

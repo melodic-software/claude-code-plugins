@@ -935,6 +935,13 @@
       "next": [],
       "related": []
     },
+    "evals:audit": {
+      "next": [
+        "A missing case or gate side: /evals:design.",
+        "A repaired case or grader: /evals:validate."
+      ],
+      "related": []
+    },
     "evals:design": {
       "next": [
         "Scaffolded a skill's cases: `/evals:validate <eval-dir>`, then `/evals:plugin-eval` to run them.",
@@ -2680,8 +2687,8 @@
     },
     "testing:write": {
       "next": [
-        "/testing:audit",
-        "Checks the new tests for assertions that cannot fail."
+        "New tests, their quality unchecked: /testing:audit.",
+        "Tests written for survivors a mutation run handed over: /mutation-testing:audit on that file, to confirm each kill."
       ],
       "related": [
         "Run the new tests across ecosystems: /toolchain:check",

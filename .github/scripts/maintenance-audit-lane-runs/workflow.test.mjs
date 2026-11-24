@@ -41,7 +41,7 @@ const list = (block, key) =>
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
-const LAUNCHER = /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} # \S/;
+const LAUNCHER = /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main/;
 // Why each later leg ran, for its unit's one lane record: the route job's
 // closed-set reason, which select-model-credential checks against its own
 // closed list, never written into a script.
@@ -248,7 +248,7 @@ test("the daily schedule runs the audit, the hourly one only the triage sweep", 
 // unit to assess-units-subscription as a credit-stop handoff; a key leg's
 // credit-stop marker makes collect-key-handoffs upload the gate's marker.
 test("a credit-stopped key skips the key leg and every unit goes to the subscription leg", () => {
-  assert.match(jobs.collect, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} /);
+  assert.match(jobs.collect, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@main\b/);
   assert.match(jobs.collect, /\n {10}leg: start\n {10}role: automations\n {10}key-job: judge\n/);
   assert.match(jobs.collect, /\n {6}next-leg: \$\{\{ steps\.credit\.outputs\.next-leg \}\}\n/);
   assert.match(jobs[KEY], /\n {4}if: .* && needs\.collect\.outputs\.next-leg != 'subscription'\n/);

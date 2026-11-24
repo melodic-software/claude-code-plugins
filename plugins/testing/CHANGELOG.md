@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.14.1] - 2026-11-24
+
+### Changed
+
+- `/testing:audit`, `/testing:diagnose`, `/testing:test-value` and `/testing:write` gain a
+  `## Related` section for links that apply only in some runs.
+
 ## [5.14.0] - 2026-11-23
 
 ### Changed

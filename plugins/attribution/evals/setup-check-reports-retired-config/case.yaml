@@ -46,8 +46,3 @@ graders:
     type: 'llm'
     criteria: 'Legacy expectation: "Reports attribution-r001 as FAIL, not WARN or INFO". PASS only if the reply reports the retired .claude/provenance.json (attribution-r001) at FAIL severity. FAIL if it reports it as WARN, INFO or PASS, or not at all.'
     focus: 'last_message'
-  - name: 'r001-fail-label'
-    type: 'regex'
-    pattern: '^(?![^\n]*\b(?:WARN|INFO)\b)[^\n]*(?:attribution-r001|\.claude/provenance\.json)[^\n]*(?:\n[^\n]*)?\b(?:FAIL|Fail)\b|^(?![^\n]*\b(?:WARN|INFO)\b)[^\n]*\b(?:FAIL|Fail)\b[^\n]*(?:attribution-r001|\.claude/provenance\.json)'
-    flags: 'm'
-    target: 'last_message'

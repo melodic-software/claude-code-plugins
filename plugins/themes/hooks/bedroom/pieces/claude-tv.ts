@@ -2,6 +2,7 @@ import type { EngineInterface, Timer } from 'claude-code'
 
 import { ctxOf } from '../core/context.js'
 import type { Ctx, On, Piece } from '../core/piece.js'
+import { hasStarted } from '../core/render.js'
 import { failed } from '../core/telemetry.js'
 
 /**
@@ -32,6 +33,7 @@ let hold: Timer | undefined
 let zone = 0
 
 function resend($: EngineInterface, why: string): Promise<void> {
+  if (!hasStarted()) return Promise.resolve()
   return ctxOf($)
     .send(why)
     .catch(error => failed('claude-tv', why, error))

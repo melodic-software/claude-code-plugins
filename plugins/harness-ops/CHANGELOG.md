@@ -3,6 +3,17 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.6.6] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to fourteen skills, matching the committed skill-link table
+
+  audit-install-state, audit-mod-posture, audit-native-overlap,
+  audit-performance, audit-plugin-landscape, audit-skill-visibility, changelog,
+  inventory, known-issues, lanes, observability, plugins, plugins-audit and
+  prerequisites now list their context-dependent links, one condition per line.
+
 ## [10.6.5] - 2026-11-23
 
 ### Changed
