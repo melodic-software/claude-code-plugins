@@ -298,6 +298,15 @@ git -C "$REPO" add seed.sh
 expect "a finding on a line the commit did not add does not block" "0||" "$(check "$REPO")"
 
 new_repo
+printf '%s\nif true; then\necho "$undefined_var"\nfi\n' "$SHEBANG" >"$REPO/seed.sh"
+git -C "$REPO" add seed.sh
+git -C "$REPO" commit -q -m old --no-verify
+printf '%s\nif true; then\n  echo "$undefined_var"\nfi\n' "$SHEBANG" >"$REPO/seed.sh"
+git -C "$REPO" add seed.sh
+expect "a finding on a line the commit only reindented blocks" "1||seed.sh:3: warning: undefined_var is referenced but not assigned. [SC2154]
+$HINT" "$(check "$REPO")"
+
+new_repo
 printf '%s\nunused_variable=1\n' "$SHEBANG" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 expect "a warning-level finding (SC2034) blocks" "1||a.sh:2: warning: unused_variable appears unused. Verify use (or export if used externally). [SC2034]

@@ -1,6 +1,3 @@
-// The interview surface registry (surfaces/registry.mjs): AC5 (medium never moves the surface),
-// AC13 surface part (unset surface with alternatives prints exactly one offer line) and AC15
-// (a new surface entry needs no edit to the interview skill).
 import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
@@ -32,7 +29,7 @@ const EVAL_OPENING_LINES_GRADER = /^\W*Asking here\b[^\n]*\.[^\S\n]+[^\n]*\balso
 test('AC13: surface unset and two surfaces available opens with the owner-approved lines', async () => {
   const { env } = emptyProject()
   const r = await resolveSurface({ userConfig: { surface: UNSET }, env, context: PAGE_ONLY, ledger: '.work/t/interview-checklist.md' })
-  assert.equal(r.surface, 'terminal') // plugin.json userConfig.surface.default
+  assert.equal(r.surface, 'terminal')
   assert.equal(r.decidedBy, 'default')
   assert.deepEqual(r.line.split('\n'), [
     'Asking here, one round at a time. A local page is also available; say which to switch.',

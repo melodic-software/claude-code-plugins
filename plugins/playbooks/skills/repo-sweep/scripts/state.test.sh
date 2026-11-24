@@ -46,13 +46,13 @@ step() {
 mkdir -p "$repo/.work"
 printf 'tracked\n' >"$repo/.work/tracked"
 gitf -C "$repo" add .work/tracked
-commit "$(printf 'prior sweep\n\nPlaybook-Step: p:h@0.9\n')" # before the base: never reconciled
+commit "$(printf 'prior sweep\n\nPlaybook-Step: p:h@0.9\n')"
 gitf -C "$repo" update-ref refs/remotes/origin/main HEAD
 gitf -C "$repo" checkout --quiet -b "$sweep"
 commit 'repo-sweep: seed'
 sha_two=$(step 'Playbook-Step: p:b@2.0')
 sha_four=$(step $'Playbook-Step: p:d@1\nPlaybook-Step: p:e@1')
-step $'Playbook-Step: p:f@1\nPlaybook-Step: p:g@1' >/dev/null # superset of step five: no match
+step $'Playbook-Step: p:f@1\nPlaybook-Step: p:g@1' >/dev/null
 assert_eq "fixture trailers parse" "p:f@1 p:g@1" \
   "$(git -C "$repo" log -1 --format='%(trailers:key=Playbook-Step,valueonly,separator=%x20)')"
 

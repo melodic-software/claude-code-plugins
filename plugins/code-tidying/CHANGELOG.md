@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.1] - 2026-11-24
+
+### Fixed
+
+- `change-shape.py` no longer reads a `help=` keyword argument (or any other docstring-reader name used as a keyword argument or parameter name, directly after `(` or `,` and before `=`) as a run-time docstring read, so a docstring deletion in a file with argparse options can return DOCSTRING-ONLY. `help(...)`, `help` passed as a value, and any `__doc__` or `__dict__` token still return CODE-CHANGED.
+
 ## [0.59.0] - 2026-11-24
 
 ### Added

@@ -3,6 +3,12 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.7] - 2026-11-24
+
+### Fixed
+
+- `/docs-naming:audit-file-names` now states the same site counts on every run. The emitter prints one line per finding with its site count, tier breakdown, review count and generated files. It then prints a total line with the sweep's site count, the sites by action and the report-site total. The emitter counts all of these from the sweep, and the skill quotes those lines instead of adding up sites itself.
+
 ## [0.9.6] - 2026-11-24
 
 ### Fixed

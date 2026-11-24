@@ -60,8 +60,6 @@ const errorsOf = (out, keep) =>
  *   `home` null reads neither file layer.
  */
 export function resolveLevel({ projectRoot, home, userConfig = null, prompt = null, argument = null }, { schema = loadSchema(), defaults = loadDefaults(schema) } = {}) {
-  // The scratch directory stands in for the user home (only legacy files are looked up there) and,
-  // with no usable convention home, for the home itself, so neither file layer is read.
   const scratch = mkdtempSync(join(tmpdir(), "prototype-settings-"));
   try {
     const run = (s) => cascade({ plugin: PLUGIN, projectRoot, home: home ?? scratch, schema: s, defaults, userConfig: { level: userConfig ?? "" }, userHome: scratch });
