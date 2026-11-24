@@ -290,6 +290,15 @@ const roundRun = (name, conclusion, title, started) => ({
 });
 const noModelTurn = (started = "2026-10-17T10:05:00Z") => roundRun("apply-dependency-verdict", "neutral", "Skipped: no-model-turn", started);
 const headOf = (node, runs) => new Map([[node.headRefOid, runs]]);
+const ciStatusRun = (conclusion, at, id = 1) => ({
+  id,
+  name: "CI Status",
+  app: { slug: "github-actions" },
+  status: conclusion ? "completed" : "in_progress",
+  conclusion,
+  started_at: at,
+  completed_at: conclusion ? at : null,
+});
 
 test("a head whose last round had no model turn dispatches again, and is not recorded as handled", async () => {
   for (const [label, check] of [
@@ -475,7 +484,7 @@ test("a head whose newest review-dependency check is a select skip is recorded, 
   for (const [label, runs] of [
     ["the round cap after a no-model-turn round", [roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"), noModelTurn(), roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z")]],
     ["the round cap alone", [roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z")]],
-    ["a sort that no longer applies", [roundRun("review-dependency", "neutral", "Skipped: not-applicable", "2026-10-17T11:00:00Z")]],
+    ["a sort that no longer applies", [ciStatusRun("failure", "2026-10-17T10:30:00Z"), roundRun("review-dependency", "neutral", "Skipped: not-applicable", "2026-10-17T11:00:00Z")]],
   ]) {
     const node = pr(64);
     const record = emptyRecord();
@@ -486,6 +495,22 @@ test("a head whose newest review-dependency check is a select skip is recorded, 
   const record = emptyRecord();
   await run(fakeApi({ nodes: [node], checks: headOf(node, [roundRun("review-dependency", "neutral", "Skipped: not-assessed", "2026-10-17T10:00:00Z")]) }), { record });
   assert.equal(record.handled.get(CHECK), undefined);
+});
+
+test("a not-applicable skip taken while CI Status ran is unrecorded, dispatched once the gate ends red, and final when taken after it", async () => {
+  const node = pr(73);
+  const skip = roundRun("review-dependency", "neutral", "Skipped: not-applicable", "2026-11-24T04:24:53Z");
+  const record = emptyRecord();
+  const running = await run(fakeApi({ nodes: [node], checks: headOf(node, [ciStatusRun(null, "2026-11-24T04:23:07Z", 2), skip]) }), { record });
+  assert.deepEqual(running.dispatched, [], "the skip holds the head while the gate runs");
+  assert.equal(record.handled.get(CHECK), undefined, "not recorded, so the next run reads the head again");
+  const red = ciStatusRun("failure", "2026-11-24T04:30:55Z", 2);
+  const ended = await run(fakeApi({ nodes: [node], checks: headOf(node, [red, skip]) }), { record });
+  assert.deepEqual(ended.dispatched, [{ number: 73, workflowRunId: "7073" }], "the red gate sends the head the round that moves the pin");
+  const after = roundRun("review-dependency", "neutral", "Skipped: not-applicable", "2026-11-24T04:37:00Z");
+  const again = await run(fakeApi({ nodes: [node], checks: headOf(node, [red, skip, after]) }), { record });
+  assert.deepEqual(again.dispatched, [], "a skip taken after the gate ended holds the head");
+  assert.ok(record.handled.get(CHECK)?.has(node.headRefOid), "and records it");
 });
 
 // A record the dispatcher wrote before a no-model-turn verdict released the

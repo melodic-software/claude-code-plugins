@@ -50,7 +50,9 @@ export const DEFAULTS = Object.freeze({
 // the same title on the head read here, the PR's current one, is the gate's
 // head-lag stop, which did no work, so lagStopsRelease sends it again
 // (limit-stop.mjs) and it is not recorded.
-const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", "Skipped: not-applicable", "Skipped: superseded-sha"]);
+const NOT_APPLICABLE = "Skipped: not-applicable";
+const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", NOT_APPLICABLE, "Skipped: superseded-sha"]);
+const sortedBeforeGateEnd = (run, gateEnd) => run.output?.title === NOT_APPLICABLE && !(startOf(run) > gateEnd);
 
 const GATE_JOB = /\/actions\/runs\/([1-9][0-9]*)\/job\/([1-9][0-9]*)$/;
 
@@ -172,6 +174,9 @@ export async function dispatchDependencyReviews({
       if (ciStatus === "success") {
         existing = existing.filter((run) => !(run.status === "completed" && run.conclusion === "neutral" && run.output?.title === `Skipped: ${GATE_HOLD_SKIP}`));
       }
+      const gate = newestOf(ci);
+      const gateEnd = gate?.status === "completed" ? Date.parse(gate.completed_at ?? "") : Number.NaN;
+      existing = existing.filter((run) => !(sortedBeforeGateEnd(run, gateEnd) && Number.isFinite(gateEnd)));
       // A round whose verdict job skipped no-model-turn handled nothing, and
       // one whose verdict job stopped on a reason routed to a failing status,
       // or that the kill switch stopped (limit-stop.mjs releasesHead), is
@@ -203,7 +208,7 @@ export async function dispatchDependencyReviews({
       // its reset could not release it. An unreadable start records nothing.
       const newestCheck = Math.max(...existing.map(startOf));
       const last = existing.find((run) => startOf(run) === newestCheck);
-      const terminal = last?.status === "completed" && last.conclusion === "neutral" && TERMINAL_SKIPS.has(last.output?.title);
+      const terminal = last?.status === "completed" && last.conclusion === "neutral" && TERMINAL_SKIPS.has(last.output?.title) && !sortedBeforeGateEnd(last, gateEnd);
       if (permanentlyHandles(existing, { limits, lagStopsRelease: true }) && (terminal || verdicts.some((run) => startOf(run) > newestCheck))) {
         markHandled(record, checkName, node.headRefOid);
       }
