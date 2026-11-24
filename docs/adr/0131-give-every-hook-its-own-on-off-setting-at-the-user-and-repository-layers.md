@@ -24,8 +24,9 @@ page says there is no way to disable an individual hook while keeping it in the 
    whatever the repository says; the repository value is the default for everyone who has not set
    their own; the plugin default decides when neither is set. This reverses config-cascade's
    team-over-`userConfig` order for these keys, a declared deviation listed in config-cascade's
-   Deviations. A guard whose off state loosens a security control keeps the policy-floor class: a
-   repository value can only turn it on, and only the user's own layer turns it off.
+   Deviations. For a guard whose off state loosens a security control, a repository value can only
+   turn it on, and only the user's own layer turns it off: the policy-floor class's protection
+   against the repository layer, without its condition 2, since the user's own `false` still wins.
 3. **`<name>_enabled` stays affirmative for `userConfig` options and convention-file keys.**
    [Configuration switch naming](../standards/configuration-switch-naming.md) names a default-on
    switch `<THING>_DISABLED` so an unset switch never turns the behavior off; these keys always

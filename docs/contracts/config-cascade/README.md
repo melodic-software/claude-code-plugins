@@ -559,7 +559,9 @@ decision.
 - **A hook's `<name>_enabled` key puts a set `userConfig` value above the team layer.** The
   user's own value, when set, wins for that user; the team value decides only for a user who set
   none, so a repository sets the default but cannot force a hook back on for someone who turned it
-  off. A guard whose off state loosens a security control also ignores a team `false`. Rules and
+  off. A guard whose off state loosens a security control also ignores a team `false`, a floor the
+  team layer cannot loosen; unlike the policy-floor class (its condition 2), a set `userConfig`
+  `false` still turns the guard off for that user. Rules and
   scope: [hook-enablement](../hook-enablement/README.md#the-per-hook-setting).
   - **Claim:** the user-over-team order on per-hook on/off keys is a declared exception.
   - **Basis:** the owner decision of 2026-11-24, recorded in

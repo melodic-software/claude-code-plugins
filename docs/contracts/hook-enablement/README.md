@@ -61,10 +61,12 @@ When it does, this doc points at the upstream setting and the per-hook key becom
 - **Who reads it.** The hook's own script, before it does any work. It resolves every layer before
   deciding: a hook that treats an unset user layer as the plugin default without reading the
   repository value does not conform.
-- **Security controls.** A guard whose off state loosens a security control keeps the
-  [policy-floor class](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)
-  on its key: a repository value can only turn the guard on (a repository `false` is ignored), and
-  only the user's own layer turns it off.
+- **Security controls.** For a guard whose off state loosens a security control, a repository
+  value can only turn the guard on (a repository `false` is ignored), and only the user's own layer
+  turns it off. This takes the repository half of the
+  [policy-floor class](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion),
+  a floor the repository cannot loosen, and departs from its condition 2: the user's own `false`
+  still takes effect for that user, per the precedence above.
 - **Cost.** Reading the repository file on every fire counts against the
   [hook budget](../hook-budget/README.md).
 
