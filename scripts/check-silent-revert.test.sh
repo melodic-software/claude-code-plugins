@@ -344,22 +344,175 @@ extract_block() {
 t_cross_file_move_is_not_a_removal() {
   local repo sink
   mk_repo repo
+  printf '\n' >>"$repo/feature.txt"
   add_block "$repo" feature.txt 40 alpha
   extract_block "$repo" alpha 'the alpha guard rejects'
   sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]] && grep -q '^ok ' <<<"$OUT"; then
-    ok "moving 40 recent lines into a new file in the same commit is not a removal (threshold 20)"
+    ok "moving a whole 40-line top-level run into a new file in the same commit is not a removal (threshold 20)"
   else
     fail "a cross-file move must report ok, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
   fi
   rm -f "$sink"
 }
 
-t_partial_move_counts_only_the_lines_not_re_added() {
+t_top_level_lines_pasted_without_their_run_still_fire() {
   local repo sink culprit
   mk_repo repo
+  printf 'an existing helper line that stays where it is\n' >"$repo/helpers.txt"
   add_block "$repo" feature.txt 40 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep 'the alpha guard rejects' "$repo/feature.txt" >>"$repo/helpers.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: tidy the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "40 top-level lines pasted into another existing file without the rest of their run still fire"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+MD_HEADING='## The alpha guard and its relocation rules'
+
+add_md_section() {
+  local repo="$1" i
+  printf '## Other notes\n\nan existing note line that stays where it is\n' >"$repo/notes.md"
+  {
+    printf '## Overview\n\nan overview line that stays where it is\n\n%s\n\n' "$MD_HEADING"
+    for i in $(seq 1 40); do
+      printf 'the alpha guard rejects a relocation outside the session root, case %s\n' "$i"
+    done
+  } >"$repo/doc.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: add the alpha guard section"
+}
+
+t_markdown_body_pasted_without_its_heading_still_fires() {
+  local repo sink culprit
+  mk_repo repo
+  add_md_section "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep 'the alpha guard rejects' "$repo/doc.md" >>"$repo/notes.md"
+  grep -v 'the alpha guard rejects' "$repo/doc.md" >"$repo/doc.md.tmp" || true
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: tidy the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "a Markdown section body pasted into another file without its heading still fires on all 40 lines"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_markdown_section_moved_with_its_heading_is_not_a_removal() {
+  local repo sink
+  mk_repo repo
+  add_md_section "$repo"
+  sed -n "/^$MD_HEADING\$/,\$p" "$repo/doc.md" >>"$repo/notes.md"
+  sed "/^$MD_HEADING\$/,\$d" "$repo/doc.md" >"$repo/doc.md.tmp"
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: move the alpha guard section (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]] && grep -q '^ok ' <<<"$OUT"; then
+    ok "a Markdown section moved to another file with its heading is not a removal (threshold 20)"
+  else
+    fail "a Markdown section move must report ok, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_markdown_body_pasted_under_a_copied_heading_still_fires() {
+  local repo sink culprit
+  mk_repo repo
+  add_md_section "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  sed -n "/^$MD_HEADING\$/,\$p" "$repo/doc.md" >>"$repo/notes.md"
+  grep -v 'the alpha guard rejects' "$repo/doc.md" >"$repo/doc.md.tmp" || true
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: tidy the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "a Markdown section body pasted under a copy of its heading, the original heading kept, still fires on all 40 lines"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_top_level_run_split_across_two_paths_still_fires() {
+  local repo sink culprit
+  mk_repo repo
+  printf '\n' >>"$repo/feature.txt"
+  add_block "$repo" feature.txt 40 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep -E 'case ([1-9]|1[0-9]|20)$' "$repo/feature.txt" >"$repo/helpers-a.txt"
+  grep -E 'case (2[1-9]|3[0-9]|40)$' "$repo/feature.txt" >"$repo/helpers-b.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: split the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "a 40-line top-level run split across two new files still fires on all 40 lines"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_markdown_section_split_counts_the_half_left_without_its_heading() {
+  local repo sink culprit
+  mk_repo repo
+  add_md_section "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  {
+    printf '%s\n\n' "$MD_HEADING"
+    grep -E 'case ([1-9]|1[0-9]|20)$' "$repo/doc.md"
+  } >"$repo/alpha-a.md"
+  grep -E 'case (2[1-9]|3[0-9]|40)$' "$repo/doc.md" >"$repo/alpha-b.md"
+  sed "/^$MD_HEADING\$/,\$d" "$repo/doc.md" >"$repo/doc.md.tmp"
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: split the alpha guard section (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 21" ]]; then
+    ok "a Markdown section split across two new files fires on the 20 lines that left without their heading, plus the blank line under it"
+  else
+    fail "want one 21-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_partial_move_counts_only_the_lines_not_re_added() {
+  local repo sink culprit i
+  mk_repo repo
+  for i in $(seq 1 40); do
+    ((i == 1 || i == 10)) && printf '\n' >>"$repo/feature.txt"
+    printf 'the alpha guard rejects a relocation outside the session root, case %s\n' \
+      "$i" >>"$repo/feature.txt"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: add the alpha guard"
   culprit="$(git -C "$repo" rev-parse HEAD)"
   extract_block "$repo" alpha 'the alpha guard rejects .*, case [0-9]$'
   sink="$(mktemp "$TMP/x.XXXX")"
@@ -376,7 +529,7 @@ t_partial_move_counts_only_the_lines_not_re_added() {
 t_one_copy_discounts_one_deletion() {
   local repo sink culprit
   mk_repo repo
-  printf 'the alpha guard rejects a relocation outside the session root\n%.0s' $(seq 1 30) \
+  printf '\nthe alpha guard rejects a relocation outside the session root\n%.0s' $(seq 1 30) \
     >>"$repo/feature.txt"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "feat: add the alpha guard"
@@ -2695,6 +2848,12 @@ t_real_removal_beside_a_pin_bump_still_fires
 t_sha_line_with_changed_free_comment_still_fires
 t_rename_is_not_a_removal
 t_cross_file_move_is_not_a_removal
+t_top_level_lines_pasted_without_their_run_still_fire
+t_markdown_body_pasted_without_its_heading_still_fires
+t_markdown_section_moved_with_its_heading_is_not_a_removal
+t_markdown_body_pasted_under_a_copied_heading_still_fires
+t_top_level_run_split_across_two_paths_still_fires
+t_markdown_section_split_counts_the_half_left_without_its_heading
 t_partial_move_counts_only_the_lines_not_re_added
 t_one_copy_discounts_one_deletion
 t_moved_short_lines_still_count

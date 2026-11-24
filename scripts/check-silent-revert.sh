@@ -849,12 +849,22 @@ discount_moved_lines() {
     run_attributing_git "$blob" "git cat-file failed reading $file at $parent" \
       cat-file blob "$parent:$file"
     LC_ALL=C awk -v f="$file" '
-      /^[[:space:]]*$/ { next }
+      BEGIN { md = f ~ /\.md$/ }
+      /^[[:space:]]*$/ { start = 0; next }
       {
+        if (!start) start = FNR
         match($0, /^[ \t]*/)
-        while (depth > 0 && indent[depth] >= RLENGTH) depth--
-        printf "%s\t%d\t%d\n", f, FNR, (depth > 0 ? line[depth] : 0)
-        indent[++depth] = RLENGTH
+        ind = RLENGTH
+        while (depth > 0 && indent[depth] >= ind) depth--
+        h = depth > 0 ? line[depth] : 0
+        lvl = 0
+        if (md && /^ ? ? ?(```|~~~)/) fence = !fence
+        else if (md && !fence && /^#+([ \t]|$)/) { match($0, /^#+/); lvl = RLENGTH > 6 ? 0 : RLENGTH }
+        if (md && h == 0)
+          for (k = (lvl ? lvl - 1 : 6); k > 0; k--) if (at[k] > h) h = at[k]
+        if (lvl) at[lvl] = FNR
+        printf "%s\t%d\t%d\t%d\n", f, FNR, h, start
+        indent[++depth] = ind
         line[depth] = FNR
       }
     ' "$blob" >>"$headers" || die "awk failed reading the blocks of $file at $parent"
@@ -864,10 +874,22 @@ discount_moved_lines() {
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
       return length(line) >= min
     }
-    function moved_to(f, ln, p,   h) {
-      if (!((f, ln) in deleted) || !((deleted[f, ln], p) in added_at)) return 0
+    function re_added(f, ln, p) {
+      return ((f, ln) in deleted) && ((deleted[f, ln], p) in added_at)
+    }
+    function chain_moved(f, ln, p,   h) {
+      if (!re_added(f, ln, p)) return 0
       h = header[f, ln]
-      return h == 0 ? 1 : moved_to(f, h, p)
+      return h == 0 ? 1 : chain_moved(f, h, p)
+    }
+    function run_moved(f, ln, p,   s, i) {
+      s = run_start[f, ln]
+      if ((f, s, p) in run_ok) return run_ok[f, s, p]
+      for (i = s; i <= run_end[f, s]; i++) if (!re_added(f, i, p)) return run_ok[f, s, p] = 0
+      return run_ok[f, s, p] = 1
+    }
+    function moved_to(f, ln, p) {
+      return header[f, ln] == 0 ? run_moved(f, ln, p) : chain_moved(f, ln, p)
     }
     FILENAME == ARGV[1] {
       if (/^diff --git /) { in_header = 1; path = ""; old = ""; next }
@@ -909,6 +931,8 @@ discount_moved_lines() {
     FILENAME == ARGV[2] {
       split($0, h, "\t")
       header[h[1], h[2] + 0] = h[3] + 0
+      run_start[h[1], h[2] + 0] = h[4] + 0
+      run_end[h[1], h[4] + 0] = h[2] + 0
       next
     }
     {
