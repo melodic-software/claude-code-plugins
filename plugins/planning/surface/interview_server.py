@@ -53,24 +53,15 @@ EMPTY_RESPONSES = {
     "history": {},
     "events": [],
 }
-# One-line free-text cap; a hedged decision's condition is one.
 LINE_CAP = 500
 DECISIONS = {"accept", "alt", "own", "defer", "hedged", "reopen"}
-# Requests to Claude that record no decision. `research` and `cancel-research` name no skill or plugin;
-# `confirm-reading` confirms Claude's read-back of the user's answer.
 REQUESTS = {"ask", "rephrase", "research", "cancel-research", "confirm-reading"}
-# Events not tied to a question; `confirm-understanding` answers the restatement, and
-# `accept-audit` lists the questions one click accepted (each also gets its own `accept`).
 FREE = {"note", "wrapup", "confirm-understanding", "accept-audit"}
-# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision,
-# `confirm-understanding` carries `confirm` or `off`, `accept-audit` the round id, and
-# `proposal` the user's answer to a proposed question (PROPOSAL), recording no decision.
 WITH_ALT = {"alt", "confirm", "confirm-understanding", "accept-audit", "proposal"}
 UNDERSTANDING = ("confirm", "off")
 PROPOSAL = ("accept", "edit", "decline")
 API = 2
 MAX_BODY = 64 * 1024
-# A file visual larger than this is neither served nor inlined.
 MAX_VISUAL_FILE = 4 * 1024 * 1024
 OCTET = "application/octet-stream"
 IMAGE_TYPES = {
@@ -81,7 +72,6 @@ IMAGE_TYPES = {
     ".webp": "webp",
     ".svg": "svg+xml",
 }
-# A new-tab link (/api/visual-open) works once, within this many seconds of its mint.
 OPEN_SECONDS = 10
 PAGE_CSP = (
     "default-src 'self'; script-src 'self' 'unsafe-inline'; "
@@ -89,14 +79,11 @@ PAGE_CSP = (
     "connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; "
     "form-action 'none'; base-uri 'none'"
 )
-# The question-shape files both interview pages load (composer, viewport fit), from the shared page's web folder.
 SHARED_WEB = HERE.parent / "shared" / "web"
 QUESTION_SHAPE = {
     "/question-shape.js": ("question-shape.js", "text/javascript"),
     "/question-shape.css": ("question-shape.css", "text/css"),
 }
-# A visual may never name a runtime file: the session files and their transient temp copies
-# hold the token, so every dotfile path component, lock and temp file is refused.
 RUNTIME_SUFFIXES = (".lock", ".tmp")
 
 
@@ -112,17 +99,14 @@ def runtime_path(rel):
     )
 
 
-QUIET_SECONDS = 10.0  # default settleQuiet: a found event waits this long for more before the watcher wakes
-BURST_SECONDS = 30.0  # default settleBurst: never holding it longer than this in all
-NAME = "interview"  # names the session files and the token header (session_bridge)
+QUIET_SECONDS = 10.0
+BURST_SECONDS = 30.0
+NAME = "interview"
 SESSION_JSON = session_files(NAME)[0]
-# The ADR 0075 file layers: the interview_page mapping of planning's team and personal files in
-# the convention home, which the planning copy of resolve-convention-home.sh binds.
 SECTION = "interview_page"
 TEAM_FILE, PERSONAL_FILE = "planning.yaml", "planning.local.yaml"
 DEFAULT_HOME = "docs/conventions"
 HOME_SCRIPT = HERE.parent / "lib" / "resolve-convention-home.sh"
-# Retired: never read for values, only named in a one-time notice (Settings.retired_notices).
 RETIRED_FILE = Path(".claude") / "interview-surface.json"
 RETIRED_SEEN = ".retired-notices.json"
 
@@ -168,8 +152,8 @@ SETTING_RULES = {
     "requireDepends": ("bool",),
     "orderThreshold": ("int", 0, 1000),
 }
-TEAM_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}  # a name is one person's, never the team's
-USER_ONLY = {"browserCommand"}  # read by ensure-running, never sent to the page
+TEAM_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}
+USER_ONLY = {"browserCommand"}
 
 
 def setting_error(key, value):
@@ -449,7 +433,7 @@ class Settings:
         try:
             record.write_text(json.dumps({**seen, shown: digest}) + "\n", encoding="utf-8")
         except OSError:
-            pass  # an unwritable record shows the notice again next time, the safe direction
+            pass
 
 
 def question_states(doc, r):
@@ -558,7 +542,7 @@ def answer_order(questions, threshold):
     heapq.heapify(ready)
     order = []
     while waits:
-        if not ready:  # only a cycle is left: take its best-ranked question
+        if not ready:
             best = min(waits, key=rank.__getitem__)
             ready = [(rank[best], best)]
         qid = heapq.heappop(ready)[1]
@@ -637,7 +621,7 @@ def derive_states(doc, r):
         and isinstance(t.get("updatedAt"), str)
     ]
 
-    def slot(at):  # the first event at or after `at`
+    def slot(at):
         return next(
             (i for i, e in enumerate(events) if (e.get("at") or "") >= at),
             len(events),
@@ -657,13 +641,11 @@ def derive_states(doc, r):
         if isinstance(h, dict) and isinstance(h.get("pageSeq"), int)
     ]
 
-    def after(seq):  # the first event past `seq`
+    def after(seq):
         return next(
             (i for i, e in enumerate(events) if e.get("seq", 0) > seq), len(events)
         )
 
-    # Claude revised or reconfirmed the question: a line goes by its reviewSeq, and a revise line
-    # written before reviewSeq existed goes by its time, as a terminal decision does.
     reviews = [
         (
             after(h["reviewSeq"])
@@ -692,7 +674,7 @@ def derive_states(doc, r):
     for *_, e in sorted(replay, key=lambda x: x[:4]):
         qid = e["id"]
         if e["kind"] in ("rec", "review"):
-            pending.pop(qid, None)  # Claude revised or reconfirmed it
+            pending.pop(qid, None)
         if e["kind"] == "review":
             continue
         if e["kind"] == "rec":
@@ -739,7 +721,7 @@ def derive_states(doc, r):
         pending[qid] = [*pending.get(qid, []), *missing]
         stale.discard(qid)
 
-    def upstream(qid):  # stale ancestors, nearest first, ties by id
+    def upstream(qid):
         seen, level, found = {qid}, list(deps.get(qid, [])), []
         while level:
             level = sorted(set(level) - seen)
@@ -1272,7 +1254,7 @@ class Hub(LoopbackWatcher):
         self.session = hashlib.sha256(str(self.dir).lower().encode()).hexdigest()[:12]
         self.layers = Settings(repo_root(self.dir))
         self._last_state = None
-        self.opens = {}  # new-tab nonce: (visual id, monotonic expiry)
+        self.opens = {}
 
     def read_log(self):
         return load_json(self.responses, EMPTY_RESPONSES)
@@ -1336,8 +1318,6 @@ class Hub(LoopbackWatcher):
             mtime(self.layers.personal_file) if self.layers.personal_file else 0,
             mtime(Path(user)) if user else 0,
             listener["state"],
-            # The header reads Live only while a watcher waits, and a wait inside the listen
-            # grace leaves state and lease unchanged.
             listener["waiters"] > 0,
             listener["lease"] is not None,
         )
@@ -1517,7 +1497,6 @@ class Hub(LoopbackWatcher):
                 and msg.get("contentRev") is not None
                 and msg["contentRev"] != (qs[qid].get("contentRev") or 0)
             ):
-                # A tab holding an old commitments list would otherwise confirm the new one by index.
                 raise Conflict(
                     {"error": "stale", "contentRev": qs[qid].get("contentRev") or 0}
                 )
@@ -1543,7 +1522,6 @@ class Hub(LoopbackWatcher):
                             "decision": r["responses"].get(qid),
                         }
                     )
-            # After the contentRev check, so a page holding old alternatives gets the 409 payload.
             if kind in WITH_ALT and qid and kind != "proposal":
                 check_alt(qs[qid], kind, alt)
             if kind in DECISIONS - {"reopen"}:
@@ -1551,11 +1529,9 @@ class Hub(LoopbackWatcher):
                 waits, lock = open_prereqs(doc, r, qs[qid]), self.frontier_lock()
                 if waits and lock == "hard":
                     raise Conflict({"error": "blocked", "waitsOn": waits})
-                # An upstream answer changed: the question waits on Claude's revise or reconfirm.
                 by = derive_states(doc, r)[3].get(qid) if lock != "off" else None
                 if by:
                     raise Conflict({"error": "upstream-changed", "changedBy": by})
-                # The page's Answer anyway names the open prerequisites; keep the ones still open.
                 ahead = [p for p in waits if p in (ahead or [])]
                 if ahead:
                     event["outOfOrder"] = ahead
@@ -1572,8 +1548,6 @@ class Hub(LoopbackWatcher):
             prev = r["responses"].get(qid, {}) if qid else {}
             if kind in DECISIONS:
                 r["responses"][qid] = decision_view(event, prev.get("text", ""))
-            # A plain accept or confirm needs no reply, so it wakes no agent; the accept that
-            # settles its round's last question stays unhandled, so the agent learns the round is done.
             if not text.strip() and (
                 kind == "confirm"
                 or (kind == "accept" and not round_complete(doc, r, qid))
@@ -1662,8 +1636,6 @@ class Handler(LoopbackHandler):
     def route_get(self, url, query):
         hub = self.hub
         if url.path in ("/", "/index.html"):
-            # The page carries the build on disk now; /api/state carries the one this process
-            # started from, so a page newer than its server can tell.
             build = page_build()
             html = (
                 (HERE / "index.html")
