@@ -7530,7 +7530,11 @@ jobs:
               # skips the hold, once each new SHA is one a tag of that action's
               # repository points to (`git ls-remote --tags`, unauthenticated,
               # as hold_ref reads the tip), so a branch name or a commit no tag
-              # names (a fork's imposter commit) does not pass. Only the
+              # names (a fork's imposter commit) does not pass. An official
+              # vendor's action (owner decision D3, architecture
+              # docs/owner-decisions.md L351) may instead move from one version
+              # tag (vN, vN.N, vN.N.N) to another, once the new tag exists in
+              # that repository; a SHA never pairs with a tag. Only the
               # broker step's file pages count; any other file, status, line or
               # ref, a patch GitHub left out or cut short, or an unread tag
               # list keeps it.
@@ -7548,7 +7552,8 @@ jobs:
                 swaps=
                 if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
                   swaps=$(jq -nr '
-                    def ref_swap: capture("^(?<key>[ \t]*(-[ \t]+)?uses:[ \t]+(?<repo>[A-Za-z0-9]+(-[A-Za-z0-9]+)*/[A-Za-z0-9_-][A-Za-z0-9._-]*)(/[A-Za-z0-9._-]+)*)@(?<ref>[0-9a-f]{40})([ \t]+#[ \t]*v?[0-9A-Za-z._-]+)?[ \t]*$");
+                    def ref_swap: capture("^(?<key>[ \t]*(-[ \t]+)?uses:[ \t]+(?<repo>(?<owner>[A-Za-z0-9]+(-[A-Za-z0-9]+)*)/[A-Za-z0-9_-][A-Za-z0-9._-]*)(/[A-Za-z0-9._-]+)*)@(?<ref>[0-9a-f]{40}|v[0-9]+(\\.[0-9]+){0,2})([ \t]+#[ \t]*v?[0-9A-Za-z._-]+)?[ \t]*$")
+                      | select((.ref | startswith("v") | not) or (.owner | ascii_downcase | IN("actions", "github", "dependabot", "microsoft", "azure", "anthropics", "openai")));
                     def blocks: reduce ((split("\n") | map(sub("\r$"; "")))[], "") as $l ({done: [], cur: []};
                       if $l | test("^[-+]") then .cur += [$l] elif .cur == [] then . else .done += [.cur] | .cur = [] end) | .done;
                     [inputs | arrays[]] as $files
@@ -7559,16 +7564,17 @@ jobs:
                         and all($bs[]; (map(select(startswith("-"))) as $old | map(select(startswith("+"))) as $new
                           | . == $old + $new and ($old | length) == ($new | length)
                           and all(range($old | length); ([$old[.][1:] | ref_swap] | length) == 1
-                            and ([$new[.][1:] | ref_swap] | length) == 1 and ($old[.][1:] | ref_swap | .key) == ($new[.][1:] | ref_swap | .key))))))
+                            and ([$new[.][1:] | ref_swap] | length) == 1 and ($old[.][1:] | ref_swap | .key) == ($new[.][1:] | ref_swap | .key)
+                            and ($old[.][1:] | ref_swap | .ref | startswith("v")) == ($new[.][1:] | ref_swap | .ref | startswith("v")))))))
                     then [$files[].patch | blocks[][] | select(startswith("+")) | .[1:] | ref_swap | "\(.repo) \(.ref)"] | unique[]
                     else empty end' "$RUNNER_TEMP/pr-files.json") || swaps=
                 fi
                 if [ -n "$swaps" ]; then
                   untagged='' untrusted=''
-                  while read -r repo sha; do
+                  while read -r repo ref; do
                     if ! tags=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote --tags "https://github.com/$repo") ||
-                      ! awk -v sha="$sha" '$1 == sha && index($2, "refs/tags/") == 1 { found = 1 } END { exit !found }' <<<"$tags"; then
-                      untagged="$untagged $repo@$sha"
+                      ! awk -v ref="$ref" '(ref ~ /^v/ ? $2 == "refs/tags/" ref : $1 == ref && index($2, "refs/tags/") == 1) { found = 1 } END { exit !found }' <<<"$tags"; then
+                      untagged="$untagged $repo@$ref"
                     fi
                     jq -e --arg owner "${repo%%/*}" 'any(.[]; . == ($owner | ascii_downcase))' <<<"$owners" >/dev/null || untrusted="$untrusted $repo"
                   done <<<"$swaps"

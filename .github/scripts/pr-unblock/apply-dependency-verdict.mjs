@@ -31,7 +31,9 @@
 //      record the pr-merge lane merges on; this job never merges or enqueues.
 //      A model that saw a truncated files listing escalates
 //      dependency-files-truncated instead, and one whose change to a
-//      workflow or action file is not a full-SHA pin swap (pinSwapRefusal)
+//      workflow or action file is not a pin swap (pinSwapRefusal: a full-SHA
+//      swap, or an official vendor action's version-tag swap per
+//      https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L351)
 //      escalates dependency-workflow-unpinned. Every commit on the pull request
 //      must be Dependabot's own (its account ids, web-flow, a valid
 //      signature), or a single-parent commit whose files pass the fix rule above against its
@@ -416,7 +418,9 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     if (run.files_truncated) {
       return end("escalate", "dependency-files-truncated");
     }
-    // A workflow or action file change merges only as a full-SHA pin swap:
+    // A workflow or action file change merges only as a pin swap (a full-SHA
+    // swap, or an official vendor action's version-tag swap:
+    // https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L351):
     // the verdict read upstream text, so it alone never admits more.
     const files = await api.listPullFiles(pr);
     if (!Array.isArray(files) || files.length >= FILES_CAP) {
@@ -424,7 +428,7 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     }
     const unpinned = pinSwapRefusal(files);
     if (unpinned) {
-      log(`#${pr}: a workflow or action file change is not a full-SHA pin swap (${unpinned})`);
+      log(`#${pr}: a workflow or action file change is not a pin swap (${unpinned})`);
       return end("escalate", "dependency-workflow-unpinned");
     }
     // Every commit that is not Dependabot's own: a lanes App commit pushed

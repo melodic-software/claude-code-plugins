@@ -3409,7 +3409,11 @@ them on every `pull_request` run, contract-only runs included:
   organizations, owner decision 2026-11-23), read from the diff in the broker step's file pages. Both refs
   must be 40-hex SHAs, the comment a version token (`# v1.0.266`), and each new SHA a commit a tag
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
-  a tag name or a commit no tag names keeps the hold. Any other line, file, status or owner, a
+  a commit no tag names or a SHA swapped for a tag keeps the hold. An official vendor's action
+  (`actions`, `github`, `dependabot`, `microsoft`, `azure`, `anthropics`, `openai`, any case;
+  owner decision D3, architecture `docs/owner-decisions.md` L351) may instead move from one
+  version tag (`vN`, `vN.N`, `vN.N.N`) to another that exists in its repository; any other tag
+  swap keeps the hold. Any other line, file, status or owner, a
   patch GitHub omitted or cut short, or an unread tag list keeps the hold, and an unreadable
   owner list fails closed. The same shape and tag check for an owner the list leaves out
   (owner decision 2026-11-23, dependency review verdict for any owner) clears the hold once the
