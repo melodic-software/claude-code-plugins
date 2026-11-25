@@ -211,7 +211,7 @@ so installing it changes no commit until the team file sets a level.
    is another tool owning the local hooks directory (the `hooks-path-owned` decision).
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for what
    each kind asks of you, apply each one, then rerun `plan` until only the decisions you chose to
-   leave remain.
+   leave remain. With a `no-ci-rerun` decision, also offer `apply install-ci`.
 6. **Verify.** Run `verify` and report its lines as `check` step 8 does.
 
 A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/code-tidying/git-hooks/comment-lint.sh plugins/code-tidying/git-hooks/comment-lint.py plugins/code-tidying/git-hooks/entries.json plugins/code-tidying/lib/git-hooks/check-lib.sh plugins/code-tidying/scripts/comment-settings.sh plugins/code-tidying/lib/resolve-convention-home.sh
+# test-scope: plugins/code-tidying/git-hooks/comment-lint.sh plugins/code-tidying/git-hooks/comment-lint.py plugins/code-tidying/git-hooks/entries.json plugins/code-tidying/lib/git-hooks/check-lib.sh plugins/code-tidying/scripts/comment-settings.sh plugins/code-tidying/lib/resolve-convention-home.sh plugins/code-tidying/lib/parse-concern-value.sh plugins/code-tidying/lib/yaml-subset.awk plugins/code-tidying/scripts/comment-census.py
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
