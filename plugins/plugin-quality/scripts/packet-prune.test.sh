@@ -226,6 +226,8 @@ run 2 "--root is required" --days 5
 run 2 "a non-numeric --days is refused" --root "$(fresh_tree)" --days thirty
 run 2 "an unknown argument is refused" --root "$(fresh_tree)" --wipe
 run 0 "--help exits clean" --help
+has "--apply       delete" "--help lists the flags"
+has "Exit 0 = ran" "--help lists the exit codes"
 
 root="$(fresh_tree)"
 run 0 "--days 0 runs" --root "$root" --days 0 --apply

@@ -444,6 +444,8 @@ run 2 "an unknown action is refused" seal "$packet"
 run 2 "record without a packet is a usage error" record
 run 2 "an extra argument is refused" record "$packet" extra
 run 0 "--help exits clean" --help
+has "--acknowledge-divergence  write" "--help lists the flags"
+has "Exit 0 = recorded" "--help lists the exit codes"
 
 empty="$WORK/empty-packet"
 rm -rf "$empty"
