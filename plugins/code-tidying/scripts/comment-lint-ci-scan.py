@@ -21,7 +21,8 @@ nothing and writes nothing:
 
 A commented-out line is never a caller. A task-runner target counts as run
 when an uncommented CI line runs it, a target that depends on it or names it
-in its body, or the runner's default goal with no target named. A task-runner
+in its recipe or task body, or the runner's default with no target named (the
+first make or just target, the task named `default`). A task-runner
 caller no CI file runs is `unreached-caller` (not installed) when no other
 caller is reached from CI, else `local-caller` (a local convenience). Whether a reaching job runs on a
 change is the setup agent's to read. Only configuration files at the paths
@@ -160,12 +161,10 @@ def targets(runner: str, lines: list[str]) -> list[tuple[str, str]]:
     for i, text in enumerate(lines):
         if not (m := TARGET[runner].match(text)):
             continue
-        if runner != "task":
-            out.append((m.group(1), text[m.end() :]))
-            continue
-        body: list[str] = []
+        indent = ("    ",) if runner == "task" else ("\t", " ")
+        body = [] if runner == "task" else [text[m.end() :]]
         for nxt in lines[i + 1 :]:
-            if nxt.strip() and not nxt.startswith("    "):
+            if nxt.strip() and not nxt.startswith(indent):
                 break
             body.append(nxt)
         out.append((m.group(1), "\n".join(body)))
@@ -182,7 +181,10 @@ def reachers(runner: str, lines: list[str], target: str) -> tuple[set[str], str 
             if name not in names and any(re.search(rf"(?<![\w.:-]){re.escape(t)}(?![\w.:-])", deps) for t in names):
                 names.add(name)
                 grew = True
-    default = next((n for n, _ in defs if not n.startswith(".")), None)
+    if runner == "task":
+        default = "default" if any(n == "default" for n, _ in defs) else None
+    else:
+        default = next((n for n, _ in defs if not n.startswith(".")), None)
     return names, default
 
 

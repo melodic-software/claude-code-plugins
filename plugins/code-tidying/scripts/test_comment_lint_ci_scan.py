@@ -201,6 +201,24 @@ class Reach(unittest.TestCase):
                 result = scan({"Jenkinsfile": "sh 'task ci'\n", "Taskfile.yml": taskfile})
                 self.assertNotIn("unreached-caller", kinds(result))
 
+    def test_a_bare_task_runs_the_task_named_default(self) -> None:
+        lint = f"  lint-comments:\n    cmds:\n      - {CALL} \"$A\" \"$B\"\n"
+        unreached = f"version: '3'\ntasks:\n{lint}  default:\n    cmds:\n      - echo build\n"
+        reached = f"version: '3'\ntasks:\n{lint}  default:\n    deps: [lint-comments]\n"
+        ci = "sh 'task'\n"
+        self.assertIn("unreached-caller", kinds(scan({"Jenkinsfile": ci, "Taskfile.yml": unreached})))
+        self.assertNotIn("unreached-caller", kinds(scan({"Jenkinsfile": ci, "Taskfile.yml": reached})))
+
+    def test_a_make_recipe_line_that_runs_the_target_reaches_it(self) -> None:
+        makefile = "check:\n\t$(MAKE) comment-lint\n\n" + self.MAKEFILE
+        result = scan({".gitlab-ci.yml": "lint:\n  script:\n    - make check\n", "Makefile": makefile})
+        self.assertNotIn("unreached-caller", kinds(result))
+
+    def test_a_just_recipe_line_that_runs_the_recipe_reaches_it(self) -> None:
+        justfile = f"ci:\n    just comment-lint HEAD origin/main\n\ncomment-lint head base:\n    {CALL} {{{{head}}}} {{{{base}}}}\n"
+        result = scan({".gitlab-ci.yml": "lint:\n  script:\n    - just ci\n", "justfile": justfile})
+        self.assertNotIn("unreached-caller", kinds(result))
+
     def test_a_local_target_beside_a_ci_caller_is_only_local(self) -> None:
         ci = f"lint:\n  script:\n    - {CALL} \"$A\" \"$B\"\n"
         result = scan({".gitlab-ci.yml": ci, "Makefile": self.MAKEFILE})
