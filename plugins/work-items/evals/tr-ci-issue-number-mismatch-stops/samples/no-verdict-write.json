@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.lane/scratch/issue.json"
+          }
+        }
+      ],
+      "why": "reads the issue and stops"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.lane/scratch/issue.json"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.lane/scratch/triage-verdict.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "writes a verdict for issue 13"
+    }
+  ]
+}
