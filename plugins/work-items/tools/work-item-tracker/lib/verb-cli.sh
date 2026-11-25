@@ -1,5 +1,4 @@
 # shellcheck shell=bash
-# Verb CLI helpers every adapter verb script uses for --help and usage errors. Sourced.
 
 [[ -n "${_WIT_VERB_CLI_LOADED:-}" ]] && return 0
 readonly _WIT_VERB_CLI_LOADED=1

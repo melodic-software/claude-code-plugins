@@ -88,10 +88,6 @@ rc=$?
 assert_contains "resume removes nothing" "$out" "Summary: removed=0 failed=0 bytes=0"
 assert_exit "resume exit 0" 0 "$rc"
 
-# --- wrong-tier bypass guard: a build-only --apply must reject `caches` lines ---
-# even when a caller-supplied (or stale) manifest carries them. Regression for
-# the fixed bug where clean_apply_manifest's ALLOWED-classes gate was hardcoded
-# to "build caches" on both apply paths regardless of --include-caches.
 git init "$TEST_TMPDIR/b3" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/b3" config user.email "t@example.com"
 git -C "$TEST_TMPDIR/b3" config user.name "Test"

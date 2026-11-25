@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Drift contract test: cleanup-paths.sh arrays match reference/cleanup-config.md bullets.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

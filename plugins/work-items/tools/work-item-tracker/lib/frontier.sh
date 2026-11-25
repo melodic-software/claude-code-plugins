@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Core-side frontier derivation (CONTRACT.md "Verbs (core public surface)") over an
-# adapter envelope; provider search syntax never reaches this layer. Sourced.
 
 [[ -n "${_WIT_FRONTIER_LOADED:-}" ]] && return 0
 readonly _WIT_FRONTIER_LOADED=1
