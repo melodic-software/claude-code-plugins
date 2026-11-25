@@ -13,7 +13,7 @@ export type BandActions = {
 
 export const OFF_HINT = 'pause: /observer off · for good: observer_step_check, observer_turn_end_check in /plugin configure session-flow'
 
-export type AskedActions = { useful: () => unknown; notUseful: () => unknown; close: () => unknown }
+export type AskedActions = { helpful: () => unknown; notRelevant: () => unknown; unclear: () => unknown; turnOff: () => unknown; close: () => unknown }
 
 export const askedRow = (ui: Elements, icon: string, act: AskedActions) => {
   const { Box, Button, Text } = ui
@@ -23,8 +23,10 @@ export const askedRow = (ui: Elements, icon: string, act: AskedActions) => {
         <Text color="warning">{icon} </Text>
         observer · Dismissed.
       </Text>
-      <Button key="useful" hotkey="5" label="Useful" plain onPress={act.useful} />
-      <Button key="not-useful" hotkey="6" label="Not useful" plain onPress={act.notUseful} />
+      <Button key="helpful" hotkey="5" label="That was helpful" plain onPress={act.helpful} />
+      <Button key="not-relevant" hotkey="6" label="Not relevant" plain onPress={act.notRelevant} />
+      <Button key="unclear" hotkey="7" label="Couldn't understand" plain onPress={act.unclear} />
+      <Button key="turn-off" hotkey="8" label="Turn off checks" plain onPress={act.turnOff} />
       <Button key="close" hotkey="9" label="Close" plain dimColor onPress={act.close} />
     </Box>
   )

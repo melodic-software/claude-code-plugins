@@ -47,9 +47,11 @@ marked as background the person did not write), `6` Noted (marks the ledger entr
 Dispute (marks it disputed and suppresses it for good), `8` Why (shows the rule, the evidence, this
 session's check cost and how to pause) and `9` Dismiss. The hotkeys are `5` to `9` because the
 built-in side agent's band uses `1` to `4` and `0`, and a hotkey two plugins share presses neither.
-Nothing reaches the main conversation unless the person sends it. After Dismiss, one row asks
-`5` Useful, `6` Not useful or `9` Close, and clears itself after 20 seconds; the answer goes to the
-usage file, so `/observer` can show how often findings were worth showing.
+Nothing reaches the main conversation unless the person sends it. After Dismiss, one row offers
+the built-in side agent's answers on our hotkeys: `5` That was helpful, `6` Not relevant, `7`
+Couldn't understand, `8` Turn off checks (live checks stop for this session only; `/observer off`
+pauses every session) and `9` Close. It clears itself after 20 seconds; the answer goes to the usage
+file, so `/observer` can show how often findings were worth showing.
 
 **Auto-clear.** While a finding is shown, the next check is told about it and answers
 `resolved: yes` when the assistant has since fixed it; the band then clears and the ledger records

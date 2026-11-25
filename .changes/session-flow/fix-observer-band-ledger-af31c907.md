@@ -7,7 +7,7 @@ bump: minor
 - `/observer` shows whether the observer's live checks are on and, for this session and the last 24 hours, its checks by trigger and outcome, tokens, latency, cold-cache checks and your answers. `/observer off` pauses live checks on this machine until `/observer on`.
 - While a finding is shown, the next check clears it when the assistant has fixed it, and the ledger records it as resolved.
 - Noted now marks the ledger entry confirmed, and each answer is recorded in the usage file.
-- After Dismiss, the band asks once whether the finding was useful (`5` Useful, `6` Not useful, `9` Close) and clears itself after 20 seconds.
+- After Dismiss, the band offers the built-in side agent's answers once (`5` That was helpful, `6` Not relevant, `7` Couldn't understand, `8` Turn off checks for this session, `9` Close) and clears itself after 20 seconds.
 
 ### Changed
 

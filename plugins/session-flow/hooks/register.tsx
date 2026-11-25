@@ -59,7 +59,15 @@ const APPEND = "const fs=require('fs'),p=process.argv[1];fs.mkdirSync(require('p
 const appendTo = async ($: EngineInterface, path: string, text: string) => {
   const r = await $.process.run(['node', '-e', APPEND, path], { stdin: text, timeoutMs: 10_000 }).catch(() => undefined)
   if (r?.exitCode === 0) return
-  await $.fs.write(path, (await readOr($, path)) + text)
+  const mark = async () => ((await $.fs.exists(path)) ? JSON.stringify(await $.fs.stat(path)) : '')
+  for (let tries = 0; tries < 3; tries++) {
+    const before = await mark()
+    const old = await readOr($, path)
+    if ((await mark()) !== before) continue
+    await $.fs.write(path, old + text)
+    return
+  }
+  throw new Error(`append failed: ${path} kept changing`)
 }
 const iso = async ($: EngineInterface) => new Date(await $.clock.now()).toISOString()
 
@@ -222,6 +230,7 @@ export const register: Register = (on, options) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'off' || arg === 'on') {
       await $.store.set('paused', arg === 'off')
+      if (arg === 'on') st.on = !st.ended
       if (arg === 'off' && st.card !== null) await answered($, 'dismissed')
       return { text: arg === 'off' ? 'Live checks paused on this machine until /observer on. The catch-up for ended sessions still runs.' : 'Live checks on.' }
     }
@@ -299,7 +308,17 @@ export const register: Register = (on, options) => {
       }
       return (
         <Box flexDirection="column">
-          {askedRow(ui, st.icon, { useful: rate('useful'), notUseful: rate('not_useful'), close: rate('closed') })}
+          {askedRow(ui, st.icon, {
+            helpful: rate('helpful'),
+            notRelevant: rate('not_relevant'),
+            unclear: rate('unclear'),
+            turnOff: async () => {
+              st.on = false
+              $.ui.toast('observer: live checks off for this session (/observer on resumes; /observer off pauses every session)')
+              await rate('turned_off')()
+            },
+            close: rate('closed'),
+          })}
           {theirs}
         </Box>
       )
