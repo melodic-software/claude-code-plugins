@@ -1,0 +1,22 @@
+{
+  "name": "engineering-concepts",
+  "description": "Built-in catalog of software engineering concepts (principles, patterns, practices, architectures) as data: short pointer records to each concept's official source, never copied definitions, each tagged by concern, kind, stage and reversibility with its counterweights and conflicts. A lookup script and skills find an entry by name, alias, id or tag and load a topic or entry into the session.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "version": "0.0.0",
+  "license": "MIT",
+  "keywords": [
+    "engineering-concepts",
+    "principles",
+    "patterns",
+    "practices",
+    "architecture",
+    "catalog",
+    "skill"
+  ],
+  "metadata": {
+    "category": "design"
+  }
+}

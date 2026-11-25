@@ -1,0 +1,178 @@
+#!/usr/bin/env node
+import { readdirSync, readFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+
+const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
+const STAGES = ["interview", "design", "plan", "build", "review", "operate", "any"];
+const REVERSIBILITY = ["one-way", "two-way", "unrated"];
+const SOURCE_BARS = ["official", "official-plus-confirming"];
+const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const FETCH_TIMEOUT_MS = 10_000;
+const FETCH_CONCURRENCY = 8;
+
+const HELP = `Usage: lookup.mjs [TERM] [options]
+
+Finds built-in engineering-concept records: pointers to each concept's official
+source, never a definition. TERM matches an id, a name or an alias, whatever its
+case; a merged id kept as an alias redirects to the surviving record. With no
+TERM, every record that passes the filters is printed.
+
+Options:
+  --topic TOPIC             records from data/TOPIC.jsonl only
+  --concern CONCERN         records with this concern
+  --kind KIND               records of this kind
+  --stage STAGE             ${STAGES.join("|")}; a record staged "any" always matches
+  --reversibility VALUE     ${REVERSIBILITY.join("|")}
+  --exclude ID|TOPIC        drop a record id or a whole topic; repeatable, values union
+  --source-bar BAR          ${SOURCE_BARS.join("|")} (default official)
+  --check-sources           fetch each source_url and mark unreachable ones for
+                            re-sourcing; the only mode that touches the network
+  --data-dir DIR            read records from DIR instead of the plugin's data/
+  -h, --help                show this help
+
+Output: one JSON record per line on stdout, counterweights and conflicts_with as
+{id, name}. Diagnostics: JSON lines on stderr, each rejected record with its
+file:line in "at".
+Exit: 0 records printed, 1 none matched, 2 invalid option.`;
+
+const OPTIONS = {
+  topic: { type: "string" },
+  concern: { type: "string" },
+  kind: { type: "string" },
+  stage: { type: "string" },
+  reversibility: { type: "string" },
+  exclude: { type: "string", multiple: true, default: [] },
+  "source-bar": { type: "string", default: "official" },
+  "check-sources": { type: "boolean", default: false },
+  "data-dir": { type: "string", default: DATA_DIR },
+  help: { type: "boolean", short: "h", default: false },
+};
+
+const isText = (v) => typeof v === "string" && v.length > 0;
+const isList = (v) => v === undefined || (Array.isArray(v) && v.every(isText));
+
+function rejection(record) {
+  if (!isText(record.id) || !ID.test(record.id)) return "id is not a kebab-case slug";
+  for (const field of ["name", "concern", "kind", "owner"]) if (!isText(record[field])) return `${field} is missing`;
+  if (!isText(record.source_url) || !record.source_url.startsWith("https://")) return "source_url is not an https URL";
+  if (!STAGES.includes(record.stage)) return `stage is not one of ${STAGES.join("|")}`;
+  if (!REVERSIBILITY.includes(record.reversibility)) return `reversibility is not one of ${REVERSIBILITY.join("|")}`;
+  for (const field of ["aliases", "confirming_sources", "counterweights", "conflicts_with"]) {
+    if (!isList(record[field])) return `${field} is not a list of strings`;
+  }
+  return null;
+}
+
+export function loadIndex(dataDir, err) {
+  const byId = new Map();
+  const byName = new Map();
+  let files = [];
+  try {
+    files = readdirSync(dataDir).filter((f) => f.endsWith(".jsonl")).sort();
+  } catch (e) {
+    err(JSON.stringify({ level: "error", event: "data directory unreadable", dir: dataDir, code: e.code }));
+  }
+  for (const file of files) {
+    const path = join(dataDir, file);
+    const topic = basename(file, ".jsonl");
+    readFileSync(path, "utf8")
+      .split(/\r?\n/u)
+      .forEach((text, i) => {
+        if (!text.trim()) return;
+        const reject = (reason) =>
+          err(JSON.stringify({ level: "error", event: "record rejected", at: `${path}:${i + 1}`, file: path, line: i + 1, reason }));
+        let record;
+        try {
+          record = JSON.parse(text);
+        } catch (e) {
+          return reject(`not JSON: ${e.message}`);
+        }
+        const reason = record && typeof record === "object" ? rejection(record) : "not a JSON object";
+        if (reason) return reject(reason);
+        byId.set(record.id, { aliases: [], counterweights: [], conflicts_with: [], ...record, topic });
+        for (const name of [record.name, ...(record.aliases ?? [])]) byName.set(name.toLowerCase(), record.id);
+      });
+  }
+  return { byId, byName };
+}
+
+const resolveId = (index, term) => (index.byId.has(term) ? term : index.byName.get(term.toLowerCase()));
+
+function select(index, term, opts) {
+  const excluded = new Set(opts.exclude.flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean));
+  const id = term ? resolveId(index, term) : undefined;
+  const pool = term ? (id === undefined ? [] : [index.byId.get(id)]) : [...index.byId.values()];
+  return pool.filter(
+    (r) =>
+      !excluded.has(r.id) &&
+      !excluded.has(r.topic) &&
+      (!opts.topic || r.topic === opts.topic) &&
+      (!opts.concern || r.concern === opts.concern) &&
+      (!opts.kind || r.kind === opts.kind) &&
+      (!opts.stage || r.stage === opts.stage || r.stage === "any") &&
+      (!opts.reversibility || r.reversibility === opts.reversibility) &&
+      (opts["source-bar"] === "official" || (r.confirming_sources ?? []).length > 0),
+  );
+}
+
+function present(index, record) {
+  const ref = (raw) => {
+    const id = resolveId(index, raw);
+    return id === undefined ? { id: raw, name: null } : { id, name: index.byId.get(id).name };
+  };
+  return { ...record, counterweights: record.counterweights.map(ref), conflicts_with: record.conflicts_with.map(ref) };
+}
+
+async function probe(url, fetchImpl) {
+  try {
+    const res = await fetchImpl(url, { redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    await res.body?.cancel?.();
+    return res.ok ? { reachable: true, status: res.status } : { reachable: false, status: res.status, needs_resourcing: true };
+  } catch (e) {
+    return { reachable: false, error: e.message, needs_resourcing: true };
+  }
+}
+
+export async function checkSources(records, fetchImpl) {
+  const checked = new Array(records.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < records.length) {
+      const i = next++;
+      checked[i] = { ...records[i], source_check: await probe(records[i].source_url, fetchImpl) };
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(FETCH_CONCURRENCY, records.length) }, worker));
+  return checked;
+}
+
+export async function main(argv, { fetch: fetchImpl = globalThis.fetch, out = console.log, err = console.error } = {}) {
+  const invalid = (option, value, allowed) => {
+    err(JSON.stringify({ level: "error", event: "invalid option", option, value, ...(allowed && { allowed }) }));
+    return 2;
+  };
+  let parsed;
+  try {
+    parsed = parseArgs({ args: argv, allowPositionals: true, options: OPTIONS });
+  } catch (e) {
+    return invalid(null, e.message);
+  }
+  const { values: opts, positionals } = parsed;
+  if (opts.help) {
+    out(HELP);
+    return 0;
+  }
+  if (opts.stage && !STAGES.includes(opts.stage)) return invalid("stage", opts.stage, STAGES);
+  if (opts.reversibility && !REVERSIBILITY.includes(opts.reversibility)) return invalid("reversibility", opts.reversibility, REVERSIBILITY);
+  if (!SOURCE_BARS.includes(opts["source-bar"])) return invalid("source-bar", opts["source-bar"], SOURCE_BARS);
+
+  const index = loadIndex(opts["data-dir"], err);
+  let records = select(index, positionals.join(" ").trim(), opts).map((r) => present(index, r));
+  if (opts["check-sources"]) records = await checkSources(records, fetchImpl);
+  for (const record of records) out(JSON.stringify(record));
+  return records.length ? 0 : 1;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) process.exitCode = await main(process.argv.slice(2));
