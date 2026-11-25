@@ -197,12 +197,12 @@ overall) with that change applied to each pull request's own timestamps:
 | 1 | Hosted review lanes re-review only the lines changed since the last reviewed head, so a fix round raises no new findings on unchanged code | D | 40 | 63 | 65 | 58 | 59 |
 | 2 | Remove the cause of failed-check ejections: find which merge-group jobs fail on heads whose own `CI Status` passed, and make the pull-request run select the same tests the merge group does | B | 35 | 74 | 104 | 76 | 69 |
 | 3 | `/source-control:pull-request ready` merges `main` into the branch only on a conflict or a check `main` has since fixed, as the merging policy already says of rebases | A | 49 | 73 | 101 | 86 | 69 |
-| 4 | Find the event the lanes App pull requests' 28-minute gate wait waits on and arm them on it, not on a later sweep | E | 30 | 76 | 107 | 92 | 68 |
-| 5 | Shard the selected test suites by selected-test count, so test wall time stays at the under-200 level | C | 49 | 76 | 106 | 84 | 74 |
-| | 2, 3 and 5 together | A+B+C | 34 | 65 | 66 | 61 | 58 |
-| | 1, 2, 3 and 5 together | A+B+C+D | 32 | 53 | 47 | 41 | 44 |
+| 4 | Shard the selected test suites by selected-test count, so test wall time stays at the under-200 level | C | 49 | 76 | 106 | 84 | 74 |
+| 5 | Find the event the lanes App pull requests' 28-minute gate wait waits on and arm them on it, not on a later sweep | E | 30 | 76 | 107 | 92 | 68 |
+| | 2, 3 and 4 together | A+B+C | 34 | 65 | 66 | 61 | 58 |
+| | 1, 2, 3 and 4 together | A+B+C+D | 32 | 53 | 47 | 41 | 44 |
 
-The ranks follow the effect on the three bands over target. The cause in change 4 is not yet
+The ranks follow the summed effect on the three bands over target (D 94 minutes, B 26, A 20, C 14, E 5). The cause in change 5 is not yet
 measured: the gate wait is measured, the part of it each of pr-verify, the merge-risk rating and
 the pr-merge sweep holds is not, and the issue's first step is to split it.
 
@@ -212,12 +212,12 @@ the pr-merge sweep holds is not, and the issue's first step is to split it.
   requests, and 49 in the non-release sample. This band is the regression guard: a change filed
   from this list must not raise it above 60, and its issue re-measures it with the commands above.
 - **200-999: misses by 5 minutes, path found.** Active median 65 (55 to 76) on 398. Changes 2, 3
-  and 5 bring the sample to 65 from 77, and adding change 1 to 53.
+  and 4 bring the sample to 65 from 77, and adding change 1 to 53.
 - **1000-2999: misses, path needs change 1.** Active median 106 (69 to 135) on 81. Changes 2, 3 and
-  5 reach 66; with change 1, 47.
+  4 reach 66; with change 1, 47.
 - **3000 and over: misses, path needs change 1; the median is not yet stable.** Active median 92 on
   30 pull requests, but its 95% interval runs from 68 to 129, too wide to judge a change of under an
-  hour. The issue's n=5 premise no longer holds over 7 days. Changes 2, 3 and 5 reach 61; with
+  hour. The issue's n=5 premise no longer holds over 7 days. Changes 2, 3 and 4 reach 61; with
   change 1, 41. Re-measure this band over 14 days before judging any change on it.
 
 ## Observed after the window
