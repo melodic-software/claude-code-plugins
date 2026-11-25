@@ -70,14 +70,10 @@ Read `$ARGUMENTS` whole: its first word is the mode and, when the mode is `conti
 
 ### 1. Show the workflow at a glance
 
-```text
-Shape:     1. Interview (optional), calling detours when a question needs one:
-             2. Explore · 3. Research · 4. PRD (each conditional)
-Build:     5. Design → 6. Plan (+ stress-test) → 7. Decompose (conditional) → 8. Implement
-Check:     9. Test → 10. Review → 11. Verify outcome
-Ship:      PR lifecycle: prep → create → monitor CI → merge (runs after stage 11)
-12. Retrospective (optional, /session-flow:retro)
-```
+Read `reference/stages.yaml`, the stage map, and render it as one line per `group`: each stage
+numbered in map order with its name and `flag`, the `note` of a detour stage, and the `ship`
+entry after the stage it `runs-after`. Name a stage's `entry` skill only when it is enabled in
+this session.
 
 Each kind of task starts at the first stage of its row in the Task kinds table
 (`context/steps.md`); on the full path that is stage 1, the interview. Explore,
@@ -128,7 +124,9 @@ satisfies, then continue from there.
 
 ### 3. Suggest next stage
 
-Based on what's been done, recommend the next stage with rationale. First name the kind of task
+When the skill that just ran has a `## Next` bullet matching its result, that bullet wins; this
+ladder is the fallback when none matches. Otherwise, based on what's been done, recommend the
+next stage with rationale. First name the kind of task
 and read its row in the Task kinds table at the end of `context/steps.md`: that row is the stage
 list, in order, and the stages it skips, each skip with the row's reason. Never state a kind's
 stages from memory. With nothing done, suggest the row's first stage; on the full path that is
