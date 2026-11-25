@@ -84,15 +84,11 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      issues: read # list the issue's blocked_by dependencies
+      issues: read
     outputs:
       proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true' }}
       outsider: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.outsider == 'true' }}
-      # Whether the issue is a trusted size-split sub-issue or a finished
-      # parent, for resolve-config.
       split-child: ${{ steps.blockers.outputs.split-child }}
-      # A finished parent's sub-issues, each closed as completed by a trusted
-      # close, for report-outcome's verified-done close.
       verify-close: ${{ steps.blockers.outputs.verify-close }}
       standards-sha: ${{ steps.standards.outputs.sha }}
     env:
@@ -100,11 +96,8 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
-      # The gate cannot match an unset lanes App id, so the App's own field
-      # writes would read as a stranger's and its exception would never hold.
       - name: Assert the lanes App sender id and default branch are set
         env:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -142,9 +135,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # A switch that is on skips every API step below and leaves the run
-      # green; work-unblock's sweep reads that skip as a kill-switch trip
-      # (label-unblocked.mjs didNoWork) and re-fires it once the switch clears.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -152,9 +142,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # check-blockers.mjs reads the issue's Work status through
-      # resolve-config.mjs, whose packages only the resolve-config action
-      # installs; this job does not run it.
       - name: Install resolve-config's packages
         if: steps.kill.outputs.proceed == 'true'
         timeout-minutes: 3
@@ -185,11 +172,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/work-resolve-issue/check-blockers.mjs
 
-      # Skips the run while Actions or npm installs report a degraded
-      # component, with a logged reason; fails open
-      # (.github/actions/check-upstream-status). agent-ready stays, and
-      # work-unblock's sweep re-fires the run as one the blocker gate skipped
-      # (label-unblocked.mjs didNoWork).
       - name: Check upstream status
         id: upstream
         if: steps.blockers.outputs.proceed == 'true'
@@ -225,13 +207,12 @@ jobs:
     # No step here uses a cache; read keeps an issues run from saving one.
     cache-mode: read
     permissions:
-      actions: read # the key-credit gate lists the credit-stop markers
-      contents: read # check out the default branch for the WIP cap
-      pull-requests: read # count the lanes App's open pull requests
-      issues: read # read the issue's Size, Complexity and Uncertainty fields
+      actions: read
+      contents: read
+      pull-requests: read
+      issues: read
     env:
       API_BUDGET_TOKEN: github-token
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
       ISSUE_NUMBER: ${{ github.event.issue.number }}
     outputs:
@@ -266,11 +247,6 @@ jobs:
         with:
           ref: ${{ needs.check-admission.outputs.standards-sha }}
 
-      # A switch that is on skips every API step below and leaves the job
-      # green with no `capped`, so resolve-issue skips; work-unblock's sweep
-      # reads that skip as a kill-switch trip (label-unblocked.mjs didNoWork).
-      # A check that cannot run (no checkout) sets no `proceed` and leaves the
-      # hold below as it was; check-broker asks again before any model turn.
       - name: Check the kill switch
         id: kill
         continue-on-error: true
@@ -279,17 +255,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # When the WIP cap check pauses the lane (over the WIP cap or the held
-      # cap on or after wip.pause-from), resolve-issue is skipped: no
-      # slot, no token. work-unblock's sweep re-fires the issue once under the
-      # cap. The check publishes its status as the `wip` output. A read the
-      # pause depends on that fails, or a check that sets no `capped`, holds
-      # (outage posture element 2): resolve-issue starts only on
-      # `capped == 'false'`, the job ends green with a notice, and
-      # work-unblock's sweep re-fires the issue as a WIP cap skip, so its next
-      # run reads again (element 3). No stored state decides the pause. Its
-      # queued cap (`admission-open`) gates only new agent-ready labels in
-      # work-unblock, never this run: a queued issue leaves the count by running.
       - name: Set up Node
         id: node
         if: steps.kill.outputs.proceed != 'false'
@@ -304,13 +269,10 @@ jobs:
         continue-on-error: true
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
         with:
-          # Only capped leaves this job, so the admission reads are skipped.
           reads: pause
           node-setup: ${{ steps.node.outcome }}
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # The check names its own hold; this names one it could not, when it
-      # failed or never ran.
       - name: Hold on an unknown WIP cap
         if: steps.kill.outputs.proceed != 'false' && steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false'
         run: echo "::notice title=WIP cap hold::the WIP cap check did not finish, so the pause is unknown and this run starts no work; work-unblock's next sweep re-fires it and the check reads again"
@@ -348,18 +310,10 @@ jobs:
           activity: resolve-issue
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
-          # What the read runner hands on for resolve-issue.
           applied-by-supported: patch work-outcome
           split-child: ${{ needs.check-admission.outputs.split-child }}
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # SLOTS is the effective lane level: the published level variable,
-      # clamped to limits.lane-level's floor and ceiling, or its default when
-      # the value is empty, expired or malformed, and the default while
-      # limits.lane-level.shadow is set, with a notice naming the level it
-      # would use (.github/scripts/lib/lane-level-value.mjs). It reads the
-      # vars context and the resolved config, no API. A read that cannot run
-      # (no base checkout) leaves the fallback below, the same default.
       - name: Read the lane level
         id: level
         if: steps.tip.outputs.sha != ''
@@ -373,7 +327,6 @@ jobs:
       - name: Pick the slot
         id: slot
         env:
-          # limits.lane-level.default, the fallback when the read fails.
           SLOTS: ${{ steps.level.outputs.slots || '3' }}
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $SLOTS =~ ^[1-9][0-9]*$ ]] || exit 1
@@ -431,7 +384,7 @@ jobs:
     # which runs only default-branch-tip code. The first call holds the API
     # key alone.
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -478,13 +431,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       handed-off: ${{ steps.handoff.outputs.handed-off }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -504,8 +455,6 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
-      # A resolve-issue the key-credit gate skipped ran nothing to read; the
-      # job then only checks the fallback token for resolve-issue-subscription.
       - name: Read whether resolve-issue handed off
         id: handoff
         if: needs.resolve-issue.result != 'skipped'
@@ -545,10 +494,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
+      actions: read
+      contents: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -635,7 +582,7 @@ jobs:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -676,12 +623,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -732,7 +677,7 @@ jobs:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -773,12 +718,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       stale: ${{ steps.stale.outputs.stale }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -836,7 +779,7 @@ jobs:
       || needs.pick-slot.outputs.skip-reason == 'research-first'
       || needs.pick-slot.outputs.skip-reason == 'probe-first')))
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -927,7 +870,7 @@ jobs:
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '') == 'written'
       && needs.check-human-pull.result == 'success' && needs.check-human-pull.outputs.pull == '' }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -949,8 +892,6 @@ jobs:
       app-field-option: "84879220"
       patch-state: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '' }}
       patch-sha256: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-sha256 || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-sha256 || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-sha256 || '' }}
-      # The selected read call's lease, ended here only on a kill-switch stop,
-      # which skips report-outcome.
       lease-comment-id: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.lease-comment-id || '' }}
       patch-attempt: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-attempt || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-attempt || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-attempt || '' }}
       patch-activity: resolve-issue
@@ -976,8 +917,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write # delete a lane branch ref
-      pull-requests: read # each named branch's pull requests
+      contents: write
+      pull-requests: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -1072,7 +1013,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # A run that uploaded no outcome posts what its job results say.
       - name: Download the issue outcome
         continue-on-error: true
         uses: actions/download-artifact@v8
@@ -1125,12 +1065,10 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-      issues: read # resolve-config reads the issue's labels for labels-absent
+      issues: read
     outputs:
       checks: ${{ steps.run-checks.outputs.checks }}
       standards-sha: ${{ steps.standards.outputs.sha }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
       API_BUDGET_WAIT_SECONDS: "1200"
@@ -1159,8 +1097,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # No activity selected: every slot's predicate is decided, which reads
-      # the issue's labels; only the resolve-issue slot's checks are used.
       - name: Resolve the config
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
@@ -1170,8 +1106,6 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # For lane.json, which names the branch. A skill run reaches this job
-      # only when the scan uploaded the outcome; a reuse may have none.
       - name: Download the issue outcome
         continue-on-error: ${{ (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '' }}
         uses: actions/download-artifact@v8
@@ -1363,7 +1297,7 @@ jobs:
       && needs.apply-issue-patch.outputs.skip-reason != 'kill-switch'
       || needs.resolve-issue-stale.outputs.stale == 'true') }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -1386,12 +1320,8 @@ jobs:
       verify-close: ${{ needs.check-admission.outputs.verify-close }}
       hold-marker: true
       collect-refused: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-collect-refused || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-collect-refused || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-collect-refused || '' }}
-      # Why apply-issue-patch committed nothing, so the hand-back names it;
-      # a failed job that gave no reason crashed before committing or refusing.
       escalation-reason: >-
         ${{ needs.apply-issue-patch.outputs.escalation-reason
         || (needs.apply-issue-patch.result == 'failure' || needs.check-human-pull.result == 'failure') && 'patch-apply-failed' || '' }}
       human-pull: ${{ needs.check-human-pull.outputs.pull }}
-      # The selected read call's lane lease, ended once the PR is open; every
-      # other call's lease, a stale stop's included, its own read runner ended.
       lease-comment-id: ${{ needs.resolve-issue-stale.outputs.stale != 'true' && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.lease-comment-id) || '' }}

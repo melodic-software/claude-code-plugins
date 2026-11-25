@@ -88,9 +88,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # check out main
-      issues: write # label and comment on an issue
-      pull-requests: write # label and comment on a pull request
+      contents: read
+      issues: write
+      pull-requests: write
     # Runs on one item wait in line (`queue: max`) so none is dropped.
     concurrency:
       group: security-outside-actor-${{ github.event.issue.number || github.event.pull_request.number }}
@@ -100,7 +100,6 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip

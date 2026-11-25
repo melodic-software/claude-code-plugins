@@ -52,14 +52,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # download the link-check run's artifact
+      actions: read
     outputs:
       found: ${{ steps.links.outputs.found }}
       links: ${{ steps.links.outputs.links }}
       more: ${{ steps.links.outputs.more }}
     steps:
-      # A run the property gate skipped uploads no artifact; that is not an
-      # error, so the next step decides.
       - name: Download the dead links
         id: download
         continue-on-error: true
@@ -140,9 +138,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      issues: write # read, open, rewrite, comment on, close and reopen the rollup
-    # Two link-check runs finishing close together must not both find no
-    # rollup and open two.
+      issues: write
     concurrency:
       group: maintenance-file-dead-links
       cancel-in-progress: false
@@ -194,8 +190,6 @@ jobs:
             exit 0
           fi
 
-          # The body with the first $1 links, the rest counted in the +N more
-          # line. Each item shows at most 5 locations.
           render() {
             jq -r --arg marker "$MARKER" --arg run "$RUN_URL" --arg demote "$DEMOTION_PATH" \
               --argjson keep "$1" --argjson more "$((MORE + count - $1))" '
