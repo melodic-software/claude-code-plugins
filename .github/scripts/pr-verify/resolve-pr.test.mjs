@@ -64,17 +64,29 @@ const LANE = "melodic-automation-lanes[bot]";
 const JUDGED_AT = "2026-10-21T00:00:00Z";
 const PR_OPENED = "2026-10-20T00:00:00Z";
 
+const CAPTURED_RUN = JSON.parse(readFileSync(fileURLToPath(new URL("./fixtures/workflow-run-rerun.json", import.meta.url)), "utf8"));
+const JUDGED_FIELDS = ["id", "run_attempt", "path", "event", "status", "conclusion", "head_sha", "repository", "head_repository"];
 const upstream = (overrides = {}) => ({
+  ...Object.fromEntries(JUDGED_FIELDS.map((field) => [field, CAPTURED_RUN[field]])),
   id: RUN,
   run_attempt: 1,
-  path: ".github/workflows/pr-require-checks.yml",
-  event: "pull_request",
-  status: "completed",
   conclusion: "success",
   head_sha: HEAD,
-  repository: { full_name: REPO },
-  head_repository: { full_name: REPO },
+  repository: { ...CAPTURED_RUN.repository, full_name: REPO },
+  head_repository: { ...CAPTURED_RUN.head_repository, full_name: REPO },
   ...overrides,
+});
+
+test("the captured re-run attempt carries every field the resolver judges", () => {
+  assert.deepEqual(JUDGED_FIELDS.filter((field) => CAPTURED_RUN[field] === undefined), []);
+  assert.equal(CAPTURED_RUN.run_attempt, 2);
+  assert.equal(CAPTURED_RUN.path, ".github/workflows/pr-require-checks.yml");
+  assert.equal(CAPTURED_RUN.event, "pull_request");
+  assert.equal(CAPTURED_RUN.status, "completed");
+  assert.match(CAPTURED_RUN.head_sha, /^[0-9a-f]{40}$/);
+  assert.equal(CAPTURED_RUN.repository.full_name, "melodic-software/claude-code-plugins");
+  assert.equal(CAPTURED_RUN.head_repository.full_name, "melodic-software/claude-code-plugins");
+  assert.ok(Number.isSafeInteger(CAPTURED_RUN.id));
 });
 const eventFile = (run = upstream()) => {
   const file = path.join(tempDir("pr-verify-event-"), "event.json");

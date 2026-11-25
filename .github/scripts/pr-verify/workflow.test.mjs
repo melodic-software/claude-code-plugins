@@ -1,4 +1,4 @@
-// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/* .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 // pr-verify.yml's ordering rules, from its concurrency comment and the
 // README's "Verifier verdict" section: GitHub cancels an older pending run in the same concurrency group, so a cancelled
 // run must leave no verdict. The upload is therefore each job's only artifact

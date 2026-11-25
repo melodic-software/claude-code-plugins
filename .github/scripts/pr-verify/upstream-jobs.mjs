@@ -73,12 +73,12 @@ export function jobsFile(listed, treeListing) {
 }
 
 export async function main(env = process.env, { github, fetchImpl } = {}) {
-  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "JOBS_FILE", "HEAD_PATHS_FILE"]) {
+  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_EVENT_PATH", "JOBS_FILE", "HEAD_PATHS_FILE"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
   }
-  const run = readUpstreamRun(env);
+  const run = readUpstreamRun(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
   const tree = readFileSync(env.HEAD_PATHS_FILE, "utf8");
   const kept = keptJobs(env, run.id);
   const listed = kept ?? (await upstreamJobs(github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl }), env.GITHUB_REPOSITORY, run));

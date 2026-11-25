@@ -109,11 +109,8 @@ export const keptJobsPath = (env) => (env.RUNNER_TEMP ? path.join(env.RUNNER_TEM
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 
-export function readUpstreamRun(env) {
-  if (!env.GITHUB_EVENT_PATH) {
-    throw new Error("GITHUB_EVENT_PATH is not set");
-  }
-  const run = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"))?.workflow_run;
+export function readUpstreamRun(eventText) {
+  const run = JSON.parse(eventText)?.workflow_run;
   if (run === null || typeof run !== "object" || Array.isArray(run)) {
     throw new Error("the event payload holds no workflow_run");
   }
@@ -1405,6 +1402,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
   for (const key of [
     "GITHUB_TOKEN",
     "GITHUB_REPOSITORY",
+    "GITHUB_EVENT_PATH",
     "GITHUB_OUTPUT",
     "SPEC_FILE",
     "SPEC_TEXT_FILE",
@@ -1414,7 +1412,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
       throw new Error(`${key} is not set`);
     }
   }
-  const upstreamRun = readUpstreamRun(env);
+  const upstreamRun = readUpstreamRun(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
   const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
   const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors, latch });
   // A job's log: GitHub answers with a redirect to storage, which is read
