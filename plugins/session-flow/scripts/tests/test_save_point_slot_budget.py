@@ -2,7 +2,7 @@
 limit to the chain tip, and the number `new --shape 4` prints (PLAN.md Phase 7:
 AC3, AC4, AC13). Expected values come from the Writer contract: the second fill
 over a budget writes only for the slot the first fill refused, a finished-chain
-shrink keeps only the newest hot file, and the budget is the 24,600-byte cap
+shrink keeps only the newest handoff file, and the budget is the 24,600-byte cap
 minus the bytes `new` wrote."""
 
 from __future__ import annotations
