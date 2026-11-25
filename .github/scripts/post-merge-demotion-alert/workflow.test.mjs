@@ -171,7 +171,6 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
   assert.ok(body, "the file step's early exits end at newly=''");
   const script = body[1];
 
-  // Candidates: every pair and conclusion either side names, plus ones neither does.
   const stepLabels = [...script.matchAll(/^\s+"?([\w|: -]+)"?\)/gm)].flatMap((m) => m[1].split("|").map((s) => s.trim()));
   const pairs = new Set([
     ...literals(/fromJSON\('(\["[^']*:[^']*\])'\)/g),

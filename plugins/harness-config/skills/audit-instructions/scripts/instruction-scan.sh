@@ -211,15 +211,6 @@ I27_BREVITY_ERE="${WB_L}short|${WB_L}brief|${WB_L}concise|${WB_L}terse|${WB_L}le
 I28_A_ERE="CRITICAL:|IMPORTANT:|(You|you) MUST|MANDATORY|ALWAYS use|NEVER skip"
 I28_B_ERE="${WB_L}default to (using|running|calling)${WB_R}|if in doubt,? use|${WB_L}always use${WB_R}|use even when"
 I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
-# I40 this repository's history references, agent definitions only. Matched on
-# the lowercased line after code spans and tracked-work marker links are removed, outside fenced
-# and indented code blocks. The ERE itself rejects owner/repo#N:
-# a `#` after a word character, `&`, `/`, `.`, `#`, or `-` is an anchor, an
-# entity, or a path, not a reference. A reference whose block (a run of
-# non-blank lines) also cites its number upstream, as owner/repo#N or an
-# /issues/N or /pull/N URL, belongs to a pointer record and never emits; nor
-# does any line of a stored-value block, one carrying both an as-of date and a
-# recheck trigger.
 I40_REF_ERE="(^|[^[:alnum:]_&/.#-])#[0-9]+([^[:alnum:]_]|\$)|${WB_L}(pr|pull request)s? #?[0-9]+${WB_R}"
 I40_ASOF_ERE="as[- ]of[^0-9]{0,24}[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
 I40_RECHECK_ERE="${WB_L}re-?check"
@@ -317,8 +308,6 @@ END {
   if (mode == "count") print total
 }'
 
-# Existing files in argument order, duplicates kept: each occurrence re-emits
-# its rows, and a nonexistent path is skipped.
 files=()
 for file in "$@"; do
   [[ -f "$file" ]] && files+=("$file")
@@ -348,10 +337,6 @@ if ((len > 0)); then
   chunk_len+=("$len")
 fi
 
-# run_family <index> <grep-flags> <ere>
-#
-# The grep flags travel per family because I28-a is case-SENSITIVE by design
-# (the all-caps marker IS the signal) while every other family folds case.
 run_family() {
   local idx="$1" flags="$2" ere="$3" c
   printf '\001%s\n' "$idx"
@@ -445,8 +430,6 @@ run_i40() {
   done
 }
 
-# I6 sentence scan, one awk per file. A file with no lines still gets a group
-# marker so the merge stays aligned with the batched families.
 run_i6() {
   local file
   : >"$i6_tmp"

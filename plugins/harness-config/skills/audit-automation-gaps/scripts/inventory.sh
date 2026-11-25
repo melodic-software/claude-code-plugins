@@ -149,9 +149,6 @@ jq_bin="${INVENTORY_JQ:-jq}"
 have_jq=0
 command -v "$jq_bin" >/dev/null 2>&1 && have_jq=1
 
-# Plugin root resolution mirrors permission-state.sh: parameter expansion plus
-# builtins, so a missing external tool cannot silently turn managed policy into
-# an absence.
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
 managed_lib="$plugin_root/lib/managed-scope.sh"
 have_managed_lib=0
@@ -554,10 +551,6 @@ project_hook_scripts="$(count_dir "$hooks_dir_status" .claude/hooks -type f ! -n
 hook_tests="$(add_counts \
   "$(count_in_plugin_roots -type f -path '*/hooks/*' -name '*.test.sh')" \
   "$(count_dir "$hooks_dir_status" .claude/hooks -type f -name '*.test.sh')")"
-# Every .mcp.json this run will look at. The project-root file is emitted
-# whenever anything is THERE, a directory or a dangling symlink included, so
-# json_status gets to call it unreadable rather than the row reporting the
-# absence of a configuration that exists.
 mcp_candidates() {
   [[ -e .mcp.json || -L .mcp.json ]] && printf '%s\0' .mcp.json
   find0_plugin_roots -maxdepth 1 -type f -name '.mcp.json'

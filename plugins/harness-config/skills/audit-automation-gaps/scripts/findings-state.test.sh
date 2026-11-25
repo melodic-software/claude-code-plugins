@@ -60,8 +60,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# Every invocation runs with CLAUDE_PLUGIN_ROOT pinned, so a copy of the script
-# placed outside the plugin tree still resolves lib/state-key.sh.
 run() {
   CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SCRIPT" "$@"
 }

@@ -109,26 +109,9 @@ PROHIBIT_ERE="[^a-z](${PROHIBIT_ALT})[^a-z]"
 MANDATE_ALT='must|always|mandator(y|ily)|require[ds]?|shall|use|present|ask'
 MANDATE_ERE="[^a-z](${MANDATE_ALT})[^a-z]"
 EXCEPTION_ERE='[^a-z](unless|except|only when|only if|other than)[^a-z]'
-# Explicit user-config opt-in gates — SUPPRESSED. An opt-in is arbitration, so
-# the pair is already resolved. Generic by shape, not a per-plugin allowlist.
-# Suppression additionally requires a CONDITIONAL marker, because naming an
-# opt-in is not the same as being gated on one: "never use `X` for opt-in
-# prompts" describes the subject and must still be classified as a prohibition.
 GATED_ERE='(user_config|user config|[^a-z]opt-?in[^a-z]|[^a-z]opted in[^a-z])'
 CONDITIONAL_ERE='[^a-z](only when|only if|unless|requires?|gated|enabled|is on|when set)[^a-z]'
 BOUNDARY_ERE='([.;!?] |[^a-z],? *(but|whereas|though|although|yet)[^a-z]|, while[^a-z])'
-# Coordinated second directive — `and` joining a directive that carries its OWN
-# polarity token ("always use `Read` and never use `Bash`"). Opposite polarities
-# coordinate with `and` as readily as with a contrastive, and without a boundary
-# the first entity's trailing window swallows the second directive's token and
-# takes its polarity. A bare `and` is NOT a boundary: it usually joins the
-# objects of one directive ("never use `Bash` and `Grep`"), where cutting would
-# strip the token that governs the second object. Requiring the polarity token
-# is what separates the two readings.
-#
-# The token set is COMPOSED from the two classifier alternations rather than
-# retyped: a token missing here means `Never use X and use Y` finds no boundary
-# and Y inherits the leading `never`.
 COORD_ERE="[^a-z],? *and +(${PROHIBIT_ALT}|${MANDATE_ALT})[^a-z]"
 COORD_HEAD_ERE='[^a-z],? *and +'
 
