@@ -58,7 +58,7 @@ const CI_FILES = [
 const INSTALL_VERBS = {
   npm: [
     "i", "in", "ins", "inst", "insta", "instal", "isnt", "isnta", "isntal", "isntall", "add", "it", "cit", "ci",
-    "clean-install", "clean-install-test", "install-test", "install-ci-test", "update", "up", "upgrade", "udpate",
+    "clean-install", "clean-install-test", "install-test", "install-ci-test", "update", "u", "up", "upgrade", "udpate",
     "exec", "x", "link", "ln", "rebuild", "rb", "ic", "install-clean", "isntall-clean", "sit", "init", "create",
   ],
   pnpm: [

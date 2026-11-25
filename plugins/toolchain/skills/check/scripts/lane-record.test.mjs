@@ -738,6 +738,7 @@ describe("parsing", () => {
       "npm ic",
       "npm install-clean",
       "npm isntall-clean",
+      "npm u",
       "npm sit",
       "npm init foo",
       "npm create vite",
