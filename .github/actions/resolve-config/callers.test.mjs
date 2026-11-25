@@ -3288,6 +3288,16 @@ test("pr-run-activity-write.yml passes the producer's prepare mode to both apply
   }
 });
 
+test("pr-run-activity-write.yml passes the standards checkout to the script activity, whose scripts load the base config", () => {
+  const loaders = ["work-resolve-issue/report-outcome.mjs", "pr-unblock/declare-test-scope.mjs"];
+  for (const script of loaders) assert.match(read(`../../scripts/${script}`), /\b(issueStatus|testScope)FromBase\(/, script);
+  const { jobs } = workflow("pr-run-activity-write.yml");
+  const job = Object.values(jobs).find((candidate) => (candidate.steps ?? []).some((step) => step.id === "act-script"));
+  assert.ok(job.steps.some((step) => step.id === "standards" && step.if === undefined), "the job always downloads the standards checkout");
+  const step = job.steps.find((candidate) => candidate.id === "act-script");
+  assert.equal(step.env.STANDARDS_DIR, "${{ steps.standards.outputs.path }}", `${loaders.join(", ")} load the base config, whose vocabulary comes from STANDARDS_DIR`);
+});
+
 // fix-docs starts only from a pr-refine.yml dispatch naming it: the
 // dispatcher, or a listed person. Every fix-docs job trusts the default
 // branch tip, and the lanes App's own dispatch starts none.
