@@ -175,6 +175,7 @@ rows=$(jq -c '.hooks | del(.SessionStart) | to_entries[] | .key as $e | .value[]
 dispatcher=0
 workflow=0
 node_guards=0
+advisory=0
 while IFS= read -r row; do
   cmd=$(jq -r '.command' <<<"$row")
   [[ "$cmd" == "node" ]] || fail "exec-form command is $cmd, not node"
@@ -188,7 +189,13 @@ while IFS= read -r row; do
   fi
   [[ "$first" == *"/hooks/exec-bash.mjs" ]] || fail "args[0] is not exec-bash.mjs: $first"
   jq -e 'has("shell") | not' <<<"$row" >/dev/null || fail "row still sets shell"
-  if jq -e '(.args | index("--require-true")) != null' <<<"$row" >/dev/null; then
+  if [[ "$(jq -r '._matcher' <<<"$row")" == "Monitor" ]]; then
+    jq -e '._event == "PreToolUse" and (.args | length) == 3 and (has("onFailure") | not)' <<<"$row" >/dev/null ||
+      fail "the Monitor row is not a bare advisory run-guards row"
+    [[ "$(jq -r '.args[1]' <<<"$row")" == *"/hooks/run-guards.sh" ]] || fail "Monitor row args[1] is not run-guards.sh"
+    [[ "$(jq -r '.args[2]' <<<"$row")" == "block-pr-poller.sh" ]] || fail "Monitor row runs a guard other than block-pr-poller.sh"
+    advisory=$((advisory + 1))
+  elif jq -e '(.args | index("--require-true")) != null' <<<"$row" >/dev/null; then
     second=$(jq -r '.args[1]' <<<"$row")
     script=$(jq -r '.args[3]' <<<"$row")
     [[ "$second" == "--require-true" ]] || fail "workflow gate flag is $second"
@@ -215,6 +222,7 @@ while IFS= read -r row; do
 done <<<"$rows"
 [[ "$dispatcher" -eq 5 ]] || fail "expected the five dispatcher rows, found $dispatcher"
 [[ "$workflow" -eq 1 ]] || fail "expected one workflow row, found $workflow"
+[[ "$advisory" -eq 1 ]] || fail "expected the one advisory Monitor row, found $advisory"
 [[ "$node_guards" -eq 2 ]] || fail "expected the settings-write-ask and connected-page-gate node rows, found $node_guards"
 
 skips_on_blocking() { # <hooks.json> -> one line per offending row
