@@ -1,74 +1,87 @@
 #!/usr/bin/env bash
-# Bare-code gate for a drafted /planning:interview round, run before the round is shown.
-#
-# A person reading a round has none of the session's legend. A ledger id
-# (Q14, C3, F2, S1) or a session-shorthand term shown with nothing beside it
-# makes them ask what it means before they can answer. This gate reads the
-# ledger for every code and term, then flags each one whose first use in a
-# question block carries no name.
-#
-#   code            a ledger row id (`- Q<N> |`, `- C<N> |`, `- F<N> |`,
-#                   `- S<N> |`), a `Q<N>` that opens a question in the round,
-#                   or a term in the ledger's `**Session shorthand:**` list
-#                   (`- <term>: <definition>`; matched case-insensitively,
-#                   with a plural `s` allowed)
-#   question block  the lines from one `Q<N>` question line (any leading
-#                   marker or markup, then `Q<N>` and `:`, `.` or `)`) to the
-#                   next; the lines before the first are a block too
-#   named           the use is followed by `:`, `(`, `,`, ` - ` or a dash and
-#                   a word that is not itself a code nor, after a comma, a
-#                   connective such as `so` or `and` (`C3: scoped change`,
-#                   `question Q14, retry budget`, `lane (one builder
-#                   session)`), or sits in parentheses after words
-#                   (`scoped change (C3)`). The `Q<N>` that opens a question
-#                   line is named by that question, whether `:`, `.` or `)`
-#                   follows it. `Checked against: C1, C3` is bare twice; each
-#                   later use in the same block is not checked
-#   scenario id     a scenario walk's `S<N>` qualified by its question
-#                   (`Q17.S1`) is not a ledger code and is skipped; a line
-#                   opened by a bare `S<N>:` whose `S<N>` is a sweep row is
-#                   bare, since a reader cannot tell the scenario from the row
-#
-# Lines inside fenced code blocks are ignored, in the ledger and the round; a
-# fence left open exits 2.
-#
-# Exit 0 = no bare code and no structure failure (a round with none passes)
-# Exit 1 = at least one bare code or structure failure
-# Exit 2 = usage error, a missing or unreadable file, or an unterminated fence
-#
-# Usage:
-#   bash check-round-codes.sh --ledger <interview-checklist.md> <round.md>
-#   bash check-round-codes.sh --help
-#
-# Output (stdout, greppable): one `bare=<round line>:<code>` line per bare
-# code, then a closing `codes=<n> bare=<n> status=<ok|fail>` line.
-
 set -uo pipefail
 
 usage() {
-  sed -n '/^# Bare-code gate/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'TXT'
+Bare-code gate for a drafted /planning:interview round, run before the round is shown.
+
+A person reading a round has none of the session's legend. A ledger id
+(Q14, C3, F2, S1) or a session-shorthand term shown with nothing beside it
+makes them ask what it means before they can answer. This gate reads the
+ledger for every code and term, then flags each one whose first use in a
+question block carries no name.
+
+  code            a ledger row id (`- Q<N> |`, `- C<N> |`, `- F<N> |`,
+                  `- S<N> |`), a `Q<N>` that opens a question in the round,
+                  or a term in the ledger's `**Session shorthand:**` list
+                  (`- <term>: <definition>`; matched case-insensitively,
+                  with a plural `s` allowed)
+  question block  the lines from one `Q<N>` question line (any leading
+                  marker or markup, then `Q<N>` and `:`, `.`, `)` or
+                  ` (<topic>):`) to the next; the lines before the first
+                  are a block too
+  named           the use is followed by `:`, `(`, `,`, ` - ` or a dash and
+                  a word that is not itself a code nor, after a comma, a
+                  connective such as `so` or `and` (`C3: scoped change`,
+                  `question Q14, retry budget`, `lane (one builder
+                  session)`), or sits in parentheses after words
+                  (`scoped change (C3)`). The `Q<N>` that opens a question
+                  line is named by that question, whether `:`, `.` or `)`
+                  follows it. `Checked against: C1, C3` is bare twice; each
+                  later use in the same block is not checked
+  scenario id     a scenario walk's `S<N>` qualified by its question
+                  (`Q17.S1`) is not a ledger code and is skipped; a line
+                  opened by a bare `S<N>:` whose `S<N>` is a sweep row is
+                  bare, since a reader cannot tell the scenario from the row
+
+Lines inside fenced code blocks are ignored, in the ledger and the round; a
+fence left open exits 2.
+
+Exit 0 = no bare code and no structure failure (a round with none passes)
+Exit 1 = at least one bare code or structure failure
+Exit 2 = usage error, a missing or unreadable file, or an unterminated fence
+
+Usage:
+  bash check-round-codes.sh --ledger <interview-checklist.md> [--pacing round|single] [--cap <n>] <round.md>
+  bash check-round-codes.sh --help
+
+Output (stdout, greppable): one `bare=<round line>:<code>` line per bare
+code, then a closing `codes=<n> bare=<n> status=<ok|fail>` line.
+
+TXT
   cat <<'TXT'
 
 `--pacing round|single` (default round) names the round's question pacing.
+`--cap <n>` (the resolved questions_per_round, 1 or more) sets the most
+questions the round may hold.
 
-Four structure checks run beside the bare-code check:
+Structure checks run beside the bare-code check:
 
   answer line     each question block holds exactly one `My recommendation:`,
-                  `Withheld:`, `Discovery:` or (the product action)
-                  `Strong answer:` line
+                  `Withheld:`, `Discovery:`, `No recommendation:` or (the
+                  product action) `Strong answer:` line
+  answer settles  a `No recommendation:` line is followed in its question by
+                  a `Your answer settles:` line; else it prints
+                  `missing=<no-recommendation line>:answer-settles`
   scope check     the lines before the first question hold exactly one
                   `Scope check:` line
-
+  question cap    with `--cap <n>`, a round of more than n questions prints
+                  `over-cap=<count>`
   ledger terms    each term in the ledger's `## Terminology matrix` table
                   (first column) that a question uses is also in that
                   question's own Context (from its `Context:` line to its
                   answer line); a use with no Context mention prints
                   `undefined=<question line>:<term>`
+  header          a header line shaped like a label (up to four words, then
+                  `:`) other than `Scope check:`, `Wayfind:`, `Open:`,
+                  `Next round:` (`Next round (over the cap of N):` too),
+                  `Later:` and `Term:` prints `extra=<line>:header`, so a
+                  `Held:` or `Settled by evidence:` line fails
   single header   with `--pacing single`, the header holds only the round
                   title (`Round <N>`, as a heading or not), one restate line
-                  as the first non-blank line after it, `Scope check:`, `Later:`,
-                  `Held:`, `Settled by evidence:` and `Term:` lines; any
-                  other line prints `extra=<line>:single-header`
+                  as the first non-blank line after it, and those allowed
+                  label lines; any other line prints
+                  `extra=<line>:single-header`
 
 A list item (`- Q4: ...`, `1. Q4: ...`) never opens a question.
 
@@ -77,14 +90,18 @@ such as an emoji) and sit in bold; round.py show reads labels the same way.
 Each failure prints `missing=<line>:<what>` (`recommendation` or
 `single-recommendation` at the question line, `scope-check` or
 `single-scope-check` at line 1), and
-the closing line gains ` structure=<n>`, which also counts the `undefined=`
-and `extra=` lines.
+the closing line gains ` structure=<n>`, which also counts the `undefined=`,
+`extra=`, `over-cap=` and `emphasis=` lines.
+
+Emphasis prints `emphasis=<line>` and fails the round: bold outside a
+question line and an answer line, italics (`*x*`, `_x_`) and `~~`, inline
+code skipped.
 
 Self-checks need judgment, so they print a `check=<line>:<name>` line and
 never change the exit code:
 
   own-context-terms  at each question after the first
-  flips-if-fact      at each `Flips if:` line
+  flips-if-fact      at each `Flips if:` line, a `- Flips if:` bullet included
   existing-control   at each `My recommendation:` line
   single-pacing      at line 1, with `--pacing single`
 TXT
@@ -98,6 +115,7 @@ die() {
 ledger=""
 round=""
 pacing="round"
+cap=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --help | -h)
@@ -112,6 +130,11 @@ while [[ $# -gt 0 ]]; do
   --pacing)
     [[ $# -ge 2 && ( "$2" == round || "$2" == single ) ]] || die "--pacing needs round or single"
     pacing="$2"
+    shift 2
+    ;;
+  --cap)
+    [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--cap needs a whole number, 1 or more"
+    cap="$2"
     shift 2
     ;;
   -*)
@@ -212,15 +235,33 @@ LC_ALL=C awk '
     }
   }
   # The id of the question a line opens, or "" when it opens none.
-  function question_id(line,    c) {
+  function question_id(line,    c, rest) {
     if (line ~ /^([ \t]*>)*[ \t]*([-*+]|[0-9]+[.)])[ \t]/) return ""
-    if (!match(line, /^[^A-Za-z0-9]*Q[0-9]+[.):]/)) return ""
+    if (!match(line, /^[^A-Za-z0-9]*Q[0-9]+/)) return ""
     c = substr(line, RSTART, RLENGTH)
+    rest = substr(line, RSTART + RLENGTH)
+    if (rest !~ /^[.):]/ && rest !~ /^ \([^()]*\):/) return ""
     # Q17.S1 is a qualified scenario id, not a question line.
-    if (c ~ /\.$/ && substr(line, RSTART + RLENGTH, 1) ~ /[A-Za-z0-9]/) return ""
+    if (rest ~ /^\./ && substr(rest, 2, 1) ~ /[A-Za-z0-9]/) return ""
     sub(/^[^A-Za-z0-9]*/, "", c)
-    sub(/[.):]$/, "", c)
     return c
+  }
+  # Bold is allowed only on a question title or an answer line (allow_bold);
+  # italics and strikethrough nowhere. Inline code is skipped.
+  function emphasis(line, lno, allow_bold,    t) {
+    t = line
+    gsub(/`[^`]*`/, "", t)
+    if (!allow_bold && (t ~ /\*\*[^ *]/ || t ~ /(^|[^A-Za-z0-9_])__[^ _]/)) {
+      missing++
+      printf "emphasis=%d\n", lno
+      return
+    }
+    gsub(/\*\*|__/, "", t)
+    if (t ~ /(^|[^*A-Za-z0-9])\*[^ *]([^*]*[^ *])?\*([^*A-Za-z0-9]|$)/ ||
+      t ~ /(^|[^A-Za-z0-9_])_[^ _]([^_]*[^ _])?_([^A-Za-z0-9_]|$)/ || t ~ /~~/) {
+      missing++
+      printf "emphasis=%d\n", lno
+    }
   }
   FNR == 1 && NR > 1 && in_fence { exit 4 }
   {
@@ -279,16 +320,34 @@ LC_ALL=C awk '
         printf "undefined=%d:%s\n", block_line, term[i]
       }
     }
+    if (nr_line && !settles) {
+      missing++
+      printf "missing=%d:answer-settles\n", nr_line
+    }
+  }
+  function is_answer(line) {
+    return line ~ /^[^ -~]*[ \t]*(\*\*|__)?(My recommendation|Withheld|Discovery|Strong answer|No recommendation)(\*\*|__)?:/
+  }
+  function header_ok(line) {
+    return line ~ /^[^ -~]*[ \t]*(\*\*|__)?(Scope check|Wayfind|Open|Next round|Later|Term)( \([^)]*\))?(\*\*|__)?:/
+  }
+  # A line shaped like a label: up to four words, the first capitalized, then `:`.
+  function label_shaped(line) {
+    return line ~ /^[^ -~]*[ \t]*(\*\*|__)?[A-Z][A-Za-z]*( [a-z]+)?( [a-z]+)?( [a-z]+)?( \([^)]*\))?(\*\*|__)?:([ \t]|$)/
   }
   {
     if (!block_line && $0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Scope check(\*\*|__)?:/) has_scope++
-    if (block_line && $0 ~ /^[^ -~]*[ \t]*(\*\*|__)?(My recommendation|Withheld|Discovery|Strong answer)(\*\*|__)?:/) block_answers++
+    if (block_line && is_answer($0)) block_answers++
   }
   {
-    if ((c = question_id($0)) != "") {
+    c = question_id($0)
+    emphasis($0, FNR, c != "" || is_answer($0))
+    if (c != "") {
       close_block()
       block_line = FNR
       block_answers = 0
+      nr_line = 0
+      settles = 0
       delete used
       # The Q<N> that opens a question line is the handle of that question,
       # named by the question itself whatever separator follows it.
@@ -300,7 +359,9 @@ LC_ALL=C awk '
     }
     if (block_line) {
       if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Context(\*\*|__)?:/) in_ctx = 1
-      else if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?(My recommendation|Withheld|Discovery|Strong answer)(\*\*|__)?:/) in_ctx = 0
+      else if (is_answer($0)) in_ctx = 0
+      if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?No recommendation(\*\*|__)?:/) { nr_line = FNR; settles = 0 }
+      else if (nr_line && $0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Your answer settles(\*\*|__)?:/) settles = 1
       hay = tolower($0)
       for (i = 1; i <= n_terms; i++) {
         if (has_term(hay, term[i])) {
@@ -308,29 +369,40 @@ LC_ALL=C awk '
           if (in_ctx) tctx[i] = 1
         }
       }
-      if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Flips if(\*\*|__)?:/) printf "check=%d:flips-if-fact\n", FNR
+      if ($0 ~ /^([^ -~]*[ \t]*|[ \t]*[-*+][ \t]+)(\*\*|__)?Flips if(\*\*|__)?:/) printf "check=%d:flips-if-fact\n", FNR
       if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?My recommendation(\*\*|__)?:/) printf "check=%d:existing-control\n", FNR
     } else if (pacing == "single" && $0 !~ /^[ \t]*$/) {
       if ($0 ~ /^[^ -~]*[ \t]*(#+[ \t]+)?(\*\*|__)?Round[ \t]+[0-9]/) restate_ok = 1
+      else if (label_shaped($0) && !header_ok($0)) {
+        missing++
+        printf "extra=%d:single-header\n", FNR
+      }
       else if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Term(\*\*|__)?:/) {}
-      else if ($0 ~ /^[^ -~]*[ \t]*((\*\*|__)?(Scope check|Later|Held|Settled by evidence)(\*\*|__)?:|---+[ \t]*$)/) restate_ok = 0
+      else if (header_ok($0) || $0 ~ /^[^ -~]*[ \t]*---+[ \t]*$/) restate_ok = 0
       else if (restate_ok) restate_ok = 0
       else {
         missing++
         printf "extra=%d:single-header\n", FNR
       }
+    } else if (label_shaped($0) && !header_ok($0)) {
+      missing++
+      printf "extra=%d:header\n", FNR
     }
     grade($0, FNR)
   }
   END {
     if (in_fence) exit 4
     close_block()
+    if (cap && n_blocks > cap) {
+      missing++
+      printf "over-cap=%d\n", n_blocks
+    }
     if (pacing == "single") print "check=1:single-pacing"
     if (has_scope != 1) { missing++; print "missing=1:" (has_scope ? "single-scope-check" : "scope-check") }
     printf "codes=%d bare=%d status=%s structure=%d\n", n_codes, bare, ((bare || missing) ? "fail" : "ok"), missing
     exit ((bare || missing) ? 1 : 0)
   }
-' ledger_file="$ledger" pacing="$pacing" "$ledger" pass=1 "$round" pass=2 "$round"
+' ledger_file="$ledger" pacing="$pacing" cap="$cap" "$ledger" pass=1 "$round" pass=2 "$round"
 status=$?
 case $status in
 0 | 1) exit "$status" ;;

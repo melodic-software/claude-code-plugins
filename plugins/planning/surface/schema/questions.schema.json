@@ -33,7 +33,7 @@
           },
           "restate": {
             "type": "object",
-            "required": ["text", "decided", "open"],
+            "required": ["text", "open"],
             "additionalProperties": false,
             "properties": {
               "text": {"type": "string"},
@@ -250,7 +250,7 @@
         "tags": {
           "type": "object",
           "additionalProperties": {"type": "string"},
-          "description": "Each imported row's tag tail (`kind::`, `problem::`, `depends::`, `reopened::`, `recheck::`), by question id, as the ledger wrote it; export-ledger writes it back unchanged, and a merge into a ledger keeps that ledger's tail instead."
+          "description": "Each imported row's tag tail (`kind::`, `problem::`, `depends::`, `reopened::`, `recheck::`, `topic::`), by question id, as the ledger wrote it; export-ledger writes it back unchanged, and a merge into a ledger keeps that ledger's tail instead."
         }
       }
     },

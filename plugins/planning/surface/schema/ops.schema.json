@@ -156,9 +156,9 @@
         "questions": {"type": "array", "items": {"type": "object"}},
         "visuals": {"type": "array", "items": {"type": "object"}},
         "restate": {
-          "description": "Required when the op adds questions: the round's opening restate. `text` is markdown of at most 3 sentences (what is decided, which branches are open, what this round turns on); `decided` and `open` list question ids.",
+          "description": "Required when the op adds questions: the round's opening restate. `text` is markdown of at most 3 sentences (what is decided, which branches are open, what this round turns on); `open` lists question ids, and the optional `decided` too.",
           "type": "object",
-          "required": ["text", "decided", "open"],
+          "required": ["text", "open"],
           "additionalProperties": false,
           "properties": {
             "text": {"type": "string"},

@@ -1545,6 +1545,19 @@ class TestStart(unittest.TestCase):
         settings = app.session.state["session"]["settings"]
         self.assertEqual((settings["names"], settings["voting"], settings["chat"]), ("initials", False, True))
 
+    def test_the_hosts_round_cap_in_defaults_json_caps_the_session(self):
+        d = tmpdir(self)
+        (d / "defaults.json").write_text(json.dumps({"settings": {"roundCap": 4}}), encoding="utf-8")
+        app = server.App(d, watch_tunnel=False)
+        self.addCleanup(app.shutdown)
+        self.assertEqual(app.session.round_max, 4)
+
+    def test_a_round_cap_over_the_server_limit_refuses_the_start(self):
+        d = tmpdir(self)
+        (d / "defaults.json").write_text(json.dumps({"settings": {"roundCap": 9}}), encoding="utf-8")
+        with self.assertRaises(server.StartRefused):
+            server.App(d, watch_tunnel=False)
+
     def test_a_defaults_file_with_unknown_keys_is_refused(self):
         d = tmpdir(self)
         (d / "defaults.json").write_text(json.dumps({"voting": False}), encoding="utf-8")

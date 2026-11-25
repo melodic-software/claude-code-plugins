@@ -10,8 +10,8 @@ ops, and supersede and resolve read their text from a file.
   add             add a question from --file JSON; --id, --group, --stage, --round, --depends,
                   --follow-up-of, --supersedes and --waiting override its fields
   add-round       add several groups, questions and visuals from one JSON file, in one write; a round
-                  with questions carries a `restate` ({text: at most 3 sentences, decided: [ids],
-                  open: [ids]}) the page pins above its first question; meta.kind "sweep"
+                  with questions carries a `restate` ({text: at most 3 sentences, open: [ids],
+                  optional decided: [ids]}) the page pins above its first question; meta.kind "sweep"
                   marks a sweep round, and a question's `reconciles` names the earlier
                   questions whose answers it reconciles;
                   --sync-ledger F then syncs F's register rows, --check writes nothing
@@ -28,7 +28,8 @@ ops, and supersede and resolve read their text from a file.
   export-ledger   write the interview ledger (decision tree and open-question register);
                   --ledger F merges into F's register, --diff F prints what that would change;
                   --recap writes the confirmation recap instead (with --ledger F it needs no data
-                  dir and saves its rows beside F; --changed lists only the rows changed since)
+                  dir, saves its rows beside F as first seen and lists rows changed since;
+                  with a data dir --changed lists only the rows changed since the last recap)
   export-brief    write the PLAN.md Brief sections; --ledger F numbers as F does and carries its ledger-only deferred rows;
                   --into PLAN replaces PLAN's `## Brief` section in place instead of writing --out
   export-report   write one self-contained HTML report
@@ -52,9 +53,11 @@ ops, and supersede and resolve read their text from a file.
                   `## Reopened answers`, and add `recheck:: Q<N>` to every row whose `depends::`
                   reaches it at any depth, printing each; --rechecked Q<N>... clears recheck::
                   from those rows. Needs no data dir; backs up and prints the verdict as supersede
-  show            print a saved round file at --level full (byte for byte), standard or minimal
-  scope-check     print the counts half of a round header's Scope check: line from --ledger F
-                  (next-id --round n --limit m prints that line after the ids, the new rows counted)
+  show            print a saved round file at --level full (every line), standard or minimal, its
+                  citation labels per --links plain|vscode|file
+  scope-check     print a round header's Scope check: line from --ledger F, a Wayfind: line on the
+                  two-round signal, and record the round counts under F's ## Round counts
+                  (next-id --round n prints the same after the ids, the new rows counted)
   measures        print rounds, median lines per shown round, reopened rows and those after a
                   lookup, from --ledger F and --rounds-dir D (show, scope-check and measures need no
                   data dir)
@@ -134,6 +137,7 @@ import sys
 import time
 import webbrowser
 from pathlib import Path
+from urllib.parse import quote
 
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
@@ -1009,7 +1013,7 @@ def checked_round_restate(restate):
         sys.exit(
             "refused: a round with questions needs a restate: "
             '{"text": "<=3 sentences: what is decided, which branches are open, what this '
-            'round turns on", "decided": [ids], "open": [ids]} (G7)'
+            'round turns on", "open": [ids]} (G7; "decided": [ids] is optional)'
         )
     extra = sorted(set(restate) - {"text", "decided", "open"})
     if extra:
@@ -1025,7 +1029,7 @@ def checked_round_restate(restate):
         )
     out = {"text": text}
     for key in ("decided", "open"):
-        ids = restate.get(key)
+        ids = restate.get(key, [] if key == "decided" else None)
         if not isinstance(ids, list) or not all(isinstance(i, str) and i for i in ids):
             sys.exit(f"refused: restate {key} is a list of question ids (G7)")
         out[key] = list(dict.fromkeys(ids))
@@ -1986,6 +1990,15 @@ def cmd_add_round(d, a):
         spec.get("visuals"),
         spec.get("restate"),
     )
+    if a.cap is not None:
+        if a.cap < 1:
+            sys.exit(f"refused: --cap must be 1 or more, not {a.cap}")
+        n = len(a.questions) if isinstance(a.questions, list) else 0
+        if n > a.cap:
+            sys.exit(
+                f"refused: the round has {n} questions; the cap is {a.cap} "
+                "(questions_per_round); move the rest to the next round"
+            )
     if a.check:
         doc = load(d)
         touched, msg = op_add_round_linted(d, doc, a)
@@ -2623,7 +2636,8 @@ def cmd_export_ledger(d, a):
         if d is None:
             exporters.check_ledger(text, a.ledger)
         state = last_recap_path(a.ledger) if a.ledger else None
-        since = read_last_recap(state) if a.changed else None
+        saved = read_last_recap(state) if state and (a.changed or d is None) else None
+        since = saved
         recap, fits = exporters.confirmation_recap(d, TEXT_CAP, text, since)
         write_text(a.out, recap)
         print(f"wrote {a.out}")
@@ -2633,7 +2647,12 @@ def cmd_export_ledger(d, a):
                 f"{TEXT_CAP}"
             )
         if state:
-            rows = exporters.recap_state(exporters.recap_rows(d, text))
+            rows = exporters.recap_rows(d, text)
+            rows = (
+                exporters.first_recap_state(saved, rows)
+                if d is None
+                else exporters.recap_state(rows)
+            )
             write_text(state, json.dumps({"rows": rows}, indent=2, ensure_ascii=False) + "\n")
         if d is not None and text is not None:
             report_notes(exporters.merged_register(d, text)[2], ("conflict",))
@@ -2797,21 +2816,26 @@ def cmd_reopen(d, a):
 def cmd_next_id(d, a):
     if a.count < 1:
         sys.exit(f"refused: --count must be 1 or more, not {a.count}")
-    if (a.round is None) != (a.limit is None):
-        sys.exit("refused: --round and --limit go together")
     text = read_input(a.ledger, "ledger")
     exporters.check_ledger(text, a.ledger)
-    scope = [] if a.round is None else [f"Scope check: {scope_counts(text, a, a.count)}"]
+    scope = [] if a.round is None else scope_lines(text, a, a.count)
     top = exporters.highest_id(text, d)
     print("\n".join([*(f"Q{top + k}" for k in range(1, a.count + 1)), *scope]))
 
 
 LEVELS = ("full", "standard", "minimal")
+BULLET_LABELS = ("Why", "Gains", "Costs", "Evidence", "Flips if")
 ROUND_LABELS = (
     "My recommendation",
     "Strong answer",
     "Withheld",
     "Discovery",
+    "No recommendation",
+    "Your answer settles",
+    "Why",
+    "Gains",
+    "Costs",
+    "Evidence",
     "Second view",
     "Departs from",
     "Flips if",
@@ -2826,11 +2850,22 @@ ROUND_LABELS = (
 ROUND_LABEL = re.compile(
     rf"^[^ -~]*[ \t]*(?:\*\*|__)?({'|'.join(ROUND_LABELS)})(?:\*\*|__)?:"
 )
+BULLET_LABEL = re.compile(
+    rf"^[ \t]*[-*+][ \t]+(?:\*\*|__)?({'|'.join(BULLET_LABELS)})(?:\*\*|__)?:"
+)
 LIST_ITEM = re.compile(r"^(?:[ \t]*>)*[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]")
-QUESTION_LINE = re.compile(r"^[^A-Za-z0-9]*(Q[0-9]+)(?:[:)]|\.(?![A-Za-z0-9]))")
+QUESTION_LINE = re.compile(
+    r"^[^A-Za-z0-9]*(Q[0-9]+)(?: \([^()]*\):|[:)]|\.(?![A-Za-z0-9]))"
+)
 PROTECTED = re.compile(
-    r"^[^A-Za-z0-9]*(?:flips if|commits you to|withheld|discovery|second view|departs from)\b",
+    r"^[^A-Za-z0-9]*(?:flips if|commits you to|withheld|discovery|no recommendation"
+    r"|your answer settles|second view|departs from)\b",
     re.IGNORECASE,
+)
+LINK_FORMS = ("plain", "vscode", "file")
+CITATION = re.compile(
+    r"\((?P<path>[^()\s`]*[A-Za-z][^()\s`]*):"
+    r"(?P<lines>(?P<first>[0-9]+)(?:-[0-9]+)?(?:, [0-9]+(?:-[0-9]+)?)*)\)$"
 )
 ROUND_FENCE = re.compile(
     r"^(?:[ \t]*>)*[ \t]*(?:(?:[-*+]|[0-9]+[.)])[ \t]+)?(`{3,}|~{3,})(.*)$"
@@ -2877,7 +2912,7 @@ def round_segments(lines):
             segs[-1][2].append(line)
             continue
         q = question_id(bare)
-        label = ROUND_LABEL.match(bare)
+        label = ROUND_LABEL.match(bare) or BULLET_LABEL.match(bare)
         if q:
             qid = q
             segs.append(["title", qid, [line]])
@@ -2942,8 +2977,71 @@ def write_raw(text):
     sys.stdout.buffer.flush()
 
 
+def repo_top(folder):
+    """The repository top `git rev-parse --show-toplevel` names for `folder`, else None."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(folder), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    top = r.stdout.strip()
+    return Path(top) if r.returncode == 0 and top else None
+
+
+def link_path(path, lines, target):
+    return f"[{Path(path).name}:{lines}]({target})"
+
+
+def plain_link(path, lines, first, abs_path):
+    return f"{Path(path).name}:{lines}"
+
+
+def vscode_link(path, lines, first, abs_path):
+    distro = os.environ.get("WSL_DISTRO_NAME")
+    where = f"vscode-remote/wsl+{quote(distro)}" if distro else "file"
+    return link_path(path, lines, f"vscode://{where}/{abs_path}:{first}")
+
+
+def file_link(path, lines, first, abs_path):
+    return link_path(path, lines, f"file:///{abs_path}")
+
+
+LINK_FORMATTERS = {"plain": plain_link, "vscode": vscode_link, "file": file_link}
+
+
+def link_citations(text, form, round_file):
+    """`text` with each citation label `(path:line)` that ends a line, outside fences, printed
+    in `form`: a relative path resolves against the round file's repository top, else its
+    folder."""
+    fmt = LINK_FORMATTERS[form]
+    base = None
+    out, fence = [], None
+    for line in text.splitlines(keepends=True):
+        bare = line.rstrip("\r\n")
+        fence, fenced = fence_step(fence, bare)
+        m = None if fenced else CITATION.search(bare)
+        path = m and m.group("path")
+        if not path or "://" in path or not ("." in path or "/" in path):
+            out.append(line)
+            continue
+        abs_path = ""
+        if form != "plain":
+            if base is None:
+                folder = Path(round_file).resolve().parent
+                base = repo_top(folder) or folder
+            abs_path = quote((base / path).resolve().as_posix().lstrip("/"), safe="/:")
+        label = fmt(path, m.group("lines"), m.group("first"), abs_path)
+        out.append(f"{bare[: m.start()]}({label}){eol_of(line)}")
+    return "".join(out)
+
+
 def cmd_show(d, a):
-    write_raw(render_round(read_round(a.round_file), a.level))
+    text = render_round(read_round(a.round_file), a.level)
+    write_raw(link_citations(text, a.links, a.round_file))
 
 
 def shown_rounds(rounds_dir):
@@ -2958,28 +3056,79 @@ def shown_rounds(rounds_dir):
     }
 
 
-def scope_counts(text, a, new=0):
+ROUND_COUNTS_HEADING = "## Round counts"
+ROUND_COUNT = re.compile(r"^(?:[-*+][ \t]+)?round ([0-9]+) \| opened ([0-9]+) \| closed ([0-9]+)[ \t]*$")
+WAYFIND = (
+    "Wayfind: the last two rounds each opened more questions than they settled; "
+    "/planning:wayfind chart can map what is left."
+)
+
+
+def round_counts(rows, n, new=0):
+    """(opened, closed) of round n: its register rows (plus `new` not yet registered) and how
+    many of them are settled."""
+    mine = [status for _, status, rnd, _, _, _ in rows if rnd == n]
+    return len(mine) + new, sum(status in exporters.SETTLED for status in mine)
+
+
+def upsert_round_counts(text, counts):
+    """`text` with one `round N | opened A | closed S` line per entry of `counts` (round ->
+    (opened, closed)) under `## Round counts`, merged with the lines already there and kept in
+    round order; the heading is appended at the end when the ledger has none."""
+    lines = text.splitlines(keepends=True)
+    eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
+    at = next(
+        (i for i, line in enumerate(lines) if line.rstrip("\r\n").strip() == ROUND_COUNTS_HEADING),
+        None,
+    )
+    if at is None:
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += eol
+        lines += [eol, ROUND_COUNTS_HEADING + eol, eol]
+        at, end = len(lines) - 2, len(lines)
+    else:
+        end = next(
+            (i for i in range(at + 1, len(lines)) if re.match(r"^#{1,6}\s", lines[i])),
+            len(lines),
+        )
+    merged, keep, slot = {}, [], None
+    for i in range(at + 1, end):
+        m = ROUND_COUNT.match(lines[i].rstrip("\r\n"))
+        if m:
+            merged[int(m.group(1))] = (int(m.group(2)), int(m.group(3)))
+            slot = len(keep) if slot is None else slot
+        else:
+            keep.append(lines[i])
+    merged.update(counts)
+    if slot is None:
+        slot = 1 if keep and not keep[0].strip() else 0
+    body = [f"round {n} | opened {o} | closed {c}{eol}" for n, (o, c) in sorted(merged.items())]
+    return "".join(lines[: at + 1] + keep[:slot] + body + keep[slot:] + lines[end:])
+
+
+def scope_lines(text, a, new=0):
+    """The round header's `Scope check:` line for round a.round, then a `Wayfind:` line when
+    each of the two rounds before it opened more questions than it settled. Writes those rounds'
+    counts and this round's to the ledger's `## Round counts`."""
     if a.round < 1:
         sys.exit(f"refused: --round must be 1 or more, not {a.round}")
-    if a.limit < 0:
-        sys.exit(f"refused: --limit must be 0 or more, not {a.limit}")
     rows = exporters.parse_register(text)
     if a.rounds_dir:
         earlier = sorted((n for n in shown_rounds(a.rounds_dir) if n < a.round), reverse=True)
     else:
         earlier = range(a.round - 1, 0, -1)
-    parts = [f"{len(rows) + new} of {a.limit} questions registered"]
-    for n in list(earlier)[:2]:
-        mine = [status for _, status, rnd, _, _, _ in rows if rnd == n]
-        settled = sum(status in exporters.SETTLED for status in mine)
-        parts.append(f"round {n} added {len(mine)}, settled {settled}")
-    return "; ".join(parts)
+    counts = {n: round_counts(rows, n) for n in list(earlier)[:2]}
+    fog = len(counts) == 2 and all(o > c for o, c in counts.values())
+    counts[a.round] = round_counts(rows, a.round, new)
+    path = Path(a.ledger)
+    replace_text(path, upsert_round_counts(read_input(path, "ledger", newline=""), counts), "counts")
+    return [f"Scope check: {len(rows) + new} questions asked so far", *([WAYFIND] if fog else [])]
 
 
 def cmd_scope_check(d, a):
     text = read_input(a.ledger, "ledger")
     exporters.check_ledger(text, a.ledger)
-    print(scope_counts(text, a))
+    print("\n".join(scope_lines(text, a)))
 
 
 def cmd_measures(d, a):
@@ -3357,6 +3506,11 @@ def main(argv=None):
     )
     s.add_argument("--round", type=int, help="round for questions that do not set one")
     s.add_argument(
+        "--cap",
+        type=int,
+        help="refuse a round with more questions than this (the resolved questions_per_round)",
+    )
+    s.add_argument(
         "--replace-title",
         dest="replaceTitle",
         action="store_true",
@@ -3460,16 +3614,19 @@ def main(argv=None):
     s.add_argument(
         "--recap",
         action="store_true",
-        help="write the confirmation gate's compact recap instead of the ledger: one line per "
-        "live question, withdrawn rows collapsed into one line, long answers cut to fit the "
-        "restate cap. With --ledger it reads the ledger alone when --dir is absent or does not "
-        "exist, and saves its rows beside the ledger (<ledger stem>.last-recap.json)",
+        help="write the confirmation gate's recap instead of the ledger. With a data dir (page "
+        "lane): one line per live question, withdrawn rows collapsed into one line, long answers "
+        "cut to fit the restate cap. Without one (terminal lane, --ledger alone): Needs your eye, "
+        "the rest grouped by topic, Changed after you first saw it, and Terms and ADRs, never "
+        "cut. Exit 1 when the recap exceeds the restate cap. With --ledger it saves its rows "
+        "beside the ledger (<ledger stem>.last-recap.json); a refused recap saves nothing",
     )
     s.add_argument(
         "--changed",
         action="store_true",
-        help="with --recap and --ledger: list only the rows changed since the last recap saved "
-        "beside the ledger, plus one count per status for the rest; every row when none is saved",
+        help="with --recap, --ledger and a data dir: list only the rows changed since the last "
+        "recap saved beside the ledger, plus one count per status for the rest; every row when "
+        "none is saved (the terminal lane always compares against its first saved recap)",
     )
     s.set_defaults(fn=cmd_export_ledger)
 
@@ -3497,37 +3654,37 @@ def main(argv=None):
     s.add_argument(
         "--round",
         type=int,
-        help="with --limit, also print the round's Scope check: line after the ids, as "
-        "scope-check prints it for this round with the --count new rows counted in",
+        help="also print the round's Scope check: line (and any Wayfind: line) after the ids, "
+        "and record the round counts, as scope-check does with the --count new rows counted in",
     )
-    s.add_argument("--limit", type=int, help="the resolved wayfind_suggest_questions value")
     s.add_argument("--rounds-dir", dest="rounds_dir", help="as scope-check --rounds-dir")
     s.set_defaults(fn=cmd_next_id)
 
     s = sub.add_parser(
         "show",
-        help="print a saved round file at a detail level; full prints it byte for byte (no data "
-        "dir needed)",
+        help="print a saved round file at a detail level; full keeps every line (no data dir "
+        "needed)",
     )
     s.add_argument("--level", required=True, choices=LEVELS, help="detail level")
+    s.add_argument(
+        "--links",
+        choices=LINK_FORMS,
+        default="plain",
+        help="how a (path:line) label that ends a line prints: plain file.md:48 (default), a "
+        "vscode:// link, or a file:// link (the resolved citation_links value)",
+    )
     s.add_argument("round_file", metavar="ROUND", help="the saved round-<N>.md")
     s.set_defaults(fn=cmd_show)
 
     s = sub.add_parser(
         "scope-check",
-        help="print the counts half of the round header's Scope check: line: every register row "
-        "against --limit, then for each of the two rounds before --round the rows whose round "
-        "cell is that round and how many of them are answered, deferred, withdrawn or blocked "
-        "(no data dir needed)",
+        help="print the round header's Scope check: line (every register row, as questions "
+        "asked so far), then a Wayfind: line when each of the two rounds before --round opened "
+        "more rows than it settled (answered, deferred, withdrawn or blocked); record those "
+        "rounds' counts and this one's under the ledger's ## Round counts (no data dir needed)",
     )
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.add_argument("--round", type=int, required=True, help="the round being shown")
-    s.add_argument(
-        "--limit",
-        type=int,
-        required=True,
-        help="the resolved wayfind_suggest_questions value",
-    )
     s.add_argument(
         "--rounds-dir",
         dest="rounds_dir",

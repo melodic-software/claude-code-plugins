@@ -180,7 +180,7 @@ round walk.md \
   'Context:' \
   'Q17.S1: Priya holds Tuesday 10:00 and pays 40.00; on Monday she moves it to Thursday.' \
   '(a) Same booking. (b) A new booking. Recommend (a): forces "reschedule".' \
-  '**Q17.S2:** Omar cancels on Wednesday. Recommend (b), Q17.S1 still stands: forces "cancel".' \
+  'Q17.S2: Omar cancels on Wednesday. Recommend (b), Q17.S1 still stands: forces "cancel".' \
   'My recommendation: a moved booking stays the same booking.'
 if out="$(bash "$SUT" --ledger "$TMP/sweep-ledger.md" "$TMP/walk.md" 2>&1)" &&
   grep -q 'codes=3 bare=0 status=ok' <<<"$out"; then
@@ -251,16 +251,16 @@ cat >"$TMP/fixture-ledger.md" <<'MD'
 - Q13 | open | round 3 | Which store? |
 MD
 fixture="$SCRIPT_DIR/../surface/tests/fixtures/round-file/round-full.md"
-if out="$(bash "$SUT" --ledger "$TMP/fixture-ledger.md" "$fixture" 2>&1)" &&
-  grep -q 'codes=5 bare=0 status=ok' <<<"$out"; then
+out="$(bash "$SUT" --ledger "$TMP/fixture-ledger.md" "$fixture" 2>&1)"
+if grep -q 'codes=5 bare=0 ' <<<"$out"; then
   pass "the shared round fixture names every code"
 else
   fail "the shared round fixture names every code ($out)"
 fi
-if grep -q 'structure=0' <<<"$out"; then
-  pass "the shared round fixture passes the structure checks"
+if grep -q '^extra=4:header$' <<<"$out" && grep -q '^emphasis=1$' <<<"$out" && grep -q 'structure=2$' <<<"$out"; then
+  pass "the shared round fixture's retired Held: line and bold round title are its only structure failures"
 else
-  fail "the shared round fixture passes the structure checks ($out)"
+  fail "the shared round fixture's retired Held: line and bold round title are its only structure failures ($out)"
 fi
 awk '{ print } /^- No reader is named yet\.$/ {
   print "- Basis: no reader survey exists yet."
@@ -268,7 +268,7 @@ awk '{ print } /^- No reader is named yet\.$/ {
 }' "$fixture" >"$TMP/fixture-bullets.md"
 out="$(bash "$SUT" --ledger "$TMP/fixture-ledger.md" "$TMP/fixture-bullets.md" 2>&1)"
 got=$?
-if [[ "$got" -eq 0 ]] && grep -q 'bare=0 status=ok structure=0' <<<"$out"; then
+if [[ "$got" -eq 1 ]] && grep -q 'bare=0 status=fail structure=2$' <<<"$out" && ! grep -q 'recommendation$' <<<"$out"; then
   pass "a Context bullet that starts with a label word is not a label"
 else
   fail "a Context bullet that starts with a label word is not a label (exit $got: $out)"
@@ -363,9 +363,10 @@ runx "under round pacing the same header note passes" 0 ledger.md single-preambl
 round single-header.md \
   '## Round 2, one question at a time' \
   'Scope check: 4 of 27 questions registered' \
+  'Wayfind: the last two rounds each opened more questions than they settled; /planning:wayfind chart can map what is left.' \
+  'Open: the alert threshold, waiting on the principle map' \
+  'Next round (over the cap of 4): the log format' \
   'Later: replay controls' \
-  'Held: Q6 (alert threshold), waiting on the principle map' \
-  'Settled by evidence: Q7 (log format), JSON lines, Basis: verified, src/log.ts:12' \
   '---' \
   '' \
   '❓ Q4: **After the last failed attempt, should the sender keep the event?**' \
@@ -418,7 +419,7 @@ round term-elsewhere.md \
   'Scope check: 2 of 27 questions registered' \
   'Q1: **Do these two upstream terms mean what you mean by them?**' \
   'Context:' \
-  '- **cluster step:** the step that attaches a report to the open cluster with the same dedupe fingerprint (vendor/upstream-triage/README.md:8-10).' \
+  '- cluster step: the step that attaches a report to the open cluster with the same dedupe fingerprint (vendor/upstream-triage/README.md:8-10).' \
   'My recommendation: agree to both as written.' \
   '---' \
   'Q2: **Should triage gain a cluster step?**' \
@@ -431,7 +432,7 @@ round term-own.md \
   'Scope check: 2 of 27 questions registered' \
   'Q1: **Do these two upstream terms mean what you mean by them?**' \
   'Context:' \
-  '- **cluster step:** the step that attaches a report to the open cluster with the same dedupe fingerprint (vendor/upstream-triage/README.md:8-10).' \
+  '- cluster step: the step that attaches a report to the open cluster with the same dedupe fingerprint (vendor/upstream-triage/README.md:8-10).' \
   'My recommendation: agree to both as written.' \
   '---' \
   'Q2: **Should triage gain cluster steps?**' \
@@ -451,6 +452,118 @@ round judged.md \
 runx "a Flips if: line prints its flips-if-fact self-check" 0 term-ledger.md judged.md '^check=6:flips-if-fact$'
 runx "a recommendation prints its existing-control self-check" 0 term-ledger.md judged.md '^check=5:existing-control$'
 runx "self-checks leave a clean round passing" 0 term-ledger.md judged.md 'bare=0 status=ok structure=0$'
+
+cat >"$TMP/new-ledger.md" <<'MD'
+## Open-question register
+
+- Q4 | answered | round 1 | One write per job? | yes
+- Q14 | open | round 4 | Audit a failed retry? |
+- Q15 | open | round 4 | Who reads the entries? | kind:: discovery
+MD
+new_fixture="$SCRIPT_DIR/../surface/tests/fixtures/round-file/round-new.md"
+out="$(bash "$SUT" --ledger "$TMP/new-ledger.md" "$new_fixture" 2>&1)"
+got=$?
+if [[ "$got" -eq 0 ]] && grep -q 'codes=3 bare=0 status=ok structure=0$' <<<"$out" && ! grep -q '^emphasis=' <<<"$out"; then
+  pass "the new-layout round fixture passes every check"
+else
+  fail "the new-layout round fixture passes every check (exit $got: $out)"
+fi
+round topic.md \
+  'Scope check: 2 questions asked so far' \
+  '' \
+  '❓ Q15 (paging): **Should a failed retry page the on-call?**' \
+  '➡️ My recommendation: **no**' \
+  '' \
+  '❓ Q16 (alerts): **Does the alert threshold change?**' \
+  'Context:' \
+  '1. It rests on Q15 today' \
+  '➡️ My recommendation: **no**'
+run "a Q<N> (<topic>): title opens a question" 1 topic.md '^bare=8:Q15$'
+run "each Q<N> (<topic>): question holds its own answer line" 1 topic.md 'bare=1 status=fail structure=0$'
+round discovery-pair.md \
+  'Scope check: 1 questions asked so far' \
+  '' \
+  '❓ Q15 (readers): **Who reads the retry entries?**' \
+  '' \
+  'No recommendation: no reader is named, so any answer would be a guess.' \
+  'Your answer settles: whether the entries need a dashboard.'
+run "No recommendation: then Your answer settles: passes" 0 discovery-pair.md 'bare=0 status=ok structure=0$'
+round discovery-alone.md \
+  'Scope check: 1 questions asked so far' \
+  '' \
+  '❓ Q15 (readers): **Who reads the retry entries?**' \
+  'No recommendation: no reader is named, so any answer would be a guess.'
+run "No recommendation: with no Your answer settles: fails" 1 discovery-alone.md '^missing=4:answer-settles$'
+round discovery-settles-first.md \
+  'Scope check: 1 questions asked so far' \
+  '❓ Q15 (readers): **Who reads the retry entries?**' \
+  'Your answer settles: whether the entries need a dashboard.' \
+  'No recommendation: no reader is named, so any answer would be a guess.'
+run "Your answer settles: must follow No recommendation:" 1 discovery-settles-first.md '^missing=4:answer-settles$'
+round discovery-and-rec.md \
+  'Scope check: 1 questions asked so far' \
+  '❓ Q15 (readers): **Who reads the retry entries?**' \
+  'No recommendation: no reader is named.' \
+  'Your answer settles: whether the entries need a dashboard.' \
+  '➡️ My recommendation: **a dashboard**'
+run "No recommendation: counts as the question's one answer line" 1 discovery-and-rec.md '^missing=2:single-recommendation$'
+
+round three-questions.md \
+  'Scope check: 3 questions asked so far' \
+  '❓ Q15 (a): **One?**' 'My recommendation: **yes**' \
+  '❓ Q16 (b): **Two?**' 'My recommendation: **yes**' \
+  '❓ Q17 (c): **Three?**' 'My recommendation: **yes**'
+runx "a round over --cap fails with its question count" 1 ledger.md three-questions.md '^over-cap=3$' --cap 2
+runx "an over-cap round counts in the structure total" 1 ledger.md three-questions.md 'structure=1$' --cap 2
+runx "a round at --cap passes" 0 ledger.md three-questions.md 'structure=0$' --cap 3
+nox "a round at --cap prints no over-cap line" ledger.md three-questions.md 'over-cap' --cap 3
+for bad in 0 x; do
+  runx "--cap $bad is a usage error" 2 ledger.md three-questions.md 'cap' --cap "$bad"
+done
+
+round emphasis.md \
+  'Scope check: 1 questions asked so far' \
+  '' \
+  '❓ Q15 (style): **Which store holds the entries?**' \
+  '' \
+  'Context:' \
+  '1. The store is **shared** today (src/store.ts:4)' \
+  '2. It is *slow* under load (ops notes)' \
+  '3. The _old_ store is gone (ops notes)' \
+  '4. The ~~queue~~ is not involved (ops notes)' \
+  '5. The `__init__` and `*glob*` literals are code (src/store.ts:9)' \
+  '6. A wildcard like a * b * c is arithmetic (ops notes)' \
+  '' \
+  '➡️ My recommendation: **the shared store**'
+for line in 6 7 8 9; do
+  runx "emphasis outside the title and the answer line prints emphasis=$line" 1 ledger.md emphasis.md "^emphasis=$line\$"
+done
+nox "bold on the title and the answer line is not emphasis" ledger.md emphasis.md '^emphasis=(3|13)$'
+nox "markup inside inline code and a spaced asterisk are not emphasis" ledger.md emphasis.md '^emphasis=1[01]$'
+runx "each emphasis line counts in the structure total" 1 ledger.md emphasis.md 'bare=0 status=fail structure=4$'
+
+round bullet-flips.md \
+  'Scope check: 1 questions asked so far' \
+  '❓ Q15 (store): **Which store?**' \
+  '➡️ My recommendation: **the shared store**' \
+  '- Why: it already holds the jobs.' \
+  '- Flips if: the shared store starts dropping writes.'
+runx "a - Flips if: bullet prints its flips-if-fact self-check" 0 ledger.md bullet-flips.md '^check=5:flips-if-fact$'
+
+round retired-header.md \
+  'Round 3' \
+  'Scope check: 9 questions asked so far' \
+  'Held: Q12 (queue choice) until the queue lookup returns' \
+  'Settled by evidence: the log format, JSON lines' \
+  'Open: the queue choice, waiting on the queue lookup' \
+  '' \
+  '❓ Q15 (store): **Which store?**' \
+  '➡️ My recommendation: **the shared store**'
+run "under round pacing a Held: header line is extra" 1 retired-header.md '^extra=3:header$'
+run "under round pacing a Settled by evidence: header line is extra" 1 retired-header.md '^extra=4:header$'
+run "the retired header lines are the only structure failures" 1 retired-header.md 'structure=2$'
+round single-held.md '### Round 2' 'Held: Q6 (alert threshold), waiting on the principle map' "$SCOPE_LINE" '' "${Q4_BLOCK[@]}"
+runx "under single pacing a Held: line right after the title is extra" 1 ledger.md single-held.md '^extra=2:single-header$' --pacing single
 
 if [[ "$fails" -gt 0 ]]; then
   printf '%d failure(s)\n' "$fails" >&2

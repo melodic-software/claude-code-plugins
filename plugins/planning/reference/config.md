@@ -144,21 +144,23 @@ plan_panel_rubric:
 
 ## Convention-home keys
 
-Five interview keys and three plan keys resolve through the bound convention home and the four layers of
+Six interview keys (`question_pacing`, `question_detail`, `questions_per_round`,
+`citation_links`, `domain_docs`, `answer_audit_rounds`) and three plan keys resolve through the
+bound convention home and the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
 `<home>/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
-`answer_audit_rounds`, `domain_docs`, `wayfind_suggest_questions`, `plan_stress_test`,
-`plan_size_bands` and `plan_inventory_min_files` have no `userConfig` option, so they skip that
-layer.
+`answer_audit_rounds`, `domain_docs`, `plan_stress_test`, `plan_size_bands` and
+`plan_inventory_min_files` have no `userConfig` option, so they skip that layer.
 
 | Key | Values | Default | Reader |
 |---|---|---|---|
 | `question_pacing` | `round`, `single`, `auto` | `round` | `/planning:interview`, first round: `round` asks the frontier as one set, `single` one question per message, `auto` picks `single` for a broad, open-ended topic and `round` otherwise. A request in the session ("one at a time") overrides it for that session |
 | `question_detail` | `full`, `standard`, `minimal` | `standard` | `/planning:interview`, every round: how much of each question `round.sh show` prints from the saved round file, which always holds the full block. `standard` drops `Origin:`, `Basis:`, `Checked against:` and the `Source:` quote's body; `minimal` also drops `Context:` and the source and counts the alternatives; no level hides a line the interview skill's "Save the full block; print it at the detail level" protects. A request in the session ("full round") overrides it for that session |
+| `questions_per_round` | an integer, `1` or more | `4` | `/planning:interview`, every round in every lane: the most questions one round asks; ready questions over it go to the next round in blast-radius order. `check-round-codes.sh --cap` and `round.sh add-round --cap` take the resolved value; a shared session holds at most `8` whatever it says. A request in the session overrides it for that session |
+| `citation_links` | `plain`, `vscode`, `file` | `plain` | `/planning:interview`, every round: how `round.sh show --links` prints a file citation from the saved round file, which keeps plain labels. `plain` prints `file.md:48`; `vscode` a link that opens the line, in the WSL remote form when `WSL_DISTRO_NAME` is set; `file` a `file://` link with no line. With no Bash the plain form prints |
 | `domain_docs` | `auto`, `ask`, `off` | `auto` | `/planning:interview`, engineering sessions, Domain-aware behaviors: `auto` writes a resolved term through the glossary skill and hands each qualifying decision to `/architecture:adr` at round step 8, "Decision record"; `ask` asks before each write; `off` writes neither and records them in the register. A request in the session overrides it for that session |
 | `answer_audit_rounds` | an integer, `0` or more | `2` | `/planning:interview`, after each round's read-back: offer `/planning:audit-answers` once when this many rounds were accepted whole; `0` never offers |
-| `wayfind_suggest_questions` | an integer, `0` or more | `27` | `/planning:interview`, at each round boundary: suggest `/planning:wayfind chart` once when the ledger's register holds more than this many questions; `0` never suggests |
 | `plan_stress_test` | a block map of `plan`, `proposal` and `incumbent`, each `auto`, `reviewer`, `devils-advocate` or `both` | `auto` for each | `/planning:plan` Steps 3 to 4: which stress-tests run on a draft of that mode |
 | `plan_size_bands` | a block map of `trivial`, `small` and `medium`, integers rising in that order (`trivial` 1 or more) | `trivial: 1`, `small: 5`, `medium: 15` | `/planning:plan` Step 2, "Scale the plan to the task": the largest file count of each band, which sets the plan's depth |
 | `plan_inventory_min_files` | an integer, `1` or more | `10` | `/planning:plan` Step 2, "File inventory for large-scope plans": a plan or phase touching this many files or more gets a checkbox file inventory |
@@ -208,15 +210,6 @@ Any other exit (2 or 3) skips both file layers, with the cause named in the one-
 root rule above applies to the two file layers, and the unset and invalid-value rules to every
 layer. Report the value and the layer that supplied it in
 one line.
-
-The `wayfind_suggest_questions` default is the integer `27` (what `round.sh next-id` and
-`scope-check` take as `--limit` when no layer sets the key). Its Basis is judgment, set from a
-measurement that did not separate the groups. Across 26 interview efforts in one operator's transcripts (2026-09-27 to 2026-10-28),
-first-session question counts ran 6 to 98 for the 17 efforts that spanned more than one session and
-8 to 27 for the 9 that did not (AUC 0.80). `27` is the largest single-session count, so it errs
-toward not suggesting: 10 of the 17 and none of the 9 pass it. None of the 26 invoked wayfind in the
-interview's session, so the count shows a span of sessions, not that wayfind would have helped.
-Recheck when interviews that reached wayfind can be counted.
 
 ## Probe topics
 

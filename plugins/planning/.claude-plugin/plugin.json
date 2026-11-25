@@ -34,6 +34,24 @@
         "minimal"
       ]
     },
+    "questions_per_round": {
+      "type": "number",
+      "title": "Interview questions per round",
+      "description": "The most questions one /planning:interview round asks (default 4); ready questions over it go to the next round. A shared session holds at most 8 whatever this says. A session request or planning.yaml overrides it.",
+      "default": 4,
+      "min": 1
+    },
+    "citation_links": {
+      "type": "string",
+      "title": "Interview citation links",
+      "description": "How /planning:interview prints a file citation: plain (default, file.md:48), vscode (a link that opens the line in VS Code, in its WSL remote form inside WSL) or file (a file:// link to the file). The round file always keeps plain labels; planning.yaml overrides this value.",
+      "default": "plain",
+      "options": [
+        "plain",
+        "vscode",
+        "file"
+      ]
+    },
     "use_ask_user_question": {
       "type": "boolean",
       "title": "AskUserQuestion question rounds",

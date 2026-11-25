@@ -870,7 +870,10 @@
     const propMore = showMore("proposals", 20);
     PP.list.after(propMore.foot);
     const MAX_ROUND = 8;
-    const nextRoom = () => { const n = Core.state.rounds.length + 1; return Math.max(0, MAX_ROUND - Core.state.questions.filter(q => q.round === n).length); };
+    const nextRoom = () => {
+      const n = Core.state.rounds.length + 1, cap = Math.min(MAX_ROUND, Core.state.settings.roundCap || MAX_ROUND);
+      return Math.max(0, cap - Core.state.questions.filter(q => q.round === n).length);
+    };
     const propAllRow = E("div", "vf-pp-actions"), propAll = btn("vf-btn vf-btn-primary vf-btn-sm vf-prop-all"), propAllWhy = E("p", "vf-pop-note vf-prop-all-why");
     propAllRow.append(propAll, propAllWhy); PP.note.after(propAllRow);
     let propAllIds = [];

@@ -316,7 +316,7 @@ DEFAULT_SETTINGS = {
     "claudeTake": "answerFirst",
     "theme": {"mode": "system", "accent": "teal"},
 }
-OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None, "prototypeTiers": None}
+OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None, "prototypeTiers": None, "roundCap": None}
 GUEST_POPUPS = ("request", "mention", "round")
 PROTOTYPE_TIERS = ("screenshot", "snapshot", "live")
 DEFAULT_PROTOTYPE_TIERS = ("screenshot", "snapshot")
@@ -2355,6 +2355,11 @@ class Session:
     def _round_size(self, n):
         return sum(1 for q in self.state["questions"] if q["round"] == n)
 
+    @property
+    def round_max(self):
+        """The most questions a round holds: the host's roundCap setting, never above MAX_ROUND."""
+        return min(self.state["session"]["settings"].get("roundCap", MAX_ROUND), MAX_ROUND)
+
     def _question(self, qid, field="qid"):
         if not isinstance(qid, str):
             raise _bad(field, f"{field} must name a question.")
@@ -3684,8 +3689,8 @@ class Session:
             out = {}
             if action == "question":
                 n = self._next_round_n()
-                if self._round_size(n) >= MAX_ROUND:
-                    raise DomainError(409, "round-full", f"Round {n} already holds {MAX_ROUND} questions.")
+                if self._round_size(n) >= self.round_max:
+                    raise DomainError(409, "round-full", f"Round {n} already holds {self.round_max} questions.")
                 out = self._proposal_question(pid, prop, n)
             elif action == "park":
                 prop["status"] = {"kind": "parked", "by": pid}
@@ -3731,7 +3736,7 @@ class Session:
                 if prop["status"]["kind"] != "new":
                     raise DomainError(409, "wrong-status", f"Proposal {prop['id']} is {prop['status']['kind']}.", status=prop["status"]["kind"])
             n = self._next_round_n()
-            room = MAX_ROUND - self._round_size(n)
+            room = self.round_max - self._round_size(n)
             if len(props) > room:
                 raise DomainError(409, "round-full", f"Round {n} has room for {max(room, 0)} more questions, not {len(props)}.", room=max(room, 0))
             return {"round": n, "questions": [self._proposal_question(pid, prop, n)["question"] for prop in props]}
@@ -5921,8 +5926,8 @@ class Session:
             self._step("open-round", CLAUDE)
         required = self._digested_proposals(cur) if cur is not None and cur["status"]["kind"] == "working" else set()
         n = self._next_round_n()
-        if len(op["questions"]) > MAX_ROUND:
-            raise DomainError(400, "too-long", f"A round holds at most {MAX_ROUND} questions.", field="questions", max=MAX_ROUND)
+        if len(op["questions"]) > self.round_max:
+            raise DomainError(400, "too-long", f"A round holds at most {self.round_max} questions.", field="questions", max=self.round_max)
         known = {q["id"] for q in st["questions"]}
         made = []
         for i, qi in enumerate(op["questions"]):
@@ -5961,11 +5966,11 @@ class Session:
         return {"round": cur["n"], "placed": self._place(effects)}
 
     def _check_round_room(self, n, made):
-        """Refuse when round n or n + 1, with the questions `made` adds, would pass MAX_ROUND."""
+        """Refuse when round n or n + 1, with the questions `made` adds, would pass round_max."""
         for target in {n, n + 1}:
             size = self._round_size(target) + sum(1 for q in made if q["round"] == target)
-            if size > MAX_ROUND:
-                raise DomainError(409, "round-full", f"Round {target} would hold {size} questions; the most is {MAX_ROUND}.")
+            if size > self.round_max:
+                raise DomainError(409, "round-full", f"Round {target} would hold {size} questions; the most is {self.round_max}.")
 
     def _parse_placements(self, placements, required, n, known, made):
         """Check every placement before anything changes; returns the effects to apply."""
@@ -6164,8 +6169,8 @@ class Session:
         n = self._next_round_n()
         known = {q["id"] for q in self.state["questions"]}
         q = self._parse_question(op["question"], round_n=n, origin={"kind": "host", "proposal": prop["id"], "by": HOST}, known=known, field="question")
-        if self._round_size(n) >= MAX_ROUND:
-            raise DomainError(409, "round-full", f"Round {n} already holds {MAX_ROUND} questions.")
+        if self._round_size(n) >= self.round_max:
+            raise DomainError(409, "round-full", f"Round {n} already holds {self.round_max} questions.")
         self._add_question(q)
         prop["status"] = {"kind": "question", "question": q["id"]}
         self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", qid=q["id"])
@@ -6695,6 +6700,9 @@ def _settings_patch(settings, patch):
         elif k in ordered:
             if not isinstance(v, list) or any(x not in ordered[k] for x in v) or len(set(v)) != len(v):
                 raise _bad(k, f"{k} is a list of {', '.join(ordered[k])}, each at most once.")
+        elif k == "roundCap":
+            if not (_is_int(v) and 1 <= v <= MAX_ROUND):
+                raise _bad(k, f"roundCap is the host's questions per round: a whole number from 1 to {MAX_ROUND}.")
         elif k in SETTING_VALUES:
             if v not in SETTING_VALUES[k]:
                 raise _bad(k, f"{k} must be one of {', '.join(SETTING_VALUES[k])}.")

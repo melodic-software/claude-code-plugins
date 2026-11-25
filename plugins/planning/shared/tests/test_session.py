@@ -1229,6 +1229,49 @@ class TestQuestionParsing(SessionCase):
         self.assertEqual(sum(1 for q in self.s.state["questions"] if q["round"] == 2), 8)
 
 
+class TestRoundCap(SessionCase):
+    """A session started with the host's roundCap setting holds a round to it; absent, to 8."""
+
+    def start(self, cap, name="capped.json"):
+        self.s, _ = session.Session.create(
+            self.tmp / name, title="Capped", settings={"roundCap": cap}, clock=self.clock, ids=self.ids, validate_writes=True
+        )
+
+    def test_a_cap_of_four_refuses_a_fifth_question_in_an_open_round(self):
+        self.start(4)
+        five = [text_q(f"Q{i}") for i in range(1, 6)]
+        err = self.refused_ops("too-long", {"op": "open-round", "questions": five})
+        self.assertEqual(err.details["max"], 4)
+        self.open_round(*five[:4])
+        self.assertEqual(len(self.s.state["questions"]), 4)
+
+    def test_a_cap_of_four_holds_the_next_round_against_a_proposal(self):
+        self.start(4)
+        ann, _ = self.join("Ann")
+        self.open_round(text_q("Q1"))
+        props = [self.act("propose", ann, {"text": f"Ask about {t}"})["id"] for t in ("refunds", "delivery", "gifts", "returns", "fees")]
+        for p in props[:4]:
+            self.act("act_on_proposal", HOST, {"id": p, "action": "question"})
+        self.refused("round-full", "act_on_proposal", HOST, {"id": props[4], "action": "question"}, http=409)
+
+    def test_no_cap_is_the_server_limit_of_eight(self):
+        self.assertNotIn("roundCap", self.s.state["session"]["settings"])
+        nine = [text_q(f"Q{i}") for i in range(1, 10)]
+        err = self.refused_ops("too-long", {"op": "open-round", "questions": nine})
+        self.assertEqual(err.details["max"], 8)
+
+    def test_a_reloaded_session_keeps_its_cap(self):
+        self.start(4)
+        self.s = session.Session.load(self.s.path, clock=self.clock, ids=self.ids, validate_writes=True)
+        err = self.refused_ops("too-long", {"op": "open-round", "questions": [text_q(f"Q{i}") for i in range(1, 6)]})
+        self.assertEqual(err.details["max"], 4)
+
+    def test_a_cap_outside_one_to_eight_is_refused_at_start(self):
+        for cap in (0, 9, 2.5, True, "4"):
+            with self.subTest(cap=cap), self.assertRaises(session.DomainError):
+                self.start(cap, name=f"bad-{cap}.json")
+
+
 class TestQuestionBehavior(SessionCase):
     def setUp(self):
         super().setUp()
