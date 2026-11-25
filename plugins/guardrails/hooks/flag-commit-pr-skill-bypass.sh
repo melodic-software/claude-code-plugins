@@ -52,12 +52,6 @@
 
 set -uo pipefail
 
-# Explicit opt-in (NOT hook::check_enabled, whose unset-var fallback is "true"):
-# an unset switch must read as the plugin.json default, which is false.
-#
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. This one was already inlined, so
-# the hoist only moves it; scripts/check-killswitch-hoist.sh keeps it here.
 [[ "${CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED:-false}" == "true" ]] || exit 0
 
 # The hook's own directory is derived with parameter expansion rather than

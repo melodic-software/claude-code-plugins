@@ -194,8 +194,6 @@ ps::_chomp_to() {
   printf -v "$1" '%s' "$__ch_s"
 }
 
-# First untrusted reason wins so attribution is stable across a command that
-# trips more than one predicate.
 ps::_mark_untrusted() {
   ((PS_REDUCTION_UNTRUSTED)) && return 0
   PS_REDUCTION_UNTRUSTED=1
@@ -424,7 +422,7 @@ ps::blank_herestrings() {
         ps::_mark_untrusted herestring-opener-untrusted
       fi
       ((saw_block_comment)) && ps::_mark_untrusted herestring-comment-span
-      hs_quote="${line: -1}" # ' or "
+      hs_quote="${line: -1}"
       # `@"` opens an EXPANDABLE body, evaluated where it is written, so the
       # placeholder about to replace it stands for text that can contain a
       # command position. `@'` opens a verbatim body and stands for inert text.
