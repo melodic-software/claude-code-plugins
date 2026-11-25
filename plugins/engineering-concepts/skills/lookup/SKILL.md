@@ -36,12 +36,12 @@ never whether to use it. A team's or person's stances live in their standards la
 - Bringing a whole topic or entry into the session for the work ahead:
   `/engineering-concepts:load`.
 
+## Next
+
+`/engineering-concepts:load`, to keep the found entries in view for the design or review ahead.
+
 ## Gotchas
 
 - A merged id still finds its record through the alias it became; the record printed carries the
   surviving id, so cite that one.
 - `--stage` also matches records staged `any`.
-
-## Next
-
-- Apply the found entries to the current design or review: `/engineering-concepts:load`.

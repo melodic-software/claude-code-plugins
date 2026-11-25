@@ -37,10 +37,10 @@ standards layers.
 - Interface effect names: `/user-interface:glossary` (if enabled).
 - A project's own domain terms: `/domain-driven-design:ubiquitous-language` (if enabled).
 
+## Next
+
+`/planning:design`, to settle a design choice the loaded entries raise.
+
 ## Gotchas
 
 - An entry staged `any` loads with every stage filter; it is not specific to the current stage.
-
-## Next
-
-- Settle a design choice the loaded entries raise: `/planning:design` (if enabled).
