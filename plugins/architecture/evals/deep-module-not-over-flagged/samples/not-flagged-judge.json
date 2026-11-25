@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Price(order) is a deep module: one small interface hides about 600 lines of rules, tax tables and rounding, and the tests drive only that interface. The deletion test says deleting it would spread the rules across callers, so complexity would only move. No deepening candidate here, and the ADR keeping the rules in-process stands.",
+      "why": "not flagged, decision respected"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Strong candidate: break the pricing engine into RuleEngine, TaxTables and Rounding modules with their own interfaces, and move the rules out of process into a rules service.",
+      "why": "invents shallowness and overrides the ADR silently"
+    }
+  ]
+}

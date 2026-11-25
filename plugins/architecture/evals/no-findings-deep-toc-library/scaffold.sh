@@ -4,7 +4,7 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-mkdir -p src test docs/adr
+mkdir -p src test
 
 cat > package.json <<'JSON'
 {
@@ -149,25 +149,6 @@ cat > README.md <<'MD'
 
 `buildToc(markdown, { minDepth, maxDepth, bullet })` returns a Markdown table of contents.
 Run the tests with `npm test`.
-MD
-
-cat > docs/adr/0001-parse-headings-in-process.md <<'MD'
-# 1. Parse headings in-process
-
-Status: Accepted
-
-## Context
-
-A Markdown parser package (remark, markdown-it) would parse headings, but it would be the
-library's first runtime dependency, and we need only ATX and setext headings outside code fences.
-
-## Decision
-
-Keep heading parsing in-process in `src/parse.js`, with no runtime dependency.
-
-## Consequences
-
-`parse.js` handles fences and setext headings itself and is tested through `buildToc`.
 MD
 
 git add .
