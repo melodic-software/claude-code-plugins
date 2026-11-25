@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/guardrails/hooks/hooks.json plugins/guardrails/hooks/*.sh
 # test-scope: plugins/guardrails/hooks/*.mjs plugins/guardrails/lib/powershell/*
+# test-scope: plugins/guardrails/hooks/fixtures/pre-skill-shell-command-payload.json
 set -uo pipefail
 export CLAUDE_CODE_SESSION_ATTENDED=0
 
@@ -48,11 +49,11 @@ mkdir -p "$WORK"
 run_row() {
   local event="$1" tool="$2" command="$3" payload
   if [[ "$event" == PreSkillShellCommand ]]; then
-    payload=$(jq -nc --arg t "$tool" --arg c "$command" --arg d "$WORK" \
+    payload=$(jq -c --arg t "$tool" --arg c "$command" --arg d "$WORK" \
       --arg n "${4:-some-plugin:deploy}" --arg s "${5:-plugin}" --arg i "${6:-user}" \
-      '{session_id:"s",transcript_path:"/dev/null",cwd:$d,permission_mode:"default",
-        hook_event_name:"PreSkillShellCommand",tool_name:$t,tool_input:{command:$c},
-        tool_use_id:"skill-cmd-1",command_name:$n,command_source:$s,invoked_by:$i}')
+      '.tool_name = $t | .tool_input.command = $c | .cwd = $d
+        | .command_name = $n | .command_source = $s | .invoked_by = $i' \
+      "$HOOK_DIR/fixtures/pre-skill-shell-command-payload.json")
   else
     payload=$(jq -nc --arg t "$tool" --arg c "$command" --arg d "$WORK" \
       '{session_id:"s",transcript_path:"/dev/null",cwd:$d,permission_mode:"default",
