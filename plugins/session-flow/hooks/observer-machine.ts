@@ -102,6 +102,8 @@ export type State = {
   pendingSubmit: string | null
   observerTurnId: string | null
   lastTurnWasObserver: boolean
+  changed: boolean
+  refused: Readonly<Record<string, number>>
 }
 
 export const initial = (): State => ({
@@ -121,6 +123,8 @@ export const initial = (): State => ({
   pendingSubmit: null,
   observerTurnId: null,
   lastTurnWasObserver: false,
+  changed: false,
+  refused: {},
 })
 
 export type CheckRequest = { trigger: Trigger; turnId: string; step: number; gen: number; open: Card | null }
@@ -133,7 +137,9 @@ export type Event =
   | { kind: 'session-changed' }
   | { kind: 'session-ended' }
   | { kind: 'turn-started'; main: boolean; turnId: string; text: string; paused: boolean }
-  | { kind: 'tool-called'; main: boolean }
+  | { kind: 'tool-called'; main: boolean; name: string }
+  | { kind: 'gate-requested'; command: string; paused: boolean }
+  | { kind: 'gate-replied'; command: string; reply: Reply | { isAnswered: false; reason: 'timeout' | 'error' }; latencyMs: number; usage?: object }
   | { kind: 'step'; main: boolean; turnId: string; index: number }
   | { kind: 'turn-completed'; main: boolean; turnId: string; isAborted: boolean; durationMs?: number; usage?: object }
   | { kind: 'check-requested'; trigger: Trigger; turnId: string; step: number; paused: boolean; skip: number }
@@ -162,6 +168,8 @@ export type Effect =
   | { kind: 'deliver'; cardId: number; delivery: Delivery; text: string; stepsLate?: number }
   | { kind: 'drop'; reason: string }
   | { kind: 'abort'; turnId: string }
+  | { kind: 'gate-fork'; command: string }
+  | { kind: 'deny'; text: string }
   | { kind: 'toast'; text: string }
   | { kind: 'fill'; text: string }
   | { kind: 'after'; ms: number; event: Event }
@@ -230,9 +238,27 @@ export const step = (s: State, e: Event, o: Options): Result => {
       return observer && (!s.on || e.paused) ? { state, effects: [{ kind: 'abort', turnId: e.turnId }] } : none(state)
     }
     case 'tool-called':
-      return none(e.main ? { ...s, tools: s.tools + 1 } : s)
+      return none(e.main ? { ...s, tools: s.tools + 1, changed: s.changed || (o.changeCheck && o.changeTools.includes(e.name)) } : s)
+    case 'gate-requested':
+      return s.on && o.gateCheck && !e.paused && o.gatePattern.test(e.command) ? { state: s, effects: [{ kind: 'gate-fork', command: e.command }] } : none()
+    case 'gate-replied': {
+      const times = s.refused[e.command] ?? 0
+      const row = { trigger: 'gate', latencyMs: e.latencyMs, usage: e.usage, ...(times > 0 ? { repeat: true } : {}) }
+      const parsed = e.reply.isAnswered ? parseReply(e.reply.text) : undefined
+      if (parsed?.kind === 'finding' && times < o.gateRefusals)
+        return {
+          state: { ...s, refused: { ...s.refused, [e.command]: times + 1 } },
+          effects: [{ kind: 'record', row: { ...row, outcome: 'refused', finding: parsed.value.finding } }, { kind: 'deny', text: noteFor(parsed.value, 'plugin', o.autoNote) }],
+        }
+      const outcome = !e.reply.isAnswered ? e.reply.reason : parsed?.kind === 'finding' ? 'allowed_after_refusals' : parsed?.kind === 'none' ? 'none' : 'parse_failed'
+      return { state: s, effects: [{ kind: 'record', row: { ...row, outcome } }] }
+    }
     case 'step':
       if (e.main) s = { ...s, lastStep: e.index }
+      if (e.main && s.changed) {
+        s = { ...s, changed: false }
+        if (s.on) return { state: s, effects: [{ kind: 'check', trigger: 'change', turnId: e.turnId, step: e.index }] }
+      }
       return s.on && o.stepCheck && e.main && isStepCheck(e.index, undefined, o.stepEvery)
         ? { state: s, effects: [{ kind: 'check', trigger: 'step', turnId: e.turnId, step: e.index }] }
         : none()
@@ -252,7 +278,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
       return replied(s, e)
     case 'finding-accepted': {
       if (e.ledger === undefined) return { state: s, effects: [{ kind: 'finish', req: e.req, outcome: 'unsafe_memory_root' }] }
-      const card: Card = { id: s.nextCard, finding: e.finding, ledger: e.ledger, source: e.req.trigger === 'step' ? `step ${e.req.step}` : 'turn end', promptsSurvived: 0, isOpen: false }
+      const card: Card = { id: s.nextCard, finding: e.finding, ledger: e.ledger, source: e.req.trigger === 'turn-end' ? 'turn end' : `${e.req.trigger} ${e.req.step}`, promptsSurvived: 0, isOpen: false }
       const state = { ...s, card, nextCard: s.nextCard + 1 }
       const effects: Effect[] = [{ kind: 'invalidate' }]
       if (o.autoSend) {

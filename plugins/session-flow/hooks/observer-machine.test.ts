@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { AUTO_NOTE, buildPrompt, ledgerLine, noteFor, summarize, type Finding } from './observer-live.ts'
-import { readOptions } from './observer-machine.ts'
+import { initial, readOptions, step } from './observer-machine.ts'
 
 const F: Finding = { finding: 'Merged without the verdict.', category: 'verification', rule: 'R6', evidence: 'gh pr merge ran first' }
 
@@ -98,4 +98,12 @@ test('summarize counts auto-sends and observer turns', () => {
     { observerTurn: 't1', usage: { output_tokens: 2000, cache_read_input_tokens: 5000, cache_creation_input_tokens: 0 } },
   ]
   expect(summarize(rows)).toContain('auto-sent 2 (append 1, submit 1), failed 1; observer turns 1: 5K cache read, 2K output')
+})
+
+test('a gate timeout lets the command run and records the timeout', () => {
+  const { options } = readOptions({ observer_gate_check: true })
+  const s = { ...initial(), on: true }
+  const r = step(s, { kind: 'gate-replied', command: 'git push', reply: { isAnswered: false, reason: 'timeout' }, latencyMs: 30_000 }, options)
+  expect(r.effects.some(fx => fx.kind === 'deny')).toBe(false)
+  expect(r.effects).toContainEqual({ kind: 'record', row: { trigger: 'gate', latencyMs: 30_000, usage: undefined, outcome: 'timeout' } })
 })

@@ -10,7 +10,7 @@ export const CATEGORIES = ['process', 'decision', 'verification', 'instruction']
 export type Category = (typeof CATEGORIES)[number]
 export type Finding = { finding: string; category: Category; rule: string; evidence: string }
 export type Parsed = { kind: 'none' } | { kind: 'finding'; value: Finding } | { kind: 'unparsable' }
-export type Trigger = 'step' | 'turn-end'
+export type Trigger = 'step' | 'turn-end' | 'change' | 'gate'
 
 export const isStepCheck = (index: number, agentId: string | undefined, every = CHECK_EVERY) =>
   agentId === undefined && every > 0 && index > 0 && index % every === 0

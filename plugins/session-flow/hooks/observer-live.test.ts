@@ -747,3 +747,71 @@ test('a sent finding clears after two prompts without counting as ignored', AUTO
   await ui.unmount()
 })
 
+
+const push = ($: any) => $.tool.call({ tool: 'Bash', command: 'git push origin feat/x' })
+const GATE = { options: { observer_gate_check: true } }
+
+test('the gate is off by default: a push runs with no check', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await turn($, 't1')
+  const r = await push($)
+  expect(w.forks).toEqual([])
+  expect(r).not.toHaveProperty('deny')
+})
+
+test('the gate refuses a push on a finding with the plugin-voice note, and lets an unchanged retry through as a repeat', GATE, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await turn($, 't1')
+  w.replies.push(answer(FINDING))
+  const first = await push($)
+  expect(first).toMatchObject({ deny: expect.stringContaining("It is not the person's instruction") })
+  expect(w.forks[0]).toContain('about to run this command')
+  expect(w.forks[0]).toContain('git push origin feat/x')
+  w.replies.push(answer(FINDING))
+  const retry = await push($)
+  expect(retry).not.toHaveProperty('deny')
+  const gates = live(w).filter(r => r.trigger === 'gate')
+  expect(gates.map(r => [r.outcome, r.repeat ?? false])).toEqual([
+    ['refused', false],
+    ['allowed_after_refusals', true],
+  ])
+})
+
+test('with observer_gate_refusals 2 an unchanged retry is refused once more', { options: { observer_gate_check: true, observer_gate_refusals: 2 } }, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await turn($, 't1')
+  w.replies.push(answer(FINDING), answer(FINDING))
+  expect(await push($)).toHaveProperty('deny')
+  expect(await push($)).toHaveProperty('deny')
+})
+
+test('the gate lets the command run on no finding, on a fork error, and for a command it does not match', GATE, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await turn($, 't1')
+  expect(await push($)).not.toHaveProperty('deny')
+  w.replies.push(async () => {
+    throw new Error('fork failed')
+  })
+  expect(await push($)).not.toHaveProperty('deny')
+  await bash($)
+  expect(w.forks.length).toBe(2)
+  expect(live(w).filter(r => r.trigger === 'gate').map(r => r.outcome)).toEqual(['none', 'error'])
+})
+
+test('the change check runs after a step that edited a file, not after one that only read', { options: { observer_change_check: true, observer_step_check: false } }, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await turn($, 't1')
+  await step($, 't1', 0)
+  await $.tool.call({ tool: 'Read', file_path: '/x' })
+  await step($, 't1', 1)
+  expect(w.forks.length).toBe(0)
+  await $.tool.call({ tool: 'Edit', file_path: '/x' })
+  await step($, 't1', 2)
+  expect(w.forks.length).toBe(1)
+  expect(live(w).find(r => r.trigger === 'change')).toMatchObject({ step: 2 })
+})

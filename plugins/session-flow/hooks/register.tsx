@@ -143,6 +143,9 @@ const perform = async ($: EngineInterface, fx: Effect): Promise<string | undefin
       return undefined
     case 'drop':
       return undefined
+    case 'gate-fork':
+    case 'deny':
+      return undefined
     case 'abort':
       await $.turn.abort({ turnId: fx.turnId }).catch(() => undefined)
       return undefined
@@ -181,6 +184,28 @@ const deliver = async ($: EngineInterface, fx: Extract<Effect, { kind: 'deliver'
   }
   const r = await $.session.append({ message: { type: 'user', content: [{ type: 'text', text: fx.text }] } }).catch((err: unknown) => ({ deny: String(err) }))
   await done(r.deny === undefined ? undefined : String(r.deny))
+}
+
+const gate = async ($: EngineInterface, command: string) => {
+  const { effects } = await dispatch($, { kind: 'gate-requested', command, paused: (await $.store.get('paused')) === true })
+  if (!effects.some(fx => fx.kind === 'gate-fork')) return undefined
+  await syncSession($)
+  const started = await $.clock.now()
+  const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
+  const prompt = buildPrompt(seen, disputed, undefined, notRelevant, (await count($, 'unclear')) > 0, {
+    autoSend: true,
+    guidance: opts.guidance,
+    guidanceMax: opts.guidanceMax,
+    override: opts.checkPrompt,
+    heldCommand: command,
+  })
+  const timeout = new Promise<'timeout'>(resolve => $.clock.after(opts.gateTimeoutMs, () => resolve('timeout')))
+  const r = await Promise.race([$.model.fork({ prompt }), timeout]).catch(() => 'error' as const)
+  const reply = r === 'timeout' || r === 'error' ? { isAnswered: false as const, reason: r } : r.isAnswered ? { isAnswered: true as const, text: r.text } : { isAnswered: false as const, reason: 'error' as const }
+  const usage = typeof r === 'object' && r.isAnswered ? r.usage : undefined
+  const done = await dispatch($, { kind: 'gate-replied', command, reply, latencyMs: (await $.clock.now()) - started, usage })
+  const deny = done.effects.find(fx => fx.kind === 'deny')
+  return deny?.kind === 'deny' ? deny.text : undefined
 }
 
 const syncSession = async ($: EngineInterface) => {
@@ -274,7 +299,13 @@ export const register: Register = (on, options) => {
   })
 
   on('tool.call', async ($, e, next) => {
-    await run($, { kind: 'tool-called', main: e.agentId === undefined })
+    const main = e.agentId === undefined
+    await run($, { kind: 'tool-called', main, name: e.tool })
+    const command = (e as { command?: unknown }).command
+    if (main && e.tool === 'Bash' && typeof command === 'string') {
+      const deny = await gate($, command.trim())
+      if (deny !== undefined) return { deny }
+    }
     return next(e)
   }).catch(($, e, next) => next(e))
 
