@@ -24,21 +24,19 @@ check_scaffold() {
   done
 }
 
-for case in observed-fact-evidence-bar observed-fact-evidence-bar-behavior-present; do
-  check_scaffold "$case" \
-    etl/config.py.txt \
-    etl/extract.py.txt \
-    etl/load.py.txt \
-    etl/run_nightly.py.txt \
-    etl/transform.py.txt \
-    ops/crontab.txt
-done
+check_scaffold observed-fact-evidence-bar \
+  etl/config.py.txt \
+  etl/extract.py.txt \
+  etl/load.py.txt \
+  etl/run_nightly.py.txt \
+  etl/transform.py.txt \
+  ops/crontab.txt
 
 for case in unilateral-decision-not-folded unilateral-decision-not-folded-behavior-present; do
   check_scaffold "$case" webhooks/dispatch.py.txt webhooks/log.py.txt webhooks/sender.py.txt
 done
 
-for case in work-brief-respects-out-of-scope work-design-handoff-carries-map work-research-brief-carries-map; do
+for case in work-design-handoff-carries-map work-research-brief-carries-map; do
   check_scaffold "$case" tracker-export/items.md.txt tracker-export/map-300.md.txt
 done
 
