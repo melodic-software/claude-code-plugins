@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-code": "2.1.331",
+    "@anthropic-ai/claude-code": "2.1.332",
     "@biomejs/biome": "2.6.8",
     "@playwright/cli": "0.1.25",
     "@playwright/mcp": "0.0.86",
