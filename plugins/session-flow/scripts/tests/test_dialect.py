@@ -93,6 +93,25 @@ def test_quoted_code_blockquote_and_path_text_keeps_its_spelling(stub_path, monk
     assert dialect.americanize(quoted) == (quoted, [])
 
 
+def test_americanize_all_matches_one_call_per_text_with_one_typos_run(stub_path, monkeypatch):
+    monkeypatch.setenv("PATH", stub_path)
+    texts = [
+        f"```\nan open fence: {UK_COLOR}",
+        f"We {UK_MODELED} it.\nThe {UK_COLOR} too.",
+        "   ",
+        f'"the {UK_COLOR}" stays',
+        f"Last {UK_COLOR}, {UK_MODELED}.",
+    ]
+    one_by_one = [dialect.americanize(text) for text in texts]
+    calls = []
+    real = dialect.subprocess.run
+    monkeypatch.setattr(dialect.subprocess, "run", lambda *a, **k: calls.append(a) or real(*a, **k))
+    assert dialect.americanize_all(texts) == one_by_one
+    assert len(calls) == 1
+    assert one_by_one[1] == ("We modeled it.\nThe color too.", [(UK_MODELED, "modeled"), (UK_COLOR, "color")])
+    assert one_by_one[4] == ("Last color, modeled.", [(UK_COLOR, "color"), (UK_MODELED, "modeled")])
+
+
 def test_no_typos_on_path_leaves_the_text_and_prints_nothing(bare_path, monkeypatch, capsys):
     monkeypatch.setenv("PATH", bare_path)
     line = f"We {UK_MODELED} the {UK_COLOR}."

@@ -85,17 +85,37 @@ def americanize(
 ) -> tuple[str, list[tuple[str, str]]]:
     """`text` with each single-correction typos finding applied outside quoted spans and outside
     the spans `keep` matches."""
-    if not text.strip():
-        return text, []
-    lines = text.split("\n")
-    unkept = keep.sub(_blank, text).split("\n") if keep else lines
-    findings = _findings("\n".join(_masked_lines(unkept)), cwd)
-    if not findings:
-        return text, []
-    encoded = [line.encode("utf-8") for line in lines]
+    return americanize_all([text], cwd, keep)[0]
+
+
+def americanize_all(
+    texts: list[str], cwd: Path | None = None, keep: re.Pattern[str] | None = None
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """`americanize` over each text, with one `typos` run for all of them: each text is masked
+    on its own and occupies its own run of lines in the joined input, so a finding maps back to
+    exactly one text by its line number."""
+    results: list[tuple[str, list[tuple[str, str]]]] = [(text, []) for text in texts]
+    spans: list[tuple[int, int, int]] = []
+    masked: list[str] = []
+    for i, text in enumerate(texts):
+        if not text.strip():
+            continue
+        unkept = (keep.sub(_blank, text) if keep else text).split("\n")
+        spans.append((i, len(masked) + 1, len(unkept)))
+        masked += _masked_lines(unkept)
+    findings = _findings("\n".join(masked), cwd) if spans else []
+    for i, first, count in spans:
+        mine = [f for f in findings if first <= f["line_num"] < first + count]
+        if mine:
+            results[i] = _apply(texts[i], mine, first - 1)
+    return results
+
+
+def _apply(text: str, findings: list[dict], skip: int) -> tuple[str, list[tuple[str, str]]]:
+    encoded = [line.encode("utf-8") for line in text.split("\n")]
     applied: list[tuple[str, str]] = []
     for item in sorted(findings, key=lambda x: (x["line_num"], x["byte_offset"]), reverse=True):
-        index, offset = item["line_num"] - 1, item["byte_offset"]
+        index, offset = item["line_num"] - 1 - skip, item["byte_offset"]
         typo, fix = item["typo"], item["corrections"][0]
         word = typo.encode("utf-8")
         if not 0 <= index < len(encoded) or encoded[index][offset : offset + len(word)] != word:
