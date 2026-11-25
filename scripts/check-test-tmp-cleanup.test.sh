@@ -96,7 +96,6 @@ run_case "a JS suite that imports the helper and still makes a bare tmpdir folde
 run_case "JS suites with a removal hook, the helper, or a folder under a cleaned root pass" 0 \
   "$(declare -f write_js_hooked write_js_helper write_js_under_root); write_js_hooked plugins/p/h.test.mjs; write_js_helper plugins/p/t.test.js; write_js_under_root plugins/p/r.test.mjs"
 
-# Findings on stderr only.
 repo=""
 if mk_repo repo; then
   write_offender "$repo/plugins/p/bad.test.sh"

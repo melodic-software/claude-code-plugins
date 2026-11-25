@@ -52,7 +52,6 @@ else
   fail "accepts a gitea id" "accept" "rejected"
 fi
 
-# --- scope membership is the authorization boundary ---
 WIT_GITEA_SCOPES='["acme/webapp"]'
 assert_succeeds "declared scope accepted" "in" "out" \
   wit_gitea_scope_in_scope "acme/webapp"
@@ -185,7 +184,6 @@ WORK_ITEM_TRACKER_BINDING="$FIX/binding.json" \
   _ "$SCRIPT_DIR" >/dev/null 2>&1
 assert_eq "unset credential env var → exit 4" "4" "$?"
 
-# --- transport: the credential never reaches argv ---
 MOCKDIR="$FIX/mock"
 mkdir -p "$MOCKDIR"
 cat >"$MOCKDIR/curl" <<'MOCK'

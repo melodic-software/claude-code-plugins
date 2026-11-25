@@ -133,8 +133,6 @@ rc="$(gitea_run "$S" --title "t" --labels "priority: high")"
 assert_eq "an org-wide label resolves → exit 0" "0" "$rc"
 assert_contains "the org label endpoint was consulted" "$(gitea_requests)" "/orgs/acme/labels"
 
-# The org walk must honor X-Total-Count like the repo walk above: no extra request, and
-# no false truncation on a same-sized second page.
 assert_eq "the count is satisfied on page 1 → exit 0" "0" "$rc"
 assert_eq "and exactly one org-label request was made" "1" \
   "$(grep -c '/orgs/acme/labels' <<<"$(gitea_requests)")"

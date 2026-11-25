@@ -64,8 +64,6 @@ precompute_block() {
   ' "$1"
 }
 
-# An inline `!`command`` injection, and git appearing in a line as a command
-# (word-boundary), not prose.
 # shellcheck disable=SC2016  # ERE matches literal backticks around precompute injections
 INJECTION_RE='!`[^`]+`'
 GIT_RE='(^|[[:space:]|`])git([[:space:]]|$|[|;&])'
