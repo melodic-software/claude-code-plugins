@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/work-items/tools/work-item-tracker/seeds/linear/*.sh
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# list-sub-items: offline contract tests.
-#
-# The invariant this verb must not break: it is a RAW enumeration. Closed children and
-# nested containers are KEPT — the closed-children invariant check and sub-map traversal
-# both need them, and frontier filtering is the separate core-side step.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-sub-items.sh"
 D="$(dirname "$S")"

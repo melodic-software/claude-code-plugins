@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for git-branch-delete.sh: the tip-capture precondition, the fail-closed
-# batch semantics, and the end-to-end property that a branch deleted through
-# this path is restorable from the artifact the audit produced, with no other
-# information.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,8 +17,6 @@ TEST_TMPDIR="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
-# A no-op gh stub keeps every case offline and deterministic (the real gh would
-# hit the network for the audit's PR map).
 STUB_BIN="$TEST_TMPDIR/stub-bin"
 mkdir -p "$STUB_BIN"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$STUB_BIN/gh"
@@ -57,7 +51,7 @@ git -C "$REPO" add base
 git -C "$REPO" commit -qm base
 git -C "$REPO" remote add origin "$TEST_TMPDIR/origin.git"
 
-merged_branch() { # <name> <file>: branch with one commit, merged --no-ff into main
+merged_branch() {
   git -C "$REPO" checkout -q -b "$1"
   echo "$2" >"$REPO/$2"
   git -C "$REPO" add "$2"
@@ -111,14 +105,12 @@ git -C "$REPO" branch release/1
 branch_exists() { git -C "$REPO" rev-parse --verify --quiet "refs/heads/$1" >/dev/null 2>&1; }
 run_delete() { (cd "$REPO" && bash "$DELETE" "$@"); }
 
-# assert_branch <label> <present|absent> <branch>
 assert_branch() {
   local label="$1" want="$2" branch="$3" got="absent"
   if branch_exists "$branch"; then got="present"; fi
   if [[ "$got" == "$want" ]]; then pass "$label"; else fail "$label" "$want" "$got"; fi
 }
 
-# assert_eq <label> <expected> <actual>
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
 }
@@ -228,9 +220,6 @@ assert_branch "near-miss: feat/lossy still present" present feat/lossy
 assert_branch "near-miss: feat/safe1 still present" present feat/safe1
 assert_eq "near-miss: no pin written for feat/lossy" "none" "$(git -C "$REPO" rev-parse --verify --quiet refs/repo-hygiene/deleted/feat/lossy || echo none)"
 
-# A SAFE-by-ancestry row whose tip is not merged (a forged or wrong capture) is
-# refused up front: previously `git branch -d` discovered it only after the pin
-# and a ledger row claiming deletion had been written.
 awk -F'\t' -v OFS='\t' '$1 == "feat/review" { $3 = "SAFE" } 1' "$CAP" >"$TEST_TMPDIR/forged.tsv"
 out="$(run_delete --capture "$TEST_TMPDIR/forged.tsv" --apply feat/review 2>&1)"
 rc=$?
@@ -414,7 +403,7 @@ assert_branch "abort: feat/ok2 untouched" present feat/ok2
 git -C "$REPO" update-ref -d refs/repo-hygiene/deleted/feat/blocked/child
 
 CAP3="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/cap3.tsv" | sed -n 's/^TipCapture: //p')"
-mkdir -p "$TEST_TMPDIR/cap3.deleted.tsv" # a directory where the ledger must go
+mkdir -p "$TEST_TMPDIR/cap3.deleted.tsv"
 out="$(run_delete --capture "$CAP3" --apply feat/ok2 2>&1)"
 rc=$?
 assert_exit "unwritable ledger exits 1" 1 "$rc"
@@ -452,7 +441,7 @@ fi
 new_commit_on() { # <branch>: a commit on top of the branch's tip, referenced by nothing
   git -C "$REPO" commit-tree -p "refs/heads/$1" -m "moved $1" "refs/heads/$1^{tree}"
 }
-wait_for_ref() { # <ref>: poll (up to ~10s) until the ref exists
+wait_for_ref() {
   local i
   for ((i = 0; i < 200; i++)); do
     git -C "$REPO" rev-parse --verify --quiet "$1" >/dev/null 2>&1 && return 0
@@ -460,7 +449,7 @@ wait_for_ref() { # <ref>: poll (up to ~10s) until the ref exists
   done
   return 1
 }
-wait_pid() { # <pid>: reap it, killing it after ~30s so a regression cannot hang the suite
+wait_pid() {
   local i
   for ((i = 0; i < 300; i++)); do
     kill -0 "$1" 2>/dev/null || break
@@ -469,7 +458,7 @@ wait_pid() { # <pid>: reap it, killing it after ~30s so a regression cannot hang
   kill -0 "$1" 2>/dev/null && kill "$1" 2>/dev/null
   wait "$1"
 }
-drain_fd3() { # whatever the script appended after the FIFO reader left
+drain_fd3() {
   local line
   while IFS= read -r -t 1 line <&3; do printf '%s\n' "$line"; done
 }
@@ -595,7 +584,7 @@ git init -q --bare "$TEST_TMPDIR/landed-del-origin.git"
 git init -q -b main "$LD"
 git -C "$LD" config user.email "t@example.com"
 git -C "$LD" config user.name "Test"
-ld_commit() { # <file> <message>
+ld_commit() {
   echo "$1" >"$LD/$1"
   git -C "$LD" add "$1"
   git -C "$LD" commit -qm "$2"
@@ -633,7 +622,7 @@ git -C "$LD" fetch -q --prune origin
 run_delete_ld() { (cd "$LD" && bash "$DELETE" "$@"); }
 ld_tip() { git -C "$LD" rev-parse "refs/heads/$1"; }
 ld_pin() { git -C "$LD" rev-parse --verify --quiet "refs/repo-hygiene/deleted/$1" || echo none; }
-ld_assert_branch() { # <label> <present|absent> <branch>
+ld_assert_branch() {
   local got=absent
   git -C "$LD" rev-parse --verify --quiet "refs/heads/$3" >/dev/null 2>&1 && got=present
   if [[ "$got" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$got"; fi
@@ -660,8 +649,6 @@ assert_contains "dry-run plans the cherry-picked branch" "$out" "Planned: feat/r
 assert_contains "dry-run plans the squash-merged branch" "$out" "Planned: feat/squashed $(ld_tip feat/squashed) (LIKELY-SAFE, force delete)"
 assert_contains "dry-run counts all three in one batch" "$out" "Summary: planned=3 refused=0 deleted=0"
 
-# A proof recorded on a branch that never landed is not taken as the answer: the
-# proof runs again, finds nothing, and the reachability check refuses.
 awk -F'\t' -v OFS='\t' '$1 == "feat/partial" { $3 = "LIKELY-SAFE"; $9 = "landed by patch-id (git cherry)" } 1' "$LDCAP" >"$TEST_TMPDIR/forged-landed.tsv"
 out="$(run_delete_ld --capture "$TEST_TMPDIR/forged-landed.tsv" feat/rebased feat/partial 2>&1)"
 rc=$?
@@ -671,16 +658,12 @@ assert_not_contains "a forged Landed proof refuses only the forged branch" "$out
 ld_assert_branch "a forged Landed proof: feat/partial intact" present feat/partial
 ld_assert_branch "a forged Landed proof: the whole batch deletes nothing" present feat/rebased
 
-# The same proof, written by an older audit into a capture without the column, is
-# not one: the column holds the timestamp there.
 awk -F'\t' -v OFS='\t' 'NF == 10 && $2 ~ /^[0-9a-f]+$/ { print $1, $2, $3, $4, $5, $6, $7, $8, $10; next } 1' "$LDCAP" >"$TEST_TMPDIR/old-format.tsv"
 out="$(run_delete_ld --capture "$TEST_TMPDIR/old-format.tsv" feat/rebased 2>&1)"
 rc=$?
 assert_exit "a capture without the landed column exits 3" 3 "$rc"
 assert_contains "a capture without the landed column names the live loss" "$out" "Refused: feat/rebased (live reachability now loses 1 commits that exist on no remote ref and no tag; captured as LIKELY-SAFE; re-run git-branch-audit.sh before deleting)"
 
-# The proof is checked at delete time, not trusted from the audit: origin/main
-# losing the landing commits after the capture leaves the branch unproven.
 ld_main="$(git -C "$LD" rev-parse refs/remotes/origin/main)"
 git -C "$LD" update-ref refs/remotes/origin/main "$ld_base"
 out="$(run_delete_ld --capture "$LDCAP" feat/rebased 2>&1)"

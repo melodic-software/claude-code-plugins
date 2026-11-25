@@ -45,8 +45,6 @@
     const isSentStatus = s => s === "sent" || s === "working";
     const roundStatus = n => (Core.state.rounds || []).find(r => r.n === n)?.status || (n < curRound().current ? "closed" : curRound().status);
     const CONFIRM_OTHER = "Not exactly";
-    // Chat reactions (Phase 4c): the quick row, then the More picker's general set. session.py takes exactly these
-    // (CHAT_EMOJI there; test_session.py checks the two match). Plain Unicode: no library, no network.
     const CHAT_EMOJI = ["👍", "👎", "😂", "❤️", "🎉", "😮",
       "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍",
       "🤩", "😘", "😋", "😛", "😜", "🤪", "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐", "😑",
@@ -848,7 +846,7 @@
     const myRepList = E("ul", "vf-plist vf-myrep-list"); myRepList.setAttribute("role", "list");
     myRepPop.append(E("h2", "vf-pop-title", "Your reports"), E("p", "vf-pop-note", "Only you and the host see these."), myRepList);
     const REP_WORD = { open: "Sent", seen: "Seen by the host", resolved: "Fixed" };
-    const MAX_REPORT_IMAGES = 4; // screenshots a report takes when it is sent (session.py MAX_REPORT_IMAGES); an addition takes one
+    const MAX_REPORT_IMAGES = 4;
 
     function panel(title, label) {
       const pop = E("div", "vf-pop vf-panel"); pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", label); pop.hidden = true;
@@ -871,10 +869,7 @@
     PP.tools.append(propSeg);
     const propMore = showMore("proposals", 20);
     PP.list.after(propMore.foot);
-    // X42: the owner's Approve all makes every new proposal a question at once, behind a confirm that counts them; the
-    // server places only the ones counted, so one that arrives meanwhile waits. All or none: while they do not all fit
-    // in the next round, it is off and says how many do.
-    const MAX_ROUND = 8; // questions a round holds (session.py MAX_ROUND)
+    const MAX_ROUND = 8;
     const nextRoom = () => { const n = Core.state.rounds.length + 1; return Math.max(0, MAX_ROUND - Core.state.questions.filter(q => q.round === n).length); };
     const propAllRow = E("div", "vf-pp-actions"), propAll = btn("vf-btn vf-btn-primary vf-btn-sm vf-prop-all"), propAllWhy = E("p", "vf-pop-note vf-prop-all-why");
     propAllRow.append(propAll, propAllWhy); PP.note.after(propAllRow);
@@ -1476,8 +1471,6 @@
     }
     async function goMsg(id, gone) {
       if (!mList._map?.has(id) && !(await Core.chatAround(id).catch(() => false))) return gone ? gone() : flash("That message is no longer in the chat.");
-      // At once, not smoothly: a poll's render during a smooth scroll would still see the reader at the newest message.
-      // Off the newest now, so nothing pins the chat back to it before this scroll's own event says so.
       requestAnimationFrame(() => { const li = mList._map?.get(id); if (li) { li.scrollIntoView({ block: "center" }); mStick = false; ring(li); } });
     }
     const mPin = new ResizeObserver(() => { if (ui.chatOpen && mStick && mGap() > 0) mScroll.scrollTop = mScroll.scrollHeight; });
@@ -2774,9 +2767,6 @@
       if ((n.kind === "queue" || n.kind === "ready") && Core.canModerate()) showMode("host");
     }
     const inbox = () => Core.state.inbox || [];
-    /** What pops up for the host the moment it arrives (owner decision 2026-10-19, follow-up 24): a join, a request
-     *  waiting for Run, a problem report; the rest is in the Inbox only. The Notifications tab's Pop-ups switches change
-     *  it for the owner alone (the `popups` pref, session.py POPUP_KINDS). */
     const HOST_URGENT = ["join", "run", "report"];
     const POPUP_KINDS = [["join", "Someone asks to join"], ["run", "A request waits for Run"], ["report", "Someone reports a problem"],
       ["share", "An answer waits for Share"], ["merge", "Someone asks to be joined with an earlier name"], ["fail", "Claude could not answer a request"], ["upload", "Someone offers a file"]];
@@ -3294,7 +3284,7 @@
       while (upPics.size > UP_PICS) upPics.delete(upPics.keys().next().value);
       return p;
     };
-    const localPics = new Map(); // upload id -> a thumbnail this browser made of a picture it offered
+    const localPics = new Map();
     // upload id -> the promise of its first frame as a PNG data: URL when it is an animated GIF, else null. An animated
     // GIF shows still until someone presses Play (WCAG 2.2.2): canvas draws an animated image's first frame.
     const gifStills = new Map();
@@ -4614,7 +4604,7 @@
       if (S.trusted.includes(pid)) return "Trusted";
       return "Guest";
     }
-    const COMFORT = { low: "Not very", ok: "Fine", high: "Very" }; // session.py TECH_COMFORT
+    const COMFORT = { low: "Not very", ok: "Fine", high: "Very" };
     const COLOR_NAMES = ["Pink", "Blue", "Green", "Amber", "Violet", "Red", "Cyan", "Orange", "Lime", "Magenta"];
     const nameOf = (pid, fallback = "") => Core.state.people?.[pid]?.name || Core.state.presence.find(p => p.cid === pid)?.name || fallback || "Someone";
     function showWelcomeAgain() {
@@ -5882,8 +5872,6 @@
       if (q.format === "scale") return d?.value ?? rec?.value ?? null;
       return null;
     }
-    // An own option takes MAX_OWN characters (session.py MAX_TEXT). The box never cuts what is put in it (Claude's answer
-    // may be longer); saving says how much to shorten.
     const MAX_OWN = 2000;
     function ownTooLong(text) {
       if (text.length <= MAX_OWN) return false;

@@ -334,10 +334,6 @@ def skip_downgrade(text: str) -> bool:
 # fallback ONLY for the Python-free safe-tier degrade (loop.md is that path);
 # the convergence test pins the two counts together on thread-state-free
 # fixtures. See babysit_findings.py for the CLI entrypoint.
-
-# Whole-word severity words (claude's vocabulary). Case-sensitive so lowercase
-# priority labels (priority:p0-critical) and prose ("it is important") do not
-# false-count -- the same rationale as BLOCKING_SEVERITY_RE, plus SUGGESTION.
 SEVERITY_WORDS_RE = re.compile(r"\b(?:CRITICAL|IMPORTANT|SUGGESTION)\b")
 # codex's shields.io P-severity badge: the `/badge/P{N}-` URL segment appears
 # exactly once per finding (the badge's alt text carries the same P-number token

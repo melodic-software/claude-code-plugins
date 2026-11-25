@@ -326,10 +326,6 @@ existing_branch=0
 repo_dir="."
 session_id=""
 
-# remove_input_files_on_exit — the EXIT trap behind --remove-input-files, armed
-# when the flag is parsed so a later usage error still cleans up. Reads the path
-# variables at exit time. rm -f
-# and rmdir only: a directory holding anything else is left alone.
 remove_input_files_on_exit() {
   local file
   for file in "$root_file" "$fallback_root_file" "$data_root_file"; do
@@ -426,9 +422,6 @@ if [[ -z "$name" ]]; then
   exit 2
 fi
 
-# Mutual exclusion keys off whether each flag APPEARED, not whether its value is
-# non-empty: `--root '' --root-file f` is still a caller naming two sources, and
-# treating the empty one as absent would silently pick the other.
 if ((root_given && root_file_given)); then
   printf '%s: --root and --root-file are mutually exclusive\n' "$PROG" >&2
   exit 2
@@ -522,7 +515,6 @@ if [[ -n "$session_id" ]] && [[ ! "$session_id" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]; 
   printf '%s: --session-id must match ^[A-Za-z0-9._:-]{1,128}$\n' "$PROG" >&2
   exit 2
 fi
-
 # The remaining name check — git's own ref grammar — needs a healthy repository
 # to run in, so it waits until $toplevel is resolved below.
 
@@ -573,9 +565,6 @@ canonicalize_root() {
   CANONICAL_ROOT="$value"
 }
 
-# Unconfigured root: detected here, resolved after the repository is known below
-# (the worktreeroot.path rung needs the repository, and the data-dir rung
-# stays last).
 root_unset=0
 if root_is_unset "$root"; then
   root_unset=1
@@ -584,12 +573,7 @@ else
   root="$CANONICAL_ROOT"
 fi
 
-# Resolve the source repository top level.
 if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
-  # Remedy first: this line is surfaced verbatim to a user whose worktree
-  # creation just failed, and a bare diagnosis leaves them nothing to do. There
-  # is no worktree to create outside a repository, so the actionable answer is
-  # the harness-side stand-down, not a flag of this script's.
   printf '%s: run this from inside a git repository, or pass --repo-dir pointing at one; for a Claude Code background session at a non-repository directory, set worktree.bgIsolation to "none" in settings so it edits in place; --worktree and subagent isolation need a repository\n' "$PROG" >&2
   printf '%s:   --repo-dir is not inside a git repository: %s\n' "$PROG" "$repo_dir" >&2
   exit 4
@@ -726,12 +710,8 @@ branch_naming="verbatim"
 branch_default_type="chore"
 branch_extra_prefixes=()
 
-# branch_type_is_valid <value> — one lowercase segment, safe as a ref component.
 branch_type_is_valid() { [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; }
 
-# read_branch_naming — fill the three branch_* globals from the team YAML under
-# $toplevel. Loads the reader only when the file exists, so a repository without
-# one pays no process for this.
 read_branch_naming() {
   local records key value naming="" default_type=""
   [[ -f "$toplevel/$CONVENTION_YAML_REL" ]] || return 0
@@ -788,8 +768,6 @@ branch_ref_segment() {
   BRANCH_SEGMENT="${s%.lock}"
 }
 
-# derive_conventional_branch <name> — the conventional-commits branch for
-# <name>, into the global `branch`.
 derive_conventional_branch() {
   local name="$1" type canonical="" prefix
   if [[ "$name" == */* ]]; then
@@ -913,8 +891,6 @@ parse_owner_repo() {
   fi
 }
 
-# owner/repo from the origin remote when present; otherwise fall back to the
-# repository directory name (owner omitted).
 owner=""
 repo=""
 if origin_url=$(git -C "$toplevel" remote get-url origin 2>/dev/null); then
@@ -922,8 +898,6 @@ if origin_url=$(git -C "$toplevel" remote get-url origin 2>/dev/null); then
 fi
 [[ -n "$repo" ]] || repo="${toplevel##*/}"
 
-# Sanitize the name into a filesystem-safe slug: '/' and any character outside
-# [A-Za-z0-9._-] become '-', runs of '-' collapse, leading/trailing '-' trim.
 slug="$name"
 slug="${slug//[^A-Za-z0-9._-]/-}"
 while [[ "$slug" == *--* ]]; do slug="${slug//--/-}"; done
@@ -1050,8 +1024,6 @@ reuse_refuse() {
   exit 4
 }
 
-# reuse_existing_target — return the worktree at $worktree_path when this
-# session may claim it, else refuse. Never returns.
 reuse_existing_target() {
   local top i idx=-1 reason held_branch old_sid claim="$HELPER_DIR/worktree-claim.sh"
   # git's own spelling of the target's top level is the one `worktree list`
@@ -1294,8 +1266,6 @@ elif [[ "$base_ref" == fresh ]]; then
 else
   env ${checkout_env[@]+"${checkout_env[@]}"} git -C "$toplevel" worktree add -b "$branch" "$worktree_path" "$base_commit" >&2
 fi || {
-  # A concurrent run may have created the target or the branch since the checks
-  # above; that run's lock is its claim, so this one refuses rather than share.
   if [[ -e "$worktree_path" ]]; then
     printf '%s: another process created %s while this one was creating it; rerun to reuse it if this session may claim it\n' \
       "$PROG" "$worktree_path" >&2

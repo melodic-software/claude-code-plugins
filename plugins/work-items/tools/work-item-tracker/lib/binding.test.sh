@@ -231,7 +231,6 @@ wit_read_binding "$OBINDING"
 assert_eq "unmentioned team key keeps its value" "24" "$WIT_LEASE_TTL_HOURS"
 assert_eq "mentioned personal override key wins" "45" "$WIT_LEASE_TTL_MINUTES"
 
-# jira auth identity is per-account and overridable; site/project_keys are not.
 write_binding "$OBINDING" '{"schema_version":"1.0","provider":"jira","config":{"lease_ttl_hours":24,"jira":{"site":"a.atlassian.net","project_keys":["AB"],"auth_email":"team@example.com","auth_env":"TEAM_TOKEN"}}}'
 write_binding "$PERSONAL_OVERRIDE" '{"config":{"jira":{"auth_email":"me@example.com","auth_env":"MY_TOKEN"}}}'
 EJ="$(wit_effective_binding_json "$OBINDING")"
@@ -267,16 +266,11 @@ assert_override_rejected "non-JSON personal override rejected" 'not json'
 assert_override_rejected "empty-object provider rejected" '{"provider":{}}'
 assert_override_rejected "empty-object unknown key rejected" '{"evil":{}}'
 assert_override_rejected "empty-object role_labels rejected" '{"config":{"role_labels":{}}}'
-# A null at a non-leaf allowlisted prefix is a leaf, not scaffolding.
 assert_override_rejected "null jira subtree rejected" '{"config":{"jira":null}}'
-# An allowlisted key must hold a scalar: an object or array there is rejected at
-# load with the key named, never a silent fallback to the team value.
 assert_override_rejected "object-valued allowlisted key rejected" '{"config":{"jira":{"auth_email":{}}}}'
 assert_override_rejected "populated object at allowlisted key rejected" '{"config":{"jira":{"auth_email":{"x":1}}}}'
 assert_override_rejected "array-valued allowlisted key rejected" '{"config":{"lease_ttl_hours":[]}}'
 
-# linear and gitea auth identity is per-account for the same reason jira's is:
-# both adapters read the credential's env-var NAME from the merged view.
 write_binding "$OBINDING" '{"schema_version":"1.0","provider":"linear","config":{"lease_ttl_hours":24,"linear":{"team_keys":["ENG"],"auth_env":"TEAM_LINEAR_TOKEN"}}}'
 write_binding "$PERSONAL_OVERRIDE" '{"config":{"linear":{"auth_env":"MY_LINEAR_TOKEN"}}}'
 EL="$(wit_effective_binding_json "$OBINDING")"
@@ -340,11 +334,6 @@ write_binding "$TEST_TMPDIR/ids.yaml" 'tracker:
 assert_eq "YAML scalars stay strings inside arrays" '{"completed":["10000"],"wont_do":["10001"]}' \
   "$(wit_yaml_binding_json "$TEST_TMPDIR/ids.yaml" | jq -c '.config.jira.resolutions')"
 
-# An empty flow sequence stays [], as a JSON binding writes it, where the parser
-# alone prints nothing: jira tells a present empty done_category_keys (a config
-# error) from an absent one (the default) by presence, and requires both resolutions
-# keys. A `[]` inside a quoted scalar or a comment is text, and a key with no value
-# reads as absent.
 write_binding "$TEST_TMPDIR/empty.yaml" 'tracker:
   config:
     jira:

@@ -194,7 +194,6 @@ RECORD_RE = re.compile(
     rf"scope=(?:(?P<whole>whole)|incremental since=(?P<since>{_SHA}))"
     rf"|skip=no-change through=(?P<through>{_SHA})"
     rf"|skip=(?P<skip>[\w-]+))"
-    # The subscription leg's review (ci-workflows pr-review-cli.yml).
     rf"(?: account=fallback)?$"
 )
 SHA_RE = re.compile(rf"^{_SHA}$")
@@ -205,7 +204,6 @@ HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 # review lane's own `failure-class=rate-limit` line (ci-workflows pr-review.yml).
 # The legacy `class=rate-limit` token alone is not read (ADR 0087 slice 3).
 LANE_OUTCOME_MARKER = "lane-outcome "
-# The record's own cap, with room for its whitespace.
 LANE_OUTCOME_MAX = 1224
 RATE_LIMIT_FAILURE_RE = re.compile(r"(?<![\w-])failure-class=rate-limit(?![\w-])")
 
@@ -289,9 +287,6 @@ NO_OUTCOME_RE = re.compile(
 # (`_lost_unposted`), which leaves the run to a person.
 LOST = "lost"
 LOST_CONCLUSIONS = frozenset({"cancelled", "timed_out", "startup_failure"})
-# The check-kill-switch job's display name, `Check Kill Switch`; `Kill Switch`
-# is its name before that rename, and `kill-switch` a head tested before an
-# earlier rename, or a repository whose job has no display name.
 KILL_SWITCH_JOBS = frozenset({"Kill Switch", "kill-switch", "Check Kill Switch"})
 KILL_SWITCH_NOTICE_RE = {
     "claude-review": re.compile(r"a kill switch stops this review \("),
@@ -326,13 +321,10 @@ LANE_TAG_RE = re.compile(r"^\s*`?claude-lane: ([\w-]+)`?\s*$", re.MULTILINE)
 # non-blank line is that lane's footer and the lane-binding check accepts it
 # (`_actions_verdict`).
 ACTIONS_LOGINS = frozenset({"github-actions", "github-actions[bot]"})
-# Every author a lane comment can have; the caller attaches each one's edit
-# record (babysit_merge._attach_edits).
 LANE_AUTHORS = ACTIONS_LOGINS | CLAUDE_APP_LOGINS
 
 
 def _marker(body: str) -> re.Match[str] | None:
-    """The reviewed-head marker on a body's first line, else None."""
     return MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
 
 
@@ -410,10 +402,10 @@ class _Record:
     findings: int | None = None
     inline: int | None = None
     whole: bool = False
-    since: str | None = None  # incremental review base
-    through: str | None = None  # no-change skip target
-    skip: str | None = None  # any other skip
-    completed: datetime | None = None  # when the lane job that left it completed
+    since: str | None = None
+    through: str | None = None
+    skip: str | None = None
+    completed: datetime | None = None
 
 
 class Unbound(Exception):
@@ -535,7 +527,6 @@ def needs_main_review(
     if not isinstance(changed_paths, list | tuple):
         return True
     sources = [path for path in changed_paths if lane_source(path)]
-    # Paths first, so no file is read when one source can never clear.
     return not all(_readonly_candidate(path, floor) for path in sources) or not all(
         readonly_workflow(path, head_file, base_sha, floor) for path in sources
     )
@@ -584,10 +575,6 @@ def _main_lane(
 
 
 def _head_stop(lane: str, context: Mapping[str, Any] | None) -> str | None:
-    """The first designed stop pr-review-main's report-review-counts job posted for `lane`
-    on the pinned head (`main_context["head_stops"]`, read from the closed
-    set `babysit_gh.MAIN_REVIEW_STOP_TITLE` matches), or None. It only names
-    why no verdict binds: a stop never binds a lane."""
     found = context.get("head_stops") if isinstance(context, Mapping) else None
     stops = found.get(lane) if isinstance(found, Mapping) else None
     if not isinstance(stops, list | tuple):
@@ -715,8 +702,6 @@ def _main_review_counted(
     done = run.get("status") == "completed" and run.get("conclusion") == "success"
     findings, critical = verdict.get("findings"), verdict.get("critical")
     reviewed = verdict.get("head_sha")
-    # The longest diff line write-verdict.mjs measured: past what the review
-    # reads whole, or not recorded, and the verdict does not count.
     longest = verdict.get("max_line_bytes")
     if not (
         _count(longest)
@@ -1028,10 +1013,6 @@ def _carried_blocking(
     is_human: Callable[[Any], bool],
     head_file: Callable[[str, str], str | None] | None,
 ) -> int | None:
-    """The security lane's blocking findings at the newest head of this pull
-    request its evidence binds at, the pinned head first, judged as at that
-    head against the threads and comments read now; None when none binds.
-    It reads only what the caller already read."""
     try:
         lane_runs = _lane_runs(SEVERITY_LANE, runs)
         ordered = sorted(lane_runs, key=_run_order, reverse=True)
@@ -1085,8 +1066,6 @@ def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str
     return selected
 
 
-# Whether a lane posted on a head between two times (`lane_posted`, bound to
-# the pull request's comments and threads by `_poster`).
 Poster = Callable[[str, str, Any, Any], bool]
 
 
@@ -1097,16 +1076,6 @@ def _resolve(
     posted: Poster,
     after: datetime | None = None,
 ) -> tuple[str, list[_Record]]:
-    """Require a bound run at `head` whose record leads back to a whole review,
-    and return the head of the review that covers `head` with the chain of
-    review records that covers it, newest first, back to the whole review.
-
-    A no-change skip binds to the review it names, following further
-    no-change skips back to it (`_skip_target`); an incremental
-    review needs every earlier link bound, back to a whole review. Each link
-    is the newest run's latest attempt at its head (`_bound_record`), created
-    after `after` when it is set.
-    """
     rec = _bound_record(lane, head, lane_runs, posted, after)
     seen = {head}
     if rec.skip is not None:
@@ -1135,11 +1104,6 @@ def _skip_target(
     posted: Poster,
     after: datetime | None = None,
 ) -> _Record:
-    """The review a no-change skip carries forward: its `through` head, and
-    on through each further no-change skip (one per push that changed no file
-    of the pull request, such as a clean base merge) to the first head the
-    lane reviewed, at most `SKIP_HOPS` heads back. A head whose content
-    changed has its own review record, so the chain stops there."""
     for _ in range(SKIP_HOPS):
         rec = _link(lane, sha, lane_runs, seen, posted, after)
         if rec.skip is not None:
@@ -1158,9 +1122,6 @@ def _link(
     posted: Poster,
     after: datetime | None = None,
 ) -> _Record:
-    """An earlier head in the chain; any failure to bind it is a gap, but
-    for a review from before the newest retarget, which a whole review of
-    the head clears."""
     if sha in seen:
         raise Unbound("incremental-gap")
     seen.add(sha)
@@ -1210,7 +1171,6 @@ def _bound_record(
     if latest is None:
         raise Unbound("evidence-missing")
     if max(attempts) != latest_n:
-        # The listing predates a re-run the attempts already show.
         raise Unbound("evidence-error")
     if (
         latest.get("status") != "completed"
@@ -1288,20 +1248,12 @@ def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
     return found is not None and found["lane"] == lane
 
 
-# The failure classes of a failed attempt 1 after which attempt 2 binds
-# (`rerun_binds`), each with its test of one failure annotation's message.
-# `NO_OUTCOME` binds too, but only after the posted check, so it is not here.
 RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
     "rate-limit": lambda lane, m: _rate_limited(m),
     "publish-rate-limit": lambda lane, m: _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m),
     "auth": lambda lane, m: _lane_line(AUTH_FAILURE_RE, lane, m),
     INSTALL_FAILED: lambda lane, m: _lane_line(INSTALL_FAILURE_RE, lane, m),
 }
-# The ones the merge gate re-runs itself (babysit_merge
-# `rerun_rate_limited_review`): those failure classes, and `LOST`, which a
-# run's conclusion names rather than an annotation. A rejected credential and
-# `NO_OUTCOME` are left to a person: a re-run before the secret or the lane is
-# fixed would spend the one allowed attempt.
 GATE_RERUN_CLASSES = frozenset(
     {"rate-limit", "publish-rate-limit", INSTALL_FAILED, LOST}
 )
@@ -1558,7 +1510,6 @@ def _poster(comments: Any, threads: Any) -> Poster:
 
 
 def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
-    """Whether a kill switch stopped this attempt before its lane job existed."""
     return _gate_stopped(
         lane, run_id, attempt, "success", "notice", KILL_SWITCH_NOTICE_RE
     )
@@ -1571,10 +1522,6 @@ LEG_RATE_REFUSAL_RE = re.compile(
 
 
 def _rate_held(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
-    """Whether a leg's hold on a GitHub API rate limit kept this attempt from
-    reviewing: its lane job holds no completion record and its `held:` notice
-    for this head, and another job of the attempt (the leg, whose annotations
-    babysit_gh reads) shows the hold beside such a refusal."""
     jobs = attempt.get("jobs")
     if not isinstance(jobs, list | tuple) or not _has_lane_job(lane, jobs):
         return False
@@ -1603,8 +1550,6 @@ def _rate_held(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
 
 
 def _upstream_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
-    """Whether the upstream-status gate stopped this attempt before its lane
-    job existed (`UPSTREAM_DEGRADED`)."""
     return _gate_stopped(lane, run_id, attempt, "failure", "failure", UPSTREAM_STOP_RE)
 
 
@@ -1616,8 +1561,6 @@ def _gate_stopped(
     level: str,
     patterns: Mapping[str, re.Pattern[str]],
 ) -> bool:
-    """Whether the caller's one `kill-switch` job, ended `conclusion`, wrote
-    this lane's `patterns` annotation at `level` while no lane job exists."""
     jobs = attempt.get("jobs")
     if not isinstance(jobs, list | tuple) or not all(
         isinstance(job, Mapping) for job in jobs
@@ -1644,7 +1587,6 @@ def _gate_stopped(
 
 
 def _record(lane: str, sha: str, job: Mapping[str, Any]) -> _Record | None:
-    """The job's one completion record for `sha`, None when it left none."""
     found = [
         a
         for a in job["annotations"]
@@ -1677,10 +1619,6 @@ def _require_marker(
     comments: Sequence[Mapping[str, Any]],
     newest_only: bool = True,
 ) -> str:
-    """The newest reviewed-head marker the lane job wrote must name `head`;
-    its body, which carries the covering review's summary. With
-    `newest_only` False, the newest marker naming `head` will do, for a
-    review a newer marker has passed."""
     if not isinstance(comments, list | tuple):
         raise Unbound("evidence-error")
     newest: tuple[str, int, str, str] | None = None
@@ -1713,9 +1651,6 @@ def _require_marker(
 def _summary_comments(
     lane: str, comments: Sequence[Mapping[str, Any]]
 ) -> list[tuple[datetime | None, str]]:
-    """Each lane comment of `lane` (`_lane_comment`) but a reviewed-head
-    marker, which the caller reads already, with its creation time: the
-    summary comments a lane producer posted."""
     found = []
     for comment in comments:
         user = comment.get("user")
@@ -1885,18 +1820,12 @@ def _open_findings(
     span: tuple[datetime | None, datetime | None] | None = None
     windows: list[tuple[datetime | None, datetime | None, int]] = []
     window_trees: list[str] = []
-    # When the first review at `reviewed` started; unknown keeps every
-    # thread's human test.
     first: datetime | None = None
     # Per reviewed head sha, its tree: findings are keyed on the tree, so a
     # new commit with the same tree (an empty one) re-rolls no review.
     trees: dict[str, str] = {}
-    # Per tree, the most findings and the most summary findings any completed
-    # review of it, whole or incremental, reported.
     head_max: dict[str, int] = {}
     summary_max: dict[str, int] = {}
-    # Per tree, how many reviews of it reported a summary finding, and the
-    # (head sha, job started, job completed, summary findings) of the last.
     summary_reviews: dict[str, int] = {}
     reporter: dict[str, tuple[str, datetime | None, datetime | None, int]] = {}
     spent: set[str] = set()
@@ -1951,18 +1880,14 @@ def _open_findings(
                 first = started
     if any(rec.sha not in trees for rec in chain):
         raise Unbound("tree-unread")
-    # The chain's trees, the covering review's first; links that share one
-    # count once.
     chain_trees = list(dict.fromkeys(trees[rec.sha] for rec in chain))
     head_spent = chain_trees[0] in spent
     summary = sum(summary_max.get(tree, 0) for tree in chain_trees)
     cleared = not any(head_max.get(tree) for tree in chain_trees)
-    # The covering review read only threads opened before its job completed.
     read_through = chain[0].completed
     if not isinstance(threads, list | tuple):
         raise Unbound("evidence-error")
     covered = [0] * len(windows)
-    # Open threads: unresolved ones, and resolved ones nothing closed.
     unresolved = held = critical = 0
     for thread in threads:
         if not isinstance(thread, Mapping):
@@ -1991,7 +1916,6 @@ def _open_findings(
             held += 1
         else:
             continue
-        # `_lane_thread` read the first comment's author as a mapping.
         first_comment = thread["comments"][0]
         severities = SEVERITY_RE.findall(
             _lane_body(
@@ -2001,16 +1925,12 @@ def _open_findings(
         )
         if len(severities) != 1 or severities[0] == "CRITICAL":
             critical += 1
-    # Inline findings with no thread left, counted like summary findings:
-    # per chain tree, the most any review of it left.
     gone = [max(k - n, 0) for (_, _, k), n in zip(windows, covered)]
     missing = sum(
         max((g for g, at in zip(gone, window_trees) if at == tree), default=0)
         for tree in chain_trees
     )
     count = summary + unresolved + held + missing
-    # The covering review's summary findings, when it was the head's only
-    # summary count and its line reads no more than it reported.
     own = chain[0].findings - chain[0].inline  # type: ignore[operator]
     start, end = span or (None, None)
     lines = [
@@ -2103,7 +2023,6 @@ def _line_changed(
                 if start <= number:
                     flagged.append(row[1:])
                 number += 1
-        # The hunk must end on the range's last line and hold all of it.
         if number - 1 != end or len(flagged) != end - start + 1:
             return False
         flagged = [line for line in flagged if line.strip()]
@@ -2149,7 +2068,6 @@ def _bare_login(login: Any) -> str | None:
 
 
 def _time(value: Any) -> datetime | None:
-    """An aware timestamp, or None when absent or unreadable."""
     if not isinstance(value, str):
         return None
     try:

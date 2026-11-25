@@ -129,9 +129,6 @@ EXEMPTIONS="${EVALS_WARRANT_EXEMPTIONS:-scripts/evals-warrant-exemptions.txt}"
 evals_skip_dirs=()
 declare -A evals_skip=()
 if [[ -f "$EXEMPTIONS" ]]; then
-  # `inline`: entries are skill paths, never regexes, so a `#` anywhere on the
-  # line opens the reason comment (scripts/lib/read-list.sh owns the two comment
-  # families and why they must stay distinct).
   read_list::into evals_skip_dirs "$EXEMPTIONS" --comments inline || exit 2
   evals_stale=0
   for raw in ${evals_skip_dirs[@]+"${evals_skip_dirs[@]}"}; do

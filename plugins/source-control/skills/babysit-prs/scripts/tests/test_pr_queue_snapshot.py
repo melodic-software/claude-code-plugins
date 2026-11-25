@@ -477,8 +477,6 @@ class SinglePrScopeClassifierConsumptionTests(unittest.TestCase):
                 }
             ]
         )
-        # It is still human-blocking (the maintainer keeps the ability to
-        # human-stop their own PR); it just must not re-dispatch a worker.
         self.assertTrue(classified["feedback"]["human_blocking"])
         self.assertEqual(classified["new_feedback"]["human"], [])
         self.assertNotIn(
