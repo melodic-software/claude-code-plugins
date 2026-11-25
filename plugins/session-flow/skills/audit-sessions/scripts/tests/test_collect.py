@@ -1,4 +1,4 @@
-# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/multi/*
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/multi/* plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/tracer/proj-a/tracer-0001.jsonl
 
 from __future__ import annotations
 
