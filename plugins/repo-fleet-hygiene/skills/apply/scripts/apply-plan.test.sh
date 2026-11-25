@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# apply-plan.test.sh — dry-run, confirmation stop, OID drift skip, ordering.
 # shellcheck disable=SC2310 # pass/fail helpers return status in if/||; every false path is handled
 # shellcheck disable=SC2015 # `cond && pass || fail`: pass never fails, so fail runs only when cond is false
 
@@ -522,7 +521,6 @@ _, status = os.waitpid(pid, 0)
 sys.exit(os.WEXITSTATUS(status) if os.WIFEXITED(status) else 1)
 PY
 
-# run_pty OUT ANSWER... -- COMMAND...: answers each "[y/N]" prompt in order, returns the exit code.
 run_pty() {
   local out=$1
   shift
