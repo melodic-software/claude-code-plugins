@@ -693,7 +693,7 @@ def test_stop_open_items(ctx):
     assert output["decision"] == "block"
     assert "write the docs" in output["reason"]
     assert "fix the flaky test" in output["reason"]
-    assert RULES_TAIL in output["reason"].replace("\\", "/")
+    assert RULES_TAIL.replace("/", os.sep) in output["reason"]
     assert " refresh " not in output["reason"], "the hook keeps the blocks current, so it asks for no refresh"
     check = ctx.cli("check")
     assert check.returncode == 1
@@ -876,7 +876,7 @@ def test_prompt_subagent_report_not_return(ctx):
     for fixture in ("user_prompt_subagent_report", "user_prompt_loop", "user_prompt_typed"):
         text = context_of(ctx.hook("UserPromptSubmit", fixture))
         assert "2099-01-02T07:30:00+00:00" in text
-        assert RULES_TAIL in text.replace("\\", "/")
+        assert RULES_TAIL.replace("/", os.sep) in text
         assert "only when" in text
         assert "subagent" in text
         assert ctx.state()["status"] == "active", f"{fixture}: the hook never ends the absence itself"
