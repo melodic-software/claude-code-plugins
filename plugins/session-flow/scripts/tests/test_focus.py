@@ -24,7 +24,7 @@ LEAD = (
     "Session focus from session-flow. Keep each item below in the summary verbatim. Where it "
     "conflicts with the user's own /compact instructions, the user's instructions win."
 )
-CAP = 9000
+PRECOMPACT_STDOUT_LIMIT = 10_000  # https://code.claude.com/docs/en/hooks#precompact-output
 GOAL_CLEAR_ALIASES = ("clear", "stop", "off", "reset", "none", "cancel")
 OPTION = "CLAUDE_PLUGIN_OPTION_COMPACT_FOCUS_ENABLED"
 
@@ -134,7 +134,7 @@ def test_output_under_cap(env: dict[str, str], project: Path) -> None:
     set_focus(env, "--goal", "g" * 20000, "--note", "n" * 3000, "--handoff", str(project / "h.md"))
     result = precompact(env, project)
     assert result.returncode == 0
-    assert 0 < len(result.stdout) <= CAP, "the printed focus stays under the PreCompact cap"
+    assert 0 < len(result.stdout) < PRECOMPACT_STDOUT_LIMIT, "the printed focus stays under the PreCompact cap"
     assert "(cut; full condition in the handoff file)" in result.stdout, "a cut goal says so"
     assert "n" * 3000 in result.stdout, "cutting the goal keeps the other sections whole"
 
@@ -229,6 +229,33 @@ def test_set_with_setting_off_writes_nothing(env: dict[str, str]) -> None:
     result = run(env, "set", "--session", SESSION, "--goal", "x", "--enabled", "false")
     assert result.returncode == 0
     assert not focus_file(env).exists()
+
+
+def test_set_rendered_default_does_not_override_repo_false(env: dict[str, str], project: Path) -> None:
+    write_repo_setting(project, "false")
+    result = run(env, "set", "--session", SESSION, "--goal", "x", "--enabled", "true", cwd=project)
+    assert result.returncode == 0
+    assert not focus_file(env).exists(), "an unset option renders its default true; the repository false decides"
+
+
+def test_set_user_false_wins_over_repo_true(env: dict[str, str], project: Path) -> None:
+    write_repo_setting(project, "true")
+    run(env, "set", "--session", SESSION, "--goal", "x", "--enabled", "false", cwd=project)
+    assert not focus_file(env).exists()
+
+
+def test_set_rendered_default_writes_when_repo_unset(env: dict[str, str], project: Path) -> None:
+    set_focus(env, "--goal", "written", "--enabled", "true", cwd=project)
+    assert "written" in printed(env)
+
+
+def test_invalid_user_value_is_dropped(env: dict[str, str], project: Path) -> None:
+    set_focus(env, "--goal", "next layer decides")
+    result = precompact({**env, OPTION: "yes"}, project)
+    assert "next layer decides" in result.stdout, "an invalid user value is dropped, not read as off"
+    assert "compact_focus_enabled" in result.stderr, "the invalid value is named"
+    write_repo_setting(project, "false")
+    assert precompact({**env, OPTION: "yes"}, project).stdout == "", "the repository layer then decides"
 
 
 def test_unexpanded_enabled_placeholder_counts_as_unset(env: dict[str, str]) -> None:

@@ -85,8 +85,6 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--run-if-unset-or-true",
-              "COMPACT_FOCUS_ENABLED",
               "--skip-unless-stdin-contains",
               "/goal",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-focus-hook.sh",
@@ -105,8 +103,6 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--run-if-unset-or-true",
-              "COMPACT_FOCUS_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-focus-hook.sh",
               "PreCompact"
             ],
