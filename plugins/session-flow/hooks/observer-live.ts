@@ -34,7 +34,9 @@ const openBlock = (open: string | undefined) =>
 
 export const isResolved = (text: string) => /^\s*resolved\s*:\s*yes\b/im.test(text)
 
-export const buildPrompt = (seen: readonly string[], disputed: readonly string[], open?: string) => `<system-reminder>
+const UNCLEAR = '\nThe person could not understand an earlier finding: write the finding and the rule in plain words a newcomer can follow, with no term left unexplained.\n'
+
+export const buildPrompt = (seen: readonly string[], disputed: readonly string[], open?: string, notRelevant: readonly string[] = [], unclear = false) => `<system-reminder>
 You are a separate reviewer beside this session, not the assistant doing its work. The assistant keeps working and never sees your reply unless the person sends it. You have no tools and get one reply. Never repeat a secret, token, credential or personal detail, even one that appears above.
 </system-reminder>
 
@@ -45,7 +47,7 @@ Review this session's work so far for one process fault, judged only against rul
 - instruction: a written rule was broken, such as a command shape, a writing rule or where a file goes.
 
 Report a fault only when every one of these holds: you can quote the rule or decision; you can name the act in this session that breaks it; the assistant has not already noticed or corrected it; it still matters now. Taste, unwritten preferences and guesses do not count. Most checks find nothing, and that is the expected answer.
-${listed('Already reported (do not report again in any wording):', seen)}${listed('Disputed by the person (never report again):', disputed)}${openBlock(open)}
+${listed('Already reported (do not report again in any wording):', seen)}${listed('Disputed by the person (never report again):', disputed)}${listed('Not relevant to the person (do not report these or faults like them):', notRelevant)}${unclear ? UNCLEAR : ''}${openBlock(open)}
 Answer with plain lines and nothing else, in one of two shapes. Either:
 
 finding: none

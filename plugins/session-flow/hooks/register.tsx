@@ -41,6 +41,7 @@ const fresh = () => ({
   ended: false,
   card: null as Card | null,
   asked: false,
+  dismissed: null as Finding | null,
   icon: '◆',
   rows: [] as object[],
 })
@@ -69,6 +70,19 @@ const appendTo = async ($: EngineInterface, path: string, text: string) => {
   }
   throw new Error(`append failed: ${path} kept changing`)
 }
+const mainCheckout = async ($: EngineInterface, dir: string) => {
+  const r = await $.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: dir, timeoutMs: 10_000 }).catch(() => undefined)
+  const common = r?.exitCode === 0 ? r.stdout.trim() : ''
+  return /[\\/]\.git$/.test(common) ? common.replace(/[\\/]\.git$/, '') : dir
+}
+
+const KEEP_DAYS = 30
+const PRUNE =
+  "const fs=require('fs'),path=require('path'),[d,cut]=process.argv.slice(1);for(const n of fs.readdirSync(d)){const p=path.join(d,n);if(/^(observations-.*\\.ndjson|observer-.*\\.log)$/.test(n)||(/^live-.*\\.jsonl$/.test(n)&&fs.statSync(p).mtimeMs<Number(cut)))fs.rmSync(p,{force:true})}"
+const prune = async ($: EngineInterface, now: number) => {
+  if (await $.fs.exists(st.dataDir)) await $.process.run(['node', '-e', PRUNE, st.dataDir, String(now - KEEP_DAYS * DAY_MS)], { timeoutMs: 10_000 }).catch(() => undefined)
+}
+
 const iso = async ($: EngineInterface) => new Date(await $.clock.now()).toISOString()
 
 const ensureMemoryRootIgnored = async ($: EngineInterface) => {
@@ -149,9 +163,9 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   let outcome = 'error'
   let usage: Usage | undefined
   try {
-    const [seen, disputed] = [await list($, 'seen'), await list($, 'disputed')]
+    const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
     const open = st.card
-    const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, open?.finding.finding) })
+    const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0) })
     if (!r.isAnswered) {
       outcome = r.reason === 'nothing-to-fork' || r.reason === 'empty-reply' ? 'none' : String(r.reason).replace('-', '_')
       return
@@ -218,7 +232,8 @@ export const register: Register = (on, options) => {
     st.dataDir = `${env.CLAUDE_PLUGIN_DATA}/session-flow-observer`
     st.sid = ''
     await syncSession($)
-    st.ledgerDir = `${env.CLAUDE_PROJECT_DIR || e.cwd}/.work/running-retros`
+    st.ledgerDir = `${await mainCheckout($, env.CLAUDE_PROJECT_DIR || e.cwd)}/.work/running-retros`
+    void prune($, await $.clock.now())
     st.icon = (await $.env.get('TERM')) === 'dumb' ? '*' : '◆'
     st.ended = false
     st.on = true
@@ -303,6 +318,9 @@ export const register: Register = (on, options) => {
     if (card === null) {
       const rate = (answer: string) => async () => {
         st.asked = false
+        const f = st.dismissed
+        if (answer === 'not_relevant' && f !== null) await $.store.set('notRelevant', remember(await list($, 'notRelevant'), f.finding))
+        if (answer === 'unclear') await $.store.set('unclear', (await count($, 'unclear')) + 1)
         await record($, { at: await iso($), answer }).catch(() => undefined)
         $.ui.invalidate('ui.render')
       }
@@ -345,6 +363,7 @@ export const register: Register = (on, options) => {
             $.ui.invalidate('ui.render')
           },
           dismiss: async () => {
+            st.dismissed = f
             await answered($, 'dismissed')
             st.asked = true
             $.clock.after(ASKED_MS, () => {

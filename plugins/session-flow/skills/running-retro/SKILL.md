@@ -117,7 +117,10 @@ sections in the ledger (the observer's): reference it by its heading instead, wi
 
 ### 4. Append to the running ledger
 
-The ledger lives at `<memory_dir>/running-retros/` (default `.work/running-retros/`).
+The ledger lives at `<memory_dir>/running-retros/` (default `.work/running-retros/`), resolved
+against the repository's main checkout (the parent of `git rev-parse --path-format=absolute
+--git-common-dir`) so a session in a linked worktree shares its ledger with the observer and keeps
+it when the worktree is removed.
 
 **One ledger file per session, appended. Discover before creating.** Name it
 `<TS>-running-retro-<topic>.md` (`TS = date -u +%Y%m%dT%H%M%SZ`, topic = argument or inferred),

@@ -35,11 +35,16 @@ findings the person disputed are listed in the prompt and dropped again in code 
 case-insensitively without a trailing period.
 
 **Delivery.** A finding is appended to this session's running-retro ledger
-(`<project>/.work/running-retros/`, found by its `session_id:` frontmatter, created with
+(`<main checkout>/.work/running-retros/`, found by its `session_id:` frontmatter, created with
 `observer: live`) under `## Live check <time> (<trigger>, turn <id>, step <n>)`, after the same
-self-ignore guard the catch-up uses. Every ledger and usage write is an append (`node`'s
-`appendFileSync`, run through `$.process.run`), never a read-and-rewrite, so a running-retro
-checkpoint written at the same moment is never lost. The finding also shows as a band row above the
+self-ignore guard the catch-up uses. `<main checkout>` is the repository's main working tree
+(`git rev-parse --git-common-dir`, minus `.git`), so a session started in a linked worktree keeps
+its ledger when the worktree is removed; outside a repository it is the session's project folder.
+Every ledger and usage write is an append (`node`'s `appendFileSync`, run through
+`$.process.run`), so a running-retro checkpoint written at the same moment is never lost. Where
+`$.process.run` cannot run, the write falls back to a read and rewrite through `$.fs` that checks the
+file's size and modification time again just before writing and retries when they moved; that
+narrows the window but cannot close it, since `$.fs` has no append. The finding also shows as a band row above the
 prompt, with a blank line above and below it as the built-in side agent's has, led by a `◆` (`*` when
 `TERM` is `dumb`), `observer`, its category and the trigger that found it
 (`step 12`, `turn end`), with buttons `5` Send to Claude (appends a quoted note to the prompt box,
@@ -51,7 +56,9 @@ Nothing reaches the main conversation unless the person sends it. After Dismiss,
 the built-in side agent's answers on our hotkeys: `5` That was helpful, `6` Not relevant, `7`
 Couldn't understand, `8` Turn off checks (live checks stop for this session only; `/observer off`
 pauses every session) and `9` Close. It clears itself after 20 seconds; the answer goes to the usage
-file, so `/observer` can show how often findings were worth showing.
+file, so `/observer` can show how often findings were worth showing. Not relevant also adds the
+finding to a stored list the next checks are told not to report, nor faults like it; Couldn't
+understand makes every later check ask for plain words. Nothing is sent outside the machine.
 
 **Auto-clear.** While a finding is shown, the next check is told about it and answers
 `resolved: yes` when the assistant has since fixed it; the band then clears and the ledger records
@@ -63,8 +70,15 @@ count.
 
 **Usage.** Each check appends one line to `<plugin data>/session-flow-observer/live-<session>.jsonl`:
 time, trigger, turn, step, outcome, latency and the fork's token usage; each answer (sent, noted,
-disputed, dismissed, ignored, resolved) appends one too. That file is how a day's cost is read, and
-its presence tells the catch-up this session had live checks.
+disputed, dismissed, ignored, resolved, and the answers after Dismiss) appends one too. That file is
+how a day's cost is read, and its presence tells the catch-up this session had live checks.
+
+**Storage and retention.** One usage file per session and per machine, each with one writer, so no
+lock is needed; an agent reads them with `jq` or a line search, no index required. Session start
+deletes usage files not written for 30 days and the retired background observer's `observations-*`
+and `observer-*.log` files. Each machine (a Windows host and its WSL, for one) keeps its own data
+folder and store; a report that spans machines reads each machine's folder (another machine's
+through `/fleet:reach`) and merges the rows by `at`, with no sync between machines.
 
 **Cache.** A check forks the request the main thread just sent, mid-turn or at the turn's end, so it
 reads the conversation from a warm prompt cache and writes only its own prompt; it passes no effort

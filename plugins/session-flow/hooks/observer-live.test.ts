@@ -30,12 +30,17 @@ type World = {
   toasts: string[]
   rewrites: string[]
   clock?: any
+  runs: (readonly string[])[]
+  gitCommonDir?: string
 }
 
 const world = (on: any, env: Record<string, string> = {}, hasProcess = true) => {
-  const w: World = { sid: SID, files: {}, store: {}, forks: [], replies: [], fills: [], toasts: [], rewrites: [] }
+  const w: World = { sid: SID, files: {}, store: {}, forks: [], replies: [], fills: [], toasts: [], rewrites: [], runs: [] }
   on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
     if (!hasProcess) throw new Error('process.run is not available on this surface')
+    w.runs.push(e.argv)
+    if (e.argv[0] === 'git') return { value: w.gitCommonDir ? { exitCode: 0, stdout: `${w.gitCommonDir}\n`, stderr: '' } : { exitCode: 128, stdout: '', stderr: 'not a git repository' } }
+    if ((e.argv[2] as string).includes('rmSync')) return { value: { exitCode: 0, stdout: '', stderr: '' } }
     const path = e.argv[3] as string
     w.files[path] = (w.files[path] ?? '') + (e.init?.stdin ?? '')
     return { value: { exitCode: 0, stdout: '', stderr: '' } }
@@ -555,4 +560,68 @@ kitTest('buildPrompt lists what was seen and disputed', async () => {
   expect(p).toContain('- a seen one')
   expect(p).toContain('- a disputed one')
   expect(buildPrompt([], [])).not.toContain('Already reported')
+})
+
+test('buildPrompt lists findings marked not relevant and asks for plain words after an unclear one', () => {
+  const p = buildPrompt([], [], undefined, ['a not relevant one'], true)
+  expect(p).toContain('Not relevant to the person')
+  expect(p).toContain('- a not relevant one')
+  expect(p).toContain('could not understand an earlier finding')
+  expect(buildPrompt([], [])).not.toContain('could not understand')
+})
+
+test('Not relevant and Couldn\'t understand shape the next checks', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING), answer(FINDING.replace('Merged without reading', 'Pushed without reading')))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  for (const key of ['not-relevant', 'unclear']) {
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await ui.press({ key: 'dismiss' })
+    await ui.unmount()
+    const asked = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await asked.press({ key })
+    await asked.unmount()
+    if (key === 'not-relevant') await step($, 't1', 12)
+  }
+  expect(w.store.notRelevant).toEqual(['Merged without reading the pr-verify verdict.'])
+  expect(w.store.unclear).toBe(1)
+  expect(w.forks[1]).toContain('- Merged without reading the pr-verify verdict.')
+  await step($, 't1', 18)
+  expect(w.forks[2]).toContain('could not understand an earlier finding')
+})
+
+test('the ledger goes to the main checkout when the session runs in a linked worktree', async ($, on) => {
+  const w = world(on)
+  w.gitCommonDir = '/main/.git'
+  w.files['/main/.work/running-retros/.keep'] = ''
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(Object.keys(w.files).some(f => /^\/main\/\.work\/running-retros\/.*-running-retro-session\.md$/.test(f))).toBe(true)
+  expect(ledgerFiles(w)).toEqual([])
+})
+
+test('session start prunes usage files older than 30 days and the retired observer\'s files', async ($, on) => {
+  const w = world(on)
+  w.files[`${DATA}/session-flow-observer/live-old.jsonl`] = ''
+  await start($)
+  await settle()
+  const prune = w.runs.find(a => a[0] === 'node' && (a[2] as string).includes('rmSync'))
+  expect(prune?.[3]).toBe(`${DATA}/session-flow-observer`)
+  expect(Number(prune?.[4])).toBe(1_791_050_400_000 - 30 * 86_400_000)
+})
+
+test('the band keeps a blank line above and below it', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const boxes = await ui.findAll({ type: 'Box' })
+  expect(boxes.some(b => b.props.marginTop === 1 && b.props.marginBottom === 1)).toBe(true)
+  await ui.unmount()
 })
