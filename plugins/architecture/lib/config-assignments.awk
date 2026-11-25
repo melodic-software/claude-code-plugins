@@ -1,4 +1,3 @@
-
 function consider(path, value) {
   if (path == "" || value == "") return
   if (length(value) > 4000) return

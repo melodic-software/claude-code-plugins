@@ -1,6 +1,5 @@
 # GENERATED from lib/yaml-subset.awk by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-
 function fail(msg) {
   print "error\t" NR "\t" msg
   failed = 1

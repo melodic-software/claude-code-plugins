@@ -1,4 +1,3 @@
-
 function mask_js(s,    out, i, c, c2, n, inclass, j, w) {
   out = ""; n = length(s); i = 1
   last_sig = ""

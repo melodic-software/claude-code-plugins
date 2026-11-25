@@ -1,4 +1,3 @@
-
 function set_kind(names, kind,    t, i, n) {
   n = split(names, t, " ")
   for (i = 1; i <= n; i++) KIND[t[i]] = kind

@@ -1,4 +1,3 @@
-
 function redact_rank(k) {
   if (k == "authority") return 7
   if (k == "storage") return 6

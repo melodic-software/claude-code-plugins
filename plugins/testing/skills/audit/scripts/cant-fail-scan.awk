@@ -1,4 +1,3 @@
-
 BEGIN {
   blocks = 0
   in_test = 0

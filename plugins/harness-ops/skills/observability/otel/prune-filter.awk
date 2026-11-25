@@ -1,4 +1,3 @@
-
 function is_body(line) {
   return index(line, "\"key\":\"event.name\",\"value\":{\"stringValue\":\"api_request_body\"}") \
     || index(line, "\"key\":\"event.name\",\"value\":{\"stringValue\":\"api_response_body\"}")

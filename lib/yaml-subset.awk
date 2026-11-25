@@ -1,4 +1,3 @@
-
 function fail(msg) {
   print "error\t" NR "\t" msg
   failed = 1

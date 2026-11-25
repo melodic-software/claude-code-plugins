@@ -1,4 +1,3 @@
-
 function splice(f,  r, line) {
   while ((r = (getline line < f)) > 0) print line
   if (r < 0) {

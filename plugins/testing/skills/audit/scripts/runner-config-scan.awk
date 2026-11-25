@@ -1,4 +1,3 @@
-
 BEGIN {
   nlines = 0
   exempt = 0

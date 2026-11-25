@@ -1,4 +1,3 @@
-
 CREATE TEMP TABLE points AS
 SELECT session_id, metric_name, COALESCE(model, 'unknown') AS model,
   COALESCE(effort, 'unset') AS effort,

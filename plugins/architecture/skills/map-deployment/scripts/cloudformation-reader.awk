@@ -1,4 +1,3 @@
-
 BEGIN { CAP = 1; CLUSTER_NAME_PROP = "ClusterName"; SERVICE_NAME_PROP = "ServiceName" }
 
 function resolve_param(sc, name, depth,    f, pf, r, sec) {

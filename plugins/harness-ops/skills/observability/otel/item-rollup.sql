@@ -1,4 +1,3 @@
-
 WITH metrics AS (
   SELECT unnest(sm.metrics) AS m
   FROM (SELECT unnest(rm.scopeMetrics) AS sm

@@ -1,4 +1,3 @@
-
 BEGIN { CAP = 0; CLUSTER_NAME_PROP = "name"; SERVICE_NAME_PROP = "name" }
 
 function cfg_secret(f, name) { return fld(f, "config." name ".secret") && tolower(FV) == "true" }

@@ -1,4 +1,3 @@
-
 function jesc(s) {
   gsub(/\\/, "\\\\", s)
   gsub(/"/, "\\\"", s)

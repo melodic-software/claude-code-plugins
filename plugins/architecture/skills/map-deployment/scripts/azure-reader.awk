@@ -1,4 +1,3 @@
-
 function trim(s) { gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", s); return s }
 function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
 function dirof(p) { if (sub(/\/[^\/]*$/, "", p)) return p; return "." }
