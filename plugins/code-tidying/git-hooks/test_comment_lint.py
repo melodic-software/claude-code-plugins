@@ -1,4 +1,4 @@
-# test-scope: plugins/code-tidying/git-hooks/fixtures/*.sh.txt
+# test-scope: plugins/code-tidying/git-hooks/fixtures/*.sh.txt plugins/code-tidying/.claude-plugin/plugin.json
 from __future__ import annotations
 
 import contextlib
@@ -256,6 +256,28 @@ class Shape8LinkOrRfc(unittest.TestCase):
             with self.subTest(budget=budget):
                 got = lint.findings("a.sh", text, [(1, 6)], "necessary", [], max_lines=budget)
                 self.assertEqual([int(f.split(":")[1]) for f in got], want)
+
+    def test_punctuation_line_below_a_linked_paragraph_fails(self):
+        cases = [
+            ("a.js", "// The gateway closes idle sockets at 60s,\n// https://example.com/docs/idle\n//\n// ----\nconst x = 45;\n", [4]),
+            ("a.lua", "-- The gateway closes idle sockets at 60s,\n-- https://example.com/docs/idle\n-- ====\nlocal x = 45\n", [3]),
+            ("a.js", "// https://example.com/docs/idle\n// +--+--+\nconst x = 45;\n", [2]),
+        ]
+        for path, text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged(path, text), want)
+
+    def test_lines_passing_by_their_own_shape_take_no_line_budget(self):
+        linked = "# Header order is fixed by RFC 9110 section 5.3,\n# so the proxy writes Host first.\n"
+        cases = [
+            ("a.sh", "#!/bin/sh\n" + linked + "x=1\n"),
+            ("a.py", "#!/usr/bin/env python3\n" + linked + "x = 1\n"),
+            ("a.py", "# -*- coding: utf-8 -*-\n" + linked + "x = 1\n"),
+            ("a.sh", "x=1\n# shellcheck disable=SC2086\n" + linked + "y=1\n"),
+        ]
+        for path, text in cases:
+            with self.subTest(path=path, text=text):
+                self.assertEqual(flagged(path, text), [])
 
     def test_default_line_budget_is_the_userconfig_default(self):
         manifest = json.loads((HERE.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))

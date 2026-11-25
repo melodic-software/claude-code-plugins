@@ -20,8 +20,9 @@ grep -E) matches its text; every other one prints
   <path>:<line>: comment outside the <posture> posture: ...
 on stdout. A path with no lexer is skipped with one notice on stderr. Under necessary, a URL
 or RFC passes its own paragraph (comment lines with a word character, bounded by any other
-line) when that paragraph is at most <class-c-max-lines> lines (default 2), and a blank or
-delimiter line of the same comment passes with it. A one-line ADR pointer (ADR-0042, or a path into <adr-dir>) passes only when the record exists
+line and by a line that passes by its own shape, such as a directive) when that paragraph is at
+most <class-c-max-lines> lines (default 2), and a blank comment line (only comment markers)
+of the same comment passes with it. A one-line ADR pointer (ADR-0042, or a path into <adr-dir>) passes only when the record exists
 under <adr-dir> (default docs/adr; one outside <records> falls back to it) of <records>, the
 repository as the change holds it; with no <records> it fails.
 
@@ -79,6 +80,7 @@ IGNORE = "remove-comments-ignore"
 DISSOLVE = "dissolve-comments-ignore"
 LINK = re.compile(r"https?://\S|\bRFC[\s-]?\d+", re.IGNORECASE)
 PROSE = re.compile(r"\w")
+BLANK = re.compile(r"^\s*(?:#+|//+|/\*+|\*|--|;+|%+|<!--)?\s*(?:\*/|-->)?\s*$")
 CLASS_C_MAX_LINES = 2
 ADR_DIR = "docs/adr"
 ADR_POINTER = re.compile(
@@ -224,18 +226,34 @@ def _has_prose(line: _Line) -> bool:
     return bool(PROSE.search(line.comment))
 
 
+def _own_shape(n: int, text: str) -> bool:
+    return (
+        (n == 1 and text.startswith("#!"))
+        or (n <= 2 and bool(COOKIE.match(text)))
+        or bool(DIRECTIVE.search(text) or TRACKED.search(text))
+        or IGNORE in text
+        or DISSOLVE in text
+    )
+
+
+def _in_paragraph(m: int, lines: list[_Line]) -> bool:
+    return _has_prose(lines[m]) and not _own_shape(m, lines[m].comment)
+
+
 def _paragraph(n: int, run: list[int], lines: list[_Line]) -> list[int]:
     low = high = run.index(n)
-    while low > 0 and _has_prose(lines[run[low - 1]]):
+    while low > 0 and _in_paragraph(run[low - 1], lines):
         low -= 1
-    while high < len(run) - 1 and _has_prose(lines[run[high + 1]]):
+    while high < len(run) - 1 and _in_paragraph(run[high + 1], lines):
         high += 1
     return run[low : high + 1]
 
 
 def _linked(n: int, run: list[int], lines: list[_Line], max_lines: int) -> bool:
+    if BLANK.match(lines[n].comment):
+        return any(_in_paragraph(m, lines) and _linked(m, run, lines, max_lines) for m in run)
     if not _has_prose(lines[n]):
-        return any(_has_prose(lines[m]) and _linked(m, run, lines, max_lines) for m in run)
+        return False
     paragraph = _paragraph(n, run, lines)
     return len(paragraph) <= max_lines and any(LINK.search(lines[m].comment) for m in paragraph)
 
