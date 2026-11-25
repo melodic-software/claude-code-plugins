@@ -1636,14 +1636,13 @@ the rules that only tighten in
   pieces, each under the file's header and no two in one chunk, and a hunk over 300000 bytes with
   that header is cut between its lines, each cut under an `@@` header recounted for its lines
   (`diff_chunking.py split --cut-lines`); each chunk is
-  reviewed by its own run, in
-  order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
+  reviewed by its own run, chunk 1 first and the rest `CHUNK_PARALLELISM` (8) at once in one
+  step (ci-workflows `run-review-chunks`), and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
   any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
-  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single line
-  over 300000 bytes with its headers, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
-  review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
-  until a dynamic chunk count lifts it
-  ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). A chunked
+  CRITICAL items than its `critical` count, which alone binds, and its summary keeps each chunk's
+  first 16000 / N characters. A patch that holds a single line
+  over 300000 bytes with its headers, or needs more than 75 chunks (the diff step's `MAX_CHUNKS`,
+  22.5 MB), gets no verdict and stops as `too-large`. A chunked
   diff also writes `manifest.txt` in the data directory, every file of the whole diff with its
   chunk, `piece <i> of <n>` for each piece of a cut file, and status (added, modified, deleted,
   or renamed with both paths), up to what one Read
@@ -2877,23 +2876,25 @@ sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
 (`scripts/plan-test-lanes.sh`), so a skipped `test-node` does not read as that suite unrun. A
 label or body-edit re-run skips `select-tests` and every suite, so its list is no
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
-bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
+bytes as it takes, up to 75 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 22.5 MB diff), each file
 whole but one over 300000 bytes, cut at its hunks (a hunk over a chunk between its lines, under
 recounted `@@` headers) into pieces the manifest lists as
 `piece <i> of <n>` (`chunk-diff.sh`, `diff_chunking.py`; the same chunk budget as `pr-review-main`),
 and a file with one line over a chunk gets no verdict; each chunk
-gets its own judge step with the same spec, cut into parts one Read returns whole; a line over 1800
+is judged by its own run with the same spec, chunk 1 first and the rest `CHUNK_PARALLELISM` (8) at once in one step
+(ci-workflows `run-review-chunks`), cut into parts one Read returns whole; a line over 1800
 bytes carries on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
 (`manifest/part-*.txt`) names the part each file starts in, so a judge reads another chunk's part when
 its change references a file there and judges both sides. A `pass` or `pass-notes` counts only when the
 run read every part whole with no permission denial. A `fail` needs the schema and, when it read short,
 a defect in its notes. It counts on a denial, which it records, since no fail can pass the head, and
 it stands whatever follows:
-the step after each judge stops the later chunks, the final judge and any handoff, and
+a fail in chunk 1 skips the later chunks, a fail in any chunk skips the final judge and any handoff, and
 `Write the verdict` runs on it, so a re-run cannot sample that head. A `pass-notes` makes the head
 `pass-notes`. A head of two chunks or more also needs a final judge step, `Judge the whole spec`,
-denied the diff: it reads the spec and every chunk's checked result, whole, in as many files as that
-takes, as untrusted data (`spec-prompt.md`), and maps each done-when item to the chunk that delivers
+denied the diff: it reads the spec and every chunk's checked result, whole, one JSON object a line in as
+few files as that takes, within 300000 bytes (each chunk's prompt asks for summary and notes under
+300000 / N / 3 characters), as untrusted data (`spec-prompt.md`), and maps each done-when item to the chunk that delivers
 it, and a script fails the head on an item mapped to none. It must read the spec, the manifest and
 every result whole, and on a spec entry whose `spec_kind` is `refs` the context too, cut into the
 same parts. With no output

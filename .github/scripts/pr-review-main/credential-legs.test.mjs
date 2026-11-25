@@ -81,6 +81,9 @@ function chunks(ran, l, outcome) {
     steps[`steps.review-${k}.outputs.handoff`] = hit ? outcome.handoff : before ? "false" : "";
     steps[`steps.review-${k}.outputs.handoff-reason`] = hit ? outcome.reason : "";
   }
+  const later = ran && l.at >= 2;
+  steps["steps.review-chunks.outputs.handoff"] = later ? outcome.handoff : "";
+  steps["steps.review-chunks.outputs.handoff-reason"] = later ? outcome.reason : "";
   return steps;
 }
 

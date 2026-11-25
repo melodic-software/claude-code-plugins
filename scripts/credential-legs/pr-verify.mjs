@@ -12,7 +12,7 @@ const KEY_ONLY = [
   "Scan the key's credit-stop marker for credentials",
   "Upload the key's credit-stop marker",
 ];
-const LEG_CHECKS = ["", ...Array.from({ length: 11 }, (_, i) => `, chunk ${i + 2}`), ", whole spec"].map((s) => `Check the key leg${s}`);
+const LEG_CHECKS = ["", ", later chunks", ", whole spec"].map((s) => `Check the key leg${s}`);
 const CREDENTIAL_CALL = `          credential-set: \${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
           selected: \${{ steps.credit.outputs.next-leg }}
           key-off: \${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}`;
@@ -44,9 +44,8 @@ const shared = (carriedComment) => [
     1,
   ],
   [" && steps.credential.outputs.key-skipped != 'true'", "", 5],
-  ["          # anything else needs every chunk and the whole-spec judgment.", "          # anything else needs every chunk and the final judge.", 1],
 ];
-const fallbackReady = ['          leg-timeout-minutes: "15"', `          fallback-ready: \${{ steps.credential.outputs.fallback-ready }}\n          leg-timeout-minutes: "15"`, 13];
+const fallbackReady = ['          leg-timeout-minutes: "15"', `          fallback-ready: \${{ steps.credential.outputs.fallback-ready }}\n          leg-timeout-minutes: "15"`, 3];
 const FALLBACK_REASON = `          fallback-reason: \${{ steps.credential.outputs.fallback-reason }}`;
 
 export default {
@@ -95,17 +94,17 @@ verdict fails here.`,
           reason: \${{ needs.check-intent.result == 'skipped' && 'no-key' || needs.check-intent.outputs.next-reason }}`,
           1,
         ],
-        ["          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}", "          subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}", 13],
+        ["          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}", "          subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}", 3],
         fallbackReady,
-        ["- name: Check the key leg", "- name: Check the subscription leg", 13],
-        [/^( {10})LANE_CLASS: \$\{\{ steps\.(judge[\w-]*)\.outputs\.lane-class \}\}$/gm, "$1HANDOFF_REASON: ${{ steps.$2.outputs.handoff-reason }}", 13],
+        ["- name: Check the key leg", "- name: Check the subscription leg", 3],
+        [/^( {10})LANE_CLASS: \$\{\{ steps\.(judge[\w-]*)\.outputs\.lane-class \}\}$/gm, "$1HANDOFF_REASON: ${{ steps.$2.outputs.handoff-reason }}", 3],
         [
           LEG_CHECK_RUN,
           `          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
           echo "::notice::the subscription leg handed off (\${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"`,
-          13,
+          3,
         ],
-        [/(?<!check-)key-leg/g, "sub-leg", 52],
+        [/(?<!check-)key-leg/g, "sub-leg", 12],
         [
           " && steps.credential.outputs.present != 'false' && steps.",
           " && !(steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true') && steps.",
@@ -116,7 +115,7 @@ verdict fails here.`,
           `steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}\n          # Why this job ran, for its lane record.\n${FALLBACK_REASON}\n`,
           1,
         ],
-        [/^( {10}handoff: \$\{\{ steps\.judge-[\w]+\.outputs\.handoff == 'true' && steps\.sub-leg-\w+\.outcome != 'failure' \}\})$/gm, `$1\n${FALLBACK_REASON}`, 12],
+        [/^( {10}handoff: \$\{\{ steps\.judge-[\w]+\.outputs\.handoff == 'true' && steps\.sub-leg-\w+\.outcome != 'failure' \}\})$/gm, `$1\n${FALLBACK_REASON}`, 2],
       ],
     },
     {
@@ -142,14 +141,14 @@ inputs, never its value.`,
           reason: \${{ needs.check-intent-subscription.outputs.next-reason }}`,
           1,
         ],
-        ["          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}", "          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}", 13],
+        ["          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}", "          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}", 3],
         fallbackReady,
         [
           "          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}",
           `          # Why this job ran, for its lane record.\n${FALLBACK_REASON}`,
           1,
         ],
-        [/^ {10}handoff: \$\{\{ steps\.judge-\w+\.outputs\.handoff == 'true' && steps\.key-leg-\w+\.outcome != 'failure' \}\}$/gm, FALLBACK_REASON, 12],
+        [/^ {10}handoff: \$\{\{ steps\.judge-\w+\.outputs\.handoff == 'true' && steps\.key-leg-\w+\.outcome != 'failure' \}\}$/gm, FALLBACK_REASON, 2],
         [/ && steps\.credential\.outputs\.present != 'false'(?: && steps\.key-leg[\w-]*\.outcome != 'success')+$/gm, "", 1],
       ],
     },

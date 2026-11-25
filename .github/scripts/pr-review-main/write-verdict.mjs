@@ -28,6 +28,7 @@ export const LONG_LINE_BYTES = 1800;
 const FINDINGS_MAX = 200;
 const TEXT_MAX = 2000;
 const SUMMARY_MAX = 4000;
+export const MERGED_SUMMARY_MAX = 4 * SUMMARY_MAX;
 const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
@@ -170,19 +171,22 @@ export function buildChunkedVerdict({ outputs, ...rest }) {
   if (chunks.length === 1) {
     return chunks[0];
   }
+  const room = Math.min(SUMMARY_MAX, Math.floor(MERGED_SUMMARY_MAX / chunks.length));
   return {
     ...chunks[0],
     findings: chunks.reduce((sum, c) => sum + c.findings, 0),
     critical: Math.max(...chunks.map((c) => c.critical)),
-    summary: chunks.map((c, i) => `Chunk ${i + 1} of ${chunks.length}: ${c.summary}`).join("\n\n"),
+    summary: chunks.map((c, i) => `Chunk ${i + 1} of ${chunks.length}: ${c.summary.slice(0, room)}`).join("\n\n"),
     items: chunks.flatMap((c, i) => c.items.map((item) => ({ ...item, chunk: i + 1 }))),
   };
 }
 
-// The diff is DIFF_DIR/chunk-<k>/part-<n>.patch; EXECUTION_FILES names each
-// chunk's execution file, one per line in chunk order.
+export function executionFiles(env, count) {
+  return Array.from({ length: count }, (_, i) => (i === 0 ? env.EXECUTION_FILE : env.CHUNKS_DIR && path.join(env.CHUNKS_DIR, `chunk-${i + 1}`, "execution.json")));
+}
+
 export function main(env = process.env) {
-  for (const key of ["EXECUTION_FILES", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "STANDARDS_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
+  for (const key of ["EXECUTION_FILE", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "STANDARDS_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
@@ -201,7 +205,7 @@ export function main(env = process.env) {
   if (dirs.length !== count || !want.every((name) => dirs.includes(name))) {
     throw new Error(`the diff holds ${dirs.length} chunk directories, not the ${count} the diff step wrote`);
   }
-  const files = env.EXECUTION_FILES.split("\n");
+  const files = executionFiles(env, count);
   const chunks = want.map((name, i) => {
     const label = `chunk ${i + 1} of ${count}`;
     let parts;

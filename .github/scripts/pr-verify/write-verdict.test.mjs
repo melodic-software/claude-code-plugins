@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -24,6 +24,9 @@ import {
   buildVerdict,
   checkChunk,
   checkKeyLeg,
+  chunkBudget,
+  laterRuns,
+  RESULT_BYTES_MAX,
   failIndexNames,
   HEAD_REF_DIGEST_HEX,
   headRefDigest,
@@ -1104,17 +1107,16 @@ test("writeChunkResults hands the final step each chunk's output whole, and the 
     SCHEMA_FILE: path.join(dir, "spec-schema.json"),
   };
   writeChunkResults({ ...env, EXECUTION_FILES: slots(execution("e1.json", parts[0], crowded), execution("e2.json", parts[1], CHUNK_PASS)) });
-  const resultParts = (k) => readdirSync(env.RESULTS_DIR).filter((name) => name.startsWith(`chunk-${k}-part-`)).sort();
-  assert.ok(resultParts(1).length > 1);
-  for (const name of resultParts(1)) {
+  const resultParts = () => readdirSync(env.RESULTS_DIR).filter((name) => name.startsWith("results-part-")).sort();
+  assert.ok(resultParts().length > 1);
+  for (const name of resultParts()) {
     const text = readFileSync(path.join(env.RESULTS_DIR, name), "utf8");
     assert.ok(Buffer.byteLength(text) <= 15000, name);
     assert.ok(text.split("\n").every((line) => line.length <= 1500), name);
   }
-  const result = (k) => JSON.parse(resultParts(k).map((name) => readFileSync(path.join(env.RESULTS_DIR, name), "utf8")).join("").replaceAll("\n", ""));
-  assert.deepEqual(result(1), { chunk: 1, of: 2, ...crowded });
-  assert.deepEqual(result(2), { chunk: 2, of: 2, ...CHUNK_PASS });
-  assert.deepEqual(resultParts(2), ["chunk-2-part-001.txt"]);
+  const packed = resultParts().map((name) => readFileSync(path.join(env.RESULTS_DIR, name), "utf8")).join("");
+  assert.equal(packed.replaceAll("\n", ""), JSON.stringify({ chunk: 1, of: 2, ...crowded }) + JSON.stringify({ chunk: 2, of: 2, ...CHUNK_PASS }));
+  assert.ok(packed.endsWith(`\n${JSON.stringify({ chunk: 2, of: 2, ...CHUNK_PASS })}\n`));
   assert.deepEqual(readdirSync(env.RESULTS_DIR).filter((name) => name.startsWith("context-part-")), []);
   const specParts = readdirSync(env.RESULTS_DIR).filter((name) => name.startsWith("spec-part-")).sort();
   assert.ok(specParts.length > 1);
@@ -1127,17 +1129,16 @@ test("writeChunkResults hands the final step each chunk's output whole, and the 
   }
   assert.ok(rejoined.length >= readFileSync(env.SPEC_TEXT_FILE, "utf8").length);
   const prompt = readFileSync(env.PROMPT_FILE, "utf8");
-  assert.ok(prompt.includes(`  - \`${path.join(env.RESULTS_DIR, resultParts(1).at(-1))}\`\n  - \`${path.join(env.RESULTS_DIR, "chunk-2-part-001.txt")}\``));
+  assert.ok(prompt.includes(resultParts().map((name) => `  - \`${path.join(env.RESULTS_DIR, name)}\``).join("\n")));
   for (const name of specParts) assert.ok(prompt.includes(`  - \`${path.join(env.RESULTS_DIR, name)}\``), name);
   for (const file of [env.SPEC_FILE, env.CONTEXT_FILE, env.PR_FILE, ...manifestParts]) assert.ok(prompt.includes(file), file);
   assert.doesNotMatch(prompt, /RESULT_FILES|SPEC_PARTS|MANIFEST_PARTS|SPEC_FILE|PR_FILE|CONTEXT_FILE/);
   assert.ok(!prompt.includes("/diff/"), "the final step is pointed at no diff");
   assert.deepEqual(JSON.parse(readFileSync(env.SCHEMA_FILE, "utf8")).required, ["verdict", "summary", "notes", "items"]);
-  const secret = { ...env, RESULTS_DIR: path.join(dir, "none"), EXECUTION_FILES: `${execution("e3.json", parts[0], { ...CHUNK_PASS, summary: KEY })}\n${execution("e4.json", parts[1], CHUNK_PASS)}\n` };
+  const secret = { ...env, RESULTS_DIR: path.join(dir, "none"), GITHUB_OUTPUT: write("secret-out", ""), EXECUTION_FILES: `${execution("e3.json", parts[0], { ...CHUNK_PASS, summary: KEY })}\n${execution("e4.json", parts[1], CHUNK_PASS)}\n` };
   writeChunkResults(secret);
-  const secretResult = readFileSync(path.join(secret.RESULTS_DIR, "chunk-1-part-001.txt"), "utf8");
-  assert.ok(!secretResult.includes("sk-ant-"));
-  assert.equal(JSON.parse(secretResult).verdict, "fail");
+  assert.equal(readFileSync(secret.GITHUB_OUTPUT, "utf8"), "fail=true\n");
+  assert.equal(existsSync(secret.RESULTS_DIR), false);
   const refsSpec = { ...env, RESULTS_DIR: path.join(dir, "refs"), PROMPT_FILE: path.join(dir, "prompt-refs.md"), SPEC_TEXT_FILE: write("spec-refs.json", [{ spec_kind: "refs", body: "x" }]), CONTEXT_FILE: write("context-long.json", { pr: { body: "é long body ".repeat(5000) } }), EXECUTION_FILES: `${execution("e7.json", parts[0], CHUNK_PASS)}\n${execution("e8.json", parts[1], CHUNK_PASS)}\n` };
   writeChunkResults(refsSpec);
   const contextParts = readdirSync(refsSpec.RESULTS_DIR).filter((name) => name.startsWith("context-part-")).sort();
@@ -1171,4 +1172,104 @@ test("checkKeyLeg on the final step reads the chunks that ran, past the blank sl
   const short = { CHUNKS: "2", LOG_FILES: `${slots(a)}${c}\n`, GITHUB_OUTPUT: path.join(dir, "short") };
   assert.throws(() => checkKeyLeg(short), /unreadable/);
   assert.equal(existsSync(short.GITHUB_OUTPUT), false);
+});
+
+function laterChunks(count, outputOf, outcomeOf = () => "success") {
+  const dir = tempDir("pr-verify-later-");
+  const write = (name, value) => {
+    const file = path.join(dir, name);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, typeof value === "string" ? value : JSON.stringify(value));
+    return file;
+  };
+  const manifest = write("manifest/part-001.txt", "chunk 1 x\n");
+  const run = (k, prefix) => {
+    const part = write(`diff/chunk-${k}/part-001.patch`, "x\n");
+    write(`${prefix}execution.json`, [
+      { type: "assistant", message: { content: [part, manifest].map((file, i) => ({ type: "tool_use", id: `t${i}`, name: "Read", input: { file_path: file } })) } },
+      { type: "result", subtype: "success", structured_output: outputOf(k) },
+    ]);
+    write(`${prefix}log.jsonl`, JSON.stringify({ denials: { count: 0 } }));
+  };
+  run(1, "first-");
+  for (let k = 2; k <= count; k++) run(k, `chunks/chunk-${k}/`);
+  return {
+    dir,
+    env: {
+      CHUNKS: String(count),
+      DIFF_DIR: path.join(dir, "diff"),
+      EXECUTION_FILES: `${path.join(dir, "first-execution.json")}\n`,
+      LOG_FILES: `${path.join(dir, "first-log.jsonl")}\n`,
+      JUDGE_OUTCOMES: "success\n",
+      CHUNKS_DIR: path.join(dir, "chunks"),
+      CHUNK_OUTCOMES: Array.from({ length: count - 1 }, (_, i) => outcomeOf(i + 2)).join(","),
+      RESULTS_DIR: path.join(dir, "results"),
+      PART_BYTES: "15000",
+      SPEC_TEXT_FILE: write("spec-text.json", '[{"body": "deliver x"}]\n'),
+      SPEC_FILE: write("spec.json", "[]\n"),
+      CONTEXT_FILE: write("context.json", "{}\n"),
+      PR_FILE: write("pr.json", "{}\n"),
+      MANIFEST_DIR: path.join(dir, "manifest"),
+      PROMPT_FILE: path.join(dir, "prompt-spec.md"),
+      PROMPT_TEMPLATE: fileURLToPath(new URL("./spec-prompt.md", import.meta.url)),
+      SCHEMA_FILE: path.join(dir, "spec-schema.json"),
+      GITHUB_OUTPUT: write("out", ""),
+    },
+  };
+}
+
+test("75 chunks, each at its prompt's budget, fit the final judge's one read budget", () => {
+  assert.equal(chunkBudget(75), 1333);
+  assert.equal(chunkBudget(2), 50000);
+  assert.equal(RESULT_BYTES_MAX, 300000);
+  const { env } = laterChunks(75, () => ({ verdict: "pass", summary: "é".repeat(1333), notes: [] }));
+  writeChunkResults(env);
+  const files = readdirSync(env.RESULTS_DIR).filter((name) => name.startsWith("results-part-")).sort();
+  assert.ok(files.length >= 1 && files.length <= 20, String(files.length));
+  const texts = files.map((name) => readFileSync(path.join(env.RESULTS_DIR, name), "utf8"));
+  for (const part of texts) assert.ok(Buffer.byteLength(part) <= 15000);
+  assert.ok(texts.reduce((sum, part) => sum + Buffer.byteLength(part), 0) <= 300000);
+  const joined = texts.join("").replaceAll("\n", "");
+  assert.ok(joined.startsWith('{"chunk":1,"of":75,"verdict":"pass"'));
+  assert.ok(joined.includes('{"chunk":75,"of":75,"verdict":"pass"'));
+  const prompt = readFileSync(env.PROMPT_FILE, "utf8");
+  for (const name of files) assert.ok(prompt.includes(`  - \`${path.join(env.RESULTS_DIR, name)}\``), name);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
+});
+
+test("a fail a later chunk left skips the final judge, and a later chunk stopped with a result is a withheld fail", () => {
+  const failing = laterChunks(5, (k) => (k === 4 ? CHUNK_FAIL : CHUNK_PASS));
+  writeChunkResults(failing.env);
+  assert.equal(readFileSync(failing.env.GITHUB_OUTPUT, "utf8"), "fail=true\n");
+  assert.equal(existsSync(failing.env.RESULTS_DIR), false);
+  const stopped = laterChunks(3, () => CHUNK_PASS, (k) => (k === 3 ? "failure" : "success"));
+  writeChunkResults(stopped.env);
+  assert.equal(readFileSync(stopped.env.GITHUB_OUTPUT, "utf8"), "fail=true\n");
+  const skipped = laterChunks(3, () => CHUNK_PASS, (k) => (k === 3 ? "skipped" : "success"));
+  assert.throws(() => writeChunkResults(skipped.env), /chunk 3 of 3: the chunk left no run/);
+  assert.equal(readFileSync(skipped.env.GITHUB_OUTPUT, "utf8"), "");
+});
+
+test("laterRuns names the files of each later chunk that ran, and checkKeyLeg needs every one of their logs", () => {
+  const { dir, env } = laterChunks(4, () => CHUNK_PASS, (k) => ({ 2: "success", 3: "failure", 4: "skipped" })[k]);
+  assert.deepEqual(laterRuns(env), [
+    { outcome: "success", execution: path.join(dir, "chunks/chunk-2/execution.json"), log: path.join(dir, "chunks/chunk-2/log.jsonl") },
+    { outcome: "failure", execution: path.join(dir, "chunks/chunk-3/execution.json"), log: path.join(dir, "chunks/chunk-3/log.jsonl") },
+    { outcome: "", execution: "", log: "" },
+  ]);
+  assert.deepEqual(laterRuns({}), []);
+  const out = path.join(dir, "leg-out");
+  checkKeyLeg({ LOG_FILES: env.LOG_FILES, CHUNKS_DIR: env.CHUNKS_DIR, CHUNK_OUTCOMES: env.CHUNK_OUTCOMES, GITHUB_OUTPUT: out });
+  assert.equal(readFileSync(out, "utf8"), "clean=true\n");
+  writeFileSync(path.join(dir, "chunks/chunk-3/log.jsonl"), JSON.stringify({ denials: { count: 1 } }));
+  assert.throws(() => checkKeyLeg({ LOG_FILES: env.LOG_FILES, CHUNKS_DIR: env.CHUNKS_DIR, CHUNK_OUTCOMES: env.CHUNK_OUTCOMES, GITHUB_OUTPUT: path.join(dir, "denied") }), /1 permission denial/);
+  const missing = laterChunks(3, () => CHUNK_PASS);
+  rmSync(path.join(missing.dir, "chunks/chunk-3/log.jsonl"));
+  assert.throws(() => checkKeyLeg({ LOG_FILES: missing.env.LOG_FILES, CHUNKS_DIR: missing.env.CHUNKS_DIR, CHUNK_OUTCOMES: missing.env.CHUNK_OUTCOMES, GITHUB_OUTPUT: path.join(missing.dir, "o") }), /unreadable/);
+  const spec = path.join(missing.dir, "spec-log.jsonl");
+  writeFileSync(spec, JSON.stringify({ denials: { count: 0 } }));
+  const all = laterChunks(3, () => CHUNK_PASS);
+  checkKeyLeg({ CHUNKS: "3", LOG_FILES: `${all.env.LOG_FILES}${spec}\n`, CHUNKS_DIR: all.env.CHUNKS_DIR, CHUNK_OUTCOMES: all.env.CHUNK_OUTCOMES, GITHUB_OUTPUT: path.join(all.dir, "spec-out") });
+  assert.equal(readFileSync(path.join(all.dir, "spec-out"), "utf8"), "clean=true\n");
+  assert.throws(() => checkKeyLeg({ CHUNKS: "3", LOG_FILES: `${all.env.LOG_FILES}${spec}\n`, CHUNKS_DIR: all.env.CHUNKS_DIR, CHUNK_OUTCOMES: "success", GITHUB_OUTPUT: path.join(all.dir, "short-out") }), /unreadable/);
 });
