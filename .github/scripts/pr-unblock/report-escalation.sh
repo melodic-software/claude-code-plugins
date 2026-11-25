@@ -257,9 +257,9 @@ if [[ $route == hold ]]; then
   labeled=$(gh api "$issue" | jq --arg l "$label" '[.labels[].name] | index($l) != null')
   if [[ $labeled == true ]]; then
     marked=$(gh api --paginate "$issue/comments?per_page=100" | jq -s --arg bot "$bot" --arg m "$marker" --arg k "$key_line" \
-      --arg r "- Reason: \`$ESCALATION_REASON\`" \
+      --arg r "\`$ESCALATION_REASON\`" \
       '[add[] | select(.user.login == $bot) | (.body // "") | split("\n") | map(rtrimstr("\r"))
-        | select(.[0] == $m and (.[1] // "") == $k and any(.[]; . == $r))] | length > 0')
+        | select(.[0] == $m and (.[1] // "") == $k and any(.[]; . == "- Lane code: \($r)" or . == "- Reason: \($r)"))] | length > 0')
     if [[ $marked == true ]]; then
       echo "already escalated $ESCALATION_REASON for resume key $HEAD_SHA"
       exit 0
@@ -279,7 +279,7 @@ fi
 # path is data: backticks, line breaks and angle brackets are dropped so it
 # stays one code span and cannot open an HTML comment (a marker line).
 details=''
-if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
+if [[ $ESCALATION_REASON == feedback-not-converging || $ESCALATION_REASON == feedback-question-* ]]; then
   # Page by page, as address-feedback.mjs listThreads reads them: an open
   # thread past the first 100 can be the one that stopped the lane. Anyone
   # who can comment can add threads, so the read stops at MAX_THREAD_PAGES
@@ -319,7 +319,11 @@ if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
   else
     threads='- the open review threads could not be read; see the pull request'"'"'s Files changed tab'
   fi
-  details=$'\n'"The review rounds are not converging after the round cap and one fresh fixer round. Open review threads:"$'\n\n'"$threads"$'\n'
+  if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
+    details=$'\n'"The review rounds are not converging after the round cap and one fresh fixer round. Open review threads:"$'\n\n'"$threads"$'\n'
+  else
+    details=$'\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n'"$threads"$'\n\n</details>'
+  fi
 elif [[ $ESCALATION_REASON == feedback-incomplete ]]; then
   # Each kept thread with no disposition, as publish-feedback.mjs named it
   # (undisposedLines) in the newest lanes App round marker on this head. Only
@@ -403,21 +407,22 @@ EOF
 fi
 
 if [[ -n $activity ]]; then
-  resume="To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:"$'\n\n```sh\n'"$dispatch"$'\n```'
+  resume="- To resume: deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow:"$'\n\n```sh\n'"$dispatch"$'\n```'
 else
-  resume="To resume, deal with the reason above, then remove the \`$label\` label (and \`do-not-merge\`, if set)."
+  resume="- To resume: deal with the reason above, then remove the \`$label\` label (and \`do-not-merge\`, if set)."
 fi
 {
   printf '%s\n%s\n' "$marker" "$key_line"
   [[ -z $reason_lines ]] || printf '%s\n' "${reason_lines%%$'\n'*}"
-  printf 'The pr-unblock lane stopped on this pull request and needs a person: %s.\n\n' "$why"
-  [[ -z $reason_lines ]] || printf '%s\n\n' "${reason_lines#*$'\n'}"
+  printf '### pr-unblock / report-escalation\nHeld for a person: %s.\n' "$why"
+  [[ -z $reason_lines ]] || printf '%s\n' "${reason_lines#*$'\n'}"
 } >"$body"
 cat >>"$body" <<EOF
-- Reason: \`$ESCALATION_REASON\`
-- Resume key: \`$HEAD_SHA\` (the head the lane stopped on)
 
+- Lane code: \`$ESCALATION_REASON\`
+- Resume key: \`$HEAD_SHA\` (the head the lane stopped on)
 $resume
+$details
 EOF
 
 if [[ $labeled != true ]]; then
