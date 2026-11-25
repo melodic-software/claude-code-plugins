@@ -379,7 +379,8 @@ def fix(root: Path, renames: dict[str, str]) -> list[str]:
 
     def stage_token(match: re.Match) -> str:
         word = match.group(1).lower()
-        entry = stage_map.entries.get(stage_map.names.get(word, ""))
+        sid = stage_map.names.get(word) or stage_map.names.get(stage_map.aliases.get(word, ""))
+        entry = stage_map.entries.get(sid or "")
         if entry is None:
             return match.group(0)
         return match.group(0)[: match.start(2) - match.start(0)] + entry

@@ -295,6 +295,12 @@ class NextGraphTest(unittest.TestCase):
         self.assertIn("- Decisions settled: the plan stage (/p:plan).", text)
         self.assertIn("Prose names the plan stage (/q:planner) outside Next.", text)
 
+    def test_fix_resolves_a_stage_alias(self) -> None:
+        self.fx.skill("q:builder", "design", None)
+        self.fx.skill("p:design", "design", "- Plan approved: the build stage (/q:builder).\n- Open thread: /p:design.")
+        self.fx.run("--fix")
+        self.assertIn("- Plan approved: the build stage (/p:implement).", self.fx.read("p:design"))
+
     def test_fix_applies_renames_in_next_and_related_only(self) -> None:
         self.fx.skill(
             "q:user",
