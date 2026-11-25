@@ -24,7 +24,7 @@ config values only in `<root>/pr-pipeline.yaml` and agent instructions only in M
 schema in the convention folder. This repository has several other homes in use at once: `.claude/*`
 files, three ADR 0044 blocks (multi-agent, testing, `docs/conventions/review-digest.md`), and
 guardrails' folder-form `docs/conventions/source-control/commit-convention.yml`
-(`plugins/guardrails/hooks/block-convention-violation.sh:141,185`). The shared reader,
+(`plugins/guardrails/hooks/block-convention-violation.sh:152,171`). The shared reader,
 `lib/parse-concern-value.sh`, read only root scalars, so it could not read a nested key or a list
 from a pipeline-shaped file.
 

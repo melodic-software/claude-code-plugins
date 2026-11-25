@@ -200,9 +200,6 @@ guard::abort_boundary() {
   case "$3" in
   open | closed) _GAB_POSTURE="$3" ;;
   *)
-    # A posture that is neither word is a defect in the hook's own prologue.
-    # Say so and keep the status quo enforcement (fail-open) rather than
-    # inventing a block the hook never declared.
     printf 'guardrails %s: abort boundary posture %q is not open or closed; using open\n' "$1" "$3" >&2
     _GAB_POSTURE="open"
     ;;
@@ -346,8 +343,6 @@ guard::_abort_settle() {
     guard::_abort_deny_resolve
     note="$_GAB_DENY_NOTE"
     _GAB_DENY_NOTE=""
-    # Each layer that names the guard is cited, so the way to turn it off
-    # names every place the guard has to be removed from.
     local why="" how=""
     if [[ "$_GAB_DENY_OPT" == *" $_GAB_NAME "* ]]; then
       why="the deny_on_crash option names this guard"
@@ -377,7 +372,6 @@ guard::_abort_settle() {
     _GAB_RC=2
     return 1
   fi
-  # User channel only: nothing was blocked, and the model cannot fix a hook.
   msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); this call was not checked. Details: claude --debug.${note}"
   printf '%s\n' "$msg" >&2
   local esc
