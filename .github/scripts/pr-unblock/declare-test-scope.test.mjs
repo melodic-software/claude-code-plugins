@@ -55,6 +55,29 @@ test("traceOnlyFailure takes a run whose one failed job is Test Selection, faile
   assert.equal(traceOnlyFailure({ run: { conclusion: "success" }, jobs: [trace] }), false);
 });
 
+test("traceOnlyFailure takes trace matrix shards that each failed first at the trace step, and no other failed job", () => {
+  const run = { conclusion: "failure" };
+  const shard = (index, steps = [...SETUP, ["Trace the changed suites", "failure"]]) => job(`Test Selection (${index})`, "failure", steps);
+  assert.equal(traceOnlyFailure({ run, jobs: [shard(0), job("Test Selection (1)", "success"), shard(2), job("CI Status", "failure")] }), true);
+  assert.equal(traceOnlyFailure({ run, jobs: [shard(0), shard(1, [["Check out", "success"], ["Install", "failure"]])] }), false, "one shard failed before the trace");
+  assert.equal(traceOnlyFailure({ run, jobs: [shard(0), job("Lint", "failure")] }), false, "another lane failed too");
+  assert.equal(traceOnlyFailure({ run, jobs: [job("Test Selection (x)", "failure", [...SETUP, ["Trace the changed suites", "failure"]])] }), false, "not a shard index");
+});
+
+test("readTrace joins the shard directories a multi-artifact download writes, and refuses a download with none", (t) => {
+  const dir = scratch(t);
+  for (const [name, suite] of [["selection-trace-1-1-0", "a.test.sh"], ["selection-trace-1-1-1", "b.test.sh"]]) {
+    mkdirSync(join(dir, name));
+    writeFileSync(join(dir, name, "gaps.tsv"), `${suite}\tx.sh\tselects no suite\n`);
+    writeFileSync(join(dir, name, "suites.tsv"), `${suite}\t1\t3\t1\n`);
+    writeFileSync(join(dir, name, "verdicts.tsv"), "x.sh\tselects no suite\n");
+  }
+  const joined = readTrace(dir);
+  assert.deepEqual(joined.suites.map(([suite]) => suite), ["a.test.sh", "b.test.sh"]);
+  assert.deepEqual(traceGaps(joined).gaps, [{ suite: "a.test.sh", file: "x.sh" }, { suite: "b.test.sh", file: "x.sh" }]);
+  assert.equal(readTrace(scratch(t)).reason, "test-scope-invalid");
+});
+
 test("readTrace refuses a carriage return, a short row and a symbolic link as test-scope-invalid", (t) => {
   assert.equal(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\tselects no suite\r\n", suites: "a.test.sh\t0\t3\t1\n" })).reason, "test-scope-invalid");
   assert.equal(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\n", suites: "a.test.sh\t0\t3\t1\n" })).reason, "test-scope-invalid");
