@@ -56,8 +56,9 @@ the test outright, which is the assertion of the if or catch around it. `propert
 any raw line of a file whose tests derive expected values on purpose (property-based tests), and
 `rules_off` lists rule slugs (`constant-restatement`) the adapter never reports.
 
-Every regex field must use the ERE subset gawk, mawk and BSD awk agree on: no `\s \S \d \D \w \W
-\b \B \< \>`, no backreferences, and no `{n,m}` intervals, which mawk 1.3.3 does not implement.
+Every regex field must use the ERE subset gawk, mawk and BSD awk agree on: no backslash shorthand
+classes (s, S, d, D, w, W) or word-boundary escapes (b, B, <, >), no backreferences, and no
+`{n,m}` intervals, which mawk 1.3.3 does not implement.
 
 ## Extending adapters
 
