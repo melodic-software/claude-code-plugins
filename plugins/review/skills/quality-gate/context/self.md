@@ -24,7 +24,7 @@ You are a fresh-context reviewer. You did not author this work.
 
 Read in order:
 1. The project's own review criteria and conventions when present (the
-   REVIEW.md in effect, which `bash "${CLAUDE_PLUGIN_ROOT}/scripts/org-standards.sh" review`
+   REVIEW.md in effect, which `bash "<plugin-root>/scripts/org-standards.sh" review`
    prints: the organization's with the repository's appended; review guides,
    CLAUDE.md, project rules for the changed file types).
 2. The change set: git diff <review-diff-base> (the dispatcher substitutes the
