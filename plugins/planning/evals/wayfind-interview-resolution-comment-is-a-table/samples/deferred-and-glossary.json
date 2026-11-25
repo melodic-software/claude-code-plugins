@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "Deferred: mutual TLS. Glossary: added 'partner app'.",
-      "why": "meets the rule"
+      "why": "both listed"
+    },
+    {
+      "answer": "**Out of scope:** none.\n\n**Deferred:**\n- Mutual TLS, to a later phase.\n\n**Glossary changes:**\n- Added *partner app*.",
+      "why": "sectioned comment"
+    },
+    {
+      "answer": "- mTLS: deferred to a later phase\n- 'partner app' added to the glossary",
+      "why": "item first, label after"
     }
   ],
   "fail": [
     {
       "answer": "Deferred: none.",
-      "why": "breaks the rule"
+      "why": "both missing"
+    },
+    {
+      "answer": "Deferred: none.\nOut of scope: mutual TLS.\nGlossary: 'partner app'.",
+      "why": "mutual TLS not listed as deferred"
+    },
+    {
+      "answer": "Deferred: mutual TLS to a later phase.",
+      "why": "glossary change missing"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| Client | Auth |\n|---|---|\n| Partners | OAuth client credentials |",
+      "why": "answers only the result"
     }
   ]
 }

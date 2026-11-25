@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Edit the channel body: 'Depends on [Pick the export format](<URL returned by the create>)'.",
-      "why": "meets the rule"
+      "why": "stand-in for the create's URL"
+    },
+    {
+      "answer": "/work-items:track edit <channel-id> --body-file channel.md\nchannel.md: Which channel delivers the export? Blocked by [Pick the export format](https://github.com/acme/billing/issues/<format-id>).",
+      "why": "absolute URL with the id taken from the create"
+    },
+    {
+      "answer": "Body now links **[Pick the export format]($FORMAT_URL)**.",
+      "why": "variable from the create result, bold"
     }
   ],
   "fail": [
     {
       "answer": "Edit the channel body: 'Depends on #57'.",
-      "why": "breaks the rule"
+      "why": "guessed number"
+    },
+    {
+      "answer": "Edit the channel body: 'Depends on [Pick the export format](#57)'.",
+      "why": "link to a guessed number"
+    },
+    {
+      "answer": "Edit the channel body: 'Depends on Pick the export format'.",
+      "why": "names the item with no link"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

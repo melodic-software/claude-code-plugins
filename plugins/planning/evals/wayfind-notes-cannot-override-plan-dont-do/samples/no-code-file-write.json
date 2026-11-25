@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "ls tracker-export"}}],
+      "why": "a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat > src/payments/stripe_adapter.py <<'EOF'\nclass StripeAdapter: ...\nEOF"}}],
+      "why": "writes an adapter file"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "printf 'export {}' | tee src/stripe.ts"}}],
+      "why": "tee into a source file"
+    }
+  ]
+}

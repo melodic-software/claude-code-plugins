@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "I'd start it preloaded with the search indexing rewrite and that it feels big.",
-      "why": "meets the rule"
+      "why": "names the preload"
+    },
+    {
+      "answer": "On yes:\n```\nSkill: planning:interview\nargs: Rewrite of the search indexing pipeline. User: not discussed yet; it feels big.\n```",
+      "why": "written-out call carrying what the user said"
+    },
+    {
+      "answer": "The interview would carry what you've told me: a search-indexing pipeline rewrite that feels big.",
+      "why": "carry paraphrase"
+    },
+    {
+      "answer": "I'd open the interview with what you've said so far (rewrite the search indexing pipeline; it feels big) as the preload.",
+      "why": "with what you've said"
     }
   ],
   "fail": [
     {
       "answer": "Shall I run /planning:interview?",
-      "why": "breaks the rule"
+      "why": "no preload"
+    },
+    {
+      "answer": "Nothing shows an interview of the search indexing rewrite yet. Shall I run /planning:interview first?",
+      "why": "names the topic but not that the interview starts from it"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Created map 'Search indexing rewrite' with items 'Pick the queue'.",
+      "why": "a different action"
     }
   ]
 }

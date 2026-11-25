@@ -1,14 +1,13 @@
 {
   "pass": [
-    {
-      "answer": "Resolution comment on #504: Resolved by discussion through /planning:design: Knock. No artifact was built; the pass checks were not run.",
-      "why": "meets the rule"
-    }
+    {"answer": "Resolution comment on #504: Resolved by discussion through /planning:design: Knock. No artifact was built; the pass checks were not run.", "why": "states no artifact"},
+    {"answer": "1. `/work-items:track edit 504 --comment-file resolution.md`:\n\n> Resolved: Knock, settled by a `/planning:design` discussion. The prototype was not built (the prototype plugin is not enabled), so this has no verdict.\n\n2. Decisions-so-far line.\n3. `/work-items:track done 504`", "why": "tracker call form"},
+    {"answer": "**Comment on Prove Knock sends email and in-app from one call:**\nSettled on Knock without building a prototype; no verdict.", "why": "without building a prototype"}
   ],
   "fail": [
-    {
-      "answer": "Resolution comment on #504: Verdict: both pass checks passed. Knock confirmed.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Resolution comment on #504: Verdict: both pass checks passed. Knock confirmed.", "why": "claims a verdict, no no-artifact line"},
+    {"answer": "Resolution comment on #504: Resolved: Knock. Basis: design discussion.\n\nDecisions-so-far: Knock (provisional; no artifact was built).", "why": "no-artifact line outside the comment"},
+    {"answer": "Routing #504 to /planning:design.", "why": "no comment at all"}
   ]
 }

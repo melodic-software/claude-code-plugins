@@ -1,22 +1,14 @@
 {
   "pass": [
-    {
-      "answer": "Resolution: /prototype:pressure-test vendor-fit run; every check passed.",
-      "why": "names the skill and its vendor-fit mode"
-    },
-    {
-      "answer": "Resolution: proved with /prototype:pressure-test --vendor-fitness; all checks passed.",
-      "why": "a close variant of the mode name still counts"
-    }
+    {"answer": "Resolution: /prototype:pressure-test vendor-fit run; every check passed.", "why": "names the skill and its vendor-fit mode"},
+    {"answer": "Resolution: proved with /prototype:pressure-test --vendor-fitness; all checks passed.", "why": "a close variant of the mode name still counts"},
+    {"answer": "Skill call (written out):\n- skill: `prototype:pressure-test`\n- args: `vendor-fit Prove Knock sends email and in-app from one call`", "why": "Skill and args block form"},
+    {"answer": "The item proves an outside vendor does something, so it routes to the vendor-fit mode of **/prototype:pressure-test**.", "why": "mode named before the skill"}
   ],
   "fail": [
-    {
-      "answer": "Resolution: /prototype:pressure-test passed every check.",
-      "why": "names no vendor-fit mode"
-    },
-    {
-      "answer": "Resolution: /prototype:explore-directions vendor-fit passed.",
-      "why": "names the wrong skill"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Resolution: /prototype:pressure-test passed every check.", "why": "names no vendor-fit mode"},
+    {"answer": "Resolution: /prototype:explore-directions vendor-fit passed.", "why": "names the wrong skill"},
+    {"answer": "Routing #504 to /planning:design.", "why": "a different route"}
   ]
 }

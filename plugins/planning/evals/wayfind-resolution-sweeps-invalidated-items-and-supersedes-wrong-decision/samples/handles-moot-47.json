@@ -1,14 +1,38 @@
 {
   "pass": [
     {
-      "answer": "Close #47 as not planned with the comment 'Moot: see [Decide invoice numbering](URL#comment)'.",
-      "why": "meets the rule"
+      "answer": "`/work-items:track done 47 --not-planned --summary \"Moot: [Decide invoice numbering](https://example.com/acme/billing/issues/44#issuecomment-1)\"`",
+      "why": "closes #47 as moot with a link to #44's resolution"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: done https://example.com/acme/billing/issues/47 --not-planned --summary \"Moot: <link to #44's resolution comment>\"\n```",
+      "why": "skill-and-arguments form with a placeholder link"
+    },
+    {
+      "answer": "3. Comment on #47: `/work-items:track edit 47 --comment-file moot-47.md`\n   > Moot: invoices are numbered per tenant, see [Decide invoice numbering](https://example.com/acme/billing/issues/44#issuecomment-1).\n4. `/work-items:track done 47 --not-planned --summary \"Moot; see the comment.\"`",
+      "why": "a separate comment carries the link, then the not-planned close"
     }
   ],
   "fail": [
     {
       "answer": "Close #47.",
-      "why": "breaks the rule"
+      "why": "no close written out and no link"
+    },
+    {
+      "answer": "`/work-items:track done 47 --not-planned --summary \"Moot.\"`",
+      "why": "closes without linking #44's resolution"
+    },
+    {
+      "answer": "`/work-items:track done 47 --summary \"Resolved; see the resolution comment.\"` [Decide invoice numbering](https://example.com/acme/billing/issues/44)",
+      "why": "closed as resolved, not as moot"
+    },
+    {
+      "answer": "#47 stays open; [Decide invoice numbering](https://example.com/acme/billing/issues/44) does not change it.",
+      "why": "leaves #47 open"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
     }
   ]
 }

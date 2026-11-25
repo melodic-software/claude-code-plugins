@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Working 'Choose the cart persistence model' (#43) on 'Map: checkout redesign'.",
-      "why": "meets the rule"
+      "why": "the linked item on its map"
+    },
+    {
+      "answer": "The link is item [Choose the cart persistence model](https://example.com/acme/shop/issues/43), a child of [Map: checkout redesign](https://example.com/acme/shop/issues/40). Claim: `/work-items:track start 43`.",
+      "why": "linked titles and the claim"
+    },
+    {
+      "answer": "Map #40 loaded. Frontier: Choose the cart persistence model (#43). Claiming it with /work-items:track start https://example.com/acme/shop/issues/43.",
+      "why": "map by number"
     }
   ],
   "fail": [
     {
       "answer": "Proposing a chart for 'issues/43'. Shall I chart it?",
-      "why": "breaks the rule"
+      "why": "treats the link as a topic"
+    },
+    {
+      "answer": "Map: checkout redesign. Choose the cart persistence model is done next; claiming Decide the order confirmation content: /work-items:track start 44.",
+      "why": "works a different item"
+    },
+    {
+      "answer": "Working 'Choose the cart persistence model'.",
+      "why": "no map named"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
     }
   ]
 }

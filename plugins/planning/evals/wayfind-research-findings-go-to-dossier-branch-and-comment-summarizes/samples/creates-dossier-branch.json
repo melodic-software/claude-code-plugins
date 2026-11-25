@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Create dossier/300-map-search-rewrite from the default branch, link it in Notes, copy the findings and sidecars to 305-pick-the-index-library/.",
+      "why": "creates the map's dossier branch"
+    },
+    {
+      "answer": "No dossier branch yet, so:\n```\ngit fetch origin main\ngit switch -c dossier/300-map-search-rewrite origin/main\n```",
+      "why": "creates the branch with git switch -c"
+    },
+    {
+      "answer": "**Dossier branch:** `dossier/300-map-search-rewrite` (new, created from `main` and linked from the map's Notes).",
+      "why": "names the branch as new"
+    },
+    {
+      "answer": "Push it: `git push -u origin dossier/300-map-search-rewrite`.",
+      "why": "first push of the new branch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Paste the findings into the map body.",
+      "why": "no branch at all"
+    },
+    {
+      "answer": "Create dossier/305-pick-the-index-library and copy the findings there.",
+      "why": "a branch per item instead of the map's branch"
+    },
+    {
+      "answer": "Copy the findings to 305-pick-the-index-library/ on dossier/300-map-search-rewrite.",
+      "why": "uses the branch without creating the missing one"
+    },
+    {
+      "answer": "Do not create dossier/300-map-search-rewrite; keep the findings in .work/.",
+      "why": "refuses to create the branch"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    }
+  ]
+}

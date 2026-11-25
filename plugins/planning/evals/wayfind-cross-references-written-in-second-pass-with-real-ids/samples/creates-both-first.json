@@ -1,14 +1,38 @@
 {
   "pass": [
     {
+      "answer": "First pass, create both:\n1. /work-items:track add --parent <map-id> --label 'wayfind: research' --body-file format.md \"Pick the export format\" → returns <format-url>\n2. /work-items:track add --parent <map-id> --label 'wayfind: design' --body-file channel.md \"Choose the delivery channel\" → returns <channel-url>\n\nSecond pass:\n3. /work-items:track edit <channel-id> --blocked-by <format-id>\n4. /work-items:track edit <channel-id> --body-file channel.md (now links [Pick the export format](<format-url>))",
+      "why": "both creates, then the edge and the link"
+    },
+    {
+      "answer": "```\nSkill: work-items:track\nargs: add --parent <map-id> --label 'wayfind: design' --body-file channel.md \"Choose the delivery channel\"\n```\n```\nSkill: work-items:track\nargs: add --parent <map-id> --label 'wayfind: research' --body-file format.md \"Pick the export format\"\n```\nThen, with both ids: `/work-items:track edit <channel-id> --blocked-by <format-id>`.",
+      "why": "channel created first, args-block form, no reference before both exist"
+    },
+    {
       "answer": "1. Create 'Pick the export format'. 2. Create 'Choose the delivery channel'. 3. Then wire them.",
-      "why": "meets the rule"
+      "why": "prose creates"
     }
   ],
   "fail": [
     {
       "answer": "1. Create 'Choose the delivery channel' with body 'depends on #57'. 2. Create 'Pick the export format'.",
-      "why": "breaks the rule"
+      "why": "a reference before the format item exists"
+    },
+    {
+      "answer": "/work-items:track add --parent <map-id> --label 'wayfind: design' --blocked-by <format-id> --body-file channel.md \"Choose the delivery channel\"\n/work-items:track add --parent <map-id> --label 'wayfind: research' --body-file format.md \"Pick the export format\"",
+      "why": "edge on the create, before the format item exists"
+    },
+    {
+      "answer": "/work-items:track add --parent <map-id> --body-file format.md \"Pick the export format\"\n/work-items:track edit <format-id> --body-file format.md\n/work-items:track add --parent <map-id> --body-file channel.md \"Choose the delivery channel\"",
+      "why": "an edit between the two creates"
+    },
+    {
+      "answer": "/work-items:track add --parent <map-id> --body-file channel.md \"Choose the delivery channel\"\nchannel.md: Which channel delivers the export? Depends on [Pick the export format](https://example.com/issues/new).\n/work-items:track add --parent <map-id> --body-file format.md \"Pick the export format\"",
+      "why": "link written into the channel body before the format item exists"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

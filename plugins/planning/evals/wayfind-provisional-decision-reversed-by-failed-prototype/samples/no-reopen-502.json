@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "Open 'Re-pick the vendor' linking [Pick the vendor](URL); #502 stays closed and unedited.", "why": "no reopen"},
+    {"answer": "Never reopen #502 or edit its resolution comment.", "why": "negated"},
+    {"answer": "Do not reopen 'Pick the vendor'; a new item supersedes it.", "why": "do not reopen"},
+    {"answer": "#502 is not reopened.", "why": "passive negation"},
+    {"answer": "", "why": "empty"}
+  ],
+  "fail": [
+    {"answer": "Reopen #502 and change its resolution to Courier.", "why": "reopens #502"},
+    {"answer": "`/work-items:track reopen 502`", "why": "tracker reopen"},
+    {"answer": "Edit #502's resolution comment to say Courier.", "why": "edits the resolution comment"},
+    {"answer": "I'm reopening Pick the vendor so it can be re-decided.", "why": "reopening by title"}
+  ]
+}

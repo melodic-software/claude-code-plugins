@@ -2,13 +2,41 @@
   "pass": [
     {
       "answer": "Route them to /work-items:decompose.",
-      "why": "meets the rule"
+      "why": "plain route"
+    },
+    {
+      "answer": "This isn't a wayfind job: three sharp tickets go to `/work-items:decompose`.",
+      "why": "negation sits in an earlier clause"
+    },
+    {
+      "answer": "```\nSkill: work-items:decompose\nargs: forgot-password flow, three tickets\n```",
+      "why": "written-out call"
+    },
+    {
+      "answer": "No map needed. Better fit: **/work-items** to scope the three tickets.",
+      "why": "names the work-items plugin"
     }
   ],
   "fail": [
     {
       "answer": "I'll chart these as decision items instead.",
-      "why": "breaks the rule"
+      "why": "no work-items route"
+    },
+    {
+      "answer": "Don't run /work-items:decompose yet; chart them first.",
+      "why": "negated route"
+    },
+    {
+      "answer": "Labels: `/work-items:track wayfind-labels`. Charting the flow now.",
+      "why": "names only the label lookup"
+    },
+    {
+      "answer": "Run /planning:interview to lock the reset contract.",
+      "why": "a different skill"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Full findings: [RESEARCH.md](<dossier branch URL>/305-pick-the-index-library/RESEARCH.md).",
-      "why": "meets the rule"
+      "why": "links the findings file in the item's folder"
+    },
+    {
+      "answer": "> Full findings: https://example.com/acme/search/blob/dossier/300-map-search-rewrite/305-pick-the-index-library/RESEARCH.md",
+      "why": "a bare absolute URL to the findings file"
+    },
+    {
+      "answer": "**Findings:** [full findings file](https://example.com/acme/search/blob/dossier/300-map-search-rewrite/305-pick-the-index-library/RESEARCH.md)",
+      "why": "a markdown link in bold label form"
     }
   ],
   "fail": [
     {
       "answer": "Resolution: <the full findings text pasted here>.",
-      "why": "breaks the rule"
+      "why": "pastes instead of linking"
+    },
+    {
+      "answer": "Findings are on the dossier branch: [dossier/300-map-search-rewrite](https://example.com/acme/search/tree/dossier/300-map-search-rewrite).",
+      "why": "links the branch, not the findings file"
+    },
+    {
+      "answer": "git add 305-pick-the-index-library/RESEARCH.md",
+      "why": "a path in a command, not a link in the comment"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
     }
   ]
 }

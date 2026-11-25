@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '(?<!\bnot )(?<!\bno )(?<!\bnever )(?<!\bwithout )(?<!n''t )(?<!\bnot a )(?<!\bno a )(?<!\bwithout a )(?<!n''t a )\b(?:mop[- ]?up|catch[- ]?all)\b[^\n]{0,80}\binterview\b|\binterview\b[^\n]{0,30}\b(?:mop[- ]?up|catch[- ]?all)\b'
+flags: i
 ---
-
-On map #200 every decision item is closed and the frontier is empty, but Not-yet-specified still holds one bullet: '**Tax display**: something about how taxes show on invoices feels unsettled'. The user asked to close the map. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply offers a mop-up interview item for the bullet.
-
-FAIL if it does not offer a mop-up interview item.

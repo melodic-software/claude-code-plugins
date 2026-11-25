@@ -2,13 +2,45 @@
   "pass": [
     {
       "answer": "/discovery:research 'Pick the index library' at verification level light, no verifier pass.",
-      "why": "meets the rule"
+      "why": "light level, no verifier"
+    },
+    {
+      "answer": "```\nSkill: discovery:research   args: \"Pick the index library: compare candidate search index libraries\" --verification light\n```\nNo separate verifier pass.",
+      "why": "skill-and-arguments form with light"
+    },
+    {
+      "answer": "Dispatch `/discovery:research` for 'Pick the index library', asking for its lightest verification level, without running a verifier.",
+      "why": "lightest level, verifier explicitly not run"
+    },
+    {
+      "answer": "**Research call:** `/discovery:research` (verification: **light**; do not run the verifier).",
+      "why": "bold label form, negated verifier"
     }
   ],
   "fail": [
     {
       "answer": "/discovery:research 'Pick the index library' at strict, then run the verifier.",
-      "why": "breaks the rule"
+      "why": "strict level and a verifier pass"
+    },
+    {
+      "answer": "/discovery:research 'Pick the index library' at verification level standard.",
+      "why": "another level"
+    },
+    {
+      "answer": "/discovery:research 'Pick the index library' at verification level light, then dispatch the research-verifier on the result.",
+      "why": "adds a verifier pass"
+    },
+    {
+      "answer": "/discovery:research 'Pick the index library'.",
+      "why": "names no level"
+    },
+    {
+      "answer": "Research the index library inline, light touch.",
+      "why": "no discovery:research call"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
     }
   ]
 }

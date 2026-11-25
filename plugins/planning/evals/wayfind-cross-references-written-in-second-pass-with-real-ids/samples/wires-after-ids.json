@@ -1,14 +1,30 @@
 {
   "pass": [
     {
-      "answer": "Second pass, once both ids exist: wire blocked-by and edit the channel body to link the format item.",
-      "why": "meets the rule"
+      "answer": "1. /work-items:track add --parent <map-id> --label 'wayfind: research' --body-file format.md \"Pick the export format\" → <format-url>\n2. /work-items:track add --parent <map-id> --label 'wayfind: design' --body-file channel.md \"Choose the delivery channel\" → <channel-url>\nSecond pass, both ids real:\n3. /work-items:track edit <channel-id> --blocked-by <format-id>",
+      "why": "edge after both creates"
+    },
+    {
+      "answer": "```\nSkill: work-items:track\nargs: add --parent <map-id> --body-file channel.md \"Choose the delivery channel\"\n```\n```\nSkill: work-items:track\nargs: add --parent <map-id> --body-file format.md \"Pick the export format\"\n```\nNow wire 'Choose the delivery channel' as blocked by 'Pick the export format'.",
+      "why": "args-block creates, edge in prose after"
+    },
+    {
+      "answer": "Create 'Pick the export format'.\nCreate 'Choose the delivery channel'.\nSecond pass, once both ids exist: wire blocked-by and edit the channel body to link the format item.",
+      "why": "prose"
     }
   ],
   "fail": [
     {
       "answer": "Create the channel item blocked by the format item (to be created next).",
-      "why": "breaks the rule"
+      "why": "edge before the format item exists"
+    },
+    {
+      "answer": "/work-items:track add --parent <map-id> --body-file format.md \"Pick the export format\"\n/work-items:track add --parent <map-id> --body-file channel.md \"Choose the delivery channel\"",
+      "why": "never wires the edge"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "| Client | Auth |\n|---|---|\n| Partners | OAuth client credentials |\n| Sandbox | API keys |",
-      "why": "meets the rule"
+      "why": "agreed result as a table"
+    },
+    {
+      "answer": "1. Resolution comment on [Choose the auth scheme](https://example.com/issues/402):\n\n   ```markdown\n   **Agreed result**\n\n   | Caller | Scheme |\n   | :--- | :--- |\n   | Sandbox | API keys only |\n   | Partners | OAuth 2.0 client credentials |\n\n   **Deferred:** mutual TLS.\n   ```",
+      "why": "indented table inside a fenced comment, rows in either order"
+    },
+    {
+      "answer": "> | Who | How |\n> |-----|-----|\n> | Partner apps | Client credentials (OAuth) |\n> | Sandbox | API key |",
+      "why": "quoted table"
     }
   ],
   "fail": [
     {
       "answer": "Resolved: OAuth client credentials for partners; API keys for the sandbox.",
-      "why": "breaks the rule"
+      "why": "prose, not a table"
+    },
+    {
+      "answer": "- Partners: OAuth client credentials\n- Sandbox: API keys",
+      "why": "a bullet list"
+    },
+    {
+      "answer": "| Item | State |\n|---|---|\n| Choose the auth scheme | closed |\n\nResolved: OAuth client credentials for partners, API keys for the sandbox.",
+      "why": "a table that does not hold the result"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
     }
   ]
 }

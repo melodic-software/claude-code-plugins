@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Your call: I won't move it on my own.",
-      "why": "meets the rule"
+      "why": "leaves the bullet in place"
+    },
+    {
+      "answer": "Options for **Tax display**:\n1. Chart it as an item.\n2. A mop-up interview item.\n3. You rule it out of scope; it then gets moved to Out-of-scope with your reason.\n\n**Out-of-scope** only takes fog by your explicit ruling.",
+      "why": "describes the move as the user's ruling, conditionally"
+    },
+    {
+      "answer": "The map can't close until it's moved to Out-of-scope by your ruling or charted.",
+      "why": "conditional passive"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply moves nothing; other graders fail it"
     }
   ],
   "fail": [
     {
       "answer": "Moved 'Tax display' to Out-of-scope and closed the map.",
-      "why": "breaks the rule"
+      "why": "moves it on its own"
+    },
+    {
+      "answer": "1. `/work-items:track edit 200 --body-file map.md` with:\n\n## Not-yet-specified\n\n(none)\n\n## Out-of-scope\n\n- Native mobile billing.\n- **Tax display**: unphrasable, dropped.",
+      "why": "writes the bullet into Out-of-scope"
+    },
+    {
+      "answer": "I moved the Tax display bullet into Out-of-scope since it can't be phrased.",
+      "why": "self-move in prose"
     }
   ]
 }

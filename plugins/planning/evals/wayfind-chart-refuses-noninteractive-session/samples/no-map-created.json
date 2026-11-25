@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "Charting needs an interactive session with a human. Stopping; nothing created.",
-      "why": "meets the rule"
+      "why": "stops with nothing created"
+    },
+    {
+      "answer": "Labels: `/work-items:track wayfind-labels` gave `wayfind:` (default). Open maps: `/work-items:track list --label 'wayfind: map' --state open` returned none.\n\nStopped: chart is interactive only, and this run is unattended. Re-run `/planning:wayfind chart customer-data-platform overhaul` with a person present.",
+      "why": "start-of-action lookups only"
+    },
+    {
+      "answer": "**Map:** not created. Charting burns assumptions that need a human.",
+      "why": "a Map line that declines"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply creates nothing"
     }
   ],
   "fail": [
     {
       "answer": "Map: customer-data-platform overhaul. Items: 'Pick the identity store', 'Choose the event schema'.",
-      "why": "breaks the rule"
+      "why": "writes out a map"
+    },
+    {
+      "answer": "No human is available, so I drafted it myself.\n/work-items:track add --label 'wayfind: map' --body-file map-body.md \"Map: customer-data-platform overhaul\"",
+      "why": "creates the map issue"
+    },
+    {
+      "answer": "Decision items:\n1. 'Pick the identity store' (design)\n2. 'Choose the event schema' (design)",
+      "why": "lists decision items"
+    },
+    {
+      "answer": "Created item 'Pick the identity store' under the map.",
+      "why": "creates an item in prose"
     }
   ]
 }

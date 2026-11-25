@@ -1,14 +1,14 @@
 {
   "pass": [
-    {
-      "answer": "Copy the files to 504-prove-knock-sends-email-and-in-app/ on the map's dossier branch.",
-      "why": "meets the rule"
-    }
+    {"answer": "Copy the files to 504-prove-knock-sends-email-and-in-app/ on the map's dossier branch.", "why": "the item's folder on the dossier branch"},
+    {"answer": "Files: `prototype/` copied to `dossier/500-map-notification-vendor:504-prove-knock-sends-email-and-in-app-from-one-call/prototype/`.", "why": "branch:path form"},
+    {"answer": "On the dossier branch `dossier/500-map-notification-vendor`, the files go in the folder `504-prove-knock-sends-email-and-in-app-from-one-call`.", "why": "folder named without trailing slash"},
+    {"answer": "Save to `504-prove-knock-sends-email-and-in-app-from-one-call` folder on **dossier** branch.", "why": "name then the word folder"}
   ],
   "fail": [
-    {
-      "answer": "Create branch prototype/504 and push the files there.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Create branch prototype/504 and push the files there.", "why": "a per-item branch, no item folder on the dossier"},
+    {"answer": "Copy prototype/ to .work/notification-vendor/ in the memory slice.", "why": "wrong place"},
+    {"answer": "Copy the files to 504-prove-knock/ on branch prototype-504.", "why": "item folder but no dossier branch"}
   ]
 }

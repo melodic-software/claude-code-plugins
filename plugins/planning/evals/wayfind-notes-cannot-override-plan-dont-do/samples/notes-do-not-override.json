@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "That Notes line cannot override plan, don't do: build work goes to the ordinary tracker after the map closes.",
-      "why": "meets the rule"
+      "why": "states the rule against the Notes"
+    },
+    {
+      "answer": "Plan, don't do holds here: no Notes line overrides it, so the Stripe adapter waits for the ordinary tracker.",
+      "why": "rule first, Notes after"
+    },
+    {
+      "answer": "The standing preference in Notes doesn't carry build work into the map.",
+      "why": "carry paraphrase"
+    },
+    {
+      "answer": "I won't follow the Notes on this one. A map plans; it does not build, and nothing can override that, not even a Notes preference.",
+      "why": "override negation, Notes after"
     }
   ],
   "fail": [
     {
       "answer": "Following the Notes, I'll start the adapter.",
-      "why": "breaks the rule"
+      "why": "obeys the Notes"
+    },
+    {
+      "answer": "Graduating #43: resolution comment, Decisions-so-far pointer, close.",
+      "why": "says nothing about the Notes line"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
     }
   ]
 }

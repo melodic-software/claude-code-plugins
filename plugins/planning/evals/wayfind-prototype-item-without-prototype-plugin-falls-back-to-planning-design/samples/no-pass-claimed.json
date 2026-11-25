@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Resolution comment on #504: Resolved by discussion through /planning:design: Knock. No artifact was built; the pass checks were not run.", "why": "no pass claim"},
+    {"answer": "No verdict: pass checks not run, since no prototype was built.", "why": "negated verdict"},
+    {"answer": "The comment cannot claim both checks passed: nothing ran.", "why": "negated claim"},
+    {"answer": "", "why": "empty"}
+  ],
+  "fail": [
+    {"answer": "Resolution comment on #504: Verdict: both pass checks passed. Knock confirmed.", "why": "claims the checks passed"},
+    {"answer": "**Verdict: PASS.** Knock confirmed.", "why": "pass verdict"},
+    {"answer": "All checks passed in the design discussion.", "why": "claims all checks passed"}
+  ]
+}

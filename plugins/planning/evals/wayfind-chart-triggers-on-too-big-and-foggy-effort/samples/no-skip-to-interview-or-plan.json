@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "Charting now: sorting the uncertainties into items and fog.",
-      "why": "meets the rule"
+      "why": "charts"
+    },
+    {
+      "answer": "It was already interviewed, so no interview again. Ready questions go in one /planning:interview round after the destination.",
+      "why": "names the in-chart interview round, not a route"
+    },
+    {
+      "answer": "Destination? I recommend a PRD; a set of build items would close to /planning:plan then /work-items:decompose.",
+      "why": "lists a closure target, not a route now"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ],
   "fail": [
     {
       "answer": "This needs an interview first. Shall I run /planning:interview?",
-      "why": "breaks the rule"
+      "why": "offers the interview"
+    },
+    {
+      "answer": "Too big to chart yet. Let's restart the interview and narrow it.",
+      "why": "restarts the interview"
+    },
+    {
+      "answer": "```\nSkill: planning:plan\nargs: notification-system overhaul\n```",
+      "why": "written-out plan call"
+    },
+    {
+      "answer": "I suggest going to /planning:plan to sequence the overhaul.",
+      "why": "routes to plan"
     }
   ]
 }

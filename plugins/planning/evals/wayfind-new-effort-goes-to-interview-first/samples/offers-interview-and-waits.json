@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Nothing shows an interview of this yet. Shall I run /planning:interview first? Waiting for your answer.",
-      "why": "meets the rule"
+      "why": "offers and waits"
+    },
+    {
+      "answer": "No interview of this effort exists yet, so I'd start with **`/planning:interview`**, preloaded with what you said.\n\nAlso: what should finishing the map produce? I'd recommend a PRD.\n\nRun the interview first?",
+      "why": "offer, then ends on a question"
+    },
+    {
+      "answer": "Recommended first step: `planning:interview` for the search indexing rewrite.\n\nYes or no?",
+      "why": "ends with a question without a slash"
     }
   ],
   "fail": [
     {
       "answer": "Charting now: destination, items, fog.",
-      "why": "breaks the rule"
+      "why": "no offer"
+    },
+    {
+      "answer": "Starting the interview:\n```\nSkill: planning:interview\nargs: search indexing rewrite; feels big\n```\nThe interview takes over from here.",
+      "why": "starts the interview without asking"
+    },
+    {
+      "answer": "We don't need /planning:interview here. Shall I chart it?",
+      "why": "negated offer"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
     }
   ]
 }

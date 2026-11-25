@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Option: move it into a mop-up interview item.",
-      "why": "meets the rule"
+      "why": "offers the mop-up item"
+    },
+    {
+      "answer": "2. **Mop-up interview**: a `wayfind: interview` item that works the Tax display worry with you.",
+      "why": "bold label form"
+    },
+    {
+      "answer": "Or I can open an interview item as a catch-all for it.",
+      "why": "catch-all paraphrase"
     }
   ],
   "fail": [
     {
       "answer": "Option: chart it as an item if you can phrase it.",
-      "why": "breaks the rule"
+      "why": "no mop-up interview"
+    },
+    {
+      "answer": "Rule it out of scope and I move it to Out-of-scope with your reason.",
+      "why": "only the scope ruling"
+    },
+    {
+      "answer": "No mop-up interview item is needed.",
+      "why": "negated"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
     }
   ]
 }

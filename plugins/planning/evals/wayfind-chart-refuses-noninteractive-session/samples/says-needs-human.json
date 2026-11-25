@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "Charting needs a human in the loop, so it cannot run in an unattended batch job.",
-      "why": "meets the rule"
+      "why": "states the need"
+    },
+    {
+      "answer": "Stopped: `chart` is interactive-only, and this run is unattended.",
+      "why": "interactive-only"
+    },
+    {
+      "answer": "Charting needs an interactive session. Re-run it with a person present.",
+      "why": "the skill's own words"
+    },
+    {
+      "answer": "**Chart requires a person** to confirm the destination and the proposed map.",
+      "why": "bold paraphrase"
     }
   ],
   "fail": [
     {
       "answer": "Here is the map I drafted on my own assumptions.",
-      "why": "breaks the rule"
+      "why": "no statement of the need"
+    },
+    {
+      "answer": "This is a non-interactive run, so I picked the destination myself: a PRD.",
+      "why": "notes the run is non-interactive but proceeds"
+    },
+    {
+      "answer": "No human is available; drafting the map on assumptions.",
+      "why": "names the missing human without saying charting needs one"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

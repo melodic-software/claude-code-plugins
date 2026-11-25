@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "Resolution: Pick <library>, because <why>. Costs: <costs>. Alternatives: <comparison>. Unverified: <gaps>.",
-      "why": "meets the rule"
+      "why": "all four parts as labeled placeholders"
+    },
+    {
+      "answer": "**Recommendation:** <library>. **Why:** <reason>.\n**Costs:** <licence, ops>.\n**How the alternatives compare:** <table>.\n**What could not be verified:** <gaps>.\n**Full findings:** [RESEARCH.md](<url>)",
+      "why": "bold labels for the four parts"
+    },
+    {
+      "answer": "Pick: <library> (rationale: <one line>). Cost: <cost>. Compared with <alt A> and <alt B>: <comparison>. Could not be verified: <claims>.",
+      "why": "paraphrased labels"
     }
   ],
   "fail": [
     {
       "answer": "Resolution: Pick <library>.",
-      "why": "breaks the rule"
+      "why": "only the pick"
+    },
+    {
+      "answer": "Resolution: Pick <library>, because <why>. Alternatives: <comparison>. Unverified: <gaps>.",
+      "why": "no costs"
+    },
+    {
+      "answer": "Resolution: Pick <library>, because <why>. Costs: <costs>. Alternatives: <comparison>.",
+      "why": "nothing on what could not be verified"
+    },
+    {
+      "answer": "Resolution: Pick <library>, because <why>. Costs: <costs>. Unverified: <gaps>.",
+      "why": "no comparison of the alternatives"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
     }
   ]
 }

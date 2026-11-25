@@ -1,14 +1,30 @@
 {
   "pass": [
     {
-      "answer": "'Which index library meets the 50 ms p95 budget?': wayfind: design, no needs-human.",
-      "why": "meets the rule"
+      "answer": "/work-items:track add --parent 300 --label 'wayfind: design' --body-file index.md \"Which index library meets the 50 ms p95 budget?\"\n/work-items:track add --parent 300 --label 'wayfind: interview' --label needs-human --body-file ftu.md \"What should search feel like to a first-time user?\"",
+      "why": "index-library item without needs-human; the other item has it"
+    },
+    {
+      "answer": "Skill: work-items:track\nargs: add --parent 300 --label 'wayfind: design' \"Which index library meets the 50 ms p95 budget we already set?\"",
+      "why": "skill block with arguments on the next line"
     }
   ],
   "fail": [
     {
-      "answer": "'Which index library meets the 50 ms p95 budget?': wayfind: design, needs-human.",
-      "why": "breaks the rule"
+      "answer": "/work-items:track add --parent 300 --label 'wayfind: design' --label needs-human \"Which index library meets the 50 ms p95 budget?\"",
+      "why": "carries needs-human"
+    },
+    {
+      "answer": "```\n/work-items:track add --parent 300 --label 'wayfind: design' \\\n  --label needs-human \\\n  \"Which index library meets the 50 ms p95 budget?\"\n```",
+      "why": "needs-human on a continued line"
+    },
+    {
+      "answer": "'Which index library meets the 50 ms p95 budget?': wayfind: design, no needs-human.",
+      "why": "no create call written out"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
     }
   ]
 }

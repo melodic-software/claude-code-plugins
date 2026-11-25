@@ -2,13 +2,41 @@
   "pass": [
     {
       "answer": "Event-storming is not enabled, so #903 falls back to /planning:design: invoking /planning:design for 'Model the order lifecycle events'.",
-      "why": "meets the rule"
+      "why": "routes to the design skill after the negated clause"
+    },
+    {
+      "answer": "Hand-off:\n```\nSkill: planning:design\nargs: Model the order lifecycle events (#903) on Map: order fulfillment\n```",
+      "why": "skill and arguments block"
+    },
+    {
+      "answer": "Routing by `wayfind: design`: **`/planning:design`** takes the item from here.",
+      "why": "backticked and bold"
+    },
+    {
+      "answer": "Domain/event-model work would normally go to /event-storming:methodology; that plugin is off here, so the fallback is planning:design.",
+      "why": "names the fallback without a slash"
     }
   ],
   "fail": [
     {
       "answer": "Invoking /event-storming:methodology for 'Model the order lifecycle events'.",
-      "why": "breaks the rule"
+      "why": "routes to an event-storming skill"
+    },
+    {
+      "answer": "I will not hand this to /planning:design; the event-storming plugin is missing, so I stop here.",
+      "why": "negated route and a stop"
+    },
+    {
+      "answer": "Design is settled; next is /planning:design-handoff.",
+      "why": "sibling skill"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Claimed #903 with /work-items:track start 903. The event-storming plugin is not enabled, so I stop.",
+      "why": "routes nowhere"
     }
   ]
 }

@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Calling /work-items:track dossier-branches #800; it shows the branch's unreachable commits and asks before deleting.",
-      "why": "meets the rule"
+      "why": "deletes only through the step"
+    },
+    {
+      "answer": "Dossier branch dossier/800-session-token-storage: handled by `/work-items:track dossier-branches 800`, report below.",
+      "why": "names the branch with no delete command"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply deletes nothing"
     }
   ],
   "fail": [
     {
       "answer": "Map closed. Running git push origin --delete dossier/800-session-token-storage.",
-      "why": "breaks the rule"
+      "why": "its own delete"
+    },
+    {
+      "answer": "`git push origin :dossier/800-session-token-storage`",
+      "why": "delete by empty refspec"
+    },
+    {
+      "answer": "git branch -D dossier/800-session-token-storage && git push origin -d dossier/800-session-token-storage",
+      "why": "local and remote delete"
+    },
+    {
+      "answer": "gh api -X DELETE repos/acme/auth/git/refs/heads/dossier/800-session-token-storage",
+      "why": "delete through the API"
     }
   ]
 }

@@ -1,14 +1,15 @@
 {
   "pass": [
-    {
-      "answer": "**Prove:** one Knock API call sends a templated email and an in-app message (logic).",
-      "why": "meets the rule"
-    }
+    {"answer": "**Prove:** one Knock API call sends a templated email and an in-app message (logic).", "why": "template label with all three parts"},
+    {"answer": "```markdown\n**Prove:** Knock's API sends one notification to both email and in-app from a single call. (logic)\n```", "why": "fenced body, single call"},
+    {"answer": "Body:\nProve: a single Knock API call delivers both a templated e-mail and an in-app message.", "why": "plain label, e-mail spelling"},
+    {"answer": "- **Prove**: one call to Knock produces a templated email plus an in-app notification", "why": "bold label with the colon outside"}
   ],
   "fail": [
-    {
-      "answer": "Prototype Knock.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Prototype Knock.", "why": "no Prove line"},
+    {"answer": "**Prove:** Knock is a good vendor.", "why": "Prove line without what must be shown"},
+    {"answer": "**Prove:** Knock sends a templated email.", "why": "drops the in-app half and the one call"},
+    {"answer": "We need to prove that one Knock API call sends email and in-app.", "why": "prose in chat, no Prove field"}
   ]
 }

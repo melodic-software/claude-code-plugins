@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Create 'Choose per-tenant invoice storage' (wayfind: design), then delete the tenant-sharing bullet from Not-yet-specified.",
+      "why": "deletes the fog bullet"
+    },
+    {
+      "answer": "Map body edit: remove the bullet 'something feels off about how tenants share invoice data' from Not-yet-specified, since the new item charts it.",
+      "why": "removes the quoted bullet"
+    },
+    {
+      "answer": "**Not-yet-specified:** the tenant-sharing bullet is deleted (now charted).",
+      "why": "passive form after the section name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Create 'Choose per-tenant invoice storage'. Not-yet-specified keeps its tenant-sharing note.",
+      "why": "the fog bullet stays"
+    },
+    {
+      "answer": "Do not delete the Not-yet-specified bullet yet.",
+      "why": "negated delete"
+    },
+    {
+      "answer": "Close #47 as moot and open an item revisiting #39.",
+      "why": "says nothing about the fog bullet"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    }
+  ]
+}

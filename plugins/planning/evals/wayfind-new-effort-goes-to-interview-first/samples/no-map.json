@@ -2,13 +2,25 @@
   "pass": [
     {
       "answer": "Nothing created; waiting for your answer.",
-      "why": "meets the rule"
+      "why": "creates nothing"
+    },
+    {
+      "answer": "Labels: `/work-items:track wayfind-labels` (default `wayfind:`, `needs-human`). Open maps: `/work-items:track list --label 'wayfind: map' --state open` found none. Shall I run /planning:interview first?",
+      "why": "read calls only"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply creates nothing; other graders fail it"
     }
   ],
   "fail": [
     {
-      "answer": "Created map 'Search indexing rewrite' with items 'Pick the queue'.",
-      "why": "breaks the rule"
+      "answer": "/work-items:track add --label 'wayfind: map' --body-file map.md \"Map: search indexing rewrite\"",
+      "why": "creates a map"
+    },
+    {
+      "answer": "1. Map:\n```\nSkill: work-items:track   args: add --label 'wayfind: map' \"Map: search indexing rewrite\"\n```\n2. Item: `/work-items:track add --parent 1 --label 'wayfind: research' \"Pick the queue\"`",
+      "why": "creates a map and items"
     }
   ]
 }

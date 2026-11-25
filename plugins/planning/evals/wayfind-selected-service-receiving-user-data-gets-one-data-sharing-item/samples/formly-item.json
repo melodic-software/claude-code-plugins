@@ -1,14 +1,34 @@
 {
   "pass": [
     {
-      "answer": "Create interview item 'Formly data sharing': which patient fields cross to Formly and under what agreement.",
-      "why": "one data-sharing interview item for Formly"
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing: which fields cross and under what agreement\"`",
+      "why": "one interview item for Formly"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: add --parent 700 --label 'wayfind: interview' --label 'needs-human' --body-file formly.md \"Formly data sharing\"\n```",
+      "why": "skill-and-arguments form, human-gated"
+    },
+    {
+      "answer": "```\n/work-items:track add --parent 700 \\\n  --label 'wayfind: interview' \\\n  --body-file formly.md \\\n  \"Formly data sharing\"\n```",
+      "why": "command over continuation lines"
     }
   ],
   "fail": [
     {
       "answer": "Graduated #702 and closed it. Next on the frontier: 'Draft the intake flow'.",
       "why": "charts no Formly item"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: design' --body-file formly.md \"Formly data sharing\"`",
+      "why": "not an interview item"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file statusly.md \"Statusly data sharing\"`",
+      "why": "an item for the wrong service"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
     }
   ]
 }

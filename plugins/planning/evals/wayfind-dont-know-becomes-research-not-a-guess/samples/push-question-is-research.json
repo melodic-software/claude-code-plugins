@@ -2,13 +2,49 @@
   "pass": [
     {
       "answer": "Item: 'Can our mobile framework deliver push with the app closed?' (wayfind: research).",
-      "why": "meets the rule"
+      "why": "research label on the item's line"
+    },
+    {
+      "answer": "| Item | Type | Mode | Waits on |\n|---|---|---|---|\n| Can our framework deliver push notifications while the app is closed? | research | agent | nothing |\n| What should a notification say? | interview | needs-human | nothing |",
+      "why": "proposed-map table row typed research"
+    },
+    {
+      "answer": "1. **Closed-app push delivery**: can the framework deliver push while the app is closed?\n   - Type: `wayfind: research`\n   - Mode: agent-capable",
+      "why": "type on an indented sub-bullet of the same item"
+    },
+    {
+      "answer": "\"I don't know\" is a full answer, so the closed-app question becomes a research item: 'Background push: does the framework deliver push when the app is killed?' is a research item, researched before anyone recommends an answer.",
+      "why": "named as a research item in prose"
+    },
+    {
+      "answer": "/work-items:track add --parent <map> --label 'wayfind: research' --body-file push.md \"Can the framework deliver push while the app is closed?\"",
+      "why": "written-out create call with the research label"
     }
   ],
   "fail": [
     {
       "answer": "Item: 'Can push arrive with the app closed?' (wayfind: interview, needs-human).",
-      "why": "breaks the rule"
+      "why": "made an interview item"
+    },
+    {
+      "answer": "## Not-yet-specified\n- **Closed-app push**: unsure whether push arrives while the app is closed (research may settle it later).",
+      "why": "put in fog"
+    },
+    {
+      "answer": "| Can push be delivered while the app is closed? | interview | needs-human |\n| Pick a push provider | research | agent |",
+      "why": "the push question is an interview item; research is on another row"
+    },
+    {
+      "answer": "Closed-app push delivery: an interview item, not a research item.",
+      "why": "negated research"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Destination confirmed: a PRD for push notifications. Proposed items: 'Which events trigger a notification?' (wayfind: interview).",
+      "why": "the closed-app question is left out"
     }
   ]
 }

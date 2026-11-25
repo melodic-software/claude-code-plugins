@@ -1,14 +1,13 @@
 {
   "pass": [
-    {
-      "answer": "Open 'Re-pick the vendor' linking [Pick the vendor](URL); #502 stays closed and unedited.",
-      "why": "meets the rule"
-    }
+    {"answer": "Open 'Re-pick the vendor' linking [Pick the vendor](URL); #502 stays closed and unedited.", "why": "opens a new item linking #502"},
+    {"answer": "`/work-items:track add --title \"Re-pick the notification vendor\" --labels \"wayfind: interview\" --body \"Supersedes [Pick the vendor](https://example.com/acme/shop/issues/502). Starting point: Courier.\"`", "why": "tracker add call"},
+    {"answer": "Create a new decision item 'Choose the vendor after Knock failed'.\nBody:\n> Revisits #502 (Pick the vendor), whose Knock pick the failed prototype reversed.", "why": "create prose with revisits"}
   ],
   "fail": [
-    {
-      "answer": "Reopen #502 and change its resolution to Courier.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Reopen #502 and change its resolution to Courier.", "why": "reopens, no new item"},
+    {"answer": "Open a new item 'Choose a vendor'. Body: Which vendor? Starting point: Courier.", "why": "new item without a link to #502"},
+    {"answer": "Edit the Decisions-so-far line for [Pick the vendor](URL) to say Courier.", "why": "no new item"}
   ]
 }

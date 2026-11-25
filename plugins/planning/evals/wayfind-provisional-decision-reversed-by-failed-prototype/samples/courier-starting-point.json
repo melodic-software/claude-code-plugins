@@ -1,14 +1,14 @@
 {
   "pass": [
-    {
-      "answer": "The new item starts from the fallback, Courier.",
-      "why": "meets the rule"
-    }
+    {"answer": "The new item starts from the fallback, Courier.", "why": "starts from Courier"},
+    {"answer": "**Starting point:** Courier, the prototype's fallback.", "why": "labeled field"},
+    {"answer": "Body: Which vendor replaces Knock? Starting point: the #504 fallback, **Courier**.", "why": "inside the item body"},
+    {"answer": "Courier is the new item's starting point.", "why": "Courier first"}
   ],
   "fail": [
-    {
-      "answer": "The new item starts from a fresh vendor survey.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "The new item starts from a fresh vendor survey.", "why": "not Courier"},
+    {"answer": "The new item starts from scratch.\n\nThe item body lists the fallback as Courier.", "why": "Courier on a different line from the starting point"},
+    {"answer": "Resolution comment on #504: failed, in-app needs a second call.", "why": "different part of the work"}
   ]
 }

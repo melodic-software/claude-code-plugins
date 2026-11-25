@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "1. Comment on #43: 'Resolved: Stripe.' 2. Decisions-so-far: '- [Pick the payment-provider adapter](URL): Stripe'. 3. Close #43.",
-      "why": "meets the rule"
+      "why": "comment, pointer, close"
+    },
+    {
+      "answer": "1. `/work-items:track edit 43 --comment-file resolution.md`\n2. Edit map #200's Decisions-so-far:\n\n```\n- [Pick the payment-provider adapter](https://example.com/acme/pay/issues/43): Stripe (resolved 2026-11-25)\n```\n\n3. `/work-items:track done 43 --summary \"Resolved; see the resolution comment.\"`",
+      "why": "written-out tracker sequence"
+    },
+    {
+      "answer": "Resolution comment on [Pick the payment-provider adapter](https://example.com/acme/pay/issues/43): Resolved: Stripe.\nDecisions-so-far line: [Pick the payment-provider adapter](https://example.com/acme/pay/issues/43): Stripe.",
+      "why": "comment by URL"
     }
   ],
   "fail": [
     {
       "answer": "Closing #43.",
-      "why": "breaks the rule"
+      "why": "neither"
+    },
+    {
+      "answer": "1. `/work-items:track edit 43 --comment-file resolution.md`\n2. `/work-items:track done 43`",
+      "why": "no Decisions-so-far pointer"
+    },
+    {
+      "answer": "Decisions-so-far: add [Pick the payment-provider adapter](URL): Stripe. Then close #43.",
+      "why": "no resolution comment"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
     }
   ]
 }

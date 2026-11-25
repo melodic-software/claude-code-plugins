@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "No map exists for the warehouse-routing rework. Shall I chart one?",
-      "why": "meets the rule"
+      "why": "proposes charting"
+    },
+    {
+      "answer": "No open map for this topic. Proposed next step: `/planning:wayfind chart warehouse-routing rework`. Say yes to start.",
+      "why": "proposes the chart action by name"
+    },
+    {
+      "answer": "Want me to turn this into a map? I'll wait for your yes.",
+      "why": "paraphrase without the word chart"
+    },
+    {
+      "answer": "**Recommend: chart it.** The rework kept opening questions, which is what a map is for.",
+      "why": "bold recommendation"
     }
   ],
   "fail": [
     {
       "answer": "Here is a summary of the warehouse-routing interview.",
-      "why": "breaks the rule"
+      "why": "no proposal"
+    },
+    {
+      "answer": "There's nothing to chart yet; run /planning:interview again.",
+      "why": "rejects charting"
+    },
+    {
+      "answer": "I won't chart this; it fits one session.",
+      "why": "negated chart"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

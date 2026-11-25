@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Open 'Revisit the invoice table design' linking [Share one invoice table across tenants](URL).",
+      "why": "opens a new item, leaves #39 alone"
+    },
+    {
+      "answer": "#39 stays closed: never reopen #39 or edit its resolution comment. A new item revisits it.",
+      "why": "negated mentions"
+    },
+    {
+      "answer": "Neither reopen #39 nor edit its resolution; the new item links it.",
+      "why": "neither/nor form"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply reopens nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reopen #39 and edit its resolution to per-tenant tables.",
+      "why": "reopens #39"
+    },
+    {
+      "answer": "`/work-items:track reopen 39`",
+      "why": "a written-out reopen"
+    },
+    {
+      "answer": "Edit #39's resolution comment to say tables are per tenant.",
+      "why": "edits the old resolution"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: edit 39 --state open\n```",
+      "why": "reopens through an edit"
+    }
+  ]
+}

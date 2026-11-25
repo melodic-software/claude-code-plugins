@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "/work-items:track edit <channel-id> --blocked-by <format-id>\nchannel.md links [Pick the export format](<format-url>).",
+      "why": "stand-ins only"
+    },
+    {
+      "answer": "Blocked by [Pick the export format](https://github.com/acme/billing/issues/<format-id>).",
+      "why": "URL with the id from the create"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply guesses nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Edit the channel body: 'Depends on #57'.",
+      "why": "guessed number"
+    },
+    {
+      "answer": "/work-items:track edit <channel-id> --blocked-by 57",
+      "why": "guessed id on the edge"
+    },
+    {
+      "answer": "Depends on [Pick the export format](https://github.com/acme/billing/issues/57).",
+      "why": "hard-coded number in a URL"
+    },
+    {
+      "answer": "Body: 'Depends on #<n>'.",
+      "why": "a bare placeholder number"
+    }
+  ]
+}

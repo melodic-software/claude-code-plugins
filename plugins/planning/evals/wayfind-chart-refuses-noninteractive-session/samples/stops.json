@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Stopping. Re-run /planning:wayfind chart in an interactive session.",
-      "why": "meets the rule"
+      "why": "stops"
+    },
+    {
+      "answer": "Chart refuses unattended runs: charting needs a human in the loop.",
+      "why": "refuses"
+    },
+    {
+      "answer": "I won't chart the customer-data-platform overhaul here; no human can confirm a destination.",
+      "why": "won't chart"
+    },
+    {
+      "answer": "**Stopped.** Nothing created.",
+      "why": "bold"
     }
   ],
   "fail": [
     {
       "answer": "No human is available, so I picked the destination myself: a PRD. Map follows.",
-      "why": "breaks the rule"
+      "why": "proceeds"
+    },
+    {
+      "answer": "Charting the customer-data-platform overhaul on my own assumptions.",
+      "why": "charts"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

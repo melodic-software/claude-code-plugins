@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+flags: i
+pattern: '^(?=[\s\S]*\b(?:because|why|rationale|basis|reason)\b)(?=[\s\S]*\bcosts?\b)(?=[\s\S]*\b(?:alternatives?|compar\w*|versus|vs)\b)(?=[\s\S]*(?:\bunverified\b|\bnot (?:been |be )?verified\b|\bcould(?: not|n''t) (?:be )?verif|\bcannot (?:be )?verif|\bunable to verif))[\s\S]*\b(?:pick|picked|recommend\w*|choose|chose|choice)\b'
 ---
-
-On map #300 'Map: search rewrite', the claimed research item #305 'Pick the index library' is ready to run; the map has no dossier branch yet. The user asked to run the research and graduate the item. No research can actually run here, so a resolution comment may be drafted with labeled placeholders for the research's content. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the resolution comment carries the pick and why, its costs, how the alternatives compare, and what could not be verified (filled in, or as labeled placeholders for the research's content).
-
-FAIL if any of those four parts is missing.

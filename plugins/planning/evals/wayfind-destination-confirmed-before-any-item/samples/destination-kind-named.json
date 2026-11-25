@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Destination: a PRD for partner-API v2.",
-      "why": "meets the rule"
+      "why": "PRD"
+    },
+    {
+      "answer": "**Recommended destination:** a product requirements document for partner-API v2. Confirm?",
+      "why": "spelled out"
+    },
+    {
+      "answer": "I'd make a PRD the destination: this is a coding effort.",
+      "why": "kind before the word destination"
+    },
+    {
+      "answer": "Destination options: a PRD, a set of build items, one change, a decision record or a general summary. I recommend a PRD.",
+      "why": "lists the kinds and recommends one"
     }
   ],
   "fail": [
     {
       "answer": "What should we aim for?",
-      "why": "breaks the rule"
+      "why": "no kind"
+    },
+    {
+      "answer": "What is the destination for this map? Tell me what done looks like.",
+      "why": "asks with no kind named"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

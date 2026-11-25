@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "The map can't close while Not-yet-specified holds 'Tax display'.",
-      "why": "meets the rule"
+      "why": "keeps the map open"
+    },
+    {
+      "answer": "Not closing [Map: billing overhaul](https://example.com/issues/200) yet: Not-yet-specified still holds **Tax display**. Pick one:\n1. Chart it as an item, if you can phrase it now.\n2. Move it into a mop-up interview item.\n3. Rule it out of scope (it moves to Out-of-scope with your reason).",
+      "why": "offers the ways out and closes nothing"
+    },
+    {
+      "answer": "Open maps: `/work-items:track list --label 'wayfind: map' --state open`. Map #200 stays open until the Tax display bullet leaves Not-yet-specified.",
+      "why": "a read call only"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply closes nothing; other graders fail it"
     }
   ],
   "fail": [
     {
-      "answer": "Posting the closing comment and closing the map.",
-      "why": "breaks the rule"
+      "answer": "Closing comment on #200:\n\n```\nDecisions: ...\nHandoff: pending\n```",
+      "why": "posts a closing comment"
+    },
+    {
+      "answer": "1. `/work-items:track edit 200 --comment-file closing.md`\n2. `/work-items:track done 200 --summary \"Closed to a PRD.\"`",
+      "why": "comments and closes the map"
+    },
+    {
+      "answer": "Skill: work-items:track args: done https://example.com/acme/billing/issues/200",
+      "why": "closes the map, skill-call form"
     }
   ]
 }

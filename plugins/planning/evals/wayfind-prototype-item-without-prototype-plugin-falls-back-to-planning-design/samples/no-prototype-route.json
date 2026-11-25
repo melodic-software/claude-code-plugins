@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "The prototype plugin is not enabled, so #504 falls back to /planning:design: invoking /planning:design.", "why": "no prototype route"},
+    {"answer": "A prototype item would normally route to /prototype:pressure-test, but that plugin is not enabled, so it falls back to /planning:design.", "why": "hypothetical mention"},
+    {"answer": "The type table routes a prototype item to /prototype:pressure-test (if enabled); it is not, so the fallback is /planning:design.", "why": "quotes the routing table"},
+    {"answer": "Instead of invoking /prototype:pressure-test, I route the item to /planning:design.", "why": "instead-of mention"},
+    {"answer": "", "why": "empty reply routes nowhere to a prototype skill"}
+  ],
+  "fail": [
+    {"answer": "Invoking /prototype:pressure-test in its vendor-fit mode for #504.", "why": "prototype route"},
+    {"answer": "Skill call: `prototype:pressure-test` with args `vendor-fit Knock`", "why": "Skill call form"},
+    {"answer": "Invoking **/prototype:explore-directions** for #504.", "why": "the other prototype skill"}
+  ]
+}

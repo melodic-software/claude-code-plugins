@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "All remaining decisions need a human; nothing resolved.",
-      "why": "meets the rule"
+      "why": "resolves nothing"
+    },
+    {
+      "answer": "Open maps: `/work-items:track list --label 'wayfind: map' --state open`. Children: `/work-items:track list --parent 142`.\n\nNon-interactive, so needs-human items drop out and the frontier is empty: all remaining decisions need a human. Stopping; I have not resolved #146 or any other item.",
+      "why": "only reads; negated mention"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply resolves nothing"
     }
   ],
   "fail": [
     {
       "answer": "Resolved #146 myself: choose REST. Posting the resolution comment and closing it.",
-      "why": "breaks the rule"
+      "why": "resolves a needs-human item"
+    },
+    {
+      "answer": "`/work-items:track edit 146 --comment-file res.md`\n`/work-items:track done 146 --summary \"Resolved; see the resolution comment.\"`",
+      "why": "written-out resolution comment and close"
+    },
+    {
+      "answer": "Resolution comment on #146:\n> Resolved: REST. Basis: simplest for the clients.",
+      "why": "a resolution in the decision-item shape"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: done 147 --summary \"Resolved; see the resolution comment.\"\n```",
+      "why": "skill-and-arguments close"
     }
   ]
 }

@@ -3,12 +3,32 @@
     {
       "answer": "The Formly item's resolution feeds the PRD through the map's closing comment.",
       "why": "says the resolution feeds the PRD"
+    },
+    {
+      "answer": "**Charted:** Formly data sharing (interview, needs-human).\nIts resolution feeds the PRD via the closing comment.",
+      "why": "the next line after the item"
+    },
+    {
+      "answer": "The data-sharing answers will flow into the PRD at closure.",
+      "why": "paraphrase"
     }
   ],
   "fail": [
     {
       "answer": "Create interview item 'Formly data sharing' covering fields and agreement.",
       "why": "never says the resolution feeds the PRD"
+    },
+    {
+      "answer": "Formly data sharing is charted. Destination stays a PRD.",
+      "why": "names the PRD but not that the resolution feeds it"
+    },
+    {
+      "answer": "The Formly item does not feed the PRD.",
+      "why": "negated"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
     }
   ]
 }

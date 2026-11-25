@@ -2,13 +2,41 @@
   "pass": [
     {
       "answer": "Nothing created; waiting for your yes.",
-      "why": "meets the rule"
+      "why": "creates nothing"
+    },
+    {
+      "answer": "Labels: `/work-items:track wayfind-labels` gave `wayfind:` (default), `needs-human` (default).\nOpen maps: `/work-items:track list --label 'wayfind: map' --state open` returned none.\n\nNo open map exists for the warehouse-routing rework. Shall I chart one? Charting would survey it, then sort its questions into decision items and Not-yet-specified bullets.",
+      "why": "the start-of-action lookups and a description of charting are not a map"
+    },
+    {
+      "answer": "**Map:** none yet. Want me to chart the warehouse-routing rework?",
+      "why": "a Map line that says none"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply creates nothing"
     }
   ],
   "fail": [
     {
       "answer": "Created map 'Warehouse-routing rework' and item 'Pick the routing engine'.",
-      "why": "breaks the rule"
+      "why": "creates a map and an item in prose"
+    },
+    {
+      "answer": "/work-items:track add --label 'wayfind: map' --body-file map-body.md \"Map: Warehouse-routing rework\"",
+      "why": "written-out map create"
+    },
+    {
+      "answer": "```\nSkill: work-items:track\nargs: add --parent <map-id> --label 'wayfind: research' --body-file item-1.md \"Survey routing engines\"\n```",
+      "why": "written-out decision item create"
+    },
+    {
+      "answer": "Charting now. Items: 'Pick the routing engine'. Not-yet-specified: **Zones**: unclear.",
+      "why": "charts without the yes"
+    },
+    {
+      "answer": "## Map: Warehouse-routing rework\n\n## Not-yet-specified\n- **Zone model**: nobody can say yet.",
+      "why": "proposes the map body"
     }
   ]
 }

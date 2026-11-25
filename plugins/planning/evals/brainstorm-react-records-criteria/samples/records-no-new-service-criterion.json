@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Criteria so far:\n- No new service to run (from candidate 2).\n\nCandidate 5, a read replica, is a new database to run, which pulls against that criterion. What draws you to it: isolating report load from the main database, or something else?",
+      "why": "records the stated reason as a criterion"
+    },
+    {
+      "answer": "**Criterion recorded:** the fix must not add another service; you can't run another service.",
+      "why": "bold label, user's wording"
+    },
+    {
+      "answer": "Noted: no new service to run. That is now a criterion the scope must meet.",
+      "why": "reason first, criterion after"
+    },
+    {
+      "answer": "Requirements: under 5 seconds; without a new service.",
+      "why": "listed as a requirement"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Good picks. Caching (2) and a read replica (5) together should get you under 5 seconds. RECOMMENDED: /planning:interview.",
+      "why": "ignores the stated reason"
+    },
+    {
+      "answer": "2 because you can't run another service, got it. Why does 5 resonate?",
+      "why": "acknowledges the reason but records no criterion"
+    },
+    {
+      "answer": "Criteria: under 5 seconds for large accounts.",
+      "why": "a criterion, but not the stated reason"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    }
+  ]
+}

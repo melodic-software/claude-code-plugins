@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '(?<!non-)\binteractive(?:[- ]only| (?:session|run|mode|use))\b|\bhuman[- ]in[- ]the[- ]loop\b|\b(?:needs?|requires?)\s+(?:a\s+|an\s+)?(?:human|person|someone)\b'
+flags: i
 ---
-
-The user asked wayfind to chart the customer-data-platform overhaul and declared the run an unattended autonomous batch job with no human available. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply states that charting needs an interactive session with a human.
-
-FAIL if it does not say that charting needs a human or an interactive session.

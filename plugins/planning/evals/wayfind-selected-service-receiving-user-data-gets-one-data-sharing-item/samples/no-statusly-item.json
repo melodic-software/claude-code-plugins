@@ -3,12 +3,24 @@
     {
       "answer": "Create interview item 'Formly data sharing'. Statusly receives no user data, so it gets no such item.",
       "why": "no item for Statusly"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"`\nNo Statusly data-sharing item: no user data crosses to it.",
+      "why": "negated mention of a Statusly item"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply charts nothing for Statusly"
     }
   ],
   "fail": [
     {
       "answer": "Create interview items 'Formly data sharing' and 'Statusly data sharing'.",
-      "why": "charts a data-sharing item for Statusly"
+      "why": "a data-sharing item for Statusly"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file statusly.md \"Statusly: confirm no user data crosses\"`",
+      "why": "a written-out Statusly create"
     }
   ]
 }

@@ -1,14 +1,13 @@
 {
   "pass": [
-    {
-      "answer": "Resolution: verdict pass, every check passed; files in the item's folder.",
-      "why": "meets the rule"
-    }
+    {"answer": "Resolution comment on #504: verdict pass, every check passed; files in the item's folder.", "why": "verdict in the comment"},
+    {"answer": "1. `/work-items:track edit 504 --comment-file resolution.md`:\n\n> **Verdict: PASS.** 1. One API call produces the email: passed. 2. The same call produces the in-app message: passed.\n> Files: [504-prove-knock/](https://example.com/tree/dossier/504-prove-knock/)\n\n2. Decisions-so-far line added.\n3. `/work-items:track done 504`", "why": "tracker call form with a verdict"},
+    {"answer": "**Comment on Prove Knock sends email and in-app from one call:**\nBoth pass checks passed under the vendor-fit run.\n\nClose the item.", "why": "bold heading form"}
   ],
   "fail": [
-    {
-      "answer": "Resolution: files saved.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Resolution: files saved.", "why": "no verdict"},
+    {"answer": "Resolution comment on #504: files are in 504-prove-knock/ on the dossier branch.\n\nDecisions-so-far: [Prove Knock](url): both checks passed.", "why": "verdict only outside the comment"},
+    {"answer": "Comment on #504: files saved.\n\nClose #504. The prototype passed.", "why": "verdict stated after the close, not in the comment"}
   ]
 }

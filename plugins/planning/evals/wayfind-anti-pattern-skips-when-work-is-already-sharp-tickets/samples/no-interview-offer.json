@@ -1,14 +1,38 @@
 {
   "pass": [
     {
-      "answer": "Use /work-items:decompose for the three tickets.",
-      "why": "meets the rule"
+      "answer": "These are three sharp tickets, so no map. Route them to `/work-items:decompose`.",
+      "why": "routes out with no interview offer"
+    },
+    {
+      "answer": "No-fog bail-out: every piece is already sharp. No need for /planning:interview here; run /work-items:decompose with the three tickets.",
+      "why": "names the interview only to rule it out"
+    },
+    {
+      "answer": "```\nSkill: work-items:decompose\nargs: forgot-password flow: request-reset-token endpoint, reset email send, reset-confirmation endpoint\n```",
+      "why": "written-out decompose call only"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply offers nothing"
     }
   ],
   "fail": [
     {
       "answer": "Shall I run /planning:interview first to lock the contract?",
-      "why": "breaks the rule"
+      "why": "offers the interview"
+    },
+    {
+      "answer": "These look sharp. Before decomposing, I could interview you first to pin the token expiry.",
+      "why": "offers an interview in prose"
+    },
+    {
+      "answer": "Route to /work-items:decompose. Optionally, run the interview with `Skill: planning:interview` beforehand.",
+      "why": "offers the interview beside the decompose route"
+    },
+    {
+      "answer": "**Next:** `/planning:interview` to lock the reset contract, then `/work-items:decompose`.",
+      "why": "recommends the interview before decompose"
     }
   ]
 }

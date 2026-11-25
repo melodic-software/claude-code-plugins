@@ -2,13 +2,33 @@
   "pass": [
     {
       "answer": "Waiting on the destination before anything else.",
-      "why": "meets the rule"
+      "why": "creates nothing"
+    },
+    {
+      "answer": "Destination: a PRD for partner-API v2. Confirm?\n\nOnce you confirm, the proposed map would hold decision items 'Pick the auth scheme', 'Choose the rate-limit model' and 'Set the versioning policy', with **Partner tiers** under Not-yet-specified. Nothing is created before your yes.",
+      "why": "describes the map without creating anything"
+    },
+    {
+      "answer": "Labels: `/work-items:track wayfind-labels`. Open maps: `/work-items:track list --label 'wayfind: map' --state open` returned none. Destination?",
+      "why": "start-of-action lookups only"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply creates nothing"
     }
   ],
   "fail": [
     {
       "answer": "Created 'Pick the auth scheme'. Also, what is the destination?",
-      "why": "breaks the rule"
+      "why": "creates an item before the destination"
+    },
+    {
+      "answer": "/work-items:track add --parent <map-id> --label 'wayfind: design' --body-file auth.md \"Pick the auth scheme\"",
+      "why": "written-out item create"
+    },
+    {
+      "answer": "```\nSkill: work-items:track\nargs: add --label 'wayfind: map' --body-file map-body.md \"Map: Partner-API v2\"\n```",
+      "why": "written-out map create"
     }
   ]
 }

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Three quick ones, together: 1. Email digests on by default? Recommend yes. 2. Keep the SMS toggle? Recommend no. 3. Per-channel mute? Recommend yes.",
+      "why": "all three ready questions asked in one round"
+    },
+    {
+      "answer": "**Ready questions (one round)**\n\n1. **Email digests on by default?** RECOMMENDED: yes.\n2. **Keep the legacy SMS toggle?** RECOMMENDED: no.\n3. **Show a per-channel mute?** RECOMMENDED: yes.\n\nThen I'll show the proposed map.",
+      "why": "bold numbered list of the three questions"
+    },
+    {
+      "answer": "```\nSkill: planning:interview   args: one round: email digests on by default (rec yes); keep the legacy SMS toggle (rec no); per-channel mute (rec yes)\n```",
+      "why": "the three questions written as one interview call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "First question: email digests on by default? Recommend yes. I'll ask the next one after you answer.",
+      "why": "asks one at a time"
+    },
+    {
+      "answer": "Proposed map: 'Email digests default', 'Legacy SMS toggle', 'Per-channel mute', 'Notification catalogue', 'Delivery-retry policy'. Create it?",
+      "why": "no ready question is asked; they became items"
+    },
+    {
+      "answer": "Email digests on by default? Recommend yes. Keep the legacy SMS toggle? Recommend no.",
+      "why": "the per-channel mute question is missing"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply asks nothing"
+    },
+    {
+      "answer": "Destination confirmed: a PRD. What should the catalogue cover?",
+      "why": "answers a different question"
+    }
+  ]
+}

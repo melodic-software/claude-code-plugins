@@ -1,14 +1,34 @@
 {
   "pass": [
     {
-      "answer": "Frontier item: Choose the billing aggregate boundaries (#145), wayfind: design.",
-      "why": "meets the rule"
+      "answer": "Frontier item: Choose the billing aggregate boundaries (#145). Claiming it: `/work-items:track start 145`.",
+      "why": "claims #145"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: start https://example.com/acme/billing/issues/145\n```",
+      "why": "claim by URL in skill-and-arguments form"
+    },
+    {
+      "answer": "Routing #145 to /planning:design with the item's question and criteria.",
+      "why": "works #145 by routing it"
     }
   ],
   "fail": [
     {
       "answer": "I cannot reach the tracker, so I am stopping.",
-      "why": "breaks the rule"
+      "why": "stops without taking up #145"
+    },
+    {
+      "answer": "Claiming the next item: `/work-items:track start 146`.",
+      "why": "works a different item"
+    },
+    {
+      "answer": "`/work-items:track start 1450`.",
+      "why": "another number"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
     }
   ]
 }

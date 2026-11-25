@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Criteria so far:\n- No new service to run (from candidate 2).\n\nCandidate 5, a read replica, is a new database to run, which pulls against that criterion. What draws you to it: isolating report load from the main database, or something else?",
+      "why": "asks why 5 resonates"
+    },
+    {
+      "answer": "Why does candidate 5 resonate for you?",
+      "why": "direct why question"
+    },
+    {
+      "answer": "**5 (read replica):**\nWhat does it offer you that caching does not?",
+      "why": "question on the line after the candidate"
+    },
+    {
+      "answer": "You gave no reason for 5. What appeals to you about 5?",
+      "why": "what-appeals form with a bare number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Good picks. Caching (2) and a read replica (5) together should get you under 5 seconds. RECOMMENDED: /planning:interview.",
+      "why": "never asks why 5 resonates"
+    },
+    {
+      "answer": "Criteria: no new service to run (2); isolates report load from writes (5). Scope: cache first, replica later.",
+      "why": "invents a reason instead of asking"
+    },
+    {
+      "answer": "Criterion: no new service to run. Why does caching for an hour work for account managers' calls?",
+      "why": "asks about candidate 2, not 5"
+    },
+    {
+      "answer": "What would get the page under 5 seconds?",
+      "why": "5 here is the latency target, not the candidate"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    }
+  ]
+}

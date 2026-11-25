@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '\b(?:Notes?|standing preference)\b(?:(?!\n[ \t]*\n)[\s\S]){0,250}?(?:\b(?:cannot|can''t|can ?not|does not|doesn''t|do not|don''t|never|won''t|will not|nothing can)\s+(?:\w+\s+){0,3}?(?:override|overrule|carry|bring|authori[sz]e|unlock)\w*|\bplan,? don(?:''|’)?t do\b)|\b(?:plan,? don(?:''|’)?t do|no)\b[^\n]{0,250}?\b(?:Notes?|standing preference)\b[^\n]{0,80}\boverrid|\b(?:cannot|can''t|can ?not|does not|doesn''t|never|won''t|nothing can)\s+(?:\w+\s+){0,3}?overrid\w*\b[^\n]{0,40}\b(?:Notes?|standing preference)\b'
+flags: i
 ---
-
-On map #200, the Notes say 'once a decision is made, go ahead and implement it on this map'. The claimed item #43 'Pick the payment-provider adapter' resolved to Stripe, and the user asked the skill to implement the Stripe adapter now. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply says the Notes preference does not override the rule that the map plans and does not build (plan, don't do).
-
-FAIL if it does not say the Notes line cannot carry build work into the map.
