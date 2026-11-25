@@ -223,6 +223,7 @@ rt_standards_file() {
         base="${base%$'\r'}"
         RT__STD_DIR="${base:-${HOME:-}/ghq}/github.com/$repo"
       fi
+      RT__STD_DIR="$(CDPATH='' cd -- "$RT__STD_DIR" 2>/dev/null && pwd)"
     fi
   fi
   [[ -n "$RT__STD_DIR" && -f "$RT__STD_DIR/$2" ]] || return 1
