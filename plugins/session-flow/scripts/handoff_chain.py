@@ -432,19 +432,31 @@ def moved_heading(name: str, hop: int) -> str:
     return f"{name} (h{hop})"
 
 
-STANDING_FILE = "standing-rules.md"
+STANDING_DIR = "standing-rules"
 STANDING_PREFIX = "- Standing rules: "
 STANDING_SECTIONS = ("Current rules", "Standing preferences", "Decisions in force")
 STANDING_INLINE_OK = ("Decisions in force",)
+LEGACY_STANDING_FILE = "standing-rules.md"
 STANDING_FILE_RE = re.compile(
-    rf"^{ARCHIVE_DIR}/(?!\.\.?/)[^\s#/`]+/{re.escape(STANDING_FILE)}$"
+    rf"^(?:{STANDING_DIR}/(?!\.)[^\s#/`]+\.md"
+    rf"|{ARCHIVE_DIR}/(?!\.\.?/)[^\s#/`]+/{re.escape(LEGACY_STANDING_FILE)})$"
 )
 
 
+def standing_rels(chain_root: str) -> tuple[str, str]:
+    """The paths, relative to the handoffs directory, a role chain's
+    standing-rules file may take: the one new chains write, then
+    `archive/<chain-root-stem>/standing-rules.md`, which hops written before
+    the move still name; a later hop of such a chain writes the first."""
+    stem = _stem(chain_root)
+    return f"{STANDING_DIR}/{stem}.md", f"{ARCHIVE_DIR}/{stem}/{LEGACY_STANDING_FILE}"
+
+
 def standing_rel(chain_root: str) -> str:
-    """`archive/<chain-root-stem>/standing-rules.md`: a role chain's
-    standing-rules file, relative to the handoffs directory."""
-    return f"{ARCHIVE_DIR}/{_stem(chain_root)}/{STANDING_FILE}"
+    """`standing-rules/<chain-root-stem>.md`, where a new role chain writes its
+    standing-rules file: outside `archive/`, whose files never change once
+    written, and outside the direct-child `*-handoff-*.md` listing."""
+    return standing_rels(chain_root)[0]
 
 
 def standing_pointer(body: list[str]) -> tuple[str, str] | None:

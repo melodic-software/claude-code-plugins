@@ -162,6 +162,7 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     section_spans,
     standing_pointer,
     standing_rel,
+    standing_rels,
 )
 import dialect  # noqa: E402  (dialect.py beside this script)
 import handoff_fit  # noqa: E402  (handoff_fit.py beside this script)
@@ -2070,9 +2071,10 @@ def _check_standing(doc: Doc, f: Findings, root: str, standing: str | None) -> D
     pointed = _standing_pointed(doc)
     if not held and not pointed:
         return doc
-    want = standing_rel(root) if root else None
-    if held and want and held != want:
-        f.fail(f"frontmatter: standing_rules must be '{want}' (got {held!r})")
+    if held and root and held not in standing_rels(root):
+        f.fail(
+            f"frontmatter: standing_rules must be '{standing_rel(root)}' (got {held!r})"
+        )
         return doc
     if not held:
         f.fail(
@@ -3256,11 +3258,11 @@ def cmd_fill(args: argparse.Namespace) -> int:
 
     writes: list[tuple[Path, str, bytes | None]] = []
     standing_key = doc.frontmatter.get("standing_rules") if shape == 4 else None
-    want = standing_rel(doc.frontmatter.get("chain_root", ""))
-    if standing_key and standing_key != want:
+    root = doc.frontmatter.get("chain_root", "")
+    if standing_key and standing_key not in standing_rels(root):
         return _die(
             1,
-            f"standing_rules {standing_key!r} is not this chain's standing-rules file ({want}); nothing written",
+            f"standing_rules {standing_key!r} is not this chain's standing-rules file ({standing_rel(root)}); nothing written",
         )
     if standing_key and (code := _forked(path, doc)) is not None:
         return code
@@ -3299,6 +3301,13 @@ def cmd_fill(args: argparse.Namespace) -> int:
                     prior = target.read_bytes()
                 except FileNotFoundError:
                     prior = None
+                    try:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                    except OSError as exc:
+                        return _die(
+                            1,
+                            f"cannot create the standing-rules folder {target.parent} ({exc}); nothing written",
+                        )
                 except OSError as exc:
                     return _die(
                         1,
@@ -3635,7 +3644,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     standing_before: bytes | None = None
     standing_text: str | None = None
     if standing_key:
-        if standing_key != standing_rel(fm.get("chain_root", "")):
+        if standing_key not in standing_rels(fm.get("chain_root", "")):
             return _die(
                 1,
                 f"standing_rules {standing_key!r} is not this chain's standing-rules file; nothing written",
@@ -4984,7 +4993,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument(
         "--standing-rules",
         action="store_true",
-        help="role chain: `fill` keeps Current rules, Standing preferences and Decisions in force in the chain's archive/<chain>/standing-rules.md and the retire pointers in archive/<chain>/retired-index.md, the hot file holds a pointer to each, and the resume prompt loads the standing-rules file first; a successor of such a hop keeps it without the flag (shape 4 only)",
+        help="role chain: `fill` keeps Current rules, Standing preferences and Decisions in force in the chain's standing-rules/<chain>.md and the retire pointers in archive/<chain>/retired-index.md, the hot file holds a pointer to each, and the resume prompt loads the standing-rules file first; a successor of such a hop keeps it without the flag (shape 4 only)",
     )
     p_new.set_defaults(func=cmd_new)
 

@@ -140,13 +140,18 @@ holds what the next action needs and one pointer line for each body that lives e
 fits one Read page.
 
 - **Where the rules and decisions live.** `fill` moves Current rules, Standing preferences and
-  Decisions in force into `archive/<chain-root-stem>/standing-rules.md`, one file per chain beside
-  its archive files, so it is gitignored with the rest of the memory tier. Each section stays in
-  its usual place in the handoff file as one line,
-  `- Standing rules: archive/<chain-root-stem>/standing-rules.md#<section>`. The binding order and
+  Decisions in force into `standing-rules/<chain-root-stem>.md`, one file per chain in a folder
+  beside the handoff files, so it is gitignored with the rest of the memory tier. It stays out of
+  `archive/`, whose files never change once written, because every hop rewrites it; and out of
+  the handoffs folder itself, so the direct-child `*-handoff-*.md` listing never matches it. Each
+  section stays in its usual place in the handoff file as one line,
+  `- Standing rules: standing-rules/<chain-root-stem>.md#<section>`. The binding order and
   the entry mechanics (ids, rewrite in place, `retire`) do not change: a decision leaves only
   through `retire`, listed with its reason under `## Retired decisions` in the archive file. A
   handoff file that still holds Decisions in force inline validates; its next `fill` moves them.
+- **Chains started before the move.** A hop whose `standing_rules` key names the old path,
+  `archive/<chain-root-stem>/standing-rules.md`, still validates and reads from it, and `amend`
+  edits it there. The chain's next hop writes the new path and leaves the old file as it was.
 - **How a resume loads them.** The directive reads
   `Read @<standing-rules file> then @<handoff file>, …`, so the rules and decisions load before
   the handoff file. A standing-rules file over one Read page makes the directive say to page it.
@@ -163,7 +168,7 @@ fits one Read page.
 #### The retired-entries index
 
 A role chain's `- Retired entries: <archive file> § <heading>` lines live in one index,
-`archive/<chain-root-stem>/retired-index.md`, beside the standing-rules file. Review before you
+`archive/<chain-root-stem>/retired-index.md`, beside the chain's archive files. Review before you
 continue holds one line in their place,
 `- Retired entries index: archive/<chain-root-stem>/retired-index.md`; read the index, then the
 archive file it names, only when an earlier entry's history matters.
@@ -945,7 +950,7 @@ chain_root: <root-filename>.md            # replaces chain:
 hop: <N>                                  # counted from the chain root, every shape included
 archive: archive/<chain-root-stem>/       # relative to the handoffs directory
 archive_from: <M>                         # first archive-file hop (shape 3 or 4); archive files exist from M on
-standing_rules: archive/<chain-root-stem>/standing-rules.md  # CONDITIONAL — role chains only
+standing_rules: standing-rules/<chain-root-stem>.md  # CONDITIONAL — role chains only; older hops name archive/<chain-root-stem>/standing-rules.md
 next_rule_id: <K>                         # first [R<n>] id this hop may assign; never lowered
 next_question_id: <K>                     # first [Q<n>] id this hop may assign; never lowered
 next_decision_id: <K>                     # first [D<n>] id this hop may assign; never lowered
