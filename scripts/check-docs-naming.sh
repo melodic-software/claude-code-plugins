@@ -96,6 +96,6 @@ if ((${#offenders[@]} == 0)); then
 fi
 
 printf '%s\n' "${offenders[@]}" | sort -u >&2
-printf 'check-docs-naming: %d offender(s); rename to lower-kebab-case (see the header of %s).\n' \
-  "${#offenders[@]}" "scripts/${0##*/}" >&2
+printf 'check-docs-naming: %d offender(s); rename each to lower-kebab-case, or exempt it in the docs-naming file_names configuration and re-emit this gate.\n' \
+  "${#offenders[@]}" >&2
 exit 1

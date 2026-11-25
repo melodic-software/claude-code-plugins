@@ -65,5 +65,5 @@ if ((${#findings[@]} == 0)); then
 fi
 
 printf '%s\n' "${findings[@]}" | sort -u >&2
-printf 'check-test-tmp-cleanup: %d finding(s); see the header of scripts/%s.\n' "${#findings[@]}" "${0##*/}" >&2
+printf 'check-test-tmp-cleanup: %d finding(s); give a shell suite a trap ... EXIT, and a JS suite a removal that runs on failure (an after hook, a finally block, or tempDir from lib/test-tmp.mjs).\n' "${#findings[@]}" >&2
 exit 1

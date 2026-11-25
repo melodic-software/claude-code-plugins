@@ -78,6 +78,6 @@ if ((${#offenders[@]} == 0)); then
 fi
 
 printf '%s\n' "${offenders[@]}" | LC_ALL=C sort -u >&2
-printf 'check-spoke-plugin-root: %d offender(s); see the header of %s for the fix pattern.\n' \
-  "${#offenders[@]}" "scripts/${0##*/}" >&2
+printf 'check-spoke-plugin-root: %d offender(s); the Read tool expands no variables, so cite the path as <skill-dir>/... (SKILL.md renders <skill-dir>), or update a stale scripts/spoke-plugin-root-baseline.txt entry.\n' \
+  "${#offenders[@]}" >&2
 exit 1

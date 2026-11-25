@@ -171,7 +171,7 @@ drift_norm() {
   s="${s//"$stem"/GATE}"
   s="${s//"under $roots is $rule."/under ROOTS is RULE.}"
   s="${s//"basename is not $rule (rule:"/basename is not RULE (rule:}"
-  s="${s//"rename to $rule (see"/rename to RULE (see}"
+  s="${s//"rename each to $rule,"/rename each to RULE,}"
   printf '%s' "$s"
 }
 

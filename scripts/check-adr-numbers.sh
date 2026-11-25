@@ -75,6 +75,6 @@ if ((${#offenders[@]} == 0)); then
 fi
 
 printf '%s\n' "${offenders[@]}" | sort -u >&2
-printf 'check-adr-numbers: %d offender(s); give the new record the next free number (see the header of %s).\n' \
-  "${#offenders[@]}" "scripts/${0##*/}" >&2
+printf 'check-adr-numbers: %d offender(s); give the new record the next free number, or remove a stale scripts/adr-numbers-baseline.txt entry.\n' \
+  "${#offenders[@]}" >&2
 exit 1
