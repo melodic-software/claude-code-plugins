@@ -4,6 +4,7 @@
 // test-scope: .github/actions/resolve-config/action.yml .github/actions/select-trusted-text/action.yml
 // test-scope: .github/actions/setup-runner-isolation/action.yml
 // test-scope: .github/workflows/*.yml
+// test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";

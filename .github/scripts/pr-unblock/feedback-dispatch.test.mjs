@@ -1,4 +1,5 @@
 // test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
