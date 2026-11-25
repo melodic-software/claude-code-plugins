@@ -93,8 +93,8 @@ CLAUDE_CODE_SESSION_ATTENDED=1 hook::session_attended || true
 vars_after="$(compgen -v)"
 [[ "$(set +o; shopt -p)" == "$opts_before" ]] || echo "options changed"
 comm -13 <(printf "%s\n" "$vars_before" | sort) <(printf "%s\n" "$vars_after" | sort) |
-  grep -vx -e opts_before -e vars_before -e vars_after -e "SESSION_[A-Z_]*" || true
-' _ "$here/session-attended.sh" 2>&1)"
+  grep -vxF -e opts_before -e vars_before -e vars_after -f <(sed -n "s/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p" "$2") || true
+' _ "$here/session-attended.sh" "$here/session-attended.env" 2>&1)"
 if [[ -z "$leak" ]]; then
   pass "bash: the reader leaves caller options and variables alone"
 else
