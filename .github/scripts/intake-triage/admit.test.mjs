@@ -4006,22 +4006,28 @@ test("closedByTrusted counts the lanes App's close only with the App's own outco
       `> ${stop}: ＃5 shipped it`,
     ].join("\n");
   const comment = (stop, user = APP) => ({ user, created_at: "2026-10-21T00:00:00Z", body: closeBody(stop) });
-  const client = (comments, closer = APP) => async (method, path) => {
+  const mergeSha = "4".repeat(40);
+  const client = (comments, closer = APP, message = "fix: tidy (#5)\n\nCloses #77") => async (method, path) => {
     const routes = {
       "GET /repos/o/r/issues/77": { number: 77, state: "closed", closed_by: closer, created_at: "2026-10-01T00:00:00Z", repository_url: "https://api.github.com/repos/o/r" },
       "POST /graphql": { data: { repository: { issue: { timelineItems: { nodes: [] } } } } },
       "GET /repos/o/r/issues/77/comments?per_page=100&page=1": comments,
+      "GET /repos/o/r/issues/77/sub_issues?per_page=100&page=1": [],
       "GET /repos/o/r/issues/77/events?per_page=100&page=1": [],
+      "GET /repos/o/r": { default_branch: "main" },
+      "GET /repos/o/r/pulls/5": { merged_at: "2026-10-20T00:00:00Z", base: { ref: "main" }, merge_commit_sha: mergeSha },
+      [`GET /repos/o/r/commits/${mergeSha}`]: { commit: { message } },
     };
     if (!Object.hasOwn(routes, `${method} ${path}`)) {
       throw new Error(`no route for ${method} ${path}`);
     }
     return routes[`${method} ${path}`];
   };
-  const trusted = (comments, { appId = APP.id, closer } = {}) => closedByTrusted({ github: client(comments, closer), repository: "o/r", humans: new Set([HUMAN.id]), appId })(77);
-  for (const stop of ["already-done", "verified-done", "report-delivered"]) {
-    assert.equal(await trusted([comment(stop)]), true, stop);
-  }
+  const trusted = (comments, { appId = APP.id, closer, message } = {}) => closedByTrusted({ github: client(comments, closer, message), repository: "o/r", humans: new Set([HUMAN.id]), appId })(77);
+  assert.equal(await trusted([comment("already-done")]), true, "already-done whose evidence holds");
+  assert.equal(await trusted([comment("already-done")], { message: "fix: tidy (#5)" }), false, "already-done whose merge commit no longer closes it");
+  assert.equal(await trusted([comment("verified-done")]), false, "verified-done with no sub-issue");
+  assert.equal(await trusted([comment("report-delivered")], { message: "fix: tidy (#5)" }), true, "report-delivered on its marker alone");
   assert.equal(await trusted([]), false, "an App close with no outcome comment");
   assert.equal(await trusted([comment("report-delivered", HUMAN)]), false, "an outcome comment the App did not write");
   assert.equal(await trusted([comment("report-delivered")], { appId: 1 }), false, "another App id");
