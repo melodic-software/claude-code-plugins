@@ -815,3 +815,14 @@ test('the change check runs after a step that edited a file, not after one that 
   expect(w.forks.length).toBe(1)
   expect(live(w).find(r => r.trigger === 'change')).toMatchObject({ step: 2 })
 })
+
+test('a gate finding is redacted before its row and its refusal note', GATE, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await turn($, 't1')
+  w.replies.push(answer(FINDING.replace('gh pr merge ran before monitor-poll --verdict', 'pushed with token sk-abc123')))
+  const r = await push($)
+  expect(JSON.stringify(r)).not.toContain('sk-abc123')
+  expect(w.files[LIVE]).not.toContain('sk-abc123')
+  expect(JSON.stringify(r)).toContain('<REDACTED: API key>')
+})

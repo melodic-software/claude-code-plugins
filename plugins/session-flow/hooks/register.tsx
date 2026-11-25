@@ -201,7 +201,7 @@ const gate = async ($: EngineInterface, command: string) => {
   })
   const timeout = new Promise<'timeout'>(resolve => $.clock.after(opts.gateTimeoutMs, () => resolve('timeout')))
   const r = await Promise.race([$.model.fork({ prompt }), timeout]).catch(() => 'error' as const)
-  const reply = r === 'timeout' || r === 'error' ? { isAnswered: false as const, reason: r } : r.isAnswered ? { isAnswered: true as const, text: r.text } : { isAnswered: false as const, reason: 'error' as const }
+  const reply = r === 'timeout' || r === 'error' ? { isAnswered: false as const, reason: r } : r.isAnswered ? { isAnswered: true as const, text: await $.session.redact(r.text) } : { isAnswered: false as const, reason: 'error' as const }
   const usage = typeof r === 'object' && r.isAnswered ? r.usage : undefined
   const done = await dispatch($, { kind: 'gate-replied', command, reply, latencyMs: (await $.clock.now()) - started, usage })
   const deny = done.effects.find(fx => fx.kind === 'deny')

@@ -281,7 +281,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
       const card: Card = { id: s.nextCard, finding: e.finding, ledger: e.ledger, source: e.req.trigger === 'turn-end' ? 'turn end' : `${e.req.trigger} ${e.req.step}`, promptsSurvived: 0, isOpen: false }
       const state = { ...s, card, nextCard: s.nextCard + 1 }
       const effects: Effect[] = [{ kind: 'invalidate' }]
-      if (o.autoSend) {
+      if (o.autoSend && s.on) {
         const delivery: Delivery = !s.turnRunning && !s.submitWaiting && !s.lastTurnWasObserver ? 'submit' : 'append'
         const text = noteFor(card.finding, 'plugin', o.autoNote)
         if (delivery === 'submit') Object.assign(state, { submitWaiting: true, pendingSubmit: text })

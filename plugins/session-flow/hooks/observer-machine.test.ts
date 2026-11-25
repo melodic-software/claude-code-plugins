@@ -107,3 +107,12 @@ test('a gate timeout lets the command run and records the timeout', () => {
   expect(r.effects.some(fx => fx.kind === 'deny')).toBe(false)
   expect(r.effects).toContainEqual({ kind: 'record', row: { trigger: 'gate', latencyMs: 30_000, usage: undefined, outcome: 'timeout' } })
 })
+
+test('a check still running when Turn off is pressed shows its finding but sends nothing', () => {
+  const { options } = readOptions({ observer_auto_send: true })
+  const req = { trigger: 'step' as const, turnId: 't1', step: 6, gen: 1, open: null }
+  const s = { ...initial(), on: false, gen: 1, turnRunning: true }
+  const r = step(s, { kind: 'finding-accepted', req, finding: { finding: 'x.', category: 'process', rule: 'r', evidence: 'e' }, ledger: '/l.md' }, options)
+  expect(r.state.card).not.toBeNull()
+  expect(r.effects.some(fx => fx.kind === 'deliver')).toBe(false)
+})
