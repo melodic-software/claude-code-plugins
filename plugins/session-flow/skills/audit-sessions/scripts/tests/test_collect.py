@@ -1,12 +1,4 @@
-# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/multi/*
-"""Contract tests for collect.py: the CLI envelope and the store records it writes.
-
-Runs the scripts by subprocess, testing the CLI interface, not internals. The tracer test also
-drives sweep.py over the store and transcript_reader.py through collect; repo identity comes from
-lib/state-key.sh. Fixtures: `tracer/proj-a/tracer-0001.jsonl`; `multi/proj-a/sess-a1.jsonl` with
-`sess-a1/subagents/agent-x1.jsonl`, `multi/proj-a/sess-a2.jsonl`, `multi/proj-b/sess-b1.jsonl`.
-Their `cwd` values are placeholders rewritten to `tmp_path` directories.
-"""
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/multi/* plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/tracer/proj-a/tracer-0001.jsonl
 
 from __future__ import annotations
 
@@ -334,7 +326,6 @@ def test_skipping_run_leaves_the_store_a_forced_run_would_write(data_dir, multi)
     assert skipped == forced
 
 
-# The files that decide what a record holds, relative to the plugin root, as the requirement lists them.
 HASHED_INPUTS = (
     "scripts/collect.py",
     "scripts/census.py",
@@ -431,7 +422,6 @@ with open(out, "w", encoding="utf-8") as handle:
 
 
 def unhashed_plugin_files(plugin: Path, data_dir: Path, root: Path, tmp_path: Path) -> set[str]:
-    """Plugin files a collect run imports, opens or executes that are not hashed (plugin.json is provenance)."""
     driver, out = tmp_path / "audit_driver.py", tmp_path / "touched.json"
     driver.write_text(AUDIT_DRIVER, encoding="utf-8")
     plugin = plugin.resolve()
@@ -499,7 +489,6 @@ def test_clear_after_the_first_turn_does_not_start_the_session(data_dir, multi):
 
 
 def write_session(root: Path, sid: str, turns: list[str]) -> None:
-    """A session where each typed turn follows an assistant reply."""
     lines = []
     for n, text in enumerate(turns):
         lines.append({"type": "assistant", "uuid": f"a{n}", "timestamp": f"2026-09-25T10:{n:02d}:00Z",
@@ -686,10 +675,8 @@ def test_subagent_branch_and_pr_link_are_stored_apart_from_the_main_session(data
 
 
 def collect_failing_closed(data_dir: Path, root: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
-    """Collect from a copy of the plugin's script layout whose one vendored rule cannot compile."""
     plugin = tmp_path / "plugin"
     (plugin / "scripts").mkdir(parents=True)
-    # The same manifest, so the copy reports the same collector version as the real script.
     shutil.copytree(PLUGIN_SCRIPTS.parent / ".claude-plugin", plugin / ".claude-plugin")
     for name in ("collect.py", "census.py", "friction_scan.py", "redact.py", "transcript_reader.py"):
         shutil.copy2(PLUGIN_SCRIPTS / name, plugin / "scripts")

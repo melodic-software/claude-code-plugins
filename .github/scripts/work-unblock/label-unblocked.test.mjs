@@ -1,4 +1,4 @@
-// test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/actions/resolve-config/package.json .github/scripts/work-unblock/publish-lane-level.mjs .github/scripts/work-unblock/sweep-gap.mjs .github/scripts/work-unblock/sync-status.mjs
 // Expected values come from the work-unblock lane's rules: when an issue
 // closes, each issue it blocked gets `agent-ready` only when every blocker is
 // closed as completed, it is open, and it carries no hold label; the label

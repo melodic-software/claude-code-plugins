@@ -1,3 +1,4 @@
+// test-scope: plugins/sql-server/.claude-plugin/plugin.json plugins/sql-server/README.md
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -29,7 +30,6 @@ const check = (...args) =>
     env: { PATH: process.env.PATH, SQL_READER_USER: 'reader' },
   });
 
-// Every config example the docs show, so a doc edit that breaks one fails here.
 const DOCS = ['README.md', 'reference/azure-sql-database.md'];
 const examples = DOCS.flatMap((doc) =>
   [...readFileSync(pluginFile(doc), 'utf8').matchAll(/```json\n([\s\S]*?)```/g)]
