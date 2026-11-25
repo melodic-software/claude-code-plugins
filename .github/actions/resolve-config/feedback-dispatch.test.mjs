@@ -186,8 +186,6 @@ test("a lane whose resolve-conflicts slot has a mergeable predicate dispatches o
   const { dispatched, reads } = await run("      - activity: address-feedback");
   assert.equal(dispatched.length, 1);
   assert.equal(dispatched[0].inputs.activity, "address-feedback");
-  // address-feedback's labels-absent and draft were decided from a fresh PR
-  // read; resolve-conflicts' mergeable was not.
   assert.deepEqual(reads, [`GET /repos/${REPOSITORY}/pulls/42`]);
 });
 
