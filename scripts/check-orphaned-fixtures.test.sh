@@ -133,6 +133,17 @@ if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"stray.md.txt"* ]]; then ok "a 
 rm -rf "$repo"
 
 mk_repo repo
+mkdir -p "$repo/plugins/p/evals/case-b" "$repo/plugins/p/skills/s/evals/fixtures/cfg"
+printf 'au_copy cfg/test_plugin_case.py test_plugin_case.py\n' >"$repo/plugins/p/evals/case-b/scaffold.sh"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/cfg/test_plugin_case.py"
+if run_check "$repo" >/dev/null; then ok "a skill fixture a plugin-level case scaffold copies passes --check"; else fail "plugin-scaffold fixture wrongly flagged: $(run_check_out "$repo")"; fi
+rm -f "$repo/plugins/p/evals/case-b/scaffold.sh"
+out="$(run_check_out "$repo")"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"test_plugin_case.py"* ]]; then ok "control: the same skill fixture with no scaffold naming it is an orphan"; else fail "unnamed skill fixture not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/orphan.md"
 out="$(run_check_out "$repo")"
