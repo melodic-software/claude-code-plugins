@@ -9,7 +9,7 @@
         {
           "tool": "Edit",
           "input": {
-            "file_path": "/ws/docs/adr/0003-cache-order-totals-in-redis.md",
+            "file_path": "/ws/docs/adr/0003-add-totals-to-order-events.md",
             "old_string": "a",
             "new_string": "b"
           }
