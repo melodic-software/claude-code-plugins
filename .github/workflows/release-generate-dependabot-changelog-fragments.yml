@@ -108,7 +108,7 @@ jobs:
           refs="repos/$GITHUB_REPOSITORY/git/refs"
           want="$(LC_ALL=C sort "$RUNNER_TEMP/fragments.txt")"
           number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
-          if [ -n "$number" ] && [ "$(gh pr diff "$number" --repo "$GITHUB_REPOSITORY" --name-only | LC_ALL=C sort)" = "$want" ]; then
+          if [ -n "$number" ] && [ "$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$number/files" --jq '.[].filename' | LC_ALL=C sort)" = "$want" ]; then
             echo "Pull request #$number already holds these fragments; leaving it alone."
             exit 0
           fi

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { bodySectionNames, bodyView, ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, localTemplate, main, maxRoundsFrom, needsPerson, planLanes, refreshableSections, runRecord, scanRefusal, select, templateHeadings, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { bodySectionNames, bodyView, CHECK_RUN_PAGES, ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, localTemplate, main, maxRoundsFrom, needsPerson, planLanes, refreshableSections, runRecord, scanRefusal, select, templateHeadings, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { stage } from "../../actions/collect-base-activity/stage-closure.mjs";
@@ -1356,7 +1356,7 @@ test("listCommitCheckRuns lists every run, so a later skip does not hide a lane'
   assert.deepEqual(failingChecks(runs).map((run) => run.id), [1]);
 });
 
-test("listCommitCheckRuns marks a listing past its three pages, or with no total, as not complete", async () => {
+test("listCommitCheckRuns reads every page up to total_count, and marks a listing short of it, past its page cap, or with no total, as not complete", async () => {
   const listing = (total, sizes) => {
     const fetch = async (url) => {
       const page = Number(new URL(url).searchParams.get("page"));
@@ -1368,6 +1368,10 @@ test("listCommitCheckRuns marks a listing past its three pages, or with no total
   assert.equal((await listing(3, [3])).complete, true);
   assert.equal((await listing(150, [100, 50])).complete, true);
   assert.equal((await listing(301, [100, 100, 100])).complete, false);
+  const sharded = await listing(350, [100, 100, 100, 50]);
+  assert.deepEqual([sharded.length, sharded.complete], [350, true]);
+  const capped = await listing((CHECK_RUN_PAGES + 1) * 100, Array(CHECK_RUN_PAGES + 1).fill(100));
+  assert.deepEqual([capped.length, capped.complete], [CHECK_RUN_PAGES * 100, false]);
   assert.equal((await listing(null, [3])).complete, false);
 });
 

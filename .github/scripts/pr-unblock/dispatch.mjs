@@ -36,6 +36,7 @@ export const DEFAULTS = Object.freeze({
 });
 
 const SHA = /^[0-9a-f]{40}$/;
+export const COUNTED_PAGES = 20;
 
 const handleOptions = (limits) => ({ limits, failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true });
 
@@ -489,12 +490,25 @@ export function createGitHubApi({
     return pages.get(key);
   }
 
-  async function latestJobs(runId) {
-    const jobs = await request(`${repoUrl}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
-    if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
-      throw new Error(`run ${runId}'s job listing is not one complete page`);
+  async function counted(url, key) {
+    const rows = [];
+    for (let page = 1; page <= COUNTED_PAGES; page += 1) {
+      const data = await request(page === 1 ? url : `${url}&page=${page}`);
+      const batch = Array.isArray(data?.[key]) ? data[key] : [];
+      rows.push(...batch);
+      if (batch.length < 100 || rows.length >= data.total_count) {
+        return Object.assign(rows, { complete: rows.length >= data.total_count });
+      }
     }
-    return jobs.jobs;
+    return Object.assign(rows, { complete: false });
+  }
+
+  async function latestJobs(runId) {
+    const jobs = await counted(`${repoUrl}/actions/runs/${runId}/jobs?filter=latest&per_page=100`, "jobs");
+    if (!jobs.complete) {
+      throw new Error(`run ${runId}'s job listing is not complete`);
+    }
+    return [...jobs];
   }
 
   return {
@@ -562,17 +576,7 @@ export function createGitHubApi({
       }
       return request(`${repoUrl}/actions/jobs/${jobId}/rerun`, "POST");
     },
-    async listCommitCheckRuns(sha) {
-      const runs = [];
-      for (let page = 1; page <= 3; page += 1) {
-        const data = await request(`${repoUrl}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
-        runs.push(...(data.check_runs ?? []));
-        if ((data.check_runs ?? []).length < 100) {
-          break;
-        }
-      }
-      return runs;
-    },
+    listCommitCheckRuns: (sha) => counted(`${repoUrl}/commits/${sha}/check-runs?filter=all&per_page=100`, "check_runs"),
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,

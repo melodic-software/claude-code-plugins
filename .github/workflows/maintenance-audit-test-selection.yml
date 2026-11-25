@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       shard:
-        description: "I/N of the suite corpus to trace; empty traces today's seventh, 0/1 traces every suite"
+        description: "I/N of the suite corpus, or of the suites named, to trace; empty traces today's seventh or every suite named, 0/1 traces every suite"
         required: false
         default: ""
       suites:
@@ -96,8 +96,10 @@ jobs:
           CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
         run: |
           export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$HOME/.local/bin:$RUNNER_TEMP/duckdb:$PATH"
-          shard="${SHARD_INPUT:-$(($(date -u +%s) / 86400 % 7))/7}"
           read -ra suites <<<"$SUITES_INPUT"
+          shard="$(($(date -u +%s) / 86400 % 7))/7"
+          ((${#suites[@]} == 0)) || shard=0/1
+          shard="${SHARD_INPUT:-$shard}"
           scripts/selection-audit.sh trace --shard "$shard" --jobs 4 --budget 1500 \
             --out "$RUNNER_TEMP/selection-audit" "${suites[@]}"
       - name: Upload the trace report

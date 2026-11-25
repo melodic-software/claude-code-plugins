@@ -654,14 +654,18 @@ test("a head whose runs cannot be read is not dispatched: a rate limit, a server
   }
 });
 
-test("the GitHub API reads a run's status and its latest jobs as one complete page; a gone run reads null", async () => {
+test("the GitHub API reads a run's status and every page of its latest jobs, refuses a listing short of total_count, and reads a gone run as null", async () => {
   const urls = [];
+  const wide = Array.from({ length: 150 }, (_, index) => job(`Test Selection (${index})`, "success"));
   const responses = [
     { ok: true, status: 200, body: { id: 38779200001, status: "completed" } },
     { ok: true, status: 200, body: { total_count: 1, jobs: [job("Fix Docs / Record Broker Allow", "success")] } },
     { ok: false, status: 404, body: {} },
     { ok: true, status: 200, body: { id: 38779200003, status: "completed" } },
     { ok: true, status: 200, body: { total_count: 101, jobs: [] } },
+    { ok: true, status: 200, body: { id: 38779200004, status: "completed" } },
+    { ok: true, status: 200, body: { total_count: 150, jobs: wide.slice(0, 100) } },
+    { ok: true, status: 200, body: { total_count: 150, jobs: wide.slice(100) } },
   ];
   const api = createGitHubApi({
     token: "t",
@@ -680,7 +684,12 @@ test("the GitHub API reads a run's status and its latest jobs as one complete pa
     "https://api.example/repos/octo/repo/actions/runs/38779200001/jobs?filter=latest&per_page=100",
   ]);
   assert.equal(await api.readRunJobs("38779200002"), null);
-  await assert.rejects(api.readRunJobs("38779200003"), /not one complete page/);
+  await assert.rejects(api.readRunJobs("38779200003"), /job listing is not complete/);
+  assert.deepEqual(await api.readRunJobs("38779200004"), { status: "completed", jobs: wide });
+  assert.deepEqual(urls.slice(-2), [
+    "https://api.example/repos/octo/repo/actions/runs/38779200004/jobs?filter=latest&per_page=100",
+    "https://api.example/repos/octo/repo/actions/runs/38779200004/jobs?filter=latest&per_page=100&page=2",
+  ]);
   await assert.rejects(api.readRunJobs("../1"), /not a run id/);
 });
 

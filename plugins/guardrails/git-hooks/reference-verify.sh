@@ -263,13 +263,16 @@ advisory="$CHECKS_TMP/advisory"
 : >"$advisory"
 
 check_range() {
-  local f ctx whole s _
-  local derived=$'\n' text="$CHECKS_TMP/text" payload="$CHECKS_TMP/payload" guards="$CHECKS_TMP/guards"
+  local f ctx whole s rc ran i note slot n=0 k=0 _
+  local derived=$'\n' text="$CHECKS_TMP/text" batch="$CHECKS_TMP/batch"
+  local -a files=() wholes=() notes=() slots=()
   changed_lines
   narrow_to_branch
   while IFS= read -r -d '' _ && IFS= read -r -d '' _ && IFS= read -r -d '' f; do
     derived+="$f"$'\n'
   done < <(checks_diff --name-status -C --diff-filter=RC -z 2>/dev/null)
+  rm -rf "$batch"
+  mkdir -p "$batch"
   while IFS= read -r -d '' f; do
     verified_type "$f" || continue
     checks_regular_file --tip "$TIP" "$f" || continue
@@ -280,54 +283,82 @@ check_range() {
     # is judged whole, as a new one is.
     # A step that fails here would hand the verifiers an empty or partial
     # payload, so the file is reported unchecked instead.
-    if ! checks_file_text --tip "$TIP" "$f" >"$CHECKS_TMP/file"; then
-      finding "$f" "could not read the file at the pushed tip, so it was not checked; fix that failure, then push again."
-      continue
-    fi
+    slot="$batch/$((k + 1))"
+    note=""
     whole=0
     s=0
-    if [[ "$f" == *[\"\\[:cntrl:]]* ]] || { [[ "$derived" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; }; then
+    if ! checks_file_text --tip "$TIP" "$f" >"$slot.file"; then
+      note="could not read the file at the pushed tip, so it was not checked; fix that failure, then push again."
+    elif [[ "$f" == *[\"\\[:cntrl:]]* ]] || { [[ "$derived" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; }; then
       whole=1
-      jq -n --arg p "$PWD/$f" --rawfile c "$CHECKS_TMP/file" \
-        '{hook_event_name: "PostToolUse", tool_name: "Write", tool_input: {file_path: $p, content: $c}}' >"$payload" || s=$?
+      jq -n --arg p "$PWD/$f" --rawfile c "$slot.file" \
+        '{hook_event_name: "PostToolUse", tool_name: "Write", tool_input: {file_path: $p, content: $c}}' >"$slot.in" || s=$?
+    elif ! added_lines "$f" <"$slot.file" >"$text"; then
+      note="could not list the lines the push adds, so it was not checked; fix that failure, then push again."
     else
-      if ! added_lines "$f" <"$CHECKS_TMP/file" >"$text"; then
-        finding "$f" "could not list the lines the push adds, so it was not checked; fix that failure, then push again."
-        continue
-      fi
       grep -q '[^[:space:]]' "$text" || continue
       jq -n --arg p "$PWD/$f" --rawfile c "$text" \
-        '{hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: {file_path: $p, old_string: "", new_string: $c}}' >"$payload" || s=$?
+        '{hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: {file_path: $p, old_string: "", new_string: $c}}' >"$slot.in" || s=$?
     fi
-    if ((s != 0)); then
-      finding "$f" "jq exited $s while building the verifiers' input, so it was not checked; fix that failure, then push again."
-      continue
+    ((s == 0)) || note="jq exited $s while building the verifiers' input, so it was not checked; fix that failure, then push again."
+    n=$((n + 1))
+    files[n]=$f
+    wholes[n]=$whole
+    notes[n]=$note
+    if [[ -n "$note" ]]; then
+      rm -f "$slot.in"
+    else
+      k=$((k + 1))
+      slots[n]=$k
     fi
-    # git exports GIT_DIR (a linked worktree's git dir) to its hooks; under it
-    # `git -C <dir> rev-parse --show-toplevel` answers <dir>, so the verifiers
-    # would take the file's own folder for the repository root. They find the
-    # repository from the file, as an edit hook does.
-    # The verifiers are advisory and exit 0, so any other status, or output
-    # jq cannot read, means the file went unchecked.
+  done < <(checks_files)
+  # git exports GIT_DIR (a linked worktree's git dir) to its hooks; under it
+  # `git -C <dir> rev-parse --show-toplevel` answers <dir>, so the verifiers
+  # would take the file's own folder for the repository root. They find the
+  # repository from the file, as an edit hook does.
+  # The verifiers are advisory and exit 0, so any other status, or output
+  # jq cannot read, means the file went unchecked.
+  ran=0
+  if ((k)); then
     (
       unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY \
         GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
-      CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <"$payload" >"$guards" 2>/dev/null
+      CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" --batch "$batch" \
+        cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh </dev/null >/dev/null 2>&1
     )
-    s=$?
-    if ((s != 0)); then
-      finding "$f" "run-guards.sh exited $s while running the verifiers, so it was not checked; fix that failure, then push again."
+    ran=$?
+  fi
+  for ((i = 1; i <= n; i++)); do
+    f=${files[i]}
+    if [[ -n "${notes[i]}" ]]; then
+      finding "$f" "${notes[i]}"
       continue
     fi
-    ctx="$(jq -r '.hookSpecificOutput.additionalContext // empty' <"$guards" 2>/dev/null)"
+    slot="$batch/${slots[i]}"
+    rc=""
+    [[ -f "$slot.rc" ]] && read -r rc <"$slot.rc"
+    if [[ "$rc" != 0 ]]; then
+      [[ "$rc" =~ ^[0-9]+$ ]] || rc=$ran
+      if ((rc)); then
+        finding "$f" "run-guards.sh exited $rc while running the verifiers, so it was not checked; fix that failure, then push again."
+      else
+        finding "$f" "run-guards.sh reported no status for it while running the verifiers, so it was not checked; fix that failure, then push again."
+      fi
+      continue
+    fi
+    ctx="$(jq -r '.hookSpecificOutput.additionalContext // empty' <"$slot.out" 2>/dev/null)"
     s=$?
     if ((s != 0)); then
       finding "$f" "jq exited $s while reading the verifiers' output, so it was not checked; fix that failure, then push again."
       continue
     fi
     [[ -n "$ctx" ]] || continue
-    report "$f" "$whole" <<<"$ctx" >>"$out"
-  done < <(checks_files)
+    if ! mv -f "$slot.file" "$CHECKS_TMP/file"; then
+      finding "$f" "could not read the file at the pushed tip, so it was not checked; fix that failure, then push again."
+      continue
+    fi
+    report "$f" "${wholes[i]}" <<<"$ctx" >>"$out"
+  done
 }
 
 tip_is_checkout() {

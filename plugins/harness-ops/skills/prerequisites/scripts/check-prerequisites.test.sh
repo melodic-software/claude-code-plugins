@@ -109,8 +109,6 @@ rc=$?
 expect_eq "no state and no repository exits 2" 2 "$rc"
 expect_has "no state and no repository says so" 'no plugin roots to read' "$out"
 
-# A settings file holding any non-Boolean enabledPlugins value contributes none
-# of its keys, as Claude Code reads it: the string "false" never enables.
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":"false"}}' >"$PROJECT/.claude/settings.local.json"
 out="$(cd "$PROJECT" && PATH="$NOCLAUDE_PATH" CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" "$NODE" "$SCRIPT")"
 expect_has "fallback ignores a non-Boolean value" 'missing=0 present=0' "$out"
@@ -154,9 +152,6 @@ out="$(run_stub "[]")"
 rc=$?
 expect_eq "cli: an empty list is an empty fleet, not a repository scan" 0 "$rc"
 
-# A session whose settings file SESSION_SETTINGS_FILE names takes the settings
-# route with that file read after the project-local layer, since the listing does
-# not see it: a plugin the file turns off is not read, whatever the listing says.
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":false}}' >"$WORK/session.json"
 listing="[{\"id\":\"plugin-b@m\",\"scope\":\"local\",\"enabled\":true,\"installPath\":\"$WORK/plugin-b\",\"projectPath\":\"$PROJECT\"}]"
@@ -180,9 +175,6 @@ expect_eq "unparsable claude output exits 2" 2 "$rc"
 expect_has "unparsable claude output names the listing" 'claude plugin list --json' "$out"
 rm "$PROJECT/.claude/settings.local.json"
 
-# A listing larger than 200000 bytes must be read in full, and a listing that
-# is not JSON must stop the run with no table. The stub reads its output from a
-# file, since an environment variable that large would hit the argument limit.
 mkdir -p "$WORK/stubfile"
 cat >"$WORK/stubfile/claude" <<'EOF'
 #!/bin/sh

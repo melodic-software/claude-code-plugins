@@ -35,6 +35,7 @@ const FILES_CAP = 3000;
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
+export const CHECK_RUN_PAGES = 20;
 
 export const copyPathsFor = (files, root = ROOT) =>
   copyPathsOf(files, sharedCopyPairs(readFileSync(join(root, "scripts/shared-copies.txt"), "utf8")));
@@ -1475,11 +1476,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     async listCommitCheckRuns(sha) {
       const runs = [];
       let total = Infinity;
-      for (let page = 1; page <= 3; page += 1) {
+      for (let page = 1; page <= CHECK_RUN_PAGES; page += 1) {
         const data = await requestData(`${repo}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
         runs.push(...(data.check_runs ?? []));
         total = data.total_count ?? Infinity;
-        if ((data.check_runs ?? []).length < 100) {
+        if ((data.check_runs ?? []).length < 100 || runs.length >= total) {
           break;
         }
       }

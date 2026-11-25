@@ -50,6 +50,7 @@ concurrency:
 jobs:
   check-dispatcher-current:
     name: Check Dispatcher Current
+    if: inputs.activity == 'review-dependency'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -100,11 +101,9 @@ jobs:
 
   resolve-conflicts-select:
     name: Resolve Conflicts Select
-    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'resolve-conflicts'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -146,11 +145,17 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Compare the dispatcher file with the tip's
+        id: current
+        if: inputs.dispatcher-run-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
+
       - name: Download standards
         id: standards
         uses: melodic-software/ci-workflows/.github/actions/download-standards@main
-        with:
-          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -160,6 +165,7 @@ jobs:
 
       - name: Check the kill switch
         id: kill
+        if: steps.current.outputs.stale != 'true'
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
@@ -683,11 +689,9 @@ jobs:
 
   sync-shared-copies-select:
     name: Sync Shared Copies Select
-    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'sync-shared-copies'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -729,11 +733,17 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Compare the dispatcher file with the tip's
+        id: current
+        if: inputs.dispatcher-run-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
+
       - name: Download standards
         id: standards
         uses: melodic-software/ci-workflows/.github/actions/download-standards@main
-        with:
-          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -743,6 +753,7 @@ jobs:
 
       - name: Check the kill switch
         id: kill
+        if: steps.current.outputs.stale != 'true'
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
@@ -1056,11 +1067,9 @@ jobs:
 
   fix-test-scope-select:
     name: Fix Test Scope Select
-    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-test-scope'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -1095,11 +1104,17 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Compare the dispatcher file with the tip's
+        id: current
+        if: inputs.dispatcher-run-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
+
       - name: Download standards
         id: standards
         uses: melodic-software/ci-workflows/.github/actions/download-standards@main
-        with:
-          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -1109,6 +1124,7 @@ jobs:
 
       - name: Check the kill switch
         id: kill
+        if: steps.current.outputs.stale != 'true'
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
@@ -1172,7 +1188,7 @@ jobs:
         if: steps.locate.outputs.run-id != ''
         uses: actions/download-artifact@v8
         with:
-          name: selection-trace-${{ steps.locate.outputs.run-id }}-${{ steps.locate.outputs.run-attempt }}
+          pattern: selection-trace-${{ steps.locate.outputs.run-id }}-${{ steps.locate.outputs.run-attempt }}-*
           path: ${{ runner.temp }}/selection-trace
           run-id: ${{ steps.locate.outputs.run-id }}
           github-token: ${{ github.token }}
@@ -1321,11 +1337,9 @@ jobs:
 
   address-feedback-select:
     name: Address Feedback Select
-    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'address-feedback'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1366,11 +1380,17 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Compare the dispatcher file with the tip's
+        id: current
+        if: inputs.dispatcher-run-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
+
       - name: Download standards
         id: standards
         uses: melodic-software/ci-workflows/.github/actions/download-standards@main
-        with:
-          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -1380,6 +1400,7 @@ jobs:
 
       - name: Check the kill switch
         id: kill
+        if: steps.current.outputs.stale != 'true'
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
@@ -3750,11 +3771,9 @@ jobs:
 
   fix-ci-context:
     name: Fix CI Context
-    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-ci'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -3793,11 +3812,17 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Compare the dispatcher file with the tip's
+        id: current
+        if: inputs.dispatcher-run-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
+
       - name: Download standards
         id: standards
         uses: melodic-software/ci-workflows/.github/actions/download-standards@main
-        with:
-          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -3807,6 +3832,7 @@ jobs:
 
       - name: Check the kill switch
         id: kill
+        if: steps.current.outputs.stale != 'true'
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}

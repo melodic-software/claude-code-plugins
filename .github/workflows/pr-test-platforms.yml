@@ -19,7 +19,7 @@ jobs:
     name: Select Tests Windows
     if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 12
     outputs:
       jobs: ${{ steps.plan.outputs.windows_jobs }}
       steps: ${{ steps.plan.outputs.windows_steps }}
@@ -37,7 +37,12 @@ jobs:
         run: |
           base="${BASE_REF:+origin/$BASE_REF}"
           [ -n "$base" ] || echo "::notice::A $GITHUB_EVENT_NAME run with no usable base runs every Windows step."
-          scripts/plan-test-lanes.sh ${base:+--base "$base"} >>"$GITHUB_OUTPUT"
+          rc=0
+          timeout 10m scripts/plan-test-lanes.sh ${base:+--base "$base"} >>"$GITHUB_OUTPUT" || rc=$?
+          if [ "$rc" -eq 124 ]; then
+            echo "::error::The planner ran past 10 minutes, so no Windows or macOS step ran. This is a failed plan, not an empty one."
+          fi
+          exit "$rc"
 
       - name: Log the API budget at the end
         if: always()

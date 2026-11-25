@@ -18,8 +18,8 @@ const HEAD = "b".repeat(40);
 const KEY = "c".repeat(40);
 const ENV = { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRACKER_CONFIG: "/nonexistent/work-items.yaml" };
 
-const escalationBody = (reason) =>
-  `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\nThe pr-unblock lane stopped on this pull request and needs a person: why.\n\n- Reason: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n`;
+const escalationBody = (reason, codeLabel = "Lane code") =>
+  `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\n### pr-unblock / report-escalation\nHeld for a person: why.\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n`;
 const labeled = (actor, at) => ({ event: "labeled", actor, label: { name: "needs-human" }, created_at: at });
 const commented = (user, body, at, updatedAt = at) => ({ event: "commented", user, actor: user, body, created_at: at, updated_at: updatedAt });
 const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10:00:05Z" } = {}) => commented(user, escalationBody(reason), at);
@@ -28,7 +28,7 @@ const REQUIRED_SUITES = [500, 501];
 const check = (name, conclusion, { id = 1, slug = "github-actions", suite = 500 } = {}) => ({ id, name, status: "completed", conclusion, app: { slug }, check_suite: { id: suite } });
 const RED = [check("test-node", "failure")];
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [], mergeBase, dotGithub = {} }) {
   const calls = [];
   const known = (number) => numbers.includes(number) || sessionNumbers.includes(number);
   const checks = async (method, path) => {
@@ -75,7 +75,14 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: labels.map((name) => ({ name })), mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
-      return { files: mainFiles };
+      return { files: mainFiles, ...(mergeBase && { merge_base_commit: { sha: mergeBase } }) };
+    }
+    const dotRef = new RegExp(`^/repos/${REPO}/contents/\\.github\\?ref=([0-9a-f]{40})$`).exec(path)?.[1];
+    if (method === "GET" && dotRef !== undefined) {
+      if (!(dotRef in dotGithub)) {
+        throw new Error(`GET ${path} failed with status 404`);
+      }
+      return structuredClone(dotGithub[dotRef]);
     }
     if (method === "GET" && route === `/repos/${REPO}/pulls/7/files`) {
       return path.endsWith("page=1") ? pullFiles : [];
@@ -131,6 +138,13 @@ test("an App-set needs-human whose workflow-staged reason cleared comes off with
   assert.match(comment.body.body, /`workflow-staged`/);
   assert.match(comment.body.body, new RegExp(`\`${HEAD}\``));
   assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("a hold comment that labels its lane code `- Reason:` clears the same way", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), commented(BOT, escalationBody("workflow-staged", "Reason"), "2026-10-18T10:00:05Z")] });
+  assert.equal((await run(w)).code, 0);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=workflow-staged head=${HEAD} -->`);
+  assert.equal(w.writes().length, 2, "the cleared comment, then the label removal");
 });
 
 test("main's tip the job resolved with git ls-remote (MAIN_TIP_SHA) is used, not read again; any other value reads it", async () => {
@@ -1533,9 +1547,24 @@ test("a workflow-staged keep line names main's SHA and the first workflow file i
     const { logs } = await run(w);
     assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes ${named}`), logs.join("\n"));
   }
-  const cut = world({ timeline: inlineTimeline(), mainFiles: Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` })) });
+  const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+  const cut = world({ timeline: inlineTimeline(), mainFiles: many });
   const { logs } = await run(cut);
   assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN}'s file listing against it may be cut short`), logs.join("\n"));
+});
+
+test("past the compare API's 300-file list, workflow-staged reads .github/workflows' tree at main's merge base and tip", async () => {
+  const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+  const BASE = "3".repeat(40);
+  const listing = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8")).dotGithub;
+  const tree = (changes) => listing.map((entry) => (entry.name in changes ? { ...entry, sha: changes[entry.name] } : entry));
+  const same = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ scripts: "9".repeat(40) }) } });
+  await run(same);
+  assert.equal(same.writes().at(-1)?.method, "DELETE", "an unchanged workflows tree takes the label off");
+  const moved = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ workflows: "8".repeat(40) }) } });
+  const kept = await run(moved);
+  assert.ok(kept.logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes .github/workflows`), kept.logs.join("\n"));
+  assert.ok(!moved.writes().some((write) => write.method === "DELETE"), "a changed workflows tree keeps the label");
 });
 
 test("a person's reply or review on the second page of either listing keeps it", async () => {

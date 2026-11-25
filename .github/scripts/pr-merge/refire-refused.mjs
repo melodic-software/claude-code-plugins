@@ -8,6 +8,7 @@ import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trust
 import { budgetLatch, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { callers, listedJob } from "../lib/lane-registry.mjs";
+import { changedPaths } from "./merge-holds.mjs";
 import { PR_UNBLOCK_TITLE } from "../lib/run-title.mjs";
 import { ACTIONS_BOT_ID, LANES_APP_LOGIN as DEFAULT_BOT } from "../lib/lane-vocabulary.mjs";
 
@@ -176,13 +177,11 @@ export async function tokenRefusal({ jobs, readAnnotations, lane = LANES["pr-unb
 }
 
 async function refusal({ github, repo, pull, refused, run, blob, bot, lane, now, mainSha }) {
-  // Compare lists at most 300 files, only on page 1; a longer list is incomplete.
-  // https://docs.github.com/en/rest/commits/commits#compare-two-commits
-  const changed = (await github("GET", `/repos/${repo}/compare/${mainSha}...${pull.head.sha}`))?.files;
-  if (!Array.isArray(changed) || changed.length >= 300) {
+  const changed = await changedPaths(github, repo, await github("GET", `/repos/${repo}/compare/${mainSha}...${pull.head.sha}`), pull.head.sha, lane.files);
+  if (changed === null) {
     return { reason: "its changed files cannot be listed in full" };
   }
-  const touched = lane.files.find((file) => changed.some((entry) => entry.filename === file || entry.previous_filename === file));
+  const touched = changed[0];
   if (touched !== undefined) {
     return { reason: `it changes ${touched}` };
   }

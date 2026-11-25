@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -150,10 +151,20 @@ test("the newest labeled event is read by its time, not its place in the list", 
   assert.equal(source(reordered), "lane-escalation");
 });
 
-const escalated = (reason, at = "2026-10-18T10:00:05Z") =>
-  commented(APP, `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\nThe pr-unblock lane stopped.\n\n- Reason: \`${reason}\`\n- Resume key: \`${OLD}\``, at);
+const escalated = (reason, at = "2026-10-18T10:00:05Z", codeLabel = "Lane code") =>
+  commented(
+    APP,
+    `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\n### pr-unblock / report-escalation\nHeld for a person: why.\nReason: \`design\`\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${OLD}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n- \`src/a.js:1\`: https://github.com/o/r/pull/1#discussion_r1\n\n</details>`,
+    at,
+  );
 const allows = (timeline, activity, { reviewComments = [], reviews = [] } = {}) =>
   laneEscalationAllows({ timeline, reviewComments, reviews, label: "needs-human", head: HEAD, isLanesApp, activity }).allowed;
+
+test("a hold comment that labels its lane code `- Reason:` holds its activity too", () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated", undefined, "Reason")];
+  assert.equal(allows(timeline, "fix-ci"), false);
+  assert.equal(allows(timeline, "resolve-conflicts"), true);
+});
 
 test("a lane escalation holds only the activity it belongs to", () => {
   const by = (reason) => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated(reason)];

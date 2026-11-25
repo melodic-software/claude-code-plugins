@@ -4,10 +4,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/check-hook-coverage.sh"
 TEST_TMPDIR="$(mktemp -d)"
-# Fixture paths in the native form Claude Code writes into its registry and
-# settings on Windows (D:/x). A /d/x path would reach those files as D:/x anyway,
-# since MSYS rewrites it on the way into native jq, and no longer match the
-# path the assertions name.
 if command -v cygpath >/dev/null 2>&1; then TEST_TMPDIR="$(cygpath -m "$TEST_TMPDIR")"; fi
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -391,9 +387,6 @@ assert_contains "case 21: inventory declared complete" "$out" "INVENTORY: comple
 m="$(make_machine msys-argconv)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/guard/hooks"
-# Written literally, never through hook_file(): that helper builds its hooks.json
-# with `jq -n --arg c`, which is the mangling under test, so the placeholder would
-# already be corrupted on disk and this case would be red before AND after.
 # shellcheck disable=SC2016  # ${CLAUDE_PLUGIN_ROOT} is the literal placeholder a plugin hook ships; it must stay unexpanded
 printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/msys-guard.sh"}]}]}}' \
   >"$m/plugins/guard/hooks/hooks.json"
@@ -401,11 +394,6 @@ reg "$m" "guard@mkt" "$m/plugins/guard"
 rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_exit "case 22: exit 0" 0 "$rc"
-# Read the command back through jq rather than matching the raw document: the
-# quotes are backslash-escaped there. Equality rather than containment, so a
-# mangling that wrapped the value instead of splicing into it is caught too. The
-# CR here is appended by THIS pipeline's own jq, not carried in the document, so
-# the strip stays even once the emitter emits none of its own.
 # shellcheck disable=SC2016  # the expected value is the literal placeholder, not a shell expansion
 assert_eq "case 22: the placeholder command is emitted byte for byte" \
   '"${CLAUDE_PLUGIN_ROOT}"/hooks/msys-guard.sh' "$(json_field "$out" '.hooks[0].command' | tr -d '\r')"
