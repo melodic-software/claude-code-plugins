@@ -4,7 +4,7 @@ The skills of `plugins/fleet`. Each one is driven with `<plugin-dir>` set to `pl
 
 ## Parts
 
-- `reach`: Reach another fleet install (WSL or Windows, here or remote) to run, prompt, query or message.
+- `reach`: Reach another fleet lane (WSL or Windows, here or remote) to run, prompt, query or message.
 
 ## Sub-features
 

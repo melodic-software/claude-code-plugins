@@ -76,5 +76,5 @@ The paths under `/mnt/c` named below exist on the machines but cannot be read wi
 | lap-01 WSL | `printf '%s\n' '<prompt>' \| /mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl claude -p` |
 | lap-01 Windows | `printf '%s\n' '<prompt>' \| /mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p'` |
 
-From the Windows install, use `ssh.exe` in place of the full path.
+From the Windows lane, use `ssh.exe` in place of the full path.
 MD

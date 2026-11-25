@@ -1,6 +1,6 @@
 {
   "name": "fleet",
-  "description": "Agent-to-agent reach across a personal fleet (fleet:reach): from any Claude Code install (WSL or native Windows, any machine), run a script, prompt, or query and wait, message a session, or start a named session in another install. Each install signs into its own Claude account, so built-in peer tools see only their own install. Carries the route matrix for headless turns in the target install, target resolution from the fleet manifest, and a posture that keeps agent launches prompting.",
+  "description": "Agent-to-agent reach across a personal fleet (fleet:reach): from any Claude Code lane (WSL or native Windows, any machine), run a script, prompt, or query and wait, message a session, or start a named session in another lane. Each lane signs into its own Claude account, so built-in peer tools see only their own lane. Carries the route matrix for headless turns in the target lane, target resolution from the fleet manifest, and a posture that keeps agent launches prompting.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -10,8 +10,8 @@
   "userConfig": {
     "converge_docs_url": {
       "type": "string",
-      "title": "Install converge docs URL",
-      "description": "URL of your own documentation for the fleet-converge command, which reach names when converging an install comes up. Unset: reach names the command with no link."
+      "title": "Lane converge docs URL",
+      "description": "URL of your own documentation for the fleet-converge command, which reach names when converging a lane comes up. Unset: reach names the command with no link."
     }
   },
   "keywords": [

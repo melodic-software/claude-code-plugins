@@ -29,7 +29,7 @@ graders:
     target: 'last_message'
   - name: 'turn-runs-on-desktop-account'
     type: 'llm'
-    criteria: 'Says the `claude -p` turn runs under the desktop install''s own Claude account (its usage)'
+    criteria: 'Says the `claude -p` turn runs under the desktop lane''s own Claude account (its usage)'
     focus: 'trace'
   - name: 'skill-fired'
     type: 'tool_used'

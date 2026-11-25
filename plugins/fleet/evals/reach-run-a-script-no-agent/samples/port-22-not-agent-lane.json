@@ -5,7 +5,7 @@
       "why": "observed reply form"
     },
     {
-      "answer": "Port 22 is not an agent install, so this is a pwsh script only.",
+      "answer": "Port 22 is not an agent lane, so this is a pwsh script only.",
       "why": "the section's own name"
     },
     {

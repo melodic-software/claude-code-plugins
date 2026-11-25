@@ -1,6 +1,6 @@
 {
   "pass": [
-    {"answer": "If it is in this WSL install, use ListAgents and SendMessage with no SSH. If it is in the Windows install, use R1 and claude.exe."},
+    {"answer": "If it is in this WSL lane, use ListAgents and SendMessage with no SSH. If it is in the Windows lane, use R1 and claude.exe."},
     {"answer": "No ssh is needed on the same machine.", "why": "mentions ssh without a hop"},
     {"answer": ""}
   ],
