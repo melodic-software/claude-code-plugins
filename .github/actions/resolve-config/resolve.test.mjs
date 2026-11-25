@@ -1601,7 +1601,7 @@ activities:
     reads-untrusted: false
 lanes:
   pr-unblock:
-    stage: unblock
+    stage: fix
     slots:
       - activity: report-escalation
 `;
@@ -1622,7 +1622,7 @@ activities:
     reads-untrusted: true
 lanes:
   pr-unblock:
-    stage: unblock
+    stage: fix
     slots:
       - activity: ${activity}
 `;
@@ -1642,7 +1642,7 @@ for (const [activity, allowed, forbidden, code] of [
   });
 }
 
-test("the respond stage is gone; pr-unblock has stage unblock", () => {
+test("the unblock stage is gone; pr-unblock has stage fix", () => {
   const lane = (stage) => `version: 2
 activities:
   report-escalation:
@@ -1657,11 +1657,11 @@ lanes:
       - activity: report-escalation
 `;
   assert.equal(
-    run(lane("unblock"), { lane: "pr-unblock" }).lane.stage,
-    "unblock",
+    run(lane("fix"), { lane: "pr-unblock" }).lane.stage,
+    "fix",
   );
   assertRejected(
-    () => run(lane("respond"), { lane: "pr-unblock" }),
+    () => run(lane("unblock"), { lane: "pr-unblock" }),
     "invalid-config",
   );
 });
@@ -1691,8 +1691,8 @@ function resolveEveryExampleSlot(vocabulary) {
 
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
-  assert.equal(Object.keys(results).length, 17);
-  assert.deepEqual(results["pr-review / claude"].models, {
+  assert.equal(Object.keys(results).length, 15);
+  assert.deepEqual(results["pr-review-hosted / claude"].models, {
     profile: "review",
     model: "opus",
     effort: null,
@@ -1725,7 +1725,7 @@ test("the README example validates and resolves for each of its lanes", () => {
     "apply-conflict-patch",
   ]);
   assert.equal(
-    results["post-merge-sweep-comments / sweep-comments"]["skip-reason"],
+    results["pr-explain / explain"]["skip-reason"],
     "disabled-by-config",
   );
   assert.equal(results["pr-merge / merge"].grant.contents, "write");
@@ -1735,7 +1735,7 @@ test("integration: the README example resolves against the captured standards vo
   const results = resolveEveryExampleSlot(
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );
-  assert.equal(Object.keys(results).length, 17);
+  assert.equal(Object.keys(results).length, 15);
 });
 
 const liveVocabulary = () => ({ vocabulary: JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")) });

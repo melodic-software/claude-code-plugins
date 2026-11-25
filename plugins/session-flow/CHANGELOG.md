@@ -1,5 +1,24 @@
 # Changelog: session-flow plugin
 
+## [10.2.0] - 2026-11-25
+
+### Added
+
+- `/session-flow:step-away` now writes its orchestrator posture to the session's focus file, next
+  to the task file. Automatic compaction during an absence keeps both in the summary. `away.py
+  start` prints a `posture=` line, and `focus.py set --posture orchestrator|off` writes or removes
+  the new Posture section. The return step clears both. An absence works the same with
+  `compact_focus_enabled` off: the focus write is skipped and no file is created.
+
+## [10.1.1] - 2026-11-25
+
+### Fixed
+
+- `redact.py` now redacts the whole value of a bare `sk-ant-oat02-` OAuth token, the same way it
+  redacts `sk-ant-oat01-`. Claude Code 2.1.332 lets `CLAUDE_CODE_OAUTH_TOKEN` start with either
+  prefix
+  ([#18984](https://github.com/melodic-software/claude-code-plugins/issues/18984)).
+
 ## [10.1.0] - 2026-11-25
 
 ### Added
