@@ -1,6 +1,6 @@
 # test-scope: scripts/sync-hold-floor.py docs/conventions/pr-pipeline.yaml .github/actions/* .github/scripts/* .github/workflows/* .github/recurring-schedule.json
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_*.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py lib/prerequisites.mjs lib/publish-gate.mjs plugins/evals/skills/plugin-eval/scripts/noise-report.py plugins/evals/skills/plugin-eval/scripts/run-validity.py plugins/evals/skills/plugin-eval/scripts/win-test.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/harness-ops/skills/inventory/scripts/parser_reader.py plugins/performance/scripts/ratchet.py plugins/work-items/scripts/charge-words.json scripts/check-declared-prerequisites.mjs scripts/validate-plugin-contracts.mjs
-# test-scope: lib/merge-hold-labels.json plugins/source-control/.claude-plugin/plugin.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs scripts/check-read-caller-keys.mjs scripts/credential-legs/*.mjs scripts/sync-credential-legs.mjs
+# test-scope: lib/merge-hold-labels.json plugins/source-control/.claude-plugin/plugin.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs scripts/check-read-caller-keys.mjs scripts/credential-legs/*.mjs scripts/sync-credential-legs.mjs plugins/work-items/skills/triage/schemas/ci-verdict.schema.json plugins/work-items/skills/triage/scripts/check-ci-verdict.mjs
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
 run here under node) cover the merge gate's cost paths, so a lane pull
 request native auto-merge merges cannot skip them. The gate's other cost
@@ -1894,7 +1894,7 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
 
 _FIXTURES = ROOT / ".github/scripts/pr-merge/fixtures"
 _LISTED = json.loads((_FIXTURES / "compare-paged-1.json").read_text(encoding="utf-8"))
-_DIFF = (_FIXTURES / "compare.diff").read_text(encoding="utf-8")
+_DIFF = json.loads((_FIXTURES / "compare-diff.json").read_text(encoding="utf-8"))
 _MODE_ONLY = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"
 _BINARY = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n"
 DIFF_CASES = {

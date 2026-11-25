@@ -529,15 +529,15 @@ export STUB_LANE_COMPARE
 nets "$(jq -c .files "$FIXTURES/compare-paged-1.json")" "$(jq -c .files "$FIXTURES/compare-paged-1.json")"
 export STUB_DIFF_DIR="$TMP_ROOT/diffs"
 mkdir -p "$STUB_DIFF_DIR"
-cp "$FIXTURES/compare.diff" "$STUB_DIFF_DIR/$OLD.diff"
-cp "$FIXTURES/compare.diff" "$STUB_DIFF_DIR/$HEAD.diff"
+jq -j . "$FIXTURES/compare-diff.json" >"$STUB_DIFF_DIR/$OLD.diff"
+cp "$STUB_DIFF_DIR/$OLD.diff" "$STUB_DIFF_DIR/$HEAD.diff"
 expect "a compare at the 300-file cap carries the decision when both diffs show the same change" yes yes yes
 if grep -qxF "api repos/o/r/compare/$TIP_SHA...$HEAD -H Accept: application/vnd.github.diff" "$TMP_ROOT/log"; then
   ok "the capped compare's diff is read against the base branch's tip commit"
 else
   fail "no diff read: '$(grep compare "$TMP_ROOT/log")'"
 fi
-sed 's/"name":"Bug"/"name":"Bugs"/' "$FIXTURES/compare.diff" >"$STUB_DIFF_DIR/$HEAD.diff"
+sed 's/"name":"Bug"/"name":"Bugs"/' "$STUB_DIFF_DIR/$OLD.diff" >"$STUB_DIFF_DIR/$HEAD.diff"
 expect "a compare at the 300-file cap whose diffs differ by one line clears nothing" no no no "covering this head"
 unset STUB_DIFF_DIR STUB_LANE_COMPARE
 nets '[{"filename":"a.png","status":"modified"}]' '[{"filename":"a.png","status":"modified"}]'

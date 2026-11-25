@@ -1313,7 +1313,7 @@ test("compareWhole pages a comparison's commits and reads its files from the dif
   const calls = [];
   const fetch = async (url, init) => {
     calls.push(`${init.headers.Accept} ${url}`);
-    if (init.headers.Accept === "application/vnd.github.diff") return { ok: true, status: 200, text: async () => fixture("compare.diff") };
+    if (init.headers.Accept === "application/vnd.github.diff") return { ok: true, status: 200, text: async () => JSON.parse(fixture("compare-diff.json")) };
     return { ok: true, status: 200, json: async () => JSON.parse(answers[url]), headers: { get: () => "" } };
   };
   const api = createGitHubApi({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch });

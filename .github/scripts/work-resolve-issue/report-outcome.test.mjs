@@ -5419,10 +5419,11 @@ test("main judges a reuse PR on every file past the compare listing's 300, read 
   const fixture = (name) => readFileSync(new URL(`../pr-merge/fixtures/${name}`, import.meta.url), "utf8");
   const denying = (glob) => JSON.stringify({ merge: { "diff-check": { "denied-paths": [glob], "path-holds": true } } });
   const listed = JSON.parse(fixture("compare-paged-1.json")).files;
-  const clean = await runReuse({ files: listed, diff: fixture("compare.diff"), resolved: denying("docs/never/**") });
+  const diff = JSON.parse(fixture("compare-diff.json"));
+  const clean = await runReuse({ files: listed, diff, resolved: denying("docs/never/**") });
   assert.ok(!holds(clean.body), clean.body);
   assert.equal(clean.calls.filter((c) => c.method === "DIFF").length, 1, JSON.stringify(clean.calls.map((c) => `${c.method} ${c.path}`)));
-  const denied = await runReuse({ files: listed, diff: fixture("compare.diff"), resolved: denying(".github/scripts/intake-triage/fixtures/intake-issue/issue-types.json") });
+  const denied = await runReuse({ files: listed, diff, resolved: denying(".github/scripts/intake-triage/fixtures/intake-issue/issue-types.json") });
   assert.ok(holds(denied.body), "a denied path the diff names");
   assert.ok(holds((await runReuse({ files: listed, resolved: denying("docs/never/**") })).body), "a capped listing whose diff does not read");
 });

@@ -892,7 +892,7 @@ test("sameNetChange compares filename, status, previous_filename and patch", () 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 const LISTED = JSON.parse(fixture("compare-paged-1.json"));
 const PAGE_TWO = JSON.parse(fixture("compare-paged-2.json"));
-const DIFF_TEXT = fixture("compare.diff");
+const DIFF_TEXT = JSON.parse(fixture("compare-diff.json"));
 const RENAMED = ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json";
 const DELETED = ".changes/user-interface/chore-comment-sweep-v060-a9938050.md";
 const ADDED = ".github/scripts/intake-triage/fixtures/intake-issue/issue-types.json";
