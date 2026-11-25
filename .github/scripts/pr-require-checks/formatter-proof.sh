@@ -41,16 +41,16 @@ EOF
 classify=0 work=""
 while (($#)); do
   case $1 in
-  --classify) classify=1 ;;
-  --work-dir)
-    work=${2:-}
-    shift
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *) break ;;
+    --classify) classify=1 ;;
+    --work-dir)
+      work=${2:-}
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *) break ;;
   esac
   shift
 done
@@ -62,11 +62,11 @@ repo=$(git rev-parse --show-toplevel 2>/dev/null) || {
   echo "formatter-proof: not inside a git checkout" >&2
   exit 2
 }
-base=$(git -C "$repo" rev-parse --verify --quiet "$1^{commit}") &&
-  head=$(git -C "$repo" rev-parse --verify --quiet "$2^{tree}") || {
+if ! base=$(git -C "$repo" rev-parse --verify --quiet "$1^{commit}") ||
+  ! head=$(git -C "$repo" rev-parse --verify --quiet "$2^{tree}"); then
   echo "formatter-proof: '$1' is not a commit or '$2' not a tree-ish here" >&2
   exit 2
-}
+fi
 
 reasons=()
 no() { reasons+=("$1"); }
@@ -131,16 +131,16 @@ while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
     continue
   fi
   case $path in
-  .githooks/*) no "$path: neither formatter covers it, and no regenerator writes it" ;;
-  *.sh | *.bash) shell+=("$path") ;;
-  *.py | *.pyi) python+=("$path") ;;
-  *)
-    if holds_sync_hold_floor_block "$path"; then
-      regen+=("$path")
-    else
-      no "$path: neither formatter covers it, and no regenerator writes it"
-    fi
-    ;;
+    .githooks/*) no "$path: neither formatter covers it, and no regenerator writes it" ;;
+    *.sh | *.bash) shell+=("$path") ;;
+    *.py | *.pyi) python+=("$path") ;;
+    *)
+      if holds_sync_hold_floor_block "$path"; then
+        regen+=("$path")
+      else
+        no "$path: neither formatter covers it, and no regenerator writes it"
+      fi
+      ;;
   esac
 done <"$scratch/diff"
 ((${#shell[@]} + ${#python[@]})) || no "no file the formatters cover changed"
@@ -214,10 +214,11 @@ cat "$scratch"/shfmt.*.log >"$scratch/run.log"
 ) >>"$scratch/run.log" 2>&1
 while IFS= read -r line; do
   case $line in
-  'failed: '*) fail_run "${line#failed: }" ;;
-  'note: '*) echo "${line#note: }" ;;
-  'reason: '*) no "${line#reason: }" ;;
-  ?*) fail_run "unexpected output: $line" ;;
+    'failed: '*) fail_run "${line#failed: }" ;;
+    'note: '*) echo "${line#note: }" ;;
+    'reason: '*) no "${line#reason: }" ;;
+    '') ;;
+    *) fail_run "unexpected output: $line" ;;
   esac
 done <"$scratch/run.log"
 

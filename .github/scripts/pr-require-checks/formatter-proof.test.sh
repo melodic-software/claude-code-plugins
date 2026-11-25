@@ -35,6 +35,7 @@ for f in .editorconfig ruff.toml plugins/bash-format/git-hooks/shfmt-rewrite.sh 
   mkdir -p "$(dirname "$R/$f")"
   cp "$ROOT/$f" "$R/$f"
 done
+# shellcheck disable=SC2016 # the stand-in script's own text, expanded when it runs
 put scripts/sync-shared-copies.sh '#!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
