@@ -29,12 +29,10 @@ SKILL_TOKEN_RE = re.compile(r"(?<![\w/:.-])/?[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-
 ROUTING_TAIL_RE = re.compile(
     r"(?:^|,\s*)(?:(?:and|or|but)\s+)?(?:not for|skip|prefer)\b.*$", re.IGNORECASE
 )
-STRING_BLOCK_RES = {
-    "hash": re.compile(
-        r"<<-?\s*['\"]?[A-Za-z_]|:[ \t]*[|>][-+0-9]*[ \t]*(?:#.*)?$|\"\"\"|'''", re.M
-    ),
-    "slash": re.compile(r"`|\"\"\""),
-}
+HEREDOC_RE = re.compile(r"(?<!<)<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
+BLOCK_SCALAR_RE = re.compile(r"^(\s*)\S[^#]*:[ \t]*[|>][-+0-9]*[ \t]*(?:#.*)?$")
+STRING_QUOTES = {".py": ('"""', "'''"), ".cs": ('"""',), ".go": ("`",)}
+STRING_QUOTES.update(dict.fromkeys([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"], ("`",)))
 CLAUSE_SPLIT_RE = re.compile(r"(?<=[.;])\s+")
 SWAP_TOKEN_RE = re.compile(r"[A-Za-z]+|[0-9]+|\s+|\\.|[^\sA-Za-z0-9]")
 HASH_COMMENT_EXTS = frozenset(
@@ -43,8 +41,16 @@ HASH_COMMENT_EXTS = frozenset(
 SLASH_COMMENT_EXTS = frozenset(
     [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsonc", ".go", ".cs"]
 )
+MEANING_FLIP_WORDS = frozenset(
+    ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't"]
+)
 SWAP_CONTEXT = 6
 MAX_DECIDED_TERM_WORDS = 3
+
+
+def flips_meaning(word):
+    token = word.replace("\u2019", "'").strip(".,;:!?()\"'`*_").lower()
+    return token in MEANING_FLIP_WORDS or token.endswith("n't")
 
 
 def _term_words(text):
@@ -169,15 +175,41 @@ def is_routing_only_change(old, new, pairs):
     return _differs_only_by_swaps(_routing_free_tokens(old), _routing_free_tokens(new), pairs)
 
 
+def _string_block_lines(ext, text):
+    """1-based numbers of the lines `text` holds inside a shell heredoc, a YAML block scalar or a
+    multi-line string, where a comment-shaped line is content."""
+    inside = set()
+    closer = None
+    quotes = STRING_QUOTES.get(ext, ())
+    for number, line in enumerate(text.splitlines(), 1):
+        if isinstance(closer, int):
+            if not line.strip() or len(line) - len(line.lstrip()) > closer:
+                inside.add(number)
+                continue
+            closer = None
+        elif closer is not None:
+            inside.add(number)
+            done = line.strip() == closer if closer[0].isalpha() else line.count(closer) % 2
+            closer = None if done else closer
+            continue
+        heredoc = HEREDOC_RE.search(line) if ext in (".sh", ".bash", ".zsh") else None
+        scalar = BLOCK_SCALAR_RE.match(line) if ext in (".yaml", ".yml") else None
+        if heredoc:
+            closer = heredoc.group(2)
+        elif scalar:
+            closer = len(scalar.group(1))
+        else:
+            closer = next((q for q in quotes if line.count(q) % 2), None)
+    return frozenset(inside)
+
+
 def comment_style(path, text=""):
-    """`hash` or `slash` for a code, YAML or shell file; None for markdown and any other type,
-    whose comments a model may read as instructions, and for a file whose `text` opens a heredoc,
-    block scalar or multi-line string, where a comment-shaped line can be content."""
+    """(`hash` or `slash`, the lines of `text` inside a heredoc, block scalar or multi-line
+    string) for a code, YAML or shell file; None for markdown and any other type, whose comments
+    a model may read as instructions."""
     ext = os.path.splitext(path)[1].lower()
-    style = "hash" if ext in HASH_COMMENT_EXTS else "slash" if ext in SLASH_COMMENT_EXTS else None
-    if style and STRING_BLOCK_RES[style].search(text):
-        return None
-    return style
+    kind = "hash" if ext in HASH_COMMENT_EXTS else "slash" if ext in SLASH_COMMENT_EXTS else None
+    return (kind, _string_block_lines(ext, text)) if kind else None
 
 
 def _comment_line_mask(lines, style):
@@ -207,11 +239,17 @@ def _comment_line_mask(lines, style):
     return mask
 
 
-def _hunk_is_no_run(old_lines, new_lines, pairs, style):
-    """The hunk only deletes whole comment lines and swaps decided terms in the rest."""
+def _hunk_is_no_run(old_lines, new_lines, pairs, style, old_start=1):
+    """The hunk only deletes whole comment lines, none inside a string block, and swaps decided
+    terms in the rest."""
     if style is not None:
-        mask = _comment_line_mask(old_lines, style)
-        kept = [line for line, comment in zip(old_lines, mask) if not comment]
+        kind, inside = style
+        mask = _comment_line_mask(old_lines, kind)
+        kept = [
+            line
+            for number, (line, comment) in enumerate(zip(old_lines, mask), old_start)
+            if not comment or number in inside
+        ]
         if len(kept) < len(old_lines) and kept == new_lines:
             return True
         old_lines = kept
@@ -223,12 +261,13 @@ def _raw_hunks(diff_text):
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
             return None
-        if HUNK_HEADER_RE.match(line):
-            hunks.append(([], []))
+        header = HUNK_HEADER_RE.match(line)
+        if header:
+            hunks.append((int(header.group(1)), [], []))
         elif hunks and line.startswith("-") and not line.startswith("---"):
-            hunks[-1][0].append(line[1:])
-        elif hunks and line.startswith("+") and not line.startswith("+++"):
             hunks[-1][1].append(line[1:])
+        elif hunks and line.startswith("+") and not line.startswith("+++"):
+            hunks[-1][2].append(line[1:])
     return hunks
 
 

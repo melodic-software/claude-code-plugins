@@ -18,9 +18,6 @@ import sys
 MIN_PYTHON = (3, 8)
 
 DESC_TOKEN_RE = re.compile(r"\w+|[^\w\s]")
-MEANING_FLIP_WORDS = frozenset(
-    ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't"]
-)
 DELIM_REL_PATH_RES = (
     re.compile(r"<((?:\.\.?/)+[^<>#\r\n]+)(?:#[^<>\r\n]*)?>"),
     re.compile(r'"((?:\.\.?/)+[^"#\r\n]+)(?:#[^"\r\n]*)?"'),
@@ -174,11 +171,6 @@ def git_show(repo_root, rev, rel_path):
     return done.stdout
 
 
-def _flips_meaning(word):
-    token = word.replace("\u2019", "'").strip(".,;:!?()\"'`*_").lower()
-    return token in MEANING_FLIP_WORDS or token.endswith("n't")
-
-
 def _diff_has_cut_hunks(
     diff_text,
     skip_old_lines_upto=0,
@@ -202,9 +194,8 @@ def _diff_has_cut_hunks(
             old_count = 1 if match.group(2) is None else int(match.group(2))
             old_end = old_start + old_count - 1
             skipped = any(lo <= old_start and old_end <= hi for lo, hi in skip_old_ranges)
-            hunks.append(
-                [old_count > 0 and old_end > skip_old_lines_upto and not skipped, [], [], [], []]
-            )
+            keep = old_count > 0 and old_end > skip_old_lines_upto and not skipped
+            hunks.append([keep, [], [], [], [], old_start])
         elif hunks and line.startswith("-") and not line.startswith("---"):
             hunks[-1][1].extend(line[1:].split())
             hunks[-1][3].append(line[1:])
@@ -214,7 +205,7 @@ def _diff_has_cut_hunks(
     for hunk in hunks:
         if hunk[0] and (
             (allow_heading_renames and no_run_text._is_routing_heading_rename(hunk[3], hunk[4]))
-            or no_run_text._hunk_is_no_run(hunk[3], hunk[4], pairs, comment_style)
+            or no_run_text._hunk_is_no_run(hunk[3], hunk[4], pairs, comment_style, hunk[5])
         ):
             hunk[0] = False
 
@@ -231,11 +222,11 @@ def _diff_has_cut_hunks(
                     kept_here = True
                 else:
                     added.append(word)
-            if kept_here and any(_flips_meaning(word) for word in added):
+            if kept_here and any(no_run_text.flips_meaning(word) for word in added):
                 return True
         return index != len(old)
 
-    return any(edits and is_cut(old, new) for edits, old, new, _, _ in hunks)
+    return any(edits and is_cut(old, new) for edits, old, new, *_ in hunks)
 
 
 def diff_has_cut(
@@ -400,7 +391,7 @@ def is_no_run_file_change(repo_root, merge_base, old_path, new_path):
     hunks = no_run_text._raw_hunks(done.stdout)
     style = no_run_text.comment_style(new_path, git_show(repo_root, merge_base, old_path) or "")
     return hunks is not None and all(
-        no_run_text._hunk_is_no_run(old, new, pairs, style) for old, new in hunks
+        no_run_text._hunk_is_no_run(old, new, pairs, style, start) for start, old, new in hunks
     )
 
 

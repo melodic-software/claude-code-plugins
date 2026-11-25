@@ -811,6 +811,27 @@ class SelectCasesTest(unittest.TestCase):
         block = self._edit_and_select(scaffold, "# Project status\n", "")
         self.assertEqual("one-basic", block.get("cases"), "a heredoc line is fixture content")
 
+    def _base_with_block_scalar(self):
+        self._base_with_comments()
+        config = self.repo / "plugins/alpha/skills/one/config.yaml"
+        config.write_text(
+            config.read_text(encoding="utf-8") + "prompt: |\n  # Heading the model reads\n  body\n",
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "add a block scalar")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        return config
+
+    def test_comment_deletion_outside_a_block_scalar_is_no_run(self):
+        config = self._base_with_block_scalar()
+        block = self._edit_and_select(config, "# Reviewed yearly.\n", "")
+        self.assertNotIn("cases", block, "only lines inside the block scalar are content")
+
+    def test_comment_shaped_line_inside_a_block_scalar_still_runs(self):
+        config = self._base_with_block_scalar()
+        block = self._edit_and_select(config, "  # Heading the model reads\n", "")
+        self.assertEqual("control-no-fire one-basic one-trigger", block.get("cases"))
+
     def test_markdown_html_comment_deletion_still_runs(self):
         self._base_with_comments()
         details = self.repo / "plugins/alpha/skills/one/reference/details.md"
