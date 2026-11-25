@@ -3,6 +3,20 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.60.0] - 2026-11-25
+
+### Added
+
+- `git-hooks/comment-lint-ci.sh <head> <base>` re-runs the comment lint over a change in any CI system, judged against the base branch's settings; it takes both commits as arguments and reads no CI vendor variable. A shared hook install commits it beside the hook.
+- `/code-tidying:setup apply install-ci` finds the repository's CI system, how its jobs get Python and their change's commits, asks only what that leaves open, and proposes the step in that system's own format, written only on the user's yes. No CI system is a default.
+- `/code-tidying:setup check` reports the CI job that runs the script, a hand-run recipe, or drift when a call no longer matches the script's interface.
+
+- `/code-tidying:remove-comments` lists each domain term an ADR-candidate comment uses that the consumer's glossary lacks, found through `/domain-driven-design:ubiquitous-language lookup` (if enabled), as a glossary-candidate row in its findings file (`code-tidying/remove-comments/rule-glossary-candidate`), for `/domain-driven-design:ubiquitous-language curate`.
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [0.59.6] - 2026-11-25
 
 ### Fixed
