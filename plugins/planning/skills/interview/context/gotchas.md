@@ -4,7 +4,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 ## Q&A surface
 
-- **Dependent question in its prerequisite's round:** a question that only makes sense once a sibling in that round is answered makes the user guess or answer out of order. The frontier was computed wrong: move the dependent question to the next round.
+- **Dependent question in its prerequisite's round:** a question that only makes sense once a sibling in that round is answered makes the user guess or answer out of order. The ready questions were picked wrong: move the dependent question to the next round.
 
 - **`AskUserQuestion` without the opt-in, or beyond its cap:** the card surface requires the `use_ask_user_question` user config AND a round of mutually independent questions that fits one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>). Prose otherwise; when in doubt, prose.
 
@@ -78,7 +78,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Asking what the codebase already answers:** Grep/Read before spending a question on paths, conventions, or existing values.
 
-- **Skipping incremental persist in `me` mode:** lock answers into `interview-checklist.md` + Brief as they resolve; crash mid-interview loses uncaptured branches.
+- **Skipping incremental persist on the Q&A path:** lock answers into `interview-checklist.md` + Brief as they resolve; crash mid-interview loses uncaptured branches.
 
 ## Scope
 

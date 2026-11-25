@@ -39,8 +39,7 @@ stays the entry either way:
 - Accepted: write the ledger as "The handoff to wayfind" below says, and name
   `/planning:wayfind chart` with the ledger path for the user to run.
 - Declined: record the decline as the row's resolution and carry on with the rounds. Raise wayfind
-  again only on the fog trigger or the question-count pointer below; a declined round-1 question
-  does not count as a wayfind recommendation already made for the question-count pointer.
+  again only on the fog trigger or the confirmation trigger below.
 - When the scope cut above also applies, it goes first and this question moves to round 2, after
   the cut's answer, counting only the areas the cut keeps.
 
@@ -65,30 +64,30 @@ trigger of its own.
 Every round header, the intake round's included, carries one `Scope check:` line. Once round
 `<N>`'s questions are drafted and before its file is written, take its ids and this line in one
 call:
-`bash "<plugin-root>/surface/round.sh" next-id --ledger <memory_dir>/<topic-slug>/interview-checklist.md --count <n> --round <N> --limit <wayfind_suggest_questions> --rounds-dir <memory_dir>/<topic-slug>`.
-`<n>` is the round's new rows (SKILL.md, the `Q<N>` numbering paragraph). `--limit` takes an
-integer: the `wayfind_suggest_questions` value resolved below, `27` when no layer sets it. The
-first `<n>` output lines are the new ids; the last line is the `Scope check:` line, pasted as
-printed: the questions registered against the limit, this round's new rows included, and what each
-of the last two rounds added and settled. On the page lane the call adds `--dir '<data_dir>'`.
-For a round that adds no row, `round.sh scope-check` with the same `--round`, `--limit` and
-`--rounds-dir` prints the counts alone, to follow `Scope check:`. Those counts are the measured
-half of the question-count pointer and the fog trigger below; the fog trigger still counts the branches the next round would add. With no Bash, count the
-same from the ledger by the rules of `scope-check` in
-[`../../../surface/README.md`](../../../surface/README.md) and write the line yourself.
+`bash "<plugin-root>/surface/round.sh" next-id --ledger <memory_dir>/<topic-slug>/interview-checklist.md --count <n> --round <N> --rounds-dir <memory_dir>/<topic-slug>`.
+`<n>` is the round's new rows (SKILL.md, the `Q<N>` numbering paragraph). The first `<n>` output
+lines are the new ids; the next line is `Scope check: <n> questions asked so far`, every register
+row with this round's new rows counted in, and a `Wayfind:` line follows it when the fog trigger
+below fired. Paste both into the round header as printed. The same call records the round's
+counts as `round <n> | opened <a> | closed <s>` lines under the ledger's `## Round counts`,
+rewriting a round's line on a rerun. On the page lane the call adds `--dir '<data_dir>'`. For a
+round that adds no row, `round.sh scope-check` with the same `--round` and `--rounds-dir` prints
+and records the same lines. With no Bash, count the same from the ledger by the rules of
+`scope-check` in [`../../../surface/README.md`](../../../surface/README.md) and write the lines
+yourself.
 
 ## Bigger than you thought? Check at every round boundary
 
 After each reply is recorded and before the next round is written, answer one question: did this
-turn out larger or foggier than it looked at entry? The first two triggers each have their own
-recommendation; the third is a pointer:
+turn out larger or foggier than it looked at entry? Wayfind has three triggers, the round-1
+question above and the first and third below; the second recommends `/session-flow:workflow`:
 
-- **Fog: more branches opened than closed → `/planning:wayfind chart`.** Recompute the frontier
-  first, then count the branches this round's answers exposed (the questions the next round would
-  add) against the rows it moved to a terminal status. Register rows alone miss this: a new
-  branch gets its row only when it is asked. Two rounds running with more opened than closed is
-  the trigger; one is noise. This is the fog evidence wayfind's too-big AND foggy stop rule needs,
-  so a recommendation to chart always rests on it.
+- **Fog: two rounds running opened more than they closed → `/planning:wayfind chart`.** `round.sh`
+  decides it from the ledger's `## Round counts`: when each of the last two rounds registered more
+  new rows than it settled (answered, deferred, withdrawn or blocked), its `Scope check:` call
+  prints the `Wayfind:` line, which goes in the round header as printed. One round is noise. This
+  is the fog evidence wayfind's too-big AND foggy stop rule needs, so a recommendation to chart
+  always rests on it.
 - **Size alone: the context zone has worsened → `/session-flow:workflow`.** The session's
   context-usage report (the zone line the module injects, or its `mcp__context-usage__status`
   tool) puts the session in a worse zone than the one it reported at entry. Use only a report the
@@ -96,21 +95,18 @@ recommendation; the third is a pointer:
   token or percentage figure here, because the zone thresholds belong to context-usage. No report,
   or `unknown`, is not a trigger. With no fog trigger, this recommends routing the continuation
   through `/session-flow:workflow` (Step 5), not wayfind. When both hold, recommend wayfind.
-- **Question count: the register passed `wayfind_suggest_questions` → suggest `/planning:wayfind
-  chart`.** Resolve the key per [`<plugin-root>/reference/config.md`](../../../reference/config.md)
-  "Convention-home keys" (no `userConfig` layer; the default is `27`; `0` never suggests). Count the
-  rows in the ledger's `## Open-question register`, every status. The first time the count passes
-  the value, say once, in one short block after the read-back: the count, the value and its layer,
-  that the interview may be outrunning one session, and that `/planning:wayfind chart` would carry
-  this ledger over if the effort is still foggy. That block is a pointer, not a question: it waits
-  for nothing, the next round goes out as usual, and a reply asking for wayfind takes the handoff
-  below. It recommends nothing, so a `/session-flow:workflow` recommendation on the same boundary
-  stands. Skip it when a wayfind recommendation has already been made in this session.
+- **At the confirmation: topics are left → suggest `/planning:wayfind chart`.** When the
+  confirmation is written and the last round's `Later:` line was not empty, or a register row is
+  `deferred` to an arbiter outside the pipeline skills (a person or team, not `/planning:design`,
+  `/planning:plan` or `USER-RESERVED`), topics remain that this session cannot settle: one line
+  before the confirmation's Next line names them and says `/planning:wayfind chart` would carry
+  this ledger over. It is a pointer, not a question: the confirmation goes out as usual, and a
+  reply asking for wayfind takes the handoff below.
 
 On a fog or context-zone trigger, recommend its route to the user in one short block (the trigger
-and its evidence, what it would carry over); never switch on your own. If neither fired, say nothing
-beyond the question-count pointer and ask the next round. After the user declines, raise it again
-only when it escalates: the zone worsens further, or the other of those two triggers fires.
+and its evidence, what it would carry over); never switch on your own. If neither fired, ask the
+next round. After the user declines, raise it again only when it escalates: the zone worsens
+further, or the other of those two triggers fires.
 
 ## The handoff to wayfind
 
@@ -123,7 +119,7 @@ where a `/clear` between the two skills cannot lose it:
 - `open`, `deferred` and `blocked` rows: candidate decision items;
 - the `## Constraint ledger`: the constraints the user stated;
 - the `## Starting point` section: the user's starting-point disclosure from intake. When the
-  ledger has none yet, or holds only the template's placeholder, write it now, one line in the user's words or a faithful paraphrase;
+  ledger has none yet, write it now, one line in the user's words or a faithful paraphrase;
 - the session-shorthand glossary.
 
 The recommendation block names the ledger path, so a fresh session that runs

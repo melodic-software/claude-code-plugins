@@ -25,13 +25,14 @@ plus the word that separates the user's meaning from the existing one (for examp
 account` when the code's `Account` is a sign-in identity, `src/auth/account.ts:12`). Ask it as a
 registered question in the whole question layout:
 
-- **Context**: the user's meaning in their words (`user, round <N>`), the existing concept with its
-  source (`file:line` or the glossary entry), and the sentence that would be ambiguous without the
-  qualifier.
+- **Context**: the user's meaning in their words, quoted in at most twelve words with the label of
+  the answer or reply it came from ([`question-shape.md`](question-shape.md) "Context"), the
+  existing concept with its source (`file:line` or the glossary entry), and the sentence that
+  would be ambiguous without the qualifier, one numbered line each.
 - **My recommendation**: the qualified name, with the reason the qualifier fits.
 - **Alternatives**: a different qualifier; qualifying the existing concept instead (a rename of the
-  code or the glossary entry, which is larger work and goes to the closing summary's Glossary
-  group); or keeping the bare term with a stated boundary, when the evidence shows the two meanings
+  code or the glossary entry, which is larger work and goes under the confirmation's Terms and
+  ADRs); or keeping the bare term with a stated boundary, when the evidence shows the two meanings
   never meet in one sentence.
 
 Add the qualified name to the ledger's `## Terminology matrix` as a `proposed` row in the same

@@ -16,7 +16,7 @@ only:
    question, and the early session-config recommendation do not run: the Reason to exist
    principles ask for the problem, and a session-config recommendation, when one fits, comes after
    the verdict.
-2. **Pacing.** One question per turn, not a frontier round. The assumption sweep does not run;
+2. **Pacing.** One question per turn, not a round of ready questions. The assumption sweep does not run;
    pushing on each answer before moving on does that work here.
 3. **Recommendation.** Every question carries what a strong answer sounds like, with a `Basis:`
    line citing the principle it comes from (see "Question shape"). A strong answer is a standard

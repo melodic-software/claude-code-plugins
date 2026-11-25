@@ -54,8 +54,8 @@ whichever form:
 
 - an engineering session's `## Brief` in `PLAN.md` (its resolved decisions, Captured assumptions,
   and Deferred questions with their **arbiter tags**);
-- the decision-tree ledger (`interview-checklist.md` in the memory slice), present only when the
-  interview emitted one (≥2 open questions or `me` mode);
+- the interview ledger (`interview-checklist.md` in the memory slice), present only when the
+  interview emitted one (≥2 open questions);
 - a general (non-engineering) session's shared-understanding summary in the memory slice.
 
 The answer set is the resolved decisions in the ledger when present, else the Brief's decisions,
@@ -111,8 +111,9 @@ Each validator receives the whole provisional answer set and the interview's per
 Each answer also carries the evidence it rested on: the question's Context block, read from the
 interview's kept round file (`<memory_dir>/<topic-slug>/round-<N>.md`, the question's `Context:`
 lines) or, on the page, the question's `context` field. Hand each validator that block as written,
-with its links and `file:line` references, and keep the `My recommendation:` reasoning, `Basis:`,
-any `Inference:` line (older rounds) and `Flips if:` lines withheld. A Context claim whose cited source does not say what
+with its links and `file:line` references, and keep the `My recommendation:` reasoning (its
+`Why:`, `Gains:`, `Costs:` and `Evidence:` lines), `Basis:`, any `Inference:` line (older rounds)
+and `Flips if:` lines withheld. A Context claim whose cited source does not say what
 the claim says, or a Context that leaves out a fact that would change the decision, is grounds for
 CHALLENGED. A question with no kept Context is validated on the answer alone, and its verdict says
 so.

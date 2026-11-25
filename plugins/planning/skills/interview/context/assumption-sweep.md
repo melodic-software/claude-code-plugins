@@ -5,7 +5,7 @@ is asked, stated, or blocked before the confirmation gate.
 
 ## When
 
-- `me` and `auto` runs with a register, once no open question remains on the frontier and before
+- `auto` runs with a register, once no open question remains ready to ask and before
   the Step 3 register gate and confirmation gate. The `auto` Mixed path runs it after its residue round.
 - Skipped when the run asked no question (no register exists) and in `lock`.
 - After the answers to sweep rows land, sweep again, scoped to the rows the last sweep's answers
@@ -18,7 +18,7 @@ recommendations. Request any subagent type but `fork`. What each kind starts fro
 fork is spawned: [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
 Hand it:
 
-- the ledger: `## Constraint ledger`, `## Open-question register`, and the decision tree;
+- the ledger: `## Constraint ledger`, `## Open-question register`, and `## Self-answered facts`;
 - every recommendation as asked, with its `Checked against:` line and `Commits you to:` parts;
 - the composed artifacts the interview read: explore or research output, an existing
   implementation, an upstream Brief;
@@ -67,7 +67,9 @@ The acceptance-criteria coverage prompt is never a sweep item ([`coverage-prompt
 
 ## Item shape
 
-The sub-agent returns one line per item, numbered `S<N>` within this sweep:
+The sub-agent returns one line per item, numbered `S<N>` from the number you hand it: `S1` in the
+first sweep, and in a later sweep one past the last `S<N>` the ledger's `## Assumption sweep`
+holds, so each `S<N>` names one item across the whole ledger:
 
 ```text
 - S1 | hidden-default | decision | Q4 recommendation, retention window | depends: Q4, C2 | blocking: yes | hidden-default: yes
@@ -76,7 +78,7 @@ The sub-agent returns one line per item, numbered `S<N>` within this sweep:
 
 Fields:
 
-- **id:** `S<N>`, contiguous within the sweep.
+- **id:** `S<N>`, contiguous within the sweep and running on from the last sweep's highest.
 - **category:** `undecided`, `hidden-default`, `contradiction`, `inherited`, `hedged`,
   `coined-term`, or `unstated-value`.
 - **class:** `decision` (the user's call), `fact` (the environment answers it), `tenant` (a
@@ -92,7 +94,10 @@ Fields:
 
 Disposition is the filter pass: you decide what each reported item becomes, and you write the
 results, not the sub-agent, each new row taking the next id from `round.sh next-id` (SKILL.md, the
-`Q<N>` numbering paragraph). `S<N>` never reaches the register.
+`Q<N>` numbering paragraph). `S<N>` never reaches the register. Merge identical items first: two
+items that name the same gap in the same source are one item, recorded once under the lower
+`S<N>`, its disposition covering both; an item that repeats one an earlier sweep recorded is not
+recorded again.
 
 - **fact and tenant:** run the self-answer step first
   ([`self-answer.md`](../../../context/self-answer.md)), connected and connectable sources
@@ -145,7 +150,7 @@ Any `open` row it adds returns the run to Step 2.
 into the ledger's `## Assumption sweep` section, where `sweep <M>` counts the sweeps from 1 and
 `Q<N>` is the register's last row. Then write each item there as
 `- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`, keeping the sub-agent's
-`S<N>` ids, which restart at `S1` in each sweep. The disposition is one of: the `Q<N>` register row the item became, or the
+`S<N>` ids, which run on across sweeps and never restart. The disposition is one of: the `Q<N>` register row the item became, or the
 existing row a hedged item points at; the `F<N>` line that settles it; or `deferred: <where>` for
 an item settled outside the register (a hedged item's `deferred: confirmation restate`). Only a
 hedged item points at a row its source names; every other item's `Q<N>` is the new row it became,
