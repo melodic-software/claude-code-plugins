@@ -21,6 +21,7 @@ const BAND = {
 } as const
 
 type World = {
+  sid: string
   files: Record<string, string>
   store: Record<string, unknown>
   forks: string[]
@@ -29,10 +30,10 @@ type World = {
 }
 
 const world = (on: any, env: Record<string, string> = {}) => {
-  const w: World = { files: {}, store: {}, forks: [], replies: [], fills: [] }
+  const w: World = { sid: SID, files: {}, store: {}, forks: [], replies: [], fills: [] }
   mock.clock(on, { now: 1_791_050_400_000 })
   mock.env(on, env)
-  on('session.id', () => ({ value: SID }))
+  on('session.id', () => ({ value: w.sid }))
   on('process.hookEnv', () => ({ value: { CLAUDE_PLUGIN_DATA: DATA, CLAUDE_PROJECT_DIR: PROJECT } }))
   on('fs.exists', ($: unknown, e: { path: string }) => ({ value: e.path in w.files || Object.keys(w.files).some(f => f.startsWith(`${e.path}/`)) }))
   on('fs.read', ($: unknown, e: { path: string }) => {
@@ -244,6 +245,19 @@ test('a finding is redacted before the ledger write', async ($, on) => {
   const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
   expect(w.files[ledger]).toContain('curl -H <REDACTED: API key> ran')
   expect(w.files[ledger]).not.toContain('sk-abc123')
+})
+
+test('after /clear the checks write under the new session id', async ($, on) => {
+  const w = world(on)
+  await start($)
+  w.sid = 'sess-2'
+  w.replies.push(answer(FINDING))
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(w.files[`${DATA}/session-flow-observer/live-sess-2.jsonl`]).toBeDefined()
+  expect(w.files[LIVE]).toBeUndefined()
+  const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
+  expect(w.files[ledger]).toContain('session_id: sess-2')
 })
 
 test('each check records its usage', async ($, on) => {

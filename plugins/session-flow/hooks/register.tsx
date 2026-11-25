@@ -24,6 +24,7 @@ type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tok
 const fresh = () => ({
   on: false,
   sid: '',
+  dataDir: '',
   liveFile: '',
   ledgerDir: '',
   gen: 0,
@@ -81,8 +82,17 @@ const writeFinding = async ($: EngineInterface, at: string, trigger: Trigger, tu
 
 const record = async ($: EngineInterface, row: object) => appendTo($, st.liveFile, `${JSON.stringify(row)}\n`)
 
+const syncSession = async ($: EngineInterface) => {
+  const sid = await $.session.id()
+  if (sid === st.sid) return
+  st.sid = sid
+  st.liveFile = `${st.dataDir}/live-${sid}.jsonl`
+  st.card = null
+}
+
 const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, step: number) => {
   if (st.inFlight) return
+  await syncSession($)
   const skip = await count($, 'skip')
   if (skip > 0) {
     await $.store.set('skip', skip - 1)
@@ -143,8 +153,9 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (!e.isInteractive || (await $.env.get('SESSION_FLOW_OBSERVER_ANALYSIS'))) return result
     const env = await $.process.hookEnv()
-    st.sid = await $.session.id()
-    st.liveFile = `${env.CLAUDE_PLUGIN_DATA}/session-flow-observer/live-${st.sid}.jsonl`
+    st.dataDir = `${env.CLAUDE_PLUGIN_DATA}/session-flow-observer`
+    st.sid = ''
+    await syncSession($)
     st.ledgerDir = `${env.CLAUDE_PROJECT_DIR || e.cwd}/.work/running-retros`
     st.ended = false
     st.on = true
