@@ -7,7 +7,7 @@
 #   2  fatal: jq missing, an internal CC state file is present but does not
 #      match its expected shape (fail loud on schema drift — never guess), a
 #      bad/absent --ids selector, --ids combined with --all, or a rejected
-#      --from invocation (see the --from paragraph above)
+#      --from invocation
 
 set -uo pipefail
 
