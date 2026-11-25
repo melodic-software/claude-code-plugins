@@ -66,6 +66,8 @@ edit_json() {
   MSYS_NO_PATHCONV=1 jq -n --arg fp "$1" --arg s "$2" \
     '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s}}'
 }
+# Claude Code's NotebookEdit input names its target notebook_path, never file_path:
+# https://code.claude.com/docs/en/agent-sdk/python
 notebook_json() {
   MSYS_NO_PATHCONV=1 jq -n --arg np "$1" --arg s "$2" \
     '{tool_name:"NotebookEdit",tool_input:{notebook_path:$np,new_source:$s}}'

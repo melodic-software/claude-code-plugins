@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Command strings are literals the guard reads as written: $HOME stays text (SC2016), \\ is two backslashes (SC1003).
 # shellcheck disable=SC2016,SC1003
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
