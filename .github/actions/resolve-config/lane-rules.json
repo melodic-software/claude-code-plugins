@@ -1,6 +1,6 @@
 {
   "work-resolve-issue": {
-    "stage": "work",
+    "stage": "build",
     "forbidden-effects": ["merge"],
     "never": "Merges, or marks its pull request ready"
   },
@@ -10,7 +10,7 @@
     "never": "Writes to a branch"
   },
   "work-unblock": {
-    "stage": "work",
+    "stage": "admit",
     "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
     "activity-grants": { "publish-lane-level": { "actions-variables": "write" } },
     "never": "Writes to a branch, labels an issue that carries a hold label, or writes any repository variable but the lane level"
@@ -30,8 +30,18 @@
     "forbidden-effects": ["mutate-branch", "merge"],
     "never": "Pushes fixes"
   },
-  "pr-review-security": {
-    "stage": "verify",
+  "pr-review-hosted": {
+    "stage": "review",
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Pushes fixes"
+  },
+  "pr-review-security-hosted": {
+    "stage": "review",
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Pushes fixes"
+  },
+  "pr-review-main": {
+    "stage": "review",
     "forbidden-effects": ["mutate-branch", "merge"],
     "never": "Pushes fixes"
   },
@@ -39,6 +49,17 @@
     "stage": "verify",
     "forbidden-effects": ["mutate-branch", "merge"],
     "never": "Pushes fixes"
+  },
+  "pr-rate-merge-risk": {
+    "stage": "verify",
+    "forbidden-effects": ["mutate-branch", "mutate-tracker", "publish-artifact", "merge"],
+    "forbidden-gating": ["gate"],
+    "never": "Gates; it only uploads a rating"
+  },
+  "pr-run-plugin-evals": {
+    "stage": "verify",
+    "forbidden-effects": ["mutate-branch", "mutate-tracker", "merge"],
+    "never": "Writes to the branch"
   },
   "pr-explain": {
     "stage": "verify",
@@ -57,7 +78,7 @@
     "never": "Runs work; it only produces `ci-status`"
   },
   "pr-unblock": {
-    "stage": "unblock",
+    "stage": "fix",
     "forbidden-effects": ["merge"],
     "never": "Merges"
   },
@@ -66,15 +87,11 @@
     "forbidden-effects": [],
     "never": "Merges above the rung, past a hold, or a PR that touches a denied path"
   },
-  "post-merge-verify": {
+  "post-merge-test-mutation": {
     "stage": "post-merge",
-    "forbidden-effects": ["mutate-branch", "merge"],
-    "never": "Edits PRs"
-  },
-  "post-merge-sweep-comments": {
-    "stage": "post-merge",
-    "forbidden-effects": ["merge"],
-    "never": "Reopens merged PRs"
+    "forbidden-effects": ["mutate-branch", "mutate-tracker", "merge"],
+    "forbidden-gating": ["gate"],
+    "never": "Gates, or runs a mutant beside a Claude credential or a write token"
   },
   "upstream-apply-changelog": {
     "stage": "upstream",
@@ -90,5 +107,10 @@
     "stage": "maintenance",
     "forbidden-effects": ["mutate-tracker", "merge"],
     "never": "Merges, marks a pull request ready, or writes to main or a branch outside chore/hill-climb-<plugin>-<skill>-<run id>, which holds only the skill's markdown and one .changes/<plugin>/ fragment"
+  },
+  "maintenance-audit-lane-runs": {
+    "stage": "maintenance",
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Writes to a branch, or labels an issue agent-ready"
   }
 }

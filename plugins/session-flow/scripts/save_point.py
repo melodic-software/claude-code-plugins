@@ -243,7 +243,9 @@ FRONTMATTER_KEYS_3 = (
 )
 PRIOR_ROWS_KEPT = 3
 ARCHIVE_TYPE = "handoff-archive"
+# ADR 0084
 HOT_FILE_MAX_BYTES = S3.cap_bytes
+# ADR 0084
 READ_CAP_BYTES = 58_500
 _GH_REF = r"(?:\bPR\s*#?\d+|#\d+|/(?:pull|issues)/\d+)"
 _GH_STATE = (
@@ -423,7 +425,7 @@ POINTER_PREFIX = "- Retired entries: "
 INDEX_FILE = "retired-index.md"
 INDEX_PREFIX = "- Retired entries index: "
 INDEX_TYPE = "handoff-retired-index"
-INDEX_NOTE = "Each line names a hop file and the heading in it that lists retired entries, each with its reason."
+INDEX_NOTE = "Each line names an archive file and the heading in it that lists retired entries, each with its reason."
 PRIOR_SESSION_RE = re.compile(r"^Prior session: ([0-9A-Fa-f-]{36})\.$")
 THEN_RE = re.compile(r"^Then: /[A-Za-z0-9_:.-]+$")
 THIS_SESSION_RE = re.compile(r"^did: .+ · left: .+$")
@@ -1914,12 +1916,12 @@ def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
         )
         return (
             "OVER-CAP",
-            f"OVER-CAP: {name} holds {held} bytes, and the binding and carried sections alone are over the {cap}-byte hot-file cap ({_size_text(core, carried, written)}); shrink {name}: retire what no longer binds through the 'retire' list, and leave settled history in {rel} with a pointer from Review before you continue",
+            f"OVER-CAP: {name} holds {held} bytes, and the binding and carried sections alone are over the {cap}-byte handoff-file cap ({_size_text(core, carried, written)}); shrink {name}: retire what no longer binds through the 'retire' list, and leave settled history in {rel} with a pointer from Review before you continue",
         )
     if size > cap:
         return (
             "FAIL",
-            f"size: {size} bytes is over the {cap}-byte hot-file cap; move {', '.join(spec.movable)} content into {rel} with a pointer ({_size_text(core, carried, written)})",
+            f"size: {size} bytes is over the {cap}-byte handoff-file cap; move {', '.join(spec.movable)} content into {rel} with a pointer ({_size_text(core, carried, written)})",
         )
     return None
 
@@ -1944,16 +1946,16 @@ def _size_finding(doc: Doc, rel: str) -> tuple[str, str] | None:
     if core > HOT_FILE_MAX_BYTES:
         return (
             "UNVALIDATED",
-            f"the core sections alone are over the {HOT_FILE_MAX_BYTES}-byte hot-file cap ({parts}); {CORE_NEVER_MOVES}, so this file stands unvalidated",
+            f"the core sections alone are over the {HOT_FILE_MAX_BYTES}-byte handoff-file cap ({parts}); {CORE_NEVER_MOVES}, so this file stands unvalidated",
         )
     if core + carried > HOT_FILE_MAX_BYTES:
         return (
             "UNVALIDATED",
-            f"the core plus carried content is over the {HOT_FILE_MAX_BYTES}-byte hot-file cap ({parts}); the carried sections are written by `new` and {CORE_NEVER_MOVES}, so this file stands unvalidated; do not cut written sections for it",
+            f"the core plus carried content is over the {HOT_FILE_MAX_BYTES}-byte handoff-file cap ({parts}); the carried sections are written by `new` and {CORE_NEVER_MOVES}, so this file stands unvalidated; do not cut written sections for it",
         )
     return (
         "FAIL",
-        f"size: {size} bytes is over the {HOT_FILE_MAX_BYTES}-byte hot-file cap; move written non-core content into {rel} before validating ({parts}); {CORE_NEVER_MOVES}",
+        f"size: {size} bytes is over the {HOT_FILE_MAX_BYTES}-byte handoff-file cap; move written non-core content into {rel} before validating ({parts}); {CORE_NEVER_MOVES}",
     )
 
 
@@ -2522,12 +2524,12 @@ def _check_moves(doc: Doc, f: Findings, spec) -> None:
                 continue
             if title in spec.binding and pointer.moves(title):
                 f.fail(
-                    f"{title}: a binding section stays whole in the hot file; line {i + 1} moves it to {pointer.file}",
+                    f"{title}: a binding section stays whole in the handoff file; line {i + 1} moves it to {pointer.file}",
                     CheckKind.POINTER,
                 )
             elif pointer.target(base) is None:
                 f.fail(
-                    f"{title}: line {i + 1} points at '{pointer.file}#{pointer.heading}', which is not on disk (no such hop file, or no '## {pointer.heading}' in it)",
+                    f"{title}: line {i + 1} points at '{pointer.file}#{pointer.heading}', which is not on disk (no such archive file, or no '## {pointer.heading}' in it)",
                     CheckKind.POINTER,
                 )
 
@@ -2692,7 +2694,7 @@ def _check_hop_path(f: Findings, pred: Doc, start: int) -> None:
     for cursor, path in _chain_hop_paths(pred, start):
         if not path.is_file():
             f.fail(
-                f"archive: hop file {path.relative_to(cursor.path.parent).as_posix()} of predecessor {cursor.basename!r} is missing",
+                f"archive: file {path.relative_to(cursor.path.parent).as_posix()} of predecessor {cursor.basename!r} is missing",
                 CheckKind.POINTER,
             )
 
@@ -2756,7 +2758,7 @@ def _check_github_claims(doc: Doc, f: Findings) -> None:
         for pattern, label in GITHUB_STATE_CLAIMS:
             if pattern.search(line):
                 f.warn(
-                    f"line {i + 1}: GitHub state claim ({label}); state goes stale, so the hot file lists the command that re-reads it instead"
+                    f"line {i + 1}: GitHub state claim ({label}); state goes stale, so the handoff file lists the command that re-reads it instead"
                 )
                 break
 
@@ -2843,7 +2845,7 @@ def cmd_read(args: argparse.Namespace) -> int:
         held = any(title == args.section for title, _ in link.sections)
         return _die(
             1,
-            f"'## {args.section}' points at a hop file or heading that is not on disk: {_posix(link.path)}"
+            f"'## {args.section}' points at an archive file or heading that is not on disk: {_posix(link.path)}"
             if held
             else f"no '## {args.section}' section: {_posix(link.path)}",
         )
@@ -3763,7 +3765,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     if doc.shape not in HOP_FILE_SHAPES:
         return _die(
             2,
-            f"amend rewrites shape-3 and shape-4 hot files only (handoff_shape {doc.frontmatter.get('handoff_shape')!r}): {path}",
+            f"amend rewrites shape-3 and shape-4 handoff files only (handoff_shape {doc.frontmatter.get('handoff_shape')!r}): {path}",
         )
     if any(FILL_MARK in line for line in doc.lines):
         return _die(
@@ -4703,7 +4705,7 @@ def build_skeleton_3(
             else:
                 kept.append(line)
         if folded:
-            pointer = f"{FOLD_PREFIX}lines {DIRECTION_HOPS_KEPT} or more hops old are verbatim under '## Direction changes' in the hop file of the hop that folded them, the newest {hop_rel}"
+            pointer = f"{FOLD_PREFIX}lines {DIRECTION_HOPS_KEPT} or more hops old are verbatim under '## Direction changes' in the archive file of the hop that folded them, the newest {hop_rel}"
         trail = [
             *([pointer] if pointer else []),
             *_trim_blank(kept),
@@ -5122,14 +5124,14 @@ def cmd_new(args: argparse.Namespace) -> int:
         if not HANDOFF_NAME_RE.match(root):
             return _die(
                 1,
-                f"predecessor's chain_root (or first chain: entry) {root!r} is not a bare <TS>-handoff-<topic>.md name; no hop file written",
+                f"predecessor's chain_root (or first chain: entry) {root!r} is not a bare <TS>-handoff-<topic>.md name; no archive file written",
             )
         hop_path = hop_file_path(handoffs, root, hop, session_id)
         archive_root = (handoffs / ARCHIVE_DIR).resolve()
         if archive_root not in hop_path.resolve().parents:
             return _die(
                 1,
-                f"hop file {_posix(hop_path)} resolves outside {archive_root.as_posix()}",
+                f"archive file {_posix(hop_path)} resolves outside {archive_root.as_posix()}",
             )
         if hop_path.exists():
             try:
@@ -5140,13 +5142,13 @@ def cmd_new(args: argparse.Namespace) -> int:
             if existing is None or owner.lower() != session_id:
                 return _die(
                     1,
-                    f"hop file {_posix(hop_path)} belongs to session {owner or 'unknown'}, not {session_id}; never overwritten",
+                    f"archive file {_posix(hop_path)} belongs to session {owner or 'unknown'}, not {session_id}; never overwritten",
                 )
             held = _held_heading(existing)
             if held:
                 return _die(
                     1,
-                    f"hop file {_posix(hop_path)} holds '## {held}' content a rewrite would erase; fold a late event in with `save_point.py amend <hot file> --json <path>`, never a second `new`",
+                    f"archive file {_posix(hop_path)} holds '## {held}' content a rewrite would erase; fold a late event in with `save_point.py amend <handoff file> --json <path>`, never a second `new`",
                 )
         hop_path.parent.mkdir(parents=True, exist_ok=True)
         hop_path.write_text(
@@ -5249,12 +5251,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         choices=WRITABLE_SHAPES,
         default=None,
-        help=f"shape to write (default {HANDOFF_SHAPE}, or the predecessor's shape when newer; shape 2 builds no hot file or archive)",
+        help=f"shape to write (default {HANDOFF_SHAPE}, or the predecessor's shape when newer; shape 2 builds no handoff file or archive)",
     )
     p_new.add_argument(
         "--standing-rules",
         action="store_true",
-        help="role chain: `fill` keeps Current rules, Standing preferences and Decisions in force in the chain's standing-rules/<chain>.md and the retire pointers in archive/<chain>/retired-index.md, the hot file holds a pointer to each, and the resume prompt loads the standing-rules file first; a successor of such a hop keeps it without the flag (shape 4 only)",
+        help="role chain: `fill` keeps Current rules, Standing preferences and Decisions in force in the chain's standing-rules/<chain>.md and the retire pointers in archive/<chain>/retired-index.md, the handoff file holds a pointer to each, and the resume prompt loads the standing-rules file first; a successor of such a hop keeps it without the flag (shape 4 only)",
     )
     p_new.set_defaults(func=cmd_new)
 
@@ -5272,7 +5274,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_amend = sub.add_parser(
         "amend",
-        help="fold a late event into a filled shape-3 hot file and its hop file",
+        help="fold a late event into a filled shape-3 handoff file and its archive file",
     )
     p_amend.add_argument("file")
     p_amend.add_argument(
@@ -5324,7 +5326,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_read = sub.add_parser(
         "read",
-        help="print one section's body; a section moved to its hop file is read from there",
+        help="print one section's body; a section moved to its archive file is read from there",
     )
     p_read.add_argument("file")
     p_read.add_argument("--section", required=True, help="the heading, without '## '")
@@ -5332,7 +5334,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_chain = sub.add_parser(
         "chain",
-        help="the file's chain: each hot file reached, and each hop's sections from hot or hop files",
+        help="the file's chain: each handoff file reached, and each hop's sections from handoff or archive files",
     )
     p_chain.add_argument("file")
     p_chain.add_argument("--json", action="store_true", help="print JSON")

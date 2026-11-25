@@ -1267,12 +1267,12 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
 
         hot = generate_chain(root / "shape3", SHAPE3_BUDGET_HOPS, shape=3)
         hot_sizes = [len(path.read_bytes()) for path in hot]
-        print(f"shape 3: {len(hot)} hot files validate strictly")
+        print(f"shape 3: {len(hot)} handoff files validate strictly")
         for hop in SHAPE3_REPORT_HOPS:
-            print(f"{hop}\t{hot_sizes[hop - 1]} bytes\tshape-3 hot file")
+            print(f"{hop}\t{hot_sizes[hop - 1]} bytes\tshape-3 handoff file")
         if max(hot_sizes) > HOT_FILE_MAX_BYTES:
             print(
-                f"budget: a projected shape-3 hot file reaches {max(hot_sizes)} bytes by hop {SHAPE3_BUDGET_HOPS}, over the {HOT_FILE_MAX_BYTES}-byte cap",
+                f"budget: a projected shape-3 handoff file reaches {max(hot_sizes)} bytes by hop {SHAPE3_BUDGET_HOPS}, over the {HOT_FILE_MAX_BYTES}-byte cap",
                 file=sys.stderr,
             )
             return 1

@@ -42,4 +42,4 @@ export function statusChecks(workflow, registry = REGISTRY) {
 }
 
 export const reviewLanes = (registry = REGISTRY) =>
-  Object.entries(registry.workflows).flatMap(([workflow, { lane }]) => (lane === undefined ? [] : [{ lane, workflow }]));
+  Object.entries(registry.workflows).flatMap(([workflow, { footer }]) => (footer === undefined ? [] : [{ footer, workflow }]));

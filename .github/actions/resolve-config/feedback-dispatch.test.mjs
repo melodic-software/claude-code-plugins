@@ -74,7 +74,7 @@ activities:
     inputs: [pr, head-sha]
 lanes:
   pr-unblock:
-    stage: unblock
+    stage: fix
     slots:
       - activity: resolve-conflicts
       - activity: apply-conflict-patch

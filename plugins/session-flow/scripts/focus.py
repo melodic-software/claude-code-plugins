@@ -2,13 +2,14 @@
 """The per-session focus file the PreCompact hook prints to steer compaction.
 
 One file per Claude Code session, `<plugin data>/focus/<session>.md`: a fixed lead line and up to
-four `## ` sections (Goal, Handoff, Task file, Note), each replaced only by its own flag. This
-script is the only code that opens `focus/`.
+five `## ` sections (Goal, Handoff, Task file, Posture, Note), each replaced only by its own flag.
+This script is the only code that opens `focus/`.
 
 CLI, every command keyed by `--session <id>`:
 
-    set [--goal TEXT] [--handoff PATH] [--task-file PATH] [--note TEXT] [--enabled VALUE]
-    clear (--goal | --handoff | --task-file | --note | --all)
+    set [--goal TEXT] [--handoff PATH] [--task-file PATH] [--posture orchestrator|off] [--note TEXT]
+        [--enabled VALUE]
+    clear (--goal | --handoff | --task-file | --posture | --note | --all)
     print
     hook PreCompact|UserPromptSubmit   (hook input on stdin)
 
@@ -35,27 +36,6 @@ import traceback
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
-try:
-    import fcntl
-
-    def _try_lock(fd: int) -> None:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-    def _unlock(fd: int) -> None:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-
-except ImportError:
-    import msvcrt
-
-    def _try_lock(fd: int) -> None:
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-
-    def _unlock(fd: int) -> None:
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-
-
 SCRIPT = Path(__file__).resolve()
 sys.path.insert(0, str(SCRIPT.parent))
 import plugin_paths  # noqa: E402
@@ -79,7 +59,7 @@ LEAD = (
     "Session focus from session-flow. Keep each item below in the summary verbatim. Where it "
     "conflicts with the user's own /compact instructions, the user's instructions win."
 )
-SECTIONS = ("Goal", "Handoff", "Task file", "Note")
+SECTIONS = ("Goal", "Handoff", "Task file", "Posture", "Note")
 RENDER = {
     "Goal": "If this /goal is still active, its condition: {}",
     "Handoff": (
@@ -87,9 +67,17 @@ RENDER = {
         "so read them again after compaction."
     ),
     "Task file": "Step-away task file: {}",
+    "Posture": "{}",
     "Note": "{}",
 }
-FLAGS = {"goal": "Goal", "handoff": "Handoff", "task_file": "Task file", "note": "Note"}
+FLAGS = {"goal": "Goal", "handoff": "Handoff", "task_file": "Task file", "posture": "Posture", "note": "Note"}
+POSTURES = {
+    "orchestrator": (
+        "Step-away orchestrator posture is on: invoke /session-flow:orchestrate if its imperatives are "
+        "not in context, and follow the Orchestrator posture section of the away rules."
+    ),
+    "off": "",
+}
 PATH_SECTIONS = frozenset({"Handoff", "Task file"})
 
 
@@ -218,24 +206,8 @@ def section_text(name: str, value: str) -> str:
 @contextlib.contextmanager
 def locked(path: Path) -> Iterator[bool]:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
-    try:
-        deadline = time.monotonic() + LOCK_WAIT_SECONDS
-        while True:
-            try:
-                _try_lock(fd)
-                break
-            except OSError:
-                if time.monotonic() > deadline:
-                    yield False
-                    return
-                time.sleep(0.02)
-        try:
-            yield True
-        finally:
-            _unlock(fd)
-    finally:
-        os.close(fd)
+    with plugin_paths.file_lock(path, LOCK_WAIT_SECONDS) as held:
+        yield held
 
 
 def read_sections(path: Path) -> dict[str, str]:
@@ -379,6 +351,12 @@ def cmd_hook(args: argparse.Namespace) -> int:
     return 0
 
 
+def posture_text(value: str) -> str:
+    if value not in POSTURES:
+        raise argparse.ArgumentTypeError(f"takes {' or '.join(POSTURES)}, not {value!r}")
+    return POSTURES[value]
+
+
 def parser() -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(prog="focus.py", description=__doc__.split("\n\n")[0])
     commands = top.add_subparsers(dest="command", required=True)
@@ -389,10 +367,11 @@ def parser() -> argparse.ArgumentParser:
     set_cmd.add_argument("--goal")
     set_cmd.add_argument("--handoff")
     set_cmd.add_argument("--task-file")
+    set_cmd.add_argument("--posture", type=posture_text, help="the posture away.py start printed; off removes it")
     set_cmd.add_argument("--note")
     set_cmd.add_argument("--enabled", help=f"the user's {SETTING} value; an unexpanded placeholder is unset")
     clear_cmd = commands.add_parser("clear", parents=[common], help="remove the named sections")
-    for flag in ("--goal", "--handoff", "--task-file", "--note", "--all"):
+    for flag in ("--goal", "--handoff", "--task-file", "--posture", "--note", "--all"):
         clear_cmd.add_argument(flag, action="store_true")
     commands.add_parser("print", parents=[common], help="print the focus file, cut to the cap")
     hook_cmd = commands.add_parser("hook", help="hook entry; payload on stdin; always exits 0")
