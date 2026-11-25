@@ -8,6 +8,7 @@ const DAY_MS = 86_400_000
 const USAGE = `Usage: /observer [on|off]. Bare /observer shows this session's and the last day's checks.`
 
 const PERSON_ORIGINS = ['composer', 'bridge']
+const PLUGIN = 'session-flow'
 
 type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
 
@@ -135,7 +136,15 @@ const perform = async ($: EngineInterface, fx: Effect): Promise<string | undefin
       await record($, { at: await iso($), ...fx.row }).catch(() => undefined)
       return undefined
     case 'ledger':
-      await appendTo($, fx.path, ledgerLine(fx.line, await iso($), fx.finding)).catch(() => undefined)
+      await appendTo($, fx.path, ledgerLine(fx.line, await iso($), fx.finding, fx.detail)).catch(() => undefined)
+      return undefined
+    case 'deliver':
+      await deliver($, fx)
+      return undefined
+    case 'drop':
+      return undefined
+    case 'abort':
+      await $.turn.abort({ turnId: fx.turnId }).catch(() => undefined)
       return undefined
     case 'toast':
       $.ui.toast(fx.text)
@@ -152,12 +161,26 @@ const perform = async ($: EngineInterface, fx: Effect): Promise<string | undefin
   }
 }
 
-const run = async ($: EngineInterface, e: Event) => {
+const dispatch = async ($: EngineInterface, e: Event) => {
   const r = step(m, e, opts)
   m = r.state
   let outcome: string | undefined
   for (const fx of r.effects) outcome = (await perform($, fx)) ?? outcome
-  return outcome
+  return { outcome, effects: r.effects }
+}
+const run = async ($: EngineInterface, e: Event) => (await dispatch($, e)).outcome
+
+const deliver = async ($: EngineInterface, fx: Extract<Effect, { kind: 'deliver' }>) => {
+  const done = (error?: string) => run($, { kind: 'delivered', cardId: fx.cardId, delivery: fx.delivery, chars: fx.text.length, stepsLate: fx.stepsLate, error })
+  if (fx.delivery === 'submit') {
+    void $.prompt.submit({ text: fx.text }).then(
+      r => done('drop' in r && r.drop !== undefined ? `dropped: ${r.drop}` : undefined),
+      err => done(String(err)),
+    )
+    return
+  }
+  const r = await $.session.append({ message: { type: 'user', content: [{ type: 'text', text: fx.text }] } }).catch((err: unknown) => ({ deny: String(err) }))
+  await done(r.deny === undefined ? undefined : String(r.deny))
 }
 
 const syncSession = async ($: EngineInterface) => {
@@ -170,9 +193,8 @@ const syncSession = async ($: EngineInterface) => {
 }
 
 const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, stepIndex: number) => {
-  if (m.inFlight || (await $.store.get('paused')) === true) return
   await syncSession($)
-  const requested = step(m, { kind: 'check-requested', trigger, turnId, step: stepIndex, paused: false, skip: await count($, 'skip') }, opts)
+  const requested = step(m, { kind: 'check-requested', trigger, turnId, step: stepIndex, paused: (await $.store.get('paused')) === true, skip: await count($, 'skip') }, opts)
   m = requested.state
   const fork = requested.effects.find(fx => fx.kind === 'fork')
   for (const fx of requested.effects) await perform($, fx)
@@ -247,7 +269,7 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.start', async ($, e, next) => {
-    await run($, { kind: 'turn-started', main: e.agentId === undefined })
+    await run($, { kind: 'turn-started', main: e.agentId === undefined, turnId: e.turnId, text: e.text ?? '', paused: (await $.store.get('paused')) === true })
     return next(e)
   })
 
@@ -262,13 +284,21 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    await run($, { kind: 'turn-completed', main: e.agentId === undefined, turnId: e.turnId, isAborted: e.isAborted })
+    await run($, { kind: 'turn-completed', main: e.agentId === undefined, turnId: e.turnId, isAborted: e.isAborted, durationMs: e.durationMs, usage: e.usage })
     return next(e)
   })
 
   on('prompt.submit', async ($, e, next) => {
-    await run($, { kind: 'prompt-submitted', byPerson: PERSON_ORIGINS.includes(e.origin.kind), typedPast: await count($, 'typedPast') })
-    return next(e)
+    const ours = e.origin.kind === 'plugin' && e.origin.name === PLUGIN
+    const { effects } = await dispatch($, {
+      kind: 'prompt-submitted',
+      byPerson: PERSON_ORIGINS.includes(e.origin.kind),
+      ours,
+      paused: ours && (await $.store.get('paused')) === true,
+      typedPast: await count($, 'typedPast'),
+    })
+    const drop = effects.find(fx => fx.kind === 'drop')
+    return drop?.kind === 'drop' ? { drop: drop.reason } : next(e)
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -300,7 +330,7 @@ export const register: Register = (on, options) => {
           dispute: async () => run($, { kind: 'dispute', disputed: await list($, 'disputed') }),
           why: () => void run($, { kind: 'why' }),
           dismiss: () => run($, { kind: 'dismiss' }),
-        })}
+        }, card.sent)}
         {theirs}
       </Box>
     )

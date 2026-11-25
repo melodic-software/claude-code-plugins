@@ -81,7 +81,9 @@ export const readOptions = (raw: Readonly<Record<string, unknown>>): { options: 
   return { options, invalid }
 }
 
-export type Card = { id: number; finding: Finding; ledger: string; source: string; promptsSurvived: number; isOpen: boolean }
+export type Delivery = 'append' | 'submit'
+
+export type Card = { id: number; finding: Finding; ledger: string; source: string; promptsSurvived: number; isOpen: boolean; sent?: Delivery }
 
 export type State = {
   on: boolean
@@ -93,28 +95,53 @@ export type State = {
   card: Card | null
   asked: boolean
   dismissed: Finding | null
+  lastStep: number
+  turnRunning: boolean
+  submitWaiting: boolean
+  nextTurnIsObserver: boolean
+  pendingSubmit: string | null
+  observerTurnId: string | null
+  lastTurnWasObserver: boolean
 }
 
-export const initial = (): State => ({ on: false, ended: false, gen: 0, tools: 0, inFlight: false, nextCard: 1, card: null, asked: false, dismissed: null })
+export const initial = (): State => ({
+  on: false,
+  ended: false,
+  gen: 0,
+  tools: 0,
+  inFlight: false,
+  nextCard: 1,
+  card: null,
+  asked: false,
+  dismissed: null,
+  lastStep: 0,
+  turnRunning: false,
+  submitWaiting: false,
+  nextTurnIsObserver: false,
+  pendingSubmit: null,
+  observerTurnId: null,
+  lastTurnWasObserver: false,
+})
 
 export type CheckRequest = { trigger: Trigger; turnId: string; step: number; gen: number; open: Card | null }
 export type Reply = { isAnswered: true; text: string } | { isAnswered: false; reason: string }
-export type LedgerKind = 'confirmed' | 'disputed' | 'resolved'
+export type LedgerKind = 'confirmed' | 'disputed' | 'resolved' | 'auto-sent'
 export type Rate = 'helpful' | 'not_relevant' | 'unclear' | 'turned_off' | 'closed'
 
 export type Event =
   | { kind: 'session-started' }
   | { kind: 'session-changed' }
   | { kind: 'session-ended' }
-  | { kind: 'turn-started'; main: boolean }
+  | { kind: 'turn-started'; main: boolean; turnId: string; text: string; paused: boolean }
   | { kind: 'tool-called'; main: boolean }
   | { kind: 'step'; main: boolean; turnId: string; index: number }
-  | { kind: 'turn-completed'; main: boolean; turnId: string; isAborted: boolean }
+  | { kind: 'turn-completed'; main: boolean; turnId: string; isAborted: boolean; durationMs?: number; usage?: object }
   | { kind: 'check-requested'; trigger: Trigger; turnId: string; step: number; paused: boolean; skip: number }
   | { kind: 'check-replied'; req: CheckRequest; reply: Reply; paused: boolean; seen: readonly string[]; disputed: readonly string[] }
   | { kind: 'finding-accepted'; req: CheckRequest; finding: Finding; ledger: string | undefined }
   | { kind: 'check-finished' }
-  | { kind: 'prompt-submitted'; byPerson: boolean; typedPast: number }
+  | { kind: 'prompt-submitted'; byPerson: boolean; ours: boolean; paused: boolean; typedPast: number }
+  | { kind: 'delivered'; cardId: number; delivery: Delivery; chars: number; stepsLate?: number; error?: string }
   | { kind: 'command'; arg: 'on' | 'off' }
   | { kind: 'noted'; ok: boolean }
   | { kind: 'send' }
@@ -131,7 +158,10 @@ export type Effect =
   | { kind: 'finish'; req: CheckRequest; outcome: string }
   | { kind: 'store'; key: string; value: unknown }
   | { kind: 'record'; row: object }
-  | { kind: 'ledger'; path: string; line: LedgerKind; finding: Finding }
+  | { kind: 'ledger'; path: string; line: LedgerKind; finding: Finding; detail?: string }
+  | { kind: 'deliver'; cardId: number; delivery: Delivery; text: string; stepsLate?: number }
+  | { kind: 'drop'; reason: string }
+  | { kind: 'abort'; turnId: string }
   | { kind: 'toast'; text: string }
   | { kind: 'fill'; text: string }
   | { kind: 'after'; ms: number; event: Event }
@@ -182,18 +212,38 @@ export const step = (s: State, e: Event, o: Options): Result => {
       return none({ ...s, card: null })
     case 'session-ended':
       return none({ ...s, ended: true, on: false })
-    case 'turn-started':
-      return none(e.main ? { ...s, gen: s.gen + 1, tools: 0 } : s)
+    case 'turn-started': {
+      if (!e.main) return none()
+      const p = s.pendingSubmit
+      const observer = s.nextTurnIsObserver || (p !== null && e.text.trim() !== '' && (e.text.includes(p) || p.includes(e.text.trim())))
+      const state = {
+        ...s,
+        gen: s.gen + 1,
+        tools: 0,
+        lastStep: 0,
+        turnRunning: true,
+        nextTurnIsObserver: false,
+        pendingSubmit: observer ? null : p,
+        submitWaiting: observer ? false : s.submitWaiting,
+        observerTurnId: observer ? e.turnId : null,
+      }
+      return observer && (!s.on || e.paused) ? { state, effects: [{ kind: 'abort', turnId: e.turnId }] } : none(state)
+    }
     case 'tool-called':
       return none(e.main ? { ...s, tools: s.tools + 1 } : s)
     case 'step':
+      if (e.main) s = { ...s, lastStep: e.index }
       return s.on && o.stepCheck && e.main && isStepCheck(e.index, undefined, o.stepEvery)
         ? { state: s, effects: [{ kind: 'check', trigger: 'step', turnId: e.turnId, step: e.index }] }
         : none()
-    case 'turn-completed':
-      return s.on && o.turnEndCheck && e.main && !e.isAborted && s.tools > 0
-        ? { state: s, effects: [{ kind: 'check', trigger: 'turn-end', turnId: e.turnId, step: -1 }] }
-        : none()
+    case 'turn-completed': {
+      if (!e.main) return none()
+      const wasObserver = s.observerTurnId !== null && s.observerTurnId === e.turnId
+      const state = { ...s, turnRunning: false, lastTurnWasObserver: wasObserver, observerTurnId: null }
+      const effects: Effect[] = wasObserver ? [{ kind: 'record', row: { observerTurn: e.turnId, durationMs: e.durationMs, usage: e.usage } }] : []
+      if (s.on && o.turnEndCheck && !e.isAborted && s.tools > 0) effects.push({ kind: 'check', trigger: 'turn-end', turnId: e.turnId, step: -1 })
+      return { state, effects }
+    }
     case 'check-requested':
       if (s.inFlight || e.paused) return none()
       if (e.skip > 0) return { state: s, effects: [{ kind: 'store', key: 'skip', value: e.skip - 1 }] }
@@ -203,15 +253,38 @@ export const step = (s: State, e: Event, o: Options): Result => {
     case 'finding-accepted': {
       if (e.ledger === undefined) return { state: s, effects: [{ kind: 'finish', req: e.req, outcome: 'unsafe_memory_root' }] }
       const card: Card = { id: s.nextCard, finding: e.finding, ledger: e.ledger, source: e.req.trigger === 'step' ? `step ${e.req.step}` : 'turn end', promptsSurvived: 0, isOpen: false }
-      return { state: { ...s, card, nextCard: s.nextCard + 1 }, effects: [{ kind: 'invalidate' }, { kind: 'finish', req: e.req, outcome: 'shown' }] }
+      const state = { ...s, card, nextCard: s.nextCard + 1 }
+      const effects: Effect[] = [{ kind: 'invalidate' }]
+      if (o.autoSend) {
+        const delivery: Delivery = !s.turnRunning && !s.submitWaiting && !s.lastTurnWasObserver ? 'submit' : 'append'
+        const text = noteFor(card.finding, 'plugin', o.autoNote)
+        if (delivery === 'submit') Object.assign(state, { submitWaiting: true, pendingSubmit: text })
+        const stepsLate = e.req.step >= 0 && s.turnRunning ? s.lastStep + 1 - e.req.step : undefined
+        effects.push({ kind: 'deliver', cardId: card.id, delivery, text, stepsLate })
+      }
+      return { state, effects: [...effects, { kind: 'finish', req: e.req, outcome: 'shown' }] }
+    }
+    case 'delivered': {
+      const card = s.card?.id === e.cardId ? s.card : null
+      if (e.error !== undefined)
+        return {
+          state: e.delivery === 'submit' ? { ...s, submitWaiting: false, pendingSubmit: null } : s,
+          effects: [{ kind: 'record', row: { answer: 'auto_send_failed', delivery: e.delivery, error: e.error } }],
+        }
+      const effects: Effect[] = [{ kind: 'record', row: { answer: 'auto_sent', delivery: e.delivery, chars: e.chars, ...(e.stepsLate === undefined ? {} : { stepsLate: e.stepsLate }) } }]
+      if (card === null) return { state: s, effects }
+      effects.push({ kind: 'ledger', path: card.ledger, line: 'auto-sent', finding: card.finding, detail: e.delivery }, { kind: 'invalidate' })
+      return { state: { ...s, card: { ...card, sent: e.delivery } }, effects }
     }
     case 'check-finished':
       return none({ ...s, inFlight: false })
     case 'prompt-submitted': {
+      if (e.ours) return !s.on || e.paused ? { state: { ...s, submitWaiting: false }, effects: [{ kind: 'drop', reason: 'observer off' }] } : none({ ...s, nextTurnIsObserver: true, pendingSubmit: null })
       const card = s.card
       if (card === null || !e.byPerson) return none()
       const survived = { ...card, promptsSurvived: card.promptsSurvived + 1 }
       if (survived.promptsSurvived < o.clearAfterPrompts) return none({ ...s, card: survived })
+      if (card.sent !== undefined) return { state: { ...s, card: null }, effects: [{ kind: 'invalidate' }] }
       const typedPast = e.typedPast + 1
       return {
         state: { ...s, card: null },

@@ -32,10 +32,14 @@ type World = {
   clock?: any
   runs: (readonly string[])[]
   gitCommonDir?: string
+  appends: string[]
+  submits: string[]
+  aborts: string[]
+  appendDeny?: string
 }
 
 const world = (on: any, env: Record<string, string> = {}, hasProcess = true) => {
-  const w: World = { sid: SID, files: {}, store: {}, forks: [], replies: [], fills: [], toasts: [], rewrites: [], runs: [] }
+  const w: World = { sid: SID, files: {}, store: {}, forks: [], replies: [], fills: [], toasts: [], rewrites: [], runs: [], appends: [], submits: [], aborts: [] }
   on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
     if (!hasProcess) throw new Error('process.run is not available on this surface')
     w.runs.push(e.argv)
@@ -83,7 +87,16 @@ const world = (on: any, env: Record<string, string> = {}, hasProcess = true) => 
   on('turn.start', ($: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: 'done' }))
   on('tool.call', () => ({ result: { stdout: 'ok' }, text: 'ok' }))
-  on('prompt.submit', ($: unknown, e: { text: string }) => ({ text: e.text }))
+  on('prompt.submit', ($: unknown, e: { text: string; origin?: { kind: string } }) => {
+    if (e.origin?.kind === 'plugin') w.submits.push(e.text)
+    return { text: e.text }
+  })
+  on('turn.abort', ($: unknown, e: { turnId: string }) => (w.aborts.push(e.turnId), { value: undefined }))
+  on('session.append', ($: unknown, e: { message: { content: { text: string }[] } }, next: (e: unknown) => unknown) => {
+    if (w.appendDeny !== undefined) return { deny: w.appendDeny }
+    w.appends.push(e.message.content[0]?.text ?? '')
+    return next(e)
+  })
   on('turn.step', async function* ($: unknown, e: { turnId: string; index: number }) {
     return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
   })
@@ -625,3 +638,112 @@ test('the band keeps a blank line above it', async ($, on) => {
   expect(boxes.some(b => b.props.marginTop === 1)).toBe(true)
   await ui.unmount()
 })
+
+const AUTO = { options: { observer_auto_send: true } }
+const AUTO_IDLE = { options: { observer_auto_send: true, observer_turn_end_check: true } }
+const idleFinding = async ($: any, w: World, turnId: string) => {
+  w.replies.push(answer(FINDING))
+  await turn($, turnId)
+  await bash($)
+  await complete($, turnId)
+  await settle()
+}
+
+test('auto-send off: a finding reaches neither a reminder nor a prompt', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(w.appends).toEqual([])
+  expect(w.submits).toEqual([])
+  expect(live(w).some(r => r.answer === 'auto_sent')).toBe(false)
+})
+
+test('auto-send during a running turn appends the plugin-voice note and starts no turn', AUTO, async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 7)
+  expect(w.submits).toEqual([])
+  expect(w.appends.length).toBe(1)
+  expect(w.appends[0]).toContain("It is not the person's instruction")
+  expect(w.appends[0]).toContain('> verification: Merged without reading the pr-verify verdict.')
+  expect(w.forks[0]).toContain('sent to the assistant as a note')
+  const row = live(w).find(r => r.answer === 'auto_sent')
+  expect(row).toMatchObject({ delivery: 'append', stepsLate: 1 })
+  const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
+  expect(w.files[ledger]).toContain('- Auto-sent ')
+  expect(w.files[ledger]).toContain('(append): Merged without reading')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ key: 'send' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: 'sent to Claude' })).toBeDefined()
+  expect(await ui.find({ key: 'noted' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('auto-send while idle starts one observer turn, and a finding after it appends instead', AUTO_IDLE, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await idleFinding($, w, 't1')
+  expect(w.submits.length).toBe(1)
+  expect(live(w).find(r => r.answer === 'auto_sent')).toMatchObject({ delivery: 'submit' })
+  await $.turn.start({ turnId: 't2', text: w.submits[0] })
+  w.replies.push(answer(FINDING.replace('Merged without reading the pr-verify verdict.', 'Pushed without running the tests.')))
+  await bash($)
+  await complete($, 't2', { usage: { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 3, cache_creation_input_tokens: 0, model: 'm' } })
+  await settle()
+  expect(w.submits.length).toBe(1)
+  expect(w.appends.length).toBe(1)
+  expect(live(w).find(r => r.observerTurn === 't2')).toMatchObject({ usage: { output_tokens: 2 } })
+})
+
+test('/observer off stops an observer turn not yet run', AUTO_IDLE, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await idleFinding($, w, 't1')
+  await $.command.run({ command: 'observer', args: 'off' })
+  await $.turn.start({ turnId: 't2', text: w.submits[0] })
+  expect(w.aborts).toEqual(['t2'])
+  const r = await $.prompt.submit({ text: 'note', wait: false, origin: { kind: 'plugin', name: 'session-flow' } })
+  expect(r).toMatchObject({ drop: 'observer off' })
+})
+
+test('a person turn is never taken for an observer turn', AUTO_IDLE, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await idleFinding($, w, 't1')
+  await $.command.run({ command: 'observer', args: 'off' })
+  await $.turn.start({ turnId: 't2', text: 'something else' })
+  expect(w.aborts).toEqual([])
+})
+
+test('a refused append leaves the finding unsent and records the error', AUTO, async ($, on) => {
+  const w = world(on)
+  w.appendDeny = 'refused by a plugin'
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(live(w).find(r => r.answer === 'auto_send_failed')).toMatchObject({ delivery: 'append', error: 'refused by a plugin' })
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ key: 'send' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a sent finding clears after two prompts without counting as ignored', AUTO, async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  await person($)
+  await person($)
+  expect(live(w).some(r => r.answer === 'ignored')).toBe(false)
+  expect(w.store.typedPast ?? 0).toBe(0)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ key: 'noted' })).toBeUndefined()
+  await ui.unmount()
+})
+
