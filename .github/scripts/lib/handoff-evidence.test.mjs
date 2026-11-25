@@ -390,12 +390,13 @@ test("only the fix-docs handoff jobs and the upload-key-credit-markers jobs name
   const dir = new URL("../../workflows/", import.meta.url);
   const text = (file) => readFileSync(new URL(file, dir), "utf8");
   const files = readdirSync(dir).filter((file) => /\.ya?ml$/.test(file) && text(file).includes("HANDOFF_EVIDENCE_LAG"));
-  assert.deepEqual(files, ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
+  assert.deepEqual(files, ["intake-triage.yml", "pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
   const jobsNaming = (file) =>
     text(file).split(/^(?=  [\w-]+:$)/m).filter((block) => block.includes("HANDOFF_EVIDENCE_LAG")).map((block) => /^ {2}([\w-]+):$/m.exec(block)?.[1]);
   assert.deepEqual(jobsNaming("pr-refine.yml"), ["fix-docs-handoff", "upload-key-credit-markers", "fix-docs-subscription-handoff"]);
   assert.deepEqual(jobsNaming("pr-unblock.yml"), ["upload-key-credit-markers"]);
   assert.deepEqual(jobsNaming("work-resolve-issue.yml"), ["upload-key-credit-markers"]);
+  assert.deepEqual(jobsNaming("intake-triage.yml"), ["upload-key-credit-markers"]);
 });
 
 test("a fact still unsettled in a listing that was read fails with no output by default", () => {

@@ -316,7 +316,7 @@ jobs:
           path: ${{ runner.temp }}/key-credit-stop-intake-triage/run-id
 
       - name: Upload intake-triage's credit-stop marker
-        if: steps.credit-marker-intake-triage.outcome == 'success' && steps.credit-marker-scan-intake-triage.outputs.clean == 'true'
+        if: (steps.credit-marker-intake-triage.outcome == 'success') && steps.credit-marker-scan-intake-triage.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@v7

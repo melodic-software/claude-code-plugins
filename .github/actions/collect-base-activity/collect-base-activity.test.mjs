@@ -10,6 +10,7 @@
 // test-scope: .github/scripts/pr-verify/* .github/scripts/work-resolve-issue/package.json docs/upstream/*
 // test-scope: .github/actions/check-born-triaged/check-born-triaged.mjs .github/actions/check-wip-cap/check-wip-cap.mjs
 // test-scope: plugins/work-items/skills/triage/schemas/ci-verdict.schema.json
+// test-scope: plugins/work-items/skills/triage/scripts/check-ci-verdict.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
