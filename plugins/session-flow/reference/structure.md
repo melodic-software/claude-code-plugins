@@ -7,12 +7,12 @@ and destination resolution live in the sibling `save-point.md` engine doc).
 Reader is a session with no prior context. It will act on this file. Be specific. A vague handoff
 costs the next session a re-investigation, which is the cost this document exists to avoid.
 
-**Shape 4.** A handoff written by this procedure is the shape `new` writes by default,
-`handoff_shape: 4`: a handoff file plus one archive file per hop
+**Shape 5.** A handoff written by this procedure is the shape `new` writes by default,
+`handoff_shape: 5`: a handoff file plus one archive file per hop
 ([Shape 3](#shape-3-handoff-file-and-per-hop-archive), with the order and moves of
-[Shape 4](#shape-4)). Shape-2 and shape-3 files
-([Body sections (shape 2)](#body-sections-shape-2)) still validate and read unchanged, and a
-shape-2 or shape-3 chain's next hop writes shape 4. Every
+[Shape 4](#shape-4) and the Reminders of [Shape 5](reminders.md#shape-5-reminders)). Shape-2, shape-3 and
+shape-4 files ([Body sections (shape 2)](#body-sections-shape-2)) still validate and read
+unchanged, and their chain's next hop writes shape 5. Every
 deterministic field is written by the engine script
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` (`new` writes the skeleton, `fill` replaces its
 slots from one JSON object, `validate` gates it, `emit` prints its resume prompt); the model
@@ -26,6 +26,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
 - [Shape 3: handoff file and per-hop archive](#shape-3-handoff-file-and-per-hop-archive)
   - [Shape 4](#shape-4)
     - [Role chains: the standing-rules file](#role-chains-the-standing-rules-file)
+  - [Shape 5: Reminders](#shape-5-reminders)
 - [Body sections (shape 2)](#body-sections-shape-2)
   - [Cumulative sections and provenance tags](#cumulative-sections-and-provenance-tags)
   - [Original goal](#original-goal)
@@ -45,9 +46,10 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
   - [This session](#this-session)
   - [Prior sessions](#prior-sessions)
   - [Resume prompt](#resume-prompt)
+    - [New-session launch](#new-session-launch)
 - [How this document is referenced elsewhere](#how-this-document-is-referenced-elsewhere)
 - [Full-path write procedure](#full-path-write-procedure)
-  - [Frontmatter shape 4](#frontmatter-shape-4)
+  - [Frontmatter shape 5](#frontmatter-shape-5)
   - [Frontmatter shape 2](#frontmatter-shape-2)
   - [Chain continuity, same task only](#chain-continuity-same-task-only)
   - [Legacy predecessors and unfinished skeletons](#legacy-predecessors-and-unfinished-skeletons)
@@ -89,7 +91,7 @@ What the writer owns, since no script can judge it:
   file lists the re-read command instead, taken from the source-control plugin's surface (for a
   pull request, `/source-control:pull-request` names its status read); `validate` warns on a
   state claim it recognizes.
-- **Never shorten what binds to meet the size cap.** Fitting is `fill`'s on shape 4. When binding
+- **Never shorten what binds to meet the size cap.** Fitting is `fill`'s on shape 4 and 5. When binding
   content alone is over the cap, the answer is a relevance call, never a cut.
 - **Keep by relevance; retire with a reason.** Relevance is the writer's call. An amendment,
   direction-change line, question or decision that is superseded, answered or done may leave the
@@ -121,8 +123,8 @@ archive-file hop (`archive_from`).
 
 A shape-4 file (`handoff_shape: 4`) has the same frontmatter, archive files and id rules as shape 3,
 with its sections in another order: binding sections stay whole in the handoff file, and movable ones
-may move to this hop's file (the shape-4 `ShapeSpec` marks which). Bare `new` writes shape 4, the
-default, and continues a shape-4 chain as shape 4. Its stderr
+may move to this hop's file (the shape-4 `ShapeSpec` marks which). Shape 5 keeps all of it. Bare
+`new` writes shape 5, the default, and continues a shape-4 chain as shape 5. Its stderr
 `budget:` line gives the bytes left for the written slots and each size-classed slot's budget:
 write the slots to it. `fill` does the rest (fit, moves with pointers, the slot-size refusal) and
 prints the verdict and the rails.
@@ -140,13 +142,18 @@ holds what the next action needs and one pointer line for each body that lives e
 fits one Read page.
 
 - **Where the rules and decisions live.** `fill` moves Current rules, Standing preferences and
-  Decisions in force into `archive/<chain-root-stem>/standing-rules.md`, one file per chain beside
-  its archive files, so it is gitignored with the rest of the memory tier. Each section stays in
-  its usual place in the handoff file as one line,
-  `- Standing rules: archive/<chain-root-stem>/standing-rules.md#<section>`. The binding order and
+  Decisions in force into `standing-rules/<chain-root-stem>.md`, one file per chain in a folder
+  beside the handoff files, so it is gitignored with the rest of the memory tier. It stays out of
+  `archive/`, whose files never change once written, because every hop rewrites it; and out of
+  the handoffs folder itself, so the direct-child `*-handoff-*.md` listing never matches it. Each
+  section stays in its usual place in the handoff file as one line,
+  `- Standing rules: standing-rules/<chain-root-stem>.md#<section>`. The binding order and
   the entry mechanics (ids, rewrite in place, `retire`) do not change: a decision leaves only
   through `retire`, listed with its reason under `## Retired decisions` in the archive file. A
   handoff file that still holds Decisions in force inline validates; its next `fill` moves them.
+- **Chains started before the move.** A hop whose `standing_rules` key names the old path,
+  `archive/<chain-root-stem>/standing-rules.md`, still validates and reads from it, and `amend`
+  edits it there. The chain's next hop writes the new path and leaves the old file as it was.
 - **How a resume loads them.** The directive reads
   `Read @<standing-rules file> then @<handoff file>, …`, so the rules and decisions load before
   the handoff file. A standing-rules file over one Read page makes the directive say to page it.
@@ -163,7 +170,7 @@ fits one Read page.
 #### The retired-entries index
 
 A role chain's `- Retired entries: <archive file> § <heading>` lines live in one index,
-`archive/<chain-root-stem>/retired-index.md`, beside the standing-rules file. Review before you
+`archive/<chain-root-stem>/retired-index.md`, beside the chain's archive files. Review before you
 continue holds one line in their place,
 `- Retired entries index: archive/<chain-root-stem>/retired-index.md`; read the index, then the
 archive file it names, only when an earlier entry's history matters.
@@ -177,6 +184,10 @@ archive file it names, only when an earlier entry's history matters.
   in the copy of its index in this hop's file, is still in one of the two. A missing index fails.
 - **Ordinary chains.** A chain without `standing_rules` keeps its pointers in Review before you
   continue, as below.
+
+### Shape 5: Reminders
+
+Shape 5 is shape 4 with `## Reminders` in the place of `## Pending commands`: entry shape, actors, triggers, due and retire rules are in [`reminders.md`](reminders.md#shape-5-reminders).
 
 ## Body sections (shape 2)
 
@@ -419,6 +430,30 @@ carries no headlines, so the entry here is its only record. Carry forward a pred
 whose lock still names the older session id, since this session never took that claim over. No
 such lock: say none is held.
 
+**Recurring work and off-thread work.** One entry per item still running, so the resumed session
+re-arms it without the user re-pasting a command
+([resume procedure](resume.md), which the resume-context hook injects):
+
+- `- [loop] every <interval|self-paced> · since <UTC ISO> · prompt (<L> lines):`, then the loop's
+  prompt verbatim on exactly the next `<L>` indented lines (`lines` never inflects);
+- `- [cron] <expression> · recurring|once · since <UTC ISO> · prompt (<L> lines):`, then the
+  prompt the same way;
+- `- [monitor] <description> · since <UTC ISO> · command: \`<cmd>\``;
+- `- [off-thread] <kind> <name>: <state read this turn> · kept because <why>` for each subagent,
+  background command, peer session or lane still open, or the single line
+  `- Off-thread work: none recorded.`, which lets the resumed session skip reconcile.
+
+Enumerate the loops as the engine doc's "Loop-aware re-arm" bullet says (every surviving launch,
+none stopped or past the recurring-task expiry). The redaction pass covers these entries; prefer an
+environment-variable reference to a secret in a command. A command or prompt that lost text to
+redaction ends with `· restore: manual (held a secret; re-create from <source>)`, and the resumed
+session never re-arms it. `validate` fails an entry holding `<REDACTED` without that ending, and
+warns on a `[loop]` or `[cron]` entry whose `<L>` does not match its indented lines. Keep an
+entry's `since` from the hop that first recorded it: a `since` earlier than the `previous_handoff`
+file name's `<TS>` marks the entry as carried across more than one hop, `validate` warns on it, and
+the resumed session shows its command or prompt and re-arms it only after the user confirms. These
+entries replace the below-rail `Re-arm <i> of <n>` block on the full path.
+
 **Plugin changes.** `/clear` is not a plugin reload: a plugin installed, updated, enabled or
 disabled during this session reaches the resuming session only after the user types
 `/reload-plugins` (what each command does:
@@ -435,19 +470,11 @@ invoke `/plugin-profiles:profile status` via the Skill tool and write its "Start
 here in this profile with:" line here as the restore entry, as given; with no such line, say no
 profile is in force. Otherwise write nothing about plugin profiles.
 
-With the skill available, two more steps run before `save_point.py new`:
+For the line that reopens the producing session, invoke `/plugin-profiles:profile launch --json`
+(if enabled) without a profile name. Pass its non-null `file` to `new --settings-file <file>`.
+Use that same settings file on the prompt-only reopen line, including on a profile change.
 
-- **The resume line.** Invoke `/plugin-profiles:profile launch --json` via the Skill tool, with no
-  profile name, so it is this session's own; when its `file` is not null, pass it to `new` as
-  `--settings-file "<file>"` (on the prompt-only path, add `--settings "<file>"` after the UUID of
-  the hand-written `claude --resume <UUID>`). That line reopens this session, so it always carries
-  this session's profile, on a phase change too.
-- **A phase change.** When the user names a different profile for the next phase, also invoke
-  `/plugin-profiles:profile launch <next profile> --json` and pass only its `command` to `new`, as
-  `--start-command "<command>"`. That adds a line above the copy line telling the user to exit this
-  session and start the next one with that command (on the prompt-only path, write that line by
-  hand in the same place). A resume in the same profile keeps plain `/clear`. With the skill
-  unavailable, keep `/clear` and say the next profile was not applied.
+For a separate session, use the selected profile's [new-session launch](#new-session-launch).
 
 **TaskList.** Branch on which task tools this session has (read its tool list), never on the model
 name:
@@ -678,8 +705,8 @@ session before it (this table, each row naming the file and transcript to open f
 
 ### Resume prompt
 
-The final section, always. It stores the copy/paste resume prompt exactly as it is emitted on
-screen: the copy instruction, the two U+2500 rails with the prompt between them, and the
+The final section, always. A new-session handoff records its checkout and start command first.
+Then come the copy instruction, the two U+2500 rails with the prompt between them, and the
 below-rail lines; when a goal applies, also the goal region (its own instruction line and rail
 pair, above or below the resume region). The on-screen rails block is this section, printed by
 `save_point.py emit <file>`, never regenerated from the conversation. Every rule about what goes
@@ -687,6 +714,45 @@ between the rails (the directive, `Prior session:`, `Handoff origin:`, `Next:`, 
 goal region) is owned by [`save-point.md`](save-point.md) "Emit the copy/paste resume prompt",
 full-path block. `new` writes every line of it except the `Next:` headlines and the optional
 goal-region and below-rail slots.
+
+#### New-session launch
+
+A forked side task, a switch to another plugin profile, and a reminder handed to a new local
+session at chain close each get one terminal command. For a closing reminder, start a follow-up
+handoff with `new --no-previous` and record its trigger and action there. Print the command for
+that follow-up. The original handoff keeps `Next: none (closed)`.
+
+- Pass `--start-command` to `save_point.py new` on the handoff for the new session.
+  With plugin-profiles (if enabled), pass its `command` as one argument, exactly as returned by
+  `/plugin-profiles:profile launch --json`. Reuse the result for the producing profile unless
+  the user named another one, in which case request `launch <next profile> --json`.
+  Without the plugin, pass the flag alone for plain `claude` and say if a requested profile
+  could not be applied. An ordinary same-session handoff keeps its `/clear` instruction.
+- The checkout defaults to the producing checkout, or the session's working directory outside
+  Git. Supply `--launch-dir <checkout>` when the work belongs in a different checkout. `new`
+  records the checkout and command in the `launch` frontmatter list, or an empty list for a
+  same-session handoff. `emit` reads that list and prints an error if the checkout is missing.
+  Report that error to the user.
+- `emit` writes `<handoff stem>.prompt.txt` beside the handoff file. It copies the resume
+  region, or, for a goal in either position, `/goal`, one space, then the goal region. The command
+  changes to the absolute checkout and passes the file's contents as one initial prompt. An
+  unreadable prompt file stops the launch. The user pastes only that command. `fill` and `amend`
+  refresh the prompt when they emit. `tidy_work.py clean` keeps or prunes it with its handoff.
+- Use the printed form for the session's shell. `emit --shell posix` selects bash, zsh or Git
+  Bash. `emit --shell powershell` requires PowerShell 7.3 or newer, and refuses when `claude`
+  resolves to a `.cmd` or `.bat` shim, since cmd.exe cuts a multi-line prompt at its first
+  newline and expands `%VAR%` text in it. Git Bash calls `pwsh`
+  for a PowerShell profile command. For shell quoting and Claude flags, see
+  [PowerShell argument passing](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_parsing#passing-arguments-that-contain-quote-characters)
+  and the [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags).
+- For a prompt-only handoff, write the selected redacted region to
+  `<memory_dir>/handoffs/<TS>-handoff-<topic>.prompt.txt` after the self-ignore check.
+  Include the same `/goal` and space prefix for a goal. Run
+  `save_point.py launch <prompt-file> --checkout <absolute checkout>` with the selected
+  `--start-command <command>` when available. Print its output. Keep the prompt file alongside
+  the other handoff artifacts for recovery.
+  In the Python-absent fallback, check the checkout and use the same shell form as
+  `_launch_command` in [save_point.py](../scripts/save_point.py).
 
 ## How this document is referenced elsewhere
 
@@ -866,8 +932,8 @@ JSON and a re-run of the same `fill`, never a hand-edit; nothing is half-applied
 
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
 (`validator unavailable: no python3/python on PATH`), write the file by hand from this document:
-after a shape-3 or shape-4 predecessor, a shape-4 handoff file (the frontmatter below with
-`handoff_shape: 4` and the `checks:` value `CHECKS` names in `save_point.py`, then the sections
+after a shape-3, shape-4 or shape-5 predecessor, a shape-5 handoff file (the frontmatter below with
+`handoff_shape: 5` and the `checks:` value `CHECKS` names in `save_point.py`, then the sections
 in the table below, in order) and its archive file holding the predecessor's sections other than
 Original goal and Resume prompt, copied with the Read and Write tools, never retyped; otherwise a
 shape-2 file (the 17 headings of [Body sections (shape 2)](#body-sections-shape-2), in order).
@@ -887,7 +953,7 @@ interpreter there is no `fill` either, so the hand-written file needs no slots J
 | 6 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …`; copied off disk each hop, a changed one rewritten in place under its id; a retired one leaves only as a retire listing |
 | 7 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)`; copied off disk each hop; a promoted one leaves only as a retire listing |
 | 8 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on, a claim about code or state in one dated; copied off disk each hop; a settled one leaves only as a retire listing |
-| 9 | Pending commands | every command waiting on the user, verbatim |
+| 9 | Reminders | `- [M<n>] <actor> · <trigger> · <what to do> · added h<k> <date>`, every item that affects a later session ([Shape 5](reminders.md#shape-5-reminders)); copied off disk each hop; a done one leaves only as a retire listing |
 | 10 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
 | 11 | This session | the `did: … · left: …` line and its `Re-scan: …` line |
 | 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; every `- Retired entries:` line the predecessor holds, carried forward verbatim, plus one per archive file and retire heading this hop used (a role chain holds them in its retired-entries index and one line naming it) |
@@ -916,6 +982,7 @@ Without a script, the hand-writer owns the carry that `new`, `fill` and `retire`
   | Open questions | `## Retired open questions` |
   | Current rules, Standing preferences | `## Retired rules` |
   | Decisions in force | `## Retired decisions` |
+  | Reminders | `## Retired reminders` |
 
 - **Point at every retirement.** For each retire heading but `## Retired rules` that this hop used,
   add `- Retired entries: <archive file> § <heading>` to Review before you continue, and keep every
@@ -925,17 +992,17 @@ Without a script, the hand-writer owns the carry that `new`, `fill` and `retire`
   `- Retired entries index:` line in Review before you continue.
 - **Role chains keep their split.** Current rules, Standing preferences and Decisions in force
   stay in the standing-rules file, edited there, and the handoff file keeps their pointer lines.
-- **Carry each id floor, and raise it.** Copy `next_rule_id`, `next_question_id` and
-  `next_decision_id` from the predecessor's frontmatter, then raise each past every id this hop
+- **Carry each id floor, and raise it.** Copy `next_rule_id`, `next_question_id`,
+  `next_decision_id` and `next_reminder_id` from the predecessor's frontmatter, then raise each past every id this hop
   added. Never lower one, even when the highest id was retired: the next hop would offer that id
   again.
 
-### Frontmatter shape 4
+### Frontmatter shape 5
 
 ```yaml
 ---
 type: handoff
-handoff_shape: 4
+handoff_shape: 5
 checks: <CHECKS in save_point.py>         # rule-set version the file was written under
 date: <ISO-8601 UTC>
 topic: <kebab>
@@ -945,11 +1012,12 @@ previous_handoff: <prior-filename>.md     # CONDITIONAL — omit at the first ho
 chain_root: <root-filename>.md            # replaces chain:
 hop: <N>                                  # counted from the chain root, every shape included
 archive: archive/<chain-root-stem>/       # relative to the handoffs directory
-archive_from: <M>                         # first archive-file hop (shape 3 or 4); archive files exist from M on
-standing_rules: archive/<chain-root-stem>/standing-rules.md  # CONDITIONAL — role chains only
+archive_from: <M>                         # first archive-file hop (shape 3 or later); archive files exist from M on
+standing_rules: standing-rules/<chain-root-stem>.md  # CONDITIONAL — role chains only; older hops name archive/<chain-root-stem>/standing-rules.md
 next_rule_id: <K>                         # first [R<n>] id this hop may assign; never lowered
 next_question_id: <K>                     # first [Q<n>] id this hop may assign; never lowered
 next_decision_id: <K>                     # first [D<n>] id this hop may assign; never lowered
+next_reminder_id: <K>                     # first [M<n>] id this hop may assign; never lowered (shape 5)
 repo: <the Handoff origin: line's first slot>
 ---
 ```

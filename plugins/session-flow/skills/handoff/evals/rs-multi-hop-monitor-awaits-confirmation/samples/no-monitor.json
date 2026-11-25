@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/STATUS.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Monitor",
+          "input": {
+            "command": "tail -f deploy.log"
+          }
+        }
+      ],
+      "why": "re-arms a multi-hop monitor before the user confirms"
+    }
+  ]
+}

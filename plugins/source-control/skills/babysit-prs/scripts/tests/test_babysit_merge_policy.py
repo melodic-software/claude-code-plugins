@@ -62,7 +62,7 @@ REPO_FLOOR = policy.floor_for(FLOOR_ROWS)
 REPO = "owner/repo"
 SHA = "a" * 40
 IDENTITY = "agent-lanes[bot]"
-POLICY = ".github/standards/dependabot-policy/policy.json"
+RETIRED_POLICY_COPY = ".github/standards/dependabot-policy/policy.json"
 OPERATOR = "operator"
 PR_CREATED = "2026-10-12T12:00:00Z"
 DEMOTION_BODY = (
@@ -92,11 +92,27 @@ STANDARDS_REPO = "example-org/standards"
 OPTED_IN = f"trusted_actors_source: standards\n{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n"
 STANDARDS_HEAD = {"ref": "refs/heads/main", "object": {"sha": STANDARDS_SHA}}
 dependabot = policy.dependabot
+NAMES_STANDARDS = f"{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n"
+NEXT_STANDARDS_REPO = "example-org/standards-next"
 
 
 def standards_cleared(case: unittest.TestCase) -> None:
     for cache in ("_READS_STANDARDS", "_STANDARDS_SHA", "_STANDARDS_TEXT"):
         case.enterContext(mock.patch.object(policy, cache, type(getattr(policy, cache))()))
+
+
+def serve_policy(gh: Any, sha: str, answer: Any, standards: str = STANDARDS_REPO) -> None:
+    """Make REPO's team YAML at `sha` name `standards`, whose main is
+    STANDARDS_SHA and whose Dependabot policy answers `answer` (text, a
+    payload or an HTTP status)."""
+    gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={sha}"] = file_payload(
+        f"{policy.STANDARDS_REPO_KEY}: {standards}\n"
+    )
+    gh.rest[f"repos/{standards}/git/ref/heads/main"] = STANDARDS_HEAD
+    gh.rest[f"repos/{standards}/contents/{dependabot.STANDARDS_POLICY}?ref={STANDARDS_SHA}"] = (
+        file_payload(answer) if isinstance(answer, str) else answer
+    )
+    gh.rest[f"repos/{standards}/contents?ref={STANDARDS_SHA}"] = []
 
 
 def ok(payload: Any) -> subprocess.CompletedProcess[str]:
@@ -9845,7 +9861,10 @@ class DependabotEligibility(unittest.TestCase):
         patcher = mock.patch.object(policy, "_registry_json", read)
         patcher.start()
         self.addCleanup(patcher.stop)
-        gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = file_payload(
+        standards_cleared(self)
+        serve_policy(
+            gh,
+            SHA,
             json.dumps(
                 {
                     "autoMerge": {
@@ -9854,7 +9873,7 @@ class DependabotEligibility(unittest.TestCase):
                         else review_only
                     }
                 }
-            )
+            ),
         )
         gh.graphql["PolicyEligibility"] = {
             "repository": {
@@ -10807,8 +10826,7 @@ class DependabotEligibility(unittest.TestCase):
         for answer in (404, file_payload("{not json"), file_payload("{}")):
             with self.subTest(answer=answer):
                 gh = self.fake()
-                gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = answer
-                gh.rest[f"repos/{REPO}/contents?ref={SHA}"] = []
+                serve_policy(gh, SHA, answer)
                 result = self.eligibility()
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.dependabot.tier, "review")
@@ -10837,7 +10855,7 @@ class DependabotEligibility(unittest.TestCase):
             with self.subTest(team=team, head=head, theirs=theirs):
                 standards_cleared(self)
                 gh = self.fake()
-                ours = f"repos/{REPO}/contents/{POLICY}?ref={SHA}"
+                ours = f"repos/{REPO}/contents/{RETIRED_POLICY_COPY}?ref={SHA}"
                 gh.rest[ours] = 500
                 gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = file_payload(team)
                 gh.rest[f"repos/{STANDARDS_REPO}/git/ref/heads/main"] = head
@@ -10848,19 +10866,31 @@ class DependabotEligibility(unittest.TestCase):
                 self.assertIs(result.eligible, eligible, result.reason)
                 self.assertNotIn(["api", ours], gh.calls)
 
-    def test_a_repository_source_reads_the_policy_copy(self) -> None:
-        standards_cleared(self)
-        gh = self.fake()
-        gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = file_payload(
-            "trusted_actors_source: repository\n"
-        )
-        self.assertTrue(self.eligibility().eligible)
-        self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
+    def test_a_repository_naming_no_standards_reads_no_policy(self) -> None:
+        valid = file_payload(json.dumps({"autoMerge": {"reviewOnly": []}}))
+        for team in ("trusted_actors_source: repository\n", "", 404):
+            with self.subTest(team=team):
+                gh = self.fake()
+                standards_cleared(self)
+                ours = f"repos/{REPO}/contents/{RETIRED_POLICY_COPY}?ref={SHA}"
+                gh.rest[ours] = valid
+                gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = (
+                    team if isinstance(team, int) else file_payload(team)
+                )
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(
+                    result.reason,
+                    "dependabot-review:dependabot-policy-unreadable;"
+                    "review-verdict-missing",
+                )
+                self.assertNotIn(["api", ours], gh.calls)
+                self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
 
     def test_a_failed_read_of_the_team_yaml_reads_neither_policy(self) -> None:
         standards_cleared(self)
         gh = self.fake()
-        ours = f"repos/{REPO}/contents/{POLICY}?ref={SHA}"
+        ours = f"repos/{REPO}/contents/{RETIRED_POLICY_COPY}?ref={SHA}"
         gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = 502
         gh.rest[f"repos/{STANDARDS_REPO}/git/ref/heads/main"] = STANDARDS_HEAD
         result = self.eligibility()
@@ -10872,20 +10902,24 @@ class DependabotEligibility(unittest.TestCase):
         self, main_config: Any = None, main_policy: Any = None, **options: Any
     ) -> GhFake:
         """The base's fake, with main moved to MAIN_SHA, whose dependabot.yml
-        and policy answer `main_config` and `main_policy` (the base's when
-        None; text, a payload or an HTTP status)."""
+        answers `main_config` (the base's when None; text, a payload or an
+        HTTP status) and whose team YAML names the base's standards
+        repository, or, with `main_policy`, another one whose policy answers
+        it."""
         gh = self.fake(**options)
-        base = f"repos/{REPO}/contents/{{}}?ref={SHA}"
-        main = f"repos/{REPO}/contents/{{}}?ref={MAIN_SHA}"
-        for path, answer in (
-            (".github/dependabot.yml", main_config),
-            (POLICY, main_policy),
-        ):
-            if answer is None:
-                answer = gh.rest[base.format(path)]
-            elif isinstance(answer, str):
-                answer = file_payload(answer)
-            gh.rest[main.format(path)] = answer
+        path = ".github/dependabot.yml"
+        answer = main_config
+        if answer is None:
+            answer = gh.rest[f"repos/{REPO}/contents/{path}?ref={SHA}"]
+        elif isinstance(answer, str):
+            answer = file_payload(answer)
+        gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = answer
+        if main_policy is None:
+            gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={MAIN_SHA}"] = (
+                file_payload(NAMES_STANDARDS)
+            )
+        else:
+            serve_policy(gh, MAIN_SHA, main_policy, NEXT_STANDARDS_REPO)
         gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
         return gh
 
@@ -10954,7 +10988,7 @@ class DependabotEligibility(unittest.TestCase):
                 )
 
     def test_a_failed_read_at_main_refuses(self) -> None:
-        for path in (".github/dependabot.yml", POLICY):
+        for path in (".github/dependabot.yml", TEAM_YAML):
             with self.subTest(path=path):
                 gh = self.moved_main()
                 gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = 502
@@ -11925,9 +11959,9 @@ class CachedPullRequest(unittest.TestCase):
 
 class OwnReleaseEligibility(unittest.TestCase):
     """`dependabot_eligibility` sorts this organization's own releases under
-    `fastTrack.own` only when the base copy and the default branch copy of
-    the Dependabot policy both name every update. Reuses DependabotEligibility's
-    fake on a github_actions branch."""
+    `fastTrack.own` only when the Dependabot policy the base names and the
+    one the default branch names both name every update. Reuses
+    DependabotEligibility's fake on a github_actions branch."""
 
     REF = "dependabot/github_actions/first-party-actions-0a1b2c3d4e"
     HEAD = DependabotEligibility.HEAD
@@ -11967,11 +12001,12 @@ class OwnReleaseEligibility(unittest.TestCase):
             files=[{"filename": ".github/workflows/ci.yml", "patch": patch}],
         )
         config = "updates:\n  - package-ecosystem: github-actions\n    directory: /\n"
-        for sha, own in ((SHA, base_own), (MAIN_SHA, main_own)):
-            copy = {"autoMerge": {"reviewOnly": []}, **(self.OWN if own else {})}
-            gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={sha}"] = file_payload(
-                json.dumps(copy)
-            )
+        for sha, own, standards in (
+            (SHA, base_own, STANDARDS_REPO),
+            (MAIN_SHA, main_own, NEXT_STANDARDS_REPO),
+        ):
+            listed = {"autoMerge": {"reviewOnly": []}, **(self.OWN if own else {})}
+            serve_policy(gh, sha, json.dumps(listed), standards)
             gh.rest[f"repos/{REPO}/contents/.github/dependabot.yml?ref={sha}"] = (
                 file_payload(config)
             )

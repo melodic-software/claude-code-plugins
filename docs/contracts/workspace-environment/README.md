@@ -225,7 +225,7 @@ why the [untrusted-input rule](#untrusted-input-worktrees) applies to cloud host
   [WorktreeCreate](https://code.claude.com/docs/en/hooks#worktreecreate).
 - **Compose project names and ports.** Pointer:
   [Specify a project name](https://docs.docker.com/compose/how-tos/project-name/),
-  [`ports`](https://docs.docker.com/reference/compose-file/services/#ports), and
+  [`ports`](https://docs.docker.com/reference/compose-file/workload-spec/#ports), and
   [`docker compose port`](https://docs.docker.com/reference/cli/docker/compose/port/).
 
 ## Versioning

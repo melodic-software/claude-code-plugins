@@ -5933,18 +5933,13 @@ def _cdn_paths(owner: str, name: str, base_sha: str) -> frozenset[str] | None:
 
 
 def _dependabot_policy(owner: str, name: str, sha: str) -> Any:
-    """The standards Dependabot policy (`synced_file`, from the repository
-    `names_standards` finds) at `sha` as parsed JSON, or None when it is
-    absent or not JSON (`review_only` then reports it unreadable). Raises
+    """The Dependabot policy in the standards repository the team YAML at
+    `sha` names (`names_standards`), as parsed JSON, or None when the YAML
+    names none, or the policy is absent or not JSON (`review_only` then
+    reports it unreadable); the repository's own copy is never read. Raises
     `PolicyReadError` on a read failure."""
-    text = synced_file(
-        owner,
-        name,
-        dependabot.POLICY_PATH,
-        dependabot.STANDARDS_POLICY,
-        sha,
-        names_standards,
-    )
+    standards = reads_standards(owner, name, sha, names_standards)
+    text = standards_file(standards, dependabot.STANDARDS_POLICY) if standards else None
     try:
         return json.loads(text) if text is not None else None
     except ValueError:

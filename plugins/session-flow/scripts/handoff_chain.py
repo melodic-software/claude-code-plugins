@@ -51,19 +51,23 @@ ID_FLOOR_KEYS = (
     ("R", "next_rule_id"),
     ("Q", "next_question_id"),
     ("D", "next_decision_id"),
+    ("M", "next_reminder_id"),
 )
 
 
 @dataclass(frozen=True)
 class ShapeSpec:
     """A handoff shape's sections in file order. `legacy_omits` names sections
-    an older file of this shape may lack. `id_specs` follows ID_FLOOR_KEYS, the
-    order `new` writes the id floors in."""
+    an older file of this shape may lack. `fitted` marks a shape whose `fill`
+    fits the handoff file to `cap_bytes` itself, moving movable sections to the
+    archive file, and which may keep a standing-rules file. `id_specs` follows
+    ID_FLOOR_KEYS, the order `new` writes the id floors in."""
 
     shape: int
     sections: tuple[SectionSpec, ...]
     cap_bytes: int | None = None
     legacy_omits: tuple[str, ...] = ()
+    fitted: bool = False
     id_specs: tuple[IdSpec, ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -122,6 +126,9 @@ class ShapeSpec:
 
 
 _RULES = dict(id_prefix="R", retire_heading="Retired rules")
+REMINDERS = SectionSpec(
+    "Reminders", binding=True, id_prefix="M", retire_heading="Retired reminders"
+)
 
 SHAPES: dict[int, ShapeSpec] = {
     2: ShapeSpec(
@@ -233,9 +240,25 @@ SHAPES: dict[int, ShapeSpec] = {
             SectionSpec("Resume prompt", carried=True),
         ),
         cap_bytes=24_600,
+        fitted=True,
     ),
 }
+SHAPES[5] = replace(
+    SHAPES[4],
+    shape=5,
+    sections=tuple(
+        REMINDERS if s.name == "Pending commands" else s for s in SHAPES[4].sections
+    ),
+)
 HOP_FILE_SHAPES = tuple(shape for shape in SHAPES if shape >= 3)
+NEWEST_SHAPE = max(SHAPES)
+WRITABLE_SHAPES = tuple(sorted(SHAPES))
+
+
+def fitted(shape: int | None) -> bool:
+    """True when `shape` is one whose `fill` fits the handoff file to its cap."""
+    spec = SHAPES.get(shape) if isinstance(shape, int) else None
+    return spec is not None and spec.fitted
 
 
 def fm_value(raw: str) -> str:
@@ -432,19 +455,31 @@ def moved_heading(name: str, hop: int) -> str:
     return f"{name} (h{hop})"
 
 
-STANDING_FILE = "standing-rules.md"
+STANDING_DIR = "standing-rules"
 STANDING_PREFIX = "- Standing rules: "
 STANDING_SECTIONS = ("Current rules", "Standing preferences", "Decisions in force")
 STANDING_INLINE_OK = ("Decisions in force",)
+LEGACY_STANDING_FILE = "standing-rules.md"
 STANDING_FILE_RE = re.compile(
-    rf"^{ARCHIVE_DIR}/(?!\.\.?/)[^\s#/`]+/{re.escape(STANDING_FILE)}$"
+    rf"^(?:{STANDING_DIR}/(?!\.)[^\s#/`]+\.md"
+    rf"|{ARCHIVE_DIR}/(?!\.\.?/)[^\s#/`]+/{re.escape(LEGACY_STANDING_FILE)})$"
 )
 
 
+def standing_rels(chain_root: str) -> tuple[str, str]:
+    """The paths, relative to the handoffs directory, a role chain's
+    standing-rules file may take: the one new chains write, then
+    `archive/<chain-root-stem>/standing-rules.md`, which hops written before
+    the move still name; a later hop of such a chain writes the first."""
+    stem = _stem(chain_root)
+    return f"{STANDING_DIR}/{stem}.md", f"{ARCHIVE_DIR}/{stem}/{LEGACY_STANDING_FILE}"
+
+
 def standing_rel(chain_root: str) -> str:
-    """`archive/<chain-root-stem>/standing-rules.md`: a role chain's
-    standing-rules file, relative to the handoffs directory."""
-    return f"{ARCHIVE_DIR}/{_stem(chain_root)}/{STANDING_FILE}"
+    """`standing-rules/<chain-root-stem>.md`, where a new role chain writes its
+    standing-rules file: outside `archive/`, whose files never change once
+    written, and outside the direct-child `*-handoff-*.md` listing."""
+    return standing_rels(chain_root)[0]
 
 
 def standing_pointer(body: list[str]) -> tuple[str, str] | None:

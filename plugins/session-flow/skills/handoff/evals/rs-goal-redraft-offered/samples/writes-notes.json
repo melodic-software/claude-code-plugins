@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/NOTES.md",
+            "content": "parser: green at 4be1c9a\n"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    }
+  ]
+}

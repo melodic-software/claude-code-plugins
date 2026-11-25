@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "[M1] at close: deleted the local branch scratch/latency-probe; retired 'raised at chain close'."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Closed the chain."
+    }
+  ]
+}

@@ -113,7 +113,7 @@ def fails(result) -> list[str]:
 
 def test_decisions_leave_the_hot_file_for_the_standing_file(tmp_path):
     path = role_hop(make_repo(tmp_path), tmp_path)
-    rel = f"archive/{path.stem}/standing-rules.md"
+    rel = f"standing-rules/{path.stem}.md"
     assert body(path, "Decisions in force") == f"- Standing rules: {rel}#Decisions in force"
     assert body(standing_file(path), "Decisions in force") == D1
     result = validate(path)
@@ -128,7 +128,7 @@ def test_decisions_carry_to_the_next_hop_through_the_standing_file(tmp_path):
     second = role_hop(
         repo, tmp_path, first, k=2, flag=False, values={"decisions-new": D2}
     )
-    assert body(second, "Decisions in force").startswith("- Standing rules: archive/")
+    assert body(second, "Decisions in force").startswith("- Standing rules: standing-rules/")
     held = body(standing_file(second, first), "Decisions in force")
     assert held == f"{D1}\n\n{D2}" or held == f"{D1}\n{D2}", held
     archived = hop_file(second.parent, first.name, 2, SIDS[1]).read_text(
@@ -187,7 +187,7 @@ def test_amend_retires_a_decision_from_the_standing_file(tmp_path):
     )
     assert result.returncode == 0, err(result)
     assert "[D1]" not in body(standing_file(path), "Decisions in force")
-    assert body(path, "Decisions in force").startswith("- Standing rules: archive/")
+    assert body(path, "Decisions in force").startswith("- Standing rules: standing-rules/")
     own = hop_file(path.parent, path.name, 1, SIDS[0]).read_text(encoding="utf-8")
     assert f"{D1}\nRetired: no longer bears" in own
     assert pointer_lines(path.read_text(encoding="utf-8")) == []
@@ -198,7 +198,7 @@ def test_amend_retires_a_decision_from_the_standing_file(tmp_path):
 def test_a_role_chain_written_before_decisions_moved_still_validates(tmp_path):
     repo = make_repo(tmp_path)
     first = role_hop(repo, tmp_path)
-    rel = f"archive/{first.stem}/standing-rules.md"
+    rel = f"standing-rules/{first.stem}.md"
     first.write_text(
         first.read_text(encoding="utf-8").replace(
             f"- Standing rules: {rel}#Decisions in force", D1
@@ -344,7 +344,7 @@ def test_a_chain_without_standing_rules_is_unchanged(tmp_path):
         f"- Retired entries: archive/{first.stem}/{h2} § Retired decisions"
     ]
     archive = second.parent / "archive" / first.stem
-    assert not (archive / "standing-rules.md").exists()
+    assert not standing_file(second, first).exists()
     assert not (archive / "retired-index.md").exists()
     for path in (first, second):
         assert validate(path).returncode == 0, out(validate(path))

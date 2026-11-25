@@ -469,14 +469,26 @@ def test_a_case_without_a_shape_seeds_in_the_shape_its_arm_copy_writes(tmp_path)
     assert resume_cases.seed_shape(spec, three) == 2
 
 
-def test_shape_5_is_an_unsupported_seed_shape(tmp_path):
+def test_shape_6_is_an_unsupported_seed_shape(tmp_path):
     spec = resume_cases.load_case(EVALS / "re-stale-github-fact")
     spec["seed"]["predecessor"].pop("shape", None)
-    five = _stub_copy(tmp_path / "five", "X = 1\nHANDOFF_SHAPE = 5\n")
+    six = _stub_copy(tmp_path / "six", "X = 1\nHANDOFF_SHAPE = 6\n")
     repo = tmp_path / "repo"
-    with pytest.raises(ValueError, match="unsupported seed shape 5"):
-        resume_cases.build_predecessor_chain(spec, repo, save_point=five)
+    with pytest.raises(ValueError, match="unsupported seed shape 6"):
+        resume_cases.build_predecessor_chain(spec, repo, save_point=six)
     assert not (repo / ".work" / "handoffs").exists()
+
+
+def test_a_shape5_chain_carries_reminders_in_place_of_pending_commands(tmp_path):
+    spec = _shape3_target_spec(20_000)
+    spec["seed"]["predecessor"]["shape"] = 5
+    chain = resume_cases.build_predecessor_chain(
+        spec, tmp_path / "repo", arm=CHECKOUT_ARM
+    )
+    text = chain[-1].read_text(encoding="utf-8")
+    assert "handoff_shape: 5" in text, "the newest hop is written as shape 5"
+    assert "\n## Reminders\n" in text, "shape 5 has a Reminders section"
+    assert "\n## Pending commands\n" not in text, "Reminders replace Pending commands"
 
 
 def test_the_chain_is_built_by_the_pinned_save_point(tmp_path):

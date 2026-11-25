@@ -1,0 +1,24 @@
+{
+  "claim": "What a PreCompact hook prints steers an automatic compaction: a marker only the hook names lands in the compact summary.",
+  "tags": ["PreCompact", "PostCompact", "auto-compact", "compact summary", "hook"],
+  "permission_mode": "default",
+  "model": "claude-haiku-5-5",
+  "max_turns": 12,
+  "max_budget_usd": 2.0,
+  "timeout": 600,
+  "cli_args": ["--autocompact", "100k"],
+  "target": {
+    "compaction": true,
+    "patterns": [
+      "^(?=.*\"isCompactSummary\":\\s*true)(?=.*ZEBRA-7731)",
+      "^(?=.*\"hook_event_name\":\\s*\"PostCompact\")(?=.*\"trigger\":\\s*\"auto\")(?=.*ZEBRA-7731)"
+    ],
+    "example": [
+      "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"compactMetadata\":{\"trigger\":\"auto\"}}",
+      "{\"type\":\"user\",\"isCompactSummary\":true,\"message\":{\"role\":\"user\",\"content\":\"Summary. ZEBRA-7731\"}}",
+      "{\"session_id\":\"s\",\"hook_event_name\":\"PostCompact\",\"trigger\":\"auto\",\"compact_summary\":\"Summary. ZEBRA-7731\"}"
+    ]
+  },
+  "outcome": "transcript-grep",
+  "control": "hooks/auto-compact-summary-without-hook-text"
+}

@@ -31,6 +31,7 @@ test("policyPath takes the standards checkout STANDARDS_DIR names, else the fall
   assert.equal(policyPath({ STANDARDS_DIR: "/s" }, "/fallback"), "/s/components/dependabot-policy/policy.json");
   assert.equal(policyPath({}, "/fallback"), "/fallback");
   assert.equal(policyPath({ STANDARDS_DIR: "" }, "/fallback"), "/fallback");
+  assert.equal(policyPath({}, undefined), undefined);
 });
 
 const NPM = "dependabot/npm_and_yarn/x-1.3.0";

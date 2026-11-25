@@ -26,7 +26,7 @@ from hop_chain import (  # noqa: E402
 from resume_history import _section_span, read_turns, seed_history  # noqa: E402,F401
 
 CASE_FILE = "resume-eval.json"
-SEED_SHAPES = (2, 3, 4)
+SEED_SHAPES = (2, 3, 4, 5)
 TASK_RELATIONS = ("same", "boundary")
 HANDOFF_SHAPE_RE = re.compile(r"^HANDOFF_SHAPE = (\d+)$", re.MULTILINE)
 NAMESPACE = uuid.UUID("3c1f9a52-7d4e-5b60-9e1a-2f8c4d6b7a90")
@@ -613,7 +613,10 @@ def _fill_3(
             f"- The {lane} queue held {f['n']} open items at hop {hop}; detail stays in this hop's file."
         ]
     )
-    values["commands"] = "None. No command waits on the user."
+    if "reminders" in slots:
+        values["reminders"] = "None. Nothing waits on a later session."
+    elif "commands" in slots:
+        values["commands"] = "None. No command waits on the user."
     values["did"], values["left"] = _did_left(pred, hop, lane)
     values["rescan"] = (
         "the re-scan read the lossless on-disk transcript; no compaction occurred."

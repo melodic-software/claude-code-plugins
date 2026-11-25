@@ -183,7 +183,7 @@ Each case's `docs` names the section that states its expected outcome.
 |---|---|---|
 | `pass` | The target call's outcome matched `expect.json` | Refresh the case's row in records.md with the date and version |
 | `fail` | It did not | Platform behavior moved. Update the record and every convention that cites it |
-| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, a `prints` case's command printed nothing, a tool result was not of the case's `result_match`, the CLI did not start, or a case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
+| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, a `prints` case's command printed nothing, a tool result was not of the case's `result_match`, the CLI did not start, a `transcript-grep` session saved no transcript or a compaction case has no PostCompact record, or a case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
 | `error` | The scaffold or case is broken | Fix the case; a fixture failure says nothing about the platform |
 | `skipped` | Platform, a missing tool, or a ceiling | Report it |
 
@@ -219,7 +219,15 @@ starts `probe-fake-`, so a leak can be searched for, and only its sha256 reaches
 pairs, each flag and value of a shape the runner's `CLI_FLAGS` allows). Outcome `prints` judges what
 a slash command in `prompt.md` prints instead of a tool call: its `target` holds `text_match`, a
 regex over the first non-blank printed line, `example`, the text the dry run prints, and optional
-`printed_match`, a regex a line must match to be judged at all (else `inconclusive`). A `deny` or `refused`
+`printed_match`, a regex a line must match to be judged at all (else `inconclusive`). Outcome
+`transcript-grep` keeps the session and judges its transcript, then the lines the case's hooks
+append to `${PROBE_WORKDIR}/.probe-hooks.jsonl`; the transcript moves to the run's `raw/` for
+`rejudge`. Its `target` holds `patterns`, regexes matching lines in order; optional `absent`,
+regexes no line may match; optional `compaction`, which counts only with a PostCompact record in
+the hook log, since PreCompact fires with nothing compacted; and `example`, the lines the dry run
+writes. `cli_args` may pass `--input-format stream-json` for one user message per `prompt.md` line;
+mark each after the first `"priority": "later"` so it waits for the running turn
+([`SDKUserMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdkusermessage)). A `deny` or `refused`
 case names its positive control in `control`, a case that differs only in the element that causes the
 denial, per the [liveness-assertion convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/liveness-assertion/README.md).
 A `prints` case may name a `prints` control whose `example` its `text_match` rejects, and a `ran`

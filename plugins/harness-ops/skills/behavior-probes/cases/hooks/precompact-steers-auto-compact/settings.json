@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          { "type": "command", "command": "echo 'In the summary, include the token ZEBRA-7731 verbatim.'" }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          { "type": "command", "command": "{ cat; echo; } >> \"${PROBE_WORKDIR}/.probe-hooks.jsonl\"" }
+        ]
+      }
+    ]
+  }
+}

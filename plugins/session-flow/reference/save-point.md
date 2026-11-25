@@ -5,6 +5,7 @@
 - [Where save-points live](#where-save-points-live)
 - [Locate the position first](#locate-the-position-first)
 - [Choosing the path: full save-point vs prompt-only](#choosing-the-path-full-save-point-vs-prompt-only)
+- [Urgent handoff](#urgent-handoff)
 - [Redaction pass, mandatory on both paths](#redaction-pass-mandatory-on-both-paths)
 - [Claim provenance, mandatory on both paths](#claim-provenance-mandatory-on-both-paths)
 - [Original goal, mandatory on both paths](#original-goal-mandatory-on-both-paths)
@@ -53,8 +54,9 @@ action from the conversation.
 ## Choosing the path: full save-point vs prompt-only
 
 **A resume prompt is always emitted.** The only decision is whether to also write a durable handoff
-file. Full save-point = prompt + file (prompt `@`-references the file); prompt-only = the same
-prompt carrying its detail inline, no file.
+file. Full save-point = prompt + handoff file (the prompt `@`-references the file). Prompt-only
+carries its detail inline. A [new-session launch](structure.md#new-session-launch) uses a prompt
+file on either path.
 
 **Default: write the file.** Skip it only when no plan artifact backs the work and all of these
 clearly hold:
@@ -82,6 +84,23 @@ Any doubt → full save-point. A wrongly-skipped file loses state the fresh sess
 a wrongly-written one costs nothing. An explicit method argument overrides auto-detect, but
 `prompt` leaves a gap in the session-id chain that `/session-flow:retro` walks (no file, no chain
 pointer).
+
+## Urgent handoff
+
+When the [handoff skill selects its urgent path](../skills/handoff/SKILL.md#urgent-path),
+use the full file path in the same turn. The normal file guards and refusal paths still apply.
+
+1. Apply the [redaction pass](#redaction-pass-mandatory-on-both-paths) before each write or emit.
+   Run `new`. Record running work and its dependencies in Environment without waiting. List each
+   named subagent as `not inspected (urgent)`. Skip subagent output reads and optional profile
+   checks. A new-session launch still uses its selected profile's command. Record
+   `wip_commit: not applied (urgent)` in the file.
+2. Apply the slots in one `fill`, including Reminders, Environment and its recurring entries,
+   and the next session's `Next:` actions. On PASS or WARN, paste the rails `fill` returns.
+3. On a repairable FAIL, make one repair and run `validate`. If the file still fails, show only
+   `UNVALIDATED: <first failing line>` immediately above the copy instruction, outside the copy
+   region. Emit the stored rails even on failure. On every verdict, skip the position panel and
+   checklist echo and end with the resume prompt.
 
 ## Redaction pass, mandatory on both paths
 
@@ -222,7 +241,7 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 Walk it while writing the file; never write the section list from memory.
 
 **The file is a handoff file plus its archive file, and a script owns its deterministic tier.** This
-flow describes the shape `new` writes by default, shape 4.
+flow describes the shape `new` writes by default, shape 5.
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has five subcommands, run through the interpreter
 ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.10+, stdlib only):
 
@@ -258,7 +277,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   dropped predecessor entry are all failures. `--strict-transcript` turns the honest
   `unresolved (…)` transcript from WARN into FAIL (the acceptance harness passes it). It also runs
   a WARN-only secret-shape scan; the model rules on each hit under the redaction pass above. On a
-  shape-3 or shape-4 file it also checks the carry against the predecessor and both archive files, and
+  shape-3, shape-4 or shape-5 file it also checks the carry against the predecessor and both archive files, and
   the size; each FAIL line names the fix.
 - `save_point.py emit <file>` prints the `## Resume prompt` section body verbatim (heading
   excluded, leading and trailing blank lines trimmed) and exits 1 on a shape-1 file (no section,
@@ -268,7 +287,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   worktree) it warns on stderr and substitutes the current path on stdout only; the file is never
   rewritten.
 - `save_point.py amend <file> --json <path>` folds an event that arrives after emit into a
-  filled shape-3 or shape-4 tip file. The JSON object takes any of `sections` (`{title: body}`, replacing
+  filled shape-3, shape-4 or shape-5 tip file. The JSON object takes any of `sections` (`{title: body}`, replacing
   written sections), `append` (`{title: [lines]}`, adding lines to Original goal or Direction
   changes), `retire` (`[{ref, reason}]`, as `fill` takes it), `next` (new `Next:` lines) and
   `floors` (raising id floors only). It appends what it replaces to this hop's file, validates
@@ -291,6 +310,8 @@ file it creates; the self-ignore guard is the skill's own bash step (structure d
 and refuses without.
 
 ## Emit the position panel
+
+An [urgent handoff](#urgent-handoff) skips this section.
 
 A save-point is written for the next session, but a human reads the turn that produces it, and at
 that moment they decide two things the save-point never tells them: whether this is a sane place
@@ -412,9 +433,9 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   Commentary sits above the top rail or below the bottom rail, never between.
 - One plain-language instruction sits directly above each region's top rail. The resume region's is
   "`/clear`, then copy everything between the dashed lines:". A goal region has its own, below.
-  When the next phase starts in another plugin profile, one more line sits directly above that
-  one: "The next phase runs in another plugin profile: exit this session, start the next one with
-  `<start command>`, then in it:". The copy line itself never changes, since recovery keys on it.
+  For a [new-session launch](structure.md#new-session-launch), show the terminal command above
+  both copy regions. It supplies the initial prompt in one paste. The copy lines stay available
+  for recovery. If the checkout is missing, report the launch error.
 - **Goal region:** when a goal applies, the prompt holds a second railed region for it, unless
   the condition check below omits it. A goal
   applies when the user asked for a fresh goal, or when a `/goal` is active in the producing
@@ -471,6 +492,13 @@ Where the panel sits in the response belongs to the citing skill, which owns its
      and list the pending decisions. A criterion met only by this session's say-so, or one that
      still needs a command run, keeps the region.
 
+  **A flagged goal is re-drafted at resume, never armed by the model.** When check 1 fires on the
+  full path, also make the first remaining action `Re-draft the carried /goal condition: <reason>`.
+  The resumed session drafts a new condition with `/planning:draft-goal-condition` (if enabled;
+  otherwise it states the reason and a suggested rewording), offers it once in its first reply and
+  goes on with the work. If the user neither takes nor rejects it, the carried goal stands; the
+  next handoff runs the check again and flags it again only if it still fails.
+
   Record for the evaluator claim: basis
   <https://code.claude.com/docs/en/goal#evaluation-model-and-cost> ("It
   does not call tools, so it can only judge what Claude has already surfaced in the
@@ -499,7 +527,15 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   below the bottom rail, ahead of any `/loop` re-arm block: "a plugin changed this session
   (`<plugin> <version>`): after `/clear`, type `/reload-plugins`, then paste the block above."
   Prompt-only, which has no Environment section, names the plugin and version in that note alone.
-- **Loop-aware re-arm:** running under `/loop` means this session's own
+- **Where recurring items go.** On the full path, each surviving loop, cron task and monitor is an
+  entry under the handoff file's `Environment to re-establish`
+  ([structure.md](structure.md#environment-to-re-establish)), and the resumed session lists its
+  scheduled tasks and re-arms what is missing itself ([`resume.md`](resume.md)). The below-rail
+  `Re-arm <i> of <n>` block described next is retired for new files; `find-handoff` keeps reading
+  it from older ones. The rules below still decide which loops count as surviving, and their
+  list-first step is the one `resume.md` runs. Prompt-only, which has no file, carries the same
+  entries as one `Re-arm:` bullet between the rails, each entry in the Environment entry shape.
+- **Loop-aware re-arm (older files and prompt-only):** running under `/loop` means this session's own
   `/loop [<interval>] <prompt>` launch turns earlier in the conversation with no later stop (`Esc`, a
   `ScheduleWakeup` call carrying `stop: true`, or, for a fixed-interval loop, a turn in which Claude
   cancelled it, since `Esc` does not stop one), not "infer from conversation" prose. A subsequent
@@ -610,13 +646,13 @@ Type `/goal ` (with a trailing space), then paste everything between the dashed 
 
 ──────────────────────────────────────────────────────────
 Every call site of OrderReader uses the retry policy and the project's test command exits 0 with the cancellation edge cases covered.
-Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, raise its due Reminders, then continue them and re-establish its Environment last. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
 ──────────────────────────────────────────────────────────
 
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
-Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, raise its due Reminders, then continue them and re-establish its Environment last. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
 Prior session: <UUID>.
 Handoff origin: <remote URL, userinfo stripped> <repo-relative path>
 Next:
@@ -630,8 +666,9 @@ Or reopen the producing session in place: `claude --resume <UUID>`.
 
 ### Full path only: the block is validated, stored, and printed, never regenerated
 
-Everything in this sub-section applies to the full path. The prompt-only rules above and below
-are untouched: prompt-only writes no file, so nothing here has a file to validate or emit from.
+These steps validate and emit the durable handoff. Prompt-only delivery has no handoff document
+to validate.
+For an [urgent handoff](#urgent-handoff), use its repair limit and failure banner.
 
 - **The verdict decides which rails are pasted.** `fill` writes the file, then prints its
   verdict and the rails, whatever the verdict. On a PASS or WARN verdict those rails are the
@@ -654,9 +691,14 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   `find-handoff` rung 1 recover the prompt from the file alone and `continue-in-background` launch
   from it. Python absent: emit the section by hand from the file, still verbatim.
 - **The directive is fixed text.** `Read @<absolute path>, confirm its Original goal still governs
-  the remaining next steps, then continue them. For the next save-point invoke
-  /session-flow:handoff via the Skill tool; never write a handoff file free-hand.` The second
-  sentence is the successor's license to write handoffs: through the skill only. The
+  the remaining next steps, raise its due Reminders, then continue them and re-establish its
+  Environment last. For the next save-point invoke /session-flow:handoff via the Skill tool; never
+  write a handoff file free-hand.` The second sentence is the successor's license to write
+  handoffs: through the skill only. The "raise its due Reminders" and "re-establish its
+  Environment last" clauses are the fallback for a session the resume-context hook does not reach
+  (the setting off, or an older plugin); with the hook on, the procedure it injects,
+  [`resume.md`](resume.md), says how. `validate` checks only the license clause, so an older
+  file's shorter directive still passes. The
   "then execute /<skill>" swap the prompt-only rule below allows is expressed on the full path by
   the `Then:` line instead, so the directive never changes shape.
 - **`Handoff origin:` has one form:** `Handoff origin: <remote URL, userinfo stripped> <repo-relative path>`,
@@ -681,8 +723,9 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   followed by `claude --resume <UUID>` in a code span and a period, the alternative to
   `/clear`-and-paste when the producing session is still worth reopening. A session in a plugin
   profile adds `--settings "<file>"` after the UUID inside the code span, since a resumed session does not
-  keep `--settings`. The no-goal-found note
-  and the `/loop` re-arm notes the rules above prescribe follow it, unchanged in shape; it is
+  keep `--settings`. The no-goal-found and plugin-reload notes
+  the rules above prescribe follow it, unchanged in shape (a file older than the Environment
+  entries also carries its `/loop` re-arm block here); it is
   outside the copy regions and outside the detection contract.
 
 ### The directive path is rooted, and that is the whole point

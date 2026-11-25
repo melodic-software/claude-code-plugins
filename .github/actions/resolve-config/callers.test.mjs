@@ -106,6 +106,7 @@ const runRefusal = (step, settingsJson) =>
 // context reference replaced by its value. Covers only the operators these
 // callers use (&&, ||, ==, !=, !), which JavaScript evaluates the same way
 // for the string and boolean operands here. A context that names no issue
+// number is a PR-mode run.
 function evaluate(expression, context) {
   context = { "inputs.issue-number": "", "inputs.issue-verdict": false, ...context };
   let body = expression.trim().replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").replaceAll("!cancelled()", "true").replaceAll("always()", "true");
@@ -3274,6 +3275,16 @@ test("pr-run-activity-write.yml passes the producer's prepare mode to both apply
     assert.ok(step, name);
     assert.equal(step.env.PATCH_PREPARE, "${{ inputs.patch-prepare }}", `${name} sets PATCH_PREPARE, or apply-patch.mjs uses the default row`);
   }
+});
+
+test("pr-run-activity-write.yml passes the standards checkout to the script activity, whose scripts load the base config", () => {
+  const loaders = ["work-resolve-issue/report-outcome.mjs", "pr-unblock/declare-test-scope.mjs"];
+  for (const script of loaders) assert.match(read(`../../scripts/${script}`), /\b(issueStatus|testScope)FromBase\(/, script);
+  const { jobs } = workflow("pr-run-activity-write.yml");
+  const job = Object.values(jobs).find((candidate) => (candidate.steps ?? []).some((step) => step.id === "act-script"));
+  assert.ok(job.steps.some((step) => step.id === "standards" && step.if === undefined), "the job always downloads the standards checkout");
+  const step = job.steps.find((candidate) => candidate.id === "act-script");
+  assert.equal(step.env.STANDARDS_DIR, "${{ steps.standards.outputs.path }}", `${loaders.join(", ")} load the base config, whose vocabulary comes from STANDARDS_DIR`);
 });
 
 // fix-docs starts only from a pr-refine.yml dispatch naming it: the

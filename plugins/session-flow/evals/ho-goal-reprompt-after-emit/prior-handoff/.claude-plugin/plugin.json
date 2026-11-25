@@ -1,0 +1,20 @@
+{
+  "name": "prior-handoff",
+  "description": "Restores the handoff skill's late-event instructions before the evaluator turn.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "awk",
+            "args": [
+              "/^## / { keep = ($0 == \"## Late events after emit\") } keep",
+              "${CLAUDE_PLUGIN_ROOT}/../../../skills/handoff/SKILL.md"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

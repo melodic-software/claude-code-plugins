@@ -44,8 +44,10 @@ now" matters, not just "what did we just say." The verification records
      section the briefing uses by name, with
      `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" read <file> --section "<name>"`
      (Original goal, Resumption brief, Remaining actions, Decisions in force,
-     Open questions, Environment to re-establish, Observations, and any other
-     the ask needs), never by position: a section moved to the archive file is
+     Open questions, Environment to re-establish, Observations, Reminders, and any other
+     the ask needs), never by position; open reminders in the latest closed handoff are
+     reported in full, since an unattended close leaves user and `at close` entries for the
+     next attended session to raise: a section moved to the archive file is
      read from there; `<memory_dir>` resolves as
      [`save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md) "Where save-points live"
      says (`.work/` in a git work tree by default), never Claude Code's auto-memory directory;

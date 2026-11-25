@@ -757,6 +757,7 @@ jobs:
           dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
           # Issue mode reads no PR: the account that set the field, and any
           # re-runner, must be listed as a human; the lanes App passes only by
+          # setting the caller's app-field-id to app-field-option.
           denied-actor-ids: ${{ inputs.issue-number != '' && !inputs.issue-verdict && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
           bot-sender-ids: ${{ inputs.issue-verdict && format('41898282 {0}', vars.AUTOMATION_LANES_APP_SENDER_ID) || '' }}
           issue-author: ${{ inputs.issue-verdict && 'true' || '' }}

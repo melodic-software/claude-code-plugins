@@ -11,17 +11,20 @@ stays writable, and shape-1 and shape-2 files validate and read unchanged.
 Stdlib only; Python 3.10+. Read-only on the repository except the files `new`
 creates (it never writes a `.gitignore` and never rewrites an existing
 handoff; it rewrites an archive file only on a retry by the same session), and the
-handoff file and archive file `fill` and `amend` rewrite.
+handoff file and archive file `fill` and `amend` rewrite. A new-session
+handoff also writes its initial prompt beside the file when emitted.
 
 Usage:
     save_point.py new --topic <slug> (--previous <file> | --no-previous)
                       [--memory-dir <root>] [--session-id <uuid>]
                       [--projects-root <dir>] [--repo-root <dir>] [--now <iso>]
-                      [--shape 2|3|4] [--purpose <text>]
+                      [--shape 2|3|4|5] [--purpose <text>]
+                      [--start-command [<command>]] [--launch-dir <checkout>]
     save_point.py fill <file> --slots <json>
     save_point.py amend <file> --json <json> [--now <iso>]
     save_point.py validate <file> [--projects-root <dir>] [--strict-transcript]
-    save_point.py emit <file>
+    save_point.py emit <file> [--shell posix|powershell]
+    save_point.py launch <prompt-file> --checkout <directory> [--start-command <command>]
     save_point.py read <file> --section <name>
     save_point.py chain <file> [--json]
     save_point.py memory-root
@@ -48,7 +51,8 @@ Exit codes:
                 (Observations, Suggested skills, Direction changes) to this
                 hop's file behind a pointer until the handoff file is under the
                 cap, then prints the validate verdict (an OVER-CAP line when
-                binding content alone is over it) and the emit output
+                binding content alone is over it) and the emit output; a launch
+                error prints its `No launch command:` line and still exits 0
               1 (shapes 3 and 4) a Resumption brief or below-the-rails note
                 over its slot budget on the first try: nothing written, the
                 slot and the bytes over named; the next fill writes anyway and
@@ -65,7 +69,8 @@ Exit codes:
               3 a `handoff_shape` past the shapes `fill` writes: read it, do
                 not rewrite it
     amend     0 written; prints the validate verdict, then the emit output (a
-                size FAIL never blocks the write)
+                size FAIL never blocks the write; a launch error prints its
+                `No launch command:` line and still exits 0)
               1 refused, both files untouched: an unfilled skeleton, a no-op, a
                 carried section, an unknown section, a floor lowered, an entry
                 this hop added removed without a retire, a FAIL the amend would
@@ -84,9 +89,11 @@ Exit codes:
     emit      0 printed the `## Resume prompt` section body verbatim (heading
                 excluded, surrounding blank lines trimmed); when the stored
                 `Read @` path is not this file, a WARN goes to stderr and the
-                real path is substituted on stdout only
+                real path is substituted on stdout only. For a new session,
+                write the selected region to the prompt file and print the launch command
               1 section absent (shape 1 says so) or the file still carries a
-                `<!-- FILL` slot (unfinished skeleton, never emitted)
+                `<!-- FILL` slot (unfinished skeleton, never emitted), or a launch
+                checkout or prompt is unavailable
               2 usage / unreadable
     read      0 printed the section body; a body that is only a move pointer
                 is read from the archive file it names
@@ -139,14 +146,17 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     BULLET_RE,
     HANDOFF_NAME_RE,
     HOP_FILE_SHAPES,
+    NEWEST_SHAPE,
     RETIRED_PREFIX,
     SHAPES,
     STANDING_INLINE_OK,
     STANDING_PREFIX,
     STANDING_SECTIONS,
+    WRITABLE_SHAPES,
     IdSpec,
     MovePointer,
     entry_text,
+    fitted,
     fm_value,
     follow,
     hop_file_path,
@@ -162,14 +172,13 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     section_spans,
     standing_pointer,
     standing_rel,
+    standing_rels,
 )
 import dialect  # noqa: E402  (dialect.py beside this script)
 import handoff_fit  # noqa: E402  (handoff_fit.py beside this script)
 from handoff_fit import PURPOSE_PREFIX, REOPEN_PREFIX  # noqa: E402
 
-HANDOFF_SHAPE = 4
-NEWEST_SHAPE = 4
-WRITABLE_SHAPES = (2, 3, 4)
+HANDOFF_SHAPE = 5
 CHECKS = 3
 CONTENT_ONLY_DOWNGRADE_FROM = 2
 ID_REUSE_FROM = 3
@@ -177,7 +186,12 @@ UNVERIFIED_SETTLE_FROM = 3
 SLOT_SIZE_FROM = 3
 
 S3 = SHAPES[3]
+ID_SPECS = SHAPES[NEWEST_SHAPE].id_specs
 RULES = S3.id_spec("R")
+REMINDERS = SHAPES[NEWEST_SHAPE].id_spec("M")
+REMINDER_RE = re.compile(
+    r"^\[M\d+\] (?:user|agent|peer \S[^·]*?) · (?:at close|at \S+|when [^·]+?) · .+ · added h\d+(?: \d{4}-\d{2}-\d{2})?(?: Rewritten h\d+: \S.*)?$"
+)
 RETIRED_RULES = RULES.retired_heading
 AMENDMENT_RE = re.compile(r"^(?:- )?\*\*Amended.*?:\*\*")
 TRAIL_TAG_RE = re.compile(r"^- \[(h\d+(?:-h?\d+)?)\]")
@@ -192,15 +206,16 @@ DECISION_TAG_SHAPE = (
     "'- [D<n>] [security|design] <decision> (<reason>) buys: <what it gains>; "
     "surface: <the surface exposed today, or none>; cost: <measured cost so far, or none yet>'"
 )
+REMINDER_SHAPE = "'- [M<n>] <actor> · <trigger> · <what to do> · added h<k> <YYYY-MM-DD>', actor 'user', 'agent' or 'peer <session or lane>', trigger 'at <ISO-8601 time with UTC offset>', 'when <condition>' (optionally '; check `<read-only command>`') or 'at close', a command verbatim in one backtick span"
 CODIFIED_RE = re.compile(r"\bcodified in \[R(\d+)\]")
 POINTED_HEADINGS = (
-    *(spec.retired_heading for spec in S3.id_specs if spec is not RULES),
+    *(spec.retired_heading for spec in ID_SPECS if spec != RULES),
     *S3.retired_entry_sections.values(),
 )
 RETIRE_HEADINGS = (RETIRED_RULES, *POINTED_HEADINGS)
 HOP_NAME_RE = re.compile(r"\bh\d+-[0-9a-f]{8}\.md\b")
 RETIRE_REF_RE = re.compile(
-    r"^\[(?P<prefix>[RQD])(?P<n>\d+)\]$"
+    rf"^\[(?P<prefix>[{''.join(s.prefix for s in ID_SPECS)}])(?P<n>\d+)\]$"
     r"|^\[(?P<tag>h\d+(?:-h?\d+)?)\](?:#(?P<tag_ord>\d+))?$"
     r"|^amendment#(?P<ord>\d+)$"
 )
@@ -222,7 +237,8 @@ FRONTMATTER_KEYS_3 = (
     "archive",
     "archive_from",
     "standing_rules",
-    *(spec.floor_key for spec in S3.id_specs),
+    "launch",
+    *(spec.floor_key for spec in ID_SPECS),
     "repo",
 )
 PRIOR_ROWS_KEPT = 3
@@ -372,12 +388,12 @@ VERBATIM_SECTIONS = frozenset(
     {"Original goal", "Current rules", "Standing preferences", "Pending commands"}
 )
 COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
-
-
-def relaunch_line(start_command: str) -> str:
-    return f"The next phase runs in another plugin profile: exit this session, start the next one with `{start_command}`, then in it:"
-
-
+LAUNCH_CHECKOUT = "New session checkout: "
+LAUNCH_COMMAND = "New session command: "
+PROFILE_RELAUNCH_RE = re.compile(
+    r"The next phase runs in another plugin profile: exit this session, "
+    r"start the next one with `([^`]+)`, then in it:"
+)
 GOAL_COPY_LINE = (
     "Type `/goal ` (with a trailing space), then paste everything between the dashed "
     "lines. Confirm the `◎ /goal active` indicator appears after you send it; if it "
@@ -391,9 +407,26 @@ MD_GOAL_COPY_LINE = (
 GOAL_CONDITION_MAX = 4000
 DIRECTIVE_CLAUSE = "invoke /session-flow:handoff via the Skill tool"
 DIRECTIVE_TAIL = (
-    "confirm its Original goal still governs the remaining next steps, then continue "
-    "them. For the next save-point invoke /session-flow:handoff via the Skill tool; "
-    "never write a handoff file free-hand."
+    "confirm its Original goal still governs the remaining next steps, raise its due "
+    "Reminders, then continue them and re-establish its Environment last. For the next "
+    "save-point invoke /session-flow:handoff via the Skill tool; never write a handoff "
+    "file free-hand."
+)
+RECURRING_RE = re.compile(r"^- \[(loop|cron|monitor|off-thread)\] ")
+LOOP_COUNT_RE = re.compile(r"prompt \((\d+) lines\):$")
+RESTORE_MANUAL = "restore: manual"
+SINCE_RE = re.compile(r" · since (\S+) ·")
+HANDOFF_TS_RE = re.compile(r"^(\d{8}T\d{6}Z)-handoff-")
+REDACTED_MARK = "<REDACTED"
+RECURRING_SHAPE = (
+    "one entry per recurring item: '- [loop] every <interval|self-paced> · since <UTC ISO> · "
+    "prompt (<L> lines):' or '- [cron] <expression> · recurring|once · since <UTC ISO> · "
+    "prompt (<L> lines):' with the prompt verbatim on the next <L> indented lines, "
+    "'- [monitor] <description> · since <UTC ISO> · command: `<cmd>`', and "
+    "'- [off-thread] <kind> <name>: <state read this turn> · kept because <why>' or the single "
+    "line '- Off-thread work: none recorded.'; a command or prompt that lost text to redaction "
+    "ends with '· restore: manual (held a secret; re-create from <source>)'; prefer an "
+    "environment-variable reference to a secret in a command"
 )
 STANDING_THEN = " then @"
 STANDING_PAGED = " in pages with the Read tool's offset and limit (over one Read page)"
@@ -813,6 +846,13 @@ def _check_standing_directive(doc: Doc, f: Findings, standing: str | None) -> No
             )
 
 
+def _rail_regions(body: list[str], rails: list[int]):
+    previous = 0
+    for top, bottom in zip(rails[::2], rails[1::2]):
+        yield [line.strip() for line in body[previous:top]], body[top + 1 : bottom], bottom
+        previous = bottom + 1
+
+
 def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     body = doc.section("Resume prompt")
     if body is None:
@@ -830,11 +870,7 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     between: list[str] | None = None
     resume_bottom = 0
     goals: list[list[str]] = []
-    prev_end = 0
-    for top, bottom in zip(rails[0::2], rails[1::2]):
-        above = [line.strip() for line in body[prev_end:top]]
-        prev_end = bottom + 1
-        region = body[top + 1 : bottom]
+    for above, region, bottom in _rail_regions(body, rails):
         if any(not line.strip() for line in region):
             f.fail("Resume prompt: blank line between the rails")
         region = [line for line in region if line.strip()]
@@ -1111,7 +1147,7 @@ def validate_doc(
         return f, 1
     if shape > NEWEST_SHAPE:
         f.fail(
-            f"handoff_shape {shape} is newer than this validator knows ({NEWEST_SHAPE}): read it, do not rewrite it"
+            f"handoff_shape {shape} is newer than this validator knows ({NEWEST_SHAPE}): read it, do not rewrite it; update session-flow to validate it"
         )
         return f, 3
 
@@ -1590,7 +1626,7 @@ def _next_id(pred: Doc | None, spec: IdSpec) -> int:
     if pred.shape in HOP_FILE_SHAPES:
         floor = _fm_int(pred, spec.floor_key)
         ids = [n for n, _, _ in _id_entries(pred, spec) if n is not None]
-    if floor is None and spec is not RULES:
+    if floor is None and spec != RULES:
         text = "\n".join(pred.lines)
         ids += [int(n) for n in re.findall(rf"\b{spec.prefix}(\d+)\b", text)]
     return max(floor or 1, max(ids, default=0) + 1)
@@ -1631,8 +1667,100 @@ def _folds(line: str, hop: int) -> bool:
     return newest is not None and hop - newest >= DIRECTION_HOPS_KEPT
 
 
+def _id_specs(shape: int | None) -> tuple[IdSpec, ...]:
+    """The id families a file of `shape` holds; shape 3's for a shape with none."""
+    spec = SHAPES.get(shape) if isinstance(shape, int) else None
+    return spec.id_specs if spec is not None and spec.id_specs else S3.id_specs
+
+
+def _family(prefix: str) -> IdSpec:
+    return next(spec for spec in ID_SPECS if spec.prefix == prefix)
+
+
+def _converted_commands(pred: Doc | None, hop: int, date: str) -> list[str]:
+    """A shape-4 predecessor's Pending commands as `user · when now` reminders,
+    `None.` lines left out, so no command drops when a chain moves to shape 5."""
+    if pred is None or REMINDERS in _id_specs(pred.shape):
+        return []
+    held = [
+        entry.text
+        for entry in parse_entries(pred.section("Pending commands") or [])
+        if not entry.exempt
+    ]
+    return [
+        f"- [M{n}] user · when now · {text} · added h{hop} {date[:10]}"
+        for n, text in enumerate(held, start=1)
+    ]
+
+
+def _check_reminders(doc: Doc, f: Findings) -> None:
+    if REMINDERS not in _id_specs(doc.shape):
+        return
+    open_ids: list[str] = []
+    for n, entry, _ in _id_entries(doc, REMINDERS):
+        if n is None:
+            continue
+        open_ids.append(f"[M{n}]")
+        if not REMINDER_RE.match(entry.text):
+            f.fail(
+                f"Reminders: [M{n}] is not {REMINDER_SHAPE}: {entry.text[:60]!r}"
+            )
+    span = _next_span(doc)
+    if open_ids and span is not None and doc.lines[span[0]] == NEXT_CLOSED:
+        f.warn(
+            f"Reminders: this handoff is closed ({NEXT_CLOSED}) but {', '.join(open_ids)} are not retired; raise each in the closing turn, then retire it 'raised at chain close', or on an unattended run list each user or 'at close' entry under Needs you"
+        )
+
+
+def _recurring_entries(lines: list[str]) -> list[list[str]]:
+    """Each `[loop]`, `[cron]`, `[monitor]` or `[off-thread]` entry with its indented body."""
+    entries: list[list[str]] = []
+    current: list[str] | None = None
+    for line in lines:
+        if RECURRING_RE.match(line):
+            current = [line]
+            entries.append(current)
+        elif current is not None and line.startswith((" ", "\t")) and line.strip():
+            current.append(line)
+        else:
+            current = None
+    return entries
+
+
+def _written_at(name: str) -> datetime | None:
+    match = HANDOFF_TS_RE.match(name)
+    if match is None:
+        return None
+    return datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(
+        tzinfo=timezone.utc
+    )
+
+
+def _check_recurring(doc: Doc, f: Findings) -> None:
+    previous_at = _written_at(doc.frontmatter.get("previous_handoff") or "")
+    for entry in _recurring_entries(doc.section("Environment to re-establish") or []):
+        head = entry[0]
+        text = "\n".join(entry)
+        if REDACTED_MARK in text and RESTORE_MANUAL not in text:
+            f.fail(
+                f"Environment to re-establish: {head[:60]!r} lost text to redaction and must end with '· {RESTORE_MANUAL} (held a secret; re-create from <source>)', so the resumed session never re-arms it"
+            )
+        if head.startswith(("- [loop] ", "- [cron] ")):
+            count = LOOP_COUNT_RE.search(head)
+            if count is None or int(count.group(1)) != len(entry) - 1:
+                f.warn(
+                    f"Environment to re-establish: {head[:60]!r} needs 'prompt (<L> lines):' with the prompt on exactly the next <L> indented lines"
+                )
+        since = SINCE_RE.search(head)
+        started = _parse_now(since.group(1)) if since else None
+        if previous_at and started and started < previous_at:
+            f.warn(
+                f"Environment to re-establish: {head[:60]!r} runs since before the previous handoff was written, so it was carried across more than one hop; the resumed session shows it and re-arms it only after the user confirms"
+            )
+
+
 def _carries(pred: Doc | None, spec: IdSpec) -> bool:
-    if spec is RULES or pred is None or pred.shape not in HOP_FILE_SHAPES:
+    if spec == RULES or pred is None or pred.shape not in HOP_FILE_SHAPES:
         return False
     entries = _id_entries(pred, spec)
     return (
@@ -1809,10 +1937,11 @@ CORE_NEVER_MOVES = (
 
 def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
     size, core, carried, written = _size_parts(doc)
-    cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
+    spec = SHAPES[doc.shape]
+    cap = spec.cap_bytes or HOT_FILE_MAX_BYTES
     if core + carried > cap:
         name, held = max(
-            ((title, _section_bytes(doc, (title,))) for title in SHAPES[4].binding),
+            ((title, _section_bytes(doc, (title,))) for title in spec.binding),
             key=lambda pair: pair[1],
         )
         return (
@@ -1822,13 +1951,13 @@ def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
     if size > cap:
         return (
             "FAIL",
-            f"size: {size} bytes is over the {cap}-byte hot-file cap; move {', '.join(SHAPES[4].movable)} content into {rel} with a pointer ({_size_text(core, carried, written)})",
+            f"size: {size} bytes is over the {cap}-byte hot-file cap; move {', '.join(spec.movable)} content into {rel} with a pointer ({_size_text(core, carried, written)})",
         )
     return None
 
 
 def _size_finding(doc: Doc, rel: str) -> tuple[str, str] | None:
-    if doc.shape == 4:
+    if fitted(doc.shape):
         return _size_finding_4(doc, rel)
     size, core, carried, written = _size_parts(doc)
     parts = _size_text(core, carried, written)
@@ -2070,9 +2199,10 @@ def _check_standing(doc: Doc, f: Findings, root: str, standing: str | None) -> D
     pointed = _standing_pointed(doc)
     if not held and not pointed:
         return doc
-    want = standing_rel(root) if root else None
-    if held and want and held != want:
-        f.fail(f"frontmatter: standing_rules must be '{want}' (got {held!r})")
+    if held and root and held not in standing_rels(root):
+        f.fail(
+            f"frontmatter: standing_rules must be '{standing_rel(root)}' (got {held!r})"
+        )
         return doc
     if not held:
         f.fail(
@@ -2272,7 +2402,7 @@ def _validate_shape3(
         _check_headings(doc, f, spec.legacy_names)
     else:
         _check_headings(doc, f, spec.names)
-    if doc.shape == 4:
+    if spec.fitted:
         _check_moves(doc, f, spec)
     _check_original_goal(doc, f, hop or 1)
     raw = doc
@@ -2292,15 +2422,18 @@ def _validate_shape3(
                 f"frontmatter: repo {fm['repo']!r} must equal the Handoff origin's first slot {slots[0]!r}"
             )
 
-    for spec in S3.id_specs:
+    for spec in _id_specs(doc.shape):
         seen: set[int] = set()
         required = (
-            spec is RULES
+            spec == RULES
             or previous is None
             or (
                 pred is not None
                 and pred.shape in HOP_FILE_SHAPES
-                and _fm_int(pred, spec.floor_key) is not None
+                and (
+                    _fm_int(pred, spec.floor_key) is not None
+                    or spec not in _id_specs(pred.shape)
+                )
             )
         )
         for n, entry, title in _id_entries(doc, spec):
@@ -2314,6 +2447,8 @@ def _validate_shape3(
             else:
                 seen.add(n)
     _check_decision_fields(doc, f)
+    _check_reminders(doc, f)
+    _check_recurring(doc, f)
 
     _check_github_claims(doc, f)
     _check_dated_observations(doc, f)
@@ -2371,7 +2506,7 @@ def _validate_shape3(
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
     slots = _check_slot_sizes(raw, f)
-    if raw.shape == 4 and _cap_state(raw)[0] > READ_CAP_BYTES:
+    if fitted(raw.shape) and _cap_state(raw)[0] > READ_CAP_BYTES:
         f.warn(
             f"size: {_cap_state(raw)[0]} bytes is over the {READ_CAP_BYTES}-byte Read page cap; the resume prompt directs a paged Read (offset and limit)",
             CheckKind.SIZE,
@@ -2433,10 +2568,10 @@ def _check_id_reuse(
     doc: Doc, f: Findings, pred: Doc | None, archived: str | None
 ) -> None:
     retired = read_chain(pred.path, strict=True).retired_ids() if pred else {}
-    for prefix, ids in retired_in(archived or "", S3).items():
+    for prefix, ids in retired_in(archived or "", SHAPES.get(doc.shape, S3)).items():
         for n, text in ids.items():
             retired.setdefault(prefix, {}).setdefault(n, text)
-    for spec in S3.id_specs:
+    for spec in _id_specs(doc.shape):
         spent = retired.get(spec.prefix, {})
         for n, entry, title in _id_entries(doc, spec):
             was = spent.get(n) if n is not None else None
@@ -2463,7 +2598,7 @@ def _check_carry_3(
         if archived is None:
             return
         hop = _fm_int(doc, "hop")
-        for spec in S3.id_specs:
+        for spec in _id_specs(doc.shape):
             own = {n: e for n, e, _ in _id_entries(doc, spec) if n is not None}
             retired = _retired_ids(archived, spec)
             marked = _carries(pred, spec)
@@ -2726,7 +2861,7 @@ def _readable_link(file: str):
     if link.status == "unsupported_shape":
         return None, _die(
             3,
-            f"handoff_shape {link.shape} is newer than this script knows ({NEWEST_SHAPE}): read the file itself: {_posix(path)}",
+            f"handoff_shape {link.shape} is newer than this script knows ({NEWEST_SHAPE}): read the file itself, or update session-flow: {_posix(path)}",
         )
     return link, 0
 
@@ -2801,6 +2936,101 @@ def cmd_chain(args: argparse.Namespace) -> int:
     return 0
 
 
+def _ps_quote(value: str) -> str:
+    return "'" + re.sub("['‘’‚‛]", lambda m: m[0] * 2, value) + "'"
+
+
+def _launch_command(checkout: Path, command: str, prompt: Path, shell: str | None) -> str:
+    if not checkout.is_absolute() or not checkout.is_dir():
+        raise ValueError(f"launch checkout is not an existing absolute directory: {checkout}")
+    if not command.strip() or any(c in command for c in "`\r\n"):
+        raise ValueError("--start-command must be one nonempty line without backticks")
+    if shell is None:
+        windows = sys.platform == "win32" and not os.environ.get("MSYSTEM")
+        powershell = Path(os.environ.get("SHELL", "")).stem.lower() in {"pwsh", "powershell"}
+        shell = "powershell" if windows or powershell else "posix"
+    prompt_path = prompt.absolute().as_posix()
+    if shell == "powershell" or command.startswith("Remove-Item "):
+        if command.startswith("env "):
+            command = "sh -c " + _ps_quote(command + ' "$1"') + " sh"
+        read_ps = f"(Get-Content -LiteralPath {_ps_quote(prompt_path)} -Raw -Encoding UTF8 -ErrorAction Stop)"
+        launch_ps = (
+            "if ($PSVersionTable.PSVersion -lt [version]'7.3') { throw 'Run this command in pwsh 7.3 or newer.' }; "
+            "if ((Get-Command claude -ErrorAction Ignore).Source -match '[.](cmd|bat)$') { throw "
+            "'claude here is a .cmd or .bat shim, which cuts a multi-line prompt and expands %VARS%: "
+            "start claude and paste the copy region instead.' }; "
+            f"$PSNativeCommandArgumentPassing = 'Standard'; {command} {read_ps}"
+        )
+        if shell == "powershell":
+            return f"Set-Location -LiteralPath {_ps_quote(str(checkout))} -ErrorAction Stop; & {{ {launch_ps} }}"
+        invocation = f"pwsh -NoProfile -Command {shlex.quote(launch_ps)}"
+    else:
+        quoted_prompt = shlex.quote(prompt_path)
+        invocation = f'{command} "$(cat {quoted_prompt})"'
+        if sys.platform == "win32":
+            invocation = "MSYS2_ARG_CONV_EXCL='/goal ' " + invocation
+        invocation = f": < {quoted_prompt} && {invocation}"
+    return f"cd {shlex.quote(checkout.as_posix())} && {invocation}"
+
+
+def cmd_launch(args: argparse.Namespace) -> int:
+    prompt = Path(args.file)
+    if not prompt.is_file():
+        return _die(1, f"launch prompt file does not exist: {prompt}")
+    try:
+        print(_launch_command(Path(args.checkout), args.start_command, prompt, args.shell))
+    except ValueError as exc:
+        return _die(1, str(exc))
+    return 0
+
+
+def _emit_launch(lines: list[str], doc: Doc, shell: str | None, markdown: bool) -> None:
+    path = doc.path
+    if "launch" in doc.frontmatter:
+        match json.loads(doc.frontmatter["launch"]):
+            case []:
+                return
+            case [str(directory), str(command)]:
+                checkout = Path(directory)
+            case _:
+                raise ValueError("launch frontmatter must contain a checkout and command, or an empty list")
+        if len(lines) >= 2 and lines[0].startswith(LAUNCH_CHECKOUT) and lines[1].startswith(LAUNCH_COMMAND):
+            del lines[:2]
+    else:
+        copy = lines.index(COPY_LINE) if COPY_LINE in lines else 0
+        if not copy or not (old := PROFILE_RELAUNCH_RE.fullmatch(lines[copy - 1])):
+            return
+        checkout = _git_toplevel(path.parent)
+        if checkout is None:
+            raise ValueError(f"cannot locate the checkout for the saved profile command in {path}")
+        command = old[1]
+        del lines[copy - 1]
+
+    prompt_file = path.with_suffix(".prompt.txt")
+    try:
+        launch = _launch_command(checkout, command, prompt_file, shell)
+        rails = [i for i, line in enumerate(lines) if RAIL_RE.match(line.strip())]
+        prompt = ""
+        for above, region, _ in _rail_regions(lines, rails):
+            if GOAL_COPY_LINE in above:
+                prompt = "/goal " + "\n".join(region)
+                break
+            if COPY_LINE in above:
+                prompt = "\n".join(region)
+        if not prompt:
+            raise ValueError("launch prompt has no copy region")
+        if exc := _write_atomic(prompt_file, prompt.encode("utf-8")):
+            raise ValueError(f"cannot write launch prompt {prompt_file}: {exc}")
+    except ValueError:
+        lines[:0] = [f"Start command for the new session: {command}"]
+        raise
+    display = ["```", launch, "```"] if markdown else [launch]
+    lines[:0] = [
+        "Run this terminal command to start the new session. The copy instructions below are for recovery.",
+        *display,
+    ]
+
+
 def cmd_emit(args: argparse.Namespace) -> int:
     doc, code = _open_handoff(args.file)
     if doc is None:
@@ -2819,6 +3049,7 @@ def cmd_emit(args: argparse.Namespace) -> int:
                 f"shape 1 handoff has no '## Resume prompt' section (legacy file, never rewritten): {_posix(path)}",
             )
         return _die(1, f"'## Resume prompt' section absent: {_posix(path)}")
+    notices: list[str] = []
     if doc.shape in HOP_FILE_SHAPES and getattr(args, "notice", True):
         verdict = _size_finding(doc, "this hop's file")
         if verdict and (
@@ -2832,7 +3063,7 @@ def cmd_emit(args: argparse.Namespace) -> int:
                 else "`validate` fails it"
             )
             head = message if message.startswith(f"{level}:") else f"{level}: {message}"
-            print(f"{head}; {tail}; the prompt is emitted", file=sys.stderr)
+            notices.append(f"{head}; {tail}; the prompt is emitted")
     real = _posix(path)
     held = doc.frontmatter.get("standing_rules")
     out: list[str] = []
@@ -2842,22 +3073,29 @@ def cmd_emit(args: argparse.Namespace) -> int:
             if standing is not None and held:
                 real_standing = _posix(path.parent / held)
                 if not _same_file(standing, path.parent / held):
-                    print(
-                        f"WARN: stored standing-rules path {standing} is not this chain's; substituting {real_standing} on stdout only (file untouched)",
-                        file=sys.stderr,
+                    notices.append(
+                        f"WARN: stored standing-rules path {standing} is not this chain's; substituting {real_standing} on stdout only (file untouched)"
                     )
                     line = line.replace("@" + standing, "@" + real_standing, 1)
             if not _same_file(stored, path):
-                print(
-                    f"WARN: stored 'Read @' path {stored} is not this file; substituting {real} on stdout only (file untouched)",
-                    file=sys.stderr,
+                notices.append(
+                    f"WARN: stored 'Read @' path {stored} is not this file; substituting {real} on stdout only (file untouched)"
                 )
                 line = line.replace("@" + stored, "@" + real, 1)
         out.append(line)
-    if getattr(args, "format", "rails") == "markdown":
+    markdown = getattr(args, "format", "rails") == "markdown"
+    launch_error = None
+    try:
+        _emit_launch(out, doc, getattr(args, "shell", None), markdown)
+    except ValueError as exc:
+        launch_error = str(exc)
+        out[:0] = [f"No launch command: {exc}. Start the new session by hand with the copy region below."]
+    for notice in notices:
+        print(notice, file=sys.stderr)
+    if markdown:
         out = _markdown_prompt(out)
     sys.stdout.write("\n".join(out) + "\n")
-    return 0
+    return _die(1, launch_error) if launch_error else 0
 
 
 def _markdown_prompt(lines: list[str]) -> list[str]:
@@ -2888,7 +3126,7 @@ def _locate_ref(
     if moved is not None:
         doc = _aliased(doc, moved)
     if m["prefix"]:
-        spec = S3.id_spec(m["prefix"])
+        spec = _family(m["prefix"])
         for title in spec.sections:
             base = doc.section_start(title) + 1
             for entry in parse_entries(doc.section(title) or []):
@@ -3272,16 +3510,16 @@ def cmd_fill(args: argparse.Namespace) -> int:
             out.append(part + (inner if position < len(parts) - 1 else terminator))
 
     writes: list[tuple[Path, str, bytes | None]] = []
-    standing_key = doc.frontmatter.get("standing_rules") if shape == 4 else None
-    want = standing_rel(doc.frontmatter.get("chain_root", ""))
-    if standing_key and standing_key != want:
+    standing_key = doc.frontmatter.get("standing_rules") if fitted(shape) else None
+    root = doc.frontmatter.get("chain_root", "")
+    if standing_key and standing_key not in standing_rels(root):
         return _die(
             1,
-            f"standing_rules {standing_key!r} is not this chain's standing-rules file ({want}); nothing written",
+            f"standing_rules {standing_key!r} is not this chain's standing-rules file ({standing_rel(root)}); nothing written",
         )
     if standing_key and (code := _forked(path, doc)) is not None:
         return code
-    if retire or shape == 4:
+    if retire or fitted(shape):
         hop_number = _fm_int(doc, "hop") or 0
         own = hop_file_path(
             path.parent,
@@ -3305,7 +3543,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
             if isinstance(moved, str):
                 return _die(1, f"{moved}; nothing written")
             out, hop_lines = moved
-        if shape == 4:
+        if fitted(shape):
             term = (_line_parts(lines[0])[1] if lines else "") or "\n"
             if standing_key:
                 out, standing = _split_standing(
@@ -3316,6 +3554,13 @@ def cmd_fill(args: argparse.Namespace) -> int:
                     prior = target.read_bytes()
                 except FileNotFoundError:
                     prior = None
+                    try:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                    except OSError as exc:
+                        return _die(
+                            1,
+                            f"cannot create the standing-rules folder {target.parent} ({exc}); nothing written",
+                        )
                 except OSError as exc:
                     return _die(
                         1,
@@ -3331,8 +3576,8 @@ def cmd_fill(args: argparse.Namespace) -> int:
             out, hop_lines, _ = handoff_fit.fit(
                 out,
                 hop_lines,
-                movable=SHAPES[4].movable,
-                cap=SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES,
+                movable=SHAPES[shape].movable,
+                cap=SHAPES[shape].cap_bytes or HOT_FILE_MAX_BYTES,
                 rel=rel,
                 hop_number=hop_number,
                 term=term,
@@ -3357,7 +3602,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
         marker.unlink(missing_ok=True)
     except OSError:
         pass
-    if shape != 4:
+    if not fitted(shape):
         return 0
     written = parse_doc(path)
     findings, code = validate_doc(written, None, False)
@@ -3368,10 +3613,10 @@ def cmd_fill(args: argparse.Namespace) -> int:
 
 
 AMEND_KEYS = ("sections", "append", "retire", "next", "floors")
-FLOOR_KEYS = tuple(spec.floor_key for spec in S3.id_specs)
+FLOOR_KEYS = tuple(spec.floor_key for spec in ID_SPECS)
 AMENDED_HEADING = "Amended"
 _SNIPPET_RE = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
-_DIGITS_RE = re.compile(r"(\[[RQD]\d+\])|\d+")
+_DIGITS_RE = re.compile(rf"(\[[{''.join(s.prefix for s in ID_SPECS)}]\d+\])|\d+")
 
 
 def _fail_key(message: str) -> str:
@@ -3647,12 +3892,12 @@ def cmd_amend(args: argparse.Namespace) -> int:
     hot = text.splitlines(keepends=True)
     hop = hop_text.splitlines(keepends=True)
     term = (_line_parts(hot[0])[1] if hot else "") or "\n"
-    standing_key = fm.get("standing_rules") if doc.shape == 4 else None
+    standing_key = fm.get("standing_rules") if fitted(doc.shape) else None
     standing_path: Path | None = None
     standing_before: bytes | None = None
     standing_text: str | None = None
     if standing_key:
-        if standing_key != standing_rel(fm.get("chain_root", "")):
+        if standing_key not in standing_rels(fm.get("chain_root", "")):
             return _die(
                 1,
                 f"standing_rules {standing_key!r} is not this chain's standing-rules file; nothing written",
@@ -3757,7 +4002,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     for item in retire:
         m = RETIRE_REF_RE.match(item["ref"])
         if m and m["prefix"]:
-            key = S3.id_spec(m["prefix"]).floor_key
+            key = _family(m["prefix"]).floor_key
             raised[key] = max(raised.get(key, 0), int(m["n"]) + 1)
     current = _content_doc(hot)
     for key, n in raised.items():
@@ -3796,7 +4041,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
                         1,
                         f"section {title!r}: the rewrite removes an entry added this hop; retire it in the same call: {unit[0][:60]!r}",
                     )
-        for spec in S3.id_specs:
+        for spec in ID_SPECS:
             if title not in spec.sections:
                 continue
             kept_ids = {n for n, _, _ in _id_entries(amended, spec) if n is not None}
@@ -3911,11 +4156,12 @@ def cmd_amend(args: argparse.Namespace) -> int:
             return _die(2, f"cannot write {target} ({exc}); nothing written")
     _print_verdict(built, findings, code)
     sys.stdout.flush()
-    return cmd_emit(
+    cmd_emit(
         argparse.Namespace(
             file=str(path), format=getattr(args, "format", "rails"), notice=False
         )
     )
+    return 0
 
 
 def _unstage(staged: list[tuple[Path, str]]) -> None:
@@ -4095,21 +4341,27 @@ def _this_session_lines() -> list[str]:
     ]
 
 
+def _launch_frontmatter(launch: tuple[str, ...]) -> str:
+    json_without_inline_comments = json.dumps(launch).replace(" #", r" \u0023")
+    return f"launch: {json_without_inline_comments}"
+
+
 def _resume_prompt(
     target: Path,
     session_id: str,
     origin: str,
     origin_path: str,
     settings_file: str | None = None,
-    start_command: str | None = None,
+    launch: tuple[str, ...] = (),
     standing: Path | None = None,
 ) -> list[str]:
     read_path = _posix(target)
     if standing is not None:
         read_path = f"{_posix(standing)}{STANDING_THEN}{read_path}"
     settings = f' --settings "{settings_file}"' if settings_file else ""
-    relaunch = [relaunch_line(start_command)] if start_command else []
+    instructions = [LAUNCH_CHECKOUT + launch[0], LAUNCH_COMMAND + launch[1]] if launch else []
     return [
+        *instructions,
         _fill(
             "goal-first",
             _goal_slot_instruction(
@@ -4117,7 +4369,6 @@ def _resume_prompt(
                 "end the value with a newline so a blank line follows the region",
             ),
         ),
-        *relaunch,
         COPY_LINE,
         "",
         RAIL,
@@ -4141,7 +4392,7 @@ def _resume_prompt(
         f"{REOPEN_PREFIX}`claude --resume {session_id}{settings}`.",
         _fill(
             "below-rail",
-            "optional: the /goal and /loop re-arm notes save-point.md prescribes below the bottom rail; delete this line when none applies",
+            "optional: the /goal and plugin-reload notes save-point.md prescribes below the bottom rail; recurring /loop, cron and monitor items go under Environment to re-establish, never here; delete this line when none applies",
         ),
     ]
 
@@ -4160,7 +4411,7 @@ def build_skeleton(
     origin_path: str,
     pred_transcript: str,
     settings_file: str | None = None,
-    start_command: str | None = None,
+    launch: tuple[str, ...] = (),
     gone: tuple[str, str] | None = None,
 ) -> str:
     previous = pred.basename if pred is not None else (gone[0] if gone else None)
@@ -4182,6 +4433,7 @@ def build_skeleton(
         f"topic: {slug}",
         f"session_id: {session_id}",
         f"transcript: {transcript}",
+        _launch_frontmatter(launch),
     ]
     if previous is not None:
         fm.append(f"previous_handoff: {previous}")
@@ -4308,7 +4560,7 @@ def build_skeleton(
     section(
         "Resume prompt",
         _resume_prompt(
-            target, session_id, origin, origin_path, settings_file, start_command
+            target, session_id, origin, origin_path, settings_file, launch
         ),
     )
 
@@ -4352,7 +4604,7 @@ def build_skeleton_3(
     origin_path: str,
     pred_transcript: str,
     settings_file: str | None = None,
-    start_command: str | None = None,
+    launch: tuple[str, ...] = (),
     gone: tuple[str, str] | None = None,
     shape: int = 3,
     standing: bool = False,
@@ -4360,7 +4612,19 @@ def build_skeleton_3(
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
     carried = pred is not None and pred.shape in HOP_FILE_SHAPES
-    floors = {spec.floor_key: _next_id(pred, spec) for spec in S3.id_specs}
+    converted = (
+        _converted_commands(pred, hop, date) if REMINDERS in _id_specs(shape) else []
+    )
+    floors = {
+        spec.floor_key: (
+            len(converted) + 1
+            if pred is not None
+            and pred.shape in HOP_FILE_SHAPES
+            and spec not in _id_specs(pred.shape)
+            else _next_id(pred, spec)
+        )
+        for spec in _id_specs(shape)
+    }
     next_id = floors[RULES.floor_key]
     fm = [
         "---",
@@ -4371,6 +4635,7 @@ def build_skeleton_3(
         f"topic: {slug}",
         f"session_id: {session_id}",
         f"transcript: {transcript}",
+        _launch_frontmatter(launch),
     ]
     if pred is not None:
         fm.append(f"previous_handoff: {pred.basename}")
@@ -4506,21 +4771,26 @@ def build_skeleton_3(
 
     def id_body(title: str, name: str, instruction: str) -> list[str]:
         spec = next(
-            (s for s in S3.id_specs if s is not RULES and title in s.sections), None
+            (s for s in ID_SPECS if s != RULES and title in s.sections), None
         )
-        if spec is None or not _carries(pred, spec):
+        if spec == REMINDERS and converted:
+            carried_lines = converted
+        elif spec is None or not _carries(pred, spec):
             return [_fill(name, instruction)]
+        else:
+            carried_lines = _section_lines(pred, title)
         ref = f"[{spec.prefix}<n>]"
-        shape = {
+        entry_shape = {
             "Q": f"'- {ref} <question>' with its options, a recommendation and what it unblocks",
             "D": f"'- {ref} <decision> (<reason>)', a decision the remaining actions depend on; {DECISION_TAG_SHAPE}",
+            "M": f"{REMINDER_SHAPE}",
         }[spec.prefix]
         return [
-            *_section_lines(pred, title),
+            *carried_lines,
             "",
             _fill(
                 f"{name}-new",
-                f"optional: new entries below the carried ones, one per line, {shape}, new ids from {spec.prefix}{floors[spec.floor_key]}; a carried entry is copied off disk and keeps its text, or is rewritten in place under its id ending with '{REWRITE_MARK} h{hop}: <why>', its prior text staying in {hop_rel}; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '{ref}', 'reason': ...}}, which lists it in {hop_rel} under '## {spec.retired_heading}'; write 'None.' plus a reason here when that list empties the section; delete this line when nothing changes",
+                f"optional: new entries below the carried ones, one per line, {entry_shape}, new ids from {spec.prefix}{floors[spec.floor_key]}; a carried entry is copied off disk and keeps its text, or is rewritten in place under its id ending with '{REWRITE_MARK} h{hop}: <why>', its prior text staying in {hop_rel}; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '{ref}', 'reason': ...}}, which lists it in {hop_rel} under '## {spec.retired_heading}'; write 'None.' plus a reason here when that list empties the section; delete this line when nothing changes",
             ),
         ]
 
@@ -4579,9 +4849,14 @@ def build_skeleton_3(
             "every command waiting on the user, verbatim; 'None.' plus a reason when none waits",
         ),
         (
+            "Reminders",
+            "reminders",
+            f"one per line, {REMINDER_SHAPE}, new ids from M{floors.get(REMINDERS.floor_key, 1)}; every item that affects a later session: a user-run command gated on a condition, a timed reminder, a point to raise at chain close; one that is done leaves only through the slots' 'retire' list as {{'ref': '[M<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {REMINDERS.retired_heading}'; 'None.' plus a reason when nothing waits",
+        ),
+        (
             "Environment to re-establish",
             "environment",
-            "branch and worktree, services, env vars, background tasks and the live task list with literal recreate calls, or a line that there is nothing to recreate",
+            f"branch and worktree, services, env vars, background tasks and the live task list with literal recreate calls, or a line that there is nothing to recreate; {RECURRING_SHAPE}",
         ),
         (
             "Decisions in force",
@@ -4638,7 +4913,7 @@ def build_skeleton_3(
             origin,
             origin_path,
             settings_file,
-            start_command,
+            launch,
             target.parent / standing_rel(root) if standing else None,
         ),
     )
@@ -4783,7 +5058,7 @@ def cmd_new(args: argparse.Namespace) -> int:
         if isinstance(pred.shape, int) and pred.shape > NEWEST_SHAPE:
             return _die(
                 1,
-                f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({NEWEST_SHAPE}): read it, do not build on it",
+                f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({NEWEST_SHAPE}): read it, do not build on it; update session-flow, then re-run",
             )
         if args.shape is None and pred.shape in HOP_FILE_SHAPES:
             args.shape = max(HANDOFF_SHAPE, pred.shape)
@@ -4810,10 +5085,10 @@ def cmd_new(args: argparse.Namespace) -> int:
         args.shape = HANDOFF_SHAPE
     standing = bool(args.standing_rules) or (
         pred is not None
-        and pred.shape == 4
+        and fitted(pred.shape)
         and bool(pred.frontmatter.get("standing_rules"))
     )
-    if standing and args.shape != 4:
+    if standing and not fitted(args.shape):
         return _die(
             2,
             f"a standing-rules file belongs to a shape-4 chain; this hop is shape {args.shape}",
@@ -4847,6 +5122,15 @@ def cmd_new(args: argparse.Namespace) -> int:
         origin = memory_dir.parent.name or memory_dir.name
         origin_path = _posix(target)
 
+    launch = ()
+    if start_command or args.launch_dir:
+        checkout = (
+            Path(args.launch_dir).expanduser().resolve()
+            if args.launch_dir else repo_root or _git_toplevel(Path.cwd()) or Path.cwd()
+        )
+        if checkout.as_posix().splitlines() != [checkout.as_posix()]:
+            return _die(2, "the launch checkout must fit on one line")
+        launch = (checkout.as_posix(), start_command or "claude")
     common = dict(
         slug=slug,
         session_id=session_id,
@@ -4859,7 +5143,7 @@ def cmd_new(args: argparse.Namespace) -> int:
         pred_transcript=pred_transcript,
         purpose=purpose,
         settings_file=settings_file,
-        start_command=start_command,
+        launch=launch,
         gone=gone,
     )
     if args.shape == 2:
@@ -4912,7 +5196,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     except OSError:
         pass
     print(_posix(target))
-    if args.shape == 4:
+    if fitted(args.shape):
         skeleton = content
         if standing:
             split, _ = _split_standing(
@@ -4920,12 +5204,12 @@ def cmd_new(args: argparse.Namespace) -> int:
             )
             split, _ = _split_index(split, index_rel(root), "\n", None, [])
             skeleton = "".join(split)
-        print(_budget_line(skeleton), file=sys.stderr)
+        print(_budget_line(skeleton, args.shape), file=sys.stderr)
     return 0
 
 
-def _budget_line(skeleton: str) -> str:
-    cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
+def _budget_line(skeleton: str, shape: int) -> str:
+    cap = SHAPES[shape].cap_bytes or HOT_FILE_MAX_BYTES
     fixed = len(FILL_SLOT_RE.sub("", skeleton).encode("utf-8"))
     slots = ", ".join(
         f"{name} {n} bytes" for name, n in handoff_fit.SLOT_BUDGETS.items()
@@ -4988,8 +5272,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_new.add_argument(
         "--start-command",
-        help="on a phase change, the start command of `/plugin-profiles:profile launch <next profile>`; a line above the copy line then says to exit and start the next session with it",
+        nargs="?",
+        const="claude",
+        help="emit a new-session launch using the plugin-profiles command, or plain claude when given without a value",
     )
+    p_new.add_argument("--launch-dir", help="destination checkout for a new session (default: the producing checkout)")
     p_new.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
     p_new.add_argument(
         "--shape",
@@ -5001,7 +5288,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument(
         "--standing-rules",
         action="store_true",
-        help="role chain: `fill` keeps Current rules, Standing preferences and Decisions in force in the chain's archive/<chain>/standing-rules.md and the retire pointers in archive/<chain>/retired-index.md, the hot file holds a pointer to each, and the resume prompt loads the standing-rules file first; a successor of such a hop keeps it without the flag (shape 4 only)",
+        help="role chain: `fill` keeps Current rules, Standing preferences and Decisions in force in the chain's standing-rules/<chain>.md and the retire pointers in archive/<chain>/retired-index.md, the hot file holds a pointer to each, and the resume prompt loads the standing-rules file first; a successor of such a hop keeps it without the flag (shape 4 only)",
     )
     p_new.set_defaults(func=cmd_new)
 
@@ -5051,10 +5338,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_val.set_defaults(func=cmd_validate)
 
-    p_emit = sub.add_parser(
-        "emit", help="print the '## Resume prompt' section body verbatim"
-    )
+    p_emit = sub.add_parser("emit", help="print the stored copy regions and any new-session launch command")
     p_emit.add_argument("file")
+    p_emit.add_argument("--shell", choices=("posix", "powershell"), help="override the platform's launch shell")
     p_emit.add_argument(
         "--format",
         choices=("rails", "markdown"),
@@ -5062,6 +5348,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="markdown: fenced blocks for a surface that renders markdown (Desktop, web); the file is untouched",
     )
     p_emit.set_defaults(func=cmd_emit)
+
+    p_launch = sub.add_parser("launch", help="print a new-session command for a prepared prompt-only file")
+    p_launch.add_argument("file")
+    p_launch.add_argument("--checkout", required=True, help="absolute destination checkout")
+    p_launch.add_argument("--start-command", default="claude", help="the command returned by plugin-profiles")
+    p_launch.add_argument("--shell", choices=("posix", "powershell"))
+    p_launch.set_defaults(func=cmd_launch)
 
     p_read = sub.add_parser(
         "read",

@@ -71,5 +71,10 @@ reads of handoff chains cost up to 250,000 tokens.
 - A reader reaches moved history through the `- Moved:` and `- Folded:` lines left in each
   moved section.
 - The 24,600-byte cap stays fixed until a passing eval justifies another number.
+- Shape 5 keeps every decision above and puts a binding `Reminders` section, with `[M<n>]` ids,
+  the `next_reminder_id` floor and `## Retired reminders`, in the place of Pending commands, so an
+  item that affects a later session leaves only through `retire`. `new` writes shape 5 by default
+  and continues a shape-4 chain as shape 5, turning each Pending commands bullet into a reminder;
+  shape-4 files stay readable and writable (reference/reminders.md "Shape 5: Reminders").
 - Resume-eval runs keep the owner's guardrails hooks loaded. #17874 counts hook-blocked runs per
   arm, so a format that leads readers into a hook shows up apart from accuracy.

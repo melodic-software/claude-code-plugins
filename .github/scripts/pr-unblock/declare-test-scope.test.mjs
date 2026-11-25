@@ -171,9 +171,23 @@ test("planDeclarations declares each read once in the suite, and refuses every g
   assert.equal(plan([{ suite: "t/a.test.sh", file: "x.sh" }], { changed: { "t/a.test.sh": "removed" } }).reason, "test-scope-not-all-gaps");
   assert.equal(plan([{ suite: "t/a.test.sh", file: "x.sh" }], { base: [] }).reason, "test-scope-not-all-gaps", "a read the PR adds is not at the base");
   assert.equal(plan([{ suite: "t/a.test.sh", file: "x.sh" }], { head: { "t/a.test.sh": "# test-scope: x.sh\n", "x.sh": "" } }).reason, "test-scope-not-all-gaps", "already declared");
-  assert.equal(plan([{ suite: ".github/s/a.test.sh", file: "x.sh" }], { changed: { ".github/s/a.test.sh": "modified" } }).reason, "test-scope-not-all-gaps");
   assert.equal(plan([{ suite: "t/a.test.sh", file: "../x.sh" }]).reason, "test-scope-invalid");
   assert.equal(plan([{ suite: "t/a.test.sh", file: "x/*.sh" }]).reason, "test-scope-invalid");
+});
+
+const planIn = (suite, read = "x.sh") => plan([{ suite, file: read }], { changed: { [suite]: "modified" }, base: [read], head: { [suite]: "// A.\nimport x;\n", [read]: "" } });
+
+test("planDeclarations declares in a .github suite outside workflows, and refuses workflows, lane-grants and CODEOWNERS paths", () => {
+  const suite = ".github/scripts/pr-review-main/write-verdict.test.mjs";
+  const [file] = planIn(suite, "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py").files;
+  assert.equal(file.path, suite);
+  assert.equal(file.after, "// A.\n// test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py\nimport x;\n");
+  assert.ok(planIn(".github/actions/collect-base-activity/collect-base-activity.test.mjs").files);
+  for (const refused of [".github/workflows/x.test.mjs", ".github/workflows/x.yml", ".GitHub/Workflows/x.test.mjs", ".github/lane-grants.json", ".github/lane-grants.test.mjs", "t/Lane-Grants.test.mjs", ".github/CODEOWNERS", "CODEOWNERS"]) {
+    const { reason, why } = planIn(refused);
+    assert.equal(reason, "test-scope-not-all-gaps", refused);
+    assert.match(why, /is not a suite the lane may declare in$/, refused);
+  }
 });
 
 test("build writes a patch that applies to the head and that apply-patch's content rule admits, CRLF kept", async (t) => {
