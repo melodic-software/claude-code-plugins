@@ -132,3 +132,83 @@ and the as-of date in the same pull request.
 | Report changed areas for tidying | step in `maintenance-tidy-code-upkeep.yml` | observability | no | push to main | the pushed range | job summary |
 | Tidy code by area | step in `maintenance-tidy-code-upkeep.yml` | git host | yes | schedule, daily; `workflow_dispatch` | settings; open tidy PRs; sweep records | one tidy branch and PR per area |
 | Measure a skill edit (`maintenance-measure-skill-edit.yml`) | own run | git host | yes | `workflow_dispatch` by a listed human | plugin and skill names; the skill's eval suite | draft PR when the edit scores better than the merged skill |
+
+## Simplify pass on every pull request
+
+**Built separately**: this map records only where the pass runs. The in-run half below exists
+already. The post-merge half does not exist yet and gets built under its own issue, not this map.
+No row above covers the pass, because no workflow runs it for every pull request.
+
+**Placement**: the pass runs in two places.
+
+- **A pull request opened by a `work-resolve-issue.yml` run**: inside that run, before the pull
+  request opens. This is the run's tidy step (`tidy` in `docs/conventions/pr-pipeline.yaml`).
+  `code-tidying:tidy-diff` runs a simplify pass on the run's own lines. It runs only when the
+  change is within the tidy cutoffs.
+- **Every other pull request**, except the batch's own tidy pull requests: after the merge, as a
+  step in the scheduled batch of
+  `maintenance-tidy-code-upkeep.yml`. The step simplifies the lines each pull request changed if
+  that pull request merged since the last batch and was not tidied in its own run. It opens its
+  own pull request when it changes anything.
+
+**Reason**: the pass must never slow the pull request. A pass inside an open pull request pushes a
+commit, and that commit starts CI and both reviews again on the new head. The in-run tidy is the
+one place inside a pull request that costs nothing: its edits are already in the first head, so
+there is no extra push or review round. For the other pull requests, the upkeep batch is the
+cheapest post-merge place:
+
+- It already reads each area's churn from git history.
+- It already caps its open pull requests (`upkeep_max_open` in
+  `docs/conventions/code-tidying.yaml`) and honours the lanes kill switch.
+- A schedule starts it, not a merge. So it starts no agent work on a merge before this map
+  settles the brakes for the deferred item "A merge starts the next run"
+  ([#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133)).
+
+`pr-refine.yml`'s fix-docs, which tidies markdown inside the pull request, stays as
+[ADR 0089](../../adr/0089-narrow-d100-to-pull-requests-tidied-in-their-own-run.md) records it.
+
+## Is a lifecycle UI needed?
+
+**Provisional answer**: no, not yet. The map and the existing reports are enough. Repository data
+gives this answer, and it does not stand in for the owner's. The owner decides it in a
+[`/planning:wayfind`](../../../plugins/planning/skills/wayfind/SKILL.md) interview.
+
+**Evidence**:
+
+- **The structure fits one page.** The tables above hold 65 tasks in eight stages, one row each.
+- **Live state already has read-only views**:
+  - `maintenance-audit-lane-runs.yml` rewrites a daily digest issue.
+  - `maintenance-monitor-signals.yml` opens at most one incident issue per signal.
+  - [`/work-items:morning-brief`](../../../plugins/work-items/skills/morning-brief/SKILL.md) shows
+    queue counts, merge-ready pull requests, parked decisions, each lane's failures, turn headroom
+    and model use.
+  - [`/work-items:measure-delivery`](../../../plugins/work-items/skills/measure-delivery/SKILL.md)
+    reports the delivery trend.
+- **Most per-run facts are already recorded.** Most model tasks write a lane-outcome record for
+  each run (see Follow-ups).
+- **One gap**: no view follows one issue through every task that touched it, from intake to merge.
+  A UI would serve that case. It would need the follow-ups below joined per issue and kept for
+  longer than the 7 days `pr-run-activity-read.yml` keeps its transcripts. Ask the question again once they land.
+
+## Follow-ups
+
+These columns are pending. No task row carries them yet.
+
+- **Skill use per task**: which skills and subagents each task's model runs invoke. Data source:
+  the sealed `lane-transcript-*` run artifacts, sealed to the `LANE_TRANSCRIPT_PUBLIC_KEY`
+  variable's key, so reading them needs the matching private key.
+  - `pr-run-activity-read.yml`'s `upload-transcript` job uploads one for each lane activity and
+    keeps it for 7 days.
+  - Other model workflows, such as `intake-triage.yml` and `maintenance-tidy-code-upkeep.yml`,
+    upload theirs through the ci-workflows `upload-lane-transcript` action.
+  - For attended work, the source is the session transcripts.
+- **Work per run**: turns, duration, cost, tokens, models and GitHub API calls for each task.
+  Data source: the lane-outcome record. Its fields are `turns`, `maxTurns`, `durationMs`,
+  `costUsd`, `usage`, `models` and `githubCalls`, read through
+  `.github/scripts/lib/lane-outcome.mjs`.
+  - Most model workflows write it as run annotations through the ci-workflows
+    `report-lane-outcome` action.
+  - Activities run through `pr-run-activity-read.yml` also carry it in their
+    `<lane> / <activity>` check run's output.
+  - `pr-review-hosted.yml`, `pr-review-security-hosted.yml` and the tasks with no model write no
+    record. Their run and job timings come from the GitHub Actions runs and jobs API.
