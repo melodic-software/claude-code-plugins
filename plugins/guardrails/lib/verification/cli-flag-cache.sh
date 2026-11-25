@@ -1,5 +1,6 @@
 # shellcheck shell=bash
 
+# Read by both sourcing scripts, which is why shellcheck sees no use here.
 # shellcheck disable=SC2034
 CFV_CACHE_WINDOW_MIN=1440
 

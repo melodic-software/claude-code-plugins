@@ -858,6 +858,7 @@ run_pwsh "PS: git --% clean -fd (stop-parsing token, fail-closed block)" \
   "git --% clean -fd" 2
 run_pwsh "PS: backtick-continued git reset --hard (fail-closed block)" \
   "$(printf 'git `\n reset --hard')" 2
+# Single-quoted `$(...)` is literal PowerShell text under test, not a Bash expansion.
 # shellcheck disable=SC2016
 run_pwsh "PS: git checkout via subexpression (fail-closed block)" \
   'git checkout $(Get-Branch)' 2

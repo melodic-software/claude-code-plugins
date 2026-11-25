@@ -62,6 +62,7 @@ emit_tel() {
 
 block() {
   local form="$1"
+  # Single-quoted on purpose: the Fix line shows the agent literal $TEMP spellings.
   # shellcheck disable=SC2016
   printf '%s\n' \
     'BLOCKED: write target is a drive-root temp path (<drive>:\tmp), not the platform temp directory.' \

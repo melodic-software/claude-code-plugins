@@ -235,6 +235,7 @@ collect_locating_globals() {
   return 0
 }
 
+# Called from walk_argv; ShellCheck misses calls made through the alias-expansion walk.
 # shellcheck disable=SC2329
 set_probe_locating() {
   HOOK_PROBE_LOCATING=()

@@ -221,6 +221,7 @@ rdt_block() {
       'Fix: pass the command as -Command text, or run what it holds as a command of its own.'
     ;;
   *)
+    # Single-quoted on purpose: the Fix line shows the agent a literal $HOME.
     # shellcheck disable=SC2016
     printf -v msg '%s\n' \
       "BLOCKED: recursive delete of a filesystem root (normalizes to '$target')." \

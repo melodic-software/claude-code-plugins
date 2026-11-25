@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Each part sources this file, so the parts use what it defines.
 # shellcheck disable=SC2016,SC1003,SC2034,SC2329
 
 set -uo pipefail

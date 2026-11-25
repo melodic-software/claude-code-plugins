@@ -14,6 +14,7 @@ PS_REDUCTION_UNTRUSTED=0
 PS_REDUCTION_UNTRUSTED_REASON=""
 PS_QUOTED_SPAN_SAW_EXPANDABLE=0
 PS_SINK_TRIGGER=""
+# Read by the sourcing guard, not within this library.
 # shellcheck disable=SC2034
 PS_SAFE_COMMAND=""
 

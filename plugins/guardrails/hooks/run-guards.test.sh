@@ -37,6 +37,7 @@ stub() {
   chmod +x "$TEST_TMPDIR/$name"
 }
 SEEN="$TEST_TMPDIR/seen"
+# The stub bodies are written verbatim into stub scripts, so their `$` must not expand here.
 # shellcheck disable=SC2016
 stub allow.sh 'hook::buffer_stdin_to INPUT || { rc=$?; ((rc == 2)) && exit 2; exit 0; }
 hook::jq_fields "$INPUT" ".tool_input.command" ".tool_name" || exit 0
