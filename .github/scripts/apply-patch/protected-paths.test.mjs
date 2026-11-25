@@ -36,7 +36,7 @@ test("claude-protected refuses Claude Code's protected directories and files at 
     ".bashrc",
     ".envrc",
     ".pre-commit-config.yaml",
-    ".github/standards/pyright/pyrightconfig.json",
+    "plugins/x/pyrightconfig.json",
     "gradle/wrapper/gradle-wrapper.properties",
     "bunfig.toml",
     ".claude.json",
