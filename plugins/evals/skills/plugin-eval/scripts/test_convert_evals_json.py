@@ -184,8 +184,6 @@ class ConvertTest(ConverterTestCase):
         for case in ("alpha-slash-start", "beta-stays-quiet"):
             names = [g["name"] for g in self.case_yaml(case)["graders"]]
             self.assertNotIn("skill-fired", names, case)
-        # Its must-not-fire expectation became a max-0 Skill grader, so the
-        # direction is known and no "add one by hand" note is owed.
         self.assertNotIn("note beta-stays-quiet: its expectations may say", done.stdout)
         self.assertIn("source keys not carried over: extra_key", done.stdout)
         self.assertIn("note alpha-natural-trigger: lists fixtures", done.stdout)
@@ -196,7 +194,6 @@ class ConvertTest(ConverterTestCase):
         for case, source, first in (
             ("alpha-slash-start", ALPHA_CASES[0], 1),
             ("alpha-natural-trigger", ALPHA_CASES[1], 1),
-            # Its first expectation is a must-not-fire Skill check.
             ("beta-stays-quiet", BETA_CASES[0], 2),
         ):
             samples = self.plugin / "evals" / case / "samples"

@@ -332,7 +332,6 @@ GREP_VALUE_FLAGS = {"e": False, "f": True}  # flag -> its value is a path
 GREP_LONG_FLAGS = {"--regexp": "e", "--file": "f"}
 END_OF_FLAGS = "--"
 PIPE = "|"
-# A tool-results read may run as reads joined by these, after one opening `cd`.
 SEQUENCE_OPS, CD = (";", "&&"), "cd"
 # Opening assignments a tool-results read may not make: each changes how the shell
 # or a reader finds files or programs, or what it prints.
@@ -341,11 +340,8 @@ ENV_SENSITIVE = frozenset(
     " TMPDIR LANG LANGUAGE NLSPATH TZ".split()
 )
 ENV_SENSITIVE_PREFIXES = ("LD_", "LC_", "GREP_", "BASH", "DYLD_")
-# An opening value with neither / nor a leading ~ that a tool-results read may
-# expand: a pattern, count or name, never a path.
 SAFE_LITERAL = re.compile(r"\A[A-Za-z0-9._:,+=@%-]+\Z")
 NUMBER = re.compile(r"\A[-+]?\d+\Z")
-# The only sed scripts that qualify: print a line, a range or a /regex/ match.
 SED_ADDRESS = r"(?:\d+|\$|/[^/\\]*/)"
 SED_PRINT = re.compile(r"\A%s(?:,%s)?p\Z" % (SED_ADDRESS, SED_ADDRESS))
 # Command substitution or a second line runs something other than the pipeline.
@@ -440,8 +436,6 @@ READ_ONLY_TARGET = re.compile(
     r"|read-only file system,\s*\w+\s+%s" % (_QUOTED, _QUOTED, _QUOTED),
     re.IGNORECASE,
 )
-# A run with at least this many Bash calls, every one failed with no output, had no
-# working shell. Two, not one, so one silent failure does not flag a healthy run.
 MIN_BASH_CALLS = 2
 EXIT_LINE = re.compile(r"\AExit code -?\d+\s*")  # heads a failed Bash result's text
 # The input a denial line prints: Read's file, or Grep's and Glob's search root,
@@ -490,13 +484,7 @@ KEEPS_ASSIGNMENT = (None, ";", "\n", "&&")
 # takes the next word as its operand, dropped only when it is /dev/null.
 REDIRECT = re.compile(r"(?:\d*|&)(?:>>?|<)(&(?:\d+|-)|/dev/null)?")
 DEV_NULL = "/dev/null"
-# An argument word with no slash, glob or operator (release, 30): a subcommand or
-# value, not a path, when no redirect operator precedes it.
 BARE_WORD = re.compile(r"\A\w[\w.,:@%+-]*\Z")
-# A denied compound Bash call whose plugin part a later call ran alone: the
-# operators that separate its commands, the ones that keep it from qualifying,
-# and the commands dropped around that part (cd anywhere; after it, ls, echo or
-# cat, piped only into head or tail).
 SEPARATORS = (";", "&&", "||", "\n")
 NOT_SPLIT = ("&", "(", ")")
 CD = "cd"
@@ -506,11 +494,7 @@ GLOBBING = re.compile(r"[*?\[\]{}~]")
 EXPANDING = re.compile(r"[*?\[\]{}~$]")
 # Command substitution, outside single quotes.
 SUBSTITUTION = re.compile(r"\$\(|`")
-# A plugin-data compound's command that names no path (own_data_compound).
 ECHO = "echo"
-# A without-arm search for the plugin it lacks (absent_plugin_search): the
-# commands, find words and grep flags it may use, and the wildcard and anchor
-# characters stripped from a term's ends before it is compared with a name.
 SEARCH_COMMANDS = ("find", "grep", "egrep", "fgrep")
 FIND_NAME_TESTS = ("-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename")
 FIND_VALUE_TESTS = ("-type", "-maxdepth", "-mindepth")
@@ -521,7 +505,6 @@ FIND_CONNECTIVES = ("-a", "-and", "-print", "-xdev")
 GREP_SEARCH_FLAGS = "rRIilLnsHhwFEcoqx"
 SEARCH_TERM_ENDS = "*.^$/"
 
-# The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
 FIRE_GRADER_TYPE = "tool_used"
 CONTROL_TAGS = ("control", "no-trigger", "negative-control")
@@ -533,7 +516,6 @@ CONTROL_DESCRIPTION = re.compile(
 # emit-plugin-eval): a miss is the rate it measures, and a run that hit its turn
 # cap after the Skill call was already graded.
 PROBE_TAG = "invocation-probe"
-# A case that declares it needs no network: a sandbox network denial there warns.
 NO_NETWORK_TAG = "no-network"
 # The whole error text, optionally after the runner's "exit N: " prefix.
 MAX_TURNS_ERROR = re.compile(
@@ -556,17 +538,13 @@ ERROR_PLUGIN, ERROR_TYPE, ERROR_MESSAGE, ERROR_PATH = "plugin", "type", "message
 # The init line names the Agent tool Task.
 PROBE_REMOVED_TOOLS = ("Read", "Glob", "Grep", "Agent", "Task")
 
-# A case.yaml context key (scaffold_script, history_file), in block or flow
-# form, read without a YAML parser. Any uncommented mention of the key outside
-# these shapes, a quoted key or an empty value continued on the next line among
-# them, leaves the case UNCHECKED.
 SCAFFOLD_SCRIPT, HISTORY_FILE = "scaffold_script", "history_file"
 CONTEXT_BLOCK = re.compile(r"context:\s*(?:#.*)?")
 CONTEXT_FLOW = re.compile(r"context:\s*\{(.*)\}\s*(?:#.*)?")
 NO_VALUE = ("", "null", "~")
 
 PASS, WARN, FAIL, UNCHECKED = "PASS", "WARN", "FAIL", "UNCHECKED"
-RAN, NOT_RAN, UNKNOWN, EXEMPT = "ran", "not run", "unknown", "exempt"  # bash_state
+RAN, NOT_RAN, UNKNOWN, EXEMPT = "ran", "not run", "unknown", "exempt"
 
 
 def as_list(value):
@@ -604,7 +582,6 @@ class Run:
 
 
 def read_trace(path):
-    """The trace's JSON lines, or None when the file cannot be read or holds none."""
     try:
         with open(path, encoding="utf-8") as handle:
             lines = []
@@ -621,7 +598,6 @@ def read_trace(path):
 
 
 def read_text(path):
-    """The file's text, or None when it cannot be read."""
     try:
         with open(path, encoding="utf-8") as handle:
             return handle.read()
@@ -630,7 +606,6 @@ def read_text(path):
 
 
 def frontmatter(path):
-    """description and tags from a prompt.md, or {} when it cannot be read."""
     text = read_text(path)
     if text is None:
         return {}
@@ -641,7 +616,6 @@ def frontmatter(path):
 
 
 def top_level_fields(text):
-    """description and tags from the top-level keys of a YAML block."""
     fields, key = {"tags": []}, None
     for line in text.splitlines():
         item = re.match(r"\s*-\s+(.+)", line)
@@ -662,7 +636,6 @@ def top_level_fields(text):
 
 
 def grader_input_match(case, grader, root):
-    """A grader's input_match, from the result config or its graders/<name>.md."""
     config = as_dict(grader.get(GRADER_CONFIG))
     if isinstance(config.get(CONFIG_INPUT_MATCH), str):
         return config[CONFIG_INPUT_MATCH]
@@ -691,7 +664,6 @@ def grader_input_match(case, grader, root):
 
 
 def targets_own_skills(pattern, root):
-    """True when pattern matches a Skill call to one of this plugin's own skills."""
     if not root:
         return False
     try:
@@ -708,11 +680,6 @@ def targets_own_skills(pattern, root):
 
 
 def skill_graders(case, root):
-    """(names of graders requiring a Skill call, True when an unscoped one forbids a call).
-
-    A max-0 grader is unscoped when it has no input_match or its input_match targets
-    this plugin's own skills; a guard on another skill does not make a control.
-    """
     requiring, forbids = [], False
     for grader in as_list(case.get(CASE_GRADER_DEFS)):
         config = as_dict(grader.get(GRADER_CONFIG))
@@ -731,8 +698,6 @@ def skill_graders(case, root):
 
 
 def prompt_fields(case, root):
-    """The case's prompt.md frontmatter with its case.yaml top-level tags
-    added, tags lowercased, or {}."""
     case_dir = case.get(CASE_DIR)
     if not root or not isinstance(case_dir, str):
         return {}
@@ -752,8 +717,6 @@ def is_no_network(case, root):
 
 
 def is_control(case, root):
-    """Control: tagged or described as one, else it forbids own-skill calls and
-    requires none (a should-trigger case may also carry a max-0 guard)."""
     fields = prompt_fields(case, root)
     if any(t in CONTROL_TAGS for t in fields.get("tags", [])) or (
         CONTROL_DESCRIPTION.search(fields.get("description", ""))
@@ -773,8 +736,6 @@ def indent(line):
 
 
 def continues(lines, index):
-    """True when the next line with content is indented past lines[index], so
-    the key there holds a value this scanner does not read."""
     for line in lines[index + 1 :]:
         if line.strip() and not line.lstrip().startswith("#"):
             return indent(line) > indent(lines[index])
@@ -782,15 +743,10 @@ def continues(lines, index):
 
 
 def scaffold_script(case, root):
-    """(the case's context.scaffold_script or None, why its case.yaml could not
-    be read or None)."""
     return context_value(case, root, SCAFFOLD_SCRIPT)
 
 
 def context_value(case, root, key):
-    """(the case's context.<key> or None, why its case.yaml could not be read or
-    None). An existing case dir with no case.yaml has no value; a missing suite
-    root or case dir leaves the case.yaml unread."""
     case_dir = case.get(CASE_DIR)
     if not root or not isinstance(case_dir, str) or not case_dir:
         return None, (
@@ -835,9 +791,6 @@ def context_value(case, root, key):
 
 
 def check_scaffold(cases, root, scaffolded):
-    """A case whose case.yaml sets context.scaffold_script ran both arms in an
-    empty workspace unless the eval ran with --scaffold, and the result file does
-    not record whether it did, so --scaffolded is the operator's record of it."""
     declared, unread = {}, []
     for case in cases:
         script, problem = scaffold_script(case, root)
@@ -916,7 +869,6 @@ def trace_errored(run):
 
 
 def is_denial(block):
-    """True when a tool_result is the permission settings refusing the call."""
     return block.get(RESULT_ERROR) is True and DENIAL_TEXT in json.dumps(
         block.get(CONTENT)
     )
@@ -931,7 +883,6 @@ def sandbox_failed(block):
 
 
 def init_tools(run):
-    """The tools the run's init line lists, or None when it lists none."""
     tools = next(
         (
             line.get(TRACE_TOOLS)
@@ -951,9 +902,6 @@ def tool_absent(block):
 
 
 def bash_state(run):
-    """(state, absent): state is RAN, NOT_RAN, UNKNOWN (no readable trace) or EXEMPT
-    (no Bash offered, and no Bash call but those that found no Bash tool); absent
-    counts the Bash calls whose result found no Bash tool."""
     if run.trace is None:
         return UNKNOWN, 0
     bash, absent, ran = set(), set(), False
@@ -974,7 +922,6 @@ def bash_state(run):
 
 
 def bash_line(runs, arms):
-    """The `bash ran:` line the module docstring describes."""
     states = [(r.arm,) + bash_state(r) for r in runs if r.arm in arms]
     absent = sum(n for _, _, n in states)
     suffix = ", absent tool %d" % absent if absent else ""
@@ -997,8 +944,6 @@ def bash_line(runs, arms):
 
 
 def has_output(content):
-    """True when a tool_result's content holds text past a leading exit-code line,
-    or a block other than text."""
     if isinstance(content, list):
         return any(
             has_output(b)
@@ -1011,7 +956,6 @@ def has_output(content):
 
 
 def read_only_targets(content):
-    """Each path a tool_result's text reports as on a read-only file system."""
     if isinstance(content, list):
         return [
             p
@@ -1075,9 +1019,6 @@ def shell_failure(run):
 
 
 def graded_call_made(run, root):
-    """True when the case's own Skill grader registered the skill under test as
-    called in this run: a grader requiring the call passed, or a max-0 grader
-    forbidding it failed."""
     results = {g.get(GRADER_NAME): g for g in as_list(run.row.get(RUN_GRADERS))}
     for grader in as_list(run.case.get(CASE_GRADER_DEFS)):
         config = as_dict(grader.get(GRADER_CONFIG))
@@ -1096,7 +1037,6 @@ def graded_call_made(run, root):
 
 
 def trace_errors(run):
-    """Each error the trace's erroring result lines carry, as text."""
     out = []
     for line in run.trace or []:
         if line.get(LINE_TYPE) == TRACE_RESULT and line.get(TRACE_RESULT_ERROR) is True:
@@ -1128,7 +1068,6 @@ def check_errors(runs, root):
             )
         capped = bool(errors) and is_probe(r.case, root) and graded_call_made(r, root)
         for detail, texts in errors:
-            # Exempt only when every error this detail carries is the turn cap.
             if (
                 capped
                 and texts
@@ -1155,7 +1094,6 @@ def check_errors(runs, root):
 
 
 def assistant_messages(run):
-    """How many assistant messages the run's trace holds, 0 with no trace."""
     return sum(1 for line in run.trace or [] if line.get(LINE_TYPE) == TRACE_ASSISTANT)
 
 
@@ -1284,8 +1222,6 @@ def check_started(runs):
 
 
 def suite_plugins(suite, base):
-    """(name, path) of each suite.plugins entry, the name read from its
-    .claude-plugin/plugin.json, else the directory's own name."""
     plugins = []
     for plugin in as_list(suite.get(SUITE_PLUGINS)):
         path = resolve(plugin.get(PLUGIN_PATH), base)
@@ -1304,7 +1240,6 @@ def suite_plugins(suite, base):
 
 
 def init_line(run):
-    """The run's (system, init) trace line, or {}."""
     return next(
         (
             line
@@ -1316,7 +1251,6 @@ def init_line(run):
 
 
 def names_plugin(entry, name_key, path_key, plugin):
-    """True when a trace entry's name (bare or name@marketplace) or path is plugin's."""
     name, path = plugin
     label, entry_path = entry.get(name_key), entry.get(path_key)
     return (isinstance(label, str) and (label == name or label.startswith(name + "@"))) or (
@@ -1331,7 +1265,6 @@ def load_error(error):
 
 
 def case_dir_of(run, root):
-    """<suite root>/<case dir> of the run's case, or None."""
     case_dir = run.case.get(CASE_DIR)
     if not root or not isinstance(case_dir, str) or not case_dir:
         return None
@@ -1339,12 +1272,6 @@ def case_dir_of(run, root):
 
 
 def check_plugins_loaded(runs, plugins, root=None):
-    """A with-arm run whose init line reports a plugin_errors entry for a suite
-    plugin, or leaves one out of its loaded plugins, ran without the plugin
-    under test, so its score measures the bare model. A suite plugin inside a
-    case's dir counts as that case's own helper and is required only in that
-    case's runs (reading-results.md, plugins loaded, records why). A with-arm run
-    whose init plugins list cannot be read is a warning."""
     if not plugins:
         return PASS, "no suite.plugins entry to check", [], None
     case_dirs = {d for d in (case_dir_of(r, root) for r in runs) if d}
@@ -1368,8 +1295,6 @@ def check_plugins_loaded(runs, plugins, root=None):
                 problems.append("plugin %s failed to load: %s" % (name, load_error(error)))
                 causes.add("%s (%s)" % (name, error.get(ERROR_TYPE) or "error"))
             if not any(names_plugin(p, LOADED_NAME, LOADED_PATH, plugin) for p in loaded):
-                # A load error filed under another name, such as a missing
-                # dependency's, may be why this plugin is absent.
                 others = [e for e in errors if e not in own]
                 listed = "; ".join(
                     "%s %s" % (e.get(ERROR_PLUGIN), load_error(e)) for e in others
@@ -1558,13 +1483,10 @@ def shell_tokens(command):
 
 
 def assignment(parts):
-    """The match of a word's opening unquoted NAME=, else None."""
     return ASSIGNMENT.match(parts[0][0]) if parts[0][1] is None else None
 
 
 def expand(parts, names):
-    """A word's text, each $NAME or ${NAME} outside single quotes replaced by
-    names[NAME], one with no entry left as written."""
     return "".join(
         text
         if quote == "'"
@@ -1687,8 +1609,6 @@ def bash_paths(command):
         first = lead and not SHELL_SPLIT.match(text)
         pieces = [v for v in SHELL_SPLIT.split(text) if v]
         values += [(v, first and k == 0) for k, v in enumerate(pieces)]
-        # A redirect's file (>/x, or the word after a bare >) is no argument,
-        # nor is a prefix assignment's value (PYTHONPATH=/x pytest).
         argument = not (target or REDIRECT.match(text))
         target = REDIRECT.fullmatch(text) is not None
         if simple is not None and not (lead and ASSIGNMENT.match(text)):
@@ -1764,7 +1684,6 @@ def inline_assignments(command, bare_names=False):
 
 
 def joined(items):
-    """inline_assignments items as one command, each word quoted as a literal."""
     return " ".join(text if kind == "op" else shlex.quote(text) for kind, text in items)
 
 
@@ -1841,14 +1760,6 @@ def bash_sequence_reads(command):
 
 
 def bash_read_paths(command, cwd=None):
-    """The path operands of a Bash command that only reads: a pipeline of
-    BASH_READERS commands, each with only its listed flags (a grep also with
-    GREP_VALUE_FLAGS, GREP_LONG_FLAGS and --), sed with -n and a
-    SED_PRINT script, after any opening assignments it then expands
-    (inline_assignments). A relative path joins cwd when one is given. None for
-    any other command, a redirect or other operator, command substitution, an
-    UNQUOTED_EXPANSION character outside quotes, a path UNRESOLVED matches, or no
-    path at all."""
     resolved = inline_assignments(command) if isinstance(command, str) else None
     if resolved and resolved[0]:
         command = joined(resolved[1])
@@ -1880,7 +1791,6 @@ def bash_read_paths(command, cwd=None):
 
 
 def segment_read_paths(words, cwd=None):
-    """The path operands of one pipeline segment, per bash_read_paths, or None."""
     if not words or words[0] not in BASH_READERS:
         return None
     flags, numeric, takes_script = BASH_READERS[words[0]]
@@ -1897,7 +1807,6 @@ def segment_read_paths(words, cwd=None):
         return word if plain(word) else None
 
     def take(flag, value):
-        """Record a -e or -f value; False when it is missing or an unplain file."""
         seen.add(flag)
         if GREP_VALUE_FLAGS[flag] and value is not None:
             value = resolve(value)
@@ -1946,7 +1855,6 @@ def segment_read_paths(words, cwd=None):
 
 
 def plain(word):
-    """True when word is a rooted path UNRESOLVED does not match."""
     return rooted(word) and not UNRESOLVED.search(word)
 
 
@@ -1961,12 +1869,6 @@ def glob_root(pattern):
 
 
 def denials(run):
-    """Every denied tool call in one trace, keyed by tool_use_id, as (detail line,
-    the paths it targets: a Bash call's rooted arguments, else the target path, a
-    path-less Glob's pattern root (glob_root) or None, the tool's name, the
-    tool_use_id, the (tool, target) pair that names the same call in another run,
-    the paths it only reads: a Read, Grep or Glob's paths, a read-only Bash
-    command's paths (bash_sequence_reads), else None)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -2012,7 +1914,6 @@ def denials(run):
 
 
 def result_text(content):
-    """A tool_result's text: its string content, else its text blocks joined."""
     if isinstance(content, str):
         return content
     return "\n".join(
@@ -2051,8 +1952,6 @@ def network_denials(run, skip=()):
 
 
 def graded_call_at(run, root):
-    """(tool_use_id -> position of each tool_use in the trace, position of the first
-    Skill call a Skill grader's input_match accepts, or None)."""
     patterns = [
         grader_input_match(run.case, g, root)
         for g in as_list(run.case.get(CASE_GRADER_DEFS))
@@ -2092,9 +1991,6 @@ def inside(path, roots):
 
 
 def same_as_clean(run, found, runs, roots):
-    """True when a denied run scores the same as every denial-free run of its case
-    in the same arm, the case has at least one, every sibling in that arm has a
-    readable trace, and no with-arm denial is aimed inside the plugin."""
     if run.arm == "with" and any(
         inside(path, roots) for _, paths, _, _, _, _ in found[run] for path in paths
     ):
@@ -2114,13 +2010,6 @@ def same_as_clean(run, found, runs, roots):
 
 
 def in_every_run(run, found, runs, roots):
-    """True when every denial in run names a call that every run of its case, in
-    both arms, was also denied, and none is aimed at, under or above the plugin's
-    directory. The without-arm runs lack the plugin, so a call denied in every
-    run of both arms is the environment's, such as a user-scope read a skill's
-    contract asks for, and cannot move the delta. Each run of the case needs a
-    readable trace. A Skill denial, or one naming no tool, never qualifies: in
-    the with-arm it may have kept the plugin's own skill from loading."""
     case_runs = [r for r in runs if r.case is run.case]
     both_arms = {r.arm for r in case_runs} == set(ARMS)
     if not both_arms or any(r not in found for r in case_runs):
@@ -2150,7 +2039,6 @@ def own_data_dir(run):
 
 
 def in_tool_results(path, projects):
-    """True when path is at or under <projects>/<project>/<session>/tool-results."""
     if not under(path, projects):
         return False
     rel = os.path.relpath(os.path.realpath(path), os.path.realpath(projects))
@@ -2159,7 +2047,6 @@ def in_tool_results(path, projects):
 
 
 def under(path, directory):
-    """True when path is rooted and at or under directory, symlinks resolved."""
     if not rooted(path) or "\0" in path:
         return False
     path, directory = os.path.realpath(path), os.path.realpath(directory)
@@ -2187,18 +2074,6 @@ def own_data_denial(run, denial):
 
 
 def own_data_compound(run, denial, data):
-    """True when a denied Bash command is a compound one of whose simple commands
-    names only rooted paths under the run's own plugin-data directory, which is
-    denied whatever the case does, and every rooted path its other commands name
-    was also named by a Bash call of the same run that was not denied, so none of
-    them caused the denial; a BARE_WORD argument in another command, not a
-    redirect's file, is an argument, not a path. An echo command with no < or >
-    in any word names nothing and is passed over, whatever its arguments hold,
-    unless the command holds a $( or backtick anywhere. Any other part bash_paths cannot place (a
-    relative path with a slash, a command with no rooted argument such as make)
-    never qualifies, except a BASH_READERS command after a pipe with no file
-    operand, which reads only the pipe. A command that does not parse, or a
-    word UNRESOLVED matches outside a file-less redirect, never qualifies."""
     if not data or denial[2] != BASH_TOOL:
         return False
     try:
@@ -2249,8 +2124,6 @@ def own_data_compound(run, denial, data):
 
 
 def allowed_bash_paths(run, denied_id):
-    """The rooted paths named by every Bash call in the run other than denied_id
-    that no tool result or permission_denials entry denied."""
     denied = {d[3] for d in denials(run)} | {denied_id}
     paths = set()
     for line in run.trace:
@@ -2314,9 +2187,6 @@ def own_transcript_denial(run, denial):
 
 
 def own_copies(run, roots):
-    """The plugin directories the run's init line lists as loaded whose path is
-    the suite root or a suite.plugins path: the copy of the plugin this run
-    loaded. [] when the init line lists none of them, as in a without-arm run."""
     wanted = {os.path.realpath(root) for root in roots}
     return [
         p[LOADED_PATH]
@@ -2328,8 +2198,6 @@ def own_copies(run, roots):
 
 
 def finished(run):
-    """True when the run ended normally: no row error, not aborted, and its trace
-    holds a result line and none that is an error."""
     return (
         run.row.get(RUN_ERROR) is None
         and not run.row.get(RUN_ABORTED)
@@ -2342,7 +2210,6 @@ def finished(run):
 
 
 def graded_tools(case):
-    """The tools the case's tool_used graders name."""
     return {
         as_dict(g.get(GRADER_CONFIG)).get(CONFIG_TOOL)
         for g in as_list(case.get(CASE_GRADER_DEFS))
@@ -2351,7 +2218,6 @@ def graded_tools(case):
 
 
 def own_input(run, denial):
-    """The denied call's input: its permission_denials entry's, else its tool_use's."""
     use_id, found = denial[3], {}
     for line in run.trace or []:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -2365,13 +2231,6 @@ def own_input(run, denial):
 
 
 def own_copy_denial(run, denial, roots):
-    """True when the denial is a Read, Grep or Glob whose every target path is at
-    or under the plugin copy this run loaded (own_copies), the run finished, and
-    no tool_used grader of its case names the denied tool. A session whose skill
-    lacks the text it needs, as the broken side of a negative control does,
-    searches its own plugin copy for it; the denial leaves the score to what the
-    run then did. A Glob pattern that is rooted or holds a `..` segment may search
-    elsewhere, so it never qualifies; nor does any other tool or path."""
     _, paths, name, _, _, _ = denial
     if name not in TOOL_RESULTS_READERS or not paths or name in graded_tools(run.case):
         return False
@@ -2389,12 +2248,6 @@ def own_copy_denial(run, denial, roots):
 
 
 def forbidden_denial(run, denial, roots, root):
-    """True when the denial is a named call other than Skill that a tool_used
-    grader of its case forbids outright (max 0, no input_match) and that grader
-    failed in this run. The grader already scored the call as the run's failure,
-    so the denial only kept the forbidden call from landing. A with-arm call
-    naming no absolute path, or one at, under or above the plugin's directory
-    (inside), never qualifies."""
     _, paths, name, _, _, _ = denial
     if name in (None, SKILL_TOOL):
         return False
@@ -2415,17 +2268,10 @@ def forbidden_denial(run, denial, roots, root):
 
 
 def names_absent(term, absent):
-    """True when a search term, its wildcard and anchor ends stripped, is one of
-    the absent plugins' names, case ignored (*markdown-format*, .*x.*, ^x$)."""
     return isinstance(term, str) and term.strip(SEARCH_TERM_ENDS).lower() in absent
 
 
 def search_words(command):
-    """A Bash command's words when it is one find or grep-family command, piped
-    only into head or tail, its file-less redirects dropped; else None. A
-    command that does not parse, holds an operator other than | or a redirect
-    into a file, or a word with an unquoted glob, brace, tilde or $, never
-    qualifies."""
     segments = command_segments(command)
     if not segments or len(segments) != 1 or segments[0][2] or writes_file(segments[0][0]):
         return None
@@ -2460,10 +2306,6 @@ def search_words(command):
 
 
 def find_terms(words):
-    """The name and path patterns of a find command whose every word is a start
-    path, a name or path test, a negated one, which only narrows the search and
-    adds no term, -type, -maxdepth or -mindepth with a bare value, or a
-    connective; else None."""
     rest = iter(words[1:])
     terms, started = [], False
     for word in rest:
@@ -2484,9 +2326,6 @@ def find_terms(words):
 
 
 def grep_terms(words):
-    """The patterns of a grep, egrep or fgrep command whose flags are only
-    GREP_SEARCH_FLAGS clusters and -e values, its first operand the pattern
-    when no -e gives one; else None."""
     rest = iter(words[1:])
     terms, operands, flags = [], [], True
     for word in rest:
@@ -2508,13 +2347,6 @@ def grep_terms(words):
 
 
 def absent_plugin_search(run, denial, absent):
-    """True when a finished without-arm run's denied call is a search whose every
-    term names only a plugin under test (absent, its names lowercased), which
-    that arm lacks by design: a find whose name and path tests, or a grep whose
-    patterns, name only it (search_words), a Grep tool's pattern, or a Glob
-    pattern whose every segment other than * or ** names it. The arm searches
-    for the skill it was asked to run and is denied; the denial cannot raise its
-    score. Any other tool, term, flag or path never qualifies."""
     name = denial[2]
     if run.arm != "without" or not absent or not finished(run):
         return False
@@ -2537,12 +2369,6 @@ def absent_plugin_search(run, denial, absent):
 
 
 def own_root_search(run, denial):
-    """True when a finished without-arm run's denied call is a Grep or Glob whose
-    path is that run's own eval root (sandbox_dir). The arm lacks the plugin it
-    was asked to use and looks for it in its own folder; the denial cannot raise
-    its score. A Glob pattern that is rooted or holds a `..` segment may search
-    elsewhere, so it never qualifies; nor does any other tool, a missing path, or
-    a path under or above the root."""
     name, eval_root = denial[2], sandbox_dir(run)
     if run.arm != "without" or name not in ("Grep", GLOB_TOOL) or not eval_root:
         return False
@@ -2557,14 +2383,6 @@ def own_root_search(run, denial):
 
 
 def command_segments(command):
-    """A Bash command's commands, split at SEPARATORS, each a (words, assignments,
-    expands) triple: its words as shell_words gives them (quotes removed, same-
-    command variables resolved) with None between pipeline stages, a word that
-    holds an EXPANDING character kept as its quoted parts so quoting still tells
-    a pattern from a literal; True when every word is a NAME=value; and True when
-    a word still holds a $ or an unquoted glob, brace or tilde, which the shell
-    would expand. None when it does not parse, is empty, or holds a NOT_SPLIT
-    operator."""
     tokens = shell_tokens(command) if isinstance(command, str) else None
     words = shell_words(command) if tokens is not None else None
     if not words or any(
@@ -2613,10 +2431,6 @@ def writes_file(words):
 
 
 def plugin_part(command, roots):
-    """The words of the one command left in a compound Bash command once its
-    assignment-only and cd commands, and the ls, echo or cat pipelines (into head
-    or tail only) after it, are dropped, when that command names a rooted path at
-    or under a plugin root; else None."""
     segments = command_segments(command)
     if not segments or len(segments) < 2:
         return None
@@ -2645,10 +2459,6 @@ def plugin_part(command, roots):
 
 
 def recovered_denial(run, denial, roots, denied_ids):
-    """True when a with-arm denied compound Bash call's plugin part (plugin_part)
-    is the whole of a later Bash call in the same trace that was not denied: the
-    run shows the plugin call itself allowed, so the denial was the wrappers'. A
-    denial with no tool_use line has no position, so it never qualifies."""
     use_id, name = denial[3], denial[2]
     if run.arm != "with" or name != BASH_TOOL:
         return False
@@ -2671,16 +2481,6 @@ def recovered_denial(run, denial, roots, denied_ids):
 
 
 def probe_denial(run, found, runs, root):
-    """True when a run of an invocation-probe case was denied only named calls other
-    than Skill, none of which could have steered the graded decision. The probe
-    grades only whether the Skill call fired, which loads the skill without Read,
-    Glob or Grep. In a run where it fired, every denial must come after that call in
-    the trace; a denial with no tool_use line has no position, so it does not
-    qualify. In a should-fire run that missed, a denial may have caused the miss.
-    A should-not-fire run that never fired decided over the whole run, so order
-    cannot show the denial did not cause the hold; it qualifies only when its case
-    has denial-free with-arm runs and every one of them held too. A denial naming
-    no tool may have been the Skill call."""
     if not is_probe(run.case, root) or not all(
         name is not None and name != SKILL_TOOL for _, _, name, _, _, _ in found[run]
     ):
@@ -2701,8 +2501,6 @@ def probe_denial(run, found, runs, root):
 
 
 def probe_split(case, runs, found, root):
-    """A detail line: how often a probe case's with-arm runs fired, denied versus
-    denial-free, so a reader comparing two descriptions sees denials' effect."""
     arm = [r for r in runs if r.case is case and r.arm == "with" and r in found]
     denied = [r for r in arm if found[r]]
     clean = [r for r in arm if not found[r]]
@@ -2746,8 +2544,6 @@ def start_failures(run):
 
 
 def case_skill_dirs(case, root):
-    """The <root>/skills directories the case's Skill-requiring graders accept,
-    every one for a grader with no input_match, or None when none resolves."""
     try:
         names = sorted(os.listdir(os.path.join(root, "skills")))
     except (OSError, TypeError):
@@ -2773,7 +2569,6 @@ def case_skill_dirs(case, root):
 
 
 def declared_tools(case, root):
-    """The allowed_tools values in the case's prompt.md frontmatter and case.yaml."""
     case_dir = case.get(CASE_DIR)
     if not isinstance(case_dir, str):
         return ""
@@ -2788,8 +2583,6 @@ def declared_tools(case, root):
 
 
 def skill_named_text(case, root):
-    """The text of every file in the case's skill directories plus its declared
-    tools, or None when the case's skill cannot be resolved."""
     dirs = case_skill_dirs(case, root)
     if dirs is None:
         return None
@@ -2806,14 +2599,6 @@ def skill_named_text(case, root):
 
 
 def check_programs(runs, root=None):
-    """A run whose trace shows a shim error, or command not found for an
-    interpreter the case's skill names, could not run the skill's code, so its
-    score measures the missing program: FAIL. An interpreter the skill does not
-    name, read from its files and the case's allowed_tools, is one the run chose
-    and recovered from, so it warns, but only when the run's own shell printed
-    the line: a script that needed it is code the skill ran, so it still fails.
-    A skill that cannot be resolved names every interpreter. Any other command
-    not found warns, as a case may run a missing command on purpose."""
     failed, warned, named = [], [], {}
     for r in runs:
         found = start_failures(r)
@@ -2867,7 +2652,6 @@ def check_programs(runs, root=None):
 
 
 def load_redactor(path=REDACT_PY):
-    """The plugin's vendored redactor, or None when it cannot load or fails closed."""
     try:
         spec = importlib.util.spec_from_file_location("plugin_eval_redact", path)
         module = importlib.util.module_from_spec(spec)
@@ -2882,9 +2666,6 @@ def load_redactor(path=REDACT_PY):
 
 
 def named_calls(found, redactor):
-    """The denied calls in found, in trace order, as one line: each its tool and
-    its redacted, collapsed and cut target, a repeat counted, at most DENIED_SHOWN;
-    the tools only when redactor is None."""
     counts = {}
     for d in found:
         name, target = d[4]
@@ -2904,7 +2685,6 @@ def named_calls(found, redactor):
 
 
 def shown_text(text, redactor):
-    """text redacted, collapsed and cut to TARGET_CHARS; "" when redactor is None."""
     if redactor is None:
         return ""
     text = UNPRINTABLE.sub(" ", redactor.redact(text)).strip().replace("`", "'")
@@ -2912,8 +2692,6 @@ def shown_text(text, redactor):
 
 
 def root_searches(calls, redactor):
-    """Each (run, denial) in calls, in order, as its tool, root and pattern
-    (shown_text), every one listed; the tools only when redactor is None."""
     shown = []
     for run, d in calls:
         tool_input = own_input(run, d)
@@ -2926,11 +2704,6 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
     traced = [r for r in runs if r.trace is not None]
     every = {r: denials(r) for r in traced}
     absent = {n.lower() for n in plugin_names if isinstance(n, str) and n}
-    # Plugin-data denials, reads of the session's own tool results, a finished
-    # without-arm run's searches for the plugin it lacks and, under
-    # --own-copy-search-warns, a finished run's ungraded searches of its own plugin
-    # copy warn and never count toward a FAIL, so every other rule judges a run on
-    # the denials left.
     data = {r: [d for d in every[r] if own_data_denial(r, d)] for r in traced}
     results = {
         r: [
@@ -2975,7 +2748,6 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
         ]
         for r in traced
     }
-    # A denied compound call whose plugin part a later call ran alone, allowed.
     recovered = {
         r: [
             d
@@ -3003,8 +2775,6 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
         ]
         for r in traced
     }
-    # With-arm sandbox network denials: set aside in an invocation-probe, control
-    # or no-network case, else a FAIL whatever the rules below say.
     network = {r: network_denials(r, {d[3] for d in every[r]}) for r in traced}
     offline = {
         r: network[r]
@@ -3181,7 +2951,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
 
 def check_fired(cases, runs, root, measured_fire=frozenset()):
     unfired, unread, controls, unknown, checked, unloaded = [], [], [], [], 0, 0
-    measured = {}  # invocation-probe or --measured-fire case name -> [fired, with-arm runs]
+    measured = {}
     for case in cases:
         requiring, _ = skill_graders(case, root)
         if is_control(case, root):
