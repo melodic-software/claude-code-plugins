@@ -6,6 +6,13 @@ request and on into post-merge, release and maintenance work. A task is one work
 in [the PR pipeline contract](../pr-pipeline/README.md) and `docs/conventions/pr-pipeline.yaml`;
 this map only places the tasks.
 
+This map is a point-in-time snapshot, written by hand. **As of**: 2026-11-25, every
+`.github/workflows/*.yml` file has a row, named in its Task cell or its Shape cell. No check
+compares the map with that directory, so a workflow added, renamed or removed since then may be
+missing or out of date here. **Recheck trigger**: a pull request that adds, renames or removes a
+file in `.github/workflows/`, or changes a workflow's triggers, jobs or outputs; update the rows
+and the as-of date in the same pull request.
+
 ## Columns
 
 - **Task**: what runs, and the workflow file that runs it.
