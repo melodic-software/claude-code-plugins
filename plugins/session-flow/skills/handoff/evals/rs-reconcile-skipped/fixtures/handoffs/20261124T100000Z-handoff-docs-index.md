@@ -66,6 +66,7 @@ None. Nothing waits for a later session.
 ## Environment to re-establish
 
 Branch `main`, clean tree; nothing to recreate.
+
 - Off-thread work: none recorded.
 
 ## This session

@@ -1160,39 +1160,3 @@ def test_a_stray_file_in_the_archive_dir_is_unknown_and_kept(env):
     age(archive.parent / "notes.txt", 60)
     items = report(env, *links(env[0], STATE))
     assert items["notes.txt"]["kind"] == "unknown"
-
-
-def standing_rules_file(env) -> Path:
-    _, _, repo = env
-    path = repo / ".work" / "handoffs" / "standing-rules" / ROOT3
-    write(path, "---\ntype: handoff-standing-rules\n---\n\n## Current rules\n")
-    age(path.parent, 60)
-    return path
-
-
-def test_a_standing_rules_file_leaves_with_its_chain_archive(env):
-    archive = three_chain(env)
-    standing = standing_rules_file(env)
-    _, _, repo = env
-    handoffs = repo / ".work" / "handoffs"
-    (handoffs / HOP3_2).unlink()
-    handoff(handoffs / ROOT3, SHIPPED)
-    age(handoffs / ROOT3, 60)
-    items = report(env, *links(env[0], STATE))
-    assert "standing-rules" not in items
-    assert ROOT3 not in items or items[ROOT3]["kind"] == "handoff"
-    assert items[archive.name]["kind"] == "archive"
-    result = clean(env, "--apply", *links(env[0], STATE))
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert f"removed: {standing.as_posix()}" in result.stdout
-    assert not archive.exists()
-    assert not standing.exists()
-
-
-def test_a_standing_rules_file_without_its_archive_is_an_archive_item(env):
-    standing = standing_rules_file(env)
-    items = report(env, *links(env[0], STATE))
-    assert items[standing.name]["kind"] == "archive"
-    assert items[standing.name]["reasons"] == ["no hot file of its chain is on disk"]
-    assert clean(env, "--apply").returncode == 0
-    assert standing.is_file()

@@ -66,6 +66,7 @@ None. Nothing waits for a later session.
 ## Environment to re-establish
 
 Branch `main`, clean tree.
+
 - [loop] every 10m · since 2026-11-24T10:00:00Z · prompt (1 lines):
   Check inbox/ once and append its file count to QUEUE.md; do not schedule anything.
 - Off-thread work: none recorded.

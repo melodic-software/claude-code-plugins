@@ -102,10 +102,10 @@ boundary.
    scope, turn and budget caps, a checkable completion condition (`/goal` or a Stop-hook check),
    and the return contract, then leave the spawn decision with the user.)
 
-**Is a `/goal` or `/loop` active?** Only an explicit user request for a handoff routes to
-`session-flow:handoff`. Otherwise let automatic compaction run and keep working in this session.
-This takes precedence over the remaining questions, including at a phase boundary, under
-`continue auto`, or in a worker handoff relay.
+   **Whatever question 2 answered, before question 3: is a `/goal` or `/loop` active?** Only an
+   explicit user request for a handoff routes to `session-flow:handoff`. Otherwise let automatic
+   compaction run and keep working in this session. This takes precedence over the remaining
+   questions, including at a phase boundary, under `continue auto`, or in a worker handoff relay.
 
 3. **Is there enough light zone left, or is the remaining work simple enough for a degraded
    context, and does neither question 4 nor question 5 apply?** → continue in session.

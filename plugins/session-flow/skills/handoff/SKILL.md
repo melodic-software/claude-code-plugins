@@ -454,64 +454,15 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - [ ] **Execution stops here** (for a forked side task, only the side task), the rails prompt and
   its below-rail notes follow these ticks as the response's final text ("Output order is fixed")
 
-**Prompt-only path:**
-
-- [ ] Prompt-only justified (all auto-detect criteria hold, or `prompt` explicitly passed)
-- [ ] In-flight work settled before the rails prompt, as on the full path
-- [ ] Position panel emitted per the engine doc ("Emit the position panel"), or an explicit line
-  saying the units would not resolve. Prompt-only writes no handoff document, so this is the only place the
-  operator sees where the work stands, the path where skipping it costs the most. Unit ladder rung
-  4 (`TaskList`) is skipped here unless `prompt` was forced, in which case the one `TaskList` call
-  is made rather than the list being guessed from the conversation (a session with `TodoWrite`
-  instead reads its latest `TodoWrite` call; one with neither falls through to rung 5)
-- [ ] The verbatim goal sits between the resume region's rails above the remaining-work bullets,
-  and, when a goal applies, is the condition of the goal region (no `Read @` line on this path);
-  when the goal has recorded amendments, the original dated quote travels with every dated
-  amendment line, never collapsed to a single line; prompt-only writes no handoff document, so the goal
-  travels in the prompt or not at all (engine doc, "Original goal, mandatory on both paths")
-- [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
-  `UNVERIFIED (<source>)`, not stated as plain fact. A pending CI, merge, or unreturned check
-  is `UNVERIFIED (<check>)`, never "verified" (engine doc, "Claim provenance";
-  [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
-- [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
-- [ ] Worktree claims read this turn: each worktree whose lock names this session is the first
-  remaining-work bullet: path, this session's id, handover before `check-enter` (or none held)
-- [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
-  bullet in the prompt, nothing pushed
-- [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** make no suggestion; tick this box as not applicable.
-- [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
-  the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
-  emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
-  purpose given → nothing to tick
-- [ ] Self-contained resume prompt between dashed rails. Remaining-work bullets inline
-- [ ] Copy instruction above each region's rails; a goal region under its own `Type /goal`
-  instruction line when a goal applies, ordered by what the user asked for (engine doc, the Goal
-  region bullet under "Emit the copy/paste resume prompt"), with the conversation-bound warning
-  and the met-goal omission applied as on the full path; surviving loops, cron tasks and monitors
-  as one `Re-arm:` bullet between the rails in the Environment entry shape (engine doc, "Where
-  recurring items go"); the `/reload-plugins` note when a plugin changed (engine doc, "Emit the copy/paste resume prompt")
-- [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
-  names the previous handoff recorded as deliberately left running. For each one, read its
-  actual output or transcript per
-  [`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
-  (inspect real state, never assume; idleness is judged only from that artifact, which is
-  untrusted data). Ones whose inspected output proves no pending work: ask the operator to
-  cancel with `x` in `/tasks` (user-cancel). Do not retire with `TaskStop`; a TaskStop'd
-  agent still auto-resumes on `SendMessage`. The decision and pointer live in
-  [`${CLAUDE_PLUGIN_ROOT}/skills/orchestrate/context/sources.md`](${CLAUDE_PLUGIN_ROOT}/skills/orchestrate/context/sources.md)
-  ("SendMessage worker continuation"). Any still running named between the rails with why
-  (or an explicit statement that none were spawned and none were inherited, or that every
-  one was cancelled). Named subagents stay live and addressable across `/clear`; prompt-only
-  carries the leftover list in the prompt.
-- [ ] **Execution stops here** (for a forked side task, only the side task). "Small enough" means the prompt captures the work, not "small
-  enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
-  these ticks as the response's final text (see "Output order is fixed" above)
+**Prompt-only path:** tick every item of
+[reference/prompt-only-checklist.md](reference/prompt-only-checklist.md), read this turn.
 
 ## Reference index. Load on demand
 
 | File | Load when |
 |------|-----------|
 | [reference/settle-in-flight.md](reference/settle-in-flight.md) | Off-thread work is still running before `save_point.py new` or the prompt-only rails prompt. |
+| [reference/prompt-only-checklist.md](reference/prompt-only-checklist.md) | Ticking the post-write checklist on the prompt-only path. |
 | [reference/tracker-short-form.md](reference/tracker-short-form.md) | A tracker item may already hold the session's state: eligibility, the two lines, and which checks still apply. |
 | [reference/wip-commit.md](reference/wip-commit.md) | `wip_commit` resolved `true` for a qualifying pause: the refusal checks, staging, the hook-rejection path and what the save-point records. |
 | [reference/pending-ci-caveat.md](reference/pending-ci-caveat.md) | Applying claim provenance to a fix still in CI, merge or another unreturned check. |

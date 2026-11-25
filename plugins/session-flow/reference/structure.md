@@ -779,7 +779,7 @@ that follow-up. The original handoff keeps `Next: none (closed)`.
   same-session handoff. `emit` reads that list and prints an error if the checkout is missing.
   Report that error to the user.
 - `emit` writes `<handoff stem>.prompt.txt` beside the handoff file. It copies the resume
-  region, or, for a goal in either position, `/goal ` followed by the goal region. The command
+  region, or, for a goal in either position, `/goal`, one space, then the goal region. The command
   changes to the absolute checkout and passes the file's contents as one initial prompt. An
   unreadable prompt file stops the launch. The user pastes only that command. `fill` and `amend`
   refresh the prompt when they emit. `tidy_work.py clean` keeps or prunes it with its handoff.
@@ -790,7 +790,7 @@ that follow-up. The original handoff keeps `Next: none (closed)`.
   and the [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags).
 - For a prompt-only handoff, write the selected redacted region to
   `<memory_dir>/handoffs/<TS>-handoff-<topic>.prompt.txt` after the self-ignore check.
-  Include the same `/goal ` prefix for a goal. Run
+  Include the same `/goal` and space prefix for a goal. Run
   `save_point.py launch <prompt-file> --checkout <absolute checkout>` with the selected
   `--start-command <command>` when available. Print its output. Keep the prompt file alongside
   the other handoff artifacts for recovery.

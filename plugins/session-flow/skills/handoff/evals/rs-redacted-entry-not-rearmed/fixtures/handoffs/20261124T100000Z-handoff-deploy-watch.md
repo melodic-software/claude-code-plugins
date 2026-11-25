@@ -66,6 +66,7 @@ None. Nothing waits for a later session.
 ## Environment to re-establish
 
 Branch `main`, clean tree.
+
 - [monitor] staging deploy log · since 2026-11-24T10:00:00Z · command: `deployctl logs --follow --token <REDACTED:api-token>` · restore: manual (held a secret; re-create from the deployctl token in the team vault)
 - Off-thread work: none recorded.
 
