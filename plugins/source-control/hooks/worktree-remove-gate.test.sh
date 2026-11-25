@@ -293,15 +293,19 @@ run_hook "$(payload "relative/path")"
 assert_exit "a relative path refuses" 1 "$RC"
 
 WT_LINKED="$(mkwt linked)"
-ln -s "$TEST_TMPDIR/wt-linked" "$TEST_TMPDIR/link-to-wt"
-LINK_NATIVE="$(native_of "$TEST_TMPDIR")/link-to-wt"
-seed "$WT_LINKED"
-run_hook "$(payload "$LINK_NATIVE")"
-assert_exit "a symlink to a worktree refuses" 1 "$RC"
-assert_contains "the refusal names the symlink" "$ERR" "is a symlink"
-assert_eq "the link's target worktree stays" "present" "$(on_disk "$TEST_TMPDIR/wt-linked/.git")"
-assert_contains "git still lists the link's target" "$(git -C "$REPO" worktree list)" "wt-linked"
-assert_eq "nothing is reaped through a symlink" "2" "$(records_for "$WT_LINKED")"
+if MSYS=winsymlinks:nativestrict ln -s "$TEST_TMPDIR/wt-linked" "$TEST_TMPDIR/link-to-wt" 2>/dev/null &&
+  [[ -L "$TEST_TMPDIR/link-to-wt" ]]; then
+  LINK_NATIVE="$(native_of "$TEST_TMPDIR")/link-to-wt"
+  seed "$WT_LINKED"
+  run_hook "$(payload "$LINK_NATIVE")"
+  assert_exit "a symlink to a worktree refuses" 1 "$RC"
+  assert_contains "the refusal names the symlink" "$ERR" "is a symlink"
+  assert_eq "the link's target worktree stays" "present" "$(on_disk "$TEST_TMPDIR/wt-linked/.git")"
+  assert_contains "git still lists the link's target" "$(git -C "$REPO" worktree list)" "wt-linked"
+  assert_eq "nothing is reaped through a symlink" "2" "$(records_for "$WT_LINKED")"
+else
+  skip_case "symlinks unsupported on this platform"
+fi
 
 printf 'keep\n' >"$TEST_TMPDIR/a-file"
 run_hook "$(payload "$(native_of "$TEST_TMPDIR")/a-file")"
