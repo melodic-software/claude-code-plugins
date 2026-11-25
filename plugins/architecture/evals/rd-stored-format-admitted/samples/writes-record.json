@@ -1,16 +1,12 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/ws/docs/adr/0002-store-findings-as-json-lines.md",
-            "content": "# 2. Store findings as JSON Lines\n"
-          }
-        }
-      ],
-      "why": "one record after 0001"
+      "answer": ["docs/adr/0002-store-findings-as-json-lines.md"],
+      "why": "one record after 0001, written by the Write tool"
+    },
+    {
+      "answer": ["docs/adr/0002-findings-as-json-lines.md", "findings/2026-11-01.jsonl"],
+      "why": "the record written through a shell heredoc, beside an unrelated file"
     }
   ],
   "fail": [
@@ -19,16 +15,12 @@
       "why": "declined a one-way door"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/ws/docs/adr/0001-store-findings-as-json-lines.md",
-            "content": "# 1. Store findings as JSON Lines\n"
-          }
-        }
-      ],
+      "answer": ["docs/adr/0001-store-findings-as-json-lines.md"],
       "why": "reused the existing record's number"
+    },
+    {
+      "answer": ["docs/decisions/0002-store-findings-as-json-lines.md"],
+      "why": "outside the discovered convention"
     }
   ]
 }
