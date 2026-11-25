@@ -21,6 +21,7 @@ session) and `retro_offer` (`offer` or `off`, default `offer`: under `off`,
 | `recall_report_kinds` | comma-separated issue types or labels | `Bug` | `/session-flow:recall` (Steps 2 and 5, the Still reported section) | repository file over user option over default |
 | `recall_doc_paths` | comma-separated git pathspecs | `*.md` | `/session-flow:recall` (Steps 2 and 5, the postmortem search) | repository file over user option over default |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | `/session-flow:orchestrate` (imperative 3), `/session-flow:workflow pre-pr` (step 2) and `/session-flow:retro` session mode (the `retro_lenses: 1` pass), through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
+| `compact_focus_enabled` | an unquoted `true` or `false` | `true` | `scripts/focus.py`: the compact-focus hook (PreCompact, and UserPromptSubmit on a typed `/goal`) and every `focus.py set` | user option over repository file over default ([hook enablement](../../../docs/contracts/hook-enablement/README.md#the-per-hook-setting)) |
 | `away_night_start` | `HH:MM`, machine local time | `21:00` | `/session-flow:step-away` (`bed` launch; the night window runs from here to the next report-by time) | launch words over user option over default |
 | `away_report_by_workday` | `HH:MM`, machine local time | `09:00` | `/session-flow:step-away` (report-by time when the report day is not a day off) | launch words over user option over default |
 | `away_report_by_day_off` | `HH:MM`, machine local time | `10:00` | `/session-flow:step-away` (report-by time when the report day is a day off) | launch words over user option over default |
@@ -57,6 +58,14 @@ authority never commit. The skill refuses the commit, and says why in the save-p
 merge, rebase, cherry-pick or revert, on a detached HEAD, on the default branch, and over a
 partially staged path. It never skips commit hooks and never pushes. `false` keeps the handoff
 from committing anything.
+
+`compact_focus_enabled` turns the compact-focus hook on or off. `scripts/focus.py` owns the
+per-session focus file `<plugin data>/focus/<session>.md`; the hook writes a typed `/goal`
+condition into it and prints it before every compaction, manual or automatic, as instructions
+for the summary. Off, the hook prints and writes nothing and `focus.py set` writes nothing. The
+script resolves the key itself on every fire: the user's own value (`CLAUDE_PLUGIN_OPTION_COMPACT_FOCUS_ENABLED`,
+or `--enabled` from a skill), when set, wins; otherwise the repository file decides, under the root
+rule below; otherwise `true`. An invalid value in either layer is named on stderr and dropped.
 
 `resume` keeps a worker across related units, as imperative 4 of the orchestration brief says.
 `respawn` gives each new unit (a fix round, a follow-up, a retry, the next queue item) a fresh
@@ -96,6 +105,10 @@ wins, an unset or unrendered user option counting as `worktree`. An invalid user
 unset, so the result is `worktree`. An invalid repository value is named and dropped, and the key
 resolves its default, `worktree`, not the user's value. The report line names the layer whose value
 won, for example `transcript_scope: repo (user option; docs/conventions/session-flow.yaml says all)`.
+
+**`compact_focus_enabled` is the other exception.** A user option the user set wins over the
+repository file, so a repository never turns the hook back on for a user who turned it off; the
+repository file decides only while the user option is unset.
 
 **Root rule.** The repository file is read only when the working directory's git root is neither
 `$HOME` nor an ancestor of it. Otherwise the repository layer is skipped and the report line says
