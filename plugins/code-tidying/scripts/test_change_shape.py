@@ -760,7 +760,6 @@ class Degradation(unittest.TestCase):
             a = Path(tmp, "b.py")
             b.write_text("x = 1\n")
             a.write_text("x = 1\n")
-            # -S drops site-packages, so `import tree_sitter` cannot resolve.
             proc = subprocess.run(
                 [sys.executable, "-S", str(SCRIPT), str(b), str(a)],
                 capture_output=True,

@@ -99,6 +99,7 @@ const FILES_CAP = 3000;
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
+export const CHECK_RUN_PAGES = 20;
 
 // The shared copies the base copy's scripts/shared-copies.txt registers for
 // the canonicals the PR's `files` change, the thread file's copy_paths.
@@ -1913,21 +1914,17 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       return branchActivity(read, `${owner}/${name}`, branch);
     },
     listCheckRuns: checkRunsNamed,
-    // Every check run on a commit, re-runs and a contract-only run's skips
-    // included (failingChecks prefers a real result over a skip), up to 300
-    // (fix-ci-context.mjs).
     async listCommitCheckRuns(sha) {
       const runs = [];
       let total = Infinity;
-      for (let page = 1; page <= 3; page += 1) {
+      for (let page = 1; page <= CHECK_RUN_PAGES; page += 1) {
         const data = await requestData(`${repo}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
         runs.push(...(data.check_runs ?? []));
         total = data.total_count ?? Infinity;
-        if ((data.check_runs ?? []).length < 100) {
+        if ((data.check_runs ?? []).length < 100 || runs.length >= total) {
           break;
         }
       }
-      // complete: the listing holds every check run, not the first 300.
       return Object.assign(runs, { complete: runs.length >= total });
     },
     listAnnotations: async (id) => requestData(`${repo}/check-runs/${id}/annotations?per_page=50`),

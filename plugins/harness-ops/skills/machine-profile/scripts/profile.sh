@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Machine profile: discover host facts, validate and store them, diff, explain, hand off.
-#
-#   profile.sh discover [--prerequisites FILE|-]
-#   profile.sh record   --data-dir DIR [--confirm] [FILE|-]
-#   profile.sh diff     --data-dir DIR [--prerequisites FILE|-]
-#   profile.sh explain  --data-dir DIR KEY
-#   profile.sh apply    --data-dir DIR --option KEY [--option KEY ...] [--confirm]
-#
-# discover and diff read the host and write nothing. record writes
-# DIR/machine-profile/profile.json only with --confirm and only after every record
-# validates. apply writes nothing: without --confirm it prints the plan, with
-# --confirm it prints the values to hand to each plugin's setup. Nothing here
-# prompts, installs, or evaluates a tree's environment. --prerequisites takes the
-# table printed by harness-ops:prerequisites ("-" reads stdin).
-#
-# Exit: 0 ok, 1 refused (invalid document or unknown key), 2 usage or missing
-# tool, 3 no profile stored, 4 diff found differences.
 set -uo pipefail
 
 die() {
@@ -25,20 +8,7 @@ die() {
 
 command -v jq >/dev/null 2>&1 || die "jq is required"
 
-# Words a record key may not contain. The validator refuses them in a hand-supplied
-# key, and rec rewrites them in a key discovery derives, from this one pattern.
 CRED_RE='token|secret|passw(?:or)?d|credential|api.?key|private.?key'
-# Value shapes the validator refuses in any string of a record: GitHub, AWS, Slack and
-# sk- API tokens, JWTs, private-key blocks, and a password embedded in a URL.
-# GitHub prefixes from
-# https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-# and the ghs_ regex GitHub recommends for current and stateless installation tokens from
-# https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-# (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
-# jq's regex engine backtracks. The ghs_ rule is one greedy run of one class with
-# nothing after it, so it matches or fails within 36 characters; the generic JWT may
-# start only where a run starts, and its segments are spelled out (a counted group is
-# far slower). Otherwise a repeated `ghs_1_eyJ-` takes quadratic time.
 VAL_RE='(?<![A-Za-z0-9_])ghs_[A-Za-z0-9._-]{36,}|ghs_([0-9]+_)?eyJ[A-Za-z0-9._-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|(?<![A-Za-z0-9])(AKIA|ASIA)[0-9A-Z]{16}(?![A-Za-z0-9])|(?<![A-Za-z0-9])xox[abprs]-[A-Za-z0-9-]{10,}|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|://[^/[:space:]:@]+:[^/[:space:]@]+@'
 
 # Every record in a document is checked here. Prints one line per problem.
@@ -96,8 +66,6 @@ else ([shape] as $s
     end) end
 '
 
-# Flatten a document into path-keyed records. Options are stored state that
-# discovery never observes, so diff leaves them out.
 # shellcheck disable=SC2016  # jq source, not shell expansion
 FLAT_JQ='
 def flat($opts):
@@ -127,11 +95,6 @@ def side($t): "  \($t)";
   else empty end
 '
 
-# rec KEY VALUE VERDICT [--arg FIELD VALUE ...] -> one compact JSON record. Every
-# key discovery derives from host text (a binary name, an include path) passes
-# through here, so the first letter of a credential word in it is bracketed and the
-# key no longer matches the validator's refusal. Hand-supplied records never pass
-# through here.
 # shellcheck disable=SC2016  # jq source, not shell expansion
 rec() {
   jq -nc --arg cred "$CRED_RE" '$ARGS.named | del(.cred)
@@ -163,7 +126,6 @@ file_fact() {
   if [[ ! -e "$2" ]]; then
     rec "$1" absent default-verified --arg observed_by "test -e $2" --arg mode observed --arg observation "file not found"
   elif [[ ! -w "$2" ]]; then
-    # ponytail: -w only; an immutable attribute on a writable-looking file is not detected, add lsattr when a host needs it
     rec "$1" read-only blocked --arg observed_by "test -w $2" --arg mode observed \
       --arg guard "file is not writable; operator command: chmod u+w $2"
   else
@@ -171,7 +133,6 @@ file_fact() {
   fi
 }
 
-# The tree's own .envrc is read as text and never evaluated.
 gh_fact() {
   local envrc="$1/.envrc" line val
   if [[ "$1" != /* ]]; then
@@ -374,7 +335,23 @@ apply() {
 }
 
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Machine profile: discover host facts, validate and store them, diff, explain, hand off.
+
+  profile.sh discover [--prerequisites FILE|-]
+  profile.sh record   --data-dir DIR [--confirm] [FILE|-]
+  profile.sh diff     --data-dir DIR [--prerequisites FILE|-]
+  profile.sh explain  --data-dir DIR KEY
+  profile.sh apply    --data-dir DIR --option KEY [--option KEY ...] [--confirm]
+
+  --data-dir DIR        profile store: DIR/machine-profile/profile.json
+  --prerequisites FILE  the table harness-ops:prerequisites prints ("-" reads stdin)
+  --confirm             record: write the profile; apply: print the values to hand off
+  --option KEY          a profile key to apply; repeatable
+
+Exit: 0 ok, 1 refused (invalid document or unknown key), 2 usage or missing
+tool, 3 no profile stored, 4 diff found differences.
+EOF
 }
 
 [[ $# -ge 1 ]] || { usage >&2; exit 2; }

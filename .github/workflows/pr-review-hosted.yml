@@ -1,12 +1,5 @@
 name: PR Review Hosted
 
-# Locally owned: the `claude-review-hosted-caller` component of
-# melodic-software/standards
-# (https://github.com/melodic-software/standards/blob/main/components/claude-lanes-hosted/claude-review.yml)
-# is `locally-owned` for this repository in distribution/sync-manifest.yml, so
-# this copy can add the check-kill-switch and wait-for-refine jobs
-# below. It differs from the component in those jobs and these comments.
-#
 # Thin caller for the org's pr-review-cli reusable, lane `code`. The reusable
 # owns the launcher, the credential order (the reviews role's API key, then
 # its subscription token after a handoff) and the secret-handling model; per
@@ -28,13 +21,6 @@ name: PR Review Hosted
 # its success on the head and fails while the hold label is on (github-iac
 # ADR 0017).
 
-# API_BUDGET_HOLD (outage posture element 2): only wait-for-refine's wait step sets it,
-# since wait-refine.mjs reviews on a refused call. The other steps gate the review
-# (check-trusted-trigger, the upstream status) or end red on a failed read.
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
 on:
   pull_request:
     # `synchronize` re-reviews every push, including the push that resolves a
@@ -157,83 +143,10 @@ jobs:
         with:
           tokens: github-token
 
-  # The review waits for this head's Refine (pr-refine.yml fix-docs), so it
-  # judges tidied code. It waits here, inside this pull_request run, because
-  # ci-status and the other review readers find only pull_request runs on the
-  # head, and a Refine started with GITHUB_TOKEN fires no workflow_run event
-  # that could start a review after it. A head that moved while it waited is
-  # not reviewed: the push that moved it, Refine's or another, starts the
-  # new head's review. Every other outcome reviews, and a wait step that
-  # fails or times out leaves proceed empty and the job green, which reviews
-  # too (.github/scripts/pr-review/wait-refine.mjs). It waits only when the
-  # kill switch lets the review run.
-  wait-for-refine:
-    name: Wait For Refine
-    needs: [check-kill-switch]
-    if: github.event.pull_request.draft == false && needs.check-kill-switch.outputs.proceed == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 50
-    permissions:
-      actions: read # the dispatcher and pr-refine runs and the dispatch record
-      contents: read # check out the default branch for the script; each poll's read of refs/pull/<n>/head
-      pull-requests: read # the pull request's state and head at the end, at a poll whose ref read differs or fails, and at the start only when the event lacks the base ref or head repository
-    outputs:
-      proceed: ${{ steps.wait.outputs.proceed }}
-    env:
-      API_BUDGET_TOKEN: github-token
-    steps:
-      - name: Resolve main's tip
-        id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
-        with:
-          branch: main
-      - name: Check out the default branch
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ steps.tip.outputs.sha }}
-          path: .base
-          persist-credentials: false
-          sparse-checkout: |
-            /.github/actions/check-kill-switch/
-            /.github/actions/check-trusted-trigger/
-            /.github/actions/log-api-budget/
-            /.github/scripts/lib/github-client.mjs
-            /.github/scripts/lib/trusted-actors.mjs
-            /.github/scripts/pr-review/
-            /.github/scripts/pr-unblock/request-budget.mjs
-            /.node-version
-          sparse-checkout-cone-mode: false
-
-      - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
-        with:
-          node-version-file: .base/.node-version
-
-      - name: Wait for this head's refine run
-        id: wait
-        continue-on-error: true
-        timeout-minutes: 45
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
-          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          API_BUDGET_HOLD: "1"
-        run: node .base/.github/scripts/pr-review/wait-refine.mjs
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
-
   pr-review:
     name: PR Review
-    needs: [check-kill-switch, wait-for-refine]
-    if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.check-kill-switch.outputs.proceed == 'true' && needs.wait-for-refine.outputs.proceed != 'false' }}
+    needs: [check-kill-switch]
+    if: github.event.pull_request.draft == false && needs.check-kill-switch.outputs.proceed == 'true'
     # The model jobs narrow this to contents: read and pull-requests: read;
     # only the reusable's status job (the claude-review-status check) writes.
     permissions:

@@ -1322,6 +1322,42 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   await assert.rejects(api.readRequiredRun("main"), /not a commit SHA/);
 });
 
+test("the required-run read pages a run's jobs past 100, as a sharded test-selection matrix lists them, and refuses a listing short of total_count", async () => {
+  const head = "c".repeat(40);
+  const run = { id: 31, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T02:00:00Z", status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } };
+  const shards = Array.from({ length: 101 }, (_, index) => ({ name: `Test Selection (${index})`, conclusion: index === 100 ? "failure" : "success" }));
+  const jobs = [...shards, { name: "CI Status", conclusion: "failure" }];
+  const read = (pagesServed) => {
+    const urls = [];
+    const responses = [{ total_count: 1, workflow_runs: [run] }, ...pagesServed];
+    const api = createGitHubApi({
+      token: "t0ken",
+      repository: "octo/repo",
+      apiUrl: "https://api.example",
+      graphqlUrl: "https://api.example/graphql",
+      fetch: async (url) => {
+        urls.push(url);
+        return { ok: true, status: 200, json: async () => responses.shift() };
+      },
+    });
+    return { urls, result: api.readRequiredRun(head) };
+  };
+  const full = read([
+    { total_count: jobs.length, jobs: jobs.slice(0, 100) },
+    { total_count: jobs.length, jobs: jobs.slice(100) },
+  ]);
+  assert.deepEqual(await full.result, { run, jobs });
+  assert.deepEqual(full.urls.slice(1), [
+    "https://api.example/repos/octo/repo/actions/runs/31/jobs?filter=latest&per_page=100",
+    "https://api.example/repos/octo/repo/actions/runs/31/jobs?filter=latest&per_page=100&page=2",
+  ]);
+  const short = read([
+    { total_count: 300, jobs: jobs.slice(0, 100) },
+    { total_count: 300, jobs: jobs.slice(100) },
+  ]);
+  await assert.rejects(short.result, /job listing is not complete/);
+});
+
 test("the required-run read skips a fork's newer run at the same head SHA", async () => {
   const head = "c".repeat(40);
   const urls = [];

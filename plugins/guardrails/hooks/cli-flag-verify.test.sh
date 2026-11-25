@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for cli-flag-verify.sh (guardrails plugin).
-#
-# A PATH-stubbed `faketool` with controlled `--help` output exercises the
-# subcommand-aware, code-span-scoped extraction deterministically — no
-# dependence on any real CLI being installed. Self-contained.
-#
 # shellcheck disable=SC2016  # backticks / $ inside fixture strings are literal data
 
 set -uo pipefail
@@ -470,11 +464,6 @@ done
 assert_eq "verifier: a concurrent reader never catches a torn cache entry" 0 "$torn"
 assert_eq "verifier: every concurrent verifier finds the flag" 0 "$verify_failed"
 
-# ============ DEFAULT BIN SET — npm excluded (global-flag FP) ===============
-# `npm ci --prefix ./vendor` was reported UNKNOWN: `--prefix` is one of npm's
-# config keys, every one of which is a valid flag on every subcommand, and none
-# of which appears in `npm <subcmd> --help` OR in `npm --help`. npm is therefore
-# out of the default bin set (like git and npx), so no candidate is produced.
 npm_dir="$TEST_TMPDIR/npm-default-bins"
 mkdir -p "$npm_dir/cache"
 npm_target="$npm_dir/target.sh"
@@ -490,12 +479,6 @@ assert_absent "npm removed from DEFAULT_BINS" "$DEFAULT_BINS_LINE" "npm"
 assert_contains "DEFAULT_BINS still carries the retained bins" \
   "$DEFAULT_BINS_LINE" 'claude gh dotnet docker kubectl terraform az aws'
 
-# ============ az GLOBAL ARGUMENTS (leaf-help fallback) ======================
-# `az --help` lists no `--` option at all; az prints its Global Arguments
-# (--only-show-errors, --output, --debug, ...) only under a leaf command's help,
-# such as `az version --help`. A dynamic chain (`az "$@" ...`) resolves to the
-# bare help, so a global argument must still be found, cold and warm, while an
-# undocumented flag on the same chain is still reported.
 AZ_BIN_DIR="$TEST_TMPDIR/azbin"
 mkdir -p "$AZ_BIN_DIR"
 cat >"$AZ_BIN_DIR/az" <<'FAKE'

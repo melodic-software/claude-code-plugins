@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for the settings-write ask checkpoint hook.
-#
-# Contract: a Write/Edit/NotebookEdit whose target is a settings file Claude
-# Code reads gets permissionDecision "ask": settings.json in the user settings
-# directory ($CLAUDE_CONFIG_DIR, else ~/.claude), settings(.local).json in
-# .claude/ under the project directory or the payload cwd, settings.local.json
-# at the main checkout's root, plus managed-settings.json and
-# managed-settings.d/*.json in the managed system directory, case-insensitively, since macOS and Windows filesystems resolve
-# case variants to the same file. Every other payload, including a fixture
-# named .claude/settings.json elsewhere in the tree, gets NO output and exit 0.
-# Fail-open on garbage input. Kill switch via the
-# CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED mirror.
-#
-# Self-contained: defines its own assertion helpers — installed plugins are
-# cache-isolated with no shared test lib.
 # test-scope: plugins/guardrails/hooks/hooks.json
 
 set -uo pipefail

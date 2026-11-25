@@ -216,7 +216,6 @@ EXPECTED_PRICE="$(printf '%s\n' \
   "    a continuation line.")"
 OUT=$(bash "$PRICE_STUB/scripts/remove-shims.sh" --root "$READY" --installed-plugins \
   "$TMP/installed-current.json" --claude-bin "$TMP/bin/claude-met")
-# The command substitution drops the blank line the script prints after it.
 GOT_PRICE="$(printf '%s\n' "$OUT" |
   awk '/^What removing the shims costs/ { f = 1 } /^  Nested AGENTS.md files/ || /^Not confirmed/ { exit } f')"
 assert_eq "the price is exactly the decision and its pointer" "$EXPECTED_PRICE" "$GOT_PRICE"
@@ -569,18 +568,6 @@ assert_eq "a plan with no DIR row is a refusal, not success" 1 "$rc"
 assert_contains "and says discovery did not report" "$OUT" "carries no DIR row"
 
 
-# A death that is not a clean exit must not strand a de-shimmed, unverified
-# repository. A closed pipe is the case that needs no `kill` to provoke and the
-# one a named INT/TERM trap misses: `remove-shims | head` was enough to strand
-# a repository before the restore moved onto the EXIT trap.
-# The reader has to survive until AFTER the first removal, or the run dies in
-# a window where there is nothing to restore and the case proves nothing. `grep
-# -q` exits on its first match, so closing on a "removed" line puts the death
-# exactly inside the window the ignore protects. A canary that then misses
-# means the restore has real work to do either way. Bash does not wait for a
-# process substitution, so `wait` holds the asserts until the restore is done.
-# The braces make this shell, not the forked `grep`, open the substitution, so
-# `$!` names it here.
 PIPED="$TMP/piped"
 build_ready_repo "$PIPED"
 { grep -q 'removed svc/CLAUDE.md'; } < <(bash "$SCRIPT" --root "$PIPED" --confirm \

@@ -71,8 +71,6 @@ git -C "$REPO" add notes.md
 expect "a home path on an added line blocks, naming that line" "1|notes.md:3: machine-specific path (Linux user path detected)
 $HINT" "$(check "$REPO")"
 
-# The GitHub-hosted runner's home is the same on every hosted runner, so a line
-# holding it, bare or with a child path, passes.
 new_repo
 printf 'line one\nline two\n"cwd": "%s"\nsee %s here\n' "${SL}home${SL}runner" "${SL}home${SL}runner${SL}work${SL}demo${SL}demo" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
@@ -136,8 +134,6 @@ $HINT" "$(check "$REPO")"
 expect "--worktree: a token in an untracked file holding a NUL byte blocks" 1 \
   "$(git -C "$REPO" rm -q --cached blob.bin && rc_of "$REPO" --worktree)"
 
-# Git quotes a name holding `"` whatever core.quotePath says. Windows refuses
-# the name, so the case runs where the file system takes it.
 new_repo
 if printf 'token=%s\n' "$FAKE_GHP" 2>/dev/null >"$REPO/a\"b.txt"; then
   git -C "$REPO" add -- "a\"b.txt"
@@ -227,8 +223,6 @@ ln -s "token=$FAKE_GHP" "$REPO/link.txt"
 git -C "$REPO" add link.txt
 expect "a symbolic link is not judged" "0|" "$(check "$REPO")"
 
-# UTF-16LE (a Windows .reg export, PowerShell `>` output) puts a NUL after
-# every ASCII byte.
 new_repo
 s="token=$FAKE_GHP"
 {
@@ -311,10 +305,6 @@ git -C "$REPO" add notes.md side.txt
 expect "a merge: a path the merge adds to a file the merged branch brings blocks" "1|side.txt:2: machine-specific path (Linux user path detected)
 $HINT" "$(check "$REPO")"
 
-# The merged branch holds t.txt as a symlink whose target text is the token, and
-# the index holds it as a regular file with those bytes. Built with plumbing, so
-# no symlink is checked out: on Windows with core.symlinks=false, an edited
-# checked-out symlink stays at 120000.
 new_repo
 blob="$(printf 'token=%s' "$FAKE_GHP" | git -C "$REPO" hash-object -w --stdin)"
 tree="$(printf '120000 blob %s\tt.txt\n' "$blob" | git -C "$REPO" mktree)"

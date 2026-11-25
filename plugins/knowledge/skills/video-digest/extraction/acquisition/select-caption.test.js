@@ -137,7 +137,6 @@ describe("selectCaptionFile", () => {
   });
 
   it("picks the manual en track over translations of manual tracks listed before it (#6812)", () => {
-    // yt-dlp keys a translation of manual track <lang> as en-<lang>; info.json `subtitles` holds en and de.
     const result = selectCaptionFile(
       ["/w/jNQXAC9IVRw.en-en.vtt", "/w/jNQXAC9IVRw.en-de.vtt", "/w/jNQXAC9IVRw.en.vtt"],
       "manual-and-auto",
@@ -162,7 +161,6 @@ describe("selectCaptionFile", () => {
   });
 
   it("keeps manual-en when info.json lists manual English subtitles", () => {
-    // yt-dlp names a manual track's file by its info.json `subtitles` key.
     /** @type {Array<[string[], string[], string]>} */
     const cases = [
       [["en"], ["/w/a.en.vtt", "/w/a.en-orig.vtt"], "/w/a.en.vtt"],

@@ -82,7 +82,7 @@ capture flags let through, absolute paths with the username among it. Set
 `CC_OTEL_COLD_KEEP_CONTENT=0` where cold files may be shared or kept long. A compaction cannot be
 undone: content it scrubbed is gone from cold. Files compacted under a keep switch are cleaned
 with `prune-otel-store.sh --scrub-cold` run under the scrubbing switch. The authoritative column
-list is the cold content boundary comment in `../otel/cc-otel.sql`.
+lists are the `COLD_*_PROMPT_KEYS` and `COLD_*_CONTENT_*` constants in `../otel/prune-compact.sh`, which enforces them.
 
 ## Memory feedback handling
 

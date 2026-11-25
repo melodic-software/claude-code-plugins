@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Cross-hook contract test: every guardrails hook's fail-open hook::require jq
-# call passes the plugin name as its notice label, so the whole plugin shares
-# one latch per channel.
-#
-# The jq notice speaks for the plugin ("guardrails: jq not on the hook PATH.
-# Without jq, guardrails denies ... and skips its other file checks."), so one notice
-# per session covers every guard. A per-hook label told the model once per
-# guard, and its user marker never matched the one the SessionStart
-# prerequisites probe writes (`<plugin>-<id>.<session>.user`), so the user
-# heard the same news from the probe and again from the first skip.
-#
-# jq is hidden by the BASH_ENV shim require-jq-posture.test.sh documents: the
-# LOOKUP of jq fails, PATH is untouched.
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/prerequisites.json
 set -uo pipefail
 export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true

@@ -1,10 +1,4 @@
 # shellcheck shell=bash
-# SQL path quoting, the OTEL store default and die for the observability report scripts.
-# Sourced (not executed) by hook-latency.sh, item-rollup.sh and session-compare.sh, each of
-# which sets OTEL_PROG to its own name before the first die call.
-#
-# otel_store_to <var> writes into the caller's variable instead of printing, so a trailing
-# newline in CC_OTEL_STORE survives the way it does in an inline assignment.
 
 # shellcheck disable=SC2154  # OTEL_PROG is set by the sourcing script.
 die() {

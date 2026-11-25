@@ -1,20 +1,6 @@
 #!/usr/bin/env bash
-# /observability items: tokens and turns per work item from the hot OTEL store. Read-only.
-#
-# Usage:
-#   bash item-rollup.sh [--session-map FILE]
-#
-#   The item is each row's autonomy.work_item.url attribute. A row without one (a cloud session
-#   whose telemetry does not carry it) joins its item through ccr.session.id: the pairs on rows
-#   carrying both, plus FILE, one `<ccr.session.id><TAB><item URL>` per line ('#' lines and
-#   blank lines skipped; the URL https, with no query, fragment or trailing slash). A cloud
-#   session tied to more than one item is left unattributed and named.
-#
 # Turns: user_prompt events less mid-turn ones (https://code.claude.com/docs/en/changelog#2-1-325).
 # Tokens: claude_code.token.usage by type. No price: it reads no cost metric or cost attribute.
-#
-# Exit: 0 rendered, 2 cannot evaluate (bad arguments or map file, no duckdb, no store, no token
-# or user_prompt rows, or a non-delta token metric).
 
 set -uo pipefail
 
@@ -24,7 +10,20 @@ OTEL_PROG=item-rollup
 # shellcheck source=../otel/otel-sql.sh
 source "$OTEL_DIR/otel-sql.sh"
 
-usage() { sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() {
+  cat <<'EOF'
+/observability items: tokens and turns per work item from the hot OTEL store. Read-only.
+
+Usage:
+  bash item-rollup.sh [--session-map FILE]
+
+  --session-map FILE  one `<ccr.session.id><TAB><item URL>` per line, for rows without
+                      autonomy.work_item.url ('#' and blank lines skipped)
+
+Exit: 0 rendered, 2 cannot evaluate (bad arguments or map file, no duckdb, no store, no token
+or user_prompt rows, or a non-delta token metric).
+EOF
+}
 
 map=""
 while (($#)); do
@@ -42,7 +41,6 @@ while (($#)); do
   esac
 done
 
-# The map's values go into SQL string literals, so these patterns are the injection guard.
 readonly CCR_RE='^[A-Za-z0-9._-]+$'
 readonly URL_RE='^https://[A-Za-z0-9._~:/@!$&()*+,;=%-]+$'
 map_sql="CREATE TEMP TABLE file_map (ccr_session_id VARCHAR, item_url VARCHAR);"
@@ -76,10 +74,6 @@ command -v duckdb >/dev/null 2>&1 || die "duckdb not found"
 
 err="$(mktemp)"
 trap 'rm -f "$err"' EXIT
-# Same posture as session-compare.sh: CC_OTEL_STORE points cc-otel.sql's eager hot views at an
-# empty dir so they fail fast (`.bail off` keeps the macros); the queries read the real store
-# through the macros. `.bail off` also carries the -c statements past an error with exit 0, so
-# success is the temporality check's `checked` row and the rollup's `done` row.
 rows="$(CC_OTEL_STORE="$SCRIPT_DIR/.no-store" duckdb -list -noheader -separator $'\t' -nullvalue '' \
   -init "$(sql_path "$OTEL_DIR/cc-otel.sql")" \
   -c "SET VARIABLE metrics_src = '$(sql_path "$store/cc-metrics.json")';
@@ -91,7 +85,6 @@ if ! grep -q '^checked'$'\t' <<<"$rows" || ! grep -q '^done'$'\t' <<<"$rows"; th
   die "duckdb query failed"
 fi
 
-# The store path rides in the environment: awk -v would read a Windows path's backslashes as escapes.
 printf '%s\n' "$rows" | STORE="$store" awk -F'\t' '
 function width(s, w) { return length(s) > w ? length(s) : w }
 function label(s) { return s == "" ? "(no item)" : s }
