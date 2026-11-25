@@ -57,8 +57,9 @@ const count = async ($: EngineInterface, key: string) => {
 const readOr = async ($: EngineInterface, path: string) => ((await $.fs.exists(path)) ? await $.fs.read(path) : '')
 const APPEND = "const fs=require('fs'),p=process.argv[1];fs.mkdirSync(require('path').dirname(p),{recursive:true});fs.appendFileSync(p,fs.readFileSync(0))"
 const appendTo = async ($: EngineInterface, path: string, text: string) => {
-  const r = await $.process.run(['node', '-e', APPEND, path], { stdin: text })
-  if (r.exitCode !== 0) throw new Error(`append failed: ${r.stderr}`)
+  const r = await $.process.run(['node', '-e', APPEND, path], { stdin: text, timeoutMs: 10_000 }).catch(() => undefined)
+  if (r?.exitCode === 0) return
+  await $.fs.write(path, (await readOr($, path)) + text)
 }
 const iso = async ($: EngineInterface) => new Date(await $.clock.now()).toISOString()
 
@@ -308,8 +309,8 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column">
         {band(ui, st.icon, f, card.source, card.isOpen, `this session: ${summarize(st.rows).split('\n')[1] ?? ''} (/observer for more)`, {
           noted: async () => {
-            await appendTo($, card.ledger, notedLine(await iso($), f))
-            await answered($, 'noted', 'observer: noted in the running-retro ledger')
+            const ok = await appendTo($, card.ledger, notedLine(await iso($), f)).then(() => true, () => false)
+            await answered($, 'noted', ok ? 'observer: noted in the running-retro ledger' : `observer: could not write ${card.ledger}`)
           },
           send: async () => {
             await $.prompt.fill({ text: noteFor(f), mode: 'append' })
@@ -317,7 +318,7 @@ export const register: Register = (on, options) => {
           },
           dispute: async () => {
             await $.store.set('disputed', remember(await list($, 'disputed'), f.finding))
-            await appendTo($, card.ledger, disputeLine(await iso($), f))
+            await appendTo($, card.ledger, disputeLine(await iso($), f)).catch(() => undefined)
             await answered($, 'disputed', 'observer: disputed; it will not be reported again')
           },
           why: () => {

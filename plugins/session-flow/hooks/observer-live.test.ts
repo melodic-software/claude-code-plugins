@@ -32,9 +32,10 @@ type World = {
   clock?: any
 }
 
-const world = (on: any, env: Record<string, string> = {}) => {
+const world = (on: any, env: Record<string, string> = {}, hasProcess = true) => {
   const w: World = { sid: SID, files: {}, store: {}, forks: [], replies: [], fills: [], toasts: [], rewrites: [] }
   on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
+    if (!hasProcess) throw new Error('process.run is not available on this surface')
     const path = e.argv[3] as string
     w.files[path] = (w.files[path] ?? '') + (e.init?.stdin ?? '')
     return { value: { exitCode: 0, stdout: '', stderr: '' } }
@@ -246,6 +247,26 @@ test('Noted records the finding as confirmed and says so', async ($, on) => {
   const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
   expect(w.files[ledger]).toContain('- Confirmed ')
   expect(w.toasts).toEqual(['observer: noted in the running-retro ledger'])
+})
+
+test('without process.run, appends fall back to read-and-write, so later findings, usage rows and Noted still land', async ($, on) => {
+  const w = world(on, {}, false)
+  w.files[LIVE] = ''
+  w.replies.push(answer(FINDING), async () => ({ isAnswered: true, text: FINDING.replace('Merged without reading', 'Pushed without reading'), usage: USAGE }))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 12)
+  const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
+  expect(w.files[ledger]).toContain('Pushed without reading')
+  expect(live(w).map(r => r.outcome)).toEqual(['shown', 'shown'])
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'noted' })
+  await ui.unmount()
+  expect(w.files[ledger]).toContain('- Confirmed ')
+  expect(live(w).at(-1)).toMatchObject({ answer: 'noted' })
+  const after = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await after.find({ key: 'noted' })).toBeUndefined()
+  await after.unmount()
 })
 
 test('Why shows the rule, the evidence and the off switch; the row alone shows neither', async ($, on) => {
