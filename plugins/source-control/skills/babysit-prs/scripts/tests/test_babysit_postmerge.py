@@ -602,7 +602,6 @@ class AutoMergeDerivation(CheckCase):
         self.assertTrue(verdict.ok)
 
     def test_a_queue_bypassing_merge_by_a_non_human_is_an_auto_merge(self) -> None:
-        # Design "Enqueuer": an unqueued merge is judged on mergedBy.
         for merged_by in (None, APP_ACTOR, {"__typename": "Bot", "login": "x"}):
             with self.subTest(merged_by=merged_by):
                 self.gh.merged = [
@@ -621,7 +620,6 @@ class AutoMergeDerivation(CheckCase):
         self.assertEqual(verdict.merges[0].pending, ("read-back-unrecorded",))
 
     def test_in_flight_and_the_check_derive_the_same_auto_merges(self) -> None:
-        # One derivation: the identity's REST spelling and a slug-named User.
         slug_user = {"__typename": "User", "login": "agent-lanes"}
         cases = [
             merged_pr(number=1, timelineItems=enqueued_by(HUMAN, HUMAN)),
@@ -1324,9 +1322,6 @@ class ImmediateEnqueueNativeArm(CheckCase):
         )
 
     def test_no_recorded_enqueue_needs_the_pin(self) -> None:
-        # A timeline with no enqueue in it (lagging, or never recorded) is no
-        # evidence of the identity's enqueue; the identity's mergedBy keeps
-        # the merge the identity's.
         self.assert_pin_required(
             "native",
             timelineItems={"pageInfo": {"hasPreviousPage": False}, "nodes": []},
@@ -3124,8 +3119,6 @@ class ReplacedRuns(CheckCase):
         self.assertIn(f"{RUN_URL}/{self.REPLACED}", verdict.flakes)
 
     def test_a_persons_newer_green_dispatch_does_not_settle(self) -> None:
-        # A person dispatching full runs until one passes cannot clear a red
-        # attempt 1, as their re-run cannot (`_outcome`).
         self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")][1] = dispatch_run(
             11, actor=by("octocat"), triggering_actor=by("octocat")
         )
@@ -3761,14 +3754,12 @@ class Remediation(CheckCase):
         ]
         report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
         self.assertTrue(any("enqueuer" in e for e in report["errors"]))
-        # The unknown entry is never dequeued; the identity's own still is.
         self.assertEqual(report["dequeued"], [7010])
         dequeues = [w for w in self.gh.writes() if "dequeuePullRequest" in " ".join(w)]
         self.assertEqual(len(dequeues), 1)
         self.assertIn("id=PR_a", dequeues[0])
 
     def armed_pulls(self) -> None:
-        # Only a lanes App pull request the lanes App armed is disarmed.
         self.gh.open_pulls = [
             armed_pull("PR_lane", 7020, author=APP_ACTOR, armer=APP_ACTOR),
             armed_pull("PR_person_armed", 7021, author=APP_ACTOR, armer=HUMAN),
@@ -3794,7 +3785,6 @@ class Remediation(CheckCase):
         disarms = self.disarms()
         self.assertEqual(len(disarms), 1)
         self.assertIn("id=PR_lane", disarms[0])
-        # Disarmed before the dequeue, so none enters the queue after its read.
         writes = [" ".join(w) for w in self.gh.writes()]
         self.assertIn("disablePullRequestAutoMerge", writes[0])
         self.assertIn("dequeuePullRequest", writes[1])
@@ -4318,8 +4308,6 @@ class Cli(CheckCase):
         self.assertEqual(report["branch"], "trunk")
 
     def test_a_readable_verdict_without_a_branch_writes_nothing(self) -> None:
-        # A verdict that needs a dispatch but names no branch: the CLI must
-        # refuse before any write rather than dispatch on an unknown ref.
         merge = pm.AutoMerge(7001, MERGE_SHA, HEAD_SHA, "2026-10-12T10:00:00Z")
         verdict = pm.PostMergeVerdict(
             True,
@@ -4413,7 +4401,6 @@ class Cli(CheckCase):
             ],
         )
         self.assertTrue(report["dispatched"])
-        # The dispatch verifies nothing by itself: the merge stays unverified.
         self.assertFalse(report["autoMerges"][0]["verified"])
         self.assertNotEqual(code, 4)
         self.assertEqual(report["remediation"]["errors"], [])
@@ -4533,8 +4520,6 @@ class DefaultIsHuman(CheckCase):
         self.assertEqual(len(self.permission_reads()), 2)
 
     def test_a_failed_permission_read_makes_the_verdict_unreadable(self) -> None:
-        # A human enqueue past the dispatch deadline would otherwise fail as an
-        # auto-merge and, under --remediate, demote the lane.
         self.gh.permissions["maintainer"] = 403
         self.gh.merged = [merged_pr(timelineItems=enqueued_by(HUMAN, HUMAN))]
         verdict = pm.check(
@@ -4852,8 +4837,6 @@ class PinnedHead(CheckCase):
         self.assertIn("c=c1", reads[1])
 
     def test_an_unrecorded_pin_past_the_deadline_is_a_failure(self) -> None:
-        # Gate finding 3: a missing or edited pin must not hold the lane forever
-        # with no record; past the dispatch deadline it files one.
         self.all_green()
         self.gh.merged = [identity_merge()]
         for now, failed in (
@@ -5152,7 +5135,6 @@ class SharedAnswer(CheckCase):
 
 class SharedHumanTest(unittest.TestCase):
     def test_the_cli_judges_actors_with_the_shared_human_test(self) -> None:
-        # F5: the post-merge check and the merge gate share one "Human".
         with mock.patch.object(pm.policy, "is_human", return_value=True) as shared:
             judged = pm._default_is_human(REPO, IDENTITY, ["lane[bot]"])(HUMAN)
         self.assertTrue(judged)
@@ -5330,7 +5312,6 @@ def anchor_zip(**overrides: Any) -> bytes:
 
 
 def anchor_run(run_id: int, **overrides: Any) -> dict[str, Any]:
-    """A run of main's own pr-merge.yml dispatch-post-merge-runs job."""
     record: dict[str, Any] = {
         "id": run_id,
         "path": pm.LANE_DISPATCH_WORKFLOW,
@@ -5692,8 +5673,6 @@ class AnchorAdvance(unittest.TestCase):
         self.assertIsNone(pm.advance_anchor(verdict, None))
         previous = pm.Anchor(self.at(5))
         self.assertEqual(pm.advance_anchor(verdict, previous).at, self.at(5))
-        # The marker never passes a merge, even one whose state reads
-        # settleable: only its runs, judged again, do.
         marked = lane_verdict(
             merge_state(1, self.at(10), settled=True), merge_state(2, self.at(20))
         )

@@ -275,8 +275,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         self.assertEqual(world.calls(), [f"PATCH repos/{REPO}/pulls/{PR}"])
 
     def test_a_rerun_after_a_record_with_no_removal_toggles(self) -> None:
-        # The record went on but the run stopped before agent-ready came off:
-        # no labeled event ever started the attempt, so the rerun toggles.
         for name, events in (
             ("no removal", []),
             ("only a person's", [event("unlabeled", "kyle-sexton", LATER)]),
@@ -558,7 +556,6 @@ class LeavesItAlone(unittest.TestCase):
         self.assertEqual(world.writes, [])
 
 
-# A remapped admission label, with a space so the URL quoting is covered too.
 GO = "go ready"
 GO_PATH = "go%20ready"
 

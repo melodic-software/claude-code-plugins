@@ -215,7 +215,6 @@ class Classify(unittest.TestCase):
         )
         result = tier("bump someone/action from 1.0.0 to 1.1.0", ref=ACTIONS)
         self.assertEqual(result.reasons, ("publisher:someone/action",))
-        # Outside github_actions the publisher is not read.
         self.assertEqual(tier("bump someone/pkg from 1.0.0 to 1.1.0").tier, "auto")
 
     def test_a_red_ci_status_is_review_and_a_running_one_is_not(self) -> None:
@@ -231,11 +230,9 @@ class Classify(unittest.TestCase):
         self.assertEqual(
             tier("bump x from 1.2.0 to 1.3.0", commits=[minor]).tier, "auto"
         )
-        # Metadata alone, when the title names nothing.
         self.assertEqual(tier("bump x", commits=[minor]).tier, "auto")
         major = commit(metadata(("x", "semver-major", "2.0.0")))
         self.assertEqual(tier("bump x", commits=[major]).reasons, ("major:x",))
-        # Metadata calling a 1.x jump minor disagrees with a title reading major.
         result = tier("bump x from 1.9.0 to 2.0.0", commits=[minor])
         self.assertEqual(result.tier, "review")
         self.assertIn("sources-disagree", result.reasons)
@@ -736,7 +733,6 @@ class Content(unittest.TestCase):
             ),
             "dependabot-content:scripts/x.sh",
         )
-        # A rename is judged on both sides.
         self.assertEqual(
             self.refusal(
                 changed(
@@ -761,7 +757,6 @@ class Content(unittest.TestCase):
         )
         # A workflow with no patch (too large to show) cannot be judged.
         self.assertIsNotNone(self.refusal(changed(".github/workflows/ci.yml")))
-        # Any other file under .github is not an action file.
         self.assertIsNotNone(self.refusal(changed(".github/scripts/x.yml", PIN)))
 
     def test_paths_another_checked_commit_touched_pass(self) -> None:
@@ -1392,7 +1387,6 @@ def _pkg(deps: dict[str, Any], **extra: Any) -> str:
 
 
 def _lock(entries: dict[str, Any]) -> str:
-    """A lock of `entries` (key to entry) under the root."""
     return json.dumps({"lockfileVersion": 3, "packages": {"": {}, **entries}})
 
 
@@ -1418,7 +1412,6 @@ _NESTED = "node_modules/a/node_modules/b"
 
 
 def _x(**fields: Any) -> dict[str, Any]:
-    """x at 2.0.1 with `fields` replaced (None drops one)."""
     entry = {**_reg("x", "2.0.1"), **fields}
     return {"node_modules/x": {k: v for k, v in entry.items() if v is not None}}
 
