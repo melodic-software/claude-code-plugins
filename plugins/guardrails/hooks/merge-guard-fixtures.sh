@@ -85,6 +85,9 @@ graphql)
 */pulls/[0-9]*) f=pr.json ;;
 *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
 esac
+# Page n of a list is <fixture>_page<n>.json where the test wrote one; else the fixture.
+page="$(sed -n 's/.*[?&]page=\([0-9]*\).*/\1/p' <<<"$endpoint")"
+[[ -n "$page" && -f "$fix/${f%.json}_page$page.json" ]] && f="${f%.json}_page$page.json"
 if [[ ! -f "$fix/$f" ]]; then
   echo "gh: Not Found (HTTP 404)" >&2
   exit 1

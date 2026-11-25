@@ -29,6 +29,58 @@ thread_pages true true
 run "every page resolved lets the merge run" 'gh pr merge 42' 0
 assert_absent "every page resolved -> nothing unchecked" "$OUT" "will run unchecked"
 
+HOOK_REAL="$HOOK"
+paged_hook() {
+  local dir="$TEST_TMPDIR/per-page-$1"
+  mkdir -p "$dir"
+  ln -sf "$HOOK_DIR/abort-boundary.sh" "$HOOK_DIR/hook-utils.sh" "$HOOK_DIR/merge-hold-labels.json" \
+    "$HOOK_DIR/pr-verify-run.jq" "$HOOK_REAL" "$dir/"
+  sed "s/^MG_PER_PAGE=100\$/MG_PER_PAGE=$1/" "$HOOK_DIR/merge-readiness.sh" >"$dir/merge-readiness.sh"
+  assert_eq "the $1-per-page copy rewrote the page size" 1 "$(grep -c "^MG_PER_PAGE=$1\$" "$dir/merge-readiness.sh")"
+  HOOK="$dir/merge-guard.sh"
+}
+review_pages() {
+  scenario none none green green
+  jq "$1" "$CAPTURED/reviews-page1.json" >"$FIX/reviews.json"
+  jq "$2" "$CAPTURED/reviews-page2.json" >"$FIX/reviews_page2.json"
+}
+
+paged_hook 4
+review_pages . '.[-1].state = "CHANGES_REQUESTED"'
+run "a change request on the second page of reviews blocks" 'gh pr merge 42' 2
+assert_contains "the second page's reviewer is named" "$ERR" "Changes requested by: kyle-sexton"
+assert_contains "the second page of reviews was read" "$(calls)" "reviews?per_page=4&page=2"
+
+review_pages '.[2].state = "CHANGES_REQUESTED"' '.[-1].state = "APPROVED"'
+run "an approval on the second page clears that reviewer's earlier change request" 'gh pr merge 42' 0
+assert_absent "a later approval -> nothing unchecked" "$OUT" "will run unchecked"
+
+review_pages . .
+rm "$FIX/reviews_page2.json"
+run "a review list longer than the page cap lets the merge run unchecked" 'gh pr merge 42' 0
+assert_contains "past the cap -> says so" "$OUT" "will run unchecked"
+assert_contains "past the cap -> names the list" "$OUT" "more than 80 items at repos/acme/widgets/pulls/42/reviews"
+assert_eq "past the cap -> 20 pages read, no more" 20 "$(grep -c '/reviews?' "$FIX/calls")"
+
+paged_hook 32
+scenario none none green green
+cp "$CAPTURED/check-runs-page1.json" "$FIX/checks.json"
+jq '(.check_runs[] | select(.name == "PR Review / Publish Review")).conclusion = "failure"' \
+  "$CAPTURED/check-runs-page2.json" >"$FIX/checks_page2.json"
+run "a failed check run on the second page blocks" 'gh pr merge 42' 2
+assert_contains "the second page's check is named" "$ERR" "Failing checks: PR Review / Publish Review"
+cp "$CAPTURED/check-runs-page2.json" "$FIX/checks_page2.json"
+run "every page of check runs green lets the merge run" 'gh pr merge 42' 0
+assert_absent "green pages -> nothing unchecked" "$OUT" "will run unchecked"
+
+paged_hook 7
+scenario none none green green
+cp "$CAPTURED/status-page1.json" "$FIX/status.json"
+jq '(.statuses[] | select(.context == "tide")).state = "failure"' "$CAPTURED/status-page2.json" >"$FIX/status_page2.json"
+run "a failed commit status on the second page blocks" 'gh pr merge 42' 2
+assert_contains "the second page's status is named" "$ERR" "Failing checks: tide"
+HOOK="$HOOK_REAL"
+
 scenario unresolved none green green
 run "a refusal names the skill's merge path" 'gh pr merge 42' 2
 assert_contains "refusal -> /source-control:pull-request merge" "$ERR" "/source-control:pull-request merge"
