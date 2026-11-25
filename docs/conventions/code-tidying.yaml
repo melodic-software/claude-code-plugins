@@ -15,3 +15,5 @@ comment_lint_allow:
   - '^#[[:space:]]*discriminating-skip-required:'
   - '^#[[:space:]]*slow-shape-ok:'
   - '^#[[:space:]]*portability-ok:'
+  - '^#[[:space:]]*cant-fail-ok:'
+  - '^//[[:space:]]*cant-fail-ok:'
