@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 
 _WT_DIR="${BASH_SOURCE[0]%/*}"

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 # portability-scope: the GitHub implementation of the review-comments read; every read is a gh call.
 set -uo pipefail
 

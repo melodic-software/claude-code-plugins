@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 _babysit_probe_python() {
   "$@" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 11) else 1)' \
     >/dev/null 2>&1
