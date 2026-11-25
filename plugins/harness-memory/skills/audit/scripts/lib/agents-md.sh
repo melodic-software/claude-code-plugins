@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 agents_md_is_user_root() {
   local d="$1"
   [[ -n "${HOME:-}" && -d "$HOME/.claude" && "$d" -ef "$HOME/.claude" ]] && return 0

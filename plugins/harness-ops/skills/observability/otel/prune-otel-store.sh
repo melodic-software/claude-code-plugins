@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
 readonly DEFAULT_CC_OTEL_RETENTION_DAYS=7

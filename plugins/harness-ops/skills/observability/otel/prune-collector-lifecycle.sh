@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 case "${OSTYPE:-}" in
 msys* | cygwin* | win*) OS_KIND=windows ;;
 *) OS_KIND=unsupported ;;

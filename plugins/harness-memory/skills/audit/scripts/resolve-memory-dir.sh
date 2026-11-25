@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 
 pinned_memory_dir() {

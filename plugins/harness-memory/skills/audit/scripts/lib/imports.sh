@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 il_imports_of() {
   local file="$1" dir
   [[ -f "$file" ]] || return 0

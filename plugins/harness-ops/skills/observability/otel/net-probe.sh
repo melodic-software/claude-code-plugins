@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 port_status() {
   local port="$1"
   if command -v curl >/dev/null 2>&1; then

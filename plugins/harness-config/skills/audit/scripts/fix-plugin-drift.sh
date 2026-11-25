@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 # The jq programs below are single-quoted on purpose: $name is a jq variable.
 # shellcheck disable=SC2016
 set -uo pipefail

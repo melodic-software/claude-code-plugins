@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
