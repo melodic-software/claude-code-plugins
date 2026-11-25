@@ -13,10 +13,12 @@ sections name other skills for the person and change no tool call. Neither does 
 heading (Boundaries, Scope boundary, Siblings, Routing, Handoff, Composition, Integration, Workflow
 position, What this skill does not do) to another of those names or to Next or Related.
 
-A decided-term swap runs nothing anywhere: a hunk, frontmatter value, eval case file or renamed
-path whose only difference swaps a term for the word the repository glossary's "Rejected terms"
-table decided (`docs/glossary.md`, else `GLOSSARY.md`), or that word's last word (`--lane` to
-`--area` for `focus area`), singular or plural. A hunk with any other change keeps the rules above.
+A decided-term swap or a comment-line deletion runs nothing anywhere: a hunk, frontmatter value,
+eval case file or renamed path whose only difference swaps a term for the word the repository
+glossary's "Rejected terms" table decided (`docs/glossary.md`, else `GLOSSARY.md`), or that word's
+last word (`--lane` to `--area` for `focus area`), singular or plural, or deletes whole comment
+lines in a code, YAML or shell file (`#`, `//`, `/* */`; never markdown, whose HTML comments a
+model can read). A hunk with any other change keeps the rules above.
 
 A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three
 removals: each routing clause (a `Not for`, `Skip` or `prefer` clause that names a `plugin:skill`),

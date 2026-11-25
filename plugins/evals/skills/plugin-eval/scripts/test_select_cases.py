@@ -748,6 +748,66 @@ class SelectCasesTest(unittest.TestCase):
             "one to two is a real change beside the swap, so the hunk is a cut",
         )
 
+    def _base_with_comments(self):
+        _write(
+            self.repo,
+            "plugins/alpha/skills/one/config.yaml",
+            "# Defaults for alpha one.\n# Reviewed yearly.\nlimit: 3\n",
+        )
+        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
+        scaffold.write_text(
+            scaffold.read_text(encoding="utf-8").replace(
+                "#!/usr/bin/env bash\n", "#!/usr/bin/env bash\n# Seeds the shared fixture.\n"
+            ),
+            encoding="utf-8",
+        )
+        details = self.repo / "plugins/alpha/skills/one/reference/details.md"
+        details.write_text(
+            details.read_text(encoding="utf-8")
+            + "<!-- Validate the schema before anything else. -->\n",
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "add comments")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+
+    def test_yaml_comment_line_deletion_is_no_run(self):
+        self._base_with_comments()
+        config = self.repo / "plugins/alpha/skills/one/config.yaml"
+        block = self._edit_and_select(config, "# Defaults for alpha one.\n# Reviewed yearly.\n", "")
+        self.assertNotIn("cases", block, "deleting YAML comment lines changes no behavior")
+        self.assertEqual("control-no-fire one-basic one-trigger", block.get("affected-no-run"))
+        self.assertEqual("0", block["agent-runs"])
+
+    def test_scaffold_header_comment_deletion_is_no_run(self):
+        self._base_with_comments()
+        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
+        block = self._edit_and_select(scaffold, "# Seeds the shared fixture.\n", "")
+        self.assertNotIn("cases", block, "a scaffold header comment deletion runs nothing")
+        self.assertEqual("one-basic", block.get("affected-no-run"))
+        self.assertEqual("0", block["agent-runs"])
+
+    def test_markdown_html_comment_deletion_still_runs(self):
+        self._base_with_comments()
+        details = self.repo / "plugins/alpha/skills/one/reference/details.md"
+        block = self._edit_and_select(
+            details, "<!-- Validate the schema before anything else. -->\n", ""
+        )
+        self.assertEqual(
+            "control-no-fire one-basic one-trigger",
+            block.get("cases"),
+            "a markdown HTML comment can carry instructions a model reads",
+        )
+
+    def test_comment_deletion_beside_a_code_change_still_runs(self):
+        self._base_with_comments()
+        config = self.repo / "plugins/alpha/skills/one/config.yaml"
+        block = self._edit_and_select(config, "# Reviewed yearly.\nlimit: 3\n", "limit: 4\n")
+        self.assertEqual(
+            "control-no-fire one-basic one-trigger",
+            block.get("cases"),
+            "the hunk also changes limit, so it is a cut",
+        )
+
     def test_exempt_skill_is_listed_in_json(self):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
         path.write_text(

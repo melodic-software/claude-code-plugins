@@ -39,13 +39,17 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   (`plugin:skill` to `/plugin:skill`, or a renamed skill), and decided-term swaps (next rule)
   removed, the old and new text are equal. `select` lists the skill under `no-run-exempt:` with
   that reason (owner, 2026-11-25, Q2212).
-- A decided-term swap runs nothing, wherever `select` looks: a change in which every hunk only
-  swaps a term for the word [`docs/glossary.md`](../glossary.md) "Rejected terms" decided (or that
-  word's last word, so `--lane` becomes `--area` for **focus area**), in either number, is not a
-  cut. That holds for a skill body, reference or agent hunk, a frontmatter value such as
+- A decided-term swap or a comment-line deletion runs nothing, wherever `select` looks. A hunk is
+  not a cut when it only swaps a term for the word [`docs/glossary.md`](../glossary.md) "Rejected
+  terms" decided (or that word's last word, so `--lane` becomes `--area` for **focus area**), in
+  either number, or only deletes whole comment lines in a code, YAML or shell file (`#` for YAML,
+  shell and Python, `//` and `/* */` for JS and TS; a trailing comment on a code line does not
+  count, and markdown is excluded because an HTML comment can carry instructions a model reads).
+  That holds for a skill body, reference or agent hunk, a frontmatter value such as
   `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
-  fixture or sample, and a renamed file whose path and content differ only by such swaps. A hunk
-  with any other change keeps the rules above (owner, 2026-11-25, Q2212).
+  fixture or sample, and a renamed file whose path and content differ only by such changes. A
+  hunk with any other change keeps the rules above (owner, 2026-11-25, Q2212; comment deletions
+  per ADR 0110).
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that

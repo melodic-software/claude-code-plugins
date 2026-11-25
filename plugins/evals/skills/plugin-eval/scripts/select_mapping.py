@@ -94,6 +94,14 @@ ROUTING_CLAUSE_RE = re.compile(r"^(?:not for|skip)\b|\bprefer\b", re.IGNORECASE)
 CLAUSE_SPLIT_RE = re.compile(r"(?<=[.;])\s+")
 SWAP_TOKEN_RE = re.compile(r"[A-Za-z]+|[0-9]+|[^\sA-Za-z0-9]")
 GLOSSARY_PATHS = ("docs/glossary.md", "GLOSSARY.md")
+HASH_COMMENT_EXTS = frozenset(
+    [".yaml", ".yml", ".sh", ".bash", ".zsh", ".py", ".toml", ".rb", ".pl", ".ps1", ".psm1"]
+)
+SLASH_COMMENT_EXTS = frozenset(
+    [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsonc", ".go", ".cs"]
+)
+HASH_COMMENT_LINE_RE = re.compile(r"^\s*(?:#(?!!).*)?$")
+SLASH_COMMENT_LINE_RE = re.compile(r"^\s*(?:(?://|/\*|\*).*)?$")
 MAX_DECIDED_TERM_WORDS = 3
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -232,12 +240,13 @@ def _diff_has_cut_hunks(
     skip_old_ranges=(),
     allow_heading_renames=False,
     pairs=(),
+    comment_re=None,
 ):
     """A hunk that edits an existing line is a cut unless every old word survives, in order, in
     its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion. A hunk
     whose old lines all sit inside one of `skip_old_ranges` (inclusive line pairs) is not a cut,
-    nor one that only swaps glossary-decided terms (`pairs`), nor, with `allow_heading_renames`,
-    one that only renames routing headings."""
+    nor one that only swaps glossary-decided terms (`pairs`) or only deletes whole comment lines
+    (`comment_re`), nor, with `allow_heading_renames`, one that only renames routing headings."""
     hunks = []
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
@@ -260,7 +269,7 @@ def _diff_has_cut_hunks(
     for hunk in hunks:
         if hunk[0] and (
             (allow_heading_renames and _is_routing_heading_rename(hunk[3], hunk[4]))
-            or is_term_swap_only("\n".join(hunk[3]), "\n".join(hunk[4]), pairs)
+            or _hunk_is_no_run(hunk[3], hunk[4], pairs, comment_re)
         ):
             hunk[0] = False
 
@@ -311,6 +320,7 @@ def diff_has_cut(
         skip_old_ranges=skip_old_ranges,
         allow_heading_renames=allow_heading_renames,
         pairs=decided_term_pairs(repo_root),
+        comment_re=comment_line_re(rel_path),
     )
 
 
@@ -325,7 +335,9 @@ def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
     )
     if done.returncode != 0:
         return True
-    return _diff_has_cut_hunks(done.stdout, pairs=decided_term_pairs(repo_root))
+    return _diff_has_cut_hunks(
+        done.stdout, pairs=decided_term_pairs(repo_root), comment_re=comment_line_re(new_path)
+    )
 
 
 def _no_run_section_lines(text):
@@ -556,7 +568,7 @@ def swap_rename_pairs(repo_root, merge_base, deleted, added):
     unused = list(added)
     for old_path in deleted:
         for new_path in unused:
-            if is_swap_only_file_change(repo_root, merge_base, old_path, new_path):
+            if is_no_run_file_change(repo_root, merge_base, old_path, new_path):
                 pairs.append((old_path, new_path))
                 unused.remove(new_path)
                 break
@@ -568,17 +580,57 @@ def is_routing_only_change(old, new, pairs):
     return _differs_only_by_swaps(_routing_free_tokens(old), _routing_free_tokens(new), pairs)
 
 
-def is_swap_only_file_change(repo_root, merge_base, old_path, new_path):
-    """True when `old_path` at merge_base and `new_path` at HEAD differ, in path and content,
-    only by decided-term swaps."""
+def comment_line_re(path):
+    """The whole-line comment pattern for a code, YAML or shell file, None for markdown and any
+    other type, whose comments a model may read as instructions."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext in HASH_COMMENT_EXTS:
+        return HASH_COMMENT_LINE_RE
+    if ext in SLASH_COMMENT_EXTS:
+        return SLASH_COMMENT_LINE_RE
+    return None
+
+
+def _hunk_is_no_run(old_lines, new_lines, pairs, comment_re):
+    """The hunk only deletes whole comment lines and swaps decided terms in the rest."""
+    if comment_re is not None:
+        kept = [line for line in old_lines if not comment_re.match(line)]
+        if len(kept) < len(old_lines) and (kept == new_lines or not (kept or new_lines)):
+            return True
+        old_lines = kept
+    return is_term_swap_only("\n".join(old_lines), "\n".join(new_lines), pairs)
+
+
+def _raw_hunks(diff_text):
+    hunks = []
+    for line in diff_text.splitlines():
+        if line.startswith("Binary files "):
+            return None
+        if HUNK_HEADER_RE.match(line):
+            hunks.append(([], []))
+        elif hunks and line.startswith("-") and not line.startswith("---"):
+            hunks[-1][0].append(line[1:])
+        elif hunks and line.startswith("+") and not line.startswith("+++"):
+            hunks[-1][1].append(line[1:])
+    return hunks
+
+
+def is_no_run_file_change(repo_root, merge_base, old_path, new_path):
+    """True when `old_path` at merge_base and `new_path` at HEAD differ only by decided-term swaps
+    (path and content) and whole-comment-line deletions."""
     pairs = decided_term_pairs(repo_root)
     if old_path != new_path and not is_term_swap_only(old_path, new_path, pairs):
         return False
-    old_text = git_show(repo_root, merge_base, old_path)
-    new_text = git_show(repo_root, "HEAD", new_path)
-    if old_text is None or new_text is None:
+    done = _git(
+        repo_root, "diff", "-U0", "%s:%s" % (merge_base, old_path), "HEAD:%s" % new_path
+    )
+    if done.returncode != 0:
         return False
-    return old_text == new_text or is_term_swap_only(old_text, new_text, pairs)
+    hunks = _raw_hunks(done.stdout)
+    comment_re = comment_line_re(new_path)
+    return hunks is not None and all(
+        _hunk_is_no_run(old, new, pairs, comment_re) for old, new in hunks
+    )
 
 
 def _value_text(value):
