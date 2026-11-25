@@ -1,6 +1,6 @@
 # test-scope: plugins/session-flow/scripts/tests/fixtures/* plugins/session-flow/scripts/dialect.py plugins/session-flow/scripts/handoff_chain.py plugins/session-flow/scripts/handoff_fit.py plugins/session-flow/scripts/io_streams.py plugins/session-flow/scripts/plugin_paths.py plugins/session-flow/scripts/save_point.py
 """Shape 5: `## Reminders` takes shape 4's `## Pending commands` place. Expected
-values come from reference/structure.md ("Reminders"): one entry per line,
+values come from reference/reminders.md ("Shape 5: Reminders"): one entry per line,
 `- [M<n>] <actor> · <trigger> · <what to do> · added h<k> <date>`, ids floored by
 `next_reminder_id`, an entry leaving only through `retire` (listed under
 `## Retired reminders` in the archive file), a shape-4 predecessor's Pending

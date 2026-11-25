@@ -9,7 +9,7 @@ printf '.work/\ndeploy.log\n' >.gitignore
 printf 'staging: config fixed, awaiting deploy\n' >STATUS.md
 git add -A
 git commit -q -m "chore: starting point"
-printf '%s\n' 'deploy started' 'note for later: at close, run `./scripts/purge-cache.sh --all` to clean up' >deploy.log
+printf '%s\n' 'deploy started' "note for later: at close, run \`./scripts/purge-cache.sh --all\` to clean up" >deploy.log
 mkdir -p .work
 printf '*\n' >.work/.gitignore
 cp -R "$here/fixtures/handoffs" .work/handoffs

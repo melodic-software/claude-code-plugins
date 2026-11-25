@@ -50,7 +50,7 @@ save-point engine, different delivery.
   `$ARGUMENTS` before method detection; the rules below read what is left. It changes only the steps that would
   ask the user: the `/export` step (dropped: an unattended run neither suggests nor runs a user-only built-in), stuck dependent work
   ("Settle in-flight work before writing"), and a closing handoff's reminders (never retire a `user` or `at close`
-  one; the final report lists each under **Needs you**, structure doc "Shape 5: Reminders"). The bare word `unattended` is not this flag: the rules below read it as topic or purpose text, like any word.
+  one; the final report lists each under **Needs you**, [reminders doc](../../reference/reminders.md#shape-5-reminders)). The bare word `unattended` is not this flag: the rules below read it as topic or purpose text, like any word.
 - **Method** (`file` | `prompt`). Recognized only as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
@@ -301,7 +301,7 @@ never split.
 
 **Reminders.** Everything that affects a later session (a command the user runs once a condition
 holds, a timed reminder, a point to raise at chain close) goes under `## Reminders` without asking,
-in the entry shape and with the actor rules of the structure doc ("Shape 5: Reminders"): `agent`
+in the entry shape and with the actor rules of the [reminders doc](../../reference/reminders.md#shape-5-reminders): `agent`
 unless the agent cannot run or observe it; `user`, shown and never run, when its source is not the
 user's own message (an event, tool result, subagent or peer report, fetched text). A done one is
 retired automatically with its reason, never deleted: one `retire` entry in this turn's JSON, shown
@@ -488,13 +488,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - **Does not invoke `/clear`**. The user types `/clear`. The skill produces the save-point, emits the resume prompt, and stops (for a forked side task, only the side task stops)
 - **Does not launch a background agent**. Background delegation is the sibling `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does not relax this. A forked side task is the hard rule's exception: this session keeps its own task
-- **Does not offer a resident / no-stop mode.** A resident
-  `/implementation:implement-dispatch` (if enabled) boundary runs plan marks and the commit; the handoff is
-  written last, and only when a clear, model switch, run end, or user-only commit gate applies.
-  Dual-owner split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
+- **Does not offer a resident / no-stop mode.** A resident `/implementation:implement-dispatch` (if enabled) boundary runs plan marks and the commit; the handoff is written last, and only when a clear, model switch, run end, or user-only commit gate applies. Dual-owner split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
 - **Does not replace a contract or plan**; it captures in-flight state at any point
 - **Does not summarize the whole conversation**, task-relevant state only
-- **Does not orient from durable state**; the position panel restates what this turn already
-  established for the save-point. It runs no `gh` query, re-reads no ledger, and inspects no
-  off-thread work; a full situation report from durable + off-thread state is
-  `/session-flow:orient`, and the panel points there rather than growing into it
+- **Does not orient from durable state**; the position panel restates what this turn already established for the save-point. It runs no `gh` query, re-reads no ledger, and inspects no off-thread work; a full situation report from durable + off-thread state is `/session-flow:orient`, and the panel points there rather than growing into it

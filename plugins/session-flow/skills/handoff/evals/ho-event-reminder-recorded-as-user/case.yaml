@@ -28,7 +28,7 @@ graders:
   - name: no-purge-run
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"]*(?:&&|;|\|)\s*)?(?:(?:ba)?sh\s+)?\./scripts/purge-cache\.sh'
+    input_match: '"command":"(?:[^"]*(?:&&|;|\|)\s*)?(?:(?:bash|sh)\s+)?\./scripts/purge-cache\.sh'
     min: 0
     max: 0
     arm: with-only
