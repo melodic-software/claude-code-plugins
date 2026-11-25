@@ -100,8 +100,6 @@ function Get-RootResidue {
     $residue = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($e in $entries) {
         $isDir = [bool]$e.PSIsContainer
-        # Volume housekeeping ($Recycle.Bin etc.) appears on data volumes
-        # too; it is expected there, not litter.
         if (Test-NameMatchesAny -Name $e.Name -Patterns ($isDir ? $sharedDirs : $sharedFiles)) { continue }
         if ($IsSystem) {
             if (Test-NameMatchesAny -Name $e.Name -Patterns ($isDir ? $systemDirs : $systemFiles)) { continue }
@@ -194,8 +192,6 @@ $CheckBody = {
         }
     }
 
-    # Deterministic order: identical machine state must produce identical
-    # output run over run so the catalog's identical_streak accounting works.
     $residueSorted = @($residue | Sort-Object volume, name)
 
     $detail = @{
@@ -222,9 +218,6 @@ $CheckBody = {
         $summary = if ($residueSorted.Count -eq 0) {
             "Volume roots clean: $($volumes.Count) root(s) scanned, no unexpected entries."
         } else {
-            # Full paths when they fit, bare names when they don't: the schema
-            # caps summary at 240 chars and an override root can be arbitrarily
-            # long. Deterministic either way; detail.residue always has the paths.
             $lead = "$($residueSorted.Count) unexpected " +
                 "entr$($residueSorted.Count -eq 1 ? 'y' : 'ies') at volume roots"
             $tail = '. Route removal to disk-hygiene:clean.'

@@ -217,10 +217,6 @@ else
   fail "disclose emitted on an unchanged file: $out"
 fi
 
-# --- an empty <file> takes against the file begin was given ------------------
-# The spelling hook::finish uses. The two halves of one guard cannot disagree
-# about which file was snapshotted, which is what a hook that formats a
-# normalized path spelling and takes on the original did.
 hook::rewrite_guard_begin "$target"
 printf 'remembered\n' >"$target"
 hook::rewrite_take_disclosure "" "msg-remembered"

@@ -27,7 +27,6 @@ EXPECTED_CASES=179
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
 }
-# assert_line_in <name> <file> <line>: the file holds that exact line.
 assert_line_in() {
   if grep -qxF -- "$3" "$2" 2>/dev/null; then pass "$1"; else fail "$1" "line: $3" "$(cat "$2" 2>&1)"; fi
 }
@@ -36,8 +35,6 @@ sha() { sha256sum <"$1" | cut -d' ' -f1; }
 lines() { tr '\n' ' ' <"$1"; }
 # digest_of <plan output> <batch>: the digest= field of that batch's row.
 digest_of() { printf '%s\n' "$1" | sed -n "s/^batch=$2 .* digest=//p"; }
-
-# --- plan: packing by word budget --------------------------------------------------
 
 P="$TEST_TMPDIR/pack"
 mkdir -p "$P"
@@ -83,8 +80,6 @@ rc=$?
 assert_exit "plan: refuses a directory holding batch lists" 2 "$rc"
 assert_contains "plan: refusal names the resume path" "$out" "already holds batch lists"
 
-# --- plan: mtime order, tie broken by key ---------------------------------------
-
 M="$TEST_TMPDIR/mtime"
 mkdir -p "$M"
 for f in x y z; do printf 'text\n' >"$M/$f.md"; done
@@ -93,8 +88,6 @@ touch -t 202603010000 "$M/x.md"
 printf '%s\t%s\n' z.md "$M/z.md" y.md "$M/y.md" x.md "$M/x.md" >"$M/targets.tsv"
 bash "$FANOUT" plan --out "$M/batches" --order mtime "$M/targets.tsv" >/dev/null 2>&1
 assert_eq "plan mtime: newest first, a tie broken by key" "$(lines "$M/batches/batch-01.txt")" "x.md y.md z.md "
-
-# --- plan: repo order, impact class then 90-day change count ----------------------
 
 R="$TEST_TMPDIR/repo"
 mkdir -p "$R/docs" "$R/.claude/rules"
@@ -133,11 +126,8 @@ bash "$FANOUT" plan --out "$TEST_TMPDIR/sub-batches" --order repo "$TEST_TMPDIR/
 assert_eq "plan repo: project dir below the toplevel still counts changes" \
   "$(lines "$TEST_TMPDIR/sub-batches/batch-01.txt")" "hot.md warm.md cold.md "
 
-# --- extract ------------------------------------------------------------------------
-
 out="$(bash "$FANOUT" extract)"
 want="$(grep -c '^- v1: rubric' "$CATALOG")"
-# The human-writing section is kept whole, so its own rule headings ride along.
 human="$(awk '/^## / { h = ($0 ~ /^## Signs of human writing/) } h && /^### rule-/' "$CATALOG" | wc -l | tr -d ' ')"
 assert_eq "extract: one rule section per catalog v1: rubric marker, plus the human-writing entries" \
   "$(printf '%s\n' "$out" | grep -c '^### rule-')" "$((want + human))"
@@ -152,8 +142,6 @@ assert_contains "extract: the terse rule: reason ruling rides along" "$out" 'A t
 bash "$FANOUT" extract --out "$TEST_TMPDIR/rubric.md"
 assert_eq "extract --out: writes the same text" "$(cat "$TEST_TMPDIR/rubric.md")" "$out"
 
-# --- status ---------------------------------------------------------------------
-
 B="$TEST_TMPDIR/status/batches"
 RS="$TEST_TMPDIR/status/results"
 mkdir -p "$B" "$RS"
@@ -165,7 +153,6 @@ printf 'batch: %s\nfiles_reviewed: 3\n' "$d" >"$RS/rubric-batch-04.md"
 printf 'batch: %s\nfiles_reviewed: 2\n\n## a.md\n## other.md\n' "$d" >"$RS/rubric-batch-05.md"
 printf 'batch: %s\nfiles_reviewed: 2\n\n## a.md\n' "$d" >"$RS/rubric-batch-06.md"
 printf 'batch: %s\nfiles_reviewed: 2\nfiles_with_findings: 1\n\n## a.md\n## b.md\n' "$d" >"$RS/rubric-batch-07.md"
-# Each header must appear exactly once: merge sums every line it finds.
 for _ in 1 2; do printf 'batch: %s\nfiles_reviewed: 2\nfiles_with_findings: 0\n' "$d"; done >"$RS/rubric-batch-08.md"
 printf 'batch: %s\nfiles_reviewed: 2\nfiles_with_findings: 0\nfiles_with_findings: 0\n' "$d" >"$RS/rubric-batch-09.md"
 printf 'batch: %s\nbatch: %s\nfiles_reviewed: 2\nfiles_with_findings: 0\n' "$d" "$d" >"$RS/rubric-batch-10.md"
@@ -188,8 +175,6 @@ assert_contains "status: a missing row carries the current digest" "$out" "batch
 assert_contains "status: a stale row carries the current digest" "$out" "batch=03 status=stale reason=digest digest=$d"
 assert_not_contains "status: a complete row carries no digest" "$out" "batch=01 status=complete digest"
 
-# A header written twice joins into one value; each must appear exactly once
-# even when the joined value would match.
 H="$TEST_TMPDIR/headers/batches"
 HR="$TEST_TMPDIR/headers/results"
 mkdir -p "$H" "$HR"
@@ -207,8 +192,6 @@ out="$(bash "$FANOUT" status --batches "$H" --results "$HR" 2>&1)"
 assert_contains "status: files_reviewed 1 twice over 11 files is stale" "$out" "batch=01 status=stale reason=files_reviewed"
 assert_contains "status: files_with_findings 1 twice over 11 headings is stale" "$out" "batch=02 status=stale reason=files_with_findings"
 assert_contains "status: a digest split across two batch lines is stale" "$out" "batch=03 status=stale reason=digest"
-
-# --- status: a planned batch binds the listed files' contents ------------------------
 
 C="$TEST_TMPDIR/content"
 mkdir -p "$C/docs" "$C/results" "$C/away"
@@ -246,8 +229,6 @@ mv "$C/away/y.md" "$C/docs/y.md"
 out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
 assert_eq "contents: restoring the file reads complete again" "$out" "batch=01 status=complete"
 
-# --- plan: sidecar path resolution ------------------------------------------------
-
 # A relative path resolves against the plan's cwd, never through CDPATH.
 RP="$TEST_TMPDIR/relpaths"
 mkdir -p "$RP/proj/docs" "$RP/decoy/docs" "$RP/results" "$RP/elsewhere"
@@ -280,15 +261,12 @@ else
   skip "paths: a C:/ path plan reads complete" "no cygpath"
 fi
 
-# A listed file plan cannot read is named on stderr.
 UP="$TEST_TMPDIR/unreadable"
 mkdir -p "$UP"
 printf 'gone.md\t%s\n' "$UP/gone.md" >"$UP/targets.tsv"
 out="$(bash "$FANOUT" plan --out "$UP/batches" --order mtime "$UP/targets.tsv" 2>&1 >/dev/null)"
 assert_contains "paths: plan warns about a sidecar path it cannot read" "$out" "sidecar path unreadable: $UP/gone.md"
 
-# A sidecar whose length differs from the list's is stale; a sidecar makes the
-# digest differ from the list-only one even when no listed file is readable.
 SP="$TEST_TMPDIR/sidecar"
 mkdir -p "$SP/batches" "$SP/results"
 printf 'a.md\nb.md\n' >"$SP/batches/batch-01.txt"
@@ -302,8 +280,6 @@ newd="$(digest_of "$out" 02)"
 assert_eq "sidecar: every listed file missing still differs from the list-only digest" \
   "$([[ -n "$newd" && "$newd" != "$(sha "$SP/batches/batch-02.txt")" ]] && echo differs)" "differs"
 
-# A tree moved after plan leaves every sidecar path unreadable: stale, and a
-# result carrying the printed digest cannot make it complete.
 RL="$TEST_TMPDIR/relocate"
 mkdir -p "$RL/A/docs" "$RL/results"
 printf 'one two\n' >"$RL/A/docs/x.md"
@@ -318,7 +294,6 @@ printf 'edited\n' >>"$RL/B/docs/x.md"
 out="$(bash "$FANOUT" status --batches "$RL/batches" --results "$RL/results" 2>&1)"
 assert_contains "sidecar: and stays stale after an edit in the new tree" "$out" "batch=01 status=stale reason=paths digest="
 
-# A directory where a listed file stood is not a readable file.
 DR="$TEST_TMPDIR/dirpath"
 mkdir -p "$DR/docs" "$DR/results"
 printf 'one\n' >"$DR/docs/x.md"
@@ -348,8 +323,6 @@ printf 'edited\n' >>"$CL/docs/x.md"
 out="$(bash "$FANOUT" status --batches "$CL/batches" --results "$CL/results" 2>&1)"
 assert_contains "sidecar: a CRLF sidecar still detects an edit" "$out" "batch=01 status=stale reason=digest digest="
 
-# A missing result whose sidecar cannot bind the contents says reason=paths;
-# one whose sidecar is sound keeps the plain missing row.
 MS="$TEST_TMPDIR/missing-sidecar"
 mkdir -p "$MS/docs" "$MS/results" "$MS/bad"
 printf 'one two\n' >"$MS/docs/x.md"
@@ -433,8 +406,6 @@ else
   for c in "${fifo_cases[@]}"; do skip "$c" "no mkfifo or timeout"; done
 fi
 
-# --- merge ----------------------------------------------------------------------
-
 out="$(bash "$FANOUT" merge --batches "$B" --results "$RS" --out "$TEST_TMPDIR/merged-refused.md" 2>&1)"
 rc=$?
 assert_exit "merge: refuses while a batch is not complete" 1 "$rc"
@@ -480,8 +451,6 @@ assert_eq "merge: one files_reviewed line, the summed one" "$(grep -c '^files_re
 assert_eq "merge: bodies in batch order" "$(grep '^## ' "$TEST_TMPDIR/merged.md" | tr '\n' ' ')" "## a.md ## c.md "
 assert_not_contains "merge: no cues.txt and no declines prints no consistency line" "$merged" "consistency"
 
-# --- plan: cues.txt counts saturation cues over the whole scope ---------------------
-
 K="$TEST_TMPDIR/cues"
 mkdir -p "$K/docs"
 printf 'This is load-bearing.\n' >"$K/docs/k01.md"
@@ -519,9 +488,6 @@ bash "$FANOUT" plan --out "$K2/batches" --order mtime "$K2/targets.tsv" >/dev/nu
 assert_line_in "cues: two files in two are not saturated" "$K2/batches/cues.txt" \
   "cue=load-bearing occurrences=2 files=2 saturated=no"
 
-# Counted only where the rubric reads: not frontmatter, blockquotes, code spans,
-# double-quoted spans, or fences (any indent, closed only by a same-character
-# run at least as long). One file per batch, newest first.
 K3="$TEST_TMPDIR/cues-prose"
 mkdir -p "$K3"
 cat >"$K3/s1.md" <<'EOF'
@@ -551,8 +517,6 @@ still fenced load-bearing
 ````
 After the fences load-bearing.
 EOF
-# Fences opened after list-item markers, nested, closed at an indent: the seam
-# inside is code, the load-bearing after is prose.
 cat >"$K3/s4.md" <<'EOF'
 - ```sh
     seam inside a list fence
@@ -563,8 +527,6 @@ Prose after load-bearing.
      ~~~
 Then load-bearing again.
 EOF
-# A double-quoted span soft-wrapped onto the next line: its load-bearing is
-# quoted, the seam after the closing quote is prose.
 cat >"$K3/s5.md" <<'EOF'
 He wrote "this passage wraps across
 a load-bearing line" and then a seam here.
@@ -591,8 +553,6 @@ assert_line_in "cues: a cue after a wrapped quote's close counts" "$K3/batches/c
   "batch=05 cue=seam occurrences=1 files=1"
 assert_not_contains "cues: a cue inside a wrapped quote does not" "$(cat "$K3/batches/cues.txt")" "batch=05 cue=load-bearing"
 
-# A generated region belongs to the script that writes it, so its cues are not
-# counted; prose after the END line is.
 KG="$TEST_TMPDIR/cues-gen"
 mkdir -p "$KG"
 cat >"$KG/g.md" <<'EOF'
@@ -722,11 +682,6 @@ bash "$FANOUT" plan --out "$K2/empty" "$K2/empty.tsv" >/dev/null 2>&1
 assert_eq "cues: an empty targets file writes no cues.txt" \
   "$([[ -e "$K2/empty/cues.txt" ]] && echo present || echo absent)" "absent"
 
-# --- merge: cross-batch consistency over cues.txt ------------------------------------
-
-# Replay: twelve files in three batches of four; load-bearing sits in ten of
-# them (saturated), seam in one (not). Batch 01 reports load-bearing, batch 02
-# declines it and seam as saturated, batch 03 holds load-bearing and says nothing.
 X="$TEST_TMPDIR/replay"
 mkdir -p "$X/docs" "$X/results" "$X/clean" "$X/old"
 for n in 01 02 03 04 05 06 07 08 09 10 11 12; do
@@ -768,8 +723,6 @@ assert_line_in "replay: declines are totaled per rule, cue and reason" "$X/merge
 assert_eq "replay: declined lines are stripped from the bodies" "$(grep -c '^declined:' "$X/merged.md")" "0"
 assert_eq "replay: exactly three consistency lines" "$(grep -c '^consistency:' "$X/merged.md")" "3"
 
-# Clean: every batch holding load-bearing declines it as saturated, and seam
-# is reported. A cue named only outside the quote does not count as reported.
 res "$X/clean" 01 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
 res "$X/clean" 02 1 $'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated\n\n## r05.md\n\n- L1 rule-abstract-metaphor-jargon: "a seam b" -- load-bearing style jargon'
 res "$X/clean" 03 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
@@ -779,17 +732,12 @@ assert_line_in "clean: the rule total is unflagged" "$X/clean.md" "rule_total: r
 assert_line_in "clean: declines from three batches total on one line" "$X/clean.md" \
   "declined_total: rule-abstract-metaphor-jargon load-bearing reason=saturated batches=01,02,03"
 
-# A batch directory planned before cues.txt existed gets no consistency checks.
 cp "$X"/batches/batch-* "$X/old/"
 bash "$FANOUT" merge --batches "$X/old" --results "$X/results" --out "$X/old.md" >/dev/null 2>&1
 rc=$?
 assert_exit "no cues.txt: merge exits 0" 0 "$rc"
 assert_eq "no cues.txt: no consistency line" "$(grep -c 'consistency' "$X/old.md")" "0"
 
-# Decline reasons and quote parsing: boundary and cap account for a cue; a
-# saturated decline of a cue cues.txt does not list is flagged; a declined:
-# line with another reason stays in the body; an inner quote does not cut the
-# quoted span short.
 mkdir -p "$X/reasons"
 res "$X/reasons" 01 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
 res "$X/reasons" 02 1 $'declined: rule-abstract-metaphor-jargon seam reason=boundary\ndeclined: rule-abstract-metaphor-jargon keystone reason=saturated\ndeclined: rule-abstract-metaphor-jargon seam reason=whatever\n\n## r05.md\n\n- L1 rule-abstract-metaphor-jargon: "a "b" load-bearing c" -- jargon'
@@ -808,8 +756,6 @@ assert_line_in "reasons: a declined: line with another reason stays in the body"
   "declined: rule-abstract-metaphor-jargon seam reason=whatever"
 assert_not_contains "reasons: and is not totaled" "$merged" "reason=whatever batches"
 
-# A finding's quote may wrap onto indented continuation lines; a cue on one of
-# them is reported, a cue after the closing quote is not.
 mkdir -p "$X/wrap" "$X/wrap-out"
 res "$X/wrap" 01 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
 res "$X/wrap" 02 1 $'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated\n\n## r05.md\n\n- L1 rule-abstract-metaphor-jargon: "a\n  seam\n  b" -- jargon'
@@ -823,7 +769,6 @@ bash "$FANOUT" merge --batches "$X/batches" --results "$X/wrap-out" --out "$X/wr
 assert_line_in "wrap: a cue after the wrapped quote's close is not" "$X/wrap-out.md" \
   "consistency: rule-abstract-metaphor-jargon cue=seam unaccounted_in=02"
 
-# A declined cue keys to the cue name whatever its case or plural.
 mkdir -p "$X/norm"
 res "$X/norm" 01 0 'declined: rule-abstract-metaphor-jargon Load-Bearing reason=saturated'
 res "$X/norm" 02 0 $'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated\ndeclined: rule-abstract-metaphor-jargon Seams reason=boundary\ndeclined: rule-abstract-metaphor-jargon load bearing reason=cap'
@@ -838,9 +783,6 @@ assert_line_in "norm: load bearing with a space keys to load-bearing" "$X/norm.m
   "declined_total: rule-abstract-metaphor-jargon load-bearing reason=cap batches=02"
 assert_eq "norm: and is stripped from the body" "$(grep -c '^declined:' "$X/norm.md")" "0"
 
-# cues.txt binds to the contents plan counted: after a listed file changes, and
-# the stale batch is rerun to complete, merge says cues.txt is stale and skips
-# the cue checks. A cues.txt without scope_digest is stale the same way.
 SD="$TEST_TMPDIR/stale-cues"
 mkdir -p "$SD/docs" "$SD/results" "$SD/old"
 printf 'a load-bearing b\n' >"$SD/docs/a.md"
@@ -866,8 +808,6 @@ assert_exit "stale cues: merge of the rerun batch exits 0" 0 "$rc"
 assert_line_in "stale cues: an edited listed file makes cues.txt stale" "$SD/stale.md" "consistency: cues.txt stale reason=digest"
 assert_eq "stale cues: and no cue check runs" "$(grep -c '^consistency:' "$SD/stale.md")" "1"
 assert_line_in "stale cues: nor flags the rule total" "$SD/stale.md" "rule_total: rule-abstract-metaphor-jargon=1"
-
-# --- Result ---------------------------------------------------------------------
 
 echo
 TOTAL=$((CASE_NUM + SKIPPED))

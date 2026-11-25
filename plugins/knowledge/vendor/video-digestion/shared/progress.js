@@ -1,10 +1,3 @@
-/**
- * Progress tracker for long-running video-digestion pipeline runs.
- *
- * Provides per-item progress lines with elapsed time and ETA,
- * plus a structured run report for post-run diagnostics.
- */
-
 import { writeStdout } from "./terminal.js";
 
 /** @type {ProgressLogger} */

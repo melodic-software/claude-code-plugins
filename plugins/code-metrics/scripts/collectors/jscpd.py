@@ -153,7 +153,6 @@ def parse_size(text: str) -> int | None:
 
 
 def parse_lines(text: str) -> int | None:
-    """A positive line cap, or None for no cap (empty, 0, or negative)."""
     text = (text or "").strip()
     if not text:
         return None
@@ -165,7 +164,6 @@ def parse_lines(text: str) -> int | None:
 
 
 def count_lines(path: str) -> int:
-    """Newline count, plus one for a final line without a newline."""
     lines = 0
     last = b"\n"
     with open(path, "rb") as handle:
@@ -240,7 +238,6 @@ def report_skips(
     size_text: str,
     lines_text: str,
 ) -> None:
-    """One line naming what a cap or a non-UTF-8 name left out of the scan."""
     parts: list[str] = []
     if skipped:
         path, size, lines = max(skipped, key=lambda entry: entry[1])
