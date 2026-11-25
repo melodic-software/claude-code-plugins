@@ -1,23 +1,10 @@
 #requires -Version 7.0
-<#
-  Unattended procedure library. The agent authors the stage block that follows it.
-  The human launches this script. The agent never launches the real run.
-  Secrets declared on Invoke-UnattendedRun resolve once before the first stage:
-  environment, then file, then the credential store (SecretManagement, then the
-  macOS Keychain or Linux pass), then one hidden
-  prompt per name still unresolved. An undeclared name resolves at first use.
-  -WhatIf narrates the plan and -Test reports what would change. Neither
-  invokes a helper's block, and both write only the result directory.
-  Result JSON is cutover.result/1, plus result-latest.json
-  (result-dry-latest.json for -WhatIf and -Test).
-#>
 [CmdletBinding(SupportsShouldProcess)]
 param([switch] $Test)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:Mode = if ($Test) { 'test' } elseif ($WhatIfPreference) { 'whatif' } else { 'run' }
-# -Test also skips any cmdlet outside a helper that honors -WhatIf.
 if ($script:Mode -eq 'test') { $WhatIfPreference = $true }
 
 $script:Steps = [System.Collections.Generic.List[object]]::new()
@@ -31,7 +18,6 @@ $script:SecretCache = @{}
 $script:ResultDirectory = $null
 $script:TranscriptPath = $null
 
-# -WhatIf:$false on the result writes: a dry run still writes its result directory.
 function Initialize-UnattendedResult {
     param([Parameter(Mandatory = $true)][string] $ResultDirectory)
     $script:ResultDirectory = $ResultDirectory
@@ -81,17 +67,12 @@ function Assert-Elevation {
 
 function Assert-NotInside {
     param([Parameter(Mandatory = $true)][string] $Name)
-    # WIZARD_INSIDE_MARKER replaces WSL_DISTRO_NAME: the test seam for template.test.sh.
     $inside = if ($env:WIZARD_INSIDE_MARKER) { $env:WIZARD_INSIDE_MARKER } else { $env:WSL_DISTRO_NAME }
     if ($inside -eq $Name) {
         throw "refusing to run inside $Name"
     }
 }
 
-# The native store for the platform, asked by name only; the value never rides on argv.
-# WIZARD_PLATFORM (macos, linux) replaces platform detection: the test seam for template.test.sh.
-# An absent command, a nonzero exit or empty output is a miss, skipped silently. `pass show` lists a
-# directory instead of failing, so pass is asked only for a name that is an entry file in the store.
 function Get-UnattendedNativeSecret {
     param([Parameter(Mandatory = $true)][string] $Name)
     $PSNativeCommandUseErrorActionPreference = $false
@@ -121,11 +102,6 @@ function Get-UnattendedNativeSecret {
     return $null
 }
 
-# Microsoft.PowerShell.SecretManagement fronts whichever vaults are registered. Only a
-# string is used: -AsPlainText leaves a PSCredential, hashtable or byte[] as an object,
-# and redaction would record its type name instead of the secret.
-# Without the module, or without the name, the rung falls through to the native store
-# (macOS Keychain, Linux pass), then is skipped silently.
 function Get-UnattendedStoreSecret {
     param([Parameter(Mandatory = $true)][string] $Name)
     if (Get-Command Get-Secret -ErrorAction SilentlyContinue) {
@@ -255,8 +231,6 @@ function Add-Preflight {
     Add-UnattendedStep $Name 'ok' 'preflight'
 }
 
-# A native command's nonzero exit is not a terminating error under
-# $ErrorActionPreference = 'Stop', so every authored block is checked.
 function Invoke-Checked {
     param(
         [Parameter(Mandatory = $true)][string] $Label,
@@ -287,8 +261,6 @@ function Invoke-IdempotentStep {
     Add-UnattendedStep $Name 'ok'
 }
 
-# A guard that skips a destructive step when a name is absent from a parsed
-# listing must not read an empty parse as absent: the read may have failed.
 function Assert-ParsedState {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -303,14 +275,11 @@ function Assert-ParsedState {
     }
 }
 
-# wsl.exe writes UTF-16 unless WSL_UTF8=1, and a PowerShell capture decodes that
-# as text with embedded NULs. Prefer a CLI's --json over parsing human output.
 function Invoke-NativeUtf8 {
     param([Parameter(Mandatory = $true)][scriptblock] $Block)
     $priorVariable = $env:WSL_UTF8
     $priorEncoding = [Console]::OutputEncoding
     $env:WSL_UTF8 = '1'
-    # A host with no attached console throws on the setter; the pin then rests on WSL_UTF8.
     try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch { }
     try {
         & $Block
@@ -320,9 +289,6 @@ function Invoke-NativeUtf8 {
     }
 }
 
-# Polls an outcome instead of trusting the exit code of the request that caused
-# it. The predicate must assert a non-empty observation first: an empty set
-# satisfies "all of them are done".
 function Wait-ForState {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -393,8 +359,6 @@ function Use-GuardedResource {
     $script:Held.Remove($Name) | Out-Null
 }
 
-# Refuses before prompting, so no irreversible action precedes proof and release
-# of every guarded resource.
 function Confirm-Irreversible {
     param([Parameter(Mandatory = $true)][string] $Name)
     if ($Name -notin $script:Irreversible) {
@@ -469,7 +433,6 @@ function Complete-UnattendedResult {
     $json = $payload | ConvertTo-Json -Depth 6
     foreach ($secret in $script:Secrets) {
         if ($secret) {
-            # A step detail or error message can carry a secret too; escape it as JSON does.
             $escaped = ($secret | ConvertTo-Json).Trim('"')
             $json = $json.Replace($escaped, '***')
         }

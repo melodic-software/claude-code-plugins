@@ -78,10 +78,10 @@ else
 fi
 
 if [[ "$SKILL_FLAT" == *'WIZARD_INSIDE_MARKER'* && "$SKILL_FLAT" == *'the test seam'* ]] \
-  && grep -Fq 'the test seam for template.test.sh' "$TEMPLATE"; then
-  pass "WIZARD_INSIDE_MARKER is named as the test seam in the template and SKILL.md"
+  && grep -Fq '$env:WIZARD_INSIDE_MARKER' "$TEMPLATE"; then
+  pass "WIZARD_INSIDE_MARKER is named as the test seam in SKILL.md and read by the template"
 else
-  fail "WIZARD_INSIDE_MARKER is named as the test seam in the template and SKILL.md" "seam not named"
+  fail "WIZARD_INSIDE_MARKER is named as the test seam in SKILL.md and read by the template" "seam not named"
 fi
 
 # shellcheck disable=SC2016 # backticks quote literal SKILL.md text

@@ -60,7 +60,7 @@ file, a colon, and the declaration skipped, one finding per declaration.
 Every shipped adapter whose manifests are present runs, and their nodes, edges and
 findings are one record. `ecosystem` is the adapter's name when one ran, `mixed` when
 more than one ran, and `unknown` when none did. Each node carries its own `ecosystem`.
-The header of `scripts/dependency-graph.sh` records the upstream source, verification date
+[`reference/dependency-graph-record.md`](reference/dependency-graph-record.md) records the upstream source, verification date
 and recheck trigger behind each non-.NET adapter's rules below.
 
 The .NET adapter:
