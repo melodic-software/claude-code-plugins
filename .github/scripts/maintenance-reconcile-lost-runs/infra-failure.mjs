@@ -73,11 +73,9 @@ export const RERUN_DUE_MINUTES = INFRA_BACKOFF_MINUTES + 2 * RECONCILER_TICK_MIN
 // step) waits on nothing else, and neither does a run or field that cannot be
 // read.
 export function reconcilerOwns({ run, jobs }, now) {
-  // A run stuck in flight holds fix-ci off only inside the lookback.
   if (IN_FLIGHT.has(run?.status) && inLookback(run, now)) {
     return `run ${run.id} attempt ${run.run_attempt} is ${run.status}; its result decides`;
   }
-  // Every wait ends at RERUN_DUE_MINUTES: an unreadable time or attempt waits on nothing.
   const due = Date.parse(run?.updated_at) + RERUN_DUE_MINUTES * 60_000;
   if (!(now < due)) {
     return "";
