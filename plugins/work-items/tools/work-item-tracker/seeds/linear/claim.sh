@@ -67,9 +67,6 @@ HOLDER="$WIT_LINEAR_VIEWER"
 wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
 ISSUE_UUID="$(jq -r '.id' <<<"$WIT_LINEAR_ISSUE")"
 
-# Step 1 — a live FOREIGN lease is refused before anything is written. Checking first
-# costs one read and avoids the common case of assigning, posting, and then unwinding
-# both against a holder who was never in doubt.
 EXISTING="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit "$?"
 while IFS= read -r entry; do
   [[ -n "$entry" ]] || continue
@@ -80,8 +77,6 @@ while IFS= read -r entry; do
   exit "$EX_CONFLICT"
 done < <(jq -c '.[]' <<<"$EXISTING")
 
-# Step 2 — assign the authenticated user. This is visibility and frontier state, NOT
-# the race detector (see the header).
 wit_linear_set_assignee "$ISSUE_UUID" "$WIT_LINEAR_VIEWER_ID"
 
 # Guard the partial-claim window, exactly as the github adapter does. Any failure
@@ -149,8 +144,6 @@ _wit_linear_claim_rollback() {
 }
 trap _wit_linear_claim_rollback EXIT
 
-# Step 3 — post the lease. The handle is minted from the comment's own createdAt, so it
-# is ordered by construction rather than by anything this process chose.
 NOW="$(wit_linear_now_iso)"
 PROVISIONAL="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg h "$HOLDER" --arg t "$NOW" \
   --argjson th "$TTL_HOURS" --argjson tm "$TTL_MINUTES" --arg s "$SESSION_ID" \
@@ -164,9 +157,6 @@ HANDLE="$(wit_linear_handle "$(jq -r '.createdAt' <<<"$POSTED")")"
 LEASE="$(jq -c --argjson h "$HANDLE" '. + {lease_comment_id: $h}' <<<"$PROVISIONAL")"
 wit_linear_update_comment "$COMMENT_UUID" "$(wit_linear_lease_marker "$LEASE")"
 
-# Step 4 — re-read and arbitrate. If any EARLIER live lease exists that is not our own
-# comment, it wins: supersede ours and back off. The assignee is left alone on a
-# same-holder race — it belongs to the winner either way.
 AFTER="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit "$?"
 LOSER=""
 while IFS= read -r entry; do

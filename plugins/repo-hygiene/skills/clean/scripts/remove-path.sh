@@ -206,11 +206,6 @@ elif [[ -d "$TARGET_ABS/.git" ]]; then
   KIND=repo
 fi
 
-# A plain-dir target is removed wholesale, but the repo guards below inspect only
-# the target itself — never its descendants. A leftover parent (a ghq owner dir,
-# any folder still holding child clones/submodules/linked worktrees/bare mirrors)
-# would take their unpushed commits, stashes, and secrets down with it unseen.
-# Refuse and defer to per-child removal rather than guess each child's state.
 if [[ "$KIND" == dir ]]; then
   # Normal repos + submodules/linked worktrees: any descendant named .git
   # (a repo's .git directory, or a submodule/worktree's .git file).
@@ -284,8 +279,6 @@ if [[ "$KIND" != dir ]]; then
       UNPUSHED_REFS=$((UNPUSHED_REFS + 1))
       continue
     fi
-    # Fail closed: an unresolvable upstream (pruned remote branch, stale
-    # tracking config) counts as unpushed rather than silently as 0-ahead.
     if ! ahead="$(git -C "$TARGET_ABS" rev-list --count "$upstream..$ref" 2>/dev/null | tr -d ' ')" || [[ -z "$ahead" ]]; then
       UNPUSHED_REFS=$((UNPUSHED_REFS + 1))
       continue

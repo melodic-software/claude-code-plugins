@@ -42,9 +42,6 @@ wit_need_linear_config
 wit_linear_require_scoped_id "$ID"
 wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
 CHILD_UUID="$(jq -r '.id' <<<"$WIT_LINEAR_ISSUE")"
-# The child's own identifier, captured BEFORE the parent is resolved — resolving the
-# parent overwrites the WIT_ID_* and WIT_LINEAR_TEAM globals, and comparing against
-# those afterwards compares the parent to itself, which never matches.
 CHILD_IDENTIFIER="$WIT_LINEAR_TEAM-$WIT_ID_NUMBER"
 
 wit_linear_require_scoped_id "$PARENT"

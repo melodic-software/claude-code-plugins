@@ -47,11 +47,6 @@ for e in "${LITERALS[@]}"; do
   fi
 done
 
-# The multi-line operations. These are the ones an eyeball skips, so they are checked by
-# whitespace-normalized containment rather than left to the printout above.
-# The adapter builds these inside double-quoted shell strings, so its `$` sigils are written
-# `\$` in the file while validate.mjs holds them bare. Strip that one escape before comparing,
-# or every multi-line entry mismatches on punctuation rather than on substance.
 unesc() { sed 's/\\\$/$/g'; }
 V_NORM="$(unesc <"$V" | norm)"
 
