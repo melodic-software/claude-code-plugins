@@ -125,6 +125,8 @@ hpp_judge() {
       match($0, /^[0-9]+:/) { printf "%s\t1\t%s:%s: machine-specific path (%s)\n", tag, f, substr($0, 1, RLENGTH - 1), label }' >>"${sinks[$1]}"
 }
 
+# Windows caps a command line at 32,767 characters; awk gets the matched line numbers in one argument.
+# https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
 JOIN_MAX=32768
 hpp_sweep() {
   local from=$1 to=$2 i t joined="" mid

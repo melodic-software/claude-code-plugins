@@ -175,7 +175,7 @@ mask_quoted_redirect_ops_to() {
 has_redirect_to_drive_root_tmp() {
   local s
   mask_quoted_redirect_ops_to s "$1"
-  # the portability gate does not flag this ERE. portability-ok: bash [[ =~ ]]
+  # portability-ok: character-class angle brackets in a bash regex, not a GNU word boundary
   if [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?(\/[a-z]\/tmp|[a-z]:\/tmp)(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
     return 0
   fi

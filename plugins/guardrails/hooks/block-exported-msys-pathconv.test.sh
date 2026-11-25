@@ -150,7 +150,7 @@ run_win "quoted bare shell word with an export (blocked)" \
   "'bash' -c 'export MSYS_NO_PATHCONV=1; git status'" 2
 run_win "quoted absolute shell path with an export (blocked)" \
   "'/c/Program Files/Git/bin/bash.exe' -c 'export MSYS_NO_PATHCONV=1; git worktree add /d/worktrees/x'" 2
-# portability-ok: the backslashes below are Windows path separators inside a
+# portability-ok: Windows path separators in a literal PowerShell test fixture, not regex escapes
 run_win_pwsh "PowerShell call operator on a quoted bash.exe path with an export (blocked)" \
   '& "C:\Program Files\Git\bin\bash.exe" -c "export MSYS_NO_PATHCONV=1; git status"' 2
 run_win "prefix at the start of a quoted child command string (blocked)" \
