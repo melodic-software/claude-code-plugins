@@ -175,9 +175,10 @@ def _flips_meaning(word):
     return token in MEANING_FLIP_WORDS or token.endswith("n't")
 
 
-def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
+def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0, skip_old_ranges=()):
     """A hunk that edits an existing line is a cut unless every old word survives, in order, in
-    its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion."""
+    its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion. A hunk
+    whose old lines all sit inside one of `skip_old_ranges` (inclusive line pairs) is not a cut."""
     hunks = []
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
@@ -186,7 +187,9 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
         if match:
             old_start = int(match.group(1))
             old_count = 1 if match.group(2) is None else int(match.group(2))
-            hunks.append([old_count > 0 and old_start + old_count - 1 > skip_old_lines_upto, [], []])
+            old_end = old_start + old_count - 1
+            skipped = any(lo <= old_start and old_end <= hi for lo, hi in skip_old_ranges)
+            hunks.append([old_count > 0 and old_end > skip_old_lines_upto and not skipped, [], []])
         elif hunks and line.startswith("-") and not line.startswith("---"):
             hunks[-1][1].extend(line[1:].split())
         elif hunks and line.startswith("+") and not line.startswith("+++"):
@@ -212,8 +215,9 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
     return any(edits and is_cut(old, new) for edits, old, new in hunks)
 
 
-def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0):
-    """True when any `-U0` hunk modifies or removes an existing line past the skipped prefix."""
+def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0, skip_old_ranges=()):
+    """True when any `-U0` hunk modifies or removes an existing line past the skipped prefix and
+    outside the skipped ranges."""
     done = _git(
         repo_root,
         "diff",
@@ -225,7 +229,9 @@ def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0):
     )
     if done.returncode != 0:
         return True
-    return _diff_has_cut_hunks(done.stdout, skip_old_lines_upto=skip_old_lines_upto)
+    return _diff_has_cut_hunks(
+        done.stdout, skip_old_lines_upto=skip_old_lines_upto, skip_old_ranges=skip_old_ranges
+    )
 
 
 def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
@@ -240,6 +246,20 @@ def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
     if done.returncode != 0:
         return True
     return _diff_has_cut_hunks(done.stdout)
+
+
+def _next_section_lines(text):
+    """The 1-based line range of a `## Next` section's body, heading excluded, or None. It names
+    successors for the person and changes no tool call, so editing it runs nothing."""
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.rstrip() == "## Next":
+            end = next(
+                (j for j in range(index + 1, len(lines)) if lines[j].startswith("## ")),
+                len(lines),
+            )
+            return index + 2, end
+    return None
 
 
 def _frontmatter_end_line(text):
@@ -373,9 +393,16 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
     body_class = None
     if base_body != head_body:
         fm_end = _frontmatter_end_line(base_text)
+        next_lines = _next_section_lines(base_text)
         body_class = (
             "cut"
-            if diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=fm_end)
+            if diff_has_cut(
+                repo_root,
+                diff_base,
+                rel_path,
+                skip_old_lines_upto=fm_end,
+                skip_old_ranges=(next_lines,) if next_lines else (),
+            )
             else "additive"
         )
 
