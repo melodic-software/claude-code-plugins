@@ -30,7 +30,7 @@ yaml_value() {
 
 CACHE="${ORG_STANDARDS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-plugins/org-standards}"
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-REPO_RE='^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$'
+REPO_RE='^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*$'
 
 org_dir() {
   if [[ -n "${STANDARDS_DIR:-}" ]]; then

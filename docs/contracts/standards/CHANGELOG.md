@@ -11,7 +11,9 @@ files and below every team-tracked standard; a repository that is also the org l
 there. Subscriptions add no `REVIEW.md`. `org-standards.sh subscriptions` prints each subscribed
 layer with its checkout and its (topic-filtered) index, reports malformed entries, refusals and
 index drift, and prints the index diff when a pin moves; `STANDARDS_SUBSCRIPTIONS_DISABLED=true`
-skips them for a session. A user index that uses the list declares 1.3.0. An index at 1.2.0 is
+skips them for a session. A user index that uses the list declares 1.3.0. Validation tightens:
+a repository name made only of dots (`.`, `..`) is not `<owner>/<repo>`, for `standards_repository`
+and for every subscription entry, so a cache path cannot resolve outside its cache root. An index at 1.2.0 is
 older than the bundled contract, so setup offers the guided migration, which changes nothing but
 the version.
 

@@ -79,6 +79,11 @@ assert_eq "no standards_repository: the repository criteria only" "# Local" "$(r
 t=$(target malformed 'standards_repository: not a repo\n')
 assert_eq "a malformed standards_repository is no org layer" "3" "$(code dir --root "$t")"
 
+for dots in acme/.. acme/. acme/...; do
+  t=$(target "dots-${dots##*/}" "standards_repository: $dots"$'\n')
+  assert_eq "a repository name of only dots ($dots) is no org layer" "3" "$(code dir --root "$t")"
+done
+
 t=$(target ci "$OPTED")
 mkdir -p "$TEST_TMPDIR/ci-std"
 printf '# CI org\n' >"$TEST_TMPDIR/ci-std/REVIEW.md"
@@ -256,6 +261,18 @@ assert_eq "a flow-style entry is reported as malformed with its file and line" "
 user_index $'standards_repositories: [acme/handbook]\n'
 assert_eq "a flow-style list reads no subscription" "" "$(run subscriptions --root "$t")"
 assert_eq "a flow-style list is reported" "1" "$(errs subscriptions --root "$t" | grep -c 'subscriptions not read: .*not a block list')"
+
+user_index "trusted_owners:
+  - acme
+standards_repositories:
+  - repo: acme/..
+  - repo: stranger/guide
+    ref: $GUIDE
+"
+assert_eq "a subscription whose repository name is only dots is skipped" "stranger/guide@$GUIDE" "$(run subscriptions --root "$t" | cut -f1)"
+assert_eq "a subscription whose repository name is only dots is reported as malformed" "1" \
+  "$(errs subscriptions --root "$t" | grep -c "^org-standards: $USER_INDEX:6: malformed subscription (repo acme/.. is not <owner>/<repo>)")"
+assert_eq "no checkout lands outside a repository's own cache entry" "" "$(find "$ORG_STANDARDS_CACHE" -maxdepth 1 -name '*@*')"
 
 printf -- '---\nstandards_repositories:\n  - repo: stranger/guide\n    ref: %s\n---\n' "$GUIDE" >"$USER_INDEX"
 assert_eq "a user README without the standards-contract key is no index: nothing read" "" "$(run subscriptions --root "$t")"
