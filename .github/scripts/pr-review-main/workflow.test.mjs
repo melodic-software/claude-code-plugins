@@ -1277,21 +1277,23 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
   }
 });
 
-test("each leg copies the review criteria criteria.txt lists", () => {
+test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed over the org's", () => {
   const run = /^ {8}run: \|\n((?: {10}.*\n|\n)+)/m.exec(`${step("Copy the review criteria")}\n`)[1].replace(/^ {10}/gm, "");
   for (const job of LEGS) assert.equal(step("Copy the review criteria", job), step("Copy the review criteria"), job);
   assert.equal(input(step("Copy the review criteria"), "SKILL"), "${{ matrix.skill }}");
+  assert.equal(input(step("Copy the review criteria"), "ORG"), "${{ steps.standards.outputs.path }}");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-criteria-"));
   try {
     const files = {
       ".github/scripts/pr-review-main/criteria.txt": readFileSync(new URL("./criteria.txt", import.meta.url), "utf8"),
+      "lib/org-standards.sh": readFileSync(new URL("../../../lib/org-standards.sh", import.meta.url), "utf8"),
       "plugins/review/skills/code-review/SKILL.md": "skill",
       "plugins/review/skills/code-review/evals/case.md": "eval",
       "plugins/review/skills/security-review/SKILL.md": "other lane",
       "plugins/review/reference/ref.md": "ref",
       "plugins/review/skills/quality-gate/context/loosened-check.md": "criterion",
       "plugins/review/skills/quality-gate/context/code.md": "not copied",
-      "REVIEW.md": "review",
+      "REVIEW.md": "review\n",
       "docs/standards/s.md": "standard",
       ".claude/rules/r.md": "rule",
     };
@@ -1299,11 +1301,19 @@ test("each leg copies the review criteria criteria.txt lists", () => {
       mkdirSync(path.dirname(path.join(dir, ".base", file)), { recursive: true });
       writeFileSync(path.join(dir, ".base", file), body);
     }
+    const org = path.join(dir, "org-checkout");
+    for (const [file, body] of Object.entries({ "REVIEW.md": "org review\n", "standards/review/x.md": "cited", "docs/standards/README.md": "index", "other/y.md": "not copied" })) {
+      mkdirSync(path.dirname(path.join(org, file)), { recursive: true });
+      writeFileSync(path.join(org, file), body);
+    }
     const data = path.join(dir, "data");
-    const copy = () => spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env: { ...process.env, SKILL: "code-review", DATA: data } });
+    const copy = () => spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env: { ...process.env, SKILL: "code-review", DATA: data, ORG: org } });
     const result = copy();
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(readdirSync(data, { recursive: true }).filter((f) => f.endsWith(".md")).sort(), [
+      "org/REVIEW.md",
+      "org/docs/standards/README.md",
+      "org/standards/review/x.md",
       "review/reference/ref.md",
       "review/skills/code-review/SKILL.md",
       "review/skills/quality-gate/context/loosened-check.md",
@@ -1311,9 +1321,16 @@ test("each leg copies the review criteria criteria.txt lists", () => {
       "standards/rules/r.md",
       "standards/standards/s.md",
     ]);
+    const composed = () => readFileSync(path.join(data, "standards", "REVIEW.md"), "utf8");
+    assert.match(composed(), /^org review\n\n<!-- The repository REVIEW\.md follows[^\n]*-->\n\nreview\n$/, "extend: main's REVIEW.md follows the org's");
+    rmSync(data, { recursive: true, force: true });
+    writeFileSync(path.join(dir, ".base", "REVIEW.md"), "<!-- review-base: replace -->\nown\n");
+    assert.equal(copy().status, 0);
+    assert.equal(composed(), "<!-- review-base: replace -->\nown\n", "override: the marker keeps main's alone");
     rmSync(data, { recursive: true, force: true });
     rmSync(path.join(dir, ".base", "REVIEW.md"));
-    assert.notEqual(copy().status, 0, "a main with no REVIEW.md fails the copy");
+    assert.equal(copy().status, 0, "a main with no REVIEW.md still copies");
+    assert.equal(composed(), "org review\n", "default: the org's criteria alone");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

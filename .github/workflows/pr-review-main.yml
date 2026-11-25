@@ -1107,8 +1107,9 @@ jobs:
         env:
           SKILL: ${{ matrix.skill }}
           DATA: ${{ github.workspace }}/pr-review-main-data
+          ORG: ${{ steps.standards.outputs.path }}
         run: |
-          mkdir -p "$DATA/review/skills" "$DATA/standards"
+          mkdir -p "$DATA/review/skills" "$DATA/standards" "$DATA/org"
           while read -r how src dest; do
             case $how in copy | copy-if-present) ;; *) continue ;; esac
             src=${src//"{skill}"/$SKILL}
@@ -1118,6 +1119,13 @@ jobs:
             cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
+          STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
+          for part in REVIEW.md .claude/standards.yaml docs/standards standards; do
+            if [ -e "$ORG/$part" ]; then
+              mkdir -p "$(dirname "$DATA/org/$part")"
+              cp -R "$ORG/$part" "$DATA/org/$part"
+            fi
+          done
 
       - name: Resolve the review's model
         id: models
@@ -2050,8 +2058,9 @@ jobs:
         env:
           SKILL: ${{ matrix.skill }}
           DATA: ${{ github.workspace }}/pr-review-main-data
+          ORG: ${{ steps.standards.outputs.path }}
         run: |
-          mkdir -p "$DATA/review/skills" "$DATA/standards"
+          mkdir -p "$DATA/review/skills" "$DATA/standards" "$DATA/org"
           while read -r how src dest; do
             case $how in copy | copy-if-present) ;; *) continue ;; esac
             src=${src//"{skill}"/$SKILL}
@@ -2061,6 +2070,13 @@ jobs:
             cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
+          STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
+          for part in REVIEW.md .claude/standards.yaml docs/standards standards; do
+            if [ -e "$ORG/$part" ]; then
+              mkdir -p "$(dirname "$DATA/org/$part")"
+              cp -R "$ORG/$part" "$DATA/org/$part"
+            fi
+          done
 
       - name: Resolve the review's model
         id: models
@@ -2966,8 +2982,9 @@ jobs:
         env:
           SKILL: ${{ matrix.skill }}
           DATA: ${{ github.workspace }}/pr-review-main-data
+          ORG: ${{ steps.standards.outputs.path }}
         run: |
-          mkdir -p "$DATA/review/skills" "$DATA/standards"
+          mkdir -p "$DATA/review/skills" "$DATA/standards" "$DATA/org"
           while read -r how src dest; do
             case $how in copy | copy-if-present) ;; *) continue ;; esac
             src=${src//"{skill}"/$SKILL}
@@ -2977,6 +2994,13 @@ jobs:
             cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
+          STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
+          for part in REVIEW.md .claude/standards.yaml docs/standards standards; do
+            if [ -e "$ORG/$part" ]; then
+              mkdir -p "$(dirname "$DATA/org/$part")"
+              cp -R "$ORG/$part" "$DATA/org/$part"
+            fi
+          done
 
       - name: Resolve the review's model
         id: models
