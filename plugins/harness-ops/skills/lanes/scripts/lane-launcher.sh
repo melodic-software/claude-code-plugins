@@ -299,9 +299,6 @@ run_bounded() {
   child=$!
   (
     sleep "$bound_s"
-    # Flag before the signal: the parent stops this watchdog once the child
-    # dies, so a flag written after the kill can be lost and a timeout read as
-    # the child's own exit.
     [[ -n "$flag" ]] && printf 'timeout\n' >"$flag"
     if ! kill -TERM "$child" 2>/dev/null; then
       [[ -n "$flag" ]] && : >"$flag"
@@ -965,12 +962,6 @@ arm_stop_gate() {
   arm_id="$(generate_arm_id)"
   sentinel="$(gate_option_from_settings "$settings" lane_stop_gate_sentinel)"
   marker="$(gate_option_from_settings "$settings" lane_stop_gate_marker)"
-  # The two options forward on DIFFERENT conditions, because the gate reads an
-  # empty value differently for each. An empty marker disables the marker
-  # channel, so `v:`-prefixed-and-empty is a verdict that must reach the record;
-  # an empty sentinel is not a configured value at all — lane-stop-gate.sh
-  # substitutes the default token for it — so recording one would buy nothing
-  # while suppressing the record's fall-through to the user-level sentinel.
   local -a args=(--id "$arm_id" --cwd "$REPO")
   [[ "$sentinel" == v:?* ]] && args+=(--sentinel "${sentinel#v:}")
   [[ "$marker" == v:* ]] && args+=(--marker "${marker#v:}")

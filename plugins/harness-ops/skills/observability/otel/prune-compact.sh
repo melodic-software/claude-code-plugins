@@ -28,8 +28,6 @@ readonly COLD_ATTR_SHAPE='[{"key":"VARCHAR","value":"JSON"}]'
 keep_prompts() { [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]]; }
 scrub_content() { [[ "${CC_OTEL_COLD_KEEP_CONTENT:-1}" == "0" ]]; }
 
-# Per kind (cc-logs|cc-traces|cc-metrics): the raw column, the hot projection macro, and the
-# cold stub macro that gives every cold read the current column contract.
 cold_raw_col() { case "$1" in cc-logs) printf log_attributes_raw ;; cc-traces) printf span_attributes_raw ;; *) printf metric_attributes_raw ;; esac }
 cold_from_macro() { case "$1" in cc-logs) printf cc_logs_from ;; cc-traces) printf cc_spans_from ;; *) printf cc_metrics_from ;; esac }
 cold_stub_macro() { case "$1" in cc-logs) printf cc_logs_cold_stub ;; cc-traces) printf cc_spans_cold_stub ;; *) printf cc_metrics_cold_stub ;; esac }
@@ -147,11 +145,6 @@ compact_dropped() {
   local cold_dir="$store_dir/cold"
   local cold_file="$cold_dir/$base-$cold_ts.parquet"
   mkdir -p "$cold_dir"
-  # Uniquify: a second prune of the same file within the same UTC second must
-  # not mv -f over an existing cold file (append-only contract — compacted
-  # history is never overwritten). A serial existence check suffices: the
-  # prune sentinel already prevents concurrent prunes. The -N suffix still
-  # matches the <base>-*.parquet glob the cc_*_cold macros read.
   local n=2
   while [[ -e "$cold_file" ]]; do
     cold_file="$cold_dir/$base-$cold_ts-$n.parquet"
