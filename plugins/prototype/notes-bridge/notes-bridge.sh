@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/ui-feedback/notes-bridge.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# Runs notes_bridge.py (beside this script) with the first Python 3 that actually runs.
-#   bash notes-bridge.sh --dir DATA_DIR <command> ...
-# session-bridge.conf names this script as CONTROL, so wake.sh runs its apply.
-# Probes python3, then python. A zero-length file (the Windows Store alias stub) or a
-# candidate that is not Python 3 or cannot run a trivial program is skipped. Exits 2 when none runs.
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 for name in python3 python; do
   candidate=$(command -v "$name" 2>/dev/null) || continue

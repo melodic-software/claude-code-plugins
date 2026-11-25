@@ -1,44 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/parse-concern-value.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# Resolve one value from a YAML concern file the way every consuming plugin
-# must: quote-aware, comment-safe, whitespace-trimmed, trailing-slash-normalized,
-# with a caller-supplied fallback for the case the key is absent.
-#
-# Parsing is yaml-subset.awk's, which sits beside this script in every copy:
-# one YAML parser for the repository. A `#` inside a quoted value is part of the
-# value, never a comment.
-#
-# SINGLE SOURCE OF TRUTH: lib/parse-concern-value.sh and lib/yaml-subset.awk at
-# the marketplace repo root. The copies materialized into consuming plugins
-# exist because installed plugins are cache-isolated and must be
-# self-contained; never edit a copy. Edit the source and run
-# scripts/sync-shared-copies.sh; CI rejects drifted copies.
-#
-# Usage:
-#   parse-concern-value.sh [--strict] [--list] [--ref <ref>] <file|-> <key> [fallback]
-#
-#   <file>        path to the concern file; `-` reads the document from stdin
-#                 (a remote reader passes text it fetched itself)
-#   <key>         dotted key: `memory_dir`, `merge.rung`,
-#                 `lanes.pr-merge.slots.0.activity` (sequence items by index)
-#   [fallback]    value to emit when the key is absent or empty: the caller's
-#                 already-resolved location or the schema default. This script
-#                 never reads prose or schemas; the caller passes it in.
-#   --list        print the scalar items of the sequence at <key>, one per line
-#   --ref <ref>   read <file> as committed at <ref>: a 40-hex commit id or
-#                 `origin/<name>`. Validated before any git call and passed to
-#                 git after --end-of-options.
-#   --strict      exit 3 on a parse error, such as a key repeated in one
-#                 mapping, instead of taking the fallback
-#
-# Output: the resolved value, or empty when nothing resolves (the caller
-# applies its documented default). Exit 0 for a well-formed invocation,
-# including a missing file. A document the parser rejects is treated as absent
-# with one stderr line, so a malformed file never stops a consumer; --strict
-# makes it exit 3 for a caller that must tell an error from an absent key.
-# Exit 2 for a usage error, an invalid key or ref, or a ref that does not
-# resolve.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,7 +16,20 @@ pos=()
 while (($#)); do
   case "$1" in
   -h | --help)
-    awk 'NR > 1 && /^set -uo/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+    cat <<'EOF'
+Resolve one value from a YAML concern file, or the fallback when the key is absent or empty.
+Usage: parse-concern-value.sh [--strict] [--list] [--ref <ref>] <file|-> <key> [fallback]
+  <file|->     the concern file; - reads the document from stdin
+  <key>        dotted key, e.g. merge.rung or lanes.pr-merge.slots.0.activity
+  [fallback]   the value printed when the key is absent or empty
+  --list       print the scalar items of the sequence at <key>, one per line
+  --ref <ref>  read <file> as committed at <ref>: a 40-hex commit id or origin/<name>
+  --strict     exit 3 on a parse error instead of taking the fallback
+Exit codes:
+  0  a well-formed invocation, including a missing or rejected file
+  2  usage error, an invalid key or ref, or a ref that does not resolve
+  3  --strict and the document does not parse
+EOF
     exit 0
     ;;
   --strict) strict=1 ;;
@@ -85,8 +60,6 @@ fi
 
 text="" present=1
 if ((has_ref)); then
-  # Only a full commit id or origin/<name> passes; nothing that git could read
-  # as an option, a revision range or a path.
   if [[ "$concern_file" == "-" ]] ||
     ! [[ "$ref" =~ ^[0-9a-f]{40}$ || ("$ref" =~ ^origin/[A-Za-z0-9._/-]+$ && "$ref" != *..* && "$ref" != origin/-*) ]]; then
     echo "parse-concern-value: invalid --ref; expected a 40-hex commit id or origin/<name>, and a file path" >&2

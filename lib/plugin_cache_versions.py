@@ -24,11 +24,6 @@ from typing import Any, NamedTuple
 
 INSTALLED_PLUGINS = "plugins/installed_plugins.json"
 
-# Days after an update or uninstall that Claude Code removes an orphaned plugin
-# version, counted from its `.orphaned_at` marker. Basis:
-# https://code.claude.com/docs/en/plugins/loading.md ("Cleanup of previous versions"),
-# verified 2026-09-30; recheck when that section or a Claude Code changelog entry
-# changes the window.
 ORPHAN_SWEEP_DAYS = 14
 
 _DAY = 86400.0

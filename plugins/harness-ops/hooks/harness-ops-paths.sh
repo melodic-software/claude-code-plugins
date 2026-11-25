@@ -1,14 +1,6 @@
 # GENERATED from plugins/session-telemetry/hooks/harness-ops-paths.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
 # shellcheck shell=bash
-# Plugin-local path policy for user-configured repository destinations, plus
-# the shared skill-usage store writer both skill-usage producers call.
-#
-# The store writer emits through session-log-lib.sh's record formatter, so the
-# escaping is the plugin's one escaping path and the row costs no jq process.
-# The skill-usage store keeps its OWN key set (`event: "SkillUse"`, skill,
-# branch, project, project_id, hook, source): it is a separate store with its
-# own readers under skills/audit-skill-visibility, not a hook event record.
 if ! declare -F slog_record_to >/dev/null 2>&1; then
   # shellcheck source=session-log-lib.sh
   source "${BASH_SOURCE[0]%/*}/session-log-lib.sh"
@@ -16,18 +8,12 @@ fi
 # shellcheck source=hook-utils.sh
 source "${BASH_SOURCE[0]%/*}/hook-utils.sh"
 
-# Resolve a project-relative directory without allowing an absolute path,
-# Windows drive/UNC path, `..` traversal, or an existing symlink ancestor to
-# escape the physical project root. Prints the candidate on success.
 harness_ops::resolve_project_relative_dir() {
   local project_dir="$1" configured="$2" normalized segment candidate ancestor parent
   local -a segments
 
   [[ -n "$project_dir" && -n "$configured" ]] || return 1
 
-  # Treat both separators consistently on every supported host. Reject rooted
-  # paths before joining; `C:foo` is drive-relative on Windows and is rejected
-  # with fully qualified drive paths as a portability boundary.
   normalized="${configured//\\//}"
   [[ "$normalized" != /* ]] || return 1
   [[ ! "$normalized" =~ ^[A-Za-z]: ]] || return 1
@@ -40,8 +26,6 @@ harness_ops::resolve_project_relative_dir() {
   project_dir="${project_dir%/}"
   candidate="${project_dir}/${normalized}"
 
-  # Validate the nearest existing ancestor before mkdir. This rejects a
-  # lexically in-project path whose existing symlink parent resolves outside.
   ancestor="$candidate"
   while [[ ! -e "$ancestor" && "$ancestor" != "/" && "$ancestor" != "." ]]; do
     parent=$(dirname -- "$ancestor")
@@ -49,9 +33,6 @@ harness_ops::resolve_project_relative_dir() {
     ancestor="$parent"
   done
 
-  # `_to` throughout: the library's one calling convention, and a `$( )`
-  # capture around it is a subshell fork per resolution even though the body
-  # is builtins plus one realpath.
   local physical_project="" physical_ancestor="" physical=""
   hook::physical_path_to physical "$project_dir" || :
   hook::normalize_path_to physical_project "$physical"
@@ -65,12 +46,6 @@ harness_ops::resolve_project_relative_dir() {
   printf '%s' "$candidate"
 }
 
-# Stable, collision-resistant slug for a project directory, used to key
-# per-repo stores under machine-level bases (${CLAUDE_PLUGIN_DATA}) and to
-# identify the repo in cross-repo store rows. Readable basename + an 8-char
-# digest of the full physical path — folding alone is lossy (/tmp/a-b and
-# /tmp/a/b would collide), so the digest carries the uniqueness. sha1sum ships
-# with Git Bash and Linux; cksum is the POSIX fallback.
 harness_ops::repo_slug() {
   local p="" base hash physical=""
   hook::physical_path_to physical "$1" || :
@@ -82,10 +57,6 @@ harness_ops::repo_slug() {
   printf '%s' "${base:-project}${hash:+-$hash}"
 }
 
-# Collapse a configured relative dir to clean segments: both separators to '/',
-# empty and '.' segments dropped. The resolver tolerates ./x and x//y when
-# writing (mkdir normalizes), but a git ignore pattern is matched literally, so
-# the exclude line must be canonical.
 harness_ops::normalize_rel_segments() {
   local raw="${1//\\//}" out="" seg
   local -a segs
@@ -97,11 +68,6 @@ harness_ops::normalize_rel_segments() {
   printf '%s' "${out%/}"
 }
 
-# Backslash-escape gitignore glob metacharacters (* ? [) and a literal
-# backslash so a configured dir like `telemetry*` writes a LITERAL exclude
-# pattern, not a glob that over-matches sibling dirs. Leading #/! need no
-# handling: the exclude line always begins with the root anchor `/`, so the
-# comment/negation meaning (first-char-only) never applies.
 harness_ops::gitignore_escape() {
   local s="$1" out="" ch i
   for ((i = 0; i < ${#s}; i++)); do
@@ -116,15 +82,6 @@ harness_ops::gitignore_escape() {
   printf '%s' "$out"
 }
 
-# Resolve the skill-usage store directory for a scope:
-#   repo (default) — skill_usage_dir (default .claude/observability) as a
-#     contained project-relative path under the project root.
-#   user — the same contained subpath, resolved under $HOME instead
-#     (default ~/.claude/observability).
-#   data-dir — ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>; skill_usage_dir
-#     does not apply (the data dir is plugin-owned, keyed by repo).
-# Prints the destination on success. Returns 1 on an invalid configured dir,
-# 2 when the scope's base directory is unavailable.
 harness_ops::resolve_skill_usage_dir() {
   local scope="$1" project_dir="$2" rel_dir="$3"
   case "$scope" in
@@ -142,16 +99,6 @@ harness_ops::resolve_skill_usage_dir() {
   esac
 }
 
-# Keep `git status` clean when the store lives inside a repo work tree: append
-# a root-anchored ignore line to the repo's machine-local exclude file (git
-# rev-parse --git-path info/exclude — correct in linked worktrees too).
-# Normally ignores the store DIR (`/<dir>/`); when the configured dir resolves
-# to the repo root itself (e.g. skill_usage_dir=.), the store is a bare file at
-# the root, so ignore just that FILE (`/<store_file>`) rather than the whole
-# repo. Idempotent; never touches tracked files or .gitignore; only ignore
-# semantics change, so tracked content is unaffected. Disable with
-# skill_usage_git_exclude=false. Best-effort: every failure is a silent no-op
-# (the write path must never break on ignore hygiene).
 harness_ops::ensure_git_exclude() {
   local project_dir="$1" rel_dir="$2" store_file="${3:-skill-usage.jsonl}" exclude_file dir line
   [[ "${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_GIT_EXCLUDE:-true}" == "true" ]] || return 0
@@ -174,15 +121,6 @@ harness_ops::ensure_git_exclude() {
   printf '%s\n' "$line" >>"$exclude_file" 2>/dev/null || true
 }
 
-# Append one SkillUse line to the scope-selected skill-usage.jsonl store. The
-# shared body of the two producers (skill-usage-audit.sh on PostToolUse/Skill,
-# audit-event-emitter.sh's UserPromptExpansion row): resolve the configured
-# destination, re-verify it after mkdir, keep git status clean in the repo
-# scope, and write the row under the skill_usage_max_bytes cap (slog_append_capped). Best-effort throughout; every skip is surfaced to
-# the user (the options are theirs to fix) once per session via hook::notice_once markers keyed
-# "<notice_prefix>-badscope / -badconfig / -nodest" and emitted for
-# <hook_event>. expansion_type is recorded only when non-empty (the tool-path
-# producer passes "").
 harness_ops::record_skill_use() {
   local hook_event="$1" notice_prefix="$2" input="$3" skill="$4" src="$5" exp_type="$6"
   local project_dir="" rel_dir scope log_dir verified_log_dir ts branch line=""
@@ -215,7 +153,6 @@ harness_ops::record_skill_use() {
     [[ "$verified_log_dir" == "$log_dir" ]]; then
     [[ "$scope" == "repo" ]] && harness_ops::ensure_git_exclude "$project_dir" "$rel_dir"
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
-    # No work tree or an unborn HEAD fails the read and records "unknown".
     branch=$(hook::git_untrusted -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null) || branch="unknown"
     branch="${branch//$'\r'/}"
     [[ -n "$exp_type" ]] && exp_keys=(expansion_type s "$exp_type")

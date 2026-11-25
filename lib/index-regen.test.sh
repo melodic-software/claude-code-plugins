@@ -341,11 +341,6 @@ OUT=$(run_script "$S") || rc=$?
 assert_exit "child with no abstract exits 2" 2 "$rc"
 assert_contains "missing child abstract is diagnosed" "$OUT" "no one-line abstract"
 
-# --- underscore-emphasis abstracts fail loudly (formatter oscillation) --------
-# The always-on formatter rewrites _emphasis_/__strong__ (MD049/MD050 --fix)
-# inside the generated body but never inside the source frontmatter, so a
-# mirrored underscore-emphasis abstract would oscillate between regen and
-# format forever.
 S="$TEST_TMPDIR/emphasis-child"
 write_slice_index "$S" kid
 write_child_index "$S/kid" '"An abstract with _emphasis_ in it"'
@@ -384,11 +379,6 @@ assert_exit "snake_case and underscored URLs stay legal" 0 "$rc"
 BODY=$(generated_body "$S")
 assert_contains "intraword underscores are mirrored verbatim" "$BODY" "snake_case_names and https://example.com/a_b_page"
 
-# --- formatter-corruption regression (T3) -------------------------------------
-# The always-on markdown formatter was shown to rewrite a wrapped continuation
-# line starting with '+' into a '-' list marker. The generated body must keep
-# each abstract on ONE line so no such continuation can ever exist for the
-# formatter to corrupt.
 S="$TEST_TMPDIR/plus-regression"
 write_slice_index "$S" kid
 write_child_index "$S/kid" '"Adds the new gate + keeps the old one running until the flip"'
@@ -415,10 +405,6 @@ rc=0
 OUT=$(run_script "$S") || rc=$?
 assert_exit "a '+'-leading wrapped continuation exits 2" 2 "$rc"
 assert_contains "the '+' continuation is diagnosed as a wrap" "$OUT" "ONE unwrapped line"
-# The already-corrupted shape: the formatter rewrote the '+' continuation into
-# a '-' list marker at column 0. This exercises the list-item-after-abstract
-# guard specifically (discriminating case: the indented-continuation tests
-# above never reach it).
 S="$TEST_TMPDIR/dash-wrapped-input"
 mkdir -p "$S"
 {

@@ -57,9 +57,6 @@ last() { CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" "$@" 2>&1 >/dev/null | tail -
 assert_eq "a missing file still names the commit read" \
   "default-branch-file: missing.css at origin/main, commit $sha" "$(last --path missing.css)"
 
-# A fetch that fails reads the last fetched copy and says so. Origin's main moves to a commit whose tree
-# names a blob origin does not have: ls-remote still answers, but the fetch cannot send the commit, so
-# refs/remotes/origin/main stays on the last fetched one on every git version.
 tree="$(printf '100644 blob %s\tx\n' 1111111111111111111111111111111111111111 | g -C "$dir/origin.git" mktree --missing)"
 next="$(g -C "$dir/origin.git" commit-tree "$tree" -p "$sha" -m next)"
 g -C "$dir/origin.git" update-ref refs/heads/main "$next"

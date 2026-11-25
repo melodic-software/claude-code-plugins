@@ -1,22 +1,8 @@
 // GENERATED from lib/installed.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Which routing rows are installed and reachable here, under the routing-as-data detection contract
-// (docs/contracts/routing-as-data/README.md, Detection). Pure: every input arrives as an argument.
-//
-//   installed(rows, {pluginRoot, home, projectDir, projectMcpServers, pluginList, mcpList})
-//     -> {installed: [row ids], reachable: {id: true | false | null}, reason?, uncertain?}
-//      | {installed: null, reason}
-//
-// pluginList and mcpList are lazy readers returning the text of `claude plugin list --json` and
-// `claude mcp list`, or an Error. The MCP reader runs only after the plugin list parses.
-// A bare plugin detect means this plugin's own marketplace: the one in the plugin-list record whose
-// installPath is pluginRoot. Without that record, or when its marketplace is inline, skills-dir or
-// synced, a bare name matches in any marketplace and `reason` says so; a bare name some row also
-// detects qualified is then left out of installed and listed in `uncertain`.
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// Marketplace names that do not identify a marketplace a sibling plugin could come from.
 const NO_MARKETPLACE = ["inline", "skills-dir", "synced"];
 
 const isDir = (p) => existsSync(p) && statSync(p).isDirectory();
@@ -39,7 +25,6 @@ function ownMarketplace(records, pluginRoot) {
     try {
       if (r.installPath && real(r.installPath) === root) return r.id.slice(r.id.lastIndexOf("@") + 1);
     } catch {
-      // skip this record
     }
   }
   return null;
@@ -91,7 +76,6 @@ export function installed(rows, { pluginRoot, home, projectDir, projectMcpServer
     if (row.kind === "skill") return skillDirs.some((d) => isDir(join(d, row.detect)));
     return false; // kind tool: only the session's own tool listing can tell
   };
-  // true or false when this module can tell; null when only an account, a key or the session can.
   const reach = (row) => {
     if (row.kind === "mcp") return listed.get(server(row)) ?? null;
     return row.account === "none" ? true : null;

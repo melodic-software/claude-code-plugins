@@ -75,9 +75,6 @@ def fail(message: str) -> NoReturn:
 
 
 def is_number(value: object) -> bool:
-    # bool is an int subclass; `"ceiling": true` is a typo, not a ceiling of 1.
-    # json.load accepts NaN and Infinity, and a NaN ceiling compares false both
-    # ways, so every counter would read as equal to it and pass.
     return (
         isinstance(value, (int, float))
         and not isinstance(value, bool)
@@ -109,8 +106,6 @@ def validate(path: str, data: object) -> None:
     for index, counter in enumerate(counters):
         where = f"{path} counters[{index}]"
         if not isinstance(counter, dict) or set(counter) not in (set(KEYS), set(PER_FILE_KEYS)):
-            # Exact keys, so a misspelled "ceilling" fails here instead of
-            # leaving a counter with no ceiling that nothing ever checks.
             fail(
                 f"{where} must carry exactly the keys {', '.join(KEYS)}, "
                 f"or {', '.join(PER_FILE_KEYS)} for a per-file counter."
@@ -157,9 +152,6 @@ def run(name: str, command: str) -> str:
     except subprocess.TimeoutExpired:
         fail(f"counter {name!r}: the command ran past {TIMEOUT_SECONDS}s.")
     if result.returncode != 0:
-        # A counter whose command failed measured nothing. Reading a field out
-        # of whatever it printed first would pass a ratchet on a subject that
-        # never ran.
         fail(
             f"counter {name!r}: the command exited {result.returncode}. "
             f"stdout: {result.stdout.strip()!r} stderr: {result.stderr.strip()!r}"
@@ -170,7 +162,6 @@ def run(name: str, command: str) -> str:
 def number(name: str, field: str, text: str) -> int | float:
     value = float(text) if "." in text else int(text)
     if not is_number(value):
-        # A digit string past float range parses to inf.
         fail(f"counter {name!r}: {field}={text[:40]}... is not a finite number.")
     return value
 
@@ -191,8 +182,6 @@ def measure(counter: dict) -> int | float | dict[str, int | float]:
 
 
 def per_file_counts(name: str, field: str, stdout: str) -> dict[str, int | float]:
-    # Every non-blank line must be a count: a line the pattern skips could be a
-    # file whose violations go unchecked.
     line_pattern = re.compile(rf"(\S.*?)\s+{re.escape(field)}={NUMBER}")
     counts: dict[str, int | float] = {}
     for line in stdout.splitlines():
@@ -234,7 +223,6 @@ def exceptions(name: str, path: str) -> tuple[int, list[str]]:
         with open(path, encoding="utf-8", errors="replace") as handle:
             lines = handle.read().splitlines()
     except OSError:
-        # A file that cannot be read grants nothing, so its count still fails.
         return 0, []
     today = datetime.date.today()
     valid, problems = 0, []
@@ -355,8 +343,6 @@ def tighten_per_file(counter: dict, counts: dict, break_glass: bool) -> tuple[in
             changed += 1
             print(f"TIGHTEN {name}: {path} ceiling {ceiling} -> {value}")
             ceiling = value
-        # A file held above its ceiling by an exception keeps that ceiling:
-        # tightening never raises one.
         if ceiling > 0:
             lowered[path] = ceiling
     counter["ceilings"] = lowered
@@ -372,7 +358,6 @@ def cmd_propose_tighten(args: argparse.Namespace) -> int:
     changed = 0
     above = 0
     for counter in counters:
-        # Agreeing runs, as in add: one noisy dip must not lower a ceiling.
         value = measure_runs(counter, args.runs)
         if "ceilings" in counter:
             file_changed, file_above = tighten_per_file(counter, value, break_glass)
@@ -386,7 +371,6 @@ def cmd_propose_tighten(args: argparse.Namespace) -> int:
             print(f"TIGHTEN {counter['name']}: ceiling {counter['ceiling']} -> {value}")
             counter["ceiling"] = value
     if above:
-        # Tightening past a regression would hide it; the regression is the news.
         print("nothing written: a counter is above its ceiling; run check.")
         return 1
     if not changed:
@@ -400,13 +384,9 @@ def cmd_propose_tighten(args: argparse.Namespace) -> int:
 
 
 def cmd_add(args: argparse.Namespace) -> int:
-    # A missing file starts empty; a malformed one still fails loudly in load().
     data = load(args.file) if os.path.exists(args.file) else {"counters": []}
-    # The file's own break_glass key wins: the option only fills a missing one.
     if args.break_glass is not None:
         data.setdefault("break_glass", args.break_glass == "on")
-    # The ceiling stands in until measured; validating now refuses a bad or
-    # duplicate entry before its command runs.
     entry = {key: getattr(args, key) for key in ("name", "command", "field", "goal")}
     entry["ceilings" if args.per_file else "ceiling"] = {} if args.per_file else 0
     validate(args.file, {**data, "counters": [*data["counters"], entry]})

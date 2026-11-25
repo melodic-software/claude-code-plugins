@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# Contract tests for hook::bash_parse_segments_shfmt: what reaches the callback,
-# what fills the HOOK_SEG_* arrays, and when the guard refuses the call. Where a
-# row states a form bash runs, bash itself is asked; the other expectations are
-# the contract documented at hook::bash_parse_segments_uncached.
 set -uo pipefail
-# The fixtures build repositories; an inherited GIT_DIR would point them at the caller's.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -89,19 +84,12 @@ has_seg() {
     'echo $(case x in a|esac) :;; esac)#; git reset --hard' 'git reset --hard'
   has_seg 'array then # keeps what follows' 'a=(x)#y; git reset --hard' 'git reset --hard'
 
-  # The extglob-off reading applies to a `!(` that opens a command. As an
-  # argument or a [[ ]] pattern, bash with extglob off rejects the line and runs
-  # nothing, so the call is read once and allowed.
-  # Multibyte UTF-8 is read as written; a byte that is not UTF-8 is refused.
   segs_are 'multibyte UTF-8 words are read as written' 'echo héllo 日本 ✓' 'echo héllo 日本 ✓'
-  # A quoted here-doc body expands nothing, and is not a command.
   segs_are 'a quoted here-doc body runs nothing' $'cat <<\'E\'\n$(git reset --hard)\nE' 'cat'
   segs_are 'a comment after whitespace runs nothing' 'echo x #; git reset --hard' 'echo x'
   segs_are 'quoted text is one word' "echo 'git reset --hard'" 'echo git reset --hard'
   segs_are 'source order: statements, then here-doc bodies after them' \
     $'cat <<E; b\n$(c)\nE\nd' 'cat' 'b' 'd' 'c'
-  # A body's substitutions come after the top-level commands, so a pipe into a
-  # shell is read in order (destructive-guard reads the segment before).
   segs_are 'a body substitution comes after the pipe the body feeds' \
     $'cat <<EOF |\n$(date)\nrm -rf ~\nEOF\nbash' 'cat' 'bash' 'date'
   segs_are 'an assignment prefix is a word of its command' 'FOO=bar git status' 'FOO=bar git status'
@@ -133,9 +121,6 @@ words_are() {
   words_are 'multibyte text stays whole' 'x "héllo ✓" 日本語' 'x|héllo ✓|日本語|0 2 0'
   words_are 'a span after multibyte text keeps its place' 'é $(y) "$z"' 'é|$(y)|$z|0 0 2'
 }
-# jq's output holds no raw LF or CR: a word's newline comes back spelled as an
-# ANSI-C `$'\n'`, so a jq that writes LF as CRLF (a native Windows build) cannot
-# put a CR into a word.
 jq_list=""
 hook::_bps_shfmt_to jq_list $'x $\'a\\nb\\rc\' "d\ne"'
 if [[ -n "$jq_list" && "$jq_list" != *$'\n'* && "$jq_list" != *$'\r'* ]]; then
@@ -195,8 +180,6 @@ hd_are 'an opener inside double quotes is not one' $'echo "<<\'EOF\'"\nx\nEOF' '
 hd_are 'an empty body' $'cat <<E\nE\nx' '8 10 0 1 E'
 hd_are 'an empty body whose opener is on line 2' $'echo hi\ncat <<\'E\'\nE' '18 19 1 1 E'
 hd_are 'an empty body after an earlier body' $'cat <<A\na\nA\necho y\ncat <<B\nB' '8 12 0 1 A|27 28 0 1 B'
-# Source order, a substitution's and a body's own here-docs included (offsets
-# by hand).
 hd_are 'a substitution here-doc is listed in source order' \
   $'X=$(true <<A\nx\nA\n) bash <<A\nrm -rf /\nA' '13 17 0 1 A|28 38 0 1 A'
 hd_are 'a body-nested here-doc is listed in source order' \
@@ -218,16 +201,12 @@ hd_are 'a backslash-quoted delimiter' $'cat <<\\E\nx\nE\n' '9 13 1 1 E'
   fi
 )
 
-# --- the guard refuses when no parse comes back -------------------------------
-# reader_exit <PATH> <timeout>: the reader run on a clean command in a child; the
-# status it exits with, and in _T_CB whether the callback ran.
 # shellcheck disable=SC2016  # the child shell expands these
 reader_child='source "$1/lib/hook-utils.sh"; HOOK_BPS_TIMEOUT=$2; cb() { printf "CALLED\n"; }; PATH=$3; hook::bash_parse_segments_shfmt "git status" cb; printf "RETURNED\n"'
 BASH_BIN=$(type -P bash)
 refused_with() {
   local desc=$1 path=$2 t=${3:-5} out rc s0 s1
   s0=$SECONDS
-  # A HOME with no ~/.local/bin/shfmt, which the reader would otherwise use.
   mkdir -p "$_T_TMP/nohome"
   out=$(HOME="$_T_TMP/nohome" "$BASH_BIN" -c "$reader_child" -- "$_T_ROOT" "$t" "$path" 2>&1)
   rc=$?
@@ -291,17 +270,13 @@ if [[ "$out" == *'shfmt rejects it as bash: '*'unclosed here-document'* ]]; then
 else
   fail "the refusal for a syntax error: [$out]"
 fi
-# A cloud session whose SessionStart install failed: the refusal says so.
 cloudhome="$_T_TMP/cloudhome"
 mkdir -p "$cloudhome/.local/state/claude-guardrails"
 printf 'download failed: curl exit 6\n' >"$cloudhome/.local/state/claude-guardrails/shfmt-install-failed"
 reason_is 'the refusal names a failed cloud install' \
   "the session's shfmt install failed: download failed: curl exit 6" "$(stub_dir no-shfmt jq)" 5 "$cloudhome"
-# A shfmt in ~/.local/bin is used when PATH lacks it: the cloud install's target.
 lbhome="$_T_TMP/lbhome"
 mkdir -p "$lbhome/.local/bin"
-# A wrapper rather than a link: a version manager's shim reads its config from
-# the HOME this row replaces, so the real HOME goes with it.
 printf '#!/bin/sh\nHOME=%q exec %q "$@"\n' "$HOME" "$(type -P shfmt)" >"$lbhome/.local/bin/shfmt"
 chmod +x "$lbhome/.local/bin/shfmt"
 # shellcheck disable=SC2016  # the child shell expands these
@@ -311,8 +286,6 @@ if out=$(HOME=$lbhome "$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; cb() { prin
 else
   fail "a shfmt in ~/.local/bin: [$out]"
 fi
-# The paired success: a shfmt that answers in time, on a PATH with no sleep or
-# timeout (the bound is the read -t builtin, so no timer process can be missing).
 d=$(stub_dir answers jq shfmt)
 # shellcheck disable=SC2016  # the child shell expands these
 if out=$("$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; cb() { printf "%s\n" "$*"; }; PATH=$2; hook::bash_parse_segments_shfmt "git status" cb' -- "$_T_ROOT" "$d" 2>&1) &&
@@ -322,11 +295,6 @@ else
   fail "a shfmt that answers in time: [$out]"
 fi
 
-# --- extglob syntax is refused -----------------------------------------------
-# shfmt keeps an extglob pattern as one literal and ends it at a `)` bash may
-# read inside a quote, `${…}` or `$[…]`, and bash reads the same text as
-# commands with extglob off. Every extglob form is refused, whatever its text,
-# so these rows need no bash check (bash 5.2 does not run `${ cmd; }`).
 extglob_refused() {
   local out rc=0
   # shellcheck disable=SC2016  # the child shell expands these
@@ -352,16 +320,11 @@ extglob_refused() {
   extglob_refused 'a ${| cmd; } inside a pattern is refused' 'echo @(${| git reset --hard; })'
   extglob_refused 'a ${<tab>cmd; } inside a pattern is refused' $'echo @(${\tgit reset --hard; })'
   extglob_refused 'a ${<newline>cmd; } inside a pattern is refused' $'echo @(${\ngit reset --hard; })'
-  # The forms that end shfmt's pattern early (inline 4462099922).
   extglob_refused 'a ) inside ${…} in a pattern is refused' $'( echo @(${x:-) #$(git reset --hard)})\n)'
   extglob_refused 'a ) inside $[…] in a pattern is refused' $'( echo @($[ ) ] #$(git reset --hard))\n)'
 }
 parses_with 'a command with no extglob form parses' 'ls a* b?; echo x' 'echo x'
 
-# --- the parse budget ---------------------------------------------------------
-# HOOK_BPS_MAX_PARSES still caps the second readings one command may take. The
-# nest that once doubled per level (extglob patterns) is now refused as extglob
-# syntax before any second reading, in well under the bound.
 bps_nest='x'
 for ((i = 0; i < 16; i++)); do bps_nest="!(x); @($bps_nest)"; done
 bps_t0=$SECONDS
@@ -371,9 +334,6 @@ bps_flat='echo'
 for ((i = 0; i < 100; i++)); do bps_flat+=" @(a$i)"; done
 extglob_refused 'a hundred extglob patterns are refused' "$bps_flat"
 
-# --- each form plugins/guardrails/reference/shfmt-parse-differences.md lists --
-# handled: bash runs the trailing command in some extglob mode, and the reader
-# hands it to the callback. refused: the reader exits 2.
 form_bash_hit() {
   local m o
   for m in +O -O; do
@@ -408,24 +368,16 @@ hit_print() { printf '%s\n' "$*"; }
   form refused 'echo @(`echo HIT >&2`)'
   form refused 'echo @(<(echo HIT >&2))'
   form refused 'f@()#; echo HIT >&2'
-  # A pattern bash expands runs its substitutions; shfmt keeps the pattern as
-  # one literal, so one that does not parse as a command must refuse.
   form refused 'echo @($(echo HIT >&2)|)'
   form refused 'echo +(`echo HIT >&2`|)'
   form refused 'echo @(;$(echo HIT >&2))'
-  # shfmt ends a pattern at a `)` whatever its quoting, bash skips a quoted
-  # one: a pattern holding a quote or backslash may hide a substitution.
   form refused "echo @(x')'\$(echo HIT >&2)) #'"
   # shellcheck disable=SC2016  # literal backticks in the command under test
   form refused "echo @(x')'\`echo HIT >&2\`) #'"
-  # A `#` or a newline inside a pattern is literal to bash, but a reparse of
-  # the pattern as a command would read a comment there: no reparse is trusted.
   form refused 'echo @(#$(echo HIT >&2))'
   form refused 'echo @(x #$(echo HIT >&2))'
   form refused $'echo @(x\n$(echo HIT >&2))'
   form refused $'echo *(x\t#`echo HIT >&2`)'
-  # A here-doc inside a `!(…)` at a command's start: shfmt keeps the pattern as
-  # one literal, so only the extglob-off reading sees the body.
   form refused $'!(bash <<A\necho HIT >&2\nA\n)'
   form refused $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
   form refused $'!(x)#\'\ncat <<B\n$(echo HIT >&2)\nB\n\' ; cat <<C\nc\nC'
@@ -443,34 +395,24 @@ hit_print() { printf '%s\n' "$*"; }
   form refused '((a|b) ); echo HIT >&2'
   form refused 'echo $((a|b) ); echo HIT >&2'
   form refused '((:)); echo HIT >&2'
-  # Text bash reads lazily.
   form refused 'cat <<E; echo HIT >&2'
   form refused 'echo `case`; echo HIT >&2'
   form refused $'echo HIT >&2\nit\'s'
   form refused $'echo HIT >&2\necho (('
   form refused 'x[1]=2 echo HIT >&2'
   form refused $'echo HIT >&2\nprintf \xff'
-  # Backticks: bash ends them at the first unescaped backtick.
   form refused "echo \`\$'\`; echo HIT >&2 #'\`"
   form refused "echo \`'\`; echo HIT >&2 #'"
   form refused $'echo `cat <<E`\necho HIT >&2\nE'
-  # An opener before backticks that span lines, and an empty body: the reader
-  # would place the body inside the backticks.
   form refused $'cat <<A; echo `:\necho HIT >&2`\nA'
   form handled 'echo `echo \`:\`#; echo HIT >&2`'
   form handled 'echo `echo \`echo \\\`echo HIT >&2\\\`\``'
-  # A backslash-newline bash joins before it reads an unquoted here-doc body.
   form handled $'cat <<E\n$\\\n(echo HIT >&2)\nE'
   form handled $'cat <<E\nit\'s $\\\n(echo HIT >&2) ok\'\nE'
-  # The joined body runs up to its error in bash, so a joined body that does not
-  # parse refuses rather than dropping the commands before the error.
   form refused $'cat <<E\n$\\\n(echo HIT >&2) $\\\n(\nE'
 }
-# CR LF: bash's last word carries the CR, so the guard's word is the written one.
 segs_are 'doc form handled: a CR before a newline is dropped' $'git reset --hard\r\n' 'git reset --hard'
 
-# --- block-dangerous-git refuses the bypasses the old reader missed ----------
-# An attended session turns a refusal into an ask (refuse.sh).
 unset CLAUDE_CODE_SESSION_ATTENDED
 guard_rc() {
   local payload
@@ -511,12 +453,6 @@ guard_rc "$GIT_GUARD" 'git status'
 rc=$?
 if ((rc == 0)); then ok 'a clean git command is allowed'; else fail "a clean git command: exit $rc"; fi
 
-# --- every kind of call site fails closed on a refusal ----------------------
-# The refusal is `exit 2` inside the library, so a call site that parsed in a
-# subshell would exit only that and let the call through. Each row reaches one
-# kind of call site with text shfmt rejects (`x[1]=2 cmd`, which bash runs) and
-# wants exit 2 with the reader's refusal; its pair, the same text with a plain
-# assignment, wants exit 0, so the refusal is what denied it.
 refuses_at() {
   local payload rc err
   for c in "$4" "$5"; do
@@ -548,8 +484,6 @@ GD="$_T_ROOT/plugins/guardrails/hooks"
   refuses_at 'a callback name passed to a library (worktree-path-lib)' \
     "$_T_ROOT/plugins/source-control/hooks/worktree-add-containment-gate.sh" Bash \
     "bash -c 'x[1]=2 git worktree add ../x'" "bash -c 'x=2 git worktree add ../x'"
-  # After a guard exits deep, run-guards runs the rest of the chain in a forked
-  # process (run_guards::run_rest); a refusal there still denies.
   printf '#!/usr/bin/env bash\nd() { if (($1)); then d $(($1 - 1)); else exit 0; fi; }\nd 100\n' >"$_T_TMP/deep0.sh"
   refuses_at 'the forked rest of the chain after a deep exit' "$GD/run-guards.sh" Bash \
     'x[1]=2 git status' 'x=2 git status' "$_T_TMP/deep0.sh" block-dangerous-git.sh

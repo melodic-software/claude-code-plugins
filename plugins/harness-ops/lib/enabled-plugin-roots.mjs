@@ -1,19 +1,5 @@
 // GENERATED from lib/enabled-plugin-roots.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// The install roots of the plugins enabled for a project, read from settings files and
-// installed_plugins.json, never from `claude plugin list`, which starts a nested claude.
-//
-//   rootsFromSettings(<config dir>, <project dir or "">, [<managed settings file>...], env) -> {read, roots}
-//   rootsFromListing(<rows of `claude plugin list --json`>, <project dir>) -> [<install path>...]
-//   sessionSettingsFile(env) -> <path> or ""
-//
-// SESSION_SETTINGS_FILE names the settings file a session was started with (claude --settings
-// <file>); a launcher sets it in that file's own env, so the session's hooks and tools see it.
-// rootsFromSettings reads that file after the project-local settings and before managed ones, so a
-// plugin it turns off is not enabled. Unset, or naming a file that is missing or not JSON, adds nothing.
-// A settings file whose enabledPlugins holds a non-Boolean value is skipped whole, as Claude Code
-// ignores that file's keys. Per id, the most specific scope's install record wins, and another
-// project's project or local record drops out, the rule `claude plugin list` applies.
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -57,7 +43,6 @@ export const SESSION_SETTINGS_VAR = "SESSION_SETTINGS_FILE";
 
 export const sessionSettingsFile = (env = process.env) => (env[SESSION_SETTINGS_VAR] ? path.resolve(env[SESSION_SETTINGS_VAR]) : "");
 
-// managed: managed settings files, applied last so a managed true/false wins.
 export function rootsFromSettings(config, project, managed = [], env = process.env) {
   const files = [path.join(config, "settings.json"), path.join(config, "settings.local.json")];
   if (project) {

@@ -51,7 +51,6 @@ import session_bridge as bridge
 HERE = Path(__file__).resolve().parent
 NAME = "view"
 START_SECONDS = 10
-# No watcher wait for this long ends the server, and its token with it.
 IDLE_SECONDS = bridge.LEASE_TIMEOUT
 KEY = re.compile(r"[a-z0-9-]{1,32}")
 ROW_ID = re.compile(r"[a-z0-9-]{1,128}")
@@ -137,7 +136,6 @@ class ViewHub(bridge.LoopbackWatcher):
         self.replies = self.dir / "replies.json"
         self.page = self.dir / "page.html"
         self.idle = idle
-        # The page gets only self.token (at /api/token); the watcher token stays in the 0600 env file.
         self.watch_token = secrets.token_urlsafe(32)
         self.started = time.time()
 
@@ -209,7 +207,6 @@ class ViewHandler(bridge.LoopbackHandler):
     """The built page, its token, and its actions; session_bridge serves the rest."""
 
     hub: ViewHub
-    # The page carries its own policy (the builder's meta); this one adds what a meta cannot.
     page_csp = "frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
     def route_get(self, url, query):
@@ -220,12 +217,6 @@ class ViewHandler(bridge.LoopbackHandler):
                 return self.send(404, {"error": "no page.html in the data dir yet"})
             return self.send(200, raw, "text/html")
         if url.path == "/api/token":
-            # Only the page's own script gets the token: a browser sets Sec-Fetch-Site and no page
-            # can forge it, and do_GET already refused a foreign Host or Origin. The token never
-            # enters the page's markup, so a saved or published copy holds none. This stops a
-            # browser page from another origin, not a local process: curl can send the header. The
-            # token opens POST /api/action only; /api/wait and the lease release need the watcher
-            # token, which this route never serves.
             if self.headers.get("Sec-Fetch-Site") != "same-origin":
                 return self.send(403, {"error": "same-origin page script only"})
             return self.send(200, {"token": self.hub.token})
@@ -242,8 +233,6 @@ class ViewHandler(bridge.LoopbackHandler):
             200, {"ok": True, "seq": seq, "listening": self.hub.listener()["state"]}
         )
 
-
-# Control half: what the skill and wake.sh run.
 
 
 def parse_ops(raw, seqs):
@@ -367,7 +356,6 @@ def cmd_ensure_running(d, a):
     live = bool(s and bridge.running(d, s))
     stale = live and bridge.stale_build(s)
     if stale:
-        # A server started before a plugin update runs the old code: start this build in its place.
         end_server(d, s)
         print(f"restarted the {NAME} server: {stale}", file=sys.stderr)
         live = False

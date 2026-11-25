@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 // GENERATED from lib/mermaid-gate.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Parse every Mermaid block in the given files; pre-render to SVG when the pinned mmdc is present.
-// Usage: mermaid-gate.mjs [--svg-dir <dir>] [--mmdc <path>] <file>...
-// A .mmd or .mermaid file is one block; any other file contributes its ```mermaid fences.
-// Stdout is one JSON report. Exit 0 when every block parses, 1 on a syntax error, 2 on a usage error.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -49,8 +45,6 @@ function bodyLines(source) {
     .filter(({ text }) => text.trim() && !text.trim().startsWith("%%"));
 }
 
-// `A>text]` is the asymmetric shape: a `>` outside any bracket and not part of an arrow opens a `]`.
-// Returns the bracket that is missing its partner, or null when the line balances.
 function unbalancedBracket(text) {
   const closeOf = { "[": "]", "(": ")", "{": "}" };
   const open = { "]": 0, ")": 0, "}": 0 };
@@ -67,8 +61,6 @@ function unbalancedBracket(text) {
   return open[close] > 0 ? Object.keys(closeOf).find((o) => closeOf[o] === close) : close;
 }
 
-// Without mmdc there is no real parser, so this catches only what is certain: an unknown diagram
-// type, an unterminated quote, or unbalanced brackets in a flowchart.
 export function structuralCheck(source) {
   const lines = bodyLines(source);
   if (!lines.length) return "the block is empty";

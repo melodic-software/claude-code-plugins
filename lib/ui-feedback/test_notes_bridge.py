@@ -150,8 +150,6 @@ class TestHostAndPage(NotesCase):
         return body.decode()
 
     def test_the_mockup_policy_is_the_framed_pages_first_element(self):
-        # A srcdoc frame inherits the host page's connect-src 'self'; the policy put first must
-        # grant no network and no 'self' script, before any of the page's own markup runs.
         pages = {
             b"<!doctype html><script>fetch('/api/ping')</script>": b"<!doctype html>",
             b"\n  <!DOCTYPE HTML PUBLIC 'x'>\n<html>": b"\n  <!DOCTYPE HTML PUBLIC 'x'>",
@@ -362,7 +360,6 @@ class TestGuards(NotesCase):
         )
 
     def test_a_foreign_or_opaque_origin_is_refused(self):
-        # A sandboxed frame has an opaque origin, so its requests say Origin: null.
         for origin in ("http://evil.example", "null"):
             self.assertEqual(self.note(headers={"Origin": origin})[0], 403, origin)
             self.assertEqual(
@@ -507,7 +504,6 @@ class TestNotes(NotesCase):
             nb.problems({}, {"oneOf": []})
 
     def test_a_rect_number_that_json_cannot_carry_is_refused(self):
-        # json.loads reads NaN and Infinity, which the fixtures (strict JSON) cannot hold.
         base = FIXTURES["valid"][0]["note"]
         for bad in ("NaN", "Infinity", "-Infinity"):
             note = {

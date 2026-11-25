@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# Regression tests for lib/resolve-convention-pattern.sh — the shared commit/PR
-# convention ENFORCEMENT-pattern resolver. Run: bash lib/resolve-convention-pattern.test.sh
-# The resolver is POSIX sh: the cases run it under dash where installed, else
-# sh, and one runs it under bash too.
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -41,7 +35,6 @@ assert_exit() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
 }
 
-# The canonical Conventional Commits ERE — kept in lockstep with the SUT header.
 CC_ERE='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+'
 
 TEAM_YAML="docs/conventions/source-control.yaml"
@@ -79,7 +72,7 @@ layer() { "$SH" "$SCRIPT" --layer "$1" "${2:-subject_pattern}"; }
 
 out="$("$SH" "$SCRIPT" --help)"
 assert_exit "--help exits 0" 0 $?
-assert_eq "--help prints the header, not the linter directive" "yes|no" \
+assert_eq "--help prints usage, not the linter directive" "yes|no" \
   "$(grep -q '^Usage:' <<<"$out" && echo yes || echo no)|$(grep -q 'shellcheck' <<<"$out" && echo yes || echo no)"
 
 r="$(newrepo 'subject_pattern: Conventional Commits')"
@@ -95,17 +88,6 @@ assert_eq "plain ERE unchanged" '^[A-Z]+-[0-9]+: .+' "$(run "$r")"
 r="$(newrepo "$(sp '^(feat|fix): .+')")"
 assert_eq "ERE alternation unchanged" '^(feat|fix): .+' "$(run "$r")"
 
-# --- PCRE-only constructs are NOT translated -> no enforcement ---
-# The resolver accepts POSIX ERE and rejects PCRE; a team writes [0-9] not \d.
-#
-# Every `\w`, `\s` and `\b` from here down is TEST DATA: a PCRE token written
-# into a fixture config file and handed to the resolver so the case can assert
-# the resolver REJECTS it. None is a pattern this suite passes to grep or sed, so
-# none can behave differently on a BSD userland — and the shorthand cannot be
-# spelled away, because the shorthand is the thing under test. Each hit carries
-# its own `portability-ok:` marker rather than a whole-file declaration: the
-# whole-file escape is reserved for the portability gate's own fixture corpus,
-# and this file is the convention resolver's.
 r="$(newrepo "$(sp '^(?:feat|fix): .+')")"
 run "$r" >/dev/null 2>&1
 assert_exit "(?: non-capturing group -> exit 1" 1 $?
@@ -226,7 +208,6 @@ r="$(newrepo "")"
 addfolder "$r" $'# convention SSOT\n\n# see CONTRIBUTING.md\n'"$(sp '^C-[0-9]+: .+')"
 assert_eq "folder form: comments/blanks inert" '^C-[0-9]+: .+' "$(run "$r")"
 
-# --- CRLF line endings: each value loses its CR, the dialect and deferral included ---
 r="$(newrepo "")"
 addfolder "$r" $'dialect: posix-ere\r\nsubject_pattern: \047^CR-[0-9]+: .+\047\r\npr_title_pattern: Same as `subject_pattern`.\r'
 assert_eq "folder form: CRLF subject" '^CR-[0-9]+: .+' "$(run "$r")"
@@ -250,7 +231,6 @@ printf '%s' "subject_pattern: '^NONL: .+'" >"$r/$WELL_KNOWN"
 track "$r" "$WELL_KNOWN"
 assert_eq "folder form: final line without newline" '^NONL: .+' "$(run "$r")"
 
-# --- an unreadable folder form says so on stderr (skipped where it stays readable, as root) ---
 r="$(newrepo "")"
 addfolder "$r" "$(sp '^U-[0-9]+: .+')"
 chmod 000 "$r/$WELL_KNOWN"
@@ -282,7 +262,6 @@ out="$(run "$r" 2>"$TEST_TMPDIR/untracked.err")"
 rc=$?
 assert_eq "folder form: an untracked file -> exit 1, silent" "1||" "$rc|$out|$(<"$TEST_TMPDIR/untracked.err")"
 
-# --- symlink escapes are rejected (skipped where ln -s can't make symlinks) ---
 outside="$TEST_TMPDIR/outside.yml"
 printf '%s\n' "subject_pattern: '^outside: .+'" >"$outside"
 r="$(newrepo "")"
@@ -292,9 +271,6 @@ if [[ -L "$r/$WELL_KNOWN" ]]; then
   track "$r" "$WELL_KNOWN"
   run "$r" >/dev/null 2>&1
   assert_exit "folder form: symlinked file rejected" 1 $?
-  # A symlinked DIRECTORY segment escaping the repo is rejected too. The file is
-  # tracked first, then its directory is swapped for the link, since git will
-  # not add a path beyond a symlink.
   mkdir -p "$TEST_TMPDIR/outdir"
   printf '%s\n' "subject_pattern: '^outdir: .+'" >"$TEST_TMPDIR/outdir/commit-convention.yml"
   r="$(newrepo "")"
@@ -414,7 +390,6 @@ assert_exit "team yaml: no parser beside the resolver -> exit 1" 1 "$rc"
 assert_eq "team yaml: no parser beside the resolver -> a diagnostic, not silence" yes \
   "$(grep -q 'yaml-subset.awk' "$TEST_TMPDIR/lone.err" && echo yes || echo no)"
 
-# --- a symlinked YAML is rejected (skipped where ln -s can't make symlinks) ---
 printf '%s\n' "subject_pattern: '^outside-yaml: .+'" >"$TEST_TMPDIR/outside-team.yaml"
 r="$(newrepo "")"
 mkdir -p "$r/docs/conventions"
@@ -431,10 +406,6 @@ fi
 
 
 PERSONAL="docs/conventions/source-control.local.yaml"
-# addpersonal <repo> <body> [gitignore|exclude|none]: write the personal file,
-# ignored through .gitignore (the default) or .git/info/exclude, or not at all.
-# core.excludesFile names a file that does not exist, so no global ignore rule
-# on the machine running the suite can decide a case.
 addpersonal() {
   local d="$1" how="${3:-gitignore}"
   git -C "$d" config core.excludesFile "$TEST_TMPDIR/no-global-excludes"

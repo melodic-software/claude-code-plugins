@@ -1,74 +1,17 @@
 # GENERATED from lib/rewrite-guard.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
 # shellcheck shell=bash
-# Content-mutation disclosure guard for hooks that may rewrite the edited
-# file: snapshot the file before the tool runs, compare after, name the
-# rewrite on the user channel in the hook's one stdout document, and release
-# the snapshot on EVERY exit arm.
-#
-# SINGLE SOURCE OF TRUTH: lib/rewrite-guard.sh at the marketplace repo root.
-# The copies at plugins/*/hooks/rewrite-guard.sh exist because installed
-# plugins are cache-isolated and must be self-contained — never edit a copy.
-# Edit the source and run scripts/sync-shared-copies.sh; CI rejects drifted
-# copies. A plugin opts in by registering its copy in scripts/shared-copies.txt.
-#
-# Source AFTER hook-utils.sh: hook::rewrite_disclose composes through
-# hook::emit_channels.
-#
-# Lifecycle (one guard per hook process — these are per-invocation scripts):
-#
-#   hook::rewrite_guard_begin "$FILE"      # before the tool that may rewrite
-#   ...run the formatter...
-#   hook::finish --disclose "<plugin>: reformatted ..." ok findings array "$f"
-#
-# hook::finish owns the take, the data.changed verdict, the telemetry emit and
-# the ONE stdout document, in that order, so a hook never reads the globals
-# below or sequences the steps itself. The take and the compose-and-emit forms
-# stay public for a caller outside that shape:
-#
-#   hook::rewrite_take_disclosure "" "<plugin>: reformatted ..."
-#   hook::emit_channels PostToolUse "$ctx" "$HOOK_REWRITE_MESSAGE"
-#   hook::rewrite_disclose PostToolUse "$FILE" "<plugin>: reformatted ..."
-#
-# The take is a DESTRUCTIVE read: the first call after begin sets
-# HOOK_REWRITE_MESSAGE (empty when the file is byte-identical to the
-# snapshot) and releases the snapshot; any later call resets the message to
-# empty. Exactly one take per run, on the arm that emits.
-#
-# The release is structural, not per-arm: begin arms an EXIT trap, so an arm
-# that exits without taking (or an arm added later) cannot leak the snapshot.
-# A caller's existing EXIT trap is CHAINED, not replaced: begin captures the
-# previous handler and the guard's handler runs it after the release, so
-# sourcing this lib never silently disables a caller's own cleanup (bash `trap`
-# on a signal replaces the prior handler wholesale). A snapshot that cannot be completed
-# (mktemp or cp failed) degrades to "no disclosure": the hook still formats,
-# take yields an empty message, and a mktemp file whose cp failed is removed.
 
-# Guard against double-sourcing.
 [[ -n "${_HOOK_REWRITE_GUARD_LOADED:-}" ]] && return 0
 readonly _HOOK_REWRITE_GUARD_LOADED=1
 
 _HOOK_REWRITE_BEFORE=""
-# The file begin was given. The take compares against THIS path unless the
-# caller names another, so the two halves of one guard cannot disagree about
-# which file was snapshotted (a normalized Windows mixed-form spelling and the
-# original, say).
 _HOOK_REWRITE_FILE=""
 _HOOK_REWRITE_PREV_EXIT_TRAP=""
 _HOOK_REWRITE_SNAPSHOT_FAILED=0
 HOOK_REWRITE_MESSAGE=""
-# The byte verdict of the take, for the telemetry `data.changed` key:
-# "true" when the file differs from the snapshot, "false" when it is identical
-# or no rewrite was ever attempted (begin never ran), and "" when the answer
-# is unknown because begin could not snapshot. A producer sends the key only
-# when the verdict is known, so an unknown never reads as "not rewritten".
 HOOK_REWRITE_CHANGED=""
 
-# The EXIT handler begin installs: release the snapshot, then run whatever
-# EXIT handler the caller had armed before begin (captured below). The
-# chained handler runs with the release's $? rather than the process's; none
-# of the traps in this marketplace read $?, and a handler that must can
-# capture it first itself.
 hook::_rewrite_guard_on_exit() {
   [[ -n "${_HOOK_REWRITE_BEFORE:-}" ]] && rm -f "$_HOOK_REWRITE_BEFORE"
   if [[ -n "$_HOOK_REWRITE_PREV_EXIT_TRAP" ]]; then
@@ -77,10 +20,6 @@ hook::_rewrite_guard_on_exit() {
   return 0
 }
 
-# Snapshot <file> so a rewrite can be detected and disclosed. Best-effort:
-# on any failure the guard is inert and the hook proceeds undisclosed rather
-# than blocked (the disclosure is advisory; the format still happens).
-#   hook::rewrite_guard_begin "$FILE"
 hook::rewrite_guard_begin() {
   _HOOK_REWRITE_BEFORE=""
   _HOOK_REWRITE_FILE="$1"
@@ -95,11 +34,6 @@ hook::rewrite_guard_begin() {
   fi
   _HOOK_REWRITE_BEFORE="$snap"
   _HOOK_REWRITE_SNAPSHOT_FAILED=0
-  # Capture the caller's current EXIT handler so ours can chain it.
-  # `trap -p EXIT` prints `trap -- '<quoted cmd>' EXIT`; strip the frame
-  # and eval the remaining shell-quoted literal back into a plain string.
-  # Skip capture when the handler is already ours (a second begin must
-  # not chain the handler to itself).
   prev=$(trap -p EXIT 2>/dev/null) || prev=""
   if [[ -n "$prev" ]]; then
     prev=${prev#trap -- }
@@ -113,24 +47,10 @@ hook::rewrite_guard_begin() {
   return 0
 }
 
-# Compare <file> against the snapshot, record <message> in
-# HOOK_REWRITE_MESSAGE when it changed (empty otherwise), set the
-# HOOK_REWRITE_CHANGED verdict, and release the snapshot. An EMPTY <file> means
-# the file begin was given, which is the spelling hook::finish uses and the one
-# every caller should prefer: the guard already knows which file it snapshotted.
-# Destructive read for the message — see the lifecycle block above; the verdict
-# of the first take after begin survives a later take, so a producer that emits
-# telemetry after its take still reads the answer. The caller passes
-# HOOK_REWRITE_MESSAGE as the systemMessage argument of its ONE
-# hook::emit_channels call, so a run that both rewrote and found things puts
-# both channels in one JSON document.
-#   hook::rewrite_take_disclosure "" "my-plugin: reformatted a.sh via tool."
 hook::rewrite_take_disclosure() {
   local file="${1:-$_HOOK_REWRITE_FILE}" message="$2"
   HOOK_REWRITE_MESSAGE=""
   if [[ -z "$_HOOK_REWRITE_BEFORE" ]]; then
-    # No snapshot: either begin never ran (no rewrite attempted, so the file
-    # is unchanged by this hook) or it ran and could not snapshot (unknown).
     if [[ -z "$HOOK_REWRITE_CHANGED" && "$_HOOK_REWRITE_SNAPSHOT_FAILED" -eq 0 ]]; then
       HOOK_REWRITE_CHANGED="false"
     fi
@@ -147,10 +67,6 @@ hook::rewrite_take_disclosure() {
   return 0
 }
 
-# Take-and-emit for an arm that carries no additionalContext of its own:
-# emits the disclosure as a systemMessage-only document, or nothing when the
-# file is unchanged.
-#   hook::rewrite_disclose PostToolUse "$FILE" "my-plugin: reformatted $(basename "$FILE") via tool."
 hook::rewrite_disclose() {
   hook::rewrite_take_disclosure "$2" "$3"
   [[ -n "$HOOK_REWRITE_MESSAGE" ]] || return 0

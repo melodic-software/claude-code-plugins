@@ -144,8 +144,8 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   `--skip-unless-stdin-contains TEXT` buffers stdin and skips a payload without TEXT (the testing
   `Bash` row). It is advisory-only and must never gate a blocking
   guard row: a stdin stall past the idle bound exits 0 without running the script, so a guard
-  behind it would fail open. The flag list is in the header of
-  [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs). Two
+  behind it would fail open. The flag list is under
+  [The `exec-bash.mjs` launcher](#the-exec-bashmjs-launcher). Two
   scripts check the spelling. `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a
   `.cmd`/`.bat` shim, or bare `bash` as `command`; a non-Windows skip of its spawn half does not show
   that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is
@@ -165,8 +165,7 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   ([`onFailure` probes](#onfailure-probes-melo-desk-001-2026-10-29); the rows that set it are under
   [Which rows set `onFailure: "block"`](#which-rows-set-onfailure-block)). With node present and bash
   unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
-  script does not run (the header of
-  [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
+  script does not run ([The `exec-bash.mjs` launcher](#the-exec-bashmjs-launcher)).
 - **Scope.** These rows stay shell form: the fleet's one `SessionStart` node-notice row and the `hook-failure-audit` Stop row, both in `harness-ops`, so they can report a missing `node` (the [prerequisites convention](../prerequisites/README.md#hook-notices)); harness-ops' `refresh-sink-launcher.sh` row; and every row that starts its script through `lib/node-or-skip.sh` (`git grep -n 'node-or-skip.sh' -- 'plugins/*/hooks/hooks.json'` lists them).
   Neither check script inspects a shell-form row; `scripts/node-notice-rows.test.sh` pins the node-notice
   row (and the matcher that skips it on compaction) and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
@@ -175,6 +174,38 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
   the sweep. The launcher's added time comes from the paired run below
   ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
+
+### The `exec-bash.mjs` launcher
+
+A row's `args` hold the launcher, then its flags, then the script and the script's own arguments.
+Each flag sits before the script. Every gate flag must pass; a failed one exits 0 without resolving
+or starting bash.
+
+| Flag | Effect |
+|---|---|
+| `--require-true NAME` | Run only when `CLAUDE_PLUGIN_OPTION_NAME` is exactly `true` (a default-off option). |
+| `--run-if-unset-or-true NAME` | Run unless that variable is set to something other than `true` (a default-on option). |
+| `--skip-unless-stdin-contains TEXT` | Buffer stdin; skip when the payload lacks TEXT, else pass the same bytes to the script. Advisory rows only: a stdin stall exits 0 without running the script. |
+| `--run-if-any-set A,B,...` | Run when any named variable is non-empty. |
+| `--run-if-settings-mention TEXT` | Run when TEXT appears in the user `settings.json` of a `plugins/cache` install (found from the launcher's own path) or in `managed-settings.json` or a `managed-settings.d/*.json` drop-in. With `--run-if-any-set` it forms one any-of gate. |
+| `--skip-unless-marker SUBDIR` | Buffer stdin and read `session_id`; skip only when `<marker-root>/SUBDIR` exists and neither it nor the tmp fallback `disk-hygiene-SUBDIR` holds `<session>.launched`, or when each `<session>.launched` holds a launch token its `<session>.seen` repeats byte for byte. Anything missing, unreadable or malformed, or a stall, runs the script. |
+| `--marker-root DIR` | The root for `--skip-unless-marker`. Empty or a literal `${CLAUDE_PLUGIN_DATA}` means none. |
+| `--bps-seed LIB` | On Windows only: buffer stdin and, for a Bash or PowerShell payload, run shfmt and jq on the command the way LIB's `hook::_bps_shfmt_to` does, passing the result in `HOOK_BPS_SEED_KEY`/`VAL`. Never skips the script. |
+| `--fail-closed` | For a blocking guard: once bash is resolved, any child outcome other than exit 0 or 2 exits 2 with one stderr line. |
+| `--require-verdict` | The launcher names a file in a fresh private directory in `EXEC_BASH_VERDICT_FILE`; a child exit 0 that left no file there exits 2, because Windows Git Bash reports a crashed bash as exit 0 ([#7681](https://github.com/melodic-software/claude-code-plugins/issues/7681)). |
+
+Option flags are decided before stdin is read. A stdin flag reads to EOF with an idle bound (2 s, or
+the `stdin_read_timeout` option). A row without a stdin flag keeps stdin inherited.
+
+Bash resolution: on Windows the candidates, in order, are `CLAUDE_CODE_GIT_BASH_PATH` (only when
+the file is named `bash.exe`, `sh.exe`, `bash` or `sh`), `Git\bin\bash.exe` and
+`Git\usr\bin\bash.exe` under Program Files, then `bash.exe` in each absolute PATH entry; System32,
+Sysnative and WindowsApps are never accepted. Elsewhere the candidates are `bash` in each absolute
+PATH entry, then `/bin/bash` and `/usr/bin/bash`. Empty and relative PATH entries are skipped.
+
+Exit codes: a launcher failure (no bash, a spawn error, wrong usage, a child killed by a signal)
+exits 1 after one stderr line and writes nothing to stdout, so Claude Code reports a hook error, not
+a guard block. A guard's own exit 2 passes through.
 
 ### Launcher A/B (melo-lap-001, 2026-10-01)
 

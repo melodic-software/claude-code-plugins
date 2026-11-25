@@ -1,50 +1,20 @@
 #!/usr/bin/env node
 // GENERATED from lib/docs-fetcher-gate.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// PreToolUse gate for a plugin's docs-fetcher agent. The agent holds Bash and
-// reads untrusted page text, so inside it a Bash call may run exactly one
-// command: this plugin's own docs-raw.sh on one public https URL and optional
-// numeric section ids. Anything else, from another script to a pipe, a
-// redirect, a second command or an internal address, is denied, so a page that
-// tells the agent to run something cannot reach a shell. The one allowed
-// command gets no decision, so the session's own permission rules still apply
-// to it, and passes once per agent run: a page that asks for a second fetch,
-// to another URL that could carry what the agent read, is denied. A marker
-// per agent_id, in a directory only this user can reach, records the call; when
-// no such directory can be had, the call is denied. Every other agent and the
-// main thread pass through untouched.
 //
-//   node docs-fetcher-gate.mjs <agent-type> [<host>...]
 //
-// <agent-type> is the plugin-scoped name the gate applies to, such as
-// multi-agent:docs-fetcher. Hosts, when given, are the only ones a URL may name,
-// and such a URL may carry no query string. The script must sit at
-// $CLAUDE_PLUGIN_ROOT/scripts/docs-raw.sh, the root the hook process receives.
 //
 // A plugin subagent reports its plugin-scoped name as agent_type:
 // https://code.claude.com/docs/en/hooks#subagentstart.
 //
-// Fail-closed inside the named agent (a command it cannot parse, an input
-// stream that fails, or an error in the gate is denied); fail-open everywhere
-// else, where the gate always exits 0. When node itself is missing or the hook
-// times out, the registration's "onFailure": "block" denies the call, in every
-// agent and the main thread alike, on Claude Code 2.1.295 or later; an older
-// client lets it go ahead, leaving the agent's Bash to the session's permission
-// rules: https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails
-// (as of 2026-10-30; recheck when that section changes what counts as a
-// failure). Which rows set the key: docs/contracts/hook-budget/README.md.
 
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-// node:fs and node:crypto load only when a marker is written, inside the named
-// agent, so every other Bash call skips their load time.
 const require = createRequire(import.meta.url)
 
-// A public DNS name or a public dotted-quad IPv4: the same check the workflows
-// run on the URLs they hand this agent.
 export function isPublicHost(host) {
   host = String(host).toLowerCase().replace(/\.$/, '')
   if (!/^[a-z0-9.-]+$/.test(host)) return false
@@ -65,20 +35,11 @@ export function isPublicHost(host) {
     (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127))
 }
 
-// bash "<path>" <url> [<id>...]: the URL single-quoted or bare in a charset the
-// shell gives no meaning to; spaces only between words. No backslash in the
-// path: inside double quotes `\"` keeps the string open past the quote this
-// pattern saw, so the URL's text would run as shell. Claude Code substitutes
-// plugin paths with forward slashes on Windows too.
 const COMMAND = /^bash +"([^"$`\\\x00-\x1f\x7f]+)" +(--render +)?('[^'"\\\x00-\x20\x7f]+'|[A-Za-z0-9._~:/%=+#-]+)((?: +[1-9][0-9]{0,5}){0,20}) *$/
 
-// The script path the root names, with forward slashes; compared without case
-// on Windows, whose paths ignore it.
 const fold = s => (process.platform === 'win32' ? s.toLowerCase() : s)
 const scriptOf = root => fold(String(root).replace(/\\/g, '/').replace(/\/+$/, '') + '/scripts/docs-raw.sh')
 
-// A payload past this many bytes is never a docs-raw call: it is read no
-// further (hook-precision rule 3) and denied inside the agent.
 export const MAX_STDIN = 1 << 20
 
 export const RENDER_AGENTS = new Set(['multi-agent:registry-fetcher'])
@@ -109,31 +70,19 @@ export function decide(payload, { agentType, root, hosts = [] } = {}) {
   return null
 }
 
-// The agent_type the bytes name, for input that does not parse whole.
 function agentTypeIn(text) {
   const m = /"agent_type"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(text)
   if (!m) return ''
   try { return JSON.parse('"' + m[1] + '"') } catch { return '' }
 }
 
-// Undefined on Windows, which has no uid and keeps no group or other mode bits
-// (https://nodejs.org/api/fs.html#fschmodpath-mode-callback, as of 2026-10-07;
-// recheck when Node implements those modes on Windows); there the temp
-// directory is already per-user.
 const UID = process.getuid?.()
 
-// Where the markers live: the plugin's data directory, which Claude Code
-// exports to hook processes and keeps under the user's home
-// (https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables), else a
-// per-uid directory under the temp directory.
 export function markerDir(env = process.env) {
   if (env.CLAUDE_PLUGIN_DATA) return join(env.CLAUDE_PLUGIN_DATA, 'docs-fetcher-gate')
   return join(tmpdir(), 'claude-docs-fetcher-gate' + (UID === undefined ? '' : '-' + UID))
 }
 
-// Creates dir with mode 0700 and throws unless it is a real directory this user
-// owns and no one else can reach: on a shared /tmp another user could have made
-// it first, to delete markers or plant them.
 export function privateDir(dir, uid = UID) {
   const { lstatSync, mkdirSync } = require('node:fs')
   mkdirSync(dir, { recursive: true, mode: 0o700 })
@@ -143,8 +92,6 @@ export function privateDir(dir, uid = UID) {
   return dir
 }
 
-// Records the first allowed call of one agent run: true the first time an id is
-// claimed, false after. Markers older than a day are pruned on each claim.
 export function claimOnce(id, dir = markerDir(), uid = UID) {
   const { closeSync, openSync, readdirSync, rmSync, statSync } = require('node:fs')
   const { createHash } = require('node:crypto')
@@ -163,10 +110,6 @@ export function claimOnce(id, dir = markerDir(), uid = UID) {
   }
 }
 
-// The hook input as read: cut is 'overflow' for a read stopped at MAX_STDIN and
-// 'error' for a stream that failed. The agent's one allowed command passes once
-// per agent run (agent_id); claim records it, and a repeat, which only a page
-// steering the agent would ask for, is denied.
 export function judge(raw, { agentType, root, hosts = [], cut = '', claim = claimOnce } = {}) {
   let payload = null
   if (!cut) {

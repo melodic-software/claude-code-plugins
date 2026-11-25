@@ -1,21 +1,6 @@
 # GENERATED from lib/mod-load-check.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
 # shellcheck shell=bash
-# The mods-floor check behind a mod-carrying plugin's scripts/check-mod-load.sh
-# (sourceable; not invoked directly). Each plugin's script supplies only its
-# session row, which names its own status tool.
-#
-# plugin.json also declares the floor as engines["claude-code"], but only
-# 2.1.323 and later read that field, so builds from 2.1.76 below the floor
-# still load the plugin and this check keeps its own copy:
-# https://code.claude.com/docs/en/plugins/manifest-reference#fields
-#
-# The session row is INFO because only the agent sees its own tool list; a child
-# process never sees this session's flags or settings overlay.
-# What turns mods off, and the floor's source:
-# https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off
-# Reading `claude plugin test`:
-# https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load
 
 mod_load_check() {
   local root="$1" session="$2" floor version failed=0

@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for context-zone.sh (the context-usage zone
-# resolver).
-#
-# Contract: `context-zone.sh <session_id>` reads that session's snapshot
-# ($HOME/.claude/context-usage/context/<session_id>.json — tests redirect via
-# HOME) plus the optional $HOME/.claude/context-usage/zones.json override and
-# prints EXACTLY ONE of: light / moderate / heavy / unknown. Fail-open:
-# absent, stale (captured_at older than the 10-minute staleness window), or
-# unparsable snapshot → unknown; used_percentage null / missing / non-numeric
-# / outside 0–100 → unknown; current_usage null or missing (documented
-# early-session and post-/compact states) → unknown. Shipped default bands:
-# light ≤ 50 < moderate ≤ 75 < heavy. Malformed zones.json → shipped
-# defaults + a visible stderr notice. Exit code is always 0 (fail-open
-# resolver; the word IS the contract).
-#
-# Self-contained: defines its own assertion helpers — installed plugins are
-# cache-isolated with no shared test lib.
 
 set -uo pipefail
 
@@ -103,7 +86,6 @@ expect "captured_at missing (staleness unverifiable)" unknown "$H" snots
 expect "hostile session id (../zones)" unknown "$H" "../zones"
 expect "empty session id" unknown "$H" ""
 
-# --- Forged captured_at: GNU date natural-language values must not pass ------
 for TS in now yesterday "1 second ago"; do
   write_snapshot "$H" sforged 40 "$TS"
   expect "captured_at '$TS' (non-ISO) rejected" unknown "$H" sforged
@@ -170,12 +152,6 @@ write_snapshot_tok "$HT" c4 60 40000 10000 200000 && expect "pct moderate + toke
 write_snapshot_tok "$HT" p1 40 450000 50000 200000 && expect "implausible occ=500k>200k: pct stands alone" light "$HT" p1
 write_snapshot_tok "$HT" p2 null 450000 50000 200000 && expect "implausible occ + null pct → unknown" unknown "$HT" p2
 
-# Version gate. Before 2.1.132 the token fields were CUMULATIVE session totals,
-# and a cumulative total below the window size is indistinguishable from a real
-# occupancy — the occupancy>window guard alone never catches it. The regression
-# case is exactly that: 170k cumulative in a 200k window sits inside the window,
-# passes the plausibility guard, and would resolve heavy while the live context
-# is in the light zone.
 write_snapshot_tok "$HT" g1 10 160000 10000 200000 '' '"2.1.131"' &&
   expect "pre-2.1.132 cumulative 170k in a 200k window: token shape dropped, pct stands alone" light "$HT" g1
 write_snapshot_tok "$HT" g2 null 160000 10000 200000 '' '"2.1.131"' &&
@@ -273,17 +249,6 @@ GOT="$(HOME="$H" PATH="$FAKEBIN" bash "$ZONE" s0 2>/dev/null)"
 RC=$?
 if [[ "$GOT" == "unknown" && $RC -eq 0 ]]; then ok "jq absent → unknown (fail-open)"; else fail "jq absent: got '$GOT' rc $RC"; fi
 
-# --- The per-resolve process budget, proven by trace -------------------------
-# This resolver runs once per tool batch behind the PostToolBatch hook, so its
-# process count lands on that path. Reading the code cannot prove the budget: a
-# `date` for the clock, an `awk` for a band comparison and a second jq for the
-# override each look like one harmless call at the call site and only add up in
-# a trace. The assertion is on EXACT COUNTS, not absence, so a regression back
-# to a second `date` or a per-comparison `awk` fails here.
-#
-# Budget with no zones.json (the zero-config common case): exactly 1 jq, and
-# nothing else. A zones.json override adds exactly one more jq, asserted
-# separately, because that file is read in ONE pass rather than one per shape.
 TRACE_H="$WORK/h-trace"
 write_snapshot_tok "$TRACE_H" strace 40 90000 5000 200000
 TRACE_LOG="$WORK/zone-xtrace.log"
@@ -325,18 +290,6 @@ else
   fail "trace: $T_JQ2 jq processes with zones.json present, budget is 2"
 fi
 
-# --- The Bash 3.2 clock fallback, proven by trace ----------------------------
-# printf's %()T conversion arrived in bash 4.2; stock macOS ships 3.2, where the
-# builtin fails and binds nothing. Without a fallback every resolve there would
-# answer unknown and both hooks would be silently disabled. That shell is
-# emulated by an exported function that shadows the builtin for a %()T format
-# under -v and fails exactly as 3.2's printf does (nonzero status, variable
-# unbound); the child bash imports it from the environment. The shim lives in
-# a subshell so this suite's own printf calls are untouched. The assertion is
-# non-vacuous: `date` must appear EXACTLY once in the trace, so a host where
-# the shim fails to import (and the builtin quietly succeeds) fails here rather
-# than passing without ever exercising the fallback.
-# resolve_no_t <home> <sid> <xtrace-log> → stdout word, resolved under the shim
 resolve_no_t() {
   local home="$1" sid="$2" log="$3"
   (
@@ -375,8 +328,6 @@ fi
 FIXTURE="$SCRIPT_DIR/context-zone.fixtures.mjs"
 FX="$WORK/fixture"
 FX_NOW=1791050400 # 2026-10-03T18:00:00Z, the NOW of hooks/zone.test.ts
-# resolve_pinned <home> <sid> <stderr-file> → stdout word. The resolver's one
-# clock read is printf's %()T; the shim answers FX_NOW to it.
 resolve_pinned() {
   local home="$1" sid="$2" err="$3"
   (

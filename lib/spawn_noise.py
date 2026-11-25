@@ -31,17 +31,13 @@ import subprocess
 import sys
 import time
 
-#: Trivial no-op spawns, one per platform. Never a discovered hook or statusline command.
 NOOP_SPAWN = {
     "win32": ["cmd", "/c", "exit"],
     "posix": ["/bin/sh", "-c", "exit 0"],
 }
 SPAWN_SAMPLES = 7
-#: A no-op spawn floored above this is already contended before any hook runs.
 SLOW_SPAWN_FLOOR_MS = 500.0
-#: max/min at or above this across identical no-op spawns is the bimodal contention signature.
 BIMODAL_SPREAD_RATIO = 3.0
-#: Default ceiling for one no-op spawn. A caller with its own budget passes it explicitly.
 SPAWN_TIMEOUT_S = 20
 
 
@@ -67,7 +63,6 @@ def summarize_spawn_samples(
     result["spread_ratio"] = ratio
     if low > SLOW_SPAWN_FLOOR_MS:
         result["findings"].append("slow-spawn-floor")
-    # The two-part signature from the module docstring: a wide spread whose slow mode is slow.
     if ratio is not None and ratio >= BIMODAL_SPREAD_RATIO and high >= SLOW_SPAWN_FLOOR_MS:
         result["findings"].append("bimodal-spawn-latency")
     if timeouts:
@@ -130,12 +125,6 @@ def is_measurable(summary: dict) -> tuple[bool, str]:
     findings = summary.get("findings", [])
     if "no-spawn-samples-captured" in findings:
         return False, "no spawn samples were captured, so the host was never characterized"
-    # A timeout outranks the bimodal signature, and the order is load-bearing.
-    # A timed-out sample is recorded as the timeout ceiling, not as a measurement,
-    # so `max_ms` is a censored value. Reporting the bimodal reason first would
-    # hand the reader a spread computed from that ceiling and explain it as an
-    # observed slow mode, which reads as a finite measurement of a tail that is
-    # actually unbounded.
     if "spawn-probe-timed-out" in findings:
         return False, (
             f"{summary.get('timeouts')} of {summary.get('samples')} no-op spawns hit the probe "

@@ -65,11 +65,6 @@ check acme/widgets 42
 assert_exit "an inherited CLAUDE_PLUGIN_OPTION_ value is not the guardrails setting -> held" 1 "$RC"
 ENVS=()
 
-# One merge_guard_ignored_checks setting, both readers. The operator sets it for
-# guardrails in their user settings; Claude Code hands the guard hook that value
-# as CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS, and the skill's copy, run
-# from a source-control install in the same plugin cache, reads the same entry
-# (https://github.com/melodic-software/claude-code-plugins/issues/18822).
 CFG="$TEST_TMPDIR/config"
 SKILL_COPY="$CFG/plugins/cache/m/source-control/1.0.0/skills/pull-request/scripts"
 mkdir -p "$SKILL_COPY"

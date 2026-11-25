@@ -1,52 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/merge-readiness.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# Merge readiness: the one judge of whether a pull request's own state lets it
-# merge, decided in https://github.com/melodic-software/claude-code-plugins/issues/18822.
-# The guardrails merge guard (hooks/merge-guard.sh) sources it to refuse a merge
-# command; the source-control pull-request skill runs it before it merges
-# (skills/pull-request/reference/merge.md §4.1). Each plugin carries its own copy
-# (scripts/shared-copies.txt), so either one alone enforces it.
-# OWNERSHIP. This script owns the mechanical conditions below. The skill owns
-# judgment and process: security triage, the comment cooldown, the stale-base
-# guard, waiting for CLEAN, unattended-merge eligibility. GitHub rulesets are
-# the server-side backstop.
-#   merge-readiness.sh <owner>/<repo> <number> [--auto] [--head <sha>]
-# `--auto` judges an auto-merge or merge-queue request, which waits for checks,
-# so a pending check does not block it. `--head` pins the head: any other head
-# is BLOCKED head-moved.
-# WHAT BLOCKS, read over REST where REST serves it:
-#   - a hold label (merge-hold-labels.json, matched without case);
-#   - an unresolved review thread, outdated ones included, every page of them:
-#     GraphQL `reviewThreads` where it is served, else the Claude Code cloud
-#     route `pulls/{n}/ccr/review_threads` (a CLAUDE_CODE_REMOTE session tries
-#     the cloud route first);
-#   - a reviewer whose latest approving, dismissing or change-requesting review
-#     requests changes;
-#   - a check run whose newest run concluded failure, timed_out, cancelled,
-#     action_required, startup_failure or stale, or a commit status in failure
-#     or error. Only `merge_guard_ignored_checks` clears one: there is no
-#     informational failure. One exemption: on a PR that changes a workflow or
-#     action file, a failed check the base branch's rules do not require, whose
-#     Actions run loaded the base branch's copy, is a NOTICE;
-#   - a pending check, for an immediate merge only;
-#   - where pr-verify judges the PR, no PASS or PASS-NOTES verdict at its head,
-#     until 30 minutes after its last check finished: past that the merge goes
-#     ahead with a NOTICE that no verdict was read.
-# Every list is read to its last page; a list longer than MG_MAX_PAGES pages
-# is a failed read.
-# `--admin` changes none of this.
-# A READ THAT FAILS calls _mg_unchecked, and each caller decides: the guard
-# lets the merge run with a notice, so a GitHub outage or a missing login never
-# wedges a merge on any machine; the skill holds, since it decides to merge on
-# this evidence alone. The two reads behind the workflow exemption are the
-# exception: when either fails, every failed check blocks.
-# CALLBACKS. A caller that sources this file defines these after the source
-# line to replace the defaults below: _mg_unchecked <why> [<subject>],
-# _mg_refuse_merge <kind> <line>..., _mg_allow [<notice>]...,
-# _mg_pr_unreadable. Each ends the process. Inputs: MG_REPO, MG_NUM, MG_HOST,
-# MG_AUTO, MG_CWD, MG_HEAD.
-#
 # Exit codes:
 #   0  READY, then a NOTICE line per warning
 #   1  BLOCKED <kind>, then what blocks; kind is closed, head-moved,
@@ -59,20 +13,6 @@ _MG_DIR="${BASH_SOURCE[0]%/*}"
 
 MG_OUT=""
 MG_ERR=""
-# _mg_api <arg>...: one `gh api` call from MG_CWD, so gh resolves
-# {owner}/{repo} placeholders against that checkout. Sets MG_OUT and
-# MG_ERR (the first line of gh's stderr).
-# TIME BUDGET, under https://code.claude.com/docs/en/hooks#configuration
-# (a hook's timeout). The guard's Bash row shares one 60 s hooks.json timeout across
-# every guard, and a row that runs past it is cancelled with every guard's
-# block discarded (run-guards.sh, AGGREGATION). So all calls share one budget
-# of MG_BUDGET_S seconds (35), each call capped at what is left and at 15 s,
-# enforced by `timeout` where it exists and by a watcher process where it does
-# not (stock macOS). A spent budget is a failed read.
-# No environment variable changes the budget: settings.json `env` reaches a
-# hook's environment, so a knob could make every merge run unchecked. The test
-# suite shortens it in a rewritten copy of this script instead, so keep the
-# assignment below on one line in exactly this form.
 MG_BUDGET_S=35
 MG_T0=$SECONDS
 # The pr-verify no-verdict wait, https://github.com/melodic-software/claude-code-plugins/issues/18822;
@@ -124,10 +64,6 @@ _mg_api() {
   return "$rc"
 }
 
-# Every page of a list is read, MG_PER_PAGE items at a time, until a page comes
-# back short (https://docs.github.com/rest/using-the-rest-api/using-pagination-in-the-rest-api);
-# a page past MG_MAX_PAGES is a failed read. The test suite shrinks
-# MG_PER_PAGE in a rewritten copy, so keep both assignments on one line each.
 MG_PER_PAGE=100
 MG_MAX_PAGES=20
 _mg_api_pages() {
@@ -186,20 +122,6 @@ _mg_pr_unreadable() { _mg_unchecked "$MG_ERR"; }
 
 MG_WORKFLOW_PREFIXES=(.github/workflows/ .github/actions/)
 MG_EXEMPT_MAX_RUNS=5
-# _mg_run_loads_base <run-id> <changed-files-json>: succeed when Actions run
-# <run-id> took the changed workflow code from the base branch, not the head.
-# Read from `actions/runs/{id}`
-# (https://docs.github.com/rest/actions/workflow-runs#get-a-workflow-run): `.path` is the run's own workflow file and
-# `.referenced_workflows` the reusable workflows it called, each `path` written
-# `owner/repo/<file>@<ref>`. It fails, so the check blocks, when
-#   - the run's own workflow file is one the PR changes: a pull_request run
-#     takes that file from the head, so its failure is the PR's own;
-#   - a reusable workflow of this repository that the PR changes was loaded
-#     from any ref other than the base branch (a `./` call takes the head's);
-#   - no reusable workflow of this repository was loaded from the base branch,
-#     or, for a PR that changes no action file, none of those is a workflow the
-#     PR changes. An action is not listed in the run, so an action change counts
-#     when the run loaded a workflow of this repository from the base branch.
 _mg_run_loads_base() {
   _mg_api "repos/$MG_REPO/actions/runs/$1" \
     --jq '{path: (.path // ""), refs: [.referenced_workflows[]? | {path: (.path // ""), ref: (.ref // "")}]}' ||
@@ -259,9 +181,6 @@ _mg_exempt() {
   IFS=$'\x1f' read -r _mg_failed _mg_nonreq <<<"$MG_OUT"
 }
 
-# Every page of `reviewThreads` is read
-# (https://docs.github.com/graphql/reference/objects#pullrequest); a page past
-# MG_MAX_PAGES is a failed read.
 _mg_threads_graphql() {
   local cursor="" all="" line pages=0 next
   local -a page
@@ -394,10 +313,6 @@ _mg_verify() {
       [[ "$counted" == true ]] && return 0
     done
   done
-  # pr-verify starts when the head's checks finish, and a head it never judges
-  # (a credit stop, an outage) would otherwise hold the merge for good:
-  # https://github.com/melodic-software/claude-code-plugins/issues/18822.
-  # The wait starts only once no check is still running.
   local done_at="" now
   [[ -n "$_mg_running" ]] ||
     done_at="$(jq -r '[.[] | select(.status == "completed") | .completed_at // empty | fromdateiso8601] | max // empty' \
@@ -448,20 +363,6 @@ merge_readiness::check() {
     | to_entries | map(select(.value == "CHANGES_REQUESTED") | .key) | join(", ")' <<<"$MG_OUT")" ||
     _mg_unchecked "the reviews could not be judged"
 
-  # Check runs on the head commit. The endpoint can return several runs of one
-  # check (a draft run and the run after the ready flip, https://github.com/melodic-software/claude-code-plugins/issues/7473), so only the
-  # newest per name and app counts. Newest is the highest id, the order runs were
-  # created in; timestamps are not used, because a run that started earlier can
-  # finish later and a caller can set them. A skipped or neutral run never
-  # supersedes a completed run with a real conclusion, so a later event that
-  # skips a job cannot clear its failure; it does supersede a pending run and a
-  # cancelled one, which stopped before reaching a conclusion (https://github.com/melodic-software/claude-code-plugins/issues/7549). A
-  # cancelled run is superseded by a newer successful run of the same app, in
-  # another check suite, named `<name> (...)`, because a matrix job cancelled before it
-  # expanded reports under its bare name while its legs report as `<name> (<leg>)`.
-  # A run whose `<app slug>:<name>` is listed in merge_guard_ignored_checks is
-  # dropped first: it neither counts nor supersedes. jq -c escapes each entry, so
-  # the array is a safe jq literal.
   _mg_ignored="$(jq -cn --arg s "${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS-github-actions:Merge,github-actions:merge}" \
     '$s | split(",") | map(gsub("^ +| +$"; "") | select(length > 0))')" || _mg_ignored='[]'
   _mg_api_pages "repos/$MG_REPO/commits/$_mg_sha/check-runs" .check_runs || _mg_unchecked "$MG_ERR"
@@ -481,19 +382,6 @@ merge_readiness::check() {
           and any($all[]; (.app.id // 0) == ($c.app.id // 0) and .id > $c.id and .check_suite.id != $c.check_suite.id
             and .status == "completed" and .conclusion == "success" and (.name | startswith($c.name + " ("))) | not)]' \
     <<<"$_mg_all")" || _mg_unchecked "the check runs could not be read"
-  # A failed run that pr-require-checks' contract-only path stopped because a full
-  # run was in flight on this head (https://github.com/melodic-software/claude-code-plugins/issues/8716) carries a failure annotation
-  # `superseded by full run <url>/actions/runs/<id> in flight on <sha>`; its
-  # output summary is empty. Such a run does not count: the named full run's run
-  # of the same check and app decides, and the check is pending until that run
-  # exists. Only the gate's GitHub Actions run is read, CI Status (ci-status on a
-  # head tested before the rename): any step can print the marker, so on another
-  # check it proves nothing. The ci-status alias job of a superseded CI Status in
-  # the same Actions run repeats its failure and is superseded with it. Any other failure
-  # annotation beside the marker and the runner's `Process completed with exit
-  # code <n>.` is a failure of the run's own steps (a contract check), which the
-  # full run cannot clear, so the failure stands. A failed annotations read leaves
-  # the failure standing. Three failed runs at most are read, each one more call.
   _mg_sup='{}'
   while IFS= read -r _mg_id; do
     [[ "$_mg_id" =~ ^[0-9]+$ ]] || continue
@@ -532,11 +420,8 @@ merge_readiness::check() {
         run: ((.details_url // "") | if type == "string" then (capture("/actions/runs/(?<r>[0-9]+)(/|$)").r // "") else "" end)}] as $fi
     | "\($f | join(", "))\u001f\($p | join(", "))\u001f\($f | tojson)\u001f\($fi | tojson)"')" ||
     _mg_unchecked "the check runs could not be judged"
-  # A unit separator, not a tab: tab is IFS whitespace (https://www.gnu.org/software/bash/manual/bash.html#Word-Splitting), so an empty first field
-  # would collapse and the pending list would read as the failed one. The third
-  # field is the failed names as a JSON array, since a matrix leg's name can
-  # hold the ", " that joins the list. The fourth is each failed run's name, app
-  # slug and Actions run id, for the workflow exemption.
+  # A unit separator, not a tab: tab is IFS whitespace, so an empty first field would collapse:
+  # https://www.gnu.org/software/bash/manual/html_node/Word-Splitting.html
   IFS=$'\x1f' read -r _mg_failed _mg_pending _mg_failed_json _mg_failed_runs <<<"$MG_OUT"
 
   # https://docs.github.com/rest/commits/statuses#get-the-combined-status-for-a-specific-reference
@@ -617,11 +502,6 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   [[ -z "$MG_HEAD" || "$MG_HEAD" =~ ^[0-9a-f]{40}$ ]] || _mg_usage
   command -v gh >/dev/null 2>&1 || _mg_unchecked "gh is not on PATH"
   command -v jq >/dev/null 2>&1 || _mg_unchecked "jq is not on PATH"
-  # Run as a command (the pull-request skill), this is outside the guardrails
-  # hook environment that carries merge_guard_ignored_checks, and an inherited
-  # value can come from a repository's settings env block. So the operator's
-  # guardrails setting is read from their settings files, as the guard gets it
-  # (https://github.com/melodic-software/claude-code-plugins/issues/18822).
   unset CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS
   command -v node >/dev/null 2>&1 ||
     _mg_unchecked "node is not on PATH, so the guardrails merge_guard_ignored_checks setting cannot be read"

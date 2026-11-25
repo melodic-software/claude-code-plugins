@@ -1,80 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/resolve-convention-home.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# Resolve a consumer repository's convention home from the pointer line in its
-# root instruction file.
-#
-# WHY. The config-cascade expression doctrine (docs/contracts/config-cascade/
-# README.md § Expression doctrine) binds a consumer's convention home with ONE
-# pointer line inside a marked, machine-owned region of the root instruction
-# file. The line IS the binding: there is no binding file, so every plugin that
-# needs the home reads the same line, and its grammar lives here, once, tested;
-# the doctrine doc cites this helper as its owner. The behavior follows
-# docs/adr/0075.
-#
-# GRAMMAR. The root instruction file carries a region delimited by two marker
-# lines (surrounding whitespace, a leading UTF-8 BOM, and a trailing carriage
-# return are ignored; nothing else may share the line):
-#
-#   <!-- BEGIN GENERATED: convention-home -->
-#   Team conventions live in `docs/conventions` — read the topic doc there
-#   before changing a governed surface.
-#   <!-- END GENERATED: convention-home -->
-#
-# Inside the region, a POINTER LINE is any line that contains a backticked
-# token; the FIRST backticked token on that line is the home. Lines in the
-# region with no backticks are prose and are ignored. A backticked path
-# anywhere outside the region is not a pointer. The home is a repo-relative
-# directory: one or more segments of [A-Za-z0-9._-]+ joined by `/`, no segment
-# equal to `.`, `..` or `.git` (any case, so the home is never git's own
-# directory, trailing dots ignored as NTFS ignores them), an optional trailing
-# `/` which is dropped on output. In the working tree the home is its own
-# physical path: a symlink on the way to it, or a spelling whose case differs
-# from the disk, is a FAIL, as --ref reads only a committed tree.
-# Anything else — an absolute path, a leading `~`, a backslash, a drive letter,
-# whitespace, or an empty token — is an invalid pointer, never a best-effort
-# parse. A line inside the region that is exactly `declined` (surrounding
-# whitespace ignored) records that the repository declined a home: the caller
-# must not ask again. A `declined` line beside a pointer line is a FAIL.
-#
-# WHICH FILE. `AGENTS.md` is canonical; `CLAUDE.md` is consulted when AGENTS.md
-# carries no region. A CLAUDE.md whose only non-blank content is `@AGENTS.md` is
-# a pure import shim and is never consulted. The two files are compared
-# physically (realpath): when one is a symlink to the other they are one file,
-# read once, and nothing is reported. When two distinct files both carry a
-# region, AGENTS.md supplies the printed value and CLAUDE.md's copy is reported
-# on stderr as `duplicate:` — the doctrine calls that a finding with a
-# remediation (remove the copy), not a hard stop, so the exit stays 0.
-#
-# WHERE A HOME CAN APPLY. The root is classified first. It is "not applicable"
-# (exit 5) when it is $HOME, an ancestor of $HOME, or not inside a git work
-# tree: a home directory or a loose folder is not a repository that binds a
-# home. With no --root the root is the git toplevel of CLAUDE_PROJECT_DIR (else
-# of the current directory), one home per git root: CLAUDE_PROJECT_DIR only says
-# where to look, so a subdirectory of a repository never reads a file of its own.
-#
-# WHAT IS READ. By default the working tree. `--ref <ref>` reads AGENTS.md,
-# CLAUDE.md and the home directory as committed at <ref>, so a lane resolves the
-# pointer at the base commit: a 40-hex commit id or `origin/<name>`, validated
-# before any git call and passed to git after --end-of-options. A file that is a
-# symlink at <ref> is not read. `-` reads the region from stdin as the text of
-# AGENTS.md instead (a remote reader passes text it fetched itself); it names no
-# tree, so the root is not classified and the home directory is not checked.
-#
-# UNTRUSTED INPUT. The root file is consumer prose. Nothing read from it is
-# evaluated, expanded, or interpolated into a command: a candidate token is only
-# ever compared against the grammar and joined onto --root for a `-d` test.
-# Every line is stripped of `\r` and truncated to MAX_LINE bytes before parsing.
-#
-# Usage:
-#   resolve-convention-home.sh [--root <repo>] [--ref <ref>] [--explain] [--help] [-]
-#
-#   --root <repo>  the repository root (default: the git toplevel of
-#                  ${CLAUDE_PROJECT_DIR}, else of the current directory)
-#   --ref <ref>    read the committed files at <ref> (40-hex id or origin/<name>)
-#   -              read the AGENTS.md text from stdin (not with --root or --ref)
-#   --explain      write which file, region, and token were used to stderr
-#
 # Exit:
 #   0  exactly one usable pointer resolved and the directory exists; the
 #      repo-relative home is printed on stdout (a `duplicate:` warning on
@@ -90,19 +16,8 @@
 #      caller uses the bundled defaults and does not ask again
 #   5  not applicable: the root is $HOME, an ancestor of it, or not a git work
 #      tree; no home applies and nothing is asked
-#
-# A pointer with no concern file under the home is not an error here: the home
-# resolves, and the cascade reports the missing file's layer as absent so the
-# bundled default applies (config-cascade.mjs).
-#
-# Shared source: lib/resolve-convention-home.sh at the marketplace repo root is the canonical source; the copies in the plugins
-# that carry it are generated by scripts/sync-shared-copies.sh and registered in
-# scripts/shared-copies.txt. Bash 3.2-compatible on purpose: no associative
-# arrays, no mapfile, no jq.
 
 set -uo pipefail
-# The grammar's character class is ASCII by definition; a collating locale
-# would let a bracket range admit letters outside it.
 export LC_ALL=C
 
 BEGIN_MARKER='<!-- BEGIN GENERATED: convention-home -->'
@@ -184,8 +99,6 @@ if [[ $STDIN_MODE -eq 1 && ( $HAS_ROOT -eq 1 || $HAS_REF -eq 1 ) ]]; then
   exit 2
 fi
 if [[ $HAS_REF -eq 1 ]]; then
-  # Only a full commit id or origin/<name> passes; nothing that git could read
-  # as an option, a revision range or a path.
   if ! [[ "$REF" =~ ^[0-9a-f]{40}$ || ("$REF" =~ ^origin/[A-Za-z0-9._/-]+$ && "$REF" != *..* && "$REF" != origin/-*) ]]; then
     echo "ERROR: invalid --ref; expected a 40-hex commit id or origin/<name>" >&2
     exit 2
@@ -204,7 +117,6 @@ if [[ $STDIN_MODE -eq 0 ]]; then
     ROOT="$ROOT_ARG"
   else
     START="${CLAUDE_PROJECT_DIR:-$PWD}"
-    # tr -d '\r': Git on Windows can return a CRLF-terminated path.
     ROOT="$(git -C "$START" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
     [[ -n "$ROOT" ]] || ROOT="$START"
   fi
@@ -214,8 +126,6 @@ if [[ $STDIN_MODE -eq 0 ]]; then
   fi
 fi
 
-# phys <path>: the physical path of an existing file or directory, symlinks
-# resolved (realpath, else a readlink walk for macOS before 13).
 phys() {
   local p="$1" dir n=0 target
   if command -v realpath >/dev/null 2>&1; then
@@ -237,7 +147,6 @@ phys() {
   fi
 }
 
-# classify_root: exit 5 when no home can apply to $ROOT.
 classify_root() {
   local root_p home_p why=""
   root_p="$(CDPATH='' cd -- "$ROOT" && pwd -P)" || return 0
@@ -260,18 +169,12 @@ classify_root() {
 
 trim() {
   local s="$1"
-  # UTF-8 BOM is U+FEFF encoded EF BB BF at the start of the file, so on
-  # line 1 it is the first three bytes of this string. POSIX [:space:] /
-  # isspace(3) is space, FF, NL, CR, HT, VT, not BOM.
-  # https://www.unicode.org/faq/utf_bom.html
   s="${s#$'\xEF\xBB\xBF'}"
   s="${s#"${s%%[![:space:]]*}"}"
   s="${s%"${s##*[![:space:]]}"}"
   printf '%s' "$s"
 }
 
-# is_pure_shim <file>: every non-blank line, after CR strip and trim, is
-# `@AGENTS.md`, and there is at least one such line.
 is_pure_shim() {
   local line seen=0
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -284,14 +187,6 @@ is_pure_shim() {
   [[ $seen -eq 1 ]]
 }
 
-# scan_file <file>: sets SCAN_STATE to one of
-#   none      no region in the file
-#   empty     a region exists but holds no pointer line
-#   one       exactly one pointer line; SCAN_TOKEN holds its first backticked token
-#   many      two or more pointer lines
-#   declined  a `declined` line and no pointer line
-#   mixed     a `declined` line beside a pointer line
-#   unterminated / nested   a BEGIN with no END, or a BEGIN inside a region
 scan_file() {
   local file="$1" line in_region=0 regions=0 pointers=0 declined=0 rest
   SCAN_STATE="none"
@@ -348,8 +243,6 @@ scan_file() {
   fi
 }
 
-# valid_home <token>: the grammar above. Returns 1 with a reason in
-# INVALID_REASON otherwise.
 valid_home() {
   local t="$1" seg bare rest
   INVALID_REASON=""
@@ -367,7 +260,6 @@ valid_home() {
   while [[ -n "$rest" ]]; do
     seg="${rest%%/*}"
     rest="${rest#*/}"
-    # NTFS drops trailing dots, so `.git.` names .git there too.
     bare="$seg"
     while [[ "$bare" == ?*. ]]; do bare="${bare%.}"; done
     case "$bare" in
@@ -384,24 +276,16 @@ valid_home() {
   return 0
 }
 
-# committed_file <name> <dest>: copy <name> as committed at $REF into <dest>.
-# Returns 1 when it is absent or not a regular file at $REF (a symlink is not read).
 committed_file() {
   local entry mode
   entry="$(git -C "$ROOT" ls-tree "$REF" -- "$1" 2>/dev/null)" || return 1
   mode="${entry%% *}"
-  # ./ keeps the path relative to $ROOT, as ls-tree reads it, when $ROOT is below the toplevel.
   case "$mode" in
   100644 | 100755) git -C "$ROOT" show --end-of-options "$REF:./$1" >"$2" 2>/dev/null ;;
   *) return 1 ;;
   esac
 }
 
-# TOKEN here is the parser sense: the pointer line scan_file lifts out of a
-# convention-home region, never a credential. gitleaks' generic-api-key rule
-# keys on the identifier and then takes the next line it can reach as the
-# value, so it reports CLAUDE_SHIM=0 as the secret. Annotated rather than
-# renamed, because the name is right for what the variable holds.
 AGENTS_STATE="none"; AGENTS_TOKEN=""
 CLAUDE_STATE="none"; CLAUDE_TOKEN="" # gitleaks:allow
 CLAUDE_SHIM=0 # gitleaks:allow
@@ -462,8 +346,6 @@ else
   explain "CLAUDE.md: $CLAUDE_STATE"
 fi
 
-# AGENTS.md is canonical whenever it carries a region at all, even a broken one:
-# a FAIL in the canonical file is not something CLAUDE.md gets to paper over.
 if [[ "$AGENTS_STATE" != "none" ]]; then
   CHOSEN="AGENTS.md"; STATE="$AGENTS_STATE"; TOKEN="$AGENTS_TOKEN"
   if [[ "$CLAUDE_STATE" != "none" ]]; then

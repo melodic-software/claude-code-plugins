@@ -74,9 +74,6 @@ SCHEMA = SCHEMAS["note.schema.json"]
 MAX_NOTES = SCHEMA["x-maxNotesPerRun"]
 PAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.html")
 BRIDGE_HOSTS = ("127.0.0.1", "localhost")
-# The host page's own policy; connect-src 'self' is its fetches. A srcdoc document inherits it, so
-# /api/page puts PAGE_CSP first in the framed page: every policy applies, and PAGE_CSP grants no
-# network and no 'self' script, whatever the page's own markup says (SKILL.md's mockup policy).
 HOST_CSP = (
     "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; "
     "img-src data:; font-src data:; connect-src 'self'; frame-ancestors 'none'; "
@@ -88,17 +85,13 @@ PAGE_CSP = (
 )
 FRAME = b'<iframe id="page"'
 SANDBOX = FRAME + b' sandbox="allow-scripts"'
-# The mockup route's frame alone carries the targetOrigin the host page posts to it with
-# (frame-channel.mjs frameTarget): a sandboxed srcdoc document has an opaque origin, which only the
-# wildcard target matches, so the real-stack host page never holds that target.
+# A sandboxed srcdoc frame has an opaque origin, which only the "*" targetOrigin matches:
 # https://html.spec.whatwg.org/multipage/web-messaging.html#posting-messages
 MOCKUP_FRAME = SANDBOX + b' data-mockup-target="*"'
 PAGE_CSP_META = (
     f'<meta http-equiv="Content-Security-Policy" content="{PAGE_CSP}">'.encode()
 )
-# A leading doctype stays first, so the page keeps its rendering mode; the meta goes right after it.
 DOCTYPE = re.compile(rb"\A(?:\xef\xbb\xbf)?\s*<!doctype[^>]*>", re.IGNORECASE)
-# The copy-out block host.html's Copy all notes makes; import takes it, or its JSON alone.
 FENCE = re.compile(r"\s*```prototype-notes[ \t]*\r?\n(.*?)\r?\n```\s*", re.DOTALL)
 STATIC = {
     "/note-model.mjs": ("note-model.mjs", "text/javascript"),
@@ -144,8 +137,6 @@ def pin_helper(text, name="proto-pin.js"):
     return text
 
 
-# The controls runtime goes first, so the pin helper finds it; a page that inlined its own copy
-# keeps that one.
 PIN_HELPER = "".join(
     f"\n<script>{pin_helper((HERE / n).read_text(encoding='utf-8'), n)}</script>"
     for n in ("controls.js", "proto-pin.js")
@@ -184,9 +175,7 @@ FITS = {
     "array": lambda v: isinstance(v, list),
     "string": lambda v: isinstance(v, str),
     "boolean": lambda v: isinstance(v, bool),
-    # JSON Schema counts 1.0 as an integer; a bool is never one.
     "integer": lambda v: is_number(v) and float(v).is_integer(),
-    # json.loads accepts NaN and Infinity; JSON Schema numbers are finite.
     "number": lambda v: is_number(v) and math.isfinite(v),
 }
 
@@ -385,8 +374,6 @@ class NotesHandler(view.ViewHandler):
             file, ctype = STATIC[url.path]
             return self.send(200, (HERE / file).read_bytes(), ctype)
         if url.path == "/api/page":
-            # Text for the host page's script to frame, never a document at this URL: text/plain
-            # under nosniff. Same-origin script only, as for the token.
             if self.headers.get("Sec-Fetch-Site") != "same-origin":
                 return self.send(403, {"error": "same-origin page script only"})
             try:
@@ -431,8 +418,6 @@ class NotesHandler(view.ViewHandler):
             200, {"ok": True, "seq": seq, "listening": self.hub.listener()["state"]}
         )
 
-
-# Control half: what the skill and wake.sh run, composed from session_bridge's client half.
 
 
 def cmd_status(d, a):

@@ -19,14 +19,11 @@ from pathlib import Path
 
 _SOFT = ['-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng']
 PROFILES = {
-    # explainer-video's manim renders: video copied as manim encoded it, narration as AAC.
     'explainer-manim': {'video': ['-c:v', 'copy'], 'audio': ['-c:a', 'aac'], 'subtitle': _SOFT},
-    # reviewer media: visible quality first (4K frames, CRF 18, keyframe per held frame), encoded once.
     'reviewer-stills': {'fps': 30,
                         'video': ['-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-tune', 'stillimage',
                                   '-pix_fmt', 'yuv420p', '-movflags', '+faststart'],
                         'audio': ['-c:a', 'aac', '-b:a', '128k', '-ac', '1'], 'subtitle': _SOFT},
-    # playwright:demo-video: rendered RGB frames piped in, BT.709 tagged end to end, narration mixed in afterwards.
     'demo-video': {'video': ['-vf', 'scale=out_color_matrix=bt709:out_range=tv:flags=lanczos+accurate_rnd'
                                     '+full_chroma_int+full_chroma_inp,format=yuv420p',
                              '-c:v', 'libx264', '-profile:v', 'high', '-preset', 'slower', '-crf', '16',
@@ -34,11 +31,9 @@ PROFILES = {
                              '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
                              '-color_range', 'tv', '-movflags', '+faststart'],
                    'audio': ['-c:a', 'aac', '-b:a', '128k']},
-    # animation's render.py --encode: a frame folder piped as rawvideo, one profile per delivered format.
     'animation-mp4': {'video': ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '16']},
     'animation-webm': {'video': ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-crf', '30', '-b:v', '0']},
     'animation-gif': {'video': ['-vf', 'split[a][b];[a]palettegen[p];[b][p]paletteuse']},
-    # pixel-art's scene capture: the browser's WebM copied as recorded, the scene's looped WAV as Opus.
     'pixel-art-webm': {'video': ['-c:v', 'copy'], 'audio': ['-c:a', 'libopus']},
 }
 

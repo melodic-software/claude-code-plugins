@@ -31,7 +31,7 @@ Since **0.31.0** the always-on guards are registered through one dispatcher per 
 process, and sources each guard in turn inside that one bash process. Since **0.41.3**
 those rows are exec form: `"command": "node"` with `hooks/exec-bash.mjs` and the
 dispatcher script in `args`. Each fire starts two processes: node, which finds bash
-(the candidate order is in the header of `hooks/exec-bash.mjs`; on Windows it is Git Bash,
+(the candidate order is in [the launcher's contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-budget/README.md#the-exec-bashmjs-launcher); on Windows it is Git Bash,
 never the WSL relay) and spawns it, then that bash, which sources every guard in one
 process. `workflow-resilience-check.sh` is
 the same exec form, with `--require-true WORKFLOW_RESILIENCE_CHECK_ENABLED` so the

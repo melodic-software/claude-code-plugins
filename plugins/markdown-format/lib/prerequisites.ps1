@@ -1,15 +1,5 @@
 # GENERATED from lib/prerequisites.ps1 by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# Run prerequisites.mjs from this directory with the same arguments and exit code.
-# Without node on PATH, print one fixed line and exit 1, because the checker
-# cannot run and node is itself a missing required dependency.
-#
-#   pwsh -NoProfile -File prerequisites.ps1 check <plugin-root> [--for <scope>]
-#
-# node-notice is the one mode that never needs node, the counterpart of the same
-# mode in prerequisites.sh (read its header for the contract):
-#
-#   powershell -NoProfile -File prerequisites.ps1 node-notice <check-command> [<enabled-option-name>]
 $node = Get-Command -Name node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($args.Count -gt 0 -and $args[0] -eq 'node-notice') {
     if ($null -ne $node) { exit 0 }

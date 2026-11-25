@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/install-python-deps.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# SessionStart hook: install the plugin's hash-locked Python packages (requirements.txt) into
-# ${CLAUDE_PLUGIN_DATA} on demand, so its skills run against them and nothing fetches a package
-# while a skill runs (docs/contracts/on-demand-dependencies, Python). A no-op once the set
-# loads, and one that starts no process while pydeps.py's ready stamp holds. A failed install is a user notice with the repair line, never a silent skip; the model
-# hears nothing here, since pydeps.py run prints the same repair line when a skill runs.
-# Always exits 0: a failed install must not block the session. The plugin's wording (its name,
-# the Pythons it supports, the skills that need the packages) is in install-python-deps.conf.
 set -uo pipefail
 
 data="${CLAUDE_PLUGIN_DATA:-}"
@@ -16,21 +9,16 @@ data="${CLAUDE_PLUGIN_DATA:-}"
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="${SCRIPT_DIR%/*}"
 
-# The plugin's wording; the defaults stand only if its conf leaves one out.
 PYDEPS_PLUGIN="install-python-deps" PYDEPS_PYTHONS="3.12 or later" PYDEPS_USERS="its skills" PYDEPS_PACKAGES="Python packages"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/install-python-deps.conf"
 
-# Loaded only when there is something to report: the common run installs nothing and says nothing.
 notice() {
   # shellcheck source=hook-utils.sh
   source "$SCRIPT_DIR/hook-utils.sh"
   hook::emit_skip_notice SessionStart "" "$1"
 }
 
-# launcher_listed -> a python.exe that `py -0p` lists, as a POSIX path: the first tagged 3.12 or 3.13,
-# else the first listed, whose pydeps.py says what is required. Only lists: when no runtime is
-# installed, the Python install manager installs one on any py launch command.
 launcher_listed() {
   local line path first="" re='^[[:space:]]*(-[^[:space:]]+)[[:space:]]+(\*[[:space:]]+)?([A-Za-z]:\\.*\.[Ee][Xx][Ee])'
   while IFS= read -r line; do
@@ -45,21 +33,12 @@ launcher_listed() {
   [[ -n "$first" ]] && printf '%s' "$first"
 }
 
-# Any Python starts pydeps.py, which hands over to the first supported Python on PATH or, on
-# Windows, listed by the py launcher, and says so when there is none. A zero-length WindowsApps
-# python alias opens the Store instead of running: skip it, and skip a name that resolves but does
-# not run, such as a pyenv shim for a version not enabled. The Python install manager's py is
-# such an alias too, and it runs, so it is only asked to list.
 candidates=(python3.13 python3.12 python3 python)
 case "${OSTYPE:-}" in
   msys* | cygwin*) candidates+=(py) ;;
   *) ;;
 esac
 
-# as_posix <path> -> REPLY: a drive-letter path (C:\x or C:/x) in this shell's POSIX form under Git Bash or Cygwin,
-# by builtins alone: cygpath would cost a process start. The drive mounts at /c/ or /cygdrive/c/, whichever exists:
-# OSTYPE does not tell them apart, since Git Bash can report cygwin. Fails when neither exists. Any other path is
-# returned as is.
 as_posix() {
   REPLY="$1"
   case "${OSTYPE:-}" in
@@ -80,13 +59,6 @@ as_posix() {
   esac
 }
 
-# stamp_holds -> 0 when pydeps.py's ready stamp (written after a successful install with an interpreter found on
-# PATH) still describes this session: the same plugin root, every candidate name resolving to the same file, none of
-# those files, requirements.txt, pydeps.py or pydeps.json newer than the stamp, and the installed set present.
-# Files are compared by identity (-ef), not spelling: one file can be named through a symlink, another mount, an 8.3
-# short name, another letter case, or without its .exe. Builtins only (hash fills BASH_CMDS the way command -v looks
-# up a name, without a subshell), so a session start whose set is ready starts no process. Anything else falls
-# through to the full path, which probes and rebuilds.
 stamp_holds() {
   ((BASH_VERSINFO[0] >= 4)) || return 1
   local stamp lines name got i=3 f
@@ -136,8 +108,6 @@ if [[ -z "$py" ]]; then
   exit 0
 fi
 
-# repair_line -> the install run in the foreground: Windows PowerShell 5.1 under Git Bash or Cygwin
-# (call operator, single quotes doubled), a POSIX shell line otherwise, as pydeps.py's own.
 repair_line() {
   local parts=("$(command -v "$py")" "$ROOT/scripts/pydeps.py" install --data-dir "$data") line="" part
   case "${OSTYPE:-}" in
@@ -157,10 +127,6 @@ repair_line() {
   esac
 }
 
-# to_native <path> -> the path as a native Windows Python reads it. Under Git Bash or Cygwin a POSIX
-# path (/c/...) goes through cygpath -m: a session with MSYS path conversion switched off hands it
-# over as is, and Python resolves it against the current drive (C:\c\...). Fails rather than
-# return the unconverted path.
 to_native() {
   case "${OSTYPE:-}" in
     msys* | cygwin*)

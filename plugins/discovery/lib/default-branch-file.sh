@@ -1,24 +1,8 @@
 #!/usr/bin/env bash
 # GENERATED from lib/default-branch-file.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# Print one file as origin's default branch holds it, read by commit SHA, never through a short ref
-# (origin/HEAD) that a same-named local branch or tag could shadow, and never from the working tree.
-# For settings a branch must not change, such as a command a skill runs.
-#
-# SINGLE SOURCE OF TRUTH: lib/default-branch-file.sh at the marketplace repo root. Each copy sits beside
-# its plugin's copies of config-root.sh and resolve-convention-home.sh; never edit a copy. Edit the source
-# and run scripts/sync-shared-copies.sh.
-#
-# Usage:
-#   default-branch-file.sh --plugin <plugin>   the team file <home>/<plugin>.yaml, <home> being the
-#                                              convention home at that commit (docs/conventions by default)
-#   default-branch-file.sh --path <path>       any repository-relative file (letters, digits, . _ / -,
-#                                              no leading / or -, no ..)
-#
 # Exit 0: the file's content on stdout.
 # Exit 1: the default branch has no such file.
-# Both end stderr with `default-branch-file: <path> at origin/<branch>, commit <sha>`, plus `; the fetch
-# failed, so the last fetched copy may be stale` when the fetch failed and an earlier fetch is read.
 # Exit 2: the default branch could not be read; the reason is on stderr. The caller uses its defaults,
 #         never the working tree's copy.
 set -uo pipefail
@@ -62,7 +46,6 @@ if [[ ! "$branch" =~ ^[A-Za-z0-9._/-]+$ || "$branch" == -* || "$branch" == *..* 
   stop 2 "origin's default branch name '$branch' is not a safe name"
 fi
 stale=""
-# An explicit destination, so a single-branch clone's narrowed refspec still updates the ref.
 git -C "$root" fetch --quiet origin "+refs/heads/$branch:refs/remotes/origin/$branch" >/dev/null 2>&1 ||
   stale="; the fetch failed, so the last fetched copy may be stale"
 sha="$(git -C "$root" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/$branch^{commit}")" ||

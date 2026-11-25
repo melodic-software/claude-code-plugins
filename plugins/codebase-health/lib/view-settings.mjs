@@ -1,27 +1,6 @@
 #!/usr/bin/env node
 // GENERATED from lib/view-settings.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Where a rendered view goes: the one medium resolver every view lane calls. It reads each ADR 0075
-// scope's own `medium` value (concern `rendered-views`, home docs/conventions) through the cascade's
-// per-layer reader and schema check, and walks them itself, because a filter on the cascade's
-// merged output would lose a lower scope's local value under a higher scope's publishing one.
-//
-// The argument decides alone. Otherwise a terminal or file value from any scope keeps the view
-// local, the highest-precedence one naming the scope (personal override, then team, then
-// userConfig); a retired file's terminal or file value keeps it local only when no scope sets one,
-// naming that file. Else the first publishing value from a trusted scope wins: the personal override
-// (only untracked and gitignored), then userConfig. A team file never publishes. With no scope
-// deciding, the lane's own default applies (it ships with the installed plugin, which a checked-out
-// branch cannot write). An invalid value is ignored without dropping another scope's value; auto is
-// unset. The retired files (~/.claude/rendered-views.md, .claude/rendered-views.md,
-// .claude/rendered-views.local.md and a fenced config block in docs/conventions/rendered-views.md)
-// give a notice, once per plugin per project while unchanged, and never a publishing value. The
-// medium then steps down the fallback chain (lib/view-registry.mjs) until reachable.
-//
-//   view-settings.mjs resolve --lane <id> --option <user_config.medium> [--argument <m>] [--team-ref <ref>]
-// Prints the resolution as one JSON line, then the report line and one line per notice. With a
-// medium resolved, the JSON adds `page` (the medium shows a page) and `publishes`.
-// Exit 0 resolved, 2 usage.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -37,8 +16,6 @@ const HOME = "docs/conventions";
 const TEAM_FILE = `${HOME}/${CONCERN}.yaml`;
 const PERSONAL_FILE = `${HOME}/${CONCERN}.local.yaml`;
 const HERE = dirname(fileURLToPath(import.meta.url));
-
-// ------------------------------------------------------------ repository checks
 
 /** The session's project: CLAUDE_PROJECT_DIR, else the nearest directory above the cwd holding `.git`. */
 export function findRoot() {
@@ -81,7 +58,6 @@ function gitOut(root, args) {
  * symlink. Not gitignored, it warns, or with `requireIgnored` is ignored too.
  */
 export function personalOverrideApplies(root, path, warnings, { requireIgnored = false } = {}) {
-  // Any tracked case variant counts: on a case-insensitive filesystem it is this file.
   const rel = relative(root, path).split("\\").join("/");
   if (gitOut(root, ["ls-files", "--", `:(icase)${rel}`])) {
     warnings.push(`personal override ${rel}: tracked in git, so a pull request could set it; layer ignored`);
@@ -90,7 +66,6 @@ export function personalOverrideApplies(root, path, warnings, { requireIgnored =
   const parts = rel.split("/").slice(0, -1);
   const dirs = parts.map((_, i) => parts.slice(0, i + 1).join("/"));
   for (const dir of dirs) {
-    // A submodule or tracked file at the directory itself is content a pull request controls.
     const entries = (gitOut(root, ["ls-files", "-s", "-z", "--", `:(icase)${dir}`]) ?? "").split("\0");
     if (entries.some((e) => e.split("\t")[1]?.toLowerCase() === dir.toLowerCase()) || existsSync(join(root, dir, ".git"))) {
       warnings.push(`personal override ${rel}: ${dir} is a submodule or tracked entry; layer ignored`);
@@ -128,8 +103,6 @@ function teamAt(root, ref, notices) {
   }
   return { path: `${sha.slice(0, 12)}:${TEAM_FILE}`, text: gitOut(root, ["show", `${sha}:${TEAM_FILE}`]) };
 }
-
-// ------------------------------------------------------------ retired files
 
 const mediumIn = (text) => /^[ \t]*medium:[ \t]*["']?([a-z]+)["']?[ \t]*$/m.exec(text ?? "")?.[1] ?? null;
 /** The medium a retired source sets: for the team .md only its config block counts, not an example fence. */
@@ -219,13 +192,10 @@ function retiredNotices(legacy, { plugin, hasMediumOption, root, userHome, dataD
     try {
       writeAtomic(state, `${JSON.stringify(seen)}\n`);
     } catch {
-      // Unwritable state shows the notice again next time, which is the safe direction.
     }
   }
   return notices;
 }
-
-// ------------------------------------------------------------ resolution
 
 /** True when the reader chose a publishing medium (the argument, or a trusted scope), which the publish gate takes as explicit: never the plugin default. */
 export const gateExplicit = ({ preferred, decidedBy }) => Boolean(mediumOf(preferred)?.publishes) && ["argument", "userConfig", "personal override"].includes(decidedBy);
@@ -268,7 +238,6 @@ export function resolveMedium({ lane, argument = null, userConfig = null, projec
     personalTrusted = personalOverrideApplies(checkout, personalPath, warnings, { requireIgnored: true });
     for (const w of warnings) notices.push({ kind: "ignored", text: w });
   }
-  // Highest precedence first (ADR 0075: the personal override, then team, then userConfig).
   const scopes = [
     ["personal override", personal, personalTrusted],
     ["team", valueOf("team"), false],
@@ -283,8 +252,6 @@ export function resolveMedium({ lane, argument = null, userConfig = null, projec
   const trusted = scopes.find(([, , ok]) => ok);
   return trusted ? finish(trusted[1], trusted[0]) : finish(laneEntry.default, "plugin default");
 }
-
-// ------------------------------------------------------------ CLI
 
 const USAGE = "usage: view-settings.mjs resolve --lane <id> --option <user_config.medium> [--argument <medium>] [--team-ref <ref>]\n";
 
@@ -303,7 +270,6 @@ export function main(argv, env = process.env) {
   if (request.argument !== null && !mediumOf(request.argument)) return usage();
   const ci = Boolean(env.CI) && env.CI !== "false";
   const resolution = resolveMedium({ ...request, projectRoot: findRoot() }, { dataDir: env.CLAUDE_PLUGIN_DATA || null, interactive: !ci });
-  // So a skill can act on the medium without naming its value: does it show a page, does it publish.
   const entry = mediumOf(resolution.medium);
   const shown = entry ? { ...resolution, page: entry.id !== NO_PAGE, publishes: entry.publishes } : resolution;
   process.stdout.write(`${JSON.stringify(shown)}\n${reportLines(resolution).join("\n")}\n`);

@@ -158,8 +158,6 @@ MULTILINE_QUOTES = {
     "python": ('"""', "'''"),
     "clike-js": ("`",),
     "go": ("`",),
-    # A shell string is not carried to the next line: an apostrophe in a
-    # heredoc body would otherwise hide every directive after it.
     "ruby": ('"', "'"),
     "powershell": ('"', "'"),
 }
@@ -331,9 +329,6 @@ def lex(line: str, kind: str, state: LexState) -> Line:
                 code.append(ch)
                 i += 1
                 continue
-            # Every further hash starts a new segment: a mypy pragma followed by
-            # a flake8 one on the same line is two pragmas, and a ShellCheck
-            # directive followed by a hash and prose is a pragma and its reason.
             for part in line[i + 1 :].split("#"):
                 result.segments.append(Segment("#", part))
             break
@@ -431,7 +426,6 @@ COMMENT_MARKERS = (
         r"shellcheck\s+disable\b",
         r"\s*=\s*(?P<r>[\w-]+(?:\s*,\s*[\w-]+)*)",
     ),
-    # golangci-lint reads the directive only with no space after the slashes.
     _m("golangci-lint", ("go",), r"nolint\b", r":(?P<r>[\w-]+(?:,[\w-]+)*)", lead=""),
     _m(
         "markdownlint",
@@ -445,8 +439,6 @@ COMMENT_MARKERS = (
         r"rubocop\s*:\s*(?:disable|todo)\b",
         r"\s+(?P<r>[\w/]+(?:\s*,\s*[\w/]+)*)",
     ),
-    # Directives that switch off the evidence a quality bar rests on: coverage
-    # exclusions, mutation-testing exclusions and security-scanner suppressions.
     _m(
         "istanbul",
         ("clike-js",),
@@ -478,8 +470,6 @@ COMMENT_MARKERS = (
         r"nosemgrep\b",
         r"\s*:\s*(?P<r>[\w.\-]+(?:\s*,\s*[\w.\-]+)*)",
     ),
-    # Gitleaks skips a line that contains the marker, so it counts anywhere in a
-    # comment; text before it is the reason.
     _m(
         "gitleaks",
         ALL_COMMENT_KINDS,
@@ -534,10 +524,6 @@ class Record:
 def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Record]:
     records: list[Record] = []
     trailing: list[str] = []
-    # A marker found anywhere in a comment (Gitleaks) is a record of its own;
-    # its text is taken out before the comment's first marker is read, so it
-    # is never that marker's reason. Reason text the comment states for the
-    # first marker also justifies the marker found anywhere in it.
     anywhere = [m for m in COMMENT_MARKERS if kind in m.kinds and m.token]
     for segment in segments:
         text = segment.text

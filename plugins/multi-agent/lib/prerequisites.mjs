@@ -1,32 +1,6 @@
 #!/usr/bin/env node
 // GENERATED from lib/prerequisites.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Read a plugin's prerequisites.json and report which declared dependencies resolve.
-// The contract is docs/contracts/prerequisites/README.md; the schema sits beside it.
-//
-//   prerequisites.mjs report --plugin-root <dir> [--plugin-root <dir>...]
-//   prerequisites.mjs check <plugin-root> [--for <scope>] [--data-dir <dir>]
-//   prerequisites.mjs probe <plugin-root> [--run-if-unset-or-true <OPTION>]
-//
-// report  One TSV table across plugins, then a missing/present summary line.
-// check   One line per entry with the remediation, for setup and check skills.
-//         --for keeps the entries scoped to that skill, hook or MCP server, plus
-//         the plugin-wide ones. --data-dir is the plugin data directory, for a
-//         caller whose environment lacks it (see expandPluginPath).
-// probe   Run at SessionStart by plugin-diagnostics' prerequisites-fleet.mjs for each plugin
-//         whose manifest declares session_probe. Notifies the user (systemMessage) once per session
-//         for each missing entry a hook needs; the model hears of it when the hook
-//         first skips. Always exits 0 on a valid manifest, for the reason the
-//         node-notice header in prerequisites.sh records. A plugin with
-//         git-hooks/entries.json also gets one user line per drifted git-hook
-//         entry, once per session (see gitHookDrift).
-//         --run-if-unset-or-true is the plugin option gate exec-bash.mjs offers: the
-//         probe stays silent when CLAUDE_PLUGIN_OPTION_<OPTION> is set to anything
-//         but true, so a plugin's kill switch silences its probe.
-//
-// Exit 0: every required entry resolves. Exit 1: a required entry is missing or
-// below its version floor. Exit 2: a usage error or a manifest that fails the schema.
-// Standard library only. It never installs anything and never prints an env value.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -70,8 +44,6 @@ const OPTION_RE = /^[A-Z0-9_]+$/;
 const SERVER_RE = /^[A-Za-z0-9._-]+$/;
 const MANAGER_RE = /^[a-z][a-z0-9-]*$/;
 const PROBE_TIMEOUT_MS = 20000;
-// This file's directory: the working directory of every probe, so a same-named
-// executable in the caller's directory is never the one run.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LOCAL_BIN_DEPTH = 8;
 
@@ -154,7 +126,6 @@ function detectErrors(kind, detect, where) {
   if ("import" in detect && !matches(detect.import, MODULE_RE)) errors.push(`${where}.import must be a Python module name`);
   if ("module" in detect && !matches(detect.module, NPM_RE)) errors.push(`${where}.module must be an npm package name`);
   if ("paths" in detect) {
-    // A path is relative to the plugin root, or starts with ${CLAUDE_PLUGIN_ROOT} or ${CLAUDE_PLUGIN_DATA}.
     const strip = (p) => (typeof p === "string" ? p.replace(/^\$\{CLAUDE_PLUGIN_(DATA|ROOT)\}\/?/, "") || "." : p);
     errors.push(
       ...relativePathErrors(Array.isArray(detect.paths) ? detect.paths.map(strip) : detect.paths, `${where}.paths`),
@@ -306,7 +277,6 @@ function whenChecker(entries, ctx) {
 const whenText = (entry) =>
   entry.when.config_any.map((i) => (typeof i === "string" ? i : `${i.file} matching /${i.pattern}/`)).join(" or ");
 
-// validateManifest(value) -> list of schema errors; empty means valid.
 export function validateManifest(manifest) {
   if (!isObject(manifest)) return ["the manifest must be a JSON object"];
   const errors = keysErrors(manifest, ["$schema", "session_probe", "requires"], "manifest");
@@ -337,18 +307,15 @@ export function validateManifest(manifest) {
   return errors;
 }
 
-// The plugin's name from plugin.json; the directory name stands in when it is absent or unreadable.
 function pluginName(root) {
   try {
     const name = JSON.parse(readFileSync(path.join(root, ".claude-plugin", "plugin.json"), "utf8")).name;
     if (isText(name)) return name;
   } catch {
-    // Falls through to the directory name.
   }
   return path.basename(path.resolve(root));
 }
 
-// loadManifest(root) -> { plugin, manifest, errors, absent }
 export function loadManifest(root) {
   const plugin = pluginName(root);
   const file = path.join(root, "prerequisites.json");
@@ -362,7 +329,6 @@ export function loadManifest(root) {
   return { plugin, manifest, errors: validateManifest(manifest), absent: false };
 }
 
-// compareVersions("2.10", "2.9") -> 1. Missing parts count as 0.
 export function compareVersions(a, b) {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
@@ -375,15 +341,9 @@ export function compareVersions(a, b) {
 
 const FS = { statSync, lstatSync, readlinkSync, accessSync };
 
-// The target of App Installer's Python "install me" stub, which opens the Store
-// instead of running Python, and the alias names it takes.
 const PYTHON_STUB_TARGET = "appinstallerpythonredirector.exe";
 const PYTHON_STUB_NAMES = new Set(["python", "python3"]);
 
-// A Windows App Execution Alias, how a Store or winget app reaches PATH, is a
-// reparse point in a WindowsApps directory that stat cannot open, yet it runs.
-// It counts as found unless it is the Python stub, known by its target or, when
-// the target cannot be read, by its name.
 const isWindowsApps = (dir) => path.basename(dir).toLowerCase() === "windowsapps";
 
 function isAppAlias(file, fs) {
@@ -412,8 +372,6 @@ function isExecutable(file, platform, fs = FS) {
   }
 }
 
-// which(name) -> absolute path of the first PATH match, or null. fs is injectable for tests.
-// rejectStoreAlias skips WindowsApps directories on win32, so no App Execution Alias matches.
 export function which(name, env = process.env, platform = process.platform, fs = FS, rejectStoreAlias = false, runnable = false) {
   const pathVar = env.PATH ?? env.Path ?? "";
   const pathExts = (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
@@ -442,8 +400,6 @@ function findLocalBin(rels, cwd, platform, fs) {
   return null;
 }
 
-// file is resolved against the caller's directory first, where which() found it
-// (a relative PATH entry gives a relative match), since the probe runs from HERE.
 function run(file, args, env) {
   const viaCmd = process.platform === "win32" && /\.(bat|cmd)$/i.test(file);
   const line = [path.resolve(file), ...args].map((a) => `"${a}"`).join(" ");
@@ -467,15 +423,6 @@ function firstOnPath(names, ctx, rejectStoreAlias = false, runnable = false) {
   return null;
 }
 
-// The data directory comes from --data-dir, else the environment. A hook reads
-// CLAUDE_PLUGIN_DATA from its environment and a skill passes
-// --data-dir "${CLAUDE_PLUGIN_DATA}", per which processes receive the variable:
-// https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves.
-// The rule is the plugins' own
-// launchers' (plugins/speech/scripts/pydeps.py data_dir): a literal "${...}"
-// value is unset, and the environment's value counts only when its last path
-// segment is the plugin's name or starts with "<plugin>-", so another plugin's
-// directory is unknown here, not read.
 function ownDataDir(ctx) {
   const flag = ctx.dataDir;
   if (flag && !flag.startsWith("${")) return flag;
@@ -495,12 +442,6 @@ function expandPluginPath(p, ctx) {
   return path.join(ctx.root, p.replace(/^\$\{CLAUDE_PLUGIN_ROOT\}/, ""));
 }
 
-// A plugin that commits requirements.txt installs its Python packages into the
-// plugin data directory, at <data>/python/<first 12 hex of the lock's sha256>-<the
-// interpreter's sys.implementation.cache_tag>/ (docs/contracts/on-demand-dependencies,
-// Rule P3). pluginPythonSet -> null when the plugin has no lock or the interpreter's
-// cache tag cannot be read, { dir: null } when the data directory is unknown here,
-// else { dir } for that interpreter.
 function pluginPythonSet(python, ctx) {
   const lock = path.join(ctx.root, "requirements.txt");
   if (!existsSync(lock)) return null;
@@ -513,9 +454,6 @@ function pluginPythonSet(python, ctx) {
   return { dir: path.join(data, "python", `${key}-${cacheTag}`) };
 }
 
-// detectEntry(entry, ctx) -> { status, detail }. status is present, missing,
-// outdated (below the version floor or at or above its exclusive ceiling), unverified (the version could not be
-// read) or agent-check (an MCP server only the agent can see).
 export function detectEntry(entry, ctx) {
   const d = entry.detect;
   switch (entry.kind) {
@@ -554,14 +492,9 @@ export function detectEntry(entry, ctx) {
       const pythons = [...new Set(d.any.map((n) => which(n, ctx.env, ctx.platform, ctx.fs)).filter(Boolean))];
       const [found] = pythons;
       if (!found) return { status: "missing", detail: `no Python interpreter (${d.any.join(", ")}) on PATH` };
-      // PYTHONSAFEPATH keeps the working directory off sys.path, so a same-named
-      // module there cannot satisfy (or run during) the import.
       const env = { ...ctx.env, PYTHONSAFEPATH: "1" };
       if (run(found, ["-c", `import ${d.import}`], env).ok)
         return { status: "present", detail: `${found} imports ${d.import}` };
-      // Not importable on its own: try the plugin's installed set, the way its
-      // launcher runs it (PYTHONPATH set to the set, -S so no ambient site-packages).
-      // The launcher may pick any listed interpreter, so each one's set is tried.
       const setEnv = { ...env };
       delete setEnv.PYTHONHOME;
       const tried = [];
@@ -680,8 +613,6 @@ function readHookInput(stdin) {
   }
 }
 
-// Once per session per entry, on the user marker hook::notice_once reads, so the
-// hook's first skip of the same tool does not tell the user again.
 function firstNoticeThisSession(plugin, id, session, env) {
   if (!env.CLAUDE_PLUGIN_DATA) return true;
   const dir = path.join(env.CLAUDE_PLUGIN_DATA, "skip-notices");
@@ -691,7 +622,6 @@ function firstNoticeThisSession(plugin, id, session, env) {
     mkdirSync(dir, { recursive: true });
     writeFileSync(marker, "1\n");
   } catch {
-    // An unwritable data directory still gets the notice.
   }
   return true;
 }
@@ -766,8 +696,6 @@ async function cmdLatest(opts, ctx, out) {
   return 0;
 }
 
-// report(roots, ctx, out) -> exit code. The fleet table for any number of plugin roots,
-// none included; ctx needs env, platform and cwd.
 export function report(roots, ctx, out) {
   out.stdout(["plugin", "id", "kind", "need", "status", "check", "install"].join("\t"));
   let missing = 0;
@@ -826,11 +754,6 @@ function cmdProbe(opts, ctx, out) {
   return 0;
 }
 
-// A plugin that ships git-hooks/entries.json reports drift in its git-hook
-// entries through the same row: the vendored installer's `verify --quiet`
-// prints one line per drifted entry and nothing for an ok or declined one. The
-// installer sits beside this file only in plugins that carry it, so it runs as
-// a child process rather than an import.
 function gitHookDrift(root, ctx) {
   const installer = path.join(HERE, "git-hooks", "install.mjs");
   if (!existsSync(path.join(root, "git-hooks", "entries.json")) || !existsSync(installer)) return [];
@@ -844,9 +767,6 @@ function gitHookDrift(root, ctx) {
   return (r.stdout ?? "").split("\n").filter((line) => line.trim() !== "");
 }
 
-// The user line for a missing hook dependency. hook::prereq_notice_to in
-// hook-utils.sh renders the same line from the same fields when the hook skips.
-// A version floor or a non-PATH kind keeps the detector's own detail.
 function userNotice(plugin, entry, status, detail) {
   const onPath = status === "missing" && (entry.kind === "cli" || entry.kind === "runtime");
   const local = entry.detect.local_bin?.length ? ` or at ${entry.detect.local_bin.join(" or ")}` : "";
@@ -857,7 +777,6 @@ function userNotice(plugin, entry, status, detail) {
   );
 }
 
-// main(argv, ctx, out) -> exit code. ctx and out are injectable for tests.
 export function main(argv, ctx = {}, out = {}) {
   const context = {
     env: ctx.env ?? process.env,
@@ -882,8 +801,6 @@ export function main(argv, ctx = {}, out = {}) {
   return cmdProbe(opts, context, io);
 }
 
-// Node realpaths the main entry, so compare real paths: a launch through a
-// symlinked checkout path must still reach main().
 function realPath(p) {
   try {
     return realpathSync(p);

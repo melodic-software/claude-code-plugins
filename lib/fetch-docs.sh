@@ -1,126 +1,7 @@
 #!/usr/bin/env bash
-# Upstream docs fetcher, shared by the plugins that read vendor docs pages.
-#
-# Skills that rest on official docs pages grep them for cited spans and read
-# them for the criteria their checks apply. This script is the one place those
-# pages are fetched. It reads each page verbatim to a file and writes a
-# manifest of what it did. It never reads, searches or summarizes a page: it
-# guarantees complete bytes on disk plus the manifest, and the caller reads.
-#
-# A publisher is a profile (--profile, default anthropic). An indexed profile
-# (anthropic, platform) has an index URL (llms.txt), the path prefix pages live
-# under on the index's origin, the raw channel (the suffix that turns a page
-# slug into its raw-markdown file name) and the content types the index and the
-# channel answer with. A page whose channel does not answer as declared is
-# unread with a reason, never read from another channel.
-#
-# Identity in an indexed profile comes from the index. A slug the index does not
-# list is not fetched: a retired slug can answer 200 with another page's body, so
-# a body that arrived is no proof the page exists. A page is read only when the
-# whole body arrived over HTTPS from the profile's origin with the profile's
-# content type and a 2xx status. Anything else is unread and leaves no file, so a
-# partial or foreign body is never counted as read. A body over max_page_bytes
-# (--max-page-bytes, else docs-cache.sh's configuration) is unread too-large:
-# nothing of it is converted or stored.
-#
-# The generic profile takes any https URL and needs no index. It prefers
-# markdown, in this order: the URL with Accept: text/markdown; the URL with a
-# .md suffix; a same-origin link in the origin's llms.txt whose path, without a
-# .md or .txt suffix or a trailing /index, is the page's path. The two later
-# channels accept text/plain as markdown. The URL's own request does too when
-# its path ends in .md, so a host that serves .md files as text/plain is read;
-# for any other path a text/plain answer is not markdown and the read moves
-# on. When none
-# answers with markdown, the page's HTML is converted by html2md.py beside this
-# script, run by the first of python3 and python whose probe prints 3, with
-# PYTHONUTF8=1. Identity: the page's own request must end on the requested
-# origin and path, or the page is unread. With --cache the page's title (its
-# first heading, else the HTML <title>) is stored, and an entry whose title
-# differs from the one it replaces quarantines the cache key (docs-cache.sh).
-# A 2xx with an accepted type is still no proof of content: X serves a
-# logged-out shell for a status page. An x.com or twitter.com page whose body
-# links to redirect_after_login and holds fewer than 200 words outside its
-# links is unread login-wall and is never stored, whether it was fetched or
-# served from the cache or the fixture directory; /x:read reads X posts.
-# With --expect <marker>, a generic page whose body lacks the literal marker is
-# unread no-content. With --render-fallback and docs-cache.sh's renderer set to
-# firecrawl, a generic page left unread for fetch-failed, http-403, http-429,
-# unexpected-content-type or no-content is rendered through the Firecrawl CLI
-# (never 404, 410 or an off-site landing), checked against --public-only and
-# landed, and stored under format rendered with content type text/markdown; if
-# rendering also fails on 403 or 429, a cached copy is served stale.
-#
-# curl runs with -q, so no ~/.curlrc option reaches a request. With
-# --public-only, for a caller whose URLs come from untrusted text, every
-# address a host resolves to must be global (Python's ipaddress is_global), or
-# the page is unread private-address; the request then connects to the first
-# checked address through --connect-to with no proxy, so a redirect hop to any
-# host and a second DNS answer reach that address and no other. Without a
-# Python 3 the page is unread address-unchecked. OWASP's SSRF prevention cheat
-# sheet, case 2, prescribes this check over an allowlist when the destination
-# is open: https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
-#
-# The page file is the raw bytes as fetched, or the converter's output. The
-# manifest hash is taken over those bytes, so a caller that strips control
-# characters from a working copy does not change it.
-#
-# With --cache the index and every page go through docs-cache.sh beside this
-# script, keyed by URL and format (markdown, html-converted or rendered), so one URL that
-# negotiates to either is two keys. An entry validated within --max-age seconds
-# is copied to the page file with no request. Any other read is fetched; when
-# the cached entry was stored with an ETag or Last-Modified, the request carries
-# If-None-Match or If-Modified-Since, and a 304 serves the entry and moves only
-# its validated time. A Last-Modified equal to the response's Date is treated as
-# absent. --max-age 0 always asks the server, and a failed fetch is unread. With
-# --max-age above 0, a fetch that failed (a transport error or a 5xx) serves the
-# cached bytes flagged stale: true, its reason and age_seconds since validated.
-# A 404, a 410, a landing off the origin or path, or a slug the index no longer
-# lists is unread and quarantines the URL's cache keys, so their notes are never
-# served; while that quarantine stands, the URL is fetched again whatever its
-# age, and a read under the recorded title lifts it. The server's Date is
-# recorded as server_date, never used for age.
-#
-# Manifest (JSON, written to --manifest):
-#   claude_version  installed `claude --version` number, or "" when unreadable
-#   index           record for the index itself (null for the generic profile)
-#   pages[]         one record per requested page, in request order
-#   cache_disabled  null, or the layer (env or file) whose cache_enabled false
-#                   made this --cache run read and write no cache
-# Each record: slug, url, mode, source (fetch|fixture|cache), retrieved (UTC
-# ISO, when these bytes were first fetched), validated (UTC ISO, when they were
-# last confirmed current), age_seconds (since validated), cache_key (the
-# docs-cache.sh key, null when nothing was stored), sha256 (raw bytes), status
-# (HTTP code; 304 when the server confirmed a cached entry), content_type,
-# bytes, lines, file (path on disk), format (markdown|html-converted|rendered), title
-# (from the cache), quarantined (the cache key's quarantine flag), stale (true
-# when cached bytes stood in for a failed fetch), server_date (the Date header of
-# the response that last validated the bytes), cache_error (why --cache stored
-# nothing for a read page, else null), state, reason. state is read or unread; unparsed is set by a caller whose parse of a
-# read page failed. mode (full|search) is the caller's declaration of how it
-# will use the page; the fetcher only records it. Fields with no value are null
-# (a page never requested, or served fresh from the cache, has no status; one
-# served stale carries the failed fetch's status, if it had one; a run
-# without --cache has no title or quarantined).
-#
 # Exit codes:
 #   0  the manifest was written (pages may be unread; read the manifest)
 #   2  fatal (bad arguments, unknown profile, jq missing, manifest not writable)
-#
-# Env overrides (the test seam):
-#   FETCH_DOCS_FIXTURE_DIR  directory of llms.txt and <slug>.md
-#       files. Set, even to an empty or missing directory, means no network: a
-#       file the directory lacks is unread (fixture-missing), never fetched.
-#   FETCH_DOCS_INDEX_URL    index URL when --index-url is absent (default: the profile's)
-#   FETCH_DOCS_CLAUDE_BIN   claude binary for claude_version
-#   FETCH_DOCS_HTML2MD      HTML converter (default: html2md.py beside this script)
-#   FETCH_DOCS_ADDRESSES    with --public-only, the DNS answers to use instead of
-#       a lookup: host=addr[,addr] entries separated by spaces; a host it does not
-#       name does not resolve
-#   DOCS_CACHE_DIR          cache directory when --cache-dir is absent; in
-#       fixture mode --cache needs one of the two, so fixture bytes never reach
-#       the default or the machine file's cache. The other DOCS_CACHE_*
-#       settings and the machine file are docs-cache.sh's (its header).
-#   DOCS_CACHE_NOW          epoch seconds docs-cache.sh uses as the current time
 
 set -uo pipefail
 
@@ -254,11 +135,6 @@ MD_CTYPE='^text/(markdown|x-markdown)'
 MD_OR_TEXT_CTYPE='^text/(markdown|x-markdown|plain)'
 HTML_CTYPE='^(text/html|application/xhtml\+xml)'
 
-# profile <name>: set the publisher's record. P_KIND is index or url. For an
-# index profile P_DOCS_PATH is the path prefix a page URL has under the index's
-# origin, P_SUFFIX the raw channel's file suffix, P_INDEX_CTYPE and
-# P_PAGE_CTYPE the content-type patterns the index and the raw channel answer
-# with, P_FORMAT the format the cache keys their bytes by.
 profile() {
   P_KIND=index P_DOCS_PATH="/docs/" P_SUFFIX=".md" P_FORMAT=markdown
   P_INDEX_CTYPE='^text/(plain|markdown)' P_PAGE_CTYPE="$MD_CTYPE"
@@ -292,7 +168,6 @@ FIXTURE="${FETCH_DOCS_FIXTURE_DIR:-}"
 CURL_MISSING=0
 if [[ $FIXTURE_SET -eq 0 ]] && ! command -v curl >/dev/null 2>&1; then CURL_MISSING=1; fi
 CACHE_DISABLED=""
-# The docs cache's configuration holds max_page_bytes, so it resolves with or without --cache.
 HERE="$(dirname "${BASH_SOURCE[0]}")"
 DOCS_CACHE="$HERE/docs-cache.sh"
 [[ -f "$DOCS_CACHE" ]] || die "docs-cache.sh not found beside fetch-docs.sh"
@@ -309,7 +184,6 @@ if [[ $CACHE -eq 1 ]]; then
   if [[ "$DC_CFG_cache_enabled" == false ]]; then
     CACHE=0 CACHE_DISABLED="$DC_LAYER_cache_enabled"
   else
-    # Fixture bytes reach only a cache this invocation named, never the machine file's.
     [[ $FIXTURE_SET -eq 0 || "$DC_LAYER_cache_dir" == flag || "$DC_LAYER_cache_dir" == env ]] ||
       die "--cache with FETCH_DOCS_FIXTURE_DIR needs --cache-dir or DOCS_CACHE_DIR"
     MAX_AGE="$DC_CFG_ttl_seconds"
@@ -331,7 +205,6 @@ sha256_of() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum <"$1" | cut -d' ' -f1; else shasum -a 256 <"$1" | cut -d' ' -f1; fi
 }
 
-# with_timeout <seconds> <command...>: run under timeout when it exists.
 with_timeout() {
   local s="$1"
   shift
@@ -343,9 +216,6 @@ reset_g() {
   G_FORMAT="" G_TITLE="" G_QUAR="" G_VALIDATORS="" G_TITLE_HINT="" G_STALE="" G_DATE="" G_CACHE_ERR=""
 }
 
-# Prints the host's addresses, IPv6 in brackets, comma-separated; exit 3 when
-# any is not global (an IPv4-mapped IPv6 address is judged as its IPv4), 4
-# when the host does not resolve.
 # shellcheck disable=SC2016 # Python source, not shell
 PIN_PY='
 import ipaddress, os, socket, sys
@@ -375,9 +245,6 @@ print(",".join(out))
 # shellcheck disable=SC2034 # read and written by name in map_get and map_put
 PINS_K=() PINS_V=()
 
-# pin <host>: set PIN to the first global address the host resolves to, checked
-# once per run. Returns 97 when an address is not global, 96 when no Python 3
-# can check, 6 (curl's code for a name that does not resolve) otherwise.
 pin() {
   local rc=0 v
   [[ -n "$1" ]] || return 6
@@ -398,12 +265,6 @@ pin() {
   return "$PIN"
 }
 
-# http_get <url> <dest> <accept> <if-none-match> <if-modified-since>: one GET
-# with the body at <dest>. Sets H_RC H_STATUS H_EFF H_CTYPE and the final
-# response's H_DATE, H_ETAG and H_LM (empty when absent, or Last-Modified equal
-# to Date). A body over max_page_bytes is deleted and H_RC is 63, curl's own
-# code for it: curl stops at a declared Content-Length over the limit, and the
-# size check catches a body sent without one, which an older curl lets through.
 http_get() {
   local hdr="$2.hdr" meta args=() line low date=""
   [[ -z "$3" ]] || args+=(-H "Accept: $3")
@@ -423,7 +284,6 @@ http_get() {
     }
     args+=(--noproxy '*' --connect-to "::$PIN:")
   fi
-  # No -f: an HTTP error still prints its status and content type through -w.
   meta="$(curl -q -sSL --proto =https --proto-redir =https --max-redirs 5 --connect-timeout 15 --max-time 120 \
     --max-filesize "$MAX_PAGE" ${args[@]+"${args[@]}"} -D "$hdr" -w '%{http_code} %{url_effective} %{content_type}' \
     -o "$2" "$1" 2>/dev/null)"
@@ -434,7 +294,6 @@ http_get() {
   [[ "$H_STATUS" =~ ^[0-9]+$ ]] || H_STATUS=""
   dc_lower H_CTYPE_LC "$H_CTYPE"
   if [[ -f "$hdr" ]]; then
-    # A redirect writes one header block per response; the last one counts.
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
       dc_lower low "$line"
@@ -452,7 +311,6 @@ http_get() {
   H_DATE="$date"
 }
 
-# failure_reason: the unread reason for a nonzero H_RC.
 failure_reason() {
   case "$H_RC" in
   63) printf too-large ;;
@@ -468,11 +326,6 @@ trim() {
   printf '%s' "${s%"${s##*[![:space:]]}"}"
 }
 
-# cache_candidate <url> <format>...: the freshest stored entry for the URL in
-# any of the formats. Sets C_REF (<key>-<sha256>, empty when none), the
-# validated time its pointer held when it was chosen (C_EPOCH C_ISO) and the
-# server Date (C_DATE), C_CTYPE C_FORMAT and its validators C_ACCEPT C_REQ_URL
-# C_ETAG C_LM.
 cache_candidate() {
   local url="$1" f
   C_REF="" C_EPOCH="" C_ISO="" C_DATE="" C_CTYPE="" C_CTYPE_LC="" C_FORMAT="" C_ACCEPT="" C_REQ_URL="" C_ETAG="" C_LM=""
@@ -488,9 +341,6 @@ cache_candidate() {
   done
 }
 
-# serve_cached <dest> <status>: copy the candidate's body to <dest> and set the
-# G_ fields from its immutable entry and the pointer snapshot taken when it was
-# chosen, so a pointer switched since then cannot blank its validated time.
 serve_cached() {
   if ! { [[ -n "$C_EPOCH" ]] && dc_lookup "$C_REF" && cp "$DC_ENTRY/body" "$1"; }; then
     rm -f "$1"
@@ -522,17 +372,11 @@ settle_unread() {
   esac
 }
 
-# removal_quarantined <key>: the key carries a removal quarantine (any reason
-# but retitled).
 removal_quarantined() {
   local q="$DC_DIR/keys/${1:0:16}.quarantine"
   [[ -f "$q" ]] && jq -e '(.reason // "retitled") != "retitled"' "$q" >/dev/null 2>&1
 }
 
-# serve_fresh <dest> <format>...: serve the candidate when it was validated
-# within --max-age and its key has no removal quarantine, so a page found
-# removed is asked for again. Outside fixture mode its stored content type must
-# fit its format, so a fixture read (stored with none) never reaches a real read.
 serve_fresh() {
   local dest="$1" age re
   [[ $CACHE -eq 1 && $MAX_AGE -gt 0 && -n "$C_REF" ]] || return 1
@@ -545,9 +389,6 @@ serve_fresh() {
   serve_cached "$dest" ""
 }
 
-# request <accept> <url> <dest>: http_get, conditional when the candidate was
-# last confirmed over this same request. A 304 to a conditional request serves
-# the candidate and returns 0; anything else returns 1 with the H_ fields set.
 request() {
   local inm="" ims=""
   if [[ -n "$C_REF" && "$C_ACCEPT" == "$1" && "$C_REQ_URL" == "$2" ]]; then inm="$C_ETAG" ims="$C_LM"; fi
@@ -560,7 +401,6 @@ request() {
   serve_cached "$4" 304
 }
 
-# store <url> <dest>: put a read page in the cache and take its record.
 store() {
   G_VALIDATED="$G_AT" G_AGE=0
   [[ $CACHE -eq 1 ]] || return 0
@@ -572,7 +412,6 @@ store() {
   fi
 }
 
-# fixture_read <dest> <fixture file> <format>: a read from the fixture directory.
 fixture_read() {
   G_SOURCE=fixture
   if [[ -s "$FIXTURE/$2" ]] && cp "$FIXTURE/$2" "$1"; then
@@ -583,9 +422,6 @@ fixture_read() {
   fi
 }
 
-# get_doc <url> <dest> <fixture file> <content-type regex>: an indexed
-# profile's read, the whole body or nothing. Sets the G_ fields; on read the raw
-# bytes are at <dest>, otherwise no file is left there.
 get_doc() {
   local url="$1" dest="$2" ctype_re="$4"
   reset_g
@@ -608,7 +444,6 @@ get_doc() {
     if [[ $H_RC -ne 0 ]]; then
       G_REASON="$(failure_reason)"
     elif [[ "$H_EFF" != "$ORIGIN$P_DOCS_PATH"* && ("$url" != "$INDEX_URL" || "$H_EFF" != "$INDEX_URL") ]]; then
-      # A page lands under the docs path; the index, at its own URL.
       G_REASON="redirected-off-origin"
     elif [[ ! "$H_STATUS" =~ ^2[0-9][0-9]$ ]]; then
       G_REASON="http-${H_STATUS:-unknown}"
@@ -628,15 +463,11 @@ get_doc() {
   store "$url" "$dest"
 }
 
-# dc_validators_or_none <accept> <url>: the validators record of the last
-# response, or nothing without --cache.
 dc_validators_or_none() {
   [[ $CACHE -eq 1 ]] || return 0
   dc_validators "$1" "$2" "$H_ETAG" "$H_LM"
 }
 
-# url_parts <url>: set U_ORIGIN (scheme and host lower-cased) and U_PATH (the
-# rest, fragment dropped, one trailing slash dropped); return 1 unless https.
 url_parts() {
   local u="${1%%#*}"
   [[ "$u" =~ ^([Hh][Tt][Tt][Pp][Ss]://[^/?]+)(.*)$ ]] || return 1
@@ -646,7 +477,6 @@ url_parts() {
   [[ -n "$U_PATH" ]] || U_PATH="/"
 }
 
-# landed <requested> <effective>: same, off-origin or off-path.
 landed() {
   local o p
   url_parts "$1" || return 1
@@ -664,7 +494,6 @@ landed() {
   fi
 }
 
-# emit <slug> <url> <mode> <file>: print one manifest record from the G_ result.
 emit() {
   local sha="" bytes=0 lines=0 file=""
   if [[ "$G_STATE" == read ]]; then
@@ -690,7 +519,6 @@ emit() {
       server_date: ($sdate | n), cache_error: ($cerr | n), state: $state, reason: ($reason | n)}'
 }
 
-# link_urls <file>: every link URL in the file, one per line.
 link_urls() {
   awk '{
     while (match($0, /\]\([^) \t]+\)/)) {
@@ -700,33 +528,23 @@ link_urls() {
   }' "$1"
 }
 
-# index_link <slug>: the first link URL in the index whose path is exactly
-# <docs-path>en/<slug><suffix> or <docs-path><slug><suffix>, on any scheme (or none) and host (an
-# off-origin link is reported by the caller). A page nested under another path (plugins/x.md) is
-# a different slug and never matches x.
 index_link() {
   link_urls "$OUT/llms.txt" | awk -v a="${P_DOCS_PATH}en/$1${P_SUFFIX}" -v b="${P_DOCS_PATH}$1${P_SUFFIX}" '{ p = $0; sub(/^([A-Za-z][A-Za-z0-9+.-]*:)?\/\/[^\/]+/, "", p) } p == a || p == b { print; exit }'
 }
 
-# slug_of <url>: the slug an index link names: its path under the profile path, without a
-# leading en/ and the raw-channel suffix.
 slug_of() {
   local s="${1#"$ORIGIN$P_DOCS_PATH"}"
   s="${s#en/}"
   printf '%s' "${s%"$P_SUFFIX"}"
 }
 
-# A slug becomes a path under --out: lower-case segments joined by `/`, never
-# `.`, `..` or a leading `/`. The C locale keeps `a-z` an ASCII range.
 slug_ok() {
   local LC_ALL=C re='^[a-z0-9_-]+(/[a-z0-9_-]+)*$'
   [[ "$1" =~ $re ]]
 }
 
-# Bash 3.2 has no associative arrays: a map is two indexed arrays, <name>_K and
-# <name>_V, searched in order. map_get <name> <key> [<var>]: set var to the
-# value, 1 when absent; the caller names a local, so no call in between can
-# overwrite it. map_put <name> <key> <value>: add a key the map does not hold.
+# A map is two indexed arrays, <name>_K and <name>_V: associative arrays need bash 4.0:
+# https://tiswww.case.edu/php/chet/bash/NEWS
 map_get() {
   local _mg_i _mg_n _mg_k
   eval "_mg_n=\${#$1_K[@]}"
@@ -771,7 +589,6 @@ if [[ "$P_KIND" == url ]]; then
     emit "$slug" "$t" "$m" "$OUT/$slug.md" >>"$PAGE_RECS"
   done
 else
-  # The index first: every page resolves through it.
   get_doc "$INDEX_URL" "$OUT/llms.txt" llms.txt "$P_INDEX_CTYPE"
   INDEX_STATE="$G_STATE"
   emit index "$INDEX_URL" "" "$OUT/llms.txt" >"$INDEX_REC"
@@ -790,8 +607,6 @@ else
     want=""
     slug="${t%"$P_SUFFIX"}"
     if [[ "$t" == *://* ]]; then
-      # A browser-form URL, with no raw-channel suffix, a fragment, a query or a trailing
-      # slash, names the same page.
       want="${t%%#*}"
       want="${want%%\?*}"
       want="${want%/}"
@@ -814,7 +629,6 @@ else
       url="$(index_link "$slug")"
       if [[ -z "$url" || (-n "$want" && "$url" != "$want") ]]; then
         G_REASON="not-in-index"
-        # Only a slug the index has no link for is quarantined, never a URL it lists.
         if [[ $CACHE -eq 1 && -z "$url" ]]; then
           for u in "$want" "$ORIGIN${P_DOCS_PATH}en/$slug$P_SUFFIX" "$ORIGIN$P_DOCS_PATH$slug$P_SUFFIX"; do
             [[ -z "$u" ]] || dc_quarantine_reason "$(dc_key "$u" "$P_FORMAT")" not-in-index

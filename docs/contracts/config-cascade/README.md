@@ -325,8 +325,27 @@ fix 15).
 **The pointer region is the consent record** (fix 2): writing it means "use these defaults here".
 An optional `declined` line in the region stops a declined repository from being asked again.
 
-Pointer-region rules a resolver honors (the small tested helper the program's mechanism phase ships
-owns the grammar; consumer prose it reads is **untrusted input**, never executed or interpolated):
+Pointer-region rules a resolver honors (`lib/resolve-convention-home.sh` implements them and its
+test pins them; consumer prose it reads is **untrusted input**, never executed or interpolated):
+
+- **Grammar.** The region sits between two marker lines, `<!-- BEGIN GENERATED: convention-home -->`
+  and `<!-- END GENERATED: convention-home -->`; surrounding whitespace, a leading UTF-8 BOM and a
+  trailing carriage return are ignored, and nothing else may share a marker line. Inside the
+  region, a pointer line is any line holding a backticked token, and the first backticked token on
+  it is the home; lines without backticks are prose. A backticked path outside the region is not a
+  pointer. The home is a repo-relative directory: segments of `[A-Za-z0-9._-]+` joined by `/`, none
+  equal to `.`, `..` or `.git` in any case (trailing dots ignored), with an optional trailing `/`
+  dropped on output. In the working tree the home must be its own physical path: a symlink on the
+  way, or a spelling whose case differs from the disk, is a FAIL. An absolute path, a leading `~`, a
+  backslash, a drive letter, whitespace or an empty token is an invalid pointer. A line that is
+  exactly `declined` records that the repository declined a home; `declined` beside a pointer line
+  is a FAIL.
+- **Where a home applies.** A root that is `$HOME`, an ancestor of it, or outside a git work tree
+  is not applicable. Without an explicit root the resolver uses the git toplevel of
+  `CLAUDE_PROJECT_DIR`, else of the current directory: one home per git root.
+- **What is read.** The working tree by default; with a ref (a 40-hex commit id or
+  `origin/<name>`), the files and the home directory as committed there, a file that is a symlink
+  at that ref unread.
 
 - **Which file owns the region.** A file without a marked region is not consulted, even if it
   is named `AGENTS.md`. A `CLAUDE.md` whose whole content is the `@AGENTS.md` import is a pure

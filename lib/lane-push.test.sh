@@ -1,20 +1,6 @@
 #!/usr/bin/env bash
-# Tests for lib/lane-push.sh, the one way an unattended lane pushes.
-#
-# A real local repository supplies the checkout and its local config, and the
-# script's own config reads run the real git. PATH shims stand in for the two
-# calls that would leave the host: `git ... push`, which records its argv and
-# environment and replays the effective config it would run under, and gh,
-# which answers the acting-login and pull-request reads from variables.
-#
-# Expected values come from the lane-push contract (the loop-lane convention,
-# "Lane write identity"), not from the script: the URL is
-# https://github.com/<owner>/<repo>.git, the refspec HEAD:refs/heads/<branch>,
-# and the -c list is the one the convention names.
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect the fixture's `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lane-push.sh"
@@ -92,7 +78,6 @@ export PATH="$BIN:$PATH" LP_LOG="$LOG" HOME="$TMP/home"
 export XDG_CONFIG_HOME="$TMP/home/.config"
 export LP_LOGIN="example-lane[bot]"
 
-# A hostile global config that GIT_CONFIG_GLOBAL=/dev/null must drop.
 cat >"$HOME/.gitconfig" <<'EOF'
 [credential]
     helper = store
@@ -168,16 +153,11 @@ assert_eq "case 2: only the script's git variables reach git" \
   "$(grep -E '^GIT_' "$LOG/push.env")"
 assert_eq "case 2: SSH_ASKPASS and BASH_ENV are unset" "" \
   "$(grep -E '^(SSH_ASKPASS|BASH_ENV|ENV)=' "$LOG/push.env")"
-# Replayed through real git under the recorded -c list and environment: the
-# helper list is the reset then gh, and no url, include or http key applies
-# but the cleared header.
 assert_eq "case 2: effective helpers are the reset and gh alone" \
   $'\n'"$HELPER" "$(cat "$LOG/push.helpers")"
 assert_eq "case 2: no url or include key, only the cleared header" \
   "http.extraheader " "$(cat "$LOG/push.risky")"
 
-# 3. A refusal for each local config key class that survives the global and
-# system scrub.
 n=0
 for spec in \
   "url.ssh://git@github.com/.pushInsteadOf=https://github.com/|local-config-url" \
@@ -206,8 +186,6 @@ new_repo wt
 run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
 expect_refused "case 4: a worktree-scoped url key is refused" local-config-url
 
-# 5. A gh pr checkout leaves the push target untouched: a remote and a branch
-# push remote pointing over ssh elsewhere are not consulted.
 new_repo checkout
 "$REAL_GIT" -C "$REPO_DIR" remote add origin git@github.com:example-org/example-repo.git
 "$REAL_GIT" -C "$REPO_DIR" remote add fork ssh://git@evil.example/x.git
@@ -216,7 +194,6 @@ run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch mai
 assert_eq "case 5: remotes are ignored; the URL is constructed" \
   "https://github.com/example-org/example-repo.git" "$(tail -2 "$LOG/push.argv" 2>/dev/null | head -1)"
 
-# 6. The acting login must be the identity.
 REPO_DIR="$TMP/repo-main"
 LP_LOGIN="operator-example" run "$REPO_DIR" --login "example-lane[bot]" --repo example-org/example-repo --branch main
 expect_refused "case 6: a login mismatch is refused" login-mismatch
@@ -292,9 +269,6 @@ mkdir -p "$TMP/plain"
 run "$TMP/plain" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
 expect_refused "case 12: outside a checkout is refused" config-unreadable
 
-# 13. git runs with NETRC=/dev/null whatever the caller set, so libcurl reads
-# no netrc file; HOME is the caller's, so gh, for the login read and as the
-# helper, reads the same config and token.
 REPO_DIR="$TMP/repo-main"
 printf 'machine github.com login operator password leaked\n' >"$TMP/netrc-file"
 NETRC="$TMP/netrc-file" run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
@@ -307,9 +281,6 @@ assert_eq "case 13: the helper answers with gh's credential" \
 assert_eq "case 13: the login read and the helper both run gh under the caller's HOME" \
   "viewer HOME=$HOME"$'\n'"helper HOME=$HOME" "$(cat "$LOG/gh.home")"
 
-# 14. git is resolved from PATH before --dir is entered, and only to an
-# absolute path, so a relative PATH entry cannot pick up a git the checkout
-# holds.
 mkdir -p "$REPO_DIR/planted" "$TMP/cwd/planted"
 for d in "$REPO_DIR/planted" "$TMP/cwd/planted"; do
   printf '#!/usr/bin/env bash\ntouch "%s/ran"\n' "$d" >"$d/git"
@@ -350,8 +321,6 @@ LP_DEFAULT_BRANCH="" run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/exam
 expect_refused "case 15: an empty default branch is refused" default-branch-unreadable
 LP_DEFAULT_BRANCH=$'main\r' run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
 expect_refused "case 15: a default branch outside the branch allowlist is refused" default-branch-unreadable
-# The base is compared by its canonical name, so a renamed repository's old
-# name does not skip the refusal.
 LP_HEAD_REPO="example-org/example-repo" LP_HEAD_REF="trunk" \
   run "$REPO_DIR" --login "$LP_LOGIN" --repo old-org/old-repo --pr 12
 expect_refused "case 15: an in-repository default-branch head under the base's old name is refused" default-branch

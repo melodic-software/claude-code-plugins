@@ -1,21 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/scope-resolve.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# Shared no-scope ladder for repo-fleet-hygiene.
-#
-# Rungs, first hit wins, after the caller has already applied explicit
-# arguments and fleet config:
-#   1. named paths (conversation paths the skill passes through)
-#   2. every ghq root (`ghq root --all`), when ghq is installed
-#   3. ancestor: the nearest of the 4 parents above the checkout holding the
-#      working directory (the working directory itself when it is in no
-#      checkout) that directly holds 2 or more Git repositories, so a bare run
-#      inside one checkout covers its sibling fleet
-#   4. cwd: the checkout holding the working directory, when no ancestor
-#      qualified
-#   5. exit 3
-#
-# Prints tab-separated lines: repo|root <path>, then provenance <label>.
 # Exit 0 when a rung resolved, 3 when none did. No mutation.
 
 scope_resolve_fallback() {
@@ -46,8 +31,6 @@ scope_resolve_fallback() {
     fi
   fi
 
-  # Same containment the fleet collector uses for a read-only git probe, so a
-  # test double that refuses an unconstrained git still answers here.
   top="$(
     GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_CONFIG_COUNT=0 GIT_TERMINAL_PROMPT=0 \
       git -C "$cwd" rev-parse --show-toplevel 2>/dev/null
@@ -55,7 +38,6 @@ scope_resolve_fallback() {
   top="${top%$'\r'}"
   [[ -d "$top" ]] || top=""
 
-  # Count from the checkout's top, so a working directory deep inside it does not spend the 4 levels.
   dir="${top:-$cwd}"
   for _ in 1 2 3 4; do
     dir="$(dirname "$dir")"

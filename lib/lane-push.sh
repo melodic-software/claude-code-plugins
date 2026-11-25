@@ -1,83 +1,4 @@
 #!/usr/bin/env bash
-# The only way an unattended lane pushes. It builds the push itself rather
-# than trusting the checkout's remotes, environment or global config to point
-# where the lane meant, so the push lands on github.com over https and
-# authenticates with the same gh token whose login it checked.
-#
-#   lane-push.sh --login <identity> --repo <owner/repo> --branch <name>
-#   lane-push.sh --login <identity> --repo <owner/repo> --pr <number>
-#   lane-push.sh --login <identity> --check [--repo <owner/repo>] [--branch <name>]
-#   (each form also takes --dir <checkout>)
-#
-# --repo with --branch pushes HEAD to that repository's branch. --repo with
-# --pr reads the pull request there and pushes HEAD to its head repository and
-# branch, a fork's included. --check runs every refusal but the push. It pushes
-# the HEAD of --dir, else of the current directory.
-#
-# What it does:
-#   - Builds the URL as https://github.com/<owner>/<repo>.git; never a remote
-#     name, a branch's pushRemote or a caller URL. Owner, repository, branch,
-#     login and number must match strict character allowlists, and the branch
-#     must pass `git check-ref-format`.
-#   - Resolves git and gh on PATH before entering --dir and refuses either
-#     unless absolute, so a relative PATH entry cannot reach into the checkout.
-#   - Drops every GIT_* variable the caller set, plus SSH_ASKPASS, BASH_ENV and
-#     ENV, then sets GIT_CONFIG_GLOBAL=/dev/null, GIT_CONFIG_NOSYSTEM=1,
-#     GIT_TERMINAL_PROMPT=0 and NETRC=/dev/null. git sets CURLOPT_NETRC and
-#     asks a helper only when it has no username, so a netrc entry would
-#     authenticate first; libcurl reads the file NETRC names before
-#     $HOME/.netrc and, when HOME is empty or unset, the passwd home
-#     (curl lib/netrc.c), so emptying HOME would not stop it. HOME is left
-#     alone, so gh finds its config and keyring for both the login read and
-#     the helper. git(1) ENVIRONMENT VARIABLES and git-config(1)
-#     ENVIRONMENT list what git reads from the environment; every name there,
-#     GIT_CONFIG_COUNT/KEY_<n>/VALUE_<n>, GIT_SSH_COMMAND, GIT_ASKPASS,
-#     GIT_PROXY_COMMAND, GIT_EXEC_PATH, GIT_ALLOW_PROTOCOL and GIT_TRACE*
-#     included, starts with GIT_ except SSH_ASKPASS (git-config(1)
-#     core.askPass). GIT_CONFIG_PARAMETERS, which carries -c to child
-#     processes, is undocumented and starts with GIT_ too.
-#   - Refuses when the repository-local or worktree config holds a key that
-#     survives the global and system scrub and can change where or as whom an
-#     https push goes: url.*, include.*, includeIf.*, credential.*, http.*,
-#     remote.*.vcs, or a remote.<name>.* whose name is not a plain remote name
-#     (git looks a pushed URL up as a remote name).
-#   - Pushes with these -c options (git-config(1); -c outranks every file):
-#     credential.helper= resets the helper list (gitcredentials(7)), then
-#     credential.helper=!'<gh>' auth git-credential adds gh by absolute path;
-#     core.sshCommand=false; core.askPass=false so a helper miss cannot fall
-#     back to another program; core.hooksPath=/dev/null; protocol.allow=never
-#     with protocol.https.allow=always; http.extraHeader= and
-#     push.pushOption= clear those lists. The flags --no-verify, --no-signed,
-#     --no-follow-tags and --recurse-submodules=no keep the push to the one
-#     ref (git-push(1)).
-#   - Reads the acting login (GraphQL viewer, github.com) with the same gh in
-#     the same environment the helper runs in, and refuses unless it is the
-#     identity, compared case-insensitively.
-#   - Refuses the target repository's default branch (read with gh on
-#     github.com), named by --branch or as a PR's head, unless the target is a
-#     fork of the base (its parent or network source), whose default branch
-#     can be a fork PR's head. Repository names compare as GitHub
-#     canonicalizes them, so a renamed repository's old name changes nothing.
-#   - Pushes HEAD:refs/heads/<branch>, fast-forward only; it never forces.
-#
-# Not closed here: whoever can replace the gh or git binary, edit this
-# script, or write the checkout's .git directory already runs code as the lane.
-# A libcurl older than the release that reads NETRC ignores it. git still
-# honors https_proxy, HTTPS_PROXY, ALL_PROXY and NO_PROXY, and libcurl writes
-# TLS keys to SSLKEYLOGFILE; gh honors HTTPS_PROXY, SSL_CERT_FILE and
-# SSL_CERT_DIR. Whoever sets them can read the token in transit, but setting
-# them already means running code as the lane (PATH, BASH_ENV), so they are
-# left as the host's proxy and CA configuration, not scrubbed. The
-# script mediates only lanes that call it; a lane that runs git push itself is
-# held only by the credentials its host gives it (loop-lane convention).
-#
-# Exit: 0 pushed (or --check passed); 1 the push ran and failed; 2 refused,
-# nothing pushed, with `lane-push: refused: <code>` on stderr. Codes: usage,
-# bad-dir, bad-login, bad-repo, bad-branch, bad-pr, gh-missing, gh-path-unsafe,
-# git-missing, git-path-unsafe, config-unreadable, local-config-url,
-# local-config-include, local-config-credential, local-config-http,
-# local-config-remote, head-unreadable, default-branch,
-# default-branch-unreadable, login-unreadable, login-mismatch.
 set -euo pipefail
 export LC_ALL=C
 
@@ -122,8 +43,6 @@ for v in "${!GIT_@}"; do unset "$v"; done
 unset SSH_ASKPASS BASH_ENV ENV
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 NETRC=/dev/null
 
-# Resolved before --dir is entered, so a relative PATH entry cannot reach into
-# the checkout, and held to absolute paths.
 git_bin=$(type -P git) || refuse git-missing
 [[ $git_bin == /* ]] || refuse git-path-unsafe
 gh_bin=$(type -P gh) || refuse gh-missing
@@ -145,8 +64,6 @@ require_branch() {
 }
 ((! have_branch)) || require_branch "$branch"
 
-# check_keys <scope>: refuse on any key of that config scope the scrub cannot
-# reach. The listing's exit status rides in as the last record.
 check_keys() {
   local keys key section rest sub name
   mapfile -d '' -t keys < <(
@@ -188,10 +105,6 @@ if [[ -n $pr ]]; then
   require_branch "$branch"
 fi
 
-# A lane never pushes a repository's default branch, except a fork of the base
-# repository (parent or network source), whose default branch can be a fork
-# PR's head. Names are compared as GitHub canonicalizes them, so a renamed
-# repository's old name changes nothing.
 if [[ -n $repo && -n $branch ]]; then
   mapfile -t target < <("$gh_bin" api --hostname github.com "repos/$repo" \
     --jq '.full_name, .default_branch, (.parent.full_name // ""), (.source.full_name // "")' ||

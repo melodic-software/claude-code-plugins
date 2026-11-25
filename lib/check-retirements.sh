@@ -1,108 +1,4 @@
 #!/usr/bin/env bash
-# Retired-convention detection and cleanup for a plugin's retirements.yaml.
-#
-# WHY. When a plugin retires a consumer-facing convention — a config file it no
-# longer reads, a gitignore line it no longer recommends, a directory it
-# renamed — the old artifact stays behind in every consumer repository. Before
-# this helper each plugin detected its own leftovers in bespoke setup prose,
-# and the prose drifted. Now the plugin appends one append-only record to its
-# retirements.yaml and this helper evaluates every record against the consumer
-# repo: setup `check` runs the detection as one fixed step, setup `apply`
-# offers the per-record cleanup behind an operator gate. The owner doc is
-# docs/contracts/retired-conventions/README.md; this header keeps a named
-# operational duplicate of the contract so the executable ships self-described.
-#
-# MANIFEST. Records separated by a line that is exactly `---`; flat
-# `key: value` scalars only (no nesting, no lists); a value may be wrapped in
-# single or double quotes (one layer is stripped, nothing inside is escaped).
-# Lines starting with `#` and blank lines are ignored. Fields:
-#
-#   id             <plugin>-rNNN — unique within the manifest, never reused
-#   retired        YYYY-MM-DD
-#   plugin_version semver of the release that retired the convention
-#   kind           file | dir | line | block
-#   path           repo-relative; absolute, `..` segments, a leading `~`,
-#                  backslashes, `.` and tabs are rejected
-#   match          POSIX ERE — REQUIRED for kind line and block, forbidden
-#                  otherwise
-#   heading        optional ATX heading (1-6 hashes, whitespace, title), kind
-#                  line only: the record only fires when a matching line sits
-#                  in that heading's section body, so a standalone occurrence
-#                  elsewhere in a markdown file is not a leftover
-#   content_match  optional POSIX ERE, kind file only: the record only fires
-#                  when the file's content matches, so a path the successor
-#                  reuses is not reported as a leftover
-#   action         delete | remove-line | migrate — remove-line only with kind
-#                  line, delete only with kind file or dir, kind block only
-#                  with migrate
-#   successor      prose the model follows for a migrate — REQUIRED for migrate
-#   note           one line, required
-#   status         optional; active (default) | report-only (the demotion)
-#
-# DETECTION. Per kind: file = a regular file exists at path AND (no
-# content_match OR it matches); dir = a directory exists; line = the file
-# exists AND some line matches `match` (and, when `heading` is set, that line
-# sits in the body of a markdown section whose heading line equals `heading`);
-# block = the file exists AND some line matches `match`, that line starting a
-# block that also holds every following blank line, line indented deeper than
-# it, or `-` sequence item at its own indent, up to the next other non-blank
-# line indented no deeper (a YAML key and its value). A section runs from the line after that heading through the line before the
-# next ATX heading of the same or higher level, or EOF; every such section is
-# searched. A trailing carriage return is stripped from every line before
-# matching, so a `$`-anchored pattern matches a CRLF-authored file. One TSV
-# row per leftover on stdout:
-#
-#   id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
-#
-# Paths are emitted exactly as declared — repo-relative, never joined onto the
-# root (docs/contracts/windows-path-emit). A human summary goes to stderr.
-#
-# NON-REPOSITORY ROOT. When the root is $HOME, or has no `.git` and is not
-# inside a git work tree, a kind file record is not evaluated: there a
-# `.claude/<name>.json` path names the live user-global layer, not a retired
-# team file. Its line goes to stderr as `<id>: skipped: root is not a
-# repository`, no row is written, and `--clean` of that record is refused.
-#
-# CLEANUP. `--clean <id>` cleans exactly one record's artifact. delete unlinks
-# the file (only if content_match, when declared, still matches) or removes the
-# directory (only after re-resolving that it is inside the root and is not the
-# root itself). remove-line rewrites the file keeping every non-matching line
-# byte-for-byte — each line's own ending survives, so a CRLF file stays CRLF —
-# via a temp file in the same directory and a rename. When `heading` is set,
-# only matching lines inside that heading's section body are removed. block
-# rewrites the file the same way without each matched block, and removes the
-# file when no non-blank line is left. A migrate
-# record refuses to clean until `--i-migrated` states that the successor prose
-# was followed; it then removes the artifact the way its kind implies.
-#
-# VALIDATION FAILS THE WHOLE RUN. An invalid record — bad kind, missing match,
-# absolute path, duplicate id, migrate without successor, an unknown key — is
-# exit 2 before any row is written, naming the record and the field. A skipped
-# record would be a leftover nobody hears about, which is the failure this
-# helper exists to end.
-#
-# Usage:
-#   check-retirements.sh --manifest <path> [--root <repo>]
-#   check-retirements.sh --manifest <path> --clean <id> [--i-migrated] [--root <repo>]
-#   check-retirements.sh --help
-#
-#   --root defaults to ${CLAUDE_PROJECT_DIR}, else the git toplevel, else cwd.
-#   When the root is a linked worktree, a `.git/` path resolves under the
-#   common git dir (`.git/hooks/x` is `<git-common-dir>/hooks/x`).
-#
-# Exit (detect): 0 no active leftover (report-only hits may still be listed);
-#                1 at least one active leftover; 2 usage, unreadable manifest,
-#                or an invalid record.
-# Exit (clean):  0 cleaned; 1 nothing present to clean; 2 usage, invalid
-#                record, unknown id, migrate without --i-migrated, a file
-#                record at a non-repository root, or a failed
-#                remove/rename (on Windows usually a locked file — close it and
-#                re-run; nothing is left half-done).
-#
-# Shared source: lib/check-retirements.sh at the marketplace repo root is the canonical source; the copies in the plugins
-# that carry it are generated by scripts/sync-shared-copies.sh and registered in
-# scripts/shared-copies.txt. Bash 3.2-compatible on purpose: no associative
-# arrays, no mapfile, no jq, no python.
 
 set -uo pipefail
 
@@ -187,17 +83,12 @@ if [[ -n "$ROOT_ARG" ]]; then
 elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
   ROOT="$CLAUDE_PROJECT_DIR"
 else
-  # tr -d '\r': Git on Windows can return a CRLF-terminated path.
   ROOT=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
   [[ -n "$ROOT" ]] || ROOT="$PWD"
 fi
 [[ -d "$ROOT" ]] || die "--root is not a directory: $ROOT"
 ROOT="${ROOT%/}"
 
-# ROOT_IS_REPO=0 at $HOME or outside a git work tree: kind file records are
-# skipped there (see NON-REPOSITORY ROOT above).
-# A `.git` at the root also counts: git may be missing, or refuse a repository
-# another user owns ("dubious ownership"), and a skip there would read as PASS.
 ROOT_IS_REPO=1
 real_root_dir=$(CDPATH='' cd -- "$ROOT" 2>/dev/null && pwd -P)
 real_home_dir=""
@@ -210,12 +101,8 @@ elif [[ ! -e "$ROOT/.git" ]] &&
 fi
 NOT_REPO_REASON="skipped: root is not a repository"
 
-# ---------------------------------------------------------------------------
-# Manifest parsing — every record is validated before anything is evaluated.
-# Parallel indexed arrays rather than one associative array per record: the
-# helper has to run on the bash 3.2 that stock macOS ships.
-# ---------------------------------------------------------------------------
-
+# Parallel indexed arrays: associative arrays need bash 4.0, and these scripts support 3.2:
+# https://tiswww.case.edu/php/chet/bash/NEWS
 REC_ID=()
 REC_KIND=()
 REC_PATH=()
@@ -230,21 +117,15 @@ REC_COUNT=0
 SEEN_IDS="
 "
 
-# Built without backslash-bearing literals: shellcheck's SC1003 fires on every
-# spelling of one inside quotes.
 BACKSLASH=$(printf '%b' '\134')
 TAB=$(printf '\t')
 
-# ere_valid <pattern> — 0 when grep -E accepts the pattern. grep exits 2 on a
-# malformed expression and 1 on the (expected) no-match against empty input.
 ere_valid() {
   local rc=0
   grep -E -e "$1" </dev/null >/dev/null 2>&1 || rc=$?
   [[ $rc -ne 2 ]]
 }
 
-# Current record's fields: reset_record initializes them before the first line
-# is read and resets them at each `---`.
 reset_record() {
   r_start=$1
   r_id="" r_retired="" r_plugin_version="" r_kind="" r_path="" r_match=""
@@ -253,7 +134,6 @@ reset_record() {
   r_nonempty=0
 }
 
-# record_label — how a validation message names the record being checked.
 record_label() {
   if [[ -n "$r_id" ]]; then
     printf 'record %d (id: %s, line %d)' "$((REC_COUNT + 1))" "$r_id" "$r_start"
@@ -267,12 +147,8 @@ bad_record() {
   exit 2
 }
 
-# invalid <field> <message>
 invalid() { bad_record "field '$1' $2"; }
 
-# strip_quotes <value> — remove one layer of matching single or double quotes.
-# Each pattern needs both quote characters, so a value that matches is always
-# at least two characters long.
 strip_quotes() {
   local v="$1"
   case "$v" in
@@ -396,8 +272,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     reset_record $((lineno + 1))
     continue
   fi
-  # Leading whitespace only ever precedes a comment or nothing in a flat
-  # manifest; anything else is a nesting attempt and is rejected below.
   case "${line#"${line%%[![:space:]]*}"}" in
   "" | \#*) continue ;;
   *) ;;
@@ -429,22 +303,10 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 done <"$MANIFEST"
 finish_record
 
-# ---------------------------------------------------------------------------
-# Detection primitives
-# ---------------------------------------------------------------------------
-
-# content_hits <file> <ere> — 0 when some line of <file>, its trailing CR
-# stripped, matches <ere>. grep is used WITHOUT -q so it drains the pipe: under
-# pipefail an early-closing grep would turn awk's SIGPIPE into a failed test.
 content_hits() {
   awk '{ sub(/\r$/, ""); print }' "$1" | grep -E -e "$2" >/dev/null
 }
 
-# section_body_nrs <file> <heading> — one 1-based line number per line that
-# sits in the body of every markdown section whose heading line equals
-# <heading> (trailing whitespace ignored on both sides). The heading line
-# itself is excluded. A section ends at the next ATX heading of the same or
-# higher level, or EOF. POSIX awk only: no interval quantifiers.
 section_body_nrs() {
   awk -v heading="$2" '
     function rtrim(s) {
@@ -475,9 +337,6 @@ section_body_nrs() {
   ' "$1"
 }
 
-# matching_line_nrs <file> <ere> [heading] — space-separated 1-based line
-# numbers whose text (CR stripped) matches <ere>. When <heading> is non-empty,
-# only lines inside that heading's section body.
 matching_line_nrs() {
   local file="$1" ere="$2" heading="${3:-}" all scoped n
   all=$(awk '{ sub(/\r$/, ""); print }' "$file" | grep -E -n -e "$ere" | cut -d: -f1 | tr '\n' ' ')
@@ -494,11 +353,6 @@ matching_line_nrs() {
   done
 }
 
-# block_line_nrs <file> <start nrs> — space-separated line numbers of every
-# block that starts at one of <start nrs>: the start line, then each following
-# line (CR stripped) that is blank, indented deeper than the start line, or a
-# `-` sequence item at the start line's own indent (YAML lets a key's sequence
-# sit there), ending before the first other non-blank line indented no deeper.
 block_line_nrs() {
   awk -v starts=" $2" '
     { sub(/\r$/, "") }
@@ -512,9 +366,6 @@ block_line_nrs() {
   ' "$1"
 }
 
-# A linked worktree's .git is a file, and git's shared files (hooks among them)
-# sit in the main checkout's git dir, so there a `.git/` record path resolves
-# under `git rev-parse --git-common-dir`. Empty in a normal checkout.
 COMMON_DIR=""
 if [[ -f "$ROOT/.git" ]]; then
   COMMON_DIR=$(git -C "$ROOT" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')
@@ -525,9 +376,6 @@ if [[ -f "$ROOT/.git" ]]; then
   COMMON_DIR="${COMMON_DIR%/}"
 fi
 
-# target_base <path> — the directory a record path resolves under: the common
-# git dir for a `.git/` path in a linked worktree, else ROOT. target_of <path>
-# — the path on disk.
 target_base() {
   if [[ -n "$COMMON_DIR" && "$1" == .git/* ]]; then
     printf '%s' "$COMMON_DIR"
@@ -543,7 +391,6 @@ target_of() {
   fi
 }
 
-# present <index> — 0 when record <index>'s artifact is present in ROOT.
 present() {
   local i="$1" target nrs
   target=$(target_of "${REC_PATH[$i]}")
@@ -564,10 +411,6 @@ present() {
   *) return 1 ;;
   esac
 }
-
-# ---------------------------------------------------------------------------
-# Detect mode
-# ---------------------------------------------------------------------------
 
 if [[ -z "$CLEAN_ID" ]]; then
   active_hits=0
@@ -596,10 +439,6 @@ if [[ -z "$CLEAN_ID" ]]; then
   [[ $active_hits -eq 0 ]] && exit 0
   exit 1
 fi
-
-# ---------------------------------------------------------------------------
-# Clean mode
-# ---------------------------------------------------------------------------
 
 idx=-1
 i=0
@@ -630,9 +469,6 @@ fi
 
 locked_hint="re-run after closing the file (on Windows a locked file makes the remove fail; nothing was changed)"
 
-# File and line cleanup share this: a syntactically clean repo-relative path can
-# still walk a symlink parent out of its base (ROOT, or the common git dir).
-# Re-resolve at the moment of use.
 assert_target_inside_root() {
   local real_root real_parent
   real_root=$(cd "$base" 2>/dev/null && pwd -P) || die "cannot resolve root: $base"
@@ -660,9 +496,6 @@ file)
   exit 0
   ;;
 dir)
-  # rm -rf is the one thing here that can do real damage, so the path is
-  # re-resolved at the moment of use: it must land strictly inside its base
-  # and must not be the base itself, whatever the manifest text said.
   real_root=$(cd "$base" 2>/dev/null && pwd -P) || die "cannot resolve root: $base"
   real_target=$(cd "$target" 2>/dev/null && pwd -P) || die "cannot resolve $path"
   [[ "$real_target" != "$real_root" ]] || die "refusing to remove $path — it resolves to the repository root"
@@ -677,26 +510,16 @@ dir)
 line | block)
   assert_target_inside_root
   match="${REC_MATCH[$idx]}"
-  # Which input lines match, by number, decided once by grep -E (the same ERE
-  # dialect detection used); when heading is set, only section-body hits
-  # count, and for a block each hit widens to its whole block. awk then copies
-  # every other line through with its own bytes, CR included. Only the matched
-  # lines' text is stripped of the CR, and only for the comparison.
   matched_lines=$(matching_line_nrs "$target" "$match" "${REC_HEADING[$idx]}")
   [[ -n "$matched_lines" ]] || {
     echo "check-retirements: $CLEAN_ID: no line of $path matches; nothing to clean." >&2
     exit 1
   }
   [[ "$kind" == "line" ]] || matched_lines=$(block_line_nrs "$target" "$matched_lines")
-  # Whether the original's last line carries a newline: `tail -c 1` prints the
-  # final byte and command substitution eats a trailing newline, so an empty
-  # result means the file ended with one.
   ends_with_newline=1
   [[ -z "$(tail -c 1 "$target")" ]] || ends_with_newline=0
   dir=$(dirname "$target")
   tmp=$(mktemp "$dir/.check-retirements.XXXXXX") || die "could not create a temp file beside $path"
-  # cp -p so the rewritten file keeps the original's mode; the content is
-  # replaced by the redirect below.
   cp -p "$target" "$tmp" 2>/dev/null || true
   if ! awk -v skip=" $matched_lines" -v nl="$ends_with_newline" '
     { if (index(skip, " " NR " ") > 0) next; kept[++k] = $0; at[k] = NR }

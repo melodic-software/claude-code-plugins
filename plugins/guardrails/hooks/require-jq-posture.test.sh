@@ -39,7 +39,7 @@
 # that real jq-removal "is not portably simulable" via an isolated bin dir
 # (which cannot host bash + coreutils across Git Bash and Linux). That is true
 # of the bin-dir approach, and is exactly why this one overrides the lookup.
-# test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/hooks/hooks.json plugins/guardrails/prerequisites.json
+# test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/hooks/hooks.json plugins/guardrails/prerequisites.json docs/contracts/prerequisites/README.md
 
 set -uo pipefail
 export CLAUDE_CODE_SESSION_ATTENDED=0
@@ -96,14 +96,14 @@ done
 for base in "${FAIL_OPEN[@]}"; do
   f="$HOOK_DIR/$base"
   if grep -qE 'hook::require_jq_blocking[[:space:]]' "$f"; then
-    bad "$base adopted the fail-CLOSED jq gate without a MAX_COMMAND_LEN ceiling — it is not in the class the #2146 criterion defines; widen the criterion at hook::require_jq_blocking first"
+    bad "$base adopted the fail-CLOSED jq gate without a MAX_COMMAND_LEN ceiling — it is not in the class the #2146 criterion defines; widen the criterion in docs/contracts/prerequisites/README.md (The jq gate: two postures) first"
   fi
 done
 ok "no advisory hook adopted the fail-closed gate (${#FAIL_OPEN[@]} checked)"
 
-UTILS_SRC="$(cat "$HOOK_DIR/hook-utils.sh")"
-for needle in "TWO POSTURES" "hook::require_jq_blocking" "MAX_COMMAND_LEN"; do
-  assert_contains "hook-utils.sh's posture block mentions '$needle'" "$UTILS_SRC" "$needle"
+POSTURE_DOC="$(cat "$HOOK_DIR/../../../docs/contracts/prerequisites/README.md")"
+for needle in "### The jq gate: two postures" "hook::require_jq_blocking" "MAX_COMMAND_LEN" "require-jq-posture.test.sh"; do
+  assert_contains "the prerequisites contract's posture section mentions '$needle'" "$POSTURE_DOC" "$needle"
 done
 
 

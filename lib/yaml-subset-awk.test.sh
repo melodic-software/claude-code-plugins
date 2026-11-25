@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016 # backticks and $ in the single-quoted test names and inputs are literal YAML text
-# Tests for lib/yaml-subset.awk's refusals of a repeated key, a tab indent, an
-# unquoted `: ` inside a plain value, an unknown escape, flow mappings, nested
-# flow sequences, document markers, `%` directives and a sequence-item map
-# indented past its dash column + 2. Expected records and exit codes come from the
-# parser's header: `key<TAB>value` per scalar, and on a parse error one
-# `error<TAB><line><TAB><message>` record and exit 1.
-# Run directly: bash lib/yaml-subset-awk.test.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

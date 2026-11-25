@@ -1,79 +1,32 @@
 // GENERATED from .github/scripts/lib/lane-binding.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Whether a github-actions[bot] comment footed `claude-lane: <lane>` is that
-// review lane's own. Any workflow's job token posts as github-actions[bot], so
-// the footer alone proves nothing. The lane (ci-workflows pr-review-cli.yml,
-// publish-review and apply-review-hold) writes a binding line above the
-// footer, `<!-- claude-lane-run id=<run> sha=<head> -->`, and its status job
-// uploads an artifact, `claude-lane-comments-<lane>-<attempt>`, whose
-// comments.jsonl lists each comment it posted: lane, pull request, head, kind
-// (review_comment, issue_comment or review), id and the sha256 of the body as
-// GitHub stored it. Only a run's own steps upload its artifacts, so a comment
-// counts only when the run its binding names is the lane's caller workflow in
-// this repository, ran on the head the binding names, and one of that run's
-// records lists the comment's kind, id and body digest for the same lane,
-// pull request and head. Every attempt's record counts, so a re-run's
-// comments stay bound. A record covers its attempt only when it ends with
-// the `{"complete":true}` line the lane writes once its publish and hold
-// steps did not fail; an attempt without one is treated as one that left no
-// record.
-//
-// A comment without a binding was posted before the lanes wrote one: it counts
-// while LEGACY_CUTOFF is null, then only when posted at or before it and never
-// edited. A comment no live record lists, of a finished run one of whose
-// attempts left no live record of the lane (expired by artifact retention, or
-// a job lost before its upload step), is proved by time instead: posted
-// between the run's creation and its last update, and never edited. A comment
-// no record lists yet, of a run still going, throws, so the caller reads
-// again later. Reads that fail throw, so a caller fails closed and re-runs
-// rather than dropping a comment it could not check.
-//
-// Node builtins only: ci-workflows' settled-threads step loads the review
-// plugin's copy (plugins/review/lib/lane-binding.mjs) from a clone of this
-// repository's default branch.
-
 import { createHash } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
 
 export class LaneRunPending extends Error {}
 
-// Each lane's caller workflow, the only workflow whose runs bind its comments
-// (babysit_review_evidence.py LANES holds the same table).
 export const LANE_WORKFLOWS = Object.freeze({
   "claude-review": ".github/workflows/pr-review-hosted.yml",
   "claude-security-review": ".github/workflows/pr-review-security-hosted.yml",
 });
 export const RECORD_PREFIX = "claude-lane-comments-";
 export const RECORD_FILE = "comments.jsonl";
-// The largest record read: far above one run's comments, small enough that a
-// crafted archive cannot exhaust memory.
 export const MAX_RECORD_BYTES = 4 << 20;
-// The last time a comment with no binding can be the lane's (ISO 8601): 48
-// hours after the lanes began writing bindings, so a run that started before
-// then, and a re-run of one within the lost-run reconciler's 24-hour
-// lookback, still posts comments that count.
 export const LEGACY_CUTOFF = "2026-11-13T22:24:32Z";
-// A REST comment carries no edit time, only updated_at, which a review's
-// batch sets up to a second after created_at; a gap past this counts as an
-// edit (GraphQL's lastEditedAt is exact and wins when present).
 const EDIT_SLACK_MS = 60_000;
 
-// A lane footer line, trimmed: the one pattern every reader matches it with.
 export const FOOTER = /^`?claude-lane: (claude-review|claude-security-review)`?$/;
 export const BINDING = /^<!-- claude-lane-run id=([1-9][0-9]{0,19}) sha=([0-9a-f]{40}) -->$/;
 
 const lines = (body) => String(body ?? "").replace(/\r\n/g, "\n").split("\n");
 const nonBlankIndexes = (all) => all.flatMap((line, i) => (line.trim() === "" ? [] : [i]));
 
-// The lane a body's last non-blank line names as its footer, or null.
 export function laneFooter(body) {
   const all = lines(body);
   const last = nonBlankIndexes(all).at(-1);
   return last === undefined ? null : (FOOTER.exec(all[last].trim())?.[1] ?? null);
 }
 
-// { runId, sha } from the binding on the last non-blank line above a footed
-// body's footer, or null.
 export function bindingOf(body) {
   const all = lines(body);
   const at = nonBlankIndexes(all);
@@ -84,8 +37,6 @@ export function bindingOf(body) {
   return match ? { runId: match[1], sha: match[2] } : null;
 }
 
-// The body without its binding line, the shape every reader parsed before the
-// lanes wrote one.
 export function withoutBinding(body) {
   const text = String(body ?? "");
   if (bindingOf(text) === null) {
@@ -97,8 +48,6 @@ export function withoutBinding(body) {
   return all.join("\n");
 }
 
-// The body with its binding line and every trailing lane footer removed: a
-// comment its lane's run did not post, read as one with no footer.
 export function withoutLaneFooters(body) {
   const all = String(body ?? "").split("\n");
   for (;;) {
@@ -113,9 +62,6 @@ export function withoutLaneFooters(body) {
 
 export const bodyDigest = (body) => createHash("sha256").update(String(body ?? ""), "utf8").digest("hex");
 
-// Whether a comment was edited after it was posted: GraphQL's lastEditedAt
-// when the reader has it, else REST updated_at past created_at by more than
-// EDIT_SLACK_MS.
 export function wasEdited({ createdAt, updatedAt, lastEditedAt } = {}) {
   if (lastEditedAt !== undefined) {
     return lastEditedAt !== null;
@@ -124,13 +70,10 @@ export function wasEdited({ createdAt, updatedAt, lastEditedAt } = {}) {
   return Number.isFinite(gap) && gap > EDIT_SLACK_MS;
 }
 
-// Whether a comment with no binding still counts.
 export function legacyCounts(comment, cutoff = LEGACY_CUTOFF) {
   return cutoff === null || (Date.parse(comment.createdAt ?? "") <= Date.parse(cutoff) && !wasEdited(comment));
 }
 
-// One file's bytes from a zip archive (stored or deflated), or null when the
-// archive does not hold it.
 export function zipEntry(zip, name) {
   const buf = Buffer.from(zip);
   let end = -1;
@@ -172,8 +115,6 @@ export function zipEntry(zip, name) {
   return null;
 }
 
-// The entries of one record's comments.jsonl; a line that is not an object is
-// skipped.
 export function recordEntries(text) {
   return String(text ?? "")
     .split("\n")
@@ -197,16 +138,6 @@ export function settledRun({ run, recorded }, workflows = LANE_WORKFLOWS) {
   return lane !== undefined && run.status === "completed" && attemptRecords(run, lane).every((name) => recorded.has(name));
 }
 
-// A checker for one pull request's lane comments. `getPull(pr)` reads
-// /pulls/<pr>, `getRun(id)` /actions/runs/<id>, `listArtifacts(id)` that
-// run's artifacts (every page), `download(artifactId)` an artifact's zip
-// bytes. The pull request and each run are read once, and only for a comment
-// that carries a binding. A run counts only when it ran on the pull request's
-// own head branch: a pull_request run takes its workflow from the head, so a
-// run of another branch could have written any record.
-// `check({ kind, id, body, createdAt, updatedAt, lastEditedAt })` resolves
-// true when the comment is its footer lane's own. A comment with no lane
-// footer is not a lane comment: false.
 export function laneChecker({ pr, getPull, getRun, listArtifacts, download, workflows = LANE_WORKFLOWS, cutoff = LEGACY_CUTOFF, store }) {
   const runs = new Map();
   let pull;
@@ -282,12 +213,9 @@ export function laneChecker({ pr, getPull, getRun, listArtifacts, download, work
     if (lists(loaded)) {
       return true;
     }
-    // A run still going may not have uploaded the record of the attempt that
-    // posted this comment yet.
     if (run.status !== "completed") {
       throw new LaneRunPending(`lane run ${binding.runId} is still running, so its comment record may not be uploaded yet`);
     }
-    // Every attempt left a live record of this lane, and none lists it.
     if (attemptRecords(run, lane).every((name) => recorded.has(name))) {
       return false;
     }

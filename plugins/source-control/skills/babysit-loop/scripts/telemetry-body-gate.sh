@@ -1,32 +1,11 @@
 #!/usr/bin/env bash
 # GENERATED from lib/telemetry-body-gate.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# telemetry-body-gate.sh: the body-file checks every lane telemetry upsert shares
-# (work-items, harness-ops lanes, source-control babysit-loop). Sourced, not run.
-#
-# Lane prompts drive the upserts and the comment they write is public, so a
-# prompt-injected --body-file or --body-dir must not be able to post a credential
-# file. Each function returns non-zero with the reason in TBG_ERR; the caller maps
-# that to its own exit code. No message carries an absolute path or a match.
-# Portable to stock macOS (bash 3.2, BSD userland): paths are canonicalized with
-# cd -P and pwd -P in a subshell, with CDPATH unset and an option-shaped operand
-# prefixed with ./.
 
 # shellcheck disable=SC2034 # TBG_* results are read by the sourcing script
 unset CDPATH
 
-# tbg_safe_dir PLUGIN [DIR]: the canonical safe body dir, in TBG_SAFE. DIR, else
-# an inherited CLAUDE_PLUGIN_DATA, counts only when its last path segment names
-# PLUGIN (a plugin data dir is <plugin>-<marketplace>), so neither a caller-chosen
-# dir nor another plugin's exported data dir widens it; and never when it is /,
-# the home dir, or an ancestor of the home dir. The name is checked again on the
-# canonical path, so a symlink named for PLUGIN that points elsewhere is refused.
-# The home dir is the account's passwd entry, so an overridden HOME cannot move
-# it; $HOME is only the fallback where getent is missing (stock macOS).
 tbg_has_name() { [[ "$2" == "$1" || "$2" == "$1"-* ]]; }
-# tbg_canon_dir DIR: print DIR's canonical path, every symlink resolved; non-zero
-# when DIR is not an existing directory or its canonical path holds a newline,
-# which command substitution would strip into a different path.
 tbg_canon_dir() {
   local d="$1" out
   [[ "$d" == -* ]] && d="./$d"
@@ -60,7 +39,6 @@ tbg_safe_dir() {
     return 1
   fi
   home="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6)"
-  # A home dir that does not exist holds nothing, so it is compared as written.
   home="${home:-${HOME:-}}"
   [[ -d "$home" ]] && { home="$(tbg_canon_dir "$home")" || home=""; }
   if [[ "$home" != /* ]]; then
@@ -75,14 +53,6 @@ tbg_safe_dir() {
   fi
 }
 
-# tbg_read_body FILE: copy FILE, which must resolve under TBG_SAFE, to a private
-# file named in TBG_COPY, made in TBG_SAFE so TMPDIR need not be writable (the
-# caller removes it). Returns 2 when FILE does
-# not exist, 1 on any other refusal. FILE's parent dir is canonicalized with
-# tbg_canon_dir and the leaf, which must not be a symlink, . or .., is appended. The
-# file is then opened once on fd 9 (a caller's own fd 9 would be closed), and on Linux the open descriptor's own path is
-# checked again, so a swap between the check and the open is caught. Without
-# /proc (macOS) only the canonical-path check stands, and that swap window stays open.
 tbg_read_body() {
   local file="$1" canon opened parent leaf
   TBG_COPY=""
@@ -106,7 +76,6 @@ tbg_read_body() {
     TBG_ERR="the body file must resolve under the safe body dir"
     return 1
   fi
-  # A hard link would carry an outside file's contents under a safe name.
   if [[ -z "$(find "$canon" -prune -links 1 2>/dev/null)" ]]; then
     TBG_ERR="the body file must not be a hard link"
     return 1
@@ -131,13 +100,6 @@ tbg_read_body() {
   exec 9<&-
 }
 
-# tbg_instance: the lane-instance fallback, in TBG_INSTANCE: a random lane-<hex>
-# id made once and kept in TBG_SAFE/lane-instance, so it is stable across
-# restarts and distinct per machine without publishing the hostname in the public
-# marker. A symlinked or malformed stored id is refused and never echoed. A new id
-# is written to a temp file and hard-linked into place, which never overwrites; a
-# lane-instance that is a directory makes ln link inside it, so the stored id must
-# then be a regular file.
 tbg_instance() {
   local file="$TBG_SAFE/lane-instance" tmp=""
   TBG_INSTANCE=""
@@ -150,7 +112,6 @@ tbg_instance() {
       return 0
     fi
     [[ -n "$tmp" ]] && rm -f -- "$tmp"
-    # Another run may have stored one first; read that one below.
     [[ -e "$file" || -L "$file" ]] || {
       TBG_ERR="cannot store the lane instance; this run would write under an id the next run cannot find"
       TBG_INSTANCE=""
@@ -170,10 +131,6 @@ tbg_instance() {
   fi
 }
 
-# tbg_check_instance GATE INSTANCE: non-zero, with the reason in TBG_ERR, when
-# findMachine matches the lane instance (a fleet or private hostname). The
-# instance is published in the public marker, so a hostname-shaped one is
-# refused rather than masked; the message never echoes it.
 tbg_check_instance() {
   local hit
   if ! hit="$(printf '%s' "$2" | tbg_scan "$1")"; then
@@ -186,13 +143,6 @@ tbg_check_instance() {
   fi
 }
 
-# tbg_scan GATE: read the body on stdin and print why it is withheld, empty when
-# clean: a scanLeak block, its plain-assignment warning or URL userinfo
-# credentials (a credential, which must be rotated), or a findMachine hit (a home path, a fleet or private
-# hostname, which only needs removing). A GitHub-hosted runner's home dir
-# reveals nothing, so it is not a machine path. GATE is the plugin's generated
-# copy of lib/publish-gate.mjs. Non-zero when the scan cannot run; never prints
-# the match.
 tbg_scan() {
   # shellcheck disable=SC2016 # JavaScript, not shell
   node --input-type=module -e 'const { pathToFileURL } = await import("node:url");

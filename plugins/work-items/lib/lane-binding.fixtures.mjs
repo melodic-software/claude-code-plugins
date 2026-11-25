@@ -1,22 +1,17 @@
 // GENERATED from .github/scripts/lib/lane-binding.fixtures.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Test fixtures for lane-binding.mjs consumers: a zip writer, a record entry
-// and a fake Actions API serving runs and their comment records.
 import { crc32, deflateRawSync } from "node:zlib";
 
 import { bodyDigest, LANE_WORKFLOWS, RECORD_FILE, RECORD_PREFIX } from "./lane-binding.mjs";
 
 export const HEAD = "a".repeat(40);
 export const RUN = 4242;
-// The pull request's head branch and repository the fake runs ran on.
 export const BRANCH = "feature/x";
 export const REPOSITORY = "o/r";
 
-// A body as the lane posts it: text, the binding, a blank line, the footer.
 export const bound = (text, { run = RUN, sha = HEAD, lane = "claude-review" } = {}) =>
   `${text}\n<!-- claude-lane-run id=${run} sha=${sha} -->\n\nclaude-lane: ${lane}`;
 
-// One comments.jsonl line for `body`.
 export const recordEntry = (body, overrides = {}) => ({
   lane: "claude-review",
   pr: 7,
@@ -27,14 +22,12 @@ export const recordEntry = (body, overrides = {}) => ({
   ...overrides,
 });
 
-// A run of `lane`'s caller workflow whose one record lists `entries`.
 export const laneRun = (entries, { lane = "claude-review", attempt = 1, ...rest } = {}) => ({
   path: LANE_WORKFLOWS[lane],
   artifacts: [{ name: `${RECORD_PREFIX}${lane}-${attempt}`, entries }],
   ...rest,
 });
 
-// A zip holding `files` ({ name: text }), deflated, as upload-artifact writes one.
 export function zipOf(files) {
   const locals = [];
   const central = [];
@@ -75,8 +68,6 @@ export function zipOf(files) {
   return Buffer.concat([...locals, dir, end]);
 }
 
-// A fake Actions API: runs by id, each with artifacts { name, expired, entries };
-// the pull request's head is BRANCH in REPOSITORY unless `pull` says otherwise.
 export function fakeActions(runs, pull = { head: { ref: BRANCH, repo: { full_name: REPOSITORY } } }) {
   const calls = [];
   const blobs = new Map();
@@ -84,7 +75,6 @@ export function fakeActions(runs, pull = { head: { ref: BRANCH, repo: { full_nam
   for (const run of Object.values(runs)) {
     for (const artifact of run.artifacts ?? []) {
       artifact.id = next++;
-      // A record the lane closed, unless the fake says it was cut off.
       const lines = [...artifact.entries, ...(artifact.complete === false ? [] : [{ complete: true }])];
       blobs.set(artifact.id, zipOf({ [RECORD_FILE]: lines.map((e) => JSON.stringify(e)).join("\n") }));
     }
