@@ -4141,7 +4141,7 @@ jobs:
   # https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L438
   prove-formatting:
     name: Prove Formatting
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     permissions:
@@ -7275,12 +7275,8 @@ jobs:
           REVIEW_POLL_SECONDS: 60
           FORMATTER_PROOF: ${{ needs.prove-formatting.outputs.proof }}
           PROOF_HEAD: ${{ needs.prove-formatting.outputs.head }}
-          PROOF_RESULT: ${{ needs.prove-formatting.result }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
-          # gh-read.sh wraps gh when it carries the library; named here so
-          # this step's own gh api calls read as wrapped (idempotent).
-          ! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token
           # dependabot[bot], melodic-release[bot] and
           # melodic-standards-sync[bot], as melodic-software/standards
           # components/trusted-actors/trusted-actors.json lists them.
@@ -7565,25 +7561,8 @@ jobs:
           # guard after the generated list keeps that list for Dependabot only,
           # so the proof reads it under Dependabot's id. Without the approval,
           # or with a file list GitHub cut short, the lanes decide as usual.
-          # The proof is kept as a `formatter-proof` commit status on the head,
-          # so a contract-only run, where prove-formatting skips, reads it
-          # back: the newest one github-actions[bot] wrote must be a success
-          # naming the base this event carries, which a base-branch change
-          # moves. Any other record, none, or a failed read is no proof.
-          proof_record="reproduced on base $BASE_SHA"
-          if [ "$FORMATTER_PROOF" = true ] && [ "$PROOF_HEAD" = "$HEAD_SHA" ]; then
-            if ! gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
-              -f state=success -f context=formatter-proof -f description="$proof_record" \
-              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
-              echo "::warning::could not record the formatter-only proof on $HEAD_SHA; until a push re-proves it, a label or body change leaves the review lanes to decide."
-            fi
-          elif [ "$PROOF_RESULT" = skipped ] &&
-            statuses=$(gh_read "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses?per_page=100") &&
-            jq -e --arg record "$proof_record" 'map(select(.context == "formatter-proof" and .creator.login == "github-actions[bot]"))
-              | first | .state == "success" and .description == $record' <<<"$statuses" >/dev/null 2>&1; then
-            echo "A full run recorded the formatter-only proof of $HEAD_SHA on base $BASE_SHA."
-            FORMATTER_PROOF=true PROOF_HEAD=$HEAD_SHA
-          fi
+          # prove-formatting runs in this workflow run on every event, so the
+          # proof is never read from a record another run could write.
           if [ "$FORMATTER_PROOF" = true ] && [ "$PROOF_HEAD" = "$HEAD_SHA" ]; then
             floor_paths
             pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1

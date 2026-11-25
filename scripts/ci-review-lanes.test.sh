@@ -199,19 +199,6 @@ cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
-*'-X POST repos/'*'/statuses/'*)
-  [[ -z "${STUB_STATUS_POST_FAIL:-}" ]] || exit 1
-  ;;
-*/commits/*/statuses*)
-  # STUB_STATUSES are the statuses of STUB_STATUS_SHA (default: the head);
-  # any other commit has none.
-  [[ -z "${STUB_STATUSES_FAIL:-}" ]] || exit 1
-  if [[ "$*" == *"/commits/${STUB_STATUS_SHA:-0123456789abcdef0123456789abcdef01234567}/statuses"* ]]; then
-    printf '%s\n' "${STUB_STATUSES:-[]}"
-  else
-    echo '[]'
-  fi
-  ;;
 *'/actions/runs?head_sha='*)
   [[ "$(grep -c '/runs?' "$STUB_LOG")" -gt "${STUB_RUNS_FAILS:-0}" ]] || { echo '{"message":"Server Error"}'; exit 1; }
   code=$RUNS_CODE
@@ -1238,18 +1225,16 @@ if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a cancelled status job rea
 JOBS_10="$PASS_CODE" NOTES_9=""
 
 if [[ "$step" == *"FORMATTER_PROOF: \${{ needs.prove-formatting.outputs.proof }}"* &&
-  "$step" == *"PROOF_HEAD: \${{ needs.prove-formatting.outputs.head }}"* &&
-  "$step" == *"PROOF_RESULT: \${{ needs.prove-formatting.result }}"* ]]; then
-  ok "the step reads prove-formatting's proof, the head it proved and whether the job ran"
+  "$step" == *"PROOF_HEAD: \${{ needs.prove-formatting.outputs.head }}"* ]]; then
+  ok "the step reads prove-formatting's proof and the head it proved"
 else
-  fail "the step lost FORMATTER_PROOF, PROOF_HEAD or PROOF_RESULT from prove-formatting"
+  fail "the step lost FORMATTER_PROOF or PROOF_HEAD from prove-formatting"
 fi
-contract_gate="!(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base)))"
 prove_if="$(awk '/^  prove-formatting:$/ { on = 1; next } on && /^  [^ ]/ { exit } on && /^    if: / { sub(/^    if: /, ""); print; exit }' "$WORKFLOW")"
-if [[ "$prove_if" == "\${{ $contract_gate && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}" ]]; then
-  ok "prove-formatting skips contract-only events and drafts and runs on every other pull_request event"
+if [[ "$prove_if" == "\${{ github.event_name == 'pull_request' && github.event.pull_request.draft != true }}" ]]; then
+  ok "prove-formatting runs on every non-draft pull_request event, contract-only ones included"
 else
-  fail "prove-formatting's if: lost the verbatim contract-only gate or its pull_request and draft conditions: '$prove_if'"
+  fail "prove-formatting's if: is not exactly the pull_request and non-draft condition: '$prove_if'"
 fi
 export FORMATTER_PROOF PROOF_HEAD
 proof() { BODY="$TMP_ROOT/body.live.sh" expect "$@"; }
@@ -1258,47 +1243,10 @@ STUB_FILES="$(files plugins/x/a.sh plugins/x/b.py)" STUB_CHANGED=2 FORMATTER_PRO
 proof "a proven head that changes no trust-gate path needs no review lane" 0 \
   "The pinned formatters reproduce $HEAD from its base byte for byte, and it changes no trust-gate path" "::error::"
 if grep -q 'repos/o/r/actions/' "$TMP_ROOT/log"; then fail "a proven head's run read the review runs"; else ok "a proven head's run reads no review run"; fi
-posted="$(grep -- '-X POST repos/o/r/statuses/' "$TMP_ROOT/log")"
-if [[ "$(grep -c . <<<"$posted")" == 1 && "$posted" == "api -X POST repos/o/r/statuses/$HEAD -f state=success -f context=formatter-proof "* ]]; then
-  ok "a proven head's run records the proof as a formatter-proof success status on the head"
-else
-  fail "a proven head's run did not record one formatter-proof success status on $HEAD: '$posted'"
-fi
-record="${posted#* -f description=}"
-record="${record%% -f target_url=*}"
-STUB_STATUS_POST_FAIL=1 proof "a proof the run cannot record still stands for this run" 0 \
-  "::warning::could not record the formatter-only proof on $HEAD" "::error::"
-proof_status() { jq -cn --arg c "${1:-formatter-proof}" --arg s "${2:-success}" --arg d "${3-$record}" --arg u "${4:-github-actions[bot]}" \
-  '{context: $c, state: $s, description: $d, creator: {login: $u}}'; }
-export PROOF_RESULT STUB_STATUSES STUB_STATUS_SHA
-FORMATTER_PROOF='' PROOF_HEAD='' PROOF_RESULT=skipped
-STUB_STATUSES="[$(proof_status)]"
-proof "a contract-only run finds the proof a full run recorded on the head and needs no review lane" 0 \
-  "The pinned formatters reproduce $HEAD from its base byte for byte, and it changes no trust-gate path" "::error::"
-if grep -qxF "api repos/o/r/commits/$HEAD/statuses?per_page=100" "$TMP_ROOT/log" && ! grep -q -- '-X POST' "$TMP_ROOT/log"; then
-  ok "a contract-only run reads the head's statuses and writes none"
-else
-  fail "a contract-only run did not read only the head's statuses: '$(cat "$TMP_ROOT/log")'"
-fi
-STUB_STATUSES='[]'
-proof "a contract-only run with no recorded proof leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
-STUB_STATUSES="[$(proof_status)]" STUB_STATUS_SHA="${HEAD//0/f}"
-proof "a proof recorded on another commit does not count for the head" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
-STUB_STATUS_SHA=''
-BASE_SHA="${HEAD//0/e}" proof "a proof recorded on another base does not count after a base change" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
-STUB_STATUSES="[$(proof_status formatter-proof success "$record" kyle-sexton)]"
-proof "a proof status another account wrote does not count" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
-STUB_STATUSES="[$(proof_status formatter-proof success "reproduced on base ${HEAD//0/e}"),$(proof_status)]"
-proof "the newest recorded proof decides, so a later one for another base hides an older match" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
-STUB_STATUSES="[$(proof_status ci-lanes success "$record")]"
-proof "a status of another context does not count" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
-STUB_STATUSES="[$(proof_status)]"
-STUB_STATUSES_FAIL=1 proof "an unreadable status list leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
-PROOF_RESULT=success
-proof "a full run whose proof did not hold ignores an earlier record" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
-if grep -q '/statuses' "$TMP_ROOT/log"; then fail "a full run with no proof read the head's statuses"; else ok "a full run with no proof reads no status"; fi
-PROOF_RESULT='' STUB_STATUSES='[]' FORMATTER_PROOF=true PROOF_HEAD=$HEAD
-PROOF_HEAD="${HEAD//0/f}"
+if grep -q '/statuses' "$TMP_ROOT/log"; then fail "a proven head's run read or wrote a commit status"; else ok "a proven head's run neither reads nor writes a commit status"; fi
+FORMATTER_PROOF='' PROOF_HEAD=''
+proof "a run whose prove-formatting gave no proof leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
+FORMATTER_PROOF=true PROOF_HEAD="${HEAD//0/f}"
 proof "a proof of another head leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
 PROOF_HEAD=$HEAD FORMATTER_PROOF=false
 proof "no proof leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
