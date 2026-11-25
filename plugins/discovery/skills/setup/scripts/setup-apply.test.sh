@@ -6,15 +6,13 @@
 # explore_output takes auto, change-prep or explain, the research_* keys take
 # whole numbers of 1 or more, and the file is
 # docs/conventions/discovery.yaml at the repository root.
-# test-scope: plugins/discovery/lib/resolve-convention-home.sh
+# test-scope: plugins/discovery/lib/resolve-convention-home.sh plugins/discovery/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# settings <file>: the file without the record the writer keeps beside the
-# settings, for cases about the settings; the record has its own case below.
 settings() {
   awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
 }
@@ -36,14 +34,13 @@ new_repo() {
 
 OUT=""
 CODE=0
-run() { # run <repo> [args...]
+run() {
   local repo="$1"
   shift
   OUT="$(node "$SUT" --root "$repo" "$@" 2>&1)"
   CODE=$?
 }
 
-# Fresh write: no file yet, a valid value is written and reads back.
 repo="$(new_repo)"
 run "$repo" explore_output=explain
 if ((CODE == 0)); then pass 'fresh write exits 0'; else fail 'fresh write exits 0'; fi
@@ -52,12 +49,10 @@ if [[ -f "$f" ]]; then pass 'fresh write creates docs/conventions/discovery.yaml
 if [[ "$(bash "$READER" "$f" explore_output)" == "explain" ]]; then pass 'the written value reads back as explain through parse-concern-value.sh'; else fail 'the written value reads back as explain through parse-concern-value.sh'; fi
 if [[ "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1 ]]; then pass 'fresh write creates no other file'; else fail 'fresh write creates no other file'; fi
 
-# Same value again: nothing changes.
 before="$(cat "$f")"
 run "$repo" explore_output=explain
 if [[ "$CODE" -eq 0 && "$OUT" == *"already configured"* && "$(cat "$f")" == "$before" ]]; then pass 'an unchanged value reports already configured and leaves the file'; else fail 'an unchanged value reports already configured and leaves the file'; fi
 
-# Existing file, different value, no --yes: diff printed, nothing written.
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 printf '# team pick\nexplore_output: auto\n' >"$repo/docs/conventions/discovery.yaml"
@@ -68,24 +63,18 @@ if [[ "$CODE" -eq 3 ]]; then pass 'an existing file that would change exits 3 wi
 if [[ "$OUT" == *"-explore_output: auto"* && "$OUT" == *"+explore_output: change-prep"* ]]; then pass 'the refusal prints the diff of the change'; else fail 'the refusal prints the diff of the change'; fi
 if [[ "$(cat "$f")" == "$before" ]]; then pass 'the existing file is untouched without --yes'; else fail 'the existing file is untouched without --yes'; fi
 
-# Same change with --yes: written, comment kept.
 run "$repo" --yes explore_output=change-prep
 if ((CODE == 0)); then pass 'with --yes the change is written'; else fail 'with --yes the change is written'; fi
 if [[ "$(settings "$f")" == $'# team pick\nexplore_output: change-prep' ]]; then pass 'the written file keeps the comment and holds change-prep'; else fail 'the written file keeps the comment and holds change-prep'; fi
 
-# Invalid value: refused, nothing created.
 repo="$(new_repo)"
 run "$repo" explore_output=tutorial
 if [[ "$CODE" -eq 1 && "$OUT" == *"explore_output=tutorial"* ]]; then pass 'an invalid value exits 1 and names the key and value'; else fail 'an invalid value exits 1 and names the key and value'; fi
 if [[ ! -e "$repo/docs" ]]; then pass 'an invalid value writes nothing'; else fail 'an invalid value writes nothing'; fi
 
-# Unknown key: refused.
 run "$repo" verbosity=high
 if [[ "$CODE" -eq 1 && "$OUT" == *"verbosity"* && ! -e "$repo/docs" ]]; then pass 'a key outside the schema exits 1 and writes nothing'; else fail 'a key outside the schema exits 1 and writes nothing'; fi
 
-# Existing file holding a key outside the schema: the key is named in one
-# warning and ignored, its line is kept byte for byte, and --check still
-# prints the valid key and exits 1.
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 printf 'explore_output: auto\nverbosity: high\n' >"$repo/docs/conventions/discovery.yaml"
@@ -94,7 +83,6 @@ if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<
 run "$repo" --yes explore_output=explain
 if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(settings "$repo/docs/conventions/discovery.yaml")" == $'explore_output: explain\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
 
-# An invalid existing value is replaced by a valid one.
 printf 'explore_output: tutorial\n' >"$repo/docs/conventions/discovery.yaml"
 run "$repo" --yes explore_output=auto
 if [[ "$CODE" -eq 0 && "$(bash "$READER" "$repo/docs/conventions/discovery.yaml" explore_output)" == "auto" ]]; then pass 'an invalid existing value is replaced by a valid one'; else fail 'an invalid existing value is replaced by a valid one'; fi
@@ -107,7 +95,6 @@ ln -s "$outside" "$repo/docs/conventions"
 run "$repo" explore_output=explain
 if [[ "$CODE" -eq 1 && -z "$(ls -A "$outside")" ]]; then pass 'a symlinked docs/conventions is refused and nothing lands outside'; else fail 'a symlinked docs/conventions is refused and nothing lands outside'; fi
 
-# --check: absent, valid, invalid.
 repo="$(new_repo)"
 run "$repo" --check
 if [[ "$CODE" -eq 0 && "$OUT" == *"absent"* ]]; then pass '--check on a missing file reports absent and exits 0'; else fail '--check on a missing file reports absent and exits 0'; fi
@@ -161,8 +148,6 @@ printf 'stray:\n' >"$repo/docs/conventions/discovery.yaml"
 run "$repo" --yes explore_output=explain
 if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*stray' <<<"$OUT")" -eq 1 && "$(settings "$repo/docs/conventions/discovery.yaml")" == $'stray:\nexplore_output: explain' ]]; then pass 'an unknown empty key is one warning that names it, and its line is kept'; else fail 'an unknown empty key is one warning that names it, and its line is kept'; fi
 
-# A key given twice on the command line is refused before anything is read or
-# written, whether or not the file exists.
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 printf 'explore_output: auto\n' >"$repo/docs/conventions/discovery.yaml"
@@ -172,8 +157,6 @@ repo="$(new_repo)"
 run "$repo" --yes explore_output=explain explore_output=explain
 if [[ "$CODE" -eq 1 && "$(wc -l <<<"$OUT")" -eq 1 && ! -e "$repo/docs/conventions/discovery.yaml" ]]; then pass 'a key given twice with no file is a one-line refusal and nothing is created'; else fail 'a key given twice with no file is a one-line refusal and nothing is created'; fi
 
-# A --root that is a symlink to a repository: the link is resolved once and
-# the file lands in the repository it points at.
 repo="$(new_repo)"
 ln -s "$repo" "$WORKROOT/root-link"
 run "$WORKROOT/root-link" explore_output=explain
@@ -201,7 +184,6 @@ printf 'not a directory\n' >"$repo/docs"
 run "$repo" explore_output=explain
 if [[ "$CODE" -eq 1 && "$(wc -l <<<"$OUT")" -eq 1 && "$(cat "$repo/docs")" == "not a directory" ]]; then pass 'docs as a file is a one-line refusal'; else fail 'docs as a file is a one-line refusal'; fi
 
-# Failures opening or writing the temp file: one-line refusal, no temp file left.
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 chmod 555 "$repo/docs/conventions"
@@ -232,7 +214,6 @@ CODE=$?
 if [[ "$CODE" -eq 1 && "$(wc -l <<<"$OUT")" -eq 1 && "$OUT" == *EIO* && "$OUT" != *"    at "* ]]; then pass 'a failed close is a one-line refusal'; else fail 'a failed close is a one-line refusal'; fi
 if [[ -z "$(ls -A "$repo/docs/conventions")" ]]; then pass 'a failed close removes the temp file'; else fail 'a failed close removes the temp file'; fi
 
-# Usage errors.
 run "$repo"
 if [[ "$CODE" -eq 2 ]]; then pass 'no <key>=<value> exits 2'; else fail 'no <key>=<value> exits 2'; fi
 run "$repo" --check explore_output=auto
@@ -241,7 +222,6 @@ OUT="$(cd "$WORKROOT" && GIT_CEILING_DIRECTORIES="$WORKROOT" node "$SUT" explore
 CODE=$?
 if [[ "$CODE" -eq 2 && "$OUT" == *"git working tree"* ]]; then pass 'outside a git working tree without --root exits 2'; else fail 'outside a git working tree without --root exits 2'; fi
 
-# --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
 repo="$(new_repo)"
 run "$repo" explore_output=explain
@@ -255,7 +235,6 @@ default_ok=0
 if [[ "$record_ok" -eq 1 ]]; then pass 'the file records written_against and a chosen entry'; else fail 'the file records written_against and a chosen entry'; fi
 if [[ "$default_ok" -eq 1 ]]; then pass '--default records a default entry'; else fail '--default records a default entry'; fi
 
-# --- The research keys: whole numbers of 1 or more (reference/config.md) ---
 repo="$(new_repo)"
 run "$repo" research_corroborators=3 research_recency_active_days=7 research_recency_standard_days=45 research_recency_guide_days=180
 f="$repo/docs/conventions/discovery.yaml"

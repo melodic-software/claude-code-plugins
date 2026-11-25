@@ -1,10 +1,5 @@
 # test-scope: plugins/planning/shared/schema/*.schema.json plugins/planning/surface/schema/*.schema.json plugins/planning/shared/tests/fixtures/*.json
-# test-scope: plugins/planning/shared/tests/*.py plugins/planning/shared/tests/*.js
-"""session.py holds the shared interview session's domain rules; each test names one invariant.
-
-Expected values come from the Design's Contracts (state shape, error codes, round transitions,
-limits) and the Brief's acceptance criteria, never from running the code under test.
-"""
+# test-scope: plugins/planning/shared/tests/*.py plugins/planning/shared/tests/*.js plugins/planning/surface/question_shape.py
 
 from __future__ import annotations
 
@@ -2373,8 +2368,6 @@ class HeldLock:
 
 
 def guarded(base, lock, case):
-    """A `base` mapping that fails `case` whenever it is changed without `lock` held."""
-
     class Guarded(base):
         def _check(self):
             case.assertTrue(lock.held(), "changed outside the session lock")
@@ -4812,7 +4805,7 @@ class TestHideAndEdit(HideEditCase):
         for i in range(60):
             self.act("answer", self.bo, {"qid": "Q1", "text": f"Version {i}", "view": "focus"})
         history = self.s.state["cards"]["Q1"][-1]["history"]
-        self.assertEqual(len(history), 50)  # state.schema.json Card.history maxItems
+        self.assertEqual(len(history), 50)
         self.assertEqual(history[0]["text"], "Pay later, rude words here")
         self.assertEqual(history[-1]["text"], "Version 58")
 
@@ -5136,7 +5129,6 @@ class TestAnnotations(SessionCase):
 
 
 def proto_q(qid, *variants):
-    """A prototype question; each variant is (id, label, asset) or (id, label, asset, previous)."""
     vs = [{"id": v[0], "label": v[1], "asset": v[2], **({"previous": v[3]} if len(v) > 3 else {})} for v in variants]
     return {**text_q(qid, rec=False), "format": {"kind": "prototype", "lookAt": LOOK, "variants": vs}}
 
@@ -7362,7 +7354,6 @@ class TestAttachmentsEverywhere(UploadCase):
 
 
 def zip_of(*entries):
-    """A zip built here: (name, bytes, zipfile compression[, Unix mode]) per entry, in order."""
     import io
     import zipfile
     buf = io.BytesIO()
