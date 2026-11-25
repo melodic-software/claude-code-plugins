@@ -158,11 +158,6 @@ jobs:
           tokens: github-token
           outside: ${{ steps.download-range.outcome != 'skipped' && 'download-range:actions/runs/artifacts' || '' }}
 
-  # The key's credit gate for both chains (ci-workflows select-model-credential,
-  # its start call: check-key-credit's one artifact-list call per chain for the
-  # marker its key leg uploads after a credit stop). A credit stop inside the
-  # window names the subscription leg, and that chain's key leg runs nothing.
-  # No secret, no model, no checkout, no probing; every failure runs the key.
   check-key-credit:
     name: Check Key Credit
     needs: check-range
@@ -239,7 +234,7 @@ jobs:
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the pushed head; nothing in this job writes
+      contents: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -257,8 +252,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The plugin, the prompt and the config reader come from main at the
-      # event's commit.
       - name: Check out main's tools
         uses: actions/checkout@v7
         with:
@@ -398,10 +391,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # Read by the next runs' credit gate (check-key-credit): the artifact its
-      # `generate-marker` output names (check-key-credit gate.cjs markerName),
-      # uploaded only after the key leg's credit-stop handoff. The name is
-      # written out so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: always() && needs.check-key-credit.outputs.generate-marker == 'key-credit-stop-AUTOMATIONS_CLAUDE_API_KEY' && steps.run.outputs.handoff-reason == 'credit-stop'
@@ -537,7 +526,7 @@ jobs:
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the pushed head; nothing in this job writes
+      contents: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -790,7 +779,7 @@ jobs:
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the pushed head; nothing in this job writes
+      contents: read
     outputs:
       stop-class: ${{ steps.stop.outputs.class }}
       mode: ${{ steps.target.outputs.mode }}
@@ -1067,7 +1056,6 @@ jobs:
           artifact-ids: ${{ needs.generate-fallback.outputs.artifact-id || needs.generate-subscription.outputs.artifact-id || needs.generate.outputs.artifact-id }}
           path: ${{ runner.temp }}/generate
 
-      # The generate leg's file, by the SHA-256 that leg recorded.
       - name: Check the mutants
         id: mutants
         env:
@@ -1128,8 +1116,6 @@ jobs:
           echo "sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
           echo "survivors=$(jq '[.mutants[] | select(.state == "survived")] | length' "$OUT/executed.json")" >>"$GITHUB_OUTPUT"
 
-      # execute.mjs checks the tree after each mutant; this check is the
-      # workflow's own. Tracked files must equal the pushed head.
       - name: Check the checkout is restored
         id: restored
         if: always() && steps.execute.outcome != 'skipped'
@@ -1184,7 +1170,7 @@ jobs:
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the pushed head; nothing in this job writes
+      contents: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -1202,8 +1188,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The plugin, the prompt and the config reader come from main at the
-      # event's commit.
       - name: Check out main's tools
         uses: actions/checkout@v7
         with:
@@ -1372,10 +1356,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # Read by the next runs' credit gate (check-key-credit): the artifact its
-      # `triage-marker` output names (check-key-credit gate.cjs markerName),
-      # uploaded only after the key leg's credit-stop handoff. The name is
-      # written out so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: always() && needs.check-key-credit.outputs.triage-marker == 'key-credit-stop-AUTOMATIONS_CLAUDE_API_KEY' && steps.run.outputs.handoff-reason == 'credit-stop'
@@ -1511,7 +1491,7 @@ jobs:
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the pushed head; nothing in this job writes
+      contents: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -1791,7 +1771,7 @@ jobs:
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the pushed head; nothing in this job writes
+      contents: read
     outputs:
       stop-class: ${{ steps.stop.outputs.class }}
       mode: ${{ steps.target.outputs.mode }}
@@ -2052,10 +2032,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # check out main for the report script
-      pull-requests: write # find the pull requests that merged the pushed range and comment the report on it
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
+      contents: read
+      pull-requests: write
     env:
       API_BUDGET_TOKEN: github-token
     steps:

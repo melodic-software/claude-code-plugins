@@ -146,8 +146,6 @@ jobs:
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
-          # A rate limit past the guard's budget refuses the read with a notice
-          # (api-budget.bash), and the step holds.
           API_BUDGET_HOLD: "1"
         run: |
           # Each `gh api` call keeps its rate-limit reading for the job-end
@@ -199,8 +197,6 @@ jobs:
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
-          # A rate limit past the guard's budget refuses the read with a notice
-          # (api-budget.bash), and the step holds.
           API_BUDGET_HOLD: "1"
           READ_PR_FAILURE: notice
         run: |
@@ -232,8 +228,6 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ACTIVITY: fix-docs
-          # A rate limit past the guard's budget refuses the read with a
-          # notice, and the step holds.
           API_BUDGET_HOLD: "1"
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
@@ -380,7 +374,6 @@ jobs:
           LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/pr-refine
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted allowed handed-off
 
-      # A held read's marker for monitor signal 13; no marker uploads nothing.
       - name: Keep the lane hold marker
         continue-on-error: true
         uses: actions/upload-artifact@v7
@@ -592,8 +585,6 @@ jobs:
           LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/pr-refine
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
 
-      # A held read's marker for monitor signal 13, on a green job only; no
-      # marker uploads nothing.
       - name: Keep the lane hold marker
         continue-on-error: true
         uses: actions/upload-artifact@v7
@@ -740,7 +731,6 @@ jobs:
             "apply-docs-patch": "${{ needs.apply-docs-patch.result }}"}
           FIX_DOCS_PUSHED: ${{ needs.apply-docs-patch.outputs.pushed-commit }}
           FIX_DOCS_SKIP: ${{ needs.apply-docs-patch.outputs.skip-reason }}
-          # A failed pass's marker for monitor signal 13 (lane-hold-marker.mjs).
           LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/pr-refine
         run: node .base/.github/scripts/pr-refine/log-pass-records.mjs
 

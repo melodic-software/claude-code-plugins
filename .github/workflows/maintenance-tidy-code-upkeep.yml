@@ -306,7 +306,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # The skill branches from here. Nothing after this step runs from .base.
       - name: Check out main with history
         if: steps.models.outcome == 'success'
         uses: actions/checkout@v7
@@ -470,8 +469,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # The plan, and the planned branches as one git bundle from the base,
-      # sealed with the sealer from the trusted checkout.
       - name: Seal the plan and the branches
         id: seal
         if: always() && steps.run.outcome != 'skipped'
@@ -634,7 +631,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # The skill branches from here. Nothing after this step runs from .base.
       - name: Check out main with history
         if: steps.models.outcome == 'success'
         uses: actions/checkout@v7
@@ -758,8 +754,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # The plan, and the planned branches as one git bundle from the base,
-      # sealed with the sealer from the trusted checkout.
       - name: Seal the plan and the branches
         id: seal
         if: always() && steps.run.outcome != 'skipped'
@@ -910,7 +904,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # The skill branches from here. Nothing after this step runs from .base.
       - name: Check out main with history
         if: steps.models.outcome == 'success'
         uses: actions/checkout@v7
@@ -1022,8 +1015,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # The plan, and the planned branches as one git bundle from the base,
-      # sealed with the sealer from the trusted checkout.
       - name: Seal the plan and the branches
         id: seal
         if: always() && steps.run.outcome != 'skipped'
@@ -1205,7 +1196,6 @@ jobs:
         with:
           tokens: github-token
 
-  # mutate-branch: contents write only.
   push-branches:
     name: Push Branches
     needs: [select-areas, scan]
@@ -1216,7 +1206,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-      id-token: write # prove to the token broker which workflow this is
+      id-token: write
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -1294,7 +1284,6 @@ jobs:
             fi
           done
 
-      # A kill switch turned on since the step above is a designed stop.
       - name: Request the lane token
         id: lane-token
         if: steps.verify.outcome == 'success'
@@ -1341,7 +1330,6 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-  # publish-artifact: pull-requests write, contents read.
   publish:
     name: Publish
     needs: [select-areas, scan, push-branches]
@@ -1353,7 +1341,7 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-      id-token: write # prove to the token broker which workflow this is
+      id-token: write
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
