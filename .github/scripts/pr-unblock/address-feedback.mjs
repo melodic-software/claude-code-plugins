@@ -76,7 +76,6 @@ export const FRESH_ROUND_BRIEF =
 // How the round marker and the neutral checks show the count.
 export const roundLine = (round, max) => `round ${round} of max ${max}`;
 export { ROUND_MARKER };
-// The activity select decides, as escalation-routes.json names it.
 const ACTIVITY = "address-feedback";
 export const MARKER_AUTHOR_ID = ACTIONS_BOT_ID;
 // Listed review bots no comment can summon: github-advanced-security[bot],
@@ -99,7 +98,6 @@ const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
-// The checkout this script runs from: the select job's base copy.
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 // The shared copies the base copy's scripts/shared-copies.txt registers for
@@ -142,8 +140,6 @@ export function coveringLanes(plan) {
 // its display name, a matrix leg `Test <Lane> (<leg>)`; a head tested before
 // the rename shows the id, `test-<lane> (<leg>)`.
 const TEST_LANE = /^(?:Test(?: [A-Z0-9][a-z0-9]*)+|test-[a-z0-9]+(?:-[a-z0-9]+)*)(?: \(\d+\))?$/;
-// A lane's display name from its id or display name: `test-bash (3)` and
-// `Test Bash (3)` both give `Test Bash (3)`.
 const laneName = (name) => name.replace(/^\S+/, (id) => id.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" "));
 // A cancelled run is not red: fix-ci does not take a head whose only failing
 // checks were cancelled (fix-ci-dispatch.mjs), so it settles nothing instead.
@@ -164,7 +160,6 @@ export async function ciSnapshot({ api, headSha, files, plan = planLanes }) {
   try {
     const lanes = coveringLanes(plan([...new Set(files.flatMap((file) => [file?.filename, file?.previous_filename]).filter((path) => typeof path === "string" && path !== ""))].sort())).map(laneName);
     const listed = await api.listCommitCheckRuns(headSha);
-    // One run per lane: the display-named run, else the id-named one.
     const byLane = new Map();
     for (const run of latestRuns(listed.filter((run) => run?.app?.slug === "github-actions")).values()) {
       const name = String(run.name);
@@ -430,7 +425,6 @@ export const claimsSecurity = (body, floor = SECURITY_PERSON_SEVERITY) => {
   return claims && securityNeedsPerson(text, floor);
 };
 
-// A thread whose first comment is a pr-verify verifier note (threadAuthors).
 const isVerifierNote = (thread) => thread.comments[0]?.author === "verifier";
 const isDirected = (thread) => thread.comments.some((comment) => comment.direction === true);
 
@@ -521,7 +515,6 @@ export function lastRoundAt(issueComments, appId, checkRunsByCommit) {
 // lane=claude-security-review and the critical-security criterion; laneHold
 // checks the author and footer), each with when it was posted.
 const SECURITY_HOLD = /^<!-- claude-lane-hold lane=claude-security-review sha=([0-9a-f]{40}) criteria=([a-z,-]+) -->$/;
-// A review lane's reviewed-head marker match (lane, sha), or null.
 const reviewedHeadMarker = (comment) => (comment.user?.id === MARKER_AUTHOR_ID ? REVIEWED_HEAD.exec(firstLine(comment.body)) : null);
 export function securitySignals(issueComments) {
   const reviewed = new Set();
@@ -812,8 +805,6 @@ export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, t
     }
     return authors;
   }
-  // An adjudication that let the finding stand (adjudicate-feedback.mjs)
-  // hands the thread back to the lane with no reply needed.
   const stands = last >= 1 && firstLine(comments[last].body) === FINDING_STANDS;
   if (last < 1 || !(stands || ESCALATION_REPLY.test(firstLine(comments[last].body))) || (last === comments.length - 1 && !stands)) {
     return null;
@@ -1101,7 +1092,6 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
       path: rows[0].path,
       line: rows[0].line ?? rows[0].original_line ?? null,
       review_commit: review.commit_id,
-      // Newer changes moved the thread's code, so its line may be stale.
       is_outdated: thread.isOutdated === true,
       root_comment_id: rows[0].id,
       // A lane only from the github-actions[bot] author whose footer the
@@ -1141,20 +1131,11 @@ export function sessionQueued({ labels = [], issueComments, headSha, isLanesApp 
 // .github/workflows/ path and is treated as touching one.
 const touchesProtected = (files) => files.length >= FILES_CAP || files.some((file) => isProtectedPath(file.filename) || isProtectedPath(file.previous_filename ?? ""));
 
-// The rounds the PR has had: round markers or model check runs on its
-// commits, whichever count more, and those check runs.
 async function roundsSoFar(api, pr, issueComments, appId) {
   const checkRuns = await api.listModelRounds(pr, MODEL_CHECK);
   return { rounds: Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns)), checkRuns };
 }
 
-// A round for the notes of the FAILs behind a verify:earlier-fail refusal:
-// no review thread, the notes as work items (`verify_notes`, each an id, the
-// FAILed head, the file its note comment would go on, and that comment's
-// body), which the model fixes or reports already addressed
-// (publish-feedback.mjs). Notes that cannot be read stop the round failing
-// (feedback-verdict-unreadable), never as a success; past the round cap and
-// the fresh fixer's round it stops feedback-verifier-open.
 async function earlierFailRound({ api, pr, headSha, repository, appId, files, issueComments, heads, labeled, maxRounds, earlierFailHeads, readFailNotes, ci, log }) {
   if (touchesProtected(files)) {
     return { decision: "escalate", escalationReason: "feedback-protected-path", threads: [] };
@@ -1177,7 +1158,6 @@ async function earlierFailRound({ api, pr, headSha, repository, appId, files, is
     modelRung: retryRung(await api.listCheckRuns(headSha, REPLY_CHECK)),
     rounds,
     maxRounds: bound,
-    // A gated PR returned awaiting-human before any thread was kept.
     humanGate: labeled ? "lane-escalation" : "",
     threads: [],
     file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), copy_paths: copyPathsFor(files), threads: [], verify_notes: notes },
@@ -1246,16 +1226,11 @@ export async function select({
   maxRounds = DEFAULT_MAX_ROUNDS,
   adoption = NO_ADOPTION,
   ci = async () => undefined,
-  // The FAILed heads behind the merge gate's verify:earlier-fail refusal
-  // (input verify-earlier-fail-heads), and the reader of their notes
-  // (earlier-fail-notes.mjs), for a round with no thread left to work.
   earlierFailHeads = [],
   readFailNotes = async () => {
     throw new Error("no reader of the FAILs' verdict artifacts");
   },
-  // The REST pull request when the caller already read it (pullFromFile).
   pull: given,
-  // The closing issues' spec text (linkedSpec).
   readSpec = async () => [],
   log = () => {},
 }) {
@@ -1266,8 +1241,6 @@ export async function select({
   const reviews = await api.listReviews(pr);
   const reviewComments = await api.listReviewComments(pr);
   const threads = await api.listThreads(pr);
-  // An owner PR whose body gained a `Hold:` line after dispatch is held, as
-  // feedback-dispatch.mjs ownerSkip holds it at dispatch.
   const owner = ownerAuthored(pull, adoption);
   if (owner && HOLD_LINE.test(String(pull.body ?? ""))) {
     return { decision: "skip", skipReason: "awaiting-human", threads: [] };
@@ -1338,8 +1311,6 @@ export async function select({
     if (untaken && owner) {
       return { decision: "skip", skipReason: "not-applicable", threads: kept };
     }
-    // A stop already queued for a session builder on this head stands down:
-    // escalating again would only re-post it. A new head escalates afresh.
     if (untaken && sessionQueued({ labels: pull.labels, issueComments, headSha, isLanesApp })) {
       return { decision: "skip", skipReason: "awaiting-session", threads: kept };
     }
@@ -1373,14 +1344,10 @@ export async function select({
     return { decision: "escalate", escalationReason: "feedback-protected-path", threads: kept };
   }
   const { rounds, checkRuns } = await roundsSoFar(api, pr, issueComments, appId);
-  // The most automatic rounds a PR gets: the cap and the fresh fixer's round.
   const bound = maxRounds + FRESH_FIXER_ROUNDS;
   let worked = kept;
   let retry;
   if (rounds >= maxRounds) {
-    // Past the cap, a trusted person with write access who asked for a fix
-    // after the newest round grants one more round, for the threads they
-    // asked about only.
     const since = lastRoundAt(issueComments, appId, checkRuns);
     const rows = new Map(reviewComments.map((row) => [row.id, row]));
     worked = kept.filter((thread) =>
@@ -1395,14 +1362,6 @@ export async function select({
       }),
     );
     if (worked.length === 0) {
-      // Otherwise a PR a person gated goes to a person: only a fresh fix
-      // request lifts their hold. So does a thread only a person decides
-      // (needsPerson). Every other finding, a security finding rated below
-      // CRITICAL included, goes to a fresh fixer: one more round with
-      // FRESH_ROUND_BRIEF, a new session like every round, reading only the
-      // thread file and the PR head. Once that round has run, no automatic
-      // round ever runs again: the head fails, feedback-verifier-open when
-      // only verifier notes are left, feedback-not-converging otherwise.
       const rootOf = (thread) => rows.get(thread.root_comment_id);
       const spent = rounds >= bound;
       const holds = (thread) => needsPerson(thread, rootOf(thread)?.user?.id);
@@ -1424,8 +1383,6 @@ export async function select({
       thread.named_paths = named;
     }
   }
-  // The closing issues' scope, read only when a kept thread could take a
-  // follow-up reply: an advisory the lane then need not implement.
   const advisory = worked.filter(advisoryFinding);
   const closing = advisory.length > 0 ? contractIssues(await readSpec(), repository).filter((issue) => issue.body !== null || issue.comments.length > 0) : [];
   if (closing.length > 0) {
@@ -1435,14 +1392,9 @@ export async function select({
   }
   return {
     decision: "proceed",
-    // A retry after the reply job stopped on this head runs one rung up.
     modelRung: retryRung(await api.listCheckRuns(headSha, REPLY_CHECK)),
     rounds,
     maxRounds: bound,
-    // The gate the round works past on a PR carrying the human-gated label,
-    // which the write runner's holds read: fix-request when every kept thread
-    // carries a write-access fix request, lane-escalation when a lane
-    // escalation that lets this activity work put the label on.
     humanGate: labeled ? (gated ? "fix-request" : "lane-escalation") : "",
     threads: worked,
     file: {
@@ -1459,7 +1411,6 @@ export async function select({
     },
     reviewedHeads: [...heads].sort(),
     ci: await ci({ headSha, files }),
-    // The body as the select read it, for refreshableSections.
     body: pull.body,
   };
 }
@@ -1581,7 +1532,6 @@ export function sectionRefusal(text) {
 
 const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})/;
 const SECTION_HEADING = /^(#{1,2})[ \t]+(.*?)[ \t]*\r?$/;
-// A heading the review-thread tool and the reply job match by name.
 const HEADING_NAME = /^[\p{L}\p{N} ,.'&()/+-]{1,80}$/u;
 
 // The body's rows (split on \n, each keeping a \r) and its `#` and `##`
@@ -1902,8 +1852,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
   };
   return {
     getPull: async (pr) => requestData(`${repo}/pulls/${pr}`),
-    // A GraphQL answer whole, errors kept for the caller to judge
-    // (fix-ci-context.mjs, for pr-verify's linkedIssues).
     graphqlAnswer: (body) => requestData(graphqlUrl, "POST", body),
     listLabelEvents: (pr) => listLabelEvents({ graphql, repository, number: pr }),
     // Metadata read, which every token holds. A 404 (not a collaborator) is none.
@@ -1924,7 +1872,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     listIssues: (query) => paginate(`issues?${query}`),
     listPullFiles: (pr) => paginate(`pulls/${pr}/files`),
     listIssueComments: (pr) => paginate(`issues/${pr}/comments`),
-    // The REST issue timeline, as gate-source.mjs prHold reads it.
     listTimeline: (pr) => paginate(`issues/${pr}/timeline`),
     listReviews: (pr) => paginate(`pulls/${pr}/reviews`),
     // Written or edited since `since` (GitHub's since query value) when given.
@@ -1994,8 +1941,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       return response.text();
     },
     getCommit: async (sha) => requestData(`${repo}/commits/${sha}`),
-    // A GET of `path` under the API root, for earlier-fail-notes.mjs (actions
-    // and contents read).
     readPath: async (path) => requestData(`${apiUrl}${path}`),
     // An artifact's zip, which redirects to a short-lived download URL; fetch
     // follows it.
@@ -2034,7 +1979,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
     },
     listRequestHistory: async (pr) => requestHistoryOf(await graphql(REQUEST_HISTORY_QUERY, { owner, name, pr })),
-    // The entries of the tree at `${sha}:${dir}`, none when it is no tree.
     async listTree(sha, dir) {
       const object = (await graphql(TREE_QUERY, { owner, name, expression: `${sha}:${dir}` })).repository.object;
       return object?.entries ?? [];
@@ -2046,8 +1990,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         pr: node?.pullRequest?.number,
         commentCount: node?.comments?.totalCount,
         commentIds: (node?.comments?.nodes ?? []).map((comment) => comment.databaseId),
-        // As listThreads' comment nodes, with each body: resolve-threads.mjs
-        // judges the thread again on them.
         isOutdated: node?.isOutdated,
         nodes: node?.comments?.nodes ?? [],
       };
@@ -2076,7 +2018,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     async resolveThread(id) {
       return (await graphql(RESOLVE_MUTATION, { id })).resolveReviewThread.thread.isResolved;
     },
-    // The pull request's node id, and whether it sits in the merge queue.
     async readQueueEntry(pr) {
       const pull = (await graphql(QUEUE_ENTRY_QUERY, { owner, name, pr })).repository.pullRequest;
       return { id: pull.id, queued: pull.mergeQueueEntry !== null };
@@ -2310,7 +2251,6 @@ export async function main(argv, env, { api, actions, plan, readSpec: specReader
       adoption: await ownerAdoption(env, log),
       ci: ({ headSha, files }) => ciSnapshot({ api: client, headSha, files, plan }),
       earlierFailHeads,
-      // Loaded only for such a round: it reads pr-verify's scripts.
       readFailNotes: async ({ heads, files }) => {
         const { earlierFailNotes } = await import("./earlier-fail-notes.mjs");
         return earlierFailNotes({ actions: { read: client.readPath, download: client.downloadArtifact }, repository: env.GITHUB_REPOSITORY, pr, heads, files });
@@ -2321,16 +2261,6 @@ export async function main(argv, env, { api, actions, plan, readSpec: specReader
     });
   };
   if (command === "select" && env.VERIFY_PASS_HEAD) {
-    // A pass-only round (pr-dispatch-feedback.yml after a pr-verify pass):
-    // only the stale fail-note threads, for the reply job to resolve; no
-    // thread for a model, so the round's model jobs and its neutral checks
-    // stay off. With nothing to resolve (as on a rerun after the notes were
-    // resolved by hand), the full select runs for `stop-resolved` alone, so
-    // report-stop-status can clear a stop an earlier attempt left; no
-    // `proceed` or `resolve-only`, so no model or reply job starts. With
-    // VERIFY_SUPERSEDED_HEAD at the head (the dispatcher's verifier read found
-    // the FAIL there superseded), that FAIL's notes are stale too, and
-    // run.json names the head for the reply job's re-check.
     need(env, ["THREAD_FILE", "RUN_FILE"]);
     if (!SHA.test(env.VERIFY_PASS_HEAD)) {
       throw new Error("VERIFY_PASS_HEAD is not a commit id");
@@ -2364,8 +2294,6 @@ export async function main(argv, env, { api, actions, plan, readSpec: specReader
     if (result.file) {
       result.file.body_view = bodyView(result.body);
     }
-    // pr_body_refresh from the base's source-control.yaml (unset is on), and
-    // its pr_body_required_sections list.
     if (result.file && env.BODY_REFRESH !== "false") {
       const names = await bodySectionNames({ listed: env.BODY_SECTIONS, root: ".base", readPath: client.readPath, owner: env.GITHUB_REPOSITORY.split("/")[0], log });
       const sections = names === null ? [] : refreshableSections(result.body, names);
@@ -2388,10 +2316,8 @@ export async function main(argv, env, { api, actions, plan, readSpec: specReader
     output("model-rung", result.modelRung ?? "");
     output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? stopSkip(result.escalationReason) : "");
     output("escalation-reason", result.escalationReason ?? "");
-    // The neutral checks' summary line when the PR stopped at the round cap.
     output("not-run-detail", result.decision === "escalate" && result.maxRounds ? roundLine(result.rounds, result.maxRounds) : "");
     output("stop-resolved", String(result.resolved === true));
-    // resolve-feedback-threads' gate: that job serves only such a PR.
     const pull = pullFromFile(env.PULL_FILE, pr, env.HEAD_SHA);
     output("person-opened", String(pull !== undefined && ownerPull(pull, trustedHumansFrom(env.TRUSTED_ACTORS))));
     log(`${result.decision}: ${result.threads.length} kept thread(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`);
