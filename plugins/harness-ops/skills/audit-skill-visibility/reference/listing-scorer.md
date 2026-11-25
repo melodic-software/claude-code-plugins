@@ -197,3 +197,15 @@ above were last verified 2026-10-04 at 2.1.289, where the entry and floor
 arithmetic reproduced a captured 289-entry listing (149,934 characters) to the
 character. First verified 2026-09-11 at 2.1.263. Recheck when a release note names the
 skill listing, its character budget or its truncation, or a build changes the scorer arithmetic.
+
+## The transcript listing record
+
+`--listing-capture` reads a session transcript's `attachment` line of type
+`skill_listing`, carrying `content` (the rendered listing, entries joined by
+newlines), `names` (entry names in order), `skillCount` and `isInitial`;
+`parse_listing_capture` takes the model from a `model` attachment's
+`identity.modelId`. That shape is not published: it was observed in a Claude
+Code 2.1.289 transcript on 2026-10-04. Recheck it when a release note names
+transcripts or the skill listing, or the reader returns `not-read` on a fresh
+transcript. A shape it does not recognize reports the capture as `not-read`
+with its reason, and the verdict falls back to enumerated coverage.

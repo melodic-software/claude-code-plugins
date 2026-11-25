@@ -252,7 +252,7 @@ shapes it matches live only in the script and its probe evidence, never here.
   install.
 - **Basis**: attended probes on Claude Code 2.1.310 and 2.1.330, recorded in
   `scripts/fixtures/cli-json-results.jsonl`;
-  [JSON result format](https://code.claude.com/docs/en/plugins/cli-reference#json-result-format).
+  [JSON result format](https://code.claude.com/docs/en/plugins/cli-reference#plugin-json-result).
 - **As of**: 2026-11-22
 - **Recheck trigger**: a Claude Code release adds a field for the required count or the
   disabled-by-default sentence, renames `unsetOptionCount`, or changes `updateOutcome`'s values.
