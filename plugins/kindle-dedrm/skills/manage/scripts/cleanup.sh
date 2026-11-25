@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Git Bash sets the Windows env vars at runtime.
 # shellcheck disable=SC2154
 
 set -uo pipefail
@@ -45,6 +46,7 @@ run_or_show() {
   if [[ "${DRY_RUN}" -eq 1 ]]; then
     echo "[DRY-RUN] would run: $*"
   else
+    # Callers pass shell strings with redirections and pipes, not array args.
     # shellcheck disable=SC2294
     eval "$@"
   fi

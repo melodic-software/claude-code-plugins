@@ -265,8 +265,12 @@ NSHIM="$WORK/ns-shim"
 mkdir -p "$NSHIM"
 NS_LOG="$WORK/notify-send.log"
 { printf '#!/usr/bin/env bash\necho Linux\n'; } >"$NSHIM/uname"
-# shellcheck disable=SC2016
-printf '#!/usr/bin/env bash\nfor a in "$@"; do printf "ARG=[%%s]\\n" "$a"; done >%q\n' "$NS_LOG" >"$NSHIM/notify-send"
+{
+  printf '#!/usr/bin/env bash\nlog=%q\n' "$NS_LOG"
+  cat <<'EOF'
+for a in "$@"; do printf 'ARG=[%s]\n' "$a"; done >"$log"
+EOF
+} >"$NSHIM/notify-send"
 chmod +x "$NSHIM/uname" "$NSHIM/notify-send"
 (cd "$UNRELATED" && printf '%s' "$IN_EVIL" |
   env -u HOOK_TELEMETRY_SINK -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED \

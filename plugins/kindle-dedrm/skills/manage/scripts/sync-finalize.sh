@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Git Bash sets the Windows env vars at runtime.
 # shellcheck disable=SC2154
 
 set -uo pipefail
@@ -14,6 +15,7 @@ if grep -qi kindle < <(powershell.exe -NoProfile -Command "Get-Process Kindle -E
   exit 1
 fi
 
+# $env:LOCALAPPDATA is expanded by PowerShell, not bash.
 # shellcheck disable=SC2016
 KINDLE_VER=$(powershell.exe -NoProfile -Command '(Get-Item "$env:LOCALAPPDATA\Amazon\Kindle\application\Kindle.exe").VersionInfo.FileVersion' 2>/dev/null | tr -d '\r\n ')
 if [[ "${KINDLE_VER}" != "2.8.0.70980" ]]; then

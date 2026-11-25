@@ -93,6 +93,7 @@ cfg_scalar() {
       command -v jq >/dev/null 2>&1 || continue
       _cfg_v="$(jq -r --arg k "$_cfg_key" 'getpath($k | split(".")) // empty' "$_cfg_layer" 2>/dev/null)" || continue
     fi
+    # A native Windows jq.exe writes CRLF: https://jqlang.org/manual/ (--binary).
     _cfg_v="${_cfg_v//$'\r'/}"
     [[ -n "$_cfg_v" ]] || continue
     [[ -z "$_cfg_ere" || "$_cfg_v" =~ $_cfg_ere ]] || continue

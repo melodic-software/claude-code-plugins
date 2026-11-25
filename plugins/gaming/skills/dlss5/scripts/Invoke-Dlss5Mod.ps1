@@ -550,6 +550,8 @@ function Assert-Acknowledged($acr, $name) {
     if (-not $AcceptAntiCheatRisk) { throw "refusing: $found. Installing anyway is at the user's own risk and needs -AcceptAntiCheatRisk '$name' with -AntiCheatResearch and -AntiCheatSources; nothing was changed" }
     if (-not (NormName $name) -or (NormName $AcceptAntiCheatRisk) -ne (NormName $name)) { throw "refusing: acknowledgement '$AcceptAntiCheatRisk' does not match the game name '$name'; nothing was changed" }
     if ($AntiCheatReviewId -ne $acr.reviewId) { throw "refusing: the anti-cheat result changed since the review (reviewed '$AntiCheatReviewId', now '$($acr.reviewId)'). $found. Rerun assess and the review; nothing was changed" }
+    # pwsh -File passes an array parameter as one string.
+    # https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_pwsh
     $src = @($AntiCheatSources -split ',\s*(?=https?://)' | ForEach-Object Trim | Where-Object { $_ })
     if (-not "$AntiCheatResearch".Trim() -or -not $src -or @($src | Where-Object { $_ -notmatch '^https://\S+$' }).Count) {
         throw 'refusing: an acknowledgement needs -AntiCheatResearch (the ban and block research summary) and -AntiCheatSources with one or more https:// URLs; nothing was changed'

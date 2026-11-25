@@ -28,6 +28,8 @@ unrecorded.
 
 Only `negation` rows are emitted (the one shape carrying a severity-crosswalk
 row); all other shapes are counted as declined and left to the human report.
+
+Exit: 0 written (also with zero emittable findings); 2 usage error; 3 --from holds no detect.sh blocks.
 EOF
 }
 

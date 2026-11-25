@@ -29,6 +29,8 @@ stage() {
   printf '%s' "$w/plan.md"
 }
 
+# BSD sed -i requires an extension argument, so in-place edits use a temp file.
+# https://man.freebsd.org/cgi/man.cgi?query=sed&sektion=1
 inplace() {
   f="$1"
   shift

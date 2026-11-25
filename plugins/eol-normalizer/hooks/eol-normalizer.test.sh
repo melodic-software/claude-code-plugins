@@ -67,6 +67,7 @@ ROW_ARGS_RUN=()
 while IFS= read -r row_arg; do
   # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
   ROW_ARGS_RUN+=("${row_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$ROWGATE/root}")
+# A native Windows jq.exe writes CRLF: https://jqlang.org/manual/ (--binary).
 done < <(jq -r '.args[]' <<<"$ROW_JSON" | tr -d '\r')
 
 run_opt() {

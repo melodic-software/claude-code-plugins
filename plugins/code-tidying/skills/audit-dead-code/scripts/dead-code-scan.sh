@@ -364,8 +364,6 @@ lane_knip() {
   # root_nested is read through a nameref, which shellcheck cannot see.
   # shellcheck disable=SC2034
   local -a roots=() root_nested=() owned_ts=() repo_owned=()
-  # KNIP_SEEN is read through a nameref, which shellcheck cannot see.
-  # shellcheck disable=SC2034
   local -A KNIP_SEEN=()
   local owned_rel ts_left
   mapfile -t roots < <(project_roots package.json)
@@ -525,8 +523,6 @@ lane_gopls() {
   # root_nested is read through a nameref (SC2034); mod_files is expanded below.
   # shellcheck disable=SC2034
   local -a roots=() mod_files=() root_nested=() repo_owned=()
-  # GOPLS_SEEN is read through a nameref, which shellcheck cannot see.
-  # shellcheck disable=SC2034
   local -A GOPLS_SEEN=()
   local owned_rel go_left
   mapfile -t roots < <(project_roots go.mod)

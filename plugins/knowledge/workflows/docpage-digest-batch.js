@@ -160,6 +160,8 @@ const B_REASON = 'the batch path has no cross-vendor arm: codex:codex-rescue ret
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
+// Before Claude Code v2.1.321, `best` resolves to Fable.
+// https://code.claude.com/docs/en/model-config#version-history
 const FRONTIER = ['fable', 'best']
 const FALLBACK_ROLES = {
   worker: { fanout: { model: 'opus', effort: 'medium' } },

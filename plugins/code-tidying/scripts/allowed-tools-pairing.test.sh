@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/code-tidying/skills/*.md plugins/code-tidying/skills/*/scripts/*
+# Single-quoted ${…} are literals searched for verbatim in skill frontmatter.
 # shellcheck disable=SC2016
 set -uo pipefail
 

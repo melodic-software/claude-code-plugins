@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Kept out of SKILL.md: skill bodies substitute `$N` (https://code.claude.com/docs/en/skills).
 # Exit 1 when git status is unavailable; callers supply their own fallback text.
 set -u
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Exit codes: 0 = success, 1 = failure, 2 = path doesn't exist
 
+# Git Bash sets the Windows env vars at runtime.
 # shellcheck disable=SC2154
 
 set -uo pipefail
