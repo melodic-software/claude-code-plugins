@@ -39,10 +39,11 @@ function userConfigFile(values) {
 async function run(args, deps = {}) {
   const out = [];
   const err = [];
-  const base = ["--data-dir", deps.dataDir ?? FIXTURES, "--project", deps.project ?? EMPTY_REPO, "--home", HOME];
+  const base = [...(deps.shippedDataDir ? [] : ["--data-dir", deps.dataDir ?? FIXTURES]), "--project", deps.project ?? EMPTY_REPO, "--home", HOME];
   if (deps.userConfig) base.push("--user-config", userConfigFile(deps.userConfig));
   const code = await main([...base, ...args], {
     fetch: deps.fetch,
+    shippedDataDir: deps.shippedDataDir,
     out: (line) => out.push(line),
     err: (line) => err.push(line),
   });
@@ -230,6 +231,27 @@ test("the --source-bar flag overrides every settings layer for one run", async (
   const project = repo({ [TEAM]: "source_bar: official-plus-confirming\n" });
   const { records } = await run(["--source-bar", "official"], { project });
   assert.equal(records.length, 3);
+});
+
+test("a missing shipped data directory is an empty catalog: exit 1, one info note, no error", async () => {
+  const { code, records, errors } = await run(["anything"], { shippedDataDir: join(scratch, "no-such-data") });
+  assert.equal(code, 1);
+  assert.deepEqual(records, []);
+  assert.deepEqual(errors.map((e) => [e.level, e.event]), [["info", "catalog empty"]]);
+});
+
+test("an empty shipped data directory reads the same as a missing one", async () => {
+  const empty = join(scratch, "empty-data");
+  mkdirSync(empty);
+  const { code, errors } = await run([], { shippedDataDir: empty });
+  assert.equal(code, 1);
+  assert.deepEqual(errors.map((e) => [e.level, e.event]), [["info", "catalog empty"]]);
+});
+
+test("an unreadable --data-dir the caller passed is still an error", async () => {
+  const { code, errors } = await run(["anything"], { dataDir: join(scratch, "typo-data") });
+  assert.equal(code, 1);
+  assert.deepEqual(errors.map((e) => [e.level, e.event]), [["error", "data directory unreadable"]]);
 });
 
 test("a term that names no record exits 1 with nothing on stdout", async () => {

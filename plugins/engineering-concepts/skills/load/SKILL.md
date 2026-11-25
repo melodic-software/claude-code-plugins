@@ -37,6 +37,8 @@ an entry's stage and concern, name the entry and its counterweight together, so 
 alone.
 
 - Nothing matched (exit 1): say so with the argument tried, and load nothing.
+- Exit 1 with a stderr line `"event":"catalog empty"`: the plugin ships no curated concepts yet.
+  Tell the user the catalog has no entries to load, and keep no list as standing context.
 - A stderr line with `"event":"record rejected"` names a broken data file at its `at` location:
   report it and load the records that parsed. One with `"event":"setting rejected"` names a
   dropped settings value: report it.

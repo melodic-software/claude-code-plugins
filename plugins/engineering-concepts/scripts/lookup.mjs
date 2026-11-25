@@ -60,7 +60,7 @@ const OPTIONS = {
   exclude: { type: "string", multiple: true, default: [] },
   "source-bar": { type: "string" },
   "check-sources": { type: "boolean", default: false },
-  "data-dir": { type: "string", default: DATA_DIR },
+  "data-dir": { type: "string" },
   project: { type: "string" },
   "user-config": { type: "string" },
   home: { type: "string", default: homedir() },
@@ -82,14 +82,20 @@ function rejection(record) {
   return null;
 }
 
-export function loadIndex(dataDir, err) {
+/** `shipped` marks the plugin's own data/, which is absent or empty until curated records ship. */
+export function loadIndex(dataDir, err, { shipped = false } = {}) {
   const byId = new Map();
   const byName = new Map();
   let files = [];
   try {
     files = readdirSync(dataDir).filter((f) => f.endsWith(".jsonl")).sort();
   } catch (e) {
-    err(JSON.stringify({ level: "error", event: "data directory unreadable", dir: dataDir, code: e.code }));
+    if (!(shipped && e.code === "ENOENT")) {
+      err(JSON.stringify({ level: "error", event: "data directory unreadable", dir: dataDir, code: e.code }));
+    }
+  }
+  if (shipped && files.length === 0) {
+    err(JSON.stringify({ level: "info", event: "catalog empty", dir: dataDir, note: "no curated concepts ship yet" }));
   }
   for (const file of files) {
     const path = join(dataDir, file);
@@ -182,7 +188,10 @@ function gitRoot(dir) {
   return r.status === 0 ? r.stdout.trim() : dir;
 }
 
-export async function main(argv, { fetch: fetchImpl = globalThis.fetch, out = console.log, err = console.error } = {}) {
+export async function main(
+  argv,
+  { fetch: fetchImpl = globalThis.fetch, out = console.log, err = console.error, shippedDataDir = DATA_DIR } = {},
+) {
   const invalid = (option, value, allowed, error) => {
     err(JSON.stringify({ level: "error", event: "invalid option", option, value, ...(allowed && { allowed }), ...(error && { error }) }));
     return 2;
@@ -213,7 +222,7 @@ export async function main(argv, { fetch: fetchImpl = globalThis.fetch, out = co
   const settings = resolveSettings({ projectRoot: resolvePath(opts.project ?? gitRoot(process.cwd())), userConfig, userHome: opts.home, err });
   const filters = { ...opts, "source-bar": opts["source-bar"] ?? settings.source_bar, exclude: [...settings.exclude, ...opts.exclude] };
 
-  const index = loadIndex(opts["data-dir"], err);
+  const index = loadIndex(opts["data-dir"] ?? shippedDataDir, err, { shipped: opts["data-dir"] === undefined });
   let records = select(index, positionals.join(" ").trim(), filters).map((r) => present(index, r));
   if (opts["check-sources"]) records = await checkSources(records, fetchImpl);
   for (const record of records) out(JSON.stringify(record));

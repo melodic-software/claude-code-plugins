@@ -5,8 +5,8 @@
       "why": "qualified name with args"
     },
     {
-      "answer": [{"tool": "Skill", "input": {"skill": "lookup"}}],
-      "why": "bare name"
+      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:lookup"}}],
+      "why": "qualified name without args"
     }
   ],
   "fail": [
@@ -15,12 +15,16 @@
       "why": "no call: the likely no-plugin run"
     },
     {
-      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:load", "args": "single responsibility principle"}}],
-      "why": "the sibling skill"
+      "answer": [{"tool": "Skill", "input": {"skill": "context7:lookup", "args": "single responsibility principle"}}],
+      "why": "the other plugin's lookup, the realistic wrong pick"
     },
     {
-      "answer": [{"tool": "Skill", "input": {"skill": "context7:lookup-docs"}}],
-      "why": "a different skill whose name starts with lookup"
+      "answer": [{"tool": "Skill", "input": {"skill": "lookup"}}],
+      "why": "bare name, ambiguous between context7 and engineering-concepts"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:load", "args": "single responsibility principle"}}],
+      "why": "the sibling skill"
     }
   ]
 }

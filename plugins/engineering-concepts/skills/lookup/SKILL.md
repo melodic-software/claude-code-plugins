@@ -33,6 +33,9 @@ counterweights and conflicts by name; say which filters you applied.
 
 - Exit 1 means nothing matched: say so and name the term and filters tried, never a concept from
   memory presented as a catalog entry.
+- Exit 1 with a stderr line `"event":"catalog empty"` means the plugin ships no curated concepts
+  yet. Tell the user the catalog has no entries, so no lookup can match; a general answer from
+  your own knowledge is fine only when labeled as not from the catalog.
 - A stderr line with `"event":"record rejected"` names a broken data file at its `at` location;
   one with `"event":"setting rejected"` names a settings value that was dropped. Report either
   beside the results.

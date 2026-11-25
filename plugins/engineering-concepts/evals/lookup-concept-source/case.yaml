@@ -4,5 +4,5 @@ graders:
   - name: 'routes-lookup'
     type: 'tool_used'
     tool: 'Skill'
-    input_match: '"skill"\s*:\s*"(?:engineering-concepts:)?lookup"'
+    input_match: '"skill"\s*:\s*"engineering-concepts:lookup"'
     arm: 'with-only'
