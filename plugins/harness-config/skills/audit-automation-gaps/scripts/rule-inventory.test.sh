@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# test-scope: plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md plugins/harness-config/lib/yaml-subset.awk plugins/harness-config/lib/resolve-convention-home.sh
+# test-scope: plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md plugins/harness-config/lib/yaml-subset.awk plugins/harness-config/lib/resolve-convention-home.sh plugins/harness-config/scripts/org-standards.sh
 # shellcheck disable=SC2016
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
+unset STANDARDS_DIR
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -149,6 +150,21 @@ assert_line "R: linked criteria file row" "$rows" "$(printf 'A hook that blocks 
 assert_no "R: unlinked file not read" "$rows" "docs/review/orphan.md"
 assert_eq "R: three review rows" 3 "$(grep -c $'\tautomated-review\t' <<<"$rows")"
 assert_line "R: files read named" "$(bash "$GEN" --root "$R")" "- review: 4 review-criteria file(s) read"
+
+mkdir -p "$TMP/org"
+printf -- '- Org rule.\n' >"$TMP/org/REVIEW.md"
+rows="$(STANDARDS_DIR="$TMP/org" bash "$GEN" --root "$R" --rows)"
+assert_line "O: org criteria row" "$rows" "$(printf 'Org rule.\tREVIEW.md in effect:1\tautomated-review\t4')"
+assert_line "O: repository criteria appended" "$rows" "$(printf 'Flag a retry loop with no cap.\tREVIEW.md in effect:5\tautomated-review\t4')"
+
+U="$TMP/org-unreachable"
+new_repo "$U"
+mkdir -p "$U/docs/conventions"
+printf 'standards_repository: acme/standards\n' >"$U/docs/conventions/source-control.yaml"
+commit_all "$U"
+out="$(ORG_STANDARDS_CACHE="$TMP/org-cache" ORG_STANDARDS_GIT_BASE="$TMP/no-such-forge" bash "$GEN" --root "$U")"
+assert_line "U: an unreachable org layer is named, not dropped" "$out" \
+  "- review: the REVIEW.md in effect did not resolve (org-standards: cannot clone $TMP/no-such-forge/acme/standards.git; no org layer this run)"
 
 D="$TMP/records"
 new_repo "$D"

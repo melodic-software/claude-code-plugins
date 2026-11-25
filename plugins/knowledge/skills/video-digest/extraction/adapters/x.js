@@ -161,7 +161,6 @@ const X_CAPTION_CLASS = "platform-asr";
 /** Literal marker of X's word-timing caption tags (kept verbatim on disk). */
 const X_WORD_TIMING_TAG_MARKER = "<X-word-ms";
 
-/** Backup suffix (never `.vtt`/`.srt`) holding tagged originals until cleanup succeeds. */
 const TAGGED_CAPTION_BACKUP_SUFFIX = ".tagged-original";
 
 const X_OWNED_HOSTS = Object.freeze(["x.com", "twitter.com"]);

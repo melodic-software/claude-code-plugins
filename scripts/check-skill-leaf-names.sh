@@ -202,9 +202,6 @@ for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | so
   fi
 done
 
-# Stale guard: a registry entry that no longer collides has outlived its reason
-# and would otherwise silently pre-authorize a future collision on that name.
-# scripts/lib/read-list.sh owns the consumed-set and the diagnostic.
 # shellcheck disable=SC2310  # the non-zero return IS the stale verdict this reads
 read_list::report_stale registered_leaves "$registry" \
   'is no longer carried by 2+ plugins. Drop the entry.' || failed=1

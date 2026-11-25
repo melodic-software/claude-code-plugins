@@ -44,7 +44,6 @@ from typing import Any
 import diff_risk
 from babysit_gh import fetch_paginated_api, gh_capture
 
-# The reasons comment babysit_merge.py writes; the record lives in it.
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 RECORD_PREFIX = "Whole review requested at head `"
 RECORD_RE = re.compile(
@@ -56,7 +55,6 @@ MAX_TOGGLES = 2
 CONVERT_WINDOW = timedelta(minutes=10)
 CONVERT_SKEW = timedelta(minutes=1)
 SPENT_ENV = "BABYSIT_WHOLE_REVIEW_SPENT"
-# The job's own token (GITHUB_TOKEN), which also reads the runs.
 JOB_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 MAX_RUNNING_JOBS = 35
 # The share of each rate-limit bucket that must be left: 1,500 of 5,000, 300
@@ -323,7 +321,6 @@ def toggle(
     return {"toggled": False, "error": "stranded-draft: mark-ready failed"}
 
 
-# The newest 100: past that the cap is long reached.
 CONVERSIONS = (
     "query($id: ID!) { node(id: $id) { ... on PullRequest {"
     " timelineItems(itemTypes: [CONVERT_TO_DRAFT_EVENT], last: 100)"
@@ -360,8 +357,6 @@ def lane_toggles(node_id: str, identity: str) -> int | None:
 
 
 def _converter(node_id: str) -> tuple[str, datetime] | None:
-    """Who made the newest conversion to draft and when (server time), or
-    None when unread."""
     nodes = _conversions(node_id)
     if not nodes:
         return None

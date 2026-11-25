@@ -1443,8 +1443,6 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         )
 
     def test_an_earlier_fail_refusal_names_the_failed_head(self) -> None:
-        # pr-unblock verify-cap.mjs hands these heads to address-feedback,
-        # which works their notes from the verdict artifacts.
         evidence = read(self.merge_only(superseded=False))
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
@@ -6819,8 +6817,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.read.assert_not_called()
 
     def test_a_real_dependabot_pull_request_is_refused_before_the_reader(self) -> None:
-        # The real lane eligibility over a dependabot[bot]-authored pull
-        # request (babysit_merge_policy._foreign_refusal).
         self.lane_eligible = None
         node = {
             "number": unattended.PR,
@@ -7407,7 +7403,6 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
                 self.assertEqual(evidence.refusal, "verify:missing")
                 self.assertEqual(evidence.report()["earlierFails"], [])
                 self.assertEqual(downloads(fake), 0)
-        # The same name from a run of verifier origin holds.
         fake = FakeGitHub(
             [artifact(named(TIE, "fail", 97) + f"-{DIGEST_X}", 4)], {4: run(4)}
         )

@@ -175,8 +175,6 @@ describe.skipIf(process.platform === "win32")("clone groups and an abnormal pare
     expect(liveCloneGroupCount()).toBe(0);
   });
 
-  // "during spawn" holds the parent busy after the clone starts and before spawn
-  // returns, so the signal lands in the window before the clone could be tracked.
   it.each([
     ["SIGTERM", "after spawn", 0],
     ["SIGINT", "after spawn", 0],

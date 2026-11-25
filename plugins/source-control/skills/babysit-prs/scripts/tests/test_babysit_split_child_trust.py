@@ -36,8 +36,6 @@ TIPS = {
     branch: {"sha": digit * 40, "type": "commit"}
     for branch, digit in (("main", "a"), ("trunk", "b"), ("feature-x", "c"))
 }
-# The `task-list` of `.github/actions/resolve-config/admission-rules.json`,
-# which the fake serves as the branch's rules.
 TASK_LIST = json.loads(
     (VECTORS.parents[2] / "actions/resolve-config/admission-rules.json").read_text(
         encoding="utf-8"

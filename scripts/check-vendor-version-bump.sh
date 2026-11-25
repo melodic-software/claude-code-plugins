@@ -69,9 +69,6 @@ if ! gate_entry::classify "$@"; then
   exit 2
 fi
 base="$GE_REF"
-# Compare against the fork point, not the tip of the base: a branch behind its
-# base would otherwise count the base's own later changes as its changes. $base
-# stays the name the messages print.
 if ! mb="$(git merge-base "$base" HEAD)"; then
   echo "$self: 'git merge-base $base HEAD' failed (no common ancestor, or history not fetched deeply enough); refusing to pass without checking." >&2
   exit 2

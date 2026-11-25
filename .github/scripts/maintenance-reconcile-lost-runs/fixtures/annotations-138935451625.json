@@ -1,0 +1,26 @@
+[
+  {
+    "annotation_level": "failure",
+    "message": "Failed to download archive 'https://codeload.github.com/melodic-software/ci-workflows/tar.gz/d5a6ee5a4fc776e7b44353c7d3bb52d81d18c25a' after 3 attempts."
+  },
+  {
+    "annotation_level": "failure",
+    "message": "Action 'https://codeload.github.com/melodic-software/ci-workflows/tar.gz/d5a6ee5a4fc776e7b44353c7d3bb52d81d18c25a' download has timed out. Error: The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing. "
+  },
+  {
+    "annotation_level": "warning",
+    "message": "Back off 10.139 seconds before retry."
+  },
+  {
+    "annotation_level": "warning",
+    "message": "Failed to download action 'https://codeload.github.com/melodic-software/ci-workflows/tar.gz/d5a6ee5a4fc776e7b44353c7d3bb52d81d18c25a'. Error: The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing. "
+  },
+  {
+    "annotation_level": "warning",
+    "message": "Back off 19.023 seconds before retry."
+  },
+  {
+    "annotation_level": "warning",
+    "message": "Failed to download action 'https://codeload.github.com/melodic-software/ci-workflows/tar.gz/d5a6ee5a4fc776e7b44353c7d3bb52d81d18c25a'. Error: The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing. "
+  }
+]

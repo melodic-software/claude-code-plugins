@@ -49,8 +49,6 @@ readonly EX_SPEC=3
 # and `emit` marks it executable.
 SHEBANG='#!/usr/bin/env bash'
 
-# The adapter verb surface (CONTRACT.md "Adapter contract"): the core public set
-# minus list-frontier, status-storage and wayfind-labels (core-derived), plus list-items.
 readonly ADAPTER_VERBS=(
   create-item get-item claim renew-lease release reclaim link-blocks
   add-sub-item list-items list-sub-items label-provenance set-fields get-field-options get-statuses
@@ -70,8 +68,6 @@ die_spec() {
   exit "$EX_SPEC"
 }
 
-# --- arguments ---
-
 SPEC=""
 OUT_ROOT=""
 FORCE=0
@@ -84,10 +80,6 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  # An EMPTY value is rejected, not just a missing one. `--out-root ""` would
-  # otherwise be indistinguishable from "no --out-root given" and fall through to
-  # the repo-root default — so a caller whose variable failed to expand would
-  # generate into the current repository instead of where it meant to.
   --spec)
     [[ $# -ge 2 && -n "$2" ]] || die_usage "--spec needs a non-empty value"
     SPEC="$2"
@@ -124,9 +116,6 @@ fi
 
 SPEC_JSON="$(jq -c . "$SPEC" 2>/dev/null)" || die_spec "not valid JSON"
 
-# --- spec validation ---
-
-# sget <jq-path> — a raw string field, empty when absent.
 sget() { jq -r "$1 // empty" <<<"$SPEC_JSON"; }
 
 SPEC_VERSION="$(sget '.spec_version')"
@@ -202,9 +191,6 @@ SAMPLE_SCOPE="$(sget '.api.sample_scope')"
 # script's own default scope_pattern.
 [[ "$SAMPLE_SCOPE" =~ ^[A-Za-z0-9][A-Za-z0-9._~/-]*$ ]] ||
   die_spec "api.sample_scope must be letters, digits, and . _ ~ / - only, starting alphanumeric (found: $SAMPLE_SCOPE) — it is substituted literally into generated shell, including a double-quoted argument where \$(…) would execute and a \" would break out"
-# The pattern match second, and it is NOT redundant: the charset says the sample is
-# inert, this says the sample is representative. A fixture that fails the provider's
-# own scope guard would make the generated adapter fail its own tests on birth.
 [[ "$SAMPLE_SCOPE" =~ $SCOPE_PATTERN ]] ||
   die_spec "api.sample_scope '$SAMPLE_SCOPE' does not match api.scope_pattern '$SCOPE_PATTERN'"
 
@@ -221,9 +207,6 @@ if [[ -n "$HOST_SUFFIX" && "$SAMPLE_HOST" != *"$HOST_SUFFIX" ]]; then
   die_spec "api.sample_host '$SAMPLE_HOST' is not under api.host_suffix '$HOST_SUFFIX' — the generated fixture would fail its own guard"
 fi
 
-# Verbs: exactly the adapter surface, every value a boolean. A missing key is not
-# defaulted to false — an unlisted verb means the spec was written against a different
-# contract revision, and guessing would produce a manifest that lies.
 for v in "${ADAPTER_VERBS[@]}"; do
   got="$(jq -r --arg v "$v" '.verbs[$v] | type' <<<"$SPEC_JSON" 2>/dev/null)"
   [[ "$got" == "boolean" ]] ||
@@ -272,10 +255,6 @@ check_coherence() {
   ft() { jq -r --arg k "$1" '.features[$k]' <<<"$SPEC_JSON"; }
   lm() { jq -r --arg k "$1" '.limits[$k]' <<<"$SPEC_JSON"; }
 
-  # Leases are the claim protocol; the three verbs stand or fall together, because a
-  # claim that cannot be renewed or reclaimed strands the item at TTL expiry. `release`
-  # is optional (CONTRACT.md "Release": capability-gated, exit 6 when false): declaring
-  # it requires leases, but leases do not require it.
   for v in claim renew-lease release reclaim; do
     if [[ "$(vb "$v")" == "true" && "$(ft leases)" != "true" ]]; then
       bad+=$'\n'"  verbs[\"$v\"]=true but features.leases=false"
@@ -288,15 +267,11 @@ check_coherence() {
     done
   fi
 
-  # Sub-item verbs and the sub_items feature likewise describe one capability.
   for v in add-sub-item list-sub-items; do
     if [[ "$(vb "$v")" == "true" && "$(ft sub_items)" != "true" ]]; then
       bad+=$'\n'"  verbs[\"$v\"]=true but features.sub_items=false"
     fi
   done
-  # Limits are checked against 0 only. `null` means "supported, no provider-enforced
-  # ceiling" and is compatible with the capability being ON — it is what a provider
-  # that caps nothing declares instead of inventing a plausible number.
   if [[ "$(ft sub_items)" != "true" && "$(lm sub_items_per_parent)" != "0" ]]; then
     bad+=$'\n'"  features.sub_items=false but limits.sub_items_per_parent=$(lm sub_items_per_parent) (a ceiling on something declared unsupported; use 0)"
   fi
@@ -304,8 +279,6 @@ check_coherence() {
     bad+=$'\n'"  features.sub_items=true but limits.sub_items_per_parent=0 (no container could hold a child; use null for no ceiling)"
   fi
 
-  # verb_limit <verb> <limit> <hint>: a declared verb needs a nonzero limit, and an
-  # undeclared one needs the limit at 0; <hint> follows the first complaint.
   verb_limit() {
     local limit
     limit="$(lm "$2")"
@@ -315,11 +288,7 @@ check_coherence() {
       [[ "$limit" == "0" ]] || bad+=$'\n'"  verbs[\"$1\"]=false but limits.$2=$limit (use 0)"
     fi
   }
-  # list-items is what the core derives list-frontier from; without it the seam can
-  # enumerate nothing, and its declared ceiling must be a real one.
   verb_limit list-items list_items_max "pagination must have a real ceiling; use null only if the provider truly returns everything"
-  # link-blocks is how blocked_by edges are written; without cross_repo_edges the
-  # ceiling on dependencies is still meaningful, so only the verb/limit pair is checked.
   verb_limit link-blocks dependencies_per_type "use null when the provider enforces no ceiling"
 
   if [[ -n "$bad" ]]; then
@@ -334,9 +303,6 @@ if [[ "$(jq -r '.verbs["list-items"]' <<<"$SPEC_JSON")" != "true" ]]; then
   printf 'generate-adapter.sh: note: verbs["list-items"]=false, so list-frontier can never succeed for this provider (exit 6 at the capability gate). Intentional for a consume-only adapter.\n' >&2
 fi
 
-# --- derived values ---
-
-# The contract version is the SEAM's, never the spec's — see the header.
 SEAM_JSON_LIB="$SEAM_DIR/lib/json.sh"
 [[ -f "$SEAM_JSON_LIB" ]] ||
   die_usage "seam lib not found: $SEAM_JSON_LIB (set WIT_SEAM_DIR)"
@@ -344,21 +310,12 @@ SEAM_JSON_LIB="$SEAM_DIR/lib/json.sh"
 source "$SEAM_JSON_LIB"
 SCHEMA_VERSION="$WIT_SCHEMA_VERSION"
 
-# The ID grammar is likewise the seam's, sourced rather than restated — a second
-# copy here would drift and the generated fixtures would validate against a grammar
-# the engine no longer uses.
 SEAM_ID_LIB="$SEAM_DIR/lib/id.sh"
 [[ -f "$SEAM_ID_LIB" ]] ||
   die_usage "seam lib not found: $SEAM_ID_LIB (set WIT_SEAM_DIR)"
 # shellcheck source=../../../tools/work-item-tracker/lib/id.sh
 source "$SEAM_ID_LIB"
 
-# A sample fully-qualified id seeds the generated fixtures. The grammar is
-# <provider>:<owner>/<repo>#<n> — exactly two path segments — so it cannot simply be
-# composed from host and scope: a scope like `acme/webapp` already carries the whole
-# owner/repo pair, while one like `SW2` is a bare project key that needs the host in
-# front of it. Default accordingly, and let the spec state it outright when neither
-# shape fits.
 if [[ "$SAMPLE_SCOPE" == */* && "$SAMPLE_SCOPE" != */*/* ]]; then
   default_sample_id="$PROVIDER:$SAMPLE_SCOPE#12"
 else
@@ -369,14 +326,8 @@ SAMPLE_ID="$(jq -r --arg d "$default_sample_id" '.api.sample_id // $d' <<<"$SPEC
   die_spec "api.sample_id '$SAMPLE_ID' is not a well-formed id (<provider>:<owner>/<repo>#<n>) — set api.sample_id explicitly when neither host nor scope yields one"
 [[ "${BASH_REMATCH[1]}" == "$PROVIDER" ]] ||
   die_spec "api.sample_id '$SAMPLE_ID' names provider '${BASH_REMATCH[1]}', not '$PROVIDER'"
-# The generated test asserts the parsed number, so it has to come from the sample id
-# rather than a constant.
 SAMPLE_ID_NUMBER="${SAMPLE_ID##*#}"
 
-# These are substitution VALUES, so they interpolate $DISPLAY_NAME directly rather than
-# carrying an @@…@@ placeholder: render() walks its key list once, and a placeholder
-# inserted by a later key is never revisited — it would reach the generated file
-# verbatim.
 if [[ -n "$HOST_SUFFIX" ]]; then
   HOST_SUFFIX_DOC="\`$HOST_SUFFIX\` (the provider's own domain)"
   HOST_PIN_POSTURE="pinned in code to \`$HOST_SUFFIX\`. A binding naming a host outside it is refused unless \`allow_custom_domain\` is set."
@@ -385,26 +336,18 @@ else
   HOST_PIN_POSTURE="**no code-level pin.** $DISPLAY_NAME is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defense is that \`host\` lives in a tracked, review-gated file. Set \`config.$CONFIG_KEY.host_suffix\` in your binding to pin it to your own instance — recommended."
 fi
 
-# --- auth scheme rendering ---
-# Each scheme differs in exactly four places; keeping them together here beats a
-# template per scheme.
-
 AUTH_CONFIG_READ=""
 AUTH_CONFIG_REQUIRE=""
 AUTH_EXPORT_EXTRA=""
 SAMPLE_AUTH_EXTRA=""
 SAMPLE_AUTH_EXTRA_DOC=""
 AUTH_DOC_ROW=""
-# Extra conformance-binding wiring for schemes that need a config value beyond host,
-# scope, and the credential env var. Empty for every scheme that does not.
 AUTH_CONFORMANCE_REQUIRE=""
 AUTH_CONFORMANCE_JQARG=""
 CONFORMANCE_AUTH_EXTRA=""
 
 case "$AUTH_SCHEME" in
 raw)
-  # The bare Authorization value with no scheme word. Its own scheme rather than an empty
-  # prefix, so the generated header cannot come out with a stray leading space.
   AUTH_DESCRIPTION="a $DISPLAY_NAME API key sent as the bare \`Authorization\` value, with no scheme word"
   AUTH_HEADER_EXPECT="\"Authorization: \$SECRET\""
   AUTH_HELPERS="
@@ -442,8 +385,6 @@ basic)
   AUTH_CONFIG_READ="  WIT_${PROVIDER_UPPER}_AUTH_USER=\"\$(jq -r '.config.$CONFIG_KEY.auth_user // empty' <<<\"\$ejson\")\""
   AUTH_CONFIG_REQUIRE="  [[ -n \"\$WIT_${PROVIDER_UPPER}_AUTH_USER\" ]] || missing+=\" config.$CONFIG_KEY.auth_user\""
   AUTH_EXPORT_EXTRA=" WIT_${PROVIDER_UPPER}_AUTH_USER"
-  # Two consumers, two values: the offline fixture takes a literal, while the conformance
-  # binding must read the identity from the environment or it 401s against a real instance.
   SAMPLE_AUTH_EXTRA=',"auth_user":"ci@example.invalid"'
   # shellcheck disable=SC2016  # $au is a jq variable bound by --arg in the generated
   # binding, not a shell expansion — it must survive into the emitted file unexpanded.
@@ -481,10 +422,6 @@ wit_${PROVIDER_FUNC}_auth_header() {
   die_spec "unreachable auth scheme: $AUTH_SCHEME"
   ;;
 esac
-
-# --- per-verb argument parsing ---
-# Contract-fixed and therefore generated in full (CONTRACT.md "Verbs"). Only the
-# provider mapping is left to the human.
 
 usage_args_for() {
   case "$1" in
@@ -538,7 +475,6 @@ opt_loop() {
   printf '  *) wit_usage_error "unexpected argument: $1" ;;\n  esac\ndone\n'
 }
 
-# id_head <VAR>: the generated lines that take the verb's leading positional id into VAR.
 id_head() {
   cat <<EOF
 $1="\${1:-}"
@@ -547,19 +483,16 @@ shift
 EOF
 }
 
-# require_id <VAR>: the generated guard that VAR holds this provider's item id.
 require_id() {
   cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$$1" || wit_usage_error "not a @@PROVIDER@@ item id: \$$1"
 EOF
 }
 
-# no_more_args: the generated guard that refuses any argument left over.
 no_more_args() {
   printf '%s\n' "[[ \$# -eq 0 ]] || wit_usage_error \"unexpected argument: \$1\""
 }
 
-# state_check: the generated guard on a --state value.
 state_check() {
   cat <<EOF
 case "\$STATE" in
@@ -569,7 +502,6 @@ esac
 EOF
 }
 
-# parse_block_for <verb> — the generated argument-parsing code for that verb.
 parse_block_for() {
   local verb="$1"
   case "$verb" in
@@ -609,8 +541,6 @@ EOF
 EOF
     ;;
   link-blocks | add-sub-item)
-    # Both edge verbs are `<id> --<flag> <id>`, differing only in the flag and the
-    # variable it fills; emitting them from one arm keeps the two identical.
     local flag var
     if [[ "$verb" == "link-blocks" ]]; then
       flag="blocked-by" var="BLOCKED_BY"
@@ -666,8 +596,6 @@ EOF
   esac
 }
 
-# --- rendering ---
-
 # render <template-file> [extra-key extra-value]… — substitute every @@KEY@@ with its
 # value. Pure bash parameter expansion, so a value is inserted LITERALLY: there is no
 # regex, no delimiter to collide with, and nothing a value can do to change which key
@@ -705,10 +633,6 @@ quote_safe() {
   esac
 }
 
-# The global substitution set, hoisted out of render() so the sweep below can walk it
-# at TOP LEVEL. Longest keys first so no key is a prefix of another's match, and
-# PROVIDER last so the `@@PROVIDER@@` tokens inside a caller-supplied PARSE_BLOCK are
-# still reached.
 readonly RENDER_KEYS=(
   SHEBANG
   PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY
@@ -739,8 +663,6 @@ render() {
   # names only the template path.
   text="$(cat "$file")"
   local k v
-  # Caller-supplied pairs first: they are per-file (verb name, tables) and never
-  # collide with the global set above.
   while [[ $# -ge 2 ]]; do
     k="$1"
     v="$2"
@@ -762,10 +684,6 @@ BINDINGS_DIR="$OUT_ROOT/tools/work-item-tracker/conformance/bindings"
 WRITTEN=()
 SKIPPED=()
 
-# emit <path> <content> [executable] — write one generated file, refusing to clobber
-# without --force. Refusal is per-file and non-fatal: a regeneration that would only
-# overwrite files the consumer has since edited should report exactly which, not
-# abort halfway through with some files already replaced.
 emit() {
   local path="$1" content="$2" exec_bit="${3:-}"
   if [[ -e "$path" && $FORCE -eq 0 ]]; then
@@ -785,7 +703,6 @@ emit() {
   WRITTEN+=("$path")
 }
 
-# capabilities.json — stamped with the SEAM's contract version, not the spec's.
 MANIFEST="$(jq -S --arg sv "$SCHEMA_VERSION" --arg p "$PROVIDER" \
   '{schema_version: $sv, provider: $p, verbs: .verbs, features: .features, limits: .limits} + (if .change_link then {change_link: .change_link} else {} end)' \
   <<<"$SPEC_JSON")"
@@ -808,8 +725,6 @@ done
 
 emit "$BINDINGS_DIR/$PROVIDER.sh" "$(render "$TEMPLATE_DIR/conformance-binding.sh.tmpl")"
 
-# README: the verb table and the deferrals are derived from the spec, so the document
-# cannot drift from the manifest it describes.
 VERB_TABLE="| Verb | Declared | Status |"$'\n'"|---|---|---|"
 for v in "${ADAPTER_VERBS[@]}"; do
   declared="$(jq -r --arg v "$v" '.verbs[$v]' <<<"$SPEC_JSON")"
@@ -835,8 +750,6 @@ fi
 emit "$ADAPTER_DIR/README.md" "$(render "$TEMPLATE_DIR/README.md.tmpl" \
   VERB_TABLE "$VERB_TABLE" \
   DEFERRALS_SECTION "$DEFERRALS_SECTION")"
-
-# --- report ---
 
 if [[ ${#WRITTEN[@]} -gt 0 ]]; then
   if [[ $DRY_RUN -eq 1 ]]; then

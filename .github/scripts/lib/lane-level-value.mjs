@@ -50,8 +50,6 @@ export function effectiveLevel({ value, settings = levelSettings(), now = Date.n
   const clamp = (level) => Math.min(settings.ceiling, Math.max(settings.floor, level));
   const fallback = clamp(settings.default);
   const parsed = parseLevel(value);
-  // The publisher never sets a value valid past valid-minutes from now, so a
-  // later one (set by hand) is malformed, not a level that never expires.
   const tooLate = parsed !== null && parsed.validUntil * 1000 > now + settings["valid-minutes"] * 60_000;
   const reason =
     value === undefined || value === null || value === ""

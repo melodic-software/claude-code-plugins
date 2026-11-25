@@ -88,7 +88,6 @@ function scanOf(step) {
   return null;
 }
 
-// Every upload step: { file, line, job, name, retention, path, condition, scans }.
 const steps = [];
 const isolatedJobs = new Set();
 function collect(file, lineCounter, stepSeqs) {

@@ -280,8 +280,6 @@ wit_effective_binding_json() {
       "$override" "$bad" >&2
     return 1
   fi
-  # Merge by PRESENCE, not non-null value: an explicit null merges and faces normal
-  # validation, never a silent fallback to the team value.
   jq -c -s --argjson allowed "$WIT_OVERRIDE_ALLOWED_PATHS" '
     .[0] as $team | .[1] as $o
     | [$o | paths(type != "object")] as $present

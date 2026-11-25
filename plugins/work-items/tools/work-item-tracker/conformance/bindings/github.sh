@@ -4,7 +4,6 @@
 
 CB_BINDING_TMP=""
 
-# Close every open issue in the sandbox so each run starts clean.
 _cb_close_all_open() {
   local numbers n
   numbers="$(gh issue list -R "$CB_REPO" --state open --limit 200 --json number --jq '.[].number' | tr -d '\r')"

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/work-items/tools/work-item-tracker/seeds/linear/*.sh # the fixture adapter copies every script
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# create-item: offline contract tests. Label-name → label-id resolution, the parent
-# link, and blocker edges are all driven through a mocked curl — no live Linear call.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/create-item.sh"
 D="$(dirname "$S")"

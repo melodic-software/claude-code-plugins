@@ -101,7 +101,6 @@ def annotation_reads(fake: FakeGh) -> int:
 
 
 def next_run_report() -> dict[str, Any]:
-    """The next run's check in this interpreter, every jobs read answering 502."""
     fake = FakeGh()
     list_red_run(fake)
     fake.fail_reads.add(JOBS_READ)

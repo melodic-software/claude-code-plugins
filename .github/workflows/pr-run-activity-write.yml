@@ -321,7 +321,6 @@ jobs:
       rung-up: ${{ steps.patch-select.outputs.skip-reason == 'rung-up' }}
       conflict-paths: ${{ steps.prepare.outputs.conflict-paths }}
       patch-skip-reason: ${{ steps.patch-select.outputs.skip-reason }}
-      # The verdict step's skip reason, after the gate's reason.
       skip-reason: >-
         ${{ steps.kill.outputs.proceed != 'true' && steps.kill.outputs.reason
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
@@ -821,7 +820,6 @@ jobs:
           REPORT_DIR: ${{ runner.temp }}/lane-patch-report
           MODEL_RUNG: ${{ inputs.patch-model-rung }}
           WEAKEN_RETRY: ${{ inputs.patch-weaken-retry }}
-          # Under the merge-base row: clean commits with no patch.
           MERGE_STATE: ${{ inputs.patch-merge-state }}
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" select
@@ -1102,7 +1100,6 @@ jobs:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           HUMAN_GATE: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-human-gate || '' }}
           GITHUB_TOKEN: ${{ github.token }}
-          # The review lanes' comment records (actions: read).
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
@@ -1307,8 +1304,6 @@ jobs:
           name: work-outcome-${{ inputs.issue-number }}
           path: ${{ runner.temp }}/work-outcome
 
-      # Issue mode, reuse: the summary pass's file, if it left one. A missing
-      # artifact leaves the directory empty, which keeps the fixed text.
       - name: Download the reused branch's summary
         if: >-
           steps.lane-token.outputs.token != '' && inputs.issue-number != ''
@@ -1790,8 +1785,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # A run job that never uploaded a verdict is already a failure, or a
-      # neutral superseded-sha on a cancel, in report-check-run's decision.
       - name: Download the verdict
         if: inputs.issue-number == ''
         continue-on-error: true
@@ -1881,10 +1874,6 @@ jobs:
           conflict-base: ${{ inputs.patch-prepare == 'merge-base' && needs.run.outputs.escalation-reason == 'unresolved-conflict' && inputs.patch-merge-base-sha || '' }}
           conflict-paths: ${{ inputs.patch-prepare == 'merge-base' && needs.run.outputs.escalation-reason == 'unresolved-conflict' && needs.run.outputs.conflict-paths || '' }}
 
-      # Issue mode, after the run job opened the PR or stopped: the lease
-      # handle is the caller's, from the read runner's check-broker, which ran
-      # before any model turn. A failure warns and leaves the lease to expire
-      # at its TTL without failing the job.
       - name: Release the lane lease
         if: always() && inputs.issue-number != ''
         continue-on-error: true

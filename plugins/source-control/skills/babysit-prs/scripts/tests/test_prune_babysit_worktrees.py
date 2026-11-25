@@ -592,9 +592,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertTrue(prune.is_orphaned_entry(wt))
 
     def test_reports_unresolved_when_the_pointer_is_gone(self) -> None:
-        # "Never registered" and "registered, pointer gone" are
-        # indistinguishable from the path alone -- including when an ancestor
-        # checkout answers for it -- so neither is assumed.
         self.assertEqual(
             prune.orphan_registration_state(
                 None, pathlib.Path("x"), directory_removed=True
@@ -902,8 +899,6 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
     def test_apply_mode_reports_but_never_removes_an_unrecognized_worktree(
         self,
     ) -> None:
-        # The report-don't-remove invariant is what makes an unrecognized row safe
-        # to emit at all, and --apply is the only mode that can delete anything.
         with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"

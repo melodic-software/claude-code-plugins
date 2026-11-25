@@ -311,9 +311,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_effective_classified(comments, SELF), 1)
 
     def test_thread_state_free_input_collapses_to_min(self) -> None:
-        # Convergence invariant: with no thread markers every comment is PR-level,
-        # so effective classified is min(classified, findings) -- what the bash
-        # degrade computes with its own cap.
         over = [
             {"author": "claude[bot]", "body": "CRITICAL a"},
             {

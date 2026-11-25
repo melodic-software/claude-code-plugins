@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# get-item: offline contract tests. The happy path drives the REAL normalizer against a
-# canned Linear issue through a mocked curl — no live Linear call.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/get-item.sh"
 D="$(dirname "$S")"

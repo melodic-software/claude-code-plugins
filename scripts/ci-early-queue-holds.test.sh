@@ -75,12 +75,10 @@ HEAD=fedcba9876543210fedcba9876543210fedcba98
 GROUP_BASE=89abcdef0123456789abcdef0123456789abcdef
 REF="refs/heads/gh-readonly-queue/main/pr-7-$GROUP_BASE"
 LANE='{"login":"github-actions[bot]"}'
-# pull [labels-json] [user-json]
 PERSON='{"id":5,"type":"User"}'
 pull() { jq -cn --arg h "$HEAD" --argjson l "${1:-[]}" --argjson u "${2:-$PERSON}" '{number: 7, head: {sha: $h}, labels: $l, user: $u}'; }
 status() { jq -cn --arg c "$1" --arg s "$2" --argjson u "$LANE" '{context: $c, state: $s, creator: $u, description: "The lane stopped"}'; }
 
-# expect <label> <want-rc> <STUB_PULL> <STUB_STATUSES> [want-out] [refuse-out]
 expect() {
   local label="$1" want_rc="$2" out rc
   : >"$TMP_ROOT/log"
@@ -143,7 +141,6 @@ LANES_APP_SENDER_ID=99 LANES_DISABLED=true LANES_REPO_DISABLED=false bash -e "$T
 if [[ "$n" -eq 2 ]]; then ok "two holds give two errors"; else fail "two holds gave $n errors"; fi
 unset DISABLED
 
-# What it cannot read it leaves to ci-status, and passes.
 STUB_FAIL=pulls expect "an unreadable pull request passes to ci-status" 0 "$(pull '[{"name":"do-not-merge"}]')" "[]" \
   "::warning::could not read #7; ci-status judges the holds."
 expect "a pull request with no head passes to ci-status" 0 '{"number":7,"head":{},"labels":[{"name":"do-not-merge"}]}' "[]" \

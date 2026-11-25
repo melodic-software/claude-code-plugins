@@ -29,8 +29,6 @@ if [[ "$(jq -c '.hooks | keys' "$HOOKS_JSON")" == '["Stop"]' ]]; then
 else
   fail "hooks.json: want events [Stop], got $(jq -c '.hooks | keys' "$HOOKS_JSON")"
 fi
-# No row resets per-edit finding digests: nothing writes them now that findings
-# arrive at commit time. harness-ops runs the prerequisites probe (session_probe below).
 if [[ "$(jq '[.hooks[][] | select(.matcher == "compact|clear")] + [.. | strings | select(. == "--reset-digests")] | length' "$HOOKS_JSON")" == "0" ]]; then
   ok "hooks.json: no compact|clear row and no --reset-digests argument"
 else
@@ -63,7 +61,6 @@ if jq -e '.requires[] | select(.id == "typos") | has("when") | not' "$MANIFEST" 
 else
   fail "manifest: typos must not be gated by when: the lint entry runs without a typos config"
 fi
-# harness-ops' prerequisites-fleet.mjs runs the probe behind the kill switch; its own test covers the gate.
 if jq -e '.session_probe.run_if_unset_or_true == "SPELLING_ENABLED"' "$MANIFEST" >/dev/null; then
   ok "manifest: session_probe is gated on SPELLING_ENABLED"
 else

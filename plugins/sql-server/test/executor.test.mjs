@@ -8,9 +8,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const cancelError = () => Object.assign(new Error('Canceled.'), { code: 'ECANCEL' });
 
-// A stand-in for the tedious module. Each statement the agent sends is answered
-// by `answer(request, connection)`; the guard batch and the @@TRANCOUNT check
-// are answered here, the check with `state.trancount`.
 function fakeTedious({ answer = (request, connection) => connection.respond([{ one: 1 }]), connectError } = {}) {
   const state = { trancount: 0, connections: [] };
 

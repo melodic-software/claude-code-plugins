@@ -9,7 +9,7 @@
 # outside controls.schema.json is refused whole. Opened alone from file://, the page draws its own
 # panel from the same manifest.
 # SKIPs without playwright-cli, node, python3 or curl.
-# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
+# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -19,8 +19,6 @@ bridge=$(cd "$skill/../../notes-bridge" && pwd)
 source "$here/../../../lib/browser-test-helpers.sh"
 browser_setup ed-controls edc playwright-cli node python3 curl
 
-# The fixture with the controls runtime and the switcher inlined; $1 replaces "--card-gap" as the
-# first control's target, and $2, when given, replaces the manifest's opening line.
 page() {
   local runtime='<!-- The canonical lib/ui-feedback/controls.js is inlined whole here; elided from this fixture. -->'
   local switcher='<!-- The bundled assets/variant-switcher.html is inlined whole here; elided from this fixture. -->'

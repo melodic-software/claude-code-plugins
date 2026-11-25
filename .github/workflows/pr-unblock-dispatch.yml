@@ -81,28 +81,20 @@ jobs:
     # takes it.
     name: Dispatch
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request_target'
-    # A burst of pushes collapses into one listing: a push cancels the run
-    # going, since the newest listing reads main as it is now. A tick or a
-    # hand run never cancels one going; it waits, and only replaces a run
-    # still waiting. The record steps run on cancel too (always()), so a run
-    # cancelled after a dispatch still records the runs it started; its
-    # dispatch-record changes are not saved, so the next run reads those heads
-    # again, and its in-flight check skips a PR whose dispatched run is queued.
     concurrency:
       group: pr-unblock-dispatch
       cancel-in-progress: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # check out main
-      pull-requests: read # list open PRs and their mergeable state
-      checks: read # skip a PR whose head already has a pr-unblock check run; read ci-status
+      contents: read
+      pull-requests: read
+      checks: read
       actions: write # list and dispatch pr-unblock.yml runs
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
@@ -141,8 +133,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the run while Actions or npm installs report a degraded component,
-      # with a logged reason; fails open (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
         if: steps.kill.outputs.proceed == 'true'
@@ -215,8 +205,6 @@ jobs:
           PACE_WORK_STEP: Mark this tick's work done
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
-      # dispatch.mjs reads the base config's `limits` through the base's
-      # resolve-config, which needs its dependencies.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
         if: >-
@@ -225,7 +213,6 @@ jobs:
           && steps.pace.outputs.paced != 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      # The newest record a run of this workflow saved; none on the first run.
       - name: Restore the dispatch record
         if: >-
           steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
@@ -238,12 +225,6 @@ jobs:
           key: pr-unblock-dispatch-record-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: pr-unblock-dispatch-record-
 
-      # The gate's verifier reader (babysit_verify_evidence.py), which the
-      # dispatch reads for a pull request whose pr-verify FAILs are at the cap
-      # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
-      # A failed install warns; the reader then fails and the round runs.
-      # Both steps take the dispatch step's gate, so a paced tick installs
-      # nothing it would not use.
       - name: Set up Python
         if: >-
           steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
@@ -269,7 +250,6 @@ jobs:
           && steps.pace.outputs.paced != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # The review lanes' comment records (actions: read).
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           # A rate limit past the guard's budget refuses the call with a notice
@@ -279,16 +259,7 @@ jobs:
           API_BUDGET_HOLD: "1"
           # fix-ci skips a PR whose pr-verify FAILs are at the cap (verify-cap.mjs).
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
-          # The reader reads the FAIL index by exact name; a pull request with
-          # more index names than one whole listing costs reads that listing,
-          # saved here for the next such read instead of every page again.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
-          # The FAIL run records, run heads on main and head refs pr-merge's
-          # last scheduled or hand-started run on main kept, which
-          # verify-cap.mjs fetches on the first FAIL-cap read only, so a run
-          # that reads no FAIL cap spends none of their calls: the reader
-          # otherwise reads them for every FAIL it counts, and each read shares
-          # what it adds here.
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           # The reader's gh calls, with this job's read scopes.
@@ -353,11 +324,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # A green run that listed the open pull requests (a failed listing
-      # holds green and writes no listed). A held read for one PR or one
-      # activity is read again on the next run that reaches it. The pacer
-      # paces the next scheduled tick only after this step
-      # (.github/actions/log-api-budget/pace.mjs).
       - name: Mark this tick's work done
         if: steps.dispatch.outputs.listed == 'true'
         run: echo "pr-unblock-dispatch listed the open pull requests"
@@ -393,12 +359,11 @@ jobs:
     timeout-minutes: 30
     permissions:
       actions: write # list and dispatch pr-refine.yml runs
-      contents: read # check out main
+      contents: read
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       # The record names this commit, which the gate and the broker check is
@@ -426,8 +391,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # refine-event-dispatch.mjs reads the base config's `limits` through the
-      # base's resolve-config, which needs its dependencies.
       - name: Install resolve-config's dependencies
         if: steps.kill.outputs.proceed == 'true'
         timeout-minutes: 5
@@ -489,10 +452,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # The second dispatch of the run, when refine-dispatch.activities names
-      # one, in its own record of the same form: the gate and the broker each
-      # read the record naming their own run id. Two slots hold fix-docs's
-      # dispatch and one per REFINE_ACTIVITIES id (refine-event-dispatch.mjs).
       - name: Name the second dispatched-run record
         id: record-2
         if: always() && steps.dispatch.outcome != 'skipped'

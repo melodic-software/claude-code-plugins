@@ -1,4 +1,3 @@
-"""produce.py: boards, the approval digest, and shots.json as the cut list."""
 import json
 import subprocess
 import sys
@@ -15,7 +14,6 @@ def run(args):
 
 
 def fill(prod):
-    """Boards that pass, and two shot modules."""
     (prod / 'brief.md').write_text(
         '# Brief\n\nSubject: a harbor at dusk\nLength: 2s\nAudience: the user\n'
         'Packs: woodcut-ink\nDelivery: mp4\n', encoding='utf-8')

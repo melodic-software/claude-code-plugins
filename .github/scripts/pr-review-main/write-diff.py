@@ -133,7 +133,6 @@ def write_diff(repo: str, base: str, head: str, max_bytes: int) -> bytes:
             )
         # Every `+` line, file headers too: a content line can look like one.
         added = b"\n".join(line for line in patch.split(b"\n") if line.startswith(b"+"))
-        # A move printed whole adds lines, which may name another move.
         shown = [move for move in moves if named(move[1], added)]
         if not shown:
             return patch

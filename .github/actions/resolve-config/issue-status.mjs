@@ -15,7 +15,6 @@ export class StatusDisagreement extends Error {
 // GitHub label names compare without case.
 const fold = (name) => String(name).toLowerCase();
 
-// The folded label names on an issue, from names or REST label objects.
 const labelNames = (labels) =>
   new Set((labels ?? []).map((label) => fold(typeof label === "string" ? label : label?.name)));
 

@@ -161,10 +161,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      contents: read # check out main
-      pull-requests: read # read lane merges and their merge-queue entries
+      contents: read
+      pull-requests: read
       actions: write # read full runs and their records; start pr-require-checks.yml on main, re-run a red lane-dispatched run, and send a red one to post-merge-file-demotion-issues.yml
-      checks: read # read a failed full run's annotations
+      checks: read
       issues: read # read the demotion records the merge floor depends on
     outputs:
       # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
@@ -174,8 +174,6 @@ jobs:
       # enable-auto-merge jobs then skip their sweep at job level.
       paced: ${{ steps.pace.outputs.paced }}
       standards-sha: ${{ steps.standards.outputs.sha }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -216,8 +214,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The base config's limits.api, in resolve-config's output shape, for
-      # the pacer; a failed read leaves rate-limits.json's defaults.
       - name: Read the pace override from the base config
         if: steps.kill.outputs.proceed == 'true'
         continue-on-error: true
@@ -246,8 +242,6 @@ jobs:
           PACE_WORK_STEP: Mark this tick's work done
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
-      # Live as the merge job reads it: the lane's own PRs not report-only,
-      # or Dependabot PRs enforced.
       - name: Read report-only
         id: mode
         if: steps.kill.outputs.proceed == 'true'
@@ -449,15 +443,6 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      # The same cap logic as dispatch-full-run's step of this name, except
-      # that this copy classifies a failed read with the shared rate guard
-      # (rate-stop.bash): a rate limit stops the step red, as the alert step's,
-      # and its stop is the job's rate-limited output, so nothing after it
-      # calls GitHub. It runs whether or not the post-merge check did, while
-      # the lane is live: a merge the cap skipped gets its run here. With the
-      # kill switch or report-only on, this job reads and sends nothing that
-      # spends API or starts a run; dispatch-full-run's push carve-out still
-      # starts a run per merge outside the cap.
       - name: Read main's full-run cover
         id: cover
         if: steps.kill.outputs.proceed == 'true' && steps.mode.outputs.live == 'true'
@@ -672,9 +657,6 @@ jobs:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dispatched.json
 
-      # Kept 30 days: a lane merge is judged on this record only until a check
-      # settles it (the identity's settled marker on its pull request); after
-      # that no check reads it, so its expiry fails no settled merge.
       - name: Record the dispatched run
         if: >-
           (steps.dispatch.outputs.run-id != '') && steps.scan-upload-2.outputs.clean == 'true'
@@ -1037,16 +1019,6 @@ jobs:
       group: pr-merge
       queue: max
     runs-on: ubuntu-24.04
-    # A ceiling above the gate's time budget (merge.gate-budget-minutes, 10),
-    # which is what ends a long sweep: the budget stops between candidates,
-    # a timeout can stop one between its check and its merge-queue write.
-    # 48 leaves about two minutes before the loop, the listing's 60 s of retry
-    # waits among them, then the longer of the budget plus the last
-    # candidate's read limit (merge.gate-candidate-minutes, 4) and a deferred
-    # candidate's ceiling (merge.gate-deferred-minutes, 20; it is always gated
-    # first), plus one read's own timeout, the escalation clear's 15 (three
-    # reader runs of 4), the eval-hold release's 3, the writes and the closing
-    # steps (workflow.test.mjs checks it).
     timeout-minutes: 48
     permissions:
       contents: read # check out main
@@ -1058,7 +1030,7 @@ jobs:
       # Read a refused lane run's annotations and its PR head's checks. Never
       # write: the report-gate-checks job below writes the check runs.
       checks: read
-      issues: read # the post-merge check's demotion records, read with this job's token
+      issues: read
       statuses: read # a lane stop's pr-unblock status (the lanes App holds no statuses permission)
       id-token: write # prove to the token broker which workflow this is
     outputs:
@@ -1137,7 +1109,6 @@ jobs:
         continue-on-error: true
         run: bash .base/.github/scripts/lib/install-pinned-pyyaml.sh 'PyYAML did not install; no workflow-file change binds its review this run'
 
-      # The off switch, checked before anything else.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -1171,12 +1142,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/who.mjs
 
-      # A run still pending in the concurrency group below starts after this
-      # one. When one is pending that checks every candidate and does every
-      # follow-up this run would, this run ends green here with a notice,
-      # before it takes the lane token, so a backlog costs one sweep and no
-      # run is cancelled. Any error leaves superseded unset and the gate runs.
-      # Rules: .github/scripts/pr-merge/superseded.mjs.
       - name: Check for a newer run that does this work
         id: superseded
         if: steps.who.outputs.proceed == 'true'
@@ -1189,8 +1154,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/superseded.mjs
 
-      # Reads the lane's rules from main and works out which token
-      # permissions its `merge-pr` activity gets.
       - name: Resolve the config
         id: config
         if: steps.who.outputs.proceed == 'true' && steps.superseded.outputs.superseded != 'true'
@@ -1529,11 +1492,6 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
-      # The lane dispatch and re-run records earlier post-merge checks proved
-      # (the pr-merge-lane-records artifact, found the way the cursor is):
-      # each check below, the gate's included, answers those with no read and
-      # adds the ones it proves. Any error leaves no file, and the checks read
-      # each record. Rules: .github/scripts/pr-merge/lane-records.mjs.
       - name: Read the lane records the last run kept
         if: steps.lane-token.outputs.token != '' && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
@@ -2076,10 +2034,6 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
-      # The refusals the next run may skip, in the same entry: each gated
-      # refusal it may skip whose gate process left nothing to do, each
-      # skipped one with its count raised, each unreached one as it was.
-      # Rules: babysit_merge_skip.py.
       - name: Keep the refusals the next run may skip
         if: always() && steps.carry.outputs.carried == 'true'
         continue-on-error: true
@@ -2110,10 +2064,6 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-      # The run's report: every candidate with its verdict, whether a full CI
-      # run is started (or, in report-only mode, would have been), then the
-      # ones that are blocked and untouched for over 24 hours, which need a
-      # person.
       - name: Write the summary
         if: always() && steps.gate.outcome != 'skipped'
         env:
@@ -2211,9 +2161,6 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-      # The report-gate-checks job below writes each candidate's check run from these
-      # rows. Not while the lane is report-only, nor after the gate's
-      # rate-limit stop: that job's own stop file would not hold it.
       - name: Scan the upload for credentials
         id: scan-upload-6
         if: >-
@@ -2367,9 +2314,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/release-eval-hold.mjs
 
-      # A green sweep that listed the open pull requests (a held listing
-      # writes held, never listed) and ran the gate. The pacer paces the next
-      # scheduled tick only after this step (.github/actions/log-api-budget/pace.mjs).
       - name: Mark this tick's work done
         if: steps.candidates.outputs.listed == 'true' && steps.gate.outcome == 'success'
         run: echo "the merge sweep listed and gated its candidates"
@@ -2484,8 +2428,6 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    # Above the sum of its steps' timeouts (44, workflow.test.mjs checks it),
-    # with a minute left for the steps that name none.
     timeout-minutes: 45
     permissions:
       contents: read # check out main
@@ -2593,13 +2535,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge/who.mjs
 
-      # The merge job's skip, for this job's group: when another run's
-      # enable-auto-merge job still waits and does all this one would (a
-      # scheduled or hand-started run arms, every run disarms on a hold), this
-      # run ends green here with a notice before it takes the lane token or
-      # reads anything else, so a backlog costs one pass and no run is
-      # cancelled. Any error leaves superseded unset and the job runs.
-      # Rules: .github/scripts/pr-merge/superseded.mjs.
       - name: Check for a newer run that does this work
         id: superseded
         if: steps.who.outputs.proceed == 'true'
@@ -2714,12 +2649,6 @@ jobs:
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/last-report.mjs
 
-      # The keep-report step's first refusal, which reads nothing from GitHub:
-      # a passing report whose check ran other code ends the wake with no
-      # fresh check (settle's code-changed). Then neither the run cache nor
-      # the lane records below is read, as only the fresh check and the arm
-      # step use them. Any other answer, an error included, leaves changed
-      # unset, and keep-report decides.
       - name: Check whether the last sweep's report predates a code change
         id: code
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
@@ -2786,10 +2715,6 @@ jobs:
           name: pr-merge-post-merge-report
           path: ${{ runner.temp }}/post-merge
 
-      # The lane records earlier checks proved, as dispatch-post-merge-runs reads
-      # them, for a room whose post-merge answer must be checked again: the
-      # check answers those records with no read. Any error leaves no file,
-      # and the check reads each record. Rules: lane-records.mjs.
       - name: Read the lane records the last run kept
         if: >-
           steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
@@ -3207,7 +3132,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # check out main
+      contents: read
       statuses: write # post pr-merge/unarmed on lanes App pull request heads
     env:
       API_BUDGET_TOKEN: github-token
@@ -3299,7 +3224,6 @@ jobs:
       group: ${{ github.event_name == 'push' && 'pr-merge-verify-main' || format('pr-merge-dispatch-{0}', github.run_id) }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
-    # One read and up to three POSTs, whose waits WAIT_CAP bounds.
     timeout-minutes: 10
     permissions:
       actions: write # read main's full runs and start pr-require-checks.yml on main
@@ -3315,11 +3239,6 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
-      # The api-budget library and the upload scanner, from the default
-      # branch. A failed checkout leaves neither: the steps below call GitHub
-      # as they would without the library, and no reading is logged, but the
-      # dispatched-run record's scan fails the job, as a failed upload of
-      # that record does, so the unrecorded run shows red.
       - name: Check out the api-budget library
         if: steps.tip.outputs.sha != ''
         continue-on-error: true
@@ -3516,9 +3435,6 @@ jobs:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dispatched.json
 
-      # Kept 30 days: a lane merge is judged on this record only until a check
-      # settles it (the identity's settled marker on its pull request); after
-      # that no check reads it, so its expiry fails no settled merge.
       - name: Record the dispatched run
         if: >-
           (steps.dispatch.outputs.run-id != '') && steps.scan-upload.outputs.clean == 'true'
@@ -3626,9 +3542,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # check out main
+      contents: read
       checks: write
-      pull-requests: read # write only at each candidate's current head
+      pull-requests: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:

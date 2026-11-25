@@ -420,7 +420,6 @@ async function withPath(bin, fn) {
   }
 }
 
-// An engine whose binding loads only when a process is run, as the real one does.
 const RUNS = `let ran = false;
 export const TuiTest = { ephemeral: () => ({
   run: async () => { ran = true; },

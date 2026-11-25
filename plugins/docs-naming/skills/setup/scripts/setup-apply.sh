@@ -180,7 +180,6 @@ LEGACY="$ROOT/$LEGACY_REL"
 header=""
 if [[ -f "$TARGET" ]]; then
   current="$(layer_yaml_to_json "$TARGET" 2>&1)" || die "the existing team layer is not valid YAML ($current): $TARGET"
-  # The leading comment block: every comment line before the first key.
   header="$(tr -d '\r' <"$TARGET" | awk '/^[[:space:]]*#/ { print; next } /^[[:space:]]*$/ { next } { exit }')"
 elif [[ -f "$LEGACY" ]]; then
   seeded=1

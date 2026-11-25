@@ -829,8 +829,6 @@ function cell(window, terms) {
 const aiReviewCredited = (r) => r.autonomous && r.rung === "C3";
 const aiReviewMissCounted = (r) => !r.autonomous || r.rung === "C3";
 
-// Thresholds are work-classes.md's suggested defaults; "C2" and "C3" name the rung a merge ran
-// under (its pin), not a work class. `merges` is every merge in the window.
 function report(merges, events, reviewsMeasured) {
   const c2 = merges.filter((r) => r.rung === "C2" && r.autonomous);
   const c3 = merges.filter(aiReviewCredited);
@@ -865,18 +863,6 @@ function report(merges, events, reviewsMeasured) {
   };
 }
 
-// After a demotion a cell re-promotes from run evidence (check-security-binding.mjs reads the
-// event): its window restarts at the latest contrary event against it or a prerequisite, which
-// takes in each demotion record's creation, rounded up to a whole second as
-// babysit_merge_policy.py _window_start rounds the resolver's --window-start. `report()` runs over
-// only the merges after that instant, and the first merge at which the cell's predicate passes is
-// the re-earn's `at`. The same evidence gives the same event, but the prefix can change with no
-// contrary event (a pull body edited after its merge, a gate going from passed to unsettled), so
-// a later run may derive a different re-earn or none; publish() keeps the one already published.
-// A contrary event's `at` is not always when it was found (a revert's committer date, a merge
-// time), so the window starts at the later of each event's `at` and its `discovered`: a contrary
-// event found after a re-earn was published starts a new window after that run, and the checker
-// voids the earlier re-earn. A re-earn is not contrary.
 const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-review-blocking"] };
 const knownAt = (event) => Math.max(Date.parse(event.at), event.discovered !== undefined ? Date.parse(event.discovered) : -Infinity);
 

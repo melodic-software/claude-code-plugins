@@ -67,9 +67,6 @@ if ! changed_files::verify_base "$BASE"; then
   run_full "base ref '$BASE' is not a resolvable commit"
 fi
 
-# Active prefixes. `inline` is this file's family: a path prefix never contains a
-# `#`, so a `#` anywhere on the line is a comment. The token lists take the other
-# mode — see scripts/lib/read-list.sh for why the two must stay distinct.
 prefixes=()
 if ! read_list::into prefixes "$ALLOWLIST" --comments inline; then
   run_full "could not read the allowlist ($ALLOWLIST)"
@@ -79,17 +76,6 @@ if [[ ${#prefixes[@]} -eq 0 ]]; then
   run_full "allowlist has no active entries"
 fi
 
-# --include-deleted is deliberate and is NOT the portability scanners' setting.
-# This gate classifies paths rather than opening them, and a DELETED path is a
-# change the classification must still see: dropping a source file is exactly
-# the kind of edit that must force the full suite, and filtering deletions out
-# would let a delete-only commit look docs-only. Nothing here needs the file to
-# exist on disk.
-#
-# A failed diff is fatal in the resolver rather than arriving here as an empty
-# list — which this gate would otherwise have read as "no changed paths" and,
-# via the fail-safe branch below, still resolved to `docs_only=false`. Failing
-# loudly instead keeps a broken diff distinguishable from a genuinely empty one.
 changed=()
 if ! changed_files::into changed "$BASE" --include-deleted --; then
   run_full "could not resolve paths changed vs '$BASE'"

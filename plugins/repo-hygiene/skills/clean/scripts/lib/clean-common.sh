@@ -308,9 +308,6 @@ clean_path_is_protected() {
     return 0
   fi
 
-  # Plain substring-protected segments live in CLEAN_PROTECTED_SUBSTRINGS and are
-  # matched by the loop below. This case holds only the patterns that loop cannot
-  # express: a mid-path wildcard and anchored file-name / suffix matches.
   case "$norm" in
   *"/.claude/skills/"*"/data/"*) return 0 ;;
   */.env*) return 0 ;;
@@ -620,8 +617,6 @@ clean_plan() {
   local root="$1" manifest="$2" announce="$3"
   local -a elig_abs=() elig_class=()
   local i abs class skip
-  # Classify first (a dir skipped for a protected descendant must not shadow a
-  # clean nested target below it), dedup second.
   for i in "${!CLEAN_CAND_ABS[@]}"; do
     abs="${CLEAN_CAND_ABS[$i]}"
     class="${CLEAN_CAND_CLASS[$i]}"
@@ -847,9 +842,6 @@ clean_apply_manifest() {
       continue
     fi
     abs="$root/$rel"
-    # Idempotent resume: an entry a prior apply already removed is neither a
-    # failure nor a re-removal — skip before target/type validation (which needs
-    # the path to exist).
     [[ -e "$abs" ]] || continue
     if clean_path_has_reparse_ancestor "$root" "$rel"; then
       _clean_reject 'symlinked path' "$rel"

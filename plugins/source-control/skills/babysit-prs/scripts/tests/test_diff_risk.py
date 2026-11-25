@@ -1,11 +1,4 @@
 # test-scope: docs/conventions/source-control.yaml .github/workflows/*
-"""Table tests for the unattended-merge diff risk scorer.
-
-`diff_risk.score` is a pure function, so every case builds a `RiskInput` and
-reads the `RiskResult`; no network seam is involved. Expected reason codes and
-severities come from the plan's scorer contract (reason-code list, HIGH floor,
-200-line and 8-file limits, C2 re-check rules), never from running the scorer.
-"""
 
 from __future__ import annotations
 
@@ -43,7 +36,6 @@ from diff_risk import (
 _UNSET = object()
 
 
-# This repository's effective floor: the built-in rows joined to its config.
 PIPELINE = (
     pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml"
 )
@@ -65,7 +57,6 @@ def _file(
     contents=("", ""),
 ):
     if previous_mode is _UNSET:
-        # A well-formed two-sided change carries its base-side mode.
         two_sided = status in ("modified", "changed", "renamed", "copied")
         previous_mode = "100644" if two_sided else None
     return ChangedFile(
@@ -129,9 +120,6 @@ class AllPassTests(unittest.TestCase):
         self.assertEqual(result.reasons, ())
 
     def test_a_structural_shaped_diff_scores_low(self):
-        # The former class-contradicted shapes: a removal, a rename, a schema
-        # change and a two-plugin diff, each with nothing else wrong, now
-        # score LOW with no reason (owner decision, option a).
         for name, files in (
             ("removed", (_file("plugins/foo/old.md", status="removed", additions=0),)),
             (
@@ -376,7 +364,6 @@ class HighReasonTests(unittest.TestCase):
                     self.assertIn(f"{code}:{glob}", _codes(result))
 
     def test_trusted_paths_off_the_floor_hold_only_when_configured(self):
-        # Owner direction 2026-10-24: a trusted-path match alone holds nothing.
         for path in (
             ".github/actions/log-api-budget/action.yml",
             ".github/actions/check-trusted-trigger-x/a.mjs",
@@ -392,7 +379,6 @@ class HighReasonTests(unittest.TestCase):
                 self.assertEqual(_codes(result), (f"high-path:{path}",))
 
     def test_paths_off_the_floor_take_no_path_code(self):
-        # Owner direction 2026-10-23: only a takeover path waits for the owner.
         for path in (
             "plugins/foo/settings.local.json",
             "package.json",
@@ -471,7 +457,6 @@ class RenameTests(unittest.TestCase):
         )
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.HIGH)
-        # A file renamed into a workflow also takes the cost hold.
         self.assertEqual(_codes(result), ("cost-review-required",))
 
 
@@ -537,9 +522,6 @@ class _OverBudget(BaseException):
 
 
 def _glob_work(pattern, path, cap=None):
-    """Lines of diff_risk.py that glob_match(pattern, path) runs, counted
-    under sys.settrace rather than timed, so runner load cannot fail it.
-    Past `cap` the trace raises, so a blow-up fails at once."""
     count = 0
 
     def local(frame, event, arg):
@@ -576,8 +558,6 @@ class GlobWorkTests(unittest.TestCase):
     def assertScales(self, build, small, ratio, floor=None):
         matched, base = _glob_work(*build(small))
         if floor is not None:
-            # The counted work grows with the path: the matcher is still in
-            # this module, not in C or elsewhere.
             self.assertGreaterEqual(base, floor(small))
         cap = int(ratio * base)
         doubled, count = _glob_work(*build(2 * small), cap=cap)
@@ -616,8 +596,6 @@ class GlobWorkTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.LOW)
 
     def test_star_runs_inside_a_segment_fail_closed(self):
-        # Spec: '**' inside a segment is not a whole '**' segment: unreadable.
-        # Such a glob is refused before it reaches glob_match.
         for stars in (10, 20):
             glob = "plugins/foo/" + "*" * stars + "z"
             path = "plugins/foo/" + "a" * 40 + ".md"
@@ -727,9 +705,6 @@ class MalformedInputTests(unittest.TestCase):
     ]
 
     def test_malformed_inputs_map_to_the_documented_code(self):
-        # Spec: the module docstring's mapping (per-file data and the listing
-        # to files-incomplete, an unreadable limit to lines-over, an unreadable HIGH set or path to
-        # high-path:**), never LOW and never a raise.
         for name, changes, severity, code in self.CASES:
             with self.subTest(name):
                 result = score(_input(**changes))
@@ -806,8 +781,6 @@ class MalformedInputTests(unittest.TestCase):
         self.assertIn("high-path:**", _codes(result))
 
     def test_odd_path_forms_are_high_any_path(self):
-        # Spec: a `..` segment, a trailing `/`, a `:` in a segment, or a
-        # `~<digit>` segment marks the path unsafe: HIGH as high-path:**.
         for path in (
             "plugins/foo/../bar.md",
             "plugins/foo/../../plugins/foo/x.md",
@@ -823,8 +796,6 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertIn("high-path:**", _codes(result))
 
     def test_paths_outside_the_segment_allowlist_are_high_any_path(self):
-        # Spec: safe only if every segment is non-empty, matches
-        # [A-Za-z0-9._-]+ and does not end in `.`.
         for path in (
             "plugins/foo/x.md\n",
             "AGENTS.md\n",
@@ -935,8 +906,6 @@ class MalformedInputTests(unittest.TestCase):
         self.assertIn("high-path:**/.gitmodules", _codes(result))
 
     def test_caller_globs_are_read_exactly_as_written(self):
-        # Spec: a './' or '/' prefix, a backslash, a segment ending in '.', or
-        # a '.' or '..' segment fails closed, whatever the changed files are.
         for glob in (
             "/plugins/foo/x.md",
             "./plugins/foo/x.md",
@@ -957,7 +926,6 @@ class MalformedInputTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("high-path:plugins/foo",))
 
     def test_floor_directory_glob_matches_the_bare_entry(self):
-        # Spec: 'X/**' also matches X itself.
         for path, code in (
             (
                 ".github/actions/check-trusted-trigger",
@@ -979,7 +947,6 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertIn(code, _codes(result))
 
     def test_trailing_double_star_forms_match_the_bare_entry(self):
-        # Spec: 'X/**' also matches X; 'X/**/' and 'X/**/**' mean the same glob.
         for glob in ("docs/**", "docs/**/", "docs/**/**"):
             with self.subTest(glob):
                 result = score(_input(files=(_file("docs"),), high_paths=(glob,)))
@@ -1108,7 +1075,6 @@ class NeverRaisesTests(unittest.TestCase):
         self.assertIn("high-path:**", codes)
 
     def test_configured_double_star_alone_is_unreadable(self):
-        # Spec: a configured glob of exactly '**' names no specific denied path.
         for glob in ("**", "**/"):
             with self.subTest(glob):
                 result = score(_input(high_paths=(glob,)))
@@ -1170,7 +1136,6 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
                     )
 
     def test_lane_evidence_naming_no_known_lane_is_a_miss(self):
-        # Spec: unrecognized data is a miss, never a pass.
         clean = (_lane("claude-review"), _lane("claude-security-review"))
         for extra in ("claude-docs-review", "", None, 7, ["claude-review"]):
             with self.subTest(extra):
@@ -1198,9 +1163,6 @@ def _lane_config():
 
 
 def _lane_input(files, **changes):
-    """The pr-merge lane's input under this repository's own
-    docs/conventions/pr-pipeline.yaml, wired as babysit_merge.score_unattended
-    wires it; `changes` overrides a switch."""
     config = _lane_config()
     wired = {
         "files": files,
@@ -1221,7 +1183,6 @@ class LanePathFloorTests(unittest.TestCase):
     list."""
 
     def test_the_live_config_has_the_floor_and_path_holds_off(self):
-        # Owner decision Q15: path holds off until open issues and PRs reach 0.
         self.assertIs(_lane_config().high_path_floor, False)
         self.assertIs(_lane_config().path_holds, False)
 
@@ -1313,9 +1274,6 @@ class LanePathFloorTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("trust-gate:trusted-actors",))
 
     def test_instructions_hooks_and_scripts_merge(self):
-        # Owner direction 2026-10-22: the review lanes are the gate for these.
-        # `.claude/rules/**` left this list under owner decision Q11
-        # (2026-10-28): agent settings and instruction files stay gated.
         for path in (
             "prompts/x.md",
             "plugins/foo/hooks/hooks.json",
@@ -1516,8 +1474,6 @@ class HoldsTests(unittest.TestCase):
                 self.assertFalse(holds(result), result.reasons)
 
     def test_an_open_code_review_finding_is_reported_and_does_not_hold(self):
-        # Q25: a review flag other than cost, a trusted-actor widening or a
-        # CRITICAL security finding is reported and merges.
         lanes = (
             _lane("claude-review", open_findings=1),
             _lane("claude-security-review"),
@@ -1642,18 +1598,12 @@ class PersonReasonsTests(unittest.TestCase):
         )
 
     def test_a_carried_security_finding_on_an_unbound_lane_holds_for_a_person(self):
-        # The binder's unbound shape when an earlier bound review left a
-        # blocking finding open (babysit_review_evidence._carried_blocking;
-        # bound through the binder in CarriedBlockingTests there).
         lane = LaneEvidence("claude-security-review", False, "no-run", None, False, 2)
         result = score(_input(lanes=(BOTH_LANES_CLEAN[0], lane)))
         codes = [r.code for r in diff_risk.person_reasons(holding(result))]
         self.assertEqual(codes, ["security-finding"])
 
     def test_a_size_reason_holds_nothing_so_no_one_is_needed(self):
-        # lines-over, files-over and no-patch are MED reasons an unattended
-        # merge passes (MERGEABLE_MED): they never hold, so they never sit
-        # unarmed waiting for a lane or a person.
         result = score(
             _input(
                 max_changed_lines=10,
@@ -1921,8 +1871,6 @@ class TrustGateTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.LOW, result.reasons)
 
     def test_a_pure_removal_merges_with_the_floor_on(self):
-        # No floor holds the trusted-actor directory (owner direction
-        # 2026-10-24): only a widening waits for the owner.
         result = score(_input(files=(_edit(ACTORS, BASE_ACTORS, _actors(_KYLE)),)))
         self.assertEqual(result.score, Risk.LOW, result.reasons)
 
@@ -1948,9 +1896,6 @@ class TrustGateTests(unittest.TestCase):
         self.assertEqual(_codes(result), (TRUSTED,))
 
     def test_paths_the_owner_lifted_do_not_hold_with_the_floor_off(self):
-        # The merge gate's wrapper and skill, workflows and the security review
-        # merge normally; the scorer, the Python that decides the holds and the
-        # pipeline config are on the floor (owner decision Q-ENFORCE (A)).
         for path in (
             "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-prs/SKILL.md",
@@ -2026,7 +1971,6 @@ class ReviewFlagClassTests(unittest.TestCase):
 
 
 def _floor_sample(glob):
-    """A path the floor glob `glob` matches."""
     return glob.removeprefix("**/").replace("**", "x.mjs").replace("*", "")
 
 
@@ -2068,7 +2012,6 @@ def _credentialed(text: str) -> bool:
 
 class SecretRefReadsExpressions(unittest.TestCase):
     def test_a_bare_secrets_context_inside_an_expression_is_a_reference(self):
-        # Only the `${{ }}` alternative of `_SECRET_REF` matches these shapes.
         for line in (
             "${{ secrets }}",
             "${{ contains(secrets, 'A') }}",
@@ -2107,7 +2050,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                 self.assertEqual(path in self.gate(), want)
                 result = score(_input(files=(_file(path),)))
                 self.assertEqual(f"high-path:{path}" in _codes(result), want)
-        # ci-status, and the job-token dispatchers of gated workflows, are in.
         for name in ("pr-require-checks", "intake-reenter", "pr-dispatch-feedback"):
             self.assertIn(f".github/workflows/{name}.yml", self.gate())
         self.assertLess(held_count, len(found))
@@ -2157,7 +2099,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             # The object filter form.
             "      - env:\n          ALL: ${{ secrets.* }}\n",
             "      - run: echo ${{ secrets['DEPLOY'] }}\n",
-            # An expression whose span holds a lone `}`, across lines too.
             "      - run: echo ${{ format('{0}', secrets.DEPLOY_KEY) }}\n",
             "      - run: echo ${{ github.x == '}' || secrets.DEPLOY_KEY }}\n",
             "      - run: |\n          echo ${{ format('{0}',\n            secrets.DEPLOY_KEY) }}\n",
@@ -2170,7 +2111,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         ):
             with self.subTest(added):
                 self.assertTrue(diff_risk.gated_workflow("x", text + added))
-        # The job token itself, or the word inside a string or a name, is not.
         for plain in (
             "      - run: echo ${{ secrets['github_token'] }}\n",
             "      - name: Scan for secrets\n",
@@ -2178,7 +2118,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         ):
             with self.subTest(plain):
                 self.assertFalse(diff_risk.gated_workflow("x", text + plain))
-        # A comment or a quoted path naming one is no credential.
         self.assertFalse(
             diff_risk.gated_workflow(
                 "x",
@@ -2227,16 +2166,13 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             '      - run: echo "a #b ${{ secrets.DEPLOY }}"\n',
             "      - run: echo 'a #b ${{ secrets.DEPLOY }}'\n",
             '      - env:\n          K: "a #b ${{ secrets.DEPLOY }}"\n',
-            # A quoted scalar's later lines.
             '      - run: "echo a\n          #b ${{ secrets.DEPLOY }}"\n',
             "      - run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
             "      - run: >-\n          echo a\n          # ${{ secrets.DEPLOY }}\n",
             "      - name: y\n        run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
-            # An anchor or tag before the scalar.
             "      - run: &s |\n          echo a #b ${{ secrets.DEPLOY }}\n",
             "      - run: !!str |\n          echo a #b ${{ secrets.DEPLOY }}\n",
             '      - env:\n          K: &k "a\n            #b ${{ secrets.DEPLOY }}"\n',
-            # A flow mapping's value right after a quoted key's `:`.
             '    env: {"K":"x\n      #b ${{ secrets.DEPLOY }}"}\n',
             "    env: {'K' :'x\n      #b ${{ secrets.DEPLOY }}'}\n",
         ):
@@ -2246,7 +2182,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             "      # ${{ secrets.DEPLOY }}\n      - run: echo a\n",
             "      - run: echo a # ${{ secrets.DEPLOY }}\n",
             "      - run: 'echo a' # ${{ secrets.DEPLOY }}\n",
-            # A block scalar ends at its key's indent.
             "      - run: |\n          echo a\n        env: {} # ${{ secrets.DEPLOY }}\n",
         ):
             with self.subTest(plain):
@@ -2280,8 +2215,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             self.assertEqual(rows.get(".github/workflows/pr-test-platforms.yml"), "gate")
 
     def test_dropping_a_review_workflow_from_the_class_fails_the_check(self):
-        # The committed table must match what the generator derives, so a
-        # hand edit that drops a review workflow is a stale copy.
         for name in ("pr-review-hosted", "pr-review-security-hosted", "pr-review-main"):
             path = f".github/workflows/{name}.yml"
             with self.subTest(name):
@@ -2319,7 +2252,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             "plugins/foo/skills/bar/AGENTS.md",
             "REVIEW.md",
             "docs/standards/README.md",
-            # Owner decision Q11 (2026-10-28), superseding 2026-10-22's.
             ".claude/rules/x.md",
         ):
             with self.subTest(path):
@@ -2411,7 +2343,6 @@ class ReviewClearedFloorTests(unittest.TestCase):
         self.assertIn(f"review-path:{path}", _codes(result))
 
     def test_the_review_hold_is_not_a_person_code(self):
-        # The lanes clear it by reviewing again.
         result = self._score(B + "babysit_gh.py", ())
         codes = [c for c in _codes(result) if c.startswith("review-path:")]
         self.assertEqual(codes, [f"review-path:{B}babysit_gh.py"])
@@ -2424,8 +2355,6 @@ class ReviewClearedFloorTests(unittest.TestCase):
                 result = self._score(
                     _floor_sample(glob), (_lane("claude-security-review"),)
                 )
-                # Globs may overlap (`settings*.json` and `*.json`): each
-                # sample holds by its own glob, and by nothing a review clears.
                 self.assertIn(f"high-path:{glob}", _codes(result))
                 self.assertTrue(
                     all(c.startswith("high-path:") for c in _codes(result)),
@@ -2547,8 +2476,6 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
     def test_a_reviewed_gate_path_holds_without_a_clean_review_of_this_head(self):
         security = "claude-security-review"
         cases = {
-            # bind finds no security run at this head when the clean review
-            # is of an older one.
             "a review of an older head": (
                 _lane(security, bound=False, unbound_reason="no-run"),
             ),
@@ -2601,24 +2528,17 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
             ".github/scripts/pr-review-main/write-verdict.mjs",
             "CLAUDE.md",
             ".claude/settings.json",
-            # A hook script settings registers (owner session decision Q2).
             ".claude/hooks/block-push.sh",
             "plugins/x/.claude/hooks/a.mjs",
-            # A hook outside hooks/, skills, agents, commands, and the
-            # review's own criteria.
             ".claude/cloud-bootstrap.sh",
             ".claude/skills/control-claude-code-plugins/SKILL.md",
             ".claude/agents/x.md",
             ".claude/commands/x.md",
-            # Owner decision Q11 (2026-10-28): agent settings and instruction
-            # files stay gated, superseding the 2026-10-22 direction for rules.
             ".claude/rules/cost-claims.md",
             "plugins/x/.claude/rules/a.md",
             ".claude/ai-slop.json",
-            # The team layer the babysit loop reads keeps the same hold.
             "docs/conventions/source-control.yaml",
             ".claude-lane/profile.json",
-            # Every name and depth under .claude (owner decision Q11).
             ".claude/output-styles/terse.md",
             ".claude/code-metrics.yaml",
             ".claude/agent-memory/x/MEMORY.md",
@@ -2705,7 +2625,6 @@ class PathHoldsSwitchTests(unittest.TestCase):
 
     GATE = ".github/scripts/pr-merge/clear-escalations.mjs"
     WORKFLOW = ".github/workflows/pr-merge.yml"
-    # The security review unbound, so an enforcement path is not cleared.
     UNREVIEWED = (_lane("claude-review"), _lane("claude-security-review", bound=False))
 
     def _paths(self, result):

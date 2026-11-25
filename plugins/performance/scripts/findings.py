@@ -187,7 +187,6 @@ def load(path: str) -> dict:
 
 
 def run_date(doc: dict) -> str | None:
-    """The UTC date run-start stamped on the header; None for a findings file with no header."""
     date = str(doc.get("started_at") or "")[:10]
     return date if DATE_RE.match(date) else None
 
@@ -765,7 +764,6 @@ def read_key(args: dict) -> str:
 
 
 def shown_reads(counts: dict[str, int]) -> dict[str, int]:
-    """Repeated reads keyed as shown; two reads that show alike get distinct labels, never a sum."""
     out: dict[str, int] = {}
     for key, n in counts.items():
         if n > 1:
@@ -782,12 +780,6 @@ def shown_reads(counts: dict[str, int]) -> dict[str, int]:
 def repeats(
     results: dict[str, list[str | None]],
 ) -> tuple[dict[str, int], dict[str, int]]:
-    """Split identical calls into repeats whose results matched and ones that cannot be told.
-
-    A call whose result differs from an earlier one's read changed input, so it repeats nothing.
-    Where any of a key's results is missing, a change cannot be ruled out: those calls go to the
-    second map, all of them, for a reader to record as later.
-    """
     same: dict[str, int] = {}
     unknown: dict[str, int] = {}
     for key, digests in results.items():
@@ -887,7 +879,6 @@ def shown_command(command: str) -> str:
 
 
 def merged(counts: dict[str, int], show: Callable[[str], str]) -> dict[str, int]:
-    """Repeats (count above one) keyed as shown; two that show alike add up."""
     out: dict[str, int] = {}
     for text, n in counts.items():
         if n > 1:
@@ -902,7 +893,6 @@ def code_span(name: object) -> str:
 
 
 def union_seconds(spans: list[tuple[float, float]]) -> float:
-    """Length of the union of [start, end] spans: parallel calls wait on one wall clock."""
     total, reach = 0.0, float("-inf")
     for start, end in sorted(spans):
         if end > (low := max(start, reach)):
@@ -912,10 +902,6 @@ def union_seconds(spans: list[tuple[float, float]]) -> float:
 
 
 def peak_overlap(spans: list[tuple[float, float]]) -> int:
-    """Most spans open at one instant; a span ending as another starts does not overlap it.
-
-    A zero-length span is still one open run, so any span makes the peak at least 1.
-    """
     events = sorted([(start, 1) for start, _ in spans] + [(end, -1) for _, end in spans])
     peak = depth = 0
     for _, step in events:
@@ -925,7 +911,6 @@ def peak_overlap(spans: list[tuple[float, float]]) -> int:
 
 
 def slowest_first(rows: list[dict]) -> None:
-    """Sort in place: the expressible tail, then the median, then the single worst sample."""
     rows.sort(
         key=lambda r: tuple(-1 if r[k] is None else r[k] for k in ("p95_ms", "p50_ms", "max_ms")),
         reverse=True,
@@ -933,7 +918,6 @@ def slowest_first(rows: list[dict]) -> None:
 
 
 def agent_calls(records: list[dict]) -> list[dict]:
-    """One agent transcript's tool calls: name, args, error, and at/until when both are stamped."""
     calls: dict[str, dict] = {}
     for record in records:
         stamp = parse_ts(record.get("timestamp"))
@@ -1180,7 +1164,6 @@ def hook_label(command: str) -> str:
 
 
 def percentile(ordered: list[float], p: float) -> float:
-    """Linear interpolation between the two nearest ranks of a sorted list."""
     k = (len(ordered) - 1) * p / 100
     low = int(k)
     high = min(low + 1, len(ordered) - 1)
@@ -1409,7 +1392,6 @@ def span_ms(start: object, end: object) -> int | None:
 
 
 def stat(samples: Sequence[float], unit: str, command: str, excluded: int = 0) -> dict:
-    """One number to record; excluded counts items whose timestamps were missing or unparsable."""
     return {
         "value": median(samples),
         "unit": unit,
@@ -1455,7 +1437,6 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
 def workflow_timing(
     repo: str, name: str, listed: list[dict], job_runs: int, list_line: str
 ) -> dict:
-    """One workflow's numbers, timed from its newest successful runs only."""
     outcomes: dict[str, int] = {}
     for run in listed:
         outcome = inert(str(run.get("conclusion") or "unknown"))

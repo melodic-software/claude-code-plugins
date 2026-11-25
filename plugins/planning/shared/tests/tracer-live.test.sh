@@ -5,6 +5,7 @@
 # ensure-running -> the guest link loads through the tunnel -> a guest joins through it -> kill
 # cloudflared -> the server starts a new one -> the new link loads and the owner's view records
 # the change -> stop.
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/web/core.js
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 shared=$(cd "$here/.." && pwd)
@@ -29,7 +30,6 @@ bad() {
   echo "FAIL: $1"
   fail=$((fail + 1))
 }
-# verdict <status> <ok message> <failure message>: the status of the check just before it.
 verdict() { if [[ $1 == 0 ]]; then ok "$2"; else bad "$3"; fi; }
 py=$(command -v python3 || command -v python)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/shared-live.XXXXXX")

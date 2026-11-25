@@ -299,9 +299,6 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
   2) record "$top" skipped "no upstream tracking branch" ;;
   3) record "$top" blocked "default-branch (pass --force-default-branch)" ;;
   4)
-    # Reachable only without --include-dirty (which passes --allow-unpushed): the
-    # child re-gates unpushed after its fetch, so a repo that looked not-ahead at
-    # the batch dirty-check can become ahead once fetch advances the upstream.
     record "$top" blocked "unpushed commits after fetch (pass --include-dirty)"
     ;;
   5)

@@ -341,7 +341,6 @@ FILLER_WORDS = (
 
 
 def filler_line(slot: str, index: int, width: int) -> str:
-    """A deterministic filler sentence of at least `width` characters."""
     seed = FILLER_WORDS[index % len(FILLER_WORDS)]
     text = f"{slot} {index}: {seed}"
     while len(text) < width:
@@ -362,12 +361,6 @@ class FillerSize:
 def fill_skeleton(
     path: Path, hop: int, size: FillerSize, write: bool = True
 ) -> dict[str, str]:
-    """Deterministic filler for every FILL slot in a freshly-created skeleton,
-    satisfying validate_doc: written in place when `write`, and returned as the
-    slot values `save_point.py fill` takes.
-
-    Shapes 3 and 4 id their open questions and decisions: hop 1 writes them, and
-    later hops carry them off disk unchanged and add none through the `-new` slots."""
     lines = path.read_text(encoding="utf-8").split("\n")
     ids = (
         {"open-questions": "Q", "decisions": "D"}
@@ -414,7 +407,6 @@ def fill_skeleton(
 def _slot_filler(
     slot: str, hop: int, size: FillerSize, counter: int, ids: dict[str, str]
 ) -> tuple[bool, list[str]]:
-    """One slot's filler lines, and whether they continue the slot line's prefix."""
     fixed = {
         "amended": "None.",
         "drift-check": "the first remaining action writes the next save-point, which is the goal.",
@@ -465,15 +457,6 @@ def _slot_filler(
 
 
 def size_filler(skeleton_lines: int, skeleton_chars: int, slots: int) -> FillerSize:
-    """Size the filler so a generated hop-1 file lands on the shape-1 corpus
-    median (154 lines, 3.2k chars/4 tokens; PLAN.md Baseline).
-
-    `skeleton_lines` / `skeleton_chars` measure the skeleton with every FILL
-    line removed, `slots` counts the sections that take padded filler. The line
-    budget is split evenly across those sections; the character width is then
-    whatever makes the total land on the token median, clamped so the filler
-    stays readable prose rather than a wall or a stub.
-    """
     cumulative_lines = len(CUMULATIVE_SLOTS) * CUMULATIVE_ENTRIES_PER_HOP
     fixed_lines = cumulative_lines + 2
     budget = max(SHAPE1_MEDIAN_LINES - skeleton_lines - fixed_lines, slots)
@@ -489,7 +472,6 @@ def size_filler(skeleton_lines: int, skeleton_chars: int, slots: int) -> FillerS
 
 
 def measure_skeleton(path: Path) -> tuple[int, int, int]:
-    """Lines, characters, and padded-slot count of a skeleton, FILL lines aside."""
     kept: list[str] = []
     slots = 0
     for line in path.read_text(encoding="utf-8").split("\n"):
@@ -554,8 +536,6 @@ def transcript_paths(session_id: str, projects_root: Path) -> list[str]:
 
 
 def load_transcript(session_id: str, projects_root: Path) -> Transcript:
-    """Locate the hop's transcript by the same glob `save_point.py new` uses,
-    never a cwd slug computed here."""
     hits = transcript_paths(session_id, projects_root)
     if not hits:
         return Transcript(None, [])
@@ -563,7 +543,6 @@ def load_transcript(session_id: str, projects_root: Path) -> Transcript:
 
 
 def _assistant_blocks(record: dict) -> list:
-    """The content blocks of an assistant record; empty for any other record."""
     if record.get("type") != "assistant":
         return []
     content = (record.get("message") or {}).get("content")
@@ -612,7 +591,6 @@ class SkillEvidence:
 
 
 def _record_of(key: tuple[int, int] | None) -> int | None:
-    """The record index of an ordering key, for report lines."""
     return None if key is None else key[0]
 
 
@@ -665,8 +643,6 @@ def assess_hop(
     before: set[str],
     projects_root: Path,
 ) -> tuple[HopRow, str | None]:
-    """Score one hop. Returns the TSV row and the between-rails text the next
-    hop's prompt is built from (None when it could not be produced)."""
     row = HopRow(run=run, hop=hop, session_id=session_id, model=model)
     row.subtype = str(result.get("subtype", ""))
     row.num_turns = str(result.get("num_turns", ""))
@@ -1064,8 +1040,6 @@ def execute_chain(
 def _keep_produced_files(
     fixture: Path, before: set[str], work_dir: Path, run: int, hop: int
 ) -> None:
-    """Copy each hop's handoff file out of the fixture before cleanup removes
-    the fixture. `--budget --live-hop1` reads the hop-1 copy from here."""
     handoff_dir = fixture / ".work" / "handoffs"
     keep = work_dir / "handoffs"
     keep.mkdir(parents=True, exist_ok=True)
@@ -1076,12 +1050,6 @@ def _keep_produced_files(
 def _keep_failed_transcript(
     session_id: str, projects_root: Path, work_dir: Path, run: int, hop: int
 ) -> None:
-    """Copy a failing hop's transcript out before cleanup deletes it.
-
-    A row that fails on transcript evidence is exactly the row someone needs to
-    read, and the live acceptance set lost two of them to cleanup. Cleanup of
-    `~/.claude/projects` itself is unchanged; this only takes a copy first.
-    """
     if not session_id:
         return
     hits = transcript_paths(session_id, projects_root)
@@ -1093,8 +1061,6 @@ def _keep_failed_transcript(
 
 
 def _skipped_rows(run: int, after_hop: int, sessions: int, model: str) -> list[HopRow]:
-    """A hop that produced no rails text ends its run: the later hops of that run
-    have no prompt, and are recorded as unrun failures rather than dropped."""
     rows = []
     for hop in range(after_hop + 1, sessions + 1):
         row = HopRow(run=run, hop=hop, session_id="", model=model, subtype="not_run")
@@ -1239,8 +1205,6 @@ def generate_chain(
 
 
 def _fill_4(path: Path, hop: int, size: FillerSize, projects: Path) -> str | None:
-    """Fill a shape-4 skeleton through `save_point.py fill`; return its first
-    OVER-CAP line when OVER-CAP is its only FAIL, else None once it validates."""
     values = fill_skeleton(path, hop, size, write=False)
     slots = path.with_suffix(".slots.json")
     slots.write_text(json.dumps(values), encoding="utf-8", newline="\n")
@@ -1266,7 +1230,6 @@ def _fill_4(path: Path, hop: int, size: FillerSize, projects: Path) -> str | Non
 
 
 def moved_sections(path: Path) -> list[str]:
-    """The sections `fill` moved out of a shape-4 handoff file, from their pointers."""
     from handoff_fit import MOVED_PREFIX
 
     moved = []
@@ -1280,7 +1243,6 @@ def moved_sections(path: Path) -> list[str]:
 
 
 def make_work_dir(cfg: argparse.Namespace, prefix: str) -> Path:
-    """`--work-dir` when given, else a fresh temp dir named by `prefix`."""
     work_dir = (
         Path(cfg.work_dir) if cfg.work_dir else Path(tempfile.mkdtemp(prefix=prefix))
     )
@@ -1453,8 +1415,6 @@ def _write_jsonl(path: Path, records: list[dict]) -> None:
 
 
 def make_fake_runner(defects: dict[int, set[str]]):
-    """Build a runner whose hop N carries the defects in `defects[N]`."""
-
     def run(call: HopCall) -> dict:
         flags = defects.get(call.hop, set())
         transcript = call.projects_root / "fake" / f"{call.session_id}.jsonl"
@@ -1773,7 +1733,6 @@ def check_child_env() -> tuple[bool, str]:
 
 
 def _seed_decoys(projects_root: Path) -> list[Path]:
-    """Transcripts cleanup must leave alone: they are not the harness's own."""
     (projects_root / "fake").mkdir(parents=True, exist_ok=True)
     decoys = [projects_root / "fake" / f"{uuid.uuid4()}.jsonl" for _ in range(2)]
     for decoy in decoys:
@@ -1784,8 +1743,6 @@ def _seed_decoys(projects_root: Path) -> list[Path]:
 def _cleanup_problem(
     session_ids: list[str], projects_root: Path, decoys: list[Path]
 ) -> str:
-    """Why cleanup missed one of the harness's transcripts or removed a decoy;
-    empty when it did neither."""
     for session_id in session_ids:
         if session_id and transcript_paths(session_id, projects_root):
             return f"cleanup left transcript {session_id}"
@@ -1862,15 +1819,6 @@ def _run_case(base: argparse.Namespace, case: Case) -> tuple[bool, str]:
 
 
 def check_main_level_orchestration() -> tuple[bool, str]:
-    """Drive the live driver itself, `main()`, with only the `claude`
-    subprocess swapped out.
-
-    The per-case runs above call `execute_chain` directly, so they never touch
-    argument parsing, projects-root resolution, work-dir creation, the exit
-    code, or the `report()` print path. An undefined name or a wrong call
-    signature on any of those would first surface mid-spend. This case closes
-    that gap for a two-run, three-hop chain.
-    """
     work_dir = Path(tempfile.mkdtemp(prefix="hop-chain-main-"))
     projects_root = work_dir / "projects"
     decoys = _seed_decoys(projects_root)
@@ -2028,10 +1976,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None, runner_factory=live_runner) -> int:
-    """The whole driver. `runner_factory` exists so --dry-run can drive THIS
-    function with the `claude` subprocess swapped out: every other step, the
-    argument parsing, the run loop, row aggregation, the kept-files copy, the
-    report write, and cleanup, is then the same code a live run executes."""
     utf8_streams()
     cfg = build_parser().parse_args(argv)
     if not SAVE_POINT.is_file():

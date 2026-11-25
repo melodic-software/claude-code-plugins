@@ -365,10 +365,6 @@ else
   fail "the step does not read both kill switches from the vars context"
 fi
 
-# THE QUEUE'S VERDICT READER IS MAIN'S, WARM FROM PR-MERGE'S LAST RUN: the
-# step runs babysit_verify_evidence.py and head-ref-map.mjs from the .base
-# checkout of the default branch, with the run cache the carry step starts
-# from pr-merge's carried reads.
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 for line in 'VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' \
   'PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge' \
@@ -395,9 +391,6 @@ fi
 step_of() { awk -v name="      - name: $1" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
   on { print }' "$WORKFLOW"; }
-# The reader takes the pull request from the record the step writes before it
-# runs, and its config files from the hold config checkout, which must hold
-# every file merge_policy.read_config_at reads.
 # shellcheck disable=SC2016 # literal workflow text, not shell
 if [[ "$step" == *'printf '"'"'%s\n'"'"' "$pull" >"$RUNNER_TEMP/lanes-pull.json"'* ]]; then
   ok "the step writes the record BABYSIT_VERIFY_PULL names"
@@ -619,9 +612,6 @@ STUB_FILES='[["docs/held/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1'
 expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes docs/held/x%0A::stop-commands::t, a hold path"
 STUB_FILES='[["docs/guide.md"],["docs/held/.x.mjs"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a dot-prefixed file under a denied tree fails" 1 3 "it changes docs/held/.x.mjs, a hold path"
-# ON A PULL REQUEST EVENT THE BROKER STEP'S FILE PAGES ARE THE LIST: every page,
-# read live earlier in this job, saved raw as gh prints them. A page set that
-# is missing, unparsable, or in the merge queue leaves the live read.
 file_reads() { grep -cE 'repos/o/r/pulls/7/files\?' "$TMP_ROOT/log"; }
 expect_file_reads() {
   if [[ "$(file_reads)" -eq "$2" ]]; then ok "$1"; else fail "$1: expected $2 files read(s): '$(sort -u "$TMP_ROOT/log")'"; fi

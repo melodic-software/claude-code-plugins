@@ -1,7 +1,5 @@
 import { expect, mock, test as kitTest } from 'claude-code/testing'
 
-// Most cases test what Claude is told, so they run with model_notices on; a case that sets it keeps
-// its own value, and the 'defaults:' cases call kitTest to run on the manifest's defaults.
 const test = (name: string, ...rest: [any] | [any, any]) =>
   rest.length === 1 ? kitTest(name, { options: { model_notices: true } }, rest[0]) : kitTest(name, { ...rest[0], options: { model_notices: true, ...rest[0].options } }, rest[1])
 

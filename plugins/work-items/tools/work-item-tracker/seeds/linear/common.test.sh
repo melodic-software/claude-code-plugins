@@ -114,7 +114,6 @@ assert_eq "missing auth_env → exit 3" "3" \
   "$(config_rc "$(jq -c 'del(.auth_env)' <<<"$GOOD")")"
 assert_eq "missing scopes → exit 3" "3" \
   "$(config_rc "$(jq -c 'del(.scopes)' <<<"$GOOD")")"
-# A scalar passes a naive `length > 0`; it must not pass here.
 assert_eq "scopes as a scalar string → exit 3" "3" \
   "$(config_rc "$(jq -c '.scopes = "acme/ENG"' <<<"$GOOD")")"
 assert_eq "empty scopes array → exit 3" "3" \
@@ -153,7 +152,6 @@ assert_eq "and denies a hyphenated lookalike" "3" \
   "$(config_rc "$(jq -c '.host = "attacker-mycompany.com"' <<<"$DOTLESS")")"
 assert_eq "a real subdomain under a dot-less pin is accepted" "0" \
   "$(config_rc "$(jq -c '.host = "api.mycompany.com"' <<<"$DOTLESS")")"
-# The apex IS the pinned domain: rejecting it would break a single-host deployment.
 assert_eq "the apex itself is accepted" "0" \
   "$(config_rc "$(jq -c '.host = "mycompany.com"' <<<"$DOTLESS")")"
 

@@ -19,12 +19,6 @@ rc=0
 bash "$AUDIT" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 
-# check_facts <label> <repo> <audit output>: the audit reads every branch's tip,
-# upstream, ahead/behind counts, commits not on origin/main and loss count in
-# bulk. For each branch the capture holds a row for, those must equal what one
-# git call per branch prints: this is that per-branch read, taken from the repo
-# as it stands, so call it straight after the audit run it checks. The default
-# branch in every fixture is main.
 check_facts() {
   local label="$1" repo="$2" out="$3" cap b tip up ahead behind nod at
   local w_tip w_up w_ahead w_behind w_nod n want bad="" rows=0 has_default=0
@@ -127,7 +121,6 @@ EMPTYGH
   assert_contains "a repo with no PRs reports a real count" "$empty_pr_out" "PRCount: 0"
   assert_not_contains "a repo with no PRs is not called unavailable" "$empty_pr_out" "PRDataUnavailable:"
 
-  # A `gh` that exits 0 with output that is not a PR array must not be counted.
   junk_bin="$TEST_TMPDIR/junk-pr-bin"
   mkdir -p "$junk_bin"
   cat >"$junk_bin/gh" <<'JUNKGH'
@@ -175,8 +168,6 @@ failed_out="$(PATH="$FAILGH_BIN:$PATH" GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK
 assert_contains "failed lookup says so" "$failed_out" "PRDataUnavailable:"
 assert_not_contains "failed lookup reports no count" "$failed_out" "PRCount:"
 
-# A no-op gh stub keeps the worktree / no-upstream cases below deterministic and
-# offline (the real gh would hit the network for its PR map).
 STUB_BIN="$TEST_TMPDIR/stub-bin"
 mkdir -p "$STUB_BIN"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$STUB_BIN/gh"
@@ -396,8 +387,6 @@ explicit_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT' -
 assert_contains "--capture-file path reported" "$explicit_out" "TipCapture: $TEST_TMPDIR/explicit.tsv"
 assert_file_exists "--capture-file written" "$TEST_TMPDIR/explicit.tsv"
 
-# Capture failure is reported as such, never as a path: a directory component
-# that is a regular file cannot be created, so the audit has nowhere to write.
 printf 'x\n' >"$TEST_TMPDIR/blocker"
 err_rc=0
 err_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT' --capture-file '$TEST_TMPDIR/blocker/cap.tsv'")" || err_rc=$?
@@ -406,8 +395,6 @@ assert_contains "capture failure reported" "$err_out" "TipCaptureError: cannot c
 assert_not_contains "capture failure prints no TipCapture path" "$err_out" "TipCapture: "
 assert_contains "capture failure still reports every tip" "$err_out" "Tip: $tracked_tip"
 
-# A `.part` that already exists belongs to another run (a stamp-pid collision
-# or an interrupted audit): it is refused and left alone, never appended to.
 printf 'x\n' >"$TEST_TMPDIR/busy.tsv.part"
 busy_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT' --capture-file '$TEST_TMPDIR/busy.tsv'")"
 assert_contains "pre-existing .part is refused" "$busy_out" "TipCaptureError: refusing to reuse existing $TEST_TMPDIR/busy.tsv.part"
@@ -481,7 +468,7 @@ git -C "$LR" commit -qm init
 git -C "$LR" remote add origin "$TEST_TMPDIR/loss-origin.git"
 git -C "$LR" push -q origin HEAD:main
 git -C "$LR" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-lr_commit() { # <file> <message>: one commit on the checked-out branch
+lr_commit() {
   echo "$1" >"$LR/$1"
   git -C "$LR" add "$1"
   git -C "$LR" commit -qm "$2"
@@ -664,7 +651,7 @@ git init -q --bare "$TEST_TMPDIR/landed-origin.git"
 git init -q -b main "$LP"
 git -C "$LP" config user.email "t@example.com"
 git -C "$LP" config user.name "Test"
-lp_commit() { # <file> <message>
+lp_commit() {
   echo "$1" >"$LP/$1"
   git -C "$LP" add "$1"
   git -C "$LP" commit -qm "$2"
@@ -801,7 +788,7 @@ git init -q --bare "$TEST_TMPDIR/tree-origin.git"
 git init -q -b main "$TE"
 git -C "$TE" config user.email "t@example.com"
 git -C "$TE" config user.name "Test"
-te_commit() { # <message> <file>...
+te_commit() {
   local msg="$1" f
   shift
   for f in "$@"; do echo "$f" >"$TE/$f"; done
@@ -850,7 +837,7 @@ git init -q --bare "$TEST_TMPDIR/merge-origin.git"
 git init -q -b main "$MG"
 git -C "$MG" config user.email "t@example.com"
 git -C "$MG" config user.name "Test"
-mg_commit() { # <file> <message>
+mg_commit() {
   echo "$1" >"$MG/$1"
   git -C "$MG" add "$1"
   git -C "$MG" commit -qm "$2"
@@ -952,11 +939,6 @@ else
   skip_case "PR-state cases need jq"
 fi
 
-# Missing signals resolve to REVIEW with the loss undetermined, never to LOSSY
-# and never to SAFE. Three distinct absences:
-#   1. no origin/<default> at all (a repository with no remote),
-#   2. the count itself fails (git cannot answer),
-#   3. upstream gone with no origin/<default> (asserted on GC_REPO above).
 NR="$TEST_TMPDIR/no-remote"
 git init -q -b main "$NR"
 git -C "$NR" config user.email "t@example.com"
@@ -985,10 +967,6 @@ assert_not_contains "no remote: never SAFE" "$nr_out" "Tier: SAFE"
 assert_contains "no remote: empty loss block" "$nr_out" "LossBlock: 0 branches lose work if deleted
 LossBlockEnd: 0"
 
-# A git that cannot count: a wrapper that fails exactly the `--remotes` form the
-# loss count uses and passes everything else through. Every branch that was
-# LOSSY above must fall back to REVIEW with the failure named; SAFE and
-# PROTECTED verdicts are untouched.
 REAL_GIT="$(command -v git)"
 BROKEN_BIN="$TEST_TMPDIR/broken-git-bin"
 mkdir -p "$BROKEN_BIN"
@@ -1032,7 +1010,7 @@ FX_CFG=""
 FX_PRS=()
 FX_TS=0
 
-fx_commit() { # <name> <ts> [<parent-name>...]: a commit whose message is its name
+fx_commit() {
   local name="$1" ts="$2" p
   shift 2
   FX_N=$((FX_N + 1))
@@ -1045,29 +1023,24 @@ fx_commit() { # <name> <ts> [<parent-name>...]: a commit whose message is its na
   fi
   FX_STREAM+=$'\n'
 }
-fx_ref() { # <full ref> <commit name>
+fx_ref() {
   FX_STREAM+="reset $1"$'\n'"from :${FX_MARK[$2]}"$'\n\n'
 }
-fx_track() { # <branch> [remote] [merge ref]: configure the branch's upstream
+fx_track() {
   FX_CFG+="[branch \"$1\"]"$'\n\tremote = '"${2:-origin}"$'\n\tmerge = '"${3:-refs/heads/$1}"$'\n'
 }
-fx_pr() { # <branch> <state> <number> <commit name>: a PR whose head was that commit
+fx_pr() {
   FX_PRS+=("$1 $2 $3 $4")
 }
-fx_now() { # a fresh commit time within the last hour
+fx_now() {
   FX_TS=$((FX_TS + 1))
   NOWTS=$((FX_NOW - 3600 + FX_TS))
 }
-fx_rnd() { # next value of a fixed-seed generator, so the random ancestry is the same on every run
+fx_rnd() {
   FX_SEED=$(((FX_SEED * 1103515245 + 12345) & 0x7fffffff))
   RND=$((FX_SEED >> 8))
 }
 
-# build_audit_fixture <dir> <percent>: <dir>/repo, a repository whose local
-# branches span every tier and every way the audit reads one, and
-# <dir>/prs.json, the gh stub's payload. <percent> scales the bulk classes: 100
-# gives 242 branches. Every commit is built by one fast-import, so the size of the
-# fixture costs no git calls.
 build_audit_fixture() {
   local d="$1" pct="$2" r i k j n v s
   r="$d/repo"
@@ -1335,8 +1308,6 @@ build_audit_fixture() {
   printf '[%s]\n' "$pr_json" >"$d/prs.json"
 }
 
-# A git shim that logs every call and, when SHIM_FAIL_ON is set, fails the calls
-# whose arguments contain it; a gh stub that serves SHIM_PRS.
 FIXTURES="$TEST_TMPDIR/audit-fixtures"
 SPAWN_LOG="$TEST_TMPDIR/git-spawns.log"
 export SPAWN_LOG
@@ -1481,7 +1452,7 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$AN" remote add origin "$TEST_TMPDIR/ancestor-origin.git"
   git -C "$AN" push -q origin HEAD:main
   git -C "$AN" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-  an_branch() { # <branch> <commits>: a branch with that many commits off main
+  an_branch() {
     git -C "$AN" checkout -q -b "$1" main
     for ((k = 1; k <= $2; k++)); do git -C "$AN" commit -q --allow-empty -m "$1 $k"; done
     git -C "$AN" checkout -q main
@@ -1605,8 +1576,6 @@ if [[ "$tip_lines" == 2 ]]; then pass "fleet: each audited repo prints its own T
 assert_contains "fleet: first capture lives in the first repo" "$fleet_out" "TipCapture: $FL/one/.git/repo-hygiene/branch-tips/"
 assert_contains "fleet: second capture lives in the second repo" "$fleet_out" "TipCapture: $FL/two/.git/repo-hygiene/branch-tips/"
 
-# A repo's block is its single-repo output, unchanged (the capture path carries a
-# per-run stamp and pid, so that one line is set aside).
 block_one="$(awk -v r="Repo: $FL/one" '$0 == r { on = 1; next } on && $0 == "---" { exit } on' <<<"$fleet_out" | grep -v '^TipCapture: ')"
 plain_nc="$(grep -v '^TipCapture: ' <<<"$plain_out")"
 if [[ "$block_one" == "$plain_nc" ]]; then pass "fleet: a repo's block equals its single-repo output"; else fail "fleet: a repo's block equals its single-repo output" "$plain_nc" "$block_one"; fi
@@ -1652,7 +1621,6 @@ if [[ ! -e "$FL/shared.tsv" && ! -e "$FL/shared.tsv.part" ]]; then pass "--captu
 one_cap_out="$(fleet_audit --repo "$FL/one" --capture-file "$FL/one.tsv")"
 assert_contains "--capture-file with one repo is honored" "$one_cap_out" "TipCapture: $FL/one.tsv"
 
-# Usage errors.
 for bad in "--repo" "--repos-from" "--skip two" "--repos-from $FL/no-such-list.txt"; do
   rc=0
   # shellcheck disable=SC2086
@@ -1724,7 +1692,7 @@ if command -v jq >/dev/null 2>&1; then
   done
   git -C "$RM/work" commit -q --allow-empty -m init
   git -C "$RM/work" push -q origin main 2>/dev/null
-  push_branch() { # <branch> <n commits> from work
+  push_branch() {
     git -C "$RM/work" checkout -q -b "$1" main
     for ((k = 1; k <= $2; k++)); do git -C "$RM/work" commit -q --allow-empty -m "$1 c$k"; done
     git -C "$RM/work" push -q origin "$1" 2>/dev/null
@@ -1800,8 +1768,6 @@ GH
   if [[ "$(sort -u "$RM/gh-repos.log")" == "$RM/origin.git" && "$(wc -l <"$RM/gh-repos.log")" -eq "$(wc -l <"$RM/gh-heads.log")" ]]; then pass "remote: every PR lookup targets origin's repository"; else fail "remote: every PR lookup targets origin's repository" "$RM/origin.git on each lookup" "$(sort -u "$RM/gh-repos.log")"; fi
   if [[ "$(capture_state "$RM/work")" == "$before_remote" ]]; then pass "remote: writes no capture"; else fail "remote: writes no capture" "$before_remote" "$(capture_state "$RM/work")"; fi
 
-  # gh absent: still listed with the live tip, every checked branch UNKNOWN.
-  # PATH holds only the tools the script needs (no gh).
   NOGH_BIN="$TEST_TMPDIR/nogh-bin"
   mkdir -p "$NOGH_BIN"
   for t in git jq awk grep sed tr cat mktemp date dirname rm mv mkdir sort find basename head tail cut wc uname ls; do

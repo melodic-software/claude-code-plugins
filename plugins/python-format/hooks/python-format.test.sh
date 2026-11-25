@@ -24,14 +24,10 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
-# --- The .venv walk is bound to prerequisites.json ------------------------------
-# The .venv walk is not composed from the manifest, so this case is the binding:
-# the manifest lists ruff, jq and node, and the walk states ruff's local_bin
-# verbatim.
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   if jq -e '(.requires | map(.id)) == ["ruff", "jq", "node"] and .requires[0].detect.local_bin == [".venv/bin/ruff"]' "$MANIFEST" >/dev/null 2>&1; then

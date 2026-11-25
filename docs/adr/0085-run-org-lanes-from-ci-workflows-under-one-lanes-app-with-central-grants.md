@@ -73,7 +73,7 @@ prefixed repository; a `.github/` or `docs/` path with no prefix is this reposit
   ([`.github/scripts/lib/model-job-permissions.test.mjs`](../../.github/scripts/lib/model-job-permissions.test.mjs)).
 - **Only intake calls ci-workflows today**, for its model jobs (`.github/workflows/intake-triage.yml:297`);
   its write job mints from the caller file (`intake-triage.yml:440-447`). The review lanes call
-  `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml:260`) and sit outside the broker.
+  `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml:248`) and sit outside the broker.
 
 ### Corrected premise
 

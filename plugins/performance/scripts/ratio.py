@@ -132,24 +132,6 @@ def percentile(values: list[int], p: float) -> float:
 def ratio_of_percentile(
     old: list[int], new: list[int], p: float, pairs_count: int, minimum: int
 ) -> tuple[str, float | None]:
-    """Return (cell, value). `value` is None whenever the ratio was refused.
-
-    THREE gates, and every one of them was a way to print a number the data does
-    not support:
-
-    1. The MINIMUM PAIR COUNT, the same gate the headline ratio carries. A ratio
-       of two per-arm percentiles compounds the drift in both, so it is if
-       anything less stable than the paired median, and gating only the headline
-       left two quotable numbers beside an honest one. Measured here, two
-       IDENTICAL `true` arms at twenty iterations reported ratio_of_p50=12.08x.
-    2. The percentile ARITHMETIC floor, 1/(1-p).
-    3. A ZERO DENOMINATOR. This is where that 12.08x actually came from: the
-       previous code divided by `max(percentile(new, p), 1.0)`, so an arm whose
-       percentile was 0ms silently became 1ms and manufactured a ratio out of a
-       clamp. A sub-millisecond denominator does not mean "one millisecond", it
-       means the clock cannot resolve this arm, and the honest output is a
-       refusal naming that.
-    """
     label = f"ratio_of_p{p:.0f}"
     if pairs_count < minimum:
         return f"{label}=REFUSED(pairs={pairs_count}<{minimum})", None

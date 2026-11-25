@@ -313,9 +313,6 @@ LANE_FIXED_HEADER = "**pr-unblock / address-feedback: VALID, fixed**"
 
 
 def _has_severity_marker(body: str) -> bool:
-    """True for the forbidden class only: structured P0/P1 markers (badge,
-    bracket, or declaration prefix), the word CRITICAL, or the word
-    "security"."""
     return any(pattern.search(body) for pattern in FORBIDDEN_CLASS_PATTERNS)
 
 

@@ -78,9 +78,6 @@ kind_asserted() {
 declare -A baselined=()
 baseline_entries=()
 if [[ -f "$BASELINE" ]]; then
-  # `inline`: entries are finding-kind tokens, never regexes, so a `#` anywhere
-  # on the line opens the reason comment (scripts/lib/read-list.sh owns the two
-  # comment families and why they must stay distinct).
   read_list::into baseline_entries "$BASELINE" --comments inline || exit 2
   for line in ${baseline_entries[@]+"${baseline_entries[@]}"}; do
     baselined["$line"]=1

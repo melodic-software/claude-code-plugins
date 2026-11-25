@@ -55,8 +55,6 @@ on:
 
 permissions: {}
 
-# A newer dispatch of the same activity for the same PR replaces one still
-# waiting; a running one finishes.
 concurrency:
   group: pr-refine-${{ inputs.activity }}-${{ inputs.pr-number }}
   cancel-in-progress: false
@@ -84,8 +82,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
-      contents: read # check out main; the dispatcher file at its run's head
-      actions: read # the dispatcher run's file and head
+      contents: read
+      actions: read
       pull-requests: read
     outputs:
       stale: ${{ steps.current.outputs.stale }}
@@ -102,8 +100,6 @@ jobs:
       hold-held: ${{ steps.hold.outputs.held }}
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
       head-result: ${{ steps.plan.outputs.fix-docs != 'true' && 'skipped' || (steps.head.outputs.unread == 'true' || steps.hold.outcome == 'success') && 'success' || 'failure' }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
@@ -181,8 +177,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # write-pass-plan.mjs loads the base config and expands the lane's slots
-      # through the base's resolve-config, which needs its dependencies.
       - name: Install resolve-config's dependencies
         if: steps.files.outputs.held == 'false'
         timeout-minutes: 5
@@ -234,7 +228,6 @@ jobs:
         if: steps.head.outputs.sha != ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # The review lanes' comment records (actions: read).
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -308,7 +301,7 @@ jobs:
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
       && needs.select-passes.outputs.hold-held == 'false'
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -352,15 +345,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
       allowed: ${{ steps.posted.outputs.allowed }}
       handed-off: ${{ steps.posted.outputs.handed-off }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
       HANDOFF_EVIDENCE_LAG: notice
@@ -431,10 +422,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
+      actions: read
+      contents: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -532,7 +521,7 @@ jobs:
       && needs.fix-docs-handoff.outputs.allowed == 'true'
       && needs.fix-docs-handoff.outputs.handed-off == 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -571,12 +560,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
       HANDOFF_EVIDENCE_LAG: notice
@@ -625,16 +612,12 @@ jobs:
         with:
           tokens: github-token
 
-  # The third call, on the central fallback subscription's token alone: it
-  # runs only on fix-docs-subscription-handoff's read, after
-  # fix-docs-subscription handed off (a limit stop, a credit stop, or a 401 or
-  # 402). It is the last leg and never hands off.
   fix-docs-fallback:
     name: Fix Docs Fallback
     needs: [select-passes, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-docs-handoff.outputs.fallback-ready == 'true' && needs.fix-docs-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -676,7 +659,7 @@ jobs:
       ${{ !cancelled()
       && (needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-state || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-state || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-state || '') == 'written' }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -698,8 +681,6 @@ jobs:
       patch-attempt: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-docs
       patch-prepare: docs
-      # The write runner's own default, set here so the job's limit is
-      # visible at its caller (pr-run-activity-write.yml inputs).
       timeout-minutes: 30
       patch-head-sha: ${{ needs.select-passes.outputs.head-sha }}
       # lane-escalation drops the human-gated label from the holds while the
@@ -725,7 +706,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # the default branch tip's log-pass-records.mjs
+      contents: read
     steps:
       - name: Resolve main's tip
         id: tip

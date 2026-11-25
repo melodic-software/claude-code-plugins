@@ -1,7 +1,3 @@
-/**
- * Process-wide throttle for concurrent yt-dlp acquisition runs.
- */
-
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";

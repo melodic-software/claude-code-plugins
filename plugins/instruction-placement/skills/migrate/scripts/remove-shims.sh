@@ -191,12 +191,6 @@ if ((CONFIRM == 0)); then
   exit 1
 fi
 
-# --- 3. the installed doctrine --------------------------------------------
-# The LOWEST version installed anywhere, not the highest. A plugin is installed
-# per scope, and the scope that answers in a given project is not the newest
-# one: a user-scope 0.15.0 beside a project-scope 0.13.11 would otherwise
-# report 0.15.0 and let the stale copy give the old advice in the very
-# repository being de-shimmed.
 installed_version() {
   command -v jq >/dev/null 2>&1 || return 1
   [[ -f "$INSTALLED_PLUGINS" ]] || return 1

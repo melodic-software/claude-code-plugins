@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
-# RUNS the full abstract suite against the consume-only jira adapter, once normally and
-# once under a PATH shim that makes gh/curl fail: every exercised path is pre-network.
 # test-scope: plugins/work-items/tools/work-item-tracker/seeds/jira/*
 # test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh
 set -uo pipefail

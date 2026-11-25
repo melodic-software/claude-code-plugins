@@ -18,10 +18,6 @@
   const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$/, SHA = /^[0-9a-f]{40}$/;
   const SPAN = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|(?<![^\s(\["'])\*[^*\s](?:[^*\n]*?[^*\s])?\*(?![*\w]))/;
   const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|\bhttps?:\/\/[^\s<>"']+/g;
-  /** owner/repo#N; `#N` not inside a word, an entity or a path; or a repo-relative path: a dot-free first folder of 2
-   *  or more characters (a leading dot allowed, so never a host name or "w/e.g"), at least one slash and a file with
-   *  a lowercase letter-led extension, optionally `:line` or `:line-line`. The repo rule is also in session.py.
-   *  Never after a slash, dot, colon, ~ or @, so an absolute, home, drive or relative-to-parent path stays text. */
   const REF = /(?<![\w./:@~\\#-])([\w.-]+\/[\w.-]+)#([1-9]\d{0,6})(?![\w-])|(?<![\w&#/])#([1-9]\d{0,6})(?![\w-])|(?<![\w./:@~\\-])(\.?[\w-]{2,}(?:\/\.?[\w-][\w.-]*)*\/\.?[\w-][\w.-]*\.[a-z][a-z0-9]{0,9})(?::([1-9]\d{0,6})(?:-([1-9]\d{0,6}))?)?(?![\w/-]|\.\w)/g;
   function link(text, url) { const a = el("a", "vf-link", text); a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; }
   const web = url => { try { return ["http:", "https:"].includes(new URL(url).protocol); } catch { return false; } };

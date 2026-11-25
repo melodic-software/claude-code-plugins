@@ -15,13 +15,13 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh" || exit 2
 
+unset CI STANDARDS_DIR
 tmp="$(mktemp -d)" || exit 2
 trap 'rm -rf "$tmp"' EXIT
 repo="$tmp/repo"
 mkdir -p "$repo/scripts"
 git_init_test_repo "$repo" || exit 2
 cp "$SELF_DIR/check-affected.sh" "$repo/scripts/"
-# The real patterns file machine-specific-paths sources, committed at the base.
 patterns_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 mkdir -p "$repo/${patterns_lib%/*}"
 cp "$SELF_DIR/../$patterns_lib" "$repo/$patterns_lib"
@@ -63,7 +63,6 @@ STUB
 printf 'import os, sys\nsys.stderr.write("sync-plugin-options-docs ran\\n")\nsys.exit(int(os.environ.get("STUB_SYNC_PLUGIN_OPTIONS_DOCS", "0")))\n' \
   >"$repo/scripts/sync-plugin-options-docs.py"
 cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
-# The real Node package runner, over one registered fixture package.
 mkdir -p "$repo/scripts/lib"
 cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/test-git-env.sh" "$repo/scripts/lib/"
 cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
@@ -98,7 +97,6 @@ printf '#!/usr/bin/env bash\necho "typos ran: $*" >&2\nexit "${STUB_TYPOS:-0}"\n
 chmod +x "$tmp/bin/typos"
 export PATH="$tmp/bin:$PATH"
 
-# path_without <command>: PATH minus every directory holding that command.
 path_without() {
   local d out='' dirs
   IFS=: read -ra dirs <<<"$PATH"
@@ -177,8 +175,6 @@ check "an explicit --base run from another checkout still lists the change" \
   '[[ $RC == 0 && $OUT == *"over 1 changed files"* ]]'
 git_test_config "$repo" update-ref -d refs/remotes/origin/main
 
-# An empty changed set while HEAD is not the base means the wrong tree or range
-# was read, never a pass: HEAD behind the base, and commits that change nothing.
 RC=0
 ERR="$(cd "$other" && bash scripts/check-affected.sh --base origin/main --no-fetch 2>&1)" || RC=$?
 check "HEAD behind its base with no changed files exits non-zero with a message" \
@@ -203,8 +199,11 @@ check "typos gets the config, the exclusions and the changed files" \
 run PATH="$(path_without typos)" -- --base base
 check "a missing typos is a skip, not a failure" \
   '[[ $RC == 0 && $ERR == *"SKIP typos (typos not installed)"* ]]'
-# The exclusions are the checked tree's workflow's, so a branch that adds one
-# with the files it exempts is judged by it.
+run CI=true -- --base base
+check "in CI an unreadable standards org layer fails typos instead of falling back to the tree's config" \
+  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"standards org layer"* && $ERR != *"typos ran"* ]]'
+run STUB_TYPOS=1 -- --base base
+check "on a workstation the same run falls back to the tree's _typos.toml" '[[ $ERR == *"typos ran: --config "*"/_typos.toml"* ]]'
 pre_typos="$(git_test_config "$repo" rev-parse HEAD)"
 workflow="$repo/.github/workflows/pr-require-checks.yml"
 sed -i.bak 's|exclude: plugins/.*|& legacy/samples/**|' "$workflow" && rm -f "$workflow.bak"
@@ -217,8 +216,6 @@ git_test_config "$repo" commit -q -am typos-no-globs
 run -- --base base
 check "a workflow typos step with no exclude globs fails typos closed" \
   '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"no exclude globs"* && $ERR != *"typos ran"* ]]'
-# The scan stops at the end of the typos step, so the next step's exclude is
-# never read as typos'.
 sed -i.bak '/^ *exclude:$/d' "$workflow" && rm -f "$workflow.bak"
 git_test_config "$repo" commit -q -am typos-no-exclude
 run -- --base base
@@ -243,7 +240,6 @@ base_sha="$(git_test_config "$repo" rev-parse base)"
 check "a clean comment-hygiene passes" \
   '[[ $RC == 0 && $ERR != *"FAIL comment-hygiene"* && $ERR != *"SKIP comment-hygiene"* ]]'
 check "comment-hygiene is not named CI only" '[[ $ERR != *"CI only: comment-hygiene "* ]]'
-# A passing check's output is not printed, so the failing run shows the arguments.
 run STUB_CHECK_COMMENT_HYGIENE=1 -- --base base
 check "comment-hygiene gets the merge-base and the changed files" \
   '[[ $ERR == *"check-comment-hygiene ran: $base_sha notes.txt"* ]]'
@@ -274,7 +270,6 @@ run STUB_AUDIT_SIZE=2 -- --base base
 check "a size check that cannot decide is a skip, not a failure" \
   '[[ $RC == 0 && $ERR == *"SKIP size-check (could not run, exit 2"* ]]'
 
-# cross-plugin-source-drift runs only when a plugin file or its registry changed.
 run STUB_CHECK_CROSS_PLUGIN_SOURCE_DRIFT=1 -- --base base
 check "a diff with no plugin file or registry skips cross-plugin-source-drift" \
   '[[ $RC == 0 && $ERR == *"SKIP cross-plugin-source-drift (no plugin file, drift script or registry changed)"* && $ERR != *"check-cross-plugin-source-drift ran"* ]]'
@@ -315,7 +310,6 @@ run -- --base base
 check "a home path in a file the workflow step excludes, a placeholder, or an allow-marked line passes" \
   '[[ $RC == 0 && $ERR != *"FAIL machine-specific-paths"* && $ERR != *"SKIP machine-specific-paths"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_paths"
-# The exclusions and types are the checked tree's workflow's, read at run time.
 paths_workflow="$repo/.github/workflows/pr-require-checks.yml"
 printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"
 sed -i.bak 's|^\( *\):(exclude)vendor/\*\*$|&\
@@ -429,7 +423,6 @@ check "a check that could not run is a skip, not a failure" \
 
 run -- --base base --tests
 check "--tests runs the affected suites" '[[ $RC == 0 && $OUT == *"passed"* ]]'
-# A passing check's output is not printed, so the stub logs its arguments.
 args_log="$tmp/affected-args.log"
 run -u CHECK_AFFECTED_JOBS -u CHECK_AFFECTED_BUDGET STUB_ARGS_LOG="$args_log" -- --base base --tests
 check "--tests passes a default job count of at most 8 and the 120 s budget" \
@@ -444,8 +437,6 @@ run -u PLUGIN_TEST_SHARE_WARN_ONLY STUB_SHARE_LOG="$share_log" -- --base base --
 check "--tests passes PLUGIN_TEST_SHARE_WARN_ONLY=1 to the suites" '[[ $RC == 0 && $(cat "$share_log") == 1 ]]'
 run CHECK_DATA_ROOT="$repo" -- --base base --tests
 check "--tests keeps a caller's CHECK_DATA_ROOT from the suites" '[[ $RC == 0 && $ERR != *"saw CHECK_DATA_ROOT"* ]]'
-# The deadline is the budget counted from the run's start: read before and after
-# the run, it falls between the two clocks plus the 45 s asked for.
 deadline_log="$tmp/affected-deadline.log"
 printf -v before '%(%s)T' -1
 run STUB_DEADLINE_LOG="$deadline_log" -- --base base --tests --budget 45
@@ -482,8 +473,6 @@ rm -rf "$repo/eco"
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'fixtures/case.test.js\n' -- --base base --tests
 check "--tests counts no path under outside-node-exclusions.txt as an unrun suite" \
   '[[ $RC == 0 && $ERR != *"SKIP tests"* ]]'
-# A selected Node suite in a registered package runs through the package's own
-# npm test, and a failing one fails tests.
 if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
   mkdir -p "$repo/pkg/demo"
   printf '{"name":"demo","private":true,"scripts":{"test":"node --test x.test.mjs"}}\n' >"$repo/pkg/demo/package.json"
@@ -508,8 +497,6 @@ if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command 
   run STUB_AFFECTED_TESTS=3 STUB_AFFECTED_SLEEP=2 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\n' -- --base base --tests --budget 1
   check "--tests starts no Node package past its budget, and names it as left" \
     '[[ $RC == 0 && $ERR != *"FAIL tests"* && $ERR == *"SKIP tests: pkg/demo/x.test.mjs (past the 1s budget, left to CI)"* ]]'
-  # A failed package does not stop the next: pkg/demo fails first, pkg/other
-  # still runs, and the run still fails.
   mkdir -p "$repo/pkg/other"
   printf '{"name":"other","private":true,"scripts":{"test":"touch ran.marker"}}\n' >"$repo/pkg/other/package.json"
   : >"$repo/pkg/other/y.test.mjs"
@@ -517,8 +504,6 @@ if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command 
   run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN="$both_packages" -- --base base --tests
   check "--tests runs the next Node package after one fails, and still fails" \
     '[[ $RC == 1 && $ERR == *"FAIL tests"* && -f "$repo/pkg/other/ran.marker" ]]'
-  # pkg/demo starts inside a 15 s budget, far enough for a loaded host, and fails
-  # past it, so pkg/other does not start and is named.
   rm -f "$repo/pkg/other/ran.marker"
   printf '{"name":"demo","private":true,"scripts":{"test":"sleep 16; exit 1"}}\n' >"$repo/pkg/demo/package.json"
   run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN="$both_packages" -- --base base --tests --budget 15
@@ -597,9 +582,6 @@ check "uncommitted edits to a changed file skip every check, not just the file l
   '[[ $RC == 0 && $ERR == *"SKIP every check (uncommitted edits"* && $ERR != *"ran"* ]]'
 git_test_config "$repo" checkout -q -- notes.txt
 
-# validate-plugins runs only when a claude CLI resolves; a stub stands in. This
-# case diffs against its own plugin-base branch and resets HEAD afterwards, so
-# the cases below still see the base..HEAD diff of notes.txt and tool alone.
 pre_plugin="$(git_test_config "$repo" rev-parse HEAD)"
 mkdir -p "$tmp/bin" "$repo/plugins/demo"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/claude"
@@ -684,20 +666,15 @@ printf 'x\n' >"$repo/plugins/demo/skills/s/notes.txt"
 git_test_config "$repo" add -A
 git_test_config "$repo" commit -q -m skill
 RC=0
-# The copies exit 0 here: a failing static check would skip the slow ones, hiding the reason asserted.
 ERR="$(cd "$tmp" && COPY_STUB_RC=0 CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
 check "a copy run elsewhere skips changed-skills, which runs the checked tree's skill-quality code" \
   '[[ $ERR == *"SKIP changed-skills (runs the checked tree"* && $ERR != *"copy of check-changed-skills"* ]]'
 RC=0
-# The copies fail here, so each one's output is printed.
 ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
 check "a copy run elsewhere points cross-plugin-source-drift at the checked tree" \
   '[[ $RC == 1 && $ERR == *"copy of check-cross-plugin-source-drift read $repo"* && $ERR != *"check-cross-plugin-source-drift ran"* ]]'
 git_test_config "$repo" reset -q --hard HEAD~1
 
-# The options-docs generator writes the READMEs, so a branch that changes it and
-# regenerates them fails the copy's older generator; a README-only drift is
-# still the copy's to judge.
 pre_docs="$(git_test_config "$repo" rev-parse HEAD)"
 mkdir -p "$repo/plugins/demo"
 printf '# Demo\n' >"$repo/plugins/demo/README.md"
@@ -773,7 +750,6 @@ check "an in-place run scans with the merge-base's patterns file, not the branch
   '[[ $ERR == *"FAIL machine-specific-paths"* && $ERR == *"Linux user path: settings.json:1:"* ]]'
 git_test_config "$repo" reset -q --hard HEAD~1
 
-# typos reads its exclusions from the checked tree's workflow, which is data.
 sed -i.bak 's|exclude: plugins/.*|& legacy/samples/**|' "$workflow" && rm -f "$workflow.bak"
 git_test_config "$repo" commit -q -am typos-exclude
 RC=0
@@ -819,7 +795,6 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
   check "a copy run terminated during markdownlint leaves nothing in TMPDIR" '[[ $RC == 143 && -z $(ls -A "$md_tmp") ]]'
   pre_md="$(git_test_config "$repo" rev-parse HEAD)"
 
-  # A branch-only nested config that is data exempts the files it covers.
   mkdir -p "$repo/legacy"
   printf '# Title\nText.\n' >"$repo/legacy/a.md"
   printf '{\n  // vendored, never restyled\n  "config": { "default": false, },\n}\n' >"$repo/legacy/.markdownlint-cli2.jsonc"
@@ -885,8 +860,6 @@ chmod +x "$repo/new-tool"
 run -- --uncommitted
 check "--uncommitted passes once the file is executable on disk" \
   '[[ $RC == 0 && $OUT == *"over 1 changed files"* ]]'
-# The snapshot is this tree's own work tree, so --tests selects from that work
-# tree, uncommitted edits included, as a committed run selects from its diff.
 run STUB_STATUS_LOG="$tmp/status.log" -- --uncommitted --tests
 check "--uncommitted --tests runs the suites over the uncommitted change" \
   '[[ $RC == 0 && $ERR != *"SKIP tests"* && $(cat "$tmp/status.log" 2>/dev/null) == *"?? new-tool"* ]]'
@@ -928,13 +901,20 @@ rm -rf "$repo/new-tool"
 # The inner run lints from the scratch repository, with the rcfile beside the
 # outer copy of the script; an optional check the rcfile enables proves it read it.
 if grep -q -- --rcfile <<<"$(shellcheck --help 2>&1)"; then
-  cp "$SELF_DIR/../.shellcheckrc" "$repo/.shellcheckrc"
+  printf 'enable=require-double-brackets\n' >"$repo/.shellcheckrc"
   printf '#!/usr/bin/env bash\nif [ -n "${1:-}" ]; then echo hi; fi\n' >"$repo/lint-me.sh"
   chmod +x "$repo/lint-me.sh"
   run -- --uncommitted
   check "--uncommitted lints a changed shell file with the repository's .shellcheckrc" \
     '[[ $RC == 1 && $ERR == *"FAIL shellcheck"* && $ERR == *"SC2292"* && $ERR != *"unrecognized option"* ]]'
-  rm -f "$repo/.shellcheckrc" "$repo/lint-me.sh"
+  rm -f "$repo/.shellcheckrc"
+  run CI=true -- --uncommitted
+  check "in CI a shell change with no .shellcheckrc and no readable org layer fails shellcheck" \
+    '[[ $RC == 1 && $ERR == *"FAIL shellcheck"* && $ERR == *"standards org layer"* ]]'
+  run -- --uncommitted
+  check "on a workstation the same run skips shellcheck, naming why" \
+    '[[ $ERR == *"SKIP"*"shellcheck (no .shellcheckrc here, and the standards org layer could not be read)"* ]]'
+  rm -f "$repo/lint-me.sh"
 else
   ok "SKIP --uncommitted shellcheck case (no shellcheck with --rcfile here)"
 fi

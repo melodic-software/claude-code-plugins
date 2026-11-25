@@ -2142,12 +2142,6 @@ LANES_JQ="$LANE_DEFS"'
     ($r | map(select(.class == "max-turns" or ((.cap // $cap) as $c | .turns | hot($c)))) | sort_by(.created_at) | reverse | .[:5][] | "      \(.html_url)"),
     ($repeat[] | "    \(.n) limit stops on one \(if .head then "head" else "item" end): \(.title)\(if .head and .sha != "" then " @ \(.sha)" else "" end)")
 '
-# The model-usage baseline: one row per activity and profile over the same
-# runs, from the lane-outcome records of the runs whose annotations carry one;
-# a run read with none (cancelled, stopped at a gate) is left out. An
-# activity is the caller job's name (a pipeline lane's), else the lane; the
-# record names no profile, so it is unknown. A pass is a run that
-# concluded success; a max-turns hit is a failed run of class max-turns.
 # shellcheck disable=SC2016  # jq variables, as above
 MODELS_JQ="$LANE_DEFS"'
   [ $lanes[] as $wf | lane_runs($wf)[] ] as $all
@@ -2812,8 +2806,6 @@ BUDGETS_JQ='
          "budget \(.budget_product_sku // .budget_type // .id)",
          "amount \($amount | money), stop at limit \(if $stop then "on" else "off" end)"]
     end'
-# A budget is an ALERT when its spend reached its amount, or its forecast is
-# above --forecast-alert (else above the budget's own amount).
 # shellcheck disable=SC2016  # jq variables, as above
 AZ_BUDGETS_JQ='
   .value | list
@@ -2824,7 +2816,6 @@ AZ_BUDGETS_JQ='
       | [(if $spent >= $cap or $forecast > $limit then "ALERT" else "OK" end), "Azure", "budget \($name)",
          "spent \($spent | money), forecast \($forecast | money) (alert above \($limit | money)), of \($cap | money) \(.currentSpend.unit | str); \($data_date); read \($read_at)"]
     end'
-# The budgets and the anomaly alert that must exist, and when each ends.
 # shellcheck disable=SC2016  # jq variables, as above
 ALERTS_JQ='
   ((.budgets.value | list | map({key: (.name | str), value: .properties})) | from_entries) as $budgets

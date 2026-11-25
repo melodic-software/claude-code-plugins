@@ -297,8 +297,6 @@ test("gh failures: a missing PR is an answer, a missing commit is unresolvable, 
       (error) => error instanceof PublishError && !(error instanceof publisher.UnresolvableError),
     );
   fails(REC.repoNotFound);
-  // Each half of the PR-NOT_FOUND test alone: a null pullRequest with a repository-level error, and
-  // a pullRequest-path error with the repository gone.
   fails({ ...REC.pullNotFound, errors: REC.repoNotFound.errors });
   fails({ ...REC.repoNotFound, errors: REC.pullNotFound.errors });
 });
@@ -680,7 +678,6 @@ test("a later publish that finds an earlier revert of a published reverted merge
 });
 
 test("a PR updated while the listing pages is not skipped", () => {
-  // 101 merges with no rung plus one C3 merge that sorts last by update time until it is updated.
   const pulls = Array.from({ length: 101 }, (_, i) => pr(2000 + i, later("2026-09-10T00:00:00Z", i)));
   pulls.push(pr(3000, "2026-09-05T00:00:00Z", { rung: "C3" }));
   const result = run({ pulls, bumpOnPage2: 3000 });
@@ -806,7 +803,6 @@ test("a deleted run at a window edge is no gap: the newest, the oldest, or one b
 test("over 1,000 runs in the window are read in halves, and a deletion among them still refuses", () => {
   const many = Array.from({ length: 1002 }, (_, n) => wfRun(100000 + n, "pull_request", shaOf(0xc000), later("2026-09-01T00:00:00Z", n)));
   assert.deepEqual(run({ workflowRuns: { [FULL]: many } }).events, []);
-  // Any one run but the oldest and newest, so a deletion where two halves meet refuses too.
   for (let id = 100001; id < 101001; id += 1) {
     assert.throws(() => run({ workflowRuns: { [FULL]: many }, deletedRuns: [id] }), refusesWith(`run-deleted: ${FULL}`), `run ${id}`);
   }

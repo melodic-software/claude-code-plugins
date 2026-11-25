@@ -560,9 +560,6 @@ class SuppressibleDeltaArmTests(unittest.TestCase):
         )
 
     def test_merge_state_became_actionable(self) -> None:
-        # This arm requires the current merge state to be actionable (CLEAN),
-        # so the not-ready side is reached with untriaged material rather than a
-        # non-actionable merge state.
         clean = classify(make_pr(), make_prev(merge_state="UNKNOWN"))
         self.assertTrue(clean["pr_clean_ready_for_direct_gate"])
         self.assertNotIn("merge_state_became_actionable", clean["needs_worker_reasons"])

@@ -34,7 +34,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAIM="$SCRIPT_DIR/../../../scripts/worktree-claim.sh"
 STANDARDS_SYNC_LABEL=standards-sync
-# The merge gate's two patterns; the test holds these equal to babysit-prs'.
 BODY_HOLD_RE=$'\\bdo(?:n[\'\u2019]?t| not)\\s+merge\\b|(?:^|\\r)[^\\S\\r\\n]*hold:'
 VETO_RE=$'\\bdo(?:n[\'\u2019]?t| not)[\\s-]*merge\\b|\\bdo-not(?!-merge\\b)[\\s-]*merge\\b|(?<!the )(?<!the `)\\bdo-not-merge\\b|(?<=the )do-not-merge\\b(?!\\s*labels?\\b)|(?<=the `)do-not-merge\\b(?!`\\s*labels?\\b)'
 

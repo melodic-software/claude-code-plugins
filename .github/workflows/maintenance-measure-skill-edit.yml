@@ -76,14 +76,13 @@ concurrency:
 
 jobs:
   check-inputs:
-    # The first attempt only: a re-run never spends again.
     name: Check Inputs
     if: vars.CLAUDE_EVALS_DISABLED == 'false' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     cache-mode: read
     permissions:
-      contents: read # check out the default branch
+      contents: read
       actions: read # check-trusted-trigger reads this run's re-runner
     outputs:
       go: ${{ steps.stage.outputs.go }}
@@ -118,7 +117,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
       - name: Check upstream status
@@ -138,7 +136,6 @@ jobs:
           require-kind: human
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # A low budget ends the run neutral: go stays unset, so no pass runs.
       - name: Report a budget stop
         if: steps.kill.outputs.cause == 'budget'
         env:
@@ -235,7 +232,7 @@ jobs:
     if: needs.check-inputs.outputs.go == 'true'
     permissions:
       contents: read
-      actions: read # the pass's check-key-credit job lists this repository's key markers
+      actions: read
     uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.check-inputs.outputs.plugin }}
@@ -252,7 +249,7 @@ jobs:
     if: needs.check-inputs.outputs.go == 'true'
     permissions:
       contents: read
-      actions: read # the pass's check-key-credit job lists this repository's key markers
+      actions: read
     uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.check-inputs.outputs.plugin }}
@@ -270,7 +267,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # list this repository's credit-stop markers
+      actions: read
     outputs:
       next-leg: ${{ steps.credit.outputs.next-leg }}
       marker: ${{ steps.credit.outputs.marker }}
@@ -288,8 +285,6 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
@@ -310,7 +305,7 @@ jobs:
     timeout-minutes: 40
     cache-mode: read
     permissions:
-      contents: read # check out the default branch
+      contents: read
     outputs:
       proceed: ${{ steps.baseline.outputs.proceed }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
@@ -403,7 +398,6 @@ jobs:
           output-path: ${{ runner.temp }}/hill-climb-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Files, not step outputs: run-claude-cli reads both.
       - name: Write the prompt and schema
         id: prompt
         if: steps.models.outcome == 'success'
@@ -639,7 +633,7 @@ jobs:
     timeout-minutes: 10
     cache-mode: read
     permissions:
-      contents: read # check out the default branch
+      contents: read
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       sha256: ${{ steps.check.outputs.sha256 }}
@@ -727,7 +721,7 @@ jobs:
     if: ${{ !cancelled() && needs.scan.outputs.artifact-id != '' }}
     permissions:
       contents: read
-      actions: read # the pass's check-key-credit job lists this repository's key markers
+      actions: read
     uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.check-inputs.outputs.plugin }}
@@ -750,7 +744,7 @@ jobs:
     timeout-minutes: 10
     cache-mode: read
     permissions:
-      contents: read # check out the default branch
+      contents: read
     outputs:
       win: ${{ steps.decide.outputs.win }}
       artifact-id: ${{ steps.upload-win.outputs.artifact-id }}
@@ -791,7 +785,6 @@ jobs:
           artifact-ids: ${{ needs.measure-edit.outputs.artifact-id }}
           path: ${{ runner.temp }}/win/b
 
-      # The first missing stage is the gate; otherwise win-test.py names it.
       - name: Decide
         id: decide
         env:
@@ -904,7 +897,7 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      contents: read # check out the default branch
+      contents: read
       id-token: write # prove to the token broker which workflow this is
     env:
       GIT_CONFIG_GLOBAL: /dev/null
@@ -988,7 +981,6 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
-      # A kill switch turned on since the kill-switch check is a designed stop.
       - name: Request the lane token
         id: lane-token
         if: steps.verify.outcome == 'success'
@@ -1018,8 +1010,6 @@ jobs:
           EDIT_DIR: ${{ github.workspace }}/.edit
         run: node .base/.github/scripts/plugin-eval/hill-climb-publish.mjs push
 
-      # A stop before the push step leaves no line of its own; the script
-      # writes its refusals itself.
       - name: Report a stop before the push
         if: always() && steps.push.outcome == 'skipped'
         env:
@@ -1060,7 +1050,7 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      contents: read # check out the default branch
+      contents: read
       id-token: write # prove to the token broker which workflow this is
     env:
       GIT_CONFIG_GLOBAL: /dev/null

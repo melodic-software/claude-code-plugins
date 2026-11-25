@@ -22,7 +22,6 @@ assert_usage_error "$S" "gitea:acme/webapp#12" --blocked-by "gitea:acme/webapp#1
 gitea_fixture_init
 trap 'rm -rf "$GITEA_FIX"' EXIT
 
-# --- both ends face the authorization boundary ---
 rc="$(gitea_run "$S" "gitea:other/repo#1" --blocked-by "gitea:acme/webapp#4")"
 assert_eq "out-of-scope target → exit 2" "2" "$rc"
 assert_eq "nothing was requested" "" "$(gitea_requests)"
