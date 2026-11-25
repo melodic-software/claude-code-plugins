@@ -56,8 +56,10 @@ convention, else the session scratchpad) and pass it with `--prompt-file`; the c
 own copy in the job folder. Name the files and paths Codex should read; never paste file contents,
 diffs or logs into the prompt. Codex reads them itself inside its sandbox.
 
-Before a write task, list every directory outside the worktree it will write, pass each with
-`--add-dir` and name them in the prompt; pass none when the worktree is enough
+Before a write task, list every directory outside the worktree and the temp directories it will
+write, pass each with
+`--add-dir` and name them in the prompt; pass none when the worktree is enough. Codex cannot stage
+or commit inside its sandbox: tell it to leave Git to you, and stage and commit after the run
 ([reference/run.md](reference/run.md#run)).
 
 ## Background runs
@@ -77,7 +79,14 @@ process tree; stopping the background Bash task alone may leave Codex running.
 - **`blocked-by-mode` is not success.** The command records a run `blocked-by-mode`, exits `3`,
   and still prints the final message whenever the sandbox refused a command, whatever Codex's own
   exit was; that message may describe work that never happened. Say the run was blocked, give the
-  blocked count and commands from the first line, and never report the task done.
+  blocked count and commands from the first line, and never report the task done. Any failed
+  command whose output reads like a refusal records the run `blocked-by-mode`, including one
+  Codex then worked around, such as a cache write it retried under a temp directory: the command
+  cannot tell the two apart. The first line names the command, not what was refused; read the
+  job's `log_path` to see which write failed. When the refusals were only `git add`,
+  `git commit` or cache writes, the edits may all be in place, but each refused command did not
+  finish: check the edits, rerun what those commands were for, then stage and commit yourself
+  ([reference/run.md](reference/run.md#run)).
 - **A review can be blocked and still count as `ran`.** `codex: ran (...)` with a blocked-commands
   part means Codex tried something the read-only sandbox refused; the findings stand, and the
   blocked part is worth one line in the reply.
