@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -49,6 +50,20 @@ def test_write_atomic_retries_a_held_target(tmp_path, monkeypatch):
     monkeypatch.setattr(plugin_paths.os, "replace", lambda *_a: (_ for _ in ()).throw(PermissionError("held")))
     assert plugin_paths.write_atomic(tmp_path / "never.md", "x") is False
     assert not list(tmp_path.glob(".never.md.*")), "the temp file is removed after the last retry"
+
+
+def test_file_lock_holds_out_a_second_holder_until_released(tmp_path):
+    lock = tmp_path / "lock"
+    with plugin_paths.file_lock(lock, wait=0) as first:
+        assert first is True, "a free lock is taken at once"
+        started = time.monotonic()
+        with plugin_paths.file_lock(lock, wait=0.2) as second:
+            assert second is False, "a held lock is not taken"
+        assert time.monotonic() - started >= 0.2, "the second holder waits out its wait before giving up"
+    with plugin_paths.file_lock(lock, wait=0) as again:
+        assert again is True, "the lock is free once its holder leaves"
+    if os.name == "posix":
+        assert lock.stat().st_mode & 0o777 == 0o600
 
 
 def test_run_git_reports_failure_as_none(tmp_path, monkeypatch):

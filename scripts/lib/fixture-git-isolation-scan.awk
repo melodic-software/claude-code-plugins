@@ -1,5 +1,3 @@
-# The classifying scan of scripts/check-fixture-git-isolation.sh, whose header
-# documents both rules; it prints one tab-separated record per finding.
 BEGIN {
   # The quote CLASS is built once here and every pattern needing it is a
   # DYNAMIC regex over this string, so no pattern holds a literal apostrophe.
@@ -37,11 +35,6 @@ BEGIN {
 }
 
 # ---- GLOBAL RULE --------------------------------------------------------
-# Events, in file order, for the second rule (see the header): S/U set or
-# unset GIT_CONFIG_GLOBAL (G) or GIT_CONFIG_NOSYSTEM (N), R a git command
-# run under the inherited environment, B a git command handed an env dict
-# that drops both, C a sourced file. Consecutive R events collapse: bash
-# only needs the first git command after each state change.
 function g_ev(kind, ln, arg) {
   if (PJ_BODY && (kind == "S" || kind == "U")) kind = tolower(kind)
   if ((kind == "R" || kind == "F") && G_LAST == kind) return
