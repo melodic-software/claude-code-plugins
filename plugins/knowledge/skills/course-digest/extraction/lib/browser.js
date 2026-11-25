@@ -1,8 +1,3 @@
-/**
- * Shared browser infrastructure for course-extraction scripts: browser
- * launch, cookie injection, and auth age checking.
- */
-
 import { existsSync, statSync } from "node:fs";
 
 import { writeStdout } from "@melodic/video-digestion/shared/terminal";

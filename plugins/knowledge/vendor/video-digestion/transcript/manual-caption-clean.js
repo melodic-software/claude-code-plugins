@@ -1,7 +1,3 @@
-/**
- * YouTube manual-caption cleaning — progressive merge + rolling duplicate collapse.
- */
-
 import {
   mergeProgressiveCaptionCues,
   shouldCleanProgressiveCaptions,

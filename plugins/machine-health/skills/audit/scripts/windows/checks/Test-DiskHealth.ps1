@@ -30,8 +30,6 @@ function Get-TemperatureSeverity {
     )
     if ($null -eq $Temperature) { return 'OK' }
 
-    # Relative to the drive's own TemperatureMax (at max: throttle/damage territory);
-    # the fixed 55/65 C fallback applies only when that max is missing or nonsensical.
     if ($null -ne $TemperatureMax -and $TemperatureMax -gt 0) {
         if ($Temperature -ge $TemperatureMax) { return 'CRIT' }
         if ($Temperature -ge ($TemperatureMax * 0.9)) { return 'WARN' }

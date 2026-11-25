@@ -18,7 +18,6 @@ function sandbox() {
   return dir;
 }
 
-/** A stderr double and a spawn double that records its call. */
 function doubles(status = 0) {
   const io = { errors: "", calls: [] };
   io.stderr = { write: (text) => (io.errors += text) };

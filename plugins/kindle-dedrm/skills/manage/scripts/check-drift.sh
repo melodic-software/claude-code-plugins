@@ -85,8 +85,6 @@ else
 fi
 echo
 
-# The subscriber-gated article body carries no zip link (reference/sources.md). A non-200
-# here means the author revoked or rolled the zip; a subscriber must re-pin by hand.
 echo "Kindle_Key_Finder zip (pinned direct URL — article-body discovery paywalled):"
 KKF_HTTP=$(http_status "${PINNED_KKF_URL}")
 case "${KKF_HTTP}" in
@@ -100,8 +98,6 @@ case "${KKF_HTTP}" in
 esac
 echo
 
-# Subscriber-gated, so only a HEAD probe that the slug resolves. A 404 means the
-# page moved or was unpublished again; re-discover via the site sitemap.
 echo "Tutorial article (techy-notes.com — subscriber-gated):"
 ART_HTTP=$(http_status "${PINNED_TUTORIAL_URL}")
 case "${ART_HTTP}" in

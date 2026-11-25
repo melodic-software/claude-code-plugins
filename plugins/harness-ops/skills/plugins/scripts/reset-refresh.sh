@@ -342,7 +342,6 @@ if [[ "$MODE" == "clean" && -d "$PLUGINS_DIR/data" ]]; then
 fi
 
 if [[ "$MODE" == "clean" ]]; then
-  # A sibling of plugins/, so each move is a rename on the same filesystem.
   moved="$CLAUDE_DIR/plugins.bak-$(date -u +%Y%m%dT%H%M%SZ)"
   mkdir "$moved" "$moved/marketplaces" || die "could not create the backup $moved; nothing was moved"
 else
