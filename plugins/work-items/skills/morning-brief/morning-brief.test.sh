@@ -753,7 +753,7 @@ cat >"$TMP/touch.json" <<'EOF'
      {"__typename": "PullRequestReview", "createdAt": "2026-07-19T10:06:00Z", "author": {"login": "op-user"}, "state": "COMMENTED"},
      {"__typename": "MergedEvent", "createdAt": "2026-07-20T07:00:00Z", "actor": {"login": "op-user"}},
      {"__typename": "IssueComment", "createdAt": "2026-07-19T09:00:00Z", "author": {"login": "lanes-app"},
-      "body": "<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=abc -->\nStopped.\n\nReason: `design`\n\n- Lane code: `ci-fix-round-cap`"}]},
+      "body": "<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=abc -->\n<!-- stop-reason lane=pr-unblock reason=design -->\n### pr-unblock / report-escalation\nHeld for a person: why.\nReason: `design`\n\n- Lane code: `ci-fix-round-cap`"}]},
    "labels": {"nodes": [
      {"__typename": "LabeledEvent", "createdAt": "2026-07-19T09:00:00Z", "actor": {"login": "lanes-app"}, "label": {"name": "needs-human"}},
      {"__typename": "UnlabeledEvent", "createdAt": "2026-07-19T12:30:00Z", "actor": {"login": "op-user"}, "label": {"name": "needs-human"}},

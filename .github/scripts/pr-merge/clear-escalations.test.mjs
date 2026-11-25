@@ -27,7 +27,7 @@ const KEY = "c".repeat(40);
 const ENV = { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRACKER_CONFIG: "/nonexistent/work-items.yaml" };
 
 const escalationBody = (reason, codeLabel = "Lane code") =>
-  `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\nThe pr-unblock lane stopped on this pull request and needs a person: why.\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n`;
+  `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\n### pr-unblock / report-escalation\nHeld for a person: why.\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n`;
 const labeled = (actor, at) => ({ event: "labeled", actor, label: { name: "needs-human" }, created_at: at });
 const commented = (user, body, at, updatedAt = at) => ({ event: "commented", user, actor: user, body, created_at: at, updated_at: updatedAt });
 const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10:00:05Z" } = {}) => commented(user, escalationBody(reason), at);

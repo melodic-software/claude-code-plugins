@@ -322,7 +322,7 @@ if [[ $ESCALATION_REASON == feedback-not-converging || $ESCALATION_REASON == fee
   if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
     details=$'\n'"The review rounds are not converging after the round cap and one fresh fixer round. Open review threads:"$'\n\n'"$threads"$'\n'
   else
-    details=$'\n'"The disputed finding is in one of the open review threads:"$'\n\n'"$threads"$'\n'
+    details=$'\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n'"$threads"$'\n\n</details>'
   fi
 elif [[ $ESCALATION_REASON == feedback-incomplete ]]; then
   # Each kept thread with no disposition, as publish-feedback.mjs named it
@@ -407,21 +407,22 @@ EOF
 fi
 
 if [[ -n $activity ]]; then
-  resume="To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:"$'\n\n```sh\n'"$dispatch"$'\n```'
+  resume="- To resume: deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow:"$'\n\n```sh\n'"$dispatch"$'\n```'
 else
-  resume="To resume, deal with the reason above, then remove the \`$label\` label (and \`do-not-merge\`, if set)."
+  resume="- To resume: deal with the reason above, then remove the \`$label\` label (and \`do-not-merge\`, if set)."
 fi
 {
   printf '%s\n%s\n' "$marker" "$key_line"
   [[ -z $reason_lines ]] || printf '%s\n' "${reason_lines%%$'\n'*}"
-  printf 'The pr-unblock lane stopped on this pull request and needs a person: %s.\n\n' "$why"
-  [[ -z $reason_lines ]] || printf '%s\n\n' "${reason_lines#*$'\n'}"
+  printf '### pr-unblock / report-escalation\nHeld for a person: %s.\n' "$why"
+  [[ -z $reason_lines ]] || printf '%s\n' "${reason_lines#*$'\n'}"
 } >"$body"
 cat >>"$body" <<EOF
+
 - Lane code: \`$ESCALATION_REASON\`
 - Resume key: \`$HEAD_SHA\` (the head the lane stopped on)
-$details
 $resume
+$details
 EOF
 
 if [[ $labeled != true ]]; then

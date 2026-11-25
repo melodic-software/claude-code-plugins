@@ -149,6 +149,11 @@ run() {
   set -e
 }
 writes() { grep -cE '^(POST|PATCH)' "$STUB/requests" || true; }
+first_body() { sed '/^=====$/q' "$STUB/bodies" | grep -v '^=====$'; }
+visible() { first_body | sed '/^<details>$/,$d' | grep -v '^<!-- .* -->$'; }
+collapsed() { first_body | sed -n '/^<details>$/,/^<\/details>$/p'; }
+within_limits() { (($(visible | wc -l) <= 15 && $(visible | wc -c) <= 1500)) && echo yes || echo "no: $(visible | wc -l) lines, $(visible | wc -c) characters"; }
+why_of() { jq -r --arg r "$1" '.[$r].why' "$ROUTES"; }
 comment() { printf '[{"id":%s,"body":%s,"user":{"login":"%s","type":"%s"}}]' "${4:-1}" "$(jq -Rs . <<<"$1")" "$2" "$3"; }
 bot_marker() { comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$1 -->"$'\nbody\n\n- Reason: `'"${2:-feedback-question-design}"'`' 'melodic-automation-lanes[bot]' Bot; }
 activity_of() {
@@ -229,6 +234,10 @@ for reason in bogus workflow-files dependency-workflow-held; do
   has "$reason, unknown: comment names the lane code" "- Lane code: \`$reason\`" "$STUB/bodies"
   has "$reason, unknown: comment says the table does not list it" 'its routing table does not list' "$STUB/bodies"
   check "$reason, unknown: no activity to dispatch" 0 "$(grep -c 'activity=' "$STUB/bodies" || true)"
+  check "$reason, unknown: the heading names the lane and activity" '### pr-unblock / report-escalation' "$(visible | sed -n 1p)"
+  check "$reason, unknown: the verdict line follows the heading" \
+    'Held for a person: the lane stopped on a reason its routing table does not list, so a person decides.' "$(visible | sed -n 2p)"
+  check "$reason, unknown: within 15 visible lines and 1,500 characters" yes "$(within_limits)"
   setup '[]' '[]'
   MODE=status run "$reason"
   check "$reason, unknown, status mode: exit 0" 0 "$RC"
@@ -287,6 +296,9 @@ for reason in "${HOLD_REASONS[@]}"; do
   check "$reason: the lane code has its own label" 1 "$(grep -cFx -- "- Lane code: \`$reason\`" "$STUB/bodies")"
   check "$reason: Reason names only the owner reason" 0 "$(grep -cF -- "Reason: \`$reason\`" "$STUB/bodies" || true)"
   check "$reason: the resume key stays the second line" "<!-- pr-unblock resume-key=$HEAD_A -->" "$(sed -n 2p "$STUB/bodies")"
+  check "$reason: the heading names the lane and activity" '### pr-unblock / report-escalation' "$(visible | sed -n 1p)"
+  check "$reason: the verdict line follows the heading" "Held for a person: $(why_of "$reason")." "$(visible | sed -n 2p)"
+  check "$reason: within 15 visible lines and 1,500 characters" yes "$(within_limits)"
 done
 setup '[]' '[]'
 run bogus
@@ -599,24 +611,25 @@ LBL='other-app[bot]' run feedback-question-design
 check "LANES_BOT_LOGIN names the lanes identity: no write" 0 "$(writes)"
 
 setup '[]' '[]'
-cat >"$STUB/threads.json" <<'EOF'
-[{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
-{"isResolved":false,"path":"src/q.js","line":3,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r9"}]}},
-{"isResolved":true,"path":"src/done.js","line":1,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r8"}]}}
-]}}}}}]
-EOF
+jq -s . "$SCRIPT_DIR/fixtures/review-threads-pr-19095.json" >"$STUB/threads.json"
 run feedback-question-design
 check "question: exit 0" 0 "$RC"
-has "question: points at the open threads" 'The disputed finding is in one of the open review threads:' "$STUB/bodies"
-has "question: names the open thread" '- `src/q.js:3`: https://github.com/o/r/pull/42#discussion_r9' "$STUB/bodies"
-check "question: a resolved thread is not named" 0 "$(grep -c 'src/done.js' "$STUB/bodies" || true)"
+check "question: the open threads sit in one collapsed block" \
+  $'<details>\n<summary>Open review threads: the disputed finding is one of them</summary>' "$(collapsed | sed -n 1,2p)"
+check "question, captured answer for pull request 19095: the collapsed block lists each open thread with its path, line and link" \
+  '- `.github/scripts/pr-unblock/report-escalation.sh:424`: https://github.com/melodic-software/claude-code-plugins/pull/19095#discussion_r4698916312
+- `.github/scripts/pr-unblock/report-escalation.test.sh:606`: https://github.com/melodic-software/claude-code-plugins/pull/19095#discussion_r4698916323' \
+  "$(collapsed | grep '^- ')"
+check "question: the collapsed block closes the comment" '</details>' "$(first_body | grep -v '^$' | tail -n 1)"
+check "question: no thread link in the visible part" 0 "$(visible | grep -c discussion_r || true)"
+check "question: within 15 visible lines and 1,500 characters" yes "$(within_limits)"
 check "question: label then comment" "$LABEL_THEN_COMMENT" "$(grep '^POST' "$STUB/requests")"
 
 setup '[]' '[]'
 touch "$STUB/fail_graphql"
 run feedback-question-intent
 check "question, threads unreadable: still escalates" 0 "$RC"
-has "question, threads unreadable: says so" 'could not be read' "$STUB/bodies"
+check "question, threads unreadable: says so in the collapsed block" 1 "$(collapsed | grep -c 'could not be read' || true)"
 
 ROUND='<!-- pr-unblock:address-feedback-round -->'
 rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]')

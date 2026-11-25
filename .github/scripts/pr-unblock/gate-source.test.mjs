@@ -151,7 +151,11 @@ test("the newest labeled event is read by its time, not its place in the list", 
 });
 
 const escalated = (reason, at = "2026-10-18T10:00:05Z", codeLabel = "Lane code") =>
-  commented(APP, `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\nThe pr-unblock lane stopped.\n\nReason: \`design\`\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${OLD}\``, at);
+  commented(
+    APP,
+    `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\n### pr-unblock / report-escalation\nHeld for a person: why.\nReason: \`design\`\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${OLD}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n- \`src/a.js:1\`: https://github.com/o/r/pull/1#discussion_r1\n\n</details>`,
+    at,
+  );
 const allows = (timeline, activity, { reviewComments = [], reviews = [] } = {}) =>
   laneEscalationAllows({ timeline, reviewComments, reviews, label: "needs-human", head: HEAD, isLanesApp, activity }).allowed;
 
