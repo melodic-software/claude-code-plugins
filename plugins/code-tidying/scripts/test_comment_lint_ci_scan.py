@@ -125,6 +125,62 @@ class Callers(unittest.TestCase):
         )
 
 
+class Reach(unittest.TestCase):
+    MAKEFILE = f"test:\n\tpytest\n\ncomment-lint:\n\t{CALL} \"$HEAD\" origin/main\n"
+
+    def test_a_commented_out_call_is_no_caller(self) -> None:
+        text = f"lint:\n  script:\n    # - {CALL} \"$A\" \"$B\"\n    - make test\n"
+        result = scan({".gitlab-ci.yml": text})
+        self.assertEqual(result["callers"], [])
+        self.assertEqual(kinds(result), ["no-caller"])
+
+    def test_a_commented_out_groovy_call_is_no_caller(self) -> None:
+        self.assertEqual(scan({"Jenkinsfile": f"// sh '{CALL} $A $B'\n"})["callers"], [])
+
+    def test_a_make_target_ci_never_runs_is_not_installed(self) -> None:
+        result = scan({".gitlab-ci.yml": "test:\n  script:\n    - make test\n", "Makefile": self.MAKEFILE})
+        unreached = [d for d in result["decisions"] if d["kind"] == "unreached-caller"]
+        self.assertEqual(
+            unreached,
+            [
+                {
+                    "kind": "unreached-caller",
+                    "file": "Makefile",
+                    "line": 5,
+                    "runner": "make",
+                    "target": "comment-lint",
+                    "ci_files": [".gitlab-ci.yml"],
+                }
+            ],
+        )
+
+    def test_a_make_target_a_commented_ci_line_names_is_not_installed(self) -> None:
+        ci = "lint:\n  script:\n    # - make comment-lint\n    - make test\n"
+        self.assertIn("unreached-caller", kinds(scan({".gitlab-ci.yml": ci, "Makefile": self.MAKEFILE})))
+
+    def test_a_make_target_ci_runs_is_reached(self) -> None:
+        result = scan({".gitlab-ci.yml": "lint:\n  script:\n    - make comment-lint\n", "Makefile": self.MAKEFILE})
+        self.assertNotIn("unreached-caller", kinds(result))
+        self.assertEqual(result["callers"][0]["reached_by"], [".gitlab-ci.yml"])
+
+    def test_a_just_recipe_ci_runs_is_reached(self) -> None:
+        justfile = f"comment-lint head base:\n    {CALL} {{{{head}}}} {{{{base}}}}\n"
+        ci = "      - run: just comment-lint \"$SHA\" origin/main\n"
+        result = scan({".github/workflows/ci.yml": ci, "justfile": justfile})
+        self.assertNotIn("unreached-caller", kinds(result))
+
+    def test_a_task_ci_runs_is_reached_and_another_is_not(self) -> None:
+        taskfile = f"version: '3'\ntasks:\n  lint-comments:\n    cmds:\n      - {CALL} \"$A\" \"$B\"\n"
+        reached = scan({"Jenkinsfile": "sh 'task lint-comments'\n", "Taskfile.yml": taskfile})
+        unreached = scan({"Jenkinsfile": "sh 'task build'\n", "Taskfile.yml": taskfile})
+        self.assertNotIn("unreached-caller", kinds(reached))
+        self.assertIn("unreached-caller", kinds(unreached))
+
+    def test_a_runner_caller_with_no_ci_system_is_unreached(self) -> None:
+        result = scan({"Makefile": self.MAKEFILE})
+        self.assertEqual(kinds(result)[:2], ["no-ci-system", "unreached-caller"])
+
+
 class Usage(unittest.TestCase):
     def test_a_missing_repo_is_a_usage_error(self) -> None:
         proc = subprocess.run(

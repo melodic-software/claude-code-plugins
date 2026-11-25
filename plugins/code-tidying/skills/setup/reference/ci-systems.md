@@ -1,9 +1,9 @@
 # CI systems for `apply install-ci`
 
 What the setup agent consults to write the comment lint's CI step in the repository's own system.
-It holds our decisions and pointers to each vendor's live documentation; it holds no vendor
-template, and no system here is a default. Read the vendor's pages at run time for every name the
-step uses (variables, keywords, step syntax); never write one from memory.
+It holds our decisions only: no vendor template, no vendor link, and no system here is a default.
+Read the system's documentation at run time for every name the step uses (variables, keywords,
+step syntax); never write one from memory.
 
 ## What the step does, in any system
 
@@ -42,17 +42,14 @@ changes and already has `python3`; otherwise add a job shaped like its siblings.
 runs a task-runner target for its checks (`runners` in the scan), the step can be a target there,
 called from that job.
 
-## Vendors with a pointer
+## The system's own documentation
 
-| System (scan id) | Step syntax | The change's head commit and target branch |
-|---|---|---|
-| `github-actions` | [Workflow syntax: `jobs.<job_id>.steps[*].run`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun) | [Contexts: `github` context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context) |
-| `azure-pipelines` | [YAML schema: steps.script](https://learn.microsoft.com/en-us/azure/devops/pipelines/yaml-schema/steps-script#stepsscript-definition) | [Predefined variables: build variables](https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables#build-variables-devops-services) |
-| `gitlab-ci` | [CI/CD YAML syntax: `script`](https://docs.gitlab.com/ci/yaml/#script) | [Predefined variables for merge request pipelines](https://docs.gitlab.com/ci/variables/predefined_variables/#predefined-variables-for-merge-request-pipelines) |
-| `jenkins` | [Pipeline syntax: declarative steps](https://www.jenkins.io/doc/book/pipeline/syntax/#declarative-steps) | [Multibranch: additional environment variables](https://www.jenkins.io/doc/book/pipeline/multibranch/#additional-environment-variables) |
-| `circleci` | [Configuration reference: `run`](https://circleci.com/docs/reference/configuration-reference/#run) | [Built-in environment variables](https://circleci.com/docs/reference/variables/#built-in-environment-variables) |
-| `bitbucket-pipelines` | [Step options](https://support.atlassian.com/bitbucket-cloud/docs/step-options/) | [Variables and secrets: default variables](https://support.atlassian.com/bitbucket-cloud/docs/variables-and-secrets/#Default-Variables) |
+The scan names each system by its id. Before drafting, read that system's current documentation
+for two things: how a job step runs a shell command, and which predefined variables name the
+change's head commit and its target branch. Find the pages with `/discovery:research` (if enabled),
+otherwise search the vendor's own documentation site, and cite the pages you read beside the
+proposal. This file links no vendor page: a stored link is one tool's documentation, which the
+plugin philosophy's "No ecosystem-specific examples" rule keeps out of a shipped reference.
 
-Every other system the scan names, and a pipeline configured outside the repository: find its
-step-syntax and predefined-variables pages with `/discovery:research` (if enabled), otherwise ask
-the user for them, then print the step and where it goes instead of writing it.
+When the system's documentation cannot be found or read, or the pipeline is configured outside the
+repository, print the step and where it goes instead of writing it.

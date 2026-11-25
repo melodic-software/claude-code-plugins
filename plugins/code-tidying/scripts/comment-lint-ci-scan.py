@@ -10,15 +10,20 @@ nothing and writes nothing:
   systems    [{system, files}], CI systems whose configuration files are present
   runners    [{runner, files}], task-runner files a CI job may call
   tools      {python3: [files], pygments: [files]}, scanned files naming each
-  callers    [{file, line, form, text, args?}], form `script` for a call of
-             comment-lint-ci.sh, `recipe` for comment-lint.sh run directly or
-             the older check-comment-lint.sh wrapper
+  callers    [{file, line, form, text, args?, runner?, target?, reached_by?}],
+             form `script` for a call of comment-lint-ci.sh, `recipe` for
+             comment-lint.sh run directly or the older check-comment-lint.sh
+             wrapper; a caller in a task-runner file names its target and the
+             CI files whose uncommented lines run that target
   decisions  [{kind, ...}]: no-ci-system, several-systems, no-caller,
-             recipe-caller, drift, unparsed, missing-tool
+             recipe-caller, drift, unparsed, unreached-caller, missing-tool
 
-Only configuration files at the paths below are read, from disk, so a file
-written moments ago counts before it is committed. A job that reaches the lint
-through another script is not followed: the setup agent reads that script.
+A commented-out line is never a caller. A task-runner caller that no CI file
+runs is `unreached-caller`, not installed. Whether a reaching job runs on a
+change is the setup agent's to read. Only configuration files at the paths
+below are read, from disk, so a file written moments ago counts before it is
+committed. A job that reaches the lint through another script is not followed:
+the setup agent reads that script.
 
 Exit 0 with the JSON; 2 on a usage error.
 """
@@ -71,6 +76,12 @@ RUNNERS: dict[str, tuple[str, ...]] = {
 
 RECIPE = re.compile(r"(?<![\w-])(?:check-)?comment-lint\.sh\b")
 EXPRESSION = re.compile(r"\$\{\{.*?\}\}|\$\(.*?\)|\$\[.*?\]|\{\{.*?\}\}")
+COMMENT = re.compile(r"^\s*(?:-\s*)?(?:#|//)")
+TARGET = {
+    "make": re.compile(r"^([A-Za-z0-9_.-]+)\s*:(?!=)"),
+    "just": re.compile(r"^@?([A-Za-z0-9_-]+)(?:\s[^:=]*)?:(?!=)"),
+    "task": re.compile(r"^  ([A-Za-z0-9_.:-]+):\s*$"),
+}
 STOP = {";", "&&", "||", "|", "&", ")", "(", ">", ">>", "<", "2>", "2>&1"}
 
 
@@ -133,10 +144,24 @@ def caller(file: str, line: int, text: str) -> dict:
     return record
 
 
+def target_at(runner: str, lines: list[str], line: int) -> str | None:
+    for text in reversed(lines[: line - 1]):
+        if m := TARGET[runner].match(text):
+            return m.group(1)
+    return None
+
+
+def reaches(runner: str, target: str, text: str) -> bool:
+    call = re.compile(rf"(?<![\w-]){runner}\b[^\n]*(?<![\w-]){re.escape(target)}(?![\w:-])")
+    return any(call.search(line) for line in text.splitlines() if not COMMENT.match(line))
+
+
 def scan(root: Path) -> dict:
     systems = [{"system": s, "files": f} for s, pats in SYSTEMS.items() if (f := found(root, pats))]
     runners = [{"runner": r, "files": f} for r, pats in RUNNERS.items() if (f := found(root, pats))]
     files = [f for group in systems + runners for f in group["files"]]
+    ci_files = [f for group in systems for f in group["files"]]
+    runner_of = {f: r["runner"] for r in runners for f in r["files"]}
     tools: dict[str, list[str]] = {"python3": [], "pygments": []}
     callers: list[dict] = []
     for file in files:
@@ -145,8 +170,19 @@ def scan(root: Path) -> dict:
             if tool in text or (tool == "python3" and re.search(r"\bpython\b", text)):
                 tools[tool].append(file)
         for line, logical in logical_lines(text):
-            if SCRIPT in logical or RECIPE.search(logical):
-                callers.append(caller(file, line, logical))
+            if COMMENT.match(logical) or not (SCRIPT in logical or RECIPE.search(logical)):
+                continue
+            record = caller(file, line, logical)
+            if runner := runner_of.get(file):
+                record["runner"] = runner
+                record["target"] = target_at(runner, text.splitlines(), line)
+                record["reached_by"] = [
+                    ci
+                    for ci in ci_files
+                    if record["target"]
+                    and reaches(runner, record["target"], (root / ci).read_text(encoding="utf-8", errors="replace"))
+                ]
+            callers.append(record)
 
     decisions: list[dict] = []
     if not systems:
@@ -157,6 +193,10 @@ def scan(root: Path) -> dict:
         decisions.append({"kind": "no-caller"})
     for c in callers:
         where = {"file": c["file"], "line": c["line"]}
+        if "runner" in c and not c["reached_by"]:
+            decisions.append(
+                {"kind": "unreached-caller", **where, "runner": c["runner"], "target": c["target"], "ci_files": ci_files}
+            )
         if c["form"] == "recipe":
             decisions.append({"kind": "recipe-caller", **where})
         elif "args" not in c:

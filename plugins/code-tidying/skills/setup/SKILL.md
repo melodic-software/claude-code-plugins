@@ -97,7 +97,8 @@ tidy sweep (that is `/code-tidying:tidy`).
 10. **Comment-lint CI re-run.** Run
     `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/comment-lint-ci-scan.py" --repo <repository root>` and
     report its `systems` and `callers`. A `script` caller with no decision against it is PASS,
-    named by file and line. A `drift` decision is a FAIL naming the call, its `args` and the
+    named by file and line. An `unreached-caller` is a FAIL naming the target and the CI files
+    checked: no CI job runs it, remediation `apply install-ci`. A `drift` decision is a FAIL naming the call, its `args` and the
     `interface`, remediation `apply install-ci`. A `recipe-caller` is INFO: the job runs the lint
     by hand, and `apply install-ci` moves it to the shipped script. An `unparsed` caller is INFO:
     read the line. With no caller (`no-caller` or `no-ci-system`) say so as INFO, remediation
@@ -233,7 +234,7 @@ settings, so a commit that skipped the git hook is still checked. The plugin shi
 script, `git-hooks/comment-lint-ci.sh <head> <base>` (its `--help` is the interface); the wiring is
 the repository's own, written in its CI system's format after discovery. No CI system is a default
 and no vendor template ships: [reference/ci-systems.md](reference/ci-systems.md) holds what the step
-does in any system, where the script comes from, and each vendor's live docs.
+does in any system, where the script comes from, and how to read the system's own docs.
 
 The scan is `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/comment-lint-ci-scan.py" --repo <repository root>`
 (read-only JSON). Read [actions/install-ci.md](actions/install-ci.md) and follow its six steps:
