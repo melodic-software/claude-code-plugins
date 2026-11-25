@@ -1,11 +1,4 @@
-// Whether a sweep a finished work-resolve-issue run started (workflow_run)
-// comes too soon after the last full one. A full sweep is a completed sweep
-// run of main's work-unblock.yml, whatever it concluded, that uploaded the
-// work-unblock-verdicts artifact (verdict-carry.mjs): a held, kill-switch or
-// skipped run uploads none, so it never counts. Each full sweep spends about
-// 800 lanes App calls, so one finished less than limits.sweep-gap-minutes ago
-// writes skip=true and this run requests no lane token. A schedule, an issue
-// close, any other event, a gap of 0 or a failed read writes skip=false.
+// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-work-unblock-sweep
 //
 //   node sweep-gap.mjs   EVENT_NAME, RESOLVED_CONFIG, ACTIONS_TOKEN,
 //                        GITHUB_REPOSITORY, GITHUB_RUN_ID and GITHUB_OUTPUT
