@@ -277,7 +277,6 @@ cat <<DOC
 echo "$x" | grep -q foo
 DOC
 EOF
-# The fixture's leading tabs come from printf's \t, so this file stays space-indented.
 # shellcheck disable=SC2016  # literal fixture source; nothing here should expand
 expect_clean "a quoted, tab-stripped heredoc body" < <(printf 'cat <<-%sDOC%s\n\techo "$x" | grep -q foo\n\tDOC\n' "'" "'")
 expect_clean "a here-string" <<'EOF'
