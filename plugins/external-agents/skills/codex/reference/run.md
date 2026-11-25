@@ -7,8 +7,9 @@ external-agents run codex --use <task|investigate> --prompt-file <file> [--mode 
 ```
 
 - **Decide the extra directories before the run.** A write run is fenced to the worktree by
-  Codex's `workspace-write` sandbox. List every directory outside the worktree and the temp
-  directories the task will write, and pass each one with its own `--add-dir <absolute path>`; pass none when the worktree is
+  Codex's `workspace-write` sandbox. List every directory the task will write outside the
+  worktree and outside the temp directories (which the sandbox already allows), and pass each one
+  with its own `--add-dir <absolute path>`; pass none when the worktree and temp directories are
   enough. Pass exactly those, never a parent folder to be safe. Name the same directories in the
   prompt, and tell Codex to write nowhere else.
 - `--add-dir` takes a new write run: on a read-only run, a review, a resumed thread, a relative

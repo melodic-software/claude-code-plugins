@@ -56,9 +56,9 @@ convention, else the session scratchpad) and pass it with `--prompt-file`; the c
 own copy in the job folder. Name the files and paths Codex should read; never paste file contents,
 diffs or logs into the prompt. Codex reads them itself inside its sandbox.
 
-Before a write task, list every directory outside the worktree and the temp directories it will
-write, pass each with
-`--add-dir` and name them in the prompt; pass none when the worktree is enough. Codex cannot stage
+Before a write task, list every directory it will write outside the worktree and outside the temp
+directories (which the sandbox already allows), pass each with `--add-dir` and name them in the
+prompt; pass none when the worktree and temp directories are enough. Codex cannot stage
 or commit inside its sandbox: tell it to leave Git to you, and stage and commit after the run
 ([reference/run.md](reference/run.md#run)).
 
