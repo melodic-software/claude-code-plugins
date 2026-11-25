@@ -205,7 +205,6 @@ def _crawl_dir(directory: str, base: str) -> str | None:
 
 
 def _cwd_base() -> str:
-    """The working directory as `module_name` takes its base."""
     return os.path.normcase(os.path.abspath(os.getcwd()))
 
 

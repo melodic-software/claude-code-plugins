@@ -25,8 +25,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "docker-links.py"
 
-# The child each wrapped run executes: list the store's links the way the
-# preflight does, into a file the test reads afterwards.
 LIST_LINKS = 'find "$HOME/.docker" -mindepth 1 -type l > "$HOME/links-during-run"'
 
 

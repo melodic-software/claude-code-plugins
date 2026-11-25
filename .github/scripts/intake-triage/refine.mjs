@@ -181,8 +181,6 @@ export function splitOf({ body, laneBody, verdict, labels, admission, rules, web
   const { found } = unrunnable;
   const moved = found.map(({ n }) => n);
   const owned = ownedLines(items, moved);
-  // A nested task-list line the lane can perform would move unasked; with
-  // none, an item stays exactly when one is not moved.
   const leftBehind = items.some(({ line }, index) => owned.has(line) && !moved.includes(index + 1));
   if (found.length === 0 || leftBehind || found.length === items.length || admission !== `${ADMIT_MARKER}\n${refusalText(unrunnableReason(unrunnable))}`) {
     return null;
@@ -252,31 +250,6 @@ async function candidates(github, repository, issue, trusted) {
   }
   return { candidates: found, monitor_duplicates: monitor };
 }
-
-// A size split (owner Q93): an issue admission parked at a SPLIT_PENDING reason
-// is split into sub-issues before any run takes it. The model returns only
-// item numbers: `parts`, each a list of the 1-based numbers of the issue's
-// trusted task-list lines (admit.mjs splitTaskLines: the listed human's, then
-// those of intake's refinement where admission counts it), covering each
-// once, and `order`, pairs [a, b] that make part b wait on part a; parts no
-// pair links run in parallel. The script files each part as a sub-issue of
-// the issue, authored by the lanes App, whose body is admit.mjs
-// splitChildHeader, naming the refinement when the part holds a line of it,
-// and that part's lines copied as written (admission and pr-verify trust it
-// under admit.mjs splitChildBody, the rule's one home), writes the order as native
-// blocked-by edges, puts the issue's open blockers on the parts nothing
-// precedes, moves the edges of issues the issue blocks onto the parts nothing
-// follows, and lists the sub-issues in the App's SIZE_SPLIT_MARKER comment.
-// No hold label and no born-triaged marker: intake triages each sub-issue.
-// A sub-issue never splits again, and the issue's body is never edited.
-// When the lines cannot be grouped into whole changes because each repeats
-// over named targets, the model may instead return `groups`, lists of target
-// names it copies from the lines (a target-subset split, admission rules'
-// `size-split.on-decline: subset`): each sub-issue then holds every line and
-// one admit.mjs SCOPE_PREFIX line naming its targets. Each part carries the
-// issue's `host-run` and `attended` labels, and a line split is not filed
-// when a part checks a plugin that the default branch lacks and no part
-// before it creates (unbuiltPart).
 
 // admission-rules.json's `size-split`: {onDecline, maxParts}. `on-decline`
 // is `subset` (a declined line split may split by target) or `park`;
@@ -462,7 +435,6 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     note(`#${number} stays parked for its size split: ${why}`);
     return { refine: false, reason: `parked for its size split, not split: ${why}` };
   };
-  // A decline that leaves the issue parked for good: apply-refinement posts it.
   const visible = (code, why) => ({ ...decline(why), refine: true, context: { version: 1, size_decline: code, issue: issueContext(number, issue) } });
   const lane = laneComment(comments, startedAt);
   if (lane === null) {
@@ -485,8 +457,6 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
   const { lines } = split;
   if (lines.length < 2) {
     const why = `its trusted text holds ${lines.length} task-list line(s), and a split needs at least 2`;
-    // The thin refinement drafts criteria first (owner Q78); the split then
-    // runs on its lines at the next triage.
     return refinedBody(comments, appId, issue.body) ? visible("few-lines", why) : { thin: `fewer than 2 trusted task-list lines for its size split: ${why}` };
   }
   const { rules, held } = splitConfig();
@@ -558,8 +528,6 @@ export async function selectRefinement({ github, repository, number, humans, app
       issue: issueContext(number, issue),
       thin: reasons,
       split,
-      // pr-pipeline.yaml attended.classes: the only classes a manual
-      // External state may name.
       attended: { ...(splitConfig().attended ?? {}) },
       triage: String(lane.body),
       comments: kept.map(({ comment }) => ({ author: comment.user?.login ?? "", created_at: comment.created_at ?? null, body: String(comment.body ?? "") })),
@@ -650,8 +618,6 @@ export function validateOutput(output, known, split = null, classes = {}, monito
   } else if (moved.length > 0) {
     throw new Error("only an exact refinement of a held issue moves done-when items");
   }
-  // Checked only once `exact` is final: a not-exact refinement records none,
-  // so a stray value there must not stop its questions posting.
   const external = exact ? externalOf(output.external, classes) : EXTERNAL_NONE;
   return { exact, outcome: output.outcome, criteria, dependencies, related, questions, sources, split: moved, external };
 }
@@ -792,8 +758,6 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} ${why}; nothing written${redispatch ? ", triage asked again" : ""}`);
     return { outcome: "skipped", redispatch };
   };
-  // needs-triage, unless a person set a hold since the read (write-status.mjs
-  // keepHold): then the skip it returns ends the refinement.
   const retriage = async () => {
     const moved = await setStatus(number, NEEDS_TRIAGE, { keepHold: true });
     return moved?.outcome === "held" ? skip(`is held by a person's Work status ${moved.state}`) : null;
@@ -881,9 +845,6 @@ export async function applyRefinement({ github, repository, number, appId, human
   if (admissionParked(labels, comments, appId)) {
     return exactRetriage(`${CONFIRMED} lifted and triage asked again`);
   }
-  // A `status: ready` issue admission has not taken (no needs-decision, no
-  // agent-ready) is triaged again when the text admission counts, with this
-  // refinement posted, holds criteria.
   const decisionHold = carried(labels, DECISION_LABELS);
   if (!decisionHold) {
     if (!labels.includes(READY) || labels.includes(AGENT_READY)) {
@@ -891,13 +852,10 @@ export async function applyRefinement({ github, repository, number, appId, human
     }
     return exactRetriage("triage asked again so admission reads the criteria");
   }
-  // Only the lanes App's own needs-decision gives way, and not for a flag past
-  // intent: a person's stays.
   const stays = await decisionStays(github, base, comments, appId, events);
   if (stays !== null) {
     return exactStays(`${stays}, so it stays`);
   }
-  // needs-triage first: a failure between the two leaves a status a sweep picks up.
   return exactRetriage(`${NEEDS_DECISION} lifted and triage asked again`, () => removeLabel(github, base, carried(own, DECISION_LABELS) ?? decisionHold));
 }
 
@@ -923,9 +881,6 @@ export function renderSplit(record) {
 
 const here = (url, repository) => String(url ?? "").toLowerCase().endsWith(`/repos/${repository}`.toLowerCase());
 
-// The sub-issue bodies the lanes App already filed for issue `base`: its
-// sub-issues, and issues its timeline says reference it (one filed but not
-// yet linked). [{number, id, body}].
 async function filedChildren(github, repository, base, appId) {
   const timeline = (await paginate(github, `${base}/timeline`)).map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null));
   return [...(await paginate(github, `${base}/sub_issues`)), ...timeline].filter(
@@ -1061,8 +1016,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   const children = [];
   const routing = ROUTING_LABELS.filter((name) => labelNames(issue).includes(name));
   for (const [index, items] of record.parts.entries()) {
-    // A part that holds a refinement line names that refinement (splitChildBody);
-    // a target-subset part holds every line and its Scope line.
     const source = items.some((n) => n > split.human) ? split.source : null;
     const scope = record.groups ? `\n${SCOPE_PREFIX}${record.groups[index].join(", ")}` : "";
     const body = `${splitChildHeader(number, index + 1, record.parts.length, source, scope !== "")}\n${items.map((n) => lines[n - 1]).join("\n")}${scope}`;
@@ -1113,7 +1066,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     for (const child of last) {
       moved = (await edge({ issue: dependent, blocker: child })) && moved;
     }
-    // The issue's own edge goes only once every replacement stands.
     if (!moved) {
       continue;
     }
@@ -1174,13 +1126,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           throw new Error("the context is for another issue");
         }
         const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL });
-        // A decline refine-select chose: no model ran and no refinement exists.
         const raw = () => JSON.parse(readFileSync(env.REFINEMENT_PATH, "utf8")).output;
         if (context.size_decline) {
           await applySizeDecline({ github, repository, number, appId, context });
           writeOutputs({ redispatch: "false", children: "" });
         } else if (context.size_split) {
-          // applySizeSplit checks the partition itself: a bad one leaves the issue parked, green.
           const { issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
           const webHosts = () => issueLaneWebHostsFromBase(env);
           const result = await applySizeSplit({ github, repository, number, appId, humans, rules: rules(), webHosts, output: raw(), context, statusOf: statusReader({ env, github, repository }), note: summary });

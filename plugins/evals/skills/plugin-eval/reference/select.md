@@ -8,6 +8,9 @@ text runs nothing, and a case,
 grader, prompt, fixture or scaffold change runs its own case and the cases that call it. Where the
 repository records its own eval run policy, that policy decides what each line obliges.
 
+An edit inside a SKILL.md `## Next` section runs nothing: that section names successors for the
+person and changes no tool call.
+
 ## Run it
 
 ```bash

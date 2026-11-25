@@ -165,7 +165,6 @@ if [[ -z "$HASH_FILE" ]]; then
 fi
 trap 'rm -f "$HASH_FILE"' EXIT
 
-# sha256_to <var> <text>: the SHA-256 hex digest of <text>, into <var>.
 sha256_to() {
   local _digest=""
   printf '%s' "$2" >"$HASH_FILE" || return 1
@@ -355,10 +354,6 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
-# The project-root, user-dir and registry ladders are shared vocabulary
-# (lib/resolve-scopes.sh), not this script's to restate. Fail loudly rather than
-# fall through: an unsourced library leaves every root empty and the audit would
-# report a machine it never looked at.
 RESOLVE_SCOPES_LIB="$PLUGIN_ROOT/lib/resolve-scopes.sh"
 if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
   echo "ERROR: cannot read $RESOLVE_SCOPES_LIB; the plugin's shared scope-resolution library is missing" >&2
@@ -367,7 +362,6 @@ fi
 # shellcheck source=../../../lib/resolve-scopes.sh
 source "$RESOLVE_SCOPES_LIB"
 
-# The upstream docs are fetched only by the plugin's shared fetcher.
 FETCH_DOCS="$PLUGIN_ROOT/scripts/fetch-docs.sh"
 if [[ ! -r "$FETCH_DOCS" ]]; then
   echo "ERROR: cannot read $FETCH_DOCS; the plugin's shared docs fetcher is missing" >&2
@@ -426,8 +420,6 @@ SUPPRESSION_ENTRIES=()
 REC=()
 REC_WIDTH=14
 
-# progress <category> <what>: one line on stderr as each category starts, so a
-# long run shows where it is. SETTINGS_AUDIT_ENGINE_PROGRESS=0 silences it.
 progress() {
   [[ "${SETTINGS_AUDIT_ENGINE_PROGRESS:-1}" == "0" ]] && return 0
   printf 'audit-engine: %s %s (%ss)\n' "$1" "$2" "$SECONDS" >&2
@@ -534,7 +526,6 @@ def emit: map(@base64 | if . == "" then "-" else . end) | join(" ");
 '
 E_ARGS=(--arg su "$SURF_USER" --arg sp "$SURF_SETTINGS" --arg sl "$SURF_LOCAL")
 
-# e_scope <ok> <file>: the scope's JSON, or null when it was not read.
 e_scope() {
   local j=""
   [[ "$1" -eq 1 ]] && j="$(jqf "$2" -c '.')"
@@ -570,8 +561,6 @@ USER_OK=0
 MCP_OK=0
 [[ "${SCOPE_STATE[mcp]}" == "ok" ]] && MCP_OK=1
 
-# What categories A, B, H and I ask of a settings file, read in one jq per file.
-# A field outside its key's presence check stays empty.
 declare -A FACT=()
 FACT_NAMES=(has_mcp has_hooks local_deny broad_allow allow_commit allow_fetch allow_stash
   has_denied has_match has_effort effort has_fallback fb_raw fb_dedup
@@ -625,12 +614,9 @@ fi
 
 SUPPRESSION_LAYERS=()
 note_layer() {
-  # note_layer <layer> <source> <state>
   SUPPRESSION_LAYERS+=("$1"$'\t'"$2"$'\t'"$3")
 }
 
-# No pointer, a declined home and a root no home applies to all mean
-# docs/conventions; a broken pointer does too, and is listed.
 CONVENTION_HOME="docs/conventions"
 home_rc=0
 home_out="$(bash "$PLUGIN_ROOT/lib/resolve-convention-home.sh" --root "$PROJECT_ROOT" 2>/dev/null)" || home_rc=$?
@@ -640,7 +626,6 @@ elif [[ $home_rc -eq 2 || $home_rc -eq 3 ]]; then
   note_layer home "AGENTS.md or CLAUDE.md" "convention-home pointer unusable (resolve-convention-home.sh exit $home_rc); docs/conventions read"
 fi
 TEAM_RECORD="$CONVENTION_HOME/harness-config.yaml"
-# exceptions.max_days as the team YAML sets it; empty when it does not.
 MAX_DAYS_SET=""
 
 parse_suppressions_yaml() {
@@ -697,7 +682,6 @@ parse_suppressions() {
 
 declare -A TEAM_IDS=()
 load_suppression_entries() {
-  # load_suppression_entries <layer> <source> < TSV lines from a parse_suppressions* reader
   local layer="$1" source="$2" id check claim sites reason date rec_id
   while IFS=$'\t' read -r id check claim sites reason date; do
     [[ -n "$id" ]] || continue
@@ -736,7 +720,6 @@ load_suppression_entries() {
 }
 
 load_markdown_layer() {
-  # load_markdown_layer <layer> <source> <file> [<state when read>]
   if [[ -f "$3" ]]; then
     note_layer "$1" "$2" "${4:-read}"
     load_suppression_entries "$1" "$2" < <(parse_suppressions "$3")
@@ -813,19 +796,14 @@ DOC_CNTRL='\000-\010\013-\037\177'
 # requests nothing. A slug the index does not list, or lists off the docs
 # origin, is unread, and so is a page that did not arrive whole as text/markdown.
 DOCS_MANIFEST="$DOCS_TMP/manifest.json"
-# fetch_pages <manifest> <slug>...: one fetcher call for the index and the slugs.
 fetch_pages() {
   local manifest="$1"
   shift
-  # The engine reads the CLI version itself below and ignores the manifest's, so
-  # the fetcher runs no claude, whatever SETTINGS_AUDIT_ENGINE_CLAUDE_BIN names.
-  # --max-age 0: the audit compares fresh bytes, never a cached copy.
   if ! FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$manifest" --index-url "$DOCS_INDEX_URL" --cache --max-age 0 "$@" >/dev/null; then
     echo "ERROR: $FETCH_DOCS failed; the docs pages could not be requested" >&2
     exit 2
   fi
 }
-# unsupplied <slug>...: the slugs --docs-dir does not hold, one per line.
 unsupplied() {
   local s
   for s in "$@"; do
@@ -879,15 +857,9 @@ acquire_page "$MODS_SLUG"
 SR="${PAGE_FILE["settings-reference"]:-}"
 EV="${PAGE_FILE["env-vars"]:-}"
 
-# The mod rows quote the mods overview's own sentence on a behavior, read this
-# run, and never state that behavior themselves. MODS_SRC names the page and the
-# date its bytes were fetched (the run date for a --docs-dir page).
 MP="${PAGE_FILE["$MODS_SLUG"]:-}"
 MODS_SRC="$(jq -r --arg s "$MODS_SLUG" --arg today "$(date -u +%Y-%m-%d)" \
   'first(.[] | select(.slug == $s)) | "\(.url_or_path), fetched \(.retrieved // $today | .[0:10])"' <<<"$DOCS_PAGES_JSON")"
-# mods_quote <needle>...: the first line of the mods overview holding every
-# needle, leading whitespace dropped, quoted with its source; empty when the
-# page was not read or no line holds them all.
 mods_quote() {
   [[ -n "$MP" ]] || return 0
   local q
@@ -897,8 +869,6 @@ mods_quote() {
   [[ -n "$q" ]] && printf 'the mods overview (%s) says: "%s"' "$MODS_SRC" "$q"
 }
 
-# The CLI. A seam that is set but names nothing is unreadable, never a fall
-# back to the claude on PATH.
 if [[ -n "${SETTINGS_AUDIT_ENGINE_CLAUDE_BIN+x}" ]]; then
   CLAUDE_BIN="$SETTINGS_AUDIT_ENGINE_CLAUDE_BIN"
 else
@@ -918,7 +888,6 @@ if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" ]]; then
   [[ "$CLAUDE_RAW" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && CLAUDE_VERSION="${BASH_REMATCH[1]}"
 fi
 
-# version_lt <a> <b>: true when x.y.z a is older than b, compared numerically.
 version_lt() {
   local IFS=. i
   local -a a b
@@ -941,10 +910,6 @@ declare -A SR_KEY=()
 declare -A SR_DEPRECATED=()
 declare -A SR_REQUIRES=()
 declare -A SR_BODY=()
-# TYPE_KEYS holds each nested key an "object with ..." Type bullet names, as
-# parent.child, which covers one with no heading of its own. NESTED_PARENT holds
-# every dotted path the page documents a child under: the objects check_keys
-# descends into.
 declare -A TYPE_KEYS=()
 declare -A NESTED_PARENT=()
 if [[ -n "$SR" ]]; then
@@ -981,7 +946,6 @@ if [[ -n "$SR" ]]; then
   ' "$SR")
 fi
 
-# sr_section <key>: the body of the key's section on settings-reference.
 sr_section() {
   printf '%s' "${SR_BODY[$1]:-}"
 }
@@ -1014,9 +978,6 @@ for k in "${!SR_KEY[@]}" "${!TYPE_KEYS[@]}"; do
   done
 done
 
-# Positive control: a page that was read but has no heading for two keys every
-# version documents (a soft 404, a reshaped page) did not parse, and every row
-# resting on it is not-inspectable rather than a run of undocumented keys.
 SR_UNREAD_WHY="settings-reference was not read this run"
 if [[ -n "$SR" && (-z "${SR_KEY[permissions]:-}" || -z "${SR_KEY[enabledPlugins]:-}") ]]; then
   SR=""
@@ -1028,8 +989,6 @@ fi
 # reads another page adds its slug here. A page settings-reference does not link
 # is not requested. One more fetcher call reads those --docs-dir does not hold.
 LINKED_PAGES=(hooks)
-# The fallbackModel chain cap is stated on model-config, which settings-reference's
-# fallbackModel section links; the page is requested only when a file sets the key.
 for f in "$SETTINGS:$PROJECT_OK" "$LOCAL:$LOCAL_OK" "$USER_SETTINGS:$USER_OK"; do
   if [[ "${f##*:}" == 1 && "$(jqf "${f%:*}" -r 'has("fallbackModel")')" == "true" ]]; then
     LINKED_PAGES+=(model-config)
@@ -1110,7 +1069,6 @@ fi
 KP_SURF=() KP_KEY=() KP_LEAF=() KP_PTR=()
 NESTED_PARENTS_JSON="$(printf '%s\0' "${!NESTED_PARENT[@]}" | jq -Rsc 'split("\u0000")[:-1]')"
 check_keys() {
-  # check_keys <file> <surface>
   local file="$1" surface="$2" k leaf ptr dep since
   # Fields arrive NUL-separated, so a key reaches its claim and the binary
   # search as written in the file, with no tab-separated escaping. A key holding
@@ -1143,7 +1101,6 @@ check_keys() {
       fi
     fi
     row A key-deprecated finding warning "$surface" "deprecated-key:$k" "settings-reference: \"$dep\"" "$ptr"
-    # An empty key name has no literal to look up, so it is left out here.
   done < <(jqf "$file" -j --argjson parents "$NESTED_PARENTS_JSON" '
     def esc: gsub("~"; "~0") | gsub("/"; "~1");
     def ent($p; $q): to_entries[] | . as $e | select($e.key != "" and ($p != "" or $e.key != "$schema"))
@@ -1236,9 +1193,6 @@ cr_load() {
   done
 }
 
-# cr_match <surface> <key> <leaf>: emit the consent-receipt row and return 0
-# when a record for this top-level key passes every gate; otherwise return 1
-# with CR_WHY naming each gate that failed.
 cr_match() {
   local surface="$1" k="$2" leaf="$3" scope j owner why note has
   CR_WHY=""
@@ -1250,8 +1204,6 @@ cr_match() {
   *) return 1 ;;
   esac
   has="${BIN_HAS[$leaf]:-}"
-  # A stale claude-code record is terminal for the key: no other owner labels a
-  # key the CLI record says the installed binary no longer carries.
   if [[ "$BIN_SEARCH" == "searched" && "$has" == "no" ]]; then
     for j in "${!CR_KEY[@]}"; do
       [[ "${CR_KEY[$j]}" == "$k" && "${CR_OWNER[$j]}" == "claude-code" && ",${CR_AMB[$j]}," != *",$scope,"* &&
@@ -1369,9 +1321,6 @@ if [[ -f "$BASELINE_FILE" ]]; then
     }
   ' "$BASELINE_FILE" | tr -d '\r')
   if [[ ${#BASELINE_ORDER[@]} -eq 0 ]]; then
-    # Present but yielding nothing is a parse failure, not an empty baseline:
-    # a renamed family heading or a reshaped table would otherwise make every
-    # category B row vanish and the report read as clean.
     row B baseline-reference skip none "$SURF_SETTINGS" "reference-unparsed" "required-permissions.md at $BASELINE_FILE yielded no Tool(...) pattern under its family headings; baseline presence not decided" -
   fi
 else
@@ -1391,7 +1340,6 @@ if [[ -x "$SCRIPT_DIR/check-hook-coverage.sh" || -f "$SCRIPT_DIR/check-hook-cove
     INVENTORY_JSON="${inv_out//$'\r'/}"
   fi
 fi
-# Every field the rows below read from the inventory, from one jq call.
 INV_F=()
 read_fields INV_F < <(ejq -j "$FIELDS_JQ"'
   def lever_value($k): [.levers[]? | select(.key==$k)] | map("\(.scope)=\(.value|tostring)") | join(", ");
@@ -1533,8 +1481,6 @@ ASK_BLOCKS_LANES="an ask rule prompts even in auto mode and is auto-denied under
 progress B "permissions (${#BASELINE_ORDER[@]} baseline patterns)"
 
 if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
-  # Whether each baseline pattern is in its list, one true/false line per
-  # pattern in BASELINE_ORDER, from one jq call.
   b_args=()
   for pat in "${BASELINE_ORDER[@]}"; do b_args+=("${BASELINE_FAMILY[$pat]}" "$pat"); done
   mapfile -t b_present < <(tr -d '\r' <"$SETTINGS" | ejq -r '
@@ -1566,7 +1512,6 @@ if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
     fi
     row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target and no coverage manifest names it; narrowings 1 and 2 (a documented exemption or hook convention) are the model's to check$lane_note" "/permissions/$target"
   done
-  # Broad allow entries and the completeness rows, both informational.
   while IFS= read -r a; do
     [[ -n "$a" ]] || continue
     case "$a" in
@@ -1663,8 +1608,6 @@ fi
 SECRET_RE='(^|[^A-Za-z0-9_])ghs_[A-Za-z0-9._-]{36,}|ghs_([0-9]+_)?eyJ[A-Za-z0-9._-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
 
 resolve_hook_path() {
-  # resolve_hook_path <command> <plugin-path> <var>: the first token, with
-  # placeholders expanded, into <var>
   local cmd="$1" ppath="$2" tok="" c i inq=0
   # The first shell word, read the way the shell would: whitespace ends it
   # only outside quotes, so "$CLAUDE_PROJECT_DIR/my hooks/x.sh" and the
@@ -1691,8 +1634,6 @@ resolve_hook_path() {
   printf -v "$3" '%s' "$tok"
 }
 
-# secret_shaped <text>: true when the text holds a SECRET_RE token, matched in
-# the shell rather than a grep per hook.
 secret_shaped() {
   local LC_ALL=C
   [[ "$1" =~ $SECRET_RE ]]
@@ -1764,7 +1705,6 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
       row D placeholder-quoting finding warning "$surface" "unquoted-placeholder:$event:$cmd_ref" "a path placeholder in shell form is not wrapped in double quotes; a space in the path breaks the hook" "$event/$matcher/$cmd"
     fi
   fi
-  # Path resolution for the first token when it is a path.
   ppath="${PLUGIN_PATH[$src]:-}"
   first=""
   resolve_hook_path "$cmd" "$ppath" first
@@ -1789,7 +1729,6 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   # into the timeout column and drop out of every check above.
 done <<<"$INV_HOOKS"
 
-# Lever state is reported, never judged.
 for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization; do
   lv="${INV_LEVER[$lever]}"
   if [[ -n "$lv" && "$lever" == "strictPluginOnlyCustomization" ]]; then
@@ -1950,11 +1889,6 @@ E_CTX="$(
 )"
 
 if [[ -n "$E_CTX" ]]; then
-  # Each enabled plugin's direct dependencies come from the plugin.json at the
-  # install path the hook inventory resolved for that exact key.
-  # The index and install path of every enabled plugin arrive in one base64
-  # text, and every readable plugin.json is parsed by one jq call, so the
-  # plugin count adds no process.
   DEP_RECS=""
   dep_parse=()
   nul_fields "$(printf '%s\n' "$E_CTX" | ejq -r "${E_ARGS[@]}" "$E_DEFS"'
@@ -2027,9 +1961,6 @@ fi
 
 DRIFT_JSON='[]'
 DRIFT_STATE=skipped
-# The drift script runs whether or not the network tools are present: a directory-sourced
-# marketplace is read from disk, and a repo-sourced one it cannot fetch comes
-# back as a skipped marketplace with its reason, reported below.
 if [[ "${SETTINGS_AUDIT_ENGINE_SKIP_DRIFT:-0}" != "1" && $PROJECT_OK -eq 1 && -f "$SCRIPT_DIR/check-plugin-drift.sh" ]]; then
   progress E "plugin drift (check-plugin-drift.sh)"
   drift_tmp="$(mktemp)"
@@ -2057,7 +1988,6 @@ if [[ "$DRIFT_STATE" == "ran" ]]; then
     | (.key | tostring) as $mk
     | ["drift", "skip", "none", $sp, "drift-skipped:" + $mk, "marketplace \($mk) not diffed: \(.skip_reason // "")", "-"]
     | emit'
-  # Only an exact false is removable; true and any other value go to a person.
   drift_rows orphan '.[] | select(type == "object") | .orphans[]? | select(type == "object")
     | "\(.name)@\(.marketplace)" as $k | (.marketplace | tostring) as $mk
     | (if (.reason | type) == "string" and .reason != "" then " (" + .reason + ")" else "" end) as $why
@@ -2138,7 +2068,6 @@ fi
 # section; with no such sentence read this run, the row is unconfirmed.
 FUNCTION_HOOKS_PTR="https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off"
 FUNCTION_HOOKS_Q="$(mods_quote CLAUDE_CODE_ENABLE_FUNCTION_HOOKS)"
-# f_function_hooks <ok> <file> <surface>
 f_function_hooks() {
   [[ "$1" -eq 1 ]] || return 0
   [[ "$(jqf "$2" -r '(.env // {}) | if type == "object" and has("CLAUDE_CODE_ENABLE_FUNCTION_HOOKS") then "set" else "" end')" == "set" ]] || return 0
@@ -2239,7 +2168,6 @@ G_PLUGINS="$(
 # the user settings file) is scanned once, under the first label: user.
 G_SCANNED=()
 g_overrides() {
-  # g_overrides <ok> <file> <surface>
   local ok="$1" file="$2" surface="$3" seen kind ptr key prefix
   [[ "$ok" -eq 1 ]] || return 0
   for seen in "${G_SCANNED[@]}"; do
@@ -2332,9 +2260,6 @@ value_documented() {
   return 1
 }
 
-# documented_value <cat> <slug> <key> <value> <surface>: the value against the
-# set the key's Type bullet on settings-reference accepts. The claim is
-# <key>:<value> whatever the outcome, so a finding keeps one identity.
 documented_value() {
   local cat="$1" slug="$2" key="$3" v="$4" surface="$5" accepted
   if [[ -z "$SR" ]]; then
@@ -2351,8 +2276,6 @@ documented_value() {
   fi
 }
 
-# The "Fallback model chains" section of model-config, fenced code left out, or
-# nothing when the page was not read or has no such heading.
 MC="${PAGE_FILE[model-config]:-}"
 MC_CHAINS=""
 [[ -n "$MC" ]] && MC_CHAINS="$(awk '
@@ -2387,7 +2310,6 @@ fallback_cap() {
 }
 
 check_h() {
-  # check_h <file> <surface>
   local file="$1" surface="$2"
   local raw dedup cap mix enforce avail_len req policy key
   # We treat deniedModels and availableModelsMatch as managed-only, and every
@@ -2571,7 +2493,6 @@ if [[ ${#REC[@]} -gt 0 ]]; then
              lane: "harness-config/audit", tier: "derived"} else null end)}] as $all
     | [$all[].row], [$all[] | .finding | select(. != null)], [$all[] | select(.kind == "suppressed") | .row]')
 fi
-# lines_json <line>...: the lines as a compact JSON array of strings.
 lines_json() {
   if [[ $# -gt 0 ]]; then printf '%s\n' "$@" | jq -Rcn '[inputs]'; else echo '[]'; fi
 }

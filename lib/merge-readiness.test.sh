@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json lib/merge-guard-option.mjs lib/plugin-options.mjs plugins/guardrails/hooks/merge-guard.sh plugins/guardrails/.claude-plugin/plugin.json plugins/source-control/skills/pull-request/scripts/merge-readiness.sh plugins/guardrails/hooks/fixtures/check-runs-ci-status.json
+# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json lib/merge-guard-option.mjs lib/plugin-options.mjs plugins/guardrails/hooks/merge-guard.sh plugins/guardrails/.claude-plugin/plugin.json plugins/source-control/skills/pull-request/scripts/merge-readiness.sh plugins/guardrails/hooks/fixtures/check-runs-ci-status.json plugins/guardrails/hooks/fixtures/reviews-page1.json plugins/guardrails/hooks/fixtures/reviews-page2.json
 
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -169,6 +169,26 @@ jq '.check_runs += [.check_runs[0] | .id += 1 | .name = "integration" | .status 
 check acme/widgets 42 --auto
 assert_eq "no verdict, a check still running, --auto -> the wait has not started, BLOCKED no-verify-pass" \
   "BLOCKED no-verify-pass" "$(head -n 1 <<<"$OUT")"
+
+PAGED="$TEST_TMPDIR/per-page-4"
+mkdir -p "$PAGED"
+cp "$SC_SCRIPTS/merge-guard-option.mjs" "$SC_SCRIPTS/plugin-options.mjs" "$SC_SCRIPTS/merge-hold-labels.json" "$PAGED/"
+sed 's/^MG_PER_PAGE=100$/MG_PER_PAGE=4/' "$CLI" >"$PAGED/merge-readiness.sh"
+assert_eq "the 4-per-page copy rewrote the page size" 1 "$(grep -c '^MG_PER_PAGE=4$' "$PAGED/merge-readiness.sh")"
+CLI_REAL="$CLI"
+CLI="$PAGED/merge-readiness.sh"
+CAPTURED="$HOOK_DIR/fixtures"
+scenario none none green green
+cp "$CAPTURED/reviews-page1.json" "$FIX/reviews.json"
+jq '.[-1].state = "CHANGES_REQUESTED"' "$CAPTURED/reviews-page2.json" >"$FIX/reviews_page2.json"
+check acme/widgets 42
+assert_exit "a change request on the second page of reviews -> held" 1 "$RC"
+assert_contains "second page -> names the reviewer" "$OUT" "Changes requested by: kyle-sexton"
+rm "$FIX/reviews_page2.json"
+check acme/widgets 42
+assert_exit "a review list longer than the page cap -> UNCHECKED, which the skill holds on" 3 "$RC"
+assert_contains "past the cap -> says why" "$OUT" "more than 80 items at repos/acme/widgets/pulls/42/reviews"
+CLI="$CLI_REAL"
 
 echo
 # shellcheck disable=SC2154  # PASS and FAIL are the guardrails test helpers' counters

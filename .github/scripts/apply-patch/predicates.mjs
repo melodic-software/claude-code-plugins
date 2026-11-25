@@ -2,7 +2,6 @@
 // run's context and returns a test of one changed path; apply-patch.mjs builds
 // every test a row names before it applies anything, so a predicate that cannot
 // run here throws before any write.
-
 import { inFixScope } from "../pr-unblock/dependency-classify.mjs";
 import { inThreadScope } from "../pr-unblock/thread-scope.mjs";
 import { suiteComment } from "../pr-unblock/test-scope.mjs";
@@ -10,7 +9,6 @@ import { segments } from "./protected-paths.mjs";
 
 export const PREDICATES = {
   any: () => () => true,
-  // A markdown file: a path ending in .md, in that case.
   markdown: () => (path) => path.endsWith(".md"),
   // A kept thread's path, or a file thread-scope.mjs places in its scope,
   // its named_paths and the PR's own files and shared copies the patch does
