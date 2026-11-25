@@ -369,7 +369,9 @@ updates:
   # Ruff is a CI-only executable pinned to the Ubuntu x64 wheel and its PyPI
   # digest. Dependabot must update both the version and reviewed hash.
   - package-ecosystem: pip
-    directory: /.github
+    directories:
+      - /.github
+      - /.github/scripts/diff-chunking
     labels:
       - dependencies
     schedule:
