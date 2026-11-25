@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.1] - 2026-11-25
+
+### Changed
+
+- The merge guard's pr-verify run check now lives in `hooks/pr-verify-run.jq`, shared with the source-control PR monitor; it counts the same runs as before.
+
 ## [5.1.0] - 2026-11-24
 
 ### Added
