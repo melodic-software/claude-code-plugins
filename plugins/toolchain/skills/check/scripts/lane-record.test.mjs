@@ -283,6 +283,7 @@ describe("write mode", { skip: !hasGit() && "git is not installed" }, () => {
       "# Agents\n\nNever run this:\n\n~~~sh\n# wipes the state\nterraform destroy -auto-approve\n~~~\n",
       "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:7)",
     ],
+    ["a negation written as inline code", "Do `not` run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
     ["an underscore-emphasized not", "Do _not_ run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
     ["a strong underscore never", "__Never__ run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
     ["an emphasized don't", "_Don't_ run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],

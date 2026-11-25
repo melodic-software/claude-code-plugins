@@ -349,7 +349,8 @@ function statedLine(entry, ctx) {
   }
   const index = entry.line - 1;
   const { start, block } = citedBlock(ctx.lines, index);
-  const prose = block.map((line) => line.replace(/`[^`]*`/g, " ").replace(/[_*]/g, " "));
+  const unspan = (line) => line.replace(/`([^`]*)`/g, (_, code) => (code.trim() === entry.value ? " " : ` ${code} `));
+  const prose = block.map((line) => unspan(line).replace(/[_*]/g, " "));
   if (ctx.text.trim() === entry.value) prose[index - start] = "";
   if (prose.some((line) => FORBID_WORDS.test(line))) return "the cited instructions block may forbid the command";
   return null;
