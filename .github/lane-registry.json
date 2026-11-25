@@ -1,5 +1,5 @@
 {
-  "$comment": "Each lane workflow's jobs that a script finds at run time, by job id. name is the job's display name; earlier lists the other names a run from before a rename lists it under, its own id where it had no name; calls is the reusable workflow it calls, without a ref; status is the reusable's status job names, current first, for a review caller; lane is a review caller's lane id. .github/scripts/lib/lane-registry.mjs reads it, and lane-registry.test.mjs checks it against the workflows.",
+  "$comment": "Each lane workflow's jobs that a script finds at run time, by job id. name is the job's display name; earlier lists the other names a run from before a rename lists it under, its own id where it had no name; calls is the reusable workflow it calls, without a ref; status is the reusable's status job names, current first, for a review caller; footer is the lane footer name a review caller's comments end with, which the merge lane matches. Each workflow file stem is a lane id in .github/actions/resolve-config/lane-rules.json, or a workflow lane-ids.test.mjs records as not a lane. .github/scripts/lib/lane-registry.mjs reads it, and lane-registry.test.mjs checks it against the workflows.",
   "workflows": {
     "intake-triage.yml": {
       "jobs": {
@@ -34,7 +34,7 @@
       }
     },
     "pr-review-hosted.yml": {
-      "lane": "claude-review",
+      "footer": "claude-review",
       "jobs": {
         "check-kill-switch": { "name": "Check Kill Switch", "earlier": ["Kill Switch", "kill-switch"] },
         "pr-review": {
@@ -54,7 +54,7 @@
       }
     },
     "pr-review-security-hosted.yml": {
-      "lane": "claude-security-review",
+      "footer": "claude-security-review",
       "jobs": {
         "check-kill-switch": { "name": "Check Kill Switch", "earlier": ["Kill Switch", "kill-switch"] },
         "pr-review-security": {

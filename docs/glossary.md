@@ -269,8 +269,11 @@ Avoid: task, factory workflow
 **stage**
 
 The lifecycle step a lane serves, declared per CI lane in
-[`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json). A step of the session
-workflow, interview through retro, is a workflow stage, the sense **phase boundary** uses.
+[`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json), one of `intake`, `admit`,
+`build`, `refine`, `review`, `fix`, `verify`, `hold`, `merge` and `post-merge`, plus `upstream` and
+`maintenance` ([pr-pipeline convention, Stages](conventions/pr-pipeline/README.md#stages)). A step
+of the session workflow, interview through retro, is a workflow stage, the sense **phase boundary**
+uses.
 
 Avoid: explore (for intake triage)
 
