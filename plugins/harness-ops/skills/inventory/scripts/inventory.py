@@ -1256,7 +1256,7 @@ def _operand(
     # A call or a group can also yield a non-string (`void 0`, `null`) this
     # reader does not record, so its values never settle a fallback.
     computed = False
-    quoted = True  # every part a string or template literal: never nullish
+    quoted = True
     while True:
         i = _skip_ws(src, i, n)
         if i >= n:
@@ -2052,9 +2052,6 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
         + simple
         + r"\s*,\s*)*$"
     )
-    # `_declares` misses a declarator whose statement follows a function
-    # declaration's `}`; a `var` reached back through simple declarators is
-    # one too.
     if not (_declares(src, pos) or chain.search(src, max(0, pos - 4096), pos)):
         return True
     lo, hi = _chunk_span(src, pos)
@@ -3186,7 +3183,7 @@ def extract_bundled_skills(
         r"\bname:(?:" + _STR + r"|(" + _IDENT + r")(\.name\b)?|(`[^`]*`))"
     )
     for m in re.finditer(r"(?<![\w$.])" + re.escape(fn) + r"\(\{", src):
-        open_i = m.end() - 1  # the '{' captured by the pattern
+        open_i = m.end() - 1
         close_i = braces.pairs.get(open_i)
         if close_i is None:
             unbounded += 1
@@ -3349,10 +3346,6 @@ def _roster_records(
     return out
 
 
-# `flag_driven` is part of the identity: a constant-true invocation field
-# and a function-valued one read as the same boolean, and the difference
-# (decided at runtime versus fixed) is exactly the evidence a collision
-# exists to preserve.
 _REGISTRATION_IDENTITY = (
     "description",
     "argument_hint",
@@ -5161,10 +5154,6 @@ def check_integrity(
         )
 
     if runs_below_floor > 0:
-        # A registration literal in a run under the floor was never read by
-        # any lane. It is attributed to the bundled-skill lane, where the
-        # small runs sit, so the roster is labeled a floor rather than a
-        # total; the literal is generic, so the command lane may be short too.
         bundled["advisories"].append(
             f"{runs_below_floor} registration literal(s) sit in printable runs shorter "
             f"than the {MIN_RUN_BYTES}-byte floor and were not read; the bundled-skill "
