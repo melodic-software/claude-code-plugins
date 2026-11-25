@@ -567,6 +567,7 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
     print(f"status={state['status']}")
     print(f"report={state['report_path']}")
     print(f"report_by={state['report_by'] or 'none'}")
+    print(f"posture={state.get('posture') or 'off'}")
     project = Path(state["launch_root"]) if state.get("launch_root") else cwd
     for warning in launch_warnings(config_dir(os.environ), project):
         print(f"warning={warning}")

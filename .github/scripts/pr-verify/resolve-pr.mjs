@@ -76,23 +76,19 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { specSource } from "./spec-source.mjs";
-import { baselineOnly, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { authorSkip, baselineOnly, DEPENDENCY_MANAGERS, isDependencyManager, loginKey, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { ACTIONS_BOT_ID, briefedIssue, carriesSplit, ownAgentIds, readSchedule, SOURCE_LABEL, sourceLabels, webHostsFrom } from "../intake-triage/admit.mjs";
 import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredRows } from "../intake-triage/issue-spec.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
-export { refsIssue, vendoredRows };
+export { DEPENDENCY_MANAGERS, isDependencyManager, refsIssue, vendoredRows };
 
 export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
 
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
-// babysit_classify.DEPENDENCY_MANAGER_LOGINS: the pr-merge lane refuses these
-// Bot accounts' pull requests before reading a verdict.
-export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
-const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
 export const shapeJobs = (runId, jobs) => ({
   run_id: Number(runId),
@@ -263,17 +259,6 @@ const actorFields = (actor, role) => ({
   [`${role}_id`]: Number.isSafeInteger(actor?.databaseId) ? actor.databaseId : null,
   [`${role}_type`]: typeof actor?.__typename === "string" ? actor.__typename : null,
 });
-
-// A Bot account with a dependency manager's login; a User named like one is not.
-export const isDependencyManager = (user) =>
-  user?.type === "Bot" &&
-  DEPENDENCY_MANAGERS.includes(String(user.login ?? "").toLowerCase().replace(/^app\//, "").replace(/\[bot\]$/, ""));
-
-// babysit_merge_policy._login_key: REST spells an App `app[bot]`, GraphQL `app`.
-const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
-const laneAuthored = (user, laneIdentity) =>
-  loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
-const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "Bot") && ids.includes(user.id);
 
 // pr-require-checks.yml's ci-status step that runs merge-holds.mjs on a lanes
 // App pull request, and the step after it that aggregates the lanes. A run
@@ -1124,17 +1109,9 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (pull.draft !== false) {
     return skip("draft");
   }
-  if (isDependencyManager(pull.user)) {
-    return skip("dependency-manager");
-  }
-  if (!VERIFY_AUTHORS.includes(verifyAuthors)) {
-    return skip("verify-authors-invalid");
-  }
-  if (verifyAuthors === "lane" && !laneAuthored(pull.user, laneIdentity)) {
-    return skip("author-not-lane");
-  }
-  if (verifyAuthors === "lane-or-owner" && !laneAuthored(pull.user, laneIdentity) && !ownerAuthored(pull.user, owners)) {
-    return skip("author-not-lane-or-owner");
+  const unjudged = authorSkip(pull.user, verifyAuthors, laneIdentity, owners);
+  if (unjudged !== null) {
+    return skip(unjudged);
   }
   if (run.conclusion === "failure" && !(await heldOnly(readLog, shape, pull.number))) {
     return skip("not-a-passing-run");

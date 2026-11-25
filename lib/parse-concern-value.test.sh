@@ -119,8 +119,8 @@ assert_eq 'a block sequence of mappings is indexed (example :143)' "merge" \
   "$(bash "$SCRIPT" "$EX" lanes.pr-merge.slots.0.activity)"
 assert_eq 'an absent nested key takes the fallback' "true" \
   "$(bash "$SCRIPT" "$EX" lanes.pr-merge.slots.0.enabled true)"
-assert_eq 'a later key of a sequence item (example :152)' "false" \
-  "$(bash "$SCRIPT" "$EX" lanes.post-merge-sweep-comments.slots.0.enabled true)"
+assert_eq 'a later key of a sequence item (example :142)' "false" \
+  "$(bash "$SCRIPT" "$EX" lanes.pr-explain.slots.0.enabled true)"
 assert_eq 'a flow list inside a sequence item (example :111)' "run-tests" \
   "$(bash "$SCRIPT" "$EX" lanes.pr-run-checks.slots.1.needs --list)"
 assert_eq 'one item of a flow list by index (example :80)' "base-sha" \

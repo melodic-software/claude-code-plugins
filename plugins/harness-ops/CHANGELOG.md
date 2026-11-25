@@ -3,6 +3,13 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.8.0] - 2026-11-25
+
+### Added
+
+- `/harness-ops:behavior-probes` judges a `transcript-grep` case against its session transcript and its hooks' log: regexes matched in order, regexes that must not match, and a required PostCompact record for compaction cases.
+- Probe cases for a typed `/goal` reaching UserPromptSubmit, PreCompact text steering automatic and manual compaction, a no-tool reply under an unmeetable goal, UserPromptSubmit context on a `/goal` turn, and a self-paced `/loop` wake-up in the CronList listing across a compaction.
+
 ## [10.7.0] - 2026-11-24
 
 ### Added

@@ -39,6 +39,21 @@ export const baselineOnly = (author, files, appId, baselineFile) =>
   Array.isArray(files) &&
   files.length === 1 &&
   files[0] === baselineFile;
+export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
+export const isDependencyManager = (user) =>
+  user?.type === "Bot" &&
+  DEPENDENCY_MANAGERS.includes(String(user.login ?? "").toLowerCase().replace(/^app\//, "").replace(/\[bot\]$/, ""));
+export const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
+export const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
+export function authorSkip(user, verifyAuthors, laneIdentity, ownerIds) {
+  const lane = () => loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
+  const owner = () => (user?.type === "User" || user?.type === "Bot") && ownerIds.includes(user.id);
+  if (isDependencyManager(user)) return "dependency-manager";
+  if (!VERIFY_AUTHORS.includes(verifyAuthors)) return "verify-authors-invalid";
+  if (verifyAuthors === "lane" && !lane()) return "author-not-lane";
+  if (verifyAuthors === "lane-or-owner" && !lane() && !owner()) return "author-not-lane-or-owner";
+  return null;
+}
 export const baselineNote = (baselineFile) =>
   `the lanes App's pull request changes only ${baselineFile} (merge.baseline-file), which merges with no linked issue or pr-verify verdict`;
 // report-outcome.mjs HOLD_LINE on a line of its own, which

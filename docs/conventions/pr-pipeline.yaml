@@ -850,7 +850,7 @@ activities:
 lanes:
   # Started by Work status agent-ready on an issue (.github/workflows/work-resolve-issue.yml).
   work-resolve-issue:
-    stage: work
+    stage: build
     slots:
       - activity: resolve-issue
       # Runs after resolve-issue, in its own job with its own token.
@@ -874,7 +874,7 @@ lanes:
       - activity: apply-patch
         needs: [fix-docs]
   pr-unblock:
-    stage: unblock
+    stage: fix
     slots:
       - activity: resolve-conflicts
       # Runs after resolve-conflicts, in its own job with its own token: the
@@ -928,7 +928,7 @@ lanes:
   # Started by an issue closing and by a sweep of recent closes:
   # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-work-unblock-sweep
   work-unblock:
-    stage: work
+    stage: admit
     slots:
       - activity: label-unblocked
       - activity: sync-status

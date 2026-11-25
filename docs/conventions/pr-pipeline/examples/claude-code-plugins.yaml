@@ -109,21 +109,6 @@ activities:
     gating: advisory
     reads-untrusted: false
     inputs: [pr, head-sha]
-  check-default-branch:
-    skill: toolchain:check
-    args: --unattended
-    effect: read
-    gating: advisory
-    reads-untrusted: false
-    scope: tree
-    inputs: [head-sha]
-  sweep-comments:
-    skill: review:fanout
-    args: --unattended
-    effect: read
-    gating: advisory
-    reads-untrusted: true
-    inputs: [pr]
 
 lanes:
   pr-refine:
@@ -138,12 +123,12 @@ lanes:
       - activity: run-tests
       - activity: measure-coverage
         needs: [run-tests]
-  pr-review:
-    stage: verify
+  pr-review-hosted:
+    stage: review
     slots:
       - activity: claude
-  pr-review-security:
-    stage: verify
+  pr-review-security-hosted:
+    stage: review
     slots:
       - activity: review-security
   pr-verify:
@@ -154,12 +139,13 @@ lanes:
     stage: verify
     slots:
       - activity: explain
+        enabled: false
   pr-require-checks:
     stage: verify
     slots:
       - activity: require-checks
   pr-unblock:
-    stage: unblock
+    stage: fix
     slots:
       - activity: resolve-conflicts
       - activity: apply-conflict-patch
@@ -173,15 +159,6 @@ lanes:
     stage: merge
     slots:
       - activity: merge
-  post-merge-verify:
-    stage: post-merge
-    slots:
-      - activity: check-default-branch
-  post-merge-sweep-comments:
-    stage: post-merge
-    slots:
-      - activity: sweep-comments
-        enabled: false
 
 loop:
   review-rounds: 3
