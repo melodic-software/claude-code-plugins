@@ -124,6 +124,18 @@ and maintainability. Where `REVIEW.md` splits review scope across lanes, follow
 that split: it scopes security review to the dedicated security lane wherever
 one runs, and folds security findings back into this lane where none does.
 
+**Which `REVIEW.md`.** The criteria in effect are the organization's
+`REVIEW.md` with the repository's appended, per the "Review criteria:
+`REVIEW.md`" section of
+[`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](../../reference/standards-contract.md).
+When the prompt has a line starting `REVIEW CRITERIA:`, the file it names is
+those composed criteria: read it in place of the repository's `REVIEW.md`, and
+everything this skill says of `REVIEW.md` applies to it. A line starting
+`ORG STANDARDS:` names the organization's standards checkout: resolve a
+citation from the organization part of the criteria against it, and its
+standards index as the org layer. Without either line, read the repository's
+`REVIEW.md` as before.
+
 **Coding standards and contributing guides.** Read a root `CODING_STANDARDS.md`
 and `CONTRIBUTING.md` when present, as review criteria with the same standing
 as `REVIEW.md`. `REVIEW.md`, `CODING_STANDARDS.md` and `CONTRIBUTING.md` are
