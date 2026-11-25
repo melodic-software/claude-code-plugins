@@ -1,19 +1,3 @@
-# YAML and JSON flattener plus the ECS mapping shared by the CloudFormation and
-# Pulumi YAML readers. Prepend redact-connection.awk and deployment-diff.awk,
-# append a reader that defines resolve_at(), collect_res(), lref(), cdpath(), a
-# BEGIN block setting CAP, CLUSTER_NAME_PROP and SERVICE_NAME_PROP, and an END
-# block that calls parse_all(), builds scopes, and calls finish(). Arguments are
-# repo-relative paths prefixed with "./". Set tool (cloudformation or
-# pulumi-yaml), places, params, nodes, envs, diffs and flag to output files.
-#
-# Every file is flattened into rows of path, kind, value. Kinds: s a string, l a
-# number, bool or null. A short tag (!Ref x, !Sub "..", !GetAtt a.b) becomes the
-# long form (Ref, Fn::Sub, Fn::GetAtt) under its node, so YAML tags and JSON
-# intrinsics read the same. A block scalar is one string. Anchors, aliases, the
-# << merge key, duplicate keys, tabs as indentation,
-# and more than one document are not read: the file refuses as
-# <cloudformation|pulumi>-unreadable:<file>.
-
 function trim(s) { gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", s); return s }
 function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
 function dirof(p) { if (sub(/\/[^\/]*$/, "", p)) return p; return "." }
@@ -33,7 +17,6 @@ BEGIN { pfx = tool; sub(/-yaml$/, "", pfx); nfiles = 0 }
   src[f] = src[f] $0 "\n"
 }
 
-# Drop a trailing comment; a quote opens only at the start of a token.
 function uncomment(s,    L, k, c, q, out, pc) {
   L = length(s); q = ""; out = ""
   for (k = 1; k <= L; k++) {
@@ -65,8 +48,6 @@ function prep_lines(s,    i, l) {
   }
 }
 
-# Structure registration. KTY node type (m map, a array), KN/KP children in
-# order, KK the key of a child, ROW/RK/RV scalar rows.
 function set_type(p, t) { KTY[FILE_, p] = t }
 function reg(p, kp, key) {
   if ((FILE_ SUBSEP kp) in SEEN) { bad = 1; return }
@@ -81,7 +62,6 @@ function row(p, kind, v) { ROW[FILE_, p] = 1; RK[FILE_, p] = kind; RV[FILE_, p] 
 function skind(v) { return (v ~ /^-?[0-9][0-9.]*$/ || tolower(v) ~ /^(true|false|null)$/ || v == "~") ? "l" : "s" }
 function fnkey(tag) { sub(/^!/, "", tag); return (tag == "Ref" || tag == "Condition") ? tag : "Fn::" tag }
 
-# Lookups over one file f.
 function fld(f, p) {
   if ((f SUBSEP p) in ROW) { FK = RK[f, p]; FV = RV[f, p]; return 1 }
   FK = ""; FV = ""
@@ -91,7 +71,6 @@ function has(f, p) { return ((f SUBSEP p) in ROW) || ((f SUBSEP p) in KTY) }
 function is_arr(f, p) { return ((f SUBSEP p) in KTY) && KTY[f, p] == "a" }
 function kids(f, p, out,    n, i) { n = KN[f, p] + 0; for (i = 1; i <= n; i++) out[i] = KP[f, p, i]; return n }
 function items(f, p, out) { if (!is_arr(f, p)) return 0; return kids(f, p, out) }
-# Compact text of a subtree, for unresolved:<text>.
 function serialize(f, p,    t, n, i, out, kp) {
   if ((f SUBSEP p) in ROW) return (RK[f, p] == "s") ? "\"" RV[f, p] "\"" : RV[f, p]
   if (!((f SUBSEP p) in KTY)) return ""
@@ -100,7 +79,6 @@ function serialize(f, p,    t, n, i, out, kp) {
   return (t == "a") ? "[" out "]" : "{" out "}"
 }
 
-# Flow collections and quoted scalars, read from FS_ at FP.
 function fws() { while (substr(FS_, FP, 1) == " " || substr(FS_, FP, 1) == "\t") FP++ }
 function fquoted(    q, out, ch, nx) {
   q = substr(FS_, FP, 1); out = ""; FP++
@@ -197,7 +175,6 @@ function fparse(path,    c, n, kp, key, j, ch, tag, v) {
   row(path, skind(v), v)
 }
 
-# Bracket depth of s outside quotes.
 function depth_of(s,    L, k, c, q, pc, d) {
   L = length(s); q = ""; d = 0
   for (k = 1; k <= L; k++) {
@@ -220,8 +197,6 @@ function cur() {
 }
 function is_dash(c) { return c == "-" || substr(c, 1, 2) == "- " }
 
-# A mapping entry "key: value" sets KEY and VAL. A value that is a tag, flow
-# collection, alias, block scalar, or quoted scalar with no key is not an entry.
 function split_key(s,    c, k, L, ch) {
   KEY = ""; VAL = ""
   c = substr(s, 1, 1)
@@ -258,8 +233,6 @@ function block_scalar(path, ind,    raw, out) {
   row(path, "s", out)
 }
 
-# The value after a key or dash. ind is the indent of that key or dash: a
-# child block must sit deeper, and a key may hold a sequence at its own indent.
 function parse_value(path, v, ind, iskey,    tag, rest, c) {
   if (substr(v, 1, 1) == "!") {
     tag = v; sub(/[ \t].*$/, "", tag)
@@ -294,7 +267,6 @@ function parse_value(path, v, ind, iskey,    tag, rest, c) {
       v = v " " LC[P]
     }
   } else {
-    # A plain scalar continues on the lines indented deeper than its key.
     while (1) {
       P++
       if (!(cur() && LI[P] > ind)) break
@@ -374,9 +346,7 @@ function parse_file(f, s,    i, first, full, c) {
 }
 function parse_all(    i) { for (i = 1; i <= nfiles; i++) parse_file(files[i], src[files[i]]) }
 
-# Values.
 function unresolved(raw) { RES_OK = 0; return "unresolved:" raw }
-# The unresolved text of a subtree. A secret marker anywhere inside it makes the value secret.
 function unres(f, p,    t) {
   t = serialize(f, p)
   RES_SEC = (index(t, "{{resolve:") > 0 || index(t, "secure:") > 0 || index(t, "fn::secret:") > 0)
@@ -386,7 +356,6 @@ function get(sc, p, dflt) {
   if (!has(S_file[sc], p)) { RES_OK = 1; RES_SEC = 0; return dflt }
   return resolve_at(sc, p, 0)
 }
-# get() for a field printed as is: a secret value prints as [redacted].
 function show(sc, p, dflt,    v) {
   v = get(sc, p, dflt)
   return RES_SEC ? "[redacted]" : v
@@ -419,8 +388,6 @@ function place(sc, c, img, reps, ports, compute, ev,    e) {
   if (ports != "") portjoin[e SUBSEP c] = ports
 }
 
-# One ECS container definition: name, image, ports, environment and secrets. A
-# secret reference is a redacted parameter. sfx is appended to the container name.
 function ecs_container(sc, g, dflt, reps, cl, ev, sfx,    f, c, img, ports, pg, eg, m, j, pv, k, v) {
   f = S_file[sc]
   c = show(sc, jp(g, ck("name")), dflt) sfx
@@ -445,9 +412,6 @@ function ecs_container(sc, g, dflt, reps, cl, ev, sfx,    f, c, img, ports, pg, 
   }
 }
 
-# The cluster, task definition and service of one scope. collect_res() lists
-# them in RID, RKIND (cluster, taskdef, service), RTYPE and RPRE, and sets
-# KIND_OF[sc, id].
 function map_ecs(sc,    f, n, i, j, id, pre, td, cl, nid, reps, img, gs, k, m, ns, sfx) {
   f = S_file[sc]
   n = collect_res(sc)
@@ -457,7 +421,6 @@ function map_ecs(sc,    f, n, i, j, id, pre, td, cl, nid, reps, img, gs, k, m, n
     node(sc, nid, RTYPE[i], show(sc, jp(RPRE[i], CLUSTER_NAME_PROP), RID[i]), f)
     CID[sc, RID[i]] = nid
   }
-  # A service names the task definition and cluster its containers run with.
   for (i = 1; i <= n; i++) {
     if (RKIND[i] != "service") continue
     pre = RPRE[i]
@@ -478,8 +441,6 @@ function map_ecs(sc,    f, n, i, j, id, pre, td, cl, nid, reps, img, gs, k, m, n
     id = RID[i]; pre = RPRE[i]
     m = items(f, cdpath(f, pre), gs)
     ns = ((sc SUBSEP id) in SVC_N) ? SVC_N[sc, id] : 0
-    # Each service runs the task definition on its own cluster with its own count; with two
-    # or more, its resource id keeps their placements of one container apart.
     for (j = 1; j <= (ns > 0 ? ns : 1); j++) {
       reps = ns > 0 ? SVC_REPS[sc, id, j] : "undeclared"
       cl = ns > 0 ? SVC_CL[sc, id, j] : ""

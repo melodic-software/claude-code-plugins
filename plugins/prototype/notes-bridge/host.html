@@ -1,35 +1,6 @@
 <!doctype html>
 <!-- GENERATED from lib/ui-feedback/host.html by scripts/sync-shared-copies.sh. Do not edit this copy:
 edit the canonical source, then rerun the script. -->
-<!--
-  Host page for in-page notes on a non-final UI (docs/contracts/ui-feedback). notes_bridge.py serves
-  it at / on the session bridge. It frames the model-written page from /api/page through srcdoc, with
-  sandbox="allow-scripts" and never allow-same-origin, so the page runs with an opaque origin and
-  reaches nothing but this window, by postMessage. This page alone holds the token and the network.
-  It trusts a message only from the frame's own window, takes the first ready only, and stops
-  listening when the frame loads a second document. A pick, a region, a move arrow or a text selection
-  becomes a note only through note.schema.json: each anchor field, box, point, quote, data log and viewport the
-  schema refuses is dropped, and the helper's label is never kept. The one page text a note keeps
-  is a selection's quote (anchor.textQuote), cut to the schema's limits. Every string reaches the
-  screen through textContent. When the server stops answering, the notes written here stay on this
-  page and Copy all notes makes one prototype-notes block for the session to import. A draft stays
-  on this page, out of that block, until it is sent; it is kept in this tab's sessionStorage under the
-  run's token, never on the server, so a reload of the same run lists it again. The run's sent notes come
-  back from /api/notes, the token in the request's header, each kept only as note.schema.json admits
-  it. A region note, a draft or sent, can be moved or resized from the editor or its row; a sent one's
-  new anchor, rect and elements go to /api/note/change, which tells the session that note changed. A sent
-  note's Edit sends its new text to /api/note/edit and its Withdraw to /api/note/withdraw, each naming
-  the note's seq; a withdrawn note is listed as withdrawn, with no marker and no actions, and left out
-  of Copy all notes. Hovering a row draws its note's box in the frame, and clicking a row or its marker restores the
-  note's view and keeps the box drawn; the frame gets keys, a path and a box, never note text. The Controls tab renders the framed page's
-  controls manifest, kept only when controls.schema.json admits it, through the registry in
-  controls.js, beside the content sets the page marks, and the Sample data menu lists the data
-  controls it marks, each kept only as note.schema.json admits a data step or a content set; it sends
-  the frame values and presses, never markup, and a note keeps only the control values the manifest names.
-  The mockup frame always fills the window: the command bar and the notes popover sit over it. The
-  frame reports its variants and screen states and, for each listed note, its element's visible text
-  and card heading; both are shown as plain text, cut by frame-channel.mjs, and never kept in a note.
--->
 <html lang="en">
 <head>
 <meta charset="utf-8">

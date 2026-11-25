@@ -643,7 +643,7 @@ nodecided
 decided "$OLD"
 nets "[$TF]" "[$TF]"
 export STUB_FAIL=module
-expect "an unreadable base merge-holds.mjs carries no closing-issue decision" no no no "push history could not be checked"
+expect "an unreadable base merge-holds.mjs carries no closing-issue decision" no no no "the review lanes could not be read"
 reset
 expect "at the decided head the decision carries" yes yes yes
 if grep -q "compare/main\.\.\.\|compare/$TIP_SHA\.\.\.\|git/ref/" "$TMP_ROOT/log"; then fail "a decision at its own head read a compare"; else ok "a decision at its own head reads no compare"; fi
@@ -790,7 +790,7 @@ expect "a lane run on a head that changes a review-lane workflow clears nothing"
 STUB_COMPARE="$(jq -cn --arg h "$HEAD" '{($h): {files: [range(300) | {filename: "f\(.)"}]}}')"
 expect "a lane run on a head whose comparison hits the file cap clears nothing" no no no "changes too many files"
 STUB_COMPARE="$(jq -cn --arg h "$HEAD" '{($h): {status: "diverged"}}')"
-expect "a comparison with no file list clears nothing" no no no "do not parse"
+expect "a comparison with no file list clears nothing" no no no "changes no file list"
 reset
 lanes '[]' '[]'
 lifted

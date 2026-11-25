@@ -51,6 +51,10 @@ const ISSUE_LANE_SECRETS = new Set([
   "issue_lane_claude_code_oauth_token",
   "issue_lane_claude_api_key",
 ]);
+const INTAKE_SECRETS = new Set([
+  "intake_claude_code_oauth_token",
+  "intake_claude_api_key",
+]);
 // By file name, every workflow whose run reaches the read workflow, mapped to
 // the role secrets it may name beside SHARED_SECRETS. A file of the run that
 // is not one of these workflows may name SHARED_SECRETS alone.
@@ -58,6 +62,7 @@ const CALLER_SECRETS = new Map([
   ["pr-refine.yml", PR_UNBLOCK_SECRETS],
   ["pr-unblock.yml", PR_UNBLOCK_SECRETS],
   ["work-resolve-issue.yml", ISSUE_LANE_SECRETS],
+  ["intake-triage.yml", INTAKE_SECRETS],
 ]);
 const ROLE_SECRETS = new Set(
   [...CALLER_SECRETS.values()].flatMap((names) => [...names]),
