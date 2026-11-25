@@ -11,6 +11,3 @@
 - A lint finding in a workflow file or a hook manager's config is fixed by hand:
   `/code-tidying:remove-comments` skips those paths unless given its `override` argument.
 - `remove-comments-ignore` on a comment is judged at review like any other added comment.
-- A deleted comment that recorded why one of the repository's own decisions was made is flagged when
-  its reason is in no ADR, commit message or linked source: move the reason to an ADR or the commit
-  message, or keep the comment.
