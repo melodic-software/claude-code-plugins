@@ -9,4 +9,5 @@
 # test-scope: .github/scripts/intake-triage/split-child.vectors.json .github/scripts/lib/lane-binding.mjs .github/scripts/maintenance-monitor-signals/issues.mjs .github/scripts/pr-unblock/verify-cap.mjs .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json
 # test-scope: plugins/source-control/scripts/branch-update-method.sh .github/verify-legacy-fails.json scripts/check-silent-revert.sh scripts/lib/changed-files.sh scripts/lib/changelog-fragments.sh .github/scripts/post-merge-demotion-alert/demotion-record.vectors.json
 # test-scope: .github/actions/check-trusted-trigger/close-trust.mjs .github/scripts/apply-patch/cdn-paths.mjs .github/scripts/lib/fixtures/standards-list-commits.json .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs .github/scripts/pr-review-main/write-verdict.mjs .github/scripts/pr-unblock/dependency-classify.mjs .github/scripts/pr-verify/spec-source.mjs .github/scripts/pr-verify/write-verdict.mjs lib/publish-gate.mjs
+# test-scope: scripts/fixtures/verify-pass-out/*.json
 exec bash "$(dirname "${BASH_SOURCE[0]}")/engine-run.sh" d
