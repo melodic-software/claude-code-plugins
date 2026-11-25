@@ -181,7 +181,7 @@ run_case "a role secret in the read workflow itself fails" 1 \
 
 run_case "a read caller passing another role's Claude API key fails" 1 \
   "printf '      claude-api-key: \${{ secrets.INTAKE_CLAUDE_API_KEY }}\n' >>$CALLER" \
-  "$CALLER:11: reads secrets.INTAKE_CLAUDE_API_KEY, which is not on the read-run allowlist"
+  "$CALLER:11: reads secrets.INTAKE_CLAUDE_API_KEY, which is in neither the shared read-run set nor pr-unblock.yml's CALLER_SECRETS entry"
 
 run_case "secrets: inherit in a read caller fails" 1 \
   "sed 's/^    secrets:\$/    secrets: inherit/; /claude-code-oauth-token/d' $CALLER >$CALLER.new && mv $CALLER.new $CALLER" \
