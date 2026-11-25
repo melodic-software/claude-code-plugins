@@ -209,8 +209,6 @@ guard::abort_boundary run-guards "" open 0 2
 [[ -z "${EXEC_BASH_VERDICT_FILE-}" ]] || guard::abort_boundary run-guards "" closed 0 2
 # shellcheck source=hook-utils.sh
 source "$_RG_DIR/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
-# Several guards' callbacks re-read the same inner text (a `bash -c` body):
-# keep each shfmt parse for this call (lib/hook-utils.sh hook::_bps_shfmt_to).
 HOOK_BPS_MEMO=1
 
 case "$_RG_DIR" in
@@ -221,8 +219,6 @@ esac
 RUN_GUARDS_START=${EPOCHREALTIME:-}
 GUARDS=()
 LIBS=()
-# The options as given, for a fresh process that runs the rest of the chain
-# (run_guards::run_rest).
 RUN_GUARDS_OPTS=()
 RUN_GUARDS_MAX_SUBST=0
 RUN_GUARDS_MAX_CMD=0
@@ -260,12 +256,6 @@ while (($#)); do
     shift
     ;;
   --lib)
-    # A library several guards source (the PowerShell classifier). Collect
-    # the path now; the parse itself waits until tool_name is known. On a
-    # Bash payload the classifier's first real statement is
-    # `[[ "$tool" == "PowerShell" ]] || return 0`, so loading ~41 KB here
-    # was a pure tax on the common path. The include guard still makes every
-    # later `source` a no-op, so the parse is paid once per PowerShell fire.
     LIBS+=("$2")
     RUN_GUARDS_OPTS+=("$1" "$2")
     shift 2
@@ -300,7 +290,6 @@ run_guards::verdict() {
   exit 0
 }
 
-# --- stdin once, fields once --------------------------------------------------
 RUN_GUARDS_PRIMED=0
 declare -A RUN_GUARDS_FIELD=()
 # The union of every field the guards of this plugin declared in
@@ -336,7 +325,6 @@ PRIME_FILTERS=(
 RUN_GUARDS_INPUT=""
 RUN_GUARDS_STDIN_RC=0
 hook::buffer_stdin_to RUN_GUARDS_INPUT "${PRIME_FILTERS[@]}" || RUN_GUARDS_STDIN_RC=$?
-# Nothing arrived: every guard would take its empty-stdin skip. Take it once.
 if ((RUN_GUARDS_STDIN_RC == 1)); then
   run_guards::verdict
   exit 0
@@ -386,15 +374,11 @@ if ((RUN_GUARDS_STDIN_RC == 0)) &&
     RUN_GUARDS_FIELD["${PRIME_FILTERS[_rg_i]}"]="${HOOK_JQ_FIELDS[_rg_i]}"
   done
   unset _rg_i
-  # The event name rides in the same extraction and lets the dispatcher's own
-  # abort notice name the event.
   [[ "${RUN_GUARDS_FIELD['.hook_event_name']-}" =~ ^[A-Za-z]+$ ]] &&
     _GAB_EVENT="${RUN_GUARDS_FIELD['.hook_event_name']}"
 fi
 
-# Substitution count (AGGREGATION above). Parameter expansion, not a loop over
-# characters: one pass per spelling, and nothing forks.
-run_guards::count_subst() { # <text> -> _rg_subst
+run_guards::count_subst() {
   local t="$1" rest pat
   _rg_subst=0
   # shellcheck disable=SC2016  # literal spellings, matched as text
@@ -418,7 +402,7 @@ run_guards::count_subst() { # <text> -> _rg_subst
 # neither where a guard re-reads it as a command; elsewhere the rest of the
 # command, or all of it, counts (AGGREGATION above lists where).
 # shellcheck disable=SC2016,SC1003  # regexes and literal spellings, not expansions
-run_guards::counted_text() { # <command> -> _rg_counted
+run_guards::counted_text() {
   local LC_ALL=C rest="$1" out="" m d t re_end ws=1 dq=0 br=0 hd=0 n=0
   local nl=$'\n' tab=$'\t'
   local re_plain='^[^'\''"\`$<#]*' re_dq='^[^"\$`]*' re_sq="^'([^']*)'"
@@ -439,7 +423,6 @@ run_guards::counted_text() { # <command> -> _rg_counted
   m=${1,,}
   [[ $m == *alias* ]] && return 0
   while [[ -n $rest ]] && ((++n <= 1024)); do
-    # Inside "...": counted, scanned only to find where it closes.
     if ((dq)); then
       [[ $rest =~ $re_dq ]]
       out+=${BASH_REMATCH[0]}
@@ -543,7 +526,6 @@ run_guards::counted_text() { # <command> -> _rg_counted
       re_end=$nl
       [[ -n ${BASH_REMATCH[1]} ]] && re_end+="$tab*"
       re_end+=$d$nl
-      # A newline is added so the terminator line always ends in one.
       t=$nl${rest:${#m}}$nl
       [[ $t =~ $re_end ]] || break
       out+=$m
@@ -584,8 +566,6 @@ run_guards::counted_text() { # <command> -> _rg_counted
   [[ $m =~ $re_reparse || ${m//\\/} =~ $re_reparse || $m =~ $re_dot ]] || _rg_counted=$out$rest
 }
 
-# The command both caps read: an unprimed payload is counted and measured
-# whole, which no command inside it can exceed.
 RUN_GUARDS_OVERLONG=0
 if ((RUN_GUARDS_STDIN_RC == 0 && (RUN_GUARDS_MAX_SUBST || RUN_GUARDS_MAX_CMD))); then
   if ((RUN_GUARDS_PRIMED)); then
@@ -601,9 +581,6 @@ fi
 if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
   _rg_data=""
   run_guards::count_subst "$_rg_text"
-  # The quote-aware recount runs only for a Bash command already past the cap
-  # that holds a single quote or a heredoc, and not for one past
-  # --max-command-len, which the guards refuse unread.
   if ((_rg_subst > RUN_GUARDS_MAX_SUBST && RUN_GUARDS_PRIMED && !RUN_GUARDS_OVERLONG)) &&
     [[ "${RUN_GUARDS_FIELD['.tool_name']-}" == Bash && ($_rg_text == *"'"* || $_rg_text == *'<<'*) ]]; then
     run_guards::counted_text "$_rg_text"
@@ -661,16 +638,6 @@ hook::jq_fields() {
   return 0
 }
 
-# The file path and the repository root, each resolved once per event. The
-# PostToolUse verifiers all read `.tool_input.file_path` through
-# hook::read_file_path_to and then ask hook::repo_root_to about its directory:
-# three payload parses, three realpath processes and up to three git processes
-# for one answer each. The first call resolves through the library's uncached
-# twin and the rest are served from here, with the same status and the same
-# HOOK_REPO_ROOT_UNRESOLVED. Nothing a guard does between those calls moves
-# the file, the project dir or the repository (the verifiers read, never
-# write). A payload other than the event's own, or a changed scope setting,
-# misses and takes the uncached path.
 RUN_GUARDS_RFP_KEY=""
 RUN_GUARDS_RFP_RC=""
 RUN_GUARDS_RFP_VAL=""
@@ -697,7 +664,6 @@ RUN_GUARDS_RR_VAL=""
 RUN_GUARDS_RR_UNRESOLVED=""
 # shellcheck disable=SC2329,SC2034  # invoked by the guards; HOOK_REPO_ROOT_UNRESOLVED is their contract
 hook::repo_root_to() {
-  # The working directory is part of the key: a relative hint resolves against it.
   local __rg_hint="${2:-.}" __rg_key="$PWD|${2:-.}" __rg_val="" __rg_rc=0
   if [[ -z "$RUN_GUARDS_RR_RC" || "$__rg_key" != "$RUN_GUARDS_RR_KEY" ]]; then
     hook::repo_root_uncached_to __rg_val "$__rg_hint" || __rg_rc=$?
@@ -711,14 +677,6 @@ hook::repo_root_to() {
   return "$RUN_GUARDS_RR_RC"
 }
 
-# One tokenization per event (HOW above). The record is one string's parse,
-# as flat arrays: per segment its argv count and redirection count, then the
-# words, their HOOK_SEG_WORD_QUOTED flags and the five HOOK_SEG_REDIR_* arrays
-# end to end, plus the parse's HOOK_HEREDOC_BODIES, which a replay sets once
-# its last callback returns. Only an outermost call records or stores, so a callback's
-# re-parse of a substring cannot evict the event's command; the depth is reset
-# before each guard, because a guard's `exit` inside a callback never unwinds
-# it.
 RUN_GUARDS_BPS_HAVE=0
 RUN_GUARDS_BPS_KEY=""
 RUN_GUARDS_BPS_DEPTH=0
@@ -824,19 +782,6 @@ run_guards::bps_replay() {
   RUN_GUARDS_BPS_DEPTH=$__rg_depth
 }
 
-# --- PowerShell classifier, once, and only on that tool -----------------------
-# A Bash payload must not parse ps-command.sh at all; an unprimed payload still
-# loads it so a PowerShell command whose field cache missed cannot reach a guard
-# with `ps::` unbound.
-#
-# `--lib` in hooks.json is the wiring's cue that this event's guards declare a
-# library at all, which keeps the Bash hot path at one array test and reads
-# nothing. WHAT to load comes from each guard's own declaration in
-# guard-requires.sh, satisfied here ONCE for the event; a guard run alone
-# satisfies the same declaration itself through guard::require_libs, so a row
-# that omits the cue costs a repeated load and never a verdict. A `--lib` path
-# is loaded as well, so an explicit argument still preloads a library no guard
-# declared.
 _rg_tool="${RUN_GUARDS_FIELD['.tool_name']-}"
 if ((${#LIBS[@]})) && [[ "$_rg_tool" != "Bash" ]]; then
   # shellcheck source=guard-requires.sh
@@ -855,10 +800,6 @@ unset _rg_tool
 # --- run ----------------------------------------------------------------------
 RC=0
 OUTS=()
-# The guard being run: an index into GUARDS, or -1 while the dispatcher's own
-# code runs (before the first guard, and again from the merge onward). The
-# EXIT-trap handler below reads it to tell a guard's hard error from the
-# dispatcher's own abort.
 RUN_GUARDS_CUR=-1
 # The process the chain runs in. `exit` below compares BASHPID against it: a
 # guard's `exit` inside a real subshell must end that subshell, not unwind to
@@ -942,7 +883,6 @@ run_guards::record() {
   run_guards::fold_rc "$__rg_rc"
 }
 
-# run_guards::fold_rc <rc>: fold one status into RC (AGGREGATION above).
 run_guards::fold_rc() {
   local __rg_v="$1"
   if ((__rg_v == 2)); then
@@ -974,9 +914,6 @@ run_guards::guard_done() {
   run_guards::finish
 }
 
-# run_guards::run_from <index>: run the guards from <index> on, then finish.
-# Never returns. A guard that ends through `exit` has been unwound back to the
-# `source` below (see `exit`), so every guard starts on this frame's stack.
 run_guards::run_from() {
   local __rg_i __rg_rc __rg_path
   for ((__rg_i = $1; __rg_i < ${#GUARDS[@]}; __rg_i++)); do
@@ -994,8 +931,6 @@ run_guards::run_from() {
     # The guard's own boundary sets this; a guard that never installs one is
     # recorded on its raw status.
     _GAB_NAME=""
-    # A fresh hook process has no alias memo; the guard before this one may
-    # have armed it on the same command, and a memo hit is "already analyzed".
     hook::reset_analysis_state
     RUN_GUARDS_BPS_DEPTH=0
     RUN_GUARDS_T0=${EPOCHREALTIME:-}
@@ -1008,10 +943,6 @@ run_guards::run_from() {
     fi
     run_guards::record "$__rg_rc"
     ((RUN_GUARDS_OVERLONG && RC == 2)) && break
-    # A guard that exited this deep may have come close to the stack limit,
-    # and the next guard's own walk can run out of it where the first did not.
-    # In a forked child that crash cannot take this process, and the verdict
-    # already recorded, with it: a rest that reports nothing denies the call.
     if ((RUN_GUARDS_EXIT_DEPTH > RUN_GUARDS_MAX_DEPTH && __rg_i + 1 < ${#GUARDS[@]})); then
       RUN_GUARDS_EXIT_DEPTH=0
       run_guards::run_rest $((__rg_i + 1))
@@ -1097,7 +1028,6 @@ run_guards::emit_one() {
   done
 }
 
-# run_guards::finish: emit the aggregated result and exit. Never returns.
 run_guards::finish() {
   RUN_GUARDS_CUR=-1
   _GAB_CONTINUE=""
