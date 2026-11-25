@@ -12,6 +12,8 @@ bump: minor
   Pending commands into `user · when now` reminders.
 - The handoff skill folds user messages and advisor output that change a section into the handoff
   with `amend` after emit, without asking.
+- Forked side tasks, profile changes and chain-close follow-ups print one terminal command that
+  opens the destination checkout and starts the selected profile with the saved prompt or goal.
 
 ### Changed
 

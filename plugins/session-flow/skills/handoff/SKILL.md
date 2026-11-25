@@ -86,7 +86,7 @@ response, the save-point does not exist and STOP has not been reached.
 - [ ] Copy/paste resume prompt emitted between two dashed rails (engine doc, "Emit the copy/paste
   resume prompt"), the box that is never satisfied by having written the file; on the tracker
   short form, its two lines stand in for the railed prompt
-- [ ] `/clear`-then-paste instruction surfaced to the user (a forked side task: new session instead; a sibling-session offer, "Delivery" below, carries it as its fallback)
+- [ ] Delivery shown to the user. A new local session gets one terminal launch command. An ordinary resume gets the `/clear`-then-paste instruction.
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
   ticked, never as the act that replaces it. The one exception to "no commit" is the opt-in
@@ -112,9 +112,9 @@ Two exceptions:
 - The user, or the calling skill's step, names the handoff as a side task split off from the
   current task, in the request or the purpose text. Never infer it: without that naming, a handoff
   stops. The save-point covers only the side task; after the rails prompt, this session keeps
-  working its own task and never starts the side task. The `below-rail` slot (prompt-only: a line
-  below the rails) says to paste into a new session without `/clear`; claims stay (see "Hand
-  worktree claims").
+  working its own task and never starts the side task. Print its new-session command per
+  [Delivery](#delivery-clear-then-paste). For manual recovery, the below-rail note says to paste
+  the prompt into a new session without `/clear`. Claims stay (see "Hand worktree claims").
 
 ## When to invoke
 
@@ -144,7 +144,7 @@ skill needs the user's explicit request for a handoff.
 |---|---|
 | Deep-window escape with session-chain value | Full handoff file, the default |
 | A tracker item already holds the state (a wayfind map item, say) | Tracker short form: two lines, `/clear, then run:` and the command with the item's URL, no session state, accepting the retro-gap cost prompt-only has; the full file when findings are not yet on the tracker or the session chain matters ([reference/tracker-short-form.md](reference/tracker-short-form.md)) |
-| Small follow-ups, no chain value | Prompt-only, accepting its documented retro-gap cost (no file, no chain pointer for `/session-flow:retro` to walk) |
+| Small follow-ups, no chain value | Prompt-only, accepting its documented retro-gap cost (no handoff file or chain pointer for `/session-flow:retro` to walk) |
 | The next session's focus differs from this one's | Either form, plus the purpose argument (emphasis tailoring only, per the engine doc) |
 | Going AFK but the work should keep moving | The sibling `/session-flow:continue-in-background` skill, only on the user's explicit request |
 | The machine itself may go away | `/session-flow:clean-stop` semantics, make everything durable off-machine first; a save-point alone is a local file that strands with the machine |
@@ -234,7 +234,7 @@ Resolved `true`: run the refusal checks, stage and commit, and record the result
 handover the resumed session's claim gate stops on its own lane's worktree. For each worktree this
 session claims, record the old session id under Environment to re-establish and make the handover
 the first remaining action, leading the resume prompt's `Next:` headlines (structure doc,
-"Worktree claims"). On the prompt-only path, which writes no file, the first remaining-work bullet
+"Worktree claims"). On the prompt-only path the first remaining-work bullet
 carries the path, this session's id and the handover. Release nothing: the claim moves, never drops.
 A forked side task hands over no claim on a worktree this session keeps working in.
 
@@ -252,8 +252,8 @@ run the guards, run `save_point.py new` (the script is `${CLAUDE_PLUGIN_ROOT}/sc
 call it by that path, never search for it) through the interpreter ladder with `-X utf8`, write one JSON object
 holding the values for the `<!-- FILL: … -->` slots, sized to the `budget:` line `new` prints,
 apply them with one `save_point.py fill <file> --slots <json>`, and paste the rails it prints
-after a PASS or WARN verdict. Edit is the repair path after a FAIL line, never the fill. The screen and the file's `## Resume prompt`
-section are the same bytes by construction. Two refusals route elsewhere and are stated, never
+after a PASS or WARN verdict. Edit is the repair path after a FAIL line, never the fill. The copy
+regions come from the file's `## Resume prompt` section. Two refusals route elsewhere and are stated, never
 worked around: no Python 3.10+ on PATH takes the engine doc's Python-absent fallback
 (`validator unavailable`, file hand-written per the structure doc, `validate: SKIPPED`); no
 session UUID (`CLAUDE_CODE_SESSION_ID` unset or not a UUID) takes the prompt-only path with the
@@ -261,9 +261,14 @@ reason stated. Never a hand-written handoff file when the script could have run.
 
 ## Delivery: `/clear`-then-paste
 
-This skill's delivery step is the engine's default exit: the rails resume prompt with the "`/clear`, then copy
-everything between the dashed lines" instruction above the top rail. The user types `/clear` and pastes; nothing is
-launched on their behalf. A forked side task: a new session. When this session has a tool that starts another session (the Claude desktop app's Code tab), read [`${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md`](${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md) and offer that delivery, with this one as its fallback; without such a tool, skip that file.
+For a forked side task, a profile phase change, or a reminder handed to a new local session at
+chain close, follow the [new-session launch](../../reference/structure.md#new-session-launch)
+procedure before `new`. Show its one terminal command, including on the prompt-only path.
+The user pastes that command to start the session. On a launch error, show the error line.
+
+For an ordinary resume, the user types `/clear` and pastes the railed prompt. When this session
+has a tool that starts another session, offer [sibling-session delivery](${CLAUDE_PLUGIN_ROOT}/reference/sibling-session-delivery.md)
+with the applicable manual delivery as its fallback.
 
 ## Late events after emit
 
@@ -303,7 +308,8 @@ Retirement is automatic: it costs one `retire` entry in the JSON this turn alrea
 shows as `retired [M<n>]: <reason>`, and a wrong call is undone from the archive file's
 `## Retired reminders`. A closing handoff lists every open reminder in its closing turn first:
 `at close` entries retire `raised at chain close`; one that has not fired is done now, handed to a
-new local session, or filed as an issue only when it cannot fire within the chain.
+new local session with the follow-up handoff's launch command, or filed as an issue only when
+it cannot fire within the chain.
 
 **At resume.** The resumed session raises due reminders in its first reply, re-drafts a flagged
 goal, reconciles only recorded off-thread work and re-arms recurring work last, by
@@ -423,7 +429,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
   doc, full-path block). Never green-silent, never a withheld prompt
 - [ ] Resume prompt is the `save_point.py emit <file>` output (`--format markdown` on a markdown
   surface) pasted verbatim, copy line through the below-rail `claude --resume` line, never retyped
-  or regenerated; in the terminal it equals the file's `## Resume prompt` byte for byte; `Next:` holds 1 to 5 plain
+  or regenerated. Include the launch command above the copy instructions when present. `Next:` holds 1 to 5 plain
   headlines from `Remaining actions, in order` (or, for a closing handoff, the `next` value
   `Next: none (closed)` exactly, which `fill` moves onto the `Next:` line), with `Then: /<skill>`
   last only at a stage boundary. The directive `@`-references the file by its **absolute**,
@@ -453,7 +459,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - [ ] Prompt-only justified (all auto-detect criteria hold, or `prompt` explicitly passed)
 - [ ] In-flight work settled before the rails prompt, as on the full path
 - [ ] Position panel emitted per the engine doc ("Emit the position panel"), or an explicit line
-  saying the units would not resolve. Prompt-only writes no file, so this is the only place the
+  saying the units would not resolve. Prompt-only writes no handoff document, so this is the only place the
   operator sees where the work stands, the path where skipping it costs the most. Unit ladder rung
   4 (`TaskList`) is skipped here unless `prompt` was forced, in which case the one `TaskList` call
   is made rather than the list being guessed from the conversation (a session with `TodoWrite`
@@ -461,7 +467,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - [ ] The verbatim goal sits between the resume region's rails above the remaining-work bullets,
   and, when a goal applies, is the condition of the goal region (no `Read @` line on this path);
   when the goal has recorded amendments, the original dated quote travels with every dated
-  amendment line, never collapsed to a single line; prompt-only writes no file, so the goal
+  amendment line, never collapsed to a single line; prompt-only writes no handoff document, so the goal
   travels in the prompt or not at all (engine doc, "Original goal, mandatory on both paths")
 - [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact. A pending CI, merge, or unreturned check
@@ -472,7 +478,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
   remaining-work bullet: path, this session's id, handover before `check-enter` (or none held)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
-- [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** make no suggestion; tick this box as not applicable.
+- [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** make no suggestion; tick this box as not applicable.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
@@ -496,7 +502,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
   ("SendMessage worker continuation"). Any still running named between the rails with why
   (or an explicit statement that none were spawned and none were inherited, or that every
   one was cancelled). Named subagents stay live and addressable across `/clear`; prompt-only
-  writes no file, so the leftover list travels in the prompt or not at all.
+  carries the leftover list in the prompt.
 - [ ] **Execution stops here** (for a forked side task, only the side task). "Small enough" means the prompt captures the work, not "small
   enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
   these ticks as the response's final text (see "Output order is fixed" above)

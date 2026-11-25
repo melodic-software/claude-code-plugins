@@ -926,7 +926,7 @@ def test_new_refuses_a_settings_file_that_breaks_the_line(tmp_path, bad):
 
 
 @pytest.mark.parametrize("shape", ["2", "3"])
-def test_new_start_command_says_to_relaunch_above_the_unchanged_copy_line(tmp_path, shape):
+def test_new_start_command_launches_above_the_unchanged_copy_line(tmp_path, shape):
     repo = make_repo(tmp_path)
     command = 'env -u PLUGIN_PROFILES_SESSION claude --settings "/h/sessions/abc-review.json"'
     result = run(
@@ -934,17 +934,19 @@ def test_new_start_command_says_to_relaunch_above_the_unchanged_copy_line(tmp_pa
     )
     assert result.returncode == 0, err(result)
     target = repo / ".work" / "handoffs" / HOP1
-    line = (
-        "The next phase runs in another plugin profile: exit this session, start the next one "
-        f"with `{command}`, then in it:\n`/clear`, then copy everything between the dashed lines:"
-    )
     text = target.read_text(encoding="utf-8")
-    assert line in text, "the relaunch line sits directly above the copy line find-handoff keys on"
+    assert f"New session checkout: {real_posix(repo)}\nNew session command: {command}\n" in text
+    assert COPY_LINE in text
     fill = shape3_fill if shape == "3" else model_fill
     target.write_text(fill(text), encoding="utf-8", newline="\n")
     validated = run("validate", str(target))
     assert validated.returncode == 0, out(validated) + err(validated)
-    assert line in out(run("emit", str(target)))
+    emitted = run("emit", str(target), "--shell", "posix")
+    assert emitted.returncode == 0, err(emitted)
+    launch = out(emitted).split(COPY_LINE)[0].splitlines()[-1]
+    assert launch.startswith("cd ") and real_posix(repo) in launch
+    assert f'{command} "$(cat ' in launch and real_posix(target.with_suffix(".prompt.txt")) in launch
+    assert launch + "\n" + COPY_LINE in out(emitted)
 
 
 def test_phase_change_reopens_in_own_profile_and_starts_next_in_its_own(tmp_path):
@@ -958,11 +960,18 @@ def test_phase_change_reopens_in_own_profile_and_starts_next_in_its_own(tmp_path
         )
     )
     assert result.returncode == 0, err(result)
-    text = (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
+    target = repo / ".work" / "handoffs" / HOP1
+    text = target.read_text(encoding="utf-8")
     assert f'`claude --resume {SID_A} --settings "{own}"`.' in text
-    assert f"start the next one with `{command}`, then in it:" in text
+    assert f"New session command: {command}\n" in text
     reopen = next(line for line in text.splitlines() if "claude --resume" in line)
     assert nxt not in reopen, "the producing session reopens in its own profile"
+    target.write_text(model_fill(text), encoding="utf-8", newline="\n")
+    emitted = run("emit", str(target), "--shell", "posix")
+    assert emitted.returncode == 0, err(emitted)
+    launch = next(line for line in out(emitted).splitlines() if line.startswith("cd "))
+    assert command in launch and own not in launch
+    assert reopen in out(emitted)
 
 
 def test_new_refuses_a_start_command_with_a_backtick(tmp_path):

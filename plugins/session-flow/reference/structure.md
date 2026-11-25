@@ -46,6 +46,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
   - [This session](#this-session)
   - [Prior sessions](#prior-sessions)
   - [Resume prompt](#resume-prompt)
+    - [New-session launch](#new-session-launch)
 - [How this document is referenced elsewhere](#how-this-document-is-referenced-elsewhere)
 - [Full-path write procedure](#full-path-write-procedure)
   - [Frontmatter shape 5](#frontmatter-shape-5)
@@ -222,7 +223,7 @@ entry leaves to meet the size cap.
 - **Closing handoff.** The closing turn lists every open entry before the file closes: each `at
   close` entry, retired `raised at chain close`; a time or condition entry that has not fired is
   done now when its trigger holds and it fits the current work, handed to a new local session with
-  its launch command, or filed as an issue only when its trigger cannot fire within the chain. An
+  its [launch command](#new-session-launch), or filed as an issue only when its trigger cannot fire within the chain. An
   unattended close never retires a user or `at close` entry: the closing file keeps it, and the
   run's final report lists it under **Needs you**. `validate` warns, without failing, on a closed
   file that still holds open reminders.
@@ -513,19 +514,11 @@ invoke `/plugin-profiles:profile status` via the Skill tool and write its "Start
 here in this profile with:" line here as the restore entry, as given; with no such line, say no
 profile is in force. Otherwise write nothing about plugin profiles.
 
-With the skill available, two more steps run before `save_point.py new`:
+For the line that reopens the producing session, invoke `/plugin-profiles:profile launch --json`
+(if enabled) without a profile name. Pass its non-null `file` to `new --settings-file <file>`.
+Use that same settings file on the prompt-only reopen line, including on a profile change.
 
-- **The resume line.** Invoke `/plugin-profiles:profile launch --json` via the Skill tool, with no
-  profile name, so it is this session's own; when its `file` is not null, pass it to `new` as
-  `--settings-file "<file>"` (on the prompt-only path, add `--settings "<file>"` after the UUID of
-  the hand-written `claude --resume <UUID>`). That line reopens this session, so it always carries
-  this session's profile, on a phase change too.
-- **A phase change.** When the user names a different profile for the next phase, also invoke
-  `/plugin-profiles:profile launch <next profile> --json` and pass only its `command` to `new`, as
-  `--start-command "<command>"`. That adds a line above the copy line telling the user to exit this
-  session and start the next one with that command (on the prompt-only path, write that line by
-  hand in the same place). A resume in the same profile keeps plain `/clear`. With the skill
-  unavailable, keep `/clear` and say the next profile was not applied.
+For a separate session, use the selected profile's [new-session launch](#new-session-launch).
 
 **TaskList.** Branch on which task tools this session has (read its tool list), never on the model
 name:
@@ -756,8 +749,8 @@ session before it (this table, each row naming the file and transcript to open f
 
 ### Resume prompt
 
-The final section, always. It stores the copy/paste resume prompt exactly as it is emitted on
-screen: the copy instruction, the two U+2500 rails with the prompt between them, and the
+The final section, always. A new-session handoff records its checkout and start command first.
+Then come the copy instruction, the two U+2500 rails with the prompt between them, and the
 below-rail lines; when a goal applies, also the goal region (its own instruction line and rail
 pair, above or below the resume region). The on-screen rails block is this section, printed by
 `save_point.py emit <file>`, never regenerated from the conversation. Every rule about what goes
@@ -765,6 +758,38 @@ between the rails (the directive, `Prior session:`, `Handoff origin:`, `Next:`, 
 goal region) is owned by [`save-point.md`](save-point.md) "Emit the copy/paste resume prompt",
 full-path block. `new` writes every line of it except the `Next:` headlines and the optional
 goal-region and below-rail slots.
+
+#### New-session launch
+
+A forked side task, a switch to another plugin profile, and a reminder handed to a new local
+session at chain close each get one terminal command. For a closing reminder, start a follow-up
+handoff with `new --no-previous` and record its trigger and action there. Print the command for
+that follow-up. The original handoff keeps `Next: none (closed)`.
+
+- Pass `--start-command` to `save_point.py new` on the handoff for the new session.
+  With plugin-profiles (if enabled), pass its `command` as one argument, exactly as returned by
+  `/plugin-profiles:profile launch --json`. Reuse the result for the producing profile unless
+  the user named another one, in which case request `launch <next profile> --json`.
+  Without the plugin, pass the flag alone for plain `claude` and say if a requested profile
+  could not be applied. An ordinary same-session handoff keeps its `/clear` instruction.
+- The checkout defaults to the producing checkout, or the session's working directory outside
+  Git. Supply `--launch-dir <checkout>` when the work belongs in a different checkout. At emit,
+  a missing checkout prints an error line. Report that line to the user.
+- `emit` writes `<handoff stem>.prompt.txt` beside the handoff file. It copies the resume
+  region, or, for a goal in either position, `/goal ` followed by the goal region. The command
+  changes to the absolute checkout and passes the file's contents as one initial prompt.
+  The user pastes only that command. `fill` and `amend` refresh the prompt when they emit.
+- Use the printed form for the session's shell. `emit --shell posix` selects bash, zsh or Git
+  Bash. `emit --shell powershell` selects PowerShell. For Claude commands and flags, read the
+  [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags).
+- For a prompt-only handoff, write the selected redacted region to
+  `<memory_dir>/handoffs/<TS>-handoff-<topic>.prompt.txt` after the self-ignore check.
+  Include the same `/goal ` prefix for a goal. Run
+  `save_point.py launch <prompt-file> --checkout <absolute checkout>` with the selected
+  `--start-command <command>` when available. Print its output. Keep the prompt file alongside
+  the other handoff artifacts for recovery.
+  In the Python-absent fallback, check the checkout and use the same shell form as
+  `_launch_command` in [save_point.py](../scripts/save_point.py).
 
 ## How this document is referenced elsewhere
 

@@ -54,8 +54,9 @@ action from the conversation.
 ## Choosing the path: full save-point vs prompt-only
 
 **A resume prompt is always emitted.** The only decision is whether to also write a durable handoff
-file. Full save-point = prompt + file (prompt `@`-references the file); prompt-only = the same
-prompt carrying its detail inline, no file.
+file. Full save-point = prompt + handoff file (the prompt `@`-references the file). Prompt-only
+carries its detail inline. A [new-session launch](structure.md#new-session-launch) uses a prompt
+file on either path.
 
 **Default: write the file.** Skip it only when no plan artifact backs the work and all of these
 clearly hold:
@@ -91,8 +92,9 @@ use the full file path in the same turn. The normal file guards and refusal path
 
 1. Apply the [redaction pass](#redaction-pass-mandatory-on-both-paths) before each write or emit.
    Run `new`. Record running work and its dependencies in Environment without waiting. List each
-   named subagent as `not inspected (urgent)`. Skip subagent output reads and plugin-profile calls,
-   and record `wip_commit: not applied (urgent)` in the file.
+   named subagent as `not inspected (urgent)`. Skip subagent output reads and optional profile
+   checks. A new-session launch still uses its selected profile's command. Record
+   `wip_commit: not applied (urgent)` in the file.
 2. Apply the slots in one `fill`, including Reminders, Environment and its recurring entries,
    and the next session's `Next:` actions. On PASS or WARN, paste the rails `fill` returns.
 3. On a repairable FAIL, make one repair and run `validate`. If the file still fails, show only
@@ -423,9 +425,9 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   Commentary sits above the top rail or below the bottom rail, never between.
 - One plain-language instruction sits directly above each region's top rail. The resume region's is
   "`/clear`, then copy everything between the dashed lines:". A goal region has its own, below.
-  When the next phase starts in another plugin profile, one more line sits directly above that
-  one: "The next phase runs in another plugin profile: exit this session, start the next one with
-  `<start command>`, then in it:". The copy line itself never changes, since recovery keys on it.
+  For a [new-session launch](structure.md#new-session-launch), show the terminal command above
+  both copy regions. It supplies the initial prompt in one paste. The copy lines stay available
+  for recovery. If the checkout is missing, report the launch error.
 - **Goal region:** when a goal applies, the prompt holds a second railed region for it, unless
   the condition check below omits it. A goal
   applies when the user asked for a fresh goal, or when a `/goal` is active in the producing
@@ -656,8 +658,8 @@ Or reopen the producing session in place: `claude --resume <UUID>`.
 
 ### Full path only: the block is validated, stored, and printed, never regenerated
 
-Everything in this sub-section applies to the full path. The prompt-only rules above and below
-are untouched: prompt-only writes no file, so nothing here has a file to validate or emit from.
+These steps validate and emit the durable handoff. Prompt-only delivery has no handoff document
+to validate.
 For an [urgent handoff](#urgent-handoff), use its repair limit and failure banner.
 
 - **The verdict decides which rails are pasted.** `fill` writes the file, then prints its

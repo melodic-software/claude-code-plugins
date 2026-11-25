@@ -207,6 +207,7 @@ fallback), then:
    <https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources>
    and <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>.
 2. Launch from the consuming project's root, passing the `/goal` payload verbatim as one argument.
+   For Claude launch options, see the [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags).
    First write it, as the completion condition gate defines it, to a temporary file with the
    Write tool (never inline it in the command: prompt content is
    untrusted session text, and any inline embedding, a heredoc, an escaped string, hands crafted
