@@ -356,6 +356,7 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
+          issue-number: ${{ inputs.issue-verdict && inputs.issue-number || '' }}
           kill-switch-ok: true
 
       # The key-credit gate (ci-workflows select-model-credential, its start
@@ -627,7 +628,7 @@ jobs:
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs and
           # a fallback only as handoff, credit-stop, no-key or fallback; a later
-          # assert step holds it to patch mode. Verdict mode also runs on a
+          # assert step holds it to patch mode. Verdict mode runs only on a
           # workflow_dispatch naming the issue, which the trigger gate holds to
           # its senders; a later assert step holds it to a triage-verdict.
           if [ "$ISSUE_VERDICT" = true ] && [ -z "$ISSUE_NUMBER" ]; then
@@ -636,11 +637,11 @@ jobs:
           fi
           if [ -n "$ISSUE_NUMBER" ] || [ "$EVENT_NAME" = issues ]; then
             if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] ||
-              ! { { [ "$EVENT_NAME" = issues ] && [ "$ISSUE_NUMBER" = "$EVENT_ISSUE" ]; } ||
+              ! { { [ "$EVENT_NAME" = issues ] && [ "$ISSUE_NUMBER" = "$EVENT_ISSUE" ] && [ "$ISSUE_VERDICT" != true ]; } ||
                 { [ "$ISSUE_VERDICT" = true ] && [ "$EVENT_NAME" = workflow_dispatch ]; }; } ||
               [ "$TRUSTED_BASE" != default-tip ] ||
               [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ] || { [ "${FALLBACK:-handoff}" != handoff ] && [ "$FALLBACK" != credit-stop ] && [ "$FALLBACK" != no-key ] && [ "$FALLBACK" != fallback ]; }; then
-              echo "::error::issue mode needs an issues event naming its issue (or, in verdict mode, a workflow_dispatch), trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty, handoff, credit-stop, no-key or fallback"
+              echo "::error::issue mode needs an issues event naming its issue (in verdict mode, a workflow_dispatch instead), trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty, handoff, credit-stop, no-key or fallback"
               exit 1
             fi
           fi
@@ -760,7 +761,6 @@ jobs:
           # setting the caller's app-field-id to app-field-option.
           denied-actor-ids: ${{ inputs.issue-number != '' && !inputs.issue-verdict && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
           bot-sender-ids: ${{ inputs.issue-verdict && format('41898282 {0}', vars.AUTOMATION_LANES_APP_SENDER_ID) || '' }}
-          issue-author: ${{ inputs.issue-verdict && 'true' || '' }}
           # Issue mode: the App that may apply the label; a dispatched run: the
           # App whose review run vouches for a pr-dispatch-feedback.yml
           # dispatch. Any other run passes none.

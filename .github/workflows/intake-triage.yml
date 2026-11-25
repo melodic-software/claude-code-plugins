@@ -165,12 +165,92 @@ jobs:
       runner: ubuntu-24.04
       label: needs-triage
 
+  dispatch-triage:
+    name: Dispatch Triage
+    needs: [check-born-triaged, check-kill-switch]
+    if: >-
+      ${{ !cancelled()
+      && github.event_name == 'issues' && github.event.action == 'opened'
+      && needs.check-kill-switch.outputs.proceed == 'true'
+      && needs.check-kill-switch.outputs.upstream-degraded != 'true'
+      && needs.check-born-triaged.outputs.rate-limited != 'true'
+      && needs.check-born-triaged.outputs.skip != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
+        with:
+          branch: main
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-born-triaged.outputs.standards-sha }}
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the trigger
+        id: gate
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          standards-path: ${{ steps.standards.outputs.path }}
+          require-pr: "false"
+          require-kind: human
+          bot-sender-ids: ${{ format('41898282 {0}', vars.AUTOMATION_LANES_APP_SENDER_ID) }}
+          issue-author: "true"
+
+      - name: Dispatch intake triage for the issue
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::error::the issue number is not a number"
+            exit 1
+          fi
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
+            -f ref=main -f "inputs[issue-number]=$ISSUE_NUMBER"
+
+      - name: Report the gate's stop
+        if: steps.gate.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.gate.outputs.reason }}
+        run: echo "::notice::intake triage not dispatched (${REASON:-no reason})"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   intake-triage:
     name: Intake Triage
     needs: [check-born-triaged, check-kill-switch]
     if: >-
       ${{ !cancelled()
-      && (github.event_name == 'workflow_dispatch' || github.event.action == 'opened')
+      && github.event_name == 'workflow_dispatch'
       && needs.check-kill-switch.outputs.proceed == 'true'
       && needs.check-kill-switch.outputs.upstream-degraded != 'true'
       && needs.check-born-triaged.outputs.rate-limited != 'true'

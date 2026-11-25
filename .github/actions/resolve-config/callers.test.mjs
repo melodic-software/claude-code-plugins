@@ -326,8 +326,9 @@ test("intake-triage.yml: intake runs triage-issue in the read runner's verdict m
     { lane: "intake-triage", activity: "triage-issue", verdict: true, base: "default-tip" },
   );
   assert.equal(intake.with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}");
-  const runs = (skip, event = "issues", proceed = "true", limited = "false", action = event === "issues" ? "opened" : "", degraded = "false") =>
-    evaluate(intake.if, {
+  const dispatcher = jobs["dispatch-triage"];
+  const runsJob = (job) => (skip, event = "issues", proceed = "true", limited = "false", action = event === "issues" ? "opened" : "", degraded = "false") =>
+    evaluate(job.if, {
       "github.event_name": event,
       "github.event.action": action,
       "needs.check-born-triaged.outputs.skip": skip,
@@ -335,7 +336,11 @@ test("intake-triage.yml: intake runs triage-issue in the read runner's verdict m
       "needs.check-kill-switch.outputs.proceed": proceed,
       "needs.check-kill-switch.outputs.upstream-degraded": degraded,
     });
-  assert.equal(runs(""), true, "a failed or false born-triaged check falls through to the read runner's gate");
+  const model = runsJob(intake);
+  const runs = (skip, event = "issues", ...rest) => (event === "issues" ? runsJob(dispatcher) : model)(skip, event, ...rest);
+  assert.equal(model("false"), false, "the model leg never runs on an issues event, so no read check is sent on one");
+  assert.equal(runsJob(dispatcher)("false", "workflow_dispatch"), false, "a dispatch is not dispatched again");
+  assert.equal(runs(""), true, "a failed or false born-triaged check falls through to the dispatch job's gate");
   assert.equal(runs("false"), true);
   assert.equal(runs("true"), false, "a born-triaged or routed issue skips intake");
   assert.equal(runs("true", "workflow_dispatch"), false, "a dispatch skips an issue the gate skips: a routing label");
@@ -355,6 +360,7 @@ test("intake-triage.yml: intake runs triage-issue in the read runner's verdict m
   assert.equal(runs("false", "issues", "true", ""), true, "a gate job that wrote no output still falls through");
   assert.equal(gate.outputs["rate-limited"], "${{ steps.check.outputs.rate-limited }}");
   assert.deepEqual(intake.needs, ["check-born-triaged", "check-kill-switch"]);
+  assert.deepEqual(dispatcher.needs, ["check-born-triaged", "check-kill-switch"]);
   const killSwitch = jobs["check-kill-switch"];
   assertKillSwitchJob(killSwitch, { starts: true });
   const killRuns = (event, action, ref = "refs/heads/main") =>
@@ -484,6 +490,7 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "check-born-triaged": { contents: "read", issues: "read" },
     "check-kill-switch": { contents: "read" },
     "intake-label-needs-triage": { issues: "write" },
+    "dispatch-triage": { actions: "write", contents: "read" },
     "intake-triage": READ_CALL,
     "intake-triage-handoff": { actions: "read", contents: "read" },
     "upload-key-credit-markers": { actions: "read", contents: "read" },
@@ -501,6 +508,27 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
     "dispatch-refined-triage": { actions: "write" },
     "triage-split-children": { actions: "write" },
   });
+});
+
+test("intake-triage.yml: an opened issue passes today's gate in a job with no model, which dispatches intake for it", () => {
+  const job = workflow("intake-triage.yml").jobs["dispatch-triage"];
+  assert.equal(job.uses, undefined);
+  assert.deepEqual(stepSecrets(job), [], "no secret, so no model");
+  assert.deepEqual(job.permissions, { actions: "write", contents: "read" });
+  const gate = job.steps.find((step) => step.id === "gate");
+  assert.equal(gate.uses, "./.base/.github/actions/check-trusted-trigger");
+  assert.deepEqual(
+    { pr: gate.with["require-pr"], kind: gate.with["require-kind"], author: gate.with["issue-author"], bots: gate.with["bot-sender-ids"] },
+    { pr: "false", kind: "human", author: "true", bots: "${{ format('41898282 {0}', vars.AUTOMATION_LANES_APP_SENDER_ID) }}" },
+  );
+  const dispatch = job.steps.find((step) => step.name === "Dispatch intake triage for the issue");
+  assert.equal(dispatch.if, "steps.gate.outputs.proceed == 'true'");
+  assert.equal(dispatch.env.GH_TOKEN, "${{ github.token }}");
+  assert.equal(dispatch.env.ISSUE_NUMBER, "${{ github.event.issue.number }}");
+  assert.match(dispatch.run, /actions\/workflows\/intake-triage\.yml\/dispatches" \\\n\s+-f ref=main -f "inputs\[issue-number\]=\$ISSUE_NUMBER"/);
+  assertMainTip(job.steps, job.steps.find((step) => step.uses?.startsWith("actions/checkout@")));
+  const order = job.steps.map((step) => step.id ?? step.name);
+  assert.ok(order.indexOf("gate") < order.indexOf("Dispatch intake triage for the issue"));
 });
 
 test("intake-triage.yml: a dispatch runs only from main and passes the gate's ids", () => {
@@ -3634,8 +3662,7 @@ test("pr-run-activity-read.yml: verdict mode gates the trigger on intake's sende
   assert.equal(gate.with["bot-sender-ids"], "${{ inputs.issue-verdict && format('41898282 {0}', vars.AUTOMATION_LANES_APP_SENDER_ID) || '' }}");
   const verdict = { "inputs.issue-number": "7", "inputs.issue-verdict": true, "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936", "inputs.dispatcher-run-id": "", "inputs.app-field-id": "1", "inputs.app-field-option": "2" };
   const issue = { ...verdict, "inputs.issue-verdict": false };
-  assert.equal(evaluate(gate.with["issue-author"], verdict), "true");
-  assert.equal(evaluate(gate.with["issue-author"], issue), "");
+  assert.equal(gate.with["issue-author"], undefined, "verdict mode runs on no issues event");
   assert.equal(evaluate(gate.with["denied-actor-ids"], verdict), "", "the lanes App is an intake sender, not denied");
   assert.equal(evaluate(gate.with["denied-actor-ids"], issue), "337595936");
   assert.equal(evaluate(gate.with["app-field-id"], verdict), "", "no field event starts verdict mode");
@@ -3646,6 +3673,11 @@ test("pr-run-activity-read.yml: verdict mode gates the trigger on intake's sende
   assert.equal(evaluate(step("config").with["applied-by-supported"], verdict), "triage-verdict");
   assert.equal(evaluate(step("config").with["applied-by-supported"], issue), "patch work-outcome");
 
+  const broker = jobs["check-broker"].steps.find((s) => s.id === "broker");
+  assert.equal(broker.with.mode, "check");
+  assert.equal(evaluate(broker.with["issue-number"], verdict), "7", "an intake check sends the dispatched issue as issue_number");
+  assert.equal(evaluate(broker.with["issue-number"], issue), "", "no other check sends issue_number");
+  assert.equal(evaluate(broker.with["issue-number"], { ...issue, "inputs.issue-number": "" }), "");
   const lease = jobs["check-broker"].steps.find((s) => s.id === "lease");
   const allowed = { "steps.broker.outcome": "success", "steps.broker.outputs.allowed": "true" };
   assert.equal(evaluate(lease.if, { ...verdict, ...allowed }), false, "verdict mode claims no lease");
@@ -3674,15 +3706,14 @@ test("pr-run-activity-read.yml: verdict mode gates the trigger on intake's sende
   assert.equal(on.workflow_call.outputs["triage-verdict-sha256"].value, "${{ jobs.scan.outputs.triage-verdict-sha256 }}", "the SHA-256 is the scan job's, which runs no model");
 });
 
-test("pr-run-activity-read.yml: issue mode runs on its issues event, and verdict mode also on a dispatch naming the issue", () => {
+test("pr-run-activity-read.yml: issue mode runs on its issues event, and verdict mode only on a dispatch naming the issue", () => {
   const assertStep = runSteps().find((s) => s.name === "Assert the lanes App sender id and default branch are set");
   const status = (env) =>
     runStep(assertStep, tmpdir(), { APP_SENDER_ID: "337595936", DEFAULT_BRANCH: "main", TRUSTED_BASE: "default-tip", PR_NUMBER: "", DISPATCHER_RUN_ID: "", FALLBACK: "", FALLBACK_READY: "", ISSUE_VERDICT: "false", ...env }).status;
   assert.equal(status({ ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "7" }), 0);
   assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "" }), 0, "an issue-lane dispatch stays refused");
   assert.equal(status({ ISSUE_NUMBER: "7", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "", ISSUE_VERDICT: "true" }), 0);
-  assert.equal(status({ ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "7", ISSUE_VERDICT: "true" }), 0);
-  assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "8", ISSUE_VERDICT: "true" }), 0, "an issues event names its own issue");
+  assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "7", ISSUE_VERDICT: "true" }), 0, "verdict mode sends no read check on an issues event");
   assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "pull_request", EVENT_ISSUE: "", ISSUE_VERDICT: "true" }), 0);
   assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "", ISSUE_VERDICT: "true", TRUSTED_BASE: "pr-base" }), 0);
   assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "", ISSUE_VERDICT: "true", PR_NUMBER: "3" }), 0);

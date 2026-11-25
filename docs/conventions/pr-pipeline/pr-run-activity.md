@@ -2184,7 +2184,11 @@ file the compare does not list, and a compare that cannot be read stay red.
 
 The read file's `check-broker` job sends `POST` to `LANES_BROKER_URL` with its final `/token`
 replaced by `/check`, with `Authorization: Bearer <OIDC token>` and the body
-`{"lane": "<lane>", "activity": "<activity>"}`; any other body field is a 400. The broker runs the
+`{"lane": "<lane>", "activity": "<activity>"}`. A check from `intake-triage.yml`, which the broker
+admits only on `workflow_dispatch` from `refs/heads/main`, also carries `"issue_number": <n>`, the
+dispatched issue as a JSON integer; `request-lane-token` sends it from that caller alone, and the
+broker answers 400 to an intake check without it and to any other caller's check with it, and to
+any other body field. The broker runs the
 same token, claim, repository and kill-switch checks as a mint, with `pr-run-activity-read.yml` as
 the job's workflow, and mints and reserves nothing, so re-running all jobs asks again. It answers 200
 `{"decision": "allow", "lane", "activity"}`; the client fails red with `lane-check-denied` unless
@@ -2192,8 +2196,11 @@ the job's workflow, and mints and reserves nothing, so re-running all jobs asks 
 [above](#the-check-broker-job). Any other status fails red with
 `lane-check-denied`, the status and the broker's reason, from the table above minus the
 mint-only rows; no response is `broker-unreachable`. The lanes bot is refused only on a mint, so
-a `workflow_run` read lane still runs after a bot push. It checks no actor either, so a
-`github-actions[bot]` dispatch is allowed here and judged by the run job's trigger gate (step 3).
+a `workflow_run` read lane still runs after a bot push. Other callers' checks test no actor, so a
+`github-actions[bot]` dispatch is allowed there and judged by the run job's trigger gate (step 3).
+An intake check runs the actor gate: a `github-actions[bot]` dispatch must name an open issue whose
+author is a listed human or the lanes App, any other actor must be a listed human, and only a
+listed human may re-run it.
 The endpoint is served from
 `melodic-software/azure-iac`; a read lane fails red until it is deployed.
 
@@ -2587,12 +2594,16 @@ whose `triage-issue` runs `/work-items:triage --issue <n> --ci` in three calls, 
 ([Two calls on one credential each](#two-calls-on-one-credential-each)). It differs from issue mode
 here:
 
-- **Run sources.** The run job's assert step also admits a `workflow_dispatch` naming the issue.
-  The trigger gate runs with `require-pr: false`, `require-kind: human`, `issue-author: true` and
-  `bot-sender-ids` set to `github-actions[bot]` (41898282) and the lanes App, and no denied actor or
-  App field: an issues event proceeds only as an opened issue whose sender is its author, and an
-  issue or a dispatch only from a listed human or one of those bot senders; a re-run needs a listed
-  human. `check-trusted-base` takes `no-pr` and trusts the default branch tip.
+- **Run sources.** Verdict mode runs only on a `workflow_dispatch` naming the issue: the run
+  job's assert step refuses an `issues` event, so no read check is sent on one. On `issues: opened`,
+  the caller's `dispatch-triage` job, with no model and `actions: write` alone, runs
+  `check-trusted-trigger` with `require-pr: false`, `require-kind: human`, `issue-author: true` and
+  `bot-sender-ids` set to `github-actions[bot]` (41898282) and the lanes App, so the sender must be
+  the issue's author and a listed human or one of those bots, then dispatches the workflow with
+  `issue-number`. The dispatched run's trigger gate admits a listed human or those bot senders, and
+  a re-run needs a listed human; its check carries `issue_number`, and the broker re-checks the
+  issue ([The check endpoint](#the-check-endpoint)). `check-trusted-base` takes `no-pr` and trusts
+  the default branch tip.
 - **No lease and no prior work.** check-broker claims no lease, and the run job skips the stale
   workflow-file check and the earlier-work check; the report job, which only ends a lease in issue
   mode, does not run.
