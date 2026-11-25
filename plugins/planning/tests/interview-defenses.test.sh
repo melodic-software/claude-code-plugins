@@ -462,14 +462,6 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
   "## The interview loop" \
   "### Step 1. Survey before you ask" \
   "c84a3506c3410b64938b898238a53f502e5e411522ea61e7444f3ad382a21860"
-# The digest also covers the "Commitment rows", "Commitment parts on the page" and
-# "Hedged flag" paragraphs. Each narrows what a reply or an accept-shorthand resolves,
-# never widens it: commitment rows add rows the gate grades, a page accept confirms only
-# ticked parts and sends unticked ones to the Brief as named risks, and a hedged reply
-# resolves at most one headline. None qualifies the gap or unattended-blocker bindings,
-# the ladder, or the gate. The `superseded-by-plan` status, its paragraph, and its
-# drift-check line add a non-terminal status the gate blocks on; they widen nothing. Its
-# reconfirm row's named-field form changes only the row's text, not which reply moves it.
 # The page-parts paragraph states which decisions carry parts (accept and own keep unticked
 # parts as Brief risks; an alternative withdraws them, as the terminal rule does; a defer's
 # open row covers them) and names `confirm-commitments` for parts confirmed in the terminal.
