@@ -5,6 +5,7 @@
 # ensure-running -> the guest link loads through the tunnel -> a guest joins through it -> kill
 # cloudflared -> the server starts a new one -> the new link loads and the owner's view records
 # the change -> stop.
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/web/core.js
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 shared=$(cd "$here/.." && pwd)

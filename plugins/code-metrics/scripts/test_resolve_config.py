@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/code-metrics/scripts/pathglob.py plugins/code-metrics/scripts/yaml_subset.py
 """Output-based tests for resolve-config.py at its command line."""
 
 from __future__ import annotations

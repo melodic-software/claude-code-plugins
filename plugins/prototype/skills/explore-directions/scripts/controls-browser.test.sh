@@ -9,7 +9,7 @@
 # outside controls.schema.json is refused whole. Opened alone from file://, the page draws its own
 # panel from the same manifest.
 # SKIPs without playwright-cli, node, python3 or curl.
-# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
+# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

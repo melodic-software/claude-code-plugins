@@ -1,3 +1,4 @@
+// test-scope: plugins/knowledge/skills/docpage-digest/SKILL.md
 // Runs workflows/docpage-digest-batch.js against stubbed workflow hooks (agent,
 // parallel, pipeline, phase, log, args) and asserts what it dispatches. The
 // expected values come from docpage-digest's Phases 3-4 (one digest agent per

@@ -1,3 +1,5 @@
+// test-scope: plugins/debugging/skills/debug/SKILL.md plugins/discovery/skills/research/SKILL.md plugins/implementation/skills/implement-dispatch/SKILL.md
+// test-scope: plugins/source-control/skills/babysit-prs/SKILL.md plugins/source-control/skills/pull-request/SKILL.md plugins/testing/skills/fix-failing/SKILL.md
 // A skill treats a run as unattended only when its caller passes --unattended,
 // so a lane prompt or loop driver that calls such a skill
 // without the flag reaches an ask nobody answers. The lane config's args are

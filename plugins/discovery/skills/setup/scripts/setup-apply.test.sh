@@ -6,7 +6,7 @@
 # explore_output takes auto, change-prep or explain, the research_* keys take
 # whole numbers of 1 or more, and the file is
 # docs/conventions/discovery.yaml at the repository root.
-# test-scope: plugins/discovery/lib/resolve-convention-home.sh
+# test-scope: plugins/discovery/lib/resolve-convention-home.sh plugins/discovery/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1

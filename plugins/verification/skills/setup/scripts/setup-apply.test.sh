@@ -5,6 +5,7 @@
 # exit codes, not from the script's output.
 # test-scope: plugins/verification/lib/parse-concern-value.sh
 # test-scope: plugins/verification/lib/resolve-convention-home.sh
+# test-scope: plugins/verification/.claude-plugin/plugin.json plugins/verification/lib/yaml-subset.awk
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
