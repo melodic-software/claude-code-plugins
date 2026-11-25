@@ -136,9 +136,6 @@ assert_touched_nothing() {
   fi
 }
 
-# The rule name the script prints has to be the one firewall.ps1 acts on, or the
-# operator is told to disable a rule that does not exist. Read from the real
-# script, never restated here, so a rename in either file fails this suite.
 RULE_NAME="$(grep "RuleName = '" "${FIREWALL_PS1}" | head -1 | cut -d"'" -f2)"
 if [[ -z "${RULE_NAME}" ]]; then
   fail "could not read \$RuleName out of firewall.ps1 (cross-script check cannot run)"
@@ -198,7 +195,6 @@ assert_touched_nothing "missing status.sh" "${sbx}" "${before}"
 
 sbx="$(make_sandbox nonexec)"
 if [[ -x "${sbx}/status.sh" ]]; then
-  # Not scored as a pass: this filesystem cannot express the state under test.
   echo "SKIP: filesystem keeps the execute bit after chmod 644, so the non-executable status.sh case cannot be set up"
 else
   before="$(snapshot "${sbx}")"

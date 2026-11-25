@@ -1,10 +1,3 @@
-/**
- * Shared manual login fallback for adapters.
- *
- * When automated credentials are unavailable, prompts the user to
- * log in manually in the browser window and press Enter to continue.
- */
-
 import { createInterface } from "node:readline/promises";
 
 import { writeStdout } from "@melodic/video-digestion/shared/terminal";
