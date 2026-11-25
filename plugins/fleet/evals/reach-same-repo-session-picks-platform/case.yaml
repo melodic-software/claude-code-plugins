@@ -1,11 +1,11 @@
 schema_version: "1.1"
-name: 'reach-same-repo-session-picks-lane'
+name: 'reach-same-repo-session-picks-platform'
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: 'names-both-lane-routes'
+  - name: 'names-both-platform-routes'
     type: 'regex'
-    pattern: '^(?=[\s\S]*\b(?:ListAgents|SendMessage|peer tools?)\b)(?=[\s\S]*(?:\bR1\b|claude\.exe|powershell|native Windows|Windows (?:lane|side|session)))(?=[\s\S]*\blanes?\b)'
+    pattern: '^(?=[\s\S]*\b(?:ListAgents|SendMessage|peer tools?)\b)(?=[\s\S]*(?:\bR1\b|claude\.exe|powershell|native Windows|Windows (?:platform|side|session)))(?=[\s\S]*\bplatforms?\b)'
     flags: 'i'
     target: 'last_message'
   - name: 'no-ssh-on-this-machine'
