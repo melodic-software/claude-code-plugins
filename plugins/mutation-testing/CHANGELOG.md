@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.5] - 2026-11-25
+
+### Changed
+
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
 ## [0.23.4] - 2026-11-25
 
 ### Changed

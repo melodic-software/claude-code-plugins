@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.4] - 2026-11-25
+
+### Changed
+
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
 ## [4.4.3] - 2026-11-25
 
 ### Changed
