@@ -11,8 +11,8 @@ export type Finding = { finding: string; category: Category; rule: string; evide
 export type Parsed = { kind: 'none' } | { kind: 'finding'; value: Finding } | { kind: 'unparsable' }
 export type Trigger = 'step' | 'turn-end'
 
-export const isStepCheck = (index: number, agentId: string | undefined) =>
-  agentId === undefined && index > 0 && index % CHECK_EVERY === 0
+export const isStepCheck = (index: number, agentId: string | undefined, every = CHECK_EVERY) =>
+  agentId === undefined && every > 0 && index > 0 && index % every === 0
 
 export const keyOf = (line: string) => line.trim().toLowerCase().replace(/\.+$/, '')
 
@@ -21,8 +21,8 @@ export const remember = (list: readonly string[], line: string) => [...list.filt
 export const isKnown = (line: string, ...lists: readonly (readonly string[])[]) =>
   lists.some(list => list.some(l => keyOf(l) === keyOf(line)))
 
-export const checksToSkipAfterIgnored = (typedPast: number) =>
-  typedPast <= TYPED_PAST_FREE ? 0 : Math.min(SKIP_MAX, 2 ** (typedPast - TYPED_PAST_FREE - 1))
+export const checksToSkipAfterIgnored = (typedPast: number, { free = TYPED_PAST_FREE, max = SKIP_MAX }: { free?: number; max?: number } = {}) =>
+  typedPast <= free ? 0 : Math.min(max, 2 ** (typedPast - free - 1))
 
 const listed = (title: string, lines: readonly string[]) =>
   lines.length === 0 ? '' : `\n${title}\n${lines.map(l => `- ${l}`).join('\n')}\n`
@@ -91,11 +91,10 @@ export const ledgerSection = (at: string, trigger: Trigger, turnId: string, step
   `\n## Live check ${at} (${trigger}, turn ${turnId}${step >= 0 ? `, step ${step}` : ''})\n\n` +
   `- **${f.category}**: ${f.finding}\n  - Rule: ${f.rule}\n  - Evidence: ${f.evidence || 'not given'}\n  - Status: open\n`
 
-export const disputeLine = (at: string, f: Finding) => `\n- Disputed ${at}: ${f.finding}\n`
+const LEDGER_LABEL = { confirmed: 'Confirmed', disputed: 'Disputed', resolved: 'Resolved by the assistant', 'auto-sent': 'Auto-sent' } as const
 
-export const notedLine = (at: string, f: Finding) => `\n- Confirmed ${at}: ${f.finding}\n`
-
-export const resolvedLine = (at: string, f: Finding) => `\n- Resolved by the assistant ${at}: ${f.finding}\n`
+export const ledgerLine = (kind: keyof typeof LEDGER_LABEL, at: string, f: Finding, detail?: string) =>
+  `\n- ${LEDGER_LABEL[kind]} ${at}${detail ? ` (${detail})` : ''}: ${f.finding}\n`
 
 export const noteFor = (f: Finding) =>
   ['A side reviewer (session-flow observer) noted this; it is background, not my instruction:', `> ${f.category}: ${f.finding}`, `> Rule: ${f.rule}`, `> Evidence: ${f.evidence || 'not given'}`]
