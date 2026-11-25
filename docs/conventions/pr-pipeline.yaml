@@ -669,6 +669,21 @@ activities:
     reads-untrusted: false
     # The hourly sweep's readings; no issue or pull request.
     inputs: []
+  triage-issue:
+    skill: work-items:triage
+    args: --ci
+    effect: read
+    applied-by:
+      triage-verdict: post-triage
+    gating: advisory
+    reads-untrusted: true
+    inputs: [issue]
+  post-triage:
+    script: .github/scripts/intake-triage/post-triage.mjs
+    effect: mutate-tracker
+    gating: advisory
+    reads-untrusted: true
+    inputs: [issue]
   apply-verdict:
     # After intake triage, writes its verdict as the lanes App: the Size,
     # Complexity and Uncertainty issue fields (never a work-class label), and
@@ -924,6 +939,9 @@ lanes:
   intake-triage:
     stage: intake
     slots:
+      - activity: triage-issue
+      - activity: post-triage
+        needs: [triage-issue]
       - activity: apply-verdict
       - activity: apply-refinement
         needs: [apply-verdict]

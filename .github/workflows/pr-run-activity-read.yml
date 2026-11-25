@@ -46,6 +46,10 @@ on:
         required: false
         type: string
         default: ""
+      issue-verdict:
+        required: false
+        type: boolean
+        default: false
       app-field-id:
         required: false
         type: string
@@ -194,6 +198,10 @@ on:
         value: ${{ jobs.scan.outputs.dependency-sha256 }}
       dependency-verdict:
         value: ${{ jobs.scan.outputs.dependency-verdict }}
+      triage-verdict-attempt:
+        value: ${{ jobs.scan.outputs.triage-verdict-attempt }}
+      triage-verdict-sha256:
+        value: ${{ jobs.scan.outputs.triage-verdict-sha256 }}
       scan-collect-refused:
         value: ${{ jobs.scan.outputs.collect-refused }}
       # Issue mode: the run job's fields that pick the issue's lane branch
@@ -419,7 +427,7 @@ jobs:
       # released, and superseding it costs one comment edit.
       - name: Claim the issue with a lane lease
         id: lease
-        if: inputs.issue-number != '' && steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'
+        if: inputs.issue-number != '' && !inputs.issue-verdict && steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -607,6 +615,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
+          ISSUE_VERDICT: ${{ inputs.issue-verdict }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ISSUE: ${{ github.event.issue.number }}
           PR_NUMBER: ${{ inputs.pr-number }}
@@ -618,12 +627,20 @@ jobs:
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs and
           # a fallback only as handoff, credit-stop, no-key or fallback; a later
-          # assert step holds it to patch mode.
+          # assert step holds it to patch mode. Verdict mode also runs on a
+          # workflow_dispatch naming the issue, which the trigger gate holds to
+          # its senders; a later assert step holds it to a triage-verdict.
+          if [ "$ISSUE_VERDICT" = true ] && [ -z "$ISSUE_NUMBER" ]; then
+            echo "::error::issue-verdict needs an issue-number"
+            exit 1
+          fi
           if [ -n "$ISSUE_NUMBER" ] || [ "$EVENT_NAME" = issues ]; then
-            if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || [ "$EVENT_NAME" != issues ] ||
-              [ "$ISSUE_NUMBER" != "$EVENT_ISSUE" ] || [ "$TRUSTED_BASE" != default-tip ] ||
+            if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] ||
+              ! { { [ "$EVENT_NAME" = issues ] && [ "$ISSUE_NUMBER" = "$EVENT_ISSUE" ]; } ||
+                { [ "$ISSUE_VERDICT" = true ] && [ "$EVENT_NAME" = workflow_dispatch ]; }; } ||
+              [ "$TRUSTED_BASE" != default-tip ] ||
               [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ] || { [ "${FALLBACK:-handoff}" != handoff ] && [ "$FALLBACK" != credit-stop ] && [ "$FALLBACK" != no-key ] && [ "$FALLBACK" != fallback ]; }; then
-              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty, handoff, credit-stop, no-key or fallback"
+              echo "::error::issue mode needs an issues event naming its issue (or, in verdict mode, a workflow_dispatch), trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty, handoff, credit-stop, no-key or fallback"
               exit 1
             fi
           fi
@@ -740,18 +757,19 @@ jobs:
           dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
           # Issue mode reads no PR: the account that set the field, and any
           # re-runner, must be listed as a human; the lanes App passes only by
-          # setting the caller's app-field-id to app-field-option.
-          denied-actor-ids: ${{ inputs.issue-number != '' && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
+          denied-actor-ids: ${{ inputs.issue-number != '' && !inputs.issue-verdict && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
+          bot-sender-ids: ${{ inputs.issue-verdict && format('41898282 {0}', vars.AUTOMATION_LANES_APP_SENDER_ID) || '' }}
+          issue-author: ${{ inputs.issue-verdict && 'true' || '' }}
           # Issue mode: the App that may apply the label; a dispatched run: the
           # App whose review run vouches for a pr-dispatch-feedback.yml
           # dispatch. Any other run passes none.
           lanes-app-id: >-
-            ${{ (inputs.issue-number != '' || inputs.dispatcher-run-id != '')
+            ${{ (inputs.issue-number != '' && !inputs.issue-verdict || inputs.dispatcher-run-id != '')
             && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
           require-pr: ${{ inputs.issue-number == '' }}
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
-          app-field-id: ${{ inputs.issue-number != '' && inputs.app-field-id || '' }}
-          app-field-option: ${{ inputs.issue-number != '' && inputs.app-field-option || '' }}
+          app-field-id: ${{ inputs.issue-number != '' && !inputs.issue-verdict && inputs.app-field-id || '' }}
+          app-field-option: ${{ inputs.issue-number != '' && !inputs.issue-verdict && inputs.app-field-option || '' }}
 
       # The caller's head-sha came from a job that ran no head code, and its
       # context, patch and check are bound to it. A trigger gate that read
@@ -778,6 +796,7 @@ jobs:
           base-sha: ${{ steps.gate.outputs.base-sha }}
           pr-number: ${{ steps.gate.outputs.pr-number }}
           mode: ${{ inputs.trusted-base }}
+          no-pr: ${{ inputs.issue-number != '' && 'true' || '' }}
 
       - name: Resolve the config
         id: config
@@ -805,7 +824,10 @@ jobs:
           # run's outcome file, and in PR mode the scan job uploads a
           # review-threads skill's replies or a dependency-review skill's
           # verdict.
-          applied-by-supported: ${{ inputs.issue-number != '' && 'patch work-outcome' || 'patch feedback-replies dependency-verdict' }}
+          applied-by-supported: >-
+            ${{ inputs.issue-verdict && 'triage-verdict'
+            || inputs.issue-number != '' && 'patch work-outcome'
+            || 'patch feedback-replies dependency-verdict' }}
           standards-path: ${{ steps.standards.outputs.path }}
 
       # Any other effect belongs in pr-run-activity-write.yml; the caller chose
@@ -819,10 +841,19 @@ jobs:
       # Issue mode makes no PR, so its change leaves only as a patch.
       - name: Assert an issue activity is in patch mode
         if: >-
-          steps.config.outcome == 'success' && inputs.issue-number != ''
+          steps.config.outcome == 'success' && inputs.issue-number != '' && !inputs.issue-verdict
           && steps.config.outputs.applied-by-patch == ''
         run: |
           echo "::error::issue mode needs an activity whose applied-by names a patch"
+          exit 1
+
+      - name: Assert an intake activity hands on its structured output alone
+        if: >-
+          steps.config.outcome == 'success' && inputs.issue-verdict
+          && (steps.config.outputs.applied-by-triage-verdict == '' || steps.config.outputs.applied-by-patch != ''
+          || steps.config.outputs.prepare != '' || steps.config.outputs.kind != 'skill')
+        run: |
+          echo "::error::verdict mode needs a skill whose applied-by names triage-verdict, with no patch and no prepare mode"
           exit 1
 
       # A gate must judge the head it is posted on, unchanged.
@@ -938,7 +969,7 @@ jobs:
       - name: Check the run's workflow files against main
         id: workflow-current
         if: >-
-          inputs.issue-number != '' && steps.config.outputs.applies == 'true'
+          inputs.issue-number != '' && !inputs.issue-verdict && steps.config.outputs.applies == 'true'
           && steps.config.outputs.kind == 'skill'
         env:
           WORKFLOW_REF: ${{ github.workflow_ref }}
@@ -987,7 +1018,7 @@ jobs:
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
-          inputs.issue-number != '' && steps.config.outputs.applies == 'true'
+          inputs.issue-number != '' && !inputs.issue-verdict && steps.config.outputs.applies == 'true'
           && steps.config.outputs.kind == 'skill'
           && steps.workflow-current.outputs.stale != 'true'
           && needs.check-broker.outputs.lease != 'already-leased'
@@ -1191,7 +1222,7 @@ jobs:
       - name: Write the issue for the skill
         id: write-issue
         if: >-
-          steps.go.outputs.run == 'true' && inputs.issue-number != ''
+          steps.go.outputs.run == 'true' && inputs.issue-number != '' && !inputs.issue-verdict
           && steps.config.outputs.kind == 'skill'
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -1218,6 +1249,18 @@ jobs:
           ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' ".base/$CONFIG_PATH")
           export ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/work-resolve-issue/write-issue.mjs
+
+      - name: Write the issue for intake
+        id: write-intake-issue
+        if: steps.go.outputs.run == 'true' && inputs.issue-verdict
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          ISSUE_FILE: ${{ runner.temp }}/lane-stage/scratch/issue.json
+          SCHEMA_FILE: ${{ runner.temp }}/lane-verdict-schema/verdict.schema.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          BOT_SENDER_IDS: ${{ format('41898282 {0}', vars.AUTOMATION_LANES_APP_SENDER_ID) }}
+        run: node .base/.github/scripts/intake-triage/write-intake-issue.mjs
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -1583,11 +1626,10 @@ jobs:
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
           plugin-dirs: ${{ steps.stage.outputs.plugin-dirs }}
-          # dependency-review returns its verdict as structured output, to
-          # the schema the stage wrote from the base; no other activity has one.
           json-schema-file: >-
             ${{ steps.config.outputs.prepare == 'dependency-review'
-            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
+            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp)
+            || inputs.issue-verdict && format('{0}/lane-verdict-schema/verdict.schema.json', runner.temp) || '' }}
           leg-timeout-minutes: ${{ steps.launch.outputs.leg-minutes }}
 
       # The CLI's init message reports the permission mode the leg ran in. A
@@ -1644,11 +1686,10 @@ jobs:
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
           plugin-dirs: ${{ steps.stage.outputs.plugin-dirs }}
-          # dependency-review returns its verdict as structured output, to
-          # the schema the stage wrote from the base; no other activity has one.
           json-schema-file: >-
             ${{ steps.config.outputs.prepare == 'dependency-review'
-            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
+            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp)
+            || inputs.issue-verdict && format('{0}/lane-verdict-schema/verdict.schema.json', runner.temp) || '' }}
           # The caller's, from a job that ran no head code: true lets a limit
           # stop, a credit stop or a 401 or 402 hand off to the third call.
           fallback-ready: ${{ inputs.fallback-ready }}
@@ -1695,11 +1736,10 @@ jobs:
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
           plugin-dirs: ${{ steps.stage.outputs.plugin-dirs }}
-          # dependency-review returns its verdict as structured output, to
-          # the schema the stage wrote from the base; no other activity has one.
           json-schema-file: >-
             ${{ steps.config.outputs.prepare == 'dependency-review'
-            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
+            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp)
+            || inputs.issue-verdict && format('{0}/lane-verdict-schema/verdict.schema.json', runner.temp) || '' }}
           leg-timeout-minutes: ${{ steps.launch.outputs.leg-minutes }}
 
       - name: Check the fallback token leg's permission mode
@@ -1742,7 +1782,7 @@ jobs:
       # leaves: a planted file is removed first.
       - name: Write the skill's structured output
         if: >-
-          always() && steps.config.outputs.prepare == 'dependency-review'
+          always() && (steps.config.outputs.prepare == 'dependency-review' || inputs.issue-verdict == true)
           && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
           && steps.act-key.outputs.handoff != 'true'
           || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
@@ -1995,7 +2035,7 @@ jobs:
       # is the launcher's class and reset time. A handoff collects nothing.
       - name: Collect the issue outcome
         if: >-
-          always() && inputs.issue-number != '' && steps.go.outputs.run == 'true'
+          always() && inputs.issue-number != '' && !inputs.issue-verdict && steps.go.outputs.run == 'true'
           && steps.config.outputs.kind == 'skill'
           && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
           && steps.act-token.outputs.handoff != 'true'
@@ -2083,9 +2123,9 @@ jobs:
           # A dependency-review skill's verdict, never carried beside replies,
           # so the payloads still fit five chunks.
           VERDICT_FILE: >-
-            ${{ steps.config.outputs.prepare == 'dependency-review'
+            ${{ (steps.config.outputs.prepare == 'dependency-review' || inputs.issue-verdict)
             && format('{0}/skill-reply/dependency-verdict.json', runner.temp) || '' }}
-          OUTCOME_DIR: ${{ inputs.issue-number != '' && format('{0}/work-outcome', runner.temp) || '' }}
+          OUTCOME_DIR: ${{ inputs.issue-number != '' && !inputs.issue-verdict && format('{0}/work-outcome', runner.temp) || '' }}
           CARRY_DIR: ${{ runner.temp }}/carry
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
           PATCH_GATE: ${{ runner.temp }}/read-patch/publish-gate.mjs
@@ -2574,6 +2614,8 @@ jobs:
       dependency-attempt: ${{ steps.dependency-upload.outcome == 'success' && github.run_attempt || '' }}
       dependency-sha256: ${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.verdict-sha256 || '' }}
       dependency-verdict: ${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.dependency-verdict || '' }}
+      triage-verdict-attempt: ${{ steps.triage-verdict-upload.outcome == 'success' && github.run_attempt || '' }}
+      triage-verdict-sha256: ${{ steps.triage-verdict-upload.outcome == 'success' && steps.leak-scan.outputs.verdict-sha256 || '' }}
       # The run's collector refused the change: from its patch-collected
       # output, held to its closed set, so a forged one can only hand the
       # PR to a person.
@@ -2705,6 +2747,7 @@ jobs:
           WORK_OUTCOME_BYTES: ${{ needs.run.outputs.carry-work-outcome-bytes }}
           LANE_BYTES: ${{ needs.run.outputs.carry-lane-bytes }}
           ISSUE_STARTED: ${{ needs.check-issue-fields.outputs.issue-run-started }}
+          ISSUE_VERDICT: ${{ inputs.issue-verdict }}
           ISSUE_RESUME: ${{ needs.check-issue-fields.outputs.resume-branch }}
           OPEN_DIR: ${{ steps.open.outcome == 'success' && format('{0}/scan-in', runner.temp) || '' }}
         with:
@@ -2783,12 +2826,16 @@ jobs:
               }
               // The patch the run collected, and only that, arrives; and an
               // outcome only in issue mode.
-              if (env.ISSUE_NUMBER === '' && (present['work-outcome'] || present.lane)) {
-                refuse('payload-mismatch: a PR-mode run carried an issue outcome; nothing is published');
+              if ((env.ISSUE_NUMBER === '' || env.ISSUE_VERDICT === 'true') && (present['work-outcome'] || present.lane)) {
+                refuse('payload-mismatch: a PR-mode or verdict-mode run carried an issue outcome; nothing is published');
+              }
+              // Verdict mode hands on its verdict and no patch.
+              if (env.ISSUE_VERDICT === 'true' && (present.patch || present.replies)) {
+                refuse('payload-mismatch: a verdict-mode run carried a patch or replies; nothing is published');
               }
               // An issue run that started always carries the runner's lane.json,
               // which names no branch yet and the branch the run resumed.
-              if (env.ISSUE_NUMBER !== '' && env.ISSUE_STARTED === 'true') {
+              if (env.ISSUE_NUMBER !== '' && env.ISSUE_VERDICT !== 'true' && env.ISSUE_STARTED === 'true') {
                 if (!present.lane) refuse('payload-mismatch: an issue run that started carried no lane.json; nothing is published');
                 let lane = null;
                 try {
@@ -3217,10 +3264,21 @@ jobs:
       # by this attempt, the scan job's dependency-attempt output.
       - name: Upload the dependency verdict
         id: dependency-upload
-        if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.dependency-verdict == 'true'
+        if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.dependency-verdict == 'true' && !inputs.issue-verdict
         uses: actions/upload-artifact@v7
         with:
           name: dependency-verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: ${{ steps.leak-scan.outputs.dir }}/dependency-verdict.json
+          retention-days: 3
+          if-no-files-found: error
+          overwrite: false
+
+      - name: Upload the triage verdict
+        id: triage-verdict-upload
+        if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.dependency-verdict == 'true' && inputs.issue-verdict
+        uses: actions/upload-artifact@v7
+        with:
+          name: triage-verdict-${{ inputs.issue-number }}-${{ github.run_attempt }}
           path: ${{ steps.leak-scan.outputs.dir }}/dependency-verdict.json
           retention-days: 3
           if-no-files-found: error

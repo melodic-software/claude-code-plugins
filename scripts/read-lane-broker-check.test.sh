@@ -210,7 +210,7 @@ who() {
     const step = (pred) => read.jobs.run.steps.find(pred);
     const leaseId = lease === "held" ? "41" : "";
     const runCtx = {
-      "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill",
+      "inputs.issue-number": "7", "inputs.issue-verdict": false, "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill",
       "steps.workflow-current.outputs.stale": "", "needs.check-broker.outputs.lease": lease,
       "needs.check-broker.outputs.blocked": blocked,
     };

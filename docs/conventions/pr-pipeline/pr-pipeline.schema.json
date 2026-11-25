@@ -869,9 +869,9 @@
         "applied-by": {
           "type": "object",
           "minProperties": 1,
-          "propertyNames": { "enum": ["patch", "feedback-replies", "dependency-verdict", "work-outcome"] },
+          "propertyNames": { "enum": ["patch", "feedback-replies", "dependency-verdict", "work-outcome", "triage-verdict"] },
           "additionalProperties": { "$ref": "#/$defs/name" },
-          "description": "What this read skill hands on, keyed by artifact, and the script activity that applies each: patch (its change to the tree, applied by a prepare: apply-patch script), feedback-replies, dependency-verdict, work-outcome. Only a skill with effect read and gating advisory sets it. The config reader rejects a target that is not a script, is not in every lane that holds the producer, or whose slot does not need the producer (README.md, Activities)."
+          "description": "What this read skill hands on, keyed by artifact, and the script activity that applies each: patch (its change to the tree, applied by a prepare: apply-patch script), feedback-replies, dependency-verdict, work-outcome, triage-verdict (an intake skill's verdict, its structured output on the read runner's verdict mode). Only a skill with effect read and gating advisory sets it. The config reader rejects a target that is not a script, is not in every lane that holds the producer, or whose slot does not need the producer (README.md, Activities)."
         },
         "args": {
           "type": "string",

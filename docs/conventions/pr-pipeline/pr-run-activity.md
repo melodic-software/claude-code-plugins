@@ -2579,6 +2579,38 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `pipeline/*` success, and no required check names one, but a `failure` or `error` status
   counts as a failing check, so it holds the pr-merge gate (fail closed). Descriptions are fixed text.
 
+### Verdict mode
+
+`issue-verdict: true`, with `issue-number`, runs an intake activity whose `applied-by` names
+`triage-verdict`. Its one caller is [`intake-triage.yml`](../../../.github/workflows/intake-triage.yml),
+whose `triage-issue` runs `/work-items:triage --issue <n> --ci` in three calls, one credential each
+([Two calls on one credential each](#two-calls-on-one-credential-each)). It differs from issue mode
+here:
+
+- **Run sources.** The run job's assert step also admits a `workflow_dispatch` naming the issue.
+  The trigger gate runs with `require-pr: false`, `require-kind: human`, `issue-author: true` and
+  `bot-sender-ids` set to `github-actions[bot]` (41898282) and the lanes App, and no denied actor or
+  App field: an issues event proceeds only as an opened issue whose sender is its author, and an
+  issue or a dispatch only from a listed human or one of those bot senders; a re-run needs a listed
+  human. `check-trusted-base` takes `no-pr` and trusts the default branch tip.
+- **No lease and no prior work.** check-broker claims no lease, and the run job skips the stale
+  workflow-file check and the earlier-work check; the report job, which only ends a lease in issue
+  mode, does not run.
+- **The read tools.** `collect-base-activity` keeps the read skill set (Read, Glob, Grep, Skill)
+  and adds no rule. It writes the skill's own `schemas/ci-verdict.schema.json` to
+  `$RUNNER_TEMP/lane-verdict-schema` with `size`, `complexity` and `uncertainty` narrowed to the
+  base's `models.issue-dimensions.fields` option keys, and the launcher's `json-schema-file` names it.
+- **The issue file.** `write-intake-issue.mjs` writes `issue.json` with the job's read-only token:
+  title, body and labels as written, the comments of a listed human or a bot sender less the lane's
+  own marker comment, the newest 200 open issues and the latest 100 merged pull requests; it narrows
+  the schema's `type` to the repository's enabled Issue Types, or drops it.
+- **The verdict.** The last result's `structured_output` takes the structured-output carry slot
+  (`dependency-verdict.json`). The scan job refuses a verdict-mode run that carries a patch, replies
+  or an outcome, and uploads the verdict as `triage-verdict-<issue>-<attempt>`; its
+  `triage-verdict-attempt` and `triage-verdict-sha256` outputs, the scan job's, name it. The caller's
+  `post-triage` job checks the file against that SHA-256, `check-ci-verdict.mjs` and
+  `set-dimensions.sh --dry-run` before it writes anything.
+
 ## Runs that post no check
 
 - An issue-mode run (above): the report job's `if:` skips it.

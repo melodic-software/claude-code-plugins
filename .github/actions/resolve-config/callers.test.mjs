@@ -12,6 +12,7 @@
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 // test-scope: .github/scripts/maintenance-audit-lane-runs/file-findings.mjs .github/scripts/maintenance-monitor-signals/monitor.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
+// test-scope: plugins/work-items/skills/triage/context/ci-mode.md docs/conventions/work-items.md .github/lane-funding.json
 // test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -52,7 +53,6 @@ process.env.TMPDIR = tempDir("callers-tmp-");
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 const workflow = (name) => parse(read(`../../workflows/${name}`));
-const RUBRIC = read("../../scripts/intake-triage/triage-rubric.txt");
 const RESOLVE = "./.base/.github/actions/resolve-config";
 
 const ISSUE_STATUS = parse(read("../../../docs/conventions/pr-pipeline.yaml")).models["issue-status"];
@@ -106,9 +106,8 @@ const runRefusal = (step, settingsJson) =>
 // context reference replaced by its value. Covers only the operators these
 // callers use (&&, ||, ==, !=, !), which JavaScript evaluates the same way
 // for the string and boolean operands here. A context that names no issue
-// number is a PR-mode run.
 function evaluate(expression, context) {
-  context = { "inputs.issue-number": "", ...context };
+  context = { "inputs.issue-number": "", "inputs.issue-verdict": false, ...context };
   let body = expression.trim().replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").replaceAll("!cancelled()", "true").replaceAll("always()", "true");
   for (const [name, value] of Object.entries(context)) {
     body = body.replaceAll(name, JSON.stringify(value));
@@ -312,59 +311,48 @@ function assertKillSwitchJob(gate, { starts = false, defers = false } = {}) {
   });
 }
 
-test("intake-triage.yml: intake runs only with claude-args resolved from triage-issue", () => {
+test("intake-triage.yml: intake runs triage-issue in the read runner's verdict mode, after the gate and the kill switch", () => {
   const { jobs } = workflow("intake-triage.yml");
   const gate = jobs["check-born-triaged"];
   const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
-  const resolve = gate.steps.find((step) => step.uses?.startsWith(RESOLVE));
   assert.equal(checkout.with.ref, undefined, "an issues event checks out the default branch");
-  assert.equal(resolve.with["model-route"], "triage-issue");
-  assertSparseHoldsResolver(checkout);
-  assert.equal(
-    gate.outputs["claude-args"],
-    `\${{ steps.${resolve.id}.outputs.settings-json == '' && steps.${resolve.id}.outputs.claude-args || '' }}`,
-  );
-  const refusal = gate.steps.find((step) => step.env?.SETTINGS_JSON !== undefined);
-  assert.equal(refusal.env.SETTINGS_JSON, `\${{ steps.${resolve.id}.outputs.settings-json }}`);
-  assert.notEqual(runRefusal(refusal, SUBAGENT), 0);
-  assert.equal(runRefusal(refusal, ""), 0);
+  assert.equal(gate.steps.find((step) => step.uses?.startsWith(RESOLVE)), undefined, "the read runner resolves the model");
 
   const intake = jobs["intake-triage"];
-  assert.match(intake.if, /&& needs\.check-born-triaged\.outputs\.claude-args != '' \}\}$/);
-  const runs = (skip, claudeArgs, event = "issues", proceed = "true", limited = "false", action = event === "issues" ? "opened" : "", degraded = "false") =>
+  assert.equal(intake.uses, "./.github/workflows/pr-run-activity-read.yml");
+  assert.deepEqual(
+    { lane: intake.with.lane, activity: intake.with.activity, verdict: intake.with["issue-verdict"], base: intake.with["trusted-base"] },
+    { lane: "intake-triage", activity: "triage-issue", verdict: true, base: "default-tip" },
+  );
+  assert.equal(intake.with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}");
+  const runs = (skip, event = "issues", proceed = "true", limited = "false", action = event === "issues" ? "opened" : "", degraded = "false") =>
     evaluate(intake.if, {
       "github.event_name": event,
       "github.event.action": action,
       "needs.check-born-triaged.outputs.skip": skip,
-      "needs.check-born-triaged.outputs.claude-args": claudeArgs,
       "needs.check-born-triaged.outputs.rate-limited": limited,
       "needs.check-kill-switch.outputs.proceed": proceed,
       "needs.check-kill-switch.outputs.upstream-degraded": degraded,
     });
-  const args = "--model sonnet --max-turns 30 --effort medium";
-  assert.equal(runs("", args), true, "a failed or false born-triaged check falls through to the reusable's gate");
-  assert.equal(runs("false", args), true);
-  assert.equal(runs("true", args), false, "a born-triaged or routed issue skips intake");
-  assert.equal(runs("true", args, "workflow_dispatch"), false, "a dispatch skips an issue the gate skips: a routing label");
-  assert.equal(runs("false", args, "workflow_dispatch"), true, "a dispatch triages an issue the gate passes");
+  assert.equal(runs(""), true, "a failed or false born-triaged check falls through to the read runner's gate");
+  assert.equal(runs("false"), true);
+  assert.equal(runs("true"), false, "a born-triaged or routed issue skips intake");
+  assert.equal(runs("true", "workflow_dispatch"), false, "a dispatch skips an issue the gate skips: a routing label");
+  assert.equal(runs("false", "workflow_dispatch"), true, "a dispatch triages an issue the gate passes");
   const check = gate.steps.find((step) => step.id === "check");
   const bornTriaged = (event, action) => evaluate(check.with["born-triaged"], { "github.event_name": event, "github.event.action": action });
   assert.equal(bornTriaged("issues", "opened"), true, "an opened issue gets the born-triaged rule");
   assert.equal(bornTriaged("issues", "reopened"), false, "a reopened born-triaged issue re-acquires the floor label");
   assert.equal(bornTriaged("workflow_dispatch", ""), false, "a dispatch triages a born-triaged issue");
-  assert.equal(runs("false", args, "issues", "true", "false", "reopened"), false, "a reopened issue gets the floor label only, no triage");
-  assert.equal(runs("", ""), false, "intake never runs without resolved claude-args");
-  assert.equal(runs("false", ""), false);
-  assert.equal(runs("true", "", "workflow_dispatch"), false, "a dispatch never runs without resolved claude-args");
-  assert.equal(runs("false", args, "issues", "false"), false, "the kill switch stops intake");
-  assert.equal(runs("false", args, "workflow_dispatch", ""), false, "a failed check-kill-switch job stops intake");
-  assert.equal(runs("false", args, "issues", "true", "false", "opened", "true"), false, "a degraded Actions or npm component stops intake");
-  assert.equal(runs("false", args, "issues", "true", "false", "opened", ""), true, "an upstream check that wrote nothing fails open");
-  assert.equal(runs("false", args, "issues", "true", "true"), false, "a rate limit on the gate's read stops intake");
-  assert.equal(runs("true", args, "workflow_dispatch", "true", "true"), false, "and a dispatch too");
-  assert.equal(runs("false", args, "issues", "true", ""), true, "a gate job that wrote no output still falls through");
+  assert.equal(runs("false", "issues", "true", "false", "reopened"), false, "a reopened issue gets the floor label only, no triage");
+  assert.equal(runs("false", "issues", "false"), false, "the kill switch stops intake");
+  assert.equal(runs("false", "workflow_dispatch", ""), false, "a failed check-kill-switch job stops intake");
+  assert.equal(runs("false", "issues", "true", "false", "opened", "true"), false, "a degraded Actions or npm component stops intake");
+  assert.equal(runs("false", "issues", "true", "false", "opened", ""), true, "an upstream check that wrote nothing fails open");
+  assert.equal(runs("false", "issues", "true", "true"), false, "a rate limit on the gate's read stops intake");
+  assert.equal(runs("true", "workflow_dispatch", "true", "true"), false, "and a dispatch too");
+  assert.equal(runs("false", "issues", "true", ""), true, "a gate job that wrote no output still falls through");
   assert.equal(gate.outputs["rate-limited"], "${{ steps.check.outputs.rate-limited }}");
-  assert.equal(intake.with["claude-args"], "${{ needs.check-born-triaged.outputs.claude-args }}");
   assert.deepEqual(intake.needs, ["check-born-triaged", "check-kill-switch"]);
   const killSwitch = jobs["check-kill-switch"];
   assertKillSwitchJob(killSwitch, { starts: true });
@@ -489,12 +477,19 @@ test("intake-triage.yml: a reopened issue runs only the gate, the kill switch an
 // intake-triage.yml or intake-label-needs-triage.yml.
 test("intake-triage.yml: each job keeps its own least-privilege permissions", () => {
   const { permissions, jobs } = workflow("intake-triage.yml");
+  const READ_CALL = { actions: "read", contents: "read", "pull-requests": "write", checks: "write", issues: "write", "id-token": "write" };
   assert.deepEqual(permissions, {});
   assert.deepEqual(Object.fromEntries(Object.entries(jobs).map(([id, job]) => [id, job.permissions])), {
     "check-born-triaged": { contents: "read", issues: "read" },
     "check-kill-switch": { contents: "read" },
     "intake-label-needs-triage": { issues: "write" },
-    "intake-triage": { actions: "read", contents: "read", issues: "write" },
+    "intake-triage": READ_CALL,
+    "intake-triage-handoff": { actions: "read", contents: "read" },
+    "upload-key-credit-markers": { actions: "read", contents: "read" },
+    "intake-triage-subscription": READ_CALL,
+    "intake-triage-subscription-handoff": { actions: "read", contents: "read" },
+    "intake-triage-fallback": READ_CALL,
+    "post-triage": { actions: "read", contents: "read", issues: "write" },
     "apply-verdict": { contents: "read", "id-token": "write" },
     "refine-select": { contents: "read", issues: "read", "pull-requests": "read" },
     "refine-key-credit": { actions: "read" },
@@ -516,57 +511,37 @@ test("intake-triage.yml: a dispatch runs only from main and passes the gate's id
   assert.equal(runsOn("workflow_dispatch", "refs/heads/main"), true);
   assert.equal(runsOn("workflow_dispatch", "refs/heads/feature"), false, "a dispatch from a branch reads no branch's trusted-actor list");
 
-  const intake = jobs["intake-triage"];
-  assert.equal(intake.with["allowed-author-ids"], "${{ needs.check-born-triaged.outputs.human-ids }}");
-  assert.equal(intake.with["allowed-bot-sender-ids"], "${{ needs.check-born-triaged.outputs.bot-ids }}");
-  assert.equal(intake.with["issue-number"], "${{ inputs.issue-number }}");
-
-  const bots = gate.steps.find((step) => step.id === "bots");
-  assert.equal(gate.outputs["bot-ids"], "${{ steps.bots.outputs.ids }}");
-  const dir = tempDir("bot-ids-");
-  try {
-    const ids = (lanesAppId) => {
-      const output = join(dir, "output");
-      writeFileSync(output, "");
-      const result = spawnSync("bash", ["-c", bots.run], {
-        env: { ...process.env, LANES_APP_ID: lanesAppId, GITHUB_OUTPUT: output },
-      });
-      assert.equal(result.status, 0);
-      return readFileSync(output, "utf8");
-    };
-    assert.equal(ids(""), "ids=41898282\n");
-    assert.equal(ids("123456"), "ids=41898282,123456\n");
-    assert.equal(ids("12a; echo x"), "ids=41898282\n", "a malformed lanes App id is dropped");
-    assert.equal(ids("0"), "ids=41898282\n");
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+  const post = jobs["post-triage"];
+  assert.equal(post.steps.find((step) => step.id === "post").env.AUTHOR_IDS, "${{ needs.check-born-triaged.outputs.human-ids }}");
+  for (const id of ["intake-triage", "intake-triage-subscription", "intake-triage-fallback"]) {
+    assert.equal(jobs[id].with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}", id);
+    assert.equal(jobs[id].with["issue-verdict"], true, id);
   }
 });
 
-test("intake-triage.yml: apply-verdict writes as the lanes App only after a triage that ran, for the issue it triaged", () => {
+test("intake-triage.yml: apply-verdict writes as the lanes App only after a posted verdict, for the issue it triaged", () => {
   const { jobs } = workflow("intake-triage.yml");
   const job = jobs["apply-verdict"];
-  assert.deepEqual(job.needs, ["check-born-triaged", "intake-triage"]);
+  assert.deepEqual(job.needs, ["check-born-triaged", "post-triage"]);
   assert.deepEqual(job.permissions, { contents: "read", "id-token": "write" });
   const minting = Object.entries(jobs)
     .filter(([, j]) => j.permissions?.["id-token"] !== undefined || j.permissions === "write-all")
     .map(([id]) => id);
-  assert.deepEqual(minting, ["apply-verdict", "apply-refinement"], "only the two script writers can request an OIDC token");
+  assert.deepEqual(
+    minting,
+    ["intake-triage", "intake-triage-subscription", "intake-triage-fallback", "apply-verdict", "apply-refinement"],
+    "only the read runner's calls, for its check-broker job, and the two script writers can request an OIDC token",
+  );
   assert.deepEqual(workflow("intake-triage.yml").permissions, {}, "no workflow-level grant");
   assert.equal(job.concurrency["cancel-in-progress"], false);
   assert.notEqual(job.concurrency.group, jobs["intake-triage"].concurrency.group, "its own concurrency group");
-  const runs = (result, failed, deferred = "") =>
-    evaluate(job.if, {
-      "needs.intake-triage.result": result,
-      "needs.intake-triage.outputs.triage-failed": failed,
-      "needs.intake-triage.outputs.triage-deferred": deferred,
-    });
-  assert.equal(runs("success", "false"), true);
-  assert.equal(runs("success", ""), true);
-  assert.equal(runs("success", "true"), false, "a triage that did not run writes nothing");
-  assert.equal(runs("success", "", "true"), false, "a deferred triage wrote no lane comment");
-  assert.equal(runs("failure", "false"), false, "a failed apply writes nothing");
-  assert.equal(runs("skipped", ""), false);
+  const runs = (result, deferred = "") =>
+    evaluate(job.if, { "needs.post-triage.result": result, "needs.post-triage.outputs.deferred": deferred });
+  assert.equal(runs("success"), true);
+  assert.equal(runs("success", "true"), false, "a deferred triage wrote no lane comment");
+  assert.equal(runs("failure"), false, "a verdict post-triage refused or failed to post writes nothing");
+  assert.equal(runs("skipped"), false);
+  assert.equal(job.outputs.verdict, "${{ needs.post-triage.outputs.verdict }}");
 
   const gate = jobs["check-born-triaged"];
   assert.equal(gate.outputs["started-at"], "${{ steps.started.outputs.at }}");
@@ -793,36 +768,45 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.deepEqual(JSON.parse(read("../../scripts/intake-triage/refine-schema.json")).required, ["exact", "outcome", "criteria", "dependencies", "related", "questions", "sources", "split", "external"]);
 });
 
-test("intake-triage.yml: the model may not apply good first issue or help wanted, and is told the verdict lines", () => {
-  const intake = workflow("intake-triage.yml").jobs["intake-triage"];
-  const allowed = intake.with["allowed-labels"].trim().split("\n");
+const CI_MODE = read("../../../plugins/work-items/skills/triage/context/ci-mode.md");
+const postStep = (id) => workflow("intake-triage.yml").jobs["post-triage"].steps.find((step) => step.id === id);
+
+test("intake-triage.yml: post-triage may not apply good first issue or help wanted, and the skill is told the verdict lines", () => {
+  const allowed = postStep("post").env.ALLOWED_LABELS.trim().split("\n");
   assert.ok(!allowed.includes("good first issue") && !allowed.includes("help wanted"));
-  for (const line of ["Size: Small|Medium|Large", "Complexity: Low|Medium|High", "Uncertainty: Known|Knowable|Unknown", "Flags: none|intent|security|cost|untrusted"]) {
-    assert.ok(RUBRIC.includes(`\n${line}\n`), line);
+  for (const line of ["Size: <size>", "Complexity: <complexity>", "Uncertainty: <uncertainty>", "Flags: <none | flag, flag>", "Blocked by: <none | #<n>, #<m>>"]) {
+    assert.ok(CI_MODE.includes(`\n   ${line}\n`), line);
   }
 });
 
-test("intake-triage.yml: the rubric reaches the reusable from the default branch's file, read before the model resolves", () => {
+test("intake-triage.yml: post-triage checks the scan job's verdict before any write, from main's copies, on its own token", () => {
   const { jobs } = workflow("intake-triage.yml");
-  const gate = jobs["check-born-triaged"];
-  const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
-  assert.ok(checkout.with["sparse-checkout"].trim().split("\n").includes("/.github/scripts/intake-triage/triage-rubric.txt"));
-  const ids = gate.steps.map((step) => step.id);
-  assert.ok(ids.indexOf("rubric") >= 0 && ids.indexOf("rubric") < ids.indexOf("models"), "a rubric that does not read leaves claude-args unresolved");
-  assert.match(gate.steps.find((step) => step.id === "rubric").run, /cat \.base\/\.github\/scripts\/intake-triage\/triage-rubric\.txt\n/);
-  assert.equal(gate.outputs.instructions, "${{ steps.rubric.outputs.instructions }}");
-  assert.equal(jobs["intake-triage"].with.instructions, "${{ needs.check-born-triaged.outputs.instructions }}");
+  const post = jobs["post-triage"];
+  assert.deepEqual(post.needs, ["check-born-triaged", "intake-triage", "intake-triage-subscription", "intake-triage-fallback"]);
+  assertMainTip(post.steps, post.steps.find((s) => s.uses?.startsWith("actions/checkout@")));
+  const names = post.steps.map((step) => step.id ?? step.name);
+  const order = ["pick", "Download the verdict", "check", "Check the dimension keys", "post"].map((id) => names.indexOf(id));
+  assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])), JSON.stringify(names));
+  assert.match(postStep("check").run, /check-ci-verdict\.mjs --verdict "\$file"/);
+  assert.match(postStep("check").run, /sha256sum/);
+  const dims = post.steps.find((step) => step.name === "Check the dimension keys");
+  assert.equal(dims["working-directory"], ".base");
+  assert.match(dims.run, /set-dimensions\.sh --dry-run "\$ISSUE_NUMBER"/);
+  assert.equal(postStep("post").env.GITHUB_TOKEN, "${{ github.token }}", "the comment's author stays github-actions[bot]");
+  assert.equal(postStep("post").env.ISSUE_NUMBER, "${{ github.event.issue.number || inputs.issue-number }}", "the issue never comes from a job output");
+  assert.deepEqual(stepSecrets(post), [], "the post job holds no secret");
+  const picked = postStep("pick").env;
+  assert.deepEqual(Object.keys(picked).sort(), ["FB_ATTEMPT", "FB_SHA256", "KEY_ATTEMPT", "KEY_SHA256", "SUB_ATTEMPT", "SUB_SHA256"]);
+  for (const value of Object.values(picked)) assert.match(value, /^\$\{\{ needs\.intake-triage(-subscription|-fallback)?\.outputs\.triage-verdict-(attempt|sha256) \}\}$/);
+  assert.match(read("../../../docs/conventions/work-items.md"), /\n## Triage rules\n/, "the convention home ci-mode.md names holds the repository's triage rules");
+  assert.match(CI_MODE, /`docs\/conventions\/work-items\.md` has a `## Triage rules` section/);
 });
 
-test("intake-triage.yml: the model may apply duplicate, which admission refuses, and is told to name the candidate and not park a duplicate", () => {
-  const intake = workflow("intake-triage.yml").jobs["intake-triage"];
-  assert.ok(intake.with["allowed-labels"].trim().split("\n").includes("duplicate"));
+test("intake-triage.yml: post-triage may apply duplicate, which admission refuses, and the skill is told to name the candidate", () => {
+  assert.ok(postStep("post").env.ALLOWED_LABELS.trim().split("\n").includes("duplicate"));
   const rules = JSON.parse(read("./admission-rules.json"));
   assert.ok(rules["refuse-labels"].includes("duplicate"));
-  const text = RUBRIC.replace(/\s+/g, " ");
-  assert.match(text, /DUPLICATE\. When an open issue asks for the same thing, apply the `duplicate` label/);
-  assert.match(text, /name the candidate by number/);
-  assert.match(text, /apply no `needs-owner-decision`/);
+  assert.match(CI_MODE.replace(/\s+/g, " "), /`duplicate` with `Duplicate of #<n>` in the comment/);
 });
 
 test("pr-unblock.yml: report-stop-status runs when report-escalation does, or after an attempt that did not stop, with a gated head and never on a cancelled run", () => {
@@ -2132,6 +2116,9 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
     }
   }
   assert.deepEqual(callers.sort(), [
+    "intake-triage.yml intake-triage",
+    "intake-triage.yml intake-triage-fallback",
+    "intake-triage.yml intake-triage-subscription",
     "pr-refine.yml fix-docs",
     "pr-refine.yml fix-docs-fallback",
     "pr-refine.yml fix-docs-subscription",
@@ -2322,6 +2309,7 @@ function jobGates(doc, job) {
     if (selectId && (gateJob.steps ?? []).some((step) => step.id === selectId && String(step.run ?? "").split("\n").some((line) => line.trim() === REFINE_SELECT))) gates.add("author");
   }
   if (INTAKE_REUSABLE.test(String(job.uses ?? "")) && String(job.with?.["allowed-author-ids"] ?? "").trim() !== "") gates.add("author");
+  if (job.uses === READ_RUNNER && job.with?.["issue-verdict"] === true) gates.add("author");
   return [...gates].sort();
 }
 function gatedTriggerJobs(files = workflowFiles(), load = workflow) {
@@ -3601,9 +3589,10 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   assert.deepEqual(["tip", "base", "key", "open", "decode"].map(at), [2, 3, 4, 5, 6]);
   assert.ok(at("decode") < scan);
   const outputs = steps.filter((step) => step.id !== "leak-scan" && ((isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step)));
-  assert.equal(outputs.length, 6);
-  const context = (clean) => ({
+  assert.equal(outputs.length, 7);
+  const context = (clean, verdict) => ({
     "inputs.issue-number": "7",
+    "inputs.issue-verdict": verdict,
     "steps.decode.outputs.outcome": "true",
     "steps.leak-scan.outputs.clean": clean,
     "steps.decode.outputs.reply": "true",
@@ -3612,12 +3601,82 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
     "steps.decode.outputs.dependency-verdict": "true",
   });
   for (const step of outputs) {
+    const verdict = step.id === "triage-verdict-upload";
     assert.ok(steps.indexOf(step) > scan, `${step.name} comes after the scan`);
-    assert.equal(atStep(step.if, context("true")), true, `${step.name} runs on a clean scan`);
-    assert.equal(atStep(step.if, context("false")), false, `${step.name} is dropped on a hit`);
-    assert.equal(atStep(step.if, context("")), false, `${step.name} is dropped when no scan ran`);
+    assert.equal(atStep(step.if, context("true", verdict)), true, `${step.name} runs on a clean scan`);
+    assert.equal(atStep(step.if, context("false", verdict)), false, `${step.name} is dropped on a hit`);
+    assert.equal(atStep(step.if, context("", verdict)), false, `${step.name} is dropped when no scan ran`);
   }
+  const uploads = (verdict) => outputs.filter((step) => /^(dependency|triage-verdict)-upload$/.test(step.id ?? "") && atStep(step.if, context("true", verdict))).map((step) => step.id);
+  assert.deepEqual(uploads(false), ["dependency-upload"], "outside verdict mode the structured output leaves as the dependency verdict");
+  assert.deepEqual(uploads(true), ["triage-verdict-upload"], "in verdict mode it leaves as the triage verdict alone");
   assert.match(workflow("pr-run-activity-read.yml").jobs.scan.outputs["patch-state"], /^\$\{\{ steps\.patch-upload\.outcome == 'success' && 'written'/);
+});
+
+test("pr-run-activity-read.yml: verdict mode gates the trigger on intake's senders, claims no lease, skips the issue lane's prior-work steps and hands on only its structured output", () => {
+  const { on, jobs } = workflow("pr-run-activity-read.yml");
+  assert.deepEqual(on.workflow_call.inputs["issue-verdict"], { required: false, type: "boolean", default: false });
+  const run = jobs.run.steps;
+  const step = (id) => run.find((s) => s.id === id);
+  const named = (name) => run.find((s) => s.name === name);
+  const gate = step("gate");
+  assert.equal(gate.with["bot-sender-ids"], "${{ inputs.issue-verdict && format('41898282 {0}', vars.AUTOMATION_LANES_APP_SENDER_ID) || '' }}");
+  const verdict = { "inputs.issue-number": "7", "inputs.issue-verdict": true, "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936", "inputs.dispatcher-run-id": "", "inputs.app-field-id": "1", "inputs.app-field-option": "2" };
+  const issue = { ...verdict, "inputs.issue-verdict": false };
+  assert.equal(evaluate(gate.with["issue-author"], verdict), "true");
+  assert.equal(evaluate(gate.with["issue-author"], issue), "");
+  assert.equal(evaluate(gate.with["denied-actor-ids"], verdict), "", "the lanes App is an intake sender, not denied");
+  assert.equal(evaluate(gate.with["denied-actor-ids"], issue), "337595936");
+  assert.equal(evaluate(gate.with["app-field-id"], verdict), "", "no field event starts verdict mode");
+  assert.equal(evaluate(gate.with["lanes-app-id"], verdict), "");
+  assert.equal(evaluate(gate.with["require-pr"], verdict), false);
+  assert.equal(evaluate(gate.with["require-kind"], verdict), "human");
+  assert.equal(evaluate(step("trusted-base").with["no-pr"], verdict), "true");
+  assert.equal(evaluate(step("config").with["applied-by-supported"], verdict), "triage-verdict");
+  assert.equal(evaluate(step("config").with["applied-by-supported"], issue), "patch work-outcome");
+
+  const lease = jobs["check-broker"].steps.find((s) => s.id === "lease");
+  const allowed = { "steps.broker.outcome": "success", "steps.broker.outputs.allowed": "true" };
+  assert.equal(evaluate(lease.if, { ...verdict, ...allowed }), false, "verdict mode claims no lease");
+  assert.equal(evaluate(lease.if, { ...issue, ...allowed }), true);
+  const applies = { "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill", "steps.workflow-current.outputs.stale": "", "needs.check-broker.outputs.lease": "", "needs.check-broker.outputs.blocked": "" };
+  for (const id of ["workflow-current", "issue-prior"]) assert.equal(evaluate(step(id).if, { ...verdict, ...applies }), false, id);
+  const go = { "steps.go.outputs.run": "true", "steps.config.outputs.kind": "skill" };
+  assert.equal(evaluate(step("write-issue").if, { ...verdict, ...go }), false);
+  assert.equal(evaluate(step("write-intake-issue").if, { ...verdict, ...go }), true);
+  assert.equal(evaluate(step("write-intake-issue").if, { ...issue, ...go }), false);
+  assert.equal(step("write-intake-issue").run, "node .base/.github/scripts/intake-triage/write-intake-issue.mjs");
+  assert.equal(step("write-intake-issue").env.GITHUB_TOKEN, "${{ github.token }}", "the job's read-only token");
+  const assertVerdict = named("Assert an intake activity hands on its structured output alone");
+  const config = (overrides) => ({ ...verdict, "steps.config.outcome": "success", "steps.config.outputs.applied-by-triage-verdict": "post-triage", "steps.config.outputs.applied-by-patch": "", "steps.config.outputs.prepare": "", "steps.config.outputs.kind": "skill", ...overrides });
+  assert.equal(evaluate(assertVerdict.if, config({})), false);
+  for (const bad of [{ "steps.config.outputs.applied-by-triage-verdict": "" }, { "steps.config.outputs.applied-by-patch": "apply-patch" }, { "steps.config.outputs.prepare": "ci-context" }, { "steps.config.outputs.kind": "script" }]) {
+    assert.equal(evaluate(assertVerdict.if, config(bad)), true, JSON.stringify(bad));
+  }
+  assert.equal(evaluate(named("Assert an issue activity is in patch mode").if, config({})), false);
+  for (const id of ["act-key", "act-token", "act-fallback"]) {
+    assert.match(step(id).with["json-schema-file"], /inputs\.issue-verdict && format\('\{0\}\/lane-verdict-schema\/verdict\.schema\.json', runner\.temp\)/, id);
+    assert.equal(step(id).with.tools, "${{ steps.stage.outputs.tools }}", `${id}: the tools are the stage's, which verdict mode leaves at the read set`);
+  }
+  assert.equal(evaluate(named("Collect the issue outcome").if.replaceAll("always()", "true"), { ...verdict, ...go, "steps.key-present.outputs.present": "true", "steps.act-key.outputs.handoff": "", "steps.act-token.outputs.handoff": "", "steps.token-present.outputs.present": "", "inputs.fallback-ready": "" }), false);
+  assert.equal(jobs.scan.steps.find((s) => s.id === "triage-verdict-upload").with.name, "triage-verdict-${{ inputs.issue-number }}-${{ github.run_attempt }}");
+  assert.equal(on.workflow_call.outputs["triage-verdict-sha256"].value, "${{ jobs.scan.outputs.triage-verdict-sha256 }}", "the SHA-256 is the scan job's, which runs no model");
+});
+
+test("pr-run-activity-read.yml: issue mode runs on its issues event, and verdict mode also on a dispatch naming the issue", () => {
+  const assertStep = runSteps().find((s) => s.name === "Assert the lanes App sender id and default branch are set");
+  const status = (env) =>
+    runStep(assertStep, tmpdir(), { APP_SENDER_ID: "337595936", DEFAULT_BRANCH: "main", TRUSTED_BASE: "default-tip", PR_NUMBER: "", DISPATCHER_RUN_ID: "", FALLBACK: "", FALLBACK_READY: "", ISSUE_VERDICT: "false", ...env }).status;
+  assert.equal(status({ ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "7" }), 0);
+  assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "" }), 0, "an issue-lane dispatch stays refused");
+  assert.equal(status({ ISSUE_NUMBER: "7", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "", ISSUE_VERDICT: "true" }), 0);
+  assert.equal(status({ ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "7", ISSUE_VERDICT: "true" }), 0);
+  assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "8", ISSUE_VERDICT: "true" }), 0, "an issues event names its own issue");
+  assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "pull_request", EVENT_ISSUE: "", ISSUE_VERDICT: "true" }), 0);
+  assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "", ISSUE_VERDICT: "true", TRUSTED_BASE: "pr-base" }), 0);
+  assert.notEqual(status({ ISSUE_NUMBER: "7", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "", ISSUE_VERDICT: "true", PR_NUMBER: "3" }), 0);
+  assert.notEqual(status({ ISSUE_NUMBER: "", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "", ISSUE_VERDICT: "true" }), 0, "verdict mode needs an issue number");
+  assert.notEqual(status({ ISSUE_NUMBER: "7x", EVENT_NAME: "workflow_dispatch", EVENT_ISSUE: "", ISSUE_VERDICT: "true" }), 0);
 });
 
 const PR_RUN = {
@@ -5225,7 +5284,9 @@ test("scan job: an issue run's outcome files round-trip sealed with every payloa
   const prOpen = openStep(t, pr);
   assert.equal(prOpen.status, 0, prOpen.log);
   const prDecoded = await decode(t, decodeEnv(pr, { "issue-number": "" }, prOpen));
-  assert.match(prDecoded.failed, /^payload-mismatch: a PR-mode run carried an issue outcome/);
+  assert.match(prDecoded.failed, /^payload-mismatch: a PR-mode or verdict-mode run carried an issue outcome/);
+  const verdictDecoded = await decode(t, decodeEnv(pr, { "issue-number": "7", "issue-verdict": "true" }, prOpen, { "issue-run-started": "true" }));
+  assert.match(verdictDecoded.failed, /^payload-mismatch: a PR-mode or verdict-mode run carried an issue outcome/, "verdict mode hands on no outcome");
   const collect = runSteps().find((s) => s.name === "Collect the issue outcome");
   assert.match(collect.run, /head -c 49152 "\$SCRATCH_OUTCOME"/);
   assert.ok(runSteps().indexOf(collect) < runSteps().findIndex((s) => s.id === "carry"), "collected before it is carried");
@@ -5652,7 +5713,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
       }
     }
   }
-  assert.equal(callers, 21, "resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-docs, resolve-issue and their subscription and fallback calls, and fix-ci's rung-up trio");
+  assert.equal(callers, 24, "resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-docs, resolve-issue, intake-triage and their subscription and fallback calls, and fix-ci's rung-up trio");
   for (const [id, job] of Object.entries(read.jobs)) {
     const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
     assert.deepEqual(steps.map((step) => step.id), id === "scan" ? ["open"] : [], id);
@@ -8066,6 +8127,8 @@ test("no subscription leg's if: reads a read runner run-job output", () => {
     }
   }
   assert.deepEqual(legs.sort(), [
+    "intake-triage.yml intake-triage-fallback",
+    "intake-triage.yml intake-triage-subscription",
     "pr-refine.yml fix-docs-fallback",
     "pr-refine.yml fix-docs-subscription",
     "pr-unblock.yml address-feedback-fallback",
@@ -8355,6 +8418,9 @@ test("pr-run-activity-read.yml: only work-resolve-issue.yml's subscription call 
       const fallback = job.with?.fallback;
       if (file === "work-resolve-issue.yml") {
         assert.equal(job.with["issue-number"], "${{ format('{0}', github.event.issue.number) }}", id);
+      } else if (file === "intake-triage.yml") {
+        assert.equal(job.with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}", id);
+        assert.equal(job.with["issue-verdict"], true, `${id}: intake's issue calls run in verdict mode`);
       } else {
         assert.equal(job.with?.["issue-number"], undefined, `${file} ${id} is a PR-mode call`);
       }
@@ -8367,7 +8433,7 @@ test("pr-run-activity-read.yml: only work-resolve-issue.yml's subscription call 
       }
     }
   }
-  assert.deepEqual(Object.keys(callers).sort(), ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
+  assert.deepEqual(Object.keys(callers).sort(), ["intake-triage.yml", "pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
 });
 
 test("work-resolve-issue.yml: the key call reads only the API key and the subscription call only the OAuth token", () => {
@@ -8685,7 +8751,7 @@ test("every caller of a reusable holding model legs passes the transcript key", 
       assert.equal(job.with?.["lane-transcript-public-key"], "${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}", `${file}#${jobId}`);
     }
   }
-  assert.ok(callers >= 3, `only ${callers} callers found`);
+  assert.ok(callers >= 2, `only ${callers} callers found`);
 });
 
 // request-lane-token's kill-switch-ok ends a kill-switch refusal green with no
@@ -8746,6 +8812,9 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
   assert.deepEqual(callers.sort(), [
     "intake-triage.yml:apply-refinement",
     "intake-triage.yml:apply-verdict",
+    "intake-triage.yml:intake-triage -> pr-run-activity-read.yml",
+    "intake-triage.yml:intake-triage-subscription -> pr-run-activity-read.yml",
+    "intake-triage.yml:intake-triage-fallback -> pr-run-activity-read.yml",
     "pr-merge.yml:enable-auto-merge",
     "pr-merge.yml:merge",
     "pr-refine.yml:apply-docs-patch -> pr-run-activity-write.yml",
@@ -9008,7 +9077,7 @@ test(`every caller of ${READ} runs no model, write token, push, comment or label
       }
     }
   }
-  assert.deepEqual(callers.sort(), ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
+  assert.deepEqual(callers.sort(), ["intake-triage.yml", "pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
 });
 
 test("pr-run-activity-write.yml takes kill-switch-ok on every run but report-escalation", () => {
@@ -10323,7 +10392,7 @@ test("every credit read and gated reusable call reads the one credit window, and
   const gates = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).flatMap((job) => (job?.steps ?? []).filter(isCreditGate)));
   assert.ok(gates.length >= 15, `found ${gates.length} credit reads`);
   const calls = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).filter((job) => GATED_REUSABLE.test(String(job?.uses ?? ""))));
-  assert.equal(calls.length, 3, "the code review, security review and intake triage calls");
+  assert.equal(calls.length, 2, "the code review and security review calls; intake runs on the read runner");
 });
 
 test("the credit window check names a drifted default, a missing input, a check-key-credit read and a stray read", () => {

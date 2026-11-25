@@ -165,6 +165,22 @@ inputs:
       The single-select option id of app-field-id that starts the lane.
     required: false
     default: ""
+  bot-sender-ids:
+    description: >
+      With require-pr false, bot ids (comma- or space-separated positive
+      integers) whose sender, of type Bot, the actor check admits beside the
+      pool require-kind picks: the intake lane's github-actions[bot] and
+      lanes App. Re-runners are still held to that pool. Malformed stops the
+      run with list-unreadable.
+    required: false
+    default: ""
+  issue-author:
+    description: >
+      `true`, with require-pr false: an issues event starts the lane only
+      when its action is `opened` and its sender is the issue's author. Any
+      other issues event stops with untrusted-actor.
+    required: false
+    default: ""
   fault-reason:
     description: >
       `true` writes reason `read-fault` for a stop a read GitHub failed to
@@ -239,6 +255,8 @@ runs:
         APP_FIELD_ID: ${{ inputs.app-field-id }}
         APP_FIELD_OPTION: ${{ inputs.app-field-option }}
         REQUIRE_PR: ${{ inputs.require-pr }}
+        BOT_SENDER_IDS: ${{ inputs.bot-sender-ids }}
+        ISSUE_AUTHOR: ${{ inputs.issue-author }}
         FAULT_REASON: ${{ inputs.fault-reason }}
         REPOSITORY: ${{ github.repository }}
       run: node "$GITHUB_ACTION_PATH/check-trusted-trigger.mjs"
