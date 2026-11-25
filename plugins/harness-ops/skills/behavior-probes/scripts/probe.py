@@ -857,17 +857,19 @@ def collect_transcript(session: str, workdir: Path) -> str:
     """The session's transcript, then the case hooks' log, into workdir/TRANSCRIPT_FILE.
 
     The session file leaves the operator's projects folder, so a probe run never
-    shows up in their session history."""
+    shows up in their session history; that folder goes too while it holds only
+    empty directories, such as the auto-memory folder Claude Code creates."""
     config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     lines = []
     for path in (config / "projects").glob(f"*/{session}.jsonl"):
         lines += path.read_text(encoding="utf-8").splitlines()
         path.unlink()
         shutil.rmtree(path.with_suffix(""), ignore_errors=True)
-        try:
-            path.parent.rmdir()
-        except OSError:
-            pass
+        for folder, _, _ in os.walk(path.parent, topdown=False):
+            try:
+                os.rmdir(folder)
+            except OSError:
+                pass
     hooks = workdir / HOOK_LOG
     if hooks.is_file():
         lines += hooks.read_text(encoding="utf-8").splitlines()

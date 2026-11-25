@@ -816,6 +816,9 @@ and expiry above apply.
 | no-tool-reply-ends-goal-reprompts | `hooks/no-tool-reply-ends-goal-reprompts` | `hooks/handoff-goal-reaches-prompt-hook` (pass) | pass |
 | self-paced-wakeup-listed | `hooks/self-paced-wakeup-listed` | `hooks/fixed-loop-listed-across-compact` (pass) | pass |
 
+Rerun on Claude Code 2.1.332, 2026-11-25: `manual-compact-and-hook-focus` and its control pass
+with the `/compact` message marked `"priority": "later"`, one runner run each.
+
 **Manual records, observed ad hoc, not runner-run.** Cases that need an interactive or
 multi-session run. Each ran once on Claude Code 2.1.331, 2026-11-24, on `claude-haiku-5-5`, with
 an 80k effective auto-compact window; the quoted lines are from the sessions' transcripts, which
