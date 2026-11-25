@@ -32,15 +32,15 @@ reads of handoff chains cost up to 250,000 tokens.
    you continue. Direction changes, Observations and Suggested skills are movable. Prior sessions
    and Resume prompt are carried by the tool.
 3. **`new` and `fill` own the byte budget, the fit and the verdict.** Two separate operations
-   keep the hot file small:
+   keep the handoff file small:
    - **Age fold, in `new`.** A Direction changes line whose newest hop tag is 3 or more hops old
-     moves to the hop file of the hop that folds it. One `- Folded:` line stays in Direction
+     moves to the archive file of the hop that folds it. One `- Folded:` line stays in Direction
      changes and points at the folded lines.
    - **Over-cap move, in `fill`.** When the file is over the 24,600-byte cap, `fill` moves whole
      movable sections to this hop's file under `## <Section> (h<k>)`, in the order Observations,
      Suggested skills, then Direction changes. A moved Direction changes section includes its
      newest lines; nothing guarantees recent direction changes stay inline. A `- Moved:` line
-     pointing at the hop-file heading replaces the moved section's body, inside that section.
+     pointing at the archive-file heading replaces the moved section's body, inside that section.
      `save_point.py read --section` follows it, and exits 1 when the file or heading is not on
      disk.
 

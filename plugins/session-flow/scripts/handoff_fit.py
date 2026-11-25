@@ -45,7 +45,7 @@ def slot_overruns(values: dict[str, str]) -> list[tuple[str, int, int]]:
 def written_slot_bytes(
     brief: list[str] | None, prompt: list[str] | None
 ) -> dict[str, int]:
-    """The bytes the session wrote into each size-classed slot of a filled hot
+    """The bytes the session wrote into each size-classed slot of a filled handoff
     file: the Resumption brief less the Purpose line `new` writes, and the
     Resume prompt's lines below the reopen line."""
     found: dict[str, int] = {}
@@ -121,9 +121,9 @@ def fit(
     hop_number: int,
     term: str,
 ) -> tuple[list[str], list[str], list[str]]:
-    """Move whole movable sections, in MOVE_ORDER, out of the hot file's lines
+    """Move whole movable sections, in MOVE_ORDER, out of the handoff file's lines
     into this hop's file under `## <Section> (h<k>)`, each leaving a pointer,
-    until the hot file is at or under `cap`. Lines keep their terminators;
+    until the handoff file is at or under `cap`. Lines keep their terminators;
     returns the hot lines, the hop lines and the moved section names."""
     hot, hop = list(hot), list(hop)
     moved: list[str] = []

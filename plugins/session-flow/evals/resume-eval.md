@@ -57,8 +57,8 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
   `injections[].visible_in_reads` states whether the seeded reads show the entry;
   `seed_history` refuses a case where they disagree. Each arm seeds with its own plugin copy's
   `save_point.py` (`compact` and `free-hand` with the `before` copy's), in the shape that copy
-  writes unless the case names `shape`. `shape: 3` builds hot files and hop files through
-  `save_point.py fill`, and `target_bytes` steers the newest hot file's size; its injections target
+  writes unless the case names `shape`. `shape: 3` builds handoff files and archive files through
+  `save_point.py fill`, and `target_bytes` steers the newest handoff file's size; its injections target
   `amendment`, `trail`, `rules`, `open-questions` or `decisions`, and one with
   `retire: {hop, reason}` is retired at that hop through `fill`'s `retire` list. An id-section
   injection with `reuse: <injection id>` takes the id that injection held, which must be in the
@@ -107,7 +107,7 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
 
 - `re-writer-keeps-binding-amendment`: the predecessor's Original goal holds superseded, mixed
   and still-binding amendments, none retired. The writer decides what to retire; the probes
-  check that the written hot file keeps the binding amendment and the mixed one's binding clause
+  check that the written handoff file keeps the binding amendment and the mixed one's binding clause
   (whole, or codified as a rule) and that the reader acts on both.
 - `re-retired-amendment`: the answer exists only in a retired amendment and a retired `[Q<n>]`
   in hop 3's file, reached through the retire pointer under Review before you continue.

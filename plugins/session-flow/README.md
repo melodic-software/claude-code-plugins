@@ -96,9 +96,9 @@ skill always STOPS after emitting the save-point. Continuing would defeat the pu
 save-point machinery itself (destination resolution, path choice, redaction, rails prompt) lives in
 the shared `reference/save-point.md` engine doc that `continue-in-background` also delivers from.
 
-The handoff is **shape 3** (`handoff_shape: 3`): a small hot file per hop that a resume reads,
+The handoff is **shape 3** (`handoff_shape: 3`): a small handoff file per hop that a resume reads,
 plus one archive file per hop under `.work/handoffs/<archive>` holding, verbatim, what that hop
-moved out of the hot file. The hot file carries the user's verbatim goal, intent and vision, the
+moved out of the handoff file. The handoff file carries the user's verbatim goal, intent and vision, the
 current rules with stable `[R<n>]` ids, a one-line-per-change direction trail, the remaining
 work, the last Prior-sessions rows, and, as its final section, the resume prompt itself; its
 frontmatter names the chain root, the hop and the archive directory. A stdlib-only Python

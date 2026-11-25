@@ -2,7 +2,7 @@
 """A role chain's Decisions in force live in its standing-rules file, and its
 retire pointers in one retired-entries index beside it. Expected values come
 from reference/structure.md ("Role chains: the standing-rules file" and "The
-retired-entries index"): the hot file holds one pointer line for each, a
+retired-entries index"): the handoff file holds one pointer line for each, a
 decision leaves only through `retire`, and no earlier retire pointer is lost."""
 
 from __future__ import annotations

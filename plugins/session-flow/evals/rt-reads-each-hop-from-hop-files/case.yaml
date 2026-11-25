@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: rt-reads-each-hop-from-hop-files
-description: 'A finished shape-4 handoff chain that tidy_work.py clean shrank to its newest hot file and its three hop files: /session-flow:retro reconstructs each hop, naming hop 1''s and hop 2''s observations, which only the hop files hold (each hop''s Observations section moved there and both older hot files are gone), and writes nothing under .work/handoffs/. A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'A finished shape-4 handoff chain that tidy_work.py clean shrank to its newest handoff file and its three archive files: /session-flow:retro reconstructs each hop, naming hop 1''s and hop 2''s observations, which only the archive files hold (each hop''s Observations section moved there and both older handoff files are gone), and writes nothing under .work/handoffs/. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [retro, handoff-chain, hop-files, must-not]
 plugins: ["../.."]
-expected_outcome: 'The answer walks the search-index chain hop by hop. For hop 1 it says the tokenizer split e-mail on its hyphen into two terms; for hop 2, that rebuilding the index takes 14 minutes on the full corpus; for hop 3, that the rebuilt index finds e-mail. It reads those from the hop files under .work/handoffs/archive/, through save_point.py chain or read, the parser''s handoff_journey, or the files themselves, and it writes, edits or removes nothing under .work/handoffs/.'
+expected_outcome: 'The answer walks the search-index chain hop by hop. For hop 1 it says the tokenizer split e-mail on its hyphen into two terms; for hop 2, that rebuilding the index takes 14 minutes on the full corpus; for hop 3, that the rebuilt index finds e-mail. It reads those from the archive files under .work/handoffs/archive/, through save_point.py chain or read, the parser''s handoff_journey, or the files themselves, and it writes, edits or removes nothing under .work/handoffs/.'
 context:
   scaffold_script: scaffold.sh
 execution:
