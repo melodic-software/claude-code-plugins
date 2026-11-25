@@ -1,18 +1,47 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { test } from "node:test";
+import { dirname, join } from "node:path";
+import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { main } from "./lookup.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const FIXTURES = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures", "data");
+const scratch = mkdtempSync(join(tmpdir(), "ec-lookup-settings-"));
+after(() => rmSync(scratch, { recursive: true, force: true }));
+const HOME = join(scratch, "home");
+mkdirSync(HOME);
+let count = 0;
+
+function repo(files = {}) {
+  const dir = join(scratch, `repo-${++count}`);
+  mkdirSync(dir);
+  assert.equal(spawnSync("git", ["init", "-q", dir]).status, 0);
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true });
+    writeFileSync(join(dir, path), text);
+  }
+  return dir;
+}
+const EMPTY_REPO = repo();
+const TEAM = "docs/conventions/engineering-concepts.yaml";
+
+function userConfigFile(values) {
+  const file = join(scratch, `user-config-${++count}.json`);
+  writeFileSync(file, JSON.stringify(values));
+  return file;
+}
 
 async function run(args, deps = {}) {
   const out = [];
   const err = [];
-  const code = await main(["--data-dir", deps.dataDir ?? FIXTURES, ...args], {
+  const base = ["--data-dir", deps.dataDir ?? FIXTURES, "--project", deps.project ?? EMPTY_REPO, "--home", HOME];
+  if (deps.userConfig) base.push("--user-config", userConfigFile(deps.userConfig));
+  const code = await main([...base, ...args], {
     fetch: deps.fetch,
     out: (line) => out.push(line),
     err: (line) => err.push(line),
@@ -139,11 +168,68 @@ test("a malformed line is reported with file:line on stderr while the other reco
 
 test("run as a command, it prints JSON lines and sets the exit code", () => {
   const script = fileURLToPath(new URL("./lookup.mjs", import.meta.url));
-  const hit = spawnSync(process.execPath, [script, "tiny-steps", "--data-dir", FIXTURES], { encoding: "utf8" });
+  const common = ["--data-dir", FIXTURES, "--project", EMPTY_REPO, "--home", HOME];
+  const hit = spawnSync(process.execPath, [script, "tiny-steps", ...common], { encoding: "utf8" });
   assert.equal(hit.status, 0);
   assert.equal(JSON.parse(hit.stdout.trim()).id, "example-small-steps");
-  const miss = spawnSync(process.execPath, [script, "nothing-here", "--data-dir", FIXTURES], { encoding: "utf8" });
+  const miss = spawnSync(process.execPath, [script, "nothing-here", ...common], { encoding: "utf8" });
   assert.equal(miss.status, 1);
+});
+
+test("--user-config - reads name=value lines from stdin and treats an unrendered placeholder as unset", () => {
+  const script = fileURLToPath(new URL("./lookup.mjs", import.meta.url));
+  const r = spawnSync(process.execPath, [script, "--data-dir", FIXTURES, "--project", EMPTY_REPO, "--home", HOME, "--user-config", "-"], {
+    encoding: "utf8",
+    input: "source_bar=${user_config.source_bar}\nexclude=beta,example-big-design\n",
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(r.stdout.trim().split("\n").map((line) => JSON.parse(line).id), ["example-small-steps"]);
+});
+
+test("with no setting in any layer, source_bar is official and nothing is excluded", async () => {
+  const { records, errors } = await run([]);
+  assert.equal(records.length, 3);
+  assert.deepEqual(errors, []);
+});
+
+test("the user's source_bar option applies when no repository layer sets it", async () => {
+  const { records } = await run([], { userConfig: { source_bar: "official-plus-confirming" } });
+  assert.deepEqual(ids(records), ["example-small-steps"]);
+});
+
+test("the repository team file's source_bar wins over the user's option", async () => {
+  const project = repo({ [TEAM]: "source_bar: official-plus-confirming\n" });
+  const { records } = await run([], { project, userConfig: { source_bar: "official" } });
+  assert.deepEqual(ids(records), ["example-small-steps"]);
+});
+
+test("exclude is the union of the user option, the team file, the personal file and the flag", async () => {
+  const project = repo({
+    [TEAM]: "exclude:\n  - beta\n",
+    "docs/conventions/engineering-concepts.local.yaml": "exclude:\n  - example-big-design\n",
+  });
+  const all = await run([], { project, userConfig: { exclude: "example-small-steps" } });
+  assert.deepEqual(ids(all.records), []);
+  const teamOnly = repo({ [TEAM]: "exclude:\n  - beta\n" });
+  const withoutLocal = await run([], { project: teamOnly, userConfig: { exclude: "example-small-steps" } });
+  assert.deepEqual(ids(withoutLocal.records), ["example-big-design"]);
+  const withFlag = await run(["--exclude", "example-big-design"], { project: teamOnly, userConfig: { exclude: "example-small-steps" } });
+  assert.deepEqual(ids(withFlag.records), []);
+});
+
+test("an invalid team source_bar is reported and falls back to the default, not to the user's option", async () => {
+  const project = repo({ [TEAM]: "source_bar: loose\n" });
+  const { records, errors } = await run([], { project, userConfig: { source_bar: "official-plus-confirming" } });
+  assert.equal(records.length, 3);
+  const rejected = errors.filter((e) => e.event === "setting rejected");
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0].layer, "team");
+});
+
+test("the --source-bar flag overrides every settings layer for one run", async () => {
+  const project = repo({ [TEAM]: "source_bar: official-plus-confirming\n" });
+  const { records } = await run(["--source-bar", "official"], { project });
+  assert.equal(records.length, 3);
 });
 
 test("a term that names no record exits 1 with nothing on stdout", async () => {

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { homedir } from "node:os";
+import { basename, dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { resolveSettings } from "./settings.mjs";
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
 const STAGES = ["interview", "design", "plan", "build", "review", "operate", "any"];
@@ -25,12 +28,23 @@ Options:
   --kind KIND               records of this kind
   --stage STAGE             ${STAGES.join("|")}; a record staged "any" always matches
   --reversibility VALUE     ${REVERSIBILITY.join("|")}
-  --exclude ID|TOPIC        drop a record id or a whole topic; repeatable, values union
-  --source-bar BAR          ${SOURCE_BARS.join("|")} (default official)
+  --exclude ID|TOPIC        drop a record id or a whole topic; repeatable, unioned
+                            with the exclude setting of every layer
+  --source-bar BAR          ${SOURCE_BARS.join("|")}; overrides the source_bar
+                            setting for this run
   --check-sources           fetch each source_url and mark unreachable ones for
                             re-sourcing; the only mode that touches the network
   --data-dir DIR            read records from DIR instead of the plugin's data/
+  --project DIR             repository whose settings layers apply (default: the
+                            git root of the working directory)
+  --user-config FILE|-      the plugin's userConfig values: a JSON file, or - for
+                            name=value lines on stdin
+  --home DIR                user home, used only to report legacy config files
   -h, --help                show this help
+
+Settings source_bar and exclude resolve through the plugin config cascade:
+defaults, userConfig, <home>/engineering-concepts.yaml, then
+<home>/engineering-concepts.local.yaml. A rejected value is reported on stderr.
 
 Output: one JSON record per line on stdout, counterweights and conflicts_with as
 {id, name}. Diagnostics: JSON lines on stderr, each rejected record with its
@@ -44,9 +58,12 @@ const OPTIONS = {
   stage: { type: "string" },
   reversibility: { type: "string" },
   exclude: { type: "string", multiple: true, default: [] },
-  "source-bar": { type: "string", default: "official" },
+  "source-bar": { type: "string" },
   "check-sources": { type: "boolean", default: false },
   "data-dir": { type: "string", default: DATA_DIR },
+  project: { type: "string" },
+  "user-config": { type: "string" },
+  home: { type: "string", default: homedir() },
   help: { type: "boolean", short: "h", default: false },
 };
 
@@ -148,9 +165,26 @@ export async function checkSources(records, fetchImpl) {
   return checked;
 }
 
+const STDIN_FD = 0;
+
+function readUserConfig(source) {
+  if (source !== "-") return JSON.parse(readFileSync(source, "utf8"));
+  return Object.fromEntries(
+    readFileSync(STDIN_FD, "utf8")
+      .split(/\r?\n/u)
+      .filter((line) => line.includes("="))
+      .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+  );
+}
+
+function gitRoot(dir) {
+  const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+  return r.status === 0 ? r.stdout.trim() : dir;
+}
+
 export async function main(argv, { fetch: fetchImpl = globalThis.fetch, out = console.log, err = console.error } = {}) {
-  const invalid = (option, value, allowed) => {
-    err(JSON.stringify({ level: "error", event: "invalid option", option, value, ...(allowed && { allowed }) }));
+  const invalid = (option, value, allowed, error) => {
+    err(JSON.stringify({ level: "error", event: "invalid option", option, value, ...(allowed && { allowed }), ...(error && { error }) }));
     return 2;
   };
   let parsed;
@@ -166,10 +200,21 @@ export async function main(argv, { fetch: fetchImpl = globalThis.fetch, out = co
   }
   if (opts.stage && !STAGES.includes(opts.stage)) return invalid("stage", opts.stage, STAGES);
   if (opts.reversibility && !REVERSIBILITY.includes(opts.reversibility)) return invalid("reversibility", opts.reversibility, REVERSIBILITY);
-  if (!SOURCE_BARS.includes(opts["source-bar"])) return invalid("source-bar", opts["source-bar"], SOURCE_BARS);
+  if (opts["source-bar"] !== undefined && !SOURCE_BARS.includes(opts["source-bar"])) return invalid("source-bar", opts["source-bar"], SOURCE_BARS);
+
+  let userConfig = {};
+  if (opts["user-config"]) {
+    try {
+      userConfig = readUserConfig(opts["user-config"]);
+    } catch (e) {
+      return invalid("user-config", opts["user-config"], null, e.code ?? e.message);
+    }
+  }
+  const settings = resolveSettings({ projectRoot: resolvePath(opts.project ?? gitRoot(process.cwd())), userConfig, userHome: opts.home, err });
+  const filters = { ...opts, "source-bar": opts["source-bar"] ?? settings.source_bar, exclude: [...settings.exclude, ...opts.exclude] };
 
   const index = loadIndex(opts["data-dir"], err);
-  let records = select(index, positionals.join(" ").trim(), opts).map((r) => present(index, r));
+  let records = select(index, positionals.join(" ").trim(), filters).map((r) => present(index, r));
   if (opts["check-sources"]) records = await checkSources(records, fetchImpl);
   for (const record of records) out(JSON.stringify(record));
   return records.length ? 0 : 1;

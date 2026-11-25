@@ -18,5 +18,19 @@
   ],
   "metadata": {
     "category": "design"
+  },
+  "userConfig": {
+    "source_bar": {
+      "type": "string",
+      "title": "Source bar",
+      "description": "Which catalog records lookups return: official (every record with an official source) or official-plus-confirming (only records that also list a confirming source). docs/conventions/engineering-concepts.yaml overrides this.",
+      "default": "official"
+    },
+    "exclude": {
+      "type": "string",
+      "title": "Excluded concepts",
+      "description": "Comma-separated concept ids or topic names that lookups drop. Unioned with every exclude list in docs/conventions/engineering-concepts.yaml and its .local.yaml.",
+      "default": ""
+    }
   }
 }

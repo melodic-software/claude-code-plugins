@@ -14,10 +14,22 @@ Bring catalog entries into the session so the work ahead is checked against them
 pointers to official sources, no definitions: the session keeps each entry's name, source and
 counterweights in view and reads a source only when a decision turns on what it says.
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/lookup.mjs" --topic <topic>` for a topic, or with the term
-for one entry; `--help` lists the filters. When the argument could be either, try it as a topic
-first, since a topic name is a file under `data/`, then as a term. Pass the user's own `--exclude`
-and `--source-bar` values when they give them.
+Run the lookup with `--topic <topic>` for a topic, or with the term for one entry; `--help` lists
+the filters. When the argument could be either, try it as a topic first, since a topic name is a
+file under `data/`, then as a term. Keep the heredoc as written: it hands the plugin's saved
+options to the script, which merges them with the repository's settings files
+([Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)).
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/lookup.mjs" --topic <topic> --project "<repository root>" --user-config - <<'EC_SETTINGS'
+source_bar=${user_config.source_bar}
+exclude=${user_config.exclude}
+EC_SETTINGS
+```
+
+If that run is refused, run the first line alone without `--user-config -` and say the user-level
+settings were not applied. A `--source-bar` or `--exclude` the user asks for goes on the command
+line.
 
 Report what was loaded as a short list: each entry's name, id, source link, stage and its
 counterweights. Then keep the list as standing context for the rest of the task: when a step meets
@@ -26,7 +38,8 @@ alone.
 
 - Nothing matched (exit 1): say so with the argument tried, and load nothing.
 - A stderr line with `"event":"record rejected"` names a broken data file at its `at` location:
-  report it and load the records that parsed.
+  report it and load the records that parsed. One with `"event":"setting rejected"` names a
+  dropped settings value: report it.
 
 Loading never adopts a concept as a standard. A stance a team or person keeps lives in their
 standards layers.

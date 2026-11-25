@@ -14,15 +14,28 @@ Answer from the catalog's records: each one names a concept, its official source
 concepts that pull against it. A record holds pointers to official sources, no definitions; when
 the question needs what a concept says, read its `source_url` and answer from that page.
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/lookup.mjs"` with the term and filters the request implies
-(`--help` lists them). Pass the user's own `--exclude` and `--source-bar` values when they give
-them. Report each hit as its name and id, the source link, the tags that made it match, and its
+Run the lookup with the term and filters the request implies (`--help` lists them), with
+`--project` set to the repository root. Keep the heredoc as written: it hands the plugin's saved
+options to the script, which merges them with the repository's settings files
+([Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)).
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/lookup.mjs" <term and filters> --project "<repository root>" --user-config - <<'EC_SETTINGS'
+source_bar=${user_config.source_bar}
+exclude=${user_config.exclude}
+EC_SETTINGS
+```
+
+If that run is refused, run the first line alone without `--user-config -` and say the user-level
+settings were not applied. A `--source-bar` or `--exclude` the user asks for in the request goes on
+the command line. Report each hit as its name and id, the source link, the tags that made it match, and its
 counterweights and conflicts by name; say which filters you applied.
 
 - Exit 1 means nothing matched: say so and name the term and filters tried, never a concept from
   memory presented as a catalog entry.
-- A stderr line with `"event":"record rejected"` names a broken data file at its `at` location:
-  report it beside the results.
+- A stderr line with `"event":"record rejected"` names a broken data file at its `at` location;
+  one with `"event":"setting rejected"` names a settings value that was dropped. Report either
+  beside the results.
 - A record's `owner` names the skill or page that owns the practice in depth; point there when the
   user wants to act on it.
 
