@@ -94,9 +94,6 @@ test("each leg starts only after the one before named it as the next leg, and a 
   assert.match(credit, /\n {8}continue-on-error: true\n {8}timeout-minutes: 2\n/);
   assert.match(credit, /\n {10}leg: start\n {10}role: pr-verify\n {10}key-job: rate-merge-risk\n/);
   assert.match(credit, /\n {10}probe-minutes: "0"\n/);
-  // The key leg decides its credential right after the resolver lets the head
-  // through, before the trigger check, and only a key that runs goes on to
-  // the trigger check and the reads after it.
   const keyOrder = [...stepsOf(LEGS.key).keys()];
   assert.deepEqual(keyOrder.slice(keyOrder.indexOf("Resolve the pull request"), keyOrder.indexOf("Check the trigger") + 1), ["Resolve the pull request", "Read the key's credit history", "Check the credential", "Report the skipped key leg", "Check the trigger"]);
   assert.match(credit, /\n {8}if: steps\.pr\.outputs\.proceed == 'true'\n/);
@@ -130,7 +127,6 @@ const requires = (id) => {
     const sid = /^ {8}id: (\S+)$/m.exec(block)?.[1];
     if (sid) ifs.set(sid, /^ {8}if: (.*)$/m.exec(block)?.[1] ?? "");
   }
-  // The steps a condition requires, transitively.
   return (start) => {
     const seen = new Set();
     const walk = (cond, at) => {
@@ -159,9 +155,6 @@ test("in every leg, no model or upload step runs unless the resolver and the tri
       for (const gate of ["pr", "gate", "agree"]) assert.ok(deps.has(gate), `${id}: ${name} requires step ${gate}`);
     }
   }
-  // The trigger check runs only on the resolver's proceed (in the key leg,
-  // also only for a key that runs), and the agreement step only on the
-  // trigger check's.
   for (const id of Object.values(LEGS)) {
     assert.match(step(id, "Check the trigger"), /\n {8}if: steps\.pr\.outputs\.proceed == 'true'(?: && steps\.credential\.outputs\.present == 'true')?\n/, id);
     assert.match(step(id, "Assert the gate and the resolver agree"), /\n {8}if: steps\.gate\.outputs\.proceed == 'true'\n/, id);
@@ -201,7 +194,6 @@ test("the rating runs under dontAsk on the data directory and the review plugin'
     assert.ok(!denied.some((rule) => ["Read(~/**)", "Read(./**)", "Read(//**)", "Read"].includes(rule)));
     assert.deepEqual(list(rate, "plugin-dirs"), [".lane/plugins/review"]);
     assert.match(rate, /CLAUDE_CODE_SUBAGENT_MODEL_FORCE: \$\{\{ steps\.checker\.outputs\.force \}\}/);
-    // The managed settings and the isolation come first.
     const order = [...stepsOf(id).keys()];
     assert.ok(order.indexOf("Apply the Claude managed settings") < order.indexOf("Isolate the runner"), id);
     assert.ok(order.indexOf("Isolate the runner") < order.indexOf("Rate the pull request"), id);
