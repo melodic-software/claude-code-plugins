@@ -39,6 +39,21 @@ export const baselineOnly = (author, files, appId, baselineFile) =>
   Array.isArray(files) &&
   files.length === 1 &&
   files[0] === baselineFile;
+export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
+export const isDependencyManager = (user) =>
+  user?.type === "Bot" &&
+  DEPENDENCY_MANAGERS.includes(String(user.login ?? "").toLowerCase().replace(/^app\//, "").replace(/\[bot\]$/, ""));
+export const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
+export const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
+export function authorSkip(user, verifyAuthors, laneIdentity, ownerIds) {
+  const lane = () => loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
+  const owner = () => (user?.type === "User" || user?.type === "Bot") && ownerIds.includes(user.id);
+  if (isDependencyManager(user)) return "dependency-manager";
+  if (!VERIFY_AUTHORS.includes(verifyAuthors)) return "verify-authors-invalid";
+  if (verifyAuthors === "lane" && !lane()) return "author-not-lane";
+  if (verifyAuthors === "lane-or-owner" && !lane() && !owner()) return "author-not-lane-or-owner";
+  return null;
+}
 export const baselineNote = (baselineFile) =>
   `the lanes App's pull request changes only ${baselineFile} (merge.baseline-file), which merges with no linked issue or pr-verify verdict`;
 // report-outcome.mjs HOLD_LINE on a line of its own, which
@@ -865,7 +880,7 @@ export function approvalCarry(then, now, from, inBase, merges, based, dismissal 
 // Holding them for a person would hold most pull requests, so a push that
 // touches one only stops an approval carrying (ungatedSince); the review
 // lanes still judge it. babysit_merge_policy.CARRY_REFUSES is the same list.
-export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh", "plugins/code-tidying/git-hooks/comment-lint-ci.sh"]);
+export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/work-items/skills/triage/scripts/**", "plugins/work-items/skills/triage/schemas/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh", "plugins/code-tidying/git-hooks/comment-lint-ci.sh"]);
 
 // Whether the compare from...H' `merges` touches no hold path and no file a
 // hold path loads, old paths of renames included: pathHold with `holdPaths`

@@ -1,7 +1,9 @@
 // Resolves the pull request a pr-require-checks run passed, for pr-verify.yml.
-// The only event field it takes is the upstream run id; every other fact is
-// read back from the API. It proceeds only when all of these hold, and
-// otherwise writes proceed=false with a reason:
+// It takes the upstream run from the event payload (readUpstreamRun), which
+// GitHub writes for the attempt that completed, and reads that attempt's jobs
+// (attemptJobsPath), so a re-run started since cannot change what is judged;
+// every other fact is read back from the API. It proceeds only when all of
+// these hold, and otherwise writes proceed=false with a reason:
 // - the run is a completed pull_request run of pr-require-checks.yml, by
 //   exact path, in this repository on a head of this repository, that
 //   succeeded or failed only on holds an approving review of the head lifts
@@ -73,26 +75,22 @@ import {
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { listChangedAt } from "../lib/trusted-actors.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
-import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { PR_READS, prReads, titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { specSource } from "./spec-source.mjs";
-import { baselineOnly, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { authorSkip, baselineOnly, DEPENDENCY_MANAGERS, isDependencyManager, loginKey, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { ACTIONS_BOT_ID, briefedIssue, carriesSplit, ownAgentIds, readSchedule, SOURCE_LABEL, sourceLabels, webHostsFrom } from "../intake-triage/admit.mjs";
 import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredRows } from "../intake-triage/issue-spec.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
-export { refsIssue, vendoredRows };
+export { DEPENDENCY_MANAGERS, isDependencyManager, refsIssue, vendoredRows };
 
 export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
 
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
-// babysit_classify.DEPENDENCY_MANAGER_LOGINS: the pr-merge lane refuses these
-// Bot accounts' pull requests before reading a verdict.
-export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
-const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
 export const shapeJobs = (runId, jobs) => ({
   run_id: Number(runId),
@@ -106,6 +104,20 @@ export const keptJobsPath = (env) => (env.RUNNER_TEMP ? path.join(env.RUNNER_TEM
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
+
+export function readUpstreamRun(eventText) {
+  const run = JSON.parse(eventText)?.workflow_run;
+  if (run === null || typeof run !== "object" || Array.isArray(run)) {
+    throw new Error("the event payload holds no workflow_run");
+  }
+  return run;
+}
+
+// The jobs of `run`'s own attempt, which a later attempt does not change
+// (https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt).
+export const attemptJobsPath = (repository, run, page) =>
+  `/repos/${repository}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100${page === undefined ? "" : `&page=${page}`}`;
+const isAttempt = (value) => Number.isSafeInteger(value) && value >= 1;
 const MAX_PAGES = 100;
 
 // A 200 whose completeness check failed: a list shorter than its count, or a
@@ -264,17 +276,6 @@ const actorFields = (actor, role) => ({
   [`${role}_type`]: typeof actor?.__typename === "string" ? actor.__typename : null,
 });
 
-// A Bot account with a dependency manager's login; a User named like one is not.
-export const isDependencyManager = (user) =>
-  user?.type === "Bot" &&
-  DEPENDENCY_MANAGERS.includes(String(user.login ?? "").toLowerCase().replace(/^app\//, "").replace(/\[bot\]$/, ""));
-
-// babysit_merge_policy._login_key: REST spells an App `app[bot]`, GraphQL `app`.
-const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
-const laneAuthored = (user, laneIdentity) =>
-  loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
-const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "Bot") && ids.includes(user.id);
-
 // pr-require-checks.yml's ci-status step that runs merge-holds.mjs on a lanes
 // App pull request, and the step after it that aggregates the lanes. A run
 // reports its own commit's step names, on a re-run too, so a held head whose
@@ -330,7 +331,7 @@ export const errorLines = (log) =>
 // The check is two halves: heldShape reads only the run's jobs, so it runs
 // before the commit's pull requests are read, and heldOnly reads the
 // ci-status log against the pull request's number.
-// `read` is the resolution's one jobs read (latestJobs). Returns the ci-status
+// `read` is the resolution's one jobs read (attemptJobsPath). Returns the ci-status
 // job's id and its failed step names, or null.
 async function heldShape(read) {
   try {
@@ -1081,14 +1082,14 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages, trustedListChangedAt }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRun: run, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, keepReads, rated, schedule = readSchedule(), upstreamPages: pages, trustedListChangedAt }) {
   const skip = (reason) => ({ proceed: false, reason });
-  if (!RUN_ID.test(String(upstreamRunId))) {
+  if (!RUN_ID.test(String(run?.id))) {
     throw new Error("the upstream run id is not a run id");
   }
-  const run = await github("GET", `/repos/${repository}/actions/runs/${upstreamRunId}`);
+  const upstreamRunId = run.id;
   if (
-    String(run?.id) !== String(upstreamRunId) ||
+    !isAttempt(run.run_attempt) ||
     run.path !== UPSTREAM_PATH ||
     run.event !== "pull_request" ||
     run.status !== "completed" ||
@@ -1100,7 +1101,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     return skip("not-a-passing-run");
   }
   let jobs;
-  const readJobs = () => (jobs ??= latestJobs(github, repository, upstreamRunId));
+  const readJobs = () => (jobs ??= github("GET", attemptJobsPath(repository, run)));
   const shape = run.conclusion === "failure" && typeof readLog === "function" ? await heldShape(readJobs) : null;
   if (run.conclusion === "failure" && shape === null) {
     return skip("not-a-passing-run");
@@ -1124,17 +1125,9 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (pull.draft !== false) {
     return skip("draft");
   }
-  if (isDependencyManager(pull.user)) {
-    return skip("dependency-manager");
-  }
-  if (!VERIFY_AUTHORS.includes(verifyAuthors)) {
-    return skip("verify-authors-invalid");
-  }
-  if (verifyAuthors === "lane" && !laneAuthored(pull.user, laneIdentity)) {
-    return skip("author-not-lane");
-  }
-  if (verifyAuthors === "lane-or-owner" && !laneAuthored(pull.user, laneIdentity) && !ownerAuthored(pull.user, owners)) {
-    return skip("author-not-lane-or-owner");
+  const unjudged = authorSkip(pull.user, verifyAuthors, laneIdentity, owners);
+  if (unjudged !== null) {
+    return skip(unjudged);
   }
   if (run.conclusion === "failure" && !(await heldOnly(readLog, shape, pull.number))) {
     return skip("not-a-passing-run");
@@ -1231,6 +1224,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (!(await notDraftRun())) {
     return skip("draft-run");
   }
+  keepReads?.(prReads(pull.number, pull, specPull));
   return {
     proceed: true,
     reason: reopened ?? (passes.length > 0 ? "spec-changed" : "ok"),
@@ -1386,8 +1380,8 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
   for (const key of [
     "GITHUB_TOKEN",
     "GITHUB_REPOSITORY",
+    "GITHUB_EVENT_PATH",
     "GITHUB_OUTPUT",
-    "UPSTREAM_RUN_ID",
     "SPEC_FILE",
     "SPEC_TEXT_FILE",
     "TRUSTED_ACTORS_PATH",
@@ -1396,6 +1390,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
       throw new Error(`${key} is not set`);
     }
   }
+  const upstreamRun = readUpstreamRun(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
   const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
   const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors, latch });
   // A job's log: GitHub answers with a redirect to storage, which is read
@@ -1419,13 +1414,14 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     return response.text();
   };
   let jobs;
+  let reads;
   const client = github ?? api(false);
   const result = await resolvePull({
     github: client,
     readRefs: github ?? api(true),
     readLog,
     repository: env.GITHUB_REPOSITORY,
-    upstreamRunId: env.UPSTREAM_RUN_ID,
+    upstreamRun,
     humans: trusted.humans,
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
@@ -1438,6 +1434,9 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     keepJobs: (list) => {
       jobs = list;
     },
+    keepReads: (kept) => {
+      reads = kept;
+    },
     rated: ratedBy(env),
     trustedListChangedAt: env.STANDARDS_SHA ? () => listChangedAt(client, env.STANDARDS_SHA) : undefined,
   });
@@ -1449,7 +1448,10 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     writeJson(env.SPEC_TEXT_FILE, result.specText);
     const keptFile = jobs !== undefined && keptJobsPath(env);
     if (keptFile) {
-      writeFileSync(keptFile, `${JSON.stringify(shapeJobs(env.UPSTREAM_RUN_ID, jobs))}\n`);
+      writeFileSync(keptFile, `${JSON.stringify(shapeJobs(upstreamRun.id, jobs))}\n`);
+    }
+    if (reads && env.RUNNER_TEMP) {
+      writeFileSync(path.join(env.RUNNER_TEMP, PR_READS), `${JSON.stringify(reads)}\n`);
     }
   }
   const lines = [

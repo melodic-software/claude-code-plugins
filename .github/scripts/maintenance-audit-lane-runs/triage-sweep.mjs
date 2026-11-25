@@ -165,7 +165,7 @@ export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reache
     : `The triage sweep dispatched [intake triage](${runUrl}) for this issue (dispatch ${runs.length}; ${ATTEMPTS} runs that reach intake, or ${RUN_LIMIT} dispatches, hand it to a maintainer).`);
 
 const INTAKE_JOB = /^(?:Intake Triage|intake-triage)(?: \/ |$)/;
-const INTAKE_APPLY_JOB = /^(?:Intake Triage|intake-triage) \/ (?:.*-apply|Apply)$/;
+const INTAKE_APPLY_JOB = /^(?:(?:Intake Triage|intake-triage) \/ (?:.*-apply|Apply)|Post Triage|post-triage)$/;
 const APPLY_JOB = "Apply Verdict";
 const APPLY_JOB_BEFORE_RENAME = "apply-verdict";
 export const reachedIntake = (jobs) =>

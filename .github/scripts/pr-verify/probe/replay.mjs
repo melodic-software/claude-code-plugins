@@ -278,6 +278,7 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
     }),
     run: {
       id: runId,
+      run_attempt: 1,
       path: ".github/workflows/pr-require-checks.yml",
       event: "pull_request",
       status: "completed",
@@ -341,8 +342,7 @@ export function stubGitHub(s) {
   const R = `/repos/${s.repository}`;
   const page = (list) => (apiPath) => (/[?&]page=1$/.test(apiPath) ? list : []);
   const gets = [
-    [`${R}/actions/runs/${s.runId}`, () => s.run],
-    [`${R}/actions/runs/${s.runId}/jobs?`, (apiPath) => (/[?&]page=(?!1$)\d+$/.test(apiPath) ? { total_count: s.jobs.length, jobs: [] } : { total_count: s.jobs.length, jobs: s.jobs })],
+    [`${R}/actions/runs/${s.runId}/attempts/1/jobs?`, (apiPath) => (/[?&]page=(?!1$)\d+$/.test(apiPath) ? { total_count: s.jobs.length, jobs: [] } : { total_count: s.jobs.length, jobs: s.jobs })],
     [`${R}/commits/${s.head}/pulls?`, page([s.pull])],
     [`${R}/actions/artifacts?name=`, () => ({ artifacts: [] })],
     [`${R}/pulls/${s.number}/reviews?`, page([])],
@@ -417,7 +417,7 @@ export async function writeData({ testCase, index, dataDir, trustedActorsPath, v
   const resolved = await resolvePull({
     github,
     repository: s.repository,
-    upstreamRunId: String(s.runId),
+    upstreamRun: s.run,
     humans: trusted.humans,
     verifyAuthors,
     laneIdentity,
@@ -437,7 +437,7 @@ export async function writeData({ testCase, index, dataDir, trustedActorsPath, v
   writeFileSync(path.join(dataDir, "pr.json"), json({ pr: resolved.prNumber, head_sha: resolved.headSha, base_sha: resolved.baseSha }));
   baseTree ??= sh("git", ["-C", REPO_ROOT, "ls-tree", "-r", "-z", "--name-only", "HEAD"], { maxBuffer: 256 * 1024 * 1024 });
   const tree = replayedTree(testCase.diff, baseTree);
-  writeFileSync(path.join(dataDir, "upstream-jobs.json"), json(jobsFile(await upstreamJobs(github, s.repository, s.runId), tree)));
+  writeFileSync(path.join(dataDir, "upstream-jobs.json"), json(jobsFile(await upstreamJobs(github, s.repository, s.run), tree)));
   return resolved;
 }
 

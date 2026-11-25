@@ -4,6 +4,7 @@ import pathlib
 import sys
 
 os.environ["BABYSIT_VERIFY_LEGACY_FAILS"] = ""
+os.environ["GH_HOST"] = "github.test"
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge_settings as _settings  # noqa: E402

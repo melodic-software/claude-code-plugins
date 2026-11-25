@@ -16,11 +16,6 @@ from pathlib import Path
 
 import pytest
 
-# The origin-identity tests build a throwaway git repository. Under an inherited
-# absolute GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) `git init` and `git config`
-# would write into the caller's repository instead of the fixture, so clear the
-# ambient git environment once, before any fixture is built
-# (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
@@ -95,8 +90,6 @@ def _save_point_module():
     spec = importlib.util.spec_from_file_location("save_point_under_test", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    # Registered before execution: `dataclasses` resolves a field annotation
-    # through `sys.modules[cls.__module__]`, which is absent otherwise.
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
@@ -423,7 +416,6 @@ def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
     handoffs = materialize(tmp_path, "good-chain")
     target = handoffs / HOP1
     text = target.read_text(encoding="utf-8")
-    # ghs_<APPID>_<JWT>, about 520 characters; the segments spell FAKE.
     token = "ghs" + "_1234567_eyJFAKE.FAKEpayload" + "A" * 450 + ".FAKEsignatureNOTreal"
     text = text.replace(
         "None. Nothing waits on a person or an access grant.",
@@ -439,10 +431,6 @@ def _b64url(data):
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
-# A stateless installation token is ghs_ then a JWT of about 520 characters, with
-# no app id. The RS256 header encodes to exactly 36 alphanumerics, the length
-# gh[pousr]_ accepts; the kid header carries a '-' 16 characters in, before any
-# alphanumeric minimum is met. Payload and signature are fake.
 _STATELESS_JWT_TAIL = (
     "."
     + _b64url(b'{"sub":"FAKE-not-a-real-token","iat":0}')
@@ -513,9 +501,6 @@ def test_token_placeholders_are_not_secret_shaped(text):
     ],
 )
 def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
-    # Shapes that made the GitHub token, JWT and connection string patterns
-    # here, or the observer's private key pattern, backtrack for seconds to
-    # minutes.
     start = time.monotonic()
     for pattern, _ in _save_point_module().SECRET_SHAPES:
         pattern.search(line)
@@ -525,7 +510,6 @@ def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
 @pytest.mark.parametrize(
     ("text", "label"),
     [
-        # Header, payload and signature spell FAKE.
         (
             "auth eyJhbGciOiJIUzI1NiJ9" + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal x",
             "JWT",
@@ -1441,8 +1425,6 @@ def test_new_without_memory_dir_outside_git_and_no_data_dir_refuses(tmp_path):
 
 
 def test_new_without_memory_dir_ignores_another_plugins_data_env(tmp_path):
-    # Another plugin's SessionStart hook can export its own data dir into every
-    # Bash call as CLAUDE_PLUGIN_DATA; the derivation from the cache path wins.
     cwd = _outside_git(tmp_path)
     config = tmp_path / "config"
     version_dir = config / "plugins" / "cache" / "my.market" / "session-flow" / "1.2.3"
@@ -1679,7 +1661,7 @@ def test_validate_refuses_a_predecessor_symlinked_out_of_the_handoffs_dir(tmp_pa
     except (
         OSError,
         NotImplementedError,
-    ) as exc:  # unprivileged Windows, or a filesystem without symlinks
+    ) as exc:
         pytest.skip(f"symlink creation unavailable: {exc}")
     result = run("validate", str(handoffs / HOP2), "--strict-transcript")
     assert result.returncode == 1, out(result) + err(result)
@@ -1769,8 +1751,6 @@ def test_fill_then_validate_and_emit_exit_zero(tmp_path):
 
 def test_fill_preserves_crlf_on_untouched_lines(tmp_path):
     target = new_skeleton(tmp_path)
-    # `cmd_new` writes with newline="\n", so CRLF never arises from `new` itself;
-    # a CRLF skeleton is what a consumer's own editor or checkout leaves behind.
     target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
     payload = required_slots(target.read_text(encoding="utf-8"))
     result = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
@@ -2481,8 +2461,6 @@ SID_E = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
 HOP4 = "20260904T100000Z-handoff-widget.md"
 HOP5 = "20260905T100000Z-handoff-widget.md"
 HOT_CAP = 24_600
-# The Read tool's 25,000-token page cap at 2.34 bytes per token (#9238 asks for a
-# FAIL above it).
 READ_CAP = 58_500
 SHAPE3_SECTIONS = [
     "Original goal",
@@ -4139,7 +4117,7 @@ def test_amend_refusals_leave_both_files_byte_identical(
     "prep, code, needle",
     [
         ("skeleton", 1, "unfinished skeleton"),
-        ("shape2", 2, "shape-3 and shape-4 hot files only"),
+        ("shape2", 2, "shape-3 and shape-4 handoff files only"),
         ("not-handoff", 2, "not a handoff file"),
     ],
 )
@@ -4345,7 +4323,7 @@ def test_carry_checks_stay_failing_after_a_size_only_predecessor_failure(tmp_pat
     hop1 = s3_hop(repo, tmp_path, values={"observations": "- " + "x" * 30000})
     oversized = strict(hop1)
     assert oversized.returncode == 1, out(oversized)
-    assert "hot-file cap" in out(oversized), out(oversized)
+    assert "handoff-file cap" in out(oversized), out(oversized)
     hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
     edit(hop2, "- [R1] The thing must stay green.\n", "")
     dropped = strict(hop2)

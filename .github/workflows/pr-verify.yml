@@ -175,7 +175,6 @@ jobs:
           # A rate-guard stop holds green with the resolver's other GitHub
           # faults (resolve-pr.mjs closing) instead of failing the step.
           API_BUDGET_HOLD: "1"
-          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
@@ -282,6 +281,8 @@ jobs:
           pr-number: ${{ steps.pr.outputs.pr-number }}
           standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
+          reads-path: ${{ runner.temp }}/pr-verify-pr-reads.json
+          head-sha: ${{ steps.pr.outputs.head-sha }}
           github-token: ${{ github.token }}
 
       # A blobless fetch of the two commits into its own repository outside
@@ -334,7 +335,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
-          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
@@ -2212,7 +2212,6 @@ jobs:
           # A rate-guard stop holds green with the resolver's other GitHub
           # faults (resolve-pr.mjs closing) instead of failing the step.
           API_BUDGET_HOLD: "1"
-          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
@@ -2284,6 +2283,8 @@ jobs:
           pr-number: ${{ steps.pr.outputs.pr-number }}
           standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
+          reads-path: ${{ runner.temp }}/pr-verify-pr-reads.json
+          head-sha: ${{ steps.pr.outputs.head-sha }}
           github-token: ${{ github.token }}
 
       - name: Write the diff
@@ -2321,7 +2322,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
-          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
@@ -4008,7 +4008,6 @@ jobs:
           # A rate-guard stop holds green with the resolver's other GitHub
           # faults (resolve-pr.mjs closing) instead of failing the step.
           API_BUDGET_HOLD: "1"
-          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
@@ -4075,6 +4074,8 @@ jobs:
           pr-number: ${{ steps.pr.outputs.pr-number }}
           standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
+          reads-path: ${{ runner.temp }}/pr-verify-pr-reads.json
+          head-sha: ${{ steps.pr.outputs.head-sha }}
           github-token: ${{ github.token }}
 
       - name: Write the diff
@@ -4112,7 +4113,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
-          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}

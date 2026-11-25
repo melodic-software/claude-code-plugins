@@ -88,9 +88,9 @@ def test_move_pointer_parses_the_design_form():
     [
         "archive/20260901T100000Z-handoff-widget/h3-abcdef12.md",
         "archive/20260901T100000Z-handoff-widget/notes.md#Observations",
-        "See the hop file for Observations.",
+        "See the archive file for Observations.",
     ],
-    ids=["no-heading", "not-a-hop-file", "prose"],
+    ids=["no-heading", "not-an-archive-file", "prose"],
 )
 def test_move_pointer_refuses_other_text(text):
     assert hc.MovePointer.parse(text) is None

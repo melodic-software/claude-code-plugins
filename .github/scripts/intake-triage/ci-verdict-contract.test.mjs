@@ -2,8 +2,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { checkVerdict, LANE_MARKER, verdictLines } from "../../../plugins/work-items/skills/triage/scripts/check-ci-verdict.mjs";
+import { checkVerdict, LANE_MARKER, SCHEMA, verdictLines } from "../../../plugins/work-items/skills/triage/scripts/check-ci-verdict.mjs";
 import { MARKER, parseVerdict } from "./apply-verdict.mjs";
+import { narrowType } from "./write-intake-issue.mjs";
 
 const DIMS = {
   fields: {
@@ -43,6 +44,12 @@ describe("a /work-items:triage --ci verdict reads as the intake lane's", () => {
       }
     });
   }
+
+  test("a type on a schema write-intake-issue dropped it from is an unknown field, not a TypeError", () => {
+    const validVerdict = skillVerdict({ size: "small", complexity: "low", uncertainty: "known", flags: [], blocked_by: [] });
+    assert.deepEqual(checkVerdict({ ...validVerdict, type: "Task" }, narrowType(SCHEMA, [])), ["unknown fields: type"]);
+    assert.deepEqual(checkVerdict({ ...validVerdict, type: "Task" }, narrowType(SCHEMA, ["Task"])), []);
+  });
 
   test("an untrusted flag reads as untrusted provenance and names no blocker", () => {
     const verdict = skillVerdict({ size: "small", complexity: "low", uncertainty: "known", flags: ["untrusted"], blocked_by: [] });

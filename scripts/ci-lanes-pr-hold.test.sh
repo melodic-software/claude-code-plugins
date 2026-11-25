@@ -549,18 +549,19 @@ EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE STUB_KEEP_READS
   expect "after the author step, the queued step answers from its read" 0 0 "not the lanes App's"
 expect_pull_reads "the queued step makes no pull read of its own after the author step" 0
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-for gated in "$(step_of "List main's tip for the carry readers")" "$restore" "$carry"; do
+for gated in "$restore" "$carry"; do
   if [[ "$gated" == *'steps.queued_author.outputs.verify_judged != '"'false'"* ]]; then
     ok "$(sed -n 's/^      - name: //p' <<<"$gated") skips a queued pull request whose author the author step proved pr-verify does not judge"
   else
     fail "$(sed -n 's/^      - name: //p' <<<"$gated") does not skip on the author step's verify_judged=false"
   fi
 done
-predicate() { awk '/judged=\$\(jq -r --arg authors/ { on = 1; next } on { print } on && /else false end/ { exit }' | sed 's/^ *//'; }
-if [[ -n "$(predicate <"$TMP_ROOT/author.sh")" && "$(predicate <"$TMP_ROOT/author.sh")" == "$(predicate <"$TMP_ROOT/body.sh")" ]]; then
-  ok "the author step and the lanes-hold step judge the author by the same predicate"
+# shellcheck disable=SC2016 # literal step text, not shell
+if grep -qF 'judged=$(verify_judged "$authors" "$identity" <<<"$pull")' "$TMP_ROOT/author.sh" &&
+  grep -qF 'judged=$(verify_judged "$authors" "$identity" <<<"$pull")' "$TMP_ROOT/body.sh"; then
+  ok "the author step and the lanes-hold step judge the author by the same verify_judged"
 else
-  fail "the author step's and the lanes-hold step's author predicates differ"
+  fail "the author step or the lanes-hold step does not judge the author through verify_judged"
 fi
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
@@ -994,9 +995,12 @@ STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 15
   expect "in the merge queue, a trusted approval of the head lifts an owner pull request's FAIL hold" 0 1 "#7: no pr-verify FAIL hold: kyle-sexton approved this head, which lifts 'pr-verify's reader refuses this head (verify:fail: why)'."
 STUB_EVIDENCE="$(evidence verify:earlier-fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
   expect "in the merge queue, an approval of an earlier head lifts no owner FAIL hold" 1 1 "pr-verify's reader refuses this head (verify:earlier-fail: why)"
-printf '%s\n' 'export const switchHold = () => null;' >"$TMP_ROOT/no-evidence-hold.mjs"
+printf '%s\n' 'export const switchHold = () => null;' "export { authorSkip } from \"$MODULE\";" >"$TMP_ROOT/no-evidence-hold.mjs"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_MODULE="$TMP_ROOT/no-evidence-hold.mjs" \
   expect "in the merge queue, a base module that cannot judge an owner FAIL fails closed" 1 1 "::error::merge-holds.mjs in the hold config could not judge the pr-verify FAIL (verify:fail) of #7"
+printf '%s\n' 'export const switchHold = () => null;' >"$TMP_ROOT/no-author-rule.mjs"
+STUB_MODULE="$TMP_ROOT/no-author-rule.mjs" \
+  expect "in the merge queue, a base module without authorSkip fails an owner pull request closed" 1 0 "::error::cannot read whether pr-verify judges the author of #7"
 KILL=true expect "in the merge queue, the kill switch does not hold an owner pull request" 0 1 "$NOT_HELD"
 STUB_ISSUE="[$KYLE_VETO]" STUB_INLINE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')]" \
   expect "in the merge queue, a member's veto does not hold an owner pull request" 0 1 "$NOT_HELD"
