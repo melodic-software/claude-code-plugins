@@ -12,7 +12,7 @@ allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/
 ## Pre-computed context
 
 ```!
-node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python '${user_config.asr_python}'
 ```
 
 If the report above did not run or shows no readiness lines, run that command by hand before any
@@ -284,7 +284,7 @@ The skill needs **Git Bash on Windows** (its frontmatter sets `shell: bash`) and
 [Node `import.meta.dirname`](https://github.com/nodejs/node/blob/main/doc/api/esm.md#importmetadirname).
 
 Verify before starting (stop and route to the fix path on failure). The readiness report is
-`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"`;
+`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python '${user_config.asr_python}'`;
 run it by hand when the pre-computed context did not run. It also prints where the dependencies
 install. `--data-dir` is the relocation override: pass another directory to both `setup-deps.mjs`
 and `run.mjs` when the default is not writable.
