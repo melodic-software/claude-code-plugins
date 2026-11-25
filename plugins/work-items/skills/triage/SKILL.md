@@ -15,7 +15,8 @@ Arguments: `$ARGUMENTS`. `[<number>]` is the issue or pull request number to tri
 `--config-ref <ref>` (optional, anywhere in the string) pins where the triage settings are read:
 a lane passes its base commit (a 40-hex commit id or `origin/<name>`) so the settings come from
 that commit, not from whatever branch is checked out. Any other token: stop and name the accepted
-set (`sweep`, `--config-ref <ref>`, a number, `--issue <n> --ci`).
+set (`sweep`, `--config-ref <ref>`, a number).
+The accepted set also holds `--issue <n> --ci`, the CI mode below.
 **CI mode.** `--issue <n> --ci` is an intake lane's mode: read [`context/ci-mode.md`](context/ci-mode.md) first, follow it to the end (it names what the run reads and the `triage-verdict.json` it writes), and skip every other section of this file except those it names. In that file `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`. No other invocation reads it.
 
 ## Shared tracker context
