@@ -43,8 +43,6 @@ if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' 
 else
   fail "step lost its ready pull_request condition or its draft re-run widening"
 fi
-# The skip-chain lookup (`lane_at`, `carried`) filters runs to this pull
-# request by PR_NUMBER, so the step's env must set it from the event.
 if [[ "$step" == *$'\n          PR_NUMBER: ${{ github.event.pull_request.number }}\n'* ]]; then
   ok "step env sets PR_NUMBER from the pull_request event"
 else
