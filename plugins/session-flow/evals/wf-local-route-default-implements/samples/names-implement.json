@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Next stage: implement #101, then #102.",
+      "why": "names implement"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The factory takes both items; no need to implement anything here.",
+      "why": "negated"
+    }
+  ]
+}

@@ -207,6 +207,16 @@
         "offer"
       ]
     },
+    "implementation_route": {
+      "type": "string",
+      "title": "Implementation route",
+      "description": "Where /session-flow:workflow sends work after decompose. local (default) continues into implement here; factory hands published items to the repository's unattended factory lanes, keeping local only items that need a local dependency. docs/conventions/session-flow.yaml wins.",
+      "default": "local",
+      "options": [
+        "local",
+        "factory"
+      ]
+    },
     "recommend_skills_exclude": {
       "type": "string",
       "title": "Recommend-skills exclusions",

@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: wf-factory-route-after-decompose
+description: 'Default mode of /session-flow:workflow after decompose, in a repository whose docs/conventions/session-flow.yaml sets implementation_route: factory. The two plain agent-ready items go to the factory with no local implement stage; the item labeled session-owned, which needs a host only this machine reaches, stays local and is named as such. A run needs --scaffold and --allow-tools Bash.'
+tags: [workflow, implementation-route]
+plugins: ["../.."]
+expected_outcome: 'The answer resolves implementation_route to factory from docs/conventions/session-flow.yaml, names #101 and #102 as handed to the factory, recommends no local implement stage for them, and names #103 as staying local because it needs the on-premises host, continuing from implement in a local session.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:workflow PLAN.md is decomposed and its items are published. What comes next?'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: factory-owns-published-items
+    type: llm
+    criteria: 'PASS only if the reply names the factory (the unattended factory lanes) as the owner of #101 and #102, recommends no local implement stage for them, and names #103 as staying in a local session because of its local dependency. FAIL if it recommends implementing #101 or #102 locally, sends #103 to the factory, or does not mention #103.'
+    focus: last_message
+    arm: with-only
+  - name: names-103-local
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|never|no)\b[^\n]{0,20}\blocal)[^\n]*#103\b[^\n]*\blocal(?:ly)?\b'
+    flags: 'mi'
+    arm: with-only

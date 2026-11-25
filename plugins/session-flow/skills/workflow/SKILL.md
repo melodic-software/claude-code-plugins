@@ -137,6 +137,38 @@ A change that passes both quick-change tests takes the quick-change on-ramp belo
 consuming repo has a skill for that stage, name it; otherwise describe the inline work. Add that
 stage's effort advice per "Effort per stage" in `context/steps.md`.
 
+**Where published items go after decompose.** `implementation_route` says whether the items
+decompose published take their remaining stages, implement through ship, in a local session
+(`local`, the default) or in the repository's unattended factory lanes, such as CI workflows that
+pick up agent-ready items (`factory`). Resolve it once, when the position reaches decompose, lowest
+layer first: the default `local`; the user's option `${user_config.implementation_route}`, where a
+literal, unexpanded placeholder means unset; then the repository's
+`docs/conventions/session-flow.yaml`, which wins when it sets the key (schema:
+[`${CLAUDE_PLUGIN_ROOT}/schemas/session-flow.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/session-flow.schema.json)).
+Read the repository value with
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" --strict "<git root>/docs/conventions/session-flow.yaml" implementation_route`,
+and only when the working directory's git root is neither `$HOME` nor an ancestor of it; otherwise
+skip that layer and say so. Empty output means unset only when the key is absent: if
+`grep -qE '^implementation_route[[:space:]]*:' "<file>"` matches, the key is present but empty or
+not a scalar, which is invalid. Exit 3 means the parser rejected the file: name the file and drop
+the layer. A value other than `local` or `factory` is named with its file or option, the key and
+the value, and that layer is dropped: the repository's valid value still wins over an invalid user
+value, and an invalid repository value or file resolves `local`, never the user's value; the run
+never stops on it. Report one line, for example
+`implementation_route: factory (docs/conventions/session-flow.yaml)`. Settings page:
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
+
+- `local`: the kind's row continues into implement as above.
+- `factory`: once decompose has published its items, recommend no local implement stage. Name
+  each published agent-ready item as handed to the factory, which owns its implement, test,
+  review, verify and ship. An item that needs a local dependency stays local and is named as
+  such, with the dependency: one the tracker marks as owned by a local session (the work-items
+  session-owned role label, if enabled), or one whose body names something only a local machine
+  reaches, such as the owner's own hosts, devices or credentials. That item continues from
+  implement in a local session. An item published as needing a human keeps that gate. The
+  session's own next step is then the retrospective, or the next task's first stage. A plan that
+  skipped decompose has published nothing, so its route is unchanged.
+
 To look a kind's sequence up together with the skills that run each stage and their arguments,
 point the user at the "By kind of task" table of the skill cheat sheet,
 [`docs/skill-cheat-sheet.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/skill-cheat-sheet.md#by-kind-of-task)

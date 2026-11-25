@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: wf-local-route-default-implements
+description: 'Default mode of /session-flow:workflow after decompose with no implementation_route set anywhere: the setting resolves to local, so the navigator suggests implement as the next stage, as it did before the setting existed. A run needs --scaffold and --allow-tools Bash.'
+tags: [workflow, implementation-route]
+plugins: ["../.."]
+expected_outcome: 'The answer suggests implement as the next stage for the published items in this session and does not hand them to a factory.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:workflow PLAN.md is decomposed and its items are published. What comes next?'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: suggests-local-implement
+    type: llm
+    criteria: 'PASS only if the reply suggests implement as the next stage for #101 or #102, to be done in this or another local session. FAIL if it says the items are handed to a factory, CI lanes or automation instead of being implemented, or suggests a stage other than implement as next.'
+    focus: last_message
+    arm: with-only
+  - name: names-implement
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|never|no|skip)\b[^\n]{0,20}\bimplement)[^\n]*\bimplement\b'
+    flags: 'mi'
+    arm: with-only

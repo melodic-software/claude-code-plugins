@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#101 and #102 go to the factory.\n#103 stays local: it needs the on-premises reporting host.",
+      "why": "the host-bound item is named as local"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "#103 is not local work; the factory takes it.",
+      "why": "negated"
+    },
+    {
+      "answer": "#101, #102 and #103 go to the factory.",
+      "why": "#103 never named as local"
+    }
+  ]
+}
