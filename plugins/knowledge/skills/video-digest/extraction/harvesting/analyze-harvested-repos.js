@@ -75,8 +75,6 @@ export async function analyzeHarvestedRepos(
         tempRoot,
         `${sanitizePathSegment(parsed.owner)}-${sanitizePathSegment(parsed.repo)}`,
       );
-      // Clone the canonical repo URL, not the harvested deep link (e.g.
-      // `.../blob/main/README.md`), which git cannot clone.
       const cloneUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
       const cloned = await clone(cloneUrl, cloneDir);
       if (!cloned) continue;

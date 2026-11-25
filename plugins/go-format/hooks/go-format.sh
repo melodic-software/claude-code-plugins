@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-#   go-format.sh                 the PostToolBatch row
-#   go-format.sh --end-of-turn   the opt-in Stop row (go_format_end_of_turn)
-#
-# PostToolBatch has no matcher, so the row fires on every batch. The launcher
-# skips the script unless the payload mentions ".go", and the script then reads
-# tool_calls[].tool_input.file_path itself, so a batch with no Go edit costs one
-# node process. A file that Read named is never rewritten.
 
 set -uo pipefail
 
@@ -15,10 +8,6 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 IFS= read -r -d '' INPUT || :
 
-# The opt-in Stop row: the pre-commit entry run over the uncommitted changes,
-# without rewriting. A file goimports cannot parse exits 2 so the model fixes it
-# before the turn ends; once a Stop hook has continued the turn (stop_hook_active)
-# the row stays quiet, so it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
   # shellcheck source=hook-utils.sh

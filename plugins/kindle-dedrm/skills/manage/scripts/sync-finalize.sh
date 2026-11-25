@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-# sync-finalize.sh — close the sync window: delete cached installer, re-enable firewall.
-# Run AFTER user has opened Kindle, synced, and quit Kindle entirely.
-#
-# Usage: sync-finalize.sh
 
 # shellcheck disable=SC2154
-# (Windows env var LOCALAPPDATA is set on Git Bash runtime)
 
 set -uo pipefail
 
@@ -21,7 +16,6 @@ if grep -qi kindle < <(powershell.exe -NoProfile -Command "Get-Process Kindle -E
 fi
 
 # shellcheck disable=SC2016
-# ($env:LOCALAPPDATA is expanded by PowerShell, not bash — single quotes are deliberate)
 KINDLE_VER=$(powershell.exe -NoProfile -Command '(Get-Item "$env:LOCALAPPDATA\Amazon\Kindle\application\Kindle.exe").VersionInfo.FileVersion' 2>/dev/null | tr -d '\r\n ')
 if [[ "${KINDLE_VER}" != "2.8.0.70980" ]]; then
   echo "[sync-finalize] WARNING: Kindle.exe version is ${KINDLE_VER}, expected 2.8.0.70980"
@@ -44,8 +38,6 @@ else
   echo "[sync-finalize] no cached installer — firewall caught the update attempt"
 fi
 
-# Report only: the skill's safety rules forbid unconfirmed batch deletes, and Kindle
-# may legitimately stage manifest or in-progress files here.
 OTHER_FILES=$(find "${KINDLE_UPDATES_DIR}" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)
 if [[ "${OTHER_FILES}" -gt 0 ]]; then
   echo "[sync-finalize] additional files remain in the updates dir — inspect these before deleting:"

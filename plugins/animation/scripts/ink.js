@@ -1,11 +1,3 @@
-// ink.js: stroke-built ink for two-tone, hand-drawn-looking Canvas 2D animation.
-// Contract for every function here:
-//   - deterministic: output depends only on the arguments; randomness comes from rng(seed, step).
-//   - `step` is the boil counter (e.g. floor(t * 8) for animation on 3s at 24 fps). Same step, same drawing;
-//     a new step re-lays every stroke, which is what makes the ink crawl. `boil: 0` freezes a shape.
-//   - no alpha blending on ink (two-tone rule); only paperGrain uses alpha, by design.
-//   - no dependencies, no DOM access beyond the ctx passed in (paperGrain creates one offscreen canvas).
-//   - the default ink is INK; a scene in a style passes the pack's palette.ink as `color`.
 
 export const INK = '#141211';
 

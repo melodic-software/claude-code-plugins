@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Keep this awk out of SKILL.md: skill argument substitution rewrites `$<digit>`
-# anywhere in a skill body, so an inline `$0` corrupts on any run given an argument.
 # Exit 1 when git status is unavailable; callers supply their own fallback text.
 set -u
 

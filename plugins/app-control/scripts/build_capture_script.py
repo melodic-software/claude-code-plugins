@@ -291,8 +291,6 @@ def bind(args):
 def build(bound, recorder, capture, elevate):
     target = bound[-1][1]["pid"]
     to_file = any("<file>" in a for a in recorder)
-    # An elevated recorder writes into a directory only the elevated user can change, so a process
-    # of this user cannot plant a symlink where the elevated write lands.
     staged = elevate and to_file
 
     def word(a):
@@ -363,8 +361,6 @@ def main(argv):
     except OSError as e:
         print(f"usage: cannot write a new script at {args.write}: {e.strerror}", file=sys.stderr)
         return 2
-    # Comment lines, so the whole of stdout is the script an elevated run feeds to sh. display()
-    # escapes every line break, so a command line cannot end the comment.
     for label, proc in bound:
         print(f"# {describe(label, proc)}")
     if args.elevate:

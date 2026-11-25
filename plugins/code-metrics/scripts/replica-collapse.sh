@@ -1,7 +1,4 @@
 # shellcheck shell=bash
-# A registry path is taken as given, else under the repository root, because
-# a team file names it root-relative and an audit may run from a subdirectory;
-# one that exists nowhere is a configuration error, never an empty registry.
 # The caller supplies `PY` (from python-resolve.sh).
 # shellcheck disable=SC2154
 

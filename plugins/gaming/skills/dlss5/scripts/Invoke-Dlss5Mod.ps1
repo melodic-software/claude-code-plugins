@@ -30,8 +30,6 @@ $BuildFiles = @{
     dagherbou = @('OptiScaler.dll', 'OptiScaler.ini', 'OptiScaler', 'Licenses', 'nvngx.dll_dlssnr.dll')
     wilsjo2   = @('OptiScaler.dll', 'OptiScaler.ini', 'OptiScaler', 'Licenses')
 }
-# Pinned release assets. The dagherbou hash is a local-copy attestation (the release publishes no
-# checksum); the wilsjo2 hash matches the release's own .sha256 sidecar.
 $BuildPins = @{
     dagherbou = @{
         Tag = 'v0.2.0-patch1'; Asset = 'OptiScaler-DLSSNR-v0.2.0-onimusha-fix.zip'
@@ -288,7 +286,6 @@ function Get-Bitness($exes) {
     if ($k.Count -eq 1) { $k[0] } elseif ($k -contains '32-bit' -and $k -contains '64-bit') { 'mixed' } else { 'unknown' }
 }
 
-# Numeric parts, not the FileVersion string: NVIDIA's runtime reports "310,8,0,0" there.
 function FileVer($path) {
     $v = (Get-Item -LiteralPath $path).VersionInfo
     if ($v.FileMajorPart -or $v.FileMinorPart) { [version]::new($v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart) }
@@ -314,7 +311,6 @@ function SteamAcf($root) {
     $dir = $Matches[2]
     foreach ($acf in Get-ChildItem -LiteralPath $Matches[1] -Filter 'appmanifest_*.acf' -File -ErrorAction SilentlyContinue) {
         $t = try { Get-Content -LiteralPath $acf.FullName -Raw -Encoding utf8 } catch { continue }
-        # buildid is the installed build; TargetBuildID (a queued update) never matches Acf's leading quote.
         if ((Acf $t 'installdir') -eq $dir -and (Acf $t 'appid') -match '^\d+$') { return @{ appid = (Acf $t 'appid'); name = (Acf $t 'name'); buildid = (Acf $t 'buildid'); lastUpdated = (Acf $t 'LastUpdated') } }
     }
 }
@@ -350,8 +346,6 @@ function Game($launcher, $name, $dir, $source) {
     [pscustomobject]@{ launcher = $launcher; name = $n; installDir = $d; source = $source }
 }
 function Record($label, [scriptblock]$body) { try { & $body } catch { $script:Unchecked += "${label} unreadable: $($_.Exception.Message)" } }
-# The path a listing error names. Windows often leaves TargetObject empty and puts the path on
-# CategoryInfo.TargetName, or only inside a quoted path in the message.
 function ErrorPath($err, $fallback) {
     foreach ($named in @($err.TargetObject, $err.CategoryInfo.TargetName)) { if ("$named") { return "$named" } }
     $msg = "$($err.Exception.Message)"
@@ -398,7 +392,6 @@ function Find-EpicGames {
         }
     }
 }
-# The EA app's own list (the IS file) is encrypted with a hardware-derived key and is never read.
 function Find-EaGames {
     $script:Unchecked += "EA app: the encrypted install list is not read; scanned $(@($script:EaRoots) -join ', ') for __Installer\installerdata.xml. An EA game elsewhere is recognized when assess is pointed at it"
     foreach ($r in @($script:EaRoots)) {
@@ -437,8 +430,6 @@ function Find-UbisoftGames {
         }
     }
 }
-# .GamingRoot: magic 0x58424752, a UInt32 folder count, then UTF-16 null-terminated folder names
-# relative to the drive root. Undocumented by Microsoft, so any parse failure falls back.
 function Read-GamingRoot($path) {
     $b = [IO.File]::ReadAllBytes($path)
     if ($b.Length -lt 8 -or [BitConverter]::ToUInt32($b, 0) -ne 0x58424752) { throw 'file magic does not match' }
@@ -517,7 +508,8 @@ function Get-AntiCheat($root, $launch, $appId) {
         $aw.commit = $sha
         $awacy = "AreWeAntiCheatYet (commit $($sha.Substring(0, 7)))"
         $n = NormName $launch.name
-        # AWACY's status field is Linux support, not presence; only a non-empty anticheats list counts.
+        # AreWeAntiCheatYet status is Linux compatibility (Supported, Running, Broken ...), not presence.
+        # https://areweanticheatyet.com/
         $aw.entries = @($all | Where-Object { ($appId -and "$($_.storeIds.steam)" -eq $appId) -or ($n -and (NormName $_.name) -eq $n) } |
                 ForEach-Object { [pscustomobject]@{ name = $_.name; steam = "$($_.storeIds.steam)"; anticheats = @($_.anticheats | Where-Object { $_ }) } })
         if ($appId -and -not @($aw.entries | Where-Object steam -eq $appId)) { $unchecked += "${awacy}: no entry for Steam app id $appId, so this source is unknown" }
@@ -558,7 +550,6 @@ function Assert-Acknowledged($acr, $name) {
     if (-not $AcceptAntiCheatRisk) { throw "refusing: $found. Installing anyway is at the user's own risk and needs -AcceptAntiCheatRisk '$name' with -AntiCheatResearch and -AntiCheatSources; nothing was changed" }
     if (-not (NormName $name) -or (NormName $AcceptAntiCheatRisk) -ne (NormName $name)) { throw "refusing: acknowledgement '$AcceptAntiCheatRisk' does not match the game name '$name'; nothing was changed" }
     if ($AntiCheatReviewId -ne $acr.reviewId) { throw "refusing: the anti-cheat result changed since the review (reviewed '$AntiCheatReviewId', now '$($acr.reviewId)'). $found. Rerun assess and the review; nothing was changed" }
-    # pwsh -File hands a list over as one comma-separated string.
     $src = @($AntiCheatSources -split ',\s*(?=https?://)' | ForEach-Object Trim | Where-Object { $_ })
     if (-not "$AntiCheatResearch".Trim() -or -not $src -or @($src | Where-Object { $_ -notmatch '^https://\S+$' }).Count) {
         throw 'refusing: an acknowledgement needs -AntiCheatResearch (the ban and block research summary) and -AntiCheatSources with one or more https:// URLs; nothing was changed'
@@ -674,7 +665,6 @@ function Read-Ini($path) {
     }
     $v
 }
-# Save Settings writes 0x7c for 0x7C and 1.000000 for 1.0; compare the value, not its spelling.
 function NormVal($v) {
     $v = "$v".Trim(); $d = 0.0
     if ($v -match '\A0x([0-9a-f]{1,8})\z') { return [string][Convert]::ToInt64($Matches[1], 16) }
@@ -1103,7 +1093,6 @@ function Install-Build($build, $zip, $pin) {
     if ($missing) { Remove-Item -LiteralPath $stage -Recurse -Force; throw "zip lacks allow-listed entries: $($missing -join ', ')" }
     [pscustomobject]@{ tag = $pin.Tag; asset = $pin.Asset; url = $pin.Url; sha256 = $h; provisioned = (Get-Date).ToString('o') } |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage '.provisioned.json') -Encoding utf8
-    # Stop on a failed delete: Move-Item into a surviving $dest would nest the new build inside the old.
     if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force -ErrorAction Stop }
     Move-Item -LiteralPath $stage -Destination $dest
     "provisioned $build ($($pin.Tag)) -> $dest"
@@ -1127,8 +1116,6 @@ function Get-ScanRoots {
     @(Find-Games | ForEach-Object installDir | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | Sort-Object -Unique)
 }
 function Find-RuntimeCandidates {
-    # A missing drive has no FileSystem provider, where Get-ChildItem -File does not exist.
-    # No -Filter: with one, a folder that cannot be listed drops out without an error to report.
     $script:ScanGaps = @()
     @(Get-ScanRoots | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | ForEach-Object {
             $err = $null
@@ -1233,7 +1220,6 @@ function Do-Refetch {
     $rel = ".[] | $fmt"
     $items = @(
         foreach ($r in $ForkRepos.dagherbou, $ForkRepos.wilsjo2) { Probe $r 'gh api releases' { GhApi "repos/$r/releases" $rel } }
-        # The repo also publishes renodx-dlss-SF and other tags; only renodx-dlss5- tags belong here.
         Probe 'renodx-dlss5' 'gh api releases' { GhApi 'repos/RankFTW/rhi-repo/releases?per_page=100' ('.[] | select(.tag_name | startswith("renodx-dlss5-")) | ' + $fmt) }
         Probe 'optiscaler/OptiScaler' 'gh api releases/latest' { GhApi 'repos/optiscaler/OptiScaler/releases/latest' '.tag_name' }
         foreach ($n in 1116, 1158) {
@@ -1858,7 +1844,6 @@ public sealed class Dlss5DirHandle : IDisposable {
         Do-Capture $xg | Out-Null
         $fj = LoadJson "$tmp\data\presets\forza-fx.json"
         Assert 'capture under a new key writes a local preset matching only the game exe, not a helper' ("$($fj.match.exe)" -eq 'forza.exe' -and $fj.title -eq 'Forza Fixture' -and @($fj.ini).Count -eq 1 -and $fj.ini[0].key -eq 'MaxRatio' -and $fj.ini[0].why -like 'captured *' -and (Find-Preset $xg) -eq 'forza-fx')
-        # #4424: an overlay-saved hotkey that collides with a local base added after the apply
         $lb = '{"key":"LocalTone","value":"0.5"},{"key":"Intensity","value":"1.2"},{"key":"WhitePointScale","value":"1.3"}'
         Put "$tmp\data\presets\_base.json" "{`"ini`":[$lb,{`"key`":`"FGShortcutKey`",`"value`":`"0x7F`"}]}"
         Set-Content -LiteralPath $xi -Value ((Get-Content -LiteralPath $xi -Raw) -replace 'ToggleKey=0x7C', 'ToggleKey=0x7f' -replace '(?m)^Style=auto', 'Style=2') -NoNewline
@@ -1871,7 +1856,6 @@ public sealed class Dlss5DirHandle : IDisposable {
         Do-Remove $xg | Out-Null
         Assert 'Xbox remove is byte-exact' (SameTree (Tree $xg) $before)
 
-        # #4445: Steam updates a modded game and replaces its exe; the snapshot is refreshed on one confirmation
         $acfb = { param($b) (& $acf 555 'Update Game' 'Update Game').TrimEnd('}') + "`t`"buildid`"`t`t`"$b`"`n`t`"TargetBuildID`"`t`t`"999`"`n`t`"LastUpdated`"`t`t`"1790000000`"`n}" }
         Put "$l2\steamapps\appmanifest_555.acf" (& $acfb '100')
         $ug = "$l2\steamapps\common\Update Game\Binaries\Win64"; Put "$ug\Ride-Win64-Shipping.exe" 'exe-v1'; Put "$ug\nvngx_dlss.dll" 'dlss'
@@ -2040,7 +2024,6 @@ public sealed class Dlss5DirHandle : IDisposable {
         $u = Do-Refetch | ConvertFrom-Json
         Assert 'a newer prerelease alone gives no pin advice' (@($u.pinAdvice).Count -eq 0 -and (@($u.items) | Where-Object item -eq 'wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass').found -like '*v9.9.9 (prerelease)*')
 
-        # NVIDIA may send the flags as JSON booleans or numbers.
         $script:NvJson = '{"IDS":[{"downloadInfo":{"Version":"900.1","IsWHQL":false,"IsBeta":true,"ReleaseDateTime":"beta"}},{"downloadInfo":{"Version":"899.3","IsWHQL":true,"IsBeta":false,"ReleaseDateTime":"d"}}]}'
         $u = Do-Refetch | ConvertFrom-Json
         Assert 'refetch accepts boolean driver flags' ((@($u.items) | Where-Object item -eq 'GeForce driver (published)').found -eq '899.3 (d)')

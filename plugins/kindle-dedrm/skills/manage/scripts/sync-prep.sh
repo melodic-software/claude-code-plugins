@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# sync-prep.sh — prepare for re-syncing new Kindle books.
-# Disables the firewall block, prints the user-driven steps, waits for input.
-#
-# Pairs with sync-finalize.sh which closes the window after the user is done.
-#
-# Usage: sync-prep.sh [--dry-run]
 
 set -uo pipefail
 
@@ -34,8 +28,6 @@ EOF
   exit 0
 fi
 
-# Print the elevated disable command; this script never runs it. sync-prep.test.sh
-# pins that: it asserts no rm/pwsh/powershell/netsh/icacls call is made from here.
 echo "[sync-prep] disabling firewall rule (admin required)..."
 echo
 echo "  Open elevated PowerShell and run:"

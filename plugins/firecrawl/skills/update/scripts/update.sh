@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes (the shared drift-check contract):
-#   0  no drift OR apply or record completed successfully
-#   1  drift detected in --check mode (no mutations)
-#   2  unverifiable: prerequisite missing (curl/jq/npm), network failure, or usage;
-#      or --apply refused or unconfirmed: npm's global bin does not hold the
-#      firecrawl command, or the command does not read npm latest after install
 
 set -uo pipefail
 
@@ -41,8 +35,6 @@ check_prereqs() {
   [[ $missing -eq 0 ]] || exit 2
 }
 
-# Cross-platform SHA-256. Both emit `<hash>  <path>` on stdout, so the
-# `awk '{print $1}'` caller works with either.
 sha256() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$@"
@@ -150,9 +142,6 @@ run_check() {
   return 1
 }
 
-# The directory npm links global commands into: <prefix>/bin, or on Windows the
-# prefix itself, printed as a Windows path that Git Bash's `command -v` never
-# matches until converted.
 npm_global_bin() {
   local prefix
   prefix=$(npm prefix -g 2>/dev/null | tr -d '\r')

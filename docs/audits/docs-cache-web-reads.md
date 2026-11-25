@@ -47,17 +47,17 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | ai-briefing | `skills/generate/SKILL.md:94` | WebFetch on the profile's news sources, item links and search results | kept | News feeds and release pages, not docs pages; each run reads them once for new items |
 | attribution | `skills/audit/reference/source-fetch.md:65` | Summarizing fetch of a page | kept | Fallback for when the cached `.md` read fails; the primary read is already on the cache |
 | autonomy | `skills/setup/context/pipeline-slots.md:52` | WebFetch on each vendor's pricing page | kept | Pricing pages are marketing pages read for the current price, shown with the fetch date, and the skill writes nothing to disk |
-| context7 | `skills/lookup/scripts/update.sh:104` | curl of upstream `SKILL.md` files at a pinned SHA | kept | Drift check: compares exact upstream bytes against a baseline, so a copy another session cached is no evidence; a skill source file, not a docs page |
+| context7 | `skills/lookup/scripts/update.sh:96` | curl of upstream `SKILL.md` files at a pinned SHA | kept | Drift check: compares exact upstream bytes against a baseline, so a copy another session cached is no evidence; a skill source file, not a docs page |
 | context7 | `lib/cli-version-check.mjs:104` | fetch of the npm registry's latest-version JSON | kept | Registry API, not a page |
 | discovery | `agents/research-verifier.md:4` | WebFetch grant | kept | Read-only verifier with no Bash; reads the parent's snapshot from disk and uses WebFetch only for a cited page the snapshot lacks |
 | discovery | `agents/researcher.md:176` | curl download of artifacts too large to read in context | kept | Same as the `discipline.md:256` row: the artifact's bytes are kept as downloaded |
 | discovery | `agents/sweep-worker.md:4` | WebFetch grant | kept | No shell by design; docs pages reach it as slices (page sections) that the docs-fetcher agent read through the cache |
-| discovery | `workflows/research-sweep.js:225` | Workers WebFetch a page the slices do not cover | kept | The workers have no shell; every page the slices hold came through the cache |
+| discovery | `workflows/research-sweep.js:195` | Workers WebFetch a page the slices do not cover | kept | The workers have no shell; every page the slices hold came through the cache |
 | discovery | `skills/research/context/source-categories.md:12` | WebFetch the docs site when no docs MCP server is connected | moved | |
 | discovery | `skills/research/context/discipline.md:68` | WebFetch on a raw `CHANGELOG.md` URL for the recency gate | moved | |
 | discovery | `skills/research/context/discipline.md:256` | curl download of a PDF, spec or source file | kept | Not a page: the artifact's bytes are kept as downloaded, and the cache stores only markdown or converted HTML |
 | discovery | `skills/research/context/discipline.md:312` | WebFetch when a synthesis tool is lost | kept | WebFetch only finds which page to read; the page is then read through the cache |
-| dometrain | `skills/update/scripts/update.sh:72` | curl of the upstream `SKILL.md` | kept | Drift check against a baseline; a skill source file, not a docs page |
+| dometrain | `skills/update/scripts/update.sh:54` | curl of the upstream `SKILL.md` | kept | Drift check against a baseline; a skill source file, not a docs page |
 | education | `skills/teach/context/pedagogy.md:35` | WebFetch as the last fallback | kept | Fallback for when `/discovery:research`, which reads through the cache, is not enabled; the plugin carries no cache copy |
 | event-storming | `skills/methodology/SKILL.md:95` | WebSearch and WebFetch for domain context | kept | Open research on search results, not docs pages; WebFetch's prompt pulls the domain facts |
 | event-storming | `skills/simulation/reference/agentic-simulation.md:173` | WebSearch and WebFetch for domain context | kept | Same as the methodology row |
@@ -65,13 +65,13 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | external-agents | `scripts/lib/update.mjs:61` | HEAD request to the provider's docs index | kept | Reachability probe; reads no body |
 | external-agents | `lib/cli-version-check.mjs:104` | fetch of the npm registry's latest-version JSON | kept | Registry API, not a page |
 | firecrawl | `skills/firecrawl/SKILL.md:78` | Prefer WebFetch for a simple page, the Firecrawl CLI otherwise | kept | Routing for any page, including pages that block plain HTTP clients or need JavaScript; the cache's curl read is blocked the same way |
-| firecrawl | `skills/update/scripts/update.sh:94` | curl of the npm registry's latest-version JSON | kept | Registry API, not a page |
-| firecrawl | `skills/update/scripts/update.sh:103` | curl of the upstream `SKILL.md` | kept | Drift check against a baseline; a skill source file, not a docs page |
+| firecrawl | `skills/update/scripts/update.sh:54` | curl of the npm registry's latest-version JSON | kept | Registry API, not a page |
+| firecrawl | `skills/update/scripts/update.sh:61` | curl of the upstream `SKILL.md` | kept | Drift check against a baseline; a skill source file, not a docs page |
 | firecrawl | `lib/cli-version-check.mjs:104` | fetch of the npm registry's latest-version JSON | kept | Registry API, not a page |
 | gaming | `skills/dlss5/reference/upstream-watch.md:56` | WebFetch on NVIDIA's GeForce news index | kept | News index read for new title names, not a docs page |
-| gaming | `skills/dlss5/scripts/Invoke-Dlss5Mod.ps1:99` | `Invoke-WebRequest` for release metadata | kept | API call with request headers, not a page |
-| gaming | `skills/dlss5/scripts/Invoke-Dlss5Mod.ps1:1119` | `Invoke-WebRequest` download of a pinned zip | kept | Binary download |
-| gaming | `skills/dlss5/scripts/Invoke-Dlss5Mod.ps1:1186` | `Invoke-WebRequest` download of a release file | kept | Binary download |
+| gaming | `skills/dlss5/scripts/Invoke-Dlss5Mod.ps1:97` | `Invoke-WebRequest` for release metadata | kept | API call with request headers, not a page |
+| gaming | `skills/dlss5/scripts/Invoke-Dlss5Mod.ps1:1108` | `Invoke-WebRequest` download of a pinned zip | kept | Binary download |
+| gaming | `skills/dlss5/scripts/Invoke-Dlss5Mod.ps1:1173` | `Invoke-WebRequest` download of a release file | kept | Binary download |
 | guardrails | `hooks/cloud-shfmt.sh:42` | curl download of the pinned `shfmt` binary | kept | Binary download checked against a SHA-256 |
 | harness-config | `skills/audit/scripts/check-plugin-drift.sh:206` | curl of a marketplace's `marketplace.json` | kept | JSON manifest compared against installed state, so it must be fresh; not a page |
 | harness-ops | `skills/audit-plugin-landscape/SKILL.md:89` | WebFetch when the discovery plugin is not enabled | moved | |
@@ -83,7 +83,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | implementation | `agents/implementer.md:7` | WebFetch grant | kept | General worker grant for whatever page an item names; no fixed docs page |
 | implementation | `agents/scoped-implementer.md:7` | WebFetch grant | kept | Same as the implementer row |
 | kindle-dedrm | `skills/manage/reference/workflow.md:30` | curl downloads, also at lines 49 and 71 | kept | Binary downloads (installer and zips) |
-| kindle-dedrm | `skills/manage/scripts/check-drift.sh:56` | curl HEAD request to pinned URLs | kept | Reachability probe; reads no body |
+| kindle-dedrm | `skills/manage/scripts/check-drift.sh:45` | curl HEAD request to pinned URLs | kept | Reachability probe; reads no body |
 | knowledge | `agents/digest-worker.md:4` | WebFetch grant | kept | Rendered reads for presence claims only; absence reads already go through `fetch-docs.sh --cache --max-age 0` (`skills/docpage-digest/context/anthropic-docs-profile.md:116`) |
 | knowledge | `skills/video-digest/context/watch-pipeline.md:139` | WebFetch previews of harvested links, also at line 320 | kept | Previews that rank arbitrary links by WebFetch's prompt; not docs reads |
 | knowledge | `skills/course-digest/extraction/lib/players/hotmart.js:101` | fetch of subtitle segments, also at line 326 | kept | Runs inside the course player's frame for its session and CORS; not a page |

@@ -1,18 +1,5 @@
 #!/bin/sh
 # shellcheck shell=bash
-# actionlint's side of lib/git-hooks/resolve-tool.sh: the ecosystem id whose
-# record setup reports (hooks never run it), the files it acts on, and its
-# actionlint adapter. Sourced by the lint entry.
-#
-# The adapter governs every GitHub Actions workflow file (rt_wants); the
-# actionlint config is optional and read from the root's .github only
-# (https://github.com/kjanat/actionlint/blob/v1.17.0/docs/config.md#configuration-file). Lint only: actionlint never rewrites, so there is no format concern. The embedded
-# ShellCheck and pyflakes integrations stay off (-shellcheck= -pyflakes=):
-# they spawn a process per run block. actionlint reads one config and has no
-# extends, so a repository's own config replaces the default whole; without
-# one, a repository that names a standards_repository is linted with that
-# repository's .github/actionlint.yaml (-config-file), else with actionlint's
-# defaults.
 
 # shellcheck disable=SC2034 # read by resolve-tool.sh
 RT_PLUGIN=actionlint

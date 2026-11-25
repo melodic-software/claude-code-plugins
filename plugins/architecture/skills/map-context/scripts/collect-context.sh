@@ -1,56 +1,4 @@
 #!/usr/bin/env bash
-# Collect a C4 system-context record from one repository's committed config.
-#
-# WHY. A system context diagram is a fact only when every external system
-# traces to a config key in a named file, and only the shape of that
-# connection is kept. This script matches configuration. It does not execute
-# it, and it does not read people out of the repository.
-#
-# Usage:
-#   collect-context.sh [--repo <path>] [--out <file>] [--focal <name>]
-#       [--actors <file>] [--generated-on <date>]
-#   collect-context.sh --help
-#
-# Tracked files only (`git ls-files`). A gitignored or untracked file is not a
-# source, so a local secret file cannot become a node. Configuration is matched
-# as text and never executed.
-#
-# Output: context.json, schema_version 1, on stdout or in --out. --out gets
-# its parent directory created; a write that still fails exits 1 and leaves
-# no record. generated_on defaults to the date of the repository's
-# HEAD commit ("unknown" when there is no commit); --generated-on overrides it.
-# The physical shape readers accept is fixed:
-#
-#   {
-#     "schema_version": 1,
-#     "generated_on": "YYYY-MM-DD" | "unknown",
-#     "subject": "<github.com origin repository name, else directory basename>",
-#     "focal": {"name":"...","origin":"derived"},
-#     "actors": [ one {"name":...} object per line, or [] ],
-#     "externals": [ one {"host":...} object per line, or [] ]
-#   }
-#
-#   focal.origin is always "derived" (the repository being charted).
-#   actors.origin is always "operator". Rows exist only when --actors is
-#   passed. The file is operator-stated lines of "name<TAB>description".
-#   This script never invents an actor from CODEOWNERS, git history, or prose.
-#   externals.origin is always "derived". Each row is host, kind, port, file,
-#   and key. The value that produced the row is not stored.
-#
-# Kinds: http, sql, storage, broker, authority, cache, mail. An http row is an
-# external system only when its config key names an integration (a key ending
-# in url, uri, endpoint, host, hostname, address, authority, or server). A
-# homepage, repository, bugs, license, contact, docs, site URL, or an OpenAPI
-# servers or externalDocs entry is not one. Other kinds are not gated.
-#
-# Redaction is plugins/architecture/lib/redact-connection.awk, and it scans
-# every value whatever its key. A credential, token, account key, or URL
-# userinfo cannot become a field, and an actor line carrying one is skipped.
-#
-# Portability: bash plus POSIX awk/sed. No jq, no python.
-#
-# Exit: 0 = a record was written; 1 = the path is not a readable directory or
-# the --out file cannot be written; 2 = usage.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,7 +14,17 @@ source "$SCRIPT_DIR/../../../lib/redact-connection.sh"
 source "$SCRIPT_DIR/../../../lib/json-escape.sh"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Collect a C4 system-context record from one repository's committed config.
+Usage: collect-context.sh [--repo <path>] [--out <file>] [--focal <name>] [--actors <file>] [--generated-on <date>]
+  --repo <path>          repository to read (tracked files only)
+  --out <file>           where context.json is written (default stdout)
+  --focal <name>         the focal system's name
+  --actors <file>        operator-stated actors, one "name<TAB>description" per line
+  --generated-on <date>  date recorded (default: HEAD commit date)
+Writes context.json, schema_version 1, one object per line.
+Exit: 0 a record was written; 1 the path is not a readable directory or --out cannot be written; 2 usage.
+EOF
 }
 
 die() {
@@ -205,8 +163,6 @@ while IFS= read -r -d '' rel; do
   else
     continue
   fi
-  # awk -F tab keeps an empty port. bash read would collapse it, because
-  # tab is IFS whitespace, and the config key would slide into the port.
   ASSIGN_MODE="$mode" awk -f "$REDACT_AWK" -f "$ASSIGN_AWK" "$abs" |
     awk -F'\t' -v rel="$rel" '
       function norm(s) {

@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
-# cleanup.sh — reverse every mutation made by the kindle-dedrm skill.
-# Per-item confirmation by default. --soft skips destructive Kindle/Calibre changes.
-# --full additionally offers to uninstall Kindle for PC and remove Calibre plugins.
-#
-# Usage: cleanup.sh [--soft|--full] [--dry-run]
-#
-# Default mode: confirm-each across the standard reversal matrix.
-# --soft: tools + downloads only (keep firewall + ICACLS + Kindle for PC + plugins).
-# --full: everything including Kindle for PC uninstaller + Calibre plugin reminder.
 
 # shellcheck disable=SC2154
-# (Windows env vars LOCALAPPDATA/APPDATA are set on Git Bash runtime)
 
 set -uo pipefail
 
@@ -57,7 +47,6 @@ run_or_show() {
     echo "[DRY-RUN] would run: $*"
   else
     # shellcheck disable=SC2294
-    # (callers pass shell strings with redirections/pipes, not array args)
     eval "$@"
   fi
 }
@@ -116,8 +105,6 @@ if [[ -f "${KFC_DOWNLOAD}" ]]; then
   fi
 fi
 
-# Glob arrays (not ls-capture): quoted array expansion survives paths with spaces,
-# and rm receives real array elements rather than eval-word-split strings.
 DEDRM_ZIPS=("${DOWNLOADS_DIR}"/DeDRM_tools-v*.zip)
 DEDRM_DIRS=("${DOWNLOADS_DIR}"/DeDRM_tools-v*/)
 if [[ -e "${DEDRM_ZIPS[0]}" || -e "${DEDRM_DIRS[0]}" ]]; then

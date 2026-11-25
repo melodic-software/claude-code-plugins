@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# check-drift.sh — drift report against captured baselines in reference/.
-# Walks every upstream source listed in reference/sources.md and reports
-# OK / STALE / UNREACHABLE for each. No mutations.
-#
-# Usage: check-drift.sh
 
 set -uo pipefail
 
@@ -11,8 +6,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSIONS_MD="${SCRIPT_DIR}/../reference/versions.md"
 SOURCES_MD="${SCRIPT_DIR}/../reference/sources.md"
 
-# pin <file> <section-heading> <row-label> — value of `| label | `value` |`
-# within the named "## section", first match wins.
 pin() {
   local file="$1" section="$2" label="$3" value
   value=$(awk -v sec="## ${section}" -v lab="${label}" '
@@ -49,10 +42,6 @@ stale() { echo "  [STALE]   $*"; }
 unreachable() { echo "  [UNREACH] $*"; }
 note() { echo "            $*"; }
 
-# HEAD probe: prints the HTTP status code. An unreachable host prints "000000" (curl's
-# %{http_code} emits its own "000" for a request that never completed and the fallback
-# appends another), so it lands in the callers' catch-all arm; a bare "000" means curl
-# itself is missing and lands in their "000" arm.
 http_status() { curl -sI -o /dev/null -w "%{http_code}" "$1" 2>/dev/null || echo "000"; }
 
 echo "=== kindle-dedrm: drift report ==="

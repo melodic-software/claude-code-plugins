@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# lane-stop-gate-arm.sh — operator-side per-session arming for the lane-stop
-# gate (#1784). Run by the lane launcher (or an operator) BEFORE launching a
-# session that should be gated; never by the watched session itself.
-#
-# Writes an arm record — the per-session trusted-config source the gate resolves
-# between managed and user settings — under this plugin's own install-derived
-# data directory: <config>/plugins/data/<id>/lane-arms/<arm-id>. The launcher
-# then passes the same arm id to the session through the `lane_stop_gate_arm_id`
-# userConfig option (`claude --settings ...`), and the gate treats the
-# env-delivered id purely as a pointer into this store. Because the store is
-# derived from this script's own location — never from an environment value — a
-# watched repository cannot mint, redirect, or forge a record; because the id is
-# random and the gate claims it for the first presenting session, a replayed id
-# is worthless.
-#
-# Usage:
-#   lane-stop-gate-arm.sh --id <arm-id> [--cwd DIR] [--sentinel TOK] [--marker PATH]
-#
-#   --id        record id, 8-64 chars of [A-Za-z0-9_-] (caller-generated, random)
-#   --cwd       the lane's working directory (recorded as a diagnostic; the id,
-#               not the cwd, is the record's identity)
-#   --sentinel  per-session completion token (else the gate's resolution
-#               continues to user settings / the LANE-STOP-OK default)
-#   --marker    per-session completion-marker path
-#
 # Exit codes:
 #   0  armed
 #   3  invalid argument
@@ -33,10 +8,6 @@
 #   5  managed settings veto: an organization configured
 #      lane_stop_gate_enabled=false at the managed scope, which outranks any
 #      per-session arming — the launch should fail visibly, not run ungated
-#
-# Fail direction: this helper fails CLOSED (refuse to arm, so the launcher can
-# refuse to launch) — the operator is present at launch time. The gate itself
-# stays fail-open at stop time.
 
 set -uo pipefail
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
@@ -46,7 +17,18 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 source "$HOOK_DIR/lane-stop-gate-lib.sh"
 err() { printf 'ERROR: lane-stop-gate-arm: %s\n' "$*" >&2; }
 
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'EOF'
+Arm the lane-stop gate for one session; run by the lane launcher before launch.
+Usage: lane-stop-gate-arm.sh --id <arm-id> [--cwd DIR] [--sentinel TOK] [--marker PATH]
+  --id        record id, 8-64 chars of [A-Za-z0-9_-] (caller-generated, random)
+  --cwd       the lane's working directory (diagnostic only)
+  --sentinel  per-session completion token
+  --marker    per-session completion-marker path
+Exit: 0 armed; 3 invalid argument; 4 jq missing or no plugins/cache install anchor;
+5 managed settings disable the gate.
+EOF
+}
 
 ID=""
 CWD=""

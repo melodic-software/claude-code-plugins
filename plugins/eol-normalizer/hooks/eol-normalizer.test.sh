@@ -3,8 +3,6 @@
 
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -69,7 +67,6 @@ ROW_ARGS_RUN=()
 while IFS= read -r row_arg; do
   # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
   ROW_ARGS_RUN+=("${row_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$ROWGATE/root}")
-# tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
 done < <(jq -r '.args[]' <<<"$ROW_JSON" | tr -d '\r')
 
 run_opt() {
@@ -321,7 +318,6 @@ OUT=$(fire "$(payload Write "$REPO/nojq.sh")" PATH="$FAKEBIN")
 expect "jq absent: silent exit 0 and the file untouched" "0|1" "$?|$(cr_count "$REPO/nojq.sh")"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" eol-normalizer PostToolBatch eol-normalizer.sh \
     '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Bash","tool_input":{"command":"true"},"tool_use_id":"toolu_census","tool_response":"ok"}]}' \

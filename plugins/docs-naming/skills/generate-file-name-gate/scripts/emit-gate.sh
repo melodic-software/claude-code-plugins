@@ -1,46 +1,4 @@
 #!/usr/bin/env bash
-# emit-gate.sh — render the file-name gate into a consuming repository.
-#
-# The gate is a plain bash script the consumer owns and runs from its own CI.
-# It carries no dependency on this plugin at run time: the rule, the roots, and
-# the exemptions are inlined at emission from the resolved configuration, so a
-# checkout with the plugin uninstalled still enforces what the team agreed.
-#
-# A CONFIGURATION VALUE IS UNTRUSTED TEXT, AND THE EMITTED GATE RUNS IN CI.
-# Three separate hazards, each closed at a different layer:
-#
-# 1. RENDERING IS LITERAL, AND NEVER A sed SUBSTITUTION. A consumer's regex
-#    already carries backslashes, and a `&`, a `|`, or a `/` in one would break
-#    the sed expression or be re-read as a back-reference. The replacement below
-#    is index/substr, never a gsub whose pattern the value must also survive.
-# 2. VALUES TRAVEL IN THE ENVIRONMENT, NOT THROUGH awk's `-v`. `-v` runs escape
-#    processing: a doubled backslash arrives halved and a literal `\t` arrives
-#    as a TAB. `ENVIRON[]` hands the bytes across unchanged.
-# 3. EVERY VALUE REACHING THE EMITTED SHELL IS SINGLE-QUOTED. Otherwise a
-#    backtick or a `$(...)` in a root or an exemption would execute on every CI
-#    run of the gate, and a bare `"` would emit a file bash cannot parse.
-#
-# And the output is parsed before it is claimed: each rendered file goes through
-# `bash -n` and a failure refuses the run rather than reporting a successful
-# emission of a broken script.
-#
-# WHY THIS IS NOT PART OF `setup apply`. The setup contract scopes `apply` to
-# the plugin's own configuration artifact. Emission writes consumer-owned files
-# under the consumer's `scripts/` and `.claude/rules/`, which is outside it.
-#
-# Usage:
-#   emit-gate.sh [--config <json>] [--root <dir>] [--out-dir <dir>]
-#                [--rule] [--force]
-#   emit-gate.sh --help
-#
-#   --out-dir  where the checker and its suite go, relative to the root.
-#              Default `scripts`.
-#   --rule     also write `.claude/rules/file-names.md`, the path-scoped rule.
-#   --force    overwrite files that already exist. Without it an existing
-#              target refuses the run and nothing is written.
-#
-# Exit: 0 emitted, 1 refused (a target exists and --force was not given), 2
-#       usage or a missing prerequisite.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -61,7 +19,16 @@ refused() {
 }
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  cat <<'EOF'
+Render the file-name gate into a consuming repository.
+Usage: emit-gate.sh [--config <json>] [--root <dir>] [--out-dir <dir>] [--rule] [--force]
+  --config <json>  a resolved configuration document
+  --root <dir>     the consuming repository
+  --out-dir <dir>  where the checker and its suite go, relative to the root (default scripts)
+  --rule           also write .claude/rules/file-names.md
+  --force          overwrite files that already exist
+Exit: 0 emitted; 1 refused (a target exists and --force was not given); 2 usage or a missing prerequisite.
+EOF
 }
 
 CONFIG_FILE=""

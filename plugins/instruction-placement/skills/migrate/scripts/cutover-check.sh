@@ -1,48 +1,4 @@
 #!/usr/bin/env bash
-# cutover-check.sh — may the `@AGENTS.md` CLAUDE.md shims come out yet?
-#
-# Read-only. It probes each graded cutover condition, prints [MET], [UNMET] or
-# [UNREACH] with the evidence the verdict rests on, and exits non-zero unless
-# every graded condition is [MET]. Nothing here writes to a repository; the
-# removal is `remove-shims.sh`, which refuses without a passing run of this.
-#
-# The graded conditions, and what each reads:
-#
-#   1  Native AGENTS.md reading no longer depends on the remote flag: the
-#      shipped bundle's code default for the flag is true, OR the env-vars page
-#      no longer lists AGENTS.md under "Features that need feature-flag
-#      fetching". Either one alone is enough; neither is [UNMET].
-#   2  Every `claude-code-action` pin in every named repository installs a CLI
-#      at or above the floor, and a CI canary with a lone AGENTS.md is on
-#      record. Both clauses hold, or the condition does not. A pin the release
-#      map lacks is resolved live from `base-action/action.yml` at that ref;
-#      a failed fetch or a file with no `CLAUDE_CODE_VERSION` is [UNREACH].
-#   3  A token canary with a lone non-empty AGENTS.md returns its line from a
-#      cwd under home AND from a cwd on a second drive or path. One metered
-#      `claude -p` turn per leg, in a scratch directory this script creates and
-#      removes.
-#   4  No named repository locates a path by the existence of CLAUDE.md, except
-#      where a reviewed acknowledgement file says why that row is harmless.
-#
-# One probe is reported and NOT graded: the nested write trigger. A metered
-# `claude -p` turn with only the Write tool writes into `sub/` of a scratch tree
-# holding a root and a `sub/` AGENTS.md and no CLAUDE.md, and reports whether
-# the nested file loaded. It decides nothing here; `reference/shim-droppable.md`
-# condition G reads it for a repository with nested AGENTS.md files, which this
-# fleet-wide check cannot see.
-#
-# Every upstream number it compares against (the CLI floor, the action release
-# to CLI map, the CI canary run) is parsed from `reference/sources.md`, which
-# carries a pointer record (decision, pointer, as-of date, recheck trigger) for
-# each. Parsing is fail-hard: a record this script cannot read is a fact it
-# must not silently skip checking.
-#
-# Usage:
-#   cutover-check.sh --repo <dir> [--repo <dir> ...] [options]
-#   cutover-check.sh --help
-#
-# Exit: 0 every graded condition [MET]; 1 any other verdict; 2 usage, an
-# unparsable record, or a missing scripts/lib/version.sh.
 
 set -uo pipefail
 
@@ -220,9 +176,6 @@ trim() {
 
 normalize_text() { printf '%s' "$(trim "$1")" | tr '\t' ' '; }
 
-# The body of one `## ` section of the records file. Line endings are stripped
-# before the heading is matched, not after: a CRLF checkout of this file would
-# otherwise match no heading at all and make every record unparsable.
 section() {
   tr -d '\r' <"$SOURCES_MD" | awk -v h="$1" '$0 == h { f = 1; next } f && /^## / { exit } f'
 }
@@ -268,8 +221,6 @@ clean_canary_dirs() {
 }
 trap 'rm -f "$ACTION_MAP"; rm -rf "$PLAN_OUT"; clean_canary_dirs' EXIT INT TERM
 
-# `a >= b` over dotted numeric versions: the plugin's one comparator, shared
-# with precompute.sh's mechanics-record check.
 # shellcheck source=../../../scripts/lib/version.sh
 . "$SCRIPT_DIR/../../../scripts/lib/version.sh" || exit 2
 
@@ -282,12 +233,6 @@ for i in "${!REPOS[@]}"; do
   }
 done
 
-# --- Condition 1 ----------------------------------------------------------
-# The flag's code default is minifier-assigned: the plugin exports
-# `isOnByDefault:()=>X` and declares `var X=!0` (true) or `var X=!1` (false)
-# nearby. Both the identifier and the byte offsets are per build, so both are
-# resolved at run time and neither is ever hardcoded. The surrounding bytes are
-# not text, so the window is flattened before it is matched.
 condition_1() {
   local bundle="$BUNDLE" line off start window id esc val seen="" verdict=""
   echo "Condition 1: native AGENTS.md reading no longer depends on the remote flag"
@@ -415,8 +360,6 @@ condition_2() {
     fi
     while IFS=$'\t' read -r kind row; do
       [[ "$kind" == "ACTION" ]] || continue
-      # An ERROR row carries its detail in a further tab-separated field, which
-      # `read` leaves attached to this one.
       if [[ "$row" == ERROR* ]]; then
         note "$repo: the pin scan failed (${row#ERROR?})"
         unknown=$((unknown + 1))
@@ -426,9 +369,6 @@ condition_2() {
         note "$repo: no claude-code-action pin"
         continue
       fi
-      # The whole `uses:` reference, read from the start of its token. A match
-      # that could begin mid-token would read `evil/anthropics/claude-code-action`
-      # as Anthropic's action, when its repository is `evil/anthropics`.
       pin="$(printf '%s' "$row" | grep -oE "uses:[[:space:]]*[\"']?[A-Za-z0-9._/-]+@[A-Za-z0-9._-]+" | head -n 1 |
         sed -E "s/^uses:[[:space:]]*[\"']?//")"
       ref="${pin#*@}"
@@ -442,10 +382,6 @@ condition_2() {
         note "$repo: could not parse a ref out of the pin ($row)"
         continue
       fi
-      # Both lookups speak for Anthropic's action only. A same-named action
-      # under another owner can carry any tag, and GitHub serves a fork's
-      # commit by SHA through the parent's contents API, so a foreign pin
-      # would borrow a version its own code never promised.
       if [[ "$(printf '%s/%s' "$owner" "$name" | tr '[:upper:]' '[:lower:]')" != "anthropics/claude-code-action" ]]; then
         unknown=$((unknown + 1))
         note "$repo: pin $ref is not anthropics/claude-code-action (owner '${owner:-none}'), so neither the release map nor base-action/action.yml speaks for it"

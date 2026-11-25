@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-//   node build-view.mjs < data.json
-//
-// Exit 0 built, 1 the data or the page fails its checks, 2 usage or environment.
 
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

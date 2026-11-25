@@ -29,8 +29,6 @@ stage() {
   printf '%s' "$w/plan.md"
 }
 
-# BSD sed's `-i` takes a mandatory backup suffix, so every in-place edit in this
-# suite goes through a temp file and is written back with `cat`.
 inplace() {
   f="$1"
   shift

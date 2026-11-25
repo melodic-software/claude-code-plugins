@@ -1,80 +1,25 @@
 #!/usr/bin/env bash
-# Notification hook: cross-platform terminal/desktop alert when Claude Code needs input.
-# Triggered on the permission_prompt and idle_prompt notification types, and on
-# plugin_notification when its title is desktop-notification: the toast this
-# plugin's own mod (register.ts) forwards.
-#
-# ADVISORY: always exits 0; a Notification hook is not a gate. Pointer: what a
-# Notification hook can return is in https://code.claude.com/docs/en/hooks#notification.
-# Master kill switch
-# CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED gates the whole hook. When on, it emits up
-# to three INDEPENDENTLY-gated channels (each default ON):
-#   BELL            — audible terminal bell (bare BEL).
-#   TERMINAL_NOTIFY — OSC 9 desktop notification (race-free, cross-platform;
-#                     honored because the hook is synchronous — CC reads the
-#                     terminalSequence field and emits the sequence on our
-#                     behalf, including on Windows Terminal, which handles OSC 9).
-#   OS_TOAST        — OS-native toast, self-backgrounded so the hook returns at
-#                     once. macOS: osascript (built-in). Linux: notify-send
-#                     (libnotify — apt install libnotify-bin / dnf install
-#                     libnotify). Windows / other: no toast branch — a
-#                     fire-and-forget process leaves no live activator host for a
-#                     WinRT toast to render into, so terminal channels carry the
-#                     attention (Windows Terminal honors the OSC 9 above).
-# Channels are additive — enabling more stacks them.
-#
-# Config from the consumer's settings `env` block (all default ON when enabled):
-#   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=false                  disable entirely
-#   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED=false             mute the bell
-#   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false  mute OSC 9
-#   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=false         mute the OS toast
 
 set -uo pipefail
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
-# Kill switch FIRST, above every source: a disabled hook must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh fails a hook whose first early exit sits
-# below a source.
 [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED:-true}" == "true" ]] || exit 0
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
-# Capture $EPOCHREALTIME after the library loads so telemetry duration
-# covers the hook's work. EPOCHREALTIME is Bash 5.0+; on older bash it is unset,
-# so default to empty — referencing it bare under `set -u` would abort before the
-# advisory exit 0. Empty start => telemetry is skipped, the hook still notifies.
+# EPOCHREALTIME needs bash 5.0; it is unset on older bash.
+# https://cgit.git.savannah.gnu.org/cgit/bash.git/plain/NEWS
 start=${EPOCHREALTIME:-}
 
-# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. stdin is
-# read ONCE here and both fields are parsed from the buffered value; reading fd0
-# twice would drain the pipe. Filters fuse the completeness probe with field
-# extract so this fire spends one jq process, not a `jq -e .` plus two field
-# reads (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution).
 hook::buffer_stdin_to INPUT \
   '.notification_type // "unknown"' \
   '.message // "Needs your attention"' \
   '.title // ""' || exit 0
 
-# jq is load-bearing for parsing; absent → skip.
 command -v jq >/dev/null 2>&1 || exit 0
 
-# Strip ALL C0 control bytes (\001-\037 — includes ESC, BEL, CR, LF, TAB) from
-# untrusted text before it can reach ANY sink: an embedded ESC/BEL would
-# otherwise smuggle terminal escapes into the emitted OSC 9 sequence, and a
-# newline could inject statements on the osascript path. NUL cannot appear in a
-# bash string, so tr's `\000` was already unrepresentable. GNU Bash forks a
-# subshell for `$(printf | tr)` even when the body is a builtin.
 strip_c0_to() {
   local __s="$2"
   if [[ "$__s" == *[[:cntrl:]]* ]]; then
@@ -101,7 +46,6 @@ idle_prompt)
   DEFAULT_MSG="Waiting for your input"
   ;;
 plugin_notification)
-  # Only the toast this plugin's mod forwards; another mod's notification is its own.
   [[ "$TITLE" == "desktop-notification" ]] || exit 0
   HEADLINE="Claude Code"
   DEFAULT_MSG="Needs your attention"
@@ -116,14 +60,6 @@ hook::repo_root_to REPO_ROOT "${CLAUDE_PROJECT_DIR:-.}"
 
 CHANNELS=()
 
-# Channels 1+2 — terminal-escape notification (race-free, cross-platform base).
-# Built from two INDEPENDENT appends so each channel gates alone:
-#   TERMINAL_NOTIFY → OSC 9 desktop notification. Its trailing BEL is the OSC
-#     TERMINATOR, NOT the audible bell — it must always close the OSC 9 sequence,
-#     so disabling BELL never strips it.
-#   BELL → a standalone bare BEL (audible bell for any terminal).
-# Deliberately NOT OSC 2 (window title): CC sets the terminal title to the
-# session name, and an OSC 2 here would clobber it on every prompt.
 SEQ=""
 if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED:-true}" == "true" ]]; then
   printf -v SEQ '\033]9;%s\007' "$HEADLINE: $MESSAGE"
@@ -134,26 +70,13 @@ if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED:-true}" == "true
   CHANNELS+=("bell")
 fi
 
-# Channel 3 — OS-native toast (default on). Self-backgrounded so the hook
-# returns immediately. CRITICAL: redirect each child's stdout off CC's capture
-# pipe (>/dev/null 2>&1 &). A bare `&` child inherits fd1, so CC blocks for EOF
-# until the spawn's startup timeout and the hook hangs. The redirect keeps fd1
-# off the pipe; the hook's own terminalSequence JSON still reaches CC.
 if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED:-true}" == "true" ]]; then
-  # Optional git branch context for the toast body (generic; empty outside a
-  # git repo → body is just the message). Branch is also untrusted input — strip
-  # C0 bytes through the same gate as .message (a ref name can't legally carry
-  # them, but defense-in-depth so the branch can never reach a sink un-sanitized).
   BRANCH=$(hook::git_untrusted -C "$REPO_ROOT" branch --show-current 2>/dev/null) || BRANCH=""
   strip_c0_to BRANCH "$BRANCH"
   BODY="$MESSAGE"
   [[ -n "$BRANCH" ]] && BODY="$MESSAGE — $BRANCH"
   case "$(uname -s)" in
   Darwin)
-    # Pass text via argv, NEVER interpolated into the AppleScript source: a `"`
-    # in $BODY would close the string literal and a newline inject statements
-    # (→ code execution). `osascript -` reads the program from stdin (the quoted
-    # heredoc, so nothing expands); the trailing args populate `on run argv`.
     osascript - "$HEADLINE" "$BODY" >/dev/null 2>&1 <<'OSA' &
 on run argv
   display notification (item 2 of argv) with title (item 1 of argv)
@@ -163,8 +86,8 @@ OSA
     ;;
   Linux)
     if command -v notify-send >/dev/null 2>&1; then
-      # `--` terminates option parsing so a title/body starting with `-` is
-      # treated as a positional, never an option flag.
+      # An unredirected background child keeps the hook running up to 10 seconds after it exits.
+      # https://code.claude.com/docs/en/hooks
       notify-send -- "$HEADLINE" "$BODY" >/dev/null 2>&1 &
       CHANNELS+=("os_toast")
     elif [[ -n "${WSL_DISTRO_NAME:-}" ]] && command -v powershell.exe >/dev/null 2>&1; then
@@ -187,9 +110,6 @@ OSA
   esac
 fi
 
-# Telemetry (opt-in, HOOK_TELEMETRY_SINK). Built only when a sink is wired, with
-# builtins so a wired sink does not spend jq on `{notification_type,channels}`.
-# Channel names are fixed literals above, so they need no JSON escaping.
 if [[ -n "$start" ]] && hook::telemetry_enabled; then
   ch_json=""
   status="skipped"
@@ -204,10 +124,6 @@ if [[ -n "$start" ]] && hook::telemetry_enabled; then
   hook::emit_telemetry "desktop-notification" "Notification" "$status" "$start" "$data_json" "$REPO_ROOT"
 fi
 
-# Emit terminalSequence LAST (final stdout write) and ONLY when non-empty: both
-# terminal channels off → silent stdout, exit 0 — the same shape CC tolerates
-# from the kill-switch path. json_escape_jq_to is the same string escaping jq
-# would apply; CC parses the JSON and emits the raw sequence for us.
 if [[ -n "$SEQ" ]]; then
   __seq=""
   hook::json_escape_jq_to __seq "$SEQ"
