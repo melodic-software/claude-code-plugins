@@ -490,8 +490,6 @@ main() {
   trap cleanup EXIT
   mark_cold_clean "$store_dir"
 
-  # Sweep stale cold temps left by a previous hard-killed run (safe: we hold the lock, so no
-  # live compaction can own them). The .tmp suffix never matches the cold *-*.parquet glob.
   rm -f "$store_dir/cold/"*.tmp 2>/dev/null || true
 
   # Stop the Collector service, then wait for its Stopped state (and released file handles).

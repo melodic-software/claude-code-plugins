@@ -128,8 +128,6 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(_classes(old, new), {AGENT + "/description": "value->value"})
 
     def test_a_constant_holding_an_ellipsis_stays_unresolved(self) -> None:
-        # A constant can carry a template substitution, so its `…` is still
-        # the placeholder.
         old = _report(description="Use … here", description_source="constant")
         self.assertEqual(
             _classes(old, _report(description="Use Grep here")),

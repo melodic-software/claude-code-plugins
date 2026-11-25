@@ -73,9 +73,6 @@ FACT_CHARS = 300
 MAX_ITEMS = 10
 KEY_LINE = "Drift key: "
 BINARY_UNAVAILABLE = "binary source unavailable: "
-# inventory.py's pick_binary: a native build is a single file over this size,
-# and auto-detection names it so in the binary source's `selected_by`.
-# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/inventory/scripts/inventory.py
 NATIVE_SELECTED_BY = "auto-detected native build"
 NATIVE_MIN_BYTES = 20_000_000
 
@@ -101,7 +98,6 @@ def _strs(value: Any) -> bool:
 
 
 def _record_ok(rec: Any) -> bool:
-    """A summary's surface record: the diff reads these without a guard."""
     return (
         isinstance(rec, dict)
         and _str_list(rec.get("aliases", []))
@@ -167,16 +163,12 @@ def shape_error(kind: str, data: Any) -> str | None:
         if not _opt(data.get("native_build"), bool):
             bad.append("native_build")
     elif kind == "detect":
-        # Required, not optional: a summary with a detect block becomes the
-        # candidate baseline, so `{}` would mark every later candidate new.
         if data.get("schema") != 1:
             return "not a schema-1 overlap.py detect report"
         bad = [
             k for k in ("discovery", "integrity") if not isinstance(data.get(k), dict)
         ]
         candidates = data.get("candidates")
-        # A candidate's identity builds its dedupe key, so its leaves are
-        # required: a missing one would key the baseline as `None:None:None`.
         if not _objects(candidates) or not all(
             isinstance(c.get("native"), dict)
             and isinstance(c["native"].get("name"), str)
@@ -319,8 +311,6 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
             continue
         if lane == "plugin_backed":
-            # The registration of a plugin-backed name sits in the command or
-            # skill lane; its fields describe the plugin-backed surface.
             other = {
                 **(inventory.get("builtin_commands") or {}),
                 **(inventory.get("bundled_skills") or {}),
@@ -590,8 +580,6 @@ def evaluate_row(
         )
     recorded = set(native.get("markers") or [])
     observed = set(rec.get("markers") or [])
-    # A recorded marker the row sources from the docs is one the extraction
-    # does not set, so neither side counts it: its basis is the docs.
     unjudged = recorded & set(native.get("docs_markers") or [])
     if rec.get("model_invocable") is None:
         unjudged.add("model-invocation-disabled")
@@ -683,8 +671,6 @@ def diff(
     items: list[dict[str, Any]] = []
 
     threshold = ((detect or {}).get("discovery") or {}).get("threshold")
-    # A previous summary written without a detect report does not know the
-    # candidates; reading its absence as "none" would file every candidate.
     known = (prev or {}).get("candidates")
     knows_candidates = isinstance((prev or {}).get("detect"), dict) and isinstance(
         known, list
@@ -759,14 +745,6 @@ def diff(
             }
         )
 
-    # A description the extraction cannot resolve leaves detect scoring that
-    # surface on its name, user-facing name and search hint alone. Each name
-    # the previous summary did not already list is an item, so a release that
-    # adds a shape the resolver cannot read is filed, not absorbed. Unlike a
-    # candidate, an unknown previous state (a baseline, or an older summary)
-    # files every listed name: each is a standing gap in the extraction, not
-    # a claim that it just appeared, the list is short, and the key dedupes a
-    # refiled item against the open one.
     unresolved = cur.get("unresolved_descriptions")
     known_unresolved = (prev or {}).get("unresolved_descriptions")
     new_unresolved = [
@@ -936,7 +914,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     except (TypeError, AttributeError) as exc:
-        # Backstop for a shape shape_error does not check: still an input error.
         print(f"error: an input has an unexpected shape: {exc}", file=sys.stderr)
         return 2
     return 0

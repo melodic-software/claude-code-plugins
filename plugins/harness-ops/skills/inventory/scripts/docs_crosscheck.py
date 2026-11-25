@@ -162,7 +162,6 @@ def fetch_text(profile: str, url: str) -> tuple[str | None, str | None, dict[str
 def _read_source(
     file: str | None, url: str, profile: str = "anthropic"
 ) -> tuple[str | None, str | None, dict[str, Any]]:
-    """Text from `file` when given, else fetched from `url`: (text, error, source)."""
     if file:
         try:
             return Path(file).read_text(encoding="utf-8"), None, {"file": file}
@@ -185,15 +184,12 @@ def _count(
 
 
 def _stale(page: str, source: dict[str, Any]) -> list[str]:
-    """The advisory for a page served stale from the cache, or none."""
     if not source.get("stale"):
         return []
     return [f"{page} page served stale ({source.get('reason') or 'unknown'})"]
 
 
 def _row_rest(pattern: re.Pattern[str], line: str) -> tuple[re.Match[str], str] | None:
-    """The first-cell match and the text between it and the row's closing pipe,
-    or None when `line` is not such a row."""
     m = pattern.match(line)
     rest = line[m.end() :].rstrip() if m else ""
     return (m, rest[:-1]) if m and rest.endswith("|") else None
@@ -402,7 +398,6 @@ def parse_changelog(text: str, names: set[str]) -> dict[str, dict[str, Any]]:
 def _binary_index(
     report: dict[str, Any],
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-    """Registered names with their lane facts, and each binary alias's owner."""
     names: dict[str, dict[str, Any]] = {}
     alias_owner: dict[str, str] = {}
     lanes = (
