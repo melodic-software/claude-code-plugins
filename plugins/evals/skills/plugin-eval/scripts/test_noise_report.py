@@ -24,7 +24,6 @@ GRADER_NAMES = ("g1", "g2", "g3", "g4")
 
 
 def make_run(score, error=None, skipped=False, include_score=True, graders=None):
-    """A run whose four equal-weight graders pass in proportion to `score`."""
     if graders is None:
         passed = round(score * len(GRADER_NAMES))
         graders = [
@@ -55,7 +54,6 @@ def make_run(score, error=None, skipped=False, include_score=True, graders=None)
 
 
 def make_case(name, with_scores, without_scores=None, grader_defs=None):
-    """A case whose arms hold one run per listed score."""
     if grader_defs is None:
         grader_defs = [
             {"name": n, "type": "regex", "weight": 1, "config": {}}
@@ -111,7 +109,6 @@ class NoiseReportTest(unittest.TestCase):
         ]
         proc = self.report(make_result(cases))
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        # deltas +0.25, 0, -0.25, +0.25: mean 0.0625, sd 0.2394, half-width 0.2346
         self.assertIn(
             "delta (with minus without), paired over 4 cases: +0.06, 95% interval -0.17 to +0.30",
             proc.stdout,
@@ -210,7 +207,6 @@ class NoiseReportTest(unittest.TestCase):
             "without-arm pass count at threshold 1.00: 2 of 4, 95% interval 0.12 to 0.88 (jeffreys)",
             proc.stdout,
         )
-        # score intervals stay normal whatever the method
         self.assertIn(
             "with-arm mean: 0.94, 95% interval 0.82 to 1.00 (normal, 4 cases)",
             proc.stdout,
@@ -268,7 +264,6 @@ class NoiseReportTest(unittest.TestCase):
     def test_missing_run_score_is_recomputed_from_weighted_graders(self):
         proc = self.report(make_result([self.weighted_case()]))
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        # result (weight 3) passed, process (weight 1) failed, skill-fired not scored
         self.assertIn("with-arm mean: 0.75 (1 case", proc.stdout)
 
     def test_grader_weight_falls_back_to_the_case_definition(self):
@@ -286,7 +281,6 @@ class NoiseReportTest(unittest.TestCase):
             proc.stdout,
         )
         self.assertNotIn("run 3 reports", proc.stdout)
-        # run 1 has no score, run 2 reports 1.00, run 3 reports 0.75
         self.assertIn("with-arm mean: 0.83 (1 case", proc.stdout)
 
     def test_incomparable_cases_are_named_and_left_out(self):
@@ -380,7 +374,6 @@ class NoiseReportTest(unittest.TestCase):
             " (8 of 9 votes match their run's majority)",
             proc.stdout,
         )
-        # tool_order and tool_used graders carry no judge
         self.assertNotIn("grader process", proc.stdout)
 
     def test_judge_votes_as_verdict_objects_are_read(self):
@@ -466,7 +459,6 @@ class NoiseReportTest(unittest.TestCase):
         after.append(make_case("d", [1, 1, 0.75], [0, 0, 0]))
         proc = self.compare(make_result(after), make_result(before))
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        # with-arm changes 0, 0, 0, -0.083: mean -0.02, half-width 0.04
         self.assertIn(
             "with-arm change (this minus baseline), paired over 4 cases: -0.02, 95% interval -0.06 to +0.02",
             proc.stdout,

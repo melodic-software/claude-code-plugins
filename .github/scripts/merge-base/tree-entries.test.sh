@@ -44,8 +44,6 @@ merge_main() {
   tg checkout -q pr
   tg merge --no-commit --no-ff main >/dev/null 2>&1 || true
 }
-# run_entries [<head> <base> <tree>]: sets OUT (sorted), ERR and RC. The tree
-# defaults to the index written as a tree.
 run_entries() {
   local head=${1:-$(tg rev-parse pr)} base=${2:-$(tg rev-parse main)} tree=${3:-}
   [[ -n $tree ]] || tree=$(tg write-tree 2>/dev/null) || tree=none

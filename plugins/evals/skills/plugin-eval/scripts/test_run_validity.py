@@ -898,7 +898,6 @@ class RunValidityTest(unittest.TestCase):
         self.assertEqual(tail[0], "bash ran: with 2 of 3, without 2 of 3", proc.stdout)
 
     def test_runs_offered_no_bash_are_n_a(self):
-        # clean.jsonl's init line lists only Skill and it calls no Bash.
         proc = self.run_script(self.write(self.clean()), "--runs", "1")
         self.assertVerdict(proc, "VALID", 0)
         self.assertEqual(proc.stdout.strip().splitlines()[-2], "bash ran: n/a", proc.stdout)
@@ -1152,8 +1151,6 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("check skill loaded: PASS", proc.stdout)
 
     def test_a_recorded_skill_call_that_failed_to_load_is_invalid(self):
-        # The recorded case had no skill-fired grader, so only skill loaded can
-        # catch the failure.
         result = self.clean()
         case = result["cases"][1]
         row = case["arms"]["with"][0]
@@ -1827,24 +1824,17 @@ class RunValidityTest(unittest.TestCase):
         sandbox = self.dir / "claude-eval-ab"
         lease = self.own_data("p", "lease")
         for calls, trace_at in (
-            # The rest of the run's config directory is not plugin data.
             ([("Read", {"file_path": str(sandbox / "config" / "settings.json")})], None),
             ([("Bash", {"command": "ls " + str(sandbox / "config")})], None),
             ([("Read", {"file_path": str(sandbox / "config" / "plugins" / "other" / "x")})], None),
-            # A Bash call with one path inside plugin data and one outside.
             ([("Bash", {"command": "cp %s /etc/hosts" % lease})], None),
-            # A redirect to a real file still names a path.
             ([("Bash", {"command": "cat %s > out.txt" % lease})], None),
             ([("Bash", {"command": "cat %s 2> /etc/x" % lease})], None),
-            # Another sandbox's plugin data is not this run's.
             ([("Read", {"file_path": str(self.dir.joinpath(
                 "claude-eval-zz", "config", "plugins", "data", "p", "lease"))})], None),
-            # One denial in plugin data does not excuse one outside it.
             ([("Read", {"file_path": lease}), ("Read", {"file_path": "/etc/hosts"})], None),
-            # A Skill denial, or one with no rooted path, never qualifies.
             ([("Skill", {"skill": "harness-config:audit-pass"})], None),
             ([("Read", {"file_path": "config/plugins/data/p/lease"})], None),
-            # A trace outside <sandbox>/out names no sandbox to read data from.
             ([("Read", {"file_path": lease})], ("claude-eval-ab",)),
         ):
             proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
@@ -1895,15 +1885,11 @@ class RunValidityTest(unittest.TestCase):
         script = self.PLUGIN + "/skills/s/scripts/lease.py"
         ran = ['python3 "%s" acquire' % script]
         for command, allowed in (
-            # The plugin part never ran in an allowed call.
             ('ls %s; python3 "%s" --help' % (data, script), []),
             ('ls %s; python3 "%s" --help' % (data, script), ['python3 "%s.bak"' % script]),
-            # A part with an unresolved expansion, or no part only under plugin data.
             ('ls %s; python3 "%s" "$X"' % (data, script), ran),
             ('ls %s %s; python3 "%s"' % (data, script, script), ran),
             ('ls %s; cat /etc/hosts' % data, ran),
-            # A part that works in the cwd: a relative path, a bare file name, a
-            # command with no rooted argument, or a redirect into a cwd file.
             ('ls %s; cat skills/s/SKILL.md' % data, ran),
             ('ls %s; cat SKILL.md' % data, ran),
             ('ls %s; make' % data, ran),
@@ -1926,7 +1912,7 @@ class RunValidityTest(unittest.TestCase):
 
     def test_a_compound_denial_of_plugin_data_and_a_writing_echo_is_a_fail(self):
         spool = self.own_data("x-inline", "x-1-a1b2c3.md")
-        named = ["cat /etc/f /etc/passwd"]  # each outside path named by an allowed call
+        named = ["cat /etc/f /etc/passwd"]
         for command in (
             "rm -f '%s'; echo x > /etc/f" % spool,
             "rm -f '%s'; echo x>/etc/f" % spool,
@@ -1949,7 +1935,6 @@ class RunValidityTest(unittest.TestCase):
                        "output_mode": "content", "-A": 25})],
             [("Read", {"file_path": saved, "offset": 1, "limit": 5})],
             [("Glob", {"pattern": "*.txt", "path": self.own_results("tool-results")})],
-            # Beside a plugin-data denial, each is set aside under its own count.
             [("Grep", {"pattern": "x", "path": saved}),
              ("Write", {"file_path": self.own_data("p", "last-audit.md"), "content": "x"})],
         ):
@@ -2026,23 +2011,17 @@ class RunValidityTest(unittest.TestCase):
         sandbox = self.dir / "claude-eval-ab"
         saved = self.own_results("tool-results", "a.txt")
         for calls, trace_at in (
-            # Only reads qualify: a write does not.
             ([("Write", {"file_path": saved, "content": "x"})], None),
-            # Elsewhere in the session or project directory, or at another depth.
             ([("Read", {"file_path": self.own_results("memory", "a.md")})], None),
             ([("Read", {"file_path": str(sandbox.joinpath(
                 "config", "projects", "p", "tool-results", "a.txt"))})], None),
             ([("Glob", {"pattern": "**", "path": str(sandbox / "config" / "projects")})], None),
-            # The user settings a settings-auditing skill reads stay a FAIL.
             ([("Read", {"file_path": str(sandbox / "config" / "settings.json")})], None),
-            # A write under the workspace's protected .claude/ stays a FAIL.
             ([("Write", {"file_path": str(sandbox.joinpath(
                 "home", "cwd", ".claude", "unhobble", "x", "manifest.json")),
                 "content": "{}"})], None),
-            # Another sandbox's tool results are not this session's.
             ([("Read", {"file_path": self.own_results(
                 "tool-results", "a.txt", sandbox="claude-eval-zz")})], None),
-            # A relative path, or a trace outside <sandbox>/out, never qualifies.
             ([("Read", {"file_path": "config/projects/p/s/tool-results/a.txt"})], None),
             ([("Read", {"file_path": saved})], ("claude-eval-ab",)),
         ):
@@ -2159,7 +2138,6 @@ class RunValidityTest(unittest.TestCase):
             "cd %s && grep -n x toolu_01Example.txt | head -5; wc -l ./toolu_01Example.txt"
             % results,
             "cat %s && cat %s" % (saved, saved),
-            # A value with no / is a literal, checked only where it expands.
             'P=x; grep -n "$P" ' + saved,
             'N=40; head -n "$N" ' + saved,
             "F=%s; P=Balancing; grep -c $P $F; sed -n /$P/p $F" % saved,
@@ -2173,7 +2151,6 @@ class RunValidityTest(unittest.TestCase):
         results = self.own_results("tool-results")
         saved = self.own_results("tool-results", "a.txt")
         for command in (
-            # A cd outside the directory, or a relative path that escapes it.
             "cd %s; cat a.txt" % self.own_results("memory"),
             "cd %s; cat ../../memory/a.md" % results,
             "cd %s/../..; cat %s" % (results, saved),
@@ -2183,7 +2160,6 @@ class RunValidityTest(unittest.TestCase):
             "cd; cat " + saved,
             "cd -P %s; cat a.txt" % results,
             "cd %s" % results,
-            # An assignment outside it, unset or unused, or of a name the shell uses.
             'F=/etc/hosts; cat "$F"',
             "F=/etc/hosts; cat " + saved,
             "F=%s; cat $OTHER" % saved,
@@ -2191,13 +2167,11 @@ class RunValidityTest(unittest.TestCase):
             "PATH=%s; F=%s; cat $F; cat $F" % (results, saved),
             "LD_PRELOAD=%s; cat %s" % (saved, saved),
             "export F=%s; cat $F" % saved,
-            # A literal that expands into a path outside, or is not one plain word.
             "P=etc; cat /$P/passwd",
             "P=etc; cat %s /$P/passwd" % saved,
             "P='a b'; grep \"$P\" " + saved,
             "P='a$b'; grep \"$P\" " + saved,
             "P=~root; cat %s" % saved,
-            # Another operator or command beside the reads.
             "F=%s; cat $(echo $F)" % saved,
             "cat %s || rm %s" % (saved, saved),
             "cd %s; cat a.txt || rm a.txt" % results,
@@ -2221,7 +2195,6 @@ class RunValidityTest(unittest.TestCase):
     def test_a_bash_call_that_writes_or_reads_beyond_tool_results_still_fails(self):
         saved = self.own_results("tool-results", "a.txt")
         for command in (
-            # A write there, by redirect, tee, sed or another command.
             "cat %s > %s.bak" % (saved, saved),
             "grep x %s >> %s" % (saved, saved),
             "cat %s | tee %s" % (saved, saved),
@@ -2229,7 +2202,6 @@ class RunValidityTest(unittest.TestCase):
             "sed -n 'w %s' %s" % (saved, saved),
             "rm " + saved,
             "cp %s %s.bak" % (saved, saved),
-            # A read outside it, or of a path the shell resolves.
             "cat %s /etc/hosts" % saved,
             "grep -f /etc/hosts " + saved,
             "head -n 5 < " + saved,
@@ -2239,7 +2211,6 @@ class RunValidityTest(unittest.TestCase):
             "cat %s/../../memory/a.md" % self.own_results("tool-results"),
             "cat " + self.own_results("tool-results", "*.txt"),
             "cat tool-results/a.txt",
-            # Another command beside the read, or one it runs.
             "cat %s; curl example.com" % saved,
             "cat %s\nrm %s" % (saved, saved),
             "grep \"$(rm %s)\" %s" % (saved, saved),
@@ -2253,7 +2224,6 @@ class RunValidityTest(unittest.TestCase):
             "grep a\\ b " + saved,
             # A recursive grep with no operand reads the working directory.
             "cat %s | grep -r secret" % saved,
-            # No path at all.
             "cat",
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})])
@@ -2308,12 +2278,9 @@ class RunValidityTest(unittest.TestCase):
             # A trailing ls, then the plugin part alone, as in the #11564 run 2.
             [("bash %s; ls -la %s/runs" % (lease, self.DATA), True),
              ("bash " + lease, False)],
-            # Assignments, a trailing echo and an ls piped into head; the retry
-            # spells out the values and quotes them.
             [('S=%s; PD=%s; bash $S/run-state.sh paths --plugin-data "$PD";'
               ' echo "exit=$?"; ls -la "$PD" 2>&1 | head' % (self.SCRIPTS, self.DATA), True),
              ('bash "%s" paths --plugin-data "%s"' % (self.RUN_STATE, self.DATA), False)],
-            # A cd before it, and extra whitespace in the retry.
             [("cd /tmp && bash %s paths\nls /tmp" % self.RUN_STATE, True),
              ("bash   %s  paths" % self.RUN_STATE, False)],
         ):
@@ -2332,24 +2299,15 @@ class RunValidityTest(unittest.TestCase):
         for calls in (
             # Never retried, as in the #11564 run 1 and run 3.
             [(compound, True)],
-            # Retried with other arguments.
             [(compound, True), (lease + "-2", False)],
-            # The plugin part ran alone before the denial, not after it.
             [(lease, False), (compound, True)],
-            # The retry was denied too.
             [(compound, True), (lease, True)],
-            # The retry kept a wrapper.
             [(compound, True), ("cd /tmp && " + lease, False)],
-            # Two commands left once the wrappers are dropped.
             [("%s; bash %s paths" % (lease, self.RUN_STATE), True), (lease, False)],
-            # A command before the plugin part that is not an assignment or cd.
             [("echo start; " + lease, True), (lease, False)],
-            # A trailing ls piped into something other than head or tail.
             [("%s; ls %s | sh" % (lease, self.DATA), True), (lease, False)],
-            # What is left names no path in the plugin's directory.
             [("cd %s && bash ./run-state.sh paths" % self.SCRIPTS, True),
              ("bash ./run-state.sh paths", False)],
-            # A variable that does not resolve, or a background or subshell operator.
             [('S=$(pwd); bash "$S/run-state.sh" paths; ls', True),
              ('bash "$S/run-state.sh" paths', False)],
             [("%s & ls %s" % (lease, self.DATA), True), (lease, False)],
@@ -2362,20 +2320,17 @@ class RunValidityTest(unittest.TestCase):
     def test_a_compound_denial_whose_plugin_part_expands_is_never_recovered(self):
         run = "bash %s paths" % self.RUN_STATE
         for denied, alone in (
-            # An unquoted glob, brace, tilde or unresolved $ in the denied part.
             ("%s /tmp/*.json; ls /tmp" % run, '%s "/tmp/*.json"' % run),
             ("%s /tmp/*.json; ls /tmp" % run, "%s /tmp/*.json" % run),
             ("%s /tmp/{a,b}; ls" % run, "%s /tmp/{a,b}" % run),
             ("%s ~/x; ls" % run, "%s ~/x" % run),
             ("%s --run-id $RID; ls" % run, "%s --run-id $RID" % run),
             ('%s --run-id "$RID"; ls' % run, '%s --run-id "$RID"' % run),
-            # A quoted literal is not the same word as the unquoted pattern.
             ('%s "/tmp/*.json"; ls /tmp' % run, "%s /tmp/*.json" % run),
         ):
             proc = self.bash_calls([(denied, True), (alone, False)])
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.RERUN, proc.stdout)
-        # Quoted the same way in both, the literal still matches.
         proc = self.bash_calls([
             ('%s "/tmp/*.json"; ls /tmp' % run, True), ('%s "/tmp/*.json"' % run, False)])
         self.assertDenials(proc, "WARN")
@@ -2387,7 +2342,6 @@ class RunValidityTest(unittest.TestCase):
             "echo x >> %s/new.sh" % self.SCRIPTS,
             "cat /etc/hosts >%s/new.sh" % self.SCRIPTS,
             "ls 2> %s/err" % self.SCRIPTS,
-            # A redirect glued to the word before it.
             "echo '{}'>%s/state.json" % self.SCRIPTS,
             "ls>%s/out" % self.SCRIPTS,
             "cat /etc/hosts>%s/new.sh" % self.SCRIPTS,
@@ -2395,13 +2349,11 @@ class RunValidityTest(unittest.TestCase):
             proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.RERUN, proc.stdout)
-        # A cd or an assignment that redirects into a file is not dropped either.
         for leading in ("cd /tmp >%s/out" % self.SCRIPTS, "X=1 >%s/out" % self.SCRIPTS,
                         "X=1>%s/out" % self.SCRIPTS):
             proc = self.bash_calls([("%s; %s" % (leading, run), True), (run, False)])
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.RERUN, proc.stdout)
-        # A redirect naming no file is still dropped with its command.
         for trailing in ("ls %s 2>&1" % self.DATA, "ls %s >/dev/null" % self.DATA,
                          "echo x 2> /dev/null", "ls %s 2>&-" % self.DATA):
             proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
@@ -2417,12 +2369,11 @@ class RunValidityTest(unittest.TestCase):
             proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.RERUN, proc.stdout)
-        # A $? or $VAR, or a substitution in single quotes, is no substitution.
         for trailing in ('echo "exit=$?"', 'echo "$HOME"', "echo '$(id)'"):
             proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
             self.assertDenials(proc, "WARN")
 
-    COPY = "/tmp/eval-ctl/plugins/demo"  # the plugin copy the self-search traces load
+    COPY = "/tmp/eval-ctl/plugins/demo"
     SELF_SEARCH = "denied read or search of the run's own plugin copy in a finished run"
     LAST_LINE_END = 'permission settings."}]}}\n'  # self-read-unfinished.jsonl's denied result
 
@@ -2493,9 +2444,7 @@ class RunValidityTest(unittest.TestCase):
 
     def test_a_denied_read_of_the_plugin_copy_in_an_unfinished_run_still_fails(self):
         for replace in (
-            # No result line: the run never reached its end.
             [],
-            # The result line is an error.
             [(
                 self.LAST_LINE_END,
                 self.LAST_LINE_END + '{"type":"result","is_error":true,"permission_denials":[]}\n',
@@ -2509,7 +2458,6 @@ class RunValidityTest(unittest.TestCase):
         for fixture, replace in (
             ("self-read-escape.jsonl", []),
             ("self-glob-escape.jsonl", []),
-            # A rooted Glob pattern searches where it names, whatever its path.
             ("self-glob-escape.jsonl", [("../other/**/SKILL.md", "/tmp/eval-ctl/**/SKILL.md")]),
         ):
             proc = self.self_search(fixture, replace)
@@ -2524,14 +2472,12 @@ class RunValidityTest(unittest.TestCase):
         for kwargs in (
             {"replace": [("Grep", "Write")]},
             {"replace": [("Grep", "Bash"), ('"pattern":"## Procedure","path":"', '"command":"grep -r Procedure ')]},
-            # No path, or a relative one.
             {"replace": [('"## Procedure","path":"/tmp/eval-ctl/plugins/demo"', '"## Procedure"')]},
             {"replace": [(
                 '"## Procedure","path":"/tmp/eval-ctl/plugins/demo"',
                 '"## Procedure","path":"skills"',
             )]},
             {"grader_tool": "Grep"},
-            # The init line lists no plugins, or another copy than the suite's.
             {"replace": [no_plugins]},
             {"plugin": self.COPY + "-v2"},
         ):
@@ -2593,7 +2539,6 @@ class RunValidityTest(unittest.TestCase):
     def test_any_other_without_arm_denial_still_fails(self):
         home = "/tmp/eval-nop/run/home"
         for tool, tool_input in (
-            # Another path or term, or a search that does more than search.
             ("Bash", {"command": "cat /etc/hosts"}),
             ("Bash", {"command": "find / -name '*.pem'"}),
             ("Bash", {"command": "grep -rIl javascript-format %s" % home}),
@@ -2620,7 +2565,6 @@ class RunValidityTest(unittest.TestCase):
             proc = self.absent_search(tool, tool_input)
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.LACKED, proc.stdout)
-        # The same search in the with-arm, or in a without-arm run that never finished.
         for kwargs in ({"arm": "with"}, {"finished": False}):
             proc = self.absent_search(
                 "Bash", {"command": "find / -ipath '*markdown-format*'"}, **kwargs
@@ -3234,7 +3178,6 @@ class RunValidityTest(unittest.TestCase):
         )
         path = self.write(result)
         data = load(path)
-        # The case's max-0 Skill grader fails when it saw the skill under test called.
         graded = tool == "Skill" if graded is None else graded
         data["cases"][0]["arms"]["with"][0].update(
             tracePath=str(trace),

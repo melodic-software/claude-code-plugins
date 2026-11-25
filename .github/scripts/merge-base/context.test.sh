@@ -29,8 +29,6 @@ commit() {
   tg add -A
   tg commit -q -m "$1"
 }
-# repo <path> <base> <pr> <main>: both sides edit path, then pr merges main
-# with --no-commit; HEAD and BASE name the two sides.
 repo() {
   R="$(mktemp -d "$TMP/repo.XXXXXX")"
   git init -q -b main "$R"
@@ -84,7 +82,6 @@ repo big.txt 'one\n' "$big\n" 'main\n'
 run
 check 'a stage over 1 MiB is cut with a note' 1 "$(tail -n 1 "$OUT/0000/ours" | grep -c 'cut at 1048576 bytes')"
 check 'the cut stage is 1 MiB plus the note' 1 "$(($(wc -c <"$OUT/0000/ours") < 1048576 + 64 ? 1 : 0))"
-# A log over 64 KiB: one long commit message on the head side.
 R="$(mktemp -d "$TMP/repo.XXXXXX")"
 git init -q -b main "$R"
 put l.txt 'one\n'
@@ -101,7 +98,6 @@ HEAD=$(tg rev-parse pr) BASE=$(tg rev-parse main)
 git -C "$R" -c user.name=t -c user.email=t@t.t merge -q --no-commit main >/dev/null 2>&1 || true
 run
 check 'a log over 64 KiB is cut with a note' 1 "$(tail -n 1 "$OUT/0000/head.log" | grep -c 'cut at 65536 bytes')"
-# Over the 16 MiB total, later files are left out and the entry says so.
 R="$(mktemp -d "$TMP/repo.XXXXXX")"
 git init -q -b main "$R"
 for i in $(seq 1 18); do put "f$i.txt" 'one\n'; done
