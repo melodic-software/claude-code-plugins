@@ -773,15 +773,20 @@ that follow-up. The original handoff keeps `Next: none (closed)`.
   Without the plugin, pass the flag alone for plain `claude` and say if a requested profile
   could not be applied. An ordinary same-session handoff keeps its `/clear` instruction.
 - The checkout defaults to the producing checkout, or the session's working directory outside
-  Git. Supply `--launch-dir <checkout>` when the work belongs in a different checkout. At emit,
-  a missing checkout prints an error line. Report that line to the user.
+  Git. Supply `--launch-dir <checkout>` when the work belongs in a different checkout. `new`
+  records the checkout and command in the `launch` frontmatter list, or an empty list for a
+  same-session handoff. `emit` reads that list and prints an error if the checkout is missing.
+  Report that error to the user.
 - `emit` writes `<handoff stem>.prompt.txt` beside the handoff file. It copies the resume
   region, or, for a goal in either position, `/goal ` followed by the goal region. The command
-  changes to the absolute checkout and passes the file's contents as one initial prompt.
-  The user pastes only that command. `fill` and `amend` refresh the prompt when they emit.
+  changes to the absolute checkout and passes the file's contents as one initial prompt. An
+  unreadable prompt file stops the launch. The user pastes only that command. `fill` and `amend`
+  refresh the prompt when they emit. `tidy_work.py clean` keeps or prunes it with its handoff.
 - Use the printed form for the session's shell. `emit --shell posix` selects bash, zsh or Git
-  Bash. `emit --shell powershell` selects PowerShell. For Claude commands and flags, read the
-  [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags).
+  Bash. `emit --shell powershell` requires PowerShell 7.3 or newer. Git Bash calls `pwsh`
+  for a PowerShell profile command. For shell quoting and Claude flags, see
+  [PowerShell argument passing](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_parsing#passing-arguments-that-contain-quote-characters)
+  and the [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags).
 - For a prompt-only handoff, write the selected redacted region to
   `<memory_dir>/handoffs/<TS>-handoff-<topic>.prompt.txt` after the self-ignore check.
   Include the same `/goal ` prefix for a goal. Run

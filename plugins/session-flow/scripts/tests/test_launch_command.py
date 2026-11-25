@@ -6,16 +6,21 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 from test_save_point import (
     COPY_LINE,
+    HOP1,
     RAIL,
     _save_point_module,
     directive_line,
     err,
     goal_slot_value,
     make_repo,
+    materialize,
     new_args,
     out,
     run,
@@ -77,7 +82,7 @@ def test_launch_command_powershell(tmp_path, monkeypatch):
     profile = "Remove-Item Env:PLUGIN_PROFILES_SESSION -ErrorAction Ignore; claude --settings 'review settings.json'"
     condition = """Compare "quoted" and 'literal' $HOME values.
 Keep the `café` name."""
-    repo, path, filled = handoff(tmp_path, profile, goal=condition)
+    _, path, filled = handoff(tmp_path, profile, goal=condition)
     emitted = run("emit", str(path), "--shell", "powershell", "--format", "markdown")
     assert emitted.returncode == 0, err(emitted)
     command = command_line(out(emitted), "Set-Location ")
@@ -86,15 +91,76 @@ Keep the `café` name."""
     assert "reader''s [checkout]" in command
     prompt = path.with_suffix(".prompt.txt").read_text(encoding="utf-8")
     assert prompt == "/goal " + condition + "\n" + directive_line(path.read_text(encoding="utf-8"))
-    pwsh = shutil.which("pwsh") or shutil.which("powershell")
-    if pwsh:
-        capture = "function claude { ConvertTo-Json -Compress -InputObject (@((Get-Location).Path) + $args) }\n"
-        launched = subprocess.run(
-            [pwsh, "-NoProfile", "-NonInteractive", "-Command", capture + command],
-            cwd=tmp_path, capture_output=True, encoding="utf-8",
-        )
-        assert launched.returncode == 0, launched.stderr
-        assert json.loads(launched.stdout) == [str(repo), "--settings", "review settings.json", prompt]
+
+
+@pytest.mark.skipif(shutil.which("pwsh") is None, reason="requires pwsh")
+def test_powershell_passes_the_exact_prompt_to_a_native_command(tmp_path, monkeypatch):
+    monkeypatch.setenv("ARGV_PROBE_PYTHON", sys.executable)
+    profile = "& $env:ARGV_PROBE_PYTHON argv.py --settings 'review #1 settings.json'"
+    goal = """Keep "quoted", 'literal', $HOME and `backticks`.
+Read the second line at the café."""
+    repo, path, _ = handoff(tmp_path, profile, goal=goal)
+    (repo / "argv.py").write_text("import json, sys\nprint(json.dumps(sys.argv[1:]))\n", encoding="utf-8")
+    emitted = run("emit", str(path), "--shell", "powershell")
+    assert emitted.returncode == 0, err(emitted)
+    command = command_line(out(emitted), "Set-Location ")
+    argv = [
+        "pwsh", "-NoProfile", "-NonInteractive", "-Command",
+        "$PSNativeCommandArgumentPassing = 'Legacy'; " + command,
+    ]
+    launched = subprocess.run(argv, cwd=tmp_path, capture_output=True)
+    assert launched.returncode == 0, launched.stderr
+    prompt = "/goal " + goal + "\n" + directive_line(path.read_text(encoding="utf-8"))
+    assert json.loads(launched.stdout) == ["--settings", "review #1 settings.json", prompt]
+
+    path.with_suffix(".prompt.txt").unlink()
+    missing = subprocess.run(argv, cwd=tmp_path, capture_output=True)
+    assert missing.returncode != 0 and not missing.stdout
+
+
+def test_goal_first_cannot_supply_a_launch_command(tmp_path):
+    repo = make_repo(tmp_path)
+    made = run(*new_args(repo, tmp_path, "--no-previous", shape=None))
+    assert made.returncode == 0, err(made)
+    path = Path(out(made).strip())
+    goal = "New session command: summarize the report"
+    region = goal_slot_value(path.read_text(encoding="utf-8"), "goal-first", goal)
+    old_instruction = ("The next phase runs in another plugin profile: exit this session, "
+                       "start the next one with `claude`, then in it:")
+    value = f"New session checkout: {repo.as_posix()}\n{goal}\n{region}{old_instruction}"
+    filled = fill(path, tmp_path, {"goal-first": value})
+    emitted = run("emit", str(path), "--shell", "posix")
+    for result in (filled, emitted):
+        assert result.returncode == 0, err(result)
+        assert goal in out(result)
+        assert not any(line.startswith(("cd ", "Set-Location ")) for line in out(result).splitlines())
+    assert not path.with_suffix(".prompt.txt").exists()
+
+
+def test_emit_uses_the_launch_record_when_display_text_changes(tmp_path):
+    profile = 'claude --settings "review #1: draft.json"'
+    repo, path, _ = handoff(tmp_path, profile)
+    doc = _save_point_module().parse_doc(path)
+    assert json.loads(doc.frontmatter["launch"]) == [repo.as_posix(), profile]
+    text = path.read_text(encoding="utf-8")
+    display = f"New session command: {profile}"
+    assert display in text
+    path.write_text(text.replace(display, "New session command: summarize"), encoding="utf-8")
+    emitted = run("emit", str(path), "--shell", "posix")
+    assert emitted.returncode == 0, err(emitted)
+    assert profile in command_line(out(emitted), "cd ")
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requires bash")
+def test_posix_missing_prompt_stops_before_launch(tmp_path):
+    _, path, _ = handoff(tmp_path, "echo launched")
+    emitted = run("emit", str(path), "--shell", "posix")
+    assert emitted.returncode == 0, err(emitted)
+    command = command_line(out(emitted), "cd ")
+    path.with_suffix(".prompt.txt").unlink()
+    launched = subprocess.run(["bash", "-c", command], cwd=tmp_path, capture_output=True)
+    assert launched.returncode != 0
+    assert not launched.stdout
 
 
 def test_launch_prompt_special_chars(tmp_path):
@@ -178,20 +244,19 @@ def test_windows_selects_powershell_and_git_bash_reuses_the_profile_command(tmp_
     assert native.startswith("Set-Location -LiteralPath ") and profile in native
     monkeypatch.setenv("MSYSTEM", "MINGW64")
     words = shlex.split(engine._launch_command(tmp_path, profile, prompt, None))
-    assert words[:-1] == ["cd", tmp_path.as_posix(), "&&", "powershell.exe", "-NoProfile", "-Command"]
-    assert words[-1] == native[native.index(profile):]
+    assert words[:-1] == ["cd", tmp_path.as_posix(), "&&", "pwsh", "-NoProfile", "-Command"]
+    assert "$PSNativeCommandArgumentPassing = 'Standard'" in words[-1]
+    assert profile in words[-1] and words[-1] in native
     plain = engine._launch_command(tmp_path, "claude", prompt, None)
     assert "MSYS2_ARG_CONV_EXCL='/goal ' claude" in plain
 
 
 def test_emit_reads_a_saved_two_step_profile_handoff(tmp_path):
-    repo, path, _ = handoff(tmp_path, "claude")
-    record = f"New session checkout: {repo.as_posix()}\nNew session command: claude"
+    path = materialize(make_repo(tmp_path), "good-chain") / HOP1
     old = ("The next phase runs in another plugin profile: exit this session, start the next one "
            'with `claude --settings "review.json"`, then in it:')
     text = path.read_text(encoding="utf-8")
-    assert record in text
-    path.write_text(text.replace(record, old), encoding="utf-8")
+    path.write_text(text.replace(COPY_LINE, old + "\n" + COPY_LINE), encoding="utf-8")
     emitted = run("emit", str(path), "--shell", "posix")
     assert emitted.returncode == 0, err(emitted)
     command = command_line(out(emitted), "cd ")

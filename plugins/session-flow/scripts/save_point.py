@@ -235,6 +235,7 @@ FRONTMATTER_KEYS_3 = (
     "archive",
     "archive_from",
     "standing_rules",
+    "launch",
     *(spec.floor_key for spec in ID_SPECS),
     "repo",
 )
@@ -2912,19 +2913,23 @@ def _launch_command(checkout: Path, command: str, prompt: Path, shell: str | Non
         powershell = Path(os.environ.get("SHELL", "")).stem.lower() in {"pwsh", "powershell"}
         shell = "powershell" if windows or powershell else "posix"
     prompt_path = prompt.absolute().as_posix()
-    read_ps = f"(Get-Content -LiteralPath {_ps_quote(prompt_path)} -Raw -Encoding UTF8 -ErrorAction Stop)"
-    if shell == "powershell":
+    if shell == "powershell" or command.startswith("Remove-Item "):
         if command.startswith("env "):
             command = "sh -c " + _ps_quote(command + ' "$1"') + " sh"
-        return f"Set-Location -LiteralPath {_ps_quote(str(checkout))} -ErrorAction Stop; {command} {read_ps}"
-    profile_command_is_powershell = command.startswith("Remove-Item ")
-    if profile_command_is_powershell:
-        ps ="powershell.exe" if sys.platform == "win32" else "pwsh"
-        invocation = f"{ps} -NoProfile -Command {shlex.quote(command + ' ' + read_ps)}"
+        read_ps = f"(Get-Content -LiteralPath {_ps_quote(prompt_path)} -Raw -Encoding UTF8 -ErrorAction Stop)"
+        launch_ps = (
+            "if ($PSVersionTable.PSVersion -lt [version]'7.3') { throw 'Run this command in pwsh 7.3 or newer.' }; "
+            f"$PSNativeCommandArgumentPassing = 'Standard'; {command} {read_ps}"
+        )
+        if shell == "powershell":
+            return f"Set-Location -LiteralPath {_ps_quote(str(checkout))} -ErrorAction Stop; & {{ {launch_ps} }}"
+        invocation = f"pwsh -NoProfile -Command {shlex.quote(launch_ps)}"
     else:
-        invocation = f'{command} "$(cat {shlex.quote(prompt_path)})"'
+        quoted_prompt = shlex.quote(prompt_path)
+        invocation = f'{command} "$(cat {quoted_prompt})"'
         if sys.platform == "win32":
             invocation = "MSYS2_ARG_CONV_EXCL='/goal ' " + invocation
+        invocation = f": < {quoted_prompt} && {invocation}"
     return f"cd {shlex.quote(checkout.as_posix())} && {invocation}"
 
 
@@ -2939,11 +2944,18 @@ def cmd_launch(args: argparse.Namespace) -> int:
     return 0
 
 
-def _emit_launch(lines: list[str], path: Path, shell: str | None, markdown: bool) -> None:
-    if len(lines) >= 2 and lines[0].startswith(LAUNCH_CHECKOUT) and lines[1].startswith(LAUNCH_COMMAND):
-        checkout = Path(lines[0].removeprefix(LAUNCH_CHECKOUT))
-        command = lines[1].removeprefix(LAUNCH_COMMAND)
-        del lines[:2]
+def _emit_launch(lines: list[str], doc: Doc, shell: str | None, markdown: bool) -> None:
+    path = doc.path
+    if "launch" in doc.frontmatter:
+        match json.loads(doc.frontmatter["launch"]):
+            case []:
+                return
+            case [str(directory), str(command)]:
+                checkout = Path(directory)
+            case _:
+                raise ValueError("launch frontmatter must contain a checkout and command, or an empty list")
+        if len(lines) >= 2 and lines[0].startswith(LAUNCH_CHECKOUT) and lines[1].startswith(LAUNCH_COMMAND):
+            del lines[:2]
     else:
         copy = lines.index(COPY_LINE) if COPY_LINE in lines else 0
         if not copy or not (old := PROFILE_RELAUNCH_RE.fullmatch(lines[copy - 1])):
@@ -3030,7 +3042,7 @@ def cmd_emit(args: argparse.Namespace) -> int:
     markdown = getattr(args, "format", "rails") == "markdown"
     launch_error = None
     try:
-        _emit_launch(out, path, getattr(args, "shell", None), markdown)
+        _emit_launch(out, doc, getattr(args, "shell", None), markdown)
     except ValueError as exc:
         launch_error = str(exc)
         out[:0] = [f"No launch command: {exc}. Start the new session by hand with the copy region below."]
@@ -4283,6 +4295,11 @@ def _this_session_lines() -> list[str]:
     ]
 
 
+def _launch_frontmatter(launch: tuple[str, ...]) -> str:
+    json_without_inline_comments = json.dumps(launch).replace(" #", r" \u0023")
+    return f"launch: {json_without_inline_comments}"
+
+
 def _resume_prompt(
     target: Path,
     session_id: str,
@@ -4296,8 +4313,9 @@ def _resume_prompt(
     if standing is not None:
         read_path = f"{_posix(standing)}{STANDING_THEN}{read_path}"
     settings = f' --settings "{settings_file}"' if settings_file else ""
+    instructions = [LAUNCH_CHECKOUT + launch[0], LAUNCH_COMMAND + launch[1]] if launch else []
     return [
-        *launch,
+        *instructions,
         _fill(
             "goal-first",
             _goal_slot_instruction(
@@ -4369,6 +4387,7 @@ def build_skeleton(
         f"topic: {slug}",
         f"session_id: {session_id}",
         f"transcript: {transcript}",
+        _launch_frontmatter(launch),
     ]
     if previous is not None:
         fm.append(f"previous_handoff: {previous}")
@@ -4570,6 +4589,7 @@ def build_skeleton_3(
         f"topic: {slug}",
         f"session_id: {session_id}",
         f"transcript: {transcript}",
+        _launch_frontmatter(launch),
     ]
     if pred is not None:
         fm.append(f"previous_handoff: {pred.basename}")
@@ -5064,7 +5084,7 @@ def cmd_new(args: argparse.Namespace) -> int:
         )
         if checkout.as_posix().splitlines() != [checkout.as_posix()]:
             return _die(2, "the launch checkout must fit on one line")
-        launch = (LAUNCH_CHECKOUT + checkout.as_posix(), LAUNCH_COMMAND + (start_command or "claude"))
+        launch = (checkout.as_posix(), start_command or "claude")
     common = dict(
         slug=slug,
         session_id=session_id,

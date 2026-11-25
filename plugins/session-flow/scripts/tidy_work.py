@@ -17,8 +17,8 @@ Usage:
 A relative `--memory-dir` resolves against the repository top level. Kinds come
 from the memory-root layout:
 
-    handoff        a `<TS>-handoff-<topic>.md` file, with its `.slots.json`
-                   sidecar and `.<file>.over-budget` marker as part of the same
+    handoff        a `<TS>-handoff-<topic>.md` file, with its `.slots.json`,
+                   `.prompt.txt` and `.<file>.over-budget` files as part of the same
                    item. `handoffs/` is its place;
                    one in the root or in `running-retros/` is a misplaced handoff
     archive        a shape-3 chain's `handoffs/archive/<chain-root-stem>/`
@@ -146,19 +146,15 @@ SELF_IGNORE = ".gitignore"
 CHECKLIST = "workflow-checklist.md"
 SLICE_INDEX = "INDEX.md"
 RETRO_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-running-retro-[^/\\]+\.md$")
-SLOTS_RE = re.compile(r"^(\d{8}T\d{6}Z-handoff-[^/\\]+)\.slots\.json$")
+HANDOFF_SIDECAR_RE = re.compile(r"^(\d{8}T\d{6}Z-handoff-[^/\\]+)\.(?:slots\.json|prompt\.txt)$")
 OVER_BUDGET_RE = re.compile(r"^\.(\d{8}T\d{6}Z-handoff-[^/\\]+\.md)\.over-budget$")
 
 
 def _sidecars(path: Path) -> list[Path]:
-    return [
-        p
-        for p in (
-            path.with_suffix(".slots.json"),
-            path.with_name(f".{path.name}.over-budget"),
-        )
-        if _plain_file(p)
-    ]
+    companions = [path.with_suffix(".slots.json"), path.with_name(f".{path.name}.over-budget")]
+    if save_point.HANDOFF_NAME_RE.match(path.name):
+        companions.append(path.with_suffix(".prompt.txt"))
+    return [p for p in companions if _plain_file(p)]
 
 
 CONCERN_DIRS = (
@@ -395,8 +391,11 @@ def inventory(root: Path, label: str) -> list[Item]:
         )
 
     def visit(path: Path, parent_kind: str | None) -> None:
-        if (slots := SLOTS_RE.match(path.name)) and _plain_file(
-            path.with_name(f"{slots[1]}.md")
+        if (
+            parent_kind != "concern"
+            and (sidecar := HANDOFF_SIDECAR_RE.match(path.name))
+            and _plain_file(path)
+            and _plain_file(path.with_name(f"{sidecar[1]}.md"))
         ):
             return
         if (marker := OVER_BUDGET_RE.match(path.name)) and _plain_file(

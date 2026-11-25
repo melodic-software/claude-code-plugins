@@ -539,6 +539,26 @@ def test_sidecar_leaves_with_its_handoff_and_an_orphan_stays(env):
     assert (handoffs / SIDECAR_ORPHAN).exists()
 
 
+def test_prompt_files_are_kept_and_pruned_with_their_handoffs(env):
+    build(env)
+    _, _, repo = env
+    handoffs = repo / ".work" / "handoffs"
+    stale = (handoffs / HANDOFF_STALE).with_suffix(".prompt.txt")
+    fresh = (handoffs / HANDOFF_FRESH).with_suffix(".prompt.txt")
+    standalone = handoffs / "20260107T100000Z-handoff-prompt-only.prompt.txt"
+    for prompt in (stale, fresh, standalone):
+        write(prompt, "Read the handoff.")
+        age(prompt, 60)
+    items = report(env, "--offline")
+    assert stale.name not in items and fresh.name not in items
+    assert items[standalone.name]["keep"]
+    result = clean(env, "--apply")
+    assert result.returncode == 0, result.stderr
+    assert not (handoffs / HANDOFF_STALE).exists() and not stale.exists()
+    assert (handoffs / HANDOFF_FRESH).is_file() and fresh.is_file()
+    assert standalone.is_file()
+
+
 def test_root_equivalent_memory_dir_is_rejected_by_every_command(env):
     build(env)
     _, home, repo = env
