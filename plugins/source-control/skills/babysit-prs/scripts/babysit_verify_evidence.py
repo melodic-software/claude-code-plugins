@@ -3031,7 +3031,7 @@ class Reader:
                         binary=True,
                     )
                     if proc.returncode != 0:
-                        raise _Unreadable(unread)
+                        raise _Unreadable(f"{unread}: {(proc.stderr or '').strip()}")
                     with zipfile.ZipFile(io.BytesIO(proc.stdout)) as archive:
                         raw = archive.read("verdict.json")
                 else:
@@ -3043,7 +3043,7 @@ class Reader:
                         )
                         path = Path(tmp) / "verdict.json"
                         if proc.returncode != 0 or not path.is_file():
-                            raise _Unreadable(unread)
+                            raise _Unreadable(f"{unread}: {(proc.stderr or '').strip()}")
                         raw = path.read_bytes()
                 record = json.loads(raw.decode("utf-8"))
             except _Unreadable:
@@ -4846,10 +4846,9 @@ class Reader:
                 break
             except _Unreadable as exc:
                 print(f"pass-out: {exc}", file=sys.stderr)
-                if wait is None:
-                    record = None
-                else:
-                    _listing_sleep(wait)
+                if wait is None or not _transient(str(exc)) or wait > listing_cap()[0]:
+                    break
+                _listing_sleep(wait)
         return {
             "head": head,
             "verdicts": [
