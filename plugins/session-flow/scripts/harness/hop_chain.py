@@ -248,6 +248,30 @@ def run_save_point(
     )
 
 
+def save_point_in_process(args: list[str]) -> subprocess.CompletedProcess[str]:
+    """`run_save_point` without the interpreter: the same `save_point.main`,
+    with its stdout and stderr captured. Spawning a fresh interpreter and
+    re-importing save_point per call was most of `--budget`'s wall time across
+    its hundreds of calls. Single-threaded callers only: the capture swaps the
+    process's sys.stdout and sys.stderr."""
+    import traceback
+
+    import save_point
+
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        try:
+            code = save_point.main(args)
+        except SystemExit as exc:
+            code = exc.code if isinstance(exc.code, int) else int(exc.code is not None)
+            if isinstance(exc.code, str):
+                print(exc.code, file=sys.stderr)
+        except Exception:
+            traceback.print_exc()
+            code = 1
+    return subprocess.CompletedProcess(args, code, out.getvalue(), err.getvalue())
+
+
 def frontmatter_value(path: Path, key: str) -> str:
     with path.open(encoding="utf-8") as fh:
         if fh.readline().strip() != "---":
@@ -1172,7 +1196,7 @@ def generate_chain(
             str(shape),
         ]
         args += ["--previous", str(previous)] if previous else ["--no-previous"]
-        made = run_save_point(args)
+        made = save_point_in_process(args)
         if made.returncode != 0:
             raise SystemExit(
                 f"budget: `new` failed at hop {hop}: {made.stdout}{made.stderr}"
@@ -1190,7 +1214,7 @@ def generate_chain(
                 continue
         else:
             fill_skeleton(path, hop, size)
-        checked = run_save_point(
+        checked = save_point_in_process(
             [
                 "validate",
                 str(path),
@@ -1221,14 +1245,14 @@ def _fill_4(path: Path, hop: int, size: FillerSize, projects: Path) -> str | Non
     slots = path.with_suffix(".slots.json")
     slots.write_text(json.dumps(values), encoding="utf-8", newline="\n")
     try:
-        filled = run_save_point(["fill", str(path), "--slots", str(slots)])
+        filled = save_point_in_process(["fill", str(path), "--slots", str(slots)])
     finally:
         slots.unlink()
     if filled.returncode != 0:
         raise SystemExit(
             f"budget: `fill` failed at hop {hop}: {filled.stdout}{filled.stderr}"
         )
-    checked = run_save_point(
+    checked = save_point_in_process(
         ["validate", str(path), "--projects-root", str(projects), "--strict-transcript"]
     )
     if checked.returncode == 0:
