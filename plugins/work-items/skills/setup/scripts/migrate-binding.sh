@@ -61,8 +61,6 @@ trap 'rm -rf "$WORK"' EXIT
 
 readonly NORMALIZE='(.. | select(type == "number" or type == "boolean")) |= tostring'
 
-# The YAML lines for a JSON object, under `tracker:`. Strings are double-quoted
-# with the subset's escapes; numbers and booleans are written bare.
 # shellcheck disable=SC2016 # a jq program: its $ind is jq's, not the shell's
 readonly EMIT='
   def str: "\"" + (gsub("\\\\"; "\\\\") | gsub("\""; "\\\"") | gsub("\t"; "\\t")) + "\"";

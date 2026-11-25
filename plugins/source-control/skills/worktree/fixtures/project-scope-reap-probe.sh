@@ -43,7 +43,6 @@ printf 'probe plugins: %s, %s\n\n' "$PLUGIN_A" "$PLUGIN_B"
 
 REC="${USERPROFILE:-$HOME}/.claude/plugins/installed_plugins.json"
 
-# READ-ONLY view of the record store. Every mutation below goes through the CLI.
 snap() {
   jq -r '
     [.plugins // {} | to_entries[] | .key as $id | .value[] | select(.scope=="project") | {id:$id, path:(.projectPath // "-")}]

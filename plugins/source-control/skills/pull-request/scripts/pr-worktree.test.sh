@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for pr-worktree.sh and the ready action's verify gate command that uses it: a
-# session in the main checkout running `ready <pr>` for a PR built in a worktree checks the PR's
-# tree and records that tree's HEAD. The gate command is extracted from the ready
-# reference and run in a fixture repository against a stubbed `gh`.
 # test-scope: plugins/source-control/skills/pull-request/scripts/verify-gate.sh
 
 set -uo pipefail
