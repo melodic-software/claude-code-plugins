@@ -83,10 +83,6 @@ class Refusal:
     refused_by: str
     enforced_at: str
     envelope_fields: tuple[tuple[str, object], ...] = ()
-    # Rows claiming the refusal precedes every network call. These are replayed
-    # against a recording `gh` shim that is the only executable on PATH, and the
-    # shim must never be invoked -- an emptied PATH alone would let a swallowed
-    # `gh` failure fall through to the same exit code and read as proof.
     gh_free: bool = False
 
 

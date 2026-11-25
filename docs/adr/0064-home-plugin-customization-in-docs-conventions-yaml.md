@@ -75,7 +75,7 @@ from a pipeline-shaped file.
    from user and managed settings. Every resolver reports which layer supplied each value.
 9. **Where to read.** A remote reader keeps its own fetch (babysit reads a target repository through
    the contents API from the default branch,
-   `plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py:4-7,303`) and passes the
+   `plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py:4-7,302`) and passes the
    text to the shared reader on stdin. The reader's `--ref` option is for a local or CI checkout: it
    accepts only a 40-hex commit id or `origin/<name>` and passes it to git after `--end-of-options`.
    A reader a CI lane calls reads team config at the lane's base SHA

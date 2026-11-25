@@ -19,7 +19,6 @@ const APP = 337595936;
 const REVIEWER = 209825114;
 const ACTIONS_BOT = 41898282;
 const HUMAN = 153232337;
-// An account on no trusted-actor list.
 const STRANGER = 4242;
 const HEAD = "a".repeat(40);
 const OLD_HEAD = "b".repeat(40);
@@ -50,16 +49,13 @@ function fakeApi(overrides = {}) {
   return {
     posted,
     permissionReads,
-    // The lanes App opened the PR unless the case names another opener.
     getPull: async () => ({ number: 42, user: overrides.opener ? { id: overrides.opener, type: "User" } : { id: APP, type: "Bot" }, labels: (overrides.labels ?? []).map((name) => ({ name })), body: overrides.body ?? "", created_at: overrides.openedAt }),
-    // The REST issue timeline; an Error stands for a failed read.
     async listTimeline() {
       if (overrides.timeline instanceof Error) {
         throw overrides.timeline;
       }
       return overrides.timeline ?? [];
     },
-    // Comment deletions and review edit times (GraphQL); an Error stands for a failed read.
     async listRequestHistory() {
       if (overrides.history instanceof Error) {
         throw overrides.history;
@@ -128,8 +124,6 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
   });
 });
 
-// Each review lane edits its one marker in place, so the reply job reads the
-// heads the threads were kept on from run.json, not from the markers then.
 test("select returns every lane's marker-confirmed head, sorted, for run.json; the thread file does not carry them", async () => {
   const issueComments = [
     { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
@@ -143,9 +137,6 @@ test("select returns every lane's marker-confirmed head, sorted, for run.json; t
   assert.equal(JSON.parse(runRecord(result.file, result.reviewedHeads)).reviewed_heads.join(), `${HEAD},${OLD_HEAD}`);
 });
 
-// A finding on a doc whose fix lives in a script the PR also changes: the
-// thread file lists every file the PR changes, rename sources included, but
-// none a fix may never change.
 test("the thread file's pr_paths hold the PR's files, rename sources included, less the refused ones", async () => {
   const files = [
     { filename: "plugins/p/skills/s/converge.md" },
@@ -240,7 +231,6 @@ test("an escalation with no reply after it, or with the lane's reply last, is no
   assert.equal((await run(fakeApi(escalated({ replies: [] })))).decision, "escalate");
   const answered = escalated({ replies: [[102, HUMAN, DECISION], [103, APP, ESCALATION]] });
   assert.equal((await run(fakeApi(answered))).decision, "escalate");
-  // A second decision after the lane's second escalation is direction; the first stays context.
   const again = escalated({ replies: [[102, HUMAN, DECISION], [103, APP, ESCALATION], [104, HUMAN, "Do it anyway."]] });
   const comments = (await run(fakeApi(again))).file.threads[0].comments;
   assert.deepEqual(
@@ -249,8 +239,6 @@ test("an escalation with no reply after it, or with the lane's reply last, is no
   );
 });
 
-// The lane's INCORRECT reply, then the adjudication reply that let the finding
-// stand (adjudicate-feedback.mjs adjudicationReply).
 const INCORRECT = [101, APP, "**pr-unblock / address-feedback: INCORRECT, left open**\n\nEvidence: `src/a.js:5`"];
 const STANDS = "<!-- pr-unblock adjudicate-feedback: finding-stands -->\n**pr-unblock / adjudicate-feedback: the finding stands**";
 
@@ -261,7 +249,6 @@ test("a thread whose finding stood at adjudication goes back to the lane with no
     result.file.threads[0].comments.map((row) => [row.id, row.author, row.direction ?? false]),
     [[100, "reviewer", false], [101, "lane", false], [102, "lane", false]],
   );
-  // A trusted person's reply after it is direction; anyone else's leaves the thread alone.
   const directed = await run(fakeApi(escalated({ escalation: INCORRECT, replies: [[102, APP, STANDS], [103, HUMAN, DECISION]] })));
   assert.equal(directed.file.threads[0].comments.at(-1).direction, true);
   assert.equal((await run(fakeApi(escalated({ escalation: INCORRECT, replies: [[102, APP, STANDS], [103, STRANGER, DECISION]] })))).decision, "escalate");
@@ -282,7 +269,6 @@ test("a reply from an account on no trusted-actor list leaves the thread to a pe
   for (const replies of [[injected], [[102, HUMAN, DECISION], [103, STRANGER, INJECTION]]]) {
     assert.equal((await run(fakeApi(escalated({ replies })))).decision, "escalate");
   }
-  // A stranger anywhere in the thread, even before the escalation.
   const before = escalated();
   before.reviewComments.splice(1, 0, comment(99, STRANGER, { body: INJECTION, created_at: at(0) }));
   before.threads[0].comments.nodes.splice(1, 0, { databaseId: 99, lastEditedAt: null, editor: null });
@@ -345,9 +331,6 @@ for (const [label, overrides] of [
   });
 }
 
-// Where needs-human came from (gate-source.mjs): a lane escalation is the
-// lanes App's label, then its marked comment; a review-lane hold is the review
-// lane's hold comment.
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
 const LANE_ESCALATION = {
   id: 2,
@@ -470,8 +453,6 @@ test("a fix request works a thread whose review is on an earlier head, in the se
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
 });
 
-// Element 6 of the outage posture (docs/conventions/pr-pipeline/README.md#outage-posture): reads are
-// serial, so each of the re-read's reads starts after the one before it ends.
 test("currentThreads sends its reads one after the other", async () => {
   const api = fakeApi({ ...asked([[101, HUMAN, REQUEST]]), ...OLD_REVIEW });
   const events = [];
@@ -550,8 +531,6 @@ test("a thread a human opened with no fix request is never kept", async () => {
   assert.equal(result.decision, "escalate");
 });
 
-// A maintainer asks the lane to fix a failing check on a PR no review bot
-// commented on: the thread is their own, opened on their own review.
 const opened = (rows, overrides = {}) => ({
   reviewComments: rows.map(([id, user, body], i) => comment(id, user, { body, created_at: at(i) })),
   reviews: [{ id: 10, user: { id: rows[0][1] }, commit_id: OLD_HEAD }],
@@ -668,8 +647,6 @@ test("a verifier note on a marker-confirmed head is kept as the verifier's findi
   assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "verifier", body: VERIFY_NOTE }]);
 });
 
-// A verifier note opened on `commit`, its root as the threads listing reads it
-// (staleVerifyNotes), its review submitted on that commit.
 const failNote = (id, commentId, commit) => ({
   thread: thread(id, [commentId], { root: { nodes: [{ author: { databaseId: ACTIONS_BOT }, body: VERIFY_NOTE, originalCommit: { oid: commit } }] } }),
   comment: comment(commentId, ACTIONS_BOT, { body: VERIFY_NOTE, pull_request_review_id: commentId }),
@@ -683,9 +660,6 @@ const withNotes = (notes, extra = {}) =>
     reviews: [...notes.map((note) => note.review), ...(extra.reviews ?? [])],
   });
 
-// Notes from an older head wait for a pass at this head, whose round resolves
-// them; until then they hold no failing status, or ci-status, which pr-verify
-// waits on, would never pass and no pass could come.
 test("stale verifier notes alone are no untaken thread: the stop clears", async () => {
   const result = await run(withNotes([failNote("PRRT_n1", 200, OLD_HEAD), failNote("PRRT_n2", 201, OLD_HEAD)]));
   assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "stop-resolved", true]);
@@ -714,7 +688,6 @@ test("a github-actions[bot] thread without the note marker, or in another accoun
   });
   assert.equal((await run(unmarked)).decision, "escalate");
   assert.equal((await run(verifierNote({ reviewer: REVIEWER }))).decision, "escalate");
-  // The marker from any other author opens nothing.
   const forged = fakeApi({ reviewComments: [comment(100, HUMAN, { body: VERIFY_NOTE })] });
   assert.equal((await run(forged)).decision, "escalate");
 });
@@ -734,7 +707,6 @@ test("a github-actions[bot] finding ending in the lane footer is kept as the rev
   const result = await run(laneFinding(LANE_FINDING));
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", lane: "claude-security-review", body: LANE_FINDING }]);
-  // Trailing blank lines do not hide the footer.
   assert.equal((await run(laneFinding(`${LANE_FINDING}\n\n`))).decision, "proceed");
 });
 
@@ -763,8 +735,6 @@ test("a github-actions[bot] comment whose last line is not a review lane's foote
   ]) {
     assert.equal((await run(laneFinding(body))).decision, "escalate", body);
   }
-  // The footer on another account's comment, or in a review another account
-  // submitted, opens nothing.
   const human = fakeApi({ reviewComments: [comment(100, HUMAN, { body: LANE_FINDING })] });
   assert.equal((await run(human)).decision, "escalate");
   assert.equal((await run(laneFinding(LANE_FINDING, REVIEWER))).decision, "escalate");
@@ -857,7 +827,6 @@ test("REVIEW_ROUNDS sets the cap, an unset one falls back to 2, and a bad one th
 test("model-job check runs count rounds the reply job never recorded", async () => {
   const check = (conclusion, slug = "github-actions", name = "pr-unblock / address-feedback") => ({ name, conclusion, app: { slug } });
   const checks = (...perCommit) => Object.fromEntries(perCommit.map((runs, i) => [String(i).repeat(40), runs]));
-  // Two counted rounds reach the default cap: the next is the fresh fixer's.
   const capped = await run(fakeApi({ checks: checks([check("success")], [check("failure")]) }));
   assert.equal(capped.decision, "proceed");
   assert.equal(capped.rounds, 2);
@@ -874,8 +843,6 @@ test("model-job check runs count rounds the reply job never recorded", async () 
   }
 });
 
-// At the cap of 3, round markers posted at minute 10, a reviewer-bot thread
-// (PRRT_2) and a thread (PRRT_1) where `user` asked for a fix at `minute`.
 function pastCap({ user = HUMAN, minute = 20, body = REQUEST, rounds = 3, roundAt = at(10), checks, permissions } = {}) {
   const reviewComments = [
     comment(100, REVIEWER, { created_at: at(0) }),
@@ -924,8 +891,6 @@ for (const [label, overrides] of [
   });
 }
 
-// Past the cap of 3 with `rounds` round markers: one finding per lane, each a
-// github-actions[bot] comment ending in its lane's footer, or a verifier note.
 const CODE_FINDING = "The loop skips the last item.\n\nclaude-lane: claude-review";
 function capped({ rounds = 3, roots = [CODE_FINDING], fixRequest = false, requestAt = at(20), labels, rootAt = at(0) } = {}) {
   const reviewComments = roots.map((body, i) => comment(100 + i, ACTIONS_BOT, { body, created_at: rootAt }));
@@ -1020,8 +985,6 @@ test("only the fresh fixer's round carries the brief: a round below the cap or o
   assert.notEqual((await capped({ rounds: 3 })).file.retry, undefined);
 });
 
-// A SUGGESTION goes to the fresh fixer as a code lane finding does; a CRITICAL
-// one, or one with no rating the lane can read, holds for a person at once.
 const SUGGESTION_FINDING = LANE_FINDING.replace("severity: IMPORTANT", "severity: SUGGESTION");
 test("at the cap, a SUGGESTION or IMPORTANT security lane finding goes to a fresh fixer; a CRITICAL or unrated one escalates feedback-round-cap-security", async () => {
   for (const body of [SUGGESTION_FINDING, LANE_FINDING]) {
@@ -1177,18 +1140,13 @@ test("main select writes outputs and the thread file; escalation writes no threa
   assert.equal(readFileSync(join(dir, "ok.out"), "utf8"), "proceed=true\nhuman-gate=\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
   const okFile = JSON.parse(readFileSync(join(dir, "ok.json"), "utf8"));
   assert.equal(okFile.threads[0].id, "PRRT_1");
-  // No lane branch: the model job commits nothing.
   assert.equal(Object.hasOwn(okFile, "lane_branch"), false);
-  // The files the PR changes, for every kept thread's scope.
   assert.deepEqual(okFile.pr_paths, ["src/a.js"]);
-  // run.json's bytes, in the shape the write runner's collect step wrote,
-  // with the head's CI snapshot (this fake lists no check runs).
   assert.equal(
     readFileSync(join(dir, "ok.run.json"), "utf8"),
     `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"copy_paths":[],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}],"reviewed_heads":["${HEAD}"],"ci":{"state":"unsettled","runs":[]}}\n`,
   );
 
-  // The people on the list come from TRUSTED_ACTORS.
   await main(["select"], env("decided"), { plan: noPlan, api: fakeApi(escalated()), log: () => {} });
   assert.equal(readFileSync(join(dir, "decided.out"), "utf8"), "proceed=true\nhuman-gate=\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
   assert.equal(JSON.parse(readFileSync(join(dir, "decided.json"), "utf8")).threads[0].comments[2].direction, true);
@@ -1210,8 +1168,6 @@ test("main select writes outputs and the thread file; escalation writes no threa
   assert.throws(() => readFileSync(join(dir, "esc.json")));
   assert.throws(() => readFileSync(join(dir, "esc.run.json")), "an escalation writes no run.json");
 
-  // At the bound (a cap of 1 plus the fresh fixer's round) the neutral checks
-  // carry the round count.
   const bound = fakeApi({
     reviewComments: [comment(100, ACTIONS_BOT, { body: CODE_FINDING, created_at: at(0) })],
     reviews: [{ id: 10, user: { id: ACTIONS_BOT }, commit_id: HEAD }],
@@ -1227,9 +1183,6 @@ test("main select writes outputs and the thread file; escalation writes no threa
   );
 });
 
-// The head step's PR read (PULL_FILE) stands in for select's own GET when it
-// names this PR at HEAD_SHA; a missing, unreadable or other PR's or head's
-// file leaves select to read the PR. Its hold checks read whichever it took.
 test("main select takes the head step's PR read for this PR and head, and reads the PR otherwise", async (t) => {
   const dir = tempDir("address-feedback-pull-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -1260,8 +1213,6 @@ test("main select takes the head step's PR read for this PR and head, and reads 
   const taken = await go("taken", pullFile("taken", same));
   assert.equal(taken.reads, 0, "no second GET of the PR");
   assert.match(taken.out, /^proceed=true$/m);
-  // resolve-feedback-threads' gate reads the file's PR author, as
-  // resolve-threads.mjs ownerPull does: a listed person's PR only.
   assert.match(taken.out, /^person-opened=false$/m, "a lanes App PR");
   for (const [name, user, opened] of [
     ["person", { id: HUMAN, type: "User" }, "true"],
@@ -1281,7 +1232,6 @@ test("main select takes the head step's PR read for this PR and head, and reads 
   ]) {
     assert.equal((await go(name, path)).reads, 1, name);
   }
-  // The hold checks read the file's PR: a needs-human label on it holds the round.
   const tracker = join(dir, "tracker.json");
   writeFileSync(tracker, JSON.stringify({ config: { role_labels: { "human-gated": "status: blocked-human" } } }));
   const api = counted();
@@ -1452,8 +1402,6 @@ test("listCommitCheckRuns marks a listing past its three pages, or with no total
   assert.equal((await listing(null, [3])).complete, false);
 });
 
-// A read, a GraphQL query and a write that repeats to the same state survive
-// one dropped socket; an issue and a mutation are sent once.
 test("createGitHubApi sends reads, GraphQL queries and repeatable writes again after a dropped socket, and an issue or a mutation once", async () => {
   const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
   const threads = { data: { repository: { pullRequest: { reviewThreads: { nodes: [{ id: "T" }], pageInfo: { hasNextPage: false } } } } } };
@@ -1496,7 +1444,6 @@ const OWNER_8116 =
   "and add a test that the CLI output has no `cues` key.";
 const FILE = { type: "blob", mode: 0o100644 };
 const EXEC = { type: "blob", mode: 0o100755 };
-// The head's trees, keyed by directory: GraphQL TreeEntry rows.
 const TREES = {
   [T]: [{ name: "write-transcript.js", ...FILE }, { name: "run-transcript.js", ...EXEC }, { name: "run-transcript.test.js", ...FILE }],
   "plugins/knowledge": [{ name: "README.md", ...FILE }, { name: "AGENTS.md", ...FILE }, { name: "link.md", type: "blob", mode: 0o120000 }, { name: "vendor", type: "commit", mode: 0o160000 }],
@@ -1552,7 +1499,6 @@ test("a ../ traversal or an absolute name is not added", async () => {
 });
 
 test("a name from a trusted person without write access is not added", async () => {
-  // Kept as an answer to the lane's escalation, which needs no write access.
   const fixture = escalated({ replies: [[102, HUMAN, OWNER_8116]] });
   fixture.reviewComments = fixture.reviewComments.map((row) => ({ ...row, path: `${T}/write-transcript.js` }));
   const api = fakeApi({ ...fixture, permissions: { "kyle-sexton": "read" } });
@@ -1628,12 +1574,9 @@ test("a leading or trailing _ that belongs to the name is kept; only a matched _
 // on #10092 carry.
 const CODEX = 199175422;
 const CODEX_LOGIN = "chatgpt-codex-connector[bot]";
-// cursor[bot], on the trusted-actor list but not a listed reviewer.
 const OTHER_BOT = 206951365;
 const codexRun = (api, extra = {}) =>
   select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, reviewerIds: [CODEX], trustedHumans: new Set([HUMAN]), ...extra });
-// A `@codex review` issue comment by `user`, posted before Codex's review: the
-// request a listed bot's undirected thread needs from a trusted person.
 const codexAsk = (user = HUMAN, created = "2026-10-17T08:00:00Z", extra = {}) => ({
   id: 5,
   user: { id: user, login: LOGINS[user] },
@@ -1642,9 +1585,6 @@ const codexAsk = (user = HUMAN, created = "2026-10-17T08:00:00Z", extra = {}) =>
   body: "@codex review",
   ...extra,
 });
-// A thread whose root (100) the account `root` wrote in a review `reviewer`
-// submitted, with `replies` after it as [id, user id, body], on a PR where a
-// trusted person asked Codex for the review.
 function botThread({ root = CODEX, login = CODEX_LOGIN, reviewer = root, replies = [], commit = HEAD } = {}) {
   const rows = [[100, root, "finding 100"], ...replies];
   return {
@@ -1668,8 +1608,6 @@ test("a Codex-started thread on a marker-confirmed head is worked like the revie
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
 });
 
-// The security-review lane's hold comment for a person, as its status job
-// posts it on a CRITICAL rating, and its reviewed-head marker.
 const securityHold = (sha, { criteria = "critical-security", user = { id: ACTIONS_BOT, login: "github-actions[bot]", type: "Bot" }, at = "2026-10-17T09:00:00Z" } = {}) => ({
   id: 2,
   user,
@@ -1678,7 +1616,6 @@ const securityHold = (sha, { criteria = "critical-security", user = { id: ACTION
 });
 const securityMarked = (sha = HEAD) => ({ id: 3, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", sha) });
 const lanesMarked = (...extra) => [{ id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) }, codexAsk(), ...extra];
-// Codex's review on HEAD, submitted at 10:00.
 const codexAt = (issueComments) => {
   const base = botThread();
   return fakeApi({ ...base, reviews: base.reviews.map((review) => ({ ...review, submitted_at: "2026-10-17T10:00:00Z" })), issueComments });
@@ -1688,20 +1625,16 @@ const stateOf = async (issueComments) => (await codexRun(codexAt(issueComments))
 test("a Codex root carries the security-review lane's state: clear once the lane reviewed its head, pending before", async () => {
   assert.equal(await stateOf(lanesMarked(securityMarked())), "clear");
   assert.equal(await stateOf(lanesMarked()), "pending");
-  // A marker for another head, or the code lane's marker, does not clear it.
   assert.equal(await stateOf(lanesMarked(securityMarked(OLD_HEAD))), "pending");
   const { kept } = await currentThreads({ api: codexAt(lanesMarked(securityMarked())), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
   assert.equal(kept[0].comments[0].security, "clear");
-  // The reviewer bot's own finding carries none.
   const own = await select({ api: fakeApi({ issueComments: lanesMarked(securityHold(HEAD)) }), pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]) });
   assert.equal(own.file.threads[0].comments[0].security, undefined);
 });
 
 test("a critical-security hold on the reviewed head, or on a later head, marks a Codex root held; no other hold does", async () => {
   assert.equal(await stateOf(lanesMarked(securityMarked(), securityHold(HEAD))), "held");
-  // A hold the lane posted after Codex's review, on a later head, counts.
   assert.equal(await stateOf(lanesMarked(securityMarked(), securityHold("c".repeat(40), { at: "2026-10-17T11:00:00Z" }))), "held");
-  // An earlier head's hold, posted before the review, does not.
   assert.equal(await stateOf(lanesMarked(securityMarked(), securityHold(OLD_HEAD))), "clear");
   for (const other of [
     securityHold(HEAD, { criteria: "trust-gate" }),
@@ -1716,7 +1649,6 @@ test("a thread an unlisted bot started is not worked, while the listed one's is"
   assert.equal((await codexRun(fakeApi(botThread()))).decision, "proceed");
   const other = await codexRun(fakeApi(botThread({ root: OTHER_BOT, login: "cursor[bot]" })));
   assert.deepEqual([other.decision, other.escalationReason], ["escalate", "feedback-untaken-threads"]);
-  // With no list, Codex is unlisted too.
   assert.equal((await codexRun(fakeApi(botThread()), { reviewerIds: [] })).escalationReason, "feedback-untaken-threads");
 });
 
@@ -1725,8 +1657,6 @@ test("Codex's login on another account id, or Codex's comment in another account
   assert.equal((await codexRun(fakeApi(botThread({ root: 4343, login: CODEX_LOGIN })))).escalationReason, "feedback-untaken-threads");
   assert.equal((await codexRun(fakeApi(botThread({ reviewer: REVIEWER })))).escalationReason, "feedback-untaken-threads");
   assert.equal((await codexRun(fakeApi(botThread({ reviewer: 4343 })))).escalationReason, "feedback-untaken-threads");
-  // The lane reviewer's review never vouches for a listed bot's comment, nor
-  // the reverse.
   assert.equal((await codexRun(fakeApi({ reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] }))).escalationReason, "feedback-untaken-threads");
 });
 
@@ -1736,21 +1666,16 @@ test("a Codex thread on a head no review lane marked is left alone, as the revie
 });
 
 test("after a Codex finding, a trusted person's reply follows the reviewer bot's rules", async () => {
-  // A write-access fix request is direction, and works the thread on any head.
   const asked = await codexRun(fakeApi(botThread({ replies: [[101, HUMAN, REQUEST]], commit: OLD_HEAD })));
   assert.equal(asked.decision, "proceed");
   assert.deepEqual(asked.file.threads[0].comments.map((row) => [row.id, row.author, row.direction ?? false]), [[100, "reviewer", false], [101, "trusted-human", true]]);
-  // A reply that asks no fix, or a stranger's, leaves it alone.
   assert.equal((await codexRun(fakeApi(botThread({ replies: [[101, HUMAN, DECISION]] })))).escalationReason, "feedback-untaken-threads");
   assert.equal((await codexRun(fakeApi(botThread({ replies: [[101, STRANGER, REQUEST]] })))).escalationReason, "feedback-untaken-threads");
-  // A trusted reply to the lane's escalation is direction.
   const answered = await codexRun(fakeApi(botThread({ replies: [[101, APP, ESCALATION], [102, HUMAN, DECISION]] })));
   assert.equal(answered.decision, "proceed");
   assert.equal(answered.file.threads[0].comments.at(-1).direction, true);
-  // An adjudication that let a Codex finding stand hands it back to the lane.
   const stood = await codexRun(fakeApi(botThread({ replies: [INCORRECT, [102, APP, STANDS]] })));
   assert.equal(stood.decision, "proceed");
-  // On a needs-human PR only a write-access fix request works it.
   const gated = await codexRun(fakeApi({ ...botThread(), labels: ["needs-human"] }));
   assert.equal(gated.skipReason, "awaiting-human");
   const requested = await codexRun(fakeApi({ ...botThread({ replies: [[101, HUMAN, REQUEST]] }), labels: ["needs-human"] }));
@@ -1758,7 +1683,6 @@ test("after a Codex finding, a trusted person's reply follows the reviewer bot's
   assert.equal(requested.humanGate, "fix-request");
 });
 
-// `n` earlier model-job rounds, each finished at 2026-10-17T20:10Z.
 const modelRounds = (n) => ({
   [HEAD]: [],
   ...Object.fromEntries(Array.from({ length: n }, (_, i) => [`c${i + 1}`, [{ name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success", completed_at: at(10) }]])),
@@ -1770,7 +1694,6 @@ test("at the round cap a Codex finding is a bot finding: it gets the fresh fixer
   assert.equal(result.escalationReason, undefined);
   assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1"]);
   assert.match(result.file.retry.brief, /never weaken/i);
-  // Once that round ran, a Codex finding still open fails the head.
   const spent = await codexRun(fakeApi({ ...botThread(), checks: modelRounds(3) }), { maxRounds: 2 });
   assert.deepEqual([spent.decision, spent.escalationReason], ["escalate", "feedback-not-converging"]);
 });
@@ -1779,7 +1702,6 @@ test("at the round cap a Codex finding goes to a person when the security-review
   const held = codexAt(lanesMarked(securityMarked(), securityHold(HEAD)));
   const heldResult = await codexRun({ ...held, listPullCommits: async () => Object.keys(modelRounds(2)).map((sha) => ({ sha })), listCheckRuns: async (sha) => modelRounds(2)[sha] ?? [], listModelRounds: async () => Object.values(modelRounds(2)) }, { maxRounds: 2 });
   assert.deepEqual([heldResult.decision, heldResult.escalationReason], ["escalate", "feedback-round-cap-security"]);
-  // A write-access fix request older than the newest round directed it.
   const directed = await codexRun(fakeApi({ ...botThread({ replies: [[101, HUMAN, REQUEST]] }), checks: modelRounds(2) }), { maxRounds: 2 });
   assert.deepEqual([directed.decision, directed.escalationReason], ["escalate", "feedback-round-cap"]);
 });
@@ -1788,14 +1710,9 @@ test("needsPerson: a listed review bot's or the reviewer bot's own undirected fi
   const codex = { comments: [{ id: 100, author: "reviewer", listed: true, security: "pending", body: "finding 100" }] };
   assert.equal(needsPerson(codex, CODEX), false);
   assert.equal(needsPerson({ comments: [{ ...codex.comments[0], security: "clear" }] }, CODEX), false);
-  // A thread a person opened.
   assert.equal(needsPerson({ comments: [{ id: 100, author: "trusted-human", body: "Please rename this." }] }, HUMAN), true);
-  // A person's directive reply on the bot's thread.
   assert.equal(needsPerson({ comments: [...codex.comments, { id: 101, author: "trusted-human", direction: true, body: REQUEST }] }, CODEX), true);
-  // The security-review lane's critical-security hold on the bot's head.
   assert.equal(needsPerson({ comments: [{ ...codex.comments[0], security: "held" }] }, CODEX), true);
-  // The reviewer bot's own unlisted finding with no rating and no security
-  // lane in its text is ruled as the code lane's at either floor.
   for (const body of ["finding 100", "The loop skips the last item.\n\nclaude-lane: claude-review"]) {
     assert.equal(needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER), false, body);
     assert.equal(needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER, "CRITICAL"), false, body);
@@ -1806,8 +1723,6 @@ test("needsPerson: a listed review bot's or the reviewer bot's own undirected fi
 // the content: a missing, malformed or trailed footer never loosens the hold.
 test("claimsSecurity holds the reviewer bot's rated or security-lane finding whatever its footer says", () => {
   const holds = (body, floor) => needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER, floor);
-  // A readable rating below the default floor is a code fix first, as a lane
-  // IMPORTANT finding is, and holds only at a floor it reaches.
   for (const body of [
     "severity: IMPORTANT\n\nThe token reaches the log.",
     "severity: IMPORTANT\n\nThe token reaches the log.\n\nclaude-lane: claude-security-review (see above)",
@@ -1818,8 +1733,6 @@ test("claimsSecurity holds the reviewer bot's rated or security-lane finding wha
     assert.equal(claimsSecurity(body, "IMPORTANT"), true, body);
     assert.equal(holds(body, "IMPORTANT"), true, body);
   }
-  // A rating-shaped line it cannot read, or a security lane named with no
-  // rating, holds at either floor.
   for (const body of [
     "finding 100\n\nseverity: CRITICAL",
     "**severity: CRITICAL**\n\nThe token leaks.",
@@ -1845,8 +1758,6 @@ test("claimsSecurity holds the reviewer bot's rated or security-lane finding wha
     assert.equal(holds(body), true, body);
     assert.equal(holds(body, "CRITICAL"), true, body);
   }
-  // Prose that only mentions the security lane's name, or the word severity,
-  // is no claim: it is the code lane's finding at either floor.
   for (const body of [
     "The check compares against 'claude-security-review' but the footer is trimmed first.",
     "The claude-security-review lane skips this file.\n\nclaude-lane: claude-review",
@@ -1858,7 +1769,6 @@ test("claimsSecurity holds the reviewer bot's rated or security-lane finding wha
     assert.equal(holds(body), false, body);
     assert.equal(holds(body, "CRITICAL"), false, body);
   }
-  // A readable SUGGESTION, footed or not, is no claim a person decides.
   for (const body of ["severity: SUGGESTION\n\nNo change is required.", "severity: SUGGESTION\n\nNo change is required.\n\nclaude-lane: claude-security-review"]) {
     assert.equal(claimsSecurity(body), false, body);
     assert.equal(holds(body), false, body);
@@ -1932,7 +1842,6 @@ test("a Codex thread whose @codex request cannot be found is skipped (fail close
     assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"], label);
     assert.deepEqual(lines, [notFound], label);
   }
-  // A stranger's request an earlier Codex review answered is not this one's.
   const answered = await codexLogged(askedBy([codexAsk(STRANGER, "2026-10-17T07:00:00Z"), codexAsk(HUMAN, "2026-10-17T10:00:00Z")], { reviews: [{ id: 9, user: { id: CODEX }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T09:00:00Z" }, ...botThread().reviews] }));
   assert.equal(answered.result.decision, "proceed");
 });
@@ -1982,9 +1891,6 @@ test("an automatic Codex review a stranger triggered is skipped, and an untruste
   assert.deepEqual(logged, [untrusted("opening of the pull request")]);
 });
 
-// github-advanced-security[bot], the code scanning (CodeQL) alerts: listed, and
-// unsummoned (UNSUMMONED_REVIEWER_IDS), so its threads need no `@codex`
-// request, only a PR a trusted person or the lanes App opened.
 const CODEQL = 62310815;
 const CODEQL_LOGIN = "github-advanced-security[bot]";
 const codeqlApi = (extra = {}, root = CODEQL) => {
@@ -1992,8 +1898,6 @@ const codeqlApi = (extra = {}, root = CODEQL) => {
   return fakeApi({ ...base, issueComments: [base.issueComments[0]], ...extra });
 };
 const codeqlLogged = (api) => codexLogged(api, { reviewerIds: [CODEX, CODEQL] });
-// A CodeQL review of an earlier push, after the PR's opening: the window a
-// Codex review would need a fresh request in.
 const earlierScan = { reviews: [{ id: 9, user: { id: CODEQL }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T19:00:00Z" }, ...botThread({ root: CODEQL, login: CODEQL_LOGIN }).reviews] };
 
 test("a CodeQL thread on a PR a trusted person or the lanes App opened is worked with no @codex request, on a later push's scan too", async () => {
@@ -2023,7 +1927,6 @@ test("a CodeQL thread on a stranger's PR or with unreadable triggers is skipped;
     assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"], label);
     assert.deepEqual(lines, [line], label);
   }
-  // Unlisted, the same bot's thread is no reviewer's at all.
   const unlisted = await codexRun(codeqlApi());
   assert.notEqual(unlisted.decision, "proceed");
 });
@@ -2072,7 +1975,6 @@ test("a trusted person's direction on a Codex thread needs no @codex request", a
   const directed = await codexLogged(askedBy([], { reviewComments: botThread({ replies: [[101, HUMAN, REQUEST]] }).reviewComments, threads: botThread({ replies: [[101, HUMAN, REQUEST]] }).threads }));
   assert.equal(directed.result.decision, "proceed");
   assert.deepEqual(directed.lines, []);
-  // The reviewer bot's own finding needs none either.
   assert.equal((await codexRun(fakeApi())).decision, "proceed");
 });
 
@@ -2086,9 +1988,6 @@ test("reviewerIdsFrom reads one id per line, an unset value as none, and throws 
   assert.throws(() => reviewerIdsFrom("0"), /REVIEWER_IDS/);
 });
 
-// A retry after the reply job stopped on this head (a lane-stopped
-// publish-feedback check from the GitHub Actions app) runs one model rung up;
-// a first round, or a stop record from another app, runs at the profile's own.
 test("select asks for model rung 1 only after a lane stop on the head's reply check", async () => {
   const stop = { status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, app: { id: 15368 } };
   const withReply = (replyRuns) => {
@@ -2128,14 +2027,6 @@ test("an unresolved thread the lane does not take escalates feedback-untaken-thr
   assert.deepEqual([held.decision, held.skipReason], ["skip", "awaiting-human"], "a person holds the PR");
 });
 
-// The census of 2026-10-25..11-01 (11 PRs, 19 failing statuses): a thread the
-// lane answered UNCERTAIN, VALID-defer or INCORRECT stayed open, the next
-// round dropped it, and feedback-untaken-threads failed the head with no
-// queue label, so the PR waited on the owner. Both stops now queue the PR
-// for a session builder (needs-session), and while that stop stands on the
-// head the select job stands down without escalating again.
-// The round cap, uncertain and disputed stops queue it there too: an open
-// review thread already blocks the merge, so no person-only label is needed.
 test("feedback-untaken-threads, feedback-unadjudicated and the round-cap, uncertain and disputed stops queue the PR for a session builder", () => {
   for (const reason of ["feedback-untaken-threads", "feedback-unadjudicated", "feedback-round-cap", "feedback-uncertain", "feedback-disputed"]) {
     assert.deepEqual([ROUTES[reason].route, ROUTES[reason].label], ["fail", "needs-session"], reason);
@@ -2202,12 +2093,10 @@ test("an earlier-fail round with every fail-note thread resolved hands the FAIL'
   assert.deepEqual(result.file, { version: 1, repository: "o/r", pr: 42, head_sha: HEAD, pr_paths: ["src/a.js", "src/b.js"], copy_paths: [], threads: [], verify_notes: NOTES });
   assert.deepEqual(result.threads, []);
   assert.equal(result.resolved, undefined);
-  // run.json carries each note's id, head and path for the reply job, never its text.
   assert.equal(
     runRecord(result.file, result.reviewedHeads),
     `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js","src/b.js"],"copy_paths":[],"threads":[],"verify_notes":[{"id":"VNOTE_1","head":"${OLD_HEAD}","path":"src/a.js"},{"id":"VNOTE_2","head":"${OLD_HEAD}","path":"src/b.js"}],"reviewed_heads":["${HEAD}"]}\n`,
   );
-  // Without the dispatcher's FAILed heads the same PR still ends stop-resolved.
   const plain = await run(fakeApi({ threads: [resolvedNote] }));
   assert.deepEqual([plain.decision, plain.skipReason], ["skip", "stop-resolved"]);
 });
@@ -2229,7 +2118,6 @@ test("an earlier-fail round whose verdict artifact cannot be read fails closed, 
 
 test("an earlier-fail round keeps the thread rules first: kept threads, untaken threads, a hold, a workflow path and the round cap", async () => {
   const readFailNotes = async () => NOTES;
-  // A kept thread is worked as before; its push moves the head too.
   const kept = await runEarlier(fakeApi(), { readFailNotes });
   assert.deepEqual([kept.decision, kept.file.verify_notes, kept.threads.map((t) => t.id)], ["proceed", undefined, ["PRRT_1"]]);
   const untaken = await runEarlier(fakeApi({ reviewComments: [comment(100, CODEX)], reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] }), { readFailNotes });
@@ -2290,8 +2178,6 @@ test("main select takes the FAILed heads only from a dispatcher's model round, a
   assert.deepEqual(earlierFailHeadsFrom({ HEAD_SHA: HEAD, DISPATCHER_RUN_ID: "1", VERIFY_EARLIER_FAIL_HEADS: `${OLD_HEAD} ${"c".repeat(40)}` }), [OLD_HEAD, "c".repeat(40)]);
 });
 
-// pr-dispatch-feedback.yml sends verify-pass-head after a pr-verify pass at
-// the PR's head; the select job then lists only the stale fail-note threads.
 test("main select with a pass head lists the stale fail-note threads for the reply job and keeps none for a model", async (t) => {
   const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -2324,19 +2210,12 @@ test("main select with a pass head lists the stale fail-note threads for the rep
   assert.equal(readFileSync(join(dir, "pass.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old"]}\n`);
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "pass.json"), "utf8")).threads, []);
 
-  // The PR moved past the passing head: nothing to do, and no output, so
-  // neither a model job nor a neutral check runs.
   await main(["select"], env("moved", { VERIFY_PASS_HEAD: "c".repeat(40) }), { plan: noPlan, api: api([note("PRRT_old")]), log: () => {} });
   assert.equal(out("moved"), "");
 
-  // Only a dispatcher sends a pass head.
   await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { plan: noPlan, api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
   await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { plan: noPlan, api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
 
-  // A same-head FAIL the gate's reader found superseded (the dispatcher's
-  // verify-superseded-head) adds its notes, and run.json names that head for
-  // the reply job's re-check; a FAIL not superseded there, or one superseded
-  // at another head, adds none.
   const threads = [note("PRRT_old"), note("PRRT_now", HEAD), note("PRRT_done", OLD, true)];
   await main(["select"], env("superseded", { VERIFY_SUPERSEDED_HEAD: HEAD }), { plan: noPlan, api: api(threads), log: () => {} });
   assert.equal(out("superseded"), "resolve-only=true\n");
@@ -2346,10 +2225,6 @@ test("main select with a pass head lists the stale fail-note threads for the rep
   await assert.rejects(main(["select"], env("bad-superseded", { VERIFY_SUPERSEDED_HEAD: "main" }), { plan: noPlan, api: api(threads), log: () => {} }), /VERIFY_SUPERSEDED_HEAD/);
 });
 
-// A rerun of a pass-only round after its stale notes were resolved by hand
-// found none and wrote no output, so report-stop-status skipped and
-// the round's own failing status stayed on the head. Now it writes only
-// stop-resolved: no proceed or resolve-only, and no run record.
 async function passOnlyWithoutStale(t, api) {
   const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -2395,10 +2270,6 @@ test("scanRefusal reads a patch and an output marker together as output, in eith
   }
 });
 
-// On an adopted owner PR, an unresolved thread the lane does not take is the
-// owner's: one they wrote or answered, or a lane answer the lanes App cannot
-// resolve there. It is no stop, and it does not read as resolved. Any other
-// person's PR, or an owner's with no adoption section, still escalates.
 test("on an adopted owner PR an untaken thread skips with no stop; elsewhere it still escalates", async () => {
   const threads = { reviewComments: [comment(100, REVIEWER), comment(101, HUMAN)], threads: [thread("PRRT_1", [100, 101])] };
   const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
@@ -2413,9 +2284,6 @@ test("on an adopted owner PR an untaken thread skips with no stop; elsewhere it 
   assert.equal((await run(fakeApi({ ...threads, opener: HUMAN }))).escalationReason, "feedback-untaken-threads", "an owner PR with no adoption section");
 });
 
-// A `Hold:` body line an owner adds after dispatch holds the round as
-// feedback-dispatch.mjs ownerSkip holds it at dispatch; a lanes App PR's own
-// `Hold: a human merges this` holds only its merge.
 test("on an adopted owner PR a Hold: body line added after dispatch skips awaiting-human before any thread is kept", async () => {
   const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
   const adopted = (api) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption });
@@ -2425,13 +2293,6 @@ test("on an adopted owner PR a Hold: body line added after dispatch skips awaiti
   assert.equal((await adopted(fakeApi({ body: "Closes #1\n\nHold: a human merges this" }))).decision, "proceed", "a lanes App PR's Hold: line");
 });
 
-// On an adopted owner PR a lane escalation's needs-human lets the round work
-// only as it lets fix-ci work there (gate-source.mjs prHold): another lane's
-// escalation with no person speaking since the label does; address-feedback's
-// own escalation, or a person's review comment since it, holds the PR, and
-// then only a write-access fix request is kept. A lanes App PR reads the
-// escalation through gateSource alone, as before. Every author is typed as the
-// REST API returns it, so a bot is no person speaking.
 test("on an adopted owner PR a lane escalation's needs-human lets the round work only as fix-ci's prHold does", async () => {
   const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
   const adopted = (api) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption });
@@ -2494,9 +2355,7 @@ test("ciSnapshot is green only when every covering check's latest real run passe
   assert.equal(green.state, "green");
   assert.deepEqual(green.runs.map((run) => run.name), ["Test Bash (0)", "Test Bash (1)", "Test Node (0)", "Test Windows Lib"]);
   assert.equal(green.runs[0].url, "https://github.com/o/r/actions/runs/1/job/1");
-  // A contract-only re-run's skip does not hide the real result.
   assert.equal((await snapshot([...GREEN, checkRun(9, "Test Node (0)", "skipped")])).state, "green");
-  // A run another app posted under a lane's name counts for nothing.
   assert.equal((await snapshot([...GREEN, checkRun(10, "Test Node (0)", "failure", { app: { slug: "other" } })])).state, "green");
 });
 
@@ -2518,14 +2377,12 @@ test("ciSnapshot is red when any test lane on the head failed, planned or not, a
   const red = await snapshot([...GREEN, checkRun(20, "Test Python (0)", "failure"), checkRun(21, "Test Windows Hooks", "timed_out")]);
   assert.equal(red.state, "red");
   assert.deepEqual(red.runs.map((run) => run.name), ["Test Python (0)", "Test Windows Hooks"]);
-  // A failed check that is not a test lane is not CI for a tests-only finding.
   assert.equal((await snapshot(GREEN)).state, "green");
 });
 
 test("ciSnapshot is unsettled when a test lane the plan does not name ran, even if it passed", async () => {
   assert.equal((await snapshot([...GREEN, checkRun(22, "Test Python (0)")])).state, "unsettled");
   assert.equal((await snapshot([...GREEN, checkRun(23, "Test Bash (2)", null)])).state, "unsettled");
-  // A lane the head's plan skipped did not run.
   assert.equal((await snapshot([...GREEN, checkRun(24, "Test Python", "skipped")])).state, "green");
 });
 
@@ -2546,7 +2403,6 @@ test("ciSnapshot is unsettled when a covering check is pending, missing or skipp
   assert.deepEqual(failed, { state: "unsettled", runs: [] });
 });
 
-// A head tested before the rename shows each lane by its job id.
 test("ciSnapshot reads a head whose lanes show their job ids, and takes a lane's display-named run over its id-named one", async () => {
   const byId = [checkRun(1, "test-bash (0)"), checkRun(2, "test-bash (1)"), checkRun(3, "test-node (0)"), checkRun(4, "test-windows-lib")];
   const green = await snapshot(byId);
@@ -2554,14 +2410,11 @@ test("ciSnapshot reads a head whose lanes show their job ids, and takes a lane's
   assert.deepEqual(green.runs.map((run) => run.name), ["test-bash (0)", "test-bash (1)", "test-node (0)", "test-windows-lib"]);
   assert.equal((await snapshot([...byId, checkRun(5, "test-python (0)", "failure")])).state, "red");
   assert.equal((await snapshot([...byId, checkRun(5, "test-python (0)")])).state, "unsettled", "an unplanned lane ran");
-  // A stale id-named failure beside the lane's display-named pass is not red.
   const mixed = await snapshot([...GREEN.filter((run) => run.name !== "Test Bash (1)"), checkRun(6, "test-bash (1)", "failure"), checkRun(7, "Test Bash (1)")]);
   assert.equal(mixed.state, "green");
   assert.ok(mixed.runs.some((run) => run.name === "Test Bash (1)"));
 });
 
-// A repository that syncs this file without the test lanes has no test job to
-// name; the two tests below skip likewise without the files they read.
 const TEST_LANES = new URL("../../workflows/pr-test-platforms.yml", import.meta.url);
 test("every test job's display name is its id in Title Case, the name ciSnapshot matches", { skip: !existsSync(TEST_LANES) && "no pr-test-platforms.yml in this repository" }, () => {
   for (const file of ["pr-require-checks.yml", "pr-test-platforms.yml"]) {
@@ -2711,7 +2564,6 @@ test("an advisory code-review thread carries may_follow_up and the closing issue
   assert.equal("closing_issues" in noAdvisory.file, false);
 });
 
-// Q545: a fix round may refresh only the `##` sections the select job offers.
 const REFRESH_BODY = [
   "No related issue: an owner decision",
   "",
