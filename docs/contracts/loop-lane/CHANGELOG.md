@@ -5,6 +5,17 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [20.5.0] - 2026-11-24
+
+Minor. Additive guidance; no topology, escalation-contract mechanism, capability-tier or §4
+invariant changed.
+
+- **Lane output format.** New [`lane-output-format.md`](lane-output-format.md) sets one shape for
+  what a lane posts on a PR comment, check run, step summary and live step log: a heading, a plain
+  verdict line, at most five bullets, and the lane-outcome record where the surface carries it,
+  with a length limit per surface. Lanes adopt it the next time their posting code changes
+  ([#18863](https://github.com/melodic-software/claude-code-plugins/issues/18863)).
+
 ## [20.4.0] - 2026-11-24
 
 Minor. The Cross-lane PR hold gains a release reason; no topology, escalation-contract mechanism,

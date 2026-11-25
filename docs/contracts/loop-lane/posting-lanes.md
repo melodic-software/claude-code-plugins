@@ -4,6 +4,7 @@ Record for the loop-lane convention's [confirm-then-record pattern](README.md#co
 It lists each lane with an external side effect (a comment, label, issue, check, merge or release)
 and says what stops two overlapping runs of it from both passing a check-then-act dedupe. Research
 only: it changes no lane. It is read from `.github/workflows/*.yml` on the default branch.
+The shape of what a lane posts on each surface is in [`lane-output-format.md`](lane-output-format.md).
 
 **Recheck trigger**: a workflow is added, or one gains or loses a `concurrency:` block or a write
 permission. Re-read the rows for the workflows that changed.
