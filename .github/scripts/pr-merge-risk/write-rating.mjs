@@ -18,7 +18,6 @@
 //   CLI_VERSION      run-claude-cli's cli-version output
 //   STARTED_AT       the rating step's start, in epoch seconds
 //   OUT_DIR          where rating.json is written
-
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import process from "node:process";
@@ -82,7 +81,7 @@ export function coverageRow(messages, coverage) {
   return { area: "Diff coverage", level: "HIGH", why: `${why}, so this rating does not cover the whole diff.`, check: "unchecked", checker_level: "", checker: "" };
 }
 
-export function buildRating({ output, messages, pr, head, rubric, cliVersion, startedAt, endedAt, coverage }) {
+export function buildRating({ output, messages, pr, head, rubric, cliVersion, startedAt, endedAt, coverage, checkerModel }) {
   const result = Array.isArray(messages) ? messages.findLast((message) => message?.type === "result") : undefined;
   const denials = (Array.isArray(result?.permission_denials) ? result.permission_denials : []).filter((denial) => !WITHHELD.includes(denial?.tool_name));
   if (denials.length > 0) {
@@ -96,7 +95,7 @@ export function buildRating({ output, messages, pr, head, rubric, cliVersion, st
   }
   const gap = coverageRow(messages, coverage);
   const checked = checkResult(gap && Array.isArray(output?.risks) ? { ...output, risks: [...output.risks, gap] } : output, { pr, head });
-  return { ...checked, rubric, ...modelsOf(messages), cli_version: cliVersion, started_at: iso(startedAt), ended_at: iso(endedAt) };
+  return { ...checked, rubric, ...modelsOf(messages, checkerModel), cli_version: cliVersion, started_at: iso(startedAt), ended_at: iso(endedAt) };
 }
 
 export function main(env = process.env, clock = Date.now) {
@@ -116,6 +115,7 @@ export function main(env = process.env, clock = Date.now) {
       startedAt: env.STARTED_AT,
       endedAt: Math.floor(clock() / 1000),
       coverage: JSON.parse(readFileSync(env.COVERAGE_FILE, "utf8")),
+      checkerModel: Number(env.CHUNKS) > 1 ? (env.CHECKER_MODEL ?? "") : undefined,
     });
     mkdirSync(env.OUT_DIR, { recursive: true });
     writeFileSync(join(env.OUT_DIR, RATING_FILE), `${JSON.stringify(rating, null, 2)}\n`);

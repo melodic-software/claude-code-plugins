@@ -84,11 +84,21 @@ export function checkRating(value, { pr, head }) {
 // the main thread's most frequent assistant model, and a subagent's (a
 // message with a parent_tool_use_id). `none` when no subagent ran, `unknown`
 // for an id the pattern refuses.
-export function modelsOf(messages) {
+export function modelsOf(messages, checkerModel) {
+  const list = Array.isArray(messages) ? messages : [];
+  const checkers =
+    typeof checkerModel === "string"
+      ? new Set(
+          list
+            .filter((message) => message?.type === "assistant" && !message.parent_tool_use_id && Array.isArray(message.message?.content))
+            .flatMap((message) => message.message.content.filter((block) => block?.type === "tool_use" && block.name === "Agent" && (block.input?.model ?? "") === checkerModel).map((block) => block.id)),
+        )
+      : undefined;
   const counts = (sub) => {
     const seen = new Map();
-    for (const message of Array.isArray(messages) ? messages : []) {
+    for (const message of list) {
       if (message?.type !== "assistant" || Boolean(message.parent_tool_use_id) !== sub) continue;
+      if (sub && checkers && !checkers.has(message.parent_tool_use_id)) continue;
       const model = message.message?.model;
       if (typeof model === "string") seen.set(model, (seen.get(model) ?? 0) + 1);
     }

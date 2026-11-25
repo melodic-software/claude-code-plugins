@@ -216,6 +216,7 @@ test("every leg cuts the diff with no size refusal, runs every chunk's agents at
     const prompt = step(id, "Write the prompt and schema");
     assert.match(prompt, /\n {10}CHUNKS: \$\{\{ steps\.data\.outputs\.chunks \}\}\n {10}RATER_MODEL: \$\{\{ steps\.models\.outputs\.model \}\}\n {10}CHECKER_MODEL: \$\{\{ steps\.checker\.outputs\.model \}\}\n/, id);
     assert.match(prompt, /node \.base\/\.github\/scripts\/pr-merge-risk\/prompt\.mjs\n/, id);
+    assert.match(step(id, "Write the rating"), /\n {10}CHUNKS: \$\{\{ steps\.data\.outputs\.chunks \}\}\n {10}CHECKER_MODEL: \$\{\{ steps\.checker\.outputs\.model \}\}\n/, id);
   }
 });
 

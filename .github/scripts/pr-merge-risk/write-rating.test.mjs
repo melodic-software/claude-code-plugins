@@ -93,6 +93,45 @@ test("a Read with no result, an error result, or a result in another thread read
   assert.deepEqual(unreadParts(otherThread, [part(16)]), [part(16)], "the subagent's result posed as the main thread's");
 });
 
+const multiChunk = () => {
+  const dispatch = RECORDED[2];
+  const reply = RECORDED[3];
+  const sides = [
+    ["toolu_rater_chunk1", "sonnet", "claude-sonnet-5-5"],
+    ["toolu_rater_chunk2", "sonnet", "claude-sonnet-5-5"],
+    ["toolu_checker_chunk1", "opus", "claude-opus-5-5"],
+  ];
+  return [
+    { ...structuredClone(RECORDED[0]), message: { ...structuredClone(RECORDED[0].message), model: "claude-opus-5-5" } },
+    ...sides.map(([id, alias]) => {
+      const call = structuredClone(dispatch);
+      Object.assign(call.message.content[0], { id });
+      call.message.content[0].input.model = alias;
+      call.message.model = "claude-opus-5-5";
+      return call;
+    }),
+    ...sides.flatMap(([id, , model]) =>
+      [1, 2].map(() => {
+        const turn = structuredClone(reply);
+        turn.parent_tool_use_id = id;
+        turn.message.model = model;
+        return turn;
+      }),
+    ),
+  ];
+};
+
+test("a multi-chunk run records the checker from the agents dispatched as checkers, not the busier rater side", () => {
+  const base = { output: result(), messages: multiChunk(), pr: 7, head: HEAD, rubric: "8.0.0", cliVersion: "2.1.312", startedAt: 1, endedAt: 2 };
+  assert.deepEqual(
+    (({ rater, checker }) => ({ rater, checker }))(buildRating({ ...base, checkerModel: "opus" })),
+    { rater: "claude-opus-5-5", checker: "claude-opus-5-5" },
+    "four sonnet rater-side turns outnumber the two opus checker turns",
+  );
+  assert.equal(buildRating({ ...base, checkerModel: "haiku" }).checker, "none", "no agent was dispatched as a haiku checker");
+  assert.equal(buildRating(base).checker, "claude-sonnet-5-5", "with no checker model named, every subagent counts, as on a one-chunk run");
+});
+
 test("a rating that did not read the whole diff gains a HIGH Diff coverage row and demotes, even when every row is LOW", () => {
   const low = result({ risks: [row("LOW"), row("LOW", { area: "Reversibility" })] });
   const base = { output: low, pr: 7, head: HEAD, rubric: "8.0.0", cliVersion: "2.1.312", startedAt: 1, endedAt: 2 };

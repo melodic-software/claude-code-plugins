@@ -450,6 +450,8 @@ jobs:
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
           COVERAGE_FILE: ${{ runner.temp }}/merge-risk-reads/coverage.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
+          CHUNKS: ${{ steps.data.outputs.chunks }}
+          CHECKER_MODEL: ${{ steps.checker.outputs.model }}
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
 
       - name: Scan the upload for credentials
@@ -808,6 +810,8 @@ jobs:
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
           COVERAGE_FILE: ${{ runner.temp }}/merge-risk-reads/coverage.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
+          CHUNKS: ${{ steps.data.outputs.chunks }}
+          CHECKER_MODEL: ${{ steps.checker.outputs.model }}
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
 
       - name: Scan the upload for credentials
@@ -1147,6 +1151,8 @@ jobs:
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
           COVERAGE_FILE: ${{ runner.temp }}/merge-risk-reads/coverage.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
+          CHUNKS: ${{ steps.data.outputs.chunks }}
+          CHECKER_MODEL: ${{ steps.checker.outputs.model }}
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
 
       - name: Scan the upload for credentials
