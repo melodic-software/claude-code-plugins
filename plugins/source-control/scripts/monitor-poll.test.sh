@@ -26,7 +26,9 @@ unset GH_REPO
 
 PLUGIN="$TEST_TMPDIR/plugin"
 mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
-cp -p "$SRC" "$SCRIPT_DIR/../skills/pull-request/scripts/target-repo.sh" "$PLUGIN/skills/pull-request/scripts/"
+cp -p "$SRC" "$SCRIPT_DIR/../skills/pull-request/scripts/target-repo.sh" \
+  "$SCRIPT_DIR/../skills/pull-request/scripts/pr-verify-run.jq" "$PLUGIN/skills/pull-request/scripts/"
+export MP_FIXTURES="$SCRIPT_DIR/fixtures/monitor-poll"
 cp -p "$SCRIPT_DIR/../lib/github-remote.sh" "$PLUGIN/lib/"
 POLL="$PLUGIN/skills/pull-request/scripts/monitor-poll.sh"
 
@@ -70,7 +72,7 @@ case "$args" in
     # head.<n>: the head SHA from that poll on (the newest such file at or below n); sha1 without one.
     sha=sha1
     for f in "$FX"/head.*; do [ -e "$f" ] && [ "${f##*.}" -le "$n" ] && sha=$(cat "$f"); done
-    reply "{\"state\":\"$state\",\"merged\":$merged,\"head\":{\"sha\":\"$sha\",\"ref\":\"feature\"},\"base\":{\"ref\":\"main\",\"repo\":{\"default_branch\":\"main\"}}}" ;;
+    reply "{\"state\":\"$state\",\"merged\":$merged,\"head\":{\"sha\":\"$sha\",\"ref\":\"feature\"},\"base\":{\"ref\":\"main\",\"repo\":{\"default_branch\":\"main\",\"full_name\":\"owner/repo\"}}}" ;;
   *"/contents/.github/workflows/pr-verify.yml"*)
     # no-verify: the base branch has no pr-verify workflow.
     if [ -e "$FX/no-verify" ]; then
@@ -81,15 +83,24 @@ case "$args" in
     fi
     reply '{"path":".github/workflows/pr-verify.yml"}' ;;
   *"/actions/artifacts?name="*)
-    # art/<name>: "<from poll> [<run id>]", the artifact by that exact name from that poll on.
+    # art/<name>: "<from poll> [<run id>]", the artifact by that exact name from that poll on,
+    # shaped from the captured listing fixtures/monitor-poll/artifacts-pass-notes.json.
     name=${args##*name=} name=${name%%&*}
-    items=""
+    live=0 run=5
     if [ -e "$FX/art/$name" ]; then
       read -r from run <"$FX/art/$name"
-      [ "$(cat "$FX/poll")" -ge "$from" ] &&
-        items="{\"name\":\"$name\",\"expired\":false,\"workflow_run\":{\"id\":${run:-5},\"head_branch\":\"main\"}}"
+      run=${run:-5}
+      [ "$(cat "$FX/poll")" -ge "$from" ] && live=1
     fi
-    reply "{\"total_count\":$([ -n "$items" ] && echo 1 || echo 0),\"artifacts\":[$items]}" ;;
+    reply "$(jq -c --arg n "$name" --argjson r "$run" --argjson live "$live" \
+      'if $live == 1 then .artifacts[0] |= (.name = $n | .workflow_run.id = $r) else .total_count = 0 | .artifacts = [] end' \
+      "$MP_FIXTURES/artifacts-pass-notes.json")" ;;
+  *"/actions/runs/"[0-9]*)
+    # The captured pr-verify run fixtures/monitor-poll/run-pr-verify.json, moved to this repository;
+    # run.<id>, when present, is a jq edit that forges one field.
+    id=${args##*/}
+    reply "$(jq -c --argjson id "$id" "(.id = \$id | .repository.full_name = \"owner/repo\" | .head_repository.full_name = \"owner/repo\") | $(cat "$FX/run.$id" 2>/dev/null || echo .)" \
+      "$MP_FIXTURES/run-pr-verify.json")" ;;
   *"/actions/runs"*)
     n=$(cat "$FX/poll")
     [ "$(cat "$FX/fault.$n" 2>/dev/null)" = actions ] && { echo "boom: transient" >&2; exit 1; }
@@ -371,12 +382,34 @@ outv="$(run_poll "$FXV")"
 assert_eq "no baseline, a check run pending through poll 3, a verdict at poll 2: printed exactly once" "1" \
   "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
 
-FXV=$(verdict_fx fxv-terminal)
+FXV=$(verdict_fx fxv-pass-then-fail)
+echo 6 >"$FXV/merged_at"
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+echo 4 >"$FXV/art/pr-verify-index-pr-7"
+echo 4 >"$FXV/art/pr-verify-index-sha-$H1"
+outv="$(run_poll "$FXV")"
+assert_contains "a pass recorded for the head: its reads go on" "$(awk '$1 == 3' "$FXV/calls")" "actions/artifacts"
+assert_eq "a pass then a fail at one head: the pass is printed once" "1" "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
+assert_eq "a pass then a fail at one head: the fail is printed once" "1" "$(grep -c "^PR-VERIFY fail $H1 — " <<<"$outv")"
+
+FXV=$(verdict_fx fxv-new-head)
 echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
 echo "$H2" >"$FXV/head.4"
 outv="$(run_poll "$FXV")"
-assert_eq "a pass recorded for the head: its reads stop" "" "$(awk '$1 == 3 && /actions\/artifacts/' "$FXV/calls")"
-assert_contains "a new head: the verdict reads start again" "$(awk '$1 == 4' "$FXV/calls")" "pr-verify-7-$H2-pass"
+assert_contains "a new head: the verdict reads name it" "$(awk '$1 == 4' "$FXV/calls")" "pr-verify-7-$H2-pass"
+
+for forge in '.status = "in_progress"' '.conclusion = "failure"' '.path = ".github/workflows/forged.yml"' \
+  '.event = "pull_request"' '.repository.full_name = "fork/repo"' '.head_repository.full_name = "fork/repo"' \
+  '.head_branch = "feature"'; do
+  FXV=$(verdict_fx "fxv-forged-$(cksum <<<"$forge" | cut -d' ' -f1)")
+  echo "2 9" >"$FXV/art/pr-verify-7-$H1-pass"
+  echo "2 9" >"$FXV/art/pr-verify-index-pr-7"
+  echo "2 9" >"$FXV/art/pr-verify-index-sha-$H1"
+  echo "$forge" >"$FXV/run.9"
+  outv="$(run_poll "$FXV")"
+  assert_not_contains "artifacts from a run with $forge: nothing is printed" "$outv" "PR-VERIFY"
+  assert_contains "artifacts from a run with $forge: the run was read" "$(cat "$FXV/calls")" "actions/runs/9"
+done
 
 FXV=$(verdict_fx fxv-fail-then-pass)
 echo 6 >"$FXV/merged_at"
@@ -387,7 +420,6 @@ outv="$(run_poll "$FXV")"
 assert_contains "a fail recorded for the head: its reads go on" "$(awk '$1 == 3' "$FXV/calls")" "actions/artifacts"
 assert_eq "a fail then a pass at one head: the fail is printed once" "1" "$(grep -c "^PR-VERIFY fail $H1 — " <<<"$outv")"
 assert_eq "a fail then a pass at one head: the pass is printed once" "1" "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
-assert_eq "a fail then a pass at one head: reads stop after the pass" "" "$(awk '$1 == 5 && /actions\/artifacts/' "$FXV/calls")"
 
 FXV=$(verdict_fx fxv-rearm)
 echo 1 >"$FXV/art/pr-verify-7-$H1-pass"

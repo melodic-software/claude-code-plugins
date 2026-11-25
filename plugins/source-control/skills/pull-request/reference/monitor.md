@@ -204,11 +204,16 @@ The poll keeps its 90s cadence: readiness needs every check terminal, the curren
      and pass-notes under `pr-verify-<N>-<head-sha>-<verdict>` and that name followed by the
      head-ref digest, and a FAIL as one run holding both its index artifacts,
      `pr-verify-index-pr-<N>` and `pr-verify-index-sha-<head-sha>`, since its own name ends in
-     issue numbers the script does not read. Each name holds the head, so a verdict at an earlier
-     head never emits. After its first, record-only read, the watch reads verdicts only while no check run at the head is pending,
-     since pr-verify starts when the head's checks finish, and stops reading a head once it has
-     recorded a pass or pass-notes there; after a `fail` it keeps reading, since pr-verify judges
-     the same head again after a trusted body edit or an approving review; a new head reads again, and `--verdict` reads whatever is there.
+     issue numbers the script does not read. An artifact counts only when the run behind it passes
+     `scripts/pr-verify-run.jq`, the check `scripts/merge-readiness.sh` applies: a completed,
+     successful `workflow_run` run of `.github/workflows/pr-verify.yml` on the default branch, in
+     the base repository and from it, so an artifact another workflow or a fork uploaded never
+     emits. Each name holds the head, so a verdict at an earlier head never emits. After its
+     first, record-only read, the watch reads verdicts only while no check run at the head is
+     pending, since pr-verify starts when the head's checks finish. It keeps reading a head after
+     any verdict, since pr-verify judges the same head again when its spec changes (a PR body or
+     linked issue edit) or after an approving review, so a later verdict at the head emits once
+     too; an unchanged read answers 304.
      Its first successful verdict read records, as the checks read does, unless
      `--baseline` names a snapshot. `--verdict` reads the verdicts once, prints them, `PR-VERIFY none
      <head-sha>` or `PR-VERIFY off`, and exits.

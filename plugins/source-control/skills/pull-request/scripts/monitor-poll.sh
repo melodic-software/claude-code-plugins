@@ -176,9 +176,9 @@ cget() {
 # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-verify/write-verdict.mjs
 pv_base="" pv_on=0
 verdict_read() {
-  local v name ref d n before ids_pr sel
+  local v name ref d n before ids_pr
   pv_now=""
-  [[ -n "$base_ref" && "$base_ref" != null && "$default_branch" != null ]] || return 1
+  [[ -n "$base_ref" && "$base_ref" != null && "$default_branch" != null && "$base_repo" == */* ]] || return 1
   if [[ "$pv_base" != "$base_ref" ]]; then
     ref=$(jq -rn --arg r "$base_ref" '$r | @uri') || return 1
     before=${#errs}
@@ -192,32 +192,43 @@ verdict_read() {
     pv_base=$base_ref
   fi
   [[ "$pv_on" -eq 1 ]] || return 0
-  # shellcheck disable=SC2016 # $n and $d are jq variables
-  sel='[.[].artifacts[]? | select(.name == $n and .expired == false and .workflow_run.head_branch == $d) | .workflow_run.id] | unique'
   d=$(printf '%s' "$head_ref" | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } | cut -c1-16)
   [[ "$d" =~ ^[0-9a-f]{16}$ ]] || d=""
   for v in pass pass-notes; do
     for name in "pr-verify-$PR_NUMBER-$head_sha-$v" ${d:+"pr-verify-$PR_NUMBER-$head_sha-$v-$d"}; do
-      cget "repos/$OWNER/$REPO/actions/artifacts?name=$name&per_page=$per_page" || return 1
-      n=$(printf '%s' "$out" | jq -s --arg n "$name" --arg d "$default_branch" "$sel | length") || return 1
-      if [[ "${n//$'\r'/}" -gt 0 ]]; then
+      pv_runs "$name" || return 1
+      if [[ -n "$pv_ids" ]]; then
         pv_now+="PR-VERIFY $v $head_sha"$'\n'
         break
       fi
     done
   done
-  for name in "pr-verify-index-pr-$PR_NUMBER" "pr-verify-index-sha-$head_sha"; do
-    cget "repos/$OWNER/$REPO/actions/artifacts?name=$name&per_page=$per_page" || return 1
-    n=$(printf '%s' "$out" | jq -s -c --arg n "$name" --arg d "$default_branch" "$sel") || return 1
-    [[ "$name" == *-pr-* ]] && ids_pr=$n && continue
-    n=$(jq -n --argjson a "$ids_pr" --argjson b "$n" '$a - ($a - $b) | length') || return 1
-    [[ "${n//$'\r'/}" -gt 0 ]] && pv_now+="PR-VERIFY fail $head_sha"$'\n'
+  pv_runs "pr-verify-index-pr-$PR_NUMBER" || return 1
+  ids_pr=$pv_ids
+  [[ -n "$ids_pr" ]] || return 0
+  pv_runs "pr-verify-index-sha-$head_sha" || return 1
+  for n in $pv_ids; do
+    [[ " $ids_pr " == *" $n "* ]] && pv_now+="PR-VERIFY fail $head_sha"$'\n' && break
+  done
+  return 0
+}
+pv_runs() {
+  local id ok ids
+  pv_ids=""
+  cget "repos/$OWNER/$REPO/actions/artifacts?name=$1&per_page=$per_page" || return 1
+  # shellcheck disable=SC2016 # $n and $d are jq variables
+  ids=$(printf '%s' "$out" | jq -s -r --arg n "$1" --arg d "$default_branch" \
+    '[.[].artifacts[]? | select(.name == $n and .expired == false and .workflow_run.head_branch == $d) | .workflow_run.id] | unique | .[]') || return 1
+  for id in ${ids//$'\r'/}; do
+    [[ "$id" =~ ^[0-9]+$ ]] || continue
+    cget "repos/$OWNER/$REPO/actions/runs/$id" || return 1
+    ok=$(printf '%s' "$out" | jq -r --arg def "$default_branch" --arg repo "$base_repo" -f "$SCRIPT_DIR/pr-verify-run.jq") || return 1
+    [[ "${ok//$'\r'/}" == true ]] && pv_ids+="$id "
   done
   return 0
 }
 pv_wanted() {
-  [[ "$checks_ok" -eq 1 ]] && { [[ "$pv_based" -eq 0 ]] || ! grep -q ': pending$' <<<"$run_rows"; } &&
-    ! grep -qE "^PR-VERIFY pass(-notes)? $head_sha\$" <<<"$pv_seen"
+  [[ "$checks_ok" -eq 1 ]] && { [[ "$pv_based" -eq 0 ]] || ! grep -q ': pending$' <<<"$run_rows"; }
 }
 pv_print() {
   if [[ "$1" == "PR-VERIFY fail "* ]]; then
@@ -229,8 +240,8 @@ pv_print() {
 
 while true; do
   if cget "repos/$OWNER/$REPO/pulls/$PR_NUMBER" &&
-    pr=$(printf '%s' "$out" | jq -r '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha) \(.base.ref) \(.base.repo.default_branch) \(.head.ref)"'); then
-    read -r state head_sha base_ref default_branch head_ref <<<"${pr//$'\r'/}"
+    pr=$(printf '%s' "$out" | jq -r '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha) \(.base.ref) \(.base.repo.default_branch) \(.base.repo.full_name) \(.head.ref)"'); then
+    read -r state head_sha base_ref default_branch base_repo head_ref <<<"${pr//$'\r'/}"
   elif grep -qiE 'rate limit|HTTP 429' <<<"$errs"; then
     echo "RATE-LIMITED — watch stopped: $(grep -iE -m1 'rate limit|HTTP 429' <<<"$errs")"
     exit 2
