@@ -139,14 +139,17 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     BULLET_RE,
     HANDOFF_NAME_RE,
     HOP_FILE_SHAPES,
+    NEWEST_SHAPE,
     RETIRED_PREFIX,
     SHAPES,
     STANDING_INLINE_OK,
     STANDING_PREFIX,
     STANDING_SECTIONS,
+    WRITABLE_SHAPES,
     IdSpec,
     MovePointer,
     entry_text,
+    fitted,
     fm_value,
     follow,
     hop_file_path,
@@ -169,8 +172,6 @@ import handoff_fit  # noqa: E402  (handoff_fit.py beside this script)
 from handoff_fit import PURPOSE_PREFIX, REOPEN_PREFIX  # noqa: E402
 
 HANDOFF_SHAPE = 4
-NEWEST_SHAPE = 4
-WRITABLE_SHAPES = (2, 3, 4)
 CHECKS = 3
 CONTENT_ONLY_DOWNGRADE_FROM = 2
 ID_REUSE_FROM = 3
@@ -1810,10 +1811,11 @@ CORE_NEVER_MOVES = (
 
 def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
     size, core, carried, written = _size_parts(doc)
-    cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
+    spec = SHAPES[doc.shape]
+    cap = spec.cap_bytes or HOT_FILE_MAX_BYTES
     if core + carried > cap:
         name, held = max(
-            ((title, _section_bytes(doc, (title,))) for title in SHAPES[4].binding),
+            ((title, _section_bytes(doc, (title,))) for title in spec.binding),
             key=lambda pair: pair[1],
         )
         return (
@@ -1823,13 +1825,13 @@ def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
     if size > cap:
         return (
             "FAIL",
-            f"size: {size} bytes is over the {cap}-byte hot-file cap; move {', '.join(SHAPES[4].movable)} content into {rel} with a pointer ({_size_text(core, carried, written)})",
+            f"size: {size} bytes is over the {cap}-byte hot-file cap; move {', '.join(spec.movable)} content into {rel} with a pointer ({_size_text(core, carried, written)})",
         )
     return None
 
 
 def _size_finding(doc: Doc, rel: str) -> tuple[str, str] | None:
-    if doc.shape == 4:
+    if fitted(doc.shape):
         return _size_finding_4(doc, rel)
     size, core, carried, written = _size_parts(doc)
     parts = _size_text(core, carried, written)
@@ -2274,7 +2276,7 @@ def _validate_shape3(
         _check_headings(doc, f, spec.legacy_names)
     else:
         _check_headings(doc, f, spec.names)
-    if doc.shape == 4:
+    if spec.fitted:
         _check_moves(doc, f, spec)
     _check_original_goal(doc, f, hop or 1)
     raw = doc
@@ -2372,7 +2374,7 @@ def _validate_shape3(
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
     slots = _check_slot_sizes(raw, f)
-    if raw.shape == 4 and _cap_state(raw)[0] > READ_CAP_BYTES:
+    if fitted(raw.shape) and _cap_state(raw)[0] > READ_CAP_BYTES:
         f.warn(
             f"size: {_cap_state(raw)[0]} bytes is over the {READ_CAP_BYTES}-byte Read page cap; the resume prompt directs a paged Read (offset and limit)",
             CheckKind.SIZE,
@@ -3257,7 +3259,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
             out.append(part + (inner if position < len(parts) - 1 else terminator))
 
     writes: list[tuple[Path, str, bytes | None]] = []
-    standing_key = doc.frontmatter.get("standing_rules") if shape == 4 else None
+    standing_key = doc.frontmatter.get("standing_rules") if fitted(shape) else None
     root = doc.frontmatter.get("chain_root", "")
     if standing_key and standing_key not in standing_rels(root):
         return _die(
@@ -3266,7 +3268,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
         )
     if standing_key and (code := _forked(path, doc)) is not None:
         return code
-    if retire or shape == 4:
+    if retire or fitted(shape):
         hop_number = _fm_int(doc, "hop") or 0
         own = hop_file_path(
             path.parent,
@@ -3290,7 +3292,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
             if isinstance(moved, str):
                 return _die(1, f"{moved}; nothing written")
             out, hop_lines = moved
-        if shape == 4:
+        if fitted(shape):
             term = (_line_parts(lines[0])[1] if lines else "") or "\n"
             if standing_key:
                 out, standing = _split_standing(
@@ -3323,8 +3325,8 @@ def cmd_fill(args: argparse.Namespace) -> int:
             out, hop_lines, _ = handoff_fit.fit(
                 out,
                 hop_lines,
-                movable=SHAPES[4].movable,
-                cap=SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES,
+                movable=SHAPES[shape].movable,
+                cap=SHAPES[shape].cap_bytes or HOT_FILE_MAX_BYTES,
                 rel=rel,
                 hop_number=hop_number,
                 term=term,
@@ -3349,7 +3351,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
         marker.unlink(missing_ok=True)
     except OSError:
         pass
-    if shape != 4:
+    if not fitted(shape):
         return 0
     written = parse_doc(path)
     findings, code = validate_doc(written, None, False)
@@ -3639,7 +3641,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     hot = text.splitlines(keepends=True)
     hop = hop_text.splitlines(keepends=True)
     term = (_line_parts(hot[0])[1] if hot else "") or "\n"
-    standing_key = fm.get("standing_rules") if doc.shape == 4 else None
+    standing_key = fm.get("standing_rules") if fitted(doc.shape) else None
     standing_path: Path | None = None
     standing_before: bytes | None = None
     standing_text: str | None = None
@@ -4802,10 +4804,10 @@ def cmd_new(args: argparse.Namespace) -> int:
         args.shape = HANDOFF_SHAPE
     standing = bool(args.standing_rules) or (
         pred is not None
-        and pred.shape == 4
+        and fitted(pred.shape)
         and bool(pred.frontmatter.get("standing_rules"))
     )
-    if standing and args.shape != 4:
+    if standing and not fitted(args.shape):
         return _die(
             2,
             f"a standing-rules file belongs to a shape-4 chain; this hop is shape {args.shape}",
@@ -4904,7 +4906,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     except OSError:
         pass
     print(_posix(target))
-    if args.shape == 4:
+    if fitted(args.shape):
         skeleton = content
         if standing:
             split, _ = _split_standing(
@@ -4912,12 +4914,12 @@ def cmd_new(args: argparse.Namespace) -> int:
             )
             split, _ = _split_index(split, index_rel(root), "\n", None, [])
             skeleton = "".join(split)
-        print(_budget_line(skeleton), file=sys.stderr)
+        print(_budget_line(skeleton, args.shape), file=sys.stderr)
     return 0
 
 
-def _budget_line(skeleton: str) -> str:
-    cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
+def _budget_line(skeleton: str, shape: int) -> str:
+    cap = SHAPES[shape].cap_bytes or HOT_FILE_MAX_BYTES
     fixed = len(FILL_SLOT_RE.sub("", skeleton).encode("utf-8"))
     slots = ", ".join(
         f"{name} {n} bytes" for name, n in handoff_fit.SLOT_BUDGETS.items()

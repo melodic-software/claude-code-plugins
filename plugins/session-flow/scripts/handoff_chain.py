@@ -57,13 +57,16 @@ ID_FLOOR_KEYS = (
 @dataclass(frozen=True)
 class ShapeSpec:
     """A handoff shape's sections in file order. `legacy_omits` names sections
-    an older file of this shape may lack. `id_specs` follows ID_FLOOR_KEYS, the
-    order `new` writes the id floors in."""
+    an older file of this shape may lack. `fitted` marks a shape whose `fill`
+    fits the handoff file to `cap_bytes` itself, moving movable sections to the
+    archive file, and which may keep a standing-rules file. `id_specs` follows
+    ID_FLOOR_KEYS, the order `new` writes the id floors in."""
 
     shape: int
     sections: tuple[SectionSpec, ...]
     cap_bytes: int | None = None
     legacy_omits: tuple[str, ...] = ()
+    fitted: bool = False
     id_specs: tuple[IdSpec, ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -233,9 +236,18 @@ SHAPES: dict[int, ShapeSpec] = {
             SectionSpec("Resume prompt", carried=True),
         ),
         cap_bytes=24_600,
+        fitted=True,
     ),
 }
 HOP_FILE_SHAPES = tuple(shape for shape in SHAPES if shape >= 3)
+NEWEST_SHAPE = max(SHAPES)
+WRITABLE_SHAPES = tuple(sorted(SHAPES))
+
+
+def fitted(shape: int | None) -> bool:
+    """True when `shape` is one whose `fill` fits the handoff file to its cap."""
+    spec = SHAPES.get(shape) if isinstance(shape, int) else None
+    return spec is not None and spec.fitted
 
 
 def fm_value(raw: str) -> str:
