@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: ho-fork-launch-command
+description: A user forks a side task into a new terminal session in the same checkout. Only session-flow is enabled. The run needs --scaffold, --allow-tools Bash Write Edit, and a session UUID.
+tags: [handoff, fork, new-session]
+plugins: ["../../../.."]
+expected_outcome: The handoff prints one POSIX launch command for the side task. The user can paste it from any directory.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "I am still editing the guide. Run /session-flow:handoff file link-check to fork a side task into a new local session in this checkout. Its job is to check the links in guide.md. Leave that work for the new session."
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: requests-launch
+    type: tool_used
+    tool: Bash
+    input_match: 'save_point\.py[^\n]*\bnew\b[^\n]*--start-command\b'
+    min: 1
+    arm: with-only
+  - name: prints-one-launch
+    type: regex
+    pattern: '^cd [''"]?/[^\r\n]+ && claude "\$\(cat [''"]?/[^\r\n]+\.prompt\.txt[''"]?\)"$'
+    flags: m
+    match: "count:1"
+    arm: with-only

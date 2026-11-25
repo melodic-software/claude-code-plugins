@@ -7,13 +7,19 @@ makes a temp directory per case, runs the scaffold there, launches
 `claude -p --output-format stream-json --verbose` with the case's settings and
 permission mode, reads the decision for the case's target tool call out of the
 stream, and gives one verdict per case. A `prints` case judges the first line a
-slash command prints instead of a tool call:
+slash command prints instead of a tool call. A `transcript-grep` case keeps its
+session and judges its transcript: the session's JSONL followed by the lines the
+case's own hooks append to .probe-hooks.jsonl in the temp directory, which every
+regex in target.patterns must match in order, which no regex in target.absent
+may match, and which, when target.compaction is set, must hold a PostCompact
+record, the only proof that a compaction ran:
 
   pass          the target call's outcome (or printed line) matches expect.json
   fail          it does not
   inconclusive  the model never attempted the target call, the command printed
-                nothing, the CLI produced no init event, or a case's paired
-                control did not pass
+                nothing, the CLI produced no init event, the session saved no
+                transcript or a compaction case no PostCompact record, or a
+                case's paired control did not pass
   error         the case or its scaffold is broken (a fixture failure)
   skipped       the platform, a required tool or the suite ceiling ruled it out
 
@@ -29,8 +35,9 @@ Subcommands (standard library only):
       --dry-run runs every scaffold but replaces `claude` with a fake that emits
       the stream the case expects, so it costs nothing. --live spends money and
       is never the default. Results go to <out>/results.jsonl; under --live the
-      raw stream of each run goes to <out>/raw/, outside the repository, except
-      for a verdict-only case, which saves no stream and no tool output text.
+      raw stream of each run goes to <out>/raw/, outside the repository, with a
+      transcript-grep case's transcript beside it, moved out of the operator's
+      session history; a verdict-only case saves no stream and no tool output text.
       --max-runs defaults to 20 under --live; a dry run has no run ceiling.
       A case marked explicit runs live only when --case names it; otherwise
       it is reported skipped.
@@ -70,6 +77,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 MIN_PYTHON = (3, 10)
@@ -80,7 +88,10 @@ CHANGELOG_PARSER = SKILL_DIR.parent.parent / "scripts" / "changelog-releases.sh"
 STATE_ISSUE_RESOLVER = SKILL_DIR.parent.parent / "scripts" / "probe-state-issue.mjs"
 
 PRINTS = "prints"
-OUTCOMES = ("allow", "deny", "ran", "refused", PRINTS)
+GREP = "transcript-grep"
+OUTCOMES = ("allow", "deny", "ran", "refused", PRINTS, GREP)
+HOOK_LOG = ".probe-hooks.jsonl"
+TRANSCRIPT_FILE = ".probe-transcript.jsonl"
 NEGATIVE = ("deny", "refused")
 SELECTS = ("first", "any", "all")
 DEFAULT_MODEL = "sonnet"
@@ -105,7 +116,7 @@ TOOL_LISTS = (
 )
 # The only flags a case's cli_args may pass, each with the shape its value must
 # have, so no case can widen the launch.
-CLI_FLAGS = {"--autocompact": r"auto|\d+[kKmM]?"}
+CLI_FLAGS = {"--autocompact": r"auto|\d+[kKmM]?", "--input-format": r"stream-json"}
 # Where a `prints` case looks for a slash command's output: a user message
 # wrapped in this tag, else the result event's text when no model turn ran
 # (a result reporting num_turns 0, the shape claude -p gives a local command).
@@ -267,6 +278,30 @@ def print_problems(case: dict, target: dict, by_id: dict[str, dict]) -> list[str
     return problems
 
 
+def grep_problems(cid: str, target: dict) -> list[str]:
+    patterns, absent = target.get("patterns"), target.get("absent", [])
+    lists = (("patterns", patterns, True), ("absent", absent, False))
+    for name, value, required in lists:
+        if not isinstance(value, list) or (required and not value):
+            return [f"{cid}: target.{name} must be a list of regexes"]
+        for pattern in value:
+            try:
+                re.compile(pattern)
+            except (re.error, TypeError) as exc:
+                return [f"{cid}: target.{name} holds a bad regex: {exc}"]
+    if not isinstance(target.get("compaction", False), bool):
+        return [f"{cid}: target.compaction must be true or false"]
+    example = target.get("example")
+    if not isinstance(example, list) or not all(isinstance(x, str) for x in example):
+        return [
+            f"{cid}: target.example (the transcript the dry run writes) must be lines"
+        ]
+    judged, note, _ = grep_match(target, example)
+    if judged != "pass":
+        return [f"{cid}: target.example does not pass its own target: {note}"]
+    return []
+
+
 def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
     cid = case["id"]
     problems = []
@@ -278,6 +313,8 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
     target = case.get("target") or {}
     if case.get("outcome") == PRINTS:
         problems += print_problems(case, target, by_id)
+    elif case.get("outcome") == GREP:
+        problems += grep_problems(cid, target)
     else:
         if not target.get("tool"):
             problems.append(f"{cid}: target.tool is required")
@@ -434,6 +471,7 @@ def parse_stream(lines) -> dict:
         "printed": [],
         "result_text": None,
         "model_turn": False,
+        "transcript": [],
     }
     for line in lines:
         try:
@@ -548,6 +586,15 @@ def verdict(case: dict, obs: dict) -> dict:
         )
     if case["outcome"] == PRINTS:
         return print_verdict(case, obs, row)
+    if case["outcome"] == GREP:
+        judged, note, evidence = grep_match(target, obs["transcript"])
+        return {
+            **row,
+            "observed": {"pass": "matched", "fail": "unmatched"}.get(judged),
+            "text": "" if case.get("verdict_only") else evidence[:TEXT_CLIP],
+            "verdict": judged,
+            "note": note,
+        }
     pattern = re.compile(target.get("input_match", ""))
     uses = [
         use
@@ -601,6 +648,37 @@ def verdict(case: dict, obs: dict) -> dict:
         if len(seen) == 1
         else f"{len(hits)} of {len(seen)} matching calls as expected",
     }
+
+
+def is_post_compact(line: str) -> bool:
+    try:
+        record = json.loads(line)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return isinstance(record, dict) and record.get("hook_event_name") == "PostCompact"
+
+
+def grep_match(target: dict, lines: list[str]) -> tuple[str, str, str]:
+    """(verdict, note, last matching line) for a transcript-grep target."""
+    if not lines:
+        return "inconclusive", "the session saved no transcript", ""
+    if target.get("compaction") and not any(is_post_compact(line) for line in lines):
+        return "inconclusive", "no PostCompact record: nothing was compacted", ""
+    start, evidence = 0, ""
+    for pattern in target["patterns"]:
+        hit = next(
+            (n for n in range(start, len(lines)) if re.search(pattern, lines[n])), None
+        )
+        if hit is None:
+            return "fail", f"no line from line {start + 1} on matches {pattern}", ""
+        start, evidence = hit + 1, lines[hit]
+    for pattern in target.get("absent") or []:
+        hit = next(
+            (n for n, line in enumerate(lines) if re.search(pattern, line)), None
+        )
+        if hit is not None:
+            return "fail", f"line {hit + 1} matches absent {pattern}", lines[hit]
+    return "pass", "", " ".join(evidence.split())
 
 
 def print_verdict(case: dict, obs: dict, row: dict) -> dict:
@@ -694,7 +772,10 @@ def kill_tree(process: subprocess.Popen) -> None:
             process.kill()
 
 
-def build_argv(claude: str, case: dict, settings_file: Path, model: str) -> list[str]:
+def build_argv(
+    claude: str, case: dict, settings_file: Path, model: str, session: str | None = None
+) -> list[str]:
+    persistence = ["--session-id", session] if session else ["--no-session-persistence"]
     argv = [
         claude,
         "-p",
@@ -713,7 +794,7 @@ def build_argv(claude: str, case: dict, settings_file: Path, model: str) -> list
         str(case.get("max_turns", DEFAULT_MAX_TURNS)),
         "--max-budget-usd",
         str(case.get("max_budget_usd", DEFAULT_BUDGET_USD)),
-        "--no-session-persistence",
+        *persistence,
         "--append-system-prompt",
         DRIVER_PROMPT,
     ]
@@ -731,7 +812,8 @@ def live_runner(model: str, timeout: int, raw_dir: Path):
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     def run(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list[str]:
-        argv = build_argv(claude, case, settings_file, model)
+        session = str(uuid.uuid4()) if case["outcome"] == GREP else None
+        argv = build_argv(claude, case, settings_file, model, session)
         windows = os.name == "nt"
         process = subprocess.Popen(  # noqa: S603 - argv list, no shell
             argv,
@@ -760,9 +842,38 @@ def live_runner(model: str, timeout: int, raw_dir: Path):
         stdout = stdout or ""
         if not case.get("verdict_only"):
             (raw_dir / raw_name(case["id"])).write_text(stdout, encoding="utf-8")
+        if session:
+            text = collect_transcript(session, settings_file.parent)
+            if not case.get("verdict_only"):
+                (raw_dir / transcript_name(case["id"])).write_text(
+                    text, encoding="utf-8"
+                )
         return stdout.splitlines()
 
     return run
+
+
+def collect_transcript(session: str, workdir: Path) -> str:
+    """The session's transcript, then the case hooks' log, into workdir/TRANSCRIPT_FILE.
+
+    The session file leaves the operator's projects folder, so a probe run never
+    shows up in their session history."""
+    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    lines = []
+    for path in (config / "projects").glob(f"*/{session}.jsonl"):
+        lines += path.read_text(encoding="utf-8").splitlines()
+        path.unlink()
+        shutil.rmtree(path.with_suffix(""), ignore_errors=True)
+        try:
+            path.parent.rmdir()
+        except OSError:
+            pass
+    hooks = workdir / HOOK_LOG
+    if hooks.is_file():
+        lines += hooks.read_text(encoding="utf-8").splitlines()
+    text = "".join(line + "\n" for line in lines)
+    (workdir / TRANSCRIPT_FILE).write_text(text, encoding="utf-8")
+    return text
 
 
 def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list[str]:
@@ -773,6 +884,12 @@ def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list
         "subtype": "init",
         "claude_code_version": DRY_RUN_VERSION,
     }
+    if case["outcome"] == GREP:
+        (settings_file.parent / TRANSCRIPT_FILE).write_text(
+            "".join(line + "\n" for line in target["example"]), encoding="utf-8"
+        )
+        done = {"type": "result", "subtype": "success", "total_cost_usd": 0.0}
+        return [json.dumps(init), json.dumps(done)]
     if case["outcome"] == PRINTS:
         printed = target["example"]
         return [
@@ -876,6 +993,17 @@ def raw_name(case_id: str) -> str:
     return case_id.replace("/", "__") + ".jsonl"
 
 
+def transcript_name(case_id: str) -> str:
+    return case_id.replace("/", "__") + ".transcript.jsonl"
+
+
+def observe(case: dict, lines: list[str], transcript: Path) -> dict:
+    obs = parse_stream(lines)
+    if case["outcome"] == GREP and transcript.is_file():
+        obs["transcript"] = transcript.read_text(encoding="utf-8").splitlines()
+    return obs
+
+
 def rejudge(
     cases: list[dict], raw_dir: Path, prior: dict[str, dict] | None = None
 ) -> list[dict]:
@@ -898,7 +1026,8 @@ def rejudge(
         raw = raw_dir / raw_name(case["id"])
         if raw.is_file():
             lines = raw.read_text(encoding="utf-8").splitlines()
-            rows.append({**base_row(case), **verdict(case, parse_stream(lines))})
+            obs = observe(case, lines, raw_dir / transcript_name(case["id"]))
+            rows.append({**base_row(case), **verdict(case, obs)})
     apply_controls(rows, {case["id"]: case for case in cases})
     return rows
 
@@ -1010,7 +1139,7 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
             },
         }
         lines = runner(resolved, cwd, settings_file, prompt)
-        return {**row, **verdict(case, parse_stream(lines))}
+        return {**row, **verdict(case, observe(case, lines, workdir / TRANSCRIPT_FILE))}
     finally:
         if keep:
             print(f"kept {case['id']}: {workdir}", file=sys.stderr)

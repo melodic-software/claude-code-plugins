@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/handoffs/x.slots.json",
+            "content": "{\"next\": \"Next: none (closed)\", \"retire\": [{\"ref\": \"[M1]\", \"reason\": \"raised at chain close\"}]}"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/handoffs/x.slots.json",
+            "content": "{\"next\": \"Next: none (closed)\"}"
+          }
+        }
+      ],
+      "why": "leaves M1 open"
+    }
+  ]
+}

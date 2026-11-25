@@ -78,6 +78,15 @@ state has silent hooks: prompts would wait all night and no report would exist.
    session is not armed. Do not start the work. After every `start` that exits 0, run
    `away.py status` in a separate call: any status other than `"active"` means the state did not
    persist where the hooks read it (a Bash sandbox can do this), which is the same failure.
+
+   Then record the task file in the session's focus file, so every compaction during the absence
+   keeps it in the summary:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/focus.py" set --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --task-file <task file> --enabled '${user_config.compact_focus_enabled}'
+   ```
+
+   A non-zero exit does not stop the launch; quote its error in step 4.
 4. **End the launch turn with one message to the person**, doing no work in scope this turn: the
    Stop hook blocks the turn's end while task items are open and brings the run straight back to
    work, so this message is the last thing they read before leaving. It holds: the report path; the report-by time, or "until you are
@@ -111,7 +120,7 @@ state has silent hooks: prompts would wait all night and no report would exist.
       arms as the goal with no draft or confirmation. It hands back the background session's
       full `sessionId`.
    3. Run step 3's `start` at once with `--session <that sessionId>` in place of
-      `${CLAUDE_SESSION_ID}`, its `away_orchestrate` setting included, then `status` for that id,
+      `${CLAUDE_SESSION_ID}`, its `away_orchestrate` setting included, then `status` and the focus file `set` for that id,
       failures handled as step 3 says. Append
       the report path `start` prints to the task file's header line.
    4. End with step 4's message, naming the background session and `claude attach <short id>`,
@@ -127,7 +136,9 @@ state has silent hooks: prompts would wait all night and no report would exist.
 ## Return
 
 When a message reads as the person being back, run `away.py end`, show the report once leading
-with Needs you, then run `away.py deliver`. Who counts as the person is in rules.md "Coming back".
+with Needs you, then run `away.py deliver`, then
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/focus.py" clear --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --task-file`.
+Who counts as the person is in rules.md "Coming back".
 `deliver` removes the absence's state and prints `report=<path>`, where the report stays: a report
 kept beside the state moves to the plugin data's `away-reports/` folder, so give the person that
 path when it differs from the one shown.

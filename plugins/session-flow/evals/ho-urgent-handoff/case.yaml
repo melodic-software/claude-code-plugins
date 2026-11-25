@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: ho-urgent-handoff
+description: An urgent handoff with one small follow-up and no context-usage tool. The heavy-zone branch has no eval case, since no eval session can expose the mcp__context-usage__status name the skill reads. Run with --scaffold, --allow-tools Bash Write Edit, and a session UUID.
+tags: [handoff, urgent]
+plugins: ["../.."]
+expected_outcome: The file is written and validated, and its resume prompt is shown without a position panel or checklist.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:handoff color-index This is urgent. The only remaining action is to check the blue entry in the index.'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: handoff-file
+    type: file_exists
+    path: '.work/handoffs/*-handoff-color-index.md'
+  - name: fills-once
+    type: tool_used
+    tool: Bash
+    input_match: 'save_point\.py(?:\\"|''|")?[ \t]+fill\b'
+    min: 1
+    max: 1
+  - name: validated-handoff
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type"\s*:\s*"tool_result")[^\n]*?validate: (?:PASS|WARN)(?: \(\d+\))? [^"\\\r\n]*-handoff-color-index\.md\b'
+    flags: m
+  - name: resume-rails
+    type: regex
+    pattern: '/clear`?, then copy everything between the dashed lines:\s*─+\r?\nRead @[^\n]+-handoff-color-index\.md\b[\s\S]*?\n─+'
+  - name: no-panel-or-checklist
+    type: regex
+    pattern: 'you are here|done this session:|where we are:|checklist:|^[ \t]*[-*]?[ \t]*\[[ x~!]\]'
+    flags: im
+    match: not_contains

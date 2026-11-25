@@ -1,6 +1,6 @@
 ---
 type: handoff
-handoff_shape: 5
+handoff_shape: 6
 date: 2026-09-01T10:00:00Z
 topic: widget
 session_id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa

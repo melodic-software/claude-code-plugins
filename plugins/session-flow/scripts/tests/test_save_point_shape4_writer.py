@@ -135,19 +135,22 @@ def test_shape4_fill_writes_validates_and_prints_the_verdict_and_prompt(tmp_path
     assert validate(path).returncode == 0, out(validate(path))
 
 
-def test_shape4_bare_new_previous_continues_a_shape4_chain(tmp_path):
+def test_bare_new_previous_continues_a_shape4_chain_as_shape5(tmp_path):
     repo = make_repo(tmp_path)
     first = hop(repo, tmp_path)
     second = hop(repo, tmp_path, first, k=2, shape=None)
-    assert "handoff_shape: 4\n" in second.read_text(encoding="utf-8")
-    assert headings(second) == SHAPE4_SECTIONS
+    assert "handoff_shape: 5\n" in second.read_text(encoding="utf-8")
+    assert headings(second) == [
+        "Reminders" if title == "Pending commands" else title
+        for title in SHAPE4_SECTIONS
+    ]
     result = validate(second)
     assert result.returncode == 0, out(result)
 
 
-def test_bare_new_on_a_fresh_chain_writes_shape4(tmp_path):
+def test_bare_new_on_a_fresh_chain_writes_shape5(tmp_path):
     made = new(make_repo(tmp_path), tmp_path, None, k=1, shape=None)
-    assert "handoff_shape: 4\n" in Path(out(made).strip()).read_text(encoding="utf-8")
+    assert "handoff_shape: 5\n" in Path(out(made).strip()).read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("pred_shape", ["2", "3"])
@@ -455,7 +458,7 @@ def standing_hop(
 
 
 def standing_file(path: Path, root: Path | None = None) -> Path:
-    return path.parent / "archive" / (root or path).stem / "standing-rules.md"
+    return path.parent / "standing-rules" / f"{(root or path).stem}.md"
 
 
 def directive(path: Path) -> str:
@@ -467,7 +470,7 @@ def test_standing_rules_leave_the_hot_file_and_load_first(tmp_path):
     held = rules(40_000)
     path = standing_hop(make_repo(tmp_path), tmp_path, values={"rules": held})
     standing = standing_file(path)
-    rel = f"archive/{path.stem}/standing-rules.md"
+    rel = f"standing-rules/{path.stem}.md"
     assert body(path, "Current rules") == f"- Standing rules: {rel}#Current rules"
     assert body(path, "Standing preferences") == (
         f"- Standing rules: {rel}#Standing preferences"
@@ -494,7 +497,7 @@ def test_standing_rules_carry_to_the_next_hop_without_the_flag(tmp_path):
         flag=False,
         values={"rules-new": "- [R3] Report every red check."},
     )
-    assert f"standing_rules: archive/{first.stem}/standing-rules.md\n" in (
+    assert f"standing_rules: standing-rules/{first.stem}.md\n" in (
         second.read_text(encoding="utf-8")
     )
     held = body(standing_file(second, first), "Current rules")
@@ -547,7 +550,7 @@ def test_standing_rules_amend_retires_a_rule_from_the_standing_file(tmp_path):
     )
     assert result.returncode == 0, err(result)
     assert "[R2]" not in body(standing_file(path), "Current rules")
-    assert body(path, "Current rules").startswith("- Standing rules: archive/")
+    assert body(path, "Current rules").startswith("- Standing rules: standing-rules/")
     own = hop_file(path.parent, path.name, 1, SIDS[0])
     assert "- [R2] Never push to main." in own.read_text(encoding="utf-8")
     assert validate(path).returncode == 0, out(validate(path))

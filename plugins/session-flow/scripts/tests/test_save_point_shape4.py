@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/save_point.py plugins/session-flow/scripts/tests/fixtures/*
 """Contract tests for reading shape 4 (PLAN.md Phase 6: AC6, AC12, AC14). Expected
 values come from the Design's shape-4 table and check rules: binding sections stay
 whole, a move or history pointer names a hop file and heading on disk, a binding
@@ -331,7 +332,7 @@ def test_read_names_an_absent_section_and_an_unreachable_move(tmp_path):
 
 def test_read_and_chain_refuse_a_newer_shape(tmp_path):
     paths = s4_chain(make_repo(tmp_path), tmp_path, 1)
-    edit(paths[0], "handoff_shape: 4\n", "handoff_shape: 5\n")
+    edit(paths[0], "handoff_shape: 4\n", "handoff_shape: 6\n")
     for args in (
         ("read", str(paths[0]), "--section", "Current rules"),
         ("chain", str(paths[0])),

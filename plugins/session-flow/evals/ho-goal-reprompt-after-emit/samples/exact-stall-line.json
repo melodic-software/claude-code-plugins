@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Handoff written. /clear, then paste the resume prompt above; /goal clear stops these re-prompts now. This session does no more work on the task."}
+  ],
+  "fail": [
+    {"answer": "Handoff written. /clear, then paste the resume prompt above; /goal clear stops these re-prompts now. This session does no more work on the task.\nI will check the index."},
+    {"answer": "Handoff written. /clear, then paste the resume prompt above. This session does no more work on the task."},
+    {"answer": "Handoff written. /clear, then paste the resume prompt above; the loop stays armed here until /clear."}
+  ]
+}

@@ -71,6 +71,22 @@ print("ok")
   status=1
 fi
 
+echo "== shape-5 chain validates with a Reminders section"
+if ! "$PY" -X utf8 -c '
+import tempfile
+from pathlib import Path
+import hop_chain
+with tempfile.TemporaryDirectory() as tmp:
+    newest = hop_chain.generate_chain(Path(tmp) / "5", 3, shape=5)[-1]
+    text = newest.read_text(encoding="utf-8")
+    assert "handoff_shape: 5" in text, "newest hop is shape 5"
+    assert "\n## Reminders\n" in text and "\n## Pending commands\n" not in text, "Reminders replace Pending commands"
+print("ok")
+'; then
+  echo "FAIL: shape-5 chain"
+  status=1
+fi
+
 echo "== hop_chain.py --dry-run"
 if ! "$PY" -X utf8 hop_chain.py --dry-run; then
   echo "FAIL: --dry-run self-test"

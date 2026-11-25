@@ -757,3 +757,72 @@ trigger.
 
 Nine sessions, `probe.py run --live --retries 1 --max-runs 20 --max-cost-usd 10` naming each case,
 no retry.
+
+## Basis for record 25
+
+One live run per case on 2026-11-24, Linux (WSL2), Claude Code **2.1.331**, `claude-haiku-5-5`,
+`probe.py run --live` naming each case with `--max-runs` set to the cases named. Every case here
+is a `transcript-grep` case: the launch above with `--session-id <uuid>` in place of
+`--no-session-persistence`, and the judge reads the session transcript followed by the lines the
+case's own hooks append to `.probe-hooks.jsonl`. A compaction case also needs a PostCompact record,
+because PreCompact fires `auto` with nothing compacted: observed ad hoc, not runner-run, on 2.1.331
+on 2026-11-24, a `PreCompact:auto` hook ran and the debug log then read `Reactive compact: fewer
+than 2 groups, nothing to compact`.
+
+- `no-tool-reply-ends-goal-reprompts` first expected a `Goal paused` line, which the interactive
+  session of P7 printed; under `claude -p` the transcript holds the block-cap line and no such
+  notice. The expectation now asks that no `goal_status` is ever marked met, and the saved
+  transcript was re-read with `probe.py rejudge` (no new run).
+- The first run of the P8 pair failed for a harness reason: under `--input-format stream-json`
+  a prose message reaches the running `/loop` turn, so the model listed before it scheduled and
+  CronList said `No scheduled jobs.` Messages after the first now carry `"priority": "later"`,
+  which holds a message until the turn ends
+  ([SDKUserMessage](https://code.claude.com/docs/en/agent-sdk/typescript#sdkusermessage)), and the
+  rerun passed.
+- `prompt-hook-on-initial-prompt` is not runner-run: the runner only drives `claude -p`. It ran
+  once in tmux, `claude --setting-sources local --settings <UserPromptSubmit logger> --model
+  claude-haiku-5-5 'Reply with only the word PLUM'`.
+
+13 sessions: 12 runner runs and one tmux run. Transcripts were not committed. The recheck trigger
+and expiry above apply.
+
+## 25. Handoff behaviors: a typed `/goal`, prompt-hook context, compaction steering and loop listings
+
+**Claim.** On Claude Code 2.1.331:
+
+- A typed `/goal <condition>` reaches UserPromptSubmit as typed, and the text that hook prints
+  reaches the turn the goal starts: the first reply carried a codeword only the hook named.
+- An interactive `claude "<initial prompt>"` fires UserPromptSubmit with the prompt as typed.
+- PreCompact stdout steers an automatic compaction (a 100k window, about 76k tokens compacted)
+  and, with a manual `/compact <focus>`, both the focus and the hook text reach the summary; with
+  no hook text the marker is absent.
+- Under an unmeetable goal, a fixed reply with no tool call ends the evaluator re-prompts at the
+  Stop-hook block cap (`A hook blocked the turn from ending 9 consecutive times`), and the goal is
+  never marked met.
+- A self-paced `/loop` wake-up is listed by CronList as a one-shot job, before and after
+  `/compact`. Its `humanSchedule` reads `Every day at <time>` though the job carries no
+  `recurring` flag; a fixed-interval `/loop 5m` job is listed the same way.
+
+**Recheck trigger.** A release note naming `/goal`, UserPromptSubmit, PreCompact, PostCompact,
+`/compact`, auto-compaction, `/loop`, ScheduleWakeup, CronList or the Stop-hook block cap.
+
+| Record | Case | Control | Verdict |
+|---|---|---|---|
+| handoff-goal-reaches-prompt-hook | `hooks/handoff-goal-reaches-prompt-hook` | `hooks/prompt-hook-context-reaches-plain-turn` (pass) | pass |
+| prompt-context-on-goal | `hooks/prompt-context-on-goal` | `hooks/prompt-hook-context-reaches-plain-turn` (pass) | pass |
+| prompt-hook-on-initial-prompt | tmux run, not runner-run | observed ad hoc, not runner-run, 2.1.331, 2026-11-24: an interactive `claude '/goal you have replied with the exact word PAPAYA'` logged `"hook_event_name":"UserPromptSubmit"` with `"prompt":"/goal you have replied with the exact word PAPAYA"` | pass |
+| precompact-steers-auto-compact | `hooks/precompact-steers-auto-compact` | `hooks/auto-compact-summary-without-hook-text` (pass) | pass |
+| manual-compact-and-hook-focus | `hooks/manual-compact-and-hook-focus` | `hooks/manual-compact-focus-without-hook-text` (pass) | pass |
+| no-tool-reply-ends-goal-reprompts | `hooks/no-tool-reply-ends-goal-reprompts` | `hooks/handoff-goal-reaches-prompt-hook` (pass) | pass |
+| self-paced-wakeup-listed | `hooks/self-paced-wakeup-listed` | `hooks/fixed-loop-listed-across-compact` (pass) | pass |
+
+**Manual records, observed ad hoc, not runner-run.** Cases that need an interactive or
+multi-session run. Each ran once on Claude Code 2.1.331, 2026-11-24, on `claude-haiku-5-5`, with
+an 80k effective auto-compact window; the quoted lines are from the sessions' transcripts, which
+were not committed.
+
+| Record | Observation | Quoted evidence |
+|---|---|---|
+| auto-compact-keeps-goal-and-loop | An active goal survives automatic compaction, and fixed-interval and self-paced loops fire after one | Goal: `"type":"goal_status","met":false` re-asserted after the `compact_boundary` `"Conversation compacted"`, then the evaluator's next `Stop hook feedback`. Fixed loop: `"Running scheduled task (Nov 24 6:09pm)"` after the boundary. Self-paced loop: `"Claude resuming /loop wakeup (Nov 24 6:09pm)"` after the boundary |
+| fresh-session-rearms-loop | A fresh session re-arms a loop through the Skill tool's `loop` or CronCreate directly; the cron tools are deferred and load through ToolSearch first | Skill route: `"skill":"loop","args":"1m run the date command and report the time it prints"`, then `Scheduled recurring job 1696364b (Every minute)`. Direct route: `"query":"select:CronCreate"`, then CronCreate with `"cron":"* * * * *","recurring":true`, then `"Running scheduled task (Nov 24 6:08pm)"` and `(Nov 24 6:09pm)` |
+| initial-prompt-goal-arms | `claude -p "/goal ..."` and interactive `claude '/goal ...'` both arm a goal | `-p`: `"type":"goal_status","met":false,"sentinel":true,"condition":"you have replied with the exact word PINEAPPLE"`. Interactive: the same entry for `PAPAYA`, then `A session-scoped Stop hook is now active with condition: "you have replied with the exact word PAPAYA"` |

@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "{ cat; echo; } >> \"${PROBE_WORKDIR}/.probe-hooks.jsonl\"" }
+        ]
+      }
+    ]
+  }
+}
