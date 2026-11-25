@@ -236,7 +236,10 @@ jobs:
       # check run with its counts. A verdict counts only when its run's main
       # commit (the run's head_sha) has no diff from main's tip over the paths
       # criteria.txt lists, so one judged under other criteria reviews again;
-      # the run need not be at the tip itself. That commit is fetched, when the
+      # the run need not be at the tip itself. A verdict also counts only when
+      # it records the standards commit this run resolved (Download
+      # standards), so an org-layer change reviews again; a verdict with no
+      # standards commit never counts. That commit is fetched, when the
       # one-commit checkout lacks it, anonymously, since this repository is
       # public. A verdict also binds only from a run created after the PR's
       # newest base change (babysit_merge `_retargeted_at`, from the PR's
@@ -255,10 +258,15 @@ jobs:
           PR_NUMBER: ${{ steps.files.outputs.pr-number }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           TREE_SHA: ${{ github.event.workflow_run.head_commit.tree_id }}
+          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
           DIR: ${{ runner.temp }}/pr-review-main-judged
         run: |
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ && $TREE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "the event names no tree for its head; the review runs"
+            exit 0
+          fi
+          if ! [[ $STANDARDS_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "no standards commit resolved; the review runs"
             exit 0
           fi
           mkdir -p "$DIR"
@@ -332,6 +340,11 @@ jobs:
               fi
               try_read "artifact $artifact" api_into "$DIR/verdict.zip" "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip"
               unzip -p "$DIR/verdict.zip" verdict.json >"$DIR/verdict.json" || unread "artifact $artifact"
+              standards=$(jq -r '.standards_sha // ""' "$DIR/verdict.json") || unread "artifact $artifact"
+              if [ "$standards" != "$STANDARDS_SHA" ]; then
+                echo "run $run reviewed under another standards commit; its $lane verdict does not count"
+                continue
+              fi
               jq -nc --arg lane "$lane" --slurpfile listing "$DIR/listing.json" --slurpfile run "$DIR/run.json" --slurpfile verdict "$DIR/verdict.json" --argjson id "$artifact" \
                 '{lane: $lane, artifact: first($listing[0].artifacts[] | select(.id == $id)), run: $run[0], verdict: $verdict[0], on_branch: true}' >>"$DIR/$lane-records.jsonl" || unread "artifact $artifact"
             done <<<"$pairs"
@@ -1554,6 +1567,7 @@ jobs:
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
           BASE_SHA: ${{ steps.trigger.outputs.base-sha }}
           TREE_SHA: ${{ steps.diff.outputs.tree }}
+          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
@@ -2518,6 +2532,7 @@ jobs:
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
           BASE_SHA: ${{ steps.trigger.outputs.base-sha }}
           TREE_SHA: ${{ steps.diff.outputs.tree }}
+          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
@@ -3408,6 +3423,7 @@ jobs:
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
           BASE_SHA: ${{ steps.trigger.outputs.base-sha }}
           TREE_SHA: ${{ steps.diff.outputs.tree }}
+          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
