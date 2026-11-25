@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# hub-worktree.sh <dir> <file>: after hub-layout.sh <dir>, commits AGENTS.md ("status: one") to
-# acme/target, adds its worktree <dir>/worktrees/acme-target-probe on branch probe/work, and
-# writes the hub's NOTES.txt naming `sed -i 's/status: one/status: two/' <file>` and the same
-# change as an edit, <file> being relative to that worktree. Everything stays inside <dir>.
 set -euo pipefail
 d="${1:?usage: hub-worktree.sh <dir> <file>}"
 file="${2:?usage: hub-worktree.sh <dir> <file>}"

@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for hook-transcript-timing.sh against a hand-built transcript
-# (fixtures/hook-timing-transcript.jsonl). Every expected number is computed by hand from the
-# fixture's durationMs values:
-#   Stop summaries: a.sh 100,200,900 (median 200); touch-hook 300,500,100 (median 300);
-#     slowest hook per firing 300,500,900 -> p50 500, p95 860 (linear: 500 + 0.9 * 400).
-#     A Stop attachment of 5000 ms must be skipped: the summary already holds Stop.
-#   PreToolUse attachments: guard.sh 40,60,80 (median 60); lint.sh 120,20 (median 70);
-#     firings t1 max 120, t2 60, t3 80 -> p50 80, p95 116 (80 + 0.9 * 40).
-#   UserPromptSubmit: ctx.sh 30.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

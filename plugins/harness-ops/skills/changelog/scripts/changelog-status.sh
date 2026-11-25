@@ -1,63 +1,4 @@
 #!/usr/bin/env bash
-# changelog-status.sh: where a repository stands against the Claude Code changelog.
-#
-# Reads the read marker (the newest release this repository has been read against)
-# from the consumer's upstream ledger, computes the default range from it to the
-# newest published release, counts the core items in that range, and applies the
-# replay cap. `/harness-ops:changelog status` prints this output; `diff` and `apply`
-# take their default range from it.
-#
-# Usage:
-#   changelog-status.sh [--ledger <file>] [--changelog <file> | --no-fetch]
-#                       [--range <A..B> | --range <X>]
-#                       [--cap-releases <n>] [--cap-items <n>]
-#
-# Marker resolution, first hit wins:
-#   1. The ledger's marker line:
-#        **Last audited upstream state:** changelog through `X.Y.Z`
-#      Ledger path: --ledger, else $HARNESS_OPS_CHANGELOG_LEDGER (verbatim), else
-#      <git toplevel, or the working directory outside a repo>/docs/upstream/claude-code.md.
-#   2. A Conventional Commits subject on the current branch naming an applied release:
-#        <type>(<scope>): address Claude Code v<A>[..<B>] changelog
-#      The highest version inside that phrase across such subjects wins; any other
-#      dotted version in the subject is ignored. Commit bodies are never read:
-#      a body that says "verified against Claude Code v2.1.252" is a recency stamp,
-#      not an apply, and reading bodies reported applies that never happened.
-#   3. none.
-#
-# Changelog source: --changelog <file>; else the plugin's scripts/fetch-changelog.sh,
-# which decides the source and checks its identity (its header); a failed fetch is
-# unread, never a stale cached copy; --no-fetch skips the fetch.
-# A --changelog file's first heading must be one fetch-changelog.sh --check accepts,
-# so identity is checked before any count is trusted. A body with the heading but no
-# release markers is a parse failure, not an empty range. In both cases the range is
-# reported as not computed, with the reason.
-#
-# Range: the default is every release newer than the marker, oldest first, up to
-# the newest published release. --range A..B (v prefix optional) is inclusive at
-# both ends and ignores the marker; --range X is the single release X.
-# Releases and items come from the plugin's scripts/changelog-releases.sh. Core items:
-# the items of a release, excluding lines tagged [VSCode].
-# Cap: --cap-releases (default $HARNESS_OPS_CHANGELOG_CAP_RELEASES, else 10) and
-# --cap-items (default $HARNESS_OPS_CHANGELOG_CAP_ITEMS, else 300). Beyond the cap,
-# replaying items costs more than it returns because the current docs already carry
-# the cumulative state, so the output recommends a docs-conformance recheck of the
-# components and a marker reset instead of a replay.
-#
-# Output, one `key: value` per line on stdout:
-#   last-applied: <X.Y.Z|none>
-#   source: ledger:<path> | git-subject | none
-#   ledger: <path> (present|absent)
-#   installed: <X.Y.Z|unknown>
-#   changelog: <url read | --changelog path>   (only when a changelog was read)
-#   latest: <X.Y.Z|unknown>
-#   range: <A..B> (<n> releases, <m> core items) | up to date | not computed (<reason>)
-#   releases: <space-separated versions in range, oldest first>   (only with a range;
-#             the list is omitted when the release count alone exceeds the cap)
-#   cap: within budget (<r> releases / <i> items) | exceeded (<r> releases / <i> items)
-#   recommend: <next step>      when the cap is exceeded or no marker exists
-#   warn: <text>                installed older than the newest release in the range
-#
 # Exit codes:
 #   0  status emitted, in every state above including a failed fetch
 #   3  invalid argument, or an unreadable --ledger or --changelog path
@@ -67,7 +8,30 @@ set -uo pipefail
 VERSION_RE='[0-9]+\.[0-9]+\.[0-9]+'
 
 err() { printf 'ERROR: %s\n' "$*" >&2; }
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'EOF'
+changelog-status.sh: where a repository stands against the Claude Code changelog.
+
+Usage:
+  changelog-status.sh [--ledger <file>] [--changelog <file> | --no-fetch]
+                      [--range <A..B> | --range <X>]
+                      [--cap-releases <n>] [--cap-items <n>]
+
+  --ledger <file>     upstream ledger holding the read marker
+                      (default $HARNESS_OPS_CHANGELOG_LEDGER, else docs/upstream/claude-code.md)
+  --changelog <file>  changelog to read instead of fetching it
+  --no-fetch          fetch nothing
+  --range A..B | X    inclusive release range, or one release; ignores the marker
+  --cap-releases <n>  replay cap in releases (default $HARNESS_OPS_CHANGELOG_CAP_RELEASES, else 10)
+  --cap-items <n>     replay cap in core items (default $HARNESS_OPS_CHANGELOG_CAP_ITEMS, else 300)
+
+Marker resolution, range, cap and output lines: context/read-actions.md.
+
+Exit codes:
+  0  status emitted, in every state including a failed fetch
+  3  invalid argument, or an unreadable --ledger or --changelog path
+EOF
+}
 
 ledger_arg=""
 changelog_arg=""
@@ -155,24 +119,15 @@ if [[ -n "$ledger_arg" && -e "$ledger_arg" && ! -r "$ledger_arg" ]]; then
   exit 3
 fi
 
-# Numeric dotted sort of stdin lines by their leading version. Portable across GNU
-# and BSD sort, which do not agree on -V.
 vsort() { sort -t. -k1,1n -k2,2n -k3,3n; }
 vmax() { printf '%s\n' "$@" | grep -E "^$VERSION_RE\$" | vsort | tail -1; }
 
-# --- Repository root -----------------------------------------------------------
-# CR-stripped through an empty-means-fall-back test rather than `|| pwd`, so a
-# not-in-a-repo failure still falls back instead of being swallowed by the pipe.
-# An empty toplevel is also what says we are outside a repository, which the
-# git-subject fallback below reads rather than asking git a second time.
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 in_repo=1
 if [[ -z "$repo_root" ]]; then
   repo_root="$(pwd)"
   in_repo=0
 else
-  # Git for Windows prints D:/x; the shell's own form is /d/x, so every path
-  # this script prints is in one form.
   canon="$(cd "$repo_root" 2>/dev/null && pwd -P)" && repo_root="$canon"
 fi
 

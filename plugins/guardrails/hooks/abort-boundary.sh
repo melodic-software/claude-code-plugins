@@ -1,91 +1,4 @@
 # shellcheck shell=bash
-# Abort boundary for the guardrails hooks (#3528). Sourced by every registered
-# hook and by the dispatcher; never executed on its own.
-#
-# A hook has three outcomes, not two: allow (exit 0), block (exit 2, reason on
-# stderr), and could-not-run. Before this file the third had no signal. A hook
-# that died between its first line and its own final `exit` (an unbound
-# variable under `set -u`, a helper that no longer exists, a `source` that
-# failed) ended with whatever status the last command had, usually 1, and wrote
-# nothing of its own. That status is not a block, so the tool call went ahead;
-# bash's one-line error went to the debug log, and the transcript recorded
-# "exit 1, stderr: (none)". How Claude Code treats each exit status is the
-# hooks page's to state. The guard rows set "onFailure": "block", but this
-# boundary turns every status it did not choose into 0 or 2 first, so that key
-# never sees one. Pointer:
-# https://code.claude.com/docs/en/hooks#exit-code-output. A blocking
-# guard enforced nothing and nobody was told. The boundary makes that outcome a
-# deliberate one:
-#
-#   source "$_HOOK_SELF/abort-boundary.sh"
-#   guard::abort_boundary <hook-name> <HookEventName> <open|closed> <chosen-status>...
-#
-# installs an EXIT trap that passes every CHOSEN status through untouched (the
-# hook's own `exit 0` / `exit 2`, including the ones the shared helpers make on
-# its behalf: hook::check_enabled, hook::require jq, hook::require_jq_blocking)
-# and treats any other status as "the guard did not run". For those it writes
-# one line naming the hook and the status to stderr, and then applies the
-# hook's declared posture:
-#
-#   open    exit 0, after emitting the same text as a `systemMessage` on
-#           stdout, for the user (stderr on exit 0 reaches only the debug log,
-#           see docs/contracts/hook-observability/). The tool call proceeds,
-#           as it did before, and the notice says it was not checked. The
-#           model gets nothing: it cannot fix a hook.
-#   closed  exit 2 with the notice on stderr, the channel a blocking exit feeds
-#           back to the agent. The tool call is denied.
-#
-# Deny on crash (#15992). A repository or user can name open guards that deny
-# instead: the deny_on_crash setting (guard::_abort_deny_resolve below) lists
-# guard names, and a named guard that aborts exits 2 with a notice saying so
-# and how to turn it off. Its default is empty, so nothing changes for a
-# consumer who sets nothing. The setting is read only on an abort, so a call
-# that does not abort starts no process for it.
-#
-# Why a trap and not `set -e`: errexit across the hook set would change
-# behavior on every non-zero status a guard tests on purpose. The trap sees
-# only the status the process actually terminates with.
-#
-# Handler discipline. `trap - EXIT` is the handler's first action so nothing it
-# does can re-enter it. It uses builtins only, every variable it reads is set
-# at install time, and it calls nothing from hook-utils.sh, because a failed
-# `source hook-utils.sh` is one of the aborts it exists to report. The one
-# exception is the deny_on_crash team-file read, one git and one awk process
-# on the first abort of an open guard in the process; either failing reads as
-# no team entry, so the guard keeps its open posture. A failure
-# inside the handler ends the process once, with that failure's status, after
-# the stderr line is already written.
-#
-# One EXIT trap per shell. Bash holds a single EXIT trap, so a hook that runs
-# its own `trap ... EXIT` (or `trap - EXIT`) after the install line REPLACES
-# this boundary and is back to the silent abort it exists to remove, with
-# nothing at run time to say so. abort-boundary.test.sh fails on any `trap`
-# naming EXIT in a registered hook or in a library it sources; this file is the
-# only one allowed to touch it. No hook needs exit-time work today (each is
-# builtins plus one jq read, nothing to clean up). The supported way for one
-# that does is to chain through this library, not around it: fill the chain slot
-# below (_GAB_CONTINUE) that guard::_abort_on_exit calls before it decides, the
-# chained function under the same handler discipline (builtins only, never
-# exits, never touches the trap), with a suite case beside the others, in the
-# same change. A release on purpose goes through guard::abort_boundary_release.
-#
-# run-guards.sh is the one documented exception to that discipline, and it is
-# an exception because it is not a hook's exit-time work: its
-# run_guards::guard_died is the DISPATCHER settling a dead guard and then
-# finishing the run the process still owes, so it runs the guards left in
-# another process, spawns jq to merge their documents, and ends at `builtin exit`
-# without returning. Nothing is left for the handler to decide, which is why
-# the slot may swallow control here and nowhere else. Any other consumer keeps
-# the discipline above: a chained function that RETURNS, so that
-# guard::_abort_on_exit still settles the status and exits.
-#
-# Under run-guards.sh the guards are sourced into the dispatcher's own shell,
-# and `exit` there is a function of the dispatcher's. A guard that ends through
-# it, or by falling off its end, never reaches this trap: the dispatcher applies
-# guard::_abort_settle to the status itself and merges the notice document with
-# the other guards' output. The trap fires only for a guard that dies of a hard
-# error, when the shell is exiting, and then hands the status to the chain slot
-# below (_GAB_CONTINUE), which the dispatcher fills for the span of its guards.
 
 [[ -n "${_GUARDRAILS_ABORT_BOUNDARY_LOADED:-}" ]] && return 0
 readonly _GUARDRAILS_ABORT_BOUNDARY_LOADED=1
@@ -95,9 +8,6 @@ _GAB_EVENT=""
 _GAB_POSTURE="open"
 _GAB_CHOSEN=" "
 
-# guard::say_once <key> <line>: write <line> to stderr unless this process
-# already wrote <key>. Under run-guards.sh the guards share one shell, so a
-# refusal several of them make on one call reaches the deny reason once.
 _GUARD_SAID=" "
 guard::say_once() {
   [[ "$_GUARD_SAID" == *" $1 "* ]] && return 0
@@ -105,8 +15,6 @@ guard::say_once() {
   printf '%s\n' "$2" >&2
 }
 
-# Refusals several guards share. Each writes its reason and returns; the
-# caller exits 2.
 guard::refuse_nul() {
   guard::say_once nul "BLOCKED: the payload carries a NUL byte. Reissue the call without it."
 }
@@ -114,15 +22,6 @@ guard::refuse_unparsable() {
   guard::say_once unparsable "BLOCKED: the hook payload could not be parsed."
 }
 
-# guard::payload_verdict <hook::jq_fields status>: the verdict on a guard's
-# field read. Returns 0 to read on; 2 after writing the refusal, for a payload
-# jq rejected (status 2) or one carrying a NUL byte in a read field; 3 for any
-# other failed read, which the guard lets through silently. Like the refusals
-# it never exits. The caller exits in exactly this form, which blocks on every
-# status but 0 and 3, so a missing or misbehaving helper denies the call;
-# abort-boundary.test.sh fails on any other form:
-#
-#   guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
 # shellcheck disable=SC2154  # HOOK_JQ_FIELDS_NUL is hook::jq_fields', loaded by every caller
 guard::payload_verdict() {
   if (($1 == 2)); then
@@ -141,19 +40,6 @@ guard::payload_verdict() {
 guard::refuse_alias_chain() {
   guard::say_once alias-chain "BLOCKED: checking this git alias chain needs over $HOOK_ALIAS_WORK_MAX re-expansions. Run the subcommand directly."
 }
-# guard::alias_depth_max: set HOOK_ALIAS_DEPTH_MAX, the deepest alias re-expansion
-# the git guards walk. The work budget bounds time, not stack: bash runs each
-# nested check_segment on the C stack, and a walk under 128 analyses still
-# crashed the process (SIGSEGV, exit 139, which Claude Code lets through) on a
-# 512 KB stack. A level costs up to ~9 KB measured under the dispatcher (a
-# 512 KB stack survives 50 hops and not 60), so the cap is 20 KB a level, which
-# leaves headroom for the heavier `!` shell-alias levels. The stack comes from
-# /proc with builtins, because `$(ulimit -s)` forks and these guards run on every
-# Bash call. No /proc (macOS, Git Bash) or an unlimited stack gives 25, what a
-# 512 KB stack yields, and no stack gives more than 409 (8 MiB). For tests only,
-# GUARDRAILS_PROC_LIMITS names a second limits file and GUARDRAILS_ALIAS_DEPTH_MAX
-# a number; each can only lower the cap, since the result is the minimum of every
-# value read and a missing or unparsable file reads as 25.
 guard::alias_depth_max() {
   local file line cap
   HOOK_ALIAS_DEPTH_MAX=
@@ -178,9 +64,6 @@ guard::refuse_config_env_alias() { # <alias>
   guard::say_once "config-env-$1" "BLOCKED: git alias '$1' is defined via --config-env, so its expansion cannot be checked. Define it in git config or run the subcommand directly."
 }
 
-# guard::bad_switch_notice <option> <value> <input>: a strict kill switch that
-# is neither true nor false keeps its guard on. The user is told once per
-# session; the model cannot change a plugin option. Needs hook-utils.sh.
 # shellcheck disable=SC2154  # HOOK_NOTICE_TO_USER is set by hook::notice_once
 guard::bad_switch_notice() {
   hook::notice_once "guardrails-bad-switch-$1" "$3" || return 0
@@ -188,7 +71,6 @@ guard::bad_switch_notice() {
   hook::emit_channels PreToolUse "" "guardrails: $1=$2 is not true or false, so the guard stays on. Fix it in /plugin configure."
 }
 
-# guard::abort_boundary <hook-name> <HookEventName|""> <open|closed> <status>...
 guard::abort_boundary() {
   _GAB_NAME="$1"
   _GAB_EVENT="$2"
@@ -204,20 +86,10 @@ guard::abort_boundary() {
   trap guard::_abort_on_exit EXIT
 }
 
-# guard::abort_boundary_release: uninstall the trap. For a process whose final
-# status is computed rather than written as a literal (the dispatcher's
-# aggregated exit): release right before that deliberate `exit`, so a status
-# reached on purpose is never reported as an abort.
 guard::abort_boundary_release() {
   trap - EXIT
 }
 
-# JSON-escape $2 into the variable named by $1: backslash, double quote, and the
-# three line-structure control bytes. The notice text is built from install-time
-# literals, a status number and deny_on_crash names, whose other control bytes
-# guard::_abort_deny_add has already replaced, so nothing else can occur in it;
-# the escape is here so a hook name or event containing a quote cannot break
-# the document.
 guard::_abort_json_escape_to() {
   local __gab_s="$2"
   __gab_s="${__gab_s//\\/\\\\}"
@@ -228,16 +100,6 @@ guard::_abort_json_escape_to() {
   printf -v "$1" '%s' "$__gab_s"
 }
 
-# The chain slot. run-guards.sh runs its guards inside its own process, so a
-# guard that dies of a hard error takes the dispatcher's shell down with it
-# and this handler is what runs. With a function name here the handler hands
-# that guard's status to it instead of deciding the process's fate itself; the
-# dispatcher settles the guard's boundary, runs the guards still owed, and
-# exits on the aggregate. run-guards.sh is the one consumer that does not
-# return from here, and the header above says why it may; a chained function
-# that DOES return hands control back and the handler settles the status as
-# documented there. Empty (every guard run alone), the handler decides as
-# documented above.
 _GAB_CONTINUE=""
 
 guard::_abort_on_exit() {
@@ -251,11 +113,6 @@ guard::_abort_on_exit() {
   exit "$_GAB_RC"
 }
 
-# The guards deny_on_crash may name: every hook in this directory that installs
-# the boundary for PreToolUse, and the dispatcher, under the name each installs
-# it with. A PostToolUse or SessionStart hook gates no tool call, so a deny
-# there would claim a call was stopped when none was. abort-boundary.test.sh
-# fails when this list and those install lines disagree.
 readonly _GAB_GUARDS=" block-body-format-violation block-cd-prefix block-convention-violation block-credential-read block-cross-domain block-dangerous-git block-exported-msys-pathconv block-fix-request-post block-foreground-wait block-github-post-content block-lane-pr-disable-auto block-main-checkout-edit block-no-verify block-noncanonical-commit block-pr-poller block-root-delete-target block-windows-drive-tmp flag-commit-pr-skill-bypass hardcoded-path-check merge-guard run-guards secret-pattern-detection workflow-resilience-check "
 _GAB_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$_GAB_DIR" == "${BASH_SOURCE[0]}" ]] && _GAB_DIR=.
@@ -266,9 +123,6 @@ _GAB_DENY_TEAM=" "
 _GAB_DENY_UNKNOWN=" "
 _GAB_DENY_NOTE=""
 
-# guard::_abort_deny_add <comma list> <variable>: append each known guard name
-# in <comma list> to <variable>, and each other name to _GAB_DENY_UNKNOWN. A
-# name is matched whole, so `all` or `*` names no guard.
 guard::_abort_deny_add() {
   local list="$1," item
   while [[ -n "$list" ]]; do
@@ -281,8 +135,6 @@ guard::_abort_deny_add() {
       printf -v "$2" '%s%s ' "${!2}" "$item"
       continue
     fi
-    # The notice quotes an unknown name, so a control byte in it becomes `?`
-    # (the JSON escape below handles only the bytes fixed text can hold).
     item="${item//[^[:print:]]/?}"
     if [[ "$_GAB_DENY_UNKNOWN" != *" $item "* ]]; then
       _GAB_DENY_UNKNOWN+="$item "
@@ -290,16 +142,6 @@ guard::_abort_deny_add() {
   done
 }
 
-# guard::_abort_deny_resolve: read deny_on_crash once per process from both
-# layers. The user layer is the deny_on_crash plugin option, a comma list in
-# CLAUDE_PLUGIN_OPTION_DENY_ON_CRASH. The team layer is `deny_on_crash`, a list
-# of names, in docs/conventions/guardrails.yaml of the session's repository
-# (CLAUDE_PROJECT_DIR, else this process's directory) at its local
-# origin/HEAD, never the working tree, as block-dangerous-git reads
-# unpinned_lease. A guard either layer names denies. A missing ref or file
-# reads as no team entry; a file that does not parse, and an unknown name, go
-# into _GAB_DENY_NOTE, which the first open-posture notice of the process
-# carries.
 guard::_abort_deny_resolve() {
   ((_GAB_DENY_RESOLVED)) && return 0
   _GAB_DENY_RESOLVED=1
@@ -319,13 +161,6 @@ guard::_abort_deny_resolve() {
     _GAB_DENY_NOTE+=" deny_on_crash names no guard that gates a tool call:${_GAB_DENY_UNKNOWN% }; ignored."
 }
 
-# guard::_abort_settle <status>: the decision, apart from the exit. Returns 0
-# when <status> is one the hook chose, and nothing else happens. Otherwise
-# writes the notice line to stderr, leaves the stdout document (empty for the
-# closed posture) in _GAB_DOC and the status the posture maps to in _GAB_RC,
-# and returns 1. The trap handler above exits on those; run-guards.sh, which
-# runs each guard in its own process, records them for that guard and carries
-# on with the next.
 _GAB_DOC=""
 _GAB_RC=0
 guard::_abort_settle() {

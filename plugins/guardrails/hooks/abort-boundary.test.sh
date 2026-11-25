@@ -21,7 +21,6 @@ fi
 
 MARKER='GUARDRAILS_TEST_FORCED_ABORT'
 NOTICE='guard did not run (internal error, rc='
-# run_hook assigns these through printf -v; declared so ShellCheck sees them.
 OUT=""
 ERR=""
 RC=0
@@ -552,12 +551,6 @@ verdict_case "an unparsable payload refuses before the NUL flag" 2 1 2 "BLOCKED:
 verdict_case "a missing jq (status 1) lets the call through" 1 0 3 ""
 verdict_case "any other status lets the call through" 5 1 3 ""
 
-# --- The handler cannot re-enter ----------------------------------------------
-# The handler's first act is `trap - EXIT`. When its own body then fails (an
-# unbound expansion, or an exit) the process ends once, with the stderr line
-# already written; a second notice would mean the trap ran again. On the
-# unbound case bash keeps the status that was pending when the trap fired (the
-# stub's 3), so the fail-open exit 0 never happens: loud, once, and not 0.
 # shellcheck disable=SC2016  # the stub body must carry a literal, unexpanded $
 stub "reenter-unbound.sh" 'guard::abort_boundary stub-reenter PreToolUse open 0 2' \
   'guard::_abort_json_escape_to() { : "${STUB_HANDLER_BODY_FAILURE?handler body failure}"; }' \

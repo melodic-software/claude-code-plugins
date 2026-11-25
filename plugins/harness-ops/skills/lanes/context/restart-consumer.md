@@ -1,11 +1,9 @@
 # The restart-request consumer
 
 Why a stopped lane needs an out-of-harness reader, how the consumer binds to lane
-telemetry, and the operator steps that put it on a schedule. The executable
-contract lives in the `--help` header of
-[`scripts/restart-consumer.sh`](../scripts/restart-consumer.sh): actions, options,
-exit codes, and the relaunch predicate. This file is the operator- and
-reviewer-facing rationale, not a copy of it.
+telemetry, the relaunch predicate, and the operator steps that put it on a
+schedule. The actions, options and exit codes are in the `--help` of
+[`scripts/restart-consumer.sh`](../scripts/restart-consumer.sh).
 
 ## The gap
 
@@ -74,13 +72,40 @@ effort, and settings all come from the operator's local lane config, and nothing
 read from a comment is interpolated into a command or path. A telemetry comment
 can never name a lane the operator has not configured.
 
+## The relaunch predicate
+
+A lane is restarted only when all of these hold:
+
+1. It is named in the resolved lane config, and in `--lane` when given.
+2. Its telemetry state block parses and `restart_request` is non-null, in a comment
+   this binding may consume: the pinned instance's comment, or the legacy
+   un-suffixed one. An instance-suffixed comment under an unpinned binding is
+   another machine's writer and is report-only (`unbound-instance`).
+3. It is not running now: `claude agents --json`, name match plus
+   `kind == "background"`, the same liveness test `lane-launcher.sh` uses.
+4. The circuit breaker has room in the rolling window (`--max-restarts` attempts per
+   `--window-hours`; a launch that failed or never came up spends budget too).
+
+Condition 3 makes the predicate self-clearing: once relaunched the lane is running,
+so a `restart_request` it has not yet rewritten cannot fire a second restart, and
+the consumer never patches a comment another identity owns. The relaunch goes
+through `lane-launcher.sh restart <lane>`, which carries the lane's prompt, model,
+effort, settings and plugin profile from the same config. `claude respawn` is not
+used, because a restart request exists to give the lane a fresh context
+([CLI reference](https://code.claude.com/docs/en/cli-reference)).
+
 **Only the lanes' own comments count.** The sentinel is public, so anyone who can
 comment on a telemetry issue can post a lookalike carrying `restart_request`. The
 consumer reads only comments written by the lanes' write identity, resolved once
-per run: the authenticated account's own login first, and the App named by
-`--app-slug` when the token is an App's; the exact order is the script's WRITE
-IDENTITY header. With no identity resolved the run acts on nothing and exits
-non-zero. Run the consumer under the account its lanes write as, and pass
+per run, before any lane is read, in this order:
+
+1. `gh api user` reports a User: that login (a personal or machine-user token).
+2. That call fails or reports a Bot: `<slug>[bot]` from `--app-slug <slug>`.
+3. A Bot report with no `--app-slug`: the reported login, plus `[bot]` when missing.
+
+Anything else, or a login outside `[A-Za-z0-9_-]` plus an optional `[bot]`, exits 4
+before any lane is read: the run acts on nothing rather than falling back to any
+author. Run the consumer under the account its lanes write as, and pass
 `--app-slug` when that is an App installation token; the skill passes the
 `lane_app_slug` option as `--app-slug` on every call, and an empty or unrendered
 value reads as no slug. `print-schedule` carries a passed `--app-slug` into every
@@ -269,4 +294,4 @@ with `instance`, or by writing the suffix into `marker` itself. Unpinned, a
 suffixed writer's request is observed but never consumed. It reports as
 `unbound-instance` and relaunches nothing, since a sibling machine's ask must
 not start this machine's lane; only the legacy un-suffixed comment is
-actionable without a pin. Full semantics: the script's `--help` header.
+actionable without a pin.

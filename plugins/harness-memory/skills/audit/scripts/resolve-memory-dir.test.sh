@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for resolve-memory-dir.sh's pinned project directory name.
-# Expected values come from the three rules and the worked example at
-# https://code.claude.com/docs/en/sessions#name-the-project-directory-yourself
-# (read 2026-11-04): the store is <config dir>/projects/<name>/memory whatever the
-# working directory, and an unusable value falls back to the derived name.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

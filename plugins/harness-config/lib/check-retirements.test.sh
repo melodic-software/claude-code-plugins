@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git rev-parse` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -40,9 +38,6 @@ mkrepo() {
 
 manifest() { cat >"$1"; }
 
-# run <args...> — OUT/ERR/RC come back through globals, not stdout: a command
-# substitution would run this in a subshell and RC would silently keep the
-# previous case's value.
 OUT=""
 ERR=""
 RC=0
@@ -174,9 +169,6 @@ r="$(mkrepo malformed)"
 printf 'x\n' >"$r/present.txt"
 m="$TEST_TMPDIR/bad.yaml"
 
-# bad_case <label> <field> <id-or-empty> — runs the manifest already at $m.
-# Called as a plain statement, never on the right of a pipe: a pipeline would
-# run it in a subshell and the pass/fail counters would be lost.
 bad_case() {
   local label="$1" field="$2" id="$3"
   run --manifest "$m" --root "$r"
@@ -187,9 +179,6 @@ bad_case() {
   fi
 }
 
-# Literal backslash and tilde built without the literals themselves: shellcheck
-# flags every quoted spelling of a backslash (SC1003) and a quoted ~/ (SC2088),
-# and these assertions are precisely about those characters reaching the path.
 backslash=$(printf '%b' '\134')
 tilde=$(printf '%b' '\176')
 
@@ -607,8 +596,6 @@ for r in "$fake_home" "$plain"; do
   mkdir -p "$r/.claude/scratch"
   printf '{}\n' >"$r/.claude/old.json"
 done
-# GIT_CEILING_DIRECTORIES: a TMPDIR inside some repository must not make the
-# plain directory look like one.
 run_at() {
   local root="$1"
   shift

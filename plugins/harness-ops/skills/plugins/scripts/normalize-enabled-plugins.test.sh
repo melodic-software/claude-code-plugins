@@ -179,8 +179,6 @@ rc=0
 bash "$NORM" --report-project "$PROJECT" --file "$UNSORTED" >/dev/null 2>&1 || rc=$?
 assert_exit "--report-project cannot combine with --file" 2 "$rc"
 
-# Write denial is loud. chmod a-w is not enforced on every filesystem
-# (Windows Git Bash); skip rather than green-light an unexercised branch.
 DENIED="$TEST_TMPDIR/denied.json"
 printf '%s\n' '{"enabledPlugins":{"z@m":true,"a@m":false}}' >"$DENIED"
 chmod a-w "$DENIED" 2>/dev/null || true
