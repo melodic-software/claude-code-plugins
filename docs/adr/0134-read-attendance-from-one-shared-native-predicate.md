@@ -21,7 +21,7 @@ and values must live in one place.
 ## Decision
 
 1. **One data file, `lib/session-attended.env`**, names the attended variable and its value, the
-   entrypoint variable and the headless entrypoint list (`sdk-cli sdk-ts sdk-py`).
+   entrypoint variable and the headless entrypoint list.
 2. **Two thin readers hold only the rule**: `hook::session_attended` in `lib/session-attended.sh`
    and `sessionAttended(env)` in `lib/session-attended.mjs`. A session is attended when the attended
    variable equals the value and the entrypoint is not headless. The entrypoint can only veto. A
@@ -49,6 +49,7 @@ and values must live in one place.
 - An Agent SDK session (`sdk-*` entrypoint) that reads `ATTENDED=1` now gets a deny from guardrails
   where it got an ask.
 - Recheck when Claude Code documents an attended signal, or renames either variable or changes its
-  values; the change is one edit to `lib/session-attended.env` and a sync.
+  values. The readers change in one edit to `lib/session-attended.env` and a sync; the test suites
+  that set or clear the variables by name change with it.
 - Readers that use `CLAUDE_CODE_ENTRYPOINT` to tell surfaces apart (plugin-profiles, harness-ops
   mod posture) are a different question and keep their own reads.

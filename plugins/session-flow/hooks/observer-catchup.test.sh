@@ -23,14 +23,12 @@ gate_passes() {
 }
 
 UNSET='<unset>'
-changed=()
 for att in "$UNSET" 0 1 true; do
   for ep in "$UNSET" cli sdk-cli claude-desktop; do
     envs=()
     [[ $att == "$UNSET" ]] || envs+=("CLAUDE_CODE_SESSION_ATTENDED=$att")
     [[ $ep == "$UNSET" ]] || envs+=("CLAUDE_CODE_ENTRYPOINT=$ep")
-    old=no new=no got=no
-    [[ $ep == cli ]] && old=yes
+    new=no got=no
     [[ $att == 1 && $ep != sdk-cli ]] && new=yes
     gate_passes ${envs[@]+"${envs[@]}"} && got=yes
     cell="ATTENDED=$att ENTRYPOINT=$ep"
@@ -41,10 +39,8 @@ for att in "$UNSET" 0 1 true; do
       fail=$((fail + 1))
       echo "FAIL $cell: want arms=$new, got $got"
     fi
-    [[ $old == "$new" ]] || changed+=("$cell: $old -> $new")
   done
 done
 
-printf 'changed from the old rule: %s\n' "${changed[@]}"
 echo "observer-catchup: $pass passed, $fail failed"
 ((fail == 0))

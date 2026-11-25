@@ -37,7 +37,7 @@
 HOOK_REFUSE_PENDING=()
 
 # shellcheck source=session-attended.sh
-source "${_HOOK_SELF-.}/session-attended.sh" 2>/dev/null || hook::session_attended() { return 1; }
+source "${BASH_SOURCE[0]%/*}/session-attended.sh" 2>/dev/null || hook::session_attended() { return 1; }
 
 hook::refuse_unwatched() {
   hook::session_attended && [[ "${GUARDRAILS_SESSION_UNWATCHED-}" == 1 ]]

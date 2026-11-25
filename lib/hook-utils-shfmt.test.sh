@@ -471,7 +471,7 @@ segs_are 'doc form handled: a CR before a newline is dropped' $'git reset --hard
 
 # --- block-dangerous-git refuses the bypasses the old reader missed ----------
 # An attended session turns a refusal into an ask (refuse.sh).
-unset CLAUDE_CODE_SESSION_ATTENDED CLAUDE_CODE_ENTRYPOINT
+unset CLAUDE_CODE_SESSION_ATTENDED
 guard_rc() {
   local payload
   payload=$(jq -cn --arg c "$2" --arg d "$_T_ROOT" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d,session_id:"t",hook_event_name:"PreToolUse"}')
