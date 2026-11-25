@@ -1,27 +1,4 @@
 #!/usr/bin/env bash
-# persist-report.sh: write a skill's last-audit.md under its keyed plugin-data
-# directory, <plugin-data>/<component>/<state-key>/last-audit.md.
-#
-# WHY A SCRIPT. A skill that leaves the write to the model gets an inline
-# `d="<plugin-data>/..."; mkdir -p "$d"`. Claude Code's permission layer denies
-# that command because it names a path under the config directory, and an eval
-# run's validity gate cannot attribute the denial because its Bash path parser
-# reads "$d" as no path. audit-automation-gaps' findings-state.sh, invoked the
-# same way with --plugin-data and doing its own mkdir, shows no such denial in
-# eval traces; this script follows it.
-#
-# The key comes from running state-key.sh beside this file, never from a path
-# composed here (rule 1 of the marketplace's plugin-data-report-keying contract).
-#
-# --plugin-data is required: ${CLAUDE_PLUGIN_DATA} substitutes in skill text but
-# is not exported to the Bash tool, so the skill passes the substituted path.
-#
-# Usage:
-#   persist-report.sh --plugin-data <dir> --component <name> --report <file|->
-#                     [--root <path>]
-#
-# Prints the final path of last-audit.md on success.
-#
 # Exit codes:
 #   0  written
 #   1  the write failed (directory, staging or rename); the prior file, if any,
@@ -29,7 +6,6 @@
 #   2  usage error or rejected argument; nothing is written
 set -uo pipefail
 
-# A CDPATH hit makes `cd` echo the resolved path, which would corrupt LIB_DIR.
 CDPATH=
 
 PROG="persist-report.sh"
@@ -122,7 +98,6 @@ case "$PLUGIN_DATA" in
 /* | ?:[\\/]*) : ;;
 *) die "--plugin-data must be an absolute path: $PLUGIN_DATA" ;;
 esac
-# A '..' path component is the traversal; a directory named `a..b` is legal.
 case "$PLUGIN_DATA" in
 *[/\\].. | *[/\\]..[/\\]*) die "--plugin-data must not contain a '..' path component: $PLUGIN_DATA" ;;
 *) : ;;
@@ -175,10 +150,8 @@ fi
 DIR="$PLUGIN_DATA/$COMPONENT/$STATE_KEY"
 TARGET="$DIR/$FILENAME"
 mkdir -p "$DIR" || fail_write "cannot create $DIR"
-# Staged in the target directory so the rename stays on one filesystem.
 STAGED_TARGET=$(mktemp "$DIR/.$FILENAME.XXXXXX") || fail_write "cannot stage in $DIR"
 cat "$STAGED_INPUT" >"$STAGED_TARGET" || fail_write "cannot write $STAGED_TARGET"
-# mktemp creates 0600; give the report the mode a plain write under this umask would.
 chmod "$(printf '%04o' $((0666 & ~0$(umask))))" "$STAGED_TARGET" || fail_write "cannot set the mode of $STAGED_TARGET"
 mv -f "$STAGED_TARGET" "$TARGET" || fail_write "cannot replace $TARGET"
 STAGED_TARGET=""

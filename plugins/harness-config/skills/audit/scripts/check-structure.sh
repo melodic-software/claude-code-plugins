@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# Secret-safe config structure facts for the audit skill.
-#
-# Output: per-file validity and key counts, plus the model and effort values
-# audit category H needs from settings.local.json. Never prints env values.
 # Exit: 0 parseable; 1 invalid JSON; 2 jq missing.
-#
-# Env:
-#   SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR — fixture project root for tests
 set -uo pipefail
 
 usage() {
@@ -53,7 +46,6 @@ fi
 # shellcheck source=../../../lib/resolve-scopes.sh
 source "$RESOLVE_SCOPES_LIB"
 
-# Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
 PROJECT_ROOT=""
 scopes::project_root_to PROJECT_ROOT "${SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR:-}"
 
