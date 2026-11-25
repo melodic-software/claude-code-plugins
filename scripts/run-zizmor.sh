@@ -5,9 +5,14 @@
 #
 #   scripts/run-zizmor.sh            (from the repository root; GH_TOKEN set)
 #
-# The config is the base commit's with BASE_SHA set, else the checkout's own;
-# when that has none, the standards checkout's (STANDARDS_DIR,
-# download-standards' `path`), else standards main's read through the API.
+# zizmor reads one config and has no include, so the layering is
+# melodic-software/standards components/zizmor/README.md's: a repository config
+# is a complete override, read from the base commit with BASE_SHA set, else the
+# checkout's own; with none, standards' config from the standards checkout
+# (STANDARDS_DIR, download-standards' `path`), else from the main branch of
+# docs/conventions/source-control.yaml's standards_repository (the base
+# commit's with BASE_SHA set) through the API. One finding is suppressed inline
+# with `# zizmor: ignore[<audit>]`.
 #
 # Two runs, because one online-audit request error aborts the whole run with
 # "no audit was performed", which would hide every offline finding too:
@@ -43,8 +48,12 @@ if [[ -z "$found" && -n "${STANDARDS_DIR:-}" ]]; then
   cp "$STANDARDS_DIR/.github/zizmor.yml" "$config" || { echo "::error::.github/zizmor.yml could not be read from the standards checkout $STANDARDS_DIR."; exit 2; }
   found=".github/zizmor.yml from the melodic-software/standards checkout"
 elif [[ -z "$found" ]]; then
-  gh api -H 'Accept: application/vnd.github.raw' repos/melodic-software/standards/contents/.github/zizmor.yml >"$config" || { echo "::error::melodic-software/standards .github/zizmor.yml could not be read."; exit 2; }
-  found=".github/zizmor.yml from melodic-software/standards"
+  parser="${BASH_SOURCE[0]%/*}/../lib/parse-concern-value.sh"
+  settings=docs/conventions/source-control.yaml
+  standards=$(bash "$parser" ${BASE_SHA:+--ref "$BASE_SHA"} "$settings" standards_repository)
+  [[ "$standards" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "::error::No standards checkout (STANDARDS_DIR) and no standards_repository in $settings${BASE_SHA:+ at $BASE_SHA}."; exit 2; }
+  gh api -H 'Accept: application/vnd.github.raw' "repos/$standards/contents/.github/zizmor.yml" >"$config" || { echo "::error::$standards .github/zizmor.yml could not be read."; exit 2; }
+  found=".github/zizmor.yml from $standards"
 fi
 echo "zizmor config: $found"
 
