@@ -1,7 +1,7 @@
 ---
 description: "improve boundaries lens over a scaffolded repository: the ARCHITECTURE.md:14 rule, a convention home whose topic doc sets architecture_dir docs/architecture, and a current dependency-graph.json with the Billing.Reports to Billing.Ledger edge. The lens takes its sources from the enforcement-ladder list, reports the edge as a crossing citing the rule's line and the manifest evidence, writes nothing under .work/reviews/, offers /corrections:codify findings without running it, and edits no source file. Source: the improve skill's evals.json case boundaries-recorded-rule-crossing-handed-on, given a scaffold. Needs --scaffold --allow-tools Bash Write and a sandbox backend."
 tags: [architecture, improve, boundaries, scaffold]
-runs: 6
+runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]

@@ -3,12 +3,20 @@
     {
       "answer": "Scanned src/ and test/. No deepening candidates: buildToc is one function with three options, and behind it parse.js, slug.js and tree.js handle fences, setext headings, duplicate slugs and nesting. Only index.js imports them and the tests go through buildToc alone. Deleting any helper would push its logic into index.js, not remove it.",
       "why": "explicit no-findings verdict, modules described accurately"
+    },
+    {
+      "answer": "No deepening candidates. buildToc hides parsing, slugs and nesting behind one call, and ADR 0001 keeps heading parsing in-process with no parser dependency; nothing here argues for reopening it.",
+      "why": "no-findings verdict, recorded decision left standing"
     }
   ],
   "fail": [
     {
       "answer": "Two candidates. 1 (Worth exploring): slug.js is a shallow module, one function; merge it into tree.js. 2 (Speculative): export parseHeadings so callers can reuse it. Which of these would you like to explore?",
       "why": "cards private helpers as shallow and invents candidates"
+    },
+    {
+      "answer": "No shallow modules. One recommendation: replace parse.js with remark so the library stops maintaining its own fence and setext handling.",
+      "why": "overrides the in-process decision record without naming the conflict"
     }
   ]
 }
