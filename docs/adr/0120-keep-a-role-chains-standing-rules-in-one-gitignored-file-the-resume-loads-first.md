@@ -23,8 +23,11 @@ The owner chose option (b) on 2026-11-22 ("Go with recommendations", recorded on
 1. **One standing-rules file per role chain.** `save_point.py new --standing-rules` marks a
    shape-4 chain as a role chain through the `standing_rules` frontmatter key, which every later
    hop carries. `fill` writes Current rules and Standing preferences to
-   `archive/<chain-root-stem>/standing-rules.md`, beside the chain's archive files in the same
-   gitignored memory tier.
+   `handoffs/standing-rules/<chain-root-stem>.md`, in the same gitignored memory tier as the
+   chain's archive files but outside `archive/`, whose files never change once written, since
+   every hop rewrites this one. A hop written before the file moved names
+   `archive/<chain-root-stem>/standing-rules.md`; `validate`, readers and `amend` still use that
+   file for such a hop, and the chain's next hop writes the new path.
 2. **The handoff file keeps a pointer in place.** Each of the two sections stays in its binding
    position, holding one `- Standing rules: <file>#<section>` line. Section order, ids, rewrite in
    place and `retire` are unchanged.

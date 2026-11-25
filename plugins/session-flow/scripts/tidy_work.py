@@ -22,7 +22,10 @@ from the memory-root layout:
                    item. `handoffs/` is its place;
                    one in the root or in `running-retros/` is a misplaced handoff
     archive        a shape-3 chain's `handoffs/archive/<chain-root-stem>/`
-                   directory of archive files. It is kept while any handoff of its
+                   directory of archive files, with the role chain's
+                   `handoffs/standing-rules/<chain-root-stem>.md` as part of the
+                   same item (that file alone when the directory is gone). It is
+                   kept while any handoff of its
                    chain (shape-3 `chain_root`, shape-2 `chain:` root) is kept,
                    and kept when none of them is on disk; it leaves with the
                    last of them, and stays when one of them is refused
@@ -135,6 +138,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import save_point  # noqa: E402  (save_point.py beside this script)
+from handoff_chain import STANDING_DIR  # noqa: E402
 from io_streams import utf8_streams  # noqa: E402
 
 DEFAULT_DAYS = 14
@@ -355,8 +359,15 @@ def inventory(root: Path, label: str) -> list[Item]:
     except OSError:
         return items
 
-    def add(path: Path, kind: str, link_file: Path | None, chain: str = "") -> None:
-        extras = _sidecars(path) if kind == "handoff" else []
+    def add(
+        path: Path,
+        kind: str,
+        link_file: Path | None,
+        chain: str = "",
+        extras: list[Path] | None = None,
+    ) -> None:
+        if extras is None:
+            extras = _sidecars(path) if kind == "handoff" else []
         try:
             stats = [_tree_stats(p) for p in (path, *extras)]
         except OSError:
@@ -421,9 +432,29 @@ def inventory(root: Path, label: str) -> list[Item]:
                 ):
                     for chain in sorted(child.iterdir()):
                         if chain.is_dir() and not chain.is_symlink():
-                            add(chain, "archive", None, f"{chain.name}.md")
+                            standing = entry / STANDING_DIR / f"{chain.name}.md"
+                            add(
+                                chain,
+                                "archive",
+                                None,
+                                f"{chain.name}.md",
+                                [standing] if _plain_file(standing) else [],
+                            )
                         else:
                             add(chain, "unknown", None)
+                    continue
+                if (
+                    entry.name == "handoffs"
+                    and child.name == STANDING_DIR
+                    and (child.is_dir() and not child.is_symlink())
+                ):
+                    for held in sorted(child.iterdir()):
+                        if not (held.name.endswith(".md") and _plain_file(held)):
+                            add(held, "unknown", None)
+                            continue
+                        archive = entry / save_point.ARCHIVE_DIR / held.name[:-3]
+                        if not (archive.is_dir() and not archive.is_symlink()):
+                            add(held, "archive", None, held.name)
                     continue
                 visit(child, parent_kind)
             continue
