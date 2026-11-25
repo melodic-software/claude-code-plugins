@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: docs/conventions/source-control.yaml
 # Template basenames named for the affected-tests mapping: this suite covers
 # check-file-names.sh.tmpl, check-file-names.test.sh.tmpl, and
 # file-names-rule.md.tmpl.

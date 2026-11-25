@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: docs/conventions/source-control.yaml
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

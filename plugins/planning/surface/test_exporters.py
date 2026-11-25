@@ -1,6 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/ledger-legacy/*
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
-# test-scope: lib/org-standards.sh plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
+# test-scope: lib/org-standards.sh docs/conventions/source-control.yaml plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
 
 from __future__ import annotations
 

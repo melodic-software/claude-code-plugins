@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/work-items/tools/work-item-tracker/adapters/*
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/* docs/conventions/source-control.yaml plugins/work-items/tools/work-item-tracker/seeds/*/capabilities.json plugins/work-items/tools/work-item-tracker/seeds/*/adapter-spec.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 # Contract tests for generate-adapter.sh — the deterministic half of
 # /work-items:onboard-adapter.

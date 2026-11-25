@@ -1,3 +1,4 @@
+// test-scope: lib/org-standards.sh
 // Runs the action's skill-staging `run:` script against a throwaway base
 // checkout and reads the outputs it appends to GITHUB_OUTPUT. Expected values
 // come from the contract (pr-run-activity.md, "Skill activities" and
