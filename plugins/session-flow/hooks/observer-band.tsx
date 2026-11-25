@@ -13,11 +13,29 @@ export type BandActions = {
 
 export const OFF_HINT = 'pause: /observer off · for good: observer_step_check, observer_turn_end_check in /plugin configure session-flow'
 
-export const band = (ui: Elements, f: Finding, source: string, isOpen: boolean, cost: string, act: BandActions) => {
+export type AskedActions = { useful: () => unknown; notUseful: () => unknown; close: () => unknown }
+
+export const askedRow = (ui: Elements, icon: string, act: AskedActions) => {
   const { Box, Button, Text } = ui
   return (
-    <Box flexDirection="column" marginTop={1}>
+    <Box marginTop={1} marginBottom={1} gap={2}>
+      <Text dimColor>
+        <Text color="warning">{icon} </Text>
+        observer · Dismissed.
+      </Text>
+      <Button key="useful" hotkey="5" label="Useful" plain onPress={act.useful} />
+      <Button key="not-useful" hotkey="6" label="Not useful" plain onPress={act.notUseful} />
+      <Button key="close" hotkey="9" label="Close" plain dimColor onPress={act.close} />
+    </Box>
+  )
+}
+
+export const band = (ui: Elements, icon: string, f: Finding, source: string, isOpen: boolean, cost: string, act: BandActions) => {
+  const { Box, Button, Text } = ui
+  return (
+    <Box flexDirection="column" marginTop={1} marginBottom={1}>
       <Text wrap="truncate">
+        <Text color="warning">{icon} </Text>
         <Text dimColor>observer · </Text>
         <Text color="warning">{f.category}</Text>
         <Text dimColor> ({source})</Text>

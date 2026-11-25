@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { band } from './observer-band.tsx'
+import { askedRow, band } from './observer-band.tsx'
 import {
   buildPrompt,
   CLEAR_AFTER_PROMPTS,
@@ -40,6 +40,8 @@ const fresh = () => ({
   inFlight: false,
   ended: false,
   card: null as Card | null,
+  asked: false,
+  icon: '◆',
   rows: [] as object[],
 })
 let st = fresh()
@@ -182,8 +184,11 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   }
 }
 
+const ASKED_MS = 20_000
+
 const answered = async ($: EngineInterface, answer: string, toast?: string) => {
   st.card = null
+  st.asked = false
   if (toast) $.ui.toast(toast)
   await record($, { at: await iso($), answer }).catch(() => undefined)
   await $.store.set('typedPast', 0)
@@ -205,6 +210,7 @@ export const register: Register = (on, options) => {
     st.sid = ''
     await syncSession($)
     st.ledgerDir = `${env.CLAUDE_PROJECT_DIR || e.cwd}/.work/running-retros`
+    st.icon = (await $.env.get('TERM')) === 'dumb' ? '*' : '◆'
     st.ended = false
     st.on = true
     await $.command.register({ name: 'observer', description: 'Session observer: show its checks and token use, or turn its live checks on or off on this machine' })
@@ -281,13 +287,26 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const theirs = await next(e)
     const card = st.card
-    if (card === null || e.props.hasSurvey) return theirs
+    if (e.props.hasSurvey || (card === null && !st.asked)) return theirs
     const ui = $.ui.resolve(e)
     const { Box } = ui
+    if (card === null) {
+      const rate = (answer: string) => async () => {
+        st.asked = false
+        await record($, { at: await iso($), answer }).catch(() => undefined)
+        $.ui.invalidate('ui.render')
+      }
+      return (
+        <Box flexDirection="column">
+          {askedRow(ui, st.icon, { useful: rate('useful'), notUseful: rate('not_useful'), close: rate('closed') })}
+          {theirs}
+        </Box>
+      )
+    }
     const f = card.finding
     return (
       <Box flexDirection="column">
-        {band(ui, f, card.source, card.isOpen, `this session: ${summarize(st.rows).split('\n')[1] ?? ''} (/observer for more)`, {
+        {band(ui, st.icon, f, card.source, card.isOpen, `this session: ${summarize(st.rows).split('\n')[1] ?? ''} (/observer for more)`, {
           noted: async () => {
             await appendTo($, card.ledger, notedLine(await iso($), f))
             await answered($, 'noted', 'observer: noted in the running-retro ledger')
@@ -305,7 +324,15 @@ export const register: Register = (on, options) => {
             card.isOpen = !card.isOpen
             $.ui.invalidate('ui.render')
           },
-          dismiss: () => answered($, 'dismissed'),
+          dismiss: async () => {
+            await answered($, 'dismissed')
+            st.asked = true
+            $.clock.after(ASKED_MS, () => {
+              st.asked = false
+              $.ui.invalidate('ui.render')
+            })
+            $.ui.invalidate('ui.render')
+          },
         })}
         {theirs}
       </Box>

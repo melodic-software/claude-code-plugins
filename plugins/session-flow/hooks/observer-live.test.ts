@@ -29,6 +29,7 @@ type World = {
   fills: string[]
   toasts: string[]
   rewrites: string[]
+  clock?: any
 }
 
 const world = (on: any, env: Record<string, string> = {}) => {
@@ -41,7 +42,7 @@ const world = (on: any, env: Record<string, string> = {}) => {
   on('ui.toast', ($: unknown, e: { text: string }) => (w.toasts.push(e.text), { value: undefined }))
   on('command.register', ($: unknown, e: { name: string }) => ({ value: { command: e.name } }))
   on('command.run', () => ({ text: 'beneath' }))
-  mock.clock(on, { now: 1_791_050_400_000 })
+  w.clock = mock.clock(on, { now: 1_791_050_400_000 })
   mock.env(on, env)
   on('session.id', () => ({ value: w.sid }))
   on('process.hookEnv', () => ({ value: { CLAUDE_PLUGIN_DATA: DATA, CLAUDE_PROJECT_DIR: PROJECT } }))
@@ -285,6 +286,33 @@ test('buttons put Send first and use hotkeys 5 to 9, clear of the built-in side 
     ['dismiss', '9'],
   ])
   await ui.unmount()
+})
+
+test('Dismiss asks once whether the finding was useful, records the answer, and the question expires', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING), answer(FINDING.replace('Merged without reading', 'Pushed without reading')))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dismiss' })
+  await ui.unmount()
+  const asked = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await asked.find({ type: 'Text', text: /observer · Dismissed\./ })).toBeDefined()
+  await asked.press({ key: 'useful' })
+  await asked.unmount()
+  const gone = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await gone.find({ key: 'useful' })).toBeUndefined()
+  await gone.unmount()
+  expect(live(w).filter(r => r.answer).map(r => r.answer)).toEqual(['dismissed', 'useful'])
+  await steps($, 't1', 12)
+  const second = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await second.press({ key: 'dismiss' })
+  await second.unmount()
+  await w.clock.advance(20_000)
+  const expired = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await expired.find({ key: 'useful' })).toBeUndefined()
+  await expired.unmount()
 })
 
 test('the next check clears a finding the assistant has fixed, and the ledger says so', async ($, on) => {

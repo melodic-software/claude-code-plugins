@@ -40,13 +40,16 @@ case-insensitively without a trailing period.
 self-ignore guard the catch-up uses. Every ledger and usage write is an append (`node`'s
 `appendFileSync`, run through `$.process.run`), never a read-and-rewrite, so a running-retro
 checkpoint written at the same moment is never lost. The finding also shows as a band row above the
-prompt, a blank line above it, led by `observer`, its category and the trigger that found it
+prompt, with a blank line above and below it as the built-in side agent's has, led by a `◆` (`*` when
+`TERM` is `dumb`), `observer`, its category and the trigger that found it
 (`step 12`, `turn end`), with buttons `5` Send to Claude (appends a quoted note to the prompt box,
 marked as background the person did not write), `6` Noted (marks the ledger entry confirmed), `7`
 Dispute (marks it disputed and suppresses it for good), `8` Why (shows the rule, the evidence, this
 session's check cost and how to pause) and `9` Dismiss. The hotkeys are `5` to `9` because the
 built-in side agent's band uses `1` to `4` and `0`, and a hotkey two plugins share presses neither.
-Nothing reaches the main conversation unless the person sends it.
+Nothing reaches the main conversation unless the person sends it. After Dismiss, one row asks
+`5` Useful, `6` Not useful or `9` Close, and clears itself after 20 seconds; the answer goes to the
+usage file, so `/observer` can show how often findings were worth showing.
 
 **Auto-clear.** While a finding is shown, the next check is told about it and answers
 `resolved: yes` when the assistant has since fixed it; the band then clears and the ledger records
