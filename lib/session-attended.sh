@@ -1,5 +1,6 @@
 # shellcheck shell=bash
 
+unset SESSION_ATTENDED_VAR SESSION_ATTENDED_VALUE SESSION_ATTENDED_ENTRYPOINT_VAR SESSION_ATTENDED_HEADLESS_ENTRYPOINTS
 # shellcheck source=/dev/null
 . "${BASH_SOURCE[0]%/*}/session-attended.env" 2>/dev/null || true
 
