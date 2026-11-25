@@ -5,6 +5,7 @@ import { test } from "node:test";
 
 import { escalationActivity, escalationRoute, gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, ROUTES, CREDENTIAL_HOLD, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
+import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 process.env.STANDARDS_DIR ||= standardsCheckout();
@@ -151,14 +152,35 @@ test("the newest labeled event is read by its time, not its place in the list", 
   assert.equal(source(reordered), "lane-escalation");
 });
 
-const escalated = (reason, at = "2026-10-18T10:00:05Z", codeLabel = "Lane code") =>
+const escalated = (reason, at = "2026-10-18T10:00:05Z", codeLabel = "Lane code", stopLine = "<!-- stop-reason lane=pr-unblock reason=design -->") =>
   commented(
     APP,
-    `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\n### pr-unblock / report-escalation\nHeld for a person: why.\nReason: \`design\`\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${OLD}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n- \`src/a.js:1\`: https://github.com/o/r/pull/1#discussion_r1\n\n</details>`,
+    `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\n${stopLine}\n### pr-unblock / report-escalation\nHeld for a person: why.\nReason: \`design\`\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${OLD}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n- \`src/a.js:1\`: https://github.com/o/r/pull/1#discussion_r1\n\n</details>`,
     at,
   );
 const allows = (timeline, activity, { reviewComments = [], reviews = [] } = {}) =>
   laneEscalationAllows({ timeline, reviewComments, reviews, label: "needs-human", head: HEAD, isLanesApp, activity }).allowed;
+
+test("report-escalation.sh's pr-unblock stop-reason marker is read; another lane's, another code or a mangled one is unknown", () => {
+  const marked = (stopLine) => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed", undefined, "Lane code", stopLine)];
+  for (const code of PERSON_REASONS) {
+    assert.equal(source(marked(personReasonLines("pr-unblock", code)[0])), "lane-escalation", code);
+  }
+  for (const stopLine of [
+    "<!-- stop-reason lane=pr-verify reason=security -->",
+    "<!-- stop-reason lane=fix-ci reason=design -->",
+    "<!-- stop-reason lane=pr-unblock reason=none -->",
+    "<!-- stop-reason lane=pr-unblock reason=Design -->",
+    "<!-- stop-reason lane=pr-unblock reason=design-x -->",
+    "<!-- stop-reason lane=pr-unblock reason=design extra=1 -->",
+    "<!-- stop-reason lane=pr-unblock reason=design  -->",
+    " <!-- stop-reason lane=pr-unblock reason=design -->",
+    "<!-- stop-reason lane=pr-unblock -->",
+    "<!--stop-reason lane=pr-unblock reason=design -->",
+  ]) {
+    assert.equal(source(marked(stopLine)), "unknown", stopLine);
+  }
+});
 
 test("a hold comment that labels its lane code `- Reason:` holds its activity too", () => {
   const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated", undefined, "Reason")];
