@@ -1,4 +1,10 @@
 import {
+  AUTO_NOTE,
+  CHECK_EVERY,
+  CLEAR_AFTER_PROMPTS,
+  GUIDANCE_MAX,
+  SKIP_MAX,
+  TYPED_PAST_FREE,
   type Finding,
   type Trigger,
   checksToSkipAfterIgnored,
@@ -19,6 +25,60 @@ export type Options = {
   clearAfterPrompts: number
   ignoredFree: number
   skipMax: number
+  autoSend: boolean
+  autoNote: string
+  guidance: string
+  guidanceMax: number
+  checkPrompt: string
+  changeCheck: boolean
+  changeTools: readonly string[]
+  gateCheck: boolean
+  gatePattern: RegExp
+  gateTimeoutMs: number
+  gateRefusals: number
+}
+
+export const GATE_PATTERN = String.raw`\b(git\s+push|gh\s+pr\s+(create|merge|comment|review)|gh\s+issue\s+(create|comment)|gh\s+api\b.*\s(-X|--method)\s*(POST|PATCH|PUT|DELETE))\b`
+
+export const readOptions = (raw: Readonly<Record<string, unknown>>): { options: Options; invalid: string[] } => {
+  const invalid: string[] = []
+  const pick = <T>(key: string, fallback: T, valid: (v: unknown) => boolean, map: (v: never) => T = v => v as T): T => {
+    const v = raw[key]
+    if (v === undefined || v === '') return fallback
+    if (valid(v)) return map(v as never)
+    invalid.push(key)
+    return fallback
+  }
+  const bool = (key: string, fallback: boolean) => pick(key, fallback, v => typeof v === 'boolean')
+  const int = (key: string, fallback: number, min: number) => pick(key, fallback, v => Number.isInteger(v) && (v as number) >= min)
+  const text = (key: string, fallback: string) => pick(key, fallback, v => typeof v === 'string')
+  const regex = (v: unknown) => {
+    try {
+      return typeof v === 'string' && new RegExp(v) instanceof RegExp
+    } catch {
+      return false
+    }
+  }
+  const options: Options = {
+    stepCheck: bool('observer_step_check', true),
+    turnEndCheck: bool('observer_turn_end_check', false),
+    stepEvery: int('observer_step_every', CHECK_EVERY, 1),
+    clearAfterPrompts: int('observer_clear_after_prompts', CLEAR_AFTER_PROMPTS, 1),
+    ignoredFree: int('observer_ignored_free', TYPED_PAST_FREE, 0),
+    skipMax: int('observer_skip_max', SKIP_MAX, 0),
+    autoSend: bool('observer_auto_send', false),
+    autoNote: text('observer_auto_note', AUTO_NOTE),
+    guidance: text('observer_guidance', ''),
+    guidanceMax: int('observer_guidance_max', GUIDANCE_MAX, 0),
+    checkPrompt: text('observer_check_prompt', ''),
+    changeCheck: bool('observer_change_check', false),
+    changeTools: pick('observer_change_tools', ['Edit', 'Write', 'NotebookEdit'], v => typeof v === 'string', (v: string) => v.split(',').map(t => t.trim()).filter(Boolean)),
+    gateCheck: bool('observer_gate_check', false),
+    gatePattern: new RegExp(pick('observer_gate_pattern', GATE_PATTERN, regex)),
+    gateTimeoutMs: int('observer_gate_timeout_seconds', 30, 1) * 1000,
+    gateRefusals: int('observer_gate_refusals', 1, 0),
+  }
+  return { options, invalid }
 }
 
 export type Card = { id: number; finding: Finding; ledger: string; source: string; promptsSurvived: number; isOpen: boolean }

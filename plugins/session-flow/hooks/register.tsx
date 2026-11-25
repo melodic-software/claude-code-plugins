@@ -1,21 +1,8 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import { askedRow, band } from './observer-band.tsx'
-import { type Effect, type Event, type Options, type Rate, type CheckRequest, initial, step } from './observer-machine.ts'
-import {
-  buildPrompt,
-  CHECK_EVERY,
-  CLEAR_AFTER_PROMPTS,
-  type Finding,
-  ledgerHeader,
-  ledgerLine,
-  ledgerSection,
-  remember,
-  SKIP_MAX,
-  summarize,
-  type Trigger,
-  TYPED_PAST_FREE,
-} from './observer-live.ts'
+import { type CheckRequest, type Effect, type Event, type Options, type Rate, initial, readOptions, step } from './observer-machine.ts'
+import { buildPrompt, type Finding, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
 
 const DAY_MS = 86_400_000
 const USAGE = `Usage: /observer [on|off]. Bare /observer shows this session's and the last day's checks.`
@@ -196,7 +183,8 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   let usage: Usage | undefined
   try {
     const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
-    const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, req.open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0) })
+    const extra = { autoSend: opts.autoSend, guidance: opts.guidance, guidanceMax: opts.guidanceMax, override: opts.checkPrompt }
+    const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, req.open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0, extra) })
     if (r.isAnswered) usage = r.usage
     const reply = r.isAnswered ? { isAnswered: true as const, text: r.text } : { isAnswered: false as const, reason: String(r.reason) }
     outcome = (await run($, { kind: 'check-replied', req, reply, paused: (await $.store.get('paused')) === true, seen, disputed })) ?? 'error'
@@ -213,14 +201,8 @@ export const register: Register = (on, options) => {
   st = fresh()
   m = initial()
   if (options.observer_enabled !== true) return
-  opts = {
-    stepCheck: options.observer_step_check !== false,
-    turnEndCheck: options.observer_turn_end_check === true,
-    stepEvery: CHECK_EVERY,
-    clearAfterPrompts: CLEAR_AFTER_PROMPTS,
-    ignoredFree: TYPED_PAST_FREE,
-    skipMax: SKIP_MAX,
-  }
+  const read = readOptions(options)
+  opts = read.options
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
@@ -233,6 +215,7 @@ export const register: Register = (on, options) => {
     void prune($, await $.clock.now())
     st.icon = (await $.env.get('TERM')) === 'dumb' ? '*' : '◆'
     await run($, { kind: 'session-started' })
+    for (const key of read.invalid) await record($, { at: await iso($), answer: 'option_invalid', key }).catch(() => undefined)
     await $.command.register({ name: 'observer', description: 'Session observer: show its checks and token use, or turn its live checks on or off on this machine' })
     return result
   }).catch(($, e, next) => next(e))
