@@ -59,7 +59,6 @@ test("only a schedule or a manual run starts the lane, with no default permissio
 test("the jobs run collect, the three legs with a route job between each, file and triage-sweep, in that order", () => {
   assert.deepEqual(Object.keys(jobs), ["collect", KEY, ROUTES[0], SUB, ROUTES[1], FB, "file", "triage-sweep"]);
   assert.match(jobs[KEY], /\n {4}needs: collect\n/);
-  // The key route job also needs collect: a skipped key leg routes every collected unit.
   assert.match(jobs[ROUTES[0]], /\n {4}needs: \[collect, assess-units\]\n/);
   assert.match(jobs[SUB], /\n {4}needs: collect-key-handoffs\n/);
   assert.match(jobs[ROUTES[1]], /\n {4}needs: assess-units-subscription\n/);
@@ -212,10 +211,8 @@ test("each unit leaves one lane record per leg, the leg that handed off marked h
   assert.equal(value(report(KEY), "fallback-reason"), undefined);
   assert.equal(value(report(SUB), "fallback-reason"), REASON);
   assert.equal(value(report(FB), "fallback-reason"), REASON);
-  // matrix.reason reaches only the credential call's reason input.
   for (const job of LEGS) assert.equal(jobs[job].replace(/^\s*#.*$/gm, "").match(/matrix\.reason/g)?.length ?? 0, job === KEY ? 0 : 1, job);
   for (const job of [SUB, FB]) assert.equal(value(step("Check the credential", job), "reason"), "${{ matrix.reason }}", job);
-  // A handoff spares a leg its red; any other run with no findings fails last.
   for (const job of LEGS) {
     const names = steps(job).map((s) => s.name);
     assert.equal(names.at(-1), "Fail without findings", job);

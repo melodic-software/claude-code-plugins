@@ -128,8 +128,6 @@ TMP_ENVELOPE=""
 TMP_LATEST=""
 RESERVED_TARGET=""
 
-# "Was the flag given?" is tracked apart from its value, so `--run-id ""` is
-# rejected rather than treated as omitted (which would serve the newest run).
 ARG_PLUGIN_DATA=""
 ARG_ROOT=""
 ARG_RUN_ID=""

@@ -122,10 +122,6 @@ class MultiRootTests(unittest.TestCase):
         self.assertNotIn(SOURCES + "/cm-sample.sh", document)
 
     def test_a_root_that_merely_lacks_the_file_says_nothing_on_stderr(self) -> None:
-        # The stderr note belongs to a root the probe could not read, not to
-        # one that simply does not hold the file: absence is the ordinary
-        # case on every multi-root report, and a line per miss would bury the
-        # one that matters. Nothing reaches stdout either, which is parsed.
         with tempfile.TemporaryDirectory() as tmp:
             result = run(str(MULTI_ROOT), scan_root=tmp)
         self.assertEqual(result.returncode, 0, result.stderr)

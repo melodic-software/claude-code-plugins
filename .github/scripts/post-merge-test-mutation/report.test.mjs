@@ -199,7 +199,6 @@ test("a usage or capacity limit stop passes with a notice, and any other class s
   assert.equal(edited.code, 1, "a limit stop never covers an edited checkout");
 });
 
-// The two workflows, read as text: each job is the block under its two-space id.
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const jobsOf = (text) => {
   const wf = workflowText(text);
@@ -224,19 +223,16 @@ test("only a push to main starts the gate, and only the gate's run starts the la
 });
 
 const MODEL_JOBS = ["generate", "generate-subscription", "generate-fallback", "triage", "triage-subscription", "triage-fallback"];
-// One step of a job block, by its id or its name.
 const stepOf = (block, key) => {
   const step = stepsOf(block).find((s) => s.name === key || s.text.includes(`\n        id: ${key}\n`));
   assert.ok(step, key);
   return step.text;
 };
-// A literal block (`key: |`) of a step, one entry per line.
 const literal = (step, key) => {
   const lines = step.split(`\n          ${key}: |\n`)[1].split("\n");
   const end = lines.findIndex((line) => !line.startsWith("            "));
   return lines.slice(0, end < 0 ? lines.length : end).map((line) => line.trim());
 };
-// A run step's script, as the runner runs it.
 const script = (step) => step.split("\n        run: |\n")[1].split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
 const field = (step, key) => new RegExp(`\\n {8,10}${key}: (.*)\\n`).exec(step)?.[1];
 
@@ -282,7 +278,6 @@ test("the model's Bash allows git reads only and its git reads stay in the check
   }
 });
 
-// A model leg's stop step, run as the runner runs it.
 function stopStep(failureClass) {
   const step = stepOf(jobsOf(LANE).generate, "stop");
   const dir = tempDir("mutation-stop-");
@@ -298,7 +293,6 @@ test("the stop step passes a usage or capacity limit and fails every other class
   for (const failureClass of ["auth", "max-turns", "timeout", "no-execution", "other", ""]) {
     assert.deepEqual(stopStep(failureClass), { code: 1, output: "" }, failureClass);
   }
-  // A handoff is no failure: the step runs only on a failed leg that handed nothing on.
   for (const id of MODEL_JOBS) {
     assert.equal(field(stepOf(jobsOf(LANE)[id], "stop"), "if"), "always() && steps.run.outcome == 'failure' && steps.run.outputs.handoff != 'true'", id);
   }
@@ -357,7 +351,6 @@ test("main comments on the merged pull request when another closed unmerged on t
   assert.notEqual(out.comment, null);
 });
 
-// Each outcome class, on one merged pull request: comment only for a survivor or an uncovered mutant.
 const OUTCOMES = [
   ["a survivor", result([mutant({ state: "survived" })]), true, null],
   ["an uncovered mutant", result([mutant({ state: "no-coverage" })]), true, null],
