@@ -661,7 +661,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `observer_change_check` | boolean | `false` | Run a live check at the step after one that called a tool in observer_change_tools. Off by default. |
 | `observer_change_tools` | string | `"Edit,Write,NotebookEdit"` | Comma-separated tool names that count as a change for the edit check. |
 | `observer_gate_check` | boolean | `false` | Hold Bash commands matching observer_gate_pattern until a live check returns; a finding refuses the command with the observer note. A timeout or observer error lets it run. Off by default. |
-| `observer_gate_pattern` | string | `"\\b(git\\s+push|gh\\s+pr\\s+(create|merge|comment|review)|gh\\s+issue\\s+(create|comment)|gh\\s+api\\b.*\\s(-X|--method)\\s*(POST|PATCH|PUT|DELETE))\\b"` | Regular expression for commands the gate holds: by default git push, gh pr create/merge/comment/review, gh issue create/comment, and gh api with a writing method. |
+| `observer_gate_pattern` | string | `"\\b(git\\s+push\|gh\\s+pr\\s+(create\|merge\|comment\|review)\|gh\\s+issue\\s+(create\|comment)\|gh\\s+api\\b.*\\s(-X\|--method)\\s*(POST\|PATCH\|PUT\|DELETE))\\b"` | Regular expression for commands the gate holds: by default git push, gh pr create/merge/comment/review, gh issue create/comment, and gh api with a writing method. |
 | `observer_gate_timeout_seconds` | number<br>*min 1* | `30` | Longest the gate holds a command; the command then runs. Default 30. |
 | `observer_gate_refusals` | number<br>*min 0* | `1` | Times the gate refuses the same command before letting it run; default 1. |
 | `observer_clear_after_prompts` | number<br>*min 1* | `2` | Prompts a shown finding survives unanswered before it clears; default 2. |
