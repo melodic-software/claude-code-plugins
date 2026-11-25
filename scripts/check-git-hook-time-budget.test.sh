@@ -34,7 +34,7 @@ make_root() {
 }
 
 RECORD_COMMIT="git diff --cached --name-only | wc -l | tr -d ' ' >'$TMP/REC/staged'"
-RECORD_PUSH="printf '%s %s\n' \"\$1\" \"\$2\" >'$TMP/REC/args'; cat >'$TMP/REC/stdin'"
+RECORD_PUSH="printf '%s %s\n' \"\$1\" \"\$2\" >'$TMP/REC/args'; cat >'$TMP/REC/stdin'; git rev-parse HEAD HEAD~1 >'$TMP/REC/heads'"
 
 r="$TMP/fast"
 make_root "$r" "${RECORD_COMMIT//REC/fast/rec}" "${RECORD_PUSH//REC/fast/rec}"
@@ -63,10 +63,28 @@ if [[ "$(cat "$r/rec/args" 2>/dev/null)" == "origin https://example.invalid/repo
 else
   fail "the pre-push entry args were: $(cat "$r/rec/args" 2>/dev/null)"
 fi
-if [[ "$(cat "$r/rec/stdin" 2>/dev/null)" == "refs/heads/hook-budget-check $(g "$r" rev-parse HEAD) refs/heads/hook-budget-check 0000000000000000000000000000000000000000" ]]; then
-  ok "the pre-push entry reads HEAD of the real tree pushed as a new non-default branch"
+mapfile -t heads <"$r/rec/heads" 2>/dev/null
+if [[ "${heads[1]:-}" == "$(g "$r" rev-parse HEAD)" && "$(cat "$r/rec/stdin" 2>/dev/null)" == "refs/heads/hook-budget-check ${heads[0]:-none} refs/heads/hook-budget-check 0000000000000000000000000000000000000000" ]]; then
+  ok "the pre-push entry reads one commit past HEAD of the real tree, pushed as a new non-default branch"
 else
-  fail "the pre-push entry stdin lines were: $(cat "$r/rec/stdin" 2>/dev/null)"
+  fail "the pre-push entry stdin lines were: $(cat "$r/rec/stdin" 2>/dev/null); heads: ${heads[*]:-none}"
+fi
+
+# shellcheck disable=SC2016
+RECORD_RANGE='git diff --name-only "$(git symbolic-ref --short refs/remotes/origin/HEAD)...HEAD" | wc -l | tr -d " " >'"'$TMP/wide/rec/range'"
+r="$TMP/wide"
+make_root "$r" ':' "$RECORD_RANGE"
+g "$r" update-ref refs/remotes/origin/main HEAD
+g "$r" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+mkdir -p "$r/plugins/wide"
+for i in $(seq 1 1500); do printf 'file %d\n' "$i" >"$r/plugins/wide/f$i.txt"; done
+g "$r" add -A
+g "$r" commit -q -m "a 1500-file change past origin/main"
+gate --root "$r" --force --runs 1 >/dev/null 2>&1
+if [[ "$(cat "$r/rec/range" 2>/dev/null)" == 1 ]]; then
+  ok "a 1500-file change past origin/main still gives the pre-push entry a one-file range"
+else
+  fail "the pre-push range should hold the one fixture file whatever the change's size, held: $(cat "$r/rec/range" 2>/dev/null)"
 fi
 
 r="$TMP/slow"

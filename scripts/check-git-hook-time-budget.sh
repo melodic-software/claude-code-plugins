@@ -16,8 +16,9 @@ Time every pre-commit and pre-push entry that the root lefthook.yml and every sh
 plugins/*/git-hooks/*.yml config hold, and fail a hook whose entries that ran together
 take longer than its budget: ADR 0072, pre-commit 3 s on a 10-file commit, pre-push 3 s.
 pre-commit runs on a throwaway fixture repository with 10 staged files. pre-push runs on
-the real checkout, whose size its entries' cost grows with: HEAD pushed as a new
-non-default branch, ranged from origin/main.
+a shared clone of the real checkout, so its entries pay for the repository's size but
+not for the change's: HEAD checked out with origin/main pointed at it, one fixture
+commit adding one file on top, pushed as a new non-default branch.
 
 The budget is calibrated per hook, so a slower runner does not flake: four reference
 parts that run none of the hooks' code and do not grow with the repository are timed in
@@ -214,7 +215,8 @@ S="$(for _ in {1..21}; do t0=$(now_us) && bash -c : && echo $(($(now_us) - t0));
 
 fx="$(mktemp -d)" || exit 2
 refdir="$(mktemp -d)" || exit 2
-trap 'rm -rf "$fx" "$refdir"' EXIT
+pp="$(mktemp -d)" || exit 2
+trap 'rm -rf "$fx" "$refdir" "$pp"' EXIT
 
 part_pwsh() {
   pwsh -NoProfile -NonInteractive -Command "Add-Type -TypeDefinition 'public static class A { public static int F() { return 1; } }'" >/dev/null
@@ -464,7 +466,13 @@ echo "S, one no-op bash -c : spawn, median of 21: $(awk -v us="$S" 'BEGIN { prin
 echo "$ref_line"
 time_hook pre-commit "10 staged files on the fixture" "$fx"
 pp_remote="$(git -C "$ROOT" remote get-url origin 2>/dev/null || echo https://example.invalid/repo.git)"
-time_hook pre-push "HEAD of the real checkout as a new branch" "$ROOT" origin "$pp_remote"
+p() { git -C "$pp/repo" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
+head_sha="$(git -C "$ROOT" rev-parse HEAD)" || exit 2
+git clone -q --shared --no-checkout "$ROOT" "$pp/repo" && p checkout -q --detach "$head_sha" || exit 2
+p update-ref refs/remotes/origin/main "$head_sha" && p symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main || exit 2
+printf 'fixture\n' >"$pp/repo/hook-budget-fixture.txt"
+p add hook-budget-fixture.txt && p commit -q -m "hook budget fixture" || exit 2
+time_hook pre-push "one fixture commit past HEAD of the real checkout, as a new branch" "$pp/repo" origin "$pp_remote"
 
 echo
 if ((over)); then
