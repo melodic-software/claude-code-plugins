@@ -28,7 +28,7 @@ yaml_value() {
     -e "s/^\"\(.*\)\"$/\1/" -e "s/^'\(.*\)'$/\1/"
 }
 
-cache_root() { printf '%s\n' "${ORG_STANDARDS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-plugins/org-standards}"; }
+CACHE="${ORG_STANDARDS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-plugins/org-standards}"
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 REPO_RE='^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$'
 
@@ -45,7 +45,7 @@ org_dir() {
     return 3
   fi
   local cache
-  cache="$(cache_root)/$repo"
+  cache="$CACHE/$repo"
   local stamp="$cache/.git/org-standards-fetched" ttl="${ORG_STANDARDS_TTL:-3600}" now
   local url="${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git"
   now=$(date +%s)
@@ -85,7 +85,7 @@ index_of() {
 
 first_line() { awk 'NF { sub(/^[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print; exit }' "$1"; }
 
-TABLE_SEP='^\|[ \t:|-]+$'
+TABLE_SEP='^[|][ :|-]+$'
 
 surfaces() {
   awk -v sepre="$TABLE_SEP" -F'|' '
@@ -112,7 +112,11 @@ frontmatter() {
 
 list_ranges() {
   awk '
-    /^standards_repositories:/ { inlist = 1; next }
+    /^standards_repositories:/ {
+      v = $0; sub(/^standards_repositories:[ \t]*/, "", v)
+      if (v != "" && v !~ /^#/) { print "flow", NR; exit }
+      inlist = 1; next
+    }
     inlist {
       if ($0 ~ /^[ \t]*(#.*)?$/) next
       match($0, /^ */); ind = RLENGTH; rest = substr($0, ind + 1)
@@ -128,7 +132,6 @@ to_records() {
     BEGIN { n = split(starts, S, " ") }
     $1 == "standards-contract" { print "version\t" $2; next }
     $1 ~ /^trusted_owners(\.[0-9]+)?$/ { print "trusted\t" $2; next }
-    $1 == "standards_repositories" { bad["list"] = "standards_repositories is not a block list"; next }
     $1 ~ /^standards_repositories\./ {
       rest = substr($1, 24); k = rest; sub(/\..*/, "", k); field = substr(rest, length(k) + 2)
       seen[k] = 1
@@ -143,7 +146,6 @@ to_records() {
       prob[k] = "unknown key " key
     }
     END {
-      if ("list" in bad) print "badlist\t" bad["list"]
       for (k = 0; k < n; k++) if (k in seen)
         printf "%s%c%s%c%s%c%s%c%s%c%s%c%s\n", S[k + 1], 31, v[k, "repo"], 31, v[k, "ref"], 31, v[k, "topics"], 31, v[k, "only_in"], 31, v[k, "except_in"], 31, prob[k]
     }'
@@ -155,17 +157,16 @@ origin_repo() {
   lower "$(printf '%s' "$url" | sed -e 's#/*$##' -e 's#\.git$##' -e 's#:#/#g' | awk -F/ 'NF >= 2 { print $(NF - 1) "/" $NF }')"
 }
 
-matches_any() {
-  local cur=$1 g
-  shift
-  [[ -n "$cur" ]] || return 1
-  for g in "$@"; do
+glob_hit() {
+  local cur=$1 g globs
+  read -ra globs <<<"$2"
+  for g in "${globs[@]}"; do
     g=$(lower "$g")
     [[ "$g" == */* ]] || g="$g/*"
     # shellcheck disable=SC2254  # the glob in $g is the pattern being matched
-    case "$cur" in $g) return 0 ;; esac
+    case "$cur" in $g) printf 1; return 0 ;; *) ;; esac
   done
-  return 1
+  printf 0
 }
 
 version_lt() {
@@ -174,12 +175,14 @@ version_lt() {
 
 layer_checkout() {
   local repo=$1 sha=$2 verify=$3 dest tmp leaf
-  dest="$(cache_root)/$repo@$sha"
+  dest="$CACHE/$repo@$sha"
   [[ -d "$dest/.git" ]] && { printf '%s\n' "$dest"; return 0; }
   mkdir -p "$(dirname "$dest")"
   tmp=$(mktemp -d "$(dirname "$dest")/.build.XXXXXX")
   leaf=$(basename "$tmp")
-  git init -q "$tmp" && git -C "$tmp" remote add origin "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git" || { rm -rf "${tmp:?}"; return 4; }
+  if ! { git init -q "$tmp" && git -C "$tmp" remote add origin "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git"; }; then
+    rm -rf "${tmp:?}"; return 4
+  fi
   if [[ "$verify" -eq 1 ]]; then
     if ! git -C "$tmp" fetch --quiet --filter=blob:none --no-tags origin \
       '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*' 2>/dev/null; then
@@ -212,16 +215,16 @@ write_atomic() {
 
 live_sha() {
   local repo=$1 stamp sha now at=0
-  stamp="$(cache_root)/$repo@main"
+  stamp="$CACHE/$repo@main"
   now=$(date +%s)
   if [[ -f "$stamp" ]]; then read -r sha at <"$stamp" || true; fi
-  if [[ -n "${sha:-}" ]] && [[ $((now - at)) -lt "${ORG_STANDARDS_TTL:-3600}" ]] && [[ -d "$(cache_root)/$repo@$sha/.git" ]]; then
+  if [[ -n "${sha:-}" ]] && [[ $((now - at)) -lt "${ORG_STANDARDS_TTL:-3600}" ]] && [[ -d "$CACHE/$repo@$sha/.git" ]]; then
     printf '%s\n' "$sha"; return 0
   fi
   local fresh
   fresh=$(git ls-remote "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git" refs/heads/main 2>/dev/null | awk 'NR == 1 { print $1 }') || fresh=""
   if [[ -z "$fresh" ]]; then
-    [[ -n "${sha:-}" ]] && [[ -d "$(cache_root)/$repo@$sha/.git" ]] || return 4
+    [[ -n "${sha:-}" ]] && [[ -d "$CACHE/$repo@$sha/.git" ]] || return 4
     note "refreshing $repo failed; using its main as cached at ${sha:0:12}"
     printf '%s\n' "$sha"; return 0
   fi
@@ -232,16 +235,17 @@ live_sha() {
 
 subscription() {
   local file=$1 line=$2 repo=$3 ref=$4 topics=$5 only=$6 except=$7 org=$8 cur=$9 trusted=${10}
-  local at="$file:$line" owner sha dir status=0 index last laststate
+  local at="$file:$line" owner repo_l only_hit except_hit sha dir status=0 index last laststate
   owner=$(lower "${repo%%/*}")
-  # shellcheck disable=SC2086  # the lists are space-separated words
-  if [[ -n "$only" ]] && ! matches_any "$cur" $only; then return 0; fi
-  # shellcheck disable=SC2086
-  if [[ -n "$except" ]] && matches_any "$cur" $except; then return 0; fi
-  if [[ -n "$org" ]] && [[ "$(lower "$repo")" == "$org" ]]; then
+  repo_l=$(lower "$repo")
+  only_hit=$(glob_hit "$cur" "$only")
+  except_hit=$(glob_hit "$cur" "$except")
+  if [[ -n "$only" && "$only_hit" == 0 ]] || [[ "$except_hit" == 1 ]]; then return 0; fi
+  if [[ -n "$org" ]] && [[ "$repo_l" == "$org" ]]; then
     note "$at: $repo is also this repository's org layer; it is read once there, at the org layer's commit and team strength${ref:+ (pin ${ref:0:12} skipped)}"
     return 0
   fi
+  # shellcheck disable=SC2310  # layer_checkout's and live_sha's return codes are the answer, not a failure
   if [[ -n "$ref" ]]; then
     sha=$ref
     dir=$(layer_checkout "$repo" "$sha" 1) || status=$?
@@ -257,13 +261,15 @@ subscription() {
     6) note "$at: $sha is not reachable from a branch or tag of $repo; subscription refused"; return 0 ;;
     *) note "$at: cannot read $repo@${sha:0:12}; layer skipped this run"; return 0 ;;
   esac
+  # shellcheck disable=SC2310  # index_of failing means no index, reported here
   index=$(index_of "$dir") || { note "$at: $repo@${sha:0:12} has no standards index; layer skipped"; return 0; }
-  laststate="$(cache_root)/$repo.last"
+  laststate="$CACHE/$repo.last"
   last=""
   [[ -f "$laststate" ]] && read -r last <"$laststate" || true
   if [[ -n "$last" ]] && [[ "$last" != "$sha" ]]; then
     local old
-    old=$(index_of "$(cache_root)/$repo@$last" 2>/dev/null) || old=""
+    # shellcheck disable=SC2310  # a last read whose checkout is gone has nothing to diff against
+    old=$(index_of "$CACHE/$repo@$last" 2>/dev/null) || old=""
     if [[ -n "$old" ]]; then
       if [[ -n "$ref" ]]; then
         note "$at: ref of $repo changed from ${last:0:12} to ${sha:0:12}; review the index diff below"
@@ -281,7 +287,7 @@ subscription() {
     for t in $topics; do
       grep -qxF -- "$t" <<<"$ids" || note "$at: topic $t is not a Surface id in the index of $repo@${sha:0:12}"
     done
-    filtered="$(dirname "$index")/.README.$(printf '%s\n' $topics | sort -u | paste -sd+ -).md"
+    filtered="$(dirname "$index")/.README.$(tr ' ' '\n' <<<"$topics" | sort -u | paste -sd+ -).md"
     awk -v sepre="$TABLE_SEP" -v topics="$topics" '
       BEGIN { n = split(topics, T, " "); for (i = 1; i <= n; i++) keep[T[i]] = 1 }
       sep && /^\|/ { id = $0; sub(/^\|[ \t]*/, "", id); sub(/[ \t]*\|.*$/, "", id); if (id in keep) print; next }
@@ -308,6 +314,10 @@ subscriptions() {
   local text ranges parsed errline msg range
   text=$(frontmatter "$file")
   ranges=$(printf '%s\n' "$text" | list_ranges)
+  if [[ "$ranges" == flow* ]]; then
+    note "subscriptions not read: $file:${ranges#flow }: standards_repositories is not a block list; write each entry as a block mapping"
+    return 0
+  fi
   while ! parsed=$(printf '%s\n' "$text" | awk -f "$awkf"); do
     errline=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $2; exit }')
     msg=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $3; exit }')
@@ -327,16 +337,16 @@ subscriptions() {
     case "$kind" in
       version) version=$value ;;
       trusted) trusted="$trusted $(lower "$value")" ;;
-      badlist) note "subscriptions not read: $file: $value"; return 0 ;;
       *) ;;
     esac
-  done < <(printf '%s\n' "$records" | grep -E $'^(version|trusted|badlist)\t' || true)
+  done < <(printf '%s\n' "$records" | grep -E $'^(version|trusted)\t' || true)
   if [[ -z "$version" ]]; then
     note "subscriptions not read: $file has no standards-contract frontmatter key, so it is not an index"; return 0
   fi
   local entries
-  entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted|badlist)\t' || true)
+  entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted)\t' || true)
   [[ -n "$entries" ]] || return 0
+  # shellcheck disable=SC2310  # version_lt's return code is the answer
   if version_lt "$version" "$SUBSCRIPTIONS_SINCE"; then
     note "$file declares standards-contract $version; standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
   fi
