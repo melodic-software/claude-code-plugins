@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.26.2] - 2026-11-25
+
+### Fixed
+
+- `/evals:audit` no longer counts a Skill grader that accepts several skills, such as `(?:a|b)`, as triggering coverage. A skill whose only triggering grader is one of these now appears on its own line, "skills covered only by a multi-skill grader", and in the `multi_skill_trigger_only` list and count of `--json`.
+
 ## [0.26.1] - 2026-11-24
 
 ### Changed
