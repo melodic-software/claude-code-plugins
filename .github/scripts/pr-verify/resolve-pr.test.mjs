@@ -26,6 +26,7 @@ import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CARRY_MAX, carryMain, closing, CONTRACT_LINE, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, specChanged, takeReads, upstreamPages, vendoredRows } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
+import { PR_READS, takePrReads } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
@@ -2518,6 +2519,79 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
   await main(skipped, { github: fake({ jobs, artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } }) });
   assert.match(readFileSync(skipped.GITHUB_OUTPUT, "utf8"), /reason=already-judged/);
   assert.equal(keptJobs(skipped, RUN), null);
+});
+
+const TEXT_PULL = { node_id: "PR_kw41", title: "feat: x", body: "the REST body" };
+const OWN_FAIL = { artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } };
+const SPEC_EDIT = { lastEditedAt: "2026-10-20T01:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
+
+const keptReads = async (setup, options = {}) => {
+  const kept = [];
+  const result = await resolve(setup, { ...options, keepReads: (reads) => kept.push(reads) });
+  return { result, kept };
+};
+
+test("a judgment hands on the REST pull's title, and the body with its edit stamp from the one spec answer", async () => {
+  const { kept } = await keptReads({ pulls: [pull(TEXT_PULL)], body: "the spec answer's body", edit: SPEC_EDIT });
+  assert.deepEqual(kept, [
+    {
+      v: 1,
+      pr: 41,
+      pull: {
+        number: 41,
+        node_id: "PR_kw41",
+        title: "feat: x",
+        body: "the spec answer's body",
+        last_edited_at: SPEC_EDIT.lastEditedAt,
+        user: { id: 337595936, login: LANE, type: "Bot" },
+        head: { sha: HEAD },
+        base: { sha: BASE },
+      },
+      closing: { nodes: [{ number: 7, repository: { nameWithOwner: REPO } }], pageInfo: { hasNextPage: false, endCursor: null } },
+    },
+  ]);
+  assert.deepEqual(takePrReads(JSON.stringify(kept[0]), "41", HEAD).closing, kept[0].closing);
+  assert.throws(() => takePrReads(JSON.stringify(kept[0]), "41", BASE), /malformed/);
+});
+
+test("a person's pull request hands on the title renames its spec read folded in", async () => {
+  const renamer = { __typename: "User", login: "maintainer", databaseId: 100 };
+  const { kept } = await keptReads({ pulls: [{ ...HUMAN_PR, ...TEXT_PULL }], renames: [renamer] }, { verifyAuthors: "lane-or-owner", ownerIds: [100] });
+  assert.deepEqual(kept[0].renames, { nodes: [{ __typename: "RenamedTitleEvent", actor: renamer }], pageInfo: { hasNextPage: false, endCursor: null } });
+});
+
+test("a GraphQL commit pulls read hands on no pull, and a skip hands on nothing", async () => {
+  const { kept } = await keptReads({ restFails: true, associated: [GRAPHQL_PULL] });
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].pull, null);
+  const skipped = await keptReads({ pulls: [pull(TEXT_PULL)], ...OWN_FAIL });
+  assert.equal(skipped.result.reason, "already-judged");
+  assert.deepEqual(skipped.kept, []);
+});
+
+test("main writes the handed-on reads to RUNNER_TEMP only when it proceeds", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const dir = tempDir("pr-verify-");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const env = (temp) => ({
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: path.join(temp, "out"),
+    GITHUB_EVENT_PATH: eventFile(),
+    SPEC_FILE: path.join(temp, "spec.json"),
+    SPEC_TEXT_FILE: path.join(temp, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+    RUNNER_TEMP: temp,
+  });
+  const judged = tempDir("pr-verify-temp-");
+  await main(env(judged), { github: fake({ pulls: [pull(TEXT_PULL)], body: "Closes #7" }) });
+  assert.equal(takePrReads(readFileSync(path.join(judged, PR_READS), "utf8"), "41", HEAD).pull.body, "Closes #7");
+  const skipped = tempDir("pr-verify-temp-");
+  await main(env(skipped), { github: fake({ pulls: [pull(TEXT_PULL)], ...OWN_FAIL }) });
+  assert.match(readFileSync(path.join(skipped, "out"), "utf8"), /reason=already-judged/);
+  assert.throws(() => readFileSync(path.join(skipped, PR_READS)), { code: "ENOENT" });
 });
 
 test("main reports a human's PR as skipped in the log and the step summary", async (t) => {
