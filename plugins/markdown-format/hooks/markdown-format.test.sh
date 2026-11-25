@@ -42,7 +42,7 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 

@@ -45,9 +45,6 @@ assert_contains "the counter delta is reported" "delta=-2" "$RUN_OUT"
 assert_contains "the cold run is labeled separately" "cold  spawns=" "$RUN_OUT"
 assert_contains "stability is stated, not assumed" "both arms agreed" "$RUN_OUT"
 
-# --- 2. a subject whose WARM runs disagree is a hard failure ---
-# Run 1 is discarded as cold, so this cannot be a cold-cache artifact: the
-# climbing subject counts 2 then 3 on the two warm runs.
 # discriminating-skip-required: this case is the only proof that the rule 1
 # agreement gate fires at all.
 run_driver --shim-dir "$SHIM" --tool sed \

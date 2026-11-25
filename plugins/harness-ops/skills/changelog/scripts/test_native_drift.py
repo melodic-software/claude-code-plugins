@@ -309,8 +309,6 @@ class TriggerTests(unittest.TestCase):
         self.assertTrue(any(r.startswith("reclassified") for r in reasons))
 
     def test_docs_sourced_marker_does_not_fire(self):
-        # The skill-doctor shape: gated comes from the docs, and the extraction
-        # sets no gated flag, so only the extracted marker is compared.
         r = row("usage", "builtin-command", ["gated", "model-invocation-disabled"])
         self.assertIn(
             "markers differ",
