@@ -79,8 +79,8 @@ that still carries a `<!-- FILL` slot is an unfinished skeleton the producer nev
 is named as such and never presented as the lost handoff. When the operator asks what a candidate
 says beyond its metadata and prompt, read that section by name with
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py read <file> --section "<name>"`, which follows a
-section moved to the hop file; reading it changes nothing and the confirm gate still holds.
-When the operator's question names a topic rather than a section, also read the Observations section that way, or open each `- Moved:` pointer's hop file with Read, before you say the handoff lacks the answer.
+section moved to the archive file; reading it changes nothing and the confirm gate still holds.
+When the operator's question names a topic rather than a section, also read the Observations section that way, or open each `- Moved:` pointer's archive file with Read, before you say the handoff lacks the answer.
 
 **The resume prompt this skill recovers is the resume region plus the goal region (when one
 applies) plus every below-rail `/loop` re-arm message** (save-point.md "Detection contract"). The

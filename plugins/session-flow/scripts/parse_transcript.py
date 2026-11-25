@@ -73,7 +73,7 @@ Output:
             {"hop": N, "session_id": "<UUID>", "date": "<ISO>", "source": "<file read>",
              "sections": {"Direction changes": [...], "This session": [...],
                           "Observations": [...]}},
-          ],                    # sections read from hop files when a hot file is gone
+          ],                    # sections read from archive files when a handoff file is gone
         }
 
 Exit codes:

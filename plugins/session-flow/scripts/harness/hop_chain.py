@@ -1158,7 +1158,7 @@ def generate_chain(
 ) -> list[Path]:
     """Generate `hops` handoff files of `shape` through the real
     `save_point.py new`, each filled with deterministic filler, each validated
-    strictly. Shape 4 fills through `save_point.py fill`, which fits the hot file;
+    strictly. Shape 4 fills through `save_point.py fill`, which fits the handoff file;
     a hop whose only FAILs are OVER-CAP is kept, its first OVER-CAP line recorded
     in `over_caps`."""
     over_caps = {} if over_caps is None else over_caps
@@ -1266,7 +1266,7 @@ def _fill_4(path: Path, hop: int, size: FillerSize, projects: Path) -> str | Non
 
 
 def moved_sections(path: Path) -> list[str]:
-    """The sections `fill` moved out of a shape-4 hot file, from their pointers."""
+    """The sections `fill` moved out of a shape-4 handoff file, from their pointers."""
     from handoff_fit import MOVED_PREFIX
 
     moved = []

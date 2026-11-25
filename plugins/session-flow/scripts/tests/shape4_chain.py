@@ -73,9 +73,9 @@ def pointer(root: str, k: int, sid: str, title: str) -> str:
 
 
 def move(hot: Path, root: str, k: int, sid: str, title: str) -> None:
-    """Move hop `k`'s `title` section to its hop file, and point the copy the
+    """Move hop `k`'s `title` section to its archive file, and point the copy the
     next hop's file holds at it, as a writer that moved it before the next hop
-    copied the hot file would leave both."""
+    copied the handoff file would leave both."""
     handoffs = hot.parent
     head, bodies = split_sections(hot.read_text(encoding="utf-8"))
     moved = bodies[title].strip("\n")
@@ -104,8 +104,8 @@ def s4_chain(
     moves: tuple[str, ...] = ("Observations",),
     shape3_hops: int = 0,
 ) -> list[Path]:
-    """A chain of `hops` hot files: the first `shape3_hops` stay shape 3, the
-    rest are shape 4 with `moves` moved to their hop files."""
+    """A chain of `hops` handoff files: the first `shape3_hops` stay shape 3, the
+    rest are shape 4 with `moves` moved to their archive files."""
     paths: list[Path] = []
     for k in range(1, hops + 1):
         paths.append(

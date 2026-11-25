@@ -22,7 +22,7 @@ from the memory-root layout:
                    item. `handoffs/` is its place;
                    one in the root or in `running-retros/` is a misplaced handoff
     archive        a shape-3 chain's `handoffs/archive/<chain-root-stem>/`
-                   directory of hop files. It is kept while any handoff of its
+                   directory of archive files. It is kept while any handoff of its
                    chain (shape-3 `chain_root`, shape-2 `chain:` root) is kept,
                    and kept when none of them is on disk; it leaves with the
                    last of them, and stays when one of them is refused
@@ -47,17 +47,17 @@ from the memory-root layout:
     unknown        everything else; always reported, always kept
 
 An item is in flight, and so kept, when any of these holds:
-    - it is a handoff of an open chain: one whose newest hot file (by its
+    - it is a handoff of an open chain: one whose newest handoff file (by its
       `<TS>` name) has no Resume prompt `Next:` line reading exactly
       `Next: none (closed)`, a missing or unreadable line included, whatever
       its age or PR state. A chain's handoffs are those naming its root
       (shape-3 `chain_root`, shape-2 first `chain:` entry) and the files they
       name as root, `chain:` entry or `previous_handoff`; no link is looked up
       for them, and `clean` prints one `kept open chain:` line per such chain
-    - it is the newest hot file of a finished shape-3 or shape-4 chain: such a
-      chain shrinks to that file and its hop files (the archive stays with
+    - it is the newest handoff file of a finished shape-3 or shape-4 chain: such a
+      chain shrinks to that file and its archive files (the archive stays with
       it); a shape-2 chain is never shrunk and leaves by the rules here
-    - it is a shape-2 hot file of a finished chain that shrinks: no hop file
+    - it is a shape-2 handoff file of a finished chain that shrinks: no archive file
       holds a shape-2 hop's sections
     - a slice's `INDEX.md` status, or a child slice's, is anything but `done`
       (missing and unrecognized values count as not done)

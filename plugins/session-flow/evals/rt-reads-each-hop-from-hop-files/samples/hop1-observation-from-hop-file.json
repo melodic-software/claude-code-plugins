@@ -12,11 +12,11 @@
   "fail": [
     {
       "answer": "Hop 1 found why hyphenated words miss; hop 2 fixed the tokenizer; hop 3 rebuilt the index.",
-      "why": "the hot files' did lines only, no observation"
+      "why": "the handoff files' did lines only, no observation"
     },
     {
       "answer": "I could not find hop 1's handoff file; only the newest one is on disk.",
-      "why": "missed the hop files"
+      "why": "missed the archive files"
     }
   ]
 }

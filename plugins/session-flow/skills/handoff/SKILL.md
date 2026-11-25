@@ -164,14 +164,14 @@ artifact (a topic contract, an issue, a PR body) and reference it from there. Th
 itself stays ephemeral and is never committed. Cleanup of the `handoffs/` directory remains
 user-controlled removal. Nothing expires, sweeps, or ages these files out silently.
 
-**Keep the hot file current; history lives in the hop files.** The hot file carries only what
+**Keep the handoff file current; history lives in the archive files.** The handoff file carries only what
 the next session acts on: rules rewritten in place under their ids, preferences until their
 instruction file holds them, one direction-change line per change (structure doc, "Shape 3").
 What it drops is already verbatim in this hop's archive file, so nothing is trimmed by deleting
 history. `new` carries the rest off disk, and the skeleton's slots say how each carried entry
 changes, a tagged security or design decision included. After a shape-2 predecessor, state the
-rules still in force under Current rules from the hop file, never from memory. A rule or
-preference leaves the hot file only when retired or promoted, through the `retire` list with its
+rules still in force under Current rules from the archive file, never from memory. A rule or
+preference leaves the handoff file only when retired or promoted, through the `retire` list with its
 reason, never to meet the size cap.
 
 Carrying a rule forward re-checks any refusal or owner reservation it records against the
@@ -234,7 +234,7 @@ in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps.
 
-On the full path the file is the shape `new` writes by default, shape 4: a hot file plus its hop file, and a script owns every
+On the full path the file is the shape `new` writes by default, shape 4: a handoff file plus its archive file, and a script owns every
 deterministic field (engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
 run the guards, run `save_point.py new` (the script is `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py`;
 call it by that path, never search for it) through the interpreter ladder with `-X utf8`, write one JSON object
@@ -316,7 +316,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
   just wrote rather than a remembered template (the set is branch-dependent, and an unknown key
   is refused); `fill` exited 0, so no `FILL` text remains and every deterministic field is still
   as `new` wrote it (frontmatter, the carried goal, rules, preferences, questions, decisions and trail, the
-  `## Prior sessions` table, the rails block minus `Next:`, the hop file). An optional slot
+  `## Prior sessions` table, the rails block minus `Next:`, the archive file). An optional slot
   (`goal-first`, `goal-after`, `below-rail`, `goal-new`, `<section>-new`) that does not apply is left out of the object, which is how `fill`
   deletes its line; a goal region goes in `goal-first` or `goal-after` as one multi-line value,
   whichever the ordering rule calls for, and the other is left out; a refusal names the slot or key and leaves the file byte-identical, so the fix is the JSON
