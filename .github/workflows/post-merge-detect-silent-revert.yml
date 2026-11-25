@@ -63,9 +63,6 @@ jobs:
         with:
           fetch-base: "false"
 
-      # Self-test first, unconditionally: a broken detector must not be able to
-      # mask a real regression behind a green canary. Same never-skip,
-      # self-test-first shape as the pr-require-checks.yml gates.
       - name: Test the silent-revert detector
         run: bash scripts/check-silent-revert.test.sh
 

@@ -189,7 +189,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # list this repository's credit-stop markers
+      actions: read
     outputs:
       next-leg: ${{ steps.credit.outputs.next-leg }}
       next-reason: ${{ steps.credit.outputs.next-reason }}
@@ -282,8 +282,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the run while Actions or npm installs report a degraded component,
-      # with a logged reason; fails open (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
         if: steps.kill.outputs.proceed == 'true'
@@ -398,9 +396,6 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: bash .base/.github/scripts/plugin-eval/choose-plugins.sh
 
-      # validate-cases.py makes no model call. A FAIL is a case the binary
-      # rejects at load, so the job stops before any spend. On a deterministic
-      # run each suite is then copied without its judged cases.
       - name: Validate and stage the suites
         id: stage
         if: steps.plugins.outputs.go == 'true'
@@ -1991,7 +1986,7 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-      actions: read # the pass's check-key-credit job lists this repository's key markers
+      actions: read
     uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.compare-prepare.outputs.plugin }}
@@ -2020,7 +2015,7 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-      actions: read # the pass's check-key-credit job lists this repository's key markers
+      actions: read
     uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.compare-prepare.outputs.plugin }}

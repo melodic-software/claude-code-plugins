@@ -1384,10 +1384,6 @@ if [[ -n "$print_fanout" ]]; then
   exit 0
 fi
 
-# ---------------------------------------------------------------------------
-# Replay
-# ---------------------------------------------------------------------------
-
 # replay_select <out-prefix> <tree> <selector> <no-suite-list> <scopes-list>
 #               [<flag>...] -- <path>...
 # One selection in the replay tree, through a fresh process. Writes

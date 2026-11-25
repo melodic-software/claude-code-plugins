@@ -193,7 +193,7 @@ printf 'standards_repository: example-org/standards\n' >"$repo/docs/conventions/
 rm -f "$TMP_ROOT/gh-calls"
 run STANDARDS_DIR= -- --list "$base" >/dev/null
 first="$(configs | head -n 1)"
-grep -qx 'api -H Accept: application/vnd.github.raw repos/example-org/standards/contents/lychee.toml' "$TMP_ROOT/gh-calls"
+grep -qxE 'api( -i)? -H Accept: application/vnd\.github\.raw repos/example-org/standards/contents/lychee\.toml' "$TMP_ROOT/gh-calls"
 check $? "with no standards checkout, standards_repository's lychee.toml is read through the API" "$(cat "$TMP_ROOT/gh-calls" 2>&1)"
 [[ "$(configs | wc -l)" -eq 1 && $first == *.toml && $first != "$standards"/* ]]
 check $? "the API-read standards file is the config" "$(configs)"

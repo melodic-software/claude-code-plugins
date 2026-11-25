@@ -16,7 +16,6 @@ param([switch] $Test)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Helpers read $script:Mode, never $Test: Add-Preflight has its own -Test parameter.
 $script:Mode = if ($Test) { 'test' } elseif ($WhatIfPreference) { 'whatif' } else { 'run' }
 # -Test also skips any cmdlet outside a helper that honors -WhatIf.
 if ($script:Mode -eq 'test') { $WhatIfPreference = $true }
@@ -372,7 +371,6 @@ function Use-GuardedResource {
         Add-UnattendedStep "guard $Name" 'would-run' 'would take it out of service, prove the state, then release it'
         return
     }
-    # Listed before Take runs: a Take that fails partway may already hold the resource.
     $script:Held.Add($Name) | Out-Null
     if ($TolerateTakeExit) {
         $global:LASTEXITCODE = 0
