@@ -155,9 +155,11 @@ Start one only when the machine is not already loaded.
 
 The organization's engineering standards are the org layer of the standards contract: skills
 read them from `melodic-software/standards` main (`standards_repository` in
-`docs/conventions/source-control.yaml`), and `docs/standards/` holds only this repository's
-additions. Its index lists when each file applies, and skills read the matching file on demand.
-These apply in every session:
+`docs/conventions/source-control.yaml`). Its index,
+<https://github.com/melodic-software/standards/blob/main/standards/README.md>, lists when each
+file applies, and skills read the matching file on demand. This repository keeps no copy; its own
+additions would go in `docs/standards/`, and it has none. Review criteria are the organization's
+<https://github.com/melodic-software/standards/blob/main/REVIEW.md>. These apply in every session:
 
 - Label the basis of each recommendation, number or default you present: a `file:line`, tool
   output, a URL read this session, or `judgment`.
@@ -171,8 +173,7 @@ These apply in every session:
 A rule that changes what a stage produces or permits belongs in this repository or a plugin, not
 in user scope. User scope keeps only personal style, meaning the voice, length and format of
 replies to the user, set in the user CLAUDE.md, user rules or an output style.
-Marketplace plugin contracts live in `docs/contracts/<name>/`. Team standards live in
-`docs/standards/`.
+Marketplace plugin contracts live in `docs/contracts/<name>/`.
 
 <!-- BEGIN GENERATED: convention-home -->
 Team conventions live in `docs/conventions`: its `<concern>.yaml` and `.md` files hold this repository's plugin settings (ADR 0064).
