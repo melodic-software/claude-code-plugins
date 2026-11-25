@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 import { writeFileSync } from "node:fs";
 
 import { runAsScript } from "../lib/run-main.mjs";

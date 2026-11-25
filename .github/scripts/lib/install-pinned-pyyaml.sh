@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 requirements="$(dirname "${BASH_SOURCE[0]}")/../../requirements-ci.txt"
 : "${RUNNER_TEMP:?}"
 awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \

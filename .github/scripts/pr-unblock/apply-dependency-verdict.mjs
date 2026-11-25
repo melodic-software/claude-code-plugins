@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";

@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
