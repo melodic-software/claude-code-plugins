@@ -744,6 +744,12 @@ ALLOWLIST = [
         r"\bworker specs as contracts\b",
         "The brief writes worker specs as contracts.",
     ),
+    path(
+        "lane-hunt-scope",
+        ".changes/**",
+        ".changes/code-tidying/rename.md",
+        "Move any `.claude/tidy-lanes/` files to `.claude/tidy-areas/`.",
+    ),
 ]
 
 
