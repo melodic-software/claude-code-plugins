@@ -24,6 +24,7 @@ import {
   buildVerdict,
   checkChunk,
   checkKeyLeg,
+  checkLaterChunks,
   chunkBudget,
   laterRuns,
   RESULT_BYTES_MAX,
@@ -1248,6 +1249,22 @@ test("a fail a later chunk left skips the final judge, and a later chunk stopped
   const skipped = laterChunks(3, () => CHUNK_PASS, (k) => (k === 3 ? "skipped" : "success"));
   assert.throws(() => writeChunkResults(skipped.env), /chunk 3 of 3: the chunk left no run/);
   assert.equal(readFileSync(skipped.env.GITHUB_OUTPUT, "utf8"), "");
+});
+
+test("a fail a later chunk left before another handed off stands: checkLaterChunks reports it and the chunk results write it", () => {
+  const handedOff = (env) =>
+    writeFileSync(path.join(env.CHUNKS_DIR, "chunk-3/execution.json"), JSON.stringify([{ type: "result", subtype: "error_during_execution", is_error: true }]));
+  const outcomes = (k) => ({ 2: "success", 3: "failure", 4: "skipped" })[k];
+  const failing = laterChunks(4, (k) => (k === 2 ? CHUNK_FAIL : CHUNK_PASS), outcomes);
+  handedOff(failing.env);
+  checkLaterChunks(failing.env);
+  assert.equal(readFileSync(failing.env.GITHUB_OUTPUT, "utf8"), "fail=true\n");
+  writeChunkResults(failing.env);
+  assert.equal(readFileSync(failing.env.GITHUB_OUTPUT, "utf8"), "fail=true\nfail=true\n");
+  const clean = laterChunks(4, () => CHUNK_PASS, outcomes);
+  handedOff(clean.env);
+  checkLaterChunks(clean.env);
+  assert.equal(readFileSync(clean.env.GITHUB_OUTPUT, "utf8"), "fail=false\n", "a clean handoff still hands off");
 });
 
 test("laterRuns names the files of each later chunk that ran, and checkKeyLeg needs every one of their logs", () => {

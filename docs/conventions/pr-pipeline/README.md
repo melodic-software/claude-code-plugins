@@ -2901,9 +2901,9 @@ same parts. With no output
 from it, off the schema, or with a denial on anything but a `fail`, and no counted fail, the head gets
 no verdict, so no chunk's `pass-notes` passes a chunked head alone. A single chunk has no final step. A
 chunk that passes short of a part, leaves no output or is off the schema leaves no verdict for the
-head, and a handoff from any chunk hands the whole
-judgment to the next leg, which judges every chunk again. A file over 300000 bytes, or a diff that
-needs more than 12 chunks (over about 3.6 MB), ends the run red with no verdict and an error naming
+head, and a handoff from any chunk with no counted fail from a chunk that finished first hands the
+whole judgment to the next leg, which judges every chunk again (`write-verdict.mjs` `checkLaterChunks`). A file over 300000 bytes, or a diff that
+needs more than 75 chunks (over about 22.5 MB), ends the run red with no verdict and an error naming
 the file or the chunk count, so size alone writes no `fail`. With no verdict `verdictHold` holds the
 head, the trusted approval of the head lifts that, and a `pr-verify-failed` label stays. The diff
 step logs a `pr-verify chunks` notice, and the verdict step a `pr-verify chunk` notice per chunk. The run

@@ -644,9 +644,20 @@ jobs:
           json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
           leg-timeout-minutes: "15"
 
+      - name: Check the later chunks for a fail
+        id: later-fail
+        if: steps.judge-chunks.outputs.handoff == 'true'
+        env:
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
+          CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
+          MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs later-fail
+
       - name: Check the key leg, later chunks
         id: key-leg-chunks
-        if: steps.judge-chunks.outputs.handoff == 'true'
+        if: steps.judge-chunks.outputs.handoff == 'true' && steps.later-fail.outputs.fail != 'true'
         continue-on-error: true
         env:
           LOG_FILES: |
@@ -677,7 +688,7 @@ jobs:
           credential: ${{ steps.judge-chunks.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-chunks.outputs.lane-class }}
-          handoff: ${{ steps.judge-chunks.outputs.handoff == 'true' && steps.key-leg-chunks.outcome != 'failure' }}
+          handoff: ${{ steps.judge-chunks.outputs.handoff == 'true' && steps.later-fail.outputs.fail != 'true' && steps.key-leg-chunks.outcome != 'failure' }}
 
       - name: Upload the later chunks' sealed transcript
         if: always() && steps.judge-chunks.outputs.transcript-file != ''
@@ -697,7 +708,7 @@ jobs:
       # keeps this judge off the diff, and a denial voids a pass or pass-notes.
       - name: Write the chunk results
         id: chunk-results
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && steps.chunk-fail.outputs.fail != 'true' && (steps.judge-chunks.outcome == 'success' || steps.judge-chunks.outcome == 'failure') && steps.judge-chunks.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && steps.chunk-fail.outputs.fail != 'true' && (steps.judge-chunks.outcome == 'success' || steps.judge-chunks.outcome == 'failure') && (steps.judge-chunks.outputs.handoff != 'true' || steps.later-fail.outputs.fail == 'true')
         env:
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
@@ -1391,9 +1402,20 @@ jobs:
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
           leg-timeout-minutes: "15"
 
+      - name: Check the later chunks for a fail
+        id: later-fail
+        if: steps.judge-chunks.outputs.handoff == 'true'
+        env:
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
+          CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
+          MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs later-fail
+
       - name: Check the subscription leg, later chunks
         id: sub-leg-chunks
-        if: steps.judge-chunks.outputs.handoff == 'true'
+        if: steps.judge-chunks.outputs.handoff == 'true' && steps.later-fail.outputs.fail != 'true'
         continue-on-error: true
         env:
           LOG_FILES: |
@@ -1420,7 +1442,7 @@ jobs:
           credential: ${{ steps.judge-chunks.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-chunks.outputs.lane-class }}
-          handoff: ${{ steps.judge-chunks.outputs.handoff == 'true' && steps.sub-leg-chunks.outcome != 'failure' }}
+          handoff: ${{ steps.judge-chunks.outputs.handoff == 'true' && steps.later-fail.outputs.fail != 'true' && steps.sub-leg-chunks.outcome != 'failure' }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload the later chunks' sealed transcript
@@ -1436,7 +1458,7 @@ jobs:
 
       - name: Write the chunk results
         id: chunk-results
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && steps.chunk-fail.outputs.fail != 'true' && (steps.judge-chunks.outcome == 'success' || steps.judge-chunks.outcome == 'failure') && steps.judge-chunks.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && steps.chunk-fail.outputs.fail != 'true' && (steps.judge-chunks.outcome == 'success' || steps.judge-chunks.outcome == 'failure') && (steps.judge-chunks.outputs.handoff != 'true' || steps.later-fail.outputs.fail == 'true')
         env:
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
@@ -2039,6 +2061,17 @@ jobs:
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
           leg-timeout-minutes: "15"
 
+      - name: Check the later chunks for a fail
+        id: later-fail
+        if: steps.judge-chunks.outputs.handoff == 'true'
+        env:
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
+          CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
+          MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs later-fail
+
       - name: Report the later chunks' outcome
         if: steps.judge-chunks.outcome == 'success' || steps.judge-chunks.outcome == 'failure'
         continue-on-error: true
@@ -2069,7 +2102,7 @@ jobs:
 
       - name: Write the chunk results
         id: chunk-results
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && steps.chunk-fail.outputs.fail != 'true' && (steps.judge-chunks.outcome == 'success' || steps.judge-chunks.outcome == 'failure') && steps.judge-chunks.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && steps.chunk-fail.outputs.fail != 'true' && (steps.judge-chunks.outcome == 'success' || steps.judge-chunks.outcome == 'failure') && (steps.judge-chunks.outputs.handoff != 'true' || steps.later-fail.outputs.fail == 'true')
         env:
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}

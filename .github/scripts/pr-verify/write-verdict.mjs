@@ -588,6 +588,19 @@ export function checkChunk(env = process.env) {
   appendFileSync(env.GITHUB_OUTPUT, `fail=${fail}\n`);
 }
 
+export function checkLaterChunks(env = process.env) {
+  requireEnv(env, ["GITHUB_OUTPUT", "CHUNKS", "DIFF_DIR", "MANIFEST_DIR"]);
+  const count = Number(env.CHUNKS);
+  const fail = laterRuns(env).some((run, i) => {
+    try {
+      return run.execution !== "" && countedOutput(readJudgment(run.execution, run.log, run.outcome), chunkFiles(env, i + 2, count)).verdict === "fail";
+    } catch {
+      return false;
+    }
+  });
+  appendFileSync(env.GITHUB_OUTPUT, `fail=${fail}\n`);
+}
+
 function judgedChunks(env) {
   const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9][0-9]?$/.test(name));
   const count = Number(env.CHUNKS);
@@ -762,6 +775,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       checkKeyLeg();
     } else if (process.argv[2] === "chunk-fail") {
       checkChunk();
+    } else if (process.argv[2] === "later-fail") {
+      checkLaterChunks();
     } else if (process.argv[2] === "chunk-results") {
       writeChunkResults();
     } else {
