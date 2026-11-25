@@ -8,8 +8,16 @@ text runs nothing, and a case,
 grader, prompt, fixture or scaffold change runs its own case and the cases that call it. Where the
 repository records its own eval run policy, that policy decides what each line obliges.
 
-An edit inside a SKILL.md `## Next` section runs nothing: that section names successors for the
-person and changes no tool call.
+An edit inside a SKILL.md `## Next`, `## Related` or `## See also` section runs nothing: those
+sections name other skills for the person and change no tool call. Neither does renaming a routing
+heading (Boundaries, Scope boundary, Siblings, Routing, Handoff, Composition, Integration, Workflow
+position, What this skill does not do) to another of those names or to Next or Related.
+
+A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three
+removals: each routing clause (a `Not for`, `Skip` or `prefer` clause that names a `plugin:skill`),
+the difference between skill tokens (`plugin:skill` against `/plugin:skill`, or a renamed skill),
+and each swap of a term for the word the repository glossary's "Rejected terms" table decided
+(`docs/glossary.md`, else `GLOSSARY.md`). Any other wording change keeps the rule above.
 
 ## Run it
 
@@ -33,6 +41,7 @@ A diff that affects nothing prints `no affected cases`. Otherwise one block per 
 | `judged:` | Run-requiring cases whose graders are all judged | Run them where a judge grades them, and check that judge against labeled samples first |
 | `run-after-merge:` | Triggering and no-fire cases of an additive-only `description` or `when_to_use` edit | Merge first, then run them on the default branch |
 | `affected-no-run:` | Cases the change touches that the policy runs nothing for (added body text, scripts, samples) | Nothing; they are listed so the author sees them |
+| `no-run-exempt:` | Skills whose `description` or `when_to_use` edit is routing-only or a decided-term swap, then the reason; their triggering and no-fire cases are in `affected-no-run:` | Nothing |
 | `uncovered:` | A changed skill or agent with no affected case | Add a case with `/evals:design` |
 | `plugin-wide:` | Hooks, `.mcp.json`, `plugin.json` or settings changed | No automatic run; judge whether a case should run |
 | `unmapped:` | A changed file no rule maps to a case | Judge it by hand |

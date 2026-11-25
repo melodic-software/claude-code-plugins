@@ -17,8 +17,11 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   action files, or an agent body, including a verbatim move into a file that loads on demand.
   Added text is not a cut, except a word that flips an existing instruction (`not`, `never`, `no`,
   `only`, `except`, `unless` and their contractions) inserted into it; script changes are covered
-  by tests (Q5, Q48). An edit inside a skill's `## Next` section is not a cut: it names successors
-  for the person and changes no tool call (owner, 2026-11-24, after #18922).
+  by tests (Q5, Q48). An edit inside a skill's `## Next`, `## Related` or `## See also` section is
+  not a cut: those sections name other skills for the person and change no tool call (owner,
+  2026-11-24, after #18922; Q2212). Nor is renaming a routing heading (Boundaries, Scope boundary,
+  Siblings, Routing, Handoff, Composition, Integration, Workflow position, What this skill does not
+  do) to another of those names or to Next or Related (Q2212).
 - **Suite run** (`mode: suite`), **label run** (the `eval: run` label, advisory, posts no record),
   **compare run** (`mode: compare`, posts the eval-pair record on a PASS): the three modes of
   [`pr-run-plugin-evals.yml`](../../.github/workflows/pr-run-plugin-evals.yml) (Q62).
@@ -30,6 +33,13 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - A skill `description` or `when_to_use` edit, additive included, runs that plugin's triggering
   and no-fire cases (Q7). An additive-only one merges before that run, which follows on the
   default branch as below; a reworded one is a cut and runs before merge (Q11).
+- Except a routing-only `description` or `when_to_use` edit, which runs nothing: with its routing
+  clauses removed (a `Not for <case>: /plugin:skill`, `Skip when ... /plugin:skill` or
+  `prefer /plugin:skill` clause, added, removed or reworded), every skill token treated as one
+  (`plugin:skill` to `/plugin:skill`, or a renamed skill), and each term swapped for the word
+  [`docs/glossary.md`](../glossary.md) "Rejected terms" already decided, the old and new text are
+  equal. `select` lists the skill under `no-run-exempt:` with that reason (owner, 2026-11-25,
+  Q2212).
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that

@@ -530,6 +530,186 @@ class SelectCasesTest(unittest.TestCase):
             blocks["plugins/alpha"]["cases"],
         )
 
+    def _base_with_sections(self, headings):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        extra = "".join("\n## %s\n\n- Sibling: /alpha:two\n" % h for h in headings)
+        path.write_text(
+            path.read_text(encoding="utf-8") + extra + "\n## Gotchas\n\n- Keep it short.\n",
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "add sections")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        return path
+
+    def _edit_and_select(self, path, old, new):
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(old, text)
+        path.write_text(text.replace(old, new), encoding="utf-8")
+        _commit_all(self.repo, "edit skill")
+        res = _run_select(self.repo)
+        self.assertEqual(0, res.returncode, res.stderr)
+        return _parse_blocks(res.stdout)["plugins/alpha"]
+
+    def test_related_and_see_also_section_edits_are_no_run(self):
+        path = self._base_with_sections(["Related", "See also"])
+        block = self._edit_and_select(
+            path, "- Sibling: /alpha:two\n", "- Sibling, for audits: /alpha:three\n"
+        )
+        self.assertNotIn("cases", block, "Related and See also edits must run no case")
+        self.assertEqual("0", block["agent-runs"])
+
+    def test_routing_heading_renamed_to_related_is_no_run(self):
+        path = self._base_with_sections(["Boundaries", "What this skill does not do"])
+        block = self._edit_and_select(path, "## Boundaries\n", "## Related\n")
+        self.assertNotIn("cases", block, "a Boundaries-to-Related rename must run no case")
+        block = self._edit_and_select(
+            path, "## What this skill does not do\n", "## Scope boundary\n"
+        )
+        self.assertNotIn("cases", block, "a rename between routing headings must run no case")
+
+    def test_non_routing_heading_renamed_to_related_still_cuts(self):
+        path = self._base_with_sections([])
+        block = self._edit_and_select(path, "## Gotchas\n", "## Related\n")
+        self.assertEqual(
+            "control-no-fire one-basic one-trigger",
+            block.get("cases"),
+            "renaming Gotchas is a cut: only routing headings are exempt",
+        )
+
+    def _set_base_description(self, description):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        text = path.read_text(encoding="utf-8").replace(
+            'description: "Run alpha one checks. Use when checking alpha items."',
+            'description: "%s"' % description,
+        )
+        path.write_text(text, encoding="utf-8")
+        _commit_all(self.repo, "set base description")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        return path
+
+    def _write_glossary(self):
+        _write(
+            self.repo,
+            "docs/glossary.md",
+            """
+            # Glossary
+
+            ## Rejected terms
+
+            | Rejected | Owned by |
+            |---|---|
+            | lane *(the slice a hunt rotates through)* | focus area, the word hunts use |
+            | lane *(one concern an audit judges)* | concern, the word audits use |
+            | stage runner | **lane** above |
+            """,
+        )
+
+    def _assert_exempt(self, block):
+        self.assertNotIn("cases", block, "an exempt description edit must run no case")
+        self.assertNotIn("run-after-merge", block, "an exempt edit schedules no later run")
+        self.assertEqual(
+            "control-no-fire one-trigger opt-case",
+            block.get("affected-no-run"),
+            "the triggering and no-fire cases are listed as affected but not run",
+        )
+        exempt, _, reason = block.get("no-run-exempt", "").partition(";")
+        self.assertEqual("alpha:one", exempt)
+        self.assertIn("routing clauses", reason, "the line states why nothing runs")
+        self.assertEqual("0", block["agent-runs"])
+
+    def test_added_not_for_clause_is_exempt(self):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        self._assert_exempt(
+            self._edit_and_select(
+                path,
+                "Use when checking alpha items.",
+                "Use when checking alpha items. Not for beta sweeps: /beta:runner.",
+            )
+        )
+
+    def test_reworded_skip_clause_is_exempt(self):
+        path = self._set_base_description(
+            "Run alpha one checks. Use when checking alpha items. Skip when sweeping (beta:runner)."
+        )
+        self._assert_exempt(
+            self._edit_and_select(
+                path,
+                "Skip when sweeping (beta:runner).",
+                "Skip when a sweep is asked for: /beta:runner.",
+            )
+        )
+
+    def test_removed_prefer_clause_is_exempt(self):
+        path = self._set_base_description(
+            "Run alpha one checks; prefer /beta:runner for sweeps. Use when checking alpha items."
+        )
+        self._assert_exempt(
+            self._edit_and_select(
+                path,
+                "Run alpha one checks; prefer /beta:runner for sweeps.",
+                "Run alpha one checks.",
+            )
+        )
+
+    def test_skill_token_form_and_rename_are_exempt(self):
+        path = self._set_base_description(
+            "Run alpha one checks after beta:runner. Use when checking alpha items."
+        )
+        self._assert_exempt(
+            self._edit_and_select(path, "after beta:runner.", "after /beta:sweeper.")
+        )
+
+    def test_glossary_decided_term_swap_is_exempt(self):
+        self._write_glossary()
+        path = self._set_base_description(
+            "Run alpha one checks over a rotated lane, one concern lane at a time."
+            " Use when checking alpha lanes."
+        )
+        self._assert_exempt(
+            self._edit_and_select(
+                path,
+                "over a rotated lane, one concern lane at a time. Use when checking alpha lanes.",
+                "over a rotated focus area, one concern at a time."
+                " Use when checking alpha focus areas.",
+            )
+        )
+
+    def test_swap_to_an_undecided_term_is_cut(self):
+        self._write_glossary()
+        path = self._set_base_description(
+            "Run alpha one checks over a rotated lane. Use when checking alpha items."
+        )
+        block = self._edit_and_select(path, "rotated lane.", "rotated track.")
+        self.assertNotIn("no-run-exempt", block, "track is not the glossary's decided word")
+        self.assertEqual("control-no-fire one-basic one-trigger opt-case", block.get("cases"))
+
+    def test_rewording_beside_a_routing_clause_is_cut(self):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        block = self._edit_and_select(
+            path,
+            'description: "Run alpha one checks. Use when checking alpha items."',
+            'description: "Run alpha one audits. Use when checking alpha items.'
+            ' Not for beta sweeps: /beta:runner."',
+        )
+        self.assertNotIn("no-run-exempt", block, "checks to audits is a real rewording")
+        self.assertEqual("control-no-fire one-basic one-trigger opt-case", block.get("cases"))
+        self.assertEqual("20", block["agent-runs"])
+
+    def test_exempt_skill_is_listed_in_json(self):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "alpha items.", "alpha items. Not for beta sweeps: /beta:runner."
+            ),
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "add routing clause")
+        res = _run_select(self.repo, as_json=True)
+        self.assertEqual(0, res.returncode, res.stderr)
+        data = json.loads(res.stdout)["plugins/alpha"]
+        self.assertEqual(["alpha:one"], data["no-run-exempt"])
+        self.assertEqual([], data["cases"])
+
     def test_rewrap_with_an_inserted_word_is_cut(self):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
         text = path.read_text(encoding="utf-8").replace(

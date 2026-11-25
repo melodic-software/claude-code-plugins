@@ -7,6 +7,8 @@ standard library only.
 """
 
 import collections
+import difflib
+import functools
 import importlib.util
 import os
 import re
@@ -69,6 +71,29 @@ PLUGIN_WIDE_FILES = frozenset(
 )
 PLUGIN_WIDE_DIRS = frozenset(["hooks"])
 DESCRIPTION_KEYS = ("description", "when_to_use")
+
+NO_RUN_SECTIONS = frozenset(["next", "related", "see also"])
+ROUTING_HEADINGS = frozenset(
+    [
+        "boundaries",
+        "scope boundary",
+        "siblings",
+        "routing",
+        "handoff",
+        "composition",
+        "integration",
+        "workflow position",
+        "what this skill does not do",
+    ]
+)
+HEADING_RENAME_TARGETS = ROUTING_HEADINGS | frozenset(["next", "related"])
+HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*$")
+SKILL_TOKEN_RE = re.compile(r"(?<![\w/:.-])/?[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*(?![\w-])")
+ROUTING_CLAUSE_RE = re.compile(r"^(?:not for|skip)\b|\bprefer\b", re.IGNORECASE)
+CLAUSE_SPLIT_RE = re.compile(r"(?<=[.;])\s+")
+WORD_RE = re.compile(r"\w[\w-]*|[^\w\s]")
+GLOSSARY_PATHS = ("docs/glossary.md", "GLOSSARY.md")
+MAX_DECIDED_TERM_WORDS = 3
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 VALIDATE_CASES_PY = os.path.normpath(
@@ -175,10 +200,38 @@ def _flips_meaning(word):
     return token in MEANING_FLIP_WORDS or token.endswith("n't")
 
 
-def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0, skip_old_ranges=()):
+def _heading_name(line):
+    match = HEADING_RE.match(line)
+    if not match:
+        return None, None
+    return match.group(1), match.group(2).rstrip(":").strip().lower()
+
+
+def _is_routing_heading_rename(old_lines, new_lines):
+    """Every old line is a routing heading renamed, at the same level, to another routing
+    heading or to Next or Related."""
+    if not old_lines or len(old_lines) != len(new_lines):
+        return False
+    for old, new in zip(old_lines, new_lines):
+        old_level, old_name = _heading_name(old)
+        new_level, new_name = _heading_name(new)
+        if (
+            old_level is None
+            or old_level != new_level
+            or old_name not in ROUTING_HEADINGS
+            or new_name not in HEADING_RENAME_TARGETS
+        ):
+            return False
+    return True
+
+
+def _diff_has_cut_hunks(
+    diff_text, skip_old_lines_upto=0, skip_old_ranges=(), allow_heading_renames=False
+):
     """A hunk that edits an existing line is a cut unless every old word survives, in order, in
     its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion. A hunk
-    whose old lines all sit inside one of `skip_old_ranges` (inclusive line pairs) is not a cut."""
+    whose old lines all sit inside one of `skip_old_ranges` (inclusive line pairs) is not a cut,
+    nor, with `allow_heading_renames`, one that only renames routing headings."""
     hunks = []
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
@@ -189,11 +242,19 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0, skip_old_ranges=()):
             old_count = 1 if match.group(2) is None else int(match.group(2))
             old_end = old_start + old_count - 1
             skipped = any(lo <= old_start and old_end <= hi for lo, hi in skip_old_ranges)
-            hunks.append([old_count > 0 and old_end > skip_old_lines_upto and not skipped, [], []])
+            hunks.append(
+                [old_count > 0 and old_end > skip_old_lines_upto and not skipped, [], [], [], []]
+            )
         elif hunks and line.startswith("-") and not line.startswith("---"):
             hunks[-1][1].extend(line[1:].split())
+            hunks[-1][3].append(line[1:])
         elif hunks and line.startswith("+") and not line.startswith("+++"):
             hunks[-1][2].append(line[1:].split())
+            hunks[-1][4].append(line[1:])
+    if allow_heading_renames:
+        for hunk in hunks:
+            if hunk[0] and _is_routing_heading_rename(hunk[3], hunk[4]):
+                hunk[0] = False
 
     def is_cut(old, new_lines):
         """Old words must survive in order; a flip word inserted into a line that keeps old words
@@ -212,10 +273,17 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0, skip_old_ranges=()):
                 return True
         return index != len(old)
 
-    return any(edits and is_cut(old, new) for edits, old, new in hunks)
+    return any(edits and is_cut(old, new) for edits, old, new, _, _ in hunks)
 
 
-def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0, skip_old_ranges=()):
+def diff_has_cut(
+    repo_root,
+    diff_base,
+    rel_path,
+    skip_old_lines_upto=0,
+    skip_old_ranges=(),
+    allow_heading_renames=False,
+):
     """True when any `-U0` hunk modifies or removes an existing line past the skipped prefix and
     outside the skipped ranges."""
     done = _git(
@@ -230,7 +298,10 @@ def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0, skip_old
     if done.returncode != 0:
         return True
     return _diff_has_cut_hunks(
-        done.stdout, skip_old_lines_upto=skip_old_lines_upto, skip_old_ranges=skip_old_ranges
+        done.stdout,
+        skip_old_lines_upto=skip_old_lines_upto,
+        skip_old_ranges=skip_old_ranges,
+        allow_heading_renames=allow_heading_renames,
     )
 
 
@@ -248,18 +319,21 @@ def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
     return _diff_has_cut_hunks(done.stdout)
 
 
-def _next_section_lines(text):
-    """The 1-based line range of a `## Next` section's body, heading excluded, or None. It names
-    successors for the person and changes no tool call, so editing it runs nothing."""
+def _no_run_section_lines(text):
+    """1-based line ranges of each `## Next`, `## Related` and `## See also` body, heading
+    excluded. They name other skills for the person and change no tool call, so editing them
+    runs nothing."""
     lines = text.splitlines()
+    ranges = []
     for index, line in enumerate(lines):
-        if line.rstrip() == "## Next":
+        level, name = _heading_name(line)
+        if level == "##" and name in NO_RUN_SECTIONS:
             end = next(
                 (j for j in range(index + 1, len(lines)) if lines[j].startswith("## ")),
                 len(lines),
             )
-            return index + 2, end
-    return None
+            ranges.append((index + 2, end))
+    return tuple(ranges)
 
 
 def _frontmatter_end_line(text):
@@ -335,7 +409,102 @@ def _is_subsequence(old_tokens, new_tokens):
     return all(token in it for token in old_tokens)
 
 
-def _classify_description_change(base_fm, head_fm):
+def _term_words(text):
+    return tuple(word.lower() for word in re.findall(r"\w[\w-]*", text))
+
+
+def _parse_rejected_terms(text):
+    """(rejected words, decided words) pairs from the table under a `Rejected` heading. The
+    decided term is the cell's bold term, else its text before the first comma, semicolon or
+    parenthesis; a longer phrase there is a doctrine, not a word to swap in."""
+    pairs = []
+    in_section = False
+    past_header = False
+    for line in text.splitlines():
+        if line.startswith("#"):
+            in_section = "rejected" in line.lower()
+            past_header = False
+            continue
+        if not in_section or not line.lstrip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if not past_header:
+            past_header = bool(cells) and set(cells[0]) <= set("-: ") and "-" in cells[0]
+            continue
+        if len(cells) < 2:
+            continue
+        bold = re.match(r"\*\*([^*]+)\*\*", cells[1])
+        decided = _term_words(bold.group(1) if bold else re.split(r"[,;(]", cells[1])[0])
+        if not decided or len(decided) > MAX_DECIDED_TERM_WORDS:
+            continue
+        for rejected in re.sub(r"\*\([^)]*\)\*", "", cells[0]).split("/"):
+            words = _term_words(rejected)
+            if words and words != decided:
+                pairs.append((words, decided))
+    return tuple(pairs)
+
+
+@functools.lru_cache(maxsize=None)
+def decided_term_pairs(repo_root, rev="HEAD"):
+    """The glossary's rejected-to-decided term pairs at `rev`, empty when no glossary exists."""
+    for path in GLOSSARY_PATHS:
+        text = git_show(repo_root, rev, path)
+        if text is not None:
+            return _parse_rejected_terms(text)
+    return ()
+
+
+def _routing_free_tokens(text):
+    """Description tokens with each routing clause (`Not for ...`, `Skip ...` or `prefer ...`
+    naming a `plugin:skill`) dropped, the clause-ending `.` or `;` with it, and every skill token,
+    slash or not, made one placeholder."""
+    kept = [
+        clause.rstrip(".;")
+        for clause in CLAUSE_SPLIT_RE.split(text.strip())
+        if not (SKILL_TOKEN_RE.search(clause) and ROUTING_CLAUSE_RE.search(clause))
+    ]
+    return WORD_RE.findall(SKILL_TOKEN_RE.sub(" SKILL_TOKEN ", " ".join(kept)))
+
+
+def _plural(words):
+    return words[:-1] + (words[-1] + "s",)
+
+
+def _is_term_swap(old_chunk, new_chunk, new_tokens, at, pairs):
+    """The old words are a rejected term and the new ones its decided term, or the rejected term
+    was dropped beside the decided one already there (`concern lane` to `concern`)."""
+    old_words = tuple(word.lower() for word in old_chunk)
+    new_words = tuple(word.lower() for word in new_chunk)
+    lowered = [word.lower() for word in new_tokens]
+    for rejected, decided in pairs:
+        for old_form, new_form in ((rejected, decided), (_plural(rejected), _plural(decided))):
+            if old_words != old_form:
+                continue
+            if new_words == new_form:
+                return True
+            if not new_words and new_form in (
+                tuple(lowered[max(0, at - len(new_form)) : at]),
+                tuple(lowered[at : at + len(new_form)]),
+            ):
+                return True
+    return False
+
+
+def is_routing_only_change(old, new, pairs):
+    """True when, with routing clauses and decided-term swaps removed, the two texts are equal."""
+    old_tokens = _routing_free_tokens(old)
+    new_tokens = _routing_free_tokens(new)
+    matcher = difflib.SequenceMatcher(None, old_tokens, new_tokens, autojunk=False)
+    return all(
+        tag == "equal"
+        or _is_term_swap(old_tokens[i1:i2], new_tokens[j1:j2], new_tokens, j1, pairs)
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes()
+    )
+
+
+def _classify_description_change(base_fm, head_fm, pairs=()):
+    """`cut`, `additive`, `exempt` (routing clauses, skill tokens or decided terms only) or
+    None; a cut in either key wins, then an additive edit."""
     status = None
     for key in DESCRIPTION_KEYS:
         old_val = base_fm.get(key)
@@ -346,6 +515,8 @@ def _classify_description_change(base_fm, head_fm):
             key_status = "additive"
         elif new_val is None:
             key_status = "cut"
+        elif is_routing_only_change(str(old_val), str(new_val), pairs):
+            key_status = "exempt"
         else:
             old_tokens = DESC_TOKEN_RE.findall(str(old_val))
             new_tokens = DESC_TOKEN_RE.findall(str(new_val))
@@ -354,7 +525,8 @@ def _classify_description_change(base_fm, head_fm):
             )
         if key_status == "cut":
             return "cut"
-        status = "additive"
+        if status != "additive":
+            status = key_status
     return status
 
 
@@ -387,21 +559,22 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
     base_fm = _parse_frontmatter_loose(base_fm_raw)
     head_fm = _parse_frontmatter_loose(head_fm_raw)
 
-    desc_class = _classify_description_change(base_fm, head_fm)
+    desc_class = _classify_description_change(
+        base_fm, head_fm, decided_term_pairs(repo_root)
+    )
     other_fm_class = _classify_other_frontmatter(base_fm, head_fm)
 
     body_class = None
     if base_body != head_body:
-        fm_end = _frontmatter_end_line(base_text)
-        next_lines = _next_section_lines(base_text)
         body_class = (
             "cut"
             if diff_has_cut(
                 repo_root,
                 diff_base,
                 rel_path,
-                skip_old_lines_upto=fm_end,
-                skip_old_ranges=(next_lines,) if next_lines else (),
+                skip_old_lines_upto=_frontmatter_end_line(base_text),
+                skip_old_ranges=_no_run_section_lines(base_text),
+                allow_heading_renames=True,
             )
             else "additive"
         )

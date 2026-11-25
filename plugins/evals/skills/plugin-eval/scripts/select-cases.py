@@ -55,6 +55,10 @@ COMPARE_REFUSED_ADVICE = (
     "a compare run refuses these, so run the cases in a suite run"
     " on the default branch after merge"
 )
+NO_RUN_EXEMPT_REASON = (
+    "the description or when_to_use edit changes only routing clauses, skill tokens"
+    " or glossary-decided terms, so it runs no case"
+)
 
 
 def _load_module(name, path):
@@ -457,6 +461,7 @@ def select_cases(repo_root, diff_base, merge_base):
     run_cases = collections.defaultdict(set)
     after_merge_cases = collections.defaultdict(set)
     no_run_cases = collections.defaultdict(set)
+    no_run_exempt = collections.defaultdict(set)
     uncovered = collections.defaultdict(set)
     plugin_wide = collections.defaultdict(set)
     unmapped = collections.defaultdict(set)
@@ -531,6 +536,8 @@ def select_cases(repo_root, diff_base, merge_base):
                     changed_skills[(plugin, skill)].add("desc_cut")
                 elif desc_cls == "additive":
                     changed_skills[(plugin, skill)].add("desc_additive")
+                elif desc_cls == "exempt":
+                    changed_skills[(plugin, skill)].add("desc_exempt")
                 skill_or_agent_plugins.add(plugin)
             elif select_mapping._is_script_path(inner_parts):
                 script_only_skills.add((plugin, skill))
@@ -673,6 +680,10 @@ def select_cases(repo_root, diff_base, merge_base):
         elif "desc_additive" in reasons:
             for case in trigger_cases:
                 after_merge_cases[case.plugin].add(case)
+        elif "desc_exempt" in reasons:
+            no_run_exempt[plugin].add("%s:%s" % (plugin, skill))
+            for case in trigger_cases:
+                no_run_cases[case.plugin].add(case)
 
         desc_only = reasons <= {"desc_cut", "desc_additive"}
         if not skill_cases or (desc_only and not trigger_cases):
@@ -706,6 +717,7 @@ def select_cases(repo_root, diff_base, merge_base):
         set(run_cases)
         | set(after_merge_cases)
         | set(no_run_cases)
+        | set(no_run_exempt)
         | set(uncovered)
         | set(plugin_wide)
         | set(unmapped)
@@ -733,6 +745,7 @@ def select_cases(repo_root, diff_base, merge_base):
                 if c.name not in scheduled_names
             }
         )
+        exempt_list = sorted(no_run_exempt.get(plugin, set()))
         uncovered_list = sorted(uncovered.get(plugin, set()))
         plugin_wide_list = sorted(plugin_wide.get(plugin, set()))
         unmapped_list = sorted(unmapped.get(plugin, set()))
@@ -744,6 +757,7 @@ def select_cases(repo_root, diff_base, merge_base):
                 det_cases,
                 judged,
                 no_run_names,
+                exempt_list,
                 uncovered_list,
                 ram_names,
                 plugin_wide_list,
@@ -763,6 +777,7 @@ def select_cases(repo_root, diff_base, merge_base):
             "cases": det_cases,
             "judged": judged,
             "affected-no-run": no_run_names,
+            "no-run-exempt": exempt_list,
             "uncovered": uncovered_list,
             "run-after-merge": ram_names,
             "plugin-wide": plugin_wide_list,
@@ -796,6 +811,11 @@ def format_text(result):
             values = data[key]
             if values:
                 lines.append("%s: %s" % (key, " ".join(values)))
+            if key == "affected-no-run" and data["no-run-exempt"]:
+                lines.append(
+                    "no-run-exempt: %s; %s"
+                    % (" ".join(data["no-run-exempt"]), NO_RUN_EXEMPT_REASON)
+                )
         if data.get("compare-refused"):
             lines.append(
                 "compare-refused: %s; %s"
