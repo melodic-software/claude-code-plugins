@@ -10,6 +10,7 @@
 
 // A verified-done close (stop-routes.json) instead rests on parentDone: every
 // sub-issue of the issue closed as completed by a trusted close.
+
 // The line a stop comment names its stop on, and the heading over the run's
 // own words, which report-outcome writes and closeStop reads back.
 export const stopLine = (stop) => `The work-resolve-issue lane stopped on this issue (\`${stop}\`):`;
