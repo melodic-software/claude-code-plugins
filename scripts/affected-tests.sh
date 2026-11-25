@@ -1,256 +1,7 @@
 #!/usr/bin/env bash
-# Select the test suites that cover a set of changed files, so a change runs the
-# suites it affects instead of the whole corpus. Four ecosystems carry suites
-# here and each names them differently: shell **/*.test.sh, Node **/*.test.js
-# and **/*.test.mjs, Python **/test_*.py, and Pester **/*.Tests.ps1.
-#
-# The full corpus is tens of minutes of wall clock on a Windows box
-# (Git Bash pays ~140ms per process spawn, and these suites are spawn-bound),
-# which is long enough that nobody runs it locally and regressions reach CI.
-# The per-suite and per-gate wall-clock baseline, Linux CI beside Windows Git
-# Bash, and how to measure it: docs/test-wall-clock-baseline.md.
-#
-#   scripts/affected-tests.sh                    list the suites covering the diff vs the base ref
-#   scripts/affected-tests.sh --run              ... and run them, sequentially
-#   scripts/affected-tests.sh --run --jobs N     ... N shell suites at a time
-#   scripts/affected-tests.sh --run --budget S   ... timed against an S-second budget, a
-#                                                suite over its share failing, or warning with
-#                                                PLUGIN_TEST_SHARE_WARN_ONLY=1
-#                                                (run-plugin-tests.sh BUDGET)
-#   scripts/affected-tests.sh --run --write-not-run FILE
-#                                                ... and write each selected suite it did not run
-#                                                to FILE, one per line (exit 3 names them); a
-#                                                relative FILE is from the repository root
-#   scripts/affected-tests.sh path/a.sh path/b   ... for explicit paths instead of a diff
-#   scripts/affected-tests.sh --base <ref>       use <ref> as the diff base (default: origin/main)
-#   scripts/affected-tests.sh --explain          report WHY each suite was selected (stderr)
-#   scripts/affected-tests.sh --allow-unmapped   downgrade an unmapped file to a warning
-#   scripts/affected-tests.sh --unmapped-corpus  select an unmapped file's whole language corpus (exit 4)
-#   scripts/affected-tests.sh --shard <i>/<n>    keep only leg i of n of the selection
-#   scripts/affected-tests.sh --print-fanout P   print the copy set DERIVED for shared source P
-#   scripts/affected-tests.sh --each-from LIST --each-out DIR
-#                                                answer each <key>:<path> line of LIST as its own
-#                                                one-file diff, building the tree index once:
-#                                                DIR/<key>.out the suites, DIR/<key>.err its
-#                                                no-suite, deleted or UNMAPPED line; a path whose
-#                                                own run exits 2 is left unanswered
-#   scripts/affected-tests.sh --replay <range> [--against <ref>]
-#                                                select every first-parent commit of <range> against
-#                                                its parent; with --against, diff each selection with
-#                                                the selector at <ref> (see REPLAY)
-#
-# --with-always is accepted and changes nothing: the suites that assert against
-# the live tree declare what they read in a `# test-scope:` header (R8).
-#
 # Exit: 0 selected (or nothing to do); 1 an unmapped changed file, or a failing
-# suite under --run; 2 usage or a broken derivation; 3 --run ran every shell
-# suite it selected but ALSO selected suites in other ecosystems, whose runner
-# it deliberately will not guess (see the --run note at the foot of this file);
-# 4 --unmapped-corpus met an unmapped file (and widened the selection to the
-# corpus of its language when it is code). Under --run the first that applies
-# wins, in the order 1, 3, 4.
-#
-# HOST: --run IS A LINUX GATE. On a Windows Git Bash host a standing set of
-# suites fails for reasons that belong to the host and not to the tree: text-mode
-# CRLF translation (a native jq and Git Bash line-ending handling), no
-# unprivileged symlink right, MSYS drive-letter paths against the POSIX form in
-# fixture assertions, and a missing `scc`. Its exit code there reports host
-# capability, so it cannot say whether a change is good, and the repo does not
-# support it as a local gate on Windows. Selection itself is host-neutral: use
-# the listing forms to see what a change affects and run individual suites by
-# hand. CI's Linux lanes are the gate that decides.
-#
-# SHARDING. `--shard <i>/<n>` narrows the SELECTION, not the derivation: every
-# rule below runs in full, the unmapped check fires in full, and only then is
-# the sorted suite list partitioned by index modulo n. The union of legs
-# 0..n-1 is exactly the unsharded selection and no two legs share a suite.
-# Modulo rather than contiguous blocks, because the sorted list clusters suites
-# by directory. A leg that draws none of a non-empty selection exits 2, a usage
-# error (more legs than selected suites): it checked nothing, so exit 0 would
-# read as a tested leg. An empty selection still exits 0 before the partition.
-#
-# FAIL LOUD, NOT OPEN. A changed file that maps to NO suite is an ERROR, not an
-# empty selection: "zero suites" reads as "nothing to run" when it actually
-# means "nothing here knows what covers this". The exceptions are the path
-# classes recorded in scripts/affected-tests-no-suite.txt, each of which names
-# the lane that does cover it, and deletions, which have no content left to
-# cover. --allow-unmapped downgrades the error to a warning; --unmapped-corpus
-# keeps the report and adds every suite of the file's language to the selection:
-# the shell corpus for .sh and .bash and for an extensionless file with a `#!`
-# line, Python for .py, Node for .js .mjs .cjs, Pester for .ps1 .psm1. Any
-# other unmapped file is data that no rule reaches, and a suite that reads a
-# tree file names it or declares it (R8), so it adds no corpus: the report
-# still counts it (exit 4), scripts/selection-audit.sh's daily trace reports a
-# suite read the rules miss, and the scheduled whole-tree run runs every suite.
-#
-# SELECTION RULES. A suite runs when the changed file is code the suite runs or
-# loads, or data the suite (or code it runs) reads. Every rule finds that
-# relation from text and paths, so each one is written to say no when the text
-# does not show the relation.
-#   R1 self          a changed suite selects itself, in any ecosystem.
-#   R2 co-located    <dir>/<stem>.<ext> selects the sibling suites covering it,
-#                    under each ecosystem's own naming: <stem>.test.sh,
-#                    <stem>.test.js, <stem>.test.mjs, <stem>.Tests.ps1,
-#                    <dir>/test_<stem>.py and <dir>/tests/test_<stem>.py, the
-#                    two Python forms also with `-` folded to `_`. Every match is
-#                    taken: a .py can carry a test_<stem>.py and a wrapping
-#                    <stem>.test.sh at once. pytest loads a conftest.py, and
-#                    Python an __init__.py, with no mention, so either selects
-#                    every test_*.py at or below its directory.
-#   R3 same language a file in the changed file's language that NAMES it (see
-#                    MATCHING) on a line that is not only a comment is a
-#                    dependent; R1, R2 and R3 then apply to it, transitively,
-#                    with no depth cap. A suite that names it is selected. This is
-#                    what carries a library change out to what sources it.
-#                    A Python `import`/`from` line names <stem>.py for each
-#                    dotted component equal to the stem (`from
-#                    harness.stub_harness import run` names stub_harness.py),
-#                    since an import never spells the file. A name after the
-#                    `import` of `from m import name` names name.py only when
-#                    m's package directory holds it (`from harness import
-#                    stub_harness`, harness/stub_harness.py), since that name
-#                    is a submodule only there. The module must sit under the
-#                    importer's plugin or lib root (plugins/<p>/, lib/<l>/,
-#                    .github/scripts/<x>/), so a name never resolves across
-#                    plugins; an importer outside every root reaches the whole
-#                    tree. An AMBIGUOUS stem resolves to a module only when that
-#                    module is the one of its name in the nearest directory,
-#                    from the importer's up to that root, that holds any.
-#   R4 other language a file in another language counts only where the naming
-#                    line runs or loads the file: an interpreter or process API on
-#                    the line (bash, sh, python3, node, pwsh, source, subprocess,
-#                    spawn*, exec*, ...), or a path to the file rather than its
-#                    bare name. Nothing else on the line counts: not the named
-#                    file being a shell script, not the naming file sitting in
-#                    the same directory. A chain takes at most one such
-#                    transition and then keeps walking its new language.
-#                    A data file (any extension that is not code) reaches code of
-#                    every language that names it, and that first step spends no
-#                    transition: data has no language of its own to stay inside.
-#   R5 shared lib    a file that is the `src` of a scripts/sync-*.sh selects
-#                    every path in that script's published `copy` list, then R2,
-#                    R3 and R4 on each copy. The copy set is DERIVED from
-#                    `--print-manifest` on every run, never hardcoded or scraped,
-#                    because the manifests are what CI's sync lanes enforce.
-#   R6 sync script   a changed scripts/sync-*.sh selects its own co-located test
-#                    plus everything its published `src` selects.
-#   R7 path class    a path under plugins/autonomy/reference/ selects the
-#                    plugin-contract validator's suite, which bans vendor names
-#                    across that directory without naming any file in it.
-#   R8 declared scope a suite that enumerates a directory of the live tree
-#                    (a grep -r, a find, a glob over a plugin or scripts/), or
-#                    builds a path from parts, never names the files it reads,
-#                    so it declares them in its leading comment block, before
-#                    any code or docstring, in one or more lines of
-#                        # test-scope: plugins/github/* scripts/x.sh
-#                    A changed file matching a glob selects the suite and counts
-#                    as mapped. The globs use the dialect of the no-suite list:
-#                    matched against the repo-relative path, `*` crosses `/`;
-#                    a `#` after them starts a comment. Shell, Python and
-#                    Pester suites declare in `#` lines, .test.js and
-#                    .test.mjs suites in `// test-scope:` lines. A glob
-#                    matching no file fails the run that changes its suite.
-#   R9 wrapper       a selected <stem>.test.js or <stem>.test.mjs whose
-#                    directory holds <stem>.test.sh selects that wrapper too,
-#                    however the Node suite was reached. CI runs such a suite only
-#                    through its wrapper (scripts/run-outside-node-suites.sh
-#                    leaves it to the wrapper), so the Node suite alone runs
-#                    nothing. Applied after every other rule, before --shard.
-#   R10 package scope Node reads a package.json for every bare import made in
-#                    its package scope (PACKAGE_SELF_RESOLVE,
-#                    https://nodejs.org/api/esm.html#resolution-algorithm-specification),
-#                    so a changed <dir>/package.json seeds the walk with each
-#                    non-test .js, .mjs or .cjs file under <dir>, short of
-#                    node_modules/ and any nested package.json, that imports or
-#                    requires a dependency the manifest declares at the diff
-#                    base or now; R2, R3 and R4 then apply to each. Needs jq.
-#
-# MATCHING. One file NAMES another when the basename stands in a line as a WHOLE
-# PATH TOKEN: bounded on both sides by a character outside [A-Za-z0-9_.-]. `/`
-# is outside that class, so a path-qualified mention names the file. A trailing
-# run of `.` is sentence punctuation and is dropped, and so is a leading run of
-# `-`, `+`, `=`, `?` or `.`, so `${TARGET:-<name>}` and `...<name>` name <name>.
-# A basename buried inside a longer token (`handoff-paths.json` against
-# `paths.js`) is not a mention: a substring match there is FALSE COVERAGE, a
-# file nothing covers coming back mapped at exit 0. A basename the token rule
-# cannot spell, one with a character outside the class, keeps the substring
-# test rather than losing its coverage.
-#
-# MANIFESTS. plugin.json, marketplace.json, hooks.json, settings.json,
-# package.json, package-lock.json, CHANGELOG.md and LICENSE select no suite
-# through a mention: a suite that reads one reads its name or version, and the
-# manifest, changelog and catalog gates own those files. Only R1, R2 and a
-# declared scope (R8) reach a suite from them; anything else is on the no-suite
-# list.
-# A package.json also reaches its package scope's importers (R10), because Node
-# reads it on every bare import there (https://nodejs.org/api/esm.html#resolution-algorithm-specification).
-#
-# AMBIGUOUS NAMES. A basename two or more files carry, and the structural docs
-# (README.md, SKILL.md, AGENTS.md, CLAUDE.md, index.md), name a specific file
-# only when the mention RESOLVES to it, because a bare `SKILL.md` or
-# `config.json` says nothing about which one. Any mention from the file's own
-# directory resolves. A bare name resolves from a directory above the file when
-# no other file of that name sits below that directory
-# (`FIXTURES / "questions.json"`), and never otherwise. A path resolves when it
-# ends in the shortest suffix of the file's path, two components or more, that
-# no other file of that name ends in, or in the file's path relative to a
-# directory below the repository root that holds both files, when that relative
-# path has a directory in it: `$SCRIPT_DIR/lib/x.sh` from a script beside lib/,
-# `$PLUGIN_DIR/skills/interview/SKILL.md` from inside the plugin. A path that
-# spells only the name (`$SKILL_DIR/SKILL.md`, `$T/README.md`) or that is
-# relative to the root alone (`$ROOT/.github/workflows/pr-require-checks.yml`) does not
-# resolve: tests build the same path under a temporary directory as often as
-# they read the real file, so a suite that reads such a file declares it (R8),
-# as the strace of every suite showed where one does. A shared
-# library's source and copies are the exception and keep the plain rule: R5's
-# copies share a basename on purpose, change together with their source, and a
-# suite naming its own plugin's copy is naming the shared source.
-#
-# COMMENTS. A line that is only a comment (`#` in shell, Python and
-# PowerShell; `//`, `/*` or a `*` continuation in Node) names nothing, in suites
 # and in code alike: prose that cites a file is not a dependency on it. A
 # `# shellcheck source=` directive and a JSDoc type import (`@import`,
-# `import('...')`) are read by tools and still count. A trailing comment on a
-# shell, Python or PowerShell code line (a `#` outside quotes after a blank)
-# names nothing either: `pin="1.7" # matches .github/actionlint.yaml` reads
-# no file. A trailing comment on a Node line, or on a Python `import`/`from`
-# line, still counts: `import transcript_reader  # scripts/transcript_reader.py`
-# is how a module import names its file. Nor does a shell
-# output redirect's target (`>file`, `>>"$dir/file"`): a suite that seeds a
-# fixture under a temporary directory writes that name and reads nothing.
-#
-# REPLAY. `--replay <range>` selects every first-parent commit of <range>
-# (`git rev-list --first-parent <range>`) against its parent, the squash-merged
-# pull request's net diff, in a scratch clone checked out at that commit, with
-# THIS script's rules, its no-suite list and its suites' declared scopes, so it
-# answers "what would this selector have run for those pull requests". It
-# prints one `commit <sha> <suites> <unmapped>` line per commit, an indented
-# `unmapped <path>` line per unmapped file and one indented
-# `<suite>  (<reason>)` line per suite. With `--against <ref>` it also runs the
-# selector at <ref>, with <ref>'s own no-suite list and declared scopes, on the
-# same tree, and prints only the suites that differ (`+` this script only,
-# `-` <ref> only, each with its reason) after a
-# `commit <sha> <new> <old> <new-unmapped> <old-unmapped>` line
-# and its `unmapped` lines, so a selector change shows its blast radius. Both
-# sides run with --allow-unmapped; a summary on stderr counts suites per commit
-# (p50, p95, max, total) and the commits with an unmapped file on each side.
-# Each run is pointed at the scratch clone with AFFECTED_TESTS_ROOT and at the
-# no-suite list with AFFECTED_TESTS_NO_SUITE, and AFFECTED_TESTS_SCOPES hands it
-# the declarations as `<suite> <glob>...` lines in place of the suites' headers,
-# since the replayed commits may predate them.
-#
-# MECHANICALLY the reverse lookup is two stages. `git grep -F` finds the
-# candidate LINES with the substring test, which keeps git's fixed-string fast
-# path (an ERE alternation of bounded basenames took minutes per level); one
-# awk pass then drops comment lines, splits each line into tokens, and keeps the
-# (file, name) pairs MATCHING and AMBIGUOUS NAMES let stand, marking each with
-# whether its line runs or loads the file. A run that has paid for many tree
-# greps reads every code line naming a file once (build_name_lines) and greps
-# those lines instead.
-# Both stages fail loud; see the call site in select_for. Each stage's output is
-# a function of its inputs alone, so a level whose inputs an earlier level of
-# any seed already had reuses that stage's result: the copies of one shared
-# library walk the same levels.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -275,11 +26,29 @@ STRUCTURAL_BASENAMES=" README.md SKILL.md AGENTS.md CLAUDE.md index.md "
 MANIFEST_BASENAMES=" plugin.json marketplace.json hooks.json settings.json package.json package-lock.json "
 MANIFEST_BASENAMES+="CHANGELOG.md LICENSE "
 
-# Print the header block (everything after the shebang up to the first
-# non-comment line) with its comment markers stripped.
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
-    "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+usage: scripts/affected-tests.sh [options] [path...]
+Select the test suites that cover the changed files (the diff vs the base ref, or the paths given).
+  --run                      run the selected suites, sequentially
+  --jobs N                   with --run, N shell suites at a time
+  --budget S                 with --run, time against an S-second budget (PLUGIN_TEST_SHARE_WARN_ONLY=1 warns)
+  --write-not-run FILE       with --run, write each selected suite it did not run to FILE
+  --base REF                 diff base (default: origin/main)
+  --explain                  report why each suite was selected (stderr)
+  --allow-unmapped           downgrade an unmapped file to a warning
+  --unmapped-corpus          select an unmapped file's whole language corpus
+  --shard I/N                keep only leg I of N of the selection
+  --print-fanout P           print the copy set derived for shared source P
+  --each-from LIST --each-out DIR
+                             answer each <key>:<path> line of LIST as its own one-file diff
+  --replay RANGE [--against REF]
+                             select every first-parent commit of RANGE; with --against, diff against REF's selector
+  --with-always              accepted, changes nothing
+Exit: 0 selected or nothing to do; 1 an unmapped file or a failing suite; 2 usage or a broken
+derivation; 3 --run also selected suites outside shell it did not run; 4 --unmapped-corpus met an
+unmapped file.
+EOF
 }
 
 base_ref=""
@@ -302,8 +71,6 @@ shard_index=0
 shard_total=1
 declare -a explicit_paths=()
 
-# need_value <flag> <argc> <value> <what>: usage errors exit 2, never 1, which
-# is spoken for by an unmapped file and a failing suite.
 need_value() {
   if [[ "$2" -lt 2 || -z "$3" ]]; then
     echo "error: $1 needs a value ($4)." >&2
@@ -442,15 +209,6 @@ fi
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/affected-tests.XXXXXX")" || exit 2
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-# Published --print-manifest format (scripts/sync-shared-copies.sh), one
-# block per canonical source:
-#   src<TAB><path>     opens a block; empty path means the key was declared blank
-#   copy<TAB><path>    zero or more per block; path may still be a glob
-# A script that does not implement the flag (usage on stderr, empty stdout) or
-# that prints neither key is a helper sharing the sync-*.sh prefix and is
-# skipped. A block with copy lines (or an empty src key) but no non-empty src
-# is a half-manifest and is fatal.
-
 declare -A SYNC_SRC_COPIES=()
 declare -A SYNC_SCRIPT_SRC=()
 
@@ -474,7 +232,6 @@ register_sync_block() {
       continue
     fi
     # shellcheck disable=SC2086 # a manifest entry may still be a glob;
-    # splitting is the expansion, and no path in this repo contains whitespace.
     for match in $pattern; do
       [[ -e "$match" ]] && expanded+=("$match")
     done
@@ -563,8 +320,6 @@ build_tree_index() {
     echo "error: listing the tree failed." >&2
     exit 2
   fi
-  # `--untracked` walks the working tree on every reverse lookup; with no
-  # untracked code file a plain `git grep` reads the same files.
   if ! git ls-files --others --exclude-standard -- "${CODE_SPECS[@]}" >"$WORK_DIR/untracked-code"; then
     echo "error: listing the untracked code files failed." >&2
     exit 2
@@ -576,14 +331,8 @@ build_tree_index() {
     echo "error: listing the files of the resolvable names failed." >&2
     exit 2
   }
-  # Every Python import line, for R3's module rule in token_hits. Exit 1 is no
-  # match; anything above it is an unreadable lookup, fatal like the grep in
-  # select_for.
   local grep_rc=0 wrap_rc=0 WRAP_LINES="${AFFECTED_TESTS_WRAP_LINES:-1000}"
   git grep --untracked -E '^[[:blank:]]*(from|import)[[:blank:]]' -- '*.py' >"$WORK_DIR/py-imports" || grep_rc=$?
-  # A `from m import (` or `from m import \` statement carries its names on the
-  # lines after it, so each is joined into one line of the index. --null keeps
-  # the path apart from a context line's text, which `-` cannot.
   git grep --untracked --null -E -A "$WRAP_LINES" '^[[:blank:]]*from[[:blank:]].*import[[:blank:]]*([(][^)]*|.*\\[[:blank:]]*)$' \
     -- '*.py' >"$WORK_DIR/py-wrapped" || wrap_rc=$?
   if [[ "$grep_rc" -gt 1 || "$wrap_rc" -gt 1 ]]; then
@@ -638,13 +387,6 @@ build_tree_index() {
 
 declare -A NAMED=()
 TREE_GREPS=0
-# build_name_lines: every code line naming a basename a frontier can hold (a
-# file of the tree, a changed path, a shared library's copy), as `git grep`
-# prints it, read from the tree once. A level whose names it covers greps these
-# lines instead of the tree, which a `git grep` walked on every level. GNU grep
-# matches the path too, so it also returns lines of a file whose path alone
-# holds a name; token_hits reads only the text after the path, and those lines
-# name nothing. `git grep -h` and `-c` over one tree align line for line.
 build_name_lines() {
   local b names_rc=0 lines_rc=0 counts_rc=0 named_rc=0
   {
@@ -669,10 +411,6 @@ build_name_lines() {
   while IFS= read -r b; do NAMED["$b"]=1; done <"$WORK_DIR/names"
 }
 
-# scope_declarations <file-list> -> one `<suite> <glob>...` line per
-# `# test-scope:` (or, in a .test.js or .test.mjs suite, `// test-scope:`)
-# line in the leading comment block of each suite the list
-# names, read from the current directory (R8).
 scope_declarations() {
   awk '
     { b = $0; sub(/.*\//, "", b); c = b ~ /\.test\.m?js$/ ? "//" : "#" }
@@ -718,10 +456,6 @@ is_suite_path() {
   return 1
 }
 
-# lang_family <path> -> sets LANG_FAMILY to the ecosystem the path belongs to.
-# A global rather than stdout: a command substitution forks, and this runs once
-# per frontier path and per lookup hit. Anything unrecognized gets its own
-# `ext:` bucket rather than a shared "other", and an `ext:` origin is data (R4).
 LANG_FAMILY=""
 lang_family() {
   case "$1" in
@@ -733,15 +467,6 @@ lang_family() {
   esac
 }
 
-# token_hits <plain> <resolve> <matched-lines> <hits> <resolvable-files> <py-imports>
-# Reduce `git grep`'s SUBSTRING hits to the mentions the rules mean. Inputs:
-# the frontier paths this level looks up by plain basename, those whose names
-# must RESOLVE (AMBIGUOUS NAMES), the `<path>:<line>` grep output, the files of
-# the tree that carry a resolvable name and the Python import lines, each
-# /dev/null for a level no rule reads it for. Output,
-# one line per pair:
-#   p<TAB><path><TAB><basename><TAB><1 when a kept line runs or loads it, else 0>
-#   r<TAB><path><TAB><resolved frontier path>
 token_hits() {
   awk -v plainf="$1" -v resf="$2" -v allf="$5" -v impf="$6" '
     function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
@@ -1077,8 +802,6 @@ colocated_suites() {
     "$stem.test.mjs"
     "$stem.Tests.ps1"
     "$dir/test_$base.py"
-    # A Python suite reaches its subject with `import <module>`, which never
-    # spells the filename, so the tests/ form has to be a path rule.
     "$dir/tests/test_$base.py"
   )
   [[ "$base" == *-* ]] && candidates+=(
@@ -1088,8 +811,6 @@ colocated_suites() {
   for candidate in "${candidates[@]}"; do
     [[ -f "$candidate" ]] && printf '%s\n' "$candidate"
   done
-  # pytest loads a conftest.py, and Python a package's __init__.py, without
-  # either being named, for every test module at or below the directory.
   case "${p##*/}" in
   conftest.py | __init__.py)
     awk -v d="$dir/" '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && (d == "./" || index($0, d) == 1)' \
@@ -1100,9 +821,6 @@ colocated_suites() {
   return 0
 }
 
-# select_for <changed-path> -> populate SUITES, and set SEED_HITS to the number
-# of suites THIS seed reached. The count comes back through a global: a command
-# substitution would run the walk in a subshell and lose every SUITES entry.
 select_for() {
   local seed="$1"
   local -a frontier=() next=()
@@ -1143,7 +861,6 @@ select_for() {
     for p in "${frontier[@]}"; do
       [[ -n "${VISITED[$p]:-}" ]] && continue
       VISITED["$p"]=1
-      # R1/R2, through a file: a process substitution forks once per path.
       colocated_suites "$p" >"$WORK_DIR/colocated"
       while IFS= read -r sib; do
         [[ -n "$sib" ]] || continue
@@ -1186,14 +903,6 @@ select_for() {
 
     [[ -s "$WORK_DIR/patterns" ]] || break
 
-    # One batched reverse lookup per level, in the two stages the header
-    # describes. The hits go through a FILE rather than a process substitution
-    # so a git ERROR (exit >= 2) is not read as NO MATCH (exit 1): both would
-    # come back as "no dependents", an under-selection at exit 0. Every
-    # extension lang_family() names is searched, or a family it classifies
-    # would be under-covered while looking supported.
-    # Each result file is written once under a fresh number and never again,
-    # so a cached path stays valid for the rest of the run.
     hits_key="$pattern_key"$'\x01'"$plain_key"$'\x01'"$resolve_key"
     hits="${HITS_CACHE[$hits_key]:-}"
     if [[ -z "$hits" ]]; then
@@ -1271,9 +980,6 @@ select_for() {
   done
 }
 
-# check_scope_globs <suite> -> exit 2 when a glob the suite declares matches no
-# file of the tree: it declares nothing, so the suite misses the changes it
-# reads. Run when a declaring suite changes, which is when a glob is written.
 check_scope_globs() {
   local i
   for i in "${!SCOPE_GLOBS[@]}"; do
@@ -1316,9 +1022,6 @@ load_no_suite_patterns() {
     echo "       and without it every doc and manifest change would report as unmapped." >&2
     exit 2
   fi
-  # `inline`: these are glob patterns over repo paths, never regexes, so a `#`
-  # anywhere on the line is a comment (scripts/lib/read-list.sh owns the two
-  # comment families and why they must stay distinct).
   read_list::into NO_SUITE_PATTERNS "$NO_SUITE_LIST" --comments inline || exit 2
   if [[ ${#NO_SUITE_PATTERNS[@]} -eq 0 ]]; then
     echo "error: $NO_SUITE_LIST has no active patterns." >&2
@@ -1348,10 +1051,6 @@ changed_from_diff() {
     echo "       Pass --base <ref>, or give explicit paths." >&2
     exit 2
   fi
-  # The WORKING TREE against the merge base: uncommitted edits count, and so
-  # does nothing that landed on the base branch meanwhile. Mid-merge, the
-  # MERGE_HEAD commits join the merge-base computation, so the incoming side's
-  # files are not charged to this change.
   local merge_head_file=""
   local -a merge_heads=()
   merge_head_file="$(git rev-parse --git-path MERGE_HEAD 2>/dev/null)" || merge_head_file=""
@@ -1360,9 +1059,6 @@ changed_from_diff() {
   fi
   mb="$(git merge-base "$base" HEAD "${merge_heads[@]}" 2>/dev/null)" || mb="$base"
   DIFF_BASE="$mb"
-  # Every failure is fatal, never an empty list, which downstream reads as
-  # "nothing to select, exit 0". This runs in the CURRENT shell (see the call
-  # site) so these exits are the script's.
   if ! git diff --name-only "$mb" --; then
     echo "error: 'git diff --name-only $mb' failed; refusing to report an empty change set." >&2
     exit 2
@@ -1384,12 +1080,6 @@ if [[ -n "$print_fanout" ]]; then
   exit 0
 fi
 
-# replay_select <out-prefix> <tree> <selector> <no-suite-list> <scopes-list>
-#               [<flag>...] -- <path>...
-# One selection in the replay tree, through a fresh process. Writes
-# <out-prefix>.sel (`<suite>\t<reason>`) and <out-prefix>.unmapped, and fails
-# loud on any exit but 0, because a broken selection counted as an empty one
-# would understate the side it ran for.
 replay_select() {
   local out="$1" tree="$2" sel="$3" list="$4" scopes="$5" rc=0
   shift 5
@@ -1541,10 +1231,7 @@ elif [[ ${#explicit_paths[@]} -gt 0 ]]; then
     changed+=("$p")
   done
 else
-  # Run the producer in the CURRENT shell so its fatal exits are the script's.
   changed_from_diff >"$WORK_DIR/changed.raw"
-  # Checked: a failing `sort` read from a process substitution would yield an
-  # EMPTY change set at exit 0.
   if ! sort -u "$WORK_DIR/changed.raw" >"$WORK_DIR/changed"; then
     echo "error: sorting the changed-file list failed; refusing to report an empty change set." >&2
     exit 2
@@ -1678,8 +1365,6 @@ if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
   fi
 fi
 
-# `${!SUITES[@]}` cannot carry a `+` default-guard: bash parses `${!NAME...}` as
-# an indirect reference and rejects the expanded key list as a variable name.
 declare -a selected=()
 if [[ ${#SUITES[@]} -gt 0 ]]; then
   for s in "${!SUITES[@]}"; do
@@ -1730,22 +1415,6 @@ if [[ "$do_run" -eq 0 ]]; then
   exit 0
 fi
 
-# SEQUENTIAL BY DEFAULT, --jobs N ON REQUEST. On a Windows Git Bash host a
-# parallel run was sublinear (the suites are spawn-bound); on a Linux CI runner
-# it pays, which is why CI passes a count. --jobs N > 1 hands the selection to
-# run-plugin-tests.sh, which owns the worker, the bounded xargs dispatch, the
-# per-suite print lock and scripts/run-plugin-tests-serial.txt, the suites that
-# must never overlap anything. Three is the proven ceiling on a 4-vCPU runner:
-# at four, suites failed by producing empty output from an external command
-# (#3694). --budget S hands the selection there too, at any job count, since
-# that runner times each suite against its share.
-#
-# Only *.test.sh is executable HERE. The other three ecosystems are run by their
-# own lanes, with invocations this script cannot derive from a suite path
-# (`python -m unittest` against a named module, `npm test`, `node --test`,
-# vitest, Pester), and a guessed runner either errors as though the suite failed
-# or exits 0 having run nothing. So they are named and NOT run, and the exit
-# code says so.
 declare -a runnable=() delegated=()
 for s in "${selected[@]}"; do
   case "$s" in

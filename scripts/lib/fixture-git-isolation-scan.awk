@@ -1,5 +1,3 @@
-# The classifying scan of scripts/check-fixture-git-isolation.sh, whose header
-# documents both rules; it prints one tab-separated record per finding.
 BEGIN {
   # The quote CLASS is built once here and every pattern needing it is a
   # DYNAMIC regex over this string, so no pattern holds a literal apostrophe.

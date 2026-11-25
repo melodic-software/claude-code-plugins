@@ -1,138 +1,5 @@
 #!/usr/bin/env bash
-# Gate: every lane defined in the CI workflow must be able to turn the required
-# aggregate red, at BOTH levels the lanes live at, or carry a written reason
-# for staying out of it.
-#
-#   scripts/check-lane-coverage.sh --check [<workflow> [<aggregate-job-id> [<step-opt-out-list> [<peer-workflow-dir>]]]]
-#
-# Defaults: .github/workflows/pr-require-checks.yml, the `ci-status` aggregate,
-# scripts/lane-coverage-step-opt-outs.txt, and .github/workflows as the peer
-# directory when the workflow is the default one (no peers otherwise).
-#
-# WHY. `ci-status` is the single check the org ci-gate ruleset keys on, and its
-# own comment calls its `needs` list "the single source of truth for the lane
-# list". Nothing enforced the other direction: a job DEFINED in pr-require-checks.yml but
-# ABSENT from that list runs, reports, and turns red in the run list while
-# `ci-status` reports success — so it cannot gate a merge. `hook-utils-windows`
-# already states the doctrine in prose ("a lane missing from that list is
-# informational no matter how loudly a comment here calls it a gate"), and prose
-# is not a gate: `managed-scope-sync` and `state-key-sync` shipped outside the
-# aggregate for their whole lifetime (claude-code-plugins#2856), each advertised
-# as a dedicated check in scripts/cross-plugin-source-registry.txt. That is the
-# false-green shape docs/contracts/liveness-assertion/ names — green surface,
-# dead enforcement — with the added twist that the surface is the merge gate
-# itself.
-#
-# The same shape exists one level down. Most lanes are no longer jobs: they are
-# STEPS of one job, each carrying `continue-on-error: true` so that one failure
-# does not hide the others, and an `id` so that an aggregator feed at the foot of
-# the job can read `steps.<id>.outcome` and turn the job red on any non-success.
-# `continue-on-error` absorbs the failure by design, so a gate step whose id the
-# feed does not read fails silently: the job stays green, `ci-status` stays
-# green, and the lane is decoration. The job-level check cannot see that, because
-# the job IS in `needs`. So this gate proves set equality at step level too.
-#
-# WHAT IS CHECKED AT JOB LEVEL (all four directions, so the two sets are
-# provably equal):
-#   1. UNGATED LANE   — a job defined in the workflow, not in the aggregate's
-#                       `needs`, and not annotated. The class #2856 filed.
-#   2. DANGLING NEED  — a `needs` entry naming no defined job. GitHub rejects
-#                       this at workflow-parse time, but a parse error surfaces
-#                       as a failed run, not as a named defect.
-#   3. STALE OPT-OUT  — a job annotated as deliberately ungated that IS in
-#                       `needs`. Same stale-guard idiom as the baseline lists in
-#                       scripts/: an exemption must not outlive what it excuses.
-#   4. BARE OPT-OUT   — the annotation present with no reason after the colon.
-#                       An undocumented opt-out is exactly the silent off switch
-#                       this gate exists to deny, so it fails rather than passing
-#                       as "annotated".
-#
-# WHAT IS CHECKED AT STEP LEVEL. A GATE STEP is a step carrying a literal
-# `continue-on-error: true`; the AGGREGATOR FEED of a job is every row of the
-# form `<name>=${{ ... steps.<id>.outcome }}` inside a block scalar of that job
-# (the `CHECK_RESULTS` env block of the aggregate step, in this repo). Within
-# each job the set of gate steps, minus the declared opt-outs, must EQUAL the
-# set of ids the feed reads:
-#   5. UNFED GATE       — a gate step with an id that no feed row in its job
-#                         reads, and no opt-out. Its failure is absorbed and
-#                         nothing turns red. The class this level exists for.
-#   6. UNREADABLE GATE  — a gate step with no `id` at all. It cannot be fed, so
-#                         it is the same defect with nothing to point at.
-#   7. DANGLING FEED    — a feed row reading `steps.<id>.outcome` for an id no
-#                         step in that job carries with `continue-on-error:
-#                         true`. An undefined id evaluates to an empty string;
-#                         an id on a step without the flag is a row the feed
-#                         does not need and that would mask the flag's absence
-#                         if one were added later.
-#   8. STALE STEP OPT-OUT — a listed step that is not a gate step, or that the
-#                         feed reads anyway. An exemption must not outlive what
-#                         it excuses.
-#   9. BARE STEP OPT-OUT  — a listed step with no reason written beside it.
-#
-# WHAT IS CHECKED ACROSS WORKFLOWS:
-#  10. SHARED CHECK NAME  — a job of this workflow whose check name (its literal
-#                         `name:`, else its id) a job of another workflow in the
-#                         peer directory also carries. A required check matches
-#                         by name alone, and GitHub's protected-branches
-#                         guidance is to keep job names unique across all
-#                         workflows: a twin makes the required result
-#                         ambiguous. A reusable-workflow job is skipped, because
-#                         its checks are named `<job> / <inner job>`.
-#
-# Steps of a job that is itself annotated `# lane-coverage-ok:` are exempt from
-# 5 and 6: an informational lane cannot gate a merge whatever its steps do.
-# Check 7 applies everywhere, because a feed row that reads nothing is wrong in
-# any job.
-#
-# A `steps.<id>.outcome` read OUTSIDE a block scalar — a step-level `if:`, say —
-# is not a feed row. This gate models ONE aggregation shape, the one this
-# workflow uses, and a gate step reachable only some other way reports UNFED
-# rather than passing on a shape nobody checked. That is the fail-closed
-# direction: a false alarm names a step and a fix, a missed one is the silent
-# lane this gate exists to deny.
-#
-# THE JOB OPT-OUT. A job that legitimately does not belong in the required
-# aggregate — advisory by design, or driven by an event the merge gate never
-# sees — records that decision inline:
-#
-#   # lane-coverage-ok: <reason>
-#   some-job:
-#
-# THE STEP OPT-OUT. A step that carries `continue-on-error: true` for a reason
-# other than aggregation (the docs-only resolver's own steps, whose failure must
-# fall through to a fail-open default instead of failing their job) is listed in
-# scripts/lane-coverage-step-opt-outs.txt, one entry per line:
-#
-#   <job-id>/<step-id>  <reason>
-#
-# The reason rides on the entry line, so it cannot drift away from what it
-# excuses, and the list is checked in both directions (8 and 9 above), so it
-# cannot rot into a silent allowlist. It is a list rather than the inline
-# annotation the job level uses because a job key is a 2-space line with one
-# possible meaning, while a step is a sequence item whose comment could sit above
-# `- name:`, `uses:` or `with:` — attributing it would be exactly the
-# shape-guessing this gate refuses to do. The list is parsed by the shared reader
-# every scripts/*.txt list uses (scripts/lib/read-list.sh, `leading` mode), not
-# by a private parser.
-#
-# The aggregate job itself is exempt from the job-level check by construction —
-# it cannot depend on itself — via AGGREGATE below, not via a silent filter.
-#
-# FAIL CLOSED ON SHAPE. This reads the workflow structurally with awk rather
-# than through a YAML library (the repo ships no root YAML dependency, and the
-# only workflow parser in the tree, .github/standards/runner-policy, is an
-# org-owned standards materialization this repo does not edit). Every YAML shape
-# it does not recognize — a flow-sequence `needs: [a, b]`, a scalar `needs: x`,
-# an aggregate with no `needs:` at all, a 2-space key under `jobs:` that is not a
-# plain job id, an expression-valued `continue-on-error`, a `steps.<id>.outcome`
-# read inside a block scalar that is not a single-step feed row — exits 2
-# (inconclusive), never 0. Returning an empty lane set on an unparsed file would
-# be this gate committing the very defect it detects. Block-scalar bodies are
-# read as data, never as structure, so a script line can never be mistaken for
-# a step key.
-#
 # Exit: 0 covered; 1 a coverage defect; 2 usage, missing file, or unrecognized
-# workflow shape.
 set -uo pipefail
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -170,14 +37,6 @@ if [[ -n "$PEER_DIR" && ! -d "$PEER_DIR" ]]; then
   exit 2
 fi
 
-# One structural pass. Emits these record kinds on stdout:
-#   JOB <id> <A|N> <reason...>       A = annotated opt-out (reason may be empty)
-#   NEED <id>
-#   STEPNAME <job> <ordinal> <name>  the step's display name, for messages
-#   STEPID <job> <ordinal> <id>
-#   COE <job> <ordinal>              step carries a literal continue-on-error: true
-#   FEED <job> <id>                  a feed row reads steps.<id>.outcome
-#   ERR <message>
 parsed="$(
   awk -v agg="$AGGREGATE" '
     function reset_ann() { ann = 0; reason = "" }
@@ -368,15 +227,6 @@ if [[ -z "$needs_all" ]]; then
   exit 2
 fi
 
-# --- the step opt-out list --------------------------------------------------
-#
-# One `<job-id>/<step-id>  <reason>` per line, read through the shared reader
-# scripts/lib/read-list.sh in `leading` mode: a whole-line `#` is a comment, and
-# everything after the id on an ENTRY line is that entry's reason. Carrying the
-# reason on the entry line rather than in a comment block above it is what keeps
-# the two from drifting apart — there is no adjacency rule to get wrong, and the
-# check below can hold each entry to having one. Read before any verdict, so a
-# malformed list is inconclusive rather than a pass over an empty set.
 optout_entries=()
 read_list::into optout_entries "$STEP_OPT_OUTS" --comments leading || exit 2
 
@@ -470,7 +320,6 @@ while read -r _ j id; do
   feed_reads+="$j/$id"$'\n'
 done <<<"$rec_feed"
 
-# 5. UNFED GATE, and the fed half of 8.
 while IFS= read -r gs; do
   [[ -n "$gs" ]] || continue
   job="${gs%%/*}"
@@ -485,7 +334,6 @@ while IFS= read -r gs; do
   report "UNFED GATE: step '${gs#*/}' in job '$job' carries 'continue-on-error: true' but no aggregator feed row in that job reads steps.${gs#*/}.outcome, so its failure is absorbed and turns nothing red. Add a row '<name>=\${{ steps.${gs#*/}.outcome }}' to the feed, or list '$gs' in $STEP_OPT_OUTS with a reason."
 done <<<"$gate_steps"
 
-# 7. DANGLING FEED.
 while IFS= read -r fr; do
   [[ -n "$fr" ]] || continue
   has_line "$gate_steps" "$fr" && continue
@@ -497,7 +345,6 @@ while IFS= read -r fr; do
   fi
 done <<<"$feed_reads"
 
-# 8 (unlisted half) and 9.
 while IFS="$TAB" read -r entry oreason; do
   [[ -n "$entry" ]] || continue
   if [[ -z "$oreason" ]]; then
