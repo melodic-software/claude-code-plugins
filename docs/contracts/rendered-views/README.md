@@ -864,9 +864,15 @@ visualization, adhd, planning and architecture plugins carry it. Skills cite the
 
 The chrome is one for every page family: the system/light/dark toggle (system by default,
 `button[data-rv-theme]`), the comment box (`textarea[data-rv-note]` under a labeled
-heading), and the accessibility floor. A page offers no other theme choice: no team or user
-theme override, no accent or palette picker. A built view copies the chrome's toggle and
-comment markup and its `rv-chrome` style rules verbatim, and its plugin's tests compare them
+heading), and the accessibility floor. A page offers no other theme control: no accent or
+palette picker. A consumer may override three things through configuration, never on the page:
+the palette, the type stacks and a logo. Layout, the accessibility floor, the toggle and the
+comment box stay fixed, and an override that would put a page below the floor is dropped for
+the shipped value. Where the setting lives, the token layer each plugin copies, the migration
+order and the drift checks are in
+[ADR 0133](../../adr/0133-let-a-consumer-brand-rendered-pages-through-one-shared-token-layer.md);
+until a plugin migrates, its pages carry the shipped look. A built view copies the chrome's
+toggle and comment markup and its `rv-chrome` style rules verbatim, and its plugin's tests compare them
 with the plugin's copy of the chrome.
 
 The chrome's ivory page background (`--ivory`) is the sanctioned default background for a
