@@ -81,8 +81,9 @@ set `block`.
 - A changed line whose trailing comment text is byte-identical to that of the base line it replaces
   is not judged, so a formatter that respaces or rewraps the code before a comment passes; a
   comment whose text changed, a new trailing comment and a full-line comment still are. A hunk
-  replacing as many lines as it removes pairs them in order; any other hunk pairs a line only with
-  its one removed code line carrying the same comment, else the line is judged (row L437 of
+  adding as many lines as it removes pairs them in order; any other hunk pairs a line only with its
+  one removed code line carrying the same comment, when no other added code line of the hunk holds
+  it, else the line is judged (row L437 of
   docs/owner-decisions.md in the org's architecture repository;
   [#17778](https://github.com/melodic-software/claude-code-plugins/issues/17778)).
 - The commit-time hook needs Python 3 with pygments on each machine that commits; an agent without
