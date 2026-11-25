@@ -11,6 +11,7 @@ find_python "$ENGINE" "select-cases.py"
 
 rc=0
 "$PYTHON" "$SCRIPT_DIR/test_select_cases.py" || rc=$?
+"$PYTHON" "$SCRIPT_DIR/test_select_cases_no_run.py" || rc=$?
 "$PYTHON" "$SCRIPT_DIR/test_select_cases_mapping.py" || rc=$?
 "$PYTHON" "$SCRIPT_DIR/test_select_cases_compare.py" || rc=$?
 exit "$rc"
