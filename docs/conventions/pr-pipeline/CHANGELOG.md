@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [12.12.1] - 2026-11-25
+
+### Changed
+
+- pr-unblock's dispatch reads the Dependabot policy only from the standards checkout (`STANDARDS_DIR`) or `DEPENDABOT_POLICY`; with neither it reads no policy, so every Dependabot pull request is tier `review` with `dependabot-policy-unreadable`, instead of falling back to the base's `.github/standards/` copy.
+
 ## [12.12.0] - 2026-11-25
 
 ### Changed
