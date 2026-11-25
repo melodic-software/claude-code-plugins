@@ -456,6 +456,8 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     const targets = [];
     for (const m of (text ?? "").matchAll(/\bReverts\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)/g)) {
       if (!m[1] || m[1].toLowerCase() === own) {
+        // A GraphQL Int is signed 32-bit, so a longer digit string is never parsed into a Number:
+        // https://spec.graphql.org/October2021/#sec-Int
         const valid = /^[1-9]\d{0,9}$/.test(m[2]) && BigInt(m[2]) <= 2147483647n;
         targets.push(valid ? { number: Number(m[2]) } : { invalid: m[2] });
       }

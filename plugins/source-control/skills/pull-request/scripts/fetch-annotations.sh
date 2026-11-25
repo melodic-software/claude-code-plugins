@@ -74,6 +74,8 @@ fi
 HEAD_SHA=$(gh pr view "$PR_NUMBER" -R "$REPO" --json headRefOid -q .headRefOid 2>/dev/null | tr -d '\r\n')
 [[ -n "$HEAD_SHA" ]] || die 2 "gh pr view $PR_NUMBER failed (no head SHA)"
 
+# `--paginate`: a page holds at most 100 check runs:
+# https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference
 CHECK_RUNS_RAW=$(gh api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" 2>/dev/null) ||
   die 2 "gh api check-runs failed (exit $?)"
 
@@ -94,6 +96,8 @@ while IFS= read -r cr; do
   cr_name=$(jq -r '.name' <<<"$cr")
   [[ -z "$cr_id" || "$cr_id" == "null" ]] && continue
 
+  # `--paginate`: a page holds at most 100 annotations:
+  # https://docs.github.com/en/rest/checks/runs#list-check-run-annotations
   ANNOT_RAW=$(gh api --paginate "repos/$REPO/check-runs/$cr_id/annotations?per_page=100" 2>/dev/null) ||
     die 2 "gh api annotations for check-run $cr_id failed (exit $?)"
   printf '%s' "$ANNOT_RAW" |

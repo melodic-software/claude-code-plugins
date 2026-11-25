@@ -447,6 +447,8 @@ if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   exit 4
 fi
 
+# No scope flag: git-config(1) turns includes off when a specific file is given:
+# https://git-scm.com/docs/git-config
 if ((root_unset)); then
   worktree_root_resolve "$toplevel" || true
   if [[ -n "${WORKTREE_ROOT_VALUE:-}" ]]; then

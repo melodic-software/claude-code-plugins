@@ -113,6 +113,8 @@ worktree_add_target_to() {
     [[ -n "$__wt_base" ]] || return 1
   done
 
+  # `git worktree add` takes a value only after -b, -B and --reason; the walk steps over the rest:
+  # https://git-scm.com/docs/git-worktree
   local __wt_target="" __wt_seen_ddash=0
   for ((__wt_j = __wt_sub_idx + 2; __wt_j < __wt_n; __wt_j++)); do
     __wt_word="${__wt_words[__wt_j]}"

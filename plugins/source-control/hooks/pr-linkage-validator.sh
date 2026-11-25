@@ -80,6 +80,8 @@ trim_to() {
 CLOSING_ERE='(close[sd]?|fix(es|ed)?|resolve[sd]?)[[:blank:]]*:?[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+'
 NON_CLOSING_ERE='^ {0,3}(refs|relates[[:blank:]]+to):[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+[[:blank:]]*$'
 NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
+# The second keyword word is `to`: POSIX leftmost-longest matching reads `Closes ENG-123` as `Closes EN`:
+# https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap09.html
 TRACKER_LINK_ERE='^ {0,3}([A-Za-z]+([[:blank:]]+[Tt][Oo])?)([[:blank:]]*:[[:blank:]]*|[[:blank:]]+)([A-Z][A-Z0-9_]*-[0-9]+|(local-markdown|github|gitea|jira|linear):[^[:space:]#/][^[:space:]#]*#[0-9]+)[[:blank:]]*$'
 TRACKER_KEYWORD_ERE='^(close[sd]?|fix(es|ed)?|resolve[sd]?|refs|relates[[:blank:]]+to)$'
 _PLV_WORD_ERE="[A-Za-z][A-Za-z']*"

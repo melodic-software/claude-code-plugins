@@ -278,6 +278,8 @@ def merge_hold_label(labels: Iterable[Any], *, human_gated: str | None) -> str |
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
+# GitHub reports a mergeable PR with passing status as CLEAN, or as HAS_HOOKS with pre-receive hooks:
+# https://docs.github.com/en/graphql/reference/pulls
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 
 UNARMED_STATUS_CONTEXT = "pr-merge/unarmed"
@@ -3375,6 +3377,8 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
         files = json_object(
             gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
         ).get("files")
+        # The comparison lists at most 300 files; a full page may hide one:
+        # https://docs.github.com/en/rest/commits/commits#compare-two-commits
         if (
             not is_json_array(files)
             or len(files) >= 300

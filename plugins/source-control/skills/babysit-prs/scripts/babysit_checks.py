@@ -72,6 +72,8 @@ def normalize_check(check: dict[str, Any]) -> dict[str, Any]:
         or check.get("createdAt")
         or ""
     )
+    # statusCheckRollup gives a CheckRun `startedAt` (no `createdAt`) and a StatusContext `createdAt`:
+    # https://docs.github.com/en/graphql/reference/checks#checkrun
     created_at = str(check.get("startedAt") or check.get("createdAt") or "")
 
     return {

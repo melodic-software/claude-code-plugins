@@ -403,7 +403,11 @@ def verdict_name(name: str) -> re.Match[str] | None:
 PASSES = ("pass", "pass-notes")
 BODY_NOTE = "PR body"
 NOTES_MAX = 30
+# Artifacts last at most 90 days in a public repository; 80 leaves ten days of margin:
+# https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization
 TOO_OLD_DAYS = 80
+# `GET /pulls/{n}/commits` lists at most 250 commits:
+# https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request
 COMMITS_CAP = 250
 LISTING_WAITS = (2.0, 4.0)
 LISTING_PAGE_SECONDS = 1.0
@@ -502,6 +506,8 @@ CAPPED_CLOSE_RE = re.compile(
     r"(?: attempt=([0-9]+) of=([0-9]+)( parked)?)? -->"
 )
 STANDING = (FAIL, REPEATED_FAIL)
+# An issue's comments, a page of up to 100 (GraphQL `first` is 1-100) with the cursor to the next:
+# https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api
 COMMENT_FIELDS = (
     "totalCount pageInfo{hasNextPage endCursor} nodes{databaseId createdAt "
     "updatedAt lastEditedAt body author{...actor} editor{...actor}}"
@@ -5982,6 +5988,8 @@ RUN_FIELDS_KEPT = (
     "created_at",
     "updated_at",
 )
+# A run can be re-run up to 30 days after its first run; a day over covers the boundary:
+# https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs
 RERUN_LOOKBACK = timedelta(days=31)
 RUNNING_STATUSES = ("queued", "in_progress", "waiting", "requested", "pending")
 RATE_LIMIT_SIGNS = (

@@ -54,6 +54,8 @@ fi
 owner="${repo%%/*}"
 name="${repo#*/}"
 
+# Search returns at most 1,000 results, so the read widens until it is complete:
+# https://docs.github.com/en/rest/search/search#about-search
 if [[ -n "$pr_one" ]]; then
   gh api "repos/$repo/pulls/$pr_one" >"$tmp/one.json" 2>/dev/null || die "reading PR #$pr_one failed"
   jq '[{number, author: {login: .user.login?}, mergedAt: .merged_at}]' "$tmp/one.json" >"$tmp/prs.json" ||

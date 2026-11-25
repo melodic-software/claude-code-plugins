@@ -2170,6 +2170,8 @@ def flatten_paginated_items(
     return items
 
 
+# A filtered workflow-run listing returns at most this many runs per search:
+# https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
 RUN_SEARCH_CAP = 1000
 
 
@@ -2327,6 +2329,8 @@ def fetch_pull_request_commits(
             ["api", f"repos/{repo}/pulls/{number}", "--jq", ".commits"]
         )
     total = int(reported_total) if isinstance(reported_total, int) else 0
+    # GitHub lists at most 250 commits per pull request, so a short walk of a larger one under-reports:
+    # https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request
     if total > len(rows) and len(rows) >= 250:
         raise RuntimeError(
             f"commit list exceeded the API's 250-commit cap "
