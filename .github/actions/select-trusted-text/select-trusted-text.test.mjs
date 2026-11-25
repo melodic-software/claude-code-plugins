@@ -601,6 +601,8 @@ test("with no renames handed on, the renames are read on their own; with no pull
   const noPull = await handed(api, prReads(42, { ...api.pull, node_id: undefined }, specNode(api)));
   assert.deepEqual(noPull.context, full.context);
   assert.ok(noPull.github.calls.includes(PULL_READ));
+  const renameReads = connectionReads(noPull.github).filter((read) => /RENAMED_TITLE_EVENT/.test(read.query));
+  assert.equal(renameReads.length, 1);
 });
 
 test("every trust rule holds on handed-on reads as on a full read", async () => {

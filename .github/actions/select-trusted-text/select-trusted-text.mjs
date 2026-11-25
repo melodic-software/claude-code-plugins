@@ -258,7 +258,7 @@ export async function buildTrustedContext({ github, repository, prNumber, ids, r
   // everyone who renamed it.
   let titleKept = prKept;
   if (prKept) {
-    const renamers = await titleRenamers(github, repository, prNumber, reads && !reads.renames ? undefined : firstPages);
+    const renamers = await titleRenamers(github, repository, prNumber, reads && !(reads.pull && reads.renames) ? undefined : firstPages);
     titleKept = renamers.every((actor) => isListed(ids, { id: actor?.databaseId }));
     if (!titleKept) {
       dropped["edited-by-untrusted"] += 1;
