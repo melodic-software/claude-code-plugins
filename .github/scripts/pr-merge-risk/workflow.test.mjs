@@ -205,6 +205,17 @@ test("the rating runs under dontAsk on the data directory and the review plugin'
   assert.match(text, /allow rules do not bound Read once the skill runs/);
 });
 
+test("every leg cuts the diff with no size refusal, runs every chunk's agents at once, and checks the rating against the parts it cut", () => {
+  for (const id of Object.values(LEGS)) {
+    const data = step(id, "Write the rating's data");
+    assert.doesNotMatch(data, /MAX_DIFF_BYTES/, id);
+    const coverage = /\n {10}COVERAGE_FILE: (.+)\n/.exec(data)?.[1];
+    assert.ok(coverage, id);
+    assert.equal(/\n {10}COVERAGE_FILE: (.+)\n/.exec(step(id, "Write the rating"))?.[1], coverage, id);
+    assert.match(step(id, "Rate the pull request"), /\n {10}CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: \$\{\{ steps\.data\.outputs\.agents \}\}\n/, id);
+  }
+});
+
 test("the names the arm side reads match merge-risk-line.mjs", () => {
   for (const id of Object.values(LEGS)) {
     const resolve = step(id, "Resolve the pull request");

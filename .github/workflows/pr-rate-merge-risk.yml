@@ -230,7 +230,11 @@ jobs:
           DATA: ${{ github.workspace }}/merge-risk-data
           CONTEXT_FILE: ${{ runner.temp }}/merge-risk-reads/context.json
           SPEC_TEXT_FILE: ${{ runner.temp }}/merge-risk-reads/spec-text.json
-          MAX_DIFF_BYTES: "600000"
+          COVERAGE_FILE: ${{ runner.temp }}/merge-risk-reads/coverage.json
+          CHUNK_BYTES: "300000"
+          MAX_CHUNKS: "50"
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           git init -q "$SRC"
@@ -330,6 +334,7 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CLAUDE_CODE_SUBAGENT_MODEL: ${{ steps.checker.outputs.model }}
           CLAUDE_CODE_SUBAGENT_MODEL_FORCE: ${{ steps.checker.outputs.force }}
+          CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: ${{ steps.data.outputs.agents }}
         with:
           lane: pr-merge-risk
           role: pr-verify
@@ -451,6 +456,7 @@ jobs:
           CLI_VERSION: ${{ steps.rate.outputs.cli-version }}
           STARTED_AT: ${{ steps.prompt.outputs.started-at }}
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
+          COVERAGE_FILE: ${{ runner.temp }}/merge-risk-reads/coverage.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
 
@@ -632,7 +638,11 @@ jobs:
           DATA: ${{ github.workspace }}/merge-risk-data
           CONTEXT_FILE: ${{ runner.temp }}/merge-risk-reads/context.json
           SPEC_TEXT_FILE: ${{ runner.temp }}/merge-risk-reads/spec-text.json
-          MAX_DIFF_BYTES: "600000"
+          COVERAGE_FILE: ${{ runner.temp }}/merge-risk-reads/coverage.json
+          CHUNK_BYTES: "300000"
+          MAX_CHUNKS: "50"
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           git init -q "$SRC"
@@ -725,6 +735,7 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CLAUDE_CODE_SUBAGENT_MODEL: ${{ steps.checker.outputs.model }}
           CLAUDE_CODE_SUBAGENT_MODEL_FORCE: ${{ steps.checker.outputs.force }}
+          CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: ${{ steps.data.outputs.agents }}
         with:
           lane: pr-merge-risk
           role: pr-verify
@@ -811,6 +822,7 @@ jobs:
           CLI_VERSION: ${{ steps.rate.outputs.cli-version }}
           STARTED_AT: ${{ steps.prompt.outputs.started-at }}
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
+          COVERAGE_FILE: ${{ runner.temp }}/merge-risk-reads/coverage.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
 
@@ -975,7 +987,11 @@ jobs:
           DATA: ${{ github.workspace }}/merge-risk-data
           CONTEXT_FILE: ${{ runner.temp }}/merge-risk-reads/context.json
           SPEC_TEXT_FILE: ${{ runner.temp }}/merge-risk-reads/spec-text.json
-          MAX_DIFF_BYTES: "600000"
+          COVERAGE_FILE: ${{ runner.temp }}/merge-risk-reads/coverage.json
+          CHUNK_BYTES: "300000"
+          MAX_CHUNKS: "50"
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           git init -q "$SRC"
@@ -1067,6 +1083,7 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CLAUDE_CODE_SUBAGENT_MODEL: ${{ steps.checker.outputs.model }}
           CLAUDE_CODE_SUBAGENT_MODEL_FORCE: ${{ steps.checker.outputs.force }}
+          CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: ${{ steps.data.outputs.agents }}
         with:
           lane: pr-merge-risk
           role: pr-verify
@@ -1152,6 +1169,7 @@ jobs:
           CLI_VERSION: ${{ steps.rate.outputs.cli-version }}
           STARTED_AT: ${{ steps.prompt.outputs.started-at }}
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
+          COVERAGE_FILE: ${{ runner.temp }}/merge-risk-reads/coverage.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
 

@@ -20,7 +20,7 @@
 //   OUT_DIR          where rating.json is written
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -35,7 +35,42 @@ const iso = (seconds) => new Date(Number(seconds) * 1000).toISOString();
 // tool, a Read outside the data directory above all, refuses the rating.
 export const WITHHELD = Object.freeze(["Bash", "Glob", "Grep"]);
 
-export function buildRating({ output, messages, pr, head, rubric, cliVersion, startedAt, endedAt }) {
+const contentOf = (message) => (Array.isArray(message?.message?.content) ? message.message.content : []);
+
+export function unreadParts(messages, parts) {
+  const list = Array.isArray(messages) ? messages : [];
+  const failed = new Set(list.flatMap((message) => contentOf(message).filter((block) => block?.type === "tool_result" && block.is_error === true).map((block) => block.tool_use_id)));
+  const reach = new Map();
+  for (const message of list) {
+    if (message?.type !== "assistant") continue;
+    for (const block of contentOf(message)) {
+      if (block?.type !== "tool_use" || block.name !== "Read" || failed.has(block.id) || typeof block.input?.file_path !== "string") continue;
+      const { offset, limit } = block.input;
+      if (offset !== undefined && !(Number(offset) <= 1)) continue;
+      const lines = limit === undefined ? Infinity : Number(limit) || 0;
+      const path = resolve(block.input.file_path);
+      reach.set(path, Math.max(reach.get(path) ?? 0, lines));
+    }
+  }
+  return parts.filter((part) => (reach.get(resolve(part.path)) ?? 0) < Math.max(1, part.lines));
+}
+
+export function coverageRow(messages, coverage) {
+  if (coverage === undefined) return undefined;
+  const parts = Array.isArray(coverage?.parts) ? coverage.parts : [];
+  const leftOut = Number(coverage?.left_out?.chunks ?? 0);
+  const unread = unreadParts(messages, parts);
+  if (unread.length === 0 && leftOut === 0) return undefined;
+  const why = [
+    unread.length > 0 ? `${unread.length} of ${parts.length} diff parts were never read whole by any agent` : "",
+    leftOut > 0 ? `${leftOut} chunk(s) of the diff (${Number(coverage.left_out.bytes)} bytes) were past the most a rating reads and left out` : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
+  return { area: "Diff coverage", level: "HIGH", why: `${why}, so this rating does not cover the whole diff.`, check: "unchecked", checker_level: "", checker: "" };
+}
+
+export function buildRating({ output, messages, pr, head, rubric, cliVersion, startedAt, endedAt, coverage }) {
   const result = Array.isArray(messages) ? messages.findLast((message) => message?.type === "result") : undefined;
   const denials = (Array.isArray(result?.permission_denials) ? result.permission_denials : []).filter((denial) => !WITHHELD.includes(denial?.tool_name));
   if (denials.length > 0) {
@@ -47,7 +82,8 @@ export function buildRating({ output, messages, pr, head, rubric, cliVersion, st
   if (!VERSION.test(String(cliVersion ?? ""))) {
     throw new Error("the CLI version is malformed");
   }
-  const checked = checkResult(output, { pr, head });
+  const gap = coverageRow(messages, coverage);
+  const checked = checkResult(gap && Array.isArray(output?.risks) ? { ...output, risks: [...output.risks, gap] } : output, { pr, head });
   return { ...checked, rubric, ...modelsOf(messages), cli_version: cliVersion, started_at: iso(startedAt), ended_at: iso(endedAt) };
 }
 
@@ -57,6 +93,7 @@ export function main(env = process.env, clock = Date.now) {
     if (!Number.isSafeInteger(pr) || pr < 1 || !/^[0-9]{1,12}$/.test(String(env.STARTED_AT ?? ""))) {
       throw new Error("PR_NUMBER or STARTED_AT is malformed");
     }
+    if (!env.COVERAGE_FILE) throw new Error("COVERAGE_FILE is not set");
     const rating = buildRating({
       output: JSON.parse(readFileSync(env.OUTPUT_FILE, "utf8")),
       messages: JSON.parse(readFileSync(env.EXECUTION_FILE, "utf8")),
@@ -66,6 +103,7 @@ export function main(env = process.env, clock = Date.now) {
       cliVersion: env.CLI_VERSION,
       startedAt: env.STARTED_AT,
       endedAt: Math.floor(clock() / 1000),
+      coverage: JSON.parse(readFileSync(env.COVERAGE_FILE, "utf8")),
     });
     mkdirSync(env.OUT_DIR, { recursive: true });
     writeFileSync(join(env.OUT_DIR, RATING_FILE), `${JSON.stringify(rating, null, 2)}\n`);
