@@ -37,6 +37,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "Skill: discovery:research  args: \"Pick the index library: compare candidate libraries on cost, relevance and ops\" --verification light\n\nComment on #305:\nResolution: Pick <library>, because <why>. Costs: <costs>. Unverified: <gaps>.",
+      "why": "wrong: the comment compares nothing; the word appears only in the research call"
     }
   ]
 }

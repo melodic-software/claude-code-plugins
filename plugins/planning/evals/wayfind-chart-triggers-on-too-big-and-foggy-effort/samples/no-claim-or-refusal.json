@@ -15,6 +15,10 @@
     {
       "answer": "Charting the overhaul. Once the map exists, working its first item starts with a claim.",
       "why": "describes later work, claims nothing"
+    },
+    {
+      "answer": "After you say yes, run /planning:wayfind work to pick up the first item.",
+      "why": "names the later work step, claims nothing"
     }
   ],
   "fail": [

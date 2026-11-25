@@ -37,6 +37,14 @@
     {
       "answer": "Created map 'Search indexing rewrite' with items 'Pick the queue'.",
       "why": "a different action"
+    },
+    {
+      "answer": "Open maps: Skill: work-items:track args: list --label 'wayfind: map' --state open found none for the search indexing rewrite. Shall I run /planning:interview?",
+      "why": "wrong: an args read call, no preload"
+    },
+    {
+      "answer": "I'll carry on charting the search indexing pipeline.",
+      "why": "wrong: carry on is not a preload"
     }
   ]
 }

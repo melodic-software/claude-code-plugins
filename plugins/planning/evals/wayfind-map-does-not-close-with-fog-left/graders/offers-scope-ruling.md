@@ -1,5 +1,5 @@
 ---
 type: regex
-pattern: '\b(?:you|your)\b[^\n]{0,40}\b(?:rule|ruling|declare|decide|call)\w*\b(?:(?!\b(?:not|no need)\b|n''t\b)[^\n]){0,60}\bout[- ]of[- ]scope\b|(?<!\bnot )(?<!\bnever )(?<!\bcannot )(?<!n''t )\brul(?:e|ing) (?:it|this|that|the bullet|\**Tax display\**|''Tax display'')\s+out\b|\bout[- ]of[- ]scope\b[^\n]{0,60}\byour\b[^\n]{0,20}\b(?:ruling|reason|call|decision|say-so)\b|\bscope ruling\b'
+pattern: '\b(?:you|your)\s+(?:(?:can|could|may|might|also|instead)\s+){0,2}(?:rule|ruling|declare|decide|call)\w*\b(?:(?!\b(?:not|no need)\b|n''t\b)[^\n.;]){0,60}\bout[- ]of[- ]scope\b|(?<!\bnot )(?<!\bnever )(?<!\bcannot )(?<!n''t )\brul(?:e|ing) (?:it|this|that|the bullet|\**Tax display\**|''Tax display'')\s+out\b|\bout[- ]of[- ]scope\b[^\n]{0,60}\byour\b[^\n]{0,20}\b(?:ruling|reason|call|decision|say-so)\b|\bscope ruling\b'
 flags: i
 ---

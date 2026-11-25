@@ -37,6 +37,26 @@
     {
       "answer": "Closing the map: every decision item is closed and the frontier is empty.",
       "why": "wrong: closes despite the bullet"
+    },
+    {
+      "answer": "I've closed the map.",
+      "why": "wrong: closes the map in prose"
+    },
+    {
+      "answer": "I closed map #200.",
+      "why": "wrong: closes map #200 in prose"
+    },
+    {
+      "answer": "Map #200 is now closed.",
+      "why": "wrong: passive close"
+    },
+    {
+      "answer": "Closing the Map over the Tax display bullet.",
+      "why": "wrong: capitalized close"
+    },
+    {
+      "answer": "Closing comment:\nhandoff: pending",
+      "why": "wrong: lowercase handoff line"
     }
   ]
 }

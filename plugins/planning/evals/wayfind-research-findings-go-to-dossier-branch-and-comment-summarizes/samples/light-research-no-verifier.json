@@ -15,6 +15,14 @@
     {
       "answer": "**Research call:** `/discovery:research` (verification: **light**; do not run the verifier).",
       "why": "bold label form, negated verifier"
+    },
+    {
+      "answer": "Skill: discovery:research  args: \"Pick the index library\" --verification light, rather than running a separate verifier.",
+      "why": "rather than running a verifier"
+    },
+    {
+      "answer": "/discovery:research at its light level, instead of dispatching a verifier.",
+      "why": "instead of dispatching a verifier"
     }
   ],
   "fail": [

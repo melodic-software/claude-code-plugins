@@ -11,6 +11,14 @@
     {
       "answer": "1. `/work-items:track dossier-branches https://github.com/acme/auth/issues/800`\n2. Post the closing comment with that report.",
       "why": "map given by URL"
+    },
+    {
+      "answer": "A decision record has no container, so map close runs /work-items:track dossier-branches 800 before the closing comment.",
+      "why": "reason with no in front, then the call"
+    },
+    {
+      "answer": "The user is present, so without --unattended: /work-items:track dossier-branches 800",
+      "why": "without names the dropped flag, not the step"
     }
   ],
   "fail": [

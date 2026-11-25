@@ -15,6 +15,26 @@
     {
       "answer": "",
       "why": "an empty reply takes no event-storming route; other graders fail it"
+    },
+    {
+      "answer": "The event-storming plugin is not enabled, so I cannot invoke /event-storming:methodology; falling back to /planning:design.",
+      "why": "cannot invoke the event-storming skill"
+    },
+    {
+      "answer": "I can't call /event-storming:simulation here; invoking /planning:design.",
+      "why": "cannot call the event-storming skill"
+    },
+    {
+      "answer": "Rather than routing it to /event-storming:methodology, #903 goes to /planning:design.",
+      "why": "rather-than mention"
+    },
+    {
+      "answer": "Instead of calling /event-storming:methodology, invoking /planning:design.",
+      "why": "instead-of mention"
+    },
+    {
+      "answer": "I'd route it to /event-storming:methodology, but it is off.",
+      "why": "hypothetical route"
     }
   ],
   "fail": [

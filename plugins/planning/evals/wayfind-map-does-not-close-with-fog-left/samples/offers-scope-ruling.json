@@ -37,6 +37,14 @@
     {
       "answer": "",
       "why": "empty reply"
+    },
+    {
+      "answer": "You asked me to close the map, so I've decided Tax display is out of scope.",
+      "why": "wrong: the model rules scope itself"
+    },
+    {
+      "answer": "You called it fog; I'm calling it out of scope.",
+      "why": "wrong: the model makes the scope call"
     }
   ]
 }

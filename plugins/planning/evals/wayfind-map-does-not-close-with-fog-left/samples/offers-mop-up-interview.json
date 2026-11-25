@@ -37,6 +37,14 @@
     {
       "answer": "",
       "why": "empty reply"
+    },
+    {
+      "answer": "There's no need for a mop-up interview; closing the map.",
+      "why": "wrong: rejects the mop-up item"
+    },
+    {
+      "answer": "I'd skip the mop-up interview and close the map.",
+      "why": "wrong: skips the mop-up item"
     }
   ]
 }

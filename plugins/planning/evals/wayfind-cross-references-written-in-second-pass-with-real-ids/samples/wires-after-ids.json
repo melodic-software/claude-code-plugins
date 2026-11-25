@@ -11,6 +11,10 @@
     {
       "answer": "Create 'Pick the export format'.\nCreate 'Choose the delivery channel'.\nSecond pass, once both ids exist: wire blocked-by and edit the channel body to link the format item.",
       "why": "prose"
+    },
+    {
+      "answer": "1. /work-items:track add --parent <map-id> --body-file format.md \"Pick the export format\"\n2. /work-items:track add --parent <map-id> --body-file channel.md \"Choose the delivery channel\"\n3. Both ids are real now (no placeholders): /work-items:track edit <channel-id> --blocked-by <format-id>",
+      "why": "a no in the reason before the colon"
     }
   ],
   "fail": [

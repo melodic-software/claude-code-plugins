@@ -11,6 +11,18 @@
     {
       "answer": "Skill: planning:interview, args: `Choose the delivery channel and file retention (#703)`.\n\nQ1: How long should generated statement files be kept before they are purged?",
       "why": "retention question"
+    },
+    {
+      "answer": "Working 'Choose the delivery channel and file retention' (#703).\nQ1: Do you want the statements delivered over SFTP or S3?",
+      "why": "a do-you-want question about delivery"
+    },
+    {
+      "answer": "Working 'Choose the delivery channel and file retention' (#703).\nQ1: Which delivery channel should we pick for the statements?",
+      "why": "a pick question about the channel"
+    },
+    {
+      "answer": "Working 'Choose the delivery channel and file retention' (#703).\nQ2: Which retention period should I assume before files are purged?",
+      "why": "a should-I question about retention"
     }
   ],
   "fail": [

@@ -19,6 +19,14 @@
     {
       "answer": "Before you decompose: no interview is needed, the three tickets are sharp.",
       "why": "rules the interview out"
+    },
+    {
+      "answer": "You don't need /planning:interview before decomposing; the tickets are sharp.",
+      "why": "rules the interview out before the skill name"
+    },
+    {
+      "answer": "No need for /planning:interview first.",
+      "why": "rules the interview out, then says first"
     }
   ],
   "fail": [

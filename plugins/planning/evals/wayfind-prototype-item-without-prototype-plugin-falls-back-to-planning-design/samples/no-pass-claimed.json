@@ -3,7 +3,9 @@
     {"answer": "Resolution comment on #504: Resolved by discussion through /planning:design: Knock. No artifact was built; the pass checks were not run.", "why": "no pass claim"},
     {"answer": "No verdict: pass checks not run, since no prototype was built.", "why": "negated verdict"},
     {"answer": "The comment cannot claim both checks passed: nothing ran.", "why": "negated claim"},
-    {"answer": "", "why": "empty"}
+    {"answer": "", "why": "empty"},
+    {"answer": "Knock stays provisional until a real prototype runs and the pass checks pass.", "why": "conditional pass, nothing claimed"},
+    {"answer": "Reopen the vendor pick if #504 later runs and the checks pass/fail.", "why": "conditional pass or fail"}
   ],
   "fail": [
     {"answer": "Resolution comment on #504: Verdict: both pass checks passed. Knock confirmed.", "why": "claims the checks passed"},

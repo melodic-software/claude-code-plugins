@@ -41,6 +41,18 @@
     {
       "answer": "**Deferred:** nothing.\n**Out of scope:** mutual TLS (not deferred).\n**Glossary:** added 'partner app'.",
       "why": "wrong: mutual TLS moved out of scope instead of deferred"
+    },
+    {
+      "answer": "Nothing is deferred; mutual TLS is out of scope. Glossary: added 'partner app'.",
+      "why": "wrong: says nothing is deferred and moves mutual TLS out of scope"
+    },
+    {
+      "answer": "mTLS isn't deferred. Glossary: added 'partner app'.",
+      "why": "wrong: says mutual TLS is not deferred"
+    },
+    {
+      "answer": "Deferred: mutual TLS. The partner app wasn't added to the glossary.",
+      "why": "wrong: says the glossary did not change"
     }
   ]
 }

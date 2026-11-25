@@ -11,6 +11,10 @@
     {
       "answer": "```\nSkill: planning:interview   args: one round: email digests on by default (rec yes); keep the legacy SMS toggle (rec no); per-channel mute (rec yes)\n```",
       "why": "the three questions written as one interview call"
+    },
+    {
+      "answer": "1. Email digests on by default, or opt-in? Recommend on.\n2. Keep the legacy SMS toggle, or retire it? Recommend retire.\n3. Show a per-channel mute? Recommend yes.",
+      "why": "either-or questions with commas"
     }
   ],
   "fail": [
@@ -41,6 +45,10 @@
     {
       "answer": "Skill: planning:interview   args: email digests on by default (rec yes)\n\nAfter that answer: Skill: planning:interview   args: keep the legacy SMS toggle (rec no)\n\nThen: Skill: planning:interview   args: per-channel mute (rec yes)",
       "why": "wrong: one interview call per question, one at a time"
+    },
+    {
+      "answer": "Which of these: digests, SMS, mute?",
+      "why": "wrong: one question names all three topics"
     }
   ]
 }

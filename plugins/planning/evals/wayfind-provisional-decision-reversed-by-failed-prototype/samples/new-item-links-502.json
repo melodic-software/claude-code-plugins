@@ -9,6 +9,7 @@
     {"answer": "Reopen #502 and change its resolution to Courier.", "why": "reopens, no new item"},
     {"answer": "Open a new item 'Choose a vendor'. Body: Which vendor? Starting point: Courier.", "why": "new item without a link to #502"},
     {"answer": "Edit the Decisions-so-far line for [Pick the vendor](URL) to say Courier.", "why": "no new item"},
-    {"answer": "No new item is needed: the fallback is already known. Map edit: replace the Decisions-so-far line for [Pick the vendor](https://example.com/acme/shop/issues/502) with Courier.", "why": "wrong: declines the new item, then edits the existing line in place"}
+    {"answer": "No new item is needed: the fallback is already known. Map edit: replace the Decisions-so-far line for [Pick the vendor](https://example.com/acme/shop/issues/502) with Courier.", "why": "wrong: declines the new item, then edits the existing line in place"},
+    {"answer": "Re-open #502 and revisit Pick the vendor with Courier.", "why": "wrong: reopens #502 instead of opening a new item"}
   ]
 }

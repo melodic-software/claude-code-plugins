@@ -3,7 +3,9 @@
     {"answer": "The failed prototype reverses 'Pick the vendor' (Knock).", "why": "reverses the decision"},
     {"answer": "This reverses the provisional Knock decision through the supersede sweep.", "why": "reverses Knock"},
     {"answer": "[Pick the vendor](https://example.com/acme/shop/issues/502) will be superseded once the new item resolves.", "why": "superseded"},
-    {"answer": "The fail **invalidates** #502's Knock pick.", "why": "invalidates"}
+    {"answer": "The fail **invalidates** #502's Knock pick.", "why": "invalidates"},
+    {"answer": "Since Knock can't send email and in-app from one call, the Pick the vendor decision is reversed.", "why": "reason in the negative, then the reversal"},
+    {"answer": "Knock no longer holds, so the new item supersedes Pick the vendor (#502).", "why": "no in the reason, then supersedes"}
   ],
   "fail": [
     {"answer": "", "why": "empty"},

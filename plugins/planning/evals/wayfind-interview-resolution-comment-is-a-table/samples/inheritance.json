@@ -37,6 +37,18 @@
     {
       "answer": "",
       "why": "empty reply"
+    },
+    {
+      "answer": "The rate-limit item does not inherit the per-client identity.",
+      "why": "wrong: says the identity is not inherited"
+    },
+    {
+      "answer": "The rate-limit item won't inherit the per-client identity.",
+      "why": "wrong: says the identity will not be inherited"
+    },
+    {
+      "answer": "Per-client identity is not inherited by the rate-limit item.",
+      "why": "wrong: identity first, not inherited"
     }
   ]
 }
