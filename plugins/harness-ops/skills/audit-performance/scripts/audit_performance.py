@@ -1757,12 +1757,6 @@ def projected_file_kinds(gate_kinds: set[str]) -> tuple[str, ...]:
 
 
 def shell_basename(token: str) -> str:
-    """A command-line token reduced to what it would match in SHELL_TOKENS.
-
-    Match the BASENAME, never a suffix: a suffix match counts `entrypoint.sh` as a shell
-    because it ends in "sh", which turns every ordinary script invocation into a false
-    nested-shell report.
-    """
     basename = token.rsplit("/", 1)[-1]
     return basename[: -len(".exe")] if basename.endswith(".exe") else basename
 
