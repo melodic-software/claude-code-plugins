@@ -129,3 +129,22 @@ test('an observer turn whose start text does not match still clears the wait, is
   const next = step(done.state, { kind: 'turn-started', main: true, turnId: 't3', text: 'person', paused: false }, options)
   expect(next.state.observerTurnId).toBeNull()
 })
+
+test('a short person prompt that appears inside the pending note is not taken for the observer turn', () => {
+  const { options } = readOptions({ observer_auto_send: true })
+  const waiting = { ...initial(), on: false, pendingSubmit: noteFor(F, 'plugin', AUTO_NOTE) }
+  const r = step(waiting, { kind: 'turn-started', main: true, turnId: 't2', text: 'continue', paused: true }, options)
+  expect(r.effects).toEqual([])
+  expect(r.state.observerTurnMatched).toBe(false)
+})
+
+test('a failed submission clears the observer-turn marker so the next person turn is not aborted', () => {
+  const { options } = readOptions({ observer_auto_send: true })
+  const accepted = step({ ...initial(), on: true }, { kind: 'prompt-submitted', ours: true, byPerson: false, typedPast: 0, paused: false }, options)
+  expect(accepted.state.nextTurnIsObserver).toBe(true)
+  const failed = step({ ...accepted.state, on: false }, { kind: 'delivered', cardId: 0, delivery: 'submit', chars: 1, error: 'rejected' }, options)
+  expect(failed.state.nextTurnIsObserver).toBe(false)
+  const next = step(failed.state, { kind: 'turn-started', main: true, turnId: 't2', text: 'fix the build', paused: true }, options)
+  expect(next.effects).toEqual([])
+  expect(next.state.observerTurnId).toBeNull()
+})

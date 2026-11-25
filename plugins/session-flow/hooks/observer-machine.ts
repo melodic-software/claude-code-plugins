@@ -225,7 +225,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
     case 'turn-started': {
       if (!e.main) return none()
       const p = s.pendingSubmit
-      const matched = s.nextTurnIsObserver || (p !== null && e.text.trim() !== '' && (e.text.includes(p) || p.includes(e.text.trim())))
+      const matched = s.nextTurnIsObserver || (p !== null && e.text.includes(p))
       const observer = matched || s.submitWaiting
       const state = {
         ...s,
@@ -298,7 +298,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
       const card = s.card?.id === e.cardId ? s.card : null
       if (e.error !== undefined)
         return {
-          state: e.delivery === 'submit' ? { ...s, submitWaiting: false, pendingSubmit: null } : s,
+          state: e.delivery === 'submit' ? { ...s, submitWaiting: false, pendingSubmit: null, nextTurnIsObserver: false } : s,
           effects: [{ kind: 'record', row: { answer: 'auto_send_failed', delivery: e.delivery, error: e.error } }],
         }
       const effects: Effect[] = [{ kind: 'record', row: { answer: 'auto_sent', delivery: e.delivery, chars: e.chars, ...(e.stepsLate === undefined ? {} : { stepsLate: e.stepsLate }) } }]
