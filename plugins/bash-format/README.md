@@ -182,6 +182,13 @@ Then verify prerequisites with `/bash-format:setup check`.
 
 ## Configuration
 
+A repository whose `docs/conventions/source-control.yaml` names a `standards_repository`
+(`<owner>/<repo>`) uses that repository's `.shellcheckrc`, read from a local checkout: `STANDARDS_DIR`
+when set, else `<ghq root>/github.com/<owner>/<repo>` (`git config ghq.root`, default `~/ghq`).
+It is passed with `--rcfile` when the repository has no `.shellcheckrc` of its own;
+ShellCheck reads one rc file and has no include, so any repository `.shellcheckrc` replaces it
+whole. Suppress a single finding with a `# shellcheck disable=` directive. With no such checkout or file, ShellCheck's own defaults apply.
+
 The linting and formatting rules come from the `.shellcheckrc` and
 `.editorconfig` already in your repository, which the plugin reads automatically.
 To change the rules, edit those files.

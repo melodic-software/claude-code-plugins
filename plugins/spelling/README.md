@@ -12,6 +12,13 @@ discovers it from the checked path, and the plugin's bundled `config/default-typ
 with `-c`, so that SHA-shaped hex is not read as a misspelling) merges with it through `extend-*`
 keys. Pointer: the Sources list in [typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
 
+A repository whose `docs/conventions/source-control.yaml` names a `standards_repository`
+(`<owner>/<repo>`) uses that repository's `_typos.toml`, read from a local checkout: `STANDARDS_DIR`
+when set, else `<ghq root>/github.com/<owner>/<repo>` (`git config ghq.root`, default `~/ghq`).
+It is the `-c` base in place of the bundled file, and the repository's own typos config
+still merges over it: it can add words, but a key the base sets wins. To drop the base, skip
+the `spelling-remote-lint` job in your `lefthook.yml` and run typos your own way. With no such checkout or file, the bundled file stays the base.
+
 The hooks run only this typos adapter (`git-hooks/adapters.sh`). They never run a command from a
 `docs/conventions/ecosystems/spelling.yaml` record; `/toolchain:lint` and `/toolchain:check` run its
 `lint-cmd` on request, and `/spelling:setup check` says when one exists.

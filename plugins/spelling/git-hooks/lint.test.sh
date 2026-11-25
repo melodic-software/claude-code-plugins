@@ -378,6 +378,40 @@ printf 'an old teh line\nfixed in 1aded9f\nagain 1aded9f\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "plugin source: the script finds config/default-typos.toml too" "0|" "$(check "$REPO")"
 
+STD="$WORK/standards"
+mkdir -p "$STD"
+printf '[default.extend-words]\ngrey = "gray"\n' >"$STD/_typos.toml"
+opt_in() {
+  mkdir -p "$REPO/docs/conventions"
+  printf 'standards_repository: acme/standards\n' >"$REPO/docs/conventions/source-control.yaml"
+}
+new_repo NONE
+opt_in
+printf 'a grey cat\n' >"$REPO/a.md"
+git -C "$REPO" add -A
+STANDARDS_DIR="$STD" stub_check "$REPO" >/dev/null
+expect "standards default: the standards _typos.toml goes to typos with -c in place of the bundled one" yes \
+  "$([[ "$(cat "$STUB_OUT/argv")" == *" -c $STD/_typos.toml --force-exclude "* ]] && echo yes)"
+expect "standards default: --resolve names the standards config" \
+  "spelling	lint	adapter:typos	typos	yes	no typos config: typos defaults plus the standards config; binary typos on PATH" \
+  "$(cd "$REPO" && STANDARDS_DIR="$STD" PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
+expect "standards default: a word only the standards config flags blocks" "1|a.md:1: \`grey\` should be \`gray\`" \
+  "$(STANDARDS_DIR="$STD" check "$REPO" | head -1)"
+expect "standards default, control: opted out, the same word passes" "0|" "$(check "$REPO")"
+expect "standards default: no checkout holds the file, so the bundled config is the base" yes \
+  "$(STANDARDS_DIR="$WORK/nowhere" stub_check "$REPO" >/dev/null
+    [[ "$(cat "$STUB_OUT/argv")" == *" -c $PLUGIN/config/default-typos.toml "* ]] && echo yes)"
+printf '[default.extend-words]\nteh = "teh"\n' >"$REPO/_typos.toml"
+printf 'a grey teh cat\n' >"$REPO/a.md"
+git -C "$REPO" add -A
+out="$(STANDARDS_DIR="$STD" check "$REPO")"
+expect "standards extend: the standards word still blocks" "1|a.md:1: \`grey\` should be \`gray\`" "$(head -1 <<<"$out")"
+# shellcheck disable=SC2016 # the backticks are typos' output, not a command
+expect "standards extend: the repository's own word is accepted" no "$([[ "$out" == *'`teh`'* ]] && echo yes || echo no)"
+expect "standards extend: --resolve names the repository config over the standards one" \
+  "spelling	lint	adapter:typos	typos	yes	config _typos.toml over the standards config; binary typos on PATH" \
+  "$(cd "$REPO" && STANDARDS_DIR="$STD" PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
+
 new_repo
 mkdir -p "$REPO/.git/hooks/spelling"
 git -C "$REPO" config --local checks.spelling.typos-check.declined true
