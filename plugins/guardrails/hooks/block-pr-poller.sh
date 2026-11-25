@@ -34,7 +34,7 @@ PRP_PR_RE="${PRP_B}gh[[:space:]]+pr[[:space:]]+(view|checks|status)${PRP_E}"
 PRP_API_RE="${PRP_B}gh[[:space:]]+api${PRP_E}"
 PRP_PATH_RE="/pulls${PRP_E}|/actions/artifacts|/check-runs|/commits/[^/[:space:]]+/status|/issues/[^/[:space:]]+/comments"
 PRP_WHILE_RE="${PRP_B}(while|until)[[:space:]]"
-PRP_CFOR_RE="${PRP_B}for[[:space:]]*\(\("
+PRP_ARITH_FOR_RE="${PRP_B}for[[:space:]]*\(\("
 PRP_FOR_RE="${PRP_B}for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in[[:space:]]+([^;${PRP_NL}]*)"
 PRP_RANGE_RE='\{[^}]*\.\.[^}]*\}'
 
@@ -43,7 +43,7 @@ PRP_RANGE_RE='\{[^}]*\.\.[^}]*\}'
   { [[ "$PRP_COMMAND" =~ $PRP_API_RE ]] && [[ "$PRP_COMMAND" =~ $PRP_PATH_RE ]]; } || exit 0
 
 PRP_LOOP=0
-if [[ "$PRP_COMMAND" =~ $PRP_WHILE_RE || "$PRP_COMMAND" =~ $PRP_CFOR_RE ]]; then
+if [[ "$PRP_COMMAND" =~ $PRP_WHILE_RE || "$PRP_COMMAND" =~ $PRP_ARITH_FOR_RE ]]; then
   PRP_LOOP=1
 else
   PRP_REST="$PRP_COMMAND"
@@ -64,5 +64,5 @@ if [[ "$PRP_TOOL" == Bash ]]; then
 fi
 
 # shellcheck disable=SC2016  # the backticks are literal text in the reason
-echo 'BLOCKED: This loop polls a pull request and sleeps between reads, which spends the GitHub API budget. Watch a pull request with /source-control:pull-request monitor (it reports checks, review threads and the pr-verify verdict); for one change event, use `gh event listen --resource <pr url>`.' >&2
+echo 'BLOCKED: This loop polls a pull request and sleeps between reads, which spends the GitHub API budget. Watch a pull request with /source-control:pull-request monitor (it reports checks, review threads and the pr-verify verdict); for one change event, use `gh event listen` on the pull request.' >&2
 exit 2
