@@ -77,6 +77,7 @@ _FORWARDED_VALUES = (
     "previous_session_id",
     "model",
     "effort",
+    "min_lines",
     "poll_seconds",
     "idle_seconds",
     "idle_confirm_seconds",
@@ -99,6 +100,7 @@ def main() -> int:
     # Empty = observer.py reads the plugin.json userConfig default.
     p.add_argument("--model", default="")
     p.add_argument("--effort", default="")
+    p.add_argument("--min-lines", default="")
     p.add_argument("--analysis", action="store_true")
     p.add_argument("--bare", action="store_true")
     p.add_argument("--poll-seconds", default="5")

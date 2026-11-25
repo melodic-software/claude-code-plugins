@@ -54,6 +54,8 @@ def make_observer(tmp: Path, **overrides):
     ]
     if overrides.get("analysis"):
         argv.append("--analysis")
+    if overrides.get("min_lines") != "":
+        argv += ["--min-lines", str(overrides.get("min_lines", 0))]
     if "effort" in overrides:
         argv += ["--effort", overrides["effort"]]
     args = observer.build_parser().parse_args(argv)
@@ -1102,13 +1104,27 @@ class PidAlive(unittest.TestCase):
             self.assertFalse(observer._pid_alive(12345))
 
 
-COMPLETED_RUN = {
-    "is_error": False,
-    "subtype": "success",
-    "terminal_reason": "completed",
-    "permission_denials": [],
-    "result": "### Checkpoint findings\n\nok",
+PRODUCED_RUN = json.loads(
+    Path(__file__)
+    .with_name("fixtures")
+    .joinpath("claude-p-result.json")
+    .read_text(encoding="utf-8")
+)
+COMPLETED_RUN = dict(PRODUCED_RUN, result="### Checkpoint findings\n\nok")
+PRODUCED_RUN_RECORD = {
+    "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 98015,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 4,
+    },
+    "duration_ms": 1855,
+    "total_cost_usd": PRODUCED_RUN["total_cost_usd"],
 }
+
+
+def without_at(run: dict) -> dict:
+    return {k: v for k, v in run.items() if k != "at"}
 
 
 @contextlib.contextmanager
@@ -1116,6 +1132,7 @@ def fake_analysis_run(
     captured: dict,
     version: tuple[int, int, int] | None = (2, 1, 259),
     stdout: str | None = None,
+    on_run=None,
 ):
     """Drive `_run_analysis` against a stubbed `claude -p`, recording the call.
 
@@ -1124,7 +1141,8 @@ def fake_analysis_run(
     kwarg the analysis run passes, so a caller can assert on the command
     shape, the stdin prompt, or the subprocess kwargs. `version` is what
     `claude --version` reports to the flag gate (None: unparsable). `stdout`
-    replaces the completed run's JSON body.
+    replaces the completed run's JSON body. `captured["runs"]` counts the
+    calls, and `on_run`, when given, is called on each before it returns.
     """
     class FakeProc:
         returncode = 0
@@ -1135,6 +1153,9 @@ def fake_analysis_run(
     def fake_run(cmd, **kw):
         captured["cmd"] = cmd
         captured.update(kw)
+        captured["runs"] = captured.get("runs", 0) + 1
+        if on_run:
+            on_run()
         return FakeProc()
 
     saved_find, saved_run = observer._find_claude, observer.subprocess.run
@@ -1377,6 +1398,127 @@ class LedgerAndRetention(unittest.TestCase):
                 self.assertFalse(ob._run_analysis())
             self.assertIsNone(ob._find_session_ledger())
             self.assertTrue(ob.obs_path.exists())
+
+    def test_below_min_lines_skips_analysis_and_records_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="short", min_lines=3)
+            ob.obs_path.write_text('{"t":"user"}\n' * 2, encoding="utf-8")
+            captured: dict = {}
+            with fake_analysis_run(captured):
+                self.assertFalse(ob._run_analysis())
+            self.assertNotIn("cmd", captured, "no claude -p run below the minimum")
+            self.assertIsNone(ob._find_session_ledger())
+            self.assertTrue(ob.obs_path.exists())
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            reason = "analysis skipped: 2 lines < min 3"
+            (run,) = status["analysis_runs"]
+            self.assertEqual({"skipped": reason, "lines": 2}, without_at(run))
+            self.assertIn(reason, ob.log_path.read_text(encoding="utf-8"))
+
+    def test_at_min_lines_fires_analysis(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="full", min_lines=3)
+            ob.obs_path.write_text('{"t":"user"}\n' * 3, encoding="utf-8")
+            captured: dict = {}
+            with fake_analysis_run(captured):
+                self.assertTrue(ob._run_analysis())
+            self.assertIn("cmd", captured)
+            self.assertIsNotNone(ob._find_session_ledger())
+
+    def test_unset_min_lines_comes_from_the_manifest(self):
+        manifest_path = observer._PLUGIN_DIR / ".claude-plugin" / "plugin.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))["userConfig"]
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d), min_lines="")
+            self.assertEqual(ob.min_lines, manifest["observer_min_lines"]["default"])
+
+    def test_run_usage_is_recorded_in_status_and_log(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="use")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            with fake_analysis_run({}):
+                self.assertTrue(ob._run_analysis())
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            (run,) = status["analysis_runs"]
+            self.assertEqual(PRODUCED_RUN_RECORD, without_at(run))
+            log = ob.log_path.read_text(encoding="utf-8")
+            self.assertEqual(1, log.count("analysis usage: "))
+            self.assertIn('"cache_creation_input_tokens":98015', log)
+
+    def test_failed_run_usage_is_still_recorded(self):
+        body = dict(
+            COMPLETED_RUN, subtype="error_max_turns", terminal_reason="max_turns"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="fail")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            with fake_analysis_run({}, stdout=json.dumps(body)):
+                self.assertFalse(ob._run_analysis())
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            (run,) = status["analysis_runs"]
+            self.assertEqual(PRODUCED_RUN_RECORD, without_at(run))
+
+    def test_analysis_runs_survive_a_poll_write_and_a_new_observer(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, session_id="keep")
+            ob._add_analysis_run({"lines": 1})
+            ob._write_status({"target_session": "keep", "cycles": 1})
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                [{"lines": 1}], [without_at(r) for r in status["analysis_runs"]]
+            )
+            again = make_observer(tmp, session_id="keep")
+            again._add_analysis_run({"lines": 2})
+            status = json.loads(again.status_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                [{"lines": 1}, {"lines": 2}],
+                [without_at(r) for r in status["analysis_runs"]],
+            )
+
+    def _run_session_with_short_follow_up(self, tmp: Path) -> tuple[dict, dict]:
+        """A 5-line session ends and is analyzed; the first analysis run appends
+        one more line, so the observer resumes, idles again and reaches a second
+        analysis over a 1-line follow-up. min_lines is 3."""
+        record = json.dumps({"type": "user", "message": {"content": "hi"}}) + "\n"
+        ob = make_observer(
+            tmp,
+            analysis=True,
+            session_id="follow",
+            min_lines=3,
+            idle_seconds=0.4,
+            poll_seconds=0.05,
+            idle_confirm_seconds=0.1,
+        )
+        ob.transcript.write_text(record * 5, encoding="utf-8")
+
+        def grow_once():
+            if captured["runs"] == 1:
+                with ob.transcript.open("a", encoding="utf-8") as f:
+                    f.write(record)
+
+        captured: dict = {}
+        with fake_analysis_run(captured, on_run=grow_once):
+            self.assertEqual(0, ob.run())
+        return captured, json.loads(ob.status_path.read_text(encoding="utf-8"))
+
+    def test_short_follow_up_to_an_analyzed_session_is_analyzed(self):
+        with tempfile.TemporaryDirectory() as d:
+            captured, _ = self._run_session_with_short_follow_up(Path(d))
+        self.assertEqual(2, captured["runs"])
+
+    def test_every_analysis_run_survives_later_status_writes(self):
+        with tempfile.TemporaryDirectory() as d:
+            _, status = self._run_session_with_short_follow_up(Path(d))
+        runs = status["analysis_runs"]
+        self.assertEqual([PRODUCED_RUN_RECORD] * 2, [without_at(r) for r in runs])
+        self.assertLessEqual(runs[0]["at"], runs[1]["at"])
+        self.assertEqual("ended-idle", status["state"])
+        self.assertIn("cycles", status, "the per-poll write ran after the first run")
 
     def test_tail_no_duplicate_events_on_growth(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1783,6 +1925,8 @@ class ArmLauncher(unittest.TestCase):
                 "15",
                 "--effort",
                 "low",
+                "--min-lines",
+                "42",
             ]
             rc, out = self._run_main(argv, arm=arm)
             self.assertEqual(rc, 0)
@@ -1794,6 +1938,7 @@ class ArmLauncher(unittest.TestCase):
         flag_index = cmd.index("--idle-confirm-seconds")
         self.assertEqual(cmd[flag_index + 1], "7")
         self.assertEqual(cmd[cmd.index("--effort") + 1], "low")
+        self.assertEqual(cmd[cmd.index("--min-lines") + 1], "42")
 
     def test_non_oserror_at_spawn_degrades_gracefully(self):
         """A non-OSError exception at the spawn call (e.g. a resurfaced

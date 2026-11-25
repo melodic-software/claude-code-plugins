@@ -299,6 +299,9 @@ class Observer:
         self.bare = args.bare
         self.model = args.model or user_config_default("observer_analysis_model")
         self.effort = args.effort or user_config_default("observer_analysis_effort")
+        self.min_lines = int(
+            float(args.min_lines or user_config_default("observer_min_lines"))
+        )
         self.plugin_root = args.plugin_root
         self.topic = args.topic or "session"
         self.prev_running_retro = args.previous_running_retro
@@ -309,6 +312,7 @@ class Observer:
         self.status_path = self.work_dir / f"status-{self.session_id}.json"
         self.lock_path = self.work_dir / f"observer-{self.session_id}.lock"
         self.log_path = self.work_dir / f"observer-{self.session_id}.log"
+        self.analysis_runs: list[dict] = self._prior_status().get("analysis_runs", [])
 
     def log(self, msg: str) -> None:
         try:
@@ -560,13 +564,17 @@ class Observer:
         )
         return state, offset
 
-    def _resume_offset(self) -> int:
+    def _prior_status(self) -> dict:
         try:
             prev = json.loads(self.status_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return 0
-        if prev.get("target_session") != self.session_id:
-            return 0
+            return {}
+        if not isinstance(prev, dict) or prev.get("target_session") != self.session_id:
+            return {}
+        return prev
+
+    def _resume_offset(self) -> int:
+        prev = self._prior_status()
         try:
             off = max(int(prev.get("byte_offset", 0)), 0)
         except (TypeError, ValueError):
@@ -618,6 +626,8 @@ class Observer:
                 base = json.loads(self.status_path.read_text(encoding="utf-8"))
                 base.update(status)
                 status = base
+            if self.analysis_runs:
+                status["analysis_runs"] = self.analysis_runs
             self.status_path.write_text(json.dumps(status, indent=2), encoding="utf-8")
         except (OSError, json.JSONDecodeError):
             pass
@@ -629,12 +639,27 @@ class Observer:
         duplicated). The -p run performs the sole semantic redaction pass; this
         script appends only the block it returns. Returns True only when the
         observations were CONSUMED (a successful run, or nothing to keep), so the
-        caller may delete them; False whenever they should be RETAINED (analysis
-        unavailable or failed).
+        caller may delete them; False whenever they should be RETAINED (session
+        below `min_lines`, analysis unavailable, or failed).
+
+        The size gate applies only to a session with no ledger yet: until a run
+        writes one, nothing deletes the observations, so their line count is
+        every line the session has had. A follow-up to an analyzed session is
+        always analyzed, however short.
         """
         if not self.obs_path.exists() or self.obs_path.stat().st_size == 0:
             self.log("no observations captured; skipping analysis")
             return True
+        if self._find_session_ledger() is None:
+            with self.obs_path.open("rb") as f:
+                session_lines = sum(1 for _ in f)
+            if session_lines < self.min_lines:
+                reason = (
+                    f"analysis skipped: {session_lines} lines < min {self.min_lines}"
+                )
+                self.log(reason)
+                self._add_analysis_run({"skipped": reason, "lines": session_lines})
+                return False
         claude = _find_claude()
         if not claude:
             self.log(
@@ -743,6 +768,7 @@ class Observer:
         except (subprocess.TimeoutExpired, OSError) as e:
             self.log(f"analysis run failed: {e}")
             return False
+        self._record_usage(proc.stdout)
         # `claude -p` reports auth/API failures inside its JSON body (is_error) with
         # exit 0 sometimes and exit 1 others; inspect both.
         err = _result_error(proc.stdout) or _incomplete_reason(proc.stdout)
@@ -757,6 +783,28 @@ class Observer:
             self.log("analysis returned no result text")
             return False
         return self._append_ledger(findings)
+
+    def _record_usage(self, stdout: str) -> None:
+        """Store the run's own reported token usage, duration and cost, failed
+        runs included, so observer spend is measurable per session."""
+        data = _json_object(stdout)
+        usage = data.get("usage")
+        record: dict = {}
+        if isinstance(usage, dict):
+            record["usage"] = {k: usage[k] for k in _USAGE_KEYS if k in usage}
+        for key in ("duration_ms", "total_cost_usd"):
+            if key in data:
+                record[key] = data[key]
+        if not record:
+            return
+        self._add_analysis_run(record)
+        self.log(f"analysis usage: {json.dumps(record, separators=(',', ':'))}")
+
+    def _add_analysis_run(self, record: dict) -> None:
+        """Append one run or skip to `analysis_runs`, which every later status
+        write carries, so no run's record is lost to a poll or a resumed watch."""
+        self.analysis_runs.append({"at": now_iso(), **record})
+        self._write_status({"target_session": self.session_id}, merge=True)
 
     def _append_ledger(self, findings: str) -> bool:
         """Append the returned findings to this session's single ledger file.
@@ -885,6 +933,14 @@ def _json_object(stdout: str) -> dict:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+_USAGE_KEYS = (
+    "input_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+    "output_tokens",
+)
 
 
 def _extract_result(stdout: str) -> str:
@@ -1148,6 +1204,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--analysis",
         action="store_true",
         help="fire the headless post-end analysis on idle-detect",
+    )
+    p.add_argument(
+        "--min-lines",
+        default="",
+        help="skip the analysis when fewer transcript lines are pending; "
+        "empty = the plugin.json userConfig default",
     )
     p.add_argument(
         "--bare",
