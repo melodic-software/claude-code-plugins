@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  read; every lane has a line
-#   1  invalid argument
-#   2  a gh call failed or returned something unparsable: treat every lane as local
-#   5  prerequisite missing (gh, jq)
-
 # portability-scope: the GitHub implementation of the review-venue read; every read is a gh call.
 set -uo pipefail
 

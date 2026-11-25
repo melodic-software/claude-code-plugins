@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  every path was reaped and its directory removed
-#   1  a path failed; the path and step are named, later paths are not touched
-#   2  usage error (no path given, or an unknown flag)
-
 set -uo pipefail
 
 PROG=${0##*/}

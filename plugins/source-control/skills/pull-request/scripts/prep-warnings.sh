@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  read, whatever it found
-#   1  invalid argument
-#   2  git could not read the base or the diff
-#   3  no Python 3.11+ on PATH
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

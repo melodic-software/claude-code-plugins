@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  success (zero or more comments emitted)
-#   1  invalid argument, or --dir names no directory
-#   2  gh api call failed, or jq failed parsing a surface or merging
-#   5  prerequisite missing (gh, jq)
-
 set -uo pipefail # -e omitted: gh api failures explicitly guarded with || { exit N }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

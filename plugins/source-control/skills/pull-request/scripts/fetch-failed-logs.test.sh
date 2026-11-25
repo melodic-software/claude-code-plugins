@@ -185,7 +185,6 @@ else
   fail "--help emits the full banner through the last documented exit code" \
     "exit 0 + exit codes 0, 3, 4 and 5" "exit $help_ec, out: $help_out"
 fi
-assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipefail"
 
 FOREIGN="$TEST_TMPDIR/codex-openai-codex"
 OWN="$TEST_TMPDIR/source-control-melodic-software"

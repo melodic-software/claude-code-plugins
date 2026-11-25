@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  the line, or nothing when no pull request matches
-#   1  invalid argument
-#   2  a gh read failed; no line was printed
-#   5  prerequisite missing (gh, jq)
-
 # portability-scope: the GitHub implementation of create's Siblings: line; the read is a gh call.
 set -uo pipefail
 

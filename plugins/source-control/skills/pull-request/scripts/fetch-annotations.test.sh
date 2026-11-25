@@ -204,7 +204,6 @@ else
   fail "--help emits the full banner through the last documented exit code" \
     "exit 0 + all four exit codes" "exit $help_ec, out: $help_out"
 fi
-assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipefail"
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
 export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"

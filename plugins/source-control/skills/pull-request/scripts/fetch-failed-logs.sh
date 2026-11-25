@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  log fetch + extraction succeeded
-#   1  invalid argument, or --dir names no directory
-#   2  gh api call failed (auth, network, 404 etc.)
-#   3  log payload exceeded the size cap
-#   4  ZIP extraction failed
-#   5  prerequisite missing (gh, unzip)
-
 # portability-scope: fetches GitHub Actions logs through the GitHub REST API with gh; the script is the GitHub provider's log fetch.
 set -uo pipefail
 

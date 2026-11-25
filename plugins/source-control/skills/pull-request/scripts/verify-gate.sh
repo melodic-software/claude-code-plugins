@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  record: stored; check: `pass` or `skipped` recorded for the head
-#   1  invalid argument, or --dir names no directory
-#   2  check: no result recorded for the head, or the state cannot be read
-#   3  check: the recorded result for the head is `fail`
-#   4  record --from-pre-ready: the base's `pre_ready` does not disable verify, or cannot be read;
-#      nothing is recorded
-
 # portability-scope: local state under the git directory; --from-pre-ready reads the base through read-pre-ready.sh's gh calls.
 set -uo pipefail
 

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  the worktree's absolute path is on stdout
-#   1  invalid argument, or --dir names no directory
-#   2  the head branch or commit could not be read, or no worktree has the branch checked out
-#      with the head commit in its history
-
 # portability-scope: the head branch is read through gh; the worktree list is local git.
 set -uo pipefail
 

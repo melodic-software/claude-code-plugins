@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  no hold: the flip may go on
-#   1  invalid argument
-#   2  a gh call failed; the flip stops, since no hold was ruled out
-#   3  held or superseded: one reason per line on stdout
-#   5  prerequisite missing (gh, jq)
-
 # portability-scope: the GitHub implementation of the ready flip's hold check; every read is a gh call.
 set -uo pipefail
 

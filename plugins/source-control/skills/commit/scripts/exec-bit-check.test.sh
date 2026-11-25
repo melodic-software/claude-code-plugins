@@ -321,11 +321,15 @@ nl_name=$'we\nird.sh'
   printf '#!/usr/bin/env bash\n' >"$nl_name"
   git add -- "$nl_name"
 ) >/dev/null 2>&1
-nl_probe="$(bash "$HELPER" --repo-dir "$repo_nl" --probe 2>/dev/null)"
-assert_eq "--probe keeps a newline in a path on one line" "1" "$(printf '%s\n' "$nl_probe" | wc -l | tr -d ' ')"
-assert_contains "--probe shell-quotes the newline" "$nl_probe" "\$'we\\nird.sh'"
-nl_list="$(bash "$HELPER" --repo-dir "$repo_nl" --list 2>/dev/null)"
-assert_eq "--list keeps a newline in a path on one line" "1" "$(printf '%s\n' "$nl_list" | wc -l | tr -d ' ')"
+if [[ -n "$(cd "$repo_nl" && git ls-files -z -- "$nl_name" 2>/dev/null | tr -d '\0')" ]]; then
+  nl_probe="$(bash "$HELPER" --repo-dir "$repo_nl" --probe 2>/dev/null)"
+  assert_eq "--probe keeps a newline in a path on one line" "1" "$(printf '%s\n' "$nl_probe" | wc -l | tr -d ' ')"
+  assert_contains "--probe shell-quotes the newline" "$nl_probe" "\$'we\\nird.sh'"
+  nl_list="$(bash "$HELPER" --repo-dir "$repo_nl" --list 2>/dev/null)"
+  assert_eq "--list keeps a newline in a path on one line" "1" "$(printf '%s\n' "$nl_list" | wc -l | tr -d ' ')"
+else
+  skip_case "file names containing a newline unsupported on this platform"
+fi
 
 repo13="$(mkrepo)"
 (

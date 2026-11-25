@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  no warnings or errors
-#   1  at least one warn/error finding
-#   2  usage error
-
 set -uo pipefail
 
 PROG=${0##*/}

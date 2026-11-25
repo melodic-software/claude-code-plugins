@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes:
-#   0  success (zero or more annotations emitted)
-#   1  invalid argument, or --dir names no directory
-#   2  gh api call failed
-#   5  prerequisite missing (gh, jq)
-
 # portability-scope: reads GitHub check-run annotations through the GitHub REST API with gh; the script is the GitHub provider's annotation read.
 set -uo pipefail
 
