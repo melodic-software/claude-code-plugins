@@ -12,7 +12,7 @@ system's own documentation.
    head commit and target branch, including how deep the checkout fetches. Follow a job into the
    script or task-runner target it calls.
 2. **Stop when it is there.** Stop and report it only for a `script` caller with no `drift` or
-   `unreached-caller` against it, in a CI file or reached from one (`reached_by`), whose job you
+   `unreached-caller` against it (a `local-caller` beside it is a local convenience, not a gap), in a CI file or reached from one (`reached_by`), whose job you
    confirmed runs on a change. `unreached-caller`: a task-runner target holds the call but no CI
    file runs it, so the lint is not installed: propose the CI step that runs that target, or the
    script directly. `drift`: propose the corrected call in the same job. `recipe-caller`: propose

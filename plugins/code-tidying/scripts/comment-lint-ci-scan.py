@@ -16,10 +16,14 @@ nothing and writes nothing:
              wrapper; a caller in a task-runner file names its target and the
              CI files whose uncommented lines run that target
   decisions  [{kind, ...}]: no-ci-system, several-systems, no-caller,
-             recipe-caller, drift, unparsed, unreached-caller, missing-tool
+             recipe-caller, drift, unparsed, unreached-caller, local-caller,
+             missing-tool
 
-A commented-out line is never a caller. A task-runner caller that no CI file
-runs is `unreached-caller`, not installed. Whether a reaching job runs on a
+A commented-out line is never a caller. A task-runner target counts as run
+when an uncommented CI line runs it, a target that depends on it or names it
+in its body, or the runner's default goal with no target named. A task-runner
+caller no CI file runs is `unreached-caller` (not installed) when no other
+caller is reached from CI, else `local-caller` (a local convenience). Whether a reaching job runs on a
 change is the setup agent's to read. Only configuration files at the paths
 below are read, from disk, so a file written moments ago counts before it is
 committed. A job that reaches the lint through another script is not followed:
@@ -79,7 +83,7 @@ EXPRESSION = re.compile(r"\$\{\{.*?\}\}|\$\(.*?\)|\$\[.*?\]|\{\{.*?\}\}")
 COMMENT = re.compile(r"^\s*(?:-\s*)?(?:#|//)")
 TARGET = {
     "make": re.compile(r"^([A-Za-z0-9_.-]+)\s*:(?!=)"),
-    "just": re.compile(r"^@?([A-Za-z0-9_-]+)(?:\s[^:=]*)?:(?!=)"),
+    "just": re.compile(r"^@?([A-Za-z0-9_-]+)(?:\s[^:]*)?:(?!=)"),
     "task": re.compile(r"^  ([A-Za-z0-9_.:-]+):\s*$"),
 }
 STOP = {";", "&&", "||", "|", "&", ")", "(", ">", ">>", "<", "2>", "2>&1"}
@@ -151,9 +155,46 @@ def target_at(runner: str, lines: list[str], line: int) -> str | None:
     return None
 
 
-def reaches(runner: str, target: str, text: str) -> bool:
-    call = re.compile(rf"(?<![\w-]){runner}\b[^\n]*(?<![\w-]){re.escape(target)}(?![\w:-])")
-    return any(call.search(line) for line in text.splitlines() if not COMMENT.match(line))
+def targets(runner: str, lines: list[str]) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    for i, text in enumerate(lines):
+        if not (m := TARGET[runner].match(text)):
+            continue
+        if runner != "task":
+            out.append((m.group(1), text[m.end() :]))
+            continue
+        body: list[str] = []
+        for nxt in lines[i + 1 :]:
+            if nxt.strip() and not nxt.startswith("    "):
+                break
+            body.append(nxt)
+        out.append((m.group(1), "\n".join(body)))
+    return out
+
+
+def reachers(runner: str, lines: list[str], target: str) -> tuple[set[str], str | None]:
+    defs = targets(runner, lines)
+    names = {target}
+    grew = True
+    while grew:
+        grew = False
+        for name, deps in defs:
+            if name not in names and any(re.search(rf"(?<![\w.:-]){re.escape(t)}(?![\w.:-])", deps) for t in names):
+                names.add(name)
+                grew = True
+    default = next((n for n, _ in defs if not n.startswith(".")), None)
+    return names, default
+
+
+def reaches(runner: str, names: set[str], default: str | None, text: str) -> bool:
+    for line in text.splitlines():
+        if COMMENT.match(line):
+            continue
+        for m in re.finditer(rf"(?<![\w-]){runner}(?![\w-])([^;&|)\n]*)", line):
+            words = [w for w in re.findall(r"[^\s'\"]+", m.group(1)) if not w.startswith("-")]
+            if names & set(words) or (not words and default in names):
+                return True
+    return False
 
 
 def scan(root: Path) -> dict:
@@ -176,12 +217,14 @@ def scan(root: Path) -> dict:
             if runner := runner_of.get(file):
                 record["runner"] = runner
                 record["target"] = target_at(runner, text.splitlines(), line)
-                record["reached_by"] = [
-                    ci
-                    for ci in ci_files
-                    if record["target"]
-                    and reaches(runner, record["target"], (root / ci).read_text(encoding="utf-8", errors="replace"))
-                ]
+                record["reached_by"] = []
+                if record["target"]:
+                    names, default = reachers(runner, text.splitlines(), record["target"])
+                    record["reached_by"] = [
+                        ci
+                        for ci in ci_files
+                        if reaches(runner, names, default, (root / ci).read_text(encoding="utf-8", errors="replace"))
+                    ]
             callers.append(record)
 
     decisions: list[dict] = []
@@ -191,11 +234,12 @@ def scan(root: Path) -> dict:
         decisions.append({"kind": "several-systems", "systems": [s["system"] for s in systems]})
     if systems and not callers:
         decisions.append({"kind": "no-caller"})
+    reached = any(c["form"] == "script" and c.get("reached_by", True) for c in callers)
     for c in callers:
         where = {"file": c["file"], "line": c["line"]}
         if "runner" in c and not c["reached_by"]:
             decisions.append(
-                {"kind": "unreached-caller", **where, "runner": c["runner"], "target": c["target"], "ci_files": ci_files}
+                {"kind": "local-caller" if reached else "unreached-caller", **where, "runner": c["runner"], "target": c["target"], "ci_files": ci_files}
             )
         if c["form"] == "recipe":
             decisions.append({"kind": "recipe-caller", **where})

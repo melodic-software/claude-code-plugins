@@ -176,6 +176,49 @@ class Reach(unittest.TestCase):
         self.assertNotIn("unreached-caller", kinds(reached))
         self.assertIn("unreached-caller", kinds(unreached))
 
+    def test_a_make_target_ci_reaches_through_an_aggregate_is_reached(self) -> None:
+        makefile = "check: test comment-lint\n\n" + self.MAKEFILE
+        result = scan({".gitlab-ci.yml": "lint:\n  script:\n    - make check\n", "Makefile": makefile})
+        self.assertNotIn("unreached-caller", kinds(result))
+        self.assertEqual(result["callers"][0]["reached_by"], [".gitlab-ci.yml"])
+
+    def test_a_bare_make_reaches_the_default_goal(self) -> None:
+        makefile = "all: test comment-lint\n\n" + self.MAKEFILE
+        result = scan({".gitlab-ci.yml": "lint:\n  script:\n    - make\n", "Makefile": makefile})
+        self.assertNotIn("unreached-caller", kinds(result))
+
+    def test_a_just_aggregate_and_a_defaulted_parameter_are_reached(self) -> None:
+        justfile = f"ci: test comment-lint\n\ntest:\n    true\n\ncomment-lint head base=\"origin/main\":\n    {CALL} {{{{head}}}} {{{{base}}}}\n"
+        result = scan({".gitlab-ci.yml": "lint:\n  script:\n    - just ci\n", "justfile": justfile})
+        self.assertEqual(result["callers"][0]["target"], "comment-lint")
+        self.assertNotIn("unreached-caller", kinds(result))
+
+    def test_a_task_reached_through_deps_or_a_task_command_is_reached(self) -> None:
+        lint = f"  lint-comments:\n    cmds:\n      - {CALL} \"$A\" \"$B\"\n"
+        for ci_task in ("    deps: [lint-comments]\n", "    cmds:\n      - task: lint-comments\n"):
+            with self.subTest(ci_task=ci_task):
+                taskfile = f"version: '3'\ntasks:\n  ci:\n{ci_task}{lint}"
+                result = scan({"Jenkinsfile": "sh 'task ci'\n", "Taskfile.yml": taskfile})
+                self.assertNotIn("unreached-caller", kinds(result))
+
+    def test_a_local_target_beside_a_ci_caller_is_only_local(self) -> None:
+        ci = f"lint:\n  script:\n    - {CALL} \"$A\" \"$B\"\n"
+        result = scan({".gitlab-ci.yml": ci, "Makefile": self.MAKEFILE})
+        self.assertNotIn("unreached-caller", kinds(result))
+        self.assertEqual(
+            [d for d in result["decisions"] if d["kind"] == "local-caller"],
+            [
+                {
+                    "kind": "local-caller",
+                    "file": "Makefile",
+                    "line": 5,
+                    "runner": "make",
+                    "target": "comment-lint",
+                    "ci_files": [".gitlab-ci.yml"],
+                }
+            ],
+        )
+
     def test_a_runner_caller_with_no_ci_system_is_unreached(self) -> None:
         result = scan({"Makefile": self.MAKEFILE})
         self.assertEqual(kinds(result)[:2], ["no-ci-system", "unreached-caller"])

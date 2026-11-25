@@ -98,7 +98,8 @@ tidy sweep (that is `/code-tidying:tidy`).
     `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/comment-lint-ci-scan.py" --repo <repository root>` and
     report its `systems` and `callers`. A `script` caller with no decision against it is PASS,
     named by file and line. An `unreached-caller` is a FAIL naming the target and the CI files
-    checked: no CI job runs it, remediation `apply install-ci`. A `drift` decision is a FAIL naming the call, its `args` and the
+    checked: no CI job runs it or any other caller, remediation `apply install-ci`. A
+    `local-caller` is INFO: a local target CI does not run, beside a caller CI does reach. A `drift` decision is a FAIL naming the call, its `args` and the
     `interface`, remediation `apply install-ci`. A `recipe-caller` is INFO: the job runs the lint
     by hand, and `apply install-ci` moves it to the shipped script. An `unparsed` caller is INFO:
     read the line. With no caller (`no-caller` or `no-ci-system`) say so as INFO, remediation
