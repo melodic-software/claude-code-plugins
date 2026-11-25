@@ -60,7 +60,6 @@ run() {
   ERR="$(<"$TMP_ROOT/err")"
 }
 
-# Two fields in one write, each sent by the name its option id has in the org listing.
 run "github:o/r#9" --field 15462270=27053568 --field 48625720=85127653
 assert_eq "valid fields → exit 0" "0" "$RC"
 assert_eq "output names each field's option name" '[{"field_id":15462270,"option_id":27053568,"value":"Small"},{"field_id":48625720,"option_id":85127653,"value":"High"}]' \
