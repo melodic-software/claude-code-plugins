@@ -164,9 +164,13 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
      and line with the comment's text. Deleting the
      comment leaves the workaround in the code. When `/corrections:codify` is among the available
      skills and nothing ran in `report`, record each workaround with `/corrections:codify note`.
+   - **Glossary candidates**: each domain term an ADR candidate's comment uses that
+     `/domain-driven-design:ubiquitous-language lookup` (if enabled) reports absent from the
+     glossary, with the candidate it came from, per SKILL.md "ADR candidates".
    - **Encodings**: constraints encoded, offered, or left unenforced (the encode step below).
    - **Agent reruns**: each comment-reviewer report rejected, with its failure.
-   Then write each reshape flag, each open root-cause item and each lint-rule proposal to the
+   Then write each reshape flag, each open root-cause item, each lint-rule proposal and each
+   glossary candidate to the
    [findings file](#findings-file), in every mode, and name the file in the report. The user
    reviews the diff; this skill does not commit.
 
@@ -189,9 +193,10 @@ match it across files.
 
 ## Findings file
 
-Every remove run, `safe` and `report` included, writes its reshape flags, open root-cause work and
-lint-rule proposals as rows of one findings file, so `/review:fanout fix` and the skills after it
-can act on them once the chat is gone. A run with none of the three writes no file. Running as
+Every remove run, `safe` and `report` included, writes its reshape flags, open root-cause work,
+lint-rule proposals and glossary candidates as rows of one findings file, so `/review:fanout fix`
+and the skills after it can act on them once the chat is gone. A run with none of the four writes
+no file. Running as
 `comment-reviewer`, list the rows in the report and write nothing; the orchestrator writes the file
 from them.
 
@@ -215,7 +220,8 @@ from them.
   it sat above); Surface(s) `code-tidying:remove-comments`; `|` escaped as `\|` and newlines
   replaced by spaces. Then a `## Surfaces` line naming `code-tidying:remove-comments` as ran, with
   each rule's count of declined candidates: `TODO(#issue)` markers for open root-cause work,
-  applied moves for reshape flags, cheaper encodings proposed for lint-rule proposals.
+  applied moves for reshape flags, cheaper encodings proposed for lint-rule proposals, terms the
+  glossary already holds for glossary candidates.
 - **Rows.** Each `Finding` cell opens with the item's rule id, then names the symbol, quotes the
   comment and says what the run did with it (deleted, kept or proposed, and under which posture).
   The rule fixes the Tier, in review's baseline names, mapped to the project's own severity names
@@ -226,6 +232,7 @@ from them.
   | Open root-cause work | `code-tidying/remove-comments/rule-open-root-cause` | IMPORTANT | The fix to make: the cause the workaround covers or the waived rule's finding, with the file it lies in when the run read that file, else `cause not located`; then `/implementation:implement`, or `/debugging:debug` when the cause is not located |
   | Reshape flag | `code-tidying/remove-comments/rule-reshape-flag` | SUGGESTION | The move that would make the comment unnecessary (rename, extract, a type, an assertion, a redesign) on that symbol, and every other file a cross-file move reaches; `/architecture:improve` for a redesign |
   | Lint-rule proposal | `code-tidying/remove-comments/rule-lint-proposal` | SUGGESTION | The rule to add and the lint config file it goes in |
+  | Glossary candidate | `code-tidying/remove-comments/rule-glossary-candidate` | SUGGESTION | The term, the ADR-candidate comment it came from, and `/domain-driven-design:ubiquitous-language curate` with the term |
 
 - **Proposals, never fixes.** No `Action` says the run made the fix or the move, and none is a
   reason to edit code here: a fix that changes behavior is never made by this skill (`SKILL.md`
@@ -255,5 +262,5 @@ these rules keep that run safe to start unattended:
 - **A constraint comment gets an encoding proposal** per [Encode a constraint](#encode-a-constraint),
   never applied.
 - **The [findings file](#findings-file) is still written.** It sits in the memory root, outside
-  the repository's tracked files, and carries the run's reshape flags, open root-cause work and
-  lint-rule proposals.
+  the repository's tracked files, and carries the run's reshape flags, open root-cause work,
+  lint-rule proposals and glossary candidates.
