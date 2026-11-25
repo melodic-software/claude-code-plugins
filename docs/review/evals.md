@@ -50,8 +50,13 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   triple-quoted string, or JS, TS or Go backtick string, where a comment-shaped line is content).
   That holds for a skill body, reference or agent hunk, a frontmatter value such as
   `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
-  fixture or sample, and a renamed file whose path and content differ only by such changes. A
-  hunk with any other change keeps the rules above (owner, 2026-11-25, Q2212; comment deletions
+  fixture or sample, and a renamed file whose path and content differ only by such changes.
+  The decided terms are read from the glossary at the merge base, so a row the branch adds
+  exempts nothing on that branch. A directive comment (`//go:build`, `// @ts-ignore`,
+  `# shellcheck`, `# type: ignore`, `# noqa`, `# -*- coding`, `#requires` and the like) is
+  never a deletable comment. A script file gets no swap exemption, a change with no hunks is
+  never exempt, and a plugin-wide file (hooks, `.mcp.json`, `plugin.json`) is always listed.
+  A hunk with any other change keeps the rules above (owner, 2026-11-25, Q2212; comment deletions
   per ADR 0110).
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped

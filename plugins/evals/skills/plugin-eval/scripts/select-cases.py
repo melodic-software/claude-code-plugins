@@ -537,8 +537,7 @@ def select_cases(repo_root, diff_base, merge_base):
         ed_name = eval_dirs.get(plugin, "evals")
 
         if select_mapping._is_plugin_wide(rel_in_plugin):
-            if not no_run_edit(code, rel_path):
-                plugin_wide[plugin].add(rel_path)
+            plugin_wide[plugin].add(rel_path)
             continue
 
         if parts[2] == "skills" and len(parts) >= 4:

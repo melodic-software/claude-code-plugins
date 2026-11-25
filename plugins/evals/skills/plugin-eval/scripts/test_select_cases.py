@@ -709,6 +709,38 @@ class SelectCasesTest(unittest.TestCase):
         self.assertNotIn("no-run-exempt", block, "the Use when trigger was rewritten")
         self.assertEqual("control-no-fire one-basic one-trigger opt-case", block.get("cases"))
 
+    def test_trigger_word_beside_a_later_routing_clause_is_cut(self):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                'alpha items."', 'alpha items, prefer speed, not for sweeps: /beta:runner."'
+            ),
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "add a routing clause after a trigger word")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(path, "prefer speed", "prefer depth")
+        self.assertNotIn("no-run-exempt", block, "prefer speed is trigger wording")
+
+    def test_glossary_row_added_on_the_branch_exempts_nothing(self):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "Follow these steps carefully.\n",
+                "Follow these steps carefully.\nHunt one rotated lane at a time.\n",
+            ),
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "add lane wording")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        self._write_glossary()
+        block = self._edit_and_select(path, "rotated lane at", "rotated focus area at")
+        self.assertEqual(
+            "control-no-fire one-basic one-trigger",
+            block.get("cases"),
+            "a row the branch adds cannot exempt the branch's own swap",
+        )
+
     def _base_with_lane_text(self):
         self._write_glossary()
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
@@ -852,6 +884,17 @@ class SelectCasesTest(unittest.TestCase):
 
         text = '# Seeds it.\n$text = @"\n# Heading the model reads\nbody\n"@\n'
         self.assertEqual(("hash", frozenset({3, 4, 5})), no_run_text.comment_style("a.ps1", text))
+
+    def test_directive_comment_deletion_still_runs(self):
+        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
+        scaffold.write_text(
+            scaffold.read_text(encoding="utf-8") + "# shellcheck disable=SC2086\n",
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "add a directive")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(scaffold, "# shellcheck disable=SC2086\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "a directive comment changes behavior")
 
     def test_markdown_html_comment_deletion_still_runs(self):
         self._base_with_comments()

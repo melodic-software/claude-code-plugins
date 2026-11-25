@@ -26,8 +26,15 @@ HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*$")
 
 HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 SKILL_TOKEN_RE = re.compile(r"(?<![\w/:.-])/?[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*(?![\w-])")
-ROUTING_TAIL_RE = re.compile(
-    r"(?:^|,\s*)(?:(?:and|or|but)\s+)?(?:not for|skip|prefer)\b.*$", re.IGNORECASE
+ROUTING_SEGMENT_RE = re.compile(
+    r"(?:^|,\s*)(?:(?:and|or|but)\s+)?(?:not for|skip|prefer)\b[^,]*", re.IGNORECASE
+)
+DIRECTIVE_RE = re.compile(
+    r"^(?://\s*(?:go:|@ts-|eslint|prettier|istanbul|c8|biome|#region|#endregion)"
+    r"|/\*\s*(?:eslint|istanbul|c8|@ts-)"
+    r"|#\s*(?:shellcheck|type:|noqa|pylint|pyright|mypy|ruff|fmt:|-\*-|nosec|nosemgrep"
+    r"|gitleaks|yamllint|requires|region|endregion|pragma))",
+    re.IGNORECASE,
 )
 HEREDOC_RE = re.compile(r"(?<!<)<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 BLOCK_SCALAR_RE = re.compile(r"^(\s*)\S[^#]*:[ \t]*[|>][-+0-9]*[ \t]*(?:#.*)?$")
@@ -94,15 +101,14 @@ def _parse_rejected_terms(text):
 
 
 def _routing_free_tokens(text):
-    """Description tokens with each routing tail (`Not for ...`, `Skip ...` or `prefer ...` at a
-    clause start or after a comma, naming a `plugin:skill`) cut to the clause end, the
-    clause-ending `.` or `;` with it, and every skill token, slash or not, made one placeholder."""
+    """Description tokens with each routing segment (`Not for ...`, `Skip ...` or `prefer ...` at a
+    clause start or after a comma, up to the next comma, naming a `plugin:skill`) cut, the
+    clause-ending `.` or `;` dropped, and every skill token, slash or not, made one placeholder."""
     kept = []
     for clause in CLAUSE_SPLIT_RE.split(text.strip()):
-        clause = clause.rstrip(".;")
-        tail = ROUTING_TAIL_RE.search(clause)
-        if tail and SKILL_TOKEN_RE.search(tail.group()):
-            clause = clause[: tail.start()].rstrip()
+        clause = ROUTING_SEGMENT_RE.sub(
+            lambda m: "" if SKILL_TOKEN_RE.search(m.group()) else m.group(), clause.rstrip(".;")
+        ).strip()
         if clause:
             kept.append(clause)
     return SWAP_TOKEN_RE.findall(SKILL_TOKEN_RE.sub(" SKILLTOKEN ", " ".join(kept)))
@@ -229,7 +235,7 @@ def _comment_line_mask(lines, style):
     for line in lines:
         stripped = line.strip()
         if style == "hash":
-            mask.append(not stripped or (stripped.startswith("#") and not stripped.startswith("#!")))
+            mask.append(not stripped or stripped.startswith("#") and not stripped.startswith("#!"))
         elif in_block:
             closes = "*/" in stripped
             mask.append(not closes or stripped.endswith("*/") and stripped.count("*/") == 1)
@@ -245,7 +251,7 @@ def _comment_line_mask(lines, style):
                 mask.append(rest.endswith("*/") and rest.count("*/") == 1)
         else:
             mask.append(False)
-    return mask
+    return [m and not DIRECTIVE_RE.match(line.strip()) for m, line in zip(mask, lines)]
 
 
 def _hunk_is_no_run(old_lines, new_lines, pairs, style, old_start=1):

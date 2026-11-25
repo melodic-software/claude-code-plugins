@@ -20,7 +20,10 @@ last word (`--lane` to `--area` for `focus area`), singular or plural, leaving o
 byte-identical once each swap is replaced, or deletes lines a comment fills in a code, YAML or
 shell file (`#`, `//`, `/* */`, with no code before or after it; never markdown, whose HTML
 comments a model can read, nor a line inside a shell heredoc, PowerShell here-string, YAML
-block scalar, or triple-quoted or backtick string). A hunk with any other change keeps the rules above.
+block scalar, or triple-quoted or backtick string). Decided terms come from the glossary at the merge base; a
+directive comment (`//go:build`, `# shellcheck`, `# type: ignore` and the like) is never a
+deletable comment; a script gets no swap exemption; a change with no hunks is never exempt; a
+plugin-wide file is always listed. A hunk with any other change keeps the rules above.
 
 A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three
 removals: each routing clause (a `Not for`, `Skip` or `prefer` clause that names a `plugin:skill`),
