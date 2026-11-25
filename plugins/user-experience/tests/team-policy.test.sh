@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Discovery wrapper for the user-experience team-row admission rules: scripts/run-plugin-tests.sh
-# finds plugins/**/*.test.sh, so this runs team-policy.test.mjs. SKIPs (exit 0) without Node.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

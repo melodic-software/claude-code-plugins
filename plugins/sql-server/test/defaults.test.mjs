@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { DEFAULT_LIMITS, IDLE_TIMEOUT_MS, POOL_MAX, guardBatch } from '../src/executor.mjs';
 
-// The shipped defaults must be the row the measurement doc chose.
 const doc = readFileSync(new URL('../reference/read-safety-measurement.md', import.meta.url), 'utf8');
 const section = doc.slice(doc.indexOf('## Chosen defaults'), doc.indexOf('\n## ', doc.indexOf('## Chosen defaults') + 1));
 const chosen = Object.fromEntries(

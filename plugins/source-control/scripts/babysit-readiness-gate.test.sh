@@ -478,7 +478,6 @@ assert_contains "live-fetch-failure names the env-var override" "$fetch_err" "FE
 # ambiguity that lets a blocked gate be reported as readiness (#787). Every
 # non-verdict exit must carry the fail-closed third token.
 
-# verdict_lines <stdout> — count of READINESS_* lines, for the exactly-one rule.
 verdict_lines() { printf '%s\n' "$1" | grep -c '^READINESS_' || true; }
 
 unp_out=$(bash "$GATE" 123 --bogus 2>/dev/null)

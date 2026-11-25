@@ -94,14 +94,12 @@ git -C "$TEST_TMPDIR/hub.git" worktree list --porcelain -z >"$por"
 worktree_facts_parse_z "$por"
 assert_eq "bare hub: the record is bare and has no HEAD" "${WT_FACT_BARE[0]}|${WT_FACT_HEAD[0]}" "yes|"
 
-# Path absent and notgit are row states: empty columns stay in place.
 row="$(worktree_fact_row "/gone" "" "" "?" "?" "none" "" "?" "?" "?" "?" "?" "" "notgit" "path-absent")"
 # shellcheck disable=SC2034
 IFS=$'\t' read -r path branch head unpushed landed method base inprogress staged unstaged conflicted untracked peers risk reason <<<"$row"
 assert_eq "path-absent: risk and reason keep their columns" "$risk|$reason" "notgit|path-absent"
 assert_eq "path-absent: an empty HEAD is a dash, not a missing column" "$head" "-"
 
-# A new column cannot shift risk. The extra field is inserted before risk.
 row2="$(worktree_fact_row "/gone" "" "" "?" "?" "none" "" "?" "?" "?" "?" "?" "" "EXTRA" "notgit" "path-absent")"
 # shellcheck disable=SC2034
 IFS=$'\t' read -r _p _b _h _u _l _m _base _ip _st _us _cf _ut _peers extra risk2 reason2 <<<"$row2"

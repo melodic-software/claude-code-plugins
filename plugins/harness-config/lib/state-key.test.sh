@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Every plugin copy is generated from the canonical lib/state-key.sh, registered in
-# scripts/shared-copies.txt and pinned by scripts/sync-shared-copies.sh --check, so
-# this suite covers them all.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would

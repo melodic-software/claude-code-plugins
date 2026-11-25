@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for findings-compare.sh: each label, the not-checked rule, the no-baseline
-# case, the order, the input checks, and the fields findings.schema.json requires;
-# then finding-id.sh, the id a map pass gives each finding.
-# Every expected value is written by hand from the rules the script states.
 # test-scope: plugins/testing/skills/run-e2e/schemas/findings.schema.json
 set -uo pipefail
 

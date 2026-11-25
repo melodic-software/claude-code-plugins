@@ -319,8 +319,6 @@ cmd_plan() {
       printf '%s\trerun\tmissing\n' "$lane"
       continue
     fi
-    # The marker counts only as the report's last non-blank line: a lane cut
-    # off mid-write can carry an earlier marker it never finished past.
     last=$(awk 'NF {l = $0} END {print l}' "$report")
     if [[ "$last" == "$(marker_line "$lane" "$digest")" ]]; then
       printf '%s\treuse\tcomplete\n' "$lane"

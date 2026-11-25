@@ -140,7 +140,6 @@ else
   fail "generated docs plus real overlap: rc=$rc out='$out'"
 fi
 
-# --- changelogs and fragments alone warn; any other path beside them still fails ---
 # #7871: a PR only behind main on release notes is not refused before the queue.
 repo="$scratch/release-notes"
 make_repo "$repo"
@@ -175,7 +174,6 @@ else
   fail "release notes plus real overlap: rc=$rc out='$out'"
 fi
 
-# --- --warn: any overlap is a ::warning naming the paths, and exits 0 ---
 # #7871: the pull_request step is advisory; the merge queue is the gate.
 out="$(bash "$SCRIPT" --warn main 2>&1)" && rc=0 || rc=$?
 if [[ $rc -eq 0 && "$out" == *"::warning"*"shared.txt"* && "$out" == *"::warning"*"plugins/p/CHANGELOG.md"* ]]; then

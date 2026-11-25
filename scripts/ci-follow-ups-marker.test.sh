@@ -45,9 +45,6 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 
-# expect <label> <want-rc> <PR_BODY> [want-out] [unwanted-out]
-# BLOCKING is the FAIL_ON_UNMARKED_FOLLOW_UPS value, the step's 'false' unless
-# a case sets it. The step summary is kept in $SUMMARY.
 BLOCKING=false
 SUMMARY="$TMP_ROOT/summary.md"
 expect() {

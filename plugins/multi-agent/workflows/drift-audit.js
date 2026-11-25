@@ -183,12 +183,6 @@ if (!sources.length) {
 }
 const SOURCE_HOSTS = new Set(sources.map(hostOf))
 
-// Role variants as /multi-agent:route emits them. Finders and skeptics judge
-// claims, so they take the verifier role; repo-mode readers only lift claims
-// out of files, so they take the worker role. Every stage runs several agents,
-// so each reads its role's `fanout` variant. The fallback names opus because
-// the session model is unknown here, and a frontier session must never fan out
-// on its own model.
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable']
 const FALLBACK_ROLES = {
@@ -272,11 +266,6 @@ const POINTER_RULE =
   'recheck trigger beside its pointer. Files under ' +
   'docs/upstream/, changelogs and eval fixtures are deliberate snapshots and out of scope.'
 
-// ---- Fetch stage ----
-// A checker judges from raw slices of its sources, which a docs-fetcher read
-// this run and the script passes inline, inside a data fence. A checker that
-// needs a section of a mapped page, or another page on the source hosts, names
-// it in `requests`; the script fetches it and asks that checker once more.
 const nulls = []
 const FETCH_CAP = 40
 const SLICE_CAP = 150000
