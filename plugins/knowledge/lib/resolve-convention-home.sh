@@ -287,6 +287,7 @@ committed_file() {
 }
 
 AGENTS_STATE="none"; AGENTS_TOKEN=""
+# gitleaks' generic-api-key rule reads these parser TOKEN names as secrets; they hold none.
 CLAUDE_STATE="none"; CLAUDE_TOKEN="" # gitleaks:allow
 CLAUDE_SHIM=0 # gitleaks:allow
 CLAUDE_SAME=0 # gitleaks:allow

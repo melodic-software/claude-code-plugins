@@ -1684,6 +1684,8 @@ hook::session_telemetry_sink_to() {
   [[ -n "$__hu_hos_data" ]] && __hu_hos_roots+=("${__hu_hos_data%/*}")
   __hu_hos_cfg="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
   __hu_hos_cfg="${__hu_hos_cfg//\\//}"
+  # Plugin data directories sit at <config dir>/plugins/data/<id>:
+  # https://code.claude.com/docs/en/plugins-reference#environment-variables
   __hu_hos_roots+=("${__hu_hos_cfg%/}/plugins/data")
   for __hu_hos_root in "${__hu_hos_roots[@]}"; do
     for __hu_hos_c in "$__hu_hos_root"/session-telemetry-*/hook-telemetry-sink.sh; do
@@ -1956,6 +1958,8 @@ hook::wsl_operand() {
         out+="$wd "
         continue
       fi
+      # MSVCRT: backslashes are literal unless they immediately precede a double quote:
+      # https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments
       enc='"'
       nb=0
       for ((k = 0; k < ${#wd}; k++)); do

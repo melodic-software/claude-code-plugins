@@ -504,6 +504,8 @@ class TestNotes(NotesCase):
             nb.problems({}, {"oneOf": []})
 
     def test_a_rect_number_that_json_cannot_carry_is_refused(self):
+        # json.loads reads NaN, Infinity and -Infinity, which are outside the JSON spec:
+        # https://docs.python.org/3/library/json.html
         base = FIXTURES["valid"][0]["note"]
         for bad in ("NaN", "Infinity", "-Infinity"):
             note = {

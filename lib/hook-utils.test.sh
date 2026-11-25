@@ -1686,6 +1686,18 @@ else
 fi
 rm -rf "$FAKEBIN17"
 
+fe17=$(
+  HOOK_TELEMETRY_SINK=/dev/null
+  fe17_json=""
+  hook::findings_encode_to fe17_json $'1:1 E1 a\xe2\n2:2 E2 two'
+  printf '%s' "$fe17_json" | jq 'length'
+)
+if [[ "$fe17" == 2 ]]; then
+  ok "findings_encode_to: a truncated UTF-8 lead byte before a newline keeps two findings apart"
+else
+  fail "findings_encode_to: truncated lead byte merged the findings (length $fe17)"
+fi
+
 ft17=""
 hook::findings_to ft17 "demo: a.py has findings:" $'1:1 E1 one\n\n2:2 E2 two'
 if [[ "$ft17" == $'demo: a.py has findings:\n  1:1 E1 one\n  2:2 E2 two' ]]; then

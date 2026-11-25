@@ -423,6 +423,8 @@ function firstOnPath(names, ctx, rejectStoreAlias = false, runnable = false) {
   return null;
 }
 
+// Hooks receive CLAUDE_PLUGIN_DATA and Bash-tool commands do not, so a skill passes --data-dir:
+// https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves
 function ownDataDir(ctx) {
   const flag = ctx.dataDir;
   if (flag && !flag.startsWith("${")) return flag;

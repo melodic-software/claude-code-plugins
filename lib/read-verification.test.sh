@@ -115,6 +115,8 @@ repo=$(fixture list-skill $'verification: strict\nverification_skills:\n  confir
 assert_eq "a list-valued skill entry is named and keeps the standard floor" \
   "verification: standard (default; $F verification_skills.confirm is a list or map, not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
+# gitrevisions resolves refs/tags/<name> before refs/remotes/<name>:
+# https://git-scm.com/docs/gitrevisions
 repo=$(fixture shadow $'verification: strict\n')
 want="verification: strict ($F verification $(at "$repo"))"
 printf 'verification: off\n' >"$repo/$F"

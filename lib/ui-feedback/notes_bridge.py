@@ -173,6 +173,8 @@ FITS = {
     "array": lambda v: isinstance(v, list),
     "string": lambda v: isinstance(v, str),
     "boolean": lambda v: isinstance(v, bool),
+    # JSON Schema counts a number with a zero fractional part as an integer:
+    # https://json-schema.org/understanding-json-schema/reference/numeric
     "integer": lambda v: is_number(v) and float(v).is_integer(),
     "number": lambda v: is_number(v) and math.isfinite(v),
 }
