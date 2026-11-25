@@ -278,8 +278,6 @@ export async function main({ env = process.env, now = Date.now() } = {}) {
   const list = JSON.parse(readFileSync(env.TRUSTED_ACTORS_PATH, "utf8"));
   const trusted = new Set(list.actors.map((a) => String(a.id)));
   if (/^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "")) trusted.add(env.LANES_APP_ID);
-  // The window is fixed when the run starts, so runs created while it reads
-  // do not move the pages under it.
   const to = Math.floor(now / 1000) * 1000;
   const from = to - Number(env.WINDOW_HOURS ?? 24) * 3_600_000;
   const since = new Date(from).toISOString();
