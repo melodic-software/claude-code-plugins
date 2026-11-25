@@ -227,6 +227,19 @@ $(finding src/a.sh 2 none)
 $(finding src/a.sh 4 none)" "$(check "$REPO")"
 
 new_repo 'comment_lint: block'
+printf '# a\n# b\n# https://example.com/x\nx=1\n' >"$REPO/src.sh"
+git -C "$REPO" add src.sh
+expect "a three-line link paragraph is over the default class_c_max_lines of 2" \
+  "1|$(finding src.sh 1 necessary)
+$(finding src.sh 2 necessary)
+$(finding src.sh 3 necessary)" "$(check "$REPO")"
+
+new_repo 'comment_lint: block' 'class_c_max_lines: 3'
+printf '# a\n# b\n# https://example.com/x\nx=1\n' >"$REPO/src.sh"
+git -C "$REPO" add src.sh
+expect "class_c_max_lines: 3 passes the same three-line link paragraph" "0|" "$(check "$REPO")"
+
+new_repo 'comment_lint: block'
 mkdir -p "$REPO/docs/adr" "$REPO/src"
 printf '# 42\n' >"$REPO/docs/adr/0042-use-postgres.md"
 printf 'x=1\n# See ADR-0042\ny=1\n# See docs/adr/0042\nz=1\n# See ADR-0043\n' >"$REPO/src/a.sh"

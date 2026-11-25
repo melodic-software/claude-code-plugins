@@ -78,6 +78,7 @@ _CLI_PASSWORD = re.compile(
 # its label after every other pass, so the label's "token" cannot wake generic-api-key.
 _PRE_PASSES = (
     (re.compile(r"sk-ant-oat01-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
+    (re.compile(r"sk-ant-oat02-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
     (re.compile(r"ghs_[A-Za-z0-9._-]{36,}"), "github-app-token"),
 )
 _PASSES = (
