@@ -88,18 +88,20 @@ export function projectionStops(reading, { share, minutes, labels = START_LABELS
   if (left === null) {
     return { stop: false, left: null, text: `projection unreadable for this reading, so it does not hold the start (${labels.minutes}=${minutes})` };
   }
-  const resetIn = Math.round(reading.reset - now);
-  const resetsFirst = resetIn < minutes * 60;
-  const stop = resetsFirst ? left === 0 : left < share;
-  const shown = Math.round(left * 100) / 100;
-  if (resetsFirst) {
+  const secondsToReset = reading.reset - now;
+  if (secondsToReset < minutes * 60) {
+    const floor = (share * secondsToReset) / (minutes * 60);
+    const stop = left < floor;
+    const [resetIn, shown, floorShown] = [Math.round(secondsToReset), Math.round(left * 1000) / 1000, Math.round(floor * 1000) / 1000];
     return {
       stop,
       left: shown,
-      why: `the window is projected to run out before its reset in ${resetIn} s, inside the ${minutes} min run`,
-      text: `projected left ${shown} of the limit at the reset in ${resetIn} s, inside the run's ${minutes} min (${labels.minutes}=${minutes}), so the run ends in the next window and ${labels.share}=${share} does not apply; stop=${stop}${stop ? ": the window would run out before its reset" : ""}`,
+      why: `the window is projected to have ${shown} of its limit left at its reset in ${resetIn} s, under ${labels.share}=${share} scaled to the ${resetIn} s of the ${minutes} min run before the reset, ${floorShown}`,
+      text: `projected left ${shown} of the limit at the reset in ${resetIn} s, inside the run's ${minutes} min (${labels.minutes}=${minutes}), against ${labels.share}=${share} scaled to the ${resetIn} s before the reset, ${floorShown}; stop=${stop}${stop ? `: the window would reach its reset with under that share of the limit left` : ""}`,
     };
   }
+  const stop = left < share;
+  const shown = Math.round(left * 100) / 100;
   return {
     stop,
     left: shown,

@@ -311,8 +311,8 @@ test("a quiet window lets the start go", async () => {
 
 test("the projection stops at the reset when the reset comes before the run's end", async () => {
   const { lines, outputs } = await runMain(PROJECT, reading(2000, 300));
-  assert.equal(outputs.cause, "ok", "reset in 300 s: 2000 - 3000 x 300 / 3300 = 1727, 0.35; the full 1260 s would leave 0.17 and hold");
-  assert.ok(lines.some((line) => line.includes("projected left 0.35 of the limit")));
+  assert.equal(outputs.cause, "ok", "reset in 300 s: 2000 - 3000 x 300 / 3300 = 1727, 0.345, over 0.3 x 300 / 1260 = 0.071; the full 1260 s would leave 0.17 and hold");
+  assert.ok(lines.some((line) => line.includes("projected left 0.345 of the limit at the reset in 300 s")));
 });
 
 test("the projection gate adds to the start-gate share and never replaces it", async () => {
@@ -472,18 +472,21 @@ const nearResponse = (remaining = Number(NEAR.headers["x-ratelimit-remaining"]))
 const REVIEW = { ...DEFER, DEFER_JOB: "review" };
 const nearAt = { nowMs: Date.parse(NEAR.read_at) };
 
-test("a review read 112 s before its reset goes ahead: its 8-minute run ends in the next window", async () => {
+const NEAR_FLOOR = "0.3 x 111.76 / 480 = 0.0699";
+
+test("a review read 112 s before its reset goes ahead over defer-project scaled to the 112 s before the reset", async () => {
   const { lines, outputs } = await runMain(REVIEW, nearResponse(), nearAt);
-  assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" }, "1312 - 3688 x 111.76 / 3488.24 = 1194 left at the reset, 0.24 of 5000, over 0");
-  assert.ok(lines.some((line) => line.includes("projected left 0.24 of the limit at the reset in 112 s, inside the run's 8 min (defer-run-minutes-review=8)") && line.includes("stop=false; body core")));
+  assert.deepEqual(outputs, { proceed: "true", reason: "ok", cause: "ok", reset: "" }, `1312 - 3688 x 111.76 / 3488.24 = 1194 left at the reset, 0.239 of 5000, over ${NEAR_FLOOR}`);
+  assert.ok(lines.some((line) => line.includes("projected left 0.239 of the limit at the reset in 112 s, inside the run's 8 min (defer-run-minutes-review=8), against defer-project=0.3 scaled to the 112 s before the reset, 0.07; stop=false;")));
+  assert.equal((await runMain(REVIEW, nearResponse(500), nearAt)).outputs.cause, "ok", `500 left: 500 x 1.03204 - 160.2 = 355.8, 0.0712, just over ${NEAR_FLOOR}`);
 });
 
-test("a review read 112 s before its reset defers when the window runs out before that reset", async () => {
-  const { lines, outputs } = await runMain(REVIEW, nearResponse(100), nearAt);
-  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "defer", reset: NEAR.headers["x-ratelimit-reset"] }, "100 - 4900 x 111.76 / 3488.24 is under 0");
+test("a review read 112 s before its reset defers just under defer-project scaled to the 112 s before the reset", async () => {
+  const { lines, outputs } = await runMain(REVIEW, nearResponse(490), nearAt);
+  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch", cause: "defer", reset: NEAR.headers["x-ratelimit-reset"] }, `490 left: 490 x 1.03204 - 160.2 = 345.5, 0.0691, under ${NEAR_FLOOR}`);
   assert.ok(
     lines.includes(
-      "::notice title=defer::deferred until the GITHUB_TOKEN window resets at 1795642264 (2026-11-25T21:31:04Z): the window is projected to run out before its reset in 112 s, inside the 8 min run; cause=defer, so a later run after the reset does this work",
+      "::notice title=defer::deferred until the GITHUB_TOKEN window resets at 1795642264 (2026-11-25T21:31:04Z): the window is projected to have 0.069 of its limit left at its reset in 112 s, under defer-project=0.3 scaled to the 112 s of the 8 min run before the reset, 0.07; cause=defer, so a later run after the reset does this work",
     ),
   );
 });
