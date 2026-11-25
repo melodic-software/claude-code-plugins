@@ -85,7 +85,7 @@ cells are **Inference** throughout: the lesson pages that state them are paid an
 | Very short ADR format file | A few sentences, sections optional | Inference: ADRs stay cheap to write and read | We had no template | **adapt:** default [`templates/adr.md`](../../plugins/architecture/skills/adr/templates/adr.md) with Considered options, overridable through the config layers (Q84), repository level only for now (Q90); team keys for extra triggers and template path (Q86) | [#14966](https://github.com/melodic-software/claude-code-plugins/pull/14966) |
 | Decision rationale kept in a code comment | Leaves the why beside the code | Inference: the reason survives with the code | Comment removal could lose a real decision | **adapt:** `remove-comments` hands deleted rationale that passes the test to `adr` (Q85) | [#14971](https://github.com/melodic-software/claude-code-plugins/pull/14971) |
 | Business rules inside glossary entries | Entries carry rules | Inference: one place to read the domain | Rules change faster than terms | **reject:** rules in code and tests, reasons in ADRs (Q87) | [#14970](https://github.com/melodic-software/claude-code-plugins/pull/14970) |
-| A surprising business rule as an ADR case | Treats a surprising rule as ADR-worthy | Inference: stop the next person reverting it | Our test drops surprise as a gate | **reject** (Q235): no change; a named test pins the rule | none |
+| A surprising business rule as an ADR case | Treats a surprising rule as ADR-worthy | Inference: stop the next person reverting it | Surprise alone admits nothing here: our test also needs a one-way door, and a rule held in code is a two-way door | **reject** (Q235): no change; a named test pins the rule | none |
 
 ### Lesson 4: Writing an ADR
 
