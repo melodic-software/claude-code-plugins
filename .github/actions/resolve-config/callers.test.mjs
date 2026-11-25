@@ -11,6 +11,7 @@
 // test-scope: .github/actions/resolve-config/package.json
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
+// test-scope: scripts/check-docs-only-gate.sh
 // test-scope: .github/scripts/maintenance-audit-lane-runs/file-findings.mjs .github/scripts/maintenance-monitor-signals/monitor.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 // test-scope: plugins/work-items/skills/triage/context/ci-mode.md docs/conventions/work-items.md .github/lane-funding.json
 // test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
@@ -2668,6 +2669,28 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
 });
 
 const STATUS_WRITE_RETRY_SECONDS = 7;
+
+test("aggregate-results' contract-only default at ci-status's pin is the docs-only gate's CONTRACT_ONLY_PREDICATE, and no caller overrides it", async () => {
+  const job = workflow("pr-require-checks.yml").jobs["ci-status"];
+  const composite = ".github/actions/pr-require-checks/report-ci-status";
+  const step = job.steps.find((s) => String(s.uses ?? "").startsWith(`melodic-software/ci-workflows/${composite}@`));
+  assert.ok(step, "ci-status runs report-ci-status");
+  const pin = step.uses.split("@")[1];
+  assert.equal(step.with?.["contract-only"], undefined, "ci-status passes no contract-only to report-ci-status");
+  const report = parse(await fetchAtPin(pin, `${composite}/action.yml`));
+  const aggregateStep = report.runs.steps.find((s) => s.uses === "$/.github/actions/pr-require-checks/aggregate-results");
+  assert.ok(aggregateStep, `report-ci-status at ${pin} runs aggregate-results`);
+  const passed = aggregateStep.with?.["contract-only"];
+  const resolved = passed === undefined ? undefined : String(passed).match(/^\$\{\{\s*inputs\.contract-only\s*\}\}$/) ? report.inputs?.["contract-only"]?.default : passed;
+  const aggregate = parse(await fetchAtPin(pin, ".github/actions/pr-require-checks/aggregate-results/action.yml"));
+  const expected = resolved ?? aggregate.inputs?.["contract-only"]?.default;
+  assert.ok(expected, `aggregate-results at ${pin} declares a contract-only default`);
+  const gate = readFileSync(fileURLToPath(new URL("../../../scripts/check-docs-only-gate.sh", import.meta.url)), "utf8");
+  const literal = gate.match(/^CONTRACT_ONLY_PREDICATE="((?:[^"\\]|\\.)*)"$/m)?.[1]?.replace(/\\(.)/g, "$1");
+  assert.ok(literal, "check-docs-only-gate.sh sets CONTRACT_ONLY_PREDICATE");
+  const unwrapped = String(expected).trim().replace(/^\$\{\{\s*([\s\S]*?)\s*\}\}$/, "$1");
+  assert.equal(unwrapped, literal, `aggregate-results' contract-only at ${pin} drifted from CONTRACT_ONLY_PREDICATE: a drifted copy turns all-skipped lanes into a pass`);
+});
 
 test("report-ci-status's waits at ci-status's pin fit WAIT_BUDGET_SECONDS.step each and GH_READ_MARGIN_SECONDS together", async () => {
   const job = workflow("pr-require-checks.yml").jobs["ci-status"];
