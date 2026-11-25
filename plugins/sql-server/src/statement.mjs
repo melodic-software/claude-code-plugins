@@ -1,4 +1,3 @@
-
 export class TokenizeError extends Error {
   constructor(message) {
     super(message);

@@ -1,4 +1,3 @@
-
 /** A found value as JSON, clipped: file contents are data. */
 const show = (value) => {
   const text = JSON.stringify(value) ?? String(value);

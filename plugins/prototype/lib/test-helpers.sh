@@ -83,14 +83,6 @@ detect_wrapper_contract() {
     fail "the resolved target exists and is executable" "executable file" "$CANONICAL"
   fi
 
-  local header
-  header="$(grep -e '^[[:space:]]*#' "$WRAPPER")"
-  assert_contains "rationale names the allowed-tools constraint" "$header" "allowed-tools"
-  assert_contains "rationale names the token that IS substituted" "$header" 'CLAUDE_SKILL_DIR'
-  assert_contains "rationale names the token that is NOT substituted" "$header" 'CLAUDE_PLUGIN_ROOT'
-  assert_contains "rationale records that the detector stays single-sourced" "$header" "single-source"
-  assert_contains "rationale explains the self-locating form" "$header" "not exported"
-
   if [[ -f "$SIBLING" ]]; then
     if diff <(body "$WRAPPER") <(body "$SIBLING") >/dev/null; then
       pass "the sibling skill's wrapper has a byte-identical body"

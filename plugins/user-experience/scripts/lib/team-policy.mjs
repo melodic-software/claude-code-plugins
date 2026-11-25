@@ -1,4 +1,3 @@
-
 export const nameOf = (s) => (s.includes("@") ? s.slice(0, s.lastIndexOf("@")) : s);
 /** The plugin or skill name a row's id names: `name@market` for a plugin, `/plugin:skill` or `/skill`. */
 const idName = (row) => (row.kind === "plugin" ? nameOf(row.id) : row.id.match(/^\/([^:]+)/)?.[1]);

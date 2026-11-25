@@ -1,4 +1,3 @@
-
 import { profileNamed, sourcesOf } from "./profile-files.mjs";
 
 /** @typedef {"session" | "folder" | "initial"} Target */

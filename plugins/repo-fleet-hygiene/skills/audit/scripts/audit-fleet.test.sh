@@ -2760,8 +2760,8 @@ else
 fi
 
 eval "$(sed -n '/^graphql_string_escape() {/,/^}/p' "$SCRIPT")"
-gql_escaped="$(graphql_string_escape 'feat"}){x}\')"
-if [[ "$gql_escaped" == 'feat\"}){x}\\' ]]; then
+gql_escaped="$(graphql_string_escape $'feat"}){x}\\')"
+if [[ "$gql_escaped" == $'feat\\"}){x}\\\\' ]]; then
   printf 'PASS: a quote or backslash in a GraphQL string value cannot close the literal\n'
 else
   printf 'FAIL: graphql_string_escape left a quote or backslash unescaped: %s\n' "$gql_escaped" >&2

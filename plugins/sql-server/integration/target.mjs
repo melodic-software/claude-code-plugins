@@ -1,4 +1,3 @@
-
 export const USAGE = 'usage: node plugins/sql-server/integration/read-path.mjs [--azure-server <server>.database.windows.net]';
 
 export function parseTarget(argv) {

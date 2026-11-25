@@ -2,6 +2,7 @@
 # test-scope: plugins/speech/skills/*/SKILL.md plugins/speech/hooks/*.sh plugins/speech/scripts/*.json
 # test-scope: plugins/speech/scripts/*.py plugins/speech/prerequisites.json plugins/speech/requirements.txt
 # test-scope: plugins/speech/.claude-plugin/plugin.json
+# test-scope: plugins/speech/vendor/gitleaks/gitleaks-rules.json
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

@@ -1,4 +1,3 @@
-
 export const APP_NAME = 'sql-server-plugin (agent session)';
 
 export const DEFAULT_LIMITS = Object.freeze({ requestTimeoutMs: 30_000, lockTimeoutMs: 5_000, rowCap: 1_000 });

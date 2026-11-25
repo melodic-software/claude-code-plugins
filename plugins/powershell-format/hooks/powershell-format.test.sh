@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/powershell-format/.claude-plugin/plugin.json plugins/powershell-format/hooks/hooks.json plugins/powershell-format/prerequisites.json plugins/powershell-format/git-hooks/psscriptanalyzer.ps1
+# test-scope: plugins/powershell-format/git-hooks/format.sh
 
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional
 set -uo pipefail

@@ -1,4 +1,3 @@
-
 import { type SpawnSyncOptionsWithStringEncoding, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -76,7 +75,7 @@ export function installCommand(target: string, platform = process.platform): str
   if (platform === "win32") {
     // Windows PowerShell 5.1 has no `&&` (PowerShell 7 added it), so statements chain with `;`:
     // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pipeline_chain_operators
-    const q =(path: string) => `'${path.replace(/['‘’‚‛]/g, "$&$&")}'`;
+    const q = (path: string) => `'${path.replace(/['‘’‚‛]/g, "$&$&")}'`;
     return (
       `& { $ErrorActionPreference = 'Stop'; ` +
       `Remove-Item -LiteralPath ${q(target)} -Recurse -Force -ErrorAction SilentlyContinue; ` +
