@@ -268,11 +268,18 @@ function locateApi({ pull = {}, commits = [{ commit: { message: "feat: x" } }], 
       return { workflow_runs: runs };
     }
     if (path.startsWith("/repos/o/r/actions/runs/9/jobs")) {
-      return { jobs };
+      const page = Number(new URL(path, "https://api.example").searchParams.get("page"));
+      return { jobs: jobs.slice((page - 1) * 100, page * 100) };
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
 }
+
+test("locate reads a run's jobs past three pages, as a wide test-selection matrix lists them", async (t) => {
+  const shards = Array.from({ length: 349 }, (_, index) => job(`Test Selection (${index})`, "success"));
+  const jobs = [...shards, job("Test Selection (349)", "failure", [...SETUP, ["Trace the changed suites", "failure"]])];
+  assert.equal(await locateWith(t, locateApi({ jobs })), "run-id=9\nrun-attempt=2\n");
+});
 
 async function locateWith(t, api, scope = { apply: true }) {
   const out = join(scratch(t), "output");

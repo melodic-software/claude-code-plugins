@@ -15,6 +15,7 @@ export const MAX_BOT_COMMITS = 2;
 export const MAX_GAPS = 50;
 export const MAX_SUITES = 20;
 export const MAX_TRACE_BYTES = 1024 * 1024;
+export const JOB_PAGES = 10;
 export const REQUIRED_WORKFLOW = ".github/workflows/pr-require-checks.yml";
 export const TRACE_JOB = "Test Selection";
 export const TRACE_STEP = "Trace the changed suites";
@@ -231,7 +232,7 @@ export async function locate({ call, repository, pr, headSha }) {
   if (!run) {
     return { skip: "not-applicable", why: "no completed pull_request run of pr-require-checks at the head" };
   }
-  const jobs = await pages(call, `/repos/${repository}/actions/runs/${run.id}/jobs?filter=latest`, { key: "jobs", max: 3 });
+  const jobs = await pages(call, `/repos/${repository}/actions/runs/${run.id}/jobs?filter=latest`, { key: "jobs", max: JOB_PAGES });
   if (!traceOnlyFailure({ run, jobs })) {
     return { skip: "not-applicable", why: `run ${run.id} did not fail at ${TRACE_STEP} alone` };
   }
