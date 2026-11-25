@@ -275,6 +275,15 @@ trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "
 
 skip() { skipped+=("$1 ($2)"); }
 
+std_config() {
+  local org
+  if [[ -f "$tools/$1" ]]; then
+    printf '%s\n' "$tools/$1"
+  elif org="$(bash "$tools/lib/org-standards.sh" dir --root "$tools" 2>/dev/null)" && [[ -f "$org/$1" ]]; then
+    printf '%s\n' "$org/$1"
+  fi
+}
+
 fail_check() {
   failed+=("$1")
   {
@@ -362,10 +371,14 @@ while IFS= read -r f; do
   esac
 done <<<"$all_raw"
 
+md_config=""
+((${#md[@]} == 0)) || md_config="$(std_config .markdownlint-cli2.jsonc)"
 if ((${#md[@]} == 0)); then
   skip markdown "no changed .md"
 elif ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   skip markdown "markdownlint-cli2 not installed"
+elif [[ -z "$md_config" ]]; then
+  skip markdown "no .markdownlint-cli2.jsonc here or in the standards org layer"
 elif ((foreign)); then
   # Lint HEAD's copy of each file beside the tooling tree's configs, overlaid
   # with each markdownlint config the branch changed that the tooling tree's
@@ -378,6 +391,7 @@ elif ((foreign)); then
     while IFS= read -r f; do
       mkdir -p "$stage/${f%/*}" && cp "$tools/$f" "$stage/$f" || rc=2
     done < <(cd "$tools" && find . -name node_modules -prune -o -name .git -prune -o -name '.markdownlint*' -type f -print)
+    [[ -f "$stage/.markdownlint-cli2.jsonc" ]] || cp "$md_config" "$stage/.markdownlint-cli2.jsonc" || rc=2
     for f in ${changed[@]+"${changed[@]}"}; do
       case "${f##*/}" in
       .markdownlint-cli2.jsonc) kind=options ;;
@@ -406,17 +420,21 @@ elif ((foreign)); then
   }
   run_check markdown "markdownlint-cli2 --config .markdownlint-cli2.jsonc ${md[*]}" markdown_staged
 else
-  run_check markdown "markdownlint-cli2 --config .markdownlint-cli2.jsonc ${md[*]}" \
-    markdownlint-cli2 --config .markdownlint-cli2.jsonc "${md[@]}"
+  run_check markdown "markdownlint-cli2 --config $md_config ${md[*]}" \
+    markdownlint-cli2 --config "$md_config" "${md[@]}"
 fi
 
+sc_rc=""
+((${#sh[@]} == 0)) || sc_rc="$(std_config .shellcheckrc)"
 if ((${#sh[@]} == 0)); then
   skip shellcheck "no changed shell"
 elif ! command -v shellcheck >/dev/null 2>&1; then
   skip shellcheck "shellcheck not installed"
+elif [[ -z "$sc_rc" ]]; then
+  skip shellcheck "no .shellcheckrc here or in the standards org layer"
 else
-  run_check shellcheck "shellcheck --rcfile .shellcheckrc ${sh[*]}" \
-    shellcheck --rcfile "$tools/.shellcheckrc" "${sh[@]}"
+  run_check shellcheck "shellcheck --rcfile $sc_rc ${sh[*]}" \
+    shellcheck --rcfile "$sc_rc" "${sh[@]}"
 fi
 
 run_check shell-portability "scripts/check-shell-portability.sh $merge_base" \
@@ -491,8 +509,13 @@ typos_check() {
 typos_rel=_typos.toml
 [[ -f "$hygiene_workflow" ]] && typos_rel=$(step_input typos config | head -n 1)
 typos_rel=${typos_rel:-_typos.toml}
-typos_config="$tools/$typos_rel"
-[[ -f "$typos_config" ]] || typos_config="$PWD/$typos_rel"
+if [[ "$typos_rel" == _typos.toml ]] && org="$(bash "$tools/lib/org-standards.sh" dir --root "$tools" 2>/dev/null)" &&
+  [[ -f "$org/_typos.toml" ]]; then
+  typos_config="$org/_typos.toml"
+else
+  typos_config="$tools/$typos_rel"
+  [[ -f "$typos_config" ]] || typos_config="$PWD/$typos_rel"
+fi
 if ((${#changed[@]} == 0)); then
   skip typos "no changed files"
 elif ! command -v typos >/dev/null 2>&1; then

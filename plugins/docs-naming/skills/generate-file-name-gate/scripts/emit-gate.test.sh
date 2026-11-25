@@ -99,7 +99,7 @@ assert_contains "it exercises the exemptions the config declares" "$out" "the ex
 assert_contains "and the case-collision pass" "$out" "differing only by case"
 
 if command -v shellcheck >/dev/null 2>&1; then
-  RC_FILE="$SCRIPT_DIR/../../../../../.shellcheckrc"
+  RC_FILE="$(bash "$SCRIPT_DIR/../../../../../lib/org-standards.sh" dir --root "$SCRIPT_DIR/../../../../.." 2>/dev/null)/.shellcheckrc"
   sc_args=(-x)
   if [[ -f "$RC_FILE" ]] && grep -q -- '--rcfile' < <(shellcheck --help 2>&1); then
     sc_args+=("--rcfile=$RC_FILE")

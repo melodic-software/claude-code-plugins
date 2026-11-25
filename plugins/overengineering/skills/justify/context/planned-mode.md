@@ -16,9 +16,11 @@ A mechanism that an existing control already covers, or that serves no stated re
 overengineering. An abstraction for a stated, known repetition is not, when the consuming
 repository's consolidation tests say the repetition is enough.
 
-Read those standards where they live rather than from memory. Resolve the standards index
-(`docs/standards/README.md`, unless `.claude/standards.yaml` sets `standards_dir`) and read two
-entries: `simpler-code`, section "Named failure modes to avoid" (speculative generality, YAGNI), and
+Read those standards where they live rather than from memory. Resolve the standards index: the
+repository's own (`docs/standards/README.md`, unless `.claude/standards.yaml` sets `standards_dir`),
+over the org layer's when `docs/conventions/source-control.yaml` names a `standards_repository`
+(the standards contract's "Org layer": that repository's index on its `main`, read with
+`gh api repos/<owner>/<repo>/contents/<path>?ref=main`). Read two entries: `simpler-code`, section "Named failure modes to avoid" (speculative generality, YAGNI), and
 `reference-dont-duplicate`, section "Consolidation doctrine: ordered tests" (T3 to T5). With neither
 entry, say so, and treat an abstraction as `needed` only when its second consumer is stated and its
 shape is namable and stable.

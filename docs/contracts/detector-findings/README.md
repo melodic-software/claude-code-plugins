@@ -290,8 +290,8 @@ row argues which claim its rule makes, so the tier still never varies per findin
 
 **Consumer precedence binds the crosswalk, not only the vocabulary.** `severity.md` is the fallback
 baseline and a consuming project's own severity vocabulary replaces it, so the tiers above are
-baseline values a producer maps away from when the project defines its own. This repository's
-[`REVIEW.md`](../../../REVIEW.md) "Severity" is the live instance, and it shows the mapping is not a
+baseline values a producer maps away from when the project defines its own. The organization's
+[`REVIEW.md`](https://github.com/melodic-software/standards/blob/main/REVIEW.md) "Severity", which this repository reviews under, is the live instance, and it shows the mapping is not a
 formality: it resolves to the same three names but folds Critical and Important onto a single marker,
 so the tier name alone does not survive. **The row's argued test does.** A reader holding it can
 re-derive which side of the fold a finding sat on. That is the second reason the argument belongs in
@@ -806,7 +806,7 @@ adopter row is a minor bump; docs-only clarification is a patch.
 - [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md): the severity-tier and confidence vocabularies a producer emits, and the consumer-precedence rule that overrides the baseline.
 - `/review:fanout` normalization: the five-stage reduction that applies the confidence rank order `severity.md` above owns.
 - [`docs/contracts/finding-suppression/`](../../../docs/contracts/finding-suppression/README.md): the operator-authored suppression record whose `check:` constituent a qualified rule id is, and the consent gate a producer proposes into rather than writes.
-- [`REVIEW.md`](../../../REVIEW.md): this repository's own project severity vocabulary, the live instance of the consumer-precedence override a producer maps to.
+- [`REVIEW.md`](https://github.com/melodic-software/standards/blob/main/REVIEW.md): the organization's severity vocabulary this repository reviews under, the live instance of the consumer-precedence override a producer maps to.
 - [`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh): the shared-source cluster mechanism the emitter decision is measured against, and the gate its recheck trigger fires at.
 - `melodic-software/standards` `standards/engineering/enforceability-tiers.md`: tier vocabulary and routing rule.
 - [`liveness-assertion`](../../../docs/contracts/liveness-assertion/README.md): the fail-loud-or-agent-readable contract a detector satisfies by persisting.

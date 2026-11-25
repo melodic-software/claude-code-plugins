@@ -895,7 +895,7 @@ rm -rf "$repo/new-tool"
 # The inner run lints from the scratch repository, with the rcfile beside the
 # outer copy of the script; an optional check the rcfile enables proves it read it.
 if grep -q -- --rcfile <<<"$(shellcheck --help 2>&1)"; then
-  cp "$SELF_DIR/../.shellcheckrc" "$repo/.shellcheckrc"
+  printf 'enable=require-double-brackets\n' >"$repo/.shellcheckrc"
   printf '#!/usr/bin/env bash\nif [ -n "${1:-}" ]; then echo hi; fi\n' >"$repo/lint-me.sh"
   chmod +x "$repo/lint-me.sh"
   run -- --uncommitted

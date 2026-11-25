@@ -483,11 +483,13 @@ for v in create-item get-item claim renew-lease release reclaim link-blocks add-
   assert_file "full surface emits $v.sh" "$FULL_A/$v.sh"
 done
 
-SC_RC="$SCRIPT_DIR/../../../../../.shellcheckrc"
+SC_RC="$(bash "$SCRIPT_DIR/../../../../../lib/org-standards.sh" dir --root "$SCRIPT_DIR/../../../../.." 2>/dev/null)/.shellcheckrc"
 # ShellCheck before 0.10.0 rejects `--rcfile` with exit 3 (bad syntax, not issues found),
 # so probe whether THIS binary accepts the flag rather than trusting the exit status.
 if ! command -v shellcheck >/dev/null 2>&1; then
   printf 'SKIP: shellcheck not available — generated-shell lint case not run\n' >&2
+elif [[ ! -f "$SC_RC" ]]; then
+  printf 'SKIP: the standards org layer could not be read — generated-shell lint case not run\n' >&2
 elif ! shellcheck --rcfile="$SC_RC" /dev/null >/dev/null 2>&1; then
   printf 'SKIP: shellcheck too old for --rcfile (needs 0.10.0+) — generated-shell lint case not run\n' >&2
 else

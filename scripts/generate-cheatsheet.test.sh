@@ -137,8 +137,11 @@ if [[ "$sheet" != *"alpha:setup"* ]]; then
 else
   fail "setup skill leaked into sheet"
 fi
-if command -v npx >/dev/null 2>&1 && npx --no-install markdownlint-cli2 --help >/dev/null 2>&1; then
-  if npx --no-install markdownlint-cli2 --config "$REPO_ROOT/.markdownlint-cli2.jsonc" \
+md_config="$(bash "$REPO_ROOT/lib/org-standards.sh" dir --root "$REPO_ROOT" 2>/dev/null)/.markdownlint-cli2.jsonc"
+if [[ ! -f "$md_config" ]]; then
+  echo "skip: the standards org layer's .markdownlint-cli2.jsonc could not be read"
+elif command -v npx >/dev/null 2>&1 && npx --no-install markdownlint-cli2 --help >/dev/null 2>&1; then
+  if npx --no-install markdownlint-cli2 --config "$md_config" \
     "$tree/docs/skill-cheat-sheet.md" >/dev/null 2>&1; then
     ok "fixture sheet is markdownlint-clean"
   else

@@ -504,6 +504,25 @@ test("a listed check's copy carries the base's shellcheck, markdownlint and ruff
   }
 });
 
+test("a listed check's copy takes the standards org layer's lint configs the base does not keep", () => {
+  const org = mkdtempSync(path.join(root, "org-"));
+  writeFileSync(path.join(org, ".shellcheckrc"), "enable=require-double-brackets\n");
+  writeFileSync(path.join(org, ".markdownlint-cli2.jsonc"), '{ "config": { "MD041": false } }\n');
+  mkdirSync(path.join(base, "lib"), { recursive: true });
+  cpSync(path.join(REPO_ROOT, "lib", "org-standards.sh"), path.join(base, "lib", "org-standards.sh"));
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"], { STANDARDS_DIR: org });
+    assert.equal(status, 0);
+    assert.equal(readFileSync(path.join(checksDir, ".shellcheckrc"), "utf8"), "enable=require-double-brackets\n");
+    assert.equal(
+      readFileSync(path.join(checksDir, ".markdownlint-cli2.jsonc"), "utf8"),
+      '{ "config": { "MD041": false } }\n',
+    );
+  } finally {
+    rmSync(path.join(base, "lib"), { recursive: true, force: true });
+  }
+});
+
 test("a listed check's copy carries the base's skill-quality scripts", () => {
   const scripts = path.join(base, "plugins", "skill-quality", "scripts");
   mkdirSync(scripts, { recursive: true });

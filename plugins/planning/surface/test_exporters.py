@@ -1,6 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/ledger-legacy/*
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
-# test-scope: .markdownlint-cli2.jsonc plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
+# test-scope: lib/org-standards.sh plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
 
 from __future__ import annotations
 
@@ -758,7 +758,16 @@ class TestExportBrief(SessionCase):
             self.skipTest("markdownlint-cli2 not installed; `npm ci` at the repository root")
         _, plan = self.merged_plan(self.PLAN_HEAD + self.STALE + self.PLAN_TAIL)
         # markdownlint-cli2 reads its config from its working directory.
-        shutil.copy(REPO / ".markdownlint-cli2.jsonc", self.tmp)
+        org = subprocess.run(
+            ["bash", str(REPO / "lib" / "org-standards.sh"), "dir", "--root", str(REPO)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        config = Path(org.stdout.strip()) / ".markdownlint-cli2.jsonc"
+        if org.returncode != 0 or not config.is_file():
+            self.skipTest("the standards org layer's .markdownlint-cli2.jsonc could not be read")
+        shutil.copy(config, self.tmp)
         p = subprocess.run(
             [MARKDOWNLINT, plan.name],
             cwd=self.tmp,

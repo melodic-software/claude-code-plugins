@@ -2,15 +2,17 @@ globs: ["**"]
 build-cmd: null
 test-cmd: null
 check-cmd: |
-  typos
-  gitleaks detect --source . --redact --no-banner --no-git
+  # typos, gitleaks and editorconfig-checker read the standards configs CI falls back to: STANDARDS_DIR
+  # names a standards checkout, else the ghq root (ghq.root, default ~/ghq); typos also merges the root _typos.toml
+  typos --config "${STANDARDS_DIR:-$(git config --path --get ghq.root || printf '%s' "$HOME/ghq")/github.com/melodic-software/standards}/_typos.toml"
+  gitleaks detect --source . --redact --no-banner --no-git --config "${STANDARDS_DIR:-$(git config --path --get ghq.root || printf '%s' "$HOME/ghq")/github.com/melodic-software/standards}/.gitleaks.toml"
   # editorconfig-checker: binary name varies by install method (ec / editorconfig-checker / ec-windows-amd64)
-  "$EC_BIN"
+  "$EC_BIN" -config "${STANDARDS_DIR:-$(git config --path --get ghq.root || printf '%s' "$HOME/ghq")/github.com/melodic-software/standards}/.editorconfig-checker.json"
   # lychee-offline: on-disk link and anchor integrity, no network, with the standards
   # lychee.toml CI falls back to: STANDARDS_DIR names a standards checkout, else the ghq root (ghq.root, default ~/ghq)
   lychee --offline --no-progress --config "${STANDARDS_DIR:-$(git config --path --get ghq.root || printf '%s' "$HOME/ghq")/github.com/melodic-software/standards}/lychee.toml" './**/*.md'
 fix-cmd: null
-opt-in: "each tool's own config at the repository root (_typos.toml, .gitleaks.toml, .editorconfig)"
+opt-in: "the standards configs (_typos.toml, .gitleaks.toml, .editorconfig-checker.json, lychee.toml) and the repository's .editorconfig"
 install-hint: |
   typos: winget install Crate-CI.Typos | brew install typos-cli
   gitleaks: winget install Gitleaks.Gitleaks | brew install gitleaks
