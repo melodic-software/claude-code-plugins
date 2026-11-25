@@ -268,8 +268,6 @@ assert_contains "a Bot report without --app-slug reads the login plus [bot]" "$o
 out="$(STUB_ME="octocat" run "$TMP/two-authors.json" --app-slug lanes-app --dry-run 2>&1)"
 assert_contains "a User login wins over --app-slug" "$out" "would update comment 701"
 
-# The lanes skill always passes the rendered lane_app_slug option (#8002); unset,
-# it arrives empty or as the literal placeholder, and either reads as no slug.
 # shellcheck disable=SC2016 # the literal, unexpanded placeholder is the input
 PLACEHOLDER_SLUG='${user_config.lane_app_slug}'
 for unset_slug in "$PLACEHOLDER_SLUG" ''; do
@@ -409,10 +407,6 @@ rc=$?
 assert_eq "missing body-file rejected exit 3" 3 "$rc"
 assert_contains "missing body-file message" "$out" "body file not found"
 
-# A space-form option given as the FINAL argument (no value) must exit 3, not
-# spin the parse loop forever — `shift 2` on a lone arg does not consume it.
-# Guarded with `timeout` where available so a regression fails the case instead
-# of hanging CI.
 if command -v timeout >/dev/null 2>&1; then
   out="$(timeout 10 bash "$SCRIPT" --repo "$REPO" --marker "lane:x" --body-file "$BODY" --issue 2>&1)"
   rc=$?
@@ -442,8 +436,6 @@ rc=$?
 assert_eq "traversal body-file escaping the safe dir rejected exit 3" 3 "$rc"
 
 LINK="$SAFE_DIR/link-to-secret.txt"
-# MSYS `ln -s` silently makes a COPY, not a symlink, and returns 0 — so gate on
-# the result actually being a symlink, not on ln's exit status.
 if ln -s "$SECRET" "$LINK" 2>/dev/null && [[ -L "$LINK" ]]; then
   out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$LINK" --body-dir "$SAFE_DIR" 2>&1)"
   rc=$?
@@ -542,16 +534,6 @@ rc=$?
 assert_eq "stdin body exits 0" 0 "$rc"
 assert_contains "stdin body creates a comment" "$out" "created comment 999"
 
-# ============================================================================
-# jq binary missing exits 4 — regression guard for the jq() wrapper (defined
-# before this prereq check) shadowing `command -v jq` and fail-opening the
-# guard. A PATH with no jq binary (only the gh stub) must still be caught by
-# `type -P jq`, which looks at PATH executables only and ignores the wrapper.
-# ============================================================================
-# Resolve bash's own absolute path first so invoking it below needs no PATH
-# lookup; then restrict the child's PATH to just STUB_BIN (the gh stub),
-# which never contains jq — reaching the prereq check without an external jq
-# binary anywhere in PATH, on any platform.
 BASH_BIN="$(command -v bash)"
 out="$(PATH="$STUB_BIN" "$BASH_BIN" "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" --body-dir "$SAFE_DIR" 2>&1)"
 rc=$?
@@ -562,15 +544,6 @@ out="$(PATH="/nonexistent" "$BASH_BIN" "$SCRIPT" --help 2>&1)"
 rc=$?
 assert_eq "--help answers with no gh or jq binary" 0 "$rc"
 
-# ============================================================================
-# PRE-WRITE BODY GATE (#952) — the #943 fail-open is a comment whose timestamp
-# moves while its body carries no telemetry. The gate catches it BEFORE the
-# write, so nothing degraded is ever published: every case below must exit 3
-# having made no API call at all (an EMPTY stub log, not merely no mutation).
-# ============================================================================
-
-# The #943 defect itself: a caller composed `@path` as its body content, meaning
-# the file. Posting that verbatim is the fail-open — refuse before writing.
 ATPATH="$SAFE_DIR/atpath.txt"
 printf '@/tmp/telemetry_combined.txt\n' >"$ATPATH"
 : >"$LOG"
@@ -653,17 +626,6 @@ assert_contains "404 read-back surfaces gh's error text" "$out" "HTTP 404"
 assert_contains "404 read-back says the comment is not retrievable" "$out" "NOT RETRIEVABLE"
 assert_not_contains "404 read-back does not assert the comment is intact" "$out" "so the comment is probably intact"
 
-# A signal during the read-back retry must TERMINATE, not be swallowed. A cleanup
-# trap that does not itself exit lets bash resume the interrupted command, so a
-# combined `trap … EXIT INT TERM` would absorb a supervisor's SIGTERM (or an
-# operator's Ctrl-C) and still report the cycle good. Driven through
-# STUB_READBACK_FAIL so the script is inside its `sleep 2` retry when it lands.
-# SIGTERM, not SIGINT: bash sets SIGINT to ignored in background children, so an
-# INT here would test the harness rather than the trap.
-# Timing is not guessed: the stub logs the read-back GET before failing it, so
-# waiting for that line puts the signal inside the retry sleep deterministically
-# — signaling on a fixed delay raced the trap's installation and reported the
-# un-trapped default (143) instead.
 SIGLOG="$TMP/sig.log"
 : >"$SIGLOG"
 STUB_LOG="$SIGLOG" STUB_READBACK_FAIL=1 STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" \

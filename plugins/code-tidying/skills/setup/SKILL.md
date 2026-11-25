@@ -1,6 +1,6 @@
 ---
-description: "Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes, the optional HARD-exclusion overrides file, and the comment-lint git pre-commit entry. Use when 'set up code-tidying' is asked, the tidy skill reports no project lanes, or a session-start line says the comment-lint git hook is missing or stale. Actions: check (read-only, default), check inspect (read-only), apply (one named lane or all), apply install-git-hooks (scope local or shared)."
-argument-hint: "[check|apply] [inspect|<lane>|install-git-hooks [scope=local|shared]]"
+description: "Checks or scaffolds this repository's code-tidying configuration: tracked project tidy lanes, the optional HARD-exclusion overrides file, the comment-lint git pre-commit entry, and the CI step that re-runs the lint. Use when 'set up code-tidying' is asked, the tidy skill reports no project lanes, or a session-start line says the comment-lint git hook is missing or stale. Actions: check (read-only, default), check inspect (read-only), apply (one named lane or all), apply install-git-hooks (scope local or shared), apply install-ci."
+argument-hint: "[check|apply] [inspect|<lane>|install-git-hooks [scope=local|shared]|install-ci]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -93,9 +93,18 @@ tidy sweep (that is `/code-tidying:tidy`).
    `invalid` line is a FAIL naming the file. When the level is `report` or `block`, probe
    `python3 -c 'import pygments'` with the `python3` on `PATH`: a failure is a FAIL, since the entry
    then reports pygments missing at every commit. Report `python3` and `pygments` as the tools to
-   provision before an unattended session. When no workflow under `.github/workflows/` runs
-   `comment-lint.sh`, say so: the missing-tool pass and `checks.skipmissing` rely on CI re-running
-   the lint on the change (the plugin README gives the CI recipe).
+   provision before an unattended session.
+10. **Comment-lint CI re-run.** Run
+    `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/comment-lint-ci-scan.py" --repo <repository root>` and
+    report its `systems` and `callers`. A `script` caller with no decision against it is PASS,
+    named by file and line. An `unreached-caller` is a FAIL naming the target and the CI files
+    checked: no CI job runs it or any other caller, remediation `apply install-ci`. A
+    `local-caller` is INFO: a local target CI does not run, beside a caller CI does reach. A `drift` decision is a FAIL naming the call, its `args` and the
+    `interface`, remediation `apply install-ci`. A `recipe-caller` is INFO: the job runs the lint
+    by hand, and `apply install-ci` moves it to the shipped script. An `unparsed` caller is INFO:
+    read the line. With no caller (`no-caller` or `no-ci-system`) say so as INFO, remediation
+    `apply install-ci`: the missing-tool pass and `checks.skipmissing` rely on CI re-running the
+    lint on the change.
 
 ## `apply` (idempotent)
 
@@ -203,7 +212,7 @@ so installing it changes no commit until the team file sets a level.
    is another tool owning the local hooks directory (the `hooks-path-owned` decision).
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for what
    each kind asks of you, apply each one, then rerun `plan` until only the decisions you chose to
-   leave remain.
+   leave remain. With a `no-ci-rerun` decision, also offer `apply install-ci`.
 6. **Verify.** Run `verify` and report its lines as `check` step 8 does.
 
 A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
@@ -218,6 +227,20 @@ session-start drift line then stays silent until `verify` runs by hand, and `--u
 Add `--global` to decline it in every clone. The [adoption
 path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md)
 explains each install scope to the user.
+
+## `apply install-ci`
+
+Adds a CI step that re-runs the comment lint over each change, judged against the base branch's
+settings, so a commit that skipped the git hook is still checked. The plugin ships the step's
+script, `git-hooks/comment-lint-ci.sh <head> <base>` (its `--help` is the interface); the wiring is
+the repository's own, written in its CI system's format after discovery. No CI system is a default
+and no vendor template ships: [reference/ci-systems.md](reference/ci-systems.md) holds what the step
+does in any system, where the script comes from, and how to read the system's own docs.
+
+The scan is `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/comment-lint-ci-scan.py" --repo <repository root>`
+(read-only JSON). Read [actions/install-ci.md](actions/install-ci.md) and follow its six steps:
+discover, stop when the step is there, ask only what discovery leaves open, propose, write only on
+the user's yes, verify.
 
 ## Personal configuration (`userConfig`)
 
@@ -249,7 +272,8 @@ Tracked `.claude/tidy-lanes/<lane>.md` file(s) in the consuming repo, plus a one
 of which lanes were written, the source of each (template or bundled lane), and how to re-run this
 setup to add or retune lanes. When an overrides file was written or already exists, the summary
 names it and the globs it lifts. `apply install-git-hooks` writes only the entry's copies and
-its hook-manager wiring, and reports `verify`'s lines.
+its hook-manager wiring, and reports `verify`'s lines. `apply install-ci` writes one CI step, in a
+file the user confirmed, and reports the scan's caller for it.
 
 ## Boundaries
 

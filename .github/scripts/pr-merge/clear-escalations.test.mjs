@@ -26,8 +26,8 @@ const HEAD = "b".repeat(40);
 const KEY = "c".repeat(40);
 const ENV = { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRACKER_CONFIG: "/nonexistent/work-items.yaml" };
 
-const escalationBody = (reason) =>
-  `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\nThe pr-unblock lane stopped on this pull request and needs a person: why.\n\n- Reason: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n`;
+const escalationBody = (reason, codeLabel = "Lane code") =>
+  `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\n### pr-unblock / report-escalation\nHeld for a person: why.\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n`;
 const labeled = (actor, at) => ({ event: "labeled", actor, label: { name: "needs-human" }, created_at: at });
 const commented = (user, body, at, updatedAt = at) => ({ event: "commented", user, actor: user, body, created_at: at, updated_at: updatedAt });
 const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10:00:05Z" } = {}) => commented(user, escalationBody(reason), at);
@@ -139,6 +139,13 @@ test("an App-set needs-human whose workflow-staged reason cleared comes off with
   assert.match(comment.body.body, /`workflow-staged`/);
   assert.match(comment.body.body, new RegExp(`\`${HEAD}\``));
   assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("a hold comment that labels its lane code `- Reason:` clears the same way", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), commented(BOT, escalationBody("workflow-staged", "Reason"), "2026-10-18T10:00:05Z")] });
+  assert.equal((await run(w)).code, 0);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=workflow-staged head=${HEAD} -->`);
+  assert.equal(w.writes().length, 2, "the cleared comment, then the label removal");
 });
 
 test("main's tip the job resolved with git ls-remote (MAIN_TIP_SHA) is used, not read again; any other value reads it", async () => {

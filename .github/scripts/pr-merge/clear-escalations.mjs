@@ -210,7 +210,7 @@ import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
 import { branchActivity, LANES_APP_LOGIN as DEFAULT_BOT, laneChange, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, readStatuses, REVIEW_LANES } from "./merge-holds.mjs";
 import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
-const REASON = /^- Reason: `([a-z-]+)`$/m;
+const REASON = /^- (?:Lane code|Reason): `([a-z-]+)`$/m;
 const outsideActorHeld = (labels) => (labels ?? []).some((item) => same(item?.name, OUTSIDE_ACTOR));
 const OUTSIDE_ACTOR_KEPT = `it carries ${OUTSIDE_ACTOR}, which a person lifts`;
 const CREDENTIAL_KEPT = "pr-verify holds it for a credential, which a person lifts";

@@ -1,31 +1,28 @@
 #!/usr/bin/env bash
-# /observability hooks — per-hook durations the harness already recorded in session transcripts.
-# Read-only; never executes a hook. Reads only the transcript paths given, and from them only the
-# duration, hook and event fields: never a hook's stdout, stderr or content.
-#
-# Usage:
-#   bash hook-transcript-timing.sh [--enabled FILE] <transcript.jsonl>...
-#   bash hook-transcript-timing.sh --latency [--budget EVENT=MS]... <transcript.jsonl>...
-#
-#   --enabled FILE    enabled hooks, one `EVENT<TAB>HOOK` per line (`#` comments), HOOK as the
-#                     transcript records it (statusMessage if set, else the unexpanded command);
-#                     each with no sample is listed as unsampled. Output redacts credentials, so
-#                     copy a hook from the transcript, not from a redacted output line
-#   --latency         per-event p50/p95 instead of per-hook rows (the `latency` fallback)
-#   --budget EVENT=MS Stop p95 budget for --latency; repeatable, last wins
-#
-# Sources: Stop from `stop_hook_summary` records (one per firing, every hook); every other event
-# from `hook_success` and `hook_non_blocking_error` attachments, which cover only some firings,
-# so those rows are labeled sampled. Stop attachments are skipped: the summary already has them.
-# A firing's cost is its slowest hook, never a sum: hooks on one event run in parallel. Hooks of one
-# firing share a toolUseID; an attachment without one counts per hook, never toward --latency.
-#
 # Exit: 0 read (in --latency, nothing over budget), 1 a Stop p95 over budget (--latency only),
 # 2 usage error, unreadable transcript, jq missing, or no hook durations found.
 
 set -uo pipefail
 
-usage() { sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() {
+  cat <<'EOF'
+/observability hooks: per-hook durations the harness already recorded in session transcripts.
+Read-only; never executes a hook. Reads only the duration, hook and event fields of the
+transcripts given: never a hook's stdout, stderr or content.
+
+Usage:
+  bash hook-transcript-timing.sh [--enabled FILE] <transcript.jsonl>...
+  bash hook-transcript-timing.sh --latency [--budget EVENT=MS]... <transcript.jsonl>...
+
+  --enabled FILE    enabled hooks, one `EVENT<TAB>HOOK` per line (`#` comments), HOOK as the
+                    transcript records it; each with no sample is listed as unsampled
+  --latency         per-event p50/p95 instead of per-hook rows
+  --budget EVENT=MS Stop p95 budget for --latency; repeatable, last wins
+
+Exit: 0 read (in --latency, nothing over budget), 1 a Stop p95 over budget (--latency only),
+2 usage error, unreadable transcript, jq missing, or no hook durations found.
+EOF
+}
 die() {
   printf 'hook-transcript-timing: %s\n' "$1" >&2
   exit 2

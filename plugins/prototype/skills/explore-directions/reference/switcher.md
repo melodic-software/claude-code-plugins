@@ -46,6 +46,19 @@ The bundled asset's contract; the real-stack switcher follows the table in [real
 - Switching re-mounts the variant (so entrance animations re-run); the replay key re-mounts without
   switching.
 
+What the page around the bundled asset must do:
+
+- Paste the asset just before `</body>`. It reads the variant and state elements once, when it
+  runs, so render them before it: in the markup or a plain inline script above it, never a module
+  script or a `DOMContentLoaded` listener.
+- Switching and replay re-mount a variant from a copy of its markup, so listeners attached to
+  elements inside it are lost: wire variant interactions with listeners delegated from `document`.
+- The asset takes the notes host page's light and dark tokens and hides when that page frames the
+  mockup, whose command bar steps the variants; under that bar it also hides every element marked
+  `data-harness-chrome`.
+- A `vs:show` event on `document` restores a view a reload loses: its `detail` is
+  `{variant, state, content}`, each optional, and a part the page does not have is ignored.
+
 A real-stack switcher that adopts any of this behavior expresses it idiomatically: state instead
 of toggling `hidden`, a keyed re-mount instead of replacing the element, refs and a layout effect
 for the highlight measurement.

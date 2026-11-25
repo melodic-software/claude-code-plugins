@@ -1,4 +1,3 @@
-/* The shared interview page (app.js). Teal for actions and votes, brass for what is decided (leading, locked). */
 .app {
   --bg: oklch(0.155 0.01 250);
   --sunk: oklch(0.135 0.009 250);
@@ -6,11 +5,11 @@
   --raise: oklch(0.225 0.014 250);
   --line: oklch(1 0 none / 0.08);
   --line-strong: oklch(1 0 none / 0.15);
-  --line-input: oklch(1 0 none / 0.38); /* field boundaries: 3:1 against the surface (WCAG 1.4.11) */
+  --line-input: oklch(1 0 none / 0.38);
   --text: oklch(0.95 0.005 250);
   --muted: oklch(0.72 0.012 250);
-  --fg: var(--text); /* the canonical chrome's rules (rv-chrome, below) name the text color --fg */
-  --faint: oklch(0.64 0.012 250); /* 4.5:1 on --sunk, the darkest surface it lands on */
+  --fg: var(--text);
+  --faint: oklch(0.64 0.012 250);
   --accent: oklch(0.79 0.12 195);
   --accent-text: oklch(0.82 0.11 195);
   --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
@@ -20,17 +19,13 @@
   --brass-text: var(--brass);
   --on-brass: oklch(0.22 0.04 70);
   --ok: oklch(0.77 0.15 155);
-  --away: oklch(0.80 0.15 75); /* presence: Away (amber); never --brass, which means decided */
+  --away: oklch(0.80 0.15 75);
   --warn: oklch(0.69 0.19 25);
-  --on-warn: oklch(0.2 0.04 25); /* text on --warn: 4.5:1 (ui_contrast.js) */
+  --on-warn: oklch(0.2 0.04 25);
   --shadow-pop: 0 1px 0 oklch(1 0 none / 0.05) inset, 0 16px 40px oklch(0 0 none / 0.5);
   --r-sm: 6px;
   --r-md: 9px;
   --r-lg: 14px;
-  /* Curves and durations repeat user-interface's reference/defaults.yaml keys: --ease-out is animation.easing_library.out.quint,
-     --ease-io animation.easing.in_out, --ease-drawer animation.easing.drawer; durations of 150, 160, 200, 250 and 300ms are
-     animation.duration_ms hover, press, small, medium and large, and every other duration is this page's own.
-     The 4.5:1 and 3:1 ratios in this file's comments are user-interface's contrast floors (reference/types/web/color/contrast.md "The bar"). */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-io: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
@@ -53,7 +48,6 @@
   line-height: 1.45;
   font-feature-settings: "cv11", "ss01", "tnum";
 }
-/* JS sets data-theme from the viewer's theme toggle, or from the system setting while the toggle is on System. */
 .app[data-theme="light"] {
     --bg: oklch(0.985 0.002 250);
     --sunk: oklch(0.965 0.004 250);
@@ -65,13 +59,13 @@
     --text: oklch(0.22 0.02 250);
     --muted: oklch(0.44 0.02 250);
     --faint: oklch(0.50 0.015 250);
-    --accent: oklch(0.53 0.11 210); /* --on-accent on it: 4.5:1 (ui_contrast.js) */
+    --accent: oklch(0.53 0.11 210);
     --accent-text: oklch(0.48 0.11 210);
     --accent-soft: color-mix(in oklch, var(--accent) 11%, transparent);
     --on-accent: oklch(0.99 0 none);
     --brass: oklch(0.64 0.13 70);
     --brass-soft: color-mix(in oklch, var(--brass) 12%, transparent);
-    --brass-text: oklch(0.50 0.12 65); /* brass as text on light surfaces */
+    --brass-text: oklch(0.50 0.12 65);
     --on-brass: oklch(0.22 0.04 70);
     --ok: oklch(0.58 0.15 155);
     --away: oklch(0.62 0.15 65);
@@ -85,7 +79,6 @@
     color-scheme: light;
 }
 
-/* thin themed scrollbars on every internal scroller */
 .app :is(.vf-rounds, .vf-scroll, .vf-board, .vf-col-scroll, .vf-mscroll, .vf-pscroll, .vf-pick, .vf-ta, .vf-treev, .vf-rd-body, .vf-merge-list) {
   scrollbar-width: thin; scrollbar-color: var(--sb) transparent;
 }
@@ -99,11 +92,11 @@
 
 .app :is(h1, h2, p, ul) { margin: 0; }
 .app ul { padding: 0; list-style: none; }
-.app [hidden] { display: none !important; } /* reason: author display rules must not unhide [hidden] */
+/* reason: author display rules must not unhide [hidden] */
+.app [hidden] { display: none !important; }
 .app :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app button { font: inherit; }
 .app .vf-spacer { flex: 1; }
-/* Single-column grids: the column is the container's width, never the widest unbreakable word or nowrap name. */
 .app :is(.vf-rcur, .vf-qmid, .vf-plist, .vf-edit, .vf-sugform, .vf-slist, .vf-alist, .vf-col-cards, .vf-mlist, .vf-askform, .vf-ritem,
   .vf-pcard, .vf-pc-who, .vf-merge, .vf-merge-list, .vf-next, .vf-proposepop, .vf-reportpop, .vf-myprops, .vf-mp, .vf-tielist, .vf-tieitem,
   .vf-myreqs, .vf-closed, .vf-removed, .vf-rename) { grid-template-columns: minmax(0, 1fr); }
@@ -116,7 +109,6 @@
 .app .vf-avrow .core-avatar { margin-inline-start: -5px; box-shadow: 0 0 0 1.5px var(--bg); }
 .app .vf-more { font-size: 11px; color: var(--faint); margin-inline-start: 4px; }
 
-/* ---------- buttons ---------- */
 .app .vf-btn, .app .vf-tbtn, .app .vf-follow, .app .vf-seg-btn, .app .vf-vote, .app .vf-q, .app .vf-tab,
 .app .vf-person, .app .vf-fab, .app .vf-edge, .app .vf-fwd, .app .vf-menu-item, .app .vf-sw-row, .app .vf-col-q,
 .app .vf-rtoggle, .app .vf-proprow, .app .vf-pick-btn, .app .vf-lbtn, .app .vf-qref, .app .vf-res-head, .app .vf-tnode,
@@ -152,7 +144,6 @@
 .app .vf-vote .vf-i { inline-size: 14px; block-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover, .app .vf-propose:hover { background: var(--raise); color: var(--text); }
-  /* Toward --text, away from the label in every light and dark pairing but light amber, which keeps margin: 4.5:1 (ui_contrast.js). */
   .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
   .app .vf-btn-brass:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--brass) 88%, white); }
   .app .vf-q:hover { background: var(--raise); color: var(--text); }
@@ -173,7 +164,6 @@
   .app .vf-person .core-avatar { transition: transform 160ms var(--ease-out); }
 }
 
-/* ---------- top bar ---------- */
 .app .vf-top {
   display: flex; align-items: center; gap: 10px; padding-inline: 14px; min-width: 0;
   border-block-end: 1px solid var(--line); background: var(--bg);
@@ -192,13 +182,10 @@
 .app[data-live="off"] .vf-live-dot { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in oklch, var(--warn) 22%, transparent); }
 .app[data-live="off"] .vf-live { color: var(--warn); }
 .app .vf-people { display: flex; align-items: center; padding-inline-start: 6px; }
-.app .vf-person { margin-inline-start: -3px; border-radius: 50%; display: inline-grid; cursor: default; } /* overlaps the ring, not the initials */
+.app .vf-person { margin-inline-start: -3px; border-radius: 50%; display: inline-grid; cursor: default; }
 .app .vf-person-act { cursor: pointer; }
 .app .vf-person .core-avatar { box-shadow: 0 0 0 2px var(--bg); }
 .app .vf-person[data-role="host"] .core-avatar { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent); }
-/* Presence on an avatar: a dot at its bottom-right in a ring of the surface it sits on (--ring). Active is a filled
-   --ok dot, Away (hidden, idle five minutes, or snoozed by hand) a filled --away dot with a clock hand, Offline a hollow
-   --faint ring. Names and avatars are never dimmed. */
 .app .vf-people, .app .vf-avrow { --ring: var(--bg); }
 .app .vf-hpeople { --ring: var(--pane); }
 .app .core-avatar[data-presence] { position: relative; }
@@ -236,14 +223,12 @@
   .app .vf-switch::after { transition: translate 160ms var(--ease-out); }
 }
 
-/* ---------- body ---------- */
 .app .vf-body { display: grid; grid-template-columns: minmax(240px, 288px) minmax(0, 1fr); min-height: 0; }
 .app .vf-rail { display: flex; flex-direction: column; min-height: 0; background: var(--sunk); border-inline-end: 1px solid var(--line); }
 .app .vf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 14px 8px; }
 .app .vf-rounds { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 6px 12px; overscroll-behavior: contain; }
 .app .vf-qlist { padding-block-end: 4px; }
 
-/* rounds */
 .app .vf-round + .vf-round { margin-block-start: 2px; }
 .app .vf-rtoggle {
   display: flex; align-items: center; gap: 8px; inline-size: 100%; min-block-size: 34px; padding: 6px 8px;
@@ -299,7 +284,6 @@
 .app .vf-proprow.vf-has .vf-count { background: var(--brass); color: var(--on-brass); }
 .app .vf-myprop { padding: 4px 8px; color: var(--muted); font-size: 12px; }
 .app .vf-myprop::before { content: ""; display: inline-block; inline-size: 6px; block-size: 6px; border-radius: 50%; background: var(--brass); margin-inline-end: 8px; vertical-align: 1px; }
-/* a moderator reads every proposal, theirs too, in Proposed: the footer shows the count row alone, for the owner and a leader alike */
 .app .vf-railfoot > .vf-proprow:not([hidden]) + .vf-myprops { display: none; }
 .app .vf-q {
   inline-size: 100%; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: start;
@@ -307,7 +291,6 @@
   transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
 }
 .app .vf-q-cur { background: var(--raise); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
-/* The marker holds the question's id number: a ring when open, filled when answered, brass with a lock badge when locked. */
 .app .vf-qstat {
   position: relative; inline-size: 18px; block-size: 18px; margin-inline: -1px; border-radius: 50%;
   border: 1.5px solid var(--line-strong); display: grid; place-items: center;
@@ -317,10 +300,7 @@
 .app .vf-qnum { text-box: trim-both cap alphabetic; }
 .app .vf-qlock { display: none; position: absolute; inset-inline-end: -4px; inset-block-end: -4px; inline-size: 10px; block-size: 10px; border-radius: 50%; place-items: center; background: var(--brass); color: var(--on-brass); }
 .app .vf-qlock .vf-i { inline-size: 7px; block-size: 7px; stroke-width: 2.6; }
-/* 10% toward --text moves the fill away from --on-accent in every theme, so the number clears 4.5:1 (light teal alone is 4.42:1). */
 .app .vf-q[data-stat="done"] .vf-qstat { border-color: transparent; background: color-mix(in oklab, var(--accent) 90%, var(--text)); color: var(--on-accent); }
-/* Took part (a vote, reaction or Pass, no answer of my own): the accent ring with a soft fill. Optional (someone else
-   answered): the open ring, dashed. */
 .app .vf-q[data-stat="took"] .vf-qstat { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
 .app .vf-q[data-stat="soft"] .vf-qstat { border-style: dashed; }
 .app .vf-q[data-stat="locked"] .vf-qstat { border-color: transparent; background: var(--brass-soft); color: var(--brass-text); }
@@ -339,7 +319,6 @@
 }
 @keyframes vf-shimmer { to { transform: translateX(100%); } }
 
-/* wide panels (Proposed, Requests): beside the rail, or over the center pane when it is narrow */
 .app .vf-panel {
   inline-size: 560px; max-block-size: min(640px, calc(100% - 24px)); padding: 0;
   display: flex; flex-direction: column; transform-origin: left bottom;
@@ -357,7 +336,6 @@
 .app .vf-confirm { inline-size: 260px; }
 .app .vf-confirm-txt { font-size: 13px; line-height: 1.45; }
 
-/* compare round picker */
 .app .vf-pick { margin-inline-start: auto; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--sunk); overflow-x: auto; max-inline-size: 60%; }
 .app .vf-pick-btn {
   padding: 4px 10px; border-radius: var(--r-sm); font-size: 12px; font-weight: 600; color: var(--faint); white-space: nowrap;
@@ -369,12 +347,10 @@
 .app .vf-ptxt { font-size: 12.5px; overflow-wrap: anywhere; }
 .app .vf-pfrom { display: flex; align-items: center; gap: 6px; margin-block-start: 6px; color: var(--faint); font-size: 11.5px; }
 .app .vf-acts { display: flex; gap: 6px; margin-block-start: 8px; flex-wrap: wrap; }
-.app .vf-res-acts > .vf-acts { margin: 0; } /* Use as my answer sits beside Reply */
-/* Move to shows Choose; a long question in its list must not widen the row past its card */
+.app .vf-res-acts > .vf-acts { margin: 0; }
 .app .vf-selwrap.vf-req-move { flex: 0 1 auto; min-width: 0; max-inline-size: 100%; }
 .app .vf-req-move .vf-select { min-width: 0; max-inline-size: 14em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
-/* typing dots */
 .app .vf-dots { display: none; gap: 2px; align-items: center; block-size: 8px; }
 .app .vf-dots.vf-on, .app .vf-mtyping.vf-on .vf-dots { display: inline-flex; }
 .app .vf-dots i { inline-size: 4px; block-size: 4px; border-radius: 50%; background: var(--accent-text); opacity: 0.5; }
@@ -385,8 +361,6 @@
 }
 @keyframes vf-dot { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
 
-/* ---------- center ---------- */
-/* rows: banner, bar, toolbar, view; an absent banner, bar or toolbar leaves its auto row at zero */
 .app .vf-center { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; }
 .app .vf-banner { grid-row: 1; }
 .app .vf-bar { grid-row: 2; }
@@ -401,23 +375,20 @@
 .app .vf-focus, .app .vf-cmp, .app .vf-treev { min-height: 0; }
 .app .vf-center:not([data-mode="compare"]) .vf-cmp, .app .vf-center:not([data-mode="focus"]) .vf-focus, .app .vf-center:not([data-mode="tree"]) .vf-treev { display: none; }
 .app .vf-focus { display: flex; flex-direction: column; }
-/* The bottom clears the chat button (52px, 20px off the edge) by 16px, so the last control scrolls out from under it. */
 .app .vf-scroll { flex: 1; overflow: auto; padding: 28px clamp(16px, 4vw, 48px) calc(52px + 20px + 16px); overscroll-behavior: contain; }
 .app .vf-scroll > * { max-inline-size: 720px; margin-inline: auto; }
 .app .vf-qmeta { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 12px; margin-block-end: 10px; }
 .app .vf-qfrom { color: var(--accent-text); }
-.app .vf-qgroup { display: contents; } /* a group on a phone only (the 720 px query) */
+.app .vf-qgroup { display: contents; }
 .app .vf-qgroup[hidden] { display: none; }
 .app .vf-qtext { font-size: clamp(22px, 2.3vw, 29px); line-height: 1.22; font-weight: 650; letter-spacing: -0.022em; text-wrap: balance; overflow-wrap: anywhere; }
 .app .vf-qtext:focus { outline: none; }
 .app .vf-qctx { margin-block: 8px 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .app .vf-onit { display: flex; align-items: center; gap: 8px; margin-block: 12px 24px; color: var(--muted); font-size: 12px; min-block-size: 20px; }
 .app .vf-qonit { display: none; }
-/* Read aloud ends the question's row; its negative block margin keeps the row's height, so turning it on moves nothing */
 .app .vf-readbtn { flex: none; margin-inline-start: auto; margin-block: -5px; }
 .app :is(.vf-readbtn, .vf-dictate)[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 
-/* locked block: the one loud element */
 .app .vf-lock {
   margin-block-end: 28px; padding: 16px 18px 14px; border-radius: var(--r-lg);
   background: linear-gradient(var(--brass-soft), var(--brass-soft)), var(--pane);
@@ -440,7 +411,6 @@
 .app .vf-sug { padding: 10px 12px; border-radius: var(--r-md); background: var(--pane); border: 1px solid var(--line); }
 .app .vf-sug-note { margin-block-start: 4px; color: var(--muted); font-size: 12px; }
 
-/* answers */
 .app .vf-anshead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-block-end: 8px; border-block-end: 1px solid var(--line); margin-block-end: 10px; }
 .app .vf-agree { font-size: 12px; color: var(--faint); white-space: nowrap; }
 .app .vf-agree-all { color: var(--ok); }
@@ -462,8 +432,6 @@
 }
 .app .vf-vote[aria-pressed="true"] { color: var(--accent-text); border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: var(--accent-soft); }
 .app .vf-vote-n { min-inline-size: 1ch; }
-/* Gather reactions (Q97): counted toggle buttons where a Decide answer has its vote. At rest an outline only (no fill,
-   so it never reads as chosen); yours a tinted fill inside a full accent border, the 3:1 cue in both themes. */
 .app .vf-reacts { display: inline-flex; align-items: center; gap: 4px; }
 .app .vf-reacts[hidden] { display: none; }
 .app .vf-react {
@@ -478,15 +446,12 @@
 .app .vf-react:disabled { opacity: 0.6; cursor: default; }
 .app .vf-react-g { font-size: 13px; line-height: 1; }
 .app .vf-react-n:empty { display: none; }
-/* the question's purpose: a chip, or for the owner a picker */
 .app .vf-purpose[hidden], .app .vf-purposesel[hidden] { display: none; }
-/* a result only the owner sees until they share it */
 .app .vf-res-share { align-items: center; margin-block-end: 8px; }
 .app .vf-res-share[hidden] { display: none; }
 .app .vf-res-share > .vf-meta { white-space: normal; min-inline-size: 0; flex: 1 1 12em; }
 .app .vf-res-draft { border-inline-start: 2px dashed var(--brass); }
 
-/* composer */
 .app .vf-noq .vf-composer { display: none; }
 .app .vf-composer { border-block-start: 1px solid var(--line); padding: 12px clamp(16px, 4vw, 48px) 14px; background: color-mix(in oklch, var(--pane) 55%, var(--bg)); }
 .app .vf-composer > * { max-inline-size: 720px; margin-inline: auto; }
@@ -498,19 +463,16 @@
 }
 .app .vf-ta { resize: none; min-block-size: 64px; line-height: 1.5; overflow-y: hidden; }
 .app :is(.vf-ta, .vf-input)::placeholder { color: var(--faint); }
-.app :is(.vf-ta, .vf-input):focus-visible { outline: none; border-color: var(--accent-text); /* 4.5:1 on every surface, so the edge keeps 3:1 (1.4.11) */ box-shadow: 0 0 0 3px var(--accent-soft); }
+.app :is(.vf-ta, .vf-input):focus-visible { outline: none; border-color: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-soft); }
 .app .vf-crow { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-block-start: 8px; }
 .app .vf-hint { margin-inline-end: auto; color: var(--faint); font-size: 11.5px; }
-/* the composer's key hint and counter: question-shape.css. Informational hints wrap. */
 
-/* ---------- compare ---------- */
 .app .vf-cmp { position: relative; }
 .app .vf-board {
   block-size: 100%; display: flex; gap: 12px; padding: 14px; overflow-x: auto; overflow-y: hidden;
   scroll-snap-type: x proximity; scroll-padding-inline: 14px; overscroll-behavior-x: contain;
 }
 .app .vf-col {
-  /* 3 columns plus a sliver of the 4th, so more columns always show at the edge */
   flex: 0 0 max(260px, calc((100% - 3 * 12px) / 3.25));
   display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-block-size: 0;
   background: var(--sunk); border: 1px solid var(--line); border-radius: var(--r-lg); scroll-snap-align: start;
@@ -546,7 +508,6 @@
 .app .vf-edge-l { inset-inline-start: 8px; }
 .app .vf-edge-r { inset-inline-end: 8px; }
 
-/* ---------- chat ---------- */
 .app .vf-fab {
   position: absolute; z-index: 30; inset-inline-end: 20px; inset-block-end: calc(20px + var(--tabs-h));
   inline-size: 52px; block-size: 52px; border-radius: 50%; display: grid; place-items: center;
@@ -563,7 +524,6 @@
   .app .vf-fab.vf-bump { animation: vf-spring 500ms linear both; }
   .app :is(.vf-fab.vf-bump, .vf-fab.vf-badge-pop) .vf-fab-badge { animation: vf-pop-in 300ms var(--ease-out) both; }
 }
-/* damped spring, sampled: overshoot, settle */
 @keyframes vf-spring {
   0% { transform: scale(1); }
   18% { transform: scale(1.2) rotate(-8deg); }
@@ -578,15 +538,12 @@
   display: grid; place-items: center; box-shadow: 0 0 0 2px var(--bg);
 }
 .app .vf-fab-badge:empty { display: none; }
-/* The chat is a full-height column on the right, under the top bar. From 1100px wide the page makes room for it, so the
-   question and the chat read side by side; narrower, it overlays the page like a drawer (and app.js makes it modal). */
 .app .vf-chat {
   position: absolute; z-index: 31; inset-block: 48px 0; inset-inline-end: 0; inline-size: min(380px, 100%);
   display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   background: var(--pane); border-inline-start: 1px solid var(--line-strong); box-shadow: var(--shadow-pop);
   transform-origin: right center;
 }
-/* the panel's x closes it, so the chat button steps aside while it is open */
 .app:has(> .vf-chat:not([hidden])) > .vf-fab { display: none; }
 @media (min-width: 1100px) {
   .app .vf-chat { box-shadow: none; }
@@ -600,16 +557,15 @@
 .app .vf-chat-title .vf-h2 { color: var(--text); font-size: 13px; }
 .app .vf-mscroll { overflow: auto; padding: 12px; overscroll-behavior: contain; margin-block-end: var(--toast-slot, 0px); }
 .app .vf-mlist { display: grid; gap: 2px; }
-/* Name above the bubble; the avatar sits beside the bubble, centered on its first line, however the name wraps. */
 .app .vf-msg {
   display: grid; grid-template-columns: 26px minmax(0, 1fr); grid-template-areas: ". meta" "av bubble";
   column-gap: 8px; row-gap: 3px; justify-items: start; margin-block-start: 10px;
-  content-visibility: auto; contain-intrinsic-size: auto 56px; /* off-screen messages skip layout, Ctrl+F still finds them */
+  content-visibility: auto; contain-intrinsic-size: auto 56px;
 }
 .app .vf-mgap { display: flex; justify-content: center; padding-block: 6px; }
 .app .vf-msg-col { display: contents; }
 .app .vf-msg-meta { grid-area: meta; }
-.app .vf-msg-av { grid-area: av; align-self: start; margin-block-start: calc(7px + 13.5px * 0.7 - 13px); } /* bubble padding + half its line */
+.app .vf-msg-av { grid-area: av; align-self: start; margin-block-start: calc(7px + 13.5px * 0.7 - 13px); }
 .app .vf-bubble { grid-area: bubble; }
 .app .vf-msg-tools { grid-column: 2; }
 .app .vf-msg-cont { margin-block-start: 0; grid-template-areas: "av bubble"; }
@@ -637,7 +593,6 @@
 .app .vf-mform .vf-input { flex: 1; min-width: 0; }
 .app .vf-mform .vf-btn { block-size: auto; }
 
-/* ---------- popovers ---------- */
 .app .vf-pop {
   position: absolute; z-index: 40; inline-size: 280px; padding: 12px;
   background: var(--pane); border: 1px solid var(--line-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-pop);
@@ -648,7 +603,6 @@
 }
 .app .vf-share { inline-size: 340px; }
 .app .vf-pop-title { font-size: 13px; font-weight: 650; margin-block-end: 4px; }
-/* F11: the one close control; on a surface with no head row it sits in the top corner, clear of the title */
 .app .vf-pop > .vf-popx:first-child { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; z-index: 1; }
 .app .vf-pop:has(> .vf-popx:first-child) > .vf-pop-title { padding-inline-end: 44px; }
 .app .vf-pop-note { color: var(--faint); font-size: 12px; margin-block: 8px 2px; }
@@ -657,7 +611,7 @@
 .app .vf-pop-name { font-weight: 600; }
 .app .vf-menu-item { display: flex; inline-size: 100%; padding: 10px 8px; border-radius: var(--r-sm); font-weight: 600; color: var(--brass-text); }
 .app .vf-sw-row { display: flex; align-items: center; gap: 12px; inline-size: 100%; padding: 8px; border-radius: var(--r-sm); min-block-size: 44px; }
-.app .vf-sw-row .vf-switch { align-self: flex-start; margin-block-start: calc((1lh - 14px) / 2); } /* on the label line */
+.app .vf-sw-row .vf-switch { align-self: flex-start; margin-block-start: calc((1lh - 14px) / 2); }
 .app .vf-sw-row > .vf-sw-txt { align-self: center; }
 .app .vf-sw-row:disabled { opacity: 0.45; cursor: default; }
 .app .vf-sw-txt { display: grid; flex: 1; }
@@ -665,19 +619,14 @@
 .app .vf-sw-desc { color: var(--faint); font-size: 11.5px; }
 .app .vf-share-url { margin-block-start: 8px; font-size: 13px; }
 
-/* toast */
 .app .vf-toast {
-  /* JS sets inset-block-end so it clears the composer, tab bar and chat button; this is the fallback. */
   position: absolute; z-index: 50; inset-inline-start: 50%; inset-block-end: calc(24px + var(--tabs-h)); translate: -50% 0;
   inline-size: max-content; max-inline-size: min(560px, var(--toast-room, calc(100% - 32px))); padding: 9px 14px; border-radius: var(--r-md);
   background: var(--text); color: var(--bg); font-size: 12.5px; font-weight: 600; box-shadow: var(--shadow-pop);
   display: flex; align-items: center; justify-content: center; gap: 12px; text-align: center;
 }
 .app .vf-toast > span { min-width: 0; text-wrap: balance; }
-/* Only these may animate. With reduced motion, core.css gives every transition 0.01ms, and the initial
-   transition-property is all: size and inset changes would then lag a frame and placeToast would measure stale boxes. */
 .app .vf-toast { transition-property: opacity, translate; }
-/* The toast stays in the tree as a live region; while off it is transparent, empty and not clickable. */
 .app .vf-toast:not(.vf-on) { opacity: 0; pointer-events: none; }
 .app :is(.vf-toast-act, .vf-toast-x) {
   all: unset; box-sizing: border-box; cursor: pointer; flex: none; padding: 4px 10px; border-radius: var(--r-sm);
@@ -693,7 +642,6 @@
 }
 .app .vf-sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* entrances of new cards, chat bubbles, suggestions, people */
 @media (prefers-reduced-motion: no-preference) {
   .app .vf-in { animation: vf-rise 250ms var(--ease-out) both; }
   .app .vf-person.vf-in { animation: vf-pop-in 250ms var(--ease-out) both; }
@@ -701,7 +649,6 @@
 @keyframes vf-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes vf-pop-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
 
-/* ---------- tabs (phone only) ---------- */
 .app .vf-tabs { display: none; }
 
 @media (max-width: 1080px) {
@@ -739,7 +686,6 @@
   }
   .app .vf-panel .vf-tbtn { inline-size: 44px; block-size: 44px; }
   .app .vf-pp-head { flex-wrap: wrap; }
-  /* the close button stays on the title's row at the right, as on every sheet; the tools take their own row */
   .app .vf-pp-head > .vf-pp-tools { order: 1; flex-basis: 100%; }
   .app .vf-pp-head > .vf-pp-tools:empty { display: none; }
   .app .vf-keysbtn { display: none; }
@@ -750,7 +696,7 @@
   .app .vf-qtext { font-size: 21px; }
   .app .vf-lock-text { font-size: 16px; }
   .app .vf-composer { padding: 10px 12px; }
-  .app :is(.vf-ta, .vf-input) { font-size: 16px; } /* 16px stops iOS zooming on focus */
+  .app :is(.vf-ta, .vf-input) { font-size: 16px; }
   .app .vf-hint { display: none; }
   .app .vf-btn, .app .vf-btn-sm, .app .vf-vote { block-size: 44px; padding-inline: 14px; font-size: 13.5px; }
 
@@ -758,14 +704,12 @@
   .app .vf-col { flex-basis: 86%; }
   .app .vf-edge { display: none; }
 
-  /* the chat button becomes the fifth slot of the tab bar, so it never covers content */
   .app .vf-fab {
     inline-size: 64px; block-size: 56px; inset-inline-end: 0; inset-block-end: env(safe-area-inset-bottom); z-index: 21;
     border-radius: 0; background: transparent; color: var(--muted); box-shadow: none; border-inline-start: 1px solid var(--line);
   }
   .app .vf-fab .vf-ico { inline-size: 22px; block-size: 22px; }
   .app .vf-fab-badge { inset-block-start: 6px; inset-inline-end: 8px; }
-  /* the chat takes the whole screen */
   .app .vf-chat {
     inset: 0; inline-size: auto; border-inline-start: 0;
     padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom); transform-origin: bottom center;
@@ -803,14 +747,11 @@
 .app .vf-mform .vf-minput { flex: 1; min-width: 0; min-block-size: 38px; padding-block: 8px; }
 .app .vf-mform .vf-btn { block-size: 38px; }
 
-/* ---------- title ---------- */
 .app .vf-brand { min-width: 0; }
-/* the title takes the free width and cuts only when the bar is full (sweep S28) */
 .app .vf-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-inline-size: 72ch; }
 .app .vf-title-input { inline-size: min(36ch, 46vw); block-size: 30px; padding-block: 4px; font-size: 14px; font-weight: 650; }
 .app .vf-pencil { color: var(--faint); }
 
-/* ---------- rich, clamped text ---------- */
 .app .vf-rich { overflow-wrap: anywhere; }
 .app .vf-rich > :is(p, ul, ol, blockquote) + :is(p, ul, ol, blockquote), .app .vf-rich blockquote > p + p { margin-block-start: 0.6em; }
 .app .vf-rich blockquote { margin: 0; padding-inline-start: 0.75em; border-inline-start: 3px solid color-mix(in oklch, currentColor 25%, transparent); }
@@ -841,7 +782,6 @@
   .app .vf-lbtn:hover { text-decoration: underline; text-underline-offset: 2px; }
 }
 
-/* ---------- reader ---------- */
 .app .vf-reader {
   position: absolute; inset: 0; z-index: 60; display: grid; grid-template-rows: auto minmax(0, 1fr);
   background: var(--bg);
@@ -859,7 +799,6 @@
   .app .vf-reader:not([hidden]) { animation: vf-rise 220ms var(--ease-out) both; }
 }
 
-/* ---------- needs review, chips ---------- */
 .app .vf-review {
   display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 5px;
   background: var(--review-soft); color: var(--review); font-size: 12px; font-weight: 650;
@@ -872,7 +811,6 @@
 .app .vf-chip-quiet { color: var(--muted); background: var(--raise); border: 1px solid var(--line); }
 .app .vf-chip-accent { color: var(--accent-text); background: var(--accent-soft); border: 1px solid color-mix(in oklch, var(--accent) 30%, transparent); }
 
-/* ---------- research ---------- */
 .app .vf-qtools { display: flex; align-items: center; gap: 10px; margin-block-end: 16px; }
 .app .vf-reqchip { color: var(--accent-text); }
 .app .vf-askform { display: grid; gap: 8px; margin-block-end: 18px; padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--pane); }
@@ -901,7 +839,6 @@
   .app .vf-res-head:hover .vf-res-title { color: var(--accent-text); }
 }
 
-/* ---------- answer cards: Claude, new, pinned ---------- */
 .app .vf-card-head .vf-tag-rec { color: var(--claude); }
 .app .vf-pinned { border-color: color-mix(in oklch, var(--brass) 55%, transparent); box-shadow: inset 3px 0 0 var(--brass); }
 .app .vf-alist-locked .vf-pinned { opacity: 1; }
@@ -915,13 +852,11 @@
 .app .vf-basis-sum { cursor: pointer; }
 .app .vf-basis-body { margin-block-start: 4px; }
 .app .vf-ndot { inline-size: 8px; block-size: 8px; margin-block-start: 6px; border-radius: 50%; background: var(--accent); flex: none; }
-/* an answer card's and a question row's dot stay the smaller size they had */
 .app :is(.vf-card-head, .vf-qside) .vf-ndot { inline-size: 7px; block-size: 7px; margin-block-start: 0; }
 .app .vf-qside .vf-ndot { margin-block-start: 2px; }
 .app .core-avatar[data-pid][role="button"] { cursor: pointer; }
 .app .vf-anshead .vf-seg { margin-inline-start: 4px; }
 
-/* ---------- requests ---------- */
 .app .vf-ritem { display: grid; gap: 6px; }
 .app .vf-rhead2 { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .app .vf-qref { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; color: var(--muted); }
@@ -936,11 +871,9 @@
   .app .vf-qref:hover { color: var(--accent-text); }
 }
 
-/* ---------- tree ---------- */
 .app .vf-treev { overflow: auto; padding: 22px clamp(16px, 4vw, 48px) 40px; overscroll-behavior: contain; }
 .app .vf-tree { max-inline-size: 860px; margin-inline: auto; }
 .app .vf-tree-ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
-/* Status, then id and text; a review chip goes under the text. Never wraps on content width. */
 .app .vf-tnode.vf-tq { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; row-gap: 4px; }
 .app .vf-tq .vf-tstat { margin-block-start: calc((1lh - 18px) / 2); }
 .app .vf-tq .vf-review { grid-column: 2; justify-self: start; }
@@ -964,7 +897,7 @@
 .app .vf-tq { font-size: 13px; }
 .app .vf-tcur { background: var(--raise); box-shadow: inset 2px 0 0 var(--accent); }
 .app .vf-tlabel { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.app .vf-tid { color: var(--faint); font-size: 12px; font-weight: 600; flex: none; min-inline-size: 2.6em; } /* Q1 and Q10 text start at one x */
+.app .vf-tid { color: var(--faint); font-size: 12px; font-weight: 600; flex: none; min-inline-size: 2.6em; }
 .app .vf-ttxt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .app .vf-tstat { display: grid; place-items: center; inline-size: 18px; block-size: 18px; border-radius: 50%; flex: none; color: var(--faint); border: 1px solid var(--line-strong); }
 .app .vf-tstat .vf-i { inline-size: 11px; block-size: 11px; stroke-width: 2.4; }
@@ -979,7 +912,6 @@
   .app button.vf-tnode:hover { background: var(--raise); }
 }
 
-/* ---------- person card ---------- */
 .app .vf-pcard { inline-size: 288px; display: grid; gap: 10px; }
 .app .vf-pc-head { display: flex; align-items: center; gap: 10px; }
 .app .vf-pcard:has(> .vf-popx:first-child) > .vf-pc-head { padding-inline-end: 40px; }
@@ -999,14 +931,13 @@
 .app .vf-merge-item { display: flex; align-items: center; gap: 8px; inline-size: 100%; min-block-size: 36px; padding: 4px 8px; border-radius: var(--r-sm); }
 .app .vf-merge .vf-crow { margin: 0; }
 .app .vf-pop-sub { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0; }
-.app .vf-help-rec + .vf-pop-sub { margin-block-start: 12px; } /* Keyboard shortcuts clears the "What this page records" link above it */
+.app .vf-help-rec + .vf-pop-sub { margin-block-start: 12px; }
 .app .vf-settings .vf-pop-sub { margin-block: 10px 6px; padding-inline: 8px; }
 .app .vf-pcard .rv-theme { justify-self: start; }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-merge-item:hover { background: var(--raise); }
 }
 
-/* ---------- shortcuts ---------- */
 .app .vf-keys { inline-size: 320px; }
 .app .vf-help-rec .core-rec-line { color: var(--faint); font-size: 12px; }
 .app .vf-help-rec .core-rec-link { color: var(--accent-text); }
@@ -1033,7 +964,6 @@
   .app .vf-mform .vf-ta { min-block-size: 44px; }
 }
 
-/* ---------- session banner, skip link ---------- */
 .app .vf-banner {
   display: flex; align-items: center; gap: 10px; padding: 8px 14px; font-size: 12.5px; font-weight: 600;
   background: var(--review-soft); color: var(--text); border-block-end: 1px solid color-mix(in oklch, var(--review) 35%, transparent);
@@ -1047,16 +977,13 @@
 .app .vf-skip:not(:focus) { inline-size: 1px; block-size: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .app .vf-body { position: relative; }
 
-/* ---------- rounds: ready, cancel ---------- */
 .app .vf-ready { color: var(--muted); font-size: 12px; }
 .app .vf-next { display: grid; gap: 8px; }
 .app .vf-cancel-send { justify-self: start; position: relative; z-index: 1; }
 
-/* ---------- proposals ---------- */
-.app .vf-propose { inline-size: 100%; margin-block-start: 6px; color: var(--text); border: 1px solid var(--line-input); } /* a standard secondary button: its edge 3:1 */
+.app .vf-propose { inline-size: 100%; margin-block-start: 6px; color: var(--text); border: 1px solid var(--line-input); }
 .app :is(.vf-proposepop, .vf-reportpop) { inline-size: 340px; display: grid; gap: 8px; }
 .app :is(.vf-proposepop, .vf-reportpop) .vf-pop-title { margin: 0; }
-/* Report a problem: the screenshot row hides once its chip shows; the sent list wraps */
 .app .vf-rep-shotrow { justify-content: flex-start; margin-block-start: 0; }
 .app .vf-rep-shotrow:has(> [hidden]:only-child) { display: none; }
 .app .vf-rep-shot { display: block; max-inline-size: 100%; max-block-size: 140px; border-radius: var(--r-sm); border: 1px solid var(--line); }
@@ -1066,7 +993,6 @@
 .app .vf-rep-sent li::before { content: "· "; }
 .app .vf-rep-err { margin: 0; font-size: 13px; color: var(--warn); }
 .app .vf-rep-err:empty { display: none; }
-/* Your reports: each report with its status; while it is not fixed, a box to add a line or a screenshot */
 .app .vf-myreps { max-block-size: min(70vh, 640px); overflow-y: auto; }
 .app .vf-myrep { display: grid; gap: 6px; }
 .app .vf-myrep-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -1076,13 +1002,11 @@
 .app .vf-myprops { display: grid; gap: 4px; padding: 4px 8px 2px; }
 .app .vf-mp { display: grid; gap: 1px; font-size: 12px; }
 .app .vf-mp-txt { color: var(--text); min-width: 0; }
-/* a guest's preview: two lines, cut with an ellipsis */
 .app .vf-mp-txt > .vf-clamp:not(.vf-exp) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-block-size: none; mask-image: none; }
 .app .vf-mp-stat { color: var(--muted); }
 .app .vf-mp[data-stat="notplaced"] .vf-mp-stat { color: var(--review); }
 .app .vf-why { margin-block-start: 6px; color: var(--muted); font-size: 12px; }
 
-/* ---------- ties, requests, closed suggestions, cards ---------- */
 .app .vf-tiepop { inline-size: 340px; }
 .app .vf-tielist { display: grid; gap: 8px; margin-block-start: 8px; max-block-size: 320px; overflow: auto; }
 .app .vf-tieitem { display: grid; gap: 6px; justify-items: start; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--raise); }
@@ -1104,7 +1028,6 @@
 .app .vf-mcount { padding: 0 14px; text-align: end; }
 .app .vf-mcount:empty { display: none; }
 
-/* ---------- settings extras, share notice, person card ---------- */
 .app .vf-menu-plain { color: var(--text); }
 .app .vf-sub-note { margin: 0 8px 4px; }
 .app .vf-settings { max-block-size: calc(100% - 16px); overflow: auto; }
@@ -1116,7 +1039,6 @@
 .app .vf-rename { display: grid; gap: 6px; }
 .app .vf-rename .vf-crow { margin: 0; }
 
-/* ---------- phone: header fits, every target at least 44px (user-interface's touch target floor, reference/types/touch-web.md "2. Targets") ---------- */
 @media (max-width: 720px) {
   .app .vf-top { gap: 4px; padding-inline: 8px; }
   .app .vf-brand { flex: 1 1 auto; min-width: 0; }
@@ -1133,7 +1055,6 @@
   .app .vf-people { padding-inline-start: 0; gap: 0; }
   .app .vf-person { margin-inline-start: 0; inline-size: 44px; block-size: 44px; place-items: center; }
   .app .vf-person:nth-child(n+3) { display: none; }
-  /* small avatars keep their size; a transparent ring makes the touch area 44px */
   .app .core-avatar[data-pid][role="button"] { position: relative; }
   .app .core-avatar[data-pid][role="button"]::after { content: ""; position: absolute; inset: -11px; }
   .app :is(.vf-lbtn, .vf-fwd, .vf-res-head, .vf-qref, .vf-pick-btn, .vf-menu-item, .vf-merge-item, .vf-seg-sm .vf-seg-btn, .vf-col-q, .vf-toast-act, .vf-toast-x) { min-block-size: 44px; }
@@ -1142,13 +1063,11 @@
   .app .rv-theme button { min-block-size: 44px; }
   .app .vf-cctl { gap: 6px; }
   .app .vf-tiepop { inline-size: min(340px, calc(100% - 16px)); }
-  /* the Propose form is a bottom sheet, so it sits right on an on-screen keyboard, as the Ask Claude sheet does */
   .app :is(.vf-proposepop, .vf-reportpop, .vf-healthpop) {
     inset-inline: 0; inset-block-end: 0; inline-size: auto; max-block-size: 86%; overflow-y: auto; z-index: 45;
     border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-end: 0; padding: 12px 16px max(12px, env(safe-area-inset-bottom));
     transform-origin: bottom center;
   }
-  /* menus are bottom sheets in thumb reach, clear of the home indicator (O114), over the chat sheet they open from */
   .app .vf-pop:is(.vf-msgmenu, .vf-reactpop) {
     inset-inline: 0; inset-block-end: 0; inline-size: auto; max-block-size: 86%; overflow-y: auto; z-index: 46;
     border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-end: 0; padding: 8px 8px max(8px, env(safe-area-inset-bottom));
@@ -1156,38 +1075,35 @@
   }
 }
 
-/* ---------- short viewports (about 560px tall or less, such as 200% zoom): answers stay visible ---------- */
 @media (max-height: 560px) {
   .app { grid-template-rows: 44px minmax(0, 1fr) auto; }
   .app .vf-bar { padding-block: 4px; }
-  .app .vf-scroll { padding-block: 12px calc(44px + 8px + 16px); } /* clears the 44px chat button 8px off the edge */
+  .app .vf-scroll { padding-block: 12px calc(44px + 8px + 16px); }
   .app .vf-qtext { font-size: 19px; }
   .app .vf-onit { margin-block: 6px 12px; }
-  /* the composer folds to one row beside its buttons, growing only while it has focus */
   .app .vf-composer { display: flex; align-items: flex-end; gap: 8px; padding-block: 6px; }
   .app .vf-composer > .vf-ta { flex: 1; min-width: 0; min-block-size: 44px; margin: 0; }
-  .app .vf-composer:not(:focus-within) > .vf-ta { block-size: 44px !important; } /* reason: overrides grow()'s inline height while folded */
+  /* reason: overrides grow()'s inline height while folded */
+  .app .vf-composer:not(:focus-within) > .vf-ta { block-size: 44px !important; }
   .app .vf-composer > .vf-crow { margin: 0; flex: none; }
   .app .vf-composer .vf-hint { display: none; }
   .app .vf-fab { inline-size: 44px; block-size: 44px; inset-block-end: calc(8px + var(--tabs-h)); }
 }
 @media (max-height: 560px) and (min-width: 721px) {
-  .app .vf-chat { inset-block-start: 44px; } /* under the shorter top bar */
+  .app .vf-chat { inset-block-start: 44px; }
 }
 @media (max-height: 560px) and (max-width: 720px) {
   .app { --tabs-h: calc(48px + env(safe-area-inset-bottom)); }
-  .app .vf-scroll { padding-block-end: 12px; } /* the chat button sits in the tab bar here, not over the page */
+  .app .vf-scroll { padding-block-end: 12px; }
   .app .vf-tab { min-block-size: 48px; }
   .app .vf-fab { inline-size: 64px; block-size: 48px; inset-block-end: env(safe-area-inset-bottom); }
-  .app .vf-center[data-mode="focus"] .vf-bar { display: none; } /* Questions tab and Next cover moving between questions */
+  .app .vf-center[data-mode="focus"] .vf-bar { display: none; }
   .app .vf-composer > .vf-crow .vf-btn { padding-inline: 12px; }
 }
 
-/* ======================= round 8 ======================= */
 .app :is(.vf-thlist, .vf-queue, .vf-hpeople, .vf-apreqs, .vf-upstrip, .vf-citelist, .vf-laterlist, .vf-steps, .vf-hsec, .vf-apform,
   .vf-anspane, .vf-colopts, .vf-fmt) { display: grid; grid-template-columns: minmax(0, 1fr); }
 
-/* ---------- title and goal ---------- */
 .app .vf-titles { display: grid; min-width: 0; row-gap: 1px; }
 .app .vf-titlerow, .app .vf-goalrow { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .app .vf-titlerow .vf-tbtn, .app .vf-goalrow .vf-tbtn { block-size: 22px; min-inline-size: 22px; inline-size: 22px; }
@@ -1203,8 +1119,6 @@
 .app .vf-asktop { color: var(--text); border-color: color-mix(in oklch, var(--claude) 45%, transparent); background: color-mix(in oklch, var(--claude) 10%, transparent); }
 .app .vf-asktop .vf-i { color: var(--claude); }
 
-/* ---------- toolbar ---------- */
-/* it wraps rather than scroll sideways under a hidden scrollbar, so no chip or button is ever cut off */
 .app .vf-toolbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 14px; min-width: 0;
   border-block-end: 1px solid var(--line);
@@ -1225,7 +1139,7 @@
 .app .vf-fchip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app .vf-fchip[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 55%, transparent); }
 .app .vf-fchip-n { color: var(--faint); font-variant-numeric: tabular-nums; }
-.app .vf-fchip[aria-pressed="true"] .vf-fchip-n { color: inherit; } /* --faint on the pressed fill is under 4.5:1 */
+.app .vf-fchip[aria-pressed="true"] .vf-fchip-n { color: inherit; }
 .app .vf-fchip-n:empty { display: none; }
 .app .vf-expand { flex: none; margin-inline-start: auto; }
 @media (hover: hover) and (pointer: fine) {
@@ -1233,7 +1147,6 @@
   .app .vf-select:hover { border-color: var(--faint); }
 }
 
-/* ---------- round steps (Q78) ---------- */
 .app .vf-steps { list-style: none; margin: 0; padding: 0; gap: 6px; position: relative; z-index: 1; }
 .app .vf-step { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 12.5px; }
 .app .vf-step-dot { inline-size: 10px; block-size: 10px; border-radius: 50%; flex: none; border: 1.5px solid var(--line-strong); }
@@ -1243,19 +1156,16 @@
 .app .vf-step[data-state="now"] .vf-step-dot { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--accent-soft); }
 .app .vf-step-note { color: var(--muted); font-size: 12px; position: relative; z-index: 1; }
 @media (prefers-reduced-motion: no-preference) {
-  /* Two breaths (3.6 s) when a step becomes current, then still: WCAG 2.2.2 asks a stop for motion past 5 s. */
   .app .vf-step[data-state="now"] .vf-step-dot { animation: vf-breathe 1.8s var(--ease-io) 2; }
 }
 @keyframes vf-breathe { 50% { box-shadow: 0 0 0 5px var(--accent-soft); } }
 
-/* ---------- choice and confirm questions (Q76) ---------- */
 .app .vf-fmt { gap: 8px; margin-block: 2px 22px; }
 .app .vf-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; }
 .app .vf-fmt-hint { font-size: 13.5px; font-weight: 600; color: var(--text); }
 .app .vf-advance { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
 .app .vf-advance[hidden] { display: none; }
 .app .vf-advance-sep { color: var(--faint); }
-/* a card: picture (opens the viewer), label, who chose it, then its own Choose button */
 .app .vf-opt {
   display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px 8px 10px;
   border-radius: var(--r-lg); border: 1px solid var(--line-strong); background: var(--pane);
@@ -1281,7 +1191,6 @@
 .app .vf-optacts { display: flex; gap: 8px; margin-block-start: auto; }
 .app .vf-optacts .vf-btn { block-size: 44px; font-size: 14px; gap: 6px; }
 .app .vf-optchoose { flex: 1 1 auto; min-width: 0; }
-/* The pick control is a radio: an empty ring and "Choose this" until picked, then filled, with a dot and "Your choice". */
 .app :is(.vf-optchoose, .vf-lb-choose) { gap: 10px; justify-content: flex-start; color: var(--text); background: var(--pane); box-shadow: inset 0 0 0 1.5px var(--line-input); }
 .app :is(.vf-optchoose, .vf-lb-choose)[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); box-shadow: none; cursor: default; }
 .app .vf-radio {
@@ -1292,7 +1201,6 @@
 .app .vf-optchoose:disabled { opacity: 0.5; cursor: default; }
 .app .vf-optacts .vf-optundo, .app .vf-lb-acts .vf-optundo, .app .vf-confirm-row .vf-optundo { flex: none; block-size: 44px; font-size: 13px; color: var(--muted); }
 .app .vf-confirm-row .vf-optundo { align-self: center; }
-/* the chosen card says so on its picture too; the button below carries the state for assistive tech */
 .app .vf-opt[data-state="mine"] .vf-optmedia::before {
   content: "\2713  Your choice"; position: absolute; z-index: 1; inset-block-start: 8px; inset-inline-start: 8px;
   padding: 3px 8px; border-radius: var(--r-sm); background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700;
@@ -1303,13 +1211,10 @@
 .app .vf-confirm-fig .vf-imgbtn { inline-size: min(100%, 640px); }
 .app .vf-confirm-box { display: block; position: relative; inline-size: min(100%, 640px); border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line-strong); background: var(--sunk); }
 .app .vf-imgbtn .vf-confirm-box { inline-size: 100%; }
-/* "Something else…": no picture; its card asks for the person's own option */
 .app .vf-opt-other { border-style: dashed; }
-/* With Lock this one under the other cards, "Something else…" keeps the same room, so its Choose button lines up too. */
 .app .vf-opts:has(.vf-optlock:not([hidden])) .vf-opt-other::after { content: ""; flex: none; block-size: 26px; }
 .app .vf-opt-other .vf-optlabel { color: var(--muted); }
 
-/* ---------- multi, scale and rank questions; the box for one's own option; their results ---------- */
 .app .vf-multilist { display: grid; gap: 8px; }
 .app .vf-check {
   display: flex; align-items: center; gap: 12px; min-block-size: 44px; padding: 8px 12px; cursor: pointer;
@@ -1372,21 +1277,16 @@
 .app .vf-fmtres-n { grid-area: n; color: var(--muted); font-variant-numeric: tabular-nums; }
 .app .vf-fmtres-bar { grid-area: bar; block-size: 4px; border-radius: 2px; background: var(--line-strong); overflow: hidden; }
 .app .vf-fmtres-bar > span { display: block; block-size: 100%; inline-size: 0; background: var(--accent); }
-/* Disagree on decide questions: the reason form and the reasons given */
 .app .vf-disform { display: grid; gap: 6px; margin-block-start: 8px; }
-/* margin-block only: the column's margin-inline auto keeps it the question's width and place (O113); min-inline-size 0
-   undoes a fieldset's min-content, so a long list of names wraps instead of widening it */
 .app .vf-forbox { margin-block: 0 10px; min-inline-size: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 13px; }
 .app .vf-forbox[hidden], .app .vf-forchip[hidden], .app .vf-forbtn[hidden] { display: none; }
 .app .vf-forbox legend { padding-inline: 4px; color: var(--muted); }
 .app .vf-forlist { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .app .vf-forlist label { display: inline-flex; align-items: center; gap: 6px; min-block-size: 32px; }
-/* Catch-up (triage row 43): a closed round still takes late answers. In the welcome card and above the current round. */
 .app .vf-catchup { margin: 0 0 6px; padding: 6px 8px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--text); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
 .app .vf-catchup[hidden] { display: none; }
 .app .vf-catchup .vf-lbtn { display: inline; font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .app .vf-round > .vf-catchup { margin: 4px 8px 6px; }
-/* Pass and the optional nudge: one quiet line under the answer box. */
 .app .vf-passbox { display: grid; gap: 6px; margin-block: 6px 10px; font-size: 13px; color: var(--muted); }
 .app .vf-passbox[hidden], .app .vf-passform[hidden], .app .vf-passbox [hidden] { display: none; }
 .app .vf-passline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
@@ -1402,7 +1302,6 @@
 .app .vf-dis-who { font-weight: 650; color: var(--text); }
 .app .vf-dis-why { min-width: 0; }
 
-/* ---------- picture viewer ---------- */
 .app .vf-lb {
   position: absolute; inset: 0; z-index: 61; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr);
   background: var(--bg); outline: none;
@@ -1418,7 +1317,6 @@
   padding: 0; touch-action: none; user-select: none; -webkit-user-select: none; background: var(--sunk); cursor: zoom-in;
 }
 .app .vf-lb-zoomed .vf-lb-stage { cursor: grab; }
-/* the frame is the picture's own box, fitted to the stage, so a marked area stays on the picture */
 .app .vf-lb-frame {
   position: relative; display: block; overflow: hidden; border-radius: var(--r-sm); transform-origin: center;
   aspect-ratio: var(--ar, 1.6); inline-size: min(calc(100cqi - 24px), calc((100cqb - 24px) * var(--ar, 1.6)));
@@ -1453,7 +1351,6 @@
   .app .vf-opts { grid-template-columns: minmax(0, 1fr); }
   .app .vf-optacts { flex-wrap: wrap; }
   .app .vf-optchoose { flex: 1 0 auto; }
-  /* Picture options sit two to a row, so both Choose buttons are on screen above the tab bar (ux-review-3, Q3). */
   .app .vf-opts:has(.vf-optview:not([hidden])) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .app .vf-opts:has(.vf-optview:not([hidden])) .vf-optacts .vf-btn { block-size: auto; min-block-size: 44px; }
   .app .vf-lb-foot { grid-template-columns: minmax(0, 1fr); grid-template-areas: "info" "acts" "zoom"; row-gap: 8px; }
@@ -1499,7 +1396,6 @@
 @media (hover: hover) and (pointer: fine) {
   .app .vf-pickbtn:hover:not(:disabled) { border-color: var(--faint); }
 }
-/* compact in Compare */
 .app .vf-col-fmt { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr); }
 .app .vf-confirm-box-sm { inline-size: 100%; }
 .app .vf-colopts { gap: 2px; }
@@ -1509,30 +1405,24 @@
 .app .vf-colopt-n { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 650; }
 .app .vf-colopt-locked { border-color: var(--brass); background: var(--brass-soft); }
 
-/* ---------- Answers, then "Claude on this question" (layout A): one column at every width ---------- */
 .app .vf-anspane { align-content: start; min-width: 0; }
 .app .vf-clsec {
   margin-block-start: 24px; border-radius: var(--r-lg); background: var(--sunk); scroll-margin-block-start: 8px;
   border: 1px solid color-mix(in oklch, var(--claude) 30%, var(--line));
 }
-/* the fold chevron sits at the head's right edge, after Ask Claude, where the Discussion's sits (sweep S37); it stays
-   inside the toggle button, so a click on it still folds */
 .app .vf-clhead { position: relative; display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 6px 40px 6px 6px; }
-.app .vf-clh { flex: 1 1 20em; min-width: 0; font-size: inherit; } /* Ask Claude wraps under it before its title would wrap */
+.app .vf-clh { flex: 1 1 20em; min-width: 0; font-size: inherit; }
 .app .vf-cltoggle {
-  /* A 20px first line inside 12px padding (44px for one line). When the counts wrap on a phone, the chevron stays
-     pinned to that first line, beside the title, rather than dropping to the wrapped line. */
   display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; inline-size: 100%; min-block-size: 44px;
   padding: 12px 8px; border-radius: var(--r-md); text-align: start; color: var(--text);
 }
 .app .vf-cltitle { font-size: 14px; font-weight: 650; line-height: 20px; }
-.app .vf-cltoggle .vf-chev { position: absolute; inset-block-start: calc(6px + 12px + (20px - 14px) / 2); inset-inline-end: 14px; } /* centered on the title's 20 px line */
+.app .vf-cltoggle .vf-chev { position: absolute; inset-block-start: calc(6px + 12px + (20px - 14px) / 2); inset-inline-end: 14px; }
 .app .vf-clsec[data-open="true"] .vf-cltoggle .vf-chev { rotate: 180deg; }
 .app .vf-clhead > .vf-qtools { margin: 0; }
 .app .vf-clbody { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; padding: 0 14px 14px; }
 .app .vf-clbody[hidden] { display: none; }
 .app .vf-clbody > .vf-askform { margin: 0; }
-/* Item 10: the Discussion under the Claude section, folded to its head by default. */
 .app .vf-disc { margin-block-start: 16px; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--pane); scroll-margin-block-start: 8px; }
 .app .vf-disc-h { font-size: inherit; padding: 6px; }
 .app .vf-disc-head {
@@ -1568,7 +1458,6 @@
 .app .vf-cm-acts .vf-cm-react { display: inline-flex; }
 .app .vf-cm-acts .vf-cm-react[hidden] { display: none; }
 .app .vf-disc-hint { color: var(--faint); font-size: 12px; }
-/* Chat: "@Claude" asks Claude about the whole session; its message says so, and Claude's answer replies in the thread. */
 .app .vf-mhint { margin: 0; padding: 6px 14px 0; color: var(--faint); font-size: 12px; }
 .app .vf-msent { grid-column: 2; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-block-size: 24px; color: var(--faint); font-size: 12px; }
 .app .vf-msg-mine .vf-msent { grid-column: 1; }
@@ -1579,7 +1468,6 @@
 .app .vf-chip-new { color: var(--on-accent); background: var(--accent); border: 1px solid transparent; }
 .app .vf-chip[hidden] { display: none; }
 .app .vf-thlist { gap: 12px; }
-/* Soft-rule cards: "<Name> asked" and the ask, a 1px quiet line, then "Claude" and the answer, the two texts one size. */
 .app .vf-qa-lbl { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; color: var(--muted); min-width: 0; }
 .app .vf-qa-lbl > .vf-card-time { margin-inline-start: auto; font-weight: 400; }
 .app .vf-cbox.vf-qa-txt { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text); }
@@ -1604,7 +1492,6 @@
 @media (min-width: 1200px) {
   .app .vf-scroll > *, .app .vf-composer > * { max-inline-size: 1080px; }
 }
-/* the whole column keeps clear of the chat button, so it never covers Answer, Comment or Pass at the right edge (sweep S29) */
 @media (min-width: 721px) { .app .vf-scroll { padding-inline-end: max(clamp(16px, 4vw, 48px), 88px); } }
 @media (prefers-reduced-motion: no-preference) {
   .app .vf-hl { animation: vf-hl 1.2s var(--ease-out) both; }
@@ -1613,7 +1500,6 @@
 @keyframes vf-hl { from { box-shadow: 0 0 0 4px var(--accent); } to { box-shadow: 0 0 0 0 transparent; } }
 .app .vf-askbtn .vf-chev { margin: 0 0 0 4px; }
 
-/* C26: Claude's take waits behind a bar */
 .app .vf-claudebar {
   all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center;
   inline-size: 100%; padding: 10px 12px; margin-block-end: 8px; border-radius: var(--r-md);
@@ -1631,7 +1517,6 @@
   .app .vf-claudebar:hover { background: color-mix(in oklch, var(--claude) 13%, transparent); }
 }
 
-/* ---------- citations ---------- */
 .app .vf-citechips { display: flex; flex-wrap: wrap; gap: 6px; }
 .app .vf-card-cites { margin-block-start: 8px; }
 .app .vf-composer > .vf-citechips { margin-block-end: 8px; }
@@ -1655,10 +1540,8 @@
 .app .vf-citeopt-s { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .app .vf-citebtn .vf-i { margin-inline-end: 4px; }
 .app .vf-crow > :is(.vf-attach, .vf-citebtn, .vf-dictate) { flex: none; }
-/* Attach is one square icon button wherever it sits: the answer box, Discussion, chat, Ask Claude (44 px on a phone) */
 .app :is(.vf-attach, .vf-dictate) { --att: 32px; inline-size: var(--att); block-size: var(--att); padding: 0; border-radius: var(--r-sm); }
 .app :is(.vf-attach, .vf-dictate) .vf-i { margin: 0; }
-/* the file field's button looks like the page's own buttons, not the browser's "Choose File" */
 .app .vf-filein { padding: 4px; font-size: 12.5px; color: var(--muted); }
 .app .vf-filein::file-selector-button {
   margin-inline-end: 10px; block-size: 30px; padding-inline: 12px; border-radius: var(--r-sm); border: 1px solid var(--line-strong);
@@ -1666,7 +1549,6 @@
 }
 .app .vf-crow > .vf-count-txt { order: -1; }
 
-/* ---------- uploads (Q75) ---------- */
 .app .vf-upstrip { gap: 6px; }
 .app .vf-composer > .vf-upstrip { margin-block-end: 8px; }
 .app .vf-uprow {
@@ -1690,7 +1572,6 @@
   .app .vf-upbar > span { transition: transform 300ms var(--ease-out), background-color 200ms var(--ease-out); }
 }
 
-/* ---------- chat: per-message menu ---------- */
 .app .vf-bubrow { grid-area: bubble; display: flex; align-items: center; gap: 4px; min-width: 0; max-inline-size: 100%; }
 .app .vf-bubrow > .vf-bubble { grid-area: auto; }
 .app .vf-msg-mine .vf-bubrow { flex-direction: row-reverse; }
@@ -1710,7 +1591,6 @@
 .app .vf-menu-2 { display: grid; gap: 1px; justify-items: start; }
 .app .vf-menu-2 .vf-sw-label { color: var(--text); }
 
-/* ---------- Ask Claude drawer ---------- */
 .app .vf-drawer {
   inset-block: 48px 0; inset-inline: auto 0; inline-size: min(420px, 100%); padding: 0; border-radius: 0;
   border-block: 0; border-inline-end: 0; display: flex; flex-direction: column; transform-origin: right center; z-index: 45;
@@ -1718,8 +1598,6 @@
 .app .vf-ap-title { display: flex; align-items: center; gap: 8px; margin: 0; flex: 1; }
 .app .vf-apmodes { margin: 8px 16px 4px; align-self: flex-start; flex-wrap: wrap; }
 .app .vf-ap-pointer { margin: 0 16px; }
-/* one column no wider than the sheet: a wide child (a long option in About, a long word) wraps instead of making the
-   sheet scroll sideways */
 .app .vf-apscroll { flex: 1; padding: 8px 16px 16px; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; overflow-x: hidden; }
 .app .vf-apform { gap: 8px; padding-block-end: 10px; border-block-end: 1px solid var(--line); }
 .app .vf-apq .vf-select { flex: 1; min-width: 0; max-inline-size: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -1731,10 +1609,8 @@
 .app .vf-apreq[data-stat="done"] .vf-thstat { color: var(--ok); }
 .app .vf-qref-wrap { white-space: normal; overflow: visible; text-overflow: clip; text-align: start; overflow-wrap: anywhere; }
 .app .vf-apscroll > .vf-pop-sub { margin-block-start: 8px; }
-/* Connect your Claude (R2-12) */
 .app :is(.vf-apself, .vf-askself) { padding-inline: 0; }
 .app .vf-apconnect { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding-block-end: 10px; border-block-end: 1px solid var(--line); }
-/* .vf-meta is one line elsewhere; these are sentences, and one unwrapped line made the Ask panel 912 px wide on a phone */
 .app .vf-apconnect .vf-pop-note, .app .vf-apconnect .vf-meta { margin: 0; }
 .app :is(.vf-apconnect, .vf-selfform) .vf-meta { white-space: normal; }
 .app .vf-apc-links { margin: 0; }
@@ -1748,7 +1624,6 @@
 }
 @keyframes vf-drawer-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* ---------- Use on another device ---------- */
 .app .vf-devicepop { inline-size: 320px; display: grid; gap: 8px; }
 .app .vf-devicepop .vf-pop-title { margin: 0; }
 .app .vf-qr { justify-self: center; inline-size: 200px; padding: 0; border-radius: var(--r-md); overflow: hidden; background: oklch(1 0 none); box-shadow: 0 0 0 1px var(--line-strong); }
@@ -1764,9 +1639,7 @@
 }
 .app .vf-devwarn .vf-i { color: var(--review); inline-size: 14px; block-size: 14px; margin-block-start: calc((1lh - 14px) / 2); }
 
-/* ---------- Host view (Q73) ---------- */
 .app .vf-hostv { overflow: auto; padding: 18px clamp(14px, 3vw, 32px) 32px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sb) transparent; }
-/* two stacks side by side when there is room; one column (round, queue, people, later, links) when not */
 .app .vf-hostgrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; max-inline-size: 1240px; margin-inline: auto; align-items: start; }
 .app .vf-hcol { display: contents; }
 .app .vf-hs-round { order: 1; }
@@ -1790,7 +1663,6 @@
 .app :is(.vf-qfilters, .vf-pfilters) { flex-wrap: wrap; }
 .app .vf-pfilters { margin-block-end: 8px; }
 .app .vf-pfind { inline-size: 100%; margin-block-end: 8px; }
-/* Show more under a long list: how many show, and the button for the next batch. */
 .app .vf-more-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-block: 8px; }
 .app .vf-queue { gap: 8px; }
 .app .vf-qitem { display: grid; gap: 6px; padding: 9px 11px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--raise); min-width: 0; }
@@ -1813,7 +1685,6 @@
 .app .vf-hp-meta { color: var(--faint); font-size: 12px; }
 .app .vf-hp-acts { grid-column: 2; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
 .app .vf-hperson-gone { opacity: 0.7; }
-/* #8698: past 12 people, one line per person: dot, name, state and the menu button; the details move to the card */
 .app :is(.vf-hp-state, .vf-hp-more) { display: none; }
 .app .vf-hpeople-compact .vf-hperson { grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; padding-block: 2px; }
 .app .vf-hpeople-compact :is(.vf-hp-meta, .vf-hp-acts, .vf-hp-rename) { display: none; }
@@ -1831,10 +1702,8 @@
   .app .vf-hp-acts { grid-column: 2; justify-content: flex-start; }
 }
 
-/* ---------- alignment fixes ---------- */
 .app .vf-thstat { font-size: 11.5px; font-weight: 650; color: var(--accent-text); text-align: end; }
 .app .vf-bubrow { align-items: flex-start; }
-/* result head: icons sit on the title's line even when "via" wraps */
 .app .vf-res-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 8px; align-items: start; line-height: 20px; }
 .app .vf-res-head > .vf-i { margin-block-start: 2px; grid-row: 1; }
 .app .vf-res-head > .vf-i:first-child { grid-column: 1; }
@@ -1849,10 +1718,8 @@
 .app .vf-colopt-noimg { display: block; }
 .app :is(.vf-threq, .vf-qitem) > .vf-pfrom { margin: 0; min-width: 0; }
 
-/* ---------- my proposals: full text with Show more ---------- */
 .app .vf-mp-txt { margin: 0; font-size: 12px; color: var(--text); }
 
-/* ---------- tree: collapsible rounds ---------- */
 .app .vf-tchev { color: var(--faint); inline-size: 14px; block-size: 14px; }
 .app .vf-tround[aria-expanded="false"] .vf-tchev { rotate: -90deg; }
 @media (prefers-reduced-motion: no-preference) {
@@ -1863,8 +1730,6 @@
   .app .vf-titles { row-gap: 0; }
   .app .vf-goal { max-inline-size: none; font-size: 11px; }
   .app .vf-titlerow .vf-tbtn, .app .vf-goalrow .vf-tbtn { block-size: 22px; min-inline-size: 22px; inline-size: 22px; }
-  /* phone tap targets of 44 px where the drawing stays small: the pencils in the 48 px top bar and the reaction chips
-     take a transparent ring; a question link is at least 44 px wide (its height is 44 already) */
   .app :is(.vf-titlerow, .vf-goalrow) .vf-pencil { position: relative; }
   .app :is(.vf-titlerow, .vf-goalrow) .vf-pencil::after { content: ""; position: absolute; inset: -11px; }
   .app .vf-qref { min-inline-size: 44px; }
@@ -1905,7 +1770,6 @@
   .app .vf-drawer { inset-block-start: 44px; }
 }
 
-/* ---------- Q82: bell and notifications ---------- */
 .app .vf-bell { position: relative; }
 .app .vf-bell-n {
   position: absolute; inset-block-start: 2px; inset-inline-start: calc(50% + 1px); pointer-events: none;
@@ -1919,7 +1783,6 @@
 }
 .app .vf-bptools { display: flex; justify-content: flex-end; padding: 2px 4px 4px; }
 .app .vf-nlist { display: grid; gap: 2px; grid-template-columns: minmax(0, 1fr); }
-/* lead, text, time, unread dot; the lead and the dot center on the title's first line (20px) */
 .app .vf-nitem {
   all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%;
   display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 8px; column-gap: 10px; align-items: start;
@@ -1939,24 +1802,21 @@
 .app .vf-nitem .vf-card-time { line-height: 20px; margin: 0; }
 .app .vf-mutebtn { margin-block-start: 8px; justify-self: start; }
 .app .vf-mutebox { display: grid; gap: 2px; padding-block-end: 4px; }
-.app .vf-mutebox .vf-sw-row > .vf-sw-txt { align-self: flex-start; } /* the switch sits on the label's first line */
+.app .vf-mutebox .vf-sw-row > .vf-sw-txt { align-self: flex-start; }
 .app .vf-rd-title { overflow-wrap: anywhere; }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-nitem:hover { background: var(--raise); }
 }
 
-/* ---------- @mentions ---------- */
 .app .vf-mention {
   color: var(--accent-text); background: var(--accent-soft); border-radius: 4px; padding-inline: 2px;
   font-weight: 600; overflow-wrap: anywhere; box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 .app .vf-mention-me { color: var(--brass-text); background: var(--brass-soft); }
-/* in a chat bubble an outline, not a fill: the text keeps its contrast on the bubble (accent-text on any surface, on-accent
-   on the accent) */
 .app .vf-bubble .vf-mention { background: none; box-shadow: inset 0 0 0 1px color-mix(in oklch, currentColor 45%, transparent); }
 .app .vf-msg-mine .vf-mention { color: inherit; }
 .app .vf-mentions { z-index: 60; inline-size: 260px; padding: 4px; display: grid; gap: 1px; grid-template-columns: minmax(0, 1fr); align-content: start; overflow-y: auto; overscroll-behavior: contain; }
-.app .vf-mentions:not([hidden]) { animation: none; } /* it follows every keystroke: no entrance */
+.app .vf-mentions:not([hidden]) { animation: none; }
 .app .vf-mopt { display: flex; align-items: center; gap: 8px; min-block-size: 36px; padding: 4px 8px; border-radius: var(--r-sm); cursor: pointer; }
 .app .vf-mopt[aria-selected="true"] { background: var(--raise); }
 .app .vf-mopt-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -1964,14 +1824,12 @@
   .app .vf-mopt:hover { background: var(--raise); }
 }
 
-/* ---------- chat replies ---------- */
 .app .vf-mreply {
   display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border-block-start: 1px solid var(--line);
   color: var(--muted); font-size: 12px;
 }
 .app .vf-mreply > .vf-i { inline-size: 14px; block-size: 14px; flex: none; color: var(--accent-text); }
 .app .vf-mreply-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* a reply's quote gets its own row between the name and the bubble */
 .app .vf-msg:has(> .vf-msg-col > .vf-mquote:not([hidden])) { grid-template-areas: ". meta" ". quote" "av bubble"; }
 .app .vf-msg-mine:has(> .vf-msg-col > .vf-mquote:not([hidden])) { grid-template-areas: "meta" "quote" "bubble"; }
 .app .vf-mquote {
@@ -1987,7 +1845,6 @@
 }
 @keyframes vf-hl-bubble { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 3px transparent; } }
 
-/* ---------- Q84: references ---------- */
 .app .vf-refs { display: grid; gap: 8px; margin-block: 14px 2px; }
 .app .vf-refs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-block-size: 26px; }
 .app .vf-reflist {
@@ -2030,12 +1887,10 @@
 .app .vf-ref-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; }
 .app .vf-ref-dom { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-start: 20px; }
 .app .vf-ref-x { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; background: var(--pane); }
-/* Play GIF / Stop GIF sits on the picture's top-left corner, clear of the remove x */
 .app .vf-gifplay {
   position: absolute; inset-block-start: 6px; inset-inline-start: 6px; border: 1px solid var(--line-strong); color: var(--text);
   background: color-mix(in oklch, var(--pane) 88%, transparent);
 }
-/* a diagram is drawn whole on a light ground, whatever the theme */
 .app .vf-ref[data-kind="diagram"] .vf-ref-thumb img { object-fit: contain; background: oklch(0.99 0 none); }
 .app .vf-ref[data-kind="diagram"] .vf-ref-x,
 .app .vf-ref[data-kind="image"] .vf-ref-x { background: color-mix(in oklch, var(--pane) 85%, transparent); }
@@ -2048,7 +1903,6 @@
   .app .vf-ref-img:hover .vf-ref-cap { color: var(--text); }
 }
 
-/* ---------- empty session ---------- */
 .app .vf-emptyv { display: none; grid-row: 4; min-height: 0; overflow: auto; padding: clamp(24px, 9vh, 96px) clamp(16px, 4vw, 48px) 32px; }
 .app .vf-center.vf-noq:is([data-mode="focus"], [data-mode="compare"]) .vf-emptyv { display: block; }
 .app .vf-center.vf-noq:is([data-mode="focus"], [data-mode="compare"]) :is(.vf-focus, .vf-cmp, .vf-bar, .vf-toolbar) { display: none; }
@@ -2064,16 +1918,14 @@
 .app .vf-ev-here { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; min-block-size: 24px; }
 .app .vf-ev-next { color: var(--faint); font-size: 13px; }
 .app .vf-ev > .vf-btn { justify-self: start; gap: 6px; }
-/* Approve new joins: a waiting person sees one centered card; the session's controls come with admission. */
 .app[data-waiting] :is(.vf-banner, .vf-rail, .vf-tabs, .vf-fab, .vf-chat, .vf-people, .vf-here, .vf-asktop, .vf-sharebtn, .vf-follow, .vf-inboxbtn, .vf-gear, .vf-introbtn, .vf-keysbtn) { display: none; }
 .app[data-waiting] .vf-body { grid-template-columns: minmax(0, 1fr); }
 .app[data-waiting] .vf-emptyv { display: grid; align-content: center; }
 .app[data-waiting] .vf-ev { text-align: center; justify-items: center; }
 .app .vf-ev-intro[hidden] { display: none; }
 
-/* ---------- Q86: More sheet (phones) ---------- */
 .app .vf-mslist { display: grid; padding: 4px 8px 12px; grid-template-columns: minmax(0, 1fr); }
-.app .vf-moresheet > .vf-mslist { min-block-size: 0; overflow: auto; } /* the sheet stops at 86% of a phone's height; its list scrolls */
+.app .vf-moresheet > .vf-mslist { min-block-size: 0; overflow: auto; }
 .app :is(.vf-msitem, .vf-hitem) {
   all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%;
   display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-areas: "i l" ". d"; column-gap: 14px; align-items: center;
@@ -2088,20 +1940,13 @@
   .app :is(.vf-msitem, .vf-hitem):hover { background: var(--raise); }
 }
 
-/* tablet widths: the bell and the theme button need the room, so Ask Claude keeps only its icon (and its name) */
 @media (min-width: 721px) and (max-width: 1080px) {
   .app .vf-asktop { inline-size: 32px; padding-inline: 0; }
   .app .vf-asktop > span { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 
-/* ---------- composer send button: a label on wide screens, a round icon on phones ---------- */
-/* ---------- Item 11: the Inbox (in the bell's place): my requests, what waits on the host, notifications ---------- */
 .app .vf-inboxbtn .vf-bell-n { position: static; box-shadow: none; background: var(--accent); color: var(--on-accent); }
-/* .vf-tbtn's min-inline-size replaces flex's min-content floor: on a crowded top bar the title gives way, not these labels */
 .app :is(.vf-inboxbtn, .vf-sharebtn) { flex-shrink: 0; }
-/* Spec PR 9: the Inbox is a page of its own in the session's place below the top bar (positioned on that grid area, so
-   it never moves the session's own rows), its content in one centered column; the session under it keeps its scroll
-   positions (hidden, never removed) */
 .app .vf-inboxpage { position: absolute; inset: 0; grid-row: 2 / 4; grid-column: 1; z-index: 30; min-block-size: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
 .app .vf-inboxpage[hidden] { display: none; }
 .app.vf-inboxon > :is(.vf-body, .vf-fab, .vf-tabs, .vf-chat) { visibility: hidden; }
@@ -2118,10 +1963,9 @@
 .app .vf-ibtab[hidden], .app .vf-ixgroup[hidden] { display: none; }
 .app .vf-ixgh { margin: 2px 0 0; padding-inline: 2px; font-size: 12px; font-weight: 600; color: var(--faint); }
 .app .vf-ixgroup { display: grid; gap: 8px; }
-.app .vf-ibempty { padding-block: 24px; text-align: start; } /* on the column's start line, as the header and tabs are (sweep S36) */
+.app .vf-ibempty { padding-block: 24px; text-align: start; }
 .app .vf-ibq { gap: 8px; grid-template-columns: minmax(0, 1fr); }
 .app .vf-ibq .vf-acts > .vf-ibgo { margin-inline-end: auto; }
-/* Follow-up 51: Pop-ups and the switches sit after the messages; below 1100 px the button folds them away */
 .app .vf-ibside { display: grid; gap: 12px; align-content: start; }
 .app .vf-ibside[data-open="false"] > :is(.vf-ibpops, .vf-ibmuteh, .vf-mutebox) { display: none; }
 .app .vf-ibmuteh { display: none; }
@@ -2138,7 +1982,6 @@
   .app .vf-ibside .vf-sw-row { min-block-size: 32px; padding-block: 4px; }
 }
 .app .vf-ixlist { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr); }
-/* question line and status chip; what was asked and when; a reason or a wait under it; the unread dot in the gutter */
 .app .vf-ixitem {
   all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%; position: relative;
   display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "q chip" "what time" "sub sub"; column-gap: 10px; row-gap: 2px;
@@ -2171,24 +2014,19 @@
 .app .vf-qnav { display: none; }
 
 @media (max-width: 720px) {
-  /* one compact header row: title, Live dot, bell, me; the rest lives under More */
   .app .vf-goalrow, .app .vf-asktop, .app .vf-sharebtn, .app .vf-follow, .app .vf-themebtn, .app .vf-gear { display: none; }
   .app .vf-person:not(.vf-person-me) { display: none; }
   .app .vf-bell { order: 2; }
   .app .vf-people { order: 3; }
-  /* the Inbox page on a phone: a tighter head, Back as a 44 px icon, the list clear of the home indicator */
   .app .vf-ibtop { padding-block: 10px; gap: 8px; }
   .app .vf-ibtitle { font-size: 18px; }
   .app .vf-ibback span { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .app .vf-ibback { min-inline-size: 44px; min-block-size: 44px; justify-content: center; }
   .app .vf-ibhead .vf-btn { min-block-size: 44px; }
   .app .vf-ixtabs .vf-seg-btn { min-block-size: 44px; flex: none; white-space: nowrap; }
-  /* tabs and chips each keep one row that scrolls sideways, so the list starts high on the screen */
   .app .vf-ibtop :is(.vf-ixtabs, .vf-ibchips) { flex-wrap: nowrap; max-inline-size: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
-  /* the cut edge fades, so a row that scrolls on reads as one; the end padding lets the last item clear the fade */
   .app .vf-ibtop :is(.vf-ixtabs, .vf-ibchips) { padding-inline-end: 28px; mask-image: linear-gradient(to left, transparent, black 28px); }
   .app .vf-ibchips > .vf-btn { flex: none; }
-  /* a request row's question and status each take a line of their own */
   .app .vf-inboxpage .vf-rhead2 { flex-wrap: wrap; row-gap: 4px; }
   .app .vf-inboxpage .vf-rhead2 .vf-qref { order: 5; flex-basis: 100%; }
   .app .vf-inboxpage .vf-rhead2 .vf-rstat { order: 6; flex-basis: 100%; text-align: start; }
@@ -2200,31 +2038,26 @@
   .app .vf-mopt { min-block-size: 44px; }
   .app .vf-moresheet .vf-pp-head { padding-block-end: 4px; }
 
-  /* content first: the question's own row carries previous and next; no view bar or toolbar in Answer */
   .app .vf-center[data-mode="focus"] :is(.vf-bar, .vf-toolbar) { display: none; }
   .app .vf-scroll { padding-block-start: 10px; }
   .app .vf-qmeta { gap: 8px; margin-block-end: 6px; }
-  .app .vf-qmeta > span:first-child { flex: 1 1 0; min-width: 7.5em; } /* the position takes two lines before a chip wraps */
-  .app .vf-qmeta :is(.vf-qgroup, .vf-chip) { order: 1; } /* the purpose, who it asks and the chips wrap to their own row under the position and the arrows */
+  .app .vf-qmeta > span:first-child { flex: 1 1 0; min-width: 7.5em; }
+  .app .vf-qmeta :is(.vf-qgroup, .vf-chip) { order: 1; }
   .app .vf-qmeta { flex-wrap: wrap; row-gap: 6px; }
-  /* the purpose and the host's Ask someone stay together: the group moves to a row as a whole, and wraps inside only
-     when it is wider than the row; a long label wraps inside its own 44 px button */
   .app .vf-qgroup { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-inline-size: 0; max-inline-size: 100%; }
   .app .vf-qgroup .vf-select { block-size: 44px; }
   .app .vf-qgroup .vf-forbtn { block-size: auto; min-block-size: 44px; max-inline-size: 100%; white-space: normal; text-align: start; }
-  .app .vf-qgroup .vf-forchip { order: 1; white-space: normal; overflow-wrap: anywhere; } /* who it asks follows the button, so a long list never splits the purpose from it */
+  .app .vf-qgroup .vf-forchip { order: 1; white-space: normal; overflow-wrap: anywhere; }
   .app .vf-qnav { display: flex; gap: 0; margin-inline-start: auto; flex: none; }
-  /* who else is on the question: up to 3 avatars in a slot this row keeps empty or not, so presence never moves the page */
   .app .vf-onit { display: none; }
   .app .vf-qonit { display: inline-flex; align-items: center; justify-content: flex-end; flex: none; inline-size: 72px; overflow: hidden; }
 
-  /* the composer is one rounded line: paperclip inside its start, a round send button inside its end */
   .app .vf-composer { position: relative; padding: 8px 10px; }
   .app .vf-composer > .vf-ta {
     min-block-size: 44px; border-radius: 22px; padding: 9px 50px 9px 46px; line-height: 24px;
   }
-  /* folded to one line, a long saved answer wraps inside the field and never runs under the send button (O114) */
-  .app .vf-composer:not(:focus-within) > .vf-ta { block-size: 44px !important; overflow: hidden !important; } /* reason: overrides grow()'s inline height and overflow while folded */
+  /* reason: overrides grow()'s inline height and overflow while folded */
+  .app .vf-composer:not(:focus-within) > .vf-ta { block-size: 44px !important; overflow: hidden !important; }
   .app .vf-composer:not(:focus-within) > .vf-ta::placeholder { white-space: nowrap; text-overflow: ellipsis; }
   .app .vf-composer-locked > .vf-ta { padding-inline: 16px; }
   .app .vf-composer:focus-within > .vf-ta { padding-block-end: 46px; padding-inline-start: 14px; }
@@ -2242,22 +2075,15 @@
   }
   .app .vf-composer .vf-send-i { display: block; inline-size: 18px; block-size: 18px; stroke-width: 2.4; }
   .app .vf-composer .vf-send-l { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .app .vf-composer .vf-count-txt { display: none; } /* the field's maxlength still holds; no room for a counter */
+  .app .vf-composer .vf-count-txt { display: none; }
 
-  /* an on-screen keyboard is up: the tab bar steps aside so the field and its send button keep the room */
   .app[data-kb] { --tabs-h: 0px; }
   .app[data-kb] .vf-tabs, .app[data-kb] .vf-fab:not([aria-expanded="true"]) { display: none; }
-  /* the keyboard covers the home indicator, so a sheet sits right on the keyboard without the bottom safe-area inset */
   .app[data-kb] :is(.vf-chat, .vf-drawer, .vf-pop.vf-panel) { padding-block-end: 0; }
   .app[data-kb] :is(.vf-drawer, .vf-pop.vf-panel) { max-block-size: calc(100% - 8px); }
   .app[data-kb] .vf-ibscroll { padding-block-end: 16px; }
-  /* the Ask Claude sheet takes all the room above the keyboard, and its Send row stays at the sheet's
-     bottom edge while the form is in view */
   .app[data-kb] .vf-drawer { block-size: calc(100% - 8px); }
   .app[data-kb] .vf-apform > .vf-crow { position: sticky; z-index: 1; inset-block-end: 0; padding-block: 4px; background: var(--pane); }
-  /* a keyboard can leave under 250 px: the title steps aside so the close button shares the mode switch's row, and
-     About, the one part of the form above the field, hides until the keyboard closes, so the label and three lines of
-     the field fit above the sticky row in DOM order */
   .app[data-kb] .vf-drawer { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); }
   .app[data-kb] .vf-drawer > .vf-pp-head { grid-area: 1 / 2; padding: 4px 4px 0 0; }
   .app[data-kb] .vf-ap-title { display: none; }
@@ -2265,15 +2091,13 @@
   .app[data-kb] .vf-apmodes .vf-seg-btn { flex: 0 1 auto; min-inline-size: 0; padding-inline: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .app[data-kb] .vf-apscroll { grid-area: 2 / 1 / 3 / 3; padding-block-start: 4px; }
   .app[data-kb] .vf-apq:not(:focus-within) { display: none; }
-  .app[data-kb] .vf-apform .vf-webchip:not(:focus) { display: none; } /* Use the web beside the label steps aside too */
+  .app[data-kb] .vf-apform .vf-webchip:not(:focus) { display: none; }
   .app[data-kb] .vf-ap-pointer { display: none; }
-  /* the Propose sheet keeps its label, field and buttons above the keyboard: its title and note step aside */
   .app[data-kb] :is(.vf-proposepop, .vf-reportpop) { max-block-size: calc(100% - 8px); padding-block-end: 8px; }
   .app[data-kb] :is(.vf-proposepop, .vf-reportpop) > :is(.vf-pop-title, .vf-pop-note) { display: none; }
-  .app[data-kb] .vf-reportpop:not(.vf-myreps) > :is(.vf-pop-sub, .vf-rep-sent, .vf-rep-shotrow) { display: none; } /* Send stays above the keyboard */
+  .app[data-kb] .vf-reportpop:not(.vf-myreps) > :is(.vf-pop-sub, .vf-rep-sent, .vf-rep-shotrow) { display: none; }
 }
 
-/* Dialogs: confirmations and the attach picker. Native modal dialogs, so they sit above every panel and sheet. */
 .app .vf-dlg {
   inline-size: min(440px, calc(100vw - 32px)); max-block-size: calc(100dvh - 32px); overflow: auto; margin: auto; padding: 18px;
   background: var(--pane); color: var(--text); border: 1px solid var(--line-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-pop);
@@ -2304,7 +2128,6 @@
 .app .vf-att-note { margin: 0; }
 .app .vf-att-err { color: var(--warn); font-size: 12.5px; font-weight: 600; margin: 0; }
 .app .vf-att-err:empty { display: none; }
-/* C44: the picker's list of my files the host accepted; each attaches with one press. */
 .app .vf-attmine { flex-direction: column; overflow-x: visible; max-block-size: 40vh; overflow-y: auto; padding: 0; margin: 0; }
 .app .vf-attmine[hidden], .app .vf-attform .vf-sel-l[hidden] { display: none; }
 .app .vf-attmine > .vf-ref { inline-size: auto; border: 0; }
@@ -2314,7 +2137,6 @@
   .app .vf-attseg .vf-seg-btn { min-block-size: 40px; }
   .app .vf-attpick { min-block-size: 44px; }
 }
-/* Attachments on answers, messages, requests, suggestions and proposals: the reference cards, a size smaller. */
 .app .vf-attlist { margin-block-start: 8px; }
 .app .vf-attlist[hidden] { display: none; }
 .app .vf-attlist > .vf-ref { inline-size: 200px; }
@@ -2331,10 +2153,6 @@
 .app .vf-upthumb { padding: 0; overflow: hidden; cursor: zoom-in; }
 .app .vf-upthumb[hidden] { display: none; }
 .app .vf-upthumb img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
-/* Question pictures stay compact so the answer controls stay on screen; View larger opens the viewer. */
-/* The confirm picture keeps the column's width and at most 240px of height (30% of a phone screen); a taller picture is
-   cropped around the marked area, and the viewer shows it whole. --ar is its width / height, set when it loads; --my is
-   the mark's middle as a fraction of its height. The canvas is the whole picture, shifted up to center the mark. */
 .app .vf-confirm-fig .vf-confirm-box { aspect-ratio: var(--ar, 1.6); max-block-size: 240px; container-type: size; }
 .app .vf-confirm-canvas { position: absolute; inset-inline: 0; inset-block-start: clamp(100cqb - 100cqi / var(--ar, 1.6), 50cqb - var(--my, 0.5) * 100cqi / var(--ar, 1.6), 0px); }
 @media (max-width: 720px) {
@@ -2342,52 +2160,42 @@
   .app .vf-optmedia { aspect-ratio: auto; block-size: min(40dvh, 200px); }
   .app .vf-opts:has(.vf-optview:not([hidden])) .vf-optmedia { aspect-ratio: 4 / 3; block-size: auto; }
 }
-/* the host's device and view hint on answers and people */
 .app .vf-ctx { display: inline-flex; align-items: center; color: var(--faint); cursor: help; }
 .app .vf-ctx[hidden] { display: none; }
 .app .vf-ctx .vf-i { inline-size: 14px; block-size: 14px; }
 .app .vf-zoomtag { white-space: nowrap; }
 
-/* ======================= polish: orientation, tour, inline composer, phone sheet ======================= */
-/* Triage 20: long words and dictation wrap inside fields instead of widening them. */
 .app .vf-ta { overflow-wrap: anywhere; }
 
-/* Triage 13: the answer box sits under the question and its options, inside the scrolling question. */
 .app .vf-scroll > .vf-composer { border: 0; background: none; padding: 0; margin-block: 16px 24px; }
 .app .vf-scroll > .vf-composer > * { max-inline-size: none; }
 
-/* Triage 3: a guest's first view. */
 .app .vf-orient {
   position: relative; margin-block-end: 20px; padding: 16px 18px; border-radius: var(--r-lg);
   border: 1px solid color-mix(in oklch, var(--accent) 45%, var(--line-strong)); background: color-mix(in oklch, var(--accent) 8%, var(--pane));
 }
 .app .vf-orient[hidden] { display: none; }
-.app .vf-orient-h { margin: 0 64px 6px 0; min-block-size: 38px; font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; } /* clears Skip */
+.app .vf-orient-h { margin: 0 64px 6px 0; min-block-size: 38px; font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; }
 .app .vf-orient-lead { margin: 0 64px 4px 0; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
 .app :is(.vf-orient-goal, .vf-orient-ask) { margin: 0 0 6px; overflow-wrap: anywhere; }
 .app .vf-orient-goal { font-weight: 600; }
 .app .vf-orient-row { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 12px; }
 .app .vf-orient-row .vf-btn { block-size: 44px; padding-inline: 16px; font-size: 14px; white-space: normal; text-align: center; }
 .app .vf-orient-x { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; min-inline-size: 44px; block-size: 44px; padding-inline: 12px; }
-/* follow-up 52: what the toolbar's filter hides from the rail, and the way back */
 .app .vf-railfilter { margin: 4px 8px 8px; padding: 6px 10px; border-radius: var(--r-sm); background: color-mix(in oklch, var(--review) 14%, transparent); font-size: 12.5px; overflow-wrap: anywhere; }
 .app .vf-railfilter[hidden] { display: none; }
-/* follow-up 47: a question asked once per device, answered on another one */
 .app .vf-devnote { margin: 0 0 10px; padding: 8px 12px; border-radius: var(--r-md); background: color-mix(in oklch, var(--accent) 8%, var(--pane)); font-size: 13.5px; overflow-wrap: anywhere; }
 .app .vf-devnote[hidden] { display: none; }
-/* follow-up 39: the goal in one line on a return visit, closable */
 .app .vf-goalback { display: flex; align-items: center; gap: 6px; margin-block-end: 12px; padding: 2px 2px 2px 12px; border-radius: var(--r-md);
   border: 1px solid color-mix(in oklch, var(--accent) 35%, var(--line)); background: color-mix(in oklch, var(--accent) 6%, var(--pane)); font-size: 13px; }
 .app .vf-goalback[hidden] { display: none; }
 .app .vf-goalback-t { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .app .vf-goalback-x { flex: none; inline-size: 44px; block-size: 44px; }
 
-/* ux-review-2 #4: the guest's one control for the views, sort and filters. */
 .app .vf-viewopts { flex: none; }
 .app .vf-viewopts[hidden], .app .vf-seg[hidden] { display: none; }
 .app .vf-chips { flex-wrap: wrap; }
 
-/* Triage 4: the tour. A ring around what each step is about; everything else dims. */
 .app .vf-tour { position: absolute; inset: 0; z-index: 90; }
 .app .vf-tour[hidden] { display: none; }
 .app .vf-tour-ring {
@@ -2402,7 +2210,6 @@
 .app .vf-tour-h { margin: 2px 0 6px; font-size: 17px; line-height: 1.3; }
 .app .vf-tour-t { margin: 0 0 12px; overflow-wrap: anywhere; }
 .app .vf-tour-row .vf-btn { block-size: 44px; padding-inline: 14px; font-size: 14px; }
-/* F12: Help lists More's rows, sized for a popover */
 .app .vf-helplist { padding: 0 0 8px; }
 .app .vf-helplist .vf-hitem { min-block-size: 40px; padding: 6px 8px; column-gap: 10px; grid-template-columns: 18px minmax(0, 1fr); }
 .app .vf-helplist .vf-hitem > .vf-i { inline-size: 18px; block-size: 18px; }
@@ -2411,7 +2218,6 @@
   .app .vf-tour-ring { transition: translate 200ms var(--ease-out); }
 }
 
-/* C40: the ten person colors in the person card. */
 .app .vf-pcolors { display: grid; grid-template-columns: repeat(5, 32px); gap: 8px; margin-block: 4px 12px; }
 .app .vf-pavatar { display: grid; gap: 8px; justify-items: start; margin-block: 4px 12px; }
 .app .vf-pavatar .vf-pop-note { margin: 0; }
@@ -2420,19 +2226,16 @@
 .app .vf-pcolor[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--pane), 0 0 0 4px var(--text); }
 .app .vf-pcolor:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-/* Triage 24: new chat messages while scrolled up. */
 .app .vf-mnew {
   position: absolute; z-index: 2; inset-block-start: 60px; inset-inline-start: 50%; translate: -50% 0; block-size: 36px; padding-inline: 14px; white-space: nowrap;
   border-radius: 18px; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 13px; box-shadow: var(--shadow-pop);
 }
 .app .vf-mnew[hidden] { display: none; }
 
-/* Triage 23: while the on-screen keyboard is up, toasts and the typing line step aside. */
 .app[data-kb] :is(.vf-toast, .vf-mtyping) { display: none; }
 
 .app .vf-optfoot[hidden] { display: none; }
 @media (max-width: 720px) { .app .vf-optfoot[data-empty="true"] { display: none; } }
-/* a foot empty on every card (results wait, nothing leads) takes no row anywhere: alignment holds, no blank band */
 .app .vf-opts:not(:has(.vf-optfoot[data-empty="false"])) .vf-optfoot { display: none; }
 .app .vf-bar > .vf-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) {
@@ -2442,19 +2245,16 @@
 }
 .app :is(.vf-sheethead, .vf-sheetsave) { display: none; }
 .app[data-sheet] .vf-mentions { z-index: 85; }
-.app .vf-bubble { white-space: break-spaces; } /* a space at a line end wraps instead of hanging past the bubble */
-/* A long unbroken word in a report must not widen the reader past the screen. */
+.app .vf-bubble { white-space: break-spaces; }
 .app .vf-reader { grid-template-columns: minmax(0, 1fr); }
 .app .vf-rd-text { overflow-wrap: anywhere; }
-/* "Write your own instead" and other long option actions wrap inside a narrow card. */
 .app .vf-optacts .vf-btn { white-space: normal; text-align: start; min-width: 0; max-inline-size: 100%; }
 @media (max-width: 720px) {
-  .app .vf-composer .vf-send-i { margin: 0; } /* centered in its round button (triage 19) */
+  .app .vf-composer .vf-send-i { margin: 0; }
   .app .vf-scroll > .vf-composer > .vf-crow { inset-inline: 0; inset-block-end: 0; }
   .app .vf-pcolors { grid-template-columns: repeat(5, 44px); }
   .app .vf-pcolor { inline-size: 44px; block-size: 44px; }
   .app .vf-mnew { block-size: 44px; border-radius: 22px; }
-  /* Triage 18: writing on a phone opens a full-height sheet over the visual viewport: Cancel on top, Save under the field. */
   .app .vf-scroll > .vf-composer.vf-composer-sheet {
     position: fixed; z-index: 80; inset-inline: 0; inset-block-start: var(--vv-top, 0px); block-size: var(--vv-h, 100dvh);
     margin: 0; padding: env(safe-area-inset-top) 12px max(12px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px;
@@ -2464,32 +2264,28 @@
   .app .vf-composer-sheet .vf-sheethead .vf-btn { block-size: 44px; padding-inline: 16px; font-size: 15px; }
   .app .vf-sheettitle { flex: 1; min-width: 0; font-weight: 600; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .app .vf-scroll > .vf-composer-sheet > .vf-ta {
-    flex: 1; min-block-size: 0; block-size: auto !important; /* reason: overrides grow()'s inline height: the sheet sizes the field */
+    /* reason: overrides grow()'s inline height: the sheet sizes the field */
+    flex: 1; min-block-size: 0; block-size: auto !important;
     margin: 0; border-radius: var(--r-md); padding: 12px 14px; white-space: pre-wrap; font-size: 16px;
-    overflow-y: auto !important; /* reason: grow() hides the scrollbar below its cap; in the sheet the field always scrolls */
+    /* reason: grow() hides the scrollbar below its cap; in the sheet the field always scrolls */
+    overflow-y: auto !important;
   }
   .app .vf-scroll > .vf-composer-sheet > .vf-crow { position: static; block-size: auto; margin: 0; pointer-events: auto; }
   .app .vf-composer-sheet .vf-sendbtn { display: none; }
   .app .vf-composer-sheet .vf-sheetsave { display: inline-flex; margin-inline-start: auto; block-size: 44px; padding-inline: 22px; font-size: 15px; }
 }
 
-/* ---------- Phase 4c: why you're here, moderation, chat reactions ---------- */
 .app .vf-orient-why { margin-block-start: 10px; padding-block-start: 10px; border-block-start: 1px solid var(--line-strong); }
 .app .vf-orient-why[hidden], .app .vf-orient-whybtn[hidden], .app .vf-orient-intro[hidden], .app .vf-orient-how[hidden] { display: none; }
 .app :is(.vf-orient-intro, .vf-orient-how) { margin: 0 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .app .vf-orient-why .vf-orient-tour { block-size: 44px; margin-block-start: 4px; }
 .app .vf-intropop { inline-size: min(360px, calc(100vw - 24px)); }
-/* Below 1024 px the top bar has no room for one more button: Help (and More on a phone) holds it. */
 @media (max-width: 1023px) { .app .vf-introbtn { display: none; } }
 .app .vf-help-intro[hidden] { display: none; }
 .app .vf-intropop-t { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 720px) {
-  /* A phone's first screen keeps the goal, the ask, Start here, the question, "Something else…" and the answer box. */
   .app .vf-orient { padding: 8px 12px; margin-block-end: 4px; }
-  /* The welcome line is read out but not drawn: the goal and the ask lead. */
   .app .vf-orient-h { position: absolute; inline-size: 1px; block-size: 1px; min-block-size: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  /* Skip joins the button row and the welcome line runs on into the goal, so the card stays short enough that the
-     answer box starts above the fold. */
   .app .vf-orient-row .vf-orient-x { position: static; flex: 0 0 auto; }
   .app :is(.vf-orient-lead, .vf-orient-goal, .vf-orient-ask) { margin: 0; font-size: 13.5px; line-height: 1.35; }
   .app :is(.vf-orient-lead, .vf-orient-goal) { display: inline; }
@@ -2512,15 +2308,13 @@
 .app .vf-hist-who { font-size: 11.5px; color: var(--muted); }
 .app .vf-hist-t { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .app :is(.vf-history, .vf-hintro-shown)[hidden], .app .vf-pop-sub[hidden] { display: none; }
-/* The owner's decision history: folded under a question, and the session's Decisions timeline. */
 .app .vf-qhist { margin-block-start: 12px; }
 .app .vf-qhist[hidden] { display: none; }
 .app .vf-qhist-sum { cursor: pointer; font-size: 13px; color: var(--muted); }
 .app .vf-qhist > .vf-history { margin-block-start: 8px; }
-/* Folded, the list is not rendered at all: a closed details' content never runs its theme transitions to the end. */
 .app .vf-qhist:not([open]) > .vf-history { display: none; }
 .app .vf-decpop { inline-size: min(420px, calc(100vw - 24px)); }
-@media (min-width: 721px) { .app .vf-healthpop { inline-size: min(560px, calc(100vw - 24px)); } } /* a bottom sheet on a phone */
+@media (min-width: 721px) { .app .vf-healthpop { inline-size: min(560px, calc(100vw - 24px)); } }
 .app .vf-health { display: grid; gap: 12px; max-block-size: min(60vh, 560px); overflow: auto; margin-block-start: 8px; }
 .app .vf-health-sec { display: grid; gap: 4px; }
 .app .vf-health-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: 13px; overflow-wrap: anywhere; }
@@ -2541,7 +2335,6 @@
 .app .vf-mreact[aria-pressed="true"] { color: var(--accent-text); border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: var(--accent-soft); }
 .app .vf-mreact-e, .app .vf-mreact-face, .app .vf-mm-face { font-size: 14px; line-height: 1; }
 .app .vf-mm-face { inline-size: 18px; flex: none; text-align: center; }
-/* Add sits beside ⋯ and, like it, shows on hover or focus; touch reaches it through React in the long-press menu. */
 .app .vf-mreact-add {
   all: unset; box-sizing: border-box; cursor: pointer; flex: none; display: none; align-items: center; justify-content: center; gap: 1px;
   min-inline-size: 28px; block-size: 28px; padding-inline: 4px; border-radius: var(--r-sm); color: var(--faint); font-size: 12px; font-weight: 600;
@@ -2566,7 +2359,6 @@
   .app .vf-mreact-add { block-size: 36px; }
 }
 
-/* ---------- Q98: a prototype question's preview tile, its notes in the Claude thread, and the prototype page ---------- */
 .app .vf-proto { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: center; margin-block-end: 10px; padding: 10px;
   border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--sunk); }
 .app .vf-proto[hidden] { display: none; }
@@ -2671,7 +2463,6 @@
   .vp-app .vp-tab, .vp-app .vp-viewbtn, .vp-app .vp-bar .vf-btn { min-block-size: 40px; }
   .vp-app .vp-choose { flex-basis: 100%; }
 }
-/* The host's review view in the Inbox, and the Ask boxes' Everyone / Just me. */
 .app .vf-review[hidden], .app .vf-rev-res[hidden], .app .vf-aud[hidden] { display: none; }
 .app .vf-rev-head { display: flex; align-items: center; gap: 8px; }
 .app .vf-rev-head .vf-ixgh { margin: 0; }
@@ -2681,8 +2472,6 @@
 .app .vf-rev-who { margin-inline-start: auto; }
 .app .vf-revrow .vf-ndot { margin: 0; }
 .app .vf-aud { justify-self: start; }
-/* The canonical chrome's theme toggle and comment box rules, copied verbatim from reference/html-chrome.html
-   (tests/test_page_chrome.py checks the copy). */
 /* rv-chrome:begin */
 .rv-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end; }
 .rv-theme { display: inline-flex; border: 1px solid var(--muted); border-radius: 8px; overflow: hidden; }
@@ -2697,5 +2486,4 @@
 /* rv-chrome:end */
 .app .rv-comment h2 { font-size: 13px; font-weight: 600; }
 .app .rv-comment label { color: var(--muted); font-size: 12px; }
-/* the page's field style keeps the comment box like its other fields; its focus outline is the chrome's, in the text color */
 .app .rv-comment .vf-ta:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }

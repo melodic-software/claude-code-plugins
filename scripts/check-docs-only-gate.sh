@@ -191,11 +191,13 @@ python_needs${TAB}\${{ steps.plan.outputs.python_needs }}
 node_legs${TAB}\${{ steps.plan.outputs.node_legs }}
 node_plan${TAB}\${{ steps.plan.outputs.node_plan }}
 selection_suites${TAB}\${{ steps.suites.outputs.list }}
+selection_shards${TAB}\${{ steps.shards.outputs.list }}
 playwright_cache_key${TAB}\${{ steps.playwright_key.outputs.key }}"
 MATRIX_READS="\
 leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.bash_legs || '[0]') }}
 leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.python_legs || '[0]') }}
-leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.node_legs || '[0]') }}"
+leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.node_legs || '[0]') }}
+shard: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.selection_shards || '[0]') }}"
 AGGREGATE_JOB="ci-status"
 LANE_OPT_OUT="lane-coverage-ok:"
 # The one sanctioned job-level condition on a required consumer: the

@@ -2,8 +2,6 @@
 
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -104,9 +102,6 @@ RC=$?
 assert_exit "a traversal --date is refused" 2 "$RC"
 assert_contains "the refusal names the offending value" "$OUT_D" "YYYY-MM-DD"
 
-# --- Case group 10: another plugin's data dir is never used ---
-# Another plugin's SessionStart hook can export its own data dir into every Bash
-# call as CLAUDE_PLUGIN_DATA.
 FOREIGN="$TEST_TMPDIR/codex-openai-codex"
 OUT_X=$(cd "$TEST_TMPDIR/repo-a" && HOME="$TEST_TMPDIR/home" CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" --date "$DATE" --mkdir 2>/dev/null)
 assert_contains "a foreign CLAUDE_PLUGIN_DATA falls back to the home data dir" "$OUT_X" "$TEST_TMPDIR/home/.claude/plugins/data/harness-ops/reports/"

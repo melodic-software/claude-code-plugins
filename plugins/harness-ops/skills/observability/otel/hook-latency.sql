@@ -1,22 +1,9 @@
--- hook-latency.sql: per-(lane, hook_event) hook latency distribution and within-session trend.
---
--- Loaded after cc-otel.sql (for the cc_logs_from macro) by scripts/hook-latency.sh, which sets:
---   src        path of the hot logs store ($CC_OTEL_STORE/cc-logs.json)
---   since      TIMESTAMP (UTC) the window starts at
---   min_fires  fires one (session, hook_event) needs before its slope counts
---
--- slope: regr_slope of total_duration_ms against the fire's position scaled to [0, 1] within
--- its session, so it reads as "ms added from the session's first fire to its last".
--- Output (one row per lane and hook_event, or one row with empty lane when the window has no
--- fires): since, oldest hot fire, lane, hook_event, fires, sessions, p50_ms, p95_ms,
--- slope_sessions, median_slope_ms, positive_slope_sessions.
 WITH fires AS (
   SELECT
     event_time,
     session_id,
     COALESCE(list_filter(attributes_list, lambda x: x.key = 'claude.lane')[1].value.stringValue, 'unknown') AS lane,
     list_filter(attributes_list, lambda x: x.key = 'hook_event')[1].value.stringValue AS hook_event,
-    -- Observed as stringValue; COALESCE with intValue as cc-otel.sql does for duration_ms.
     TRY_CAST(COALESCE(
       list_filter(attributes_list, lambda x: x.key = 'total_duration_ms')[1].value.stringValue,
       list_filter(attributes_list, lambda x: x.key = 'total_duration_ms')[1].value.intValue

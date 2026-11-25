@@ -1362,7 +1362,7 @@ jobs:
         if: steps.locate.outputs.run-id != ''
         uses: actions/download-artifact@v8
         with:
-          name: selection-trace-${{ steps.locate.outputs.run-id }}-${{ steps.locate.outputs.run-attempt }}
+          pattern: selection-trace-${{ steps.locate.outputs.run-id }}-${{ steps.locate.outputs.run-attempt }}-*
           path: ${{ runner.temp }}/selection-trace
           run-id: ${{ steps.locate.outputs.run-id }}
           github-token: ${{ github.token }}

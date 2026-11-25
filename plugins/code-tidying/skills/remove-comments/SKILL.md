@@ -206,7 +206,11 @@ run that triages it lists it in the report. In an interactive run with the `arch
 enabled, the orchestrator, never `comment-reviewer`, then invokes `/architecture:adr` (if enabled)
 via the Skill tool for each listed candidate, with the decision, the alternative and the comment's
 text; that skill owns and applies the admission test. Otherwise
-(unattended, `report` mode, or no `architecture` plugin) the candidate stays listed.
+(unattended, `report` mode, or no `architecture` plugin) the candidate stays listed. For each ADR
+candidate, the orchestrator also passes the domain terms the comment uses to
+`/domain-driven-design:ubiquitous-language lookup` (if enabled); each term the glossary lacks is a
+glossary-candidate row in the findings file. With no `domain-driven-design` plugin, or no glossary,
+no row is written.
 
 **What `explanatory` keeps** is the full earn-its-keep contract: the floor, the public-API doc
 comments, unit and sentinel annotations on the adjacent declaration, and every class-C comment that
@@ -281,10 +285,12 @@ an UNPROVABLE file yields proposals only.
 
 - `/source-control:commit`, which takes the staged commit-message block and lands the removed
   narrative with the diff that removed it.
-- The findings file's rows (reshape flags, open root-cause work, lint-rule proposals):
+- The findings file's rows (reshape flags, open root-cause work, lint-rule proposals, glossary
+  candidates):
   `/review:fanout fix`, then `/implementation:implement` or `/debugging:debug` for a root cause and
   `/architecture:improve` for a reshape that needs a design decision.
-- ADR candidates listed but not recorded: `/architecture:adr` with each one.
+- ADR candidates listed but not recorded: `/architecture:adr` with each one; glossary candidates:
+  `/domain-driven-design:ubiquitous-language curate` with each term.
 
 ## Related
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# commit-ready-repo.sh <dir>: a repo <dir>/repo with one staged file and nothing committed.
 set -euo pipefail
 d="$1"
 mkdir -p "$d/repo"

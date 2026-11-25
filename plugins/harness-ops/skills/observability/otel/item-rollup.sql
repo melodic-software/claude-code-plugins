@@ -1,25 +1,3 @@
--- item-rollup.sql: tokens and turns per work item, grouped by item URL and ccr_session_id.
---
--- Loaded after cc-otel.sql (for the cc_*_from and cc_attr* macros) by scripts/item-rollup.sh,
--- which sets:
---   metrics_src  path of the hot metrics store ($CC_OTEL_STORE/cc-metrics.json)
---   logs_src     path of the hot logs store ($CC_OTEL_STORE/cc-logs.json)
--- and creates file_map(ccr_session_id, item_url), the operator's map rows (empty without one).
---
--- The item is the autonomy.work_item.url attribute, which Claude Code copies from
--- OTEL_RESOURCE_ATTRIBUTES onto every datapoint and event. A row without it takes its item from
--- the ccr.session.id map: the (ccr_session_id, item_url) pairs on rows carrying both, plus
--- file_map. A cloud session the map ties to more than one item stays unattributed.
---
--- Output: tab-separated rows, the first column a tag.
---   temporality  metric, aggregationTemporality: a token data point that is not delta.
---   checked      one row once the temporality check has run
---   item         item_url ('' unattributed), ccr_session_id ('' local), sessions, turns, input,
---                output, cacheRead, cacheCreation
---   ambiguous    one row per ccr_session_id the map ties to more than one item
---   done         one row once item_rows was built
--- Reads no cost metric or cost attribute: the rollup never prices.
-
 WITH metrics AS (
   SELECT unnest(sm.metrics) AS m
   FROM (SELECT unnest(rm.scopeMetrics) AS sm
@@ -36,7 +14,6 @@ sums AS (
 SELECT DISTINCT 'temporality', metric_name, temporality
 FROM sums
 WHERE temporality NOT IN ('1', 'AGGREGATION_TEMPORALITY_DELTA')
--- Printed only when this statement ran: the script refuses a run without it.
 UNION ALL SELECT 'checked', 'temporality', NULL;
 
 CREATE TEMP TABLE tok AS
@@ -114,5 +91,4 @@ SELECT * FROM item_rows ORDER BY item_url = '', item_url, ccr_id;
 
 SELECT 'ambiguous', ccr_session_id FROM ccr_map WHERE items > 1 ORDER BY ccr_session_id;
 
--- Printed only when item_rows was built: the script refuses a run without it.
 SELECT 'done', count(*) FROM item_rows;

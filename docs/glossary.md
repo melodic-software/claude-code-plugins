@@ -506,6 +506,58 @@ the decision the trigger guards.
 
 Avoid: revisit trigger, re-derivation trigger
 
+### Transcript ingest
+
+**host**
+
+One machine on the fleet.
+
+**platform**
+
+The operating environment Claude Code runs in on a host: windows, wsl, linux or macos.
+
+**transcript source**
+
+One Claude Code configuration directory on one host and platform, covering CLI, Desktop and Cowork
+sessions; the ingest reads its `projects/`, `history.jsonl` and `paste-cache/`.
+
+**ingest**
+
+The step that reads raw transcripts and turns them into records a skill analyzes.
+
+**sources file**
+
+The per-host JSON file, named by a userConfig option, listing transcript sources.
+
+**via**
+
+The argument list a run is prefixed with to reach a host; absent means local.
+
+**run module**
+
+The lib module that runs each source locally or through via under the limits and writes
+diagnostics.
+
+**source resolver**
+
+The lib module that reads the sources file or falls back to the local configuration directory.
+
+**diagnostics record**
+
+The saved per-run record of timing, volume, memory, versions, limits and retryable gaps.
+
+**history-only prompt**
+
+A typed prompt from `history.jsonl` whose session transcript no longer exists.
+
+**adopting skill**
+
+A skill moved onto the ingest or the source resolver.
+
+**reader**
+
+The process that reads one host's sources.
+
 ## Rejected terms
 
 Names considered for a concept this project already owns, recorded so they are not reintroduced.
