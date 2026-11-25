@@ -11859,6 +11859,110 @@ class BaseTipsRemembered(unittest.TestCase):
         self.assertEqual(self.reads(), 3)
 
 
+class ListedBaseTip(unittest.TestCase):
+    """`base_tip` lists the branch with one unauthenticated `git ls-remote`
+    of github.com first, by pr-require-checks.yml's ls-remote rule (one
+    refs/heads/<base> line of 40 hex, no tag of the same name); anything else
+    reads `git/ref/heads/<base>` over REST as before."""
+
+    OTHER = "b" * 40
+
+    def setUp(self) -> None:
+        self.gh = GhFake().install(self)
+        self.endpoint = f"repos/{REPO}/git/ref/heads/main"
+        self.gh.rest[self.endpoint] = {"object": {"sha": self.OTHER}}
+        self.enterContext(mock.patch.dict(os.environ, {"GH_HOST": "github.com"}))
+        self.runs: list[tuple[list[str], dict[str, Any]]] = []
+        self.answer: Any = subprocess.CompletedProcess([], 0, f"{SHA}\trefs/heads/main\n", "")
+
+    def run_git(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        self.runs.append((argv, kwargs))
+        if isinstance(self.answer, BaseException):
+            raise self.answer
+        return self.answer
+
+    def tip(self, base: str = "main") -> str:
+        with mock.patch.object(policy, "run_command", self.run_git):
+            return policy.base_tip("owner", "repo", base)
+
+    def reads(self) -> int:
+        return self.gh.calls.count(["api", self.endpoint])
+
+    def test_a_listed_tip_answers_with_no_rest_read(self) -> None:
+        self.assertEqual(self.tip(), SHA)
+        self.assertEqual(self.reads(), 0)
+        [(argv, kwargs)] = self.runs
+        self.assertEqual(
+            argv,
+            ["git", "-c", "credential.helper=", "ls-remote", f"https://github.com/{REPO}"]
+            + ["refs/heads/main", "refs/tags/main"],
+        )
+        self.assertEqual(kwargs["allowed_executables"], ("git",))
+        self.assertEqual(kwargs["env_overrides"], {"GIT_TERMINAL_PROMPT": "0"})
+        self.assertFalse(kwargs["check"])
+        self.assertGreater(kwargs["timeout_seconds"], 0)
+
+    def test_a_failed_listing_reads_over_rest(self) -> None:
+        for answer in (
+            subprocess.CompletedProcess([], 128, "", "fatal: could not read Username"),
+            RuntimeError("git ls-remote timed out after 30s"),
+            RuntimeError("git executable not found on PATH"),
+            OSError("exec format error"),
+        ):
+            with self.subTest(answer=answer):
+                self.answer = answer
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.reads(), 4)
+
+    def test_a_listing_with_no_single_hex_head_reads_over_rest(self) -> None:
+        for stdout in (
+            "",
+            f"{SHA}\trefs/heads/main-next\n",
+            f"{SHA}\trefs/heads/x/refs/heads/main\n",
+            f"{SHA}\trefs/heads/main\n{self.OTHER}\trefs/heads/main\n",
+            f"{SHA.upper()}\trefs/heads/main\n",
+            f"{SHA[:39]}\trefs/heads/main\n",
+        ):
+            with self.subTest(stdout=stdout):
+                self.answer = subprocess.CompletedProcess([], 0, stdout, "")
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.reads(), 6)
+
+    def test_a_tag_named_like_the_branch_reads_over_rest(self) -> None:
+        for tag in ("refs/tags/main", "refs/tags/main^{}"):
+            with self.subTest(tag=tag):
+                self.answer = subprocess.CompletedProcess(
+                    [], 0, f"{SHA}\trefs/heads/main\n{self.OTHER}\t{tag}\n", ""
+                )
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.reads(), 2)
+
+    def test_another_gh_host_reads_over_rest_with_no_listing(self) -> None:
+        for host in ("ghe.example.com", "github.test"):
+            with self.subTest(host=host), mock.patch.dict(os.environ, {"GH_HOST": host}):
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.runs, [])
+        self.assertEqual(self.reads(), 2)
+
+    def test_an_unset_gh_host_lists_github_com(self) -> None:
+        del os.environ["GH_HOST"]
+        self.assertEqual(self.tip(), SHA)
+        self.assertEqual(self.reads(), 0)
+
+    def test_a_failed_listing_and_rest_read_fail_closed(self) -> None:
+        self.answer = RuntimeError("git ls-remote timed out after 30s")
+        self.gh.rest[self.endpoint] = 404
+        with self.assertRaises(policy.PolicyReadError):
+            self.tip()
+
+    def test_a_listed_tip_is_remembered(self) -> None:
+        with policy.base_tips_remembered():
+            self.assertEqual(self.tip(), SHA)
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), SHA)
+        self.assertEqual(len(self.runs), 1)
+        self.assertEqual(self.reads(), 0)
+
+
 class PassedMainTip(unittest.TestCase):
     """main's tip the workflow step resolved with git ls-remote (MAIN_TIP_SHA)
     answers `_GreenMain.main_tip` and the approval and decision carries'
