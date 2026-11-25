@@ -3,6 +3,12 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.0] - 2026-11-25
+
+### Added
+
+- In a repository whose `docs/conventions/source-control.yaml` names a `standards_repository`, the git-hook lint entry uses that repository's lint config from a local checkout (`STANDARDS_DIR`, else `<ghq root>/github.com/<owner>/<repo>`): typos and markdownlint-cli2 take it as the base the repository's own config merges over; ShellCheck and actionlint use it when the repository has no config of its own.
+
 ## [3.3.4] - 2026-11-25
 
 ### Changed
