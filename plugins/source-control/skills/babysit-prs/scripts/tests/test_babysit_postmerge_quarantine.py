@@ -1182,8 +1182,6 @@ class SuiteFailures(unittest.TestCase):
         self.assertIsNone(pm.suite_failures(log, "python"))
 
     def test_a_log_with_no_runner_framing_credits_a_forged_suite_nothing(self) -> None:
-        # The unframed leg: the forged summary closes the real suite, and the
-        # forged call line would take its real failure.
         log = "\n".join(
             STAMP + line
             for line in [

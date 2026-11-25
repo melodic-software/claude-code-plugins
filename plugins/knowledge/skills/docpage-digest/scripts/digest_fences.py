@@ -177,7 +177,6 @@ def find_section(text: str, prefix: str) -> Optional[Tuple[str, str, int]]:
 
 
 def _is_fence_opener(line: str) -> Tuple[bool, bool, int]:
-    """Return (is_opener, indented, backtick-run-length)."""
     match = FENCE.match(line)
     if not match:
         return False, False, 0
@@ -235,8 +234,6 @@ def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
             fences = []
         fence = fences[0] if fences else None
         prose = block.split("```", 1)[0] if fences else block
-        # Forbidden carriers are defects even when a later fence is valid —
-        # a leftover blockquote/inline quote is still hook-corruptible.
         has_bq = bool(re.search(r"(?m)^>", prose))
         has_inline = bool(re.search(r"(?<!`)`[^`\n]+`(?!`)", prose))
         claims.append(

@@ -439,8 +439,6 @@ class WhatIsNotARateLimit(GuardCase):
         self.assertEqual(len(self.sent), 2)
 
     def test_a_5xx_keeps_its_bounded_retry(self) -> None:
-        # The verdict listing re-reads after each of LISTING_WAITS on a 5xx;
-        # the guard lets every one of those reads through.
         for _ in range(len(verify_evidence.LISTING_WAITS) + 1):
             # A paginated read runs without -i: gh prints only its message.
             self.answer(1, "", "gh: Server Error (HTTP 502)")

@@ -19,8 +19,6 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# KEEP's trailing space is load-bearing: the hook strips it from a bare code span
-# and a fence must preserve it. Quoted so the file has no trailing whitespace.
 KEEP = "keep me "
 
 

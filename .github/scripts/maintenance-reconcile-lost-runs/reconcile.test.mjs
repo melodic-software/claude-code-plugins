@@ -1,4 +1,5 @@
 // test-scope: .github/workflows/*.yml
+// test-scope: .github/scripts/maintenance-reconcile-lost-runs/fixtures/*
 // Expected values come from the reconciler's spec: a CI run on a PR's current
 // head whose newest attempt ended cancelled, timed_out or startup_failure,
 // with no newer run of that workflow on the head, is re-run once; at most 3
@@ -1074,6 +1075,52 @@ test("a main-run review whose verdict write started in any lane is held with its
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+const withNotes = (run) =>
+  fixture(`jobs-${run}.json`).jobs.map((job) => (job.conclusion === "failure" ? { ...job, notes: fixture(`annotations-${job.id}.json`) } : job));
+const SETUP_FAILED_RUN = withNotes(45535944989);
+const SETUP_FAILED_WRITTEN_RUN = withNotes(45533783420);
+
+test("a main-run review whose only job that ran failed at job setup is re-run once, with no listing failure", async () => {
+  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, SETUP_FAILED_RUN)] });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [301]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-301-2-${MAIN_TIP}`, "", ""]);
+});
+
+test("a main-run review with a job failed at job setup is still held when another lane's verdict write started", async () => {
+  const dir = tempDir("reconcile-summary-");
+  try {
+    const summary = path.join(dir, "summary.md");
+    writeFileSync(summary, "");
+    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, SETUP_FAILED_WRITTEN_RUN)], env: { GITHUB_STEP_SUMMARY: summary } });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    assert.deepEqual(records(outputs), ["", "", ""]);
+    assert.match(readFileSync(summary, "utf8"), /lane run 301 \(\.github\/workflows\/pr-review-main\.yml\) ended failure after its verdict write started/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a main-run review with a failed job cut after its setup step is still not re-run, and the pass fails", async () => {
+  const cut = SETUP_FAILED_RUN.map((job) =>
+    job.conclusion === "failure"
+      ? {
+          ...job,
+          steps: [
+            { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+            { number: 2, name: "Resolve main's tip", status: "completed", conclusion: "failure" },
+          ],
+          notes: [],
+        }
+      : job,
+  );
+  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, cut)] });
+  assert.equal(code, 1);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
 });
 
 const MAIN_HELD_NOTE = /echo "::notice title=pr-review-main::(held: [^"]*)"/
