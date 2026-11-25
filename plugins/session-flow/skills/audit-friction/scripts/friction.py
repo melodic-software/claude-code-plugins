@@ -98,7 +98,6 @@ def emit(schema: str, status: str, summary: str, data: dict, code: int, fmt: str
 
 
 def _cell(value: object) -> str:
-    """A markdown table cell, its pipes escaped."""
     return str(value).replace("|", "\\|")
 
 
@@ -196,7 +195,6 @@ def sibling_patterns() -> tuple[list[str], list[str]]:
 
 
 def sibling_roots(read: list[str]) -> tuple[list[str], list[str]]:
-    """Sibling projects trees not among the roots read, and the stopped distributions not checked."""
     patterns, stopped = sibling_patterns()
     seen = {_root_key(r) for r in read}
     found = []

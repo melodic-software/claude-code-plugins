@@ -37,7 +37,6 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 # The workflow step makes its own mktemp files; keep them inside the trapped root.
 export TMPDIR="$TMP_ROOT"
 
-# step_body <step name> <file>: that step's run: | body, unindented.
 step_body() {
   awk -v name="      - name: $1" '$0 == name { on = 1; print; next }
     on && /^(      - |  [^ ]|[^ ])/ { exit }
@@ -73,8 +72,6 @@ if [[ "$triggers" == *"workflows: [$full_name, $canary_name]"* && "$triggers" ==
 else
   fail "workflow_run does not name both workflows: '$triggers'"
 fi
-# The file-demotion-issue job alone; the report-red-main job after it has its own tests
-# (.github/scripts/post-merge-demotion-alert/workflow.test.mjs).
 alert_job="$(awk '/^  file-demotion-issue:$/ { on = 1 } on && /^  [a-z-]+:$/ && !/^  file-demotion-issue:$/ { exit } on' "$WORKFLOW")"
 if [[ -n "$alert_job" ]] && grep -q '^permissions: {}$' "$WORKFLOW" &&
   [[ "$(grep -oE '^ +[a-z-]+: (read|write)( |$)' <<<"$alert_job" | sed 's/^ *//; s/ *$//' | sort | paste -sd ' ')" == 'actions: write checks: read contents: read issues: write pull-requests: read' ]]; then
@@ -345,21 +342,13 @@ commit() {
     '{sha: $sha, parents: [{sha: $p}], author: {login: $a}, commit: {message: ($s + "\n\nbody")}}'
 }
 
-# green_run <sha> [event] [created_at] -> one successful run on main before the failing one
 green_run() {
   jq -n --arg sha "$1" --arg e "${2:-workflow_dispatch}" --arg t "${3:-2026-10-17T14:00:00Z}" \
     '{id: 4000, run_attempt: 1, event: $e, conclusion: "success", head_branch: "main", head_sha: $sha, created_at: $t,
       actor: {login: "github-actions[bot]"}, triggering_actor: {login: "github-actions[bot]"}}'
 }
 
-# Fixtures a test sets before run_step: JOBS (this attempt), BASE_JOBS (run
-# 4141 attempt 1), RUNS (the baseline listing), ANNOTATIONS_<id>, GREEN (the
-# last green full run listing; default one at OTHER), COMPARE (commits from
-# the green SHA to the failing one; default SHA alone).
-# ISSUE_COMMENTS[<n>]: the comments of issue <n> alone, as JSON.
 declare -A ISSUE_COMMENTS=()
-# lift_tool <work-dir>: a stub babysit_lift.py in main's checkout that logs its
-# arguments to stub/lift and prints LIFT_OUT, exiting LIFT_RC (default 0).
 lift_tool() {
   local tool="$1/.base/plugins/source-control/skills/babysit-prs/scripts/babysit_lift.py"
   mkdir -p "${tool%/*}"
@@ -371,7 +360,6 @@ if ${LIFT_RC:-0} == 0:
 sys.exit(${LIFT_RC:-0})
 PY
 }
-# run_step <workflow> <event> <conclusion> <branch> <head-repo> <sha> <issues-json> [comments-json]
 run_step() {
   rm -rf "$TMP_ROOT/stub" "$TMP_ROOT/work"
   mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work/.base/.github/scripts"
@@ -379,7 +367,6 @@ run_step() {
   ln -s "$ROOT/.github/scripts/post-merge-demotion-alert" "$TMP_ROOT/work/.base/.github/scripts/post-merge-demotion-alert"
   # The dispatched-run wait reads red-main.confirm-wait-minutes from main's config.
   ln -s "$ROOT/docs" "$TMP_ROOT/work/.base/docs"
-  # BASE_GIT: main's history in the checkout, a copy of that repository.
   if [[ -n "${BASE_GIT:-}" ]]; then
     cp -R "$BASE_GIT/.git" "$TMP_ROOT/work/.base/.git"
   fi
@@ -440,7 +427,6 @@ PY
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
     RUN_COMMIT_MESSAGE="${COMMIT_MESSAGE:-fix: a change (#1234)}" \
     bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "${STEP_BODY:-.base/$FILE_SCRIPT}" 2>&1)" && RC=0 || RC=$?
-  # The file-revert job, when the step handed it a record (ALERT_ONLY skips it).
   FILER_OUT='' FILER_RC=''
   if [[ -z "${STEP_BODY:-}${ALERT_ONLY:-}" && -n "$(out_value revert-title)" ]]; then
     run_filer "$6" "$(out_value revert-title)" "$(out_value revert-body)" "$(out_value revert-commits)" "$(out_value revert-filer)"
@@ -457,8 +443,6 @@ out_value() {
     index($0, n "<<") == 1 { d = substr($0, length(n) + 3); next }
     index($0, n "=") == 1 { print substr($0, length(n) + 2); exit }' "$TMP_ROOT/stub/output"
 }
-# run_filer <sha> <title> <body> <commits> <filer>: the file-revert step against
-# the stub as it stands; FILER_FAIL_READ fails its record reads.
 run_filer() {
   FILER_OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FILER_FAIL_READ:-}" \
     STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" GH_TOKEN=x GITHUB_REPOSITORY=o/r \
@@ -466,8 +450,6 @@ run_filer() {
     bash -e "$TMP_ROOT/filer.sh" 2>&1)" && FILER_RC=0 || FILER_RC=$?
 }
 
-# Fix work (a fix issue filed, a recurrence comment on one, an intake
-# dispatch) is counted apart, so posts() counts the record's own writes.
 fix_lines() {
   local n line
   grep -n '^POST ' <<<"$LOG" | while IFS=: read -r n line; do
@@ -477,11 +459,8 @@ fix_lines() {
     fi
   done
 }
-# field_posts: the Work status writes (issue-field-values), apart from posts().
 field_posts() { grep -c '^POST repos/o/r/issues/[0-9]*/issue-field-values$' <<<"$LOG"; }
 posts() { echo $(($(grep -c '^POST ' <<<"$LOG") - $(fix_lines | grep -c .) - $(field_posts))); }
-# held_needs_human: the record (the first POST, record 900 + its log line) got
-# Work status needs-human.
 held_needs_human() {
   local first n
   first="$(grep -n '^POST ' <<<"$LOG" | head -1 | cut -d: -f1)"
@@ -489,16 +468,13 @@ held_needs_human() {
   [[ -n "$n" ]] && grep -qxF 'input={"issue_field_values":[{"field_id":48484079,"value":"needs-human"},{"field_id":49622037,"value":"critical"}]}' "$TMP_ROOT/stub/post.$n"
 }
 post_fields() { cat "$TMP_ROOT/stub/post.$(grep -n '^POST ' <<<"$LOG" | head -1 | cut -d: -f1)"; }
-# field_input <issue>: the JSON of the first field write on that issue.
 field_input() {
   local n
   n="$(grep -nx "POST repos/o/r/issues/$1/issue-field-values" <<<"$LOG" | head -1 | cut -d: -f1)"
   [[ -n "$n" ]] && sed -n 's/^input=//p' "$TMP_ROOT/stub/post.$n"
 }
-# fixes: the fix issues filed; dispatches: the intake dispatches sent.
 fixes() { grep -c '^POST repos/o/r/issues$' <<<"$LOG" | awk '{ print $1 - 1 < 0 ? 0 : $1 - 1 }'; }
 dispatches() { grep -c '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG"; }
-# marked <issue> <issue=N|check=name>: this run posted that hand-off marker on <issue>.
 marked() {
   local n
   while read -r n; do
@@ -508,10 +484,8 @@ marked() {
   done < <(grep -nx "POST repos/o/r/issues/$1/comments" <<<"$LOG" | cut -d: -f1)
   return 1
 }
-# fix_post <k>: the fields of the k-th fix issue filed.
 fix_post() { cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | sed -n "$(($1 + 1))p" | cut -d: -f1)"; }
 
-# files <label> <signal> <workflow> <event> <issues-json>
 files() {
   local label="$1" signal="$2" fields body
   run_step "$3" "$4" "${CONCLUSION:-failure}" main o/r "$SHA" "$5"
@@ -552,7 +526,6 @@ files() {
   fi
 }
 
-# quiet <label> <workflow> <event> <conclusion> <branch> <head-repo>
 quiet() {
   ATTEMPT="${ATTEMPT:-1}" run_step "$2" "$3" "$4" "$5" "$6" "$SHA" '[]'
   if [[ "$RC" -ne 0 ]]; then
@@ -846,7 +819,6 @@ else
   fail "human-only range: rc=$RC log='$LOG' fields='$fields'"
 fi
 
-# demotes <label>: the run filed today's demotion record.
 demotes() {
   local fields
   fields="$(post_fields 2>/dev/null)"
@@ -998,9 +970,6 @@ PUSH_REPO="$TMP_ROOT/push-repo"
 push_commit() {
   git -C "$PUSH_REPO" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q --allow-empty -m "$1"
 }
-# push_repo <message>...: main's history: lane merge #1234 (REVERTED), a
-# direct push (DIRECT), the previous canary push run's head (PREV), then one
-# commit per message, @REVERTED@ and @DIRECT@ replaced; HEAD_SHA is the last.
 push_repo() {
   local m
   rm -rf "$PUSH_REPO"
@@ -1017,13 +986,10 @@ push_repo() {
   done
   HEAD_SHA="$(git -C "$PUSH_REPO" rev-parse HEAD)"
 }
-# run_push [issues-json]: the canary push run at HEAD_SHA passed on attempt 1.
 run_push() {
   BASE_GIT="$PUSH_REPO" RUNS="${RUNS-$(baseline_run 4100 success "$PREV")}" PIPELINE="$PIPE" ATTEMPT=1 \
     run_step "$CANARY" push success main o/r "$HEAD_SHA" "${1:-[]}"
 }
-# reverts <label> [revert commit] [n]: the run filed one revert demotion
-# record naming #<n> and the commit that reverts it.
 reverts() {
   local label="$1" commit="${2:-$HEAD_SHA}" n="${3:-1234}" fields body
   fields="$(post_fields 2>/dev/null)"
@@ -1046,7 +1012,6 @@ reverts() {
     fail "$label: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
   fi
 }
-# no_revert <label>: the run filed, commented and reopened nothing.
 no_revert() {
   if [[ "$RC" -eq 0 ]] && ! grep -qE '^(POST|PATCH|PUT) ' <<<"$LOG"; then
     ok "$1"
@@ -1070,9 +1035,6 @@ if ! grep -qx 'GET graphql' <<<"$LOG" || [[ "$OUT" != *"was put in the merge que
   fail "the person-merged revert was not looked up for #1234 and judged: log='$LOG' out='$OUT'"
 fi
 
-# The push's merges and the pull requests it reverts go to the label-paths
-# job (merge-path.mjs, tested in its own suite): a revert of a pull
-# request the owner login enqueued files nothing and writes nothing here.
 if [[ "$RC" -eq 0 && "$(out_value merged-prs)" == 1300 && "$(out_value reverted-prs)" == 1234 &&
   -z "$(out_value revert-title)" ]] && ! grep -qE '^(POST|PATCH|PUT) ' <<<"$LOG"; then
   ok "a revert of an owner-login merge hands its numbers to the merge-path labels and files no record"
@@ -1099,7 +1061,6 @@ else
   fail "lane revert record changed: rc=$RC output='$(cat "$TMP_ROOT/stub/output")'"
 fi
 
-# The file-demotion-issue job files no revert record itself: it hands it over.
 ALERT_ONLY=1 GRAPHQL="$LANE" run_push
 if [[ "$RC" -eq 0 ]] && ! grep -qE '^(POST|PATCH|PUT) ' <<<"$LOG" &&
   [[ "$(out_value revert-commits)" == "$HEAD_SHA" && "$(out_value revert-filer)" == 'melodic-automation-lanes[bot]' &&
@@ -1110,8 +1071,6 @@ else
   fail "alert-only revert: rc=$RC log='$LOG' out='$OUT' output='$(cat "$TMP_ROOT/stub/output")'"
 fi
 
-# The filer re-reads the records: a revert record filed since the alert read
-# them, by either filer, keeps it from filing a second one.
 title="$(out_value revert-title)" rbody="$(out_value revert-body)"
 printf '[%s]\n' "$(issue 41 "$rbody")" >"$TMP_ROOT/stub/issues.json"
 : >"$TMP_ROOT/stub/log"
@@ -1124,7 +1083,6 @@ if [[ "$FILER_RC" -eq 0 && "$FILER_OUT" == *"already listed on a revert record: 
 else
   fail "filer re-read: rc=$FILER_RC log='$LOG' out='$FILER_OUT'"
 fi
-# A failed re-read still files: a duplicate beats a missed demotion.
 : >"$TMP_ROOT/stub/log"
 FILER_FAIL_READ=1 run_filer "$HEAD_SHA" "$title" "$rbody" "$HEAD_SHA" ''
 LOG="$(cat "$TMP_ROOT/stub/log")"
@@ -1134,7 +1092,6 @@ if [[ "$FILER_RC" -eq 0 && "$FILER_OUT" == *"could not read"* && "$FILER_OUT" ==
 else
   fail "filer failed re-read: rc=$FILER_RC log='$LOG' out='$FILER_OUT'"
 fi
-# A malformed hand-off files nothing and fails the job.
 for bad in "title:Post-merge revert of #1234 at ${HEAD_SHA:0:12}: anything" "commits:${HEAD_SHA:0:12}" \
   "body:<!-- babysit-merge-demotion sha=$OTHER signal=revert -->" "sha:${HEAD_SHA:0:12}"; do
   t="$title" b="$rbody" c="$HEAD_SHA" s="$HEAD_SHA"
@@ -1217,8 +1174,6 @@ if [[ "$OUT" != *"more than 20 commits since the previous canary push run"* ]]; 
   fail "the cap was not logged: out='$OUT'"
 fi
 
-# One revert commit, one record: a record of either filer that lists it, in
-# any state, keeps a later run from filing it again.
 push_repo "$REVERTS"
 FIRST="$HEAD_SHA"
 GRAPHQL="$LANE" run_push
@@ -1230,7 +1185,6 @@ if [[ "$(grep -c 'event=push&branch=main&created=' <<<"$LOG")" -ne 1 || "$LOG" =
 fi
 push_commit 'fix: a later change (#1310)'
 HEAD_SHA="$(git -C "$PUSH_REPO" rev-parse HEAD)"
-# The overlapping run: its previous run is still the one before the revert.
 GRAPHQL="$LANE" run_push "[$(issue 41 "$filed_body")]"
 no_revert "an overlapping run over the same revert files no second record"
 if [[ "$OUT" != *"${FIRST:0:12} is already listed on a revert record"* ]]; then
@@ -1266,7 +1220,6 @@ push_repo $'revert: feat(planning): a join prompt\n\n<!-- red-main-revert culpri
 GRAPHQL="$LANE" run_push
 reverts "the red-main bot's culprit marker files through the culprit's subject"
 
-# A reverted commit outside the checkout's history is read through the API.
 OUTSIDE=1111111111111111111111111111111111111111
 push_repo $'fix: back out an old change (#1300)\n\nThis reverts commit '"$OUTSIDE"$'.\n'
 COMMIT_API='{"commit": {"message": "feat(planning): a join prompt (#1234)\n\nbody"}}' GRAPHQL="$LANE" run_push
@@ -1274,7 +1227,6 @@ reverts "a reverted commit outside the checkout is read through the API"
 if ! grep -qx "GET repos/o/r/commits/$OUTSIDE" <<<"$LOG"; then
   fail "the reverted commit was not read through the API: log='$LOG'"
 fi
-# Neither read answers: an unproven revert, which demotes.
 FAIL_COMMIT_READ=1 GRAPHQL="$LANE" run_push
 fields="$(post_fields 2>/dev/null)"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$fields" == *"<!-- babysit-merge-demotion sha=$HEAD_SHA signal=revert -->"* &&
@@ -1286,12 +1238,10 @@ else
   fail "unreadable reverted commit: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
 fi
 
-# Only a revert record's list counts: another record quoting the commit does not.
 push_repo "$REVERTS"
 GRAPHQL="$LANE" run_push "[$(issue 41 "<!-- babysit-merge-demotion sha=$HEAD_SHA signal=canary -->"$'\n'"- Revert commit: \`$HEAD_SHA\`"), $(issue 42 "<!-- post-merge-fix check=lint -->"$'\n'"- Revert commit: \`$HEAD_SHA\`")]"
 reverts "a revert commit quoted only on another kind of record still files"
 
-# A revert record that cannot be written still lets the canary record file.
 BASE_GIT="$PUSH_REPO" RUNS="$(baseline_run 4100 success "$PREV")" PIPELINE="$PIPE" GRAPHQL="$LANE" ATTEMPT=1 REVERT_POST_FAIL=1 \
   run_step "$CANARY" push failure main o/r "$HEAD_SHA" '[]'
 issues_posted="$(grep -nx 'POST repos/o/r/issues' <<<"$LOG" | cut -d: -f1)"
@@ -1302,7 +1252,6 @@ else
   fail "failed revert write: rc=$RC log='$LOG' out='$OUT'"
 fi
 
-# A failed canary on a revert push files its canary record and the revert's.
 push_repo "$REVERTS"
 BASE_GIT="$PUSH_REPO" RUNS="$(baseline_run 4100 success "$PREV")" PIPELINE="$PIPE" GRAPHQL="$LANE" ATTEMPT=1 \
   run_step "$CANARY" push failure main o/r "$HEAD_SHA" '[]'
@@ -1546,9 +1495,6 @@ else
   fail "bad attempt: rc=$RC log='$LOG'"
 fi
 
-# The lanes App files the same record from pr-merge.yml, keyed on the merge
-# commit rather than the run's head, so a record of either filer that names
-# this run is this run's record.
 LANE_RECORD="<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"$'\n\n'"- Failing run: $RUN_URL/attempts/1"$'\n'
 PIPELINE="$PIPE" run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 52 "$LANE_RECORD")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/52/comments' <<<"$LOG" &&
@@ -1560,11 +1506,8 @@ fi
 PIPELINE="$PIPE" files "a lane record of another run is not this run's record" schedule "$FULL" schedule \
   "[$(issue 52 "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"$'\n\n'"- Failing run: ${RUN_URL}0/attempts/1")]"
 
-# Only a demotion record stands in by its failing run: any other issue a
-# filer opened that names the run holds nothing.
 PIPELINE="$PIPE" files "a non-demotion issue naming this run is not its record" schedule "$FULL" schedule \
   "[$(issue 53 "triage note"$'\n\n'"- Failing run: $RUN_URL/attempts/1")]"
-# A failed read of the identity's records still files this workflow's own.
 FAIL_LANE_READ=1 PIPELINE="$PIPE" files "an unreadable lane record list still files" schedule "$FULL" schedule '[]'
 if [[ "$OUT" != *"could not read melodic-automation-lanes[bot]'s records"* ]]; then
   fail "an unreadable lane record list did not warn: out='$OUT'"
@@ -1655,7 +1598,6 @@ else
   fail "canary judged: rc=$RC log='$LOG'"
 fi
 
-# A check red on the baseline too is still judged for an expired quarantine.
 JUDGE=1 JUDGE_DEMOTING='["Test Bash"]' RUNS="$(baseline_run 4141 failure)" \
   BASE_JOBS="$(job 2 'Test Bash' 'Run the bash tests')" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)"$'\n' == *"- Newly failing: Test Bash"* &&
@@ -1675,8 +1617,6 @@ else
   fail "baseline-red, judge 0: rc=$RC log='$LOG' out='$OUT'"
 fi
 
-# A mixed run: the newly red check is excused, a baseline-red one demotes on
-# an expired quarantine; the record and its fix issue name the one that demoted.
 JUDGE=1 JUDGE_DEMOTING='["Lint Shell"]' RUNS="$(baseline_run 4141 failure)" \
   JOBS="$(job 1 'Test Bash' 'Run the bash tests'),$(job 3 'Lint Shell' ShellCheck)" \
   BASE_JOBS="$(job 2 'Lint Shell' ShellCheck)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
@@ -1694,9 +1634,7 @@ fi
 # checked charset), hex SHAs, the run link and the record's number.
 # record_number: the number the stub gave the record POST (900 + its log line).
 record_number() { echo $((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1))); }
-# fix_number <k>: the number the stub gave the k-th fix issue.
 fix_number() { echo $((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | sed -n "$(($1 + 1))p" | cut -d: -f1))); }
-# dispatch_post <k>: the fields of the k-th intake dispatch.
 dispatch_post() {
   cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG" | sed -n "${1}p" | cut -d: -f1)"
 }
@@ -1784,8 +1722,6 @@ else
   fail "open fix issue: rc=$RC log='$LOG' out='$OUT'"
 fi
 
-# A repeat goes straight back to agents: the reopened issue keeps
-# agent-ready and is not sent to intake triage again.
 run_step "$FULL" schedule failure main o/r "$SHA" \
   "[$(issue 60 "<!-- post-merge-fix check=Test Bash -->" '' closed completed)]"
 r="$(record_number)"
@@ -1829,7 +1765,6 @@ else
   fail "open beside closed: rc=$RC log='$LOG'"
 fi
 
-# A fix issue filed before the job rename names the check by its job id.
 JOBS="$(job 1 'Test Bash (3)' 'Run the bash tests')" run_step "$FULL" schedule failure main o/r "$SHA" \
   "[$(issue 62 "<!-- post-merge-fix check=test-bash (3) -->"$'\n\nfiled earlier')]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -q 'issues/62' <<<"$LOG"; then
@@ -1960,9 +1895,7 @@ QUARANTINE_BODY="<!-- post-merge-quarantine suite=test-bash -->"$'\n\nbody'
 # from <login> <id> <body> -> one comment of the REST API
 from() { jq -n --arg login "$1" --argjson id "$2" --arg body "$3" '{id: $id, user: {login: $login}, body: $body}'; }
 BOT='github-actions[bot]'
-# open_with_comments <issue-json>: the issue as the list shows one with comments.
 open_with_comments() { jq -c '. + {comments: 1}' <<<"$1"; }
-# posted_mark <issue>: the marker comment this run posted on <issue>.
 posted_mark() {
   local n
   while read -r n; do
@@ -1972,14 +1905,12 @@ posted_mark() {
     fi
   done < <(grep -nx "POST repos/o/r/issues/$1/comments" <<<"$LOG" | cut -d: -f1)
 }
-# next_run <issues-json>: the retry step of a later run over those issues.
 next_run() { STEP_BODY="$TMP_ROOT/retry.sh" run_step "$CANARY" push success main o/r "$SHA" "$1"; }
 sent_numbers() {
   grep -n '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG" | cut -d: -f1 |
     while read -r n; do sed -n 's/^inputs\[issue-number\]=//p' "$TMP_ROOT/stub/post.$n"; done | paste -sd ' '
 }
 line_of() { grep -nx "$1" <<<"$LOG" | head -1 | cut -d: -f1; }
-# untouched <label>: the run sent nothing, cleared nothing and filed nothing.
 untouched() {
   if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -qE '/lock$|^DELETE |^POST repos/o/r/issues$' <<<"$LOG"; then
     ok "$1"
@@ -1988,7 +1919,6 @@ untouched() {
   fi
 }
 
-# A quarantine issue's marker, end to end.
 JUDGE=0 JUDGE_QUARANTINE='[77]' DISPATCH_FAIL=1 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 quarantine_mark="$(posted_mark 77)"
 QUARANTINE_ISSUE="$(open_with_comments "$(issue 77 "$QUARANTINE_BODY")")"
@@ -2069,7 +1999,6 @@ untouched "a bot issue of no alert kind is not read"
 next_run "[$(jq -c '.state = "closed"' <<<"$QUARANTINE_ISSUE")]"
 untouched "a closed issue is not re-sent"
 
-# A fix issue's marker, end to end: on it and on its record, one send, both cleared.
 JOBS="$(job 1 'Test Bash' 'Run the bash tests')" DISPATCH_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 record_n="$(record_number)"
 fix_n="$(fix_number 1)"
@@ -2085,7 +2014,6 @@ if [[ "$RC" -eq 0 && "$(sent_numbers)" == "$fix_n" ]] && grep -qx 'DELETE repos/
 else
   fail "fix retry: rc=$RC log='$LOG' out='$OUT'"
 fi
-# The record's marker holds when the issue's own could not be written.
 ISSUE_COMMENTS=([$record_n]="[$(from "$BOT" 5002 "<!-- post-merge-undelivered issue=$fix_n -->")]")
 next_run "[$RECORD_ISSUE, $(issue "$fix_n" "<!-- post-merge-fix check=Test Bash -->")]"
 if [[ "$RC" -eq 0 && "$(sent_numbers)" == "$fix_n" ]] && grep -qx 'DELETE repos/o/r/issues/comments/5002' <<<"$LOG"; then
@@ -2093,8 +2021,6 @@ if [[ "$RC" -eq 0 && "$(sent_numbers)" == "$fix_n" ]] && grep -qx 'DELETE repos/
 else
   fail "record marker alone: rc=$RC log='$LOG' out='$OUT'"
 fi
-# A record's marker sends only an open alert fix or quarantine issue, and stays
-# until the listing shows one.
 next_run "[$RECORD_ISSUE]"
 if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 && "$OUT" == *"#$fix_n is not listed as an open fix or quarantine issue: left its marker"* ]] &&
   ! grep -q '/lock$\|^DELETE ' <<<"$LOG"; then
@@ -2121,7 +2047,6 @@ else
   fail "issue back open: rc=$RC log='$LOG' out='$OUT'"
 fi
 
-# A fix issue that could not be filed: the retry files it, unless one exists.
 JOBS="$(job 1 'Test Bash' 'Run the bash tests')" FIX_POST_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 record_n="$(record_number)"
 check_mark="$(posted_mark "$record_n")"
@@ -2173,7 +2098,6 @@ else
 fi
 unset 'ISSUE_COMMENTS[70]'
 
-# An issue its own marker re-sent is not sent again for a check marker naming it.
 ISSUE_COMMENTS+=([60]="[$(from "$BOT" 5006 '<!-- post-merge-undelivered issue=60 -->')]")
 next_run "[$RECORD_ISSUE, $(open_with_comments "$FIX_OPEN")]"
 if [[ "$RC" -eq 0 && "$(sent_numbers)" == 60 ]] && grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG" &&
@@ -2184,8 +2108,6 @@ else
 fi
 unset 'ISSUE_COMMENTS[60]'
 
-# A retry that files an issue it can neither send nor mark loses nothing: the
-# check marker stays, and the next run finds the issue open and delivers it.
 LOCK_FAIL=1 MARK_FAIL='*' next_run "[$RECORD_ISSUE]"
 filed_n=$((900 + $(line_of 'POST repos/o/r/issues')))
 if [[ "$RC" -eq 1 && "$(dispatches)" -eq 0 ]] && ! grep -q '^DELETE \|/labels$' <<<"$LOG"; then
@@ -2202,7 +2124,6 @@ if [[ "$RC" -eq 0 && "$(sent_numbers)" == "$filed_n" && -n "$lock_at" && "$lock_
 else
   fail "next run after no send, no mark: rc=$RC log='$LOG' out='$OUT'"
 fi
-# One replacement marker written is enough to clear the check marker.
 LOCK_FAIL=1 MARK_FAIL="repos/o/r/issues/$record_n/comments" next_run "[$RECORD_ISSUE]"
 filed_n=$((900 + $(line_of 'POST repos/o/r/issues')))
 if [[ "$RC" -eq 1 ]] && marked "$filed_n" "issue=$filed_n" && grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG"; then
@@ -2210,7 +2131,6 @@ if [[ "$RC" -eq 1 ]] && marked "$filed_n" "issue=$filed_n" && grep -qx 'DELETE r
 else
   fail "one marker written: rc=$RC log='$LOG' out='$OUT'"
 fi
-# In the filing step a marker that fails ends nothing early.
 JOBS="$(job 1 'Test Bash' 'Run the bash tests'), $(job 2 'Lint Shell' ShellCheck)" LOCK_FAIL=1 MARK_FAIL='*' \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 note_line="$(grep -n "^POST repos/o/r/issues/$(record_number)/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
@@ -2229,7 +2149,6 @@ if [[ "$RC" -eq 1 && -n "$note_line" ]] &&
 else
   fail "filing with a failed check marker: rc=$RC log='$LOG' out='$OUT'"
 fi
-# One marker written leaves the work retried, and the note keeps saying so.
 JOBS="$(job 1 'Test Bash' 'Run the bash tests')" LOCK_FAIL=1 MARK_FAIL="repos/o/r/issues/$(record_number)/comments" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 note_line="$(grep -n "^POST repos/o/r/issues/$(record_number)/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
 if [[ "$RC" -eq 1 && -n "$note_line" ]] && marked "$(fix_number 1)" "issue=$(fix_number 1)" && ! marked "$(record_number)" "issue=$(fix_number 1)" &&
@@ -2260,7 +2179,6 @@ else
   fail "file then failed send: rc=$RC log='$LOG' out='$OUT'"
 fi
 
-# A fix issue that could not be reopened: the retry reopens it, sending nothing.
 next_run "[$RECORD_ISSUE, $(issue 60 "<!-- post-merge-fix check=Test Bash -->" '' closed completed)]"
 note_at="$(line_of 'POST repos/o/r/issues/60/comments')"
 if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 && -n "$note_at" &&
@@ -2347,9 +2265,6 @@ if [[ "$RC" -eq 0 && "$confirm_wait" =~ ^[0-9]+$ &&
 else
   fail "dispatched run wait: confirm-wait=$confirm_wait rc=$RC polls=$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG") out='$OUT'"
 fi
-# While the re-run is pending, a newer full run on main that passed means
-# main already recovered: the wait ends early and nothing is filed or reported.
-# newer_run <id> <created_at> [branch] [head-repo] [event] -> one successful run
 newer_run() {
   jq -n --argjson id "$1" --arg t "$2" --arg b "${3:-main}" --arg r "${4:-o/r}" --arg e "${5:-workflow_dispatch}" \
     '{id: $id, run_attempt: 1, event: $e, conclusion: "success", head_branch: $b,
@@ -2556,7 +2471,6 @@ exit 1
 EOF
 chmod +x "$TMP_ROOT/bin-read/gh"
 
-# attempt_run [jq-update] -> attempt 1 of run 4242, a failed per-merge full run
 attempt_run() {
   jq -n --arg sha "$SHA" --arg url "$RUN_URL" '{id: 4242, run_attempt: 1, name: "PR Require Checks",
     path: ".github/workflows/pr-require-checks.yml", event: "workflow_dispatch",
@@ -2567,8 +2481,6 @@ attempt_run() {
     jq "${1:-.}"
 }
 
-# run_read <event> <run-id> <actor-id> <triggering-actor> [attempt-json]
-# READ_HEAD_SHA: the head-sha input, $SHA when unset.
 run_read() {
   rm -rf "$TMP_ROOT/read"
   mkdir -p "$TMP_ROOT/read"
@@ -2587,7 +2499,6 @@ run_read() {
   LOG="$(cat "$TMP_ROOT/read/log")"
   OUTPUT="$(cat "$TMP_ROOT/read/output")"
 }
-# output <key>: one single-line output the step wrote.
 output() { sed -n "s/^$1=//p" <<<"$OUTPUT"; }
 
 WR_NAME="$FULL" WR_EVENT=schedule WR_CONCLUSION=failure WR_BRANCH=main WR_REPO=o/r WR_SHA="$SHA" WR_URL="$RUN_URL" \
@@ -2618,7 +2529,6 @@ else
   fail "listed human refused: rc=$RC out='$OUT'"
 fi
 
-# refused <label> <run_read args...>: fails, writes no output.
 refused() {
   local label="$1"
   shift
@@ -2718,10 +2628,6 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" != *"lift-content"* &&
 else
   fail "canary without block: rc=$RC body='$body' out='$OUT'"
 fi
-# A push range cut to the newest 20 commits, or guessed because the previous
-# canary push run's head did not read, may leave out the deleting commit: no
-# block, so the record stays human-close rather than lifting on a block that
-# understates the deletion.
 mapfile -t many < <(for i in $(seq 21); do echo "feat: change $i (#$((1300 + i)))"; done)
 push_repo "${many[@]}"
 LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail
@@ -2741,8 +2647,6 @@ else
   fail "canary guessed range: rc=$RC lift='$(cat "$TMP_ROOT/stub/lift" 2>/dev/null)' body='$body' out='$OUT'"
 fi
 
-# A canary record babysit_postmerge.py filed first gets the block as a
-# comment, once.
 CANARY_MARKER="<!-- babysit-merge-demotion sha=$HEAD_SHA signal=canary -->"
 LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail "[$(issue 41 "$CANARY_MARKER"$'\n\nbody')]"
 first="$(grep -n '^POST repos/o/r/issues/41/comments$' <<<"$LOG" | head -1 | cut -d: -f1)"
@@ -2777,12 +2681,10 @@ awk -v name="      - name: $CLOSE_NAME" '$0 == name { on = 1; next }
   body && /^          / { print substr($0, 11); next }
   body && /^[[:blank:]]*$/ { print ""; next }
   body { exit }' "$WORKFLOW" >"$TMP_ROOT/close.sh"
-# rec <n> <created_at> <first line>
 rec() {
   jq -n --argjson n "$1" --arg t "$2" --arg body "$3" \
     '{number: $n, state: "open", created_at: $t, body: $body, user: {login: "github-actions[bot]", type: "Bot"}}'
 }
-# clear_run <created_at> [event] [jq edit]: a green full run on main at SHA.
 clear_run() {
   jq -n --arg t "$1" --arg e "${2:-workflow_dispatch}" \
     '{id: 4500, run_attempt: 1, event: $e, conclusion: "success", head_branch: "main",
@@ -2792,16 +2694,11 @@ clear_run() {
     jq -c "${3:-.}"
 }
 CLEAR_AT=2026-10-17T16:26:00Z
-# The step reads now from date: pin it, so the windows it walks stay the same.
 mkdir -p "$TMP_ROOT/closebin"
 clock_stub="$TMP_ROOT/closebin/$(basename "$(command -v date)")"
 printf '#!/usr/bin/env bash\nif [[ "$*" == "-u +%%s" ]]; then echo 1793577600; else exec %q "$@"; fi\n' \
   "$(command -v date)" >"$clock_stub"
 chmod +x "$clock_stub"
-# run_close <issues-json> [lastEditedAt]; GREEN is the green-run listing
-# (default one dispatch at CLEAR_AT), ANCESTRY the record SHA's compare status,
-# ON_MAIN the run head's compare against main's tip, POLICY_FILE the
-# babysit_merge_policy.py main serves (default this checkout's).
 POLICY_PY="$ROOT/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py"
 run_close() {
   rm -rf "$TMP_ROOT/stub"
@@ -2839,7 +2736,6 @@ if [[ "$RC" -eq 0 && "$(closed)" == "7 8 11" ]] &&
 else
   fail "close cleared: rc=$RC closed='$(closed)' log='$LOG' out='$OUT'"
 fi
-# The close comment names the green run that contradicted the record.
 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
 comment_line="$(grep -nx 'POST repos/o/r/issues/7/comments' <<<"$LOG" | cut -d: -f1)"
 if [[ "$RC" -eq 0 && "$(closed)" == 7 && -n "$comment_line" ]] &&
@@ -2855,7 +2751,6 @@ if [[ "$RC" -eq 0 && "$(closed)" == 7 ]]; then
 else
   fail "schedule clear: rc=$RC log='$LOG' out='$OUT'"
 fi
-# A run the merge gate would not count clears nothing.
 for case in 'no green run|' \
   'a person dispatched it|.actor.login = "octocat"' \
   'a person re-triggered it|.triggering_actor.login = "octocat"' \
@@ -2896,7 +2791,6 @@ if [[ "$RC" -eq 0 && "$(closed)" == 7 ]]; then
 else
   fail "close at tip: rc=$RC log='$LOG'"
 fi
-# The oldest run that clears the record is the one named; a later one is never compared.
 GREEN="$(clear_run 2026-10-17T15:00:00Z workflow_dispatch '.id = 4499 | .html_url = "https://github.com/o/r/actions/runs/4499"'), $(clear_run "$CLEAR_AT")" PIPELINE="$PIPE" \
   run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
 comment_line="$(grep -nx 'POST repos/o/r/issues/7/comments' <<<"$LOG" | cut -d: -f1)"
@@ -2918,7 +2812,6 @@ if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be
 else
   fail "close edited: rc=$RC log='$LOG' out='$OUT'"
 fi
-# A failed or incomplete read closes nothing, for each kind of record the job closes.
 for kind in post-merge-failure babysit-merge-demotion; do
   FAIL_READ=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
   if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"main's tip could not be read: no record closed"* ]]; then
@@ -2973,9 +2866,6 @@ if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"more than 5 pages of green"* 
 else
   fail "page bound: rc=$RC out='${OUT:0:400}'"
 fi
-# The listing walks seven-day windows oldest first (GREEN_SPAN, as
-# `_GreenMain.listed` does) and stops at the first that clears the record, so
-# a full page of later green runs never hides an earlier clearing one.
 later="$(for i in $(seq 99); do clear_run 2026-10-25T12:00:00Z workflow_dispatch ".id = $((5000 + i))"; done | paste -sd,)"
 WINDOW1="created=$BEFORE..2026-10-24T10:00:00Z&"
 WINDOW2="created=2026-10-24T10:00:00Z..2026-10-31T10:00:00Z&"
@@ -3004,8 +2894,6 @@ if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7: no green full run on main
 else
   fail "windows up to now: rc=$RC log='$LOG' out='${OUT:0:400}'"
 fi
-# The window size and count come from babysit_merge_policy.py on main; when
-# they do not read, nothing is listed or closed.
 for policy in '' 'GREEN_SPAN = timedelta(hours=7)'; do
   printf '%s\n' "$policy" >"$TMP_ROOT/policy.py"
   POLICY_FILE="$TMP_ROOT/policy.py" PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
@@ -3016,7 +2904,6 @@ for policy in '' 'GREEN_SPAN = timedelta(hours=7)'; do
     fail "policy '$policy': rc=$RC log='$LOG' out='${OUT:0:400}'"
   fi
 done
-# More windows than GREEN_SPANS before now leave the record open, as `listed` raises.
 sed 's/^GREEN_SPANS = .*/GREEN_SPANS = 2/' "$POLICY_PY" >"$TMP_ROOT/policy.py"
 POLICY_FILE="$TMP_ROOT/policy.py" GREEN='' PIPELINE="$PIPE" \
   run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
@@ -3035,10 +2922,6 @@ for marker in "<!-- post-merge-failure sha=$OTHER signal=canary -->" "<!-- babys
     fail "close on '$marker': rc=$RC log='$LOG'"
   fi
 done
-# With main's babysit_lift.py checked out, the step first runs its close of
-# the lifted canary, revert and read-back records, with the identity it read;
-# an unreadable identity is passed empty, and a failing close still lets the
-# red-main records close.
 lift_tool "$TMP_ROOT/work"
 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
 if [[ "$RC" -eq 0 && "$(closed)" == 7 ]] &&

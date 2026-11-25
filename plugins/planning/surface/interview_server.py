@@ -108,8 +108,6 @@ HOME_SCRIPT = HERE.parent / "lib" / "resolve-convention-home.sh"
 RETIRED_FILE = Path(".claude") / "interview-surface.json"
 RETIRED_SEEN = ".retired-notices.json"
 
-# Settings, lowest layer first: plugin default, team file, personal file, user file, the data
-# dir's settings.json. No userConfig option carries these keys, so that layer is empty.
 DEFAULT_SETTINGS = {
     "port": 0,
     "openBrowser": True,

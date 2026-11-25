@@ -203,9 +203,6 @@ describe("earlier reviews and blocking only", () => {
   });
 
   test("a partial read with an inline finding is still not a whole review of its head", () => {
-    // publish.cjs posts a review whenever there is an inline finding, so a
-    // partial first read leaves a lane thread and a review on v1 beside its
-    // `read 3 of 18` summary; the summary decides for v1.
     const partialSummary = {
       url: "u",
       lastEditedAt: null,

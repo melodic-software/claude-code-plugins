@@ -31,9 +31,6 @@ readonly SCRIPT_DIR
 # shellcheck source=harness-lib.sh
 source "$SCRIPT_DIR/harness-lib.sh"
 
-# Ordinary external tools a shell-driven subject reaches for, plus the
-# interpreter, so the one unavoidable interpreter spawn is counted and any EXTRA
-# probe spawn shows up as a second entry.
 DEFAULT_TOOLS=(sed dirname mv rm mkdir chmod cat basename expr tr python3)
 
 usage() {
@@ -142,8 +139,6 @@ if ((${#TOOLS[@]} == 0)); then
   TOOLS=("${DEFAULT_TOOLS[@]}")
 fi
 
-# Strip any prior injection so a nested invocation does not shim its own shims,
-# which would double every count and read as a regression.
 REAL_PATH=":$PATH:"
 REAL_PATH="${REAL_PATH//:${HARNESS_SHIM_DIR}:/:}"
 REAL_PATH="${REAL_PATH#:}"

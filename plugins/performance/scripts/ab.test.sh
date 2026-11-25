@@ -206,7 +206,6 @@ run_ordered
 assert_eq "an order source shorter than the iterations is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the order source" "PERF_AB_ORDER_SOURCE" "$RUN_OUT"
 
-# The default source is the OS random device; only the shape is checkable.
 run_ab --a "$NOOP" --b "$NOOP" --iterations 6 --warmup 0 --min-pairs 6
 assert_eq "a run with the default order source exits 0" "0" "$RUN_RC"
 if grep -Eq '^arm_order=(AB|BA)( (AB|BA)){5}$' <<<"$RUN_OUT"; then
