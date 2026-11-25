@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.0] - 2026-11-25
+
+### Added
+
+- `/visualization:visualize` has a collaborative canvas mode: you and the agent draw and revise one live Excalidraw or tldraw canvas over several turns, and the agent writes the final text diagram as the record. The canvas is a working surface, so the mode also runs for a diagram that a calling skill commits. The canvas is not saved in the repository.
+
 ## [1.4.6] - 2026-11-24
 
 ### Fixed
