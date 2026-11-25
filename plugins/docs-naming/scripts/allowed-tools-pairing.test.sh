@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/docs-naming/skills/*.md plugins/docs-naming/skills/*/scripts/*
+# Single-quoted `${…}` placeholders are searched for verbatim and must not expand.
 # shellcheck disable=SC2016
 set -uo pipefail
 
