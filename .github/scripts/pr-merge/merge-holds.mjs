@@ -586,6 +586,49 @@ export function laneChange(compare) {
   return files.some((f) => lanes.includes(f?.filename)) ? "a review-lane workflow" : null;
 }
 
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+const COMPARE_FILES_CAP = 300;
+// https://docs.github.com/en/rest/repos/contents#get-repository-content
+const DIRECTORY_CAP = 1000;
+
+async function objectShas(read, repo, dir, ref) {
+  const entries = await read("GET", `/repos/${repo}/contents/${dir}?ref=${ref}`);
+  if (!Array.isArray(entries) || entries.length >= DIRECTORY_CAP) return null;
+  return new Map(entries.map((entry) => [String(entry?.name), String(entry?.sha)]));
+}
+
+export async function changedPaths(read, repo, compare, to, paths) {
+  const files = compare?.files;
+  if (!Array.isArray(files)) return null;
+  if (files.length < COMPARE_FILES_CAP) {
+    const names = files.flatMap((f) => [f?.filename, f?.previous_filename]).filter((name) => typeof name === "string");
+    return paths.flatMap((path) => names.filter((name) => name === path || name.startsWith(`${path}/`)).slice(0, 1));
+  }
+  const from = compare?.merge_base_commit?.sha;
+  if (!isSha(from) || !isSha(to)) return null;
+  const changed = [];
+  const listings = new Map();
+  for (const path of paths) {
+    const dir = posix.dirname(path);
+    if (!listings.has(dir)) {
+      const ends = [await objectShas(read, repo, dir, from), await objectShas(read, repo, dir, to)];
+      listings.set(dir, ends.includes(null) ? null : ends);
+    }
+    const ends = listings.get(dir);
+    if (ends === null) return null;
+    const name = posix.basename(path);
+    if (ends[0].get(name) !== ends[1].get(name)) changed.push(path);
+  }
+  return changed;
+}
+
+export async function laneChangeIn(read, repo, compare, head) {
+  const why = laneChange(compare);
+  if (why !== "too many files") return why;
+  const changed = await changedPaths(read, repo, compare, head, REVIEW_LANES.map(([file]) => `.github/workflows/${file}`));
+  return changed === null ? why : changed.length > 0 ? "a review-lane workflow" : null;
+}
+
 // The cost hold notices among one status job's `annotations`, as { sha, at }
 // with `at` the job's completion: only those naming `head`, the head its run
 // ran on, so a notice can speak for no other commit.
@@ -677,7 +720,7 @@ async function noticedHead(read, repo, branch, base, at) {
       }
       heads.push(head);
       if (!vetted.has(head)) {
-        if (laneChange(await read("GET", `/repos/${repo}/compare/${base}...${head}`)) !== null) {
+        if ((await laneChangeIn(read, repo, await read("GET", `/repos/${repo}/compare/${base}...${head}`), head)) !== null) {
           return null;
         }
         vetted.add(head);
@@ -880,7 +923,7 @@ export function approvalCarry(then, now, from, inBase, merges, based, dismissal 
 // Holding them for a person would hold most pull requests, so a push that
 // touches one only stops an approval carrying (ungatedSince); the review
 // lanes still judge it. babysit_merge_policy.CARRY_REFUSES is the same list.
-export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/work-items/skills/triage/scripts/**", "plugins/work-items/skills/triage/schemas/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh"]);
+export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/work-items/skills/triage/scripts/**", "plugins/work-items/skills/triage/schemas/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh", "plugins/code-tidying/git-hooks/comment-lint-ci.sh"]);
 
 // Whether the compare from...H' `merges` touches no hold path and no file a
 // hold path loads, old paths of renames included: pathHold with `holdPaths`

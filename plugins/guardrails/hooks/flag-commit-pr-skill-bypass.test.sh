@@ -114,10 +114,6 @@ assert_silent "project false overrides user-global true" "$out"
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT" HOME="$HOME_DISABLED")
 assert_contains "project true overrides user-global false" "$out" "gh pr create"
 
-# Local scope stands alone (settings precedence Local > Project > User;
-# `claude plugin install --scope local` writes enabledPlugins to
-# settings.local.json as a first-class state) — a local value participates in
-# per-key resolution whether or not the project settings.json declares the key.
 LOCAL_ONLY_OFF="$(make_project '' false)"
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$LOCAL_ONLY_OFF" HOME="$HOME_ENABLED")
 assert_silent "local-only false overrides user-global true (no project key)" "$out"
@@ -146,9 +142,6 @@ out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PRO
   CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=false)
 assert_silent "kill switch off → no-op despite bypass shape" "$out"
 
-# --- default posture is OFF (0.20.0) — an UNSET switch is a clean no-op ------
-# Not via run_hook: env stops option parsing at the first NAME=value operand, so
-# a trailing `-u` there would be read as the command, not an option.
 out=$(env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED \
   CLAUDE_PROJECT_DIR="$ENABLED_PROJECT" HOME="$HERMETIC_HOME" \
   bash "$HOOK" <<<"$(command_json 'gh pr create --title x --body y')" 2>&1)

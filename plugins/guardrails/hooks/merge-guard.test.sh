@@ -362,7 +362,6 @@ scenario none none green green
 run "two different ids bound to pullRequestId" 'gh api graphql -f query='"'"'mutation{a:mergePullRequest(input:{pullRequestId:"PR_kwDOone"}){clientMutationId} b:mergePullRequest(input:{pullRequestId:"PR_kwDOtwo"}){clientMutationId}}'"'"'' 2
 assert_contains "two bound ids -> refused" "$ERR" "not a literal PR_ node id"
 
-# curl -T / --upload-file is a PUT over HTTP(S).
 for up in '-T body.json' '--upload-file body.json' '-Tbody.json'; do
   scenario unresolved none green green
   run "curl $up to the merge route" "curl -sS $up https://api.github.com/repos/acme/widgets/pulls/42/merge" 2
@@ -422,7 +421,6 @@ assert_exit "gh missing: fails open" 0 "$RC"
 assert_contains "gh missing -> says so" "$OUT" "gh is not on PATH"
 scenario unresolved none green green
 
-# --- 8b. a GraphQL mutation whose PR cannot be resolved FAILS CLOSED --------
 gql_refused() {
   scenario none none green green
   run "$1" "$2" 2
@@ -488,8 +486,6 @@ for tool in Bash PowerShell; do
   gh_missing "$tool" "$GQL_SUBST"
   assert_exit "$tool: id from \$(...), gh missing: fails closed" 2 "$RC"
 done
-# --- 8c. a merge whose target is not literal FAILS CLOSED (#8598) ------------
-# The PR is clean, so a guard that let these through would exit 0.
 unresolvable() {
   local label="$1" command="$2"
   shift 2
@@ -560,8 +556,6 @@ assert_contains "backtick -> says why" "$ERR" "backtick"
 unresolvable "apostrophe in a comment, then a backtick" $'# don\'t\ngh pr merge 5`echo 0` -R acme/widgets'
 unresolvable "apostrophe in a heredoc, then a backtick" $'cat <<EOF\ndon\'t\nEOF\ngh pr merge 5`echo 0` -R acme/widgets'
 unresolvable "line continuation between pr and merge, then a backtick" $'gh pr \\\nmerge 5`echo 0` -R acme/widgets'
-# A backslash-newline in merge-shaped text is refused, never joined: bash does not
-# join inside a comment, a quoted heredoc or after an escaped backslash.
 unresolvable "continuation between pr and merge" $'gh pr \\\nmerge 5 -R acme/widgets'
 unresolvable "continuation inside 'merge'" $'gh pr mer\\\nge 5 -R acme/widgets'
 unresolvable "continuation inside a REST route" $'gh api -X PUT repos/acme/widgets/pulls/\\\n5/merge'
@@ -626,8 +620,6 @@ unresolvable "quoted heredoc opener after a \$( in quotes, then a backtick merge
 unresolvable "heredoc delimiter closed by a parenthesis, then a backtick merge" $'(cat <<\'E\')\nx\nE\ngh pr merge 5`echo 0` -R acme/widgets'
 unresolvable "<< inside \${...} is no heredoc, then a backtick merge" $'echo ${x:-<<\'E\' }\ngh pr merge 5`echo 0` -R acme/widgets\nE'
 unresolvable "<< inside ((...)) is no heredoc, then a backtick merge" $'((x = 1 <<\'E\' ))\ngh pr merge 5`echo 0` -R acme/widgets\nE'
-# shfmt reads this delimiter differently from bash and finds the here-doc
-# unclosed, so the command reader refuses it before the guard's own check.
 run "escaped quote in a double-quoted delimiter, then a backtick merge (refused by the reader)" \
   $'cat <<"E\\"F"\nx\nE"F\ngh pr merge 5`echo 0` -R acme/widgets' 2
 assert_contains "escaped quote in a double-quoted delimiter -> the reader names its refusal" "$ERR" "got no parse"

@@ -30,7 +30,7 @@ the `audit` and `audit-automation-gaps` skills in the `harness-config` plugin).
 | Entity | Location | Load model this audit uses | Audited here |
 |--------|----------|--------|-------------|
 | Project instructions | `CLAUDE.md` | Every session, full | Yes |
-| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Audited only where discovery reports Claude Code reads it; `scripts/lib/agents-md.sh` holds the condition and its record | Yes, as the project instructions (the C-checks) |
+| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Audited only where discovery reports Claude Code reads it; the condition and its record are in [official-guidance.md](reference/official-guidance.md#compaction-by-steering-method) | Yes, as the project instructions (the C-checks) |
 | Local overrides | `CLAUDE.local.md` | Every session, full | Yes |
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |

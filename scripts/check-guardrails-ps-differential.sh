@@ -174,8 +174,8 @@ fi
 BASE_ROOT="$WORK/base/plugins/guardrails"
 
 for t in "${TOKENS[@]}"; do
-  if ! grep -qF -- "ps-unparsable-$t" "$BASE_ROOT/lib/powershell/ps-command.sh"; then
-    echo "$PROG: the base classifier no longer names allow token ps-unparsable-$t; update TOKENS here" >&2
+  if ! grep -qF -- "PS_SINK_TRIGGER=\"$t\"" "$BASE_ROOT/lib/powershell/ps-command.sh"; then
+    echo "$PROG: the base classifier no longer sets sink trigger $t (allow token ps-unparsable-$t); update TOKENS here" >&2
     exit 2
   fi
 done

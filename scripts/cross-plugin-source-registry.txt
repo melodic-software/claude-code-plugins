@@ -823,7 +823,8 @@ lib/git-hooks/resolve-tool.sh -> plugins/*/lib/git-hooks/resolve-tool.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/one-way-doors.md, the one-way and two-way door definition, carried by
-# planning (/planning:design) and review (/review:merge-risk).
+# architecture (/architecture:adr), planning (/planning:design) and review
+# (/review:merge-risk).
 reference/one-way-doors.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the

@@ -140,7 +140,6 @@ class TestSkillsIndex(unittest.TestCase):
             (solo["name"], solo["description"], solo["source"]),
             ("solo-tool", "root skill", "cache"),
         )
-        # No name in plugin.json: the plugin directory above the version one.
         self.assertEqual(got[("bare@mkt", "bare")]["name"], "bare")
         self.assertNotIn("1.0.0", {r["skill"] for r in got.values()})
 
@@ -187,7 +186,6 @@ class TestSkillsIndex(unittest.TestCase):
         self.assertEqual(got[("entry-off@mkt", "a")]["state"], "disabled")
         self.assertEqual(got[("manifest-off@mkt", "b")]["state"], "disabled")
         self.assertEqual(got[("plain@mkt", "c")]["state"], "enabled")
-        # The marketplace entry's defaultEnabled overrides plugin.json's.
         self.assertEqual(got[("overridden@mkt", "d")]["state"], "enabled")
 
     def test_local_scope_overrides_user_scope(self) -> None:

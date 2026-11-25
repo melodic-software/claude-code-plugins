@@ -77,8 +77,6 @@ expect "fixup! passes (autosquash)" 0 "$(msg "$REPO" "fixup! anything at all")"
 expect "squash! passes (autosquash)" 0 "$(msg "$REPO" "squash! anything")"
 expect "amend! passes (autosquash)" 0 "$(msg "$REPO" "amend! anything")"
 expect "an empty message is git's to refuse" 0 "$(msg "$REPO" "")"
-# With no editor (-m, -F) git keeps comment lines, and says so to the hook with
-# GIT_EDITOR=:, so a subject starting with the comment character is the subject.
 noedit() {
   printf '%s\n' "$2" >"$WORK/msg"
   (cd "$1" && GIT_EDITOR=: "$SH" "$CHECK" "$WORK/msg") >/dev/null 2>&1

@@ -1,16 +1,4 @@
 # shellcheck shell=bash
-# Shared assertion primitives for this skill's *.test.sh suites. Sourced, not
-# executed; the *.test.sh glob a runner selects on never picks this file up.
-#
-# Each suite owns its own FAILED / CASE_NUM counters and sets them before
-# sourcing this file. PASS lines go to stdout, FAIL lines to stderr, and the
-# suite prints its own summary and exits non-zero when FAILED is above 0.
-#
-# Param order: (label, expected, actual) for assert_eq / assert_exit,
-# (label, haystack, needle) for the substring assertions.
-#
-# Duplicated per plugin by design, not drift; see
-# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 

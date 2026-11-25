@@ -79,10 +79,6 @@ assert_exit "exits 0 when the config root is absent" 0 "$RC_NOCONF"
 assert_contains "still discovers project surfaces without a config root" "$OUT_NOCONF" "$(printf 'project\tclaude-md\tCLAUDE.md')"
 assert_not_contains "emits no user rows without a config root" "$OUT_NOCONF" "$(printf 'user\t')"
 
-# --- Git Bash: a Windows-style config root with a drive letter ---------------
-# HOME and CLAUDE_CONFIG_DIR are Windows paths on Git Bash. The resolver siblings
-# carry explicit workarounds for this; discovery must not regress it.
-
 if command -v cygpath >/dev/null 2>&1; then
   WIN_CONF="$(cygpath -w "$CONF" 2>/dev/null)"
   if [[ -n "$WIN_CONF" ]]; then

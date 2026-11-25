@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# prune-collector-lifecycle.sh — Windows Collector service lifecycle + prune locking.
-# Sourced by prune-otel-store.sh; not an entry point.
-#
-# Requires err() from the caller. The production path controls only the provisioning-owned
-# otelcol-contrib Windows service. Command overrides are hermetic test seams.
-
 case "${OSTYPE:-}" in
 msys* | cygwin* | win*) OS_KIND=windows ;;
 *) OS_KIND=unsupported ;;
@@ -13,8 +7,6 @@ readonly OS_KIND
 readonly COLLECTOR_SERVICE_NAME='otelcol-contrib'
 readonly POLL_INTERVAL_SECONDS=0.25
 readonly POLL_MAX_TRIES=40
-# A prune stops the Collector for seconds to a few minutes; a lock older than this is a problem.
-# CC_OTEL_SENTINEL_MAX_AGE_MINUTES overrides it; prune-otel-store.sh validates it.
 readonly SENTINEL_MAX_AGE_MINUTES="${CC_OTEL_SENTINEL_MAX_AGE_MINUTES:-60}"
 
 OWNER_ID=""
@@ -23,15 +15,6 @@ STAMP_DIR=""
 STOPPED=false
 SENTINEL=""
 
-# Take the sentinel, or return 1 when another prune holds it. It stays a directory, which the
-# Collector start script tests for (-d), but the directory alone is not an arbiter everywhere:
-# uutils mkdir (Ubuntu 25.10+) lets two racers both succeed. An owner token created with
-# noclobber (bash's own O_EXCL open, atomic on GNU, uutils, macOS and Git Bash) decides.
-#   Claim: two racing uutils `mkdir` calls on one path can both succeed; a noclobber `>` cannot.
-#   Basis: measured with `mkdir (uutils coreutils) 0.10.0` on Ubuntu 26.04 (both won 62 of 200
-#     races; GNU mkdir 0 of 200); bash's redir.c `noclobber_open` creates with O_EXCL.
-#   As of: 2026-09-28.
-#   Recheck: a uutils release that makes mkdir fail on an existing directory under a race.
 take_sentinel() {
   [[ -n "$OWNER_ID" ]] || OWNER_ID="$$ $(proc_start "$$")"
   mkdir "$SENTINEL" 2>/dev/null && (set -o noclobber && printf '%s\n' "$OWNER_ID" >"$SENTINEL/owner") 2>/dev/null
@@ -41,8 +24,6 @@ release_sentinel() {
   rmdir "$SENTINEL" 2>/dev/null || true
 }
 
-# Print a process's start time, or nothing when it is gone. The owner token holds "<pid> <start>",
-# so a reused pid does not pass for the holder. /proc covers Linux and Git Bash; macOS has no /proc.
 proc_start() {
   local stat
   local -a fields
@@ -55,8 +36,6 @@ proc_start() {
   fi
 }
 
-# Judge the sentinel's holder: 0 = stale (holder gone, or no owner token and older than
-# SENTINEL_MAX_AGE_MINUTES), 1 = live or young, 3 = a live holder past the bound.
 sentinel_state() {
   local owner="" pid start old
   { read -r owner <"$SENTINEL/owner"; } 2>/dev/null || true
@@ -70,10 +49,6 @@ sentinel_state() {
   [[ -n "$old" ]] || return 1
 }
 
-# Take the sentinel, recovering a stale one; returns 1 or 3 (see sentinel_state) when it is held.
-# Recovery runs under a second token, so every recoverer judges the sentinel only after the last
-# one finished: a run that read the dead owner cannot then remove the lock a peer just took.
-# The guard is held for milliseconds, so one older than a minute is from a killed run.
 acquire_sentinel() {
   take_sentinel && return 0
   local guard="$SENTINEL.takeover" owner="" rc=0
@@ -118,12 +93,6 @@ default_running() {
 
 stop_collector() {
   if [[ -n "${CC_OTEL_STOP_CMD:-}" ]]; then
-    # Capture explicitly rather than a bare `return` after the command: under `set -e`,
-    # a caller-side conditional (this is invoked from `if !`/`while` sites) suppresses
-    # errexit for the whole dynamic scope, and bash's propagation of the suppressed
-    # command's $? through an implicit `return` differs across bash versions (observed:
-    # lost on bash 5.2, preserved on 5.3). `|| rc=$?` + explicit `return "$rc"` is
-    # version-independent.
     local rc=0
     "$CC_OTEL_STOP_CMD" || rc=$?
     return "$rc"
@@ -149,8 +118,6 @@ collector_running() {
   default_running
 }
 
-# Poll until the service reaches Stopped. Returns 1 if still running after POLL_MAX_TRIES and
-# 2 when service state cannot be queried. A query error is not evidence that the service stopped.
 wait_collector_gone() {
   local tries=0 rc
   while true; do
@@ -167,11 +134,8 @@ wait_collector_gone() {
   done
 }
 
-# The service exists only on Windows; a set query seam stands in for it in tests.
 manages_collector() { [[ "$OS_KIND" == windows || -n "${CC_OTEL_RUNNING_CMD:-}" ]]; }
 
-# Start the Collector when it is Stopped; the caller holds the sentinel. Returns 1 only when the
-# start fails. A failed query is reported and left alone.
 ensure_collector_running() {
   manages_collector || return 0
   local rc=0
@@ -184,8 +148,6 @@ ensure_collector_running() {
   return 1
 }
 
-# Restore a Collector a killed prune left stopped, on the paths that do not stop it themselves.
-# Quiet while a live prune holds the lock; returns 1 when that lock outlasts the bound.
 ensure_collector_briefly() {
   manages_collector || return 0
   local rc=0
