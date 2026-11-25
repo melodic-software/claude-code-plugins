@@ -87,6 +87,28 @@ else
   fail "the pre-push range should hold the one fixture file whatever the change's size, held: $(cat "$r/rec/range" 2>/dev/null)"
 fi
 
+r="$TMP/ownroot"
+make_root "$r" ':' ':'
+mkdir -p "$r/scripts"
+printf '%s\n' 'pre-push:' '  jobs:' '    - name: own-root' '      run: scripts/pp.sh {1}' >>"$r/lefthook.yml"
+# shellcheck disable=SC2016
+printf '%s\n' '#!/usr/bin/env bash' 'cd "$(dirname "$0")/.." || exit 2' "${RECORD_RANGE//wide/ownroot}" >"$r/scripts/pp.sh"
+chmod +x "$r/scripts/pp.sh"
+g "$r" add -A
+g "$r" commit -q -m "a run: entry that checks the tree holding its script"
+g "$r" update-ref refs/remotes/origin/main HEAD
+g "$r" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+mkdir -p "$r/plugins/wide"
+for i in $(seq 1 1500); do printf 'file %d\n' "$i" >"$r/plugins/wide/f$i.txt"; done
+g "$r" add -A
+g "$r" commit -q -m "a 1500-file change past origin/main"
+gate --root "$r" --force --runs 1 >/dev/null 2>&1
+if [[ "$(cat "$r/rec/range" 2>/dev/null)" == 1 ]]; then
+  ok "a run: entry whose script checks its own tree runs from the push clone, so it sees only the fixture range"
+else
+  fail "the run: entry should check the push clone's one-file range, not the real checkout's change, held: $(cat "$r/rec/range" 2>/dev/null)"
+fi
+
 r="$TMP/slow"
 make_root "$r" 'sleep 0.6' ':'
 out="$(gate --root "$r" --force --runs 1 --budget-ms 200 2>&1)"

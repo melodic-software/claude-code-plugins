@@ -65,9 +65,11 @@ Each entry runs the way lefthook runs a remote's job: the remote's root is linke
 the fixture's .git/info/lefthook-remotes/, and the entry's script runs from there with
 its runner. A pre-push entry gets the remote name and URL as arguments and the pushed
 ref on stdin; a run: command gets lefthook's {1} and {2} filled and a relative command
-resolved against the repository. Every pre-commit run starts from the same staged files,
-so a formatter's rewrite does not carry over between runs; a group with piped: true runs
-its members in order on one staged state, as lefthook does, and is timed as one unit.
+resolved against the tree it runs in (the push clone, for pre-push), else the repository,
+so a script that checks the tree holding it sees the fixture range. Every pre-commit run
+starts from the same staged files, so a formatter's rewrite does not carry over between
+runs; a group with piped: true runs its members in order on one staged state, as
+lefthook does, and is timed as one unit.
 
 S, one no-op `bash -c :` spawn measured in the same run
 (docs/contracts/hook-budget/README.md), also prints.
@@ -329,7 +331,7 @@ run_entry() {
       val=${val//"{$i}"/$a}
       i=$((i + 1))
     done
-    [[ "$first" != /* && -e "$ROOT/$first" ]] && val="$ROOT/$val"
+    [[ "$first" != /* && ! -e "$first" && -e "$ROOT/$first" ]] && val="$ROOT/$val"
     sh -c "$val" "$ev" "$@"
     return
   fi
