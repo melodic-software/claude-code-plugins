@@ -76,7 +76,9 @@ continue, then re-arm recurring work. Its cost is one Python start on a prompt t
 `-handoff-`; any other prompt stops in the node launcher. Off, the resumed session relies on the
 directive's own clause to raise reminders and re-establish the Environment. The script resolves
 the key as `compact_focus_enabled` does, from `CLAUDE_PLUGIN_OPTION_RESUME_CONTEXT_ENABLED`, and
-records the resumed handoff in the focus file only while `compact_focus_enabled` is on.
+records the resumed handoff in the focus file only while `compact_focus_enabled` is on. That record
+is what keeps the injection to once per session: with `compact_focus_enabled` off, each matching
+resume paste injects `resume.md` again.
 
 `resume` keeps a worker across related units, as imperative 4 of the orchestration brief says.
 `respawn` gives each new unit (a fix round, a follow-up, a retry, the next queue item) a fresh

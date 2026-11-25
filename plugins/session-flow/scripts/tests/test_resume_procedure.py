@@ -90,6 +90,35 @@ def test_loop_entry_without_line_count_warns(tmp_path):
     )
 
 
+def multi_hop_warns(result) -> list[str]:
+    return [
+        line
+        for line in out(result).splitlines()
+        if line.startswith("WARN: ") and "more than one hop" in line
+    ]
+
+
+def test_entry_older_than_the_previous_handoff_warns_multi_hop(tmp_path):
+    repo = make_repo(tmp_path)
+    first = hop5(repo, tmp_path)
+    older = "- [monitor] deploy log · since 2026-08-31T09:00:00Z · command: `tail -f deploy.log`"
+    newer = "- [monitor] build log · since 2026-09-01T12:00:00Z · command: `tail -f build.log`"
+    second = hop5(repo, tmp_path, first, k=2, values=env_values(older, newer))
+    result = validate(second)
+    assert result.returncode == 0, out(result)
+    warned = multi_hop_warns(result)
+    assert len(warned) == 1 and "deploy log" in warned[0], (
+        "the entry running since before the 2026-09-01T10:00:00Z predecessor warns; "
+        f"the one since after it does not: {out(result)}"
+    )
+
+
+def test_first_hop_entry_never_warns_multi_hop(tmp_path):
+    older = "- [monitor] deploy log · since 2026-08-31T09:00:00Z · command: `tail -f deploy.log`"
+    path = hop5(make_repo(tmp_path), tmp_path, values=env_values(older))
+    assert not multi_hop_warns(validate(path)), "a first hop has no predecessor"
+
+
 def test_directive_carries_the_fallback_clause(tmp_path):
     path = hop5(make_repo(tmp_path), tmp_path)
     directive = next(

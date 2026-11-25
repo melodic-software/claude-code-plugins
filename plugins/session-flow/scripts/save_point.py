@@ -415,6 +415,8 @@ DIRECTIVE_TAIL = (
 RECURRING_RE = re.compile(r"^- \[(loop|cron|monitor|off-thread)\] ")
 LOOP_COUNT_RE = re.compile(r"prompt \((\d+) lines\):$")
 RESTORE_MANUAL = "restore: manual"
+SINCE_RE = re.compile(r" · since (\S+) ·")
+HANDOFF_TS_RE = re.compile(r"^(\d{8}T\d{6}Z)-handoff-")
 REDACTED_MARK = "<REDACTED"
 RECURRING_SHAPE = (
     "one entry per recurring item: '- [loop] every <interval|self-paced> · since <UTC ISO> · "
@@ -1725,7 +1727,17 @@ def _recurring_entries(lines: list[str]) -> list[list[str]]:
     return entries
 
 
+def _written_at(name: str) -> datetime | None:
+    match = HANDOFF_TS_RE.match(name)
+    if match is None:
+        return None
+    return datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(
+        tzinfo=timezone.utc
+    )
+
+
 def _check_recurring(doc: Doc, f: Findings) -> None:
+    previous_at = _written_at(doc.frontmatter.get("previous_handoff") or "")
     for entry in _recurring_entries(doc.section("Environment to re-establish") or []):
         head = entry[0]
         text = "\n".join(entry)
@@ -1739,6 +1751,12 @@ def _check_recurring(doc: Doc, f: Findings) -> None:
                 f.warn(
                     f"Environment to re-establish: {head[:60]!r} needs 'prompt (<L> lines):' with the prompt on exactly the next <L> indented lines"
                 )
+        since = SINCE_RE.search(head)
+        started = _parse_now(since.group(1)) if since else None
+        if previous_at and started and started < previous_at:
+            f.warn(
+                f"Environment to re-establish: {head[:60]!r} runs since before the previous handoff was written, so it was carried across more than one hop; the resumed session shows it and re-arms it only after the user confirms"
+            )
 
 
 def _carries(pred: Doc | None, spec: IdSpec) -> bool:

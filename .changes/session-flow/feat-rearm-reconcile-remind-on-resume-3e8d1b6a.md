@@ -14,6 +14,10 @@ bump: minor
 - Environment to re-establish records `[loop]`, `[cron]`, `[monitor]` and `[off-thread]` entries.
   `validate` fails an entry that lost text to redaction without `restore: manual`, and warns on a
   loop or cron entry whose line count does not match its prompt.
+- A loop, cron or monitor entry whose `since` predates the previous handoff was carried across more
+  than one hop: `validate` warns on it, and the resumed session shows its command or prompt and
+  re-arms it only after the user confirms. With `compact_focus_enabled` off, the resume hook
+  records nothing, so each matching resume paste injects `resume.md` again.
 
 ### Changed
 

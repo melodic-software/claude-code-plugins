@@ -496,8 +496,11 @@ none stopped or past the recurring-task expiry). The redaction pass covers these
 environment-variable reference to a secret in a command. A command or prompt that lost text to
 redaction ends with `· restore: manual (held a secret; re-create from <source>)`, and the resumed
 session never re-arms it. `validate` fails an entry holding `<REDACTED` without that ending, and
-warns on a `[loop]` or `[cron]` entry whose `<L>` does not match its indented lines. These entries
-replace the below-rail `Re-arm <i> of <n>` block on the full path.
+warns on a `[loop]` or `[cron]` entry whose `<L>` does not match its indented lines. Keep an
+entry's `since` from the hop that first recorded it: a `since` earlier than the `previous_handoff`
+file name's `<TS>` marks the entry as carried across more than one hop, `validate` warns on it, and
+the resumed session shows its command or prompt and re-arms it only after the user confirms. These
+entries replace the below-rail `Re-arm <i> of <n>` block on the full path.
 
 **Plugin changes.** `/clear` is not a plugin reload: a plugin installed, updated, enabled or
 disabled during this session reaches the resuming session only after the user types

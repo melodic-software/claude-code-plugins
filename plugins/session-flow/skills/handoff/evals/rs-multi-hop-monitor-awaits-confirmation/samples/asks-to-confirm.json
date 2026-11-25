@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "staging deploy log: awaiting confirmation. Confirm and I will re-arm `tail -f deploy.log`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "staging deploy log: re-armed with `tail -f deploy.log`."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
