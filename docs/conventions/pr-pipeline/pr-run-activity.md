@@ -2498,11 +2498,13 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   and its commit message closes the issue, and `report-delivered` only on an
   issue the run committed nothing for and resumed no branch on, whatever its work class, with the
   run's `summary` as the report; either retries otherwise. Dependents and split parents count a
-  lanes App close as trusted when the App wrote that close comment after the issue's last reopen
-  (`isTrustedClose` in check-trusted-trigger, owner Q300), and for an `already-done` or
-  `verified-done` close only while its evidence re-checks true when they read it (owner Q9,
-  through `.github/scripts/lib/done-evidence.mjs`); an App close without that comment, a close
-  comment someone else wrote, or any read that fails, counts for nothing. `fail` removes `agent-ready`, adds no label and comments
+  lanes App `already-done` or `verified-done` close as trusted only while its evidence re-checks
+  true when they read it (`isTrustedClose` in check-trusted-trigger, owner Q9, through
+  `.github/scripts/lib/done-evidence.mjs`). Blocker resolution alone (admission, Check Admission
+  and the work-unblock sweep) also counts any other App close, `report-delivered` included, when
+  the App wrote that close comment after the issue's last reopen (owner Q300); a sub-issue or
+  parent rule does not. An App close without that comment, a close comment someone else wrote,
+  or any read that fails, counts for nothing. `fail` removes `agent-ready`, adds no label and comments
   with `outcome=failed`, which the maintenance monitor's signal 9 reports. Every comment that adds the human-gated label opens with the attended
   queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
   so `/work-items:attend-queue` lists the issue, and then the outcome marker

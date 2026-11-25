@@ -4013,6 +4013,7 @@ test("closedByTrusted counts the lanes App's close only with the App's own outco
       "POST /graphql": { data: { repository: { issue: { timelineItems: { nodes: [] } } } } },
       "GET /repos/o/r/issues/77/comments?per_page=100&page=1": comments,
       "GET /repos/o/r/issues/77/sub_issues?per_page=100&page=1": [],
+      "GET /repos/o/r/issues/70/sub_issues?per_page=100&page=1": [{ number: 77, state: "closed", state_reason: "completed", closed_by: closer, repository_url: "https://api.github.com/repos/o/r" }],
       "GET /repos/o/r/issues/77/events?per_page=100&page=1": [],
       "GET /repos/o/r": { default_branch: "main" },
       "GET /repos/o/r/pulls/5": { merged_at: "2026-10-20T00:00:00Z", base: { ref: "main" }, merge_commit_sha: mergeSha },
@@ -4023,15 +4024,21 @@ test("closedByTrusted counts the lanes App's close only with the App's own outco
     }
     return routes[`${method} ${path}`];
   };
-  const trusted = (comments, { appId = APP.id, closer, message } = {}) => closedByTrusted({ github: client(comments, closer, message), repository: "o/r", humans: new Set([HUMAN.id]), appId })(77);
+  const reader = (comments, { appId = APP.id, closer, message } = {}) => closedByTrusted({ github: client(comments, closer, message), repository: "o/r", humans: new Set([HUMAN.id]), appId });
+  const trusted = (comments, options) => reader(comments, options)(77, { blocker: true });
   assert.equal(await trusted([comment("already-done")]), true, "already-done whose evidence holds");
   assert.equal(await trusted([comment("already-done")], { message: "fix: tidy (#5)" }), false, "already-done whose merge commit no longer closes it");
   assert.equal(await trusted([comment("verified-done")]), false, "verified-done with no sub-issue");
-  assert.equal(await trusted([comment("report-delivered")], { message: "fix: tidy (#5)" }), true, "report-delivered on its marker alone");
+  assert.equal(await trusted([comment("report-delivered")], { message: "fix: tidy (#5)" }), true, "a report-delivered blocker on its marker alone");
+  assert.equal(await reader([comment("report-delivered")])(77), false, "report-delivered outside a blocker read");
   assert.equal(await trusted([]), false, "an App close with no outcome comment");
   assert.equal(await trusted([comment("report-delivered", HUMAN)]), false, "an outcome comment the App did not write");
   assert.equal(await trusted([comment("report-delivered")], { appId: 1 }), false, "another App id");
   assert.equal(await trusted([], { closer: HUMAN }), true, "a listed human's close");
+  const parent = { number: 70, sub_issues_summary: { total: 1 } };
+  const finished = (comments, options) => finishedParent({ github: client(comments, options?.closer), repository: "o/r", issue: parent, trusted: reader(comments, options) });
+  assert.equal(await finished([comment("report-delivered")]), null, "a finished parent counts no report-delivered sub-issue");
+  assert.deepEqual(await finished([], { closer: HUMAN }), [77], "a listed human's sub-issue close still counts");
 });
 
 describe("authorAdmitted", () => {
