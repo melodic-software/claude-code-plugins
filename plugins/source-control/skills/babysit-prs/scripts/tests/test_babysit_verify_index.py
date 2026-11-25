@@ -305,6 +305,111 @@ class IndexMode(IndexFixture):
         self.assertEqual(fake.whole(), 0)
 
 
+class PassOut(IndexFixture):
+    """`evidence --pass-out`: ci-status's merge-queue step hands merge-holds.mjs
+    the passes, record and closing issues this judgment read, in the shapes
+    the step read them itself (merge-holds.mjs verdictHold reads each pass's
+    run; linkHold the record and closingIssuesReferences' totalCount, number
+    and nameWithOwner), and makes no read of its own."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        config = ve.merge_policy.PipelineConfig(
+            EARLIER, "C2", "pr-merge", None, None, (), None
+        )
+        for name in ("read_config_at", "_default_branch_config"):
+            patcher = mock.patch.object(ve.merge_policy, name, return_value=config)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        env = mock.patch.dict(
+            "os.environ",
+            {
+                ve.LEGACY_FAILS_ENV: str(self.legacy_file),
+                ve.LISTING_ENV: str(pathlib.Path(self.tmp.name, "listing.json")),
+            },
+        )
+        env.start()
+        self.addCleanup(env.stop)
+        self.out = pathlib.Path(self.tmp.name, "pass.json")
+
+    def cli(self, fake: IndexGitHub, *extra: str) -> dict[str, Any]:
+        printed = io.StringIO()
+        with (
+            mock.patch.object(ve.merge_policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+            contextlib.redirect_stdout(printed),
+        ):
+            argv = ["evidence", "--base-sha", EARLIER, "--repo", REPO, *extra]
+            self.assertEqual(ve.main([*argv, str(PR), HEAD], now=NOW), 0)
+        return json.loads(printed.getvalue())
+
+    def test_an_allow_hands_over_what_it_read_with_no_read_of_its_own(self) -> None:
+        report = self.cli(self.passing())
+        fake = self.passing()
+        self.assertEqual(self.cli(fake, "--pass-out", str(self.out)), report)
+        self.assertIsNone(report["refusal"])
+        sent = [" ".join(c) for c in fake.calls]
+        self.assertEqual(sum(s.endswith("/zip") for s in sent), 1)
+        self.assertEqual(sum(s.endswith(f"{REPO}/actions/runs/1") for s in sent), 1)
+        self.assertEqual(sum("closingIssuesReferences" in s for s in sent), 1)
+        fields = {k: run(1)[k] for k in ve.RUN_FIELDS}
+        self.assertEqual(
+            json.loads(self.out.read_text()),
+            {
+                "head": HEAD,
+                "verdicts": [
+                    {
+                        "name": named(HEAD, "pass"),
+                        "verdict": "pass",
+                        "runId": 1,
+                        "artifact": 10,
+                        "run": fields,
+                    }
+                ],
+                "record": record(),
+                "closing": {
+                    "totalCount": 1,
+                    "nodes": [{"number": 7, "repository": {"nameWithOwner": REPO}}],
+                },
+            },
+        )
+
+    def test_a_refusal_hands_over_no_pass(self) -> None:
+        fake = self.passing(*fail(PR, HEAD, 3), runs={3: run(3)})
+        self.assertEqual(
+            self.cli(fake, "--pass-out", str(self.out))["refusal"], ve.FAIL
+        )
+        self.assertEqual(
+            json.loads(self.out.read_text()),
+            {"head": HEAD, "verdicts": [], "record": None, "closing": None},
+        )
+
+    def test_the_record_is_the_first_pass_by_name_as_the_step_took_it(self) -> None:
+        later = "2026-10-20T00:00:00Z"
+        notes = artifact(named(HEAD, "pass-notes"), 2)
+        fake = self.passing(notes, runs={2: run(2, run_started_at=later)})
+        fake.records[named(HEAD, "pass-notes")] = record(summary="notes")
+        self.assertIsNone(self.cli(fake, "--pass-out", str(self.out))["refusal"])
+        sent = json.loads(self.out.read_text())
+        self.assertEqual(
+            [v["name"] for v in sent["verdicts"]],
+            [named(HEAD, "pass"), named(HEAD, "pass-notes")],
+        )
+        self.assertEqual(sent["record"], record())
+        zips = [c for c in fake.calls if c[-1].endswith("/zip")]
+        self.assertEqual([c[-1].split("/")[-2] for c in zips], ["20", "10"])
+
+    def test_a_record_that_does_not_download_is_none(self) -> None:
+        later = "2026-10-20T00:00:00Z"
+        notes = artifact(named(HEAD, "pass-notes"), 2)
+        fake = self.passing(notes, runs={2: run(2, run_started_at=later)})
+        fake.records[named(HEAD, "pass-notes")] = record()
+        del fake.records[named(HEAD, "pass")]
+        self.assertIsNone(self.cli(fake, "--pass-out", str(self.out))["refusal"])
+        self.assertIsNone(json.loads(self.out.read_text())["record"])
+
+
 SEED_ETAG = 'W/"e909a084392d174b"'
 SEED_CALL = f"name={ve.EMPTY_ETAG_SEED_NAME}&"
 
