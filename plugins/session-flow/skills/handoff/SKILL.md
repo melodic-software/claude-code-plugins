@@ -454,8 +454,9 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - [ ] **Execution stops here** (for a forked side task, only the side task), the rails prompt and
   its below-rail notes follow these ticks as the response's final text ("Output order is fixed")
 
-**Prompt-only path:** tick every item of
-[reference/prompt-only-checklist.md](reference/prompt-only-checklist.md), read this turn.
+**Prompt-only path:** tick every item of [reference/prompt-only-checklist.md](reference/prompt-only-checklist.md), read this turn, and this one:
+
+- [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** make no suggestion; tick this box as not applicable.
 
 ## Reference index. Load on demand
 

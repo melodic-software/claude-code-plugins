@@ -1,7 +1,8 @@
 # Prompt-only path checklist
 
-The post-write checklist for the prompt-only path. Tick each item in the response; the output order
-and the full-path checklist are in `SKILL.md` ("Post-write enforcement checklist").
+The post-write checklist for the prompt-only path. Tick each item in the response; the output order,
+the full-path checklist and the prompt-only `/export` box are in `SKILL.md` ("Post-write
+enforcement checklist").
 
 - [ ] Prompt-only justified (all auto-detect criteria hold, or `prompt` explicitly passed)
 - [ ] In-flight work settled before the rails prompt, as on the full path
@@ -25,7 +26,6 @@ and the full-path checklist are in `SKILL.md` ("Post-write enforcement checklist
   remaining-work bullet: path, this session's id, handover before `check-enter` (or none held)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
-- [ ] If /export is available in your session (gate basis: [export-verification.md](export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** make no suggestion; tick this box as not applicable.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
