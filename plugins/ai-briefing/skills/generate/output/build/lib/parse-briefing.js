@@ -148,9 +148,6 @@ function dateFromUrl(url) {
   if (!url) return null;
   const pathDate = url.match(/\/(\d{4})\/(\d{2})\/(\d{2})(?:\/|$)/);
   if (pathDate) return ymdMatchToMs(pathDate);
-  // ISO date in path (not in domain). Guard against malformed URLs — `item.urls`
-  // is validated only as non-empty strings upstream, so a bad LLM artifact (no
-  // scheme, bare host) would otherwise throw and abort the entire deck build.
   let u;
   try {
     u = new URL(url);
