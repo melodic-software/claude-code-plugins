@@ -76,7 +76,7 @@ from_base() {
 
 from_base AGENTS.md
 from_base CLAUDE.md
-home="$(bash "$resolver" --root "$tree" --ref "$base" 2>/dev/null)" || home=""
+home="$("$BASH" "$resolver" --root "$tree" --ref "$base" 2>/dev/null)" || home=""
 if [[ -z "$home" || "$home" == /* || "$home" == *..* ]]; then
   home=docs/conventions
 fi
