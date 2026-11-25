@@ -175,8 +175,6 @@ run "$F" --prs 2
 assert_eq "failed gh call: exit 2 and empty stdout" "2:" "$RC:$OUT"
 rm -f "$F/fail-comments-12"
 
-# Missing gh or jq: exit 2, nothing on stdout. Each PATH holds only the other
-# tool, so a gh or jq in a system directory cannot leak in.
 NOGH="$TEST_TMPDIR/nogh"
 ONLY_JQ="$TEST_TMPDIR/only-jq"
 ONLY_GH="$TEST_TMPDIR/only-gh"

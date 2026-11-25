@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for check-ready-holds.sh, black-box with a stubbed `gh` on PATH.
 # test-scope: plugins/source-control/.claude-plugin/plugin.json
 
 set -uo pipefail

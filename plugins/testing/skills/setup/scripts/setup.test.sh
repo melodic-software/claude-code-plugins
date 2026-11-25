@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for setup.sh: check's four sections, lint findings, the consumer hook
-# entry, and an apply that writes only the docs convention file or .claude/testing.yaml.
 # test-scope: plugins/testing/skills/audit/adapters/*.yaml
 # test-scope: plugins/testing/hooks/hooks.json plugins/testing/.claude-plugin/plugin.json
 # test-scope: plugins/testing/scripts/* plugins/testing/lib/*

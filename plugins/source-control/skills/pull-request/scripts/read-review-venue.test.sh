@@ -1,8 +1,4 @@
 # shellcheck shell=bash
-# Tests for read-review-venue.sh, run through bash (no #! line, no executable bit). Expected outputs follow the review_venue
-# contract in reference/review-venue.md and reference/config-resolution.md: the
-# repository value wins over userConfig, which wins over the default auto, and
-# an unknown value falls back to auto with a notice.
 
 set -uo pipefail
 
