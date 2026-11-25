@@ -2,5 +2,5 @@
 extend-glob = ["dependabot-[0-9]*-*.md"]
 check-filename = false
 [type.lane-record]
-extend-glob = ["lane-record.mjs"]
-extend-ignore-re = ['"(?:isntall|instal|udpate)"', '\(\?:ba\|']
+extend-glob = ["lane-record.mjs", "lane-record.test.mjs"]
+extend-ignore-re = ['"(?:npm )?(?:isntall|instal|udpate)(?:-clean)?"', '\(\?:ba\|']
