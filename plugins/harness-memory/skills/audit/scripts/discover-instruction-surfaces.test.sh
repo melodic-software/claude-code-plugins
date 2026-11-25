@@ -7,8 +7,6 @@ SCRIPT="$SCRIPT_DIR/discover-instruction-surfaces.sh"
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# Every case runs with CLAUDE_CONFIG_DIR pointed at a fixture, so the suite never
-# reads — or reports on — the real `~/.claude` on the machine running it.
 run_in() {
   local proj="$1" conf="$2"
   shift 2
@@ -276,8 +274,6 @@ printf '# a bare home CLAUDE.md\n' >"$HOMEY/CLAUDE.md"
 OUT_HOMEY_BARE="$(cd "$HOMEY/proj" && CLAUDE_CONFIG_DIR="$HOMEY/.claude" bash "$SCRIPT")"
 assert_not_contains "a bare CLAUDE.md beside the user root still displaces it" "$OUT_HOMEY_BARE" "$(printf 'agents-md\t')"
 
-# `$HOME/.claude` is the user root even when CLAUDE_CONFIG_DIR names another dir;
-# otherwise fixtures inside the real profile would see its CLAUDE.md as a displacer.
 HOMEONLY="$TEST_TMPDIR/home-only"
 mkdir -p "$HOMEONLY/.claude" "$HOMEONLY/proj"
 printf '# user memory\n' >"$HOMEONLY/.claude/CLAUDE.md"
