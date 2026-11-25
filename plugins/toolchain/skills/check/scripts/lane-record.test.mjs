@@ -379,12 +379,14 @@ describe("write mode", () => {
     git("config", "remote.origin.followRemoteHEAD", "never");
     git("fetch", "-q", "origin");
     assert.notEqual(spawnSync("git", ["-C", root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]).status, 0);
-    writeFileSync(join(root, "CLAUDE.md"), `${BASE_FILES["CLAUDE.md"]}Test with \`node tools/x.mjs\`.\n`);
-    commitAll(root, "lane change");
+    writeFileSync(join(root, "README.md"), "# Cart\n");
+    commitAll(root, "unrelated lane change");
     const drafted = write(root, THREE);
     assert.equal(drafted.status, 0, drafted.stderr);
     assert.equal(Object.keys(parseRecord(readFileSync(drafted.out, "utf8")).values).length, 3);
     rmSync(dirname(drafted.out), { recursive: true, force: true });
+    writeFileSync(join(root, "CLAUDE.md"), `${BASE_FILES["CLAUDE.md"]}Test with \`node tools/x.mjs\`.\n`);
+    commitAll(root, "lane change");
     const refused = write(root, ["assumed: typescript.test-cmd=node tools/x.mjs (CLAUDE.md:4)"]);
     assert.equal(refused.status, 1, refused.stderr);
     assert.match(refused.stderr, new RegExp(`the cited file differs from the merge-base with origin/${branch}`));
