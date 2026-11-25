@@ -391,8 +391,8 @@ reads the file itself, through a script where the key names one below.
   has approved that through their own approval process. The
   Dependabot policy, `components/dependabot-policy/policy.json`, is read the same way from
   `standards_repository` whenever that key is set, whatever `trusted_actors_source` says, and
-  from the `.github/standards/` copy when it is unset; `standards_repository` alone leaves the
-  trusted list on the copy. Any other `trusted_actors_source` value, `standards` with
+  never from a repository copy: with the key unset the policy is unreadable and the lane merges
+  no Dependabot update. `standards_repository` alone leaves the trusted list on the copy. Any other `trusted_actors_source` value, `standards` with
   `standards_repository` absent or not an `owner/repo` pair, or a YAML the parser rejects, reads
   neither file: the lane adopts nothing and the hold check leaves the label holding. A
   `standards_repository` that is not an `owner/repo` pair, without `standards`, fails the policy

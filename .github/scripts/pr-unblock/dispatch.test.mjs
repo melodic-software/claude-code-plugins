@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
@@ -1464,6 +1464,25 @@ test("only a finished run that handles the head for good is recorded", async () 
   await run();
   // #4 failed once, so it is retried; #5 finished: handled for good.
   assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], [pr(5).headRefOid]);
+});
+
+test("main never reads the base's synced Dependabot policy copy: with no standards checkout and no DEPENDABOT_POLICY the policy is unreadable", async () => {
+  const dir = tempDir("pr-unblock-policy-");
+  const copy = join(dir, ".base/.github/standards/dependabot-policy");
+  mkdirSync(copy, { recursive: true });
+  writeFileSync(join(copy, "policy.json"), JSON.stringify({ autoMerge: { reviewOnly: [] } }));
+  writeFileSync(join(dir, "output"), "");
+  const env = { GITHUB_TOKEN: "t0ken", GITHUB_REPOSITORY: "octo/repo", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: join(dir, "output"), APP_SENDER_ID: String(LANES_APP), DISPATCH_RECORD: join(dir, "record.json") };
+  const lines = [];
+  const cwd = process.cwd();
+  try {
+    process.chdir(dir);
+    await main(env, { api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] });
+  } finally {
+    process.chdir(cwd);
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.ok(lines.some((line) => line.startsWith("::warning::cannot read the Dependabot policy (no path)")), lines.join("\n"));
 });
 
 test("main carries the record in DISPATCH_RECORD and writes it only when it changed", async () => {

@@ -2746,10 +2746,11 @@ failure signals.
 A non-major release of a hijacked package passes tier `auto` on a green `ci-status`. A dependency
 that runs inside a job holding a secret or a write token is therefore listed in the standards
 Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
-`components/dependabot-policy/policy.json`), which the sync places at
-`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base, and the
-pr-merge gate reads it at the default branch head too, where an entry either side lists matches
-and either side unreadable makes it unreadable:
+`components/dependabot-policy/policy.json`). pr-unblock reads it from the standards checkout
+(`STANDARDS_DIR`); the pr-merge gate reads it from the repository `standards_repository` names in
+the source-control config at the base and at the default branch head, where an entry either side
+lists matches and either side unreadable makes it unreadable. No lane reads a
+`.github/standards/` copy:
 
 - **Match.** An entry matches an update when its `repository` is this repository (any case), its
   `ecosystem` is the head branch's ecosystem in `dependabot.yml` spelling
@@ -2761,8 +2762,8 @@ and either side unreadable makes it unreadable:
   and action files the content rule gives its directory (`/` covers `.github/workflows/` and the
   action files under `.github/actions/`). A match makes the pull request tier `review` with the
   reason `review-only:<dependency>`, whatever the version change.
-- **Unreadable.** A missing policy file, one that is not JSON, or one whose `reviewOnly` is not a
-  list of entries with string `repository`, `ecosystem`, `directory`, `dependency` and `control`
+- **Unreadable.** No standards checkout or `standards_repository`, a missing policy file, one
+  that is not JSON, or one whose `reviewOnly` is not a list of entries with string `repository`, `ecosystem`, `directory`, `dependency` and `control`
   makes every Dependabot pull request tier `review` with the reason
   `dependabot-policy-unreadable`; so does a classifier call that passes no policy at all.
 - **Review.** The review activity gets the matched entries. A `merge` verdict on such a pull

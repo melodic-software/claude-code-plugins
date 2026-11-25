@@ -204,7 +204,6 @@ for (const [name, run] of [
           DEPENDENCY_FILE: join(dir, "dependency.json"),
           CONTEXT_RUN_FILE: join(dir, "run.json"),
           DEPENDABOT_CONFIG: join(ROOT, ".github/dependabot.yml"),
-          DEPENDABOT_POLICY: join(ROOT, ".github/standards/dependabot-policy/policy.json"),
           BASE_PATH: ROOT,
           STANDARDS_DIR: STANDARDS_FIXTURE,
         };
