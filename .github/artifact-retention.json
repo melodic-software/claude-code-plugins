@@ -301,6 +301,7 @@
       "retention-days": 3,
       "readers": [
         ".github/workflows/pr-run-activity-write.yml reply-attempt download, same run",
+        ".github/workflows/intake-triage.yml post-triage's act-turns.json denial count, same run",
         ".github/workflows/pr-run-activity-read.yml a person reading act-turns.json denials by hand"
       ],
       "reason": "A person reads the denials by hand, and 1 day would lose them over a weekend; 3 days in both lanes still covers a weekend and is a recorded owner decision.",
@@ -355,6 +356,14 @@
         ".github/workflows/pr-run-activity-write.yml same run"
       ],
       "reason": "Every reader is in the same run; the manual re-run of either write job alone (pr-run-activity-write.yml) reads it, so 3 days covers a weekend.",
+      "scan": "upload"
+    },
+    "triage-verdict-*": {
+      "retention-days": 3,
+      "readers": [
+        ".github/workflows/intake-triage.yml same run"
+      ],
+      "reason": "Read by intake-triage.yml's post-triage job in its own run; a manual re-run of that job alone reads it by attempt, so 3 days covers a weekend.",
       "scan": "upload"
     },
     "work-outcome-*": {

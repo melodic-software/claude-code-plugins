@@ -45,7 +45,9 @@ inputs:
     description: >-
       The issue an `issues` lane works; sent as `issue_number` when set, which
       the broker needs on an `issues` event and an intake-triage.yml dispatch.
-      Never with `pr-number` or `dispatcher-run-id`. `token` mode only.
+      Never with `pr-number` or `dispatcher-run-id`. In `check` mode only a
+      `workflow_dispatch` run of intake-triage.yml on refs/heads/main sends it,
+      and must; the broker answers 400 to it from any other caller.
     required: false
     default: ""
   release:
@@ -200,6 +202,8 @@ runs:
         ACTIVITY: ${{ inputs.activity }}
         PR_NUMBER: ${{ inputs.pr-number }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
+        CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}
+        CALLER_EVENT: ${{ github.event_name }}
         RELEASE: ${{ inputs.release }}
         DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         EXPECTED_UPSTREAM_HEAD: ${{ inputs.expected-upstream-head }}
@@ -278,9 +282,21 @@ runs:
           ;;
         check)
           # The check job resolves no grant and gates no PR, and the broker's
-          # check endpoint answers 400 to any body field but lane and activity.
-          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES${ACTIONS:-}${ACTIONS_VARIABLES:-}$PR_NUMBER$ISSUE_NUMBER${RELEASE:-}$DISPATCHER_RUN_ID${EXPECTED_UPSTREAM_HEAD:-}${PUSHED_COMMIT:-} ]] ||
-            fail "check mode takes no effect, grant, PR or issue number, release, or dispatcher run id"
+          # check endpoint answers 400 to any body field but lane and activity,
+          # and issue_number from an intake-triage.yml dispatch, which must send it.
+          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES${ACTIONS:-}${ACTIONS_VARIABLES:-}$PR_NUMBER${RELEASE:-}$DISPATCHER_RUN_ID${EXPECTED_UPSTREAM_HEAD:-}${PUSHED_COMMIT:-} ]] ||
+            fail "check mode takes no effect, grant, PR number, release, or dispatcher run id"
+          caller=${CALLER_WORKFLOW_REF:-}
+          caller_file=${caller%@*}
+          caller_file=${caller_file##*/}
+          intake_check=false
+          [[ $caller_file == intake-triage.yml && ${caller##*@} == refs/heads/main && ${CALLER_EVENT:-} == workflow_dispatch ]] && intake_check=true
+          if [[ $intake_check == true ]]; then
+            [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] ||
+              fail "an intake-triage.yml check sends the dispatched issue number as issue_number"
+          else
+            [[ -z $ISSUE_NUMBER ]] || fail "check mode sends issue_number only from an intake-triage.yml dispatch on refs/heads/main"
+          fi
           [[ $BROKER_URL =~ ^https://[^/]+/(.+/)?token$ ]] ||
             fail "lane-token-unconfigured: LANES_BROKER_URL does not end in a /token path segment, so it names no check endpoint"
           BROKER_URL="${BROKER_URL%/token}/check"

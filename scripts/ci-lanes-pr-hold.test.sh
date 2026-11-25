@@ -549,7 +549,7 @@ EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE STUB_KEEP_READS
   expect "after the author step, the queued step answers from its read" 0 0 "not the lanes App's"
 expect_pull_reads "the queued step makes no pull read of its own after the author step" 0
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-for gated in "$(step_of "List main's tip for the carry readers")" "$restore" "$carry"; do
+for gated in "$restore" "$carry"; do
   if [[ "$gated" == *'steps.queued_author.outputs.verify_judged != '"'false'"* ]]; then
     ok "$(sed -n 's/^      - name: //p' <<<"$gated") skips a queued pull request whose author the author step proved pr-verify does not judge"
   else

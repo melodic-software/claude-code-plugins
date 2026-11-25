@@ -31,6 +31,8 @@ condition 1 and the actor and author parts of condition 2).
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
 | `app-label` | empty | With `require-kind: human`, the one label the lanes App may apply to an issue to start the lane |
 | `app-field-id`, `app-field-option` | empty | With `require-kind: human`, the issue field and single-select option the lanes App may set (`field_added`) to start the lane; both or neither |
+| `bot-sender-ids` | empty | With `require-pr: false`, bot ids whose sender, of type Bot, the actor check admits beside the `require-kind` pool (the intake lane's `github-actions[bot]` and lanes App); such a sender is also its first attempt's triggering actor, and a re-run stays with the pool; malformed stops with `list-unreadable` |
+| `issue-author` | empty | `true`, with `require-pr: false`: an `issues` event proceeds only when its action is `opened` and its sender is the issue's author, else it stops with `untrusted-actor` |
 | `fault-reason` | empty | `true` writes reason `read-fault` for a stop that a read GitHub failed to answer caused (a 5xx or 429, a rate-guard stop, or no answer); `proceed` stays `false`, and a refusal on an answer GitHub gave keeps its reason |
 | `reconciler-workflow` | empty | The lost-run reconciler's workflow path: a `github-actions[bot]` re-run proceeds only as its recorded re-run; empty stops every such re-run |
 
