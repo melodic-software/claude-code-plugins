@@ -1,4 +1,5 @@
 # test-scope: plugins/planning/surface/tests/fixtures/ledger-legacy/*
+# test-scope: plugins/planning/scripts/testdata/interview-ledger-glossary.md
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
 # test-scope: lib/org-standards.sh docs/conventions/source-control.yaml plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
 
@@ -26,6 +27,7 @@ from interview_server import rebuild_responses  # noqa: E402
 
 ROUND = HERE / "round.py"
 CHECK = HERE.parent / "scripts" / "check-open-questions.sh"
+SESSION_LEDGER = HERE.parent / "scripts" / "testdata" / "interview-ledger-glossary.md"
 REPO = HERE.parents[2]
 BASH = shutil.which("bash")
 MARKDOWNLINT = shutil.which(
@@ -147,6 +149,17 @@ class SessionCase(unittest.TestCase):
             event(5, "Q1", "confirm", alt="1"),
         ]
         self.session(qs, events)
+
+
+def with_records(path):
+    """The ledger at `path` with the glossary-lookup and ADR-outcome records the procedure
+    check needs under --brief appended."""
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(
+            "\n## Glossary lookup\n\noff (domain_docs)\n\n## ADR outcomes\n\n"
+            "- every other decision | declined: easy to reverse\n"
+        )
+    return path
 
 
 def register_rows(path):
@@ -639,7 +652,7 @@ class TestExportBrief(SessionCase):
         self.deferred_session(restated=True)
         rc, out = self.check(
             "--ledger",
-            self.export("ledger"),
+            with_records(self.export("ledger")),
             "--brief",
             self.export("brief"),
             "--procedure",
@@ -682,7 +695,7 @@ class TestExportBrief(SessionCase):
         self.assertEqual(
             merged, self.PLAN_HEAD + self.brief_section(ledger) + self.PLAN_TAIL
         )
-        rc, out = self.check("--ledger", ledger, "--brief", plan, "--procedure")
+        rc, out = self.check("--ledger", with_records(ledger), "--brief", plan, "--procedure")
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
 
@@ -1649,45 +1662,201 @@ class TestBriefDecisionsOnce(SessionCase):
 
 
 class TestChangedRowsRecap(SessionCase):
-    """confirmation_recap with `since` lists only the rows changed since that recap, plus a
-    count per status for the rest; with no data dir it reads the ledger text alone."""
+    """confirmation_recap read from the ledger alone (the terminal lane) prints, in order, Needs
+    your eye, the summary grouped by each row's topic (untagged rows under Other), Changed after
+    you first saw it, and Terms and ADRs: one plain `<title>: <answer>` line per question, each
+    section only when it has a line, nothing cut. A data dir keeps the page's line per row."""
 
     LEDGER = (
-        "# Interview ledger\n\n## Open-question register\n\n"
-        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it\n"
-        "- Q2 | open | round 1 | Which runner image? |\n"
-        "- Q3 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1\n"
+        "# Interview ledger\n\n## Terminology matrix\n\n"
+        "| Term | Definition | Source | Status |\n|---|---|---|---|\n"
+        "| head SHA | the commit the branch points at | user, round 1 | agreed |\n"
+        "| tip | the newest commit | user, round 2 | proposed |\n\n"
+        "## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it; "
+        "topic:: Caching\n"
+        "- Q2 | answered | round 1 | Which runner image? | the slim image; topic:: Runners\n"
+        "- Q3 | answered | round 1 | Keep the lock file? | answer:: hedged: keep it; "
+        "note:: if the build stays under ten minutes\n"
+        "- Q4 | deferred | round 2 | Who pays for storage? | arbiter: USER-RESERVED\n"
+        "- Q5 | answered | round 2 | Cache size cap? (part of Q1) | answer:: accepted: 5 GB; "
+        "topic:: Caching\n"
+        "- Q6 | answered | round 2 | Evict old entries? | answered through Q1: evict after "
+        "a week\n"
+        "- Q7 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1\n"
+        "- Q8 | answered | round 3 | Retry flaky steps? | answer:: accepted: twice; "
+        "topic:: Runners; reopened:: round 3\n"
+        "- Q9 | answered | round 3 | Publish the report? | accepted: weekly\n\n"
+        "## ADR outcomes\n\nChecked with the admission test.\n"
+        "- Q1 (shared cache) | record: other repositories read it\n"
+        "- every other decision | declined: easy to reverse\n\n"
+        "## Reopened answers\n\n"
+        "- Q8 | round 3 | was: accepted: once | fact: ci.md:4 says retries are cheap\n"
     )
+    TERMS = [
+        "head SHA: the commit the branch points at",
+        "shared cache: record: other repositories read it",
+        "every other decision: declined: easy to reverse",
+    ]
 
-    def test_the_ledger_alone_gives_one_line_per_row(self):
+    @staticmethod
+    def sections(recap):
+        """{section heading: [line without its `- `]} in print order; every line in a section."""
+        out = {}
+        for block in recap.rstrip("\n").split("\n\n") if recap else ():
+            head, *lines = block.split("\n")
+            stray = [x for x in lines if not x.startswith("- ")]
+            if stray or not (head.startswith("**") and head.endswith("**")):
+                raise AssertionError(f"not a section: {block!r}")
+            out[head.strip("*")] = [x[2:] for x in lines]
+        return out
+
+    @staticmethod
+    def titles(lines):
+        return [x.split(": ", 1)[0] for x in lines]
+
+    def test_the_ledger_alone_prints_the_sections_in_order(self):
         recap, fits = exporters.confirmation_recap(None, 20000, self.LEDGER)
         self.assertTrue(fits)
+        got = self.sections(recap)
         self.assertEqual(
-            recap.splitlines(),
-            [
-                "Q1 answered: Share the cache? (accepted: share it)",
-                "Q2 open: Which runner image? ()",
-                "Withdrawn (1): Q3",
-            ],
+            list(got), ["Needs your eye", "Caching", "Runners", "Other", "Terms and ADRs"]
         )
+        eye = got["Needs your eye"]
+        self.assertEqual(
+            self.titles(eye), ["Keep the lock file", "Who pays for storage", "Retry flaky steps"]
+        )
+        self.assertIn("if the build stays under ten minutes", eye[0])
+        self.assertTrue(eye[0].startswith("Keep the lock file: keep it"), eye[0])
+        self.assertEqual(
+            eye[2], "Retry flaky steps: twice (changed from once after a new finding)"
+        )
+        (caching,) = got["Caching"]
+        self.assertTrue(caching.startswith("Share the cache: share it; "), caching)
+        for part in ("Cache size cap: 5 GB", "evict after a week"):
+            self.assertIn(part, caching)
+        self.assertNotIn("Evict old entries", recap)
+        self.assertNotIn("Split the job", recap)
+        self.assertEqual(got["Runners"], ["Which runner image: the slim image"])
+        self.assertEqual(got["Other"], ["Publish the report: weekly"])
+        self.assertEqual(got["Terms and ADRs"], self.TERMS)
+        self.assertNotIn("tip", self.titles(got["Terms and ADRs"]))
+        for word in ("::", "accepted", "hedged", "arbiter", "USER-RESERVED", "Q1", "answered"):
+            self.assertNotIn(word, recap)
 
-    def test_only_changed_rows_are_listed_and_the_rest_counted(self):
-        since = exporters.recap_state(exporters.recap_rows(None, self.LEDGER))
-        changed = self.LEDGER.replace(
-            "Which runner image? |", "Which runner image? | the slim image"
-        ).replace("- Q2 | open", "- Q2 | answered")
-        recap, _ = exporters.confirmation_recap(None, 20000, changed, since)
-        self.assertEqual(
-            recap.splitlines(),
-            [
-                "Q2 answered: Which runner image? (the slim image)",
-                "Unchanged since the last recap (2): 1 answered, 1 withdrawn",
-            ],
+    def test_changed_rows_compare_against_the_first_recap_and_appear_once(self):
+        first = exporters.first_recap_state(None, exporters.recap_rows(None, self.LEDGER))
+        second = self.LEDGER.replace("the slim image", "the full image")
+        kept = exporters.first_recap_state(first, exporters.recap_rows(None, second))
+        self.assertEqual(kept["Q2"], first["Q2"])
+        third = (
+            self.LEDGER.replace("the slim image", "the medium image")
+            .replace("hedged: keep it", "hedged: drop it")
+            .replace(
+                "\n\n## ADR outcomes",
+                "\n- Q10 | answered | round 3 | Name the job? | accepted: ci\n\n## ADR outcomes",
+            )
         )
-        recap, _ = exporters.confirmation_recap(None, 20000, self.LEDGER, since)
+        recap, _ = exporters.confirmation_recap(None, 20000, third, kept)
+        got = self.sections(recap)
         self.assertEqual(
-            recap, "Unchanged since the last recap (3): 1 answered, 1 open, 1 withdrawn\n"
+            list(got),
+            ["Needs your eye", "Caching", "Other", "Changed after you first saw it",
+             "Terms and ADRs"],
         )
+        changed = got["Changed after you first saw it"]
+        self.assertEqual(self.titles(changed), ["Which runner image", "Keep the lock file"])
+        self.assertEqual(changed[0], "Which runner image: the medium image")
+        self.assertIn("drop it", changed[1])
+        self.assertEqual(self.titles(got["Needs your eye"]), ["Who pays for storage",
+                                                             "Retry flaky steps"])
+        self.assertEqual(self.titles(got["Other"]), ["Publish the report", "Name the job"])
+        self.assertNotIn("Unchanged", recap)
+        said = [x for lines in got.values() for x in lines]
+        self.assertEqual(len(said), len(set(said)), said)
+
+    def test_with_nothing_changed_there_is_no_changed_section(self):
+        first = exporters.first_recap_state(None, exporters.recap_rows(None, self.LEDGER))
+        recap, _ = exporters.confirmation_recap(None, 20000, self.LEDGER, first)
+        self.assertEqual(recap, exporters.confirmation_recap(None, 20000, self.LEDGER)[0])
+
+    def test_a_section_with_no_line_is_left_out(self):
+        ledger = (
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it\n"
+        )
+        recap, _ = exporters.confirmation_recap(None, 20000, ledger)
+        self.assertEqual(recap, "**Other**\n- Share the cache: share it\n")
+
+    def test_commitments_fold_into_their_line_and_an_unconfirmed_one_needs_your_eye(self):
+        ledger = (
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | One writer? | answer:: accepted: yes; "
+            "commitments:: +admins only; +no network\n"
+            "- Q2 | open | round 1 | Two writers? | answer:: accepted: no; "
+            "commitments:: +a lock; -a queue\n"
+            "- Q3 | open | round 1 | Which runner image? |\n\n"
+            "## Captured assumptions\n\n- Quality bar: production\n"
+        )
+        recap, _ = exporters.confirmation_recap(None, 20000, ledger)
+        got = self.sections(recap)
+        self.assertEqual(list(got), ["Needs your eye", "Other"])
+        eye = got["Needs your eye"]
+        self.assertEqual(self.titles(eye), ["Two writers", "Which runner image", "Quality bar"])
+        self.assertTrue(eye[0].startswith("Two writers: no; "), eye[0])
+        self.assertLess(eye[0].index("a lock"), eye[0].index("a queue"))
+        self.assertEqual(eye[2], "Quality bar: production")
+        (one,) = got["Other"]
+        self.assertTrue(one.startswith("One writer: yes; "), one)
+        self.assertLess(one.index("admins only"), one.index("no network"))
+        self.assertNotIn("commitments", recap)
+
+    def test_a_long_answer_is_never_cut_and_an_oversize_recap_says_so(self):
+        long = " ".join(["Keep the build cache on the runner's local disk."] * 60)
+        ledger = (
+            "# Interview ledger\n\n## Open-question register\n\n"
+            f"- Q1 | answered | round 1 | Where is the cache? | answer:: accepted: {long}\n"
+        )
+        recap, fits = exporters.confirmation_recap(None, 20000, ledger)
+        self.assertIn(f"- Where is the cache: {long}\n", recap)
+        self.assertNotIn("…", recap)
+        self.assertTrue(fits)
+        recap, fits = exporters.confirmation_recap(None, 1000, ledger)
+        self.assertIn(long, recap)
+        self.assertFalse(fits)
+
+    def test_a_real_ledger_reads_in_plain_words(self):
+        text = SESSION_LEDGER.read_text(encoding="utf-8")
+        recap, fits = exporters.confirmation_recap(None, 20000, text)
+        self.assertTrue(fits)
+        lines = recap.splitlines()
+        self.assertEqual(
+            [x for x in lines if x.startswith("**")],
+            ["**Needs your eye**", "**Other**", "**Terms and ADRs**"],
+        )
+        self.assertNotIn("…", recap)
+        for marker in ("::", "answered", "accepted:", "withdrawn", "arbiter", "Q30"):
+            self.assertNotIn(marker, recap)
+        rows = {f"Q{n}": (title, res) for n, _, _, title, res, _ in exporters.parse_register(text)}
+        q38_title = rows["Q38"][0].rstrip("?")
+        (q38,) = [x for x in lines if x.startswith(f"- {q38_title}: ")]
+        self.assertIn("/planning:design", q38)
+        q31_title, q31_answer = rows["Q31"]
+        q18_title, q18_answer = rows["Q18"]
+        (q31,) = [x for x in lines if x.startswith(f"- {q31_title.rstrip('?')}: ")]
+        self.assertIn(f": {q31_answer}; ", q31)
+        cited = q18_answer.removeprefix("answered through Q31: ")
+        self.assertNotEqual(cited, q18_answer)
+        self.assertGreater(q31.index(cited), q31.index(q31_answer))
+        self.assertNotIn(q18_title.rstrip("?"), recap)
+        self.assertIn("- Where is the limit set: an account setting with a team default. "
+                      "Basis: docs/settings.md:40-52", lines)
+        self.assertIn("- Is there a per-section item limit today: No: \"no limit on items per "
+                      "section except the shared digest's\"", lines)
+        self.assertIn("- every other decision: declined: layout rules with no trigger beyond "
+                      "the weighed alternative", lines)
+        said = [x for x in lines if x]
+        self.assertEqual(len(said), len(set(said)), said)
 
     def test_a_page_answer_since_the_last_recap_is_the_changed_row(self):
         qs = [question(f"Q{i}") for i in (1, 2, 3)]
@@ -5620,6 +5789,145 @@ class TestNeverAssigned(SessionCase):
             "- gap | Q2-Q2 | never assigned\n",
             self.export("ledger").read_text(encoding="utf-8"),
         )
+
+
+class TestTopicTag(SessionCase):
+    """`topic:: <plain words>` is a register tag like the rest: split off the answer, read by
+    the gate as a tag, and written back byte for byte through an import and an export."""
+
+    ROWS = [
+        "- Q1 | answered | round 1 | Which store? | answer:: accepted: Postgres; "
+        "topic:: Data and storage",
+        "- Q2 | open | round 1 | Which cache? | depends:: Q1; topic:: Data and storage",
+        "- Q3 | answered | round 2 | Which queue? | answer:: accepted: SQS; kind:: discovery; "
+        "topic:: Messaging: queues & topics",
+    ]
+    LEDGER = "# Interview ledger\n\n## Open-question register\n\n" + "\n".join(ROWS) + "\n"
+
+    def test_split_tags_peels_a_topic(self):
+        cases = {
+            "answer:: accepted: x; topic:: Data and storage": (
+                "answer:: accepted: x",
+                "topic:: Data and storage",
+            ),
+            "topic:: Layout; recheck:: Q2": ("", "topic:: Layout; recheck:: Q2"),
+            "free-text: a; topic:: ": ("free-text: a; topic::", ""),
+            "answer:: a\\; topic:: Layout": ("answer:: a\\; topic:: Layout", ""),
+        }
+        for res, want in cases.items():
+            with self.subTest(res=res):
+                self.assertEqual(exporters.split_tags(res.rstrip()), want)
+                self.assertEqual(exporters.join_tags(*want), res.rstrip())
+
+    def test_the_gate_reads_a_topic_as_a_tag(self):
+        rows = [
+            "- Q1 | answered | round 1 | a | topic:: Layout",
+            "- Q2 | answered | round 1 | b | answer:: x\\; topic:: Layout; recheck:: Q1",
+        ]
+        ledger = self.tmp / "topic.md"
+        ledger.write_bytes(
+            ("# Interview ledger\n\n## Open-question register\n\n" + "\n".join(rows) + "\n").encode()
+        )
+        _, out = self.check("--ledger", ledger, "--procedure")
+        self.assertIn(" recheck=1 ", out)
+        self.assertEqual(re.findall(r"(Q\d+): answered row has an empty resolution", out), ["Q1"])
+        self.assertEqual(exporters.split_tags(rows[0].split(" | ")[-1]), ("", "topic:: Layout"))
+
+    def test_an_import_then_export_and_sync_write_each_topic_back_byte_for_byte(self):
+        ledger = self.tmp / "topics.md"
+        ledger.write_bytes(self.LEDGER.encode("utf-8"))
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            doc["meta"]["seededFrom"]["tags"]["Q3"],
+            "kind:: discovery; topic:: Messaging: queues & topics",
+        )
+        self.assertEqual(register_rows(self.export("ledger")), self.ROWS)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(ledger.read_bytes(), self.LEDGER.encode("utf-8"))
+
+
+class TestLedgerSectionsCarry(SessionCase):
+    """A page export keeps the ledger's glossary lookup, ADR outcomes, round counts,
+    self-answered facts and assumption sweep, as it keeps its problems and reopened answers."""
+
+    SECTIONS = {
+        "glossary lookup": "## Glossary lookup\n\noff (domain_docs)\n",
+        "adr outcomes": "## ADR outcomes\n\n- every other decision | declined: easy to reverse\n",
+        "round counts": "## Round counts\n\n- round 1 | opened 2 | closed 1\n",
+        "self-answered facts": "## Self-answered facts\n\n- F1 | answered-from-codebase | "
+        "Which queue? | SQS | infra.md:3 \"queue: sqs\"\n",
+        "assumption sweep": "## Assumption sweep\n\n- sweep 1 | register through Q1\n"
+        "- S1 | sweep 1 | undecided | decision | Q1 recommendation, retries | Q2\n\n"
+        "- sweep 2 | register through Q2\n"
+        "- S2 | sweep 2 | hidden-default | fact | Q2, region | F1\n",
+    }
+    LEDGER = (
+        "# Interview ledger\n\n"
+        + SECTIONS["glossary lookup"]
+        + "\n## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Which store? | answer:: accepted: Postgres\n"
+        "- Q2 | open | round 1 | Retry how often? |\n\n"
+        + SECTIONS["round counts"]
+        + "\n"
+        + SECTIONS["self-answered facts"]
+        + "\n"
+        + SECTIONS["assumption sweep"]
+        + "\n"
+        + SECTIONS["adr outcomes"]
+    )
+
+    def imported(self, text):
+        ledger = self.tmp / "ledger.md"
+        ledger.write_bytes(text.encode("utf-8"))
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        return ledger
+
+    def exported(self, ledger, name="exported.md"):
+        out = self.tmp / name
+        rc, text = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        return out
+
+    def test_an_export_keeps_each_section_once_and_is_a_fixed_point(self):
+        first = self.exported(self.imported(self.LEDGER))
+        text = first.read_text(encoding="utf-8")
+        for name, block in self.SECTIONS.items():
+            with self.subTest(name):
+                self.assertEqual(text.count(block), 1, text)
+        again = self.exported(first, "again.md")
+        self.assertEqual(again.read_bytes(), first.read_bytes())
+
+    def test_a_sync_leaves_each_section_as_it_was(self):
+        ledger = self.imported(self.LEDGER)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        text = ledger.read_text(encoding="utf-8")
+        for name, block in self.SECTIONS.items():
+            with self.subTest(name):
+                self.assertEqual(text.count(block), 1, text)
+
+    def test_a_real_ledger_exported_from_the_page_still_passes_the_procedure_check(self):
+        exported =self.exported(self.imported(SESSION_LEDGER.read_text(encoding="utf-8")))
+        text = exported.read_text(encoding="utf-8")
+        for heading in ("## Glossary lookup", "## ADR outcomes", "## Assumption sweep",
+                        "## Self-answered facts", "## Reopened answers"):
+            self.assertEqual(text.count(f"\n{heading}\n"), 1, heading)
+        brief = self.tmp / "PLAN.md"
+        brief.write_text(
+            "## Brief\n\n### TLDR\n- x\n\n### Problem\n- x\n\n### Goal\nx\n"
+            "- Finish line: merged — checked by ci-status via the pull request's checks\n\n"
+            "### Work size\n- x\n\n### Constraints\n- x\n\n### Acceptance criteria\n- x\n\n"
+            "### Captured assumptions\n- x\n\n### Out-of-scope\n- x\n\n"
+            "### Deferred questions\n- Q38: x\n\n## Plan\n",
+            encoding="utf-8",
+        )
+        rc, out = self.check("--ledger", exported, "--brief", brief, "--procedure")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("procedure=ok", out)
 
 
 class TestNoEmojiNoSkillNames(SessionCase):

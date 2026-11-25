@@ -871,6 +871,7 @@ proc_retired="$(
 - Q1 | deferred | round 1 | Who writes? | post-V1
 EOT
 )"
+printf '\n## Glossary lookup\n\nnone found: searched docs/glossary.md\n' >>"$proc_retired"
 expect_exit "--procedure --brief with every section -> 0" 0 --ledger "$proc_retired" --brief "$proc_brief_full" --procedure
 expect_exit "--procedure --brief missing Out-of-scope -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_short" --procedure
 if [[ "$(stderr_of --ledger "$proc_retired" --brief "$proc_brief_short" --procedure)" == *"out[- ]of[- ]scope"* ]]; then pass "--procedure names the missing Brief section"; else fail "--procedure names the missing Brief section"; fi
@@ -1069,6 +1070,7 @@ surface_ledger="$(
 - Q1 | answered | round 1 | Who writes? | admin
 EOF
 )"
+printf '\n## Glossary lookup\n\noff (domain_docs)\n\n## ADR outcomes\n\n- Q1 (who writes) | declined: easy to reverse\n' >>"$surface_ledger"
 page_export="$TMP/page-export.md"
 if bash "$SCRIPT_DIR/../surface/round.sh" --dir "$surface_dir" export-brief --ledger "$surface_ledger" --out "$page_export" >/dev/null 2>&1; then
   pass "the fixture page exports a Brief"
@@ -1272,6 +1274,74 @@ cat >"$design_brief_missing" <<'EOF'
 EOF
 expect_exit "a /planning:design row absent from the Brief -> 2" 2 --ledger "$design_deferred" --brief "$design_brief_missing"
 if [[ "$(stderr_of --ledger "$design_deferred" --brief "$design_brief_missing")" == *"absent from the Brief's deferred questions: Q3"* ]]; then pass "the /planning:design row absent from the Brief is named"; else fail "the /planning:design row absent from the Brief is named"; fi
+
+topic_rows="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | accepted: yes; topic:: Delivery and links
+- Q2 | answered | round 1 | b | accepted: yes; topic:: Layout; recheck:: Q1
+- Q3 | answered | round 1 | c | topic:: Layout
+EOF
+)"
+expect_stdout "a topic tag sits in the tag tail, so recheck still blocks" "answered=3 superseded=0 brief=unchecked recheck=1 status=open" --ledger "$topic_rows"
+if [[ "$(stderr_of --ledger "$topic_rows" --procedure)" == *"Q3: answered row has an empty resolution"* ]]; then pass "a resolution of a topic tag alone is empty under --procedure"; else fail "a resolution of a topic tag alone is empty under --procedure"; fi
+
+record_brief="$TMP/record-brief.md"
+sed 's/^- Q1: x$/- Q2: x/' "$proc_brief_full" >"$record_brief"
+records_ledger() {
+  local path
+  path="$(
+    mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | deferred | round 1 | Moderation? | later
+- Q3 | answered | round 2 | Which format? | markdown
+- Q4 | withdrawn | round 2 | Split it? | merged into Q3
+EOF
+  )"
+  printf '%s' "$1" >>"$path"
+  printf '%s' "$path"
+}
+glossary=$'\n## Glossary lookup\n\ndocs/glossary.md holds none of: writer, format\n'
+all_outcomes=$'\n## ADR outcomes\n\n- Q1 (who writes) | declined: easy to reverse\n- Q3 (format) | record: other tools read it\n'
+expect_exit "a glossary record and an outcome per answered row -> 0" 0 --ledger "$(records_ledger "$glossary$all_outcomes")" --brief "$record_brief" --procedure
+no_glossary="$(records_ledger "$all_outcomes")"
+expect_exit "no '## Glossary lookup' section under --procedure --brief -> 1" 1 --ledger "$no_glossary" --brief "$record_brief" --procedure
+if [[ "$(stderr_of --ledger "$no_glossary" --brief "$record_brief" --procedure)" == *"missing=glossary-lookup"* ]]; then pass "the missing glossary record is named"; else fail "the missing glossary record is named"; fi
+expect_exit "no glossary record without --brief -> 0" 0 --ledger "$no_glossary" --procedure
+empty_glossary="$(records_ledger $'\n## Glossary lookup\n\n'"$all_outcomes")"
+if [[ "$(stderr_of --ledger "$empty_glossary" --brief "$record_brief" --procedure)" == *"missing=glossary-lookup"* ]]; then pass "an empty '## Glossary lookup' section is no record"; else fail "an empty '## Glossary lookup' section is no record"; fi
+expect_exit "a glossary record of 'off (domain_docs)' -> 0" 0 --ledger "$(records_ledger $'\n## Glossary lookup\n\noff (domain_docs)\n'"$all_outcomes")" --brief "$record_brief" --procedure
+one_outcome="$(records_ledger "$glossary"$'\n## ADR outcomes\n\n- Q3 (format) | record: other tools read it\n')"
+one_outcome_err="$(stderr_of --ledger "$one_outcome" --brief "$record_brief" --procedure)"
+expect_exit "an answered row with no ADR outcome -> 1" 1 --ledger "$one_outcome" --brief "$record_brief" --procedure
+if [[ "$one_outcome_err" == *"missing=adr-outcome:Q1"* && "$one_outcome_err" != *"missing=adr-outcome:Q3"* && "$one_outcome_err" != *"missing=adr-outcome:Q2"* && "$one_outcome_err" != *"missing=adr-outcome:Q4"* ]]; then pass "only the answered row no outcome names is reported"; else fail "only the answered row no outcome names is reported (stderr: '$one_outcome_err')"; fi
+no_outcomes_err="$(stderr_of --ledger "$(records_ledger "$glossary")" --brief "$record_brief" --procedure)"
+if [[ "$no_outcomes_err" == *"missing=adr-outcome:Q1"* && "$no_outcomes_err" == *"missing=adr-outcome:Q3"* ]]; then pass "no '## ADR outcomes' section names every answered row"; else fail "no '## ADR outcomes' section names every answered row (stderr: '$no_outcomes_err')"; fi
+expect_exit "a closing 'every other decision' line covers the rest -> 0" 0 --ledger "$(records_ledger "$glossary"$'\n## ADR outcomes\n\n- Q3 (format) | record: other tools read it\n- every other decision | declined: easy to reverse\n')" --brief "$record_brief" --procedure
+right_of_bar="$(records_ledger "$glossary"$'\n## ADR outcomes\n\nQ1 was weighed against Q3.\n- Q3 (format) | record: replaces the Q1 draft\n')"
+if [[ "$(stderr_of --ledger "$right_of_bar" --brief "$record_brief" --procedure)" == *"missing=adr-outcome:Q1"* ]]; then pass "a Q id right of '|' or on a line with no '|' is no outcome"; else fail "a Q id right of '|' or on a line with no '|' is no outcome"; fi
+expect_exit "a Q id inside a longer one is no outcome for it -> 1" 1 --ledger "$(records_ledger "$glossary"$'\n## ADR outcomes\n\n- Q13 (other) | declined: x\n- Q3 (format) | record: y\n')" --brief "$record_brief" --procedure
+
+session_ledger="$SCRIPT_DIR/testdata/interview-ledger-glossary.md"
+session_brief="$TMP/session-brief.md"
+sed 's/^- Q1: x$/- Q38: x/' "$proc_brief_full" >"$session_brief"
+expect_exit "a real interview ledger with its glossary line under '## Glossary lookup' -> 0" 0 --ledger "$session_ledger" --brief "$session_brief" --procedure
+unmoved="$TMP/session-ledger-unmoved.md"
+grep -v -x -e '## Glossary lookup' "$session_ledger" >"$unmoved"
+expect_exit "the same ledger with its glossary line left under the terminology matrix -> 1" 1 --ledger "$unmoved" --brief "$session_brief" --procedure
+unmoved_err="$(stderr_of --ledger "$unmoved" --brief "$session_brief" --procedure)"
+if [[ "$unmoved_err" == *"missing=glossary-lookup"* && "$unmoved_err" != *"missing=adr-outcome"* ]]; then pass "the unmoved ledger fails only on its glossary record"; else fail "the unmoved ledger fails only on its glossary record (stderr: '$unmoved_err')"; fi
+
+expect_exit "S ids that run on into the next sweep -> 0" 0 --ledger "$(sweep_ledger "$ticked" '- sweep 1 | register through Q1
+- S1 | sweep 1 | undecided | decision | Q1 recommendation, size carrier | Q2
+- S2 | sweep 1 | hidden-default | fact | Q1 recommendation, queue library | F1
+- sweep 2 | register through Q2
+- S3 | sweep 2 | contradiction | decision | Q1 and Q2 | Q3')" --procedure
+expect_sweep_defect "a sweep that skips past the last sweep's S ids" '- sweep 1 | register through Q1
+- S1 | sweep 1 | undecided | decision | Q1 recommendation, size carrier | Q2
+- sweep 2 | register through Q2
+- S3 | sweep 2 | contradiction | decision | Q1 and Q2 | Q3' "sweep 2 starts at S3"
+expect_sweep_defect "a first sweep that does not start at S1" '- sweep 1 | register through Q1
+- S2 | sweep 1 | undecided | decision | Q1 recommendation, size carrier | Q2' "sweep 1 starts at S2"
 
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2

@@ -61,6 +61,8 @@ A row of any status whose resolution ends `stale:: C<N>[, C<N>...]` was not
 checked against those constraints: the export writes it, the verdict adds
 `stale=<n>`, and the gate blocks exactly as it does on `open` until Claude
 revises or reconfirms the question. A ledger with no such row reads as before.
+Register tags before it (`kind::`, `problem::`, `depends::`, `reopened::`,
+`recheck::`, `topic:: <plain words>`) are not part of the resolution.
 
 --brief is OPT-IN and cross-checks that every `deferred` and `blocked` row
 reached the Brief's `### Deferred questions` section, keyed by its `Q<N>` id.
@@ -122,9 +124,17 @@ a caller that omits it keeps every verdict and exit code above unchanged:
     becomes a new row, above the sweep's `- sweep <M> | register through Q<N>`
     line, which precedes the sweep's rows and names the register's last row
     when that sweep ran. S ids run
-    contiguously from 1 within each sweep, no S row sits outside the section,
+    contiguously within each sweep, from S1 or on from the last sweep's
+    highest S id, no S row sits outside the section,
     a section with no item says `- none`, and a ticked Step 2 exit that is
     not `SKIPPED` needs the section
+  - with --brief, the ledger's `## Glossary lookup` section holds a line
+    (the glossary read and the terms it held or lacked, `none found` with the
+    paths searched, or `off (domain_docs)`), else `missing=glossary-lookup`;
+    and a line under `## ADR outcomes` names each `answered` row's Q<N> left
+    of its first `|` (`- Q<N> (<decision>) | record: <why>`), else
+    `missing=adr-outcome:Q<N>`, unless a line there starts
+    `every other decision`, which covers every row
 Each defect is named on stderr. Without --procedure the verdict says
 `procedure=unchecked`, the same convention as `brief=unchecked`. A gradeable
 register with a procedure defect exits 1 with `status=incomplete` (`open` when
@@ -375,6 +385,33 @@ trim_into() {
 
 proc_problem() { proc_problems="$proc_problems$1"$'\n'; }
 
+live_section_lines() {
+  local matches text out=""
+  matches="$(heading_matches "$1" "$ledger")"
+  [[ -n "$matches" ]] || return 0
+  while IFS= read -r text; do
+    [[ "${text%%$'\t'*}" == "." ]] || continue
+    text="${text#*$'\t'}"
+    [[ "$text" =~ [^[:space:]] ]] && out="$out$text"$'\n'
+  done <<<"$(extract_section "${matches%%$'\t'*}" "$ledger")"
+  printf '%s' "$out"
+}
+
+check_records() {
+  local outcomes="" line id
+  [[ -n "$(live_section_lines '^#+[[:space:]]+glossary lookup[[:space:]]*$')" ]] ||
+    proc_problem "missing=glossary-lookup: no line under '## Glossary lookup'; record the glossary read and the terms it held or lacked, 'none found' with the paths searched, or 'off (domain_docs)'"
+  while IFS= read -r line; do
+    [[ "$line" =~ ^[[:space:]]*([-*+][[:space:]]+)?[Ee]very\ other\ decision ]] && return
+    [[ "$line" == *"|"* ]] || continue
+    outcomes="$outcomes ${line%%|*}"$'\n'
+  done <<<"$(live_section_lines '^#+[[:space:]]+adr outcomes[[:space:]]*$')"
+  for id in $answered_ids; do
+    [[ "$outcomes" =~ (^|[^A-Za-z0-9])$id([^0-9]|$) ]] ||
+      proc_problem "missing=adr-outcome:$id: no line under '## ADR outcomes' names $id; add '- $id (<decision>) | record: <why>' or '| declined: <reason>', or close the section with '- every other decision | declined: <reason>'"
+  done
+}
+
 check_sweep() {
   local text lno sweep_ran sweep_matches sweep_line facts_matches facts="" body
   local s_lo=0 s_hi=0 sweep_keys=$'\n' sweep_rows=0 sweep_none=0 row seps key
@@ -558,11 +595,24 @@ check_sweep() {
     fi
     gaps="$(printf '%s' "$sweep_keys" | awk '
       NF < 3 { next }
-      { m = $2; n = substr($3, 2) + 0; if (n > max[m]) max[m] = n; seen[m " " n] = 1 }
-      END { for (m in max) for (n = 1; n <= max[m]; n++) if (!((m " " n) in seen)) print "sweep " m " has no row for S" n }
+      {
+        m = $2 + 0; n = substr($3, 2) + 0; seen[m " " n] = 1
+        if (!(m in lo) || n < lo[m]) lo[m] = n
+        if (n > hi[m]) hi[m] = n
+        if (m > top) top = m
+      }
+      END {
+        prev = 0
+        for (m = 1; m <= top; m++) {
+          if (!(m in lo)) continue
+          if (lo[m] != 1 && lo[m] != prev + 1) print "sweep " m " starts at S" lo[m] ", not S1" (prev ? " or S" prev + 1 : "")
+          for (n = lo[m]; n <= hi[m]; n++) if (!((m " " n) in seen)) print "sweep " m " has no row for S" n
+          prev = hi[m]
+        }
+      }
     ')"
     while IFS= read -r text; do
-      [[ -n "$text" ]] && proc_problem "$text (S ids run contiguously from 1 within a sweep)"
+      [[ -n "$text" ]] && proc_problem "$text (S ids run contiguously within a sweep, from S1 or on from the last sweep's highest S id)"
     done <<<"$gaps"
   fi
 
@@ -687,7 +737,8 @@ recheck_count=0
 stale_list='stale:: C[0-9]+(, C[0-9]+)*'
 stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )'"$stale_list"'$'
 qlist='Q[1-9][0-9]*(, Q[1-9][0-9]*)*'
-tag_re='(kind:: discovery|problem:: P[1-9][0-9]*|depends:: '"$qlist"'|reopened:: round [1-9][0-9]*|recheck:: '"$qlist"')'
+topic_re='[^;|\[:space:]]([^;|\]*[^;|\[:space:]])?'
+tag_re='(kind:: discovery|problem:: P[1-9][0-9]*|depends:: '"$qlist"'|reopened:: round [1-9][0-9]*|recheck:: '"$qlist"'|topic:: '"$topic_re"')'
 recheck_tail_re='(^|\] |(^|[^\\])(\\\\)*; )('"$tag_re"'; )*recheck:: '"$qlist"'(; '"$tag_re"')*(; '"$stale_list"')?$'
 tags_only_re='^(\[[^]]*\][[:space:]]*)?'"$tag_re"'(; '"$tag_re"')*(; '"$stale_list"')?$'
 answered=0
@@ -697,6 +748,7 @@ blocked=0
 superseded=0
 seen_ids=" "
 deferred_ids=""
+answered_ids=""
 ids_in_order=""
 declared_gaps=""
 max_id=0
@@ -815,7 +867,10 @@ while IFS= read -r line; do
   shopt -s nocasematch
   case "$status_field" in
   open | discussing) open_count=$((open_count + 1)) ;;
-  answered) answered=$((answered + 1)) ;;
+  answered)
+    answered=$((answered + 1))
+    answered_ids="$answered_ids$id "
+    ;;
   deferred)
     deferred=$((deferred + 1))
     deferred_ids="$deferred_ids$id "
@@ -1015,6 +1070,8 @@ if [[ "$procedure_on" -eq 1 ]]; then
       ;;
     *) ;;
     esac
+
+    check_records
 
     if [[ "$surface_named" -eq 1 ]]; then
       expected_brief="$(mktemp)" || die_ungradeable "could not create a temp file for the --surface export"

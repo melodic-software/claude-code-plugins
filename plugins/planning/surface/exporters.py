@@ -8,8 +8,10 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  the first row numbered past its range (after the last row when none is);
                  it refuses a gap line the gate would read as malformed, and writes
                  `- gap | Q<a>-Q<b> | never assigned` for ids nothing held (never_assigned);
-                 it writes the ledger's `## Problems` above the register and its
-                 `## Reopened answers` last (carried_section)
+                 it writes the ledger's `## Problems` above the register, then after
+                 the deferred questions its `## Self-answered facts`, `## Assumption sweep`,
+                 `## Glossary lookup`, `## ADR outcomes`, `## Round counts` and
+                 `## Reopened answers`, each present one (carried_section)
   sync_ledger    a ledger's text with only its register rows and gap lines replaced by the
                  merged rows and those gap lines, placed as export_ledger places them; it
                  refuses a malformed gap line and writes never-assigned lines as export_ledger does
@@ -54,7 +56,8 @@ is not the bare `round <N>` in meta.seededFrom.roundCells, which export writes b
 question's round still equals the cell's number, so an imported ledger round-trips byte for byte.
 
 A resolution may end, before `stale::`, in a tail of register tags (TAG_NAMES: `kind:: discovery`,
-`problem:: P<n>`, `depends:: Q<a>[, ...]`, `reopened:: round <N>`, `recheck:: Q<a>[, ...]`),
+`problem:: P<n>`, `depends:: Q<a>[, ...]`, `reopened:: round <N>`, `recheck:: Q<a>[, ...]`,
+`topic:: <plain words>` with no `;`, `|` or backslash),
 peeled from the right (split_tags) before any field is parsed. Import keeps each row's tail in
 meta.seededFrom.tags and export writes it back; a merge into a ledger keeps the ledger's tail.
 
@@ -190,11 +193,12 @@ STALE_LIST = r"stale:: C[0-9]+(?:, C[0-9]+)*$"
 STALE_TAIL = re.compile(
     rf"(?:(?<=\] )|^){STALE_LIST}|((?:^|[^\\])(?:\\\\)*); {STALE_LIST}"
 )
-TAG_NAMES = ("kind", "problem", "depends", "reopened", "recheck")
+TAG_NAMES = ("kind", "problem", "depends", "reopened", "recheck", "topic")
 QLIST = r"Q[1-9][0-9]*(?:, Q[1-9][0-9]*)*"
+TOPIC = r"[^;|\\\s](?:[^;|\\]*[^;|\\\s])?"
 TAG = (
     rf"(?:kind:: discovery|problem:: P[1-9][0-9]*|depends:: {QLIST}"
-    rf"|reopened:: round [1-9][0-9]*|recheck:: {QLIST})"
+    rf"|reopened:: round [1-9][0-9]*|recheck:: {QLIST}|topic:: {TOPIC})"
 )
 TAG_LIST = rf"{TAG}(?:; {TAG})*$"
 TAG_TAIL = re.compile(rf"^({TAG_LIST})|((?:^|[^\\])(?:\\\\)*); ({TAG_LIST})")
@@ -1018,14 +1022,24 @@ def export_ledger(d, text=None, where="the ledger"):
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
     out += [f"- {r['n']}: {r['title']}" for r in retired] or ["- none"]
-    reopened = carried_section(text, "reopened answers")
-    return "\n".join(out + ([""] + reopened[:-1] if reopened else [])) + "\n"
+    tail = [line for name in CARRIED for line in carried_section(text, name)]
+    return "\n".join(out + ([""] + tail[:-1] if tail else [])) + "\n"
+
+
+CARRIED = (
+    "self-answered facts",
+    "assumption sweep",
+    "glossary lookup",
+    "adr outcomes",
+    "round counts",
+    "reopened answers",
+)
 
 
 def carried_section(text, name):
     """The lines of the ledger section headed `name` (the first one outside fences), heading
     through its last non-blank line, then one blank line; [] with no such section. export_ledger
-    writes the ledger's `## Problems` and `## Reopened answers` back with it, as sync-ledger
+    writes the ledger's `## Problems` and each CARRIED section back with it, as sync-ledger
     leaves them."""
     lines = (text or "").splitlines()
     heads = headings(lines)
@@ -1077,13 +1091,26 @@ def recap_state(rows):
     return {r["n"]: f"{r['status']}: {r['title']} ({recap_answer(r)})" for r in rows}
 
 
+def first_recap_state(saved, rows):
+    """The recap state to save for the terminal lane: each row as the user first saw it, that
+    is its `saved` value (an earlier first_recap_state, or an older ledger's last recap) when
+    it has one, else its recap_state now, so Changed after you first saw it keeps comparing
+    against the first recap."""
+    return {**recap_state(rows), **(saved or {})}
+
+
 def confirmation_recap(d, cap, text=None, since=None):
-    """The confirmation gate's compact recap, one `Q<N> <status>: <question> (<answer>)` line per
-    live question, with every withdrawn row collapsed into one closing line and each long answer
-    cut. With `since` (the recap_state an earlier recap saved) it lists only the rows whose
-    status, question or answer changed since then, and closes with one `Unchanged since the last
-    recap (N): <count> <status>, ...` line for the rest. The answer length steps down until the
-    recap fits `cap` characters; (recap, fits) says whether it did."""
+    """(recap, fits): the confirmation gate's recap and whether it fits `cap` characters. With
+    no data dir (the terminal lane) it is plain_recap of the ledger text, never cut. With one
+    (the page lane, whose Brief reads its Decisions from this recap) it is one
+    `Q<N> <status>: <question> (<answer>)` line per live question, with every withdrawn row
+    collapsed into one closing line and the answer length stepped down until the recap fits;
+    with `since` (the recap_state an earlier recap saved) it lists only the rows whose status,
+    question or answer changed since then, and closes with one `Unchanged since the last recap
+    (N): <count> <status>, ...` line for the rest."""
+    if d is None:
+        out = plain_recap(text, since)
+        return out, len(out) <= cap
     rows = recap_rows(d, text)
     state = recap_state(rows)
     kept = {n for n, line in state.items() if since is not None and since.get(n) == line}
@@ -1108,6 +1135,203 @@ def confirmation_recap(d, cap, text=None, since=None):
         if len(out) <= cap:
             return out, True
     return out, False
+
+
+LOOSE_TAGS = re.compile(rf"\s+((?:{TAG})(?:(?:;\s*|\s+)(?:{TAG}))*)$")
+CITES = re.compile(
+    r"^(?:answered through|merged into|folded into|superseded by|see) (Q[1-9][0-9]*)\b[:;,]?\s*",
+    re.IGNORECASE,
+)
+PART_OF = re.compile(r"\s*\(part of (Q[1-9][0-9]*)\)")
+EVIDENCE = re.compile(r"^answered-from-[a-z-]+:\s*")
+ARBITER_TEXT = re.compile(r"\**arbiter: ([^*;]+?)\**(?=;|$)")
+NO_ANSWER = "no answer yet"
+
+
+def row_tags(res):
+    """(resolution, {tag name: value}) of a register resolution, its tags peeled whether a `; `
+    or, as hand-written ledgers have it, a space sets them off."""
+    body, tail = split_tags(drop_stale(res))
+    if not tail:
+        m = LOOSE_TAGS.search(body)
+        body, tail = (body[: m.start()], m.group(1)) if m else (body, "")
+    tags = {}
+    for m in re.finditer(TAG, tail):
+        name, _, value = m.group(0).partition(":: ")
+        tags[name] = value
+    return body, tags
+
+
+def decision_words(answer):
+    """An answer without the word naming its kind: `accepted: X` is X, `alt b: X` is X."""
+    alt = ALT.match(answer)
+    if alt:
+        return alt.group(2) or f"option {alt.group(1)}"
+    word, sep, rest = answer.partition(": ")
+    if sep and word in ("accepted", "hedged", "free-text", "deferred"):
+        return rest
+    return "" if answer == "deferred" else answer
+
+
+def arbiter_words(m):
+    who = m.group(1).strip()
+    return "left for you to decide later" if who == "USER-RESERVED" else f"left to {who}"
+
+
+def plain_answer(r, body):
+    """(a row's answer in plain words, its unconfirmed commitments): no status word, field
+    name, escape or tag; a confirmed commitment folds in as `also:`."""
+    try:
+        named = parse_named(body, "the ledger")
+    except SystemExit:
+        named = None
+    if not named:
+        text = ARBITER_TEXT.sub(arbiter_words, clean(EVIDENCE.sub("", body)))
+        return decision_words(text), []
+    fields, marked = named
+    answer, note = fields.get("answer") or "", fields.get("note")
+    parts = []
+    if fields.get("proposal") is not None:
+        parts.append(f"the plan proposes {fields['proposal']} in place of {fields['was']}")
+    who, _, waits = (fields.get("hold") or "").partition(" ")
+    if waits:
+        parts.append(f"waiting for you: {waits}" if who == "user" else f"waiting on {waits}")
+    parts.append(decision_words(answer))
+    if note:
+        parts.append(f"your condition: {note}" if answer.startswith("hedged: ") else note)
+    if r["status"] == "deferred" and note is None:
+        parts.append("left for you to decide later")
+    confirmed = [c for ok, c in marked if ok]
+    unconfirmed = [c for ok, c in marked if not ok]
+    if confirmed:
+        parts.append("also: " + "; ".join(confirmed))
+    if unconfirmed:
+        parts.append("not yet confirmed: " + "; ".join(unconfirmed))
+    return clean("; ".join(p for p in parts if p)), unconfirmed
+
+
+def plain_title(title):
+    return PART_OF.sub("", clean(title)).rstrip().rstrip("?").rstrip()
+
+
+def section_body(text, name):
+    """The lines under the ledger's first section headed `name` (lowercase), blank ones left
+    out; [] with no such section."""
+    lines = (text or "").splitlines()
+    heads = headings(lines)
+    own = [h for h, _, t in heads if t == name]
+    if not own:
+        return []
+    start, end = section_span(heads, own[0], len(lines))
+    return [x.strip() for x in lines[start + 1 : end] if x.strip()]
+
+
+def terms_and_adrs(text):
+    """`<term>: <definition>` for each agreed Terminology matrix row, then `<decision>:
+    <outcome>` for each `## ADR outcomes` entry."""
+    out = []
+    for line in section_body(text, "terminology matrix"):
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if line.startswith("|") and len(cells) >= 4 and cells[-1].lower() == "agreed":
+            out.append(f"{cells[0]}: {cells[1]}")
+    for line in section_body(text, "adr outcomes"):
+        if not line.startswith("- "):
+            continue
+        left, sep, right = line[2:].partition(" | ")
+        if not sep:
+            out.append(left)
+            continue
+        named = re.search(r"\(([^()]*)\)", left)
+        name = named.group(1) if named else re.sub(r"\bQ[0-9]+\b[/,\s]*", "", left).strip()
+        out.append(f"{name}: {right}" if name else right)
+    return out
+
+
+def fact_lines(text):
+    """`<question>: <answer>` for each `## Self-answered facts` row."""
+    out = []
+    for line in section_body(text, "self-answered facts"):
+        cells = [c.strip() for c in line.split("|")]
+        if re.match(r"^-\s+F[0-9]+$", cells[0]) and len(cells) >= 4:
+            out.append(f"{plain_title(cells[2])}: {cells[3]}")
+    return out
+
+
+def plain_recap(text, since=None):
+    """The terminal lane's confirmation recap of a ledger, each part only when it has a line:
+    Needs your eye (unsettled, deferred, blocked, hedged and reopened rows, unconfirmed
+    commitments, the ledger's `## Captured assumptions`), the rest grouped under each row's
+    `topic::` (untagged rows and self-answered facts under Other), and Terms and ADRs. One
+    `<title>: <answer>` line per question, never cut: a commitment part (`(part of Q<N>)`)
+    and a row whose answer opens by citing Q<N> (`answered through Q<N>: ...`) join Q<N>'s
+    line, and withdrawn rows are left out. With `since` (first_recap_state's saved rows) a line
+    holding a row whose recap_state differs from its saved one moves to Changed after you
+    first saw it, after the grouped summary; each line appears in one part only."""
+    rows = recap_rows(None, text)
+    by_n = {r["n"]: r for r in rows if r["status"] != "withdrawn"}
+    was = {}
+    for n, _, before, _ in reopened_entries(text or ""):
+        was[n] = decision_words(row_tags(before)[0].strip())
+    state = recap_state(rows)
+    lines = {n: {"parts": [], "topic": None, "eye": False, "changed": False} for n in by_n}
+    for r in by_n.values():
+        body, tags = row_tags(r["resolution"])
+        body = split_lead(body)[1]
+        part = PART_OF.search(r["title"])
+        cited = CITES.match(body)
+        key = (part or cited) and (part or cited).group(1)
+        key = key if key in by_n and key != r["n"] else r["n"]
+        answer, unconfirmed = plain_answer(r, body[cited.end() :] if cited and key != r["n"] else body)
+        unsettled = r["status"] in (*UNSETTLED, "discussing")
+        reopened = "reopened" in tags or r["n"] in was
+        if reopened:
+            before = was.get(r["n"])
+            answer += f" (changed from {before} after a new finding)" if before else (
+                " (answered again after a new finding)"
+            )
+        said = answer or (NO_ANSWER if unsettled else "")
+        if key == r["n"] or part:
+            said = f"{plain_title(r['title'])}: {said}" if said else plain_title(r["title"])
+        line = lines[key]
+        if said and key == r["n"]:
+            line["parts"].insert(0, said)
+        elif said:
+            line["parts"].append(said)
+        if tags.get("topic") and (key == r["n"] or not line["topic"]):
+            line["topic"] = tags["topic"]
+        line["eye"] |= bool(
+            unsettled
+            or r["status"] in ("deferred", "blocked")
+            or (body.startswith(("hedged: ", "answer:: hedged: ")))
+            or reopened
+            or unconfirmed
+        )
+        line["changed"] |= r["n"] in (since or {}) and since[r["n"]] != state[r["n"]]
+    seen = set()
+
+    def fresh(said):
+        if said in seen:
+            return False
+        seen.add(said)
+        return True
+
+    joined = [{**v, "said": "; ".join(v["parts"])} for v in lines.values() if v["parts"]]
+    changed = [x["said"] for x in joined if x["changed"] and fresh(x["said"])]
+    eye = [x["said"] for x in joined if x["eye"] and not x["changed"] and fresh(x["said"])]
+    eye += [x[2:] if x.startswith("- ") else x for x in section_body(text, "captured assumptions")]
+    groups = {}
+    for x in joined:
+        if not (x["eye"] or x["changed"]) and fresh(x["said"]):
+            groups.setdefault(x["topic"] or "Other", []).append(x["said"])
+    groups["Other"] = [*groups.pop("Other", []), *fact_lines(text)]
+    blocks = [["**Needs your eye**", *eye]] if eye else []
+    blocks += [[f"**{t}**", *said] for t, said in groups.items() if said]
+    if changed:
+        blocks.append(["**Changed after you first saw it**", *changed])
+    terms = terms_and_adrs(text)
+    if terms:
+        blocks.append(["**Terms and ADRs**", *terms])
+    return "".join("\n".join([b[0], *(f"- {x}" for x in b[1:])]) + "\n\n" for b in blocks)[:-1]
 
 
 def check_ledger(text, where):
