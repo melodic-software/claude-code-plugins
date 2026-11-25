@@ -3,13 +3,14 @@
 # run, each against the default branch tip MAIN_SHA, built from git objects in
 # the pull request clone REPO and never from its working tree. Only the
 # plugin's skills/, agents/, context/ and evals/ paths the pull request changes
-# since its merge base, and only once select-plugins.mjs lets them all through,
-# reach a patch; every other file of the plugin stays the default branch's
-# (the data-only rule of https://github.com/melodic-software/claude-code-plugins/issues/17854).
+# since its merge base, with its reference/ and README.md changes when there is
+# at least one of those (https://github.com/melodic-software/architecture/blob/60608e8446b08ff6320e3272a1c041e521258794/docs/owner-decisions.md#L421),
+# and only once select-plugins.mjs lets
+# them all through, reach a patch; every other file of the plugin stays the
+# default branch's (the data-only rule of https://github.com/melodic-software/claude-code-plugins/issues/17854).
 #   after   each changed path as the head has it
-#   before  each changed skills/, agents/ or context/ path as the merge base
-#           has it, and each changed evals/ path as the head has it, so both
-#           arms run the same cases
+#   before  each changed evals/ path as the head has it, so both arms run the
+#           same cases, and every other changed path as the merge base has it
 # Reads REPO, MAIN_SHA, HEAD_SHA, PLUGIN (a name) and OUT; writes
 # OUT/before/edit.patch and OUT/after/edit.patch (empty when the arm is the
 # default branch as is), and merge-base, before-sha256 and after-sha256 to
@@ -37,8 +38,11 @@ if [[ ${#files[@]} -eq 0 ]]; then
   echo "::error::the pull request changes nothing under plugins/$PLUGIN/skills, agents, context or evals"
   exit 1
 fi
+mapfile -t -O "${#files[@]}" files < <(git -C "$REPO" diff --no-renames --name-only "$merge_base" "$HEAD_SHA" -- \
+  "plugins/$PLUGIN/reference" "plugins/$PLUGIN/README.md")
 mapfile -t unmeasured < <(git -C "$REPO" diff --no-renames --name-only "$merge_base" "$HEAD_SHA" -- "plugins/$PLUGIN" \
-  ":(exclude)plugins/$PLUGIN/skills" ":(exclude)plugins/$PLUGIN/agents" ":(exclude)plugins/$PLUGIN/context" ":(exclude)plugins/$PLUGIN/evals" ":(exclude)plugins/$PLUGIN/tests")
+  ":(exclude)plugins/$PLUGIN/skills" ":(exclude)plugins/$PLUGIN/agents" ":(exclude)plugins/$PLUGIN/context" ":(exclude)plugins/$PLUGIN/evals" \
+  ":(exclude)plugins/$PLUGIN/reference" ":(exclude)plugins/$PLUGIN/README.md" ":(exclude)plugins/$PLUGIN/tests")
 if [[ ${#unmeasured[@]} -gt 0 ]]; then
   refuse "the arms would not carry ${unmeasured[*]}, so a record could vouch for text no run read; compare this pull request at the desk"
 fi
@@ -74,7 +78,7 @@ arm_tree() {
 before=$(arm_tree "$merge_base")
 after=$(arm_tree "$HEAD_SHA")
 if [[ $before == "$after" ]]; then
-  refuse "the pull request changes no skill, agent or context text, so the two arms would run the same plugin"
+  refuse "the pull request changes no skill, agent, context, reference or README text, so the two arms would run the same plugin"
 fi
 main_tree=$(git -C "$REPO" rev-parse "$MAIN_SHA^{tree}")
 {
