@@ -124,7 +124,6 @@ describe("fetchDeckAttachments", () => {
 
   it("aborts and removes the partial file when the streamed body exceeds the cap", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/lying.bin" }]);
-    // No content-length header — the byte-counting cap must catch it mid-stream.
     stubFetch(async () => fakeResponse(Buffer.from("x".repeat(100))));
 
     const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10, lookup: publicLookup, transport: fetchTransport });
