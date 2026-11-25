@@ -51,7 +51,8 @@ Exit codes:
                 (Observations, Suggested skills, Direction changes) to this
                 hop's file behind a pointer until the handoff file is under the
                 cap, then prints the validate verdict (an OVER-CAP line when
-                binding content alone is over it) and the emit output
+                binding content alone is over it) and the emit output; a launch
+                error prints its `No launch command:` line and still exits 0
               1 (shapes 3 and 4) a Resumption brief or below-the-rails note
                 over its slot budget on the first try: nothing written, the
                 slot and the bytes over named; the next fill writes anyway and
@@ -68,7 +69,8 @@ Exit codes:
               3 a `handoff_shape` past the shapes `fill` writes: read it, do
                 not rewrite it
     amend     0 written; prints the validate verdict, then the emit output (a
-                size FAIL never blocks the write)
+                size FAIL never blocks the write; a launch error prints its
+                `No launch command:` line and still exits 0)
               1 refused, both files untouched: an unfilled skeleton, a no-op, a
                 carried section, an unknown section, a floor lowered, an entry
                 this hop added removed without a retire, a FAIL the amend would
@@ -188,7 +190,7 @@ ID_SPECS = SHAPES[NEWEST_SHAPE].id_specs
 RULES = S3.id_spec("R")
 REMINDERS = SHAPES[NEWEST_SHAPE].id_spec("M")
 REMINDER_RE = re.compile(
-    r"^\[M\d+\] (?:user|agent|peer \S[^·]*?) · (?:at close|at \S+|when [^·]+?) · .+ · added h\d+(?: \d{4}-\d{2}-\d{2})?$"
+    r"^\[M\d+\] (?:user|agent|peer \S[^·]*?) · (?:at close|at \S+|when [^·]+?) · .+ · added h\d+(?: \d{4}-\d{2}-\d{2})?(?: Rewritten h\d+: \S.*)?$"
 )
 RETIRED_RULES = RULES.retired_heading
 AMENDMENT_RE = re.compile(r"^(?:- )?\*\*Amended.*?:\*\*")
@@ -2984,19 +2986,23 @@ def _emit_launch(lines: list[str], doc: Doc, shell: str | None, markdown: bool) 
         del lines[copy - 1]
 
     prompt_file = path.with_suffix(".prompt.txt")
-    launch = _launch_command(checkout, command, prompt_file, shell)
-    rails = [i for i, line in enumerate(lines) if RAIL_RE.match(line.strip())]
-    prompt = ""
-    for above, region, _ in _rail_regions(lines, rails):
-        if GOAL_COPY_LINE in above:
-            prompt = "/goal " + "\n".join(region)
-            break
-        if COPY_LINE in above:
-            prompt = "\n".join(region)
-    if not prompt:
-        raise ValueError("launch prompt has no copy region")
-    if exc := _write_atomic(prompt_file, prompt.encode("utf-8")):
-        raise ValueError(f"cannot write launch prompt {prompt_file}: {exc}")
+    try:
+        launch = _launch_command(checkout, command, prompt_file, shell)
+        rails = [i for i, line in enumerate(lines) if RAIL_RE.match(line.strip())]
+        prompt = ""
+        for above, region, _ in _rail_regions(lines, rails):
+            if GOAL_COPY_LINE in above:
+                prompt = "/goal " + "\n".join(region)
+                break
+            if COPY_LINE in above:
+                prompt = "\n".join(region)
+        if not prompt:
+            raise ValueError("launch prompt has no copy region")
+        if exc := _write_atomic(prompt_file, prompt.encode("utf-8")):
+            raise ValueError(f"cannot write launch prompt {prompt_file}: {exc}")
+    except ValueError:
+        lines[:0] = [f"Start command for the new session: {command}"]
+        raise
     display = ["```", launch, "```"] if markdown else [launch]
     lines[:0] = [
         "Run this terminal command to start the new session. The copy instructions below are for recovery.",
@@ -3581,7 +3587,8 @@ def cmd_fill(args: argparse.Namespace) -> int:
     findings, code = validate_doc(written, None, False)
     _print_verdict(written, findings, code)
     sys.stdout.flush()
-    return cmd_emit(argparse.Namespace(file=str(path), format="rails", notice=False))
+    cmd_emit(argparse.Namespace(file=str(path), format="rails", notice=False))
+    return 0
 
 
 AMEND_KEYS = ("sections", "append", "retire", "next", "floors")
@@ -4128,11 +4135,12 @@ def cmd_amend(args: argparse.Namespace) -> int:
             return _die(2, f"cannot write {target} ({exc}); nothing written")
     _print_verdict(built, findings, code)
     sys.stdout.flush()
-    return cmd_emit(
+    cmd_emit(
         argparse.Namespace(
             file=str(path), format=getattr(args, "format", "rails"), notice=False
         )
     )
+    return 0
 
 
 def _unstage(staged: list[tuple[Path, str]]) -> None:

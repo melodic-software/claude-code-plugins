@@ -107,6 +107,21 @@ def test_shape5_reminder_dropped_without_retire_fails_validation(tmp_path):
     assert any("[M1]" in line for line in fails(result)), out(result)
 
 
+def test_shape5_reminder_rewritten_in_place_with_its_mark_validates(tmp_path):
+    repo = make_repo(tmp_path)
+    first = hop5(repo, tmp_path)
+    second = hop5(repo, tmp_path, first, k=2)
+    rewritten = (
+        "- [M1] user · when the v2 tag exists · run `gh release view v2` · added h1 2026-09-01"
+        " Rewritten h2: the release moved to v2"
+    )
+    second.write_text(
+        second.read_text(encoding="utf-8").replace(M1, rewritten), encoding="utf-8"
+    )
+    result = validate(second)
+    assert result.returncode == 0, out(result)
+
+
 def test_shape5_reminder_retired_with_a_reason_lands_in_the_archive_file(tmp_path):
     repo = make_repo(tmp_path)
     first = hop5(repo, tmp_path)

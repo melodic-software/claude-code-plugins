@@ -14,7 +14,7 @@ execution:
 graders:
   - name: offers-commit-bound-condition
     type: regex
-    pattern: '4be1c9a'
+    pattern: '(?:/goal|[Cc]ondition)[^\n]*4be1c9a'
     arm: with-only
   - name: writes-notes
     type: tool_used

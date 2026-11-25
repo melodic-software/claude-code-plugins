@@ -1,4 +1,5 @@
 # test-scope: plugins/session-flow/scripts/save_point.py plugins/session-flow/scripts/tests/fixtures/*
+# test-scope: plugins/session-flow/scripts/tests/shape4_chain.py
 from __future__ import annotations
 
 import json
@@ -193,6 +194,29 @@ def test_launch_missing_cd_target(tmp_path):
     assert printed.startswith(f"No launch command: launch checkout is not an existing absolute directory: {repo}.")
     assert COPY_LINE in printed, "the recovery copy region still prints"
     assert not any(line.startswith(("cd ", "Set-Location ")) for line in printed.splitlines())
+
+
+def test_launch_error_keeps_the_start_command_for_recovery(tmp_path):
+    command = 'env -u PLUGIN_PROFILES_SESSION claude --settings "/h/sessions/abc-review.json"'
+    repo, path, _ = handoff(tmp_path, command)
+    moved = repo.rename(tmp_path / "moved") / path.relative_to(repo)
+    emitted = run("emit", str(moved))
+    assert emitted.returncode != 0
+    assert command in out(emitted), "the manual recovery path still names the start command"
+
+
+def test_fill_and_amend_exit_0_after_writing_when_the_launch_fails(tmp_path):
+    repo = make_repo(tmp_path).resolve()
+    made = run(*new_args(repo, tmp_path, "--no-previous", "--start-command", "claude", shape=None))
+    assert made.returncode == 0, err(made)
+    path = repo.rename(tmp_path / "moved") / Path(out(made).strip()).relative_to(repo)
+    filled = fill(path, tmp_path, {})
+    assert filled.returncode == 0, err(filled)
+    assert "No launch command:" in out(filled)
+    payload = slots_file(tmp_path, {"next": ["Read the updated test result."]})
+    amended = run("amend", str(path), "--json", payload)
+    assert amended.returncode == 0, err(amended)
+    assert "No launch command:" in out(amended)
 
 
 def test_amend_refreshes_the_prompt_read_by_the_printed_command(tmp_path):
