@@ -148,7 +148,6 @@ cmd_check_paths() {
   echo "allowed"
 }
 
-# The real path of a regular file of at most 16 KiB in the scratch directory.
 scratch_file() {
   local scratch real
   scratch=$(realpath -e "$scratch_dir") || die 2 "no scratch directory"
@@ -158,19 +157,14 @@ scratch_file() {
   printf '%s\n' "$real"
 }
 
-# The replies file's cap, as the read runner carries it and the reply job
-# reads it (publish-feedback.mjs LIMITS.bytes): a larger file posts nothing.
 replies_cap=49152
 
-# The replies file's size in bytes with line $1 appended.
 size_with() {
   local now=0
   [[ -f $log_file ]] && now=$(wc -c <"$log_file")
   echo $((now + $(printf '%s\n' "$1" | wc -c)))
 }
 
-# Appends reply line $1, dropping a recorded body record first when the line
-# would not fit beside it: the body record never costs a reply.
 append_reply() {
   local note=""
   if (($(size_with "$1") > replies_cap)) && [[ -f $log_file ]] && grep -q '^{"body_sections":' "$log_file"; then

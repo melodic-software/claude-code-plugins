@@ -442,10 +442,6 @@ else
 fi
 rm -rf "$r"
 
-# --- a final exemption row with no trailing newline is still loaded --------
-# The hand-rolled reader this replaced kept such a row only because it carried
-# the `|| [[ -n "$raw" ]]` tail by hand; the shared reader owns that now, and
-# dropping the row would silently hand the skill --require-evals.
 mk_repo r
 add_skill "$r" p1 skipme
 commit_all "$r" base >/dev/null
@@ -505,9 +501,6 @@ else
 fi
 rm -rf "$r"
 
-# --- --merge-base: the lane form -------------------------------------------
-# The tool tree holds the gate and its checker; the data tree is the checkout
-# the lane judges, with a decoy checker that must never run.
 # shellcheck disable=SC2016  # the stub expands these when it runs
 LANE_STUB='#!/usr/bin/env bash
 printf "self=%s args=%s skip=%s md=%s st=%s base=%s\n" "$0" "$*" "${CHECK_SKILL_SKIP_SCRIPT_TESTS-}" \

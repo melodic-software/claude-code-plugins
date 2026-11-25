@@ -58,8 +58,6 @@ copy_records() {
   (cd "$1" && git diff --cached --name-status | grep -c '^C') | tr -d ' \r'
 }
 
-# copy_unpaired_skip <fixture-label> <observed-C-count> — the discriminating
-# skip every copy fixture shares when git declined to pair it.
 copy_unpaired_skip() {
   fail_discriminating_skip "$1 unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${2:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
 }

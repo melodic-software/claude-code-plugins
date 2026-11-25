@@ -868,7 +868,6 @@ class LowRatedShapes(_Finding):
             ("+    if: ${{ '}}' || contains(secrets, 'LANE_TOKEN') }}",),
             ("+  K: >-", "+    ${{ secrets", *("+",) * 8, "+    .LANE_TOKEN }}"),
             ("+    if: ${{ contains(secrets, 'LANE_TOKEN')",),
-            # A quote a comment leaves open does not hide a later expression.
             ("+# ${{ '", "+  K: ${{ secrets }}'"),
             ("+  # ${{ '", "+  K: ${{ format('{0}{1}', secrets, 'a') }}"),
             (
@@ -877,9 +876,7 @@ class LowRatedShapes(_Finding):
                 "+    ${{ format('{0}}}',",
                 "+    secrets, 'a') }}",
             ),
-            # A `${{` inside a literal starts a new read but keeps the old one.
             ("+  K: ${{ format('{0}{1}', secrets, '${{') }}",),
-            # A literal still open where the read ends holds unread.
             ("+  # ${{ '",),
             ("+  K: ${{ 'a", "+  # ${{ x }}"),
             # An `if:` value is an expression without `${{ }}`, at job and
@@ -1239,7 +1236,6 @@ class WorkflowPrivilegeHolds(_Finding):
         )
 
     def test_an_added_trigger_line_holds_even_when_the_text_reads_alike(self):
-        # The raw-text backstop: the patch adds the trigger whatever the text.
         base = _workflow("permissions: {}\n")
         result = self._change(base, base, patch=_patch("+  pull_request_target:"))
         self.assertHeld(result, PRIVILEGED_TRIGGER_CODE)
