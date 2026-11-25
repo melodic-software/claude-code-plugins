@@ -1,0 +1,1583 @@
+{
+  "jobs": [
+    {
+      "conclusion": "success",
+      "id": 138935292114,
+      "name": "Check Trigger",
+      "run_attempt": 1,
+      "runner_id": 1001775421,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 2,
+          "name": "Resolve main's tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 3,
+          "name": "Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 4,
+          "name": "Record the main commit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 5,
+          "name": "Download standards",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 6,
+          "name": "Write the source-control trust settings",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 7,
+          "name": "Set up Node",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 8,
+          "name": "Check the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 9,
+          "name": "Read the changed files",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 10,
+          "name": "Find a head both lanes already reviewed",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 11,
+          "name": "Check the trigger",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 12,
+          "name": "Select a lane-source pull request",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 13,
+          "name": "Note the hold",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 14,
+          "name": "Keep the lane hold marker",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 15,
+          "name": "Log the API budget",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 30,
+          "name": "Post Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 31,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 138935451623,
+      "name": "Collect Trusted Text",
+      "run_attempt": 1,
+      "runner_id": 1001775430,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 2,
+          "name": "Check out the trigger job's main commit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 3,
+          "name": "Download standards",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 4,
+          "name": "Set up Node",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 5,
+          "name": "Check the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 6,
+          "name": "Check upstream status",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 7,
+          "name": "Report the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 8,
+          "name": "Select the trusted PR text",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 9,
+          "name": "Scan the trusted PR text for credentials",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 10,
+          "name": "Upload the trusted PR text",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 11,
+          "name": "Record what was read",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 12,
+          "name": "Log the API budget",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 24,
+          "name": "Post Check out the trigger job's main commit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 25,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "failure",
+      "id": 138935451625,
+      "name": "Review Handoffs Credit",
+      "run_attempt": 1,
+      "runner_id": 1001775429,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "failure"
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 138937655631,
+      "name": "Review (claude-review, code-review, review-code, CLAUDE_REVIEW_DISABLED)",
+      "run_attempt": 1,
+      "runner_id": 1001775656,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 2,
+          "name": "Resolve main's tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 3,
+          "name": "Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 4,
+          "name": "Record the main commit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 5,
+          "name": "Download standards",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 6,
+          "name": "Write the source-control trust settings",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 7,
+          "name": "Set up Node",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 8,
+          "name": "Check the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 9,
+          "name": "Check upstream status",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 10,
+          "name": "Report the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 11,
+          "name": "Check the trigger",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 12,
+          "name": "Select a lane-source pull request",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 13,
+          "name": "Note the hold",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 14,
+          "name": "Take the gate's result",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 15,
+          "name": "Write the diff",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 16,
+          "name": "Download the shared trusted PR text",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 17,
+          "name": "Take the shared trusted PR text",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 18,
+          "name": "Select the trusted PR text",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 19,
+          "name": "Copy the review criteria",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 20,
+          "name": "Resolve the review's model",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 21,
+          "name": "Check the credential",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 22,
+          "name": "Apply the Claude managed settings",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 23,
+          "name": "Isolate the runner",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 24,
+          "name": "Write the prompt and schema",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 25,
+          "name": "Review chunk 1",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 26,
+          "name": "Report chunk 1's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 27,
+          "name": "Upload chunk 1's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 28,
+          "name": "Time chunk 2",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 29,
+          "name": "Review chunk 2",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 30,
+          "name": "Report chunk 2's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 31,
+          "name": "Upload chunk 2's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 32,
+          "name": "Time chunk 3",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 33,
+          "name": "Review chunk 3",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 34,
+          "name": "Report chunk 3's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 35,
+          "name": "Upload chunk 3's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 36,
+          "name": "Time chunk 4",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 37,
+          "name": "Review chunk 4",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 38,
+          "name": "Report chunk 4's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 39,
+          "name": "Upload chunk 4's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 40,
+          "name": "Pick the next leg",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 41,
+          "name": "Hand the lane on",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 42,
+          "name": "Write the verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 43,
+          "name": "Record a failed chunk",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 44,
+          "name": "Scan the upload for credentials",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 45,
+          "name": "Upload the verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 46,
+          "name": "Summarize the verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 47,
+          "name": "Keep the lane hold marker",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 48,
+          "name": "Log the API budget",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 49,
+          "name": "Fail without a verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 98,
+          "name": "Post Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 99,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 138937655632,
+      "name": "Review (claude-security-review, security-review, review-security, CLAUDE_SECURITY_REVIEW_DISABLED)",
+      "run_attempt": 1,
+      "runner_id": 1001775663,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 2,
+          "name": "Resolve main's tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 3,
+          "name": "Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 4,
+          "name": "Record the main commit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 5,
+          "name": "Download standards",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 6,
+          "name": "Write the source-control trust settings",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 7,
+          "name": "Set up Node",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 8,
+          "name": "Check the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 9,
+          "name": "Check upstream status",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 10,
+          "name": "Report the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 11,
+          "name": "Check the trigger",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 12,
+          "name": "Select a lane-source pull request",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 13,
+          "name": "Note the hold",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 14,
+          "name": "Take the gate's result",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 15,
+          "name": "Write the diff",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 16,
+          "name": "Download the shared trusted PR text",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 17,
+          "name": "Take the shared trusted PR text",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 18,
+          "name": "Select the trusted PR text",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 19,
+          "name": "Copy the review criteria",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 20,
+          "name": "Resolve the review's model",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 21,
+          "name": "Check the credential",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 22,
+          "name": "Apply the Claude managed settings",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 23,
+          "name": "Isolate the runner",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 24,
+          "name": "Write the prompt and schema",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 25,
+          "name": "Review chunk 1",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 26,
+          "name": "Report chunk 1's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 27,
+          "name": "Upload chunk 1's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 28,
+          "name": "Time chunk 2",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 29,
+          "name": "Review chunk 2",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 30,
+          "name": "Report chunk 2's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 31,
+          "name": "Upload chunk 2's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 32,
+          "name": "Time chunk 3",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 33,
+          "name": "Review chunk 3",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 34,
+          "name": "Report chunk 3's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 35,
+          "name": "Upload chunk 3's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 36,
+          "name": "Time chunk 4",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 37,
+          "name": "Review chunk 4",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 38,
+          "name": "Report chunk 4's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 39,
+          "name": "Upload chunk 4's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 40,
+          "name": "Pick the next leg",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 41,
+          "name": "Hand the lane on",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 42,
+          "name": "Write the verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 43,
+          "name": "Record a failed chunk",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 44,
+          "name": "Scan the upload for credentials",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 45,
+          "name": "Upload the verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 46,
+          "name": "Summarize the verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 47,
+          "name": "Keep the lane hold marker",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 48,
+          "name": "Log the API budget",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 49,
+          "name": "Fail without a verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 98,
+          "name": "Post Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 99,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 138937924934,
+      "name": "Review Handoffs",
+      "run_attempt": 1,
+      "runner_id": 1001775697,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 2,
+          "name": "Route the handed-off lanes",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 3,
+          "name": "Write the key's credit-stop marker",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 4,
+          "name": "Upload the key's credit-stop marker",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 5,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 138937989534,
+      "name": "Review Subscription (claude-security-review, security-review, review-security, CLAUDE_SECURITY_RE...",
+      "run_attempt": 1,
+      "runner_id": 1001775725,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 2,
+          "name": "Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 3,
+          "name": "Record the main commit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 4,
+          "name": "Download standards",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 5,
+          "name": "Write the source-control trust settings",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 6,
+          "name": "Set up Node",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 7,
+          "name": "Check the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 8,
+          "name": "Check upstream status",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 9,
+          "name": "Report the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 10,
+          "name": "Check the trigger",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 11,
+          "name": "Select a lane-source pull request",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 12,
+          "name": "Note the hold",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 13,
+          "name": "Take the gate's result",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 14,
+          "name": "Write the diff",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 15,
+          "name": "Download the shared trusted PR text",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 16,
+          "name": "Take the shared trusted PR text",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 17,
+          "name": "Select the trusted PR text",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 18,
+          "name": "Copy the review criteria",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 19,
+          "name": "Resolve the review's model",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 20,
+          "name": "Check the credential",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 21,
+          "name": "Apply the Claude managed settings",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 22,
+          "name": "Isolate the runner",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 23,
+          "name": "Write the prompt and schema",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 24,
+          "name": "Review chunk 1",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 25,
+          "name": "Report chunk 1's outcome",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 26,
+          "name": "Upload chunk 1's sealed transcript",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 27,
+          "name": "Time chunk 2",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 28,
+          "name": "Review chunk 2",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 29,
+          "name": "Report chunk 2's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 30,
+          "name": "Upload chunk 2's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 31,
+          "name": "Time chunk 3",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 32,
+          "name": "Review chunk 3",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 33,
+          "name": "Report chunk 3's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 34,
+          "name": "Upload chunk 3's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 35,
+          "name": "Time chunk 4",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 36,
+          "name": "Review chunk 4",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 37,
+          "name": "Report chunk 4's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 38,
+          "name": "Upload chunk 4's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 39,
+          "name": "Pick the next leg",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 40,
+          "name": "Hand the lane on",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 41,
+          "name": "Write the verdict",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 42,
+          "name": "Record a failed chunk",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 43,
+          "name": "Scan the upload for credentials",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 44,
+          "name": "Upload the verdict",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 45,
+          "name": "Summarize the verdict",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 46,
+          "name": "Keep the lane hold marker",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 47,
+          "name": "Log the API budget",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 48,
+          "name": "Fail without a verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 96,
+          "name": "Post Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 97,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 138937989572,
+      "name": "Review Subscription (claude-review, code-review, review-code, CLAUDE_REVIEW_DISABLED, no-key, d91...",
+      "run_attempt": 1,
+      "runner_id": 1001775718,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 2,
+          "name": "Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 3,
+          "name": "Record the main commit",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 4,
+          "name": "Download standards",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 5,
+          "name": "Write the source-control trust settings",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 6,
+          "name": "Set up Node",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 7,
+          "name": "Check the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 8,
+          "name": "Check upstream status",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 9,
+          "name": "Report the kill switch",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 10,
+          "name": "Check the trigger",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 11,
+          "name": "Select a lane-source pull request",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 12,
+          "name": "Note the hold",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 13,
+          "name": "Take the gate's result",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 14,
+          "name": "Write the diff",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 15,
+          "name": "Download the shared trusted PR text",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 16,
+          "name": "Take the shared trusted PR text",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 17,
+          "name": "Select the trusted PR text",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 18,
+          "name": "Copy the review criteria",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 19,
+          "name": "Resolve the review's model",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 20,
+          "name": "Check the credential",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 21,
+          "name": "Apply the Claude managed settings",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 22,
+          "name": "Isolate the runner",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 23,
+          "name": "Write the prompt and schema",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 24,
+          "name": "Review chunk 1",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 25,
+          "name": "Report chunk 1's outcome",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 26,
+          "name": "Upload chunk 1's sealed transcript",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 27,
+          "name": "Time chunk 2",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 28,
+          "name": "Review chunk 2",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 29,
+          "name": "Report chunk 2's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 30,
+          "name": "Upload chunk 2's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 31,
+          "name": "Time chunk 3",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 32,
+          "name": "Review chunk 3",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 33,
+          "name": "Report chunk 3's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 34,
+          "name": "Upload chunk 3's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 35,
+          "name": "Time chunk 4",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 36,
+          "name": "Review chunk 4",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 37,
+          "name": "Report chunk 4's outcome",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 38,
+          "name": "Upload chunk 4's sealed transcript",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 39,
+          "name": "Pick the next leg",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 40,
+          "name": "Hand the lane on",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 41,
+          "name": "Write the verdict",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 42,
+          "name": "Record a failed chunk",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 43,
+          "name": "Scan the upload for credentials",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 44,
+          "name": "Upload the verdict",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 45,
+          "name": "Summarize the verdict",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 46,
+          "name": "Keep the lane hold marker",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 47,
+          "name": "Log the API budget",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 48,
+          "name": "Fail without a verdict",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "number": 96,
+          "name": "Post Check out the default branch tip",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 97,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 138938845822,
+      "name": "Report Review Counts",
+      "run_attempt": 1,
+      "runner_id": 1001775745,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 2,
+          "name": "Record the stops",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 3,
+          "name": "Download this run's verdicts",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 4,
+          "name": "Record the counts",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 5,
+          "name": "Log the API calls at the end",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 6,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138938846436,
+      "name": "Collect Subscription Handoffs",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138938847492,
+      "name": "Review Fallback",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    }
+  ],
+  "total_count": 11
+}

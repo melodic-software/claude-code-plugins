@@ -6,6 +6,7 @@
 // the maximum execution time") while lint-shell failed its
 // fixture-git-isolation check, and 39716948399, whose only failure is
 // ci-status (a superseded contract-only run).
+// test-scope: .github/scripts/maintenance-reconcile-lost-runs/fixtures/jobs-*.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -158,10 +159,14 @@ test("a tail-cut job with no runner-loss annotation stays unknown", () => {
 });
 
 test("a job that failed at job setup lists every step that ran, though its list is not whole", () => {
-  const setup = (conclusion) => ({ number: 1, name: "Set up job", status: "completed", conclusion });
-  const failed = { name: "Check Trigger", status: "completed", conclusion: "failure", runner_id: 7, steps: [setup("failure")] };
-  assert.equal(setupFailed(failed), true);
-  assert.equal(stepsKnown(failed), false);
+  for (const run of [45535944989, 45533783420]) {
+    const failed = recorded(run).filter((j) => j.conclusion === "failure");
+    assert.equal(failed.length, 1, String(run));
+    assert.equal(setupFailed(failed[0]), true, String(run));
+    assert.equal(stepsKnown(failed[0]), false, String(run));
+  }
+  const [failed] = recorded(45535944989).filter((j) => j.conclusion === "failure");
+  const setup = (conclusion) => ({ ...failed.steps[0], conclusion });
   assert.equal(setupFailed({ ...failed, steps: [setup("success"), { number: 2, name: "Check the trigger", status: "completed", conclusion: "failure" }] }), false);
   assert.equal(setupFailed({ ...failed, status: "in_progress", conclusion: null }), false);
   assert.equal(setupFailed({ ...failed, conclusion: "success", steps: [setup("success")] }), false);

@@ -1,4 +1,5 @@
 // test-scope: .github/workflows/*.yml
+// test-scope: .github/scripts/maintenance-reconcile-lost-runs/fixtures/*
 // Expected values come from the reconciler's spec: a CI run on a PR's current
 // head whose newest attempt ended cancelled, timed_out or startup_failure,
 // with no newer run of that workflow on the head, is re-run once; at most 3
@@ -1076,34 +1077,24 @@ test("a main-run review whose verdict write started in any lane is held with its
   }
 });
 
-const setupFailedJob = {
-  id: 8100,
-  name: "Review Handoffs Credit",
-  status: "completed",
-  conclusion: "failure",
-  runner_id: 7,
-  steps: [{ number: 1, name: "Set up job", status: "completed", conclusion: "failure" }],
-  notes: [{ annotation_level: "failure", message: "Failed to download archive 'https://codeload.github.com/melodic-software/ci-workflows/tar.gz/main' after 3 attempts." }],
-};
+const withNotes = (run) =>
+  fixture(`jobs-${run}.json`).jobs.map((job) => (job.conclusion === "failure" ? { ...job, notes: fixture(`annotations-${job.id}.json`) } : job));
+const SETUP_FAILED_RUN = withNotes(45535944989);
+const SETUP_FAILED_WRITTEN_RUN = withNotes(45533783420);
 
 test("a main-run review whose only job that ran failed at job setup is re-run once, with no listing failure", async () => {
-  const skipped = MAIN_REVIEW_JOBS.map(({ id, name }) => ({ id, name, status: "completed", conclusion: "skipped", steps: [] }));
-  for (const jobs of [[setupFailedJob], [...skipped, setupFailedJob]]) {
-    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, jobs)] });
-    assert.equal(code, 0);
-    assert.deepEqual(reruns, [301]);
-    assert.deepEqual(records(outputs), [`reconcile-rerun-301-2-${MAIN_TIP}`, "", ""]);
-  }
+  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, SETUP_FAILED_RUN)] });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [301]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-301-2-${MAIN_TIP}`, "", ""]);
 });
 
 test("a main-run review with a job failed at job setup is still held when another lane's verdict write started", async () => {
-  const [first, ...rest] = MAIN_REVIEW_JOBS;
-  const wrote = { ...first, steps: first.steps.map((s) => (s.name === WRITE_STEP ? { ...s, conclusion: "success" } : s)) };
   const dir = tempDir("reconcile-summary-");
   try {
     const summary = path.join(dir, "summary.md");
     writeFileSync(summary, "");
-    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, [wrote, ...rest, setupFailedJob])], env: { GITHUB_STEP_SUMMARY: summary } });
+    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, SETUP_FAILED_WRITTEN_RUN)], env: { GITHUB_STEP_SUMMARY: summary } });
     assert.equal(code, 0);
     assert.deepEqual(reruns, []);
     assert.deepEqual(records(outputs), ["", "", ""]);
@@ -1114,15 +1105,19 @@ test("a main-run review with a job failed at job setup is still held when anothe
 });
 
 test("a main-run review with a failed job cut after its setup step is still not re-run, and the pass fails", async () => {
-  const cut = {
-    ...setupFailedJob,
-    steps: [
-      { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
-      { number: 2, name: "Check Trigger", status: "completed", conclusion: "failure" },
-    ],
-    notes: [],
-  };
-  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, [cut])] });
+  const cut = SETUP_FAILED_RUN.map((job) =>
+    job.conclusion === "failure"
+      ? {
+          ...job,
+          steps: [
+            { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+            { number: 2, name: "Resolve main's tip", status: "completed", conclusion: "failure" },
+          ],
+          notes: [],
+        }
+      : job,
+  );
+  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, cut)] });
   assert.equal(code, 1);
   assert.deepEqual(reruns, []);
   assert.deepEqual(records(outputs), ["", "", ""]);
