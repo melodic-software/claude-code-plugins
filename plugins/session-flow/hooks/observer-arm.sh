@@ -24,6 +24,7 @@
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL    analysis model (unset: plugin.json userConfig default)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT   analysis effort (unset: plugin.json userConfig default)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE     pass --bare (default false; see reference/observer.md)
+#   CLAUDE_PLUGIN_OPTION_OBSERVER_MIN_LINES         skip analysis below this many lines (unset: plugin.json userConfig default)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS      mtime-idle end threshold (default 900)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS      poll interval (default 5)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS       hard lifetime safety valve (default 86400)
@@ -69,6 +70,7 @@ args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$LEDGER_DI
   --session-id "$SESSION_ID" --plugin-root "$PLUGIN_ROOT"
   --model "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-}"
   --effort "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT:-}"
+  --min-lines "${CLAUDE_PLUGIN_OPTION_OBSERVER_MIN_LINES:-}"
   --idle-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
   --poll-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS:-5}"
   --max-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}")

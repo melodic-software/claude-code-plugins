@@ -54,6 +54,8 @@ def make_observer(tmp: Path, **overrides):
     ]
     if overrides.get("analysis"):
         argv.append("--analysis")
+    if overrides.get("min_lines") != "":
+        argv += ["--min-lines", str(overrides.get("min_lines", 0))]
     if "effort" in overrides:
         argv += ["--effort", overrides["effort"]]
     args = observer.build_parser().parse_args(argv)
@@ -1378,6 +1380,85 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertIsNone(ob._find_session_ledger())
             self.assertTrue(ob.obs_path.exists())
 
+    def test_below_min_lines_skips_analysis_and_records_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="short", min_lines=3)
+            ob.obs_path.write_text('{"t":"user"}\n' * 2, encoding="utf-8")
+            captured: dict = {}
+            with fake_analysis_run(captured):
+                self.assertFalse(ob._run_analysis())
+            self.assertNotIn("cmd", captured, "no claude -p run below the minimum")
+            self.assertIsNone(ob._find_session_ledger())
+            self.assertTrue(ob.obs_path.exists())
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            reason = "analysis skipped: 2 lines < min 3"
+            self.assertEqual(status["analysis"], {"skipped": reason, "lines": 2})
+            self.assertIn(reason, ob.log_path.read_text(encoding="utf-8"))
+
+    def test_at_min_lines_fires_analysis(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="full", min_lines=3)
+            ob.obs_path.write_text('{"t":"user"}\n' * 3, encoding="utf-8")
+            captured: dict = {}
+            with fake_analysis_run(captured):
+                self.assertTrue(ob._run_analysis())
+            self.assertIn("cmd", captured)
+            self.assertIsNotNone(ob._find_session_ledger())
+
+    def test_unset_min_lines_comes_from_the_manifest(self):
+        manifest_path = observer._PLUGIN_DIR / ".claude-plugin" / "plugin.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))["userConfig"]
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d), min_lines="")
+            self.assertEqual(ob.min_lines, manifest["observer_min_lines"]["default"])
+
+    def test_run_usage_is_recorded_in_status_and_log(self):
+        usage = {
+            "input_tokens": 12,
+            "cache_creation_input_tokens": 3400,
+            "cache_read_input_tokens": 56000,
+            "output_tokens": 789,
+            "service_tier": "standard",
+        }
+        body = dict(COMPLETED_RUN, usage=usage, duration_ms=41000, total_cost_usd=0.5)
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="use")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            with fake_analysis_run({}, stdout=json.dumps(body)):
+                self.assertTrue(ob._run_analysis())
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                status["analysis"],
+                {
+                    "usage": {k: v for k, v in usage.items() if k != "service_tier"},
+                    "duration_ms": 41000,
+                    "total_cost_usd": 0.5,
+                },
+            )
+            log = ob.log_path.read_text(encoding="utf-8")
+            self.assertEqual(1, log.count("analysis usage: "))
+            self.assertIn('"output_tokens":789', log)
+
+    def test_failed_run_usage_is_still_recorded(self):
+        body = dict(
+            COMPLETED_RUN,
+            subtype="error_max_turns",
+            usage={"input_tokens": 5, "output_tokens": 6},
+        )
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="fail")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            with fake_analysis_run({}, stdout=json.dumps(body)):
+                self.assertFalse(ob._run_analysis())
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                status["analysis"], {"usage": {"input_tokens": 5, "output_tokens": 6}}
+            )
+
     def test_tail_no_duplicate_events_on_growth(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
@@ -1783,6 +1864,8 @@ class ArmLauncher(unittest.TestCase):
                 "15",
                 "--effort",
                 "low",
+                "--min-lines",
+                "42",
             ]
             rc, out = self._run_main(argv, arm=arm)
             self.assertEqual(rc, 0)
@@ -1794,6 +1877,7 @@ class ArmLauncher(unittest.TestCase):
         flag_index = cmd.index("--idle-confirm-seconds")
         self.assertEqual(cmd[flag_index + 1], "7")
         self.assertEqual(cmd[cmd.index("--effort") + 1], "low")
+        self.assertEqual(cmd[cmd.index("--min-lines") + 1], "42")
 
     def test_non_oserror_at_spawn_degrades_gracefully(self):
         """A non-OSError exception at the spawn call (e.g. a resurfaced

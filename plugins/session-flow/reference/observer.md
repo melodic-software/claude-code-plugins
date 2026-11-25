@@ -123,6 +123,21 @@ The observations are kept, and nothing is written to the ledger, when the run ex
 body reports `is_error`, its output is not JSON, `terminal_reason` (when present) is not `completed`,
 `subtype` is not `success`, `permission_denials` is non-empty, or the result text is empty.
 
+## Short sessions and run usage
+
+The analysis runs only when at least `observer_min_lines` distilled transcript lines are pending.
+A shorter session, such as an automated `gh` monitor sweep, gets no `claude -p` run: the observer
+writes `analysis skipped: N lines < min M` to its log and to the `analysis` key of
+`status-<session>.json` in the work dir, writes no ledger, and keeps the observations, so a session
+that resumes counts its earlier lines toward the threshold. The default of 300 is a setting to
+change: a full working session replayed on 2026-11-24 distilled 3,128 lines, and an automated sweep
+is far shorter.
+
+Each run that returns JSON, failed runs included, writes the `usage` token counts it reports
+(`input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `output_tokens`), plus
+`duration_ms` and `total_cost_usd` when present, under the same `analysis` key, and logs one
+`analysis usage:` line. Those are the run's own figures, read back for measurement.
+
 ## Config (userConfig)
 
 Declared in the plugin manifest; the SessionStart hook and the `arm` action read the same values.
@@ -134,6 +149,7 @@ Declared in the plugin manifest; the SessionStart hook and the `arm` action read
 | `observer_analysis_model` | plugin.json | Analysis model (a cost lever; see "Model and effort"). |
 | `observer_analysis_effort` | plugin.json | Analysis effort, passed as `--effort` (a cost lever; see "Model and effort"). |
 | `observer_analysis_bare` | `false` | Pass `--bare` (see above; breaks OAuth-login auth). |
+| `observer_min_lines` | `300` | Skip the analysis when fewer transcript lines are pending (see "Short sessions"); `0` analyzes every session. |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
 | `observer_max_seconds` | `86400` | Hard lifetime safety valve; exits without analysis. |
 
@@ -206,5 +222,6 @@ config overrides. Stop the live observer to re-arm with new settings.
   reads them today; they are for manual inspection. **Trigger:** wire the checkpoint flow to fold a
   retained observations file into its analysis (weigh against the redaction boundary, since the observations
   are unredacted, so any promotion to the ledger must pass the same two-hop redaction).
-- **Cost telemetry.** The `-p` run's JSON carries `total_cost_usd`; recording per-run observer spend
-  is `harness-ops:observability` territory.
+- **Cross-session spend report.** Each run's usage lands in its own status file (see "Short sessions
+  and run usage"); totals across sessions are `harness-ops:observability` territory. **Trigger:** a
+  need to report observer spend across sessions.

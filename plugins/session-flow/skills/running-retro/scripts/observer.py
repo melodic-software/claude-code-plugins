@@ -299,6 +299,9 @@ class Observer:
         self.bare = args.bare
         self.model = args.model or user_config_default("observer_analysis_model")
         self.effort = args.effort or user_config_default("observer_analysis_effort")
+        self.min_lines = int(
+            float(args.min_lines or user_config_default("observer_min_lines"))
+        )
         self.plugin_root = args.plugin_root
         self.topic = args.topic or "session"
         self.prev_running_retro = args.previous_running_retro
@@ -629,12 +632,21 @@ class Observer:
         duplicated). The -p run performs the sole semantic redaction pass; this
         script appends only the block it returns. Returns True only when the
         observations were CONSUMED (a successful run, or nothing to keep), so the
-        caller may delete them; False whenever they should be RETAINED (analysis
-        unavailable or failed).
+        caller may delete them; False whenever they should be RETAINED (session
+        below `min_lines`, analysis unavailable, or failed).
         """
         if not self.obs_path.exists() or self.obs_path.stat().st_size == 0:
             self.log("no observations captured; skipping analysis")
             return True
+        with self.obs_path.open("rb") as f:
+            pending_lines = sum(1 for _ in f)
+        if pending_lines < self.min_lines:
+            reason = f"analysis skipped: {pending_lines} lines < min {self.min_lines}"
+            self.log(reason)
+            self._write_status(
+                {"analysis": {"skipped": reason, "lines": pending_lines}}, merge=True
+            )
+            return False
         claude = _find_claude()
         if not claude:
             self.log(
@@ -743,6 +755,7 @@ class Observer:
         except (subprocess.TimeoutExpired, OSError) as e:
             self.log(f"analysis run failed: {e}")
             return False
+        self._record_usage(proc.stdout)
         # `claude -p` reports auth/API failures inside its JSON body (is_error) with
         # exit 0 sometimes and exit 1 others; inspect both.
         err = _result_error(proc.stdout) or _incomplete_reason(proc.stdout)
@@ -757,6 +770,22 @@ class Observer:
             self.log("analysis returned no result text")
             return False
         return self._append_ledger(findings)
+
+    def _record_usage(self, stdout: str) -> None:
+        """Store the run's own reported token usage, duration and cost, failed
+        runs included, so observer spend is measurable per session."""
+        data = _json_object(stdout)
+        usage = data.get("usage")
+        record: dict = {}
+        if isinstance(usage, dict):
+            record["usage"] = {k: usage[k] for k in _USAGE_KEYS if k in usage}
+        for key in ("duration_ms", "total_cost_usd"):
+            if key in data:
+                record[key] = data[key]
+        if not record:
+            return
+        self._write_status({"analysis": record}, merge=True)
+        self.log(f"analysis usage: {json.dumps(record, separators=(',', ':'))}")
 
     def _append_ledger(self, findings: str) -> bool:
         """Append the returned findings to this session's single ledger file.
@@ -885,6 +914,14 @@ def _json_object(stdout: str) -> dict:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+_USAGE_KEYS = (
+    "input_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+    "output_tokens",
+)
 
 
 def _extract_result(stdout: str) -> str:
@@ -1148,6 +1185,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--analysis",
         action="store_true",
         help="fire the headless post-end analysis on idle-detect",
+    )
+    p.add_argument(
+        "--min-lines",
+        default="",
+        help="skip the analysis when fewer transcript lines are pending; "
+        "empty = the plugin.json userConfig default",
     )
     p.add_argument(
         "--bare",

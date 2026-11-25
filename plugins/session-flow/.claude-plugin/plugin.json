@@ -67,6 +67,13 @@
       "description": "Passes --bare to the analysis run, dropping auto-discovery as a further cost lever. Off by default because --bare fails on OAuth-login installs (the run reports Not logged in); turn it on only where auth is an env-var API key. See reference/observer.md.",
       "default": false
     },
+    "observer_min_lines": {
+      "type": "number",
+      "title": "Observer minimum session size (lines)",
+      "description": "Transcript lines the observer must have seen before session end for the post-session analysis to run; default 300. A shorter session, such as an automated sweep, is skipped: the skip is recorded in the observer's status file and log, and no ledger is written. 0 analyzes every session.",
+      "default": 300,
+      "min": 0
+    },
     "observer_idle_seconds": {
       "type": "number",
       "title": "Observer idle end threshold (seconds)",
