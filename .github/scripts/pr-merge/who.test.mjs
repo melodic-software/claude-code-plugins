@@ -1,7 +1,3 @@
-// who.mjs: a scheduled run's first attempt and pr-verify's PR-scoped wake
-// proceed with no read; every other run proceeds only when its actor and the
-// starter of this attempt are listed humans, by id. github-actions[bot]'s id
-// is 41898282 (GET /users/github-actions%5Bbot%5D).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";

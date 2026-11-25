@@ -1,58 +1,3 @@
-// Posts a pr-verify FAIL's summary and notes on its pull request as review
-// comments, so pr-unblock's address-feedback round works them like the
-// reviewer bot's threads (address-feedback.mjs VERIFY_NOTE_MARKER) instead of
-// the pull request waiting for a person. Run by pr-dispatch-feedback.yml's
-// post-verify-notes job, base code only, with the job's GITHUB_TOKEN
-// (github-actions[bot]) after a pr-verify run completes. The verdict comes
-// from that run's own artifact, which only steps of a pr-verify.yml run on
-// main can upload; the workflow checks the run before this runs.
-//
-// It posts only for an open pull request whose current head is the one the
-// FAIL judged, and only the comments not on it yet: a verifier note at that
-// head on the same file is that comment, so a re-run after a partial post
-// posts the rest and nothing twice. A note whose thread is resolved does not
-// count: a pass that superseded an earlier FAIL at the head resolved it, so a
-// later FAIL there posts again and its round has an open thread to work. Each
-// note that starts with a path the pull request changes (`path` or
-// `path:line`, backticks allowed) goes on that file; the summary and every
-// other note go on the first such file, or on the pull request's first
-// changed file when no note names one. Model text is quoted as data in a text
-// fence, wrapped to fit the page (quote), never interpolated into a command.
-//
-// On a pull request the lanes App did not open, a person's, the FAIL is no
-// review thread: GitHub lets only its author or a writer resolve one, which
-// the lanes App is not, and every conversation must be resolved to merge.
-// Instead the summary and notes go in one PR comment, the marker its first
-// line, updated in place on a later FAIL, and the PR gets the
-// pr-verify-failed label, which ci-status holds in the merge queue. ci-status
-// reads that label once per merge group, so a PR already queued past that read
-// would still merge: one in the queue is dequeued too. This job's GITHUB_TOKEN
-// is refused that mutation, so a refused read or dequeue warns and the label
-// stays the hold (address-feedback.mjs leaveQueueOnHold). No round starts. A
-// PASS or PASS-NOTES at its head removes the label.
-//
-// A FAIL write-verdict.mjs recorded as withheld also holds the pull request
-// for a person (holdForCredential), in any state and at any head, apart from
-// the rest: a failure there still posts the notes, then fails the job.
-//
-// On a lanes App pull request a PASS or PASS-NOTES posts nothing and resolves
-// nothing. For an open pull request still at the head it judged, it names
-// that head in the pass-head-sha output when a fail-note thread is still open
-// (address-feedback.mjs staleVerifyNotes, the passing head's own included);
-// the dispatch job then sends pr-unblock.yml, whose publish-feedback job
-// resolves those from an earlier head as the lanes App, and those at the
-// passing head only when the dispatch job's verifier read found the FAIL there
-// superseded. Resolving a thread takes more than this job's token holds.
-//
-// Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, APP_SENDER_ID
-// (the lanes App's bot user id), ARTIFACT_NAME
-// (pr-verify-<pr>-<sha>-<pass|pass-notes|fail>, then the head-ref digest
-// write-verdict.mjs adds, absent on an older verdict, then on a FAIL
-// optionally `-i` and the verdict's issue numbers: write-verdict.mjs NAME) and
-// VERDICT_FILE (its verdict.json). For a FAIL, writes pr-number and head-sha
-// outputs once the notes are on a lanes App pull request, posted now or by an
-// earlier run; for a pass, pass-head-sha as above.
-
 import { appendFileSync, readFileSync } from "node:fs";
 
 import { runAsScript } from "../lib/run-main.mjs";
@@ -61,8 +6,6 @@ import { personReasonLines } from "../lib/stop-reason.mjs";
 import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
 import { createGitHubApi, humanGatedLabelFrom, leaveQueueOnHold, MARKER_AUTHOR_ID, need, quote, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
-// The label that holds a person's pull request after a FAIL (ci-status's
-// merge-queue label step reads the same name).
 export const FAILED_LABEL = "pr-verify-failed";
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
@@ -78,7 +21,6 @@ function laneAppId(appId) {
   return appId;
 }
 
-// The changed path a note starts with, or null.
 export function notePath(note, files) {
   const token = String(note).trimStart().split(/\s/, 1)[0] ?? "";
   const path = token
@@ -88,7 +30,6 @@ export function notePath(note, files) {
   return files.includes(path) ? path : null;
 }
 
-// The comments to post, each { path, body }, in the pull request's file order.
 export function noteComments({ head, summary, notes, files }) {
   const byPath = new Map();
   const loose = [];
@@ -117,7 +58,6 @@ export function noteComments({ head, summary, notes, files }) {
   });
 }
 
-// The one PR comment a person's pull request gets for a FAIL.
 export function failComment({ head, summary, notes }) {
   return [
     VERIFY_NOTE_MARKER,
@@ -162,14 +102,6 @@ async function leaveQueue({ api, pr, log }) {
   log(`#${pr}: dequeued from the merge queue`);
 }
 
-// A withheld fail may mean a live credential in the pull request's commits,
-// which a later clean commit does not rotate: it holds for a person, at
-// whatever head the pull request has moved to. The label goes on in any state,
-// so a closed pull request that reopens is still held; only an open one has a
-// queue step. The label is the hold, so it goes first; the comment, whose
-// first line gate-source.mjs CREDENTIAL_HOLD reads, keeps the clear paths off
-// that label. It posts once per head whatever else the label stands for, and
-// names no text.
 async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedLabel, log }) {
   await everyStep(log, [
     async () => {
@@ -248,10 +180,6 @@ export function readVerdict(name, text) {
   return { pr: verdict.pr, head: verdict.head_sha, verdict: kind, summary: verdict.summary, notes: verdict.notes, withheld: verdict.withheld === true };
 }
 
-// For a pass: whether a lanes App pull request is open at the head it judged
-// and holds an open fail-note thread, which only reads; whether one at that
-// head may be resolved is the dispatch job's verifier read. A person's pull
-// request there loses the label instead.
 export async function findStaleNotes({ api, verdict, appId, log }) {
   const { pr, head } = verdict;
   laneAppId(appId);
@@ -267,8 +195,6 @@ export async function findStaleNotes({ api, verdict, appId, log }) {
     }
     return false;
   }
-  // A fail note is a review comment, so a pull request the read counts none
-  // on holds no fail-note thread; a read without the count lists the threads.
   if (pull.review_comments === 0) {
     log(`#${pr}: no review comment, so no open fail-note thread the ${verdict.verdict} at ${head} may supersede`);
     return false;
@@ -278,10 +204,6 @@ export async function findStaleNotes({ api, verdict, appId, log }) {
   return open.length > 0;
 }
 
-// For a fail: whether its notes are on a lanes App pull request, so a round
-// starts. A person's pull request gets its fail comment and label instead.
-// `humanGatedLabel` reads the label's name, and only the credential hold calls
-// it, so a config it cannot read stops no other fail.
 export async function postNotes({ api, verdict, appId, humanGatedLabel = () => "needs-human", log }) {
   laneAppId(appId);
   const pull = await api.getPull(verdict.pr);

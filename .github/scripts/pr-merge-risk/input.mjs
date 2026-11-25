@@ -1,20 +1,4 @@
 #!/usr/bin/env node
-// input.mjs: writes the data directory /review:merge-risk's `--dir` mode
-// reads (plugins/review/skills/merge-risk/SKILL.md step 1) from the reads
-// pr-rate-merge-risk.yml made on the base side: facts.json, pr.diff and
-// issue.md. The title and body are select-trusted-text's, so text an
-// untrusted editor wrote is withheld as it is from pr-verify. issue.md is
-// always written, saying when no closing issue was read, so the skill never
-// reaches for a tracker read of its own. A diff over MAX_DIFF_BYTES writes
-// nothing and exits 1: that head gets no rating.
-//
-// Environment:
-//   DATA            the data directory the model may read
-//   DIFF_FILE       the base...head diff, written by git on the base side
-//   CONTEXT_FILE    select-trusted-text's context.json
-//   SPEC_TEXT_FILE  resolve-pr.mjs's spec-text.json (the closing issues)
-//   GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA, BASE_SHA
-//   MAX_DIFF_BYTES  the largest diff rated
 
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -24,7 +8,6 @@ import { pathToFileURL } from "node:url";
 const SHA = /^[0-9a-f]{40}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-// Each path the diff changes, once, renames by their new path.
 export function changedFiles(diff) {
   return [...new Set(Array.from(String(diff).matchAll(/^diff --git a\/.+? b\/(.+)$/gm), (match) => match[1]))];
 }

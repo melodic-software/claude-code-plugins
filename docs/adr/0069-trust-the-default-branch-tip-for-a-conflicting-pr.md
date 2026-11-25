@@ -32,10 +32,10 @@ The write runner takes a caller input `trusted-base`, `pr-base` by default or `d
 2. That one SHA is the `base-sha` output, the source of config, actions and trusted actors, and
    the merge's second parent
    ([ADR 0068](0068-push-a-lane-merge-as-an-api-made-two-parent-commit-signed-by-the-app.md)).
-   Basis: [`pr-run-activity-write.yml:118,222-233,448`](../../.github/workflows/pr-run-activity-write.yml).
+   Basis: [`pr-run-activity-write.yml:102,206-217,409`](../../.github/workflows/pr-run-activity-write.yml).
 3. Both pr-unblock jobs pass `trusted-base: default-tip`; no other caller passes the input, so
    every other lane keeps the `pr-base` default. Basis:
-   [`pr-unblock.yml:57,81`](../../.github/workflows/pr-unblock.yml); `pr-run-activity.md:61`.
+   [`pr-unblock.yml:27`](../../.github/workflows/pr-unblock.yml); `pr-run-activity.md:61`.
 
 ## Alternatives considered
 
@@ -59,10 +59,10 @@ The write runner takes a caller input `trusted-base`, `pr-base` by default or `d
   the `pr-unblock-<n>` group and gates the PR's head as it is when it starts. A PR whose mergeable
   state stays `UNKNOWN`, or that falls past the per-run cap, waits for the next push to `main`,
   the dispatcher's half-hourly tick (ADR 0071) or a hand run of the dispatcher. Basis:
-  [`dispatch.mjs:48-57,60-110`](../../.github/scripts/pr-unblock/dispatch.mjs);
-  `pr-unblock.yml:31-33`;
+  [`dispatch.mjs:4-13,16-58`](../../.github/scripts/pr-unblock/dispatch.mjs);
+  `pr-unblock.yml`;
   [`check-trusted-trigger.mjs:349-353`](../../.github/actions/check-trusted-trigger/check-trusted-trigger.mjs);
-  the check run is posted only by the report job (`pr-run-activity-write.yml:1088-1089`,
+  the check run is posted only by the report job (`pr-run-activity-write.yml`,
   [`report-check-run.mjs:101`](../../.github/actions/report-check-run/report-check-run.mjs)).
 - The caller file is lane-power, and the broker checks it against the tip (`workflow-modified`).
   Basis: ADR 0058 point 3.

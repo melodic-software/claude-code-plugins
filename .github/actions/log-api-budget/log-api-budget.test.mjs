@@ -10,7 +10,6 @@ import { apiLimits, createRateLimitLatch, FALLBACK_NOTE, PLACEHOLDERS, poolOf, R
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { workflowText } from "../../scripts/lib/workflow-text.mjs";
 
-// Root reads and writes past any file mode, so the permission cases skip.
 const ROOT = process.getuid?.() === 0;
 const LIB = new URL("./api-budget.bash", import.meta.url).pathname;
 const ACTION = readFileSync(new URL("./action.yml", import.meta.url), "utf8");
@@ -26,7 +25,6 @@ const WHERE = "workflow=.github/workflows/pr-require-checks.yml job=ci-status ru
 const NOTICE = "::notice title=api-budget::";
 const READ = 'f=$(mktemp -p "$RUNNER_TEMP"); cat >"$f"; api_budget_read';
 
-// A `gh api -i` header block, CRLF header lines as gh prints them.
 const head = ({ status = 200, used, reset = 1792748042, resource = "core" }) =>
   `HTTP/2.0 ${status} OK\nContent-Type: application/json\r\nX-Ratelimit-Limit: 5000\r\n` +
   `X-Ratelimit-Remaining: ${5000 - used}\r\nX-Ratelimit-Reset: ${reset}\r\nX-Ratelimit-Resource: ${resource}\r\n` +
@@ -630,9 +628,6 @@ test("gh guard: retry-after stops every pool until it ends, and an ended stop le
     assert.equal(guarded(dir, ["200 4000 - {}"], "gh api repos/o/r").calls.length, 1);
   }));
 
-// GitHub documents its rate limits as 403 or 429 answers: a 5xx whose only
-// signal is Retry-After holds every pool for it all the same, worded and
-// titled as a server error, and its cause goes in the job's cause file.
 test("gh guard: a 5xx with retry-after alone holds every pool for it, as a server error", () => {
   for (const status of [502, 503, 504]) {
     withDir((dir) => {
@@ -728,10 +723,6 @@ test("gh guard: a paginated secondary or abuse-detection limit waits the minute;
     }
   }));
 
-// A paginated call shows no headers, so a primary limit holds to the one open
-// window the token's earlier readings of the same route show (another route
-// may read another core counter); any other reading set keeps the
-// hour. The stop stays a guess (gh_read never waits on it).
 test("gh guard: a paginated primary limit holds to the reset of the one open window in earlier readings of its route, else the hour", () =>
   withDir((dir) => {
     const now = Math.floor(Date.now() / 1000);
@@ -801,9 +792,6 @@ test("gh guard: a refused answer still returns 1 on both paths", () =>
     }
   }));
 
-// A caller that reads the headers itself (-i) is still counted, and a
-// conditional GET answered 304 counts as not-modified, which GitHub does not
-// charge.
 test("gh guard: a -i call is counted in api-calls, and a 304 as not-modified", () =>
   withDir((dir) => {
     const out = guarded(
@@ -815,12 +803,6 @@ test("gh guard: a -i call is counted in api-calls, and a 304 as not-modified", (
     assert.match(out.stdout, /^::notice title=api-calls::github-token=1 not-modified=1 graphql=0 core-by-reset=\d+:1 core-unread=0\n$/);
   }));
 
-// A gh that plays $RUNNER_TEMP/script, one `<where> <text>` line each: `o`
-// stdout, `e` stderr, `n` stderr with no newline, `d` stderr only under
-// GH_DEBUG=1, `x` its exit status. The `d` lines are gh 2.103.3's GH_DEBUG=1
-// output, recorded from `gh api --paginate repos/<this repo>/labels?per_page=20`
-// (three pages), `gh run list --limit 1` (two git lines, two requests) and a
-// refused proxy connect.
 function scriptedGh(dir, lines) {
   writeFileSync(
     join(dir, "gh"),
@@ -923,7 +905,6 @@ test("gh guard: a header-read call counts each request once, a 304 still as not-
     assert.equal(out.stdout.split("\n").at(-2), "::notice title=api-calls::github-token=0 not-modified=1 graphql=0 core-unread=0");
     out = wrappedAndBare(dir, [...request("https://api.github.com/repos/o/old"), ...request("https://api.github.com/repositories/1"), "o HTTP/2.0 200 OK", "o ", "o {}"], "api repos/o/old").wrapped;
     assert.equal(out.stdout, "{}\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0 graphql=0 core-unread=2\n");
-    // A download redirect leaves GitHub's API, so it spends nothing there.
     out = wrappedAndBare(
       dir,
       [...request("https://api.github.com/repos/o/r/actions/runs/1/logs"), ...request("https://results-receiver.actions.githubusercontent.com/x")],
@@ -953,13 +934,6 @@ test("gh guard: a stop-file line whose reset is not a number stops nothing", () 
     assert.equal(out.calls.length, 1);
   }));
 
-// A stop the wrapper cannot record would leave every later call, in this
-// shell or a $(...) subshell, free to reach the exhausted pool: the step ends
-// after the one refused call, whichever shell made it, and no call follows
-// from a retry loop in a capture around it. Its two errors reach the step's
-// stderr once each, also when the caller holds the subshell's stderr in a
-// file it reads only after the call, as gh_read does. Node gives the step a
-// socket for stderr, which /proc/$$/fd/2 cannot open.
 test("gh guard: a stop it cannot record ends the step after one call, naming the pool", { skip: ROOT && "root writes past any file mode" }, () =>
   withDir((dir) => {
     const main = "gh api repos/o/r >/dev/null || true\ngh api repos/o/r/pulls >/dev/null || true\ngh api graphql -f query=x >/dev/null || true\necho reached";
@@ -1341,7 +1315,6 @@ test("pr-review-main's report-review-counts job ends with its own api-calls noti
     const lib = new URL("api-budget.bash", import.meta.url).pathname;
     const emitted = (count) => {
       if (count !== undefined) writeFileSync(join(dir, "pr-review-main-calls"), `${count}\n`);
-      // As Actions runs `shell: bash`: -e ends the step on any failing command.
       return execFileSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir } });
     };
     const shape = execFileSync("bash", ["-c", `. "${lib}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir } });
@@ -1605,8 +1578,6 @@ test("pr-dispatch-feedback.yml: the wrapper setup keeps the step's stderr for an
     unlock(dir);
   }));
 
-// One stored (uncompressed) entry, the zip GitHub's artifact download answers.
-// A `link` entry carries the Unix symlink mode, so unzip restores it as a link.
 function storedZip(name, text, link = false) {
   const file = Buffer.from(name);
   const data = Buffer.from(text);
@@ -1666,9 +1637,6 @@ test("pr-dispatch-feedback.yml: post-verify-notes keeps the reading of its artif
     assert.equal(state(join(dir, "rt"), "github-token"), "200 5000 4959 41 1792748042 core repos/{repo}/actions/runs/{n}/artifacts\n");
   }));
 
-// The listing names the verdict's artifact id, so the step downloads that
-// artifact in one call and never lists the run's artifacts a second time, as
-// `gh run download --name` does.
 test("pr-dispatch-feedback.yml: post-verify-notes downloads the listed verdict by its id, with no second listing", () =>
   withDir((dir) => {
     const name = `pr-verify-42-${"a".repeat(40)}-pass`;

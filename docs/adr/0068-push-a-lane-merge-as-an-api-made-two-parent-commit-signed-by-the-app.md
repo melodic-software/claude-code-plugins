@@ -30,28 +30,28 @@ The runner, not the model, makes the merge commit through the Git Data API
    that can write. The write runner branches on the resolved `prepare` output, never on the
    skill's name. Basis:
    [`pr-pipeline.schema.json:171-186`](../conventions/pr-pipeline/pr-pipeline.schema.json);
-   [`resolve.mjs:207-219`](../../.github/actions/resolve-config/resolve.mjs);
-   [`pr-run-activity-write.yml:359,434`](../../.github/workflows/pr-run-activity-write.yml).
+   [`resolve.mjs:203-215`](../../.github/actions/resolve-config/resolve.mjs);
+   [`pr-run-activity-write.yml:320,395`](../../.github/workflows/pr-run-activity-write.yml).
 2. Before any model turn, the base's `prepare.sh` runs `git merge --no-commit --no-ff` of the
    trusted base ([ADR 0069](0069-trust-the-default-branch-tip-for-a-conflicting-pr.md)) into the
    gated head. A clean merge takes no model turn; the skill runs only on a conflicted one. Basis:
-   `pr-run-activity-write.yml:424-494,527`.
+   `pr-run-activity-write.yml:385-452`.
 3. After the skill, the base's `post.sh` checks the index and writes it as a tree. Basis:
-   `pr-run-activity-write.yml:688-741`.
+   `pr-run-activity-write.yml:603-649`.
 4. A pinned `github-script` step uploads only the blobs neither parent holds, builds the tree,
    fails unless GitHub's tree hashes to `post.sh`'s, and creates the commit with
    `parents: [gated head, trusted base]` and no author, committer or signature fields, so GitHub
    signs it as the App. It writes the commit to the lane branch with `force: false`. Basis:
-   `pr-run-activity-write.yml:742-891`; the GitHub page quoted in Context.
+   `pr-run-activity-write.yml:650-759`; the GitHub page quoted in Context.
 5. The existing promote step fast-forwards the PR branch only when the lane branch holds that
    step's own commit and the PR branch is still at the gated head, then re-reads the ref to confirm
-   the move. Basis: `pr-run-activity-write.yml:893-950`.
+   the move. Basis: `pr-run-activity-write.yml:761-811`.
 
 ## Alternatives considered
 
 - **`git push` of the local merge commit.** Rejected: unsigned, so `check-signed-commits` fails
   it, and it bypasses the promote step's head-moved guard. Basis: ADR 0054, "Decision";
-  `pr-run-activity-write.yml:893-950`.
+  `pr-run-activity-write.yml:761-811`.
 - **The existing commit tool on the lane branch.** Rejected: it makes a single-parent commit, so
   the PR stays computed against the old base. Basis: judgment; the tool was not re-read for this
   record.
@@ -75,7 +75,7 @@ The runner, not the model, makes the merge commit through the Git Data API
   App's missing `workflows` permission (probe run 38148710292, all three push methods). A
   conflicted or model-staged workflow path escalates instead.
 - The merge scripts need git 2.41 or later (`GIT_ATTR_SOURCE`) and fail closed below it. Basis:
-  [`prepare.sh:24,79`](../../.github/scripts/merge-base/prepare.sh).
+  [`prepare.sh:30`](../../.github/scripts/merge-base/prepare.sh).
 
 ## Addendum (2026-10-23): a script job commits the merge, and the model holds no write token
 

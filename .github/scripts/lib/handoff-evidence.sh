@@ -1,75 +1,5 @@
 #!/usr/bin/env bash
-# handoff-evidence.sh: what a lane's read-runner calls left behind, read from
-# this run's jobs through the Actions API, never from a call's outputs (its run
-# job runs head code and can forge them). Run by every job that decides on a
-# handoff: pr-unblock.yml's handoff jobs and fix-ci-unreported,
-# pr-refine.yml's fix-docs-handoff, work-resolve-issue.yml's
-# resolve-issue-handoff and resolve-issue-stale, and each lane's
-# <subscription>-handoff job before its third call.
-#
-# Facts, each over the calls in CALLS (true when any call holds it):
-#   allowed  the call's record-broker-allow job succeeded: pr-run-activity-read.yml
-#            runs it only on check-broker's allow, which no run job can write.
-#            A failed or skipped check-broker is false at once.
-#   posted   the call's report job posted its check. A skipped or absent
-#            report job (a handoff, forged or not) is false at once; a report
-#            that ran answers through its "Post the check run" step, and one
-#            whose steps are listed without it (it ended before that step)
-#            is false.
-#   handed-off  the call handed off: allowed, its run job succeeded, and its
-#            scan job, which the read runner skips only on a handoff, is
-#            skipped or absent. All three are job conclusions.
-#   stale    the call's run job stopped at `Stop on stale workflow files`
-#            (issue mode, before any model turn): read from the step, which
-#            no run job can rename. A skipped or absent run job is false.
-#   credit-stop  the call's key leg hit a credit stop: its run job's `Mark a
-#            key credit stop` step succeeded, a step that runs only on
-#            run-claude-cli's handoff-reason, set after the leg ends. A skipped
-#            or absent run job is false.
-#
-# GitHub's jobs listing can return a job's steps empty, or a step's conclusion
-# null, for minutes after the job ends. Job-level fields come at once, so they
-# decide first; a fact only a step can settle is read again, and only while it is
-# unsettled. HANDOFF_EVIDENCE_DELAYS (seconds, default "15 30 60 90 120") caps each
-# wait: full jitter draws it from 0 to its cap. Reads then go on at the last cap
-# until the waits sum to the caps' sum, about five minutes, the lag this exists
-# for, so at worst about seven minutes and at most max_reads reads. A check-broker
-# whose record-broker-allow job is absent or neither succeeded nor skipped answers
-# through its broker step the same way.
-#
-# The listing is read a page at a time. A read after the first sends each page
-# it already got with an ETag as a conditional request, and a 304 gives back
-# the body that ETag came with. GitHub does not count a conditional
-# request answered 304 against the primary rate limit when it carries an
-# Authorization header, as gh's do
-# (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
-#
-# Once the listing's pool is empty, the rate guard sends no read before its
-# reset, so a failed read names that reset. A job that sets
-# API_BUDGET_WAIT_SECONDS waits for it once through rate-guard.mjs's waitOut,
-# within the guard's wait budget, then reads again; a reset past that budget
-# and past the reads' window ends the reads at once.
-#
-# Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale, credit-stop)
-# Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
-# Outputs: one FACT=true|false line per requested fact, and one log line
-# naming them with the read count. A fact still unsettled after the last read:
-#   - a last read that failed, on fix-docs or fix-docs-subscription, pr-refine.yml's
-#     two reads, holds (outage posture element 2): one ::notice line, no output
-#     and exit 0, after at most 3 failed reads (element 1), and a rate limit's
-#     annotation is a notice too. Empty outputs start no next leg, and
-#     fix-docs-dispatch.mjs reads a leg that handed off with no next leg as this
-#     hold and dispatches the PR again.
-#   - a last read that got the listing, with HANDOFF_EVIDENCE_LAG=notice, set by a
-#     job whose empty outputs start nothing, ends the same way: one ::notice::
-#     line, no output and exit 0.
-#   - anything else fails closed: exit 1, one ::error line naming what stayed
-#     missing and no output, after at most 6 failed reads. Its callers read an
-#     empty output as a failed read; each lane's own job fallbacks depend on it,
-#     pr-unblock's starting its second leg on that read.
 set -euo pipefail
-# In a job, each gh call keeps its rate-limit reading for the job-end
-# api-budget notice (.github/actions/log-api-budget).
 # shellcheck source=/dev/null
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
@@ -96,18 +26,9 @@ if [[ $CALLS =~ ^fix-docs(-subscription)?$ ]]; then
   hold=1
   export API_BUDGET_HOLD=1
 fi
-# A conditional read answered 304 costs no rate limit, but a page with no ETag does.
 max_reads=12
 
-# Per requested fact: "true", "false", or the missing evidence, as one line
-# "fact<TAB>value".
 # shellcheck disable=SC2016 # a jq program, not a shell expansion
-# A call's job is listed by its display name, the call's id and the callee's
-# job id each in Title Case (`fix-ci / check-broker` shows as
-# `Fix CI / Check Broker`), else by those ids: a run started before the
-# rename, which this script, read from the default branch tip, can still read.
-# The broker jobs are read under their ids and the ids they had before their
-# rename (`broker-check`, `broker-allowed`).
 settle='
   . as $jobs
   | def titled($id): $id | split("-") | map(if . == "ci" then "CI" else (.[:1] | ascii_upcase) + .[1:] end) | join(" ");
@@ -153,17 +74,9 @@ settle='
   | . as $f
   | "\($f)\t\(any_of([$cs[] | fact($f; .)]))"'
 
-# Pages read per listing: a Link header that never ends cannot loop.
 max_pages=20
-# Each listing page's ETag, the body that came with it and its Link header's
-# next page, by the URL read: a 304 need not carry the Link header.
 declare -A page_etag=() page_body=() page_next=()
 
-# Sets listing to one {name, conclusion, steps} line per job on every page of
-# the run's latest jobs. Returns 1 when a page is not answered 200 with gh
-# exiting 0, or 304 to a conditional request, or its body is not a job
-# listing: gh exits 1 on a 304, which -i still prints, and on a body cut off
-# after its headers.
 read_jobs() {
   local url="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100"
   local out headers status body jobs pages=0 cond rc
@@ -184,9 +97,7 @@ read_jobs() {
     else
       return 1
     fi
-    # input fails on an empty body, which would otherwise read as no jobs.
     jobs=$(jq -nc 'input | .jobs[] | {name, conclusion, steps: [.steps[]? | {name, conclusion}]}' <<<"$body") || return 1
-    # Only a page whose body parsed is kept, so a 304 never reuses a bad one.
     if [[ $status == 200 ]]; then
       page_body[$url]=$body
       page_etag[$url]=$(awk 'NR > 1 && tolower($0) ~ /^etag:/ { sub(/^[^:]*:[ \t]*/, ""); print; exit }' <<<"$headers")
@@ -269,7 +180,6 @@ if [[ ${HANDOFF_EVIDENCE_LAG:-} == notice && $missing == missing:* ]]; then
 fi
 if [[ -n $hold && $missing != missing:* ]]; then
   echo "::notice title=Handoff evidence hold::handoff evidence for ${CALLS} still missing after $reads reads: $missing; no fallback starts, and the next dispatcher tick sends the PR again"
-  # A hold job's lane-hold marker (lane-hold-marker.mjs); a failed write leaves the hold as it is.
   [[ -z ${LANE_HOLD_MARKER:-} ]] || { mkdir -p "${LANE_HOLD_MARKER%/*}" && printf '%s %s\n' "${LANE_HOLD_MARKER##*/}" "${GITHUB_RUN_ID:-}" >"$LANE_HOLD_MARKER"; } || true
   exit 0
 fi

@@ -1,17 +1,4 @@
 #!/usr/bin/env node
-// conflict-scan-refusal.mjs: resolve-conflicts's escalation when the read
-// runner's scan refused the model call's output (a leak-scan block or an
-// oversize patch). Such a scan hands no patch state on, so apply-conflict-patch
-// never runs; this script, with no model and no head code, reads the
-// scan-refusal job's markers (address-feedback.mjs scanRefusal) and writes
-// escalation-reason=unresolved-conflict when any marker, or a failed download,
-// says the scan refused. It reads no leg output: a forged marker only hands
-// the round to a person. Head code on the run job's runner that takes the
-// marker's artifact name first can suppress the escalation, a power it
-// already holds by forging that job's handed-off output.
-//
-// Environment: GITHUB_OUTPUT, SCAN_REFUSED_DIR (every attempt's marker for
-// the resolve-conflicts call), SCAN_REFUSED_READ (that download's outcome).
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";

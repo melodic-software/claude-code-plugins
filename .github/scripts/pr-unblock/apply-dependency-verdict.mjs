@@ -1,80 +1,4 @@
 #!/usr/bin/env node
-// apply-dependency-verdict.mjs: the verdict job of the pr-unblock lane's
-// review-dependency round, a script activity with no model. The select job
-// recorded the round's run fields, and the read runner's scan job uploaded the
-// model's verdict after its leak scan; this validates both and acts on them
-// with the lane token (pull-requests and issues write, contents read), adding
-// no judgment of its own.
-//
-//   1. Validates context.json, the select job's run fields (SHA-256 and head
-//      from that job, which ran no model or head code), and dependency-verdict.json, the
-//      model's structured verdict (SHA-256 from the scan job), each strictly,
-//      with exactly the template's fields within the limits below. Anything
-//      else escalates dependency-invalid. No verdict at all, with the same
-//      call's scan handing on no patch, refusing nothing, and the head still
-//      the select job's, is a round with no model turn: it counts and skips
-//      no-model-turn. A scan that refused an oversize patch escalates
-//      dependency-fix-not-landed.
-//   2. Re-reads the pull request. Closed: nothing, unless it is a close this
-//      job started (its issue or marker is there), which resumes. merge,
-//      close and escalate need the head the model reviewed; a moved head is
-//      superseded and the next dispatcher run reviews the new one. fix needs
-//      only commits GitHub signed for the lanes App during this workflow run
-//      on top of that head, listed whole (else dependency-invalid), each file
-//      only modified, a regular file, an npm or pip manifest or lock file
-//      outside .github/ in a directory the base's dependabot.yml (read here,
-//      never from context.json) lists, and changed only by a version change
-//      (fixRefusal; else dependency-fix-refused), else
-//      dependency-fix-not-landed (no commit) or superseded (Dependabot
-//      rebased, or another commit).
-//   3. merge: the round marker it posts, naming the reviewed head, is the
-//      record the pr-merge lane merges on; this job never merges or enqueues.
-//      A model that saw a truncated files listing escalates
-//      dependency-files-truncated instead, and one whose change to a
-//      workflow or action file is not a pin swap (pinSwapRefusal: a full-SHA
-//      swap, or an official vendor action's version-tag swap per
-//      https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L351)
-//      escalates dependency-workflow-unpinned. Every commit on the pull request
-//      must be Dependabot's own (its account ids, web-flow, a valid
-//      signature), or a single-parent commit whose files pass the fix rule above against its
-//      parent; and each commit must arrive in its own author's push, read
-//      from the branch's activity back to Dependabot's newest branch creation
-//      or force push (pushRefusal); else dependency-fix-refused, so a
-//      commit the lanes App pushed outside a fix round is never merged on.
-//      A merge on a review-only dependency whose evidence does not quote each
-//      matched entry's control (context.json `controls`) escalates
-//      dependency-control-uncited instead.
-//      close: never on a security update (the security label or an advisory
-//      in the body, read fresh here, or the select job's flag), which escalates
-//      dependency-security-close; otherwise finds or files the issue
-//      proposing the dependabot.yml ignore entry (keyed by PR and head), posts
-//      the marker, then closes the pull request, so a re-run after any
-//      partial failure resumes. escalate: dependency-escalate-<owner_reason>
-//      (escalateReason). fix: nothing
-//      more; CI judges the push.
-//   4. Posts the round marker, as the lanes App, once per model run (a run
-//      with no verdict attempt is named `none`, and its marker always posts).
-//
-// Environment:
-//   GH_TOKEN                the lane token
-//   GITHUB_REPOSITORY       owner/repo
-//   PR_NUMBER, HEAD_SHA     the gated pull request and its head
-//   BASE_SHA                the trusted base commit; its .github/dependabot.yml
-//                           gives the fix rule's [ecosystem, directory] pairs
-//   DEPENDENCY_HEAD_SHA     the head the select job read, which context.json's
-//                           head_sha must name
-//   GITHUB_RUN_ID, DEPENDENCY_RUN_ATTEMPT  the model run the round marker
-//                           names: the scan job's verdict attempt
-//   APP_SENDER_ID           the lanes App bot's user id
-//   DEPENDENCY_VERDICT_DIR  the downloaded artifacts: the select job's
-//                           context.json and the scan job's dependency-verdict.json
-//   DEPENDENCY_RUN_SHA256   context.json's SHA-256, from the select job
-//   DEPENDENCY_VERDICT_SHA256  dependency-verdict.json's SHA-256, from the scan job
-//   DEPENDENCY_PATCH_STATE  the same call's scan patch state ('' for none)
-//   SCAN_REFUSED_DIR, SCAN_REFUSED_READ  the scan-refusal job's markers for
-//                           the model call and their download's outcome
-//                           (address-feedback.mjs scanRefusal)
-//   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
@@ -99,16 +23,11 @@ import { stopSkip } from "./escalation-routes.mjs";
 import { FILES_CAP, roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
 
 export const LIMITS = { bytes: 65536, reasons: 10, reason: 500, evidence: 20, evidenceItem: 300, config: 200 };
-// The compare listing stops at 250 commits and 300 files
-// (docs.github.com/en/rest/commits/commits#compare-two-commits, as of
-// 2026-10-17; recheck when that section changes its limits).
+// Compare lists at most 250 commits unpaged and 300 files, only on page 1.
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
 export const COMPARE_LIMITS = { commits: 250, files: 300 };
 export const CONFIG_PATH = ".github/dependabot.yml";
 
-// A commit GitHub signed for the lanes App during this workflow run: author
-// the App, committer web-flow, signature valid, committed no earlier than
-// context.json's started_at, which the select job recorded before any model
-// turn. An author id alone is whatever a pusher claims.
 export const isLaneCommit = (commit, appId, started) =>
   Number.isInteger(commit?.author?.id) &&
   commit.author.id === appId &&
@@ -119,19 +38,11 @@ export const isLaneCommit = (commit, appId, started) =>
 
 class Invalid extends Error {}
 
-// `date -u +%Y-%m-%dT%H:%M:%SZ`, as the select job records it.
 const STARTED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
 const exactKeys = (value, keys) =>
   value !== null && typeof value === "object" && !Array.isArray(value) && Object.keys(value).sort().join() === [...keys].sort().join();
 
-// Plain prose: posted inside a fence, so no control character, fence, HTML
-// comment or user @-mention can change what the comment shows or who it pings.
-// An @ after a slash (a URL) or opening a scoped package (@scope/name) passes;
-// that also lets a team-style @org/team through, left to the fence. The scan
-// job's verdict schema (collect-base-activity/action.yml) carries this same
-// pattern under `not`, which steers generation; this check enforces it. No
-// lookahead: the Claude API's structured outputs do not support one.
 export const UNPLAIN_PATTERN = String.raw`[\u0000-\u001f\u007f]|${"```"}|~~~|<!--|-->|(^|[^A-Za-z0-9${"`"}/])@[A-Za-z0-9][A-Za-z0-9._-]*([^A-Za-z0-9._/-]|$)`;
 const UNPLAIN = new RegExp(UNPLAIN_PATTERN);
 
@@ -141,7 +52,6 @@ function plain(text, max) {
 
 export const CONTEXT_KEYS = Object.freeze(["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "config"]);
 
-// The select job's run fields.
 export function validateContext(run, pr) {
   const fail = (why) => {
     throw new Invalid(`context.json is invalid: ${why}`);
@@ -163,17 +73,10 @@ export function validateContext(run, pr) {
   return run;
 }
 
-// The verdict's fields. `owner_reason` is the stop-reason code
-// (../lib/stop-reason.mjs) an escalate verdict hands to a person with, or
-// `none`; only an escalate verdict reads it.
 export const VERDICT_KEYS = Object.freeze(["verdict", "owner_reason", "reasons", "evidence"]);
 
-// The stop an escalate verdict ends on: dependency-escalate-<code>, held for a
-// person with that code's marker, or, for `none`, dependency-escalate-none,
-// which routes to the session-builder queue and never to a person.
 export const escalateReason = (ownerReason) => `dependency-escalate-${ownerReason}`;
 
-// The model's structured verdict, as the scan job uploaded it.
 export function validateVerdict(out) {
   const fail = (why) => {
     throw new Invalid(`dependency-verdict.json is invalid: ${why}`);
@@ -188,7 +91,6 @@ export function validateVerdict(out) {
   return out;
 }
 
-// Both, as the one record apply() acts on.
 export function validateRun(run, pr) {
   if (run === null || typeof run !== "object" || Array.isArray(run)) {
     throw new Invalid("the round's record is not an object");
@@ -203,8 +105,6 @@ async function entryAt(api, sha, path) {
   return (await api.listTree(sha, dir)).find((entry) => entry.name === name);
 }
 
-// fixRefusal over `files`, the change from `before` to `after`; a read that
-// fails is a refusal, never a pass.
 async function changeRefusal(api, files, pairs, before, after) {
   const reads = {
     entry: (path) => entryAt(api, after, path),
@@ -307,13 +207,7 @@ function ignoreIssue({ pr, head, title, reasons }) {
   };
 }
 
-// `context` is the select job's valid run fields when `run` is null; with
-// `missing` true no verdict arrived, and `patchState` and `refused` are the
-// same call's scan outputs.
 export async function apply({ api, pr, appId, modelRun, run, context = null, missing = false, patchState = "", refused = "", baseSha, log }) {
-  // One value names the model run in the marker and in the re-run check. A
-  // run with none is always posted: counting a round twice hands the PR to a
-  // person sooner, and skipping one would not.
   const runKey = modelRun ?? "none";
   const pull = await api.getPull(pr);
   const comments = await api.listIssueComments(pr);
@@ -336,9 +230,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     }
   }
   if (!run) {
-    // The round counts whatever arrived. Only the scan job's own outputs and
-    // the select job's head decide a round with no model turn: no patch, no
-    // refusal, and the head unmoved.
     await record("invalid");
     if (context !== null && missing) {
       if (refused === "patch") {
@@ -368,8 +259,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       return { escalationReason: "", skipReason: "superseded-sha" };
     }
     const { commits, files } = compare;
-    // A listing at its limit, or short of the total, may hide a commit or a
-    // path; neither is read as "nothing more".
     if (
       !Array.isArray(commits) ||
       !Array.isArray(files) ||
@@ -385,8 +274,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       log(`#${pr}: the head moved from ${run.head_sha} to ${head} by more than the lane's fix; the next run reviews it`);
       return { escalationReason: "", skipReason: "superseded-sha" };
     }
-    // apply-patch's content rule already refuses this; checked again on what
-    // landed, since anyone with write access could push the branch.
     const pairs = await basePairs(api, baseSha);
     if (pairs === null) {
       return end("invalid", "dependency-config-unreadable");
@@ -410,10 +297,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     if (run.files_truncated) {
       return end("escalate", "dependency-files-truncated");
     }
-    // A workflow or action file change merges only as a pin swap (a full-SHA
-    // swap, or an official vendor action's version-tag swap:
-    // https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L351):
-    // the verdict read upstream text, so it alone never admits more.
     const files = await api.listPullFiles(pr);
     if (!Array.isArray(files) || files.length >= FILES_CAP) {
       return end("escalate", "dependency-files-truncated");
@@ -423,9 +306,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       log(`#${pr}: a workflow or action file change is not a pin swap (${unpinned})`);
       return end("escalate", "dependency-workflow-unpinned");
     }
-    // Every commit that is not Dependabot's own: a lanes App commit pushed
-    // outside a fix round reaches the head the model reviewed, and pr-merge
-    // merges on this marker.
     const commits = await api.listPullCommits(pr);
     let refusal = null;
     if (
@@ -443,7 +323,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       refusal = await commitFixRefusal(api, item, pairs, appId, cdn, pull.head?.ref);
       if (refusal) break;
     }
-    // A commit's author is text whoever creates it chooses; who pushed it is not.
     refusal ??= pushRefusal(await api.listActivity(pull.head.ref), head, commits, appId);
     if (refusal) {
       log(`#${pr}: a commit is not Dependabot's or a lane fix, or not its pusher's own (${refusal}); a person decides`);
@@ -464,7 +343,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     const existing = await findIgnoreIssue(api, { pr, head: run.head_sha, appId });
     const issue = existing ?? (await api.createIssue(ignoreIssue({ pr, head: run.head_sha, title: pull.title ?? "", reasons })));
     log(`#${pr}: ${existing ? "found" : "filed"} #${issue.number} for the ignore entry`);
-    // GitHub drops a type the token may not set without an error.
     if (!existing && issue.type?.name !== IGNORE_ISSUE_TYPE) {
       log(`::warning::#${issue.number} came back without Issue Type ${IGNORE_ISSUE_TYPE}`);
     }
@@ -532,7 +410,6 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     context = readChecked(join(env.DEPENDENCY_VERDICT_DIR, "context.json"), env.DEPENDENCY_RUN_SHA256, "the select job");
     if (context === null) throw new Invalid("context.json is missing");
     validateContext(context, pr);
-    // The head comes from the select job, not from the file.
     if (!SHA.test(env.DEPENDENCY_HEAD_SHA) || context.head_sha !== env.DEPENDENCY_HEAD_SHA) {
       throw new Invalid("context.json's head_sha is not the head the select job read");
     }

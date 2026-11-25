@@ -47,8 +47,6 @@ function routesFrom(api) {
   return routes;
 }
 
-// The `nodes(ids:)` answer: every node unedited unless `edits` names it.
-// `edits: null` stands for a GraphQL error, which the client raises.
 function editNodes(edits, ids) {
   if (edits === null) {
     throw new GitHubError(200, "POST /graphql (GraphQL errors)");
@@ -208,8 +206,6 @@ test("a renamed login with a listed id is kept; a listed login with a new id is 
   assert.ok(!keptIds(context, "issue-comment").includes(107));
 });
 
-// Accepted residual (ADR 0049 Consequences): a listed bot can relay text a
-// stranger wrote. The filter judges the item's author, not who wrote the words.
 test("a listed bot's comment quoting a stranger's canary is kept", async () => {
   const api = load();
   api.issueComments.push({
@@ -398,8 +394,6 @@ test("a PR body edited by an unlisted user is withheld", async () => {
   assert.equal(context.dropped["edited-by-untrusted"], 1);
 });
 
-// Title renames: Comment.lastEditedAt covers the body only.
-
 const rename = (actor) => ({ __typename: "RenamedTitleEvent", actor });
 
 test("a title renamed by an unlisted user is withheld; the body stays", async () => {
@@ -528,8 +522,6 @@ test("a PR number that is not a positive integer exits non-zero", async () => {
   assert.equal(written, undefined);
 });
 
-// The agent App's sessions may be listed as a bot so a trigger accepts them
-// (#7711); neither its account nor an App-posted comment counts as a decision.
 test("a Decision recorded comment from the agent App's bot, or posted through an App, is not a decision", () => {
   const humans = new Set([153232337]);
   const OWNER = { id: 153232337, login: "kyle-sexton", type: "User" };

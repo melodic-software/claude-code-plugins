@@ -20,8 +20,6 @@ const row = (over = {}) => ({
   ...over,
 });
 
-// A GitHub stand-in: open issues the list endpoint pages through 100 at a
-// time, the labels that exist, and a POST that adds the filed issue to the list.
 function fakeApi({ issues = [], labels = ["recurring"], failPost = false, dropType = false } = {}) {
   const state = { issues: [...issues], posts: [], next: 900 };
   const call = async (method, path, body) => {

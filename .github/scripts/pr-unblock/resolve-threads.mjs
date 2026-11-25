@@ -1,44 +1,4 @@
 #!/usr/bin/env node
-// resolve-threads.mjs: the resolve job of the pr-unblock lane's
-// address-feedback round, a script activity with no model and no head
-// checkout (checkout: base). On a PR a trusted person opened, the lanes App is
-// no writer to publish-feedback.mjs's publish-artifact token, so it replies
-// and leaves each answered thread open; this job's mutate-branch token
-// (contents: write) can resolve it. It reads the PR's threads from GitHub
-// itself, never from another job's outputs, and resolves each one judgeThread
-// rules `answered` or `outdated`:
-//
-//   - every comment is a review bot's (isReviewerComment) or the lanes App's,
-//     and none was edited by another account: a thread a person wrote or
-//     joined stays theirs;
-//   - its root is a review bot's finding that no reviewer comment rates
-//     CRITICAL (isCritical) and that adjudicate-feedback.mjs adjudicable
-//     would let an adjudicator judge, so a security finding a person decides
-//     (CRITICAL or unrated, or a listed bot's on a head the security-review
-//     lane held or has not reviewed) stays open, as does a pr-verify note,
-//     which publish-feedback.mjs's pass-only round owns;
-//   - answered: its last comment is the lanes App's resolving answer
-//     (publish-feedback.mjs isResolvingAnswer); outdated: GitHub reports it
-//     outdated and no lanes App comment on it left it open (an INCORRECT,
-//     UNCERTAIN or VALID-defer reply, an escalation, or a finding that stood).
-//
-// Each thread is re-read just before its resolve and left alone unless it
-// still holds the comments it was judged on and judgeThread, run again on
-// their bodies and edits as they are then, still resolves it. Only a PR whose author
-// is a person on the base's trusted-actors list is served; any other skips
-// not-applicable. A failed resolve is logged, the rest are tried, and the job
-// then fails so a re-run tries again.
-//
-// Environment:
-//   GH_TOKEN           the lane token (contents: write, pull-requests: read)
-//   ARTIFACT_READ_TOKEN the job's own token (actions: read), for the lane
-//                      comments' run records only (address-feedback.mjs laneReader)
-//   GITHUB_REPOSITORY  owner/repo
-//   PR_NUMBER          the gated pull request
-//   APP_SENDER_ID      the lanes App bot's user id
-//   TRUSTED_ACTORS     the base's trusted-actors.json: the owners and the reviewer bot
-//   REVIEWER_IDS       the listed review bots' ids, one per line
-//   SKIP_REASON_FILE   where the runner reads the skip reason
 
 import { writeFileSync } from "node:fs";
 
@@ -63,14 +23,9 @@ import {
 import { adjudicable, isCritical } from "./adjudicate-feedback.mjs";
 import { isResolvingAnswer } from "./publish-feedback.mjs";
 
-// The most comments one thread read holds (address-feedback.mjs THREADS_QUERY).
 const THREAD_COMMENT_CAP = 100;
 export const RESOLVES = Object.freeze(["answered", "outdated"]);
 
-// One thread's verdict: `answered` or `outdated` (resolve it), else why it
-// stays open. `thread` is a listThreads node, `rows` its comments' REST rows
-// in thread order, `review` the root comment's review, `security` the PR's
-// securitySignals.
 export function judgeThread({ thread, rows, review, security, reviewerId, reviewerIds = [], appId }) {
   if (thread.isResolved !== false) {
     return "resolved";

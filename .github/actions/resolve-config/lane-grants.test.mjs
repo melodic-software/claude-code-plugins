@@ -1,7 +1,3 @@
-// lane-grants.json: the central grant file, one row per repository the lanes
-// token broker admits (ADR 0085 Decision 2; README.md, Central lane grants).
-// Expected values come from the trust files and this repository's own
-// pipeline config, which the rows must reproduce, not from the rows.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";

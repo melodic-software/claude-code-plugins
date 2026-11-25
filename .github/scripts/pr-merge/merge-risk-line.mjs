@@ -1,27 +1,3 @@
-// The report-only Merge-Risk record: the rating
-// pr-rate-merge-risk.yml uploaded for the head an arm is about to arm,
-// written as a lanes App comment whose first line is the head marker
-// (markerBody), so a revert study joins a squash commit's `(#N)` to it.
-//
-//   <!-- merge-risk-line head=<sha> [lane=<lane> run=<run id>] -->
-//   Merge-Risk: max=<level> demote=<bool> head=<sha> rubric=<version> rater=<model> checker=<model>
-//   Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-budget>
-//
-// `lane` and `run` name the lane run that opened the pull request, read from
-// its `<lane>/issue-<n>-<run id>-<attempt>` branch (producerOf); a record
-// for any other branch, or written before they were added, has neither.
-// No gate, hold or rung reads it. Every field is a closed value, a validated
-// SHA, version, model id, lane name or run id, never text the pull request's
-// author wrote, so it can never read as a hold (merge-holds.mjs BODY_HOLD, LANE_HOLD).
-// The record is a comment, not the body: a body edit is a
-// `pull_request: edited` event that re-runs ci-status and its downstream
-// lanes before the queue takes the pull request.
-// recordMergeRisk never throws and is bounded in time, so a missing or failed
-// rating never blocks or delays the arm.
-//
-// The rating artifact is untrusted on read: its shape is checked again, and
-// max and demote are recomputed from its rows, never taken from it.
-// write-rating.mjs runs the same checks on the skill's result before upload.
 import { parseLaneBranch } from "../lib/lane-branch.mjs";
 import { isMergeRiskTitle, mergeRiskTitle } from "../lib/run-title.mjs";
 import { ofOrigin } from "../pr-verify/resolve-pr.mjs";
@@ -80,10 +56,6 @@ export function checkRating(value, { pr, head }) {
   return { ...checked, rubric: value.rubric, rater: value.rater, checker: value.checker };
 }
 
-// The rater's and checker's model ids from run-claude-cli's execution file:
-// the main thread's most frequent assistant model, and a subagent's (a
-// message with a parent_tool_use_id). `none` when no subagent ran, `unknown`
-// for an id the pattern refuses.
 export function modelsOf(messages) {
   const counts = (sub) => {
     const seen = new Map();

@@ -1,14 +1,3 @@
-// Expected values come from the owner's rule for the hosted review callers
-// (docs/conventions/pr-pipeline/README.md): review waits for this head's Refine; a head that moved is
-// skipped (its push starts its own review); every other outcome, a failed
-// read included, reviews. Run and artifact shapes follow the REST docs for
-// workflow runs (https://docs.github.com/en/rest/actions/workflow-runs) and
-// artifacts; the record name is the one
-// pr-unblock-dispatch.yml's refine job uploads. Times use the 300 s window,
-// 1800 s cap and a 30 s poll (INPUT; the default poll is 60 s), computed by
-// hand. Between polls the head is read from refs/pull/7/head, the ref GitHub
-// keeps for every pull request (git fetch origin pull/ID/head in the docs on
-// checking out pull requests locally).
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -31,7 +20,6 @@ const REFINE_ID = 900;
 const LIST = `actions/workflows/pr-unblock-dispatch.yml/runs?event=pull_request_target&head_sha=${HEAD}&per_page=100`;
 const INPUT = { number: 7, head: HEAD, repository: REPO, appearMs: 300_000, capMs: 1_800_000, pollMs: 30_000 };
 const PROBE = "git/ref/pull/7/head";
-// The Get a reference response shape (REST docs, git refs).
 const ref = (sha = HEAD) => ({ ref: "refs/pull/7/head", object: { type: "commit", sha } });
 const NOT_FOUND = new Error(`GET ${PROBE} returned 404`);
 
@@ -391,9 +379,6 @@ test("malformed env throws before any read", () => {
   assert.deepEqual(readEnv({ ...ENV, WAIT_POLL_SECONDS: "5" }), { ...INPUT, pollMs: 5_000, baseRef: null, headRepository: null });
 });
 
-// The production reader: createApi over budgetedFetch and a holding rate
-// guard, against a fake GitHub that answers each route in turn (holding its
-// last answer), `304` meaning "not modified" for a conditional repeat.
 function production(routes, { hold = true } = {}) {
   const sent = [];
   const lines = [];
@@ -427,9 +412,6 @@ function production(routes, { hold = true } = {}) {
 
 const ok = (body) => [200, body];
 
-// GitHub answers each pull request read 200 with a new ETag (the body embeds
-// the repository, whose pushed_at moves on every push), so only the ref read
-// can come back 304.
 const runningUntil = (doneAt) => [(t) => (t >= doneAt ? ok(refineRun()) : ok(running()))];
 
 test("over budgetedFetch, repeat polls read the ref conditional and a 304 reads as the last answer, with no pull request read", async () => {

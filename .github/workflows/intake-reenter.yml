@@ -1,59 +1,5 @@
 name: Intake Reenter
 
-# Sends an answered issue back to intake triage. The issue's status is its
-# Work status field (hold labels still hold on top of it). A listed human's
-# `**Decision recorded.**` comment on a `needs-owner-decision` issue or on
-# a `status: confirmed` one with no other status and no `agent-ready`, or
-# the author's or a listed human's reply on a `needs-reporter-info` issue,
-# takes a status label the issue still carries off (a decision on an issue
-# `needs-human` holds re-enters nothing and gets one reply saying how that
-# hold is released), sets the Work status field to
-# needs-triage, and dispatches intake-triage.yml once when intake admits the
-# issue's author (a listed human or the lanes App). A listed human's
-# decision on an issue with no `status:` and no `agent-ready`,
-# `needs-human`, `needs-triage` or `admission-deferred` takes nothing off and
-# does the same. It never adds `agent-ready`, and changes nothing on an issue
-# with a routing label, which intake skips. A listed human's comment whose
-# first line opens with "decision recorded" in another form gets one reply
-# naming the exact first line
-# (https://github.com/melodic-software/claude-code-plugins/issues/18251). The
-# rules are in .github/scripts/intake-reenter/reenter.mjs.
-#
-# No model and no App token: the job's GITHUB_TOKEN edits labels and the Work
-# status field and starts the dispatch, as the triage sweep's does, and intake-triage admits
-# github-actions[bot] as a dispatcher. The script reads the issue and comment
-# back from the API; nothing from the event but their numbers, the removed
-# label's name and a field change's action and sender id, through env, reaches it, and no comment text reaches a shell. issue_comment and issues run this file from
-# the default branch only.
-#
-# A listed human who removes `needs-human` and leaves no `status:` has
-# answered without a comment: the `issues: unlabeled` run reads the issue's
-# label and field history, and when that person was the newest to remove
-# `needs-human` from an open issue with no status, no `agent-ready` and an
-# admitted author, it sets needs-triage and dispatches the same way. An
-# issue work-unblock unparks goes back to intake through the hourly triage
-# sweep, not this run.
-#
-# A listed human who changes the Work status field (48484079) from a hold to
-# none or needs-triage has released it: the `issues: field_added` or
-# `field_removed` run reads the issue's field events, and when that person
-# made the newest ones (past this lane's own needs-triage write), on an open
-# issue with no status label but `needs-triage` and an admitted author, it
-# posts a comment marked with the field event that left the hold (the claim a
-# re-run finds; deleted again when the run fails), sets the field to
-# needs-triage when the release emptied it, and dispatches the same way.
-#
-# Accepted exposure: only a trusted comment decides whether a re-entry
-# happens, and the triage run it starts passes the model only comments whose
-# author id is in intake-triage.yml's allowed-author-ids (a person) or
-# allowed-bot-sender-ids (a bot), never the lane's own triage comment. That
-# bot list holds github-actions[bot], the dispatcher, so any other comment a
-# workflow posts with a GITHUB_TOKEN counts as trusted too. The
-# issue's title and body still reach the model on each re-entry, and that
-# text, like the trusted comments, stays untrusted data. The model holds no
-# GitHub token and only Read, Grep and Glob; a job with no model applies only
-# allowlisted labels, posts with mentions broken, and never adds
-# `agent-ready`.
 on:
   # Runs from the default branch only; the header says what reaches the script.
   issue_comment: # zizmor: ignore[dangerous-triggers]
@@ -64,22 +10,8 @@ on:
 permissions: {}
 
 jobs:
+  # contains() ignores case, so the job gate passes every spelling: https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#contains
   reenter:
-    # Pull request comments, bot and App-posted comments and closed issues
-    # stop here, before a runner starts, and so does a comment that never
-    # says "decision recorded" (`contains` ignores case,
-    # https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#contains,
-    # so this lets the exact `**Decision recorded.**` and every other form
-    # through; the script reads the first line) anywhere but `needs-reporter-info` or by anyone
-    # but the issue's author (whose reply answers a needs-info hold that
-    # exists only on the Work status field); so does any
-    # unlabel other than `needs-human`, and a `needs-human` unlabel whose
-    # payload already shows `status: confirmed`: a session parking an issue
-    # swaps the labels in one edit, and the script refuses any issue with a
-    # `status:` label anyway. When the payload predates the add, the script's
-    # own read refuses it. A Work status field change gets through only on
-    # that field and from a person; the script reads who made it and from
-    # which state.
     name: Reenter
     if: >-
       !github.event.issue.pull_request
@@ -102,9 +34,6 @@ jobs:
       contents: read
       issues: write
       actions: write
-    # Every comment on a parked issue and every removal above starts a
-    # run, so runs wait in line (`queue: max`): the default keeps one waiting run and cancels it when a
-    # later comment arrives, which would drop an answer behind a chat reply.
     concurrency:
       group: intake-reenter-${{ github.event.issue.number }}
       queue: max
@@ -154,7 +83,6 @@ jobs:
 
       - name: Install resolve-config's packages
         timeout-minutes: 3
-        # A failed install fails the run: the Work status read fails closed.
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 

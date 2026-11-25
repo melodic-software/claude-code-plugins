@@ -1,125 +1,10 @@
 # shellcheck shell=bash
-# Rate-limit readings from a job's own API responses. GET /rate_limit reports
-# a different bucket from the one a job's calls spend, so each reading comes
-# from the x-ratelimit-* headers of a response the job already got. A reading
-# is one line in $RUNNER_TEMP/api-budget/<token>:
-#   <status> <limit> <remaining> <used> <reset epoch> <resource> <route>
-# (`na` for a missing value). api-budget.mjs appends the same lines;
-# babysit_gh.py appends the same lines. A request the gh wrapper
-# counts with no header block to read (each page of --paginate, a call that is
-# not `gh api`) is a line `request <route>`, `request graphql` for a GraphQL
-# request. The route is the request's path templated by API_BUDGET_ROUTE
-# below, so it never holds a query, a name or a token. Never
-# fails the caller, except that a stop the rate guard below cannot record ends
-# the step.
-#
-#   api_budget_read <token> <file> [route]
-#                               gh api -i output: the header block at the start
-#                               becomes a reading under route (`other` when
-#                               unset), the body goes to stdout byte for byte
-#   api_budget_route <gh args>  the templated route of a gh api call's path
-#   api_budget_wrap_gh <token>  defines gh() so `gh api` runs with -i through
-#                               api_budget_read, keeping stdout, stderr and the
-#                               exit status as they were (not --paginate, whose
-#                               per-page header blocks are left out), behind
-#                               the rate guard below; every gh call also counts
-#                               each request it sends (api_budget_traced)
-#
-# The rate guard, rate-guard.mjs's shell port: once a response shows a pool
-# exhausted, no gh call goes to that pool before its reset for the rest of the
-# job; each refusal returns 1 with an error naming the reset (a notice when
-# the caller holds, API_BUDGET_HOLD=1), and so does a call GitHub refused. A
-# call GitHub answered with a 2xx keeps its answer and gh's status, so no caller resends a write GitHub accepted, unless its stop
-# cannot be recorded, which ends the step first (below). Its stops are
-# lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header of
-# the refused response gave it) goes in $RUNNER_TEMP/api-budget/guessed too, and one whose source is
-# `fallback` (rate-guard.mjs writes these as well) in $RUNNER_TEMP/api-budget/fallback. Readers take only lines
-# shaped `^([a-z_]+|\*) [0-9]{1,12}$` and ended by a newline, as
-# rate-guard.mjs does, so a fragment a short write left spoils only the line
-# it runs into. A missing stop file holds no stop; one that exists but cannot
-# be read holds every pool until 999999999999, with an error naming it.
-#
-# Most calls run in $(...) subshells, whose variables never reach the shell
-# that started them, so the file is what carries a stop from one call to the
-# next. A stop the file cannot take (no space, no permission) would leave
-# every later call free to reach the exhausted pool. So the step ends there:
-# the error names the pool, API_BUDGET_UNRECORDED refuses every later call in
-# this shell, and from a subshell every shell from its parent up to the
-# step's shell ($$) is sent TERM, so no caller's retry loop in a capture
-# around it sends again. A caller may hold a subshell's stderr in a file it
-# reads only after the call, so both error lines go to a copy of the stderr
-# the step had when api_budget_wrap_gh ran. Callers must not trap TERM or run
-# the wrapper under a nested bash -c, whose $$ is the inner shell: either
-# leaves the step running.
-#
-#   api_budget_classify         jq filter: rate-guard.mjs's classify over
-#                               {status, headers, body, now (ms), pool, floor,
-#                               cap}
-#   api_budget_pool <gh args>   the pool a gh call spends: graphql, search,
-#                               code_search or core, `any` for a non-api call
-#   api_budget_stop_until <pool>
-#                               the epoch second <pool> is stopped until, if
-#                               it is
-#   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
-#   api_budget_fallback <pool> <epoch>
-#                               whether <pool>'s stop until <epoch> has the
-#                               fallback source, which its refusal names
-#   api_budget_server_status <pool> <epoch>
-#                               the 5xx when <pool>'s stop until <epoch> is a
-#                               server error hold (API_BUDGET_SERVER_ERROR), by
-#                               $RUNNER_TEMP/api-budget/cause, where each stop
-#                               also writes `<pool> <reset> limit|server-<5xx>`;
-#                               a stop with no cause reads as a rate limit
-#   api_budget_known_reset <pool> <route>
-#                               the reset of <pool>'s one open window in the
-#                               token's earlier readings of <route>, if there
-#                               is one
-#   api_budget_observe <file> <pool> <what>
-#                               reads gh api -i output and stops its pool when
-#                               it is exhausted, returning 1 unless the
-#                               answer is a 2xx; under
-#                               API_BUDGET_READ_FLOOR of the planned budget
-#                               left, warns once (unset: no floor; ci-status
-#                               sets it to the read-floor default);
-#   api_budget_emit <token>...  the hub collector's notice for each refused
-#                               (403/429) reading and for the last reading of
-#                               each resource and reset, as one token reads
-#                               several core counters, each with its own
-#                               reset; core comes last, ending on the job's
-#                               latest core reading; cost is the rise in used
-#                               since the first earlier reading with the same
-#                               reset and resource, else na
-#   api_budget_emit_content     the notice for the job's content-creating
-#                               writes: count and most in any 60 s
-#   api_budget_emit_calls <token>...
-#                               the hub's api-calls notice for each token,
-#                               `<token>=N not-modified=M graphql=K`: N is the
-#                               job's own requests, M its 304 answers, which
-#                               GitHub does not count, and K the GraphQL ones
-#                               among N, which spend their own pool; 0 for a
-#                               token with no reading. A token with one adds
-#                               `core-by-reset=<epoch>:<count>,...`, the rest
-#                               of N by the core reset its reading shows,
-#                               ascending (left out with none), and
-#                               `core-unread=U`, the rest with no core reset
-#                               (a `request` line, a header-less or other
-#                               resource's reading): the counts and U sum to
-#                               N - K
-#   api_budget_emit_routes <token>...
-#                               the api-routes notice for each token,
-#                               `<token> <route>=<count> ... rest=<count>`:
-#                               the N above by route, most first (ties by
-#                               route), at most 15 routes and 1000 bytes, the
-#                               rest summed; `other` for a line with no route
 
 api_budget_read() {
   local state=${RUNNER_TEMP:-}/api-budget/${1:-} lines
   if [[ -z ${RUNNER_TEMP:-} || ! ${1:-} =~ ^[a-z][a-z0-9-]{0,39}$ ]] || ! mkdir -p "${state%/*}" 2>/dev/null; then
     state=/dev/null
   fi
-  # Only the block at the very start is headers, so a body line shaped like a
-  # status line stays body. awk reads the block and prints its line count;
-  # tail then writes the body byte for byte.
   lines=$(awk -v state="$state" -v route="${3:-other}" "$API_BUDGET_ROUTE"'
     function val(k, re) { return (k in h && h[k] ~ re) ? h[k] : "na" }
     function flush() {
@@ -164,8 +49,6 @@ api_budget_wrap_gh() {
     route=$(api_budget_route "$@")
     for arg; do
       case $arg in
-        # --paginate prints a header block per page, which could not be told
-        # from body text that looks like one: no reading, only its requests.
         --silent | --slurp | --paginate) api_budget_pass "$@"; return ;;
         -i | --include)
           out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
@@ -188,12 +71,6 @@ api_budget_wrap_gh() {
   }
 }
 
-# A call whose headers the wrapper cannot read: a failure whose text names a
-# rate limit, or a 429, stops every pool, for the documented minute on a
-# secondary limit; a primary limit holds to its pool's reset when the token's
-# earlier readings show one window open (api_budget_known_reset), and
-# otherwise, like a bare 429, for an hour, past any primary reset
-# (rate-guard.mjs's SIGNALS).
 api_budget_pass() {
   local err rc=0 at source=fallback
   err=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
@@ -213,12 +90,6 @@ api_budget_pass() {
   return "$rc"
 }
 
-# api_budget_known_reset <pool> <route>: the reset of <pool>'s window from the
-# readings of <route> the gh wrapper's token already holds, when they show
-# exactly one window still open; two or more (one token can read several
-# counters) or none return 1. A reading of another route may come from another
-# core counter than the refused call's, so it is not read. No call is sent to
-# learn it.
 api_budget_known_reset() {
   local file=${RUNNER_TEMP:-}/api-budget/${API_BUDGET_GH_TOKEN:-}
   [[ -n ${RUNNER_TEMP:-} && ${API_BUDGET_GH_TOKEN:-} =~ ^[a-z][a-z0-9-]{0,39}$ && -f $file ]] || return 1
@@ -226,16 +97,6 @@ api_budget_known_reset() {
     END { if (n != 1) exit 1; print at }' "$file"
 }
 
-# api_budget_traced <out|-> <gh args>: gh with GH_DEBUG=1, stdout to <out>
-# (`-`: left as it is). That level logs only head lines per request (`* Request
-# at`, `* Request to <url>`, `* Request took`), never headers or bodies, which
-# GH_DEBUG=api adds and which no filter could tell from gh's own text. Each
-# request to a GitHub API URL (a redirect to a download host is not one) is a
-# `request` line in the token's file, less the one an <out> header block
-# already gives a reading. Once gh exits, its stderr goes on without what the
-# debug level adds: those lines, a `* <error>` line while a request is open,
-# `[git ...]` command lines, and the `lookup ...` line under `error connecting
-# to`. Returns gh's status.
 api_budget_traced() {
   local out=$1 log rc=0 skip=0 nl=0 first state=${RUNNER_TEMP:-}/api-budget/${API_BUDGET_GH_TOKEN:-}
   shift
@@ -349,10 +210,6 @@ api_budget_route() {
   printf '%s\n' "${path//$'\n'/ }" | awk "$API_BUDGET_ROUTE"' NR == 1 { print api_route($0) }'
 }
 
-# api_budget_scan <gh api args>: sets the caller's method, fields, mutation and
-# path locals from a gh api call's flags and its first bare argument. A value
-# joined to its flag (--method=POST, -XPOST, -fquery=...) is read as the
-# separated form.
 api_budget_scan() {
   local arg prev=''
   for arg; do
@@ -377,8 +234,6 @@ api_budget_scan() {
 api_budget_stop_until() {
   local file=${RUNNER_TEMP:-/tmp}/api-budget/stop up
   if [[ ! -e $file ]]; then
-    # Missing (ENOENT) only when the nearest path part above it that exists
-    # is a directory it can search; else ENOTDIR or EACCES.
     up=$file
     while [[ $up == */* ]]; do
       up=${up%/*}
@@ -391,7 +246,6 @@ api_budget_stop_until() {
     echo 999999999999
     return 0
   fi
-  # The x ends an unterminated last line in a non-digit, so it never matches.
   { cat -- "$file"; printf x; } | awk -v pool="$1" -v now="$(date +%s)" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && ($1 == pool || $1 == "*" || pool == "any") && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
     END { if (max) print max }'
 }
@@ -411,18 +265,9 @@ api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
 API_BUDGET_FALLBACK_NOTE="fallback: GitHub's refusal carried no reset header, so this time is a guess that holds only this job; a re-run works once GitHub's real reset passes"
 api_budget_level() { [[ ${API_BUDGET_HOLD:-} == 1 ]] && echo notice || echo error; }
 
-# api_budget_server_status <pool> <epoch>: the 5xx when the stops of <pool>
-# (every pool for `any`) and `*` ending at <epoch> are server error holds by
-# the job's cause file (lines `<pool> <reset epoch> limit|server-<5xx>`, read
-# by the stop file's rule): each one there with a cause is `server-<5xx>`.
-# Returns 1 otherwise, a missing file or a stop no cause line names included,
-# so it reads as a rate limit (rate-guard.mjs serverHeld).
 api_budget_server_status() {
   local dir=${RUNNER_TEMP:-/tmp}/api-budget
   [[ ${2:-} =~ ^[0-9]{1,12}$ && -f $dir/cause ]] || return 1
-  # The stop file, then a \001 that ends its last line, then the cause file.
-  # Every stop of <pool> or `*` (any pool for `any`) ending at <epoch> needs a
-  # cause line of its own, none of them `limit`.
   { cat -- "$dir/stop" 2>/dev/null; printf '\001\n'; cat -- "$dir/cause" 2>/dev/null; printf x; } | awk -v pool="$1" -v t="$2" '
     !causes { if (index($0, "\001")) causes = 1; else if (/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 + 0 == t + 0 && ($1 == pool || $1 == "*" || pool == "any")) stop[$1]; next }
     /^([a-z_]+|\*) [0-9]+ (limit|server-5[0-9][0-9])$/ && length($2) <= 12 && $2 + 0 == t + 0 { if ($3 == "limit") limit[$1]; else srv[$1] = substr($3, 8) }
@@ -447,8 +292,6 @@ api_budget_refuse() {
   return 1
 }
 
-# api_budget_stop <pool> <reset> <source> <what> [then] [5xx]: the 5xx is a
-# server error hold's status (api_budget_observe), worded and recorded as one.
 api_budget_stop() {
   local dir=${RUNNER_TEMP:-/tmp}/api-budget lines cause=limit fallback=
   [[ $3 != fallback ]] || { fallback=1; set -- "$1" "$2" "$API_BUDGET_FALLBACK_NOTE" "${@:4}"; }
@@ -458,8 +301,6 @@ api_budget_stop() {
   else
     lines=("::$(api_budget_level)::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
   fi
-  # One printf per line: the line and its newline go in one write. A cause
-  # the cause file cannot take reads as a rate limit.
   if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
     { [[ $3 == retry-after || $3 == x-ratelimit-reset ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
     { printf '%s %s %s\n' "$1" "$2" "$cause" >>"$dir/cause"; } 2>/dev/null || :
@@ -471,8 +312,6 @@ api_budget_stop() {
   lines+=("::error::GitHub's $(api_budget_label "$1") stop could not be recorded in $dir; later calls would reach the exhausted pool, so this step ends")
   { printf '%s\n' "${lines[@]}" >&"${API_BUDGET_ERR_FD:-2}"; } 2>/dev/null || printf '%s\n' "${lines[@]}" >&2
   if ((BASH_SUBSHELL > 0)); then
-    # Each parent up to $$, from /proc/<pid>/stat's ppid; only $$ when the
-    # walk cannot reach it.
     local pid=$BASHPID stat up=()
     while ((pid != $$)) && read -r stat 2>/dev/null <"/proc/$pid/stat"; do
       read -r _ pid _ <<<"${stat##*) }"
@@ -514,12 +353,6 @@ API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then
        pool: (if $ra != null or $secondary or (($msg or $many) and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
     end'
 
-# A jq filter over {status, headers, body}: whether a stop has a Retry-After on
-# a 5xx as its only cause, with no x-ratelimit-remaining of 0, no message
-# naming a rate limit or abuse detection and no RATE_LIMITED error, whatever
-# the call (rate-guard.mjs serverErrorHold). GitHub documents its rate limits
-# as 403 or 429 answers, so such a hold is held the same but worded as a server
-# error.
 # shellcheck disable=SC2016 # a jq program
 API_BUDGET_SERVER_ERROR='def num: if type == "string" and test("^[0-9]{1,12}$") then tonumber else null end;
   . as $in | ($in.headers // {}) as $h
@@ -558,11 +391,6 @@ api_budget_observe() {
   fi
 }
 
-# A gh call that creates or changes content GitHub's content-creation limit
-# counts, as rate-guard.mjs's isContentWrite judges a request: a gh api write
-# (-X POST, PATCH or PUT, or a field with no -X, which gh sends as POST) to an
-# issue, pull request, comment, review or label path, a graphql mutation, or
-# a gh issue or pr command that writes.
 api_budget_is_content() {
   local method='' fields='' mutation='' path=''
   case "${1:-} ${2:-}" in
@@ -603,9 +431,6 @@ api_budget_emit_stops() {
   return 0
 }
 
-# The job's content-creating writes, from the lines rate-guard.mjs and the gh
-# wrapper append: the count and the most in any sixty seconds. Nothing without
-# a write.
 api_budget_emit_content() {
   local file=${RUNNER_TEMP:-}/api-budget/content-creation where workflow=${GITHUB_WORKFLOW_REF:-}
   [[ -n ${RUNNER_TEMP:-} && -s $file ]] || return 0

@@ -45,9 +45,6 @@ const toRest = (run) => ({
   completed_at: run.completedAt ?? null,
 });
 
-// The head's ci-lanes commit status as the GraphQL rollup returns it: the
-// creator recorded live from a pull request's ci-lanes status, which GraphQL
-// reports as login `github-actions`, not REST's `github-actions[bot]`.
 const ACTIONS_BOT = Object.freeze({ __typename: "Bot", login: "github-actions", databaseId: 41898282 });
 const lanes = (state, creator = ACTIONS_BOT) => ({ __typename: "StatusContext", context: "ci-lanes", state, creator });
 
@@ -256,9 +253,6 @@ test("a head skipped because the listing did not fit warns with the reader's det
   assert.ok(!sibling.lines.some((line) => line.includes("verify-deadline-skip")), sibling.lines.join("\n"));
 });
 
-// A fork PR that pushed the same commit lists its runs under the same head SHA.
-// Its newer run, still going, would read as a re-run in flight and hold fix-ci
-// off (reconcilerOwns); readRequiredRun keeps it out of the tested run.
 test("a fork's newer run at the same head SHA does not suppress a fix-ci dispatch", async () => {
   const own = { ...tested(2), path: REQUIRED, head_repository: { full_name: "octo/repo" } };
   const fork = { ...rerunning(1, "in_progress"), id: 40119285049, path: REQUIRED, created_at: new Date(NOW - 600_000).toISOString(), head_repository: { full_name: "someone/repo" } };
@@ -312,9 +306,6 @@ test("a head whose ci-lanes passed, is pending, is missing or came from another 
   assert.deepEqual(result.dispatched, []);
 });
 
-// A review the defer gate stopped turns ci-status red on its review-stop note
-// while the lanes pass: no fix-ci round, since the reconciler re-runs the
-// review after the reset (https://github.com/melodic-software/claude-code-plugins/issues/17460, assumption A4).
 test("a head whose ci-status failed only on a stopped review, with ci-lanes passed, gets no fix-ci round", async () => {
   const { api, result } = await run({ pages: [[pr(7, { checks: [check("ci-status", "FAILURE", { title: "an API budget defer or a kill switch was on when it started" }), lanes("SUCCESS")] })]] });
   assert.deepEqual(result.dispatched, []);
@@ -384,12 +375,6 @@ test("a stop-resolved head goes again on a new base, as a not-applicable one doe
   assert.deepEqual(result.dispatched.map((d) => d.number), [1]);
 });
 
-// GitHub's rollup lists only a check name's newest run, so the head's earlier
-// fix-ci runs are in the REST listing alone. A head context skips each time
-// (no failing check it counts) on a base that moves before every dispatcher
-// run is dispatched three times, then stopped at the cap: one warning on the
-// run that finds the cap, and the dispatch record (carried from run to run)
-// keeps every later run from reading the head at all.
 test("a head fix-ci-context skips after every base move is dispatched three times, then warned about once and never read again", async () => {
   const head = "9".padStart(40, "a");
   const history = [];
@@ -422,13 +407,6 @@ test("a head fix-ci-context skips after every base move is dispatched three time
   }
 });
 
-// #9022 L3: fix-ci's retry one model rung up (pr-unblock.yml fix-ci-rung-up and
-// its subscription and fallback legs) runs pr-run-activity-read.yml as lane
-// pr-unblock, activity fix-ci, whose report job posts `<lane> / <activity>`:
-// the name this dispatcher counts. So a dispatch that rang up leaves two
-// counted runs on its head, and the per-head cap bounds rung-ups too: a head
-// gets at most two. Both runs failing is the case the cap decides; a run that
-// passed or escalated stops the head sooner.
 test("a rung-up retry's check is the counted fix-ci check, so it spends one of the head's runs toward the cap", async () => {
   const unblock = readFileSync(new URL("../../workflows/pr-unblock.yml", import.meta.url), "utf8").split("\n");
   for (const job of ["fix-ci-rung-up", "fix-ci-rung-up-subscription", "fix-ci-rung-up-fallback"]) {
@@ -461,9 +439,6 @@ test("a rung-up retry's check is the counted fix-ci check, so it spends one of t
   assert.ok(third.lines.includes(`::warning::#9: head ${head}'s ${DEFAULTS.checkName} ran 3 time(s), the most one head gets; no fix-ci until a new push`), third.lines.join("\n"));
 });
 
-// #9828: its tested run ended cancelled (a job past its timeout), which
-// fix-ci-context does not count as failing, so every run posted not-applicable
-// while each base move dispatched it again.
 test("a head whose tested run ended cancelled is not dispatched across base moves; a failed one still is, up to the cap", async () => {
   const cycle = async (conclusion) => {
     const head = "9".padStart(40, "a");
@@ -520,11 +495,6 @@ test("a cancelled tested run with a check fix-ci-context counts as failing is st
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: tested run completed/cancelled)")), lines.join("\n"));
 });
 
-// #9828's head c1184e03 as recorded: pr-require-checks run 40118648493 ended
-// cancelled at attempt 2, its check run 120950643531 (test-bash (3)) cancelled
-// past its 9-minute limit, which only its annotations show, and ci-status
-// failed. fix-ci takes the slow or hanging test; a check cancelled with the
-// cancel note alone (a fail-fast sibling) still leaves the head skipped.
 const TIME_LIMITED = JSON.parse(readFileSync(new URL("../maintenance-reconcile-lost-runs/fixtures/annotations-120950643531.json", import.meta.url), "utf8"));
 const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was canceled.");
 const stranded = (number, notes) => {
@@ -675,7 +645,6 @@ test("needs-human from another lane's escalation does not hold fix-ci; fix-ci's 
 });
 
 test("a person's inline review-thread reply, seen only in the review comments, holds fix-ci past another lane's escalation", async () => {
-  // GitHub's timeline has no event for a reply inside an existing review thread.
   const reply = (user) => [{ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" }];
   const { lines, result } = await run(
     {
@@ -831,9 +800,6 @@ test("a listed bot's PR is adopted with no idle wait, a listed person's waits", 
   assert.equal(skipReason(ownerPr(3, { updated: 0, committed: 0, author: { ...bot, databaseId: 4242 } }), options), "not opened by the lanes App or an adoptable owner");
 });
 
-// release-publish-plugins.yml rebuilds release/plugins, so a fix-ci push there
-// answers 422 (#11840's runs 41308756974, 41312571464): the release PR is
-// never dispatched, and a lanes App PR on that branch neither.
 test("a PR from a head branch a workflow owns and rebuilds is skipped before any read", async () => {
   const RELEASE = 337859524;
   const bot = { __typename: "Bot", login: "melodic-release", databaseId: RELEASE };
@@ -1289,8 +1255,6 @@ test("a rate-limited required-run read dispatches nothing and says so", async ()
   assert.ok(lines.some((line) => line.startsWith("::warning::#5: its required run read is rate limited")), lines.join("\n"));
 });
 
-// Job and step names come from the PR head's workflow file, so the log line
-// that carries them can hold no workflow command.
 test("a failed job or step name with a newline or control character cannot start a workflow command in the log", async () => {
   const head = "5".padStart(40, "a");
   const evil = [
@@ -1375,13 +1339,6 @@ test("a fix-ci run the gate stopped head-lag on the current head is sent again o
   assert.ok(!moved.lines.some((line) => line.startsWith("refire:")), moved.lines.join("\n"));
 });
 
-// fix-ci and the in-run fix-ci-rung-up each post a fix-ci check in one
-// workflow run (the run id in each check's external_id; the API returns each
-// check's details_url as the check run's own page). When the rung-up's
-// push job stops, the pair
-// is one stopped attempt: the first check's "Passed: no changes" does not
-// leave the head handled. The pair still spends two of the head's
-// maxRunsPerHead places, one per model run.
 test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried on the same head", async () => {
   const head = "7".padStart(40, "a");
   const at = (time) => `2026-10-22T${time}:00Z`;
@@ -1405,11 +1362,6 @@ test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried
   assert.ok(twice.lines.some((line) => line.includes("ran 4 time(s), the most one head gets")), twice.lines.join("\n"));
 });
 
-// #10902's escalated head: the rollup holds only the newest fix-ci check, the
-// rung-up's SUCCESS "Passed: no changes", which reads as a run that handled
-// the head. The rollup's newest apply-patch check is a lane stop, so the
-// listing pass leaves the head to the REST read, which ties that stop to the
-// fix-ci check's run attempt, and the head gets its one same-head retry.
 test("an escalated head whose rollup shows a passed fix-ci check is retried once from the REST lane stop", async () => {
   const head = "7".padStart(40, "a");
   const passed = { title: "Passed: no changes", completedAt: "2026-10-22T08:50:00Z" };
@@ -1443,9 +1395,6 @@ test("a head whose apply-patch failed on a token refusal is retried; any other a
   assert.ok(other.lines.includes("skip fix-ci #7: head already has a pr-unblock / fix-ci check run"), other.lines.join("\n"));
 });
 
-// A re-run is the same run id at its next attempt (external_id
-// `<lane>:<activity>:<run id>:<run attempt>`), so a stop marks only the
-// attempt it followed.
 test("a stop in a run's first attempt leaves the head handled when the re-run fixed it", async () => {
   const head = "7".padStart(40, "a");
   const at = (time) => `2026-10-22T${time}:00Z`;

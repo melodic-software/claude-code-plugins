@@ -7,18 +7,13 @@ import { createGitHub, paginate } from "../../scripts/lib/github-client.mjs";
 import { readPull, REPOSITORY } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { SIGNED_COMMITS_HOLD } from "../../scripts/pr-unblock/gate-source.mjs";
 
-// The escalation comment's first line, which the lane fixers and
-// clear-escalations read as a hold (gate-source.mjs).
 export { SIGNED_COMMITS_HOLD };
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const SHA = /^[0-9a-f]{40}$/;
 const LISTED_COMMITS_CAP = 250;
 
-// The comparison `sinceSha...headSha` when `sinceSha` is a well-formed SHA
-// GitHub knows as an ancestor of the head; otherwise null. `complete` is false
-// when the comparison lists fewer commits than it counts (it lists at most 250
-// unpaged).
+// Compare returns at most 250 commits unpaged: https://docs.github.com/en/rest/commits/commits#compare-two-commits
 async function compareSince(github, base, sinceSha, headSha) {
   if (!SHA.test(sinceSha ?? "")) {
     return null;
@@ -42,12 +37,6 @@ async function compareSince(github, base, sinceSha, headSha) {
   return { commits, complete: Number.isInteger(total) && total <= commits.length };
 }
 
-// The lane's commits and whether they could all be read. A complete comparison
-// from an ancestor `sinceSha` lists them; its commit objects carry the
-// verification read. The PR list (at most 250) then only drops base commits a
-// merge brought in, and only when it holds the whole PR: a capped list would
-// drop lane commits it never listed. Anything else checks every PR commit,
-// which is whole only when the PR list is.
 function laneCommits(comparison, prCommits, prListComplete) {
   if (!comparison?.complete) {
     return { commits: prCommits, checkable: prListComplete };
@@ -100,8 +89,6 @@ export async function checkSignedCommits({ github, repository, prNumber, sinceSh
   const base = `/repos/${repository}`;
   const { pull, headConfirmed } = await readPull(github, base, prNumber, sleep);
   const prCommits = await paginate(github, `${base}/pulls/${prNumber}/commits`);
-  // The PR commit list stops at LISTED_COMMITS_CAP; it holds the whole PR only
-  // when the PR's commit count says so.
   const countKnown = Number.isInteger(pull.commits);
   const prListComplete = countKnown && pull.commits <= prCommits.length;
   const comparison = headConfirmed ? await compareSince(github, base, sinceSha, pull.head.sha) : null;
@@ -120,8 +107,6 @@ export async function checkSignedCommits({ github, repository, prNumber, sinceSh
   };
 }
 
-// Adds the escalation label (only if the repository already has it) and posts
-// one fixed comment.
 export async function escalate({ github, repository, prNumber, label, result }) {
   const base = `/repos/${repository}`;
   const labels = await paginate(github, `${base}/labels`);
@@ -136,10 +121,6 @@ export async function escalate({ github, repository, prNumber, label, result }) 
 const errorDetail = (error) =>
   error?.name === "GitHubError" ? error.message : (error?.name ?? "error");
 
-// Returns the process exit code: 0 once the check ran (whatever it found) and
-// any escalation was posted or GitHub refused it for commits that could only
-// not be verified, 1 otherwise. The outputs are written before the escalation,
-// so a failed escalation write still leaves all-verified=false.
 export async function main({ env = process.env, github, log = console.log, sleep } = {}) {
   try {
     if (!PR_NUMBER.test(env.PR_NUMBER ?? "") || !REPOSITORY.test(env.REPOSITORY ?? "")) {

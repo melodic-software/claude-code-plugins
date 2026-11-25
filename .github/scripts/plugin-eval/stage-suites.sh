@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Validates each chosen plugin's eval suite with validate-cases.py and, on a
-# deterministic run, stages its copy without judged cases. Reads LIST, ROOT and
-# DETERMINISTIC; writes go and suites to GITHUB_OUTPUT.
 # shellcheck disable=SC2154,SC2292 # the step's body verbatim; the step env sets LIST, ROOT, DETERMINISTIC and CASES, and the runner GITHUB_OUTPUT
 set -e
 staged=""

@@ -1,42 +1,3 @@
-// stop-routes.json, the issue lane's one routing table: each stop reason's
-// route and why, as report-outcome.mjs reads it. It mirrors pr-unblock's
-// escalation-routes.json shape rather than sharing its loader, because
-// report-outcome runs from a copy of this directory alone.
-//   hold      hands the issue to a person: the human-gated label and the
-//             escalation marker. Only an intent, design, security or cost
-//             reason routes here: each hold row's `class` (HOLD_CLASSES)
-//             says which.
-//   host-run  adds the host-run label, the host queue's one signal, and
-//             removes agent-ready, so an unattended agent run on a host builds it.
-//   attended  adds the attended label and removes agent-ready: the work needs
-//             a manual external step only the owner, present, can take; only
-//             a listed human removes the label. It asks the owner for no
-//             decision, which stays needs-human's.
-//   retry     keeps agent-ready, so work-unblock starts it again, up to
-//             limits.stop-retries, or the row's `retries` when fewer; past
-//             that it takes retry-spent's route. The cap counts every retry
-//             since a listed human last added agent-ready, whatever stop
-//             wrote it, so a row's `retries` is a ceiling on that shared count.
-//             A row with `fault: true` is the lane's machinery failing, no
-//             evidence about the issue: when it and every retry counted were
-//             such stops, report-outcome holds at the cap instead of taking
-//             retry-spent's route (spentOnFaults).
-//   wait      keeps agent-ready with the open pull request the run names in
-//             its marker, so work-unblock starts it again once that pull
-//             request merges or closes, up to limits.stop-retries waits;
-//             past that it takes retry-spent's route.
-//   intake    removes agent-ready, status: ready and admission-deferred, so
-//             the triage sweep sends the issue back through intake, whose
-//             admission and refinement decide it as the owner settled, up
-//             to limits.stop-retries, or the row's `retries` when fewer;
-//             past that it takes retry-spent's route.
-//   park      removes agent-ready, status: ready and admission-deferred and
-//             adds status: confirmed beside the lanes App's admission comment
-//             naming the reason, as admission parks a refusal no person
-//             answers; intake takes it again once the reason is met.
-//   close     closes the issue as completed with the run's words.
-//   fail      removes agent-ready and adds no label: the comment's outcome
-//             marker is the visible stop the maintenance monitor reports.
 import { readFileSync } from "node:fs";
 
 import { ATTENDED as ATTENDED_LABEL, HOST_RUN as HOST_RUN_LABEL } from "../lib/lane-vocabulary.mjs";
@@ -75,14 +36,9 @@ for (const spent of ["retry-spent", "turn-cap-spent"]) {
 }
 
 const rowOf = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason] : undefined);
-// A reason's route; a reason the table does not list names no owner reason,
-// so it fails rather than reaching a person.
 export const stopRoute = (reason) => rowOf(reason)?.route ?? "fail";
-// The stop-reason code (../lib/stop-reason.mjs) a reason's comment carries:
-// its hold row's class as intent, design, security or cost, else none.
 const CLASS_CODES = { "intent-change": "intent", "design-change": "design", "security-risk": "security", "cost-risk": "cost" };
 export const stopReasonCode = (reason) => CLASS_CODES[rowOf(reason)?.class] || "none";
-// The most retries a reason's row allows, within limits.stop-retries.
 export const stopRetries = (reason, cap) => Math.min(cap, rowOf(reason)?.retries ?? cap);
 export const stopFault = (reason) => rowOf(reason)?.fault === true;
 export const stopWhy = (reason) => rowOf(reason)?.why ?? "the stop reason is not in the lane's route table";
@@ -167,22 +123,11 @@ const endingRiskWord = (text) => {
 };
 const namesEndingRisk = (text) => endingRiskWord(text) !== "";
 
-// The code a run's stop reason opens with, read NFKC-normalized (so a
-// full-width letter reads as its ASCII one) past any emphasis, backticks and a
-// `Reason:` label. A code whose route ends the lane's work, followed by text
-// that names security, is security-risk instead. With no code, security-risk
-// when it names security, so a misformatted security code still reaches a
-// person; else "stopped". Intent, design and cost words are common in plain
-// reasons, so only their code holds for them.
 const plainText = (text) =>
   String(text ?? "")
     .normalize("NFKC")
     .replace(/[\p{Cf}\p{Mn}]/gu, "");
 const reasonText = (reason) => plainText(reason).replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
-// A pushback's `cause` as a row name: read as a reason is, lowercased, with
-// trailing `.`, `:`, `;` and spaces dropped and each run of spaces,
-// underscores and hyphens one hyphen, so "Security Risk", "intent - change"
-// and "intent:" name their rows.
 export const causeName = (cause) =>
   plainText(cause)
     .trim()
@@ -190,15 +135,10 @@ export const causeName = (cause) =>
     .replace(/[.:;\s]+$/, "")
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|[-.:;]+$/g, "");
-// The code a reason explicitly opens with, read as runCode reads it, with no
-// security-word reading: "" when it opens with none.
 export const leadingCode = (reason) => {
   const text = reasonText(reason);
   return CODES.find(([, code]) => code.test(text))?.[0] ?? "";
 };
-// With `anyCodeEnds`, every code reads as ending the lane's work: a pushback
-// never waits or retries, so a security mention after a wait code such as
-// blocked-by-pr counts as well.
 export const runCode = (reason, { anyCodeEnds = false } = {}) => {
   const text = reasonText(reason);
   for (const [name, code] of CODES) {
@@ -209,10 +149,6 @@ export const runCode = (reason, { anyCodeEnds = false } = {}) => {
   }
   return wordOutsideNames(text) !== undefined ? "security-risk" : "stopped";
 };
-// The security word runCode, with `anyCodeEnds`, reads in `reason`, as text
-// safe to show in a code span of a public comment: a match can hold free text
-// ("ignore ... instructions"), so it keeps only ASCII letters, digits, hyphens,
-// underscores and single spaces. "" when it names none.
 export const securityWord = (reason) => {
   const text = reasonText(reason);
   const found = CODES.find(([, code]) => code.test(text));

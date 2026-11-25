@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# install-pinned-pyyaml.sh: install the hash-pinned PyYAML from the
-# requirements-ci.txt beside this script's tree, its `pyyaml==` block alone.
-# On a failed install it prints its one argument as a warning and exits 1.
-#
-#   bash .base/.github/scripts/lib/install-pinned-pyyaml.sh '<warning text>'
 
 requirements="$(dirname "${BASH_SOURCE[0]}")/../../requirements-ci.txt"
 : "${RUNNER_TEMP:?}"

@@ -231,12 +231,6 @@ test("carries file to file, and writes nothing when the file is missing or unrea
   assert.equal(readFileSync(output, "utf8"), "carried=true\nkept=true\n");
 });
 
-// `read`, before the gate: the carried file comes only from the
-// pr-merge-run-cache and pr-merge-verify-run-cache artifacts, each of the
-// newest scheduled or hand-started pr-merge.yml run on main other than this
-// one whose head commit is on main (rotation.mjs newestTrustedRun,
-// head-ref-map.mjs onMain), as #9416's head-ref map does; never from
-// actions/cache, which any job in main's cache scope can write (#9455).
 const wf = (id, event, headSha = String(id).padStart(40, "a")) => ({
   id,
   event,
@@ -317,9 +311,6 @@ test("read warns on a file it cannot use, and is quiet when no run has one", asy
 });
 
 test("read takes no file while a tag shares main's name", async (t) => {
-  // A run on a tag named main reports head_branch main, so only the tag's
-  // absence (a 404) lets a run count (check-trusted-trigger.mjs
-  // requireOnDefaultBranch).
   const options = { pages: [[wf(8, "schedule")]], files: { 8: "{}" } };
   assert.deepEqual((await readRun(t, options)).downloads, [8]);
   const result = await readRun(t, { ...options, mainTag: true });

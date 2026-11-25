@@ -4,15 +4,6 @@
 // test-scope: .github/actions/resolve-config/action.yml .github/actions/select-trusted-text/action.yml
 // test-scope: .github/actions/setup-runner-isolation/action.yml
 // test-scope: .github/workflows/*.yml
-// pr-merge.yml's main-verification trigger. Expected values come from the
-// owner decision of 2026-10-18 (every merge to main gets a full run, whoever
-// merged), the efficiency plan of 2026-10-26 (items 5 and 7(b): at most one
-// full run of main per 30 minutes, and no wait on the run), GitHub's
-// concurrency rules (a group holds one running and one pending job, and a
-// newer pending job replaces the older one unless `queue: max` is set), and
-// the rule babysit_postmerge.py and post-merge-file-demotion-issues.yml share: a
-// cancelled full run counts as red, unless it never started, so no running
-// pr-require-checks run may be cancelled by concurrency.
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -53,9 +44,6 @@ test("push dispatches share one group that queues one and cancels nothing", () =
   assert.doesNotMatch(dispatch, /\n {6}queue:/);
 });
 
-// The job ends once it dispatches (efficiency plan item 7(b), owner
-// decision): dispatch-post-merge-runs sends a red run to the alert on the next
-// scheduled run, so no step polls the run or sleeps on a held runner.
 test("dispatch-full-run ends once it dispatches: no wait on the run it started", () => {
   const dispatch = job("dispatch-full-run");
   assert.deepEqual(
@@ -76,17 +64,9 @@ test("dispatch-full-run ends once it dispatches: no wait on the run it started",
 });
 
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
-// gh's stderr for a POST GitHub refused for a rate limit, as run 39906176584
-// logged it (pr-merge.yml, dispatch-full-run, "Start the full CI run on main",
-// 2026-10-23T05:30:57Z).
 const RATE_LIMITED_STDERR =
   "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
 
-// The cover step's body, run under bash against a stub gh that applies the
-// step's --jq filter to a canned listing of pr-require-checks.yml dispatches
-// on main, newest first, as the runs API lists them. `runs` entries are
-// {minutesAgo, sha, actor, event, conclusion}. The cap (owner decision, efficiency
-// plan item 5) is one full run of main per 30 minutes.
 const coverBody = (id) => {
   const block = job(id).split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
   return { block, body: runBody(block) };
@@ -148,9 +128,6 @@ exit 1
 }
 const OLDER = "89abcdef0123456789abcdef0123456789abcdef";
 
-// The two copies differ only in how a failed read is classified:
-// dispatch-post-merge-runs sources the shared rate guard from its checkout,
-// dispatch-full-run has none and matches the pattern the guard reads.
 test("both jobs read main's cover with the same cap logic, a 30-minute cap and the run's own SHA as the tip", () => {
   const a = coverBody("dispatch-full-run");
   const b = coverBody("dispatch-post-merge-runs");
@@ -187,9 +164,6 @@ test("a full run of main older than 30 minutes caps nothing, and a run at the ti
   assert.deepEqual(runCover([]), { status: 0, out: "", capped: false, uncovered: true, limited: false, writes: [] });
 });
 
-// A cancelled run is no cover: replaced before it started, or cancelled once
-// running, which reads red. Nor is a pull request run from a fork's main
-// branch, which the branch filter lists too.
 test("a cancelled run or a fork's pull request run neither caps nor covers", () => {
   const r = runCover([
     { minutesAgo: 5, conclusion: "cancelled" },
@@ -200,10 +174,6 @@ test("a cancelled run or a fork's pull request run neither caps nor covers", () 
   assert.equal(r.uncovered, true);
 });
 
-// The schedule's full runs and a person's dispatch are full runs of main too:
-// they cap and cover. Only github-actions[bot]'s dispatches are `lane`, the
-// cover dispatch-post-merge-runs's bypass reads, as the post-merge check credits
-// no other run for a lane merge.
 test("a scheduled or hand-started full run caps and covers, and only a lane dispatch is lane", () => {
   for (const run of [{ actor: "maintainer" }, { event: "schedule", actor: "maintainer" }]) {
     const r = runCover([{ minutesAgo: 8, ...run }]);
@@ -235,9 +205,6 @@ test("a failed read sets neither output, so the run dispatches as with no cap", 
   assert.match(r.out, /::warning::the read of main's full runs failed; no cap applies to this run/);
 });
 
-// stop-on-limit (docs/conventions/pr-pipeline/README.md): a read refused for a
-// rate limit is no ordinary failure. The step stops red with rate-limited=true
-// and the dispatch after it sends nothing.
 test("a rate-limited read stops dispatch-full-run red, and the dispatch is skipped", () => {
   const r = runCover([{ minutesAgo: 5 }], { limited: true });
   assert.equal(r.status, 1, r.out);
@@ -249,10 +216,6 @@ test("a rate-limited read stops dispatch-full-run red, and the dispatch is skipp
   assert.equal(evalStep(text, outs({ limited: "true", uncovered: "true" })), false);
 });
 
-// The dispatch steps' conditions, evaluated over the cover and post-merge
-// outputs: dispatch-full-run starts nothing within the cap; dispatch-post-merge-runs
-// starts main's tip when no run covers it, for any merge, and keeps the lane's
-// own request, both outside the cap.
 const stepIf = (id, name) => {
   const block = job(id).split(`\n      - name: ${name}\n`)[1].split("\n      - name: ")[0];
   const text = /\n {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(block);
@@ -272,14 +235,9 @@ test("dispatch-full-run starts nothing within the cap, and anything outside it",
   const text = stepIf("dispatch-full-run", "Start the full CI run on main");
   assert.equal(evalStep(text, outs({ capped: "true" })), false);
   assert.equal(evalStep(text, outs({ uncovered: "true" })), true);
-  // A failed cover read sets nothing: the dispatch goes ahead.
   assert.equal(evalStep(text, outs()), true);
 });
 
-// The merge job mints its lane token, and reads its mode, only while the
-// resolved merge-pr slot applies; a slot `enabled: false` or whose
-// `applies-when` does not match prints the skip reason instead (#7636).
-// A merge-job step's condition, with or without an `id:` line before it.
 const conditionOf = (body, name) => {
   const found = /(?:^|\n) {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(body);
   assert.ok(found, `${name} has a condition`);
@@ -309,9 +267,6 @@ test("a merge-pr slot the config turns off prints its skip reason before the tok
   const block = merge.split("\n      - name: Report a lane the config turns off\n")[1].split("\n      - name: ")[0];
   assert.match(block, /\n {10}REASON: \$\{\{ steps\.config\.outputs\.skip-reason \}\}\n/);
   assert.match(block, /::notice::merge-pr does not apply \(\$\{REASON:-no reason\}\)/);
-  // Every step after the token request waits on a token, or on a step that does.
-  // Each credential scan reads as clean, so an upload waits on its own
-  // condition, not only on its scan. Steps go by block: the scans share a name.
   const blocks = merge.split("\n      - name: ").slice(1);
   const after = blocks.slice(names.indexOf("Request the lane token") + 1);
   for (const block of after) {
@@ -323,7 +278,6 @@ test("a merge-pr slot the config turns off prints its skip reason before the tok
     );
     const always = () => true;
     const value = new Function("steps", "github", "needs", "always", "inputs", `return (${condition.replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]')});`)(unminted, { event_name: "schedule" }, { "dispatch-post-merge-runs": { result: "success", outputs: { "rate-limited": "" } } }, always, {});
-    // It reads the job's own token, and runs on a kill switch too.
     if (name === "Log the API budget at job end") {
       continue;
     }
@@ -342,15 +296,11 @@ test("dispatch-post-merge-runs starts main's uncovered tip for any merge, outsid
   assert.equal(evalStep(expr, outs({ uncovered: "true", limited: "true" })), false, "a rate-limited cover read");
   assert.equal(evalStep(expr, outs({ uncovered: "true", proceed: "false", live: "" })), false, "the kill switch on");
   assert.equal(evalStep(expr, outs({ uncovered: "true", live: "" })), false, "report-only on");
-  // merge.full-run-cap-bypass: an uncovered lane batch starts one run inside the cap.
   assert.equal(evalStep(expr, outs({ capped: "true", bypass: "true" })), true, "an uncovered lane batch inside the cap");
   assert.equal(evalStep(expr, outs({ capped: "true", bypass: "true", limited: "true" })), false, "a rate-limited cover read");
   assert.equal(evalStep(expr, outs({ capped: "true", bypass: "true", live: "" })), false, "report-only on");
 });
 
-// Review decision on #10491: the scheduled job reads the cover only while the
-// lane is live (kill switch off, report-only off), as its post-merge check
-// does; dispatch-full-run's push carve-out still starts a run per merge.
 test("dispatch-post-merge-runs reads the cover only while the lane is live", () => {
   const dispatch = job("dispatch-post-merge-runs");
   const block = dispatch.split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
@@ -364,8 +314,6 @@ test("dispatch-post-merge-runs reads the cover only while the lane is live", () 
   assert.doesNotMatch(job("dispatch-full-run"), /steps\.(kill|mode)\./);
 });
 
-// contents: read only checks out the api-budget library and the upload scan
-// with the rules it reads, sparse, from main.
 test("the dispatch job's token is actions: write and contents: read, and nothing else", () => {
   const dispatch = job("dispatch-full-run");
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(dispatch)[1];
@@ -378,8 +326,6 @@ test("the dispatch job's token is actions: write and contents: read, and nothing
   assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/lib\/publish-gate\.mjs\n {10}sparse-checkout-cone-mode: false\n/);
 });
 
-// The cover read and each dispatch POST leave a rate-limit reading, so the
-// job-end api-calls notice counts them; the POST is recorded, never guarded.
 test("dispatch-full-run's cover read and dispatch POST each leave one reading", () => {
   const dir = tempDir("pr-merge-reading-");
   mkdirSync(join(dir, "bin"));
@@ -412,14 +358,6 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi
   }
 });
 
-// pr-require-checks.yml's concurrency, evaluated per event. Main's dispatches
-// share one group with no `queue` key: GitHub then keeps one running and one
-// pending, "When a new job or workflow run is queued, any existing pending job
-// or workflow run in the same group is canceled and replaced", whereas
-// `queue: max` keeps up to 100 pending, which would batch nothing
-// (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
-// That group never cancels a running run, which reads red to the post-merge
-// check; every other group keeps its cancel.
 const checksConcurrency = () => {
   const checks = read("pr-require-checks.yml");
   const block = /\nconcurrency:\n {2}group: >-\n([\s\S]*?)\n {2}cancel-in-progress: (.*)\n(?=\S|\n)/.exec(checks);
@@ -443,15 +381,12 @@ test("pr-require-checks.yml holds main's dispatches in one group that cancels no
   const main = (run_id, run_attempt = 1) => ({ event_name: "workflow_dispatch", ref: "refs/heads/main", workflow: "PR Require Checks", run_id, run_attempt, event: { pull_request: { head: { repo: {} } }, changes: {} } });
   assert.equal(group(main(1)), group(main(2)));
   assert.equal(cancel(main(1)), false);
-  // A re-run keeps its own group, so no newer dispatch replaces the one
-  // re-run a red run waits on (babysit_postmerge.py reads it red otherwise).
   assert.equal(group(main(3, 2)), "PR Require Checks-3");
   assert.equal(cancel(main(3, 2)), true);
 });
 
 test("pr-require-checks.yml keeps every other run's group and cancel", () => {
   const { group, cancel } = checksConcurrency();
-  // A missing event field reads null in an expression; this stands in for it.
   const none = { pull_request: { head: { repo: {} } }, changes: {} };
   const other = [
     { event_name: "workflow_dispatch", ref: "refs/heads/feat/x", workflow: "PR Require Checks", run_id: 7, event: none },
@@ -467,10 +402,6 @@ test("pr-require-checks.yml keeps every other run's group and cancel", () => {
   assert.equal(cancel(prEvent("synchronize")), true);
 });
 
-// Only a scheduled or hand-started run arms (enable-auto-merge.mjs
-// READER_EVENTS), and a pull request the issue lane just opened is not armed,
-// so the issue lane finishing would give the job nothing to do: no
-// workflow_run trigger wakes it.
 test("no workflow_run trigger wakes pr-merge, and the enable-auto-merge job skips push", () => {
   const on = merge.slice(merge.indexOf("\non:\n"), merge.indexOf("\npermissions:"));
   assert.doesNotMatch(on, /\n {2}workflow_run:/);
@@ -479,25 +410,20 @@ test("no workflow_run trigger wakes pr-merge, and the enable-auto-merge job skip
   const arm = job("enable-auto-merge");
   const armIf = condition(arm);
   assert.doesNotMatch(armIf, /workflow_run/);
-  // A push to main is a merge landing, never a new lane pull request.
   assert.match(armIf, /github\.event_name != 'push'/);
   assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
 });
 
-// A job its condition skips never joins the group, so a pull request the job
-// cannot arm (not the lanes App's) shows a skipped check, not one pending
-// behind every queued run. The other events keep their conditions.
 test("a pull request event wakes enable-auto-merge only for a lanes App pull request", () => {
   const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(job("enable-auto-merge"))[1];
   assert.match(
     armIf,
-    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\n {6}&& github\.event\.sender\.type != 'Bot'\)\)\n/,
+    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\n {6}&& github\.event\.sender\.type != 'Bot'\)\)$/,
   );
   assert.match(armIf, /^ {6}!cancelled\(\)\n/);
   assert.doesNotMatch(armIf, /schedule|workflow_dispatch/);
 });
 
-// A job another job skipped has no outputs, so `needs` defaults to none.
 const evalIf = (id, event, inputs = {}, needs = {}) =>
   evaluate(ifOf(job(id), 4), {
     github: { ref: "refs/heads/main", repository: "o/r", ...event },
@@ -521,14 +447,10 @@ test("a paced schedule tick skips the merge sweep and still arms", () => {
     assert.equal(evalIf(id, unlabeled), true, `${id}: a pull_request_target wake`);
     assert.equal(evalIf(id, { event_name: "push", event: {} }), false, `${id}: a push`);
   }
-  // A PR-scoped wake skips dispatch-post-merge-runs, so nothing can pace its arm.
   assert.equal(evalIf("dispatch-post-merge-runs", wake, { pr: "12" }), false);
   assert.equal(evalIf("enable-auto-merge", wake, { pr: "12" }), true);
 });
 
-// A PR-scoped dispatch (inputs.pr) only arms: enable-auto-merge runs, and
-// dispatch-post-merge-runs and merge skip, so dispatch-full-run and report-gate-checks,
-// which need merge, and report-unarmed-status skip too.
 test("a PR-scoped dispatch runs only enable-auto-merge", () => {
   const dispatch = { event_name: "workflow_dispatch", event: { sender: { type: "Bot" } } };
   assert.equal(evalIf("enable-auto-merge", dispatch, { pr: "12" }), true);
@@ -595,7 +517,6 @@ test("the eval-release wake runs on what the merge job released, whatever its re
   assert.match(job("merge"), /- name: Release eval holds whose record matches the head\n {8}id: release-eval\n/);
 });
 
-// The dispatch's input, the cron backstop and the marker readers key on.
 test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run", () => {
   assert.match(merge, /\n {2}workflow_dispatch:\n {4}inputs:\n {6}pr:\n(?: {8}.*\n)*? {8}type: string\n {8}required: false\n/);
   assert.match(merge, /\n {4}- cron: "11,41 \* \* \* \*"\n/);
@@ -603,41 +524,26 @@ test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run
   const arm = job("enable-auto-merge");
   assert.match(arm, /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \|\| inputs\.pr \}\}\n/);
   assert.equal((arm.match(/\n {10}DISPATCH_PR: \$\{\{ inputs\.pr \}\}\n/g) ?? []).length, 2);
-  // The broker mints a verdict wake only for the pull request it names, and
-  // only github-actions[bot]'s run names one.
   assert.equal(
     (arm.match(/\n {10}pr-number: \$\{\{ github\.actor_id == '41898282' && inputs\.pr \|\| '' \}\}\n/g) ?? []).length,
     1,
   );
-  // Its room: the last sweep's report, read into the place the arm step reads.
   const last = /- name: Read the post-merge report the last sweep kept\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
   assert.ok(last, "a PR-scoped run reads the last sweep's post-merge report");
   assert.match(last, /^ {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr && steps\.precheck\.outputs\.uncovered != 'true'\n/);
   assert.match(last, /\n {10}LAST_REPORT_DIR: \$\{\{ runner\.temp \}\}\/post-merge\n/);
   assert.match(last, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/last-report\.mjs\n/);
   assert.ok(arm.indexOf("Read the post-merge report the last sweep kept") < arm.indexOf("- name: Arm and disarm auto-merge"));
-  // One countable line, after the budget step whose totals it carries.
   const report = /- name: Report the PR-scoped outcome\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
   assert.ok(report, "a PR-scoped run reports its outcome");
   assert.match(report, /\n {10}CALLS: \$\{\{ steps\.budget-end\.outputs\.calls \}\}\n/);
   assert.match(report, /::notice title=pr-merge-wake::/);
   assert.ok(arm.indexOf("- name: Log the API budget at job end") < arm.indexOf("- name: Report the PR-scoped outcome"));
-  // A sweep's carried verdict reads are kept and uploaded by a sweep only.
   const carry = /- name: Keep the verdict reads that never change\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
   assert.match(carry, /\n {10}&& !inputs\.pr\n/);
 });
 
-// The last sweep's report stands for a PR-scoped run only under
-// dispatch-post-merge-runs's idle-tick rule (babysit_verify_evidence.py settle
-// --idle-tick). A report that does not stand is never reused: the step runs
-// the post-merge check fresh, as dispatch-post-merge-runs does on a refused idle
-// tick, and keeps the fresh report only when the check passed (exit 0 or 5)
-// and settle --idle-tick --fresh keeps it too (the idle rule less the
-// verifying runs the check just read). Anything else removes it, so the arm
-// step is skipped and nothing arms.
 const KEEP_STEP = "Keep the last sweep's report only while nothing it read has moved";
-// The `if:` of the arm step's own reads: a sweep's, or a PR-scoped run's
-// whose report stands (the arm step's own condition for a PR-scoped run).
 const ARM_READ_IF =
   " {8}if: >-\\n {10}steps\\.lane-token\\.outputs\\.token != '' && \\(github\\.event_name == 'schedule' \\|\\| github\\.event_name == 'workflow_dispatch'\\)\\n {10}&& \\(!inputs\\.pr \\|\\| steps\\.keep-report\\.outputs\\.stands == 'true'\\)\\n";
 const FRESH_SHA = "f".repeat(40);
@@ -651,8 +557,6 @@ const keepReport = ({ code = "0", settles = [0], fresh = 0, files = true, attemp
   mkdirSync(bin);
   const args = join(dir, "args");
   writeFileSync(args, "");
-  // Each settle call takes the next exit code from `settles` and prints
-  // settle's JSON; the fresh check prints a marked report and exits `fresh`.
   writeFileSync(join(dir, "settles"), settles.join("\n") + "\n");
   writeFileSync(
     join(bin, "python3"),
@@ -709,7 +613,6 @@ const SETTLE = (sha, fresh = "") =>
   new RegExp(
     `^\\.base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence\\.py settle --idle-tick --repo o/r --postmerge-result \\S+/post-merge/post-merge\\.json --code-sha ${sha}${fresh}$`,
   );
-// The fresh report's settle: the same call with --fresh, and only there.
 const SETTLE_FRESH = (sha) => SETTLE(sha, " --fresh");
 const SETTLE_LAST = SETTLE("c{40}", " --probe-unmoved");
 const FRESH_CHECK =
@@ -721,8 +624,6 @@ test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick
   assert.equal(kept.kept, true);
   assert.equal(kept.output, "stands=true\nfresh=\nfresh-reason=\n");
   assert.match(kept.body, /^ {8}id: keep-report\n/);
-  // The same call dispatch-post-merge-runs makes for a reused report, and no
-  // fresh check.
   assert.equal(kept.calls.length, 1);
   assert.match(kept.calls[0], SETTLE_LAST);
   assert.equal(kept.json, "{}");
@@ -733,9 +634,6 @@ test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick
   assert.ok(arm.indexOf(`- name: ${KEEP_STEP}`) < arm.indexOf("- name: Arm and disarm auto-merge"));
 });
 
-// (a) The report that does not stand is replaced, never reused: the fresh
-// check runs, then settle --idle-tick --fresh on the fresh report at this checkout's
-// commit, and only both passing lets the arm step run on it.
 test("a PR-scoped run whose report does not stand runs the post-merge check fresh and keeps it when both checks pass", () => {
   for (const [why, options] of [
     ["settle refuses the last report", { settles: [1, 0] }],
@@ -755,7 +653,6 @@ test("a PR-scoped run whose report does not stand runs the post-merge check fres
     const check = run.calls.findIndex((c) => FRESH_CHECK.test(c));
     assert.ok(check >= 0, `${why}: the fresh check ran`);
     assert.match(run.calls[check + 1] ?? "", SETTLE_FRESH(FRESH_SHA), `${why}: settle --idle-tick --fresh checked the fresh report`);
-    // The last report's settle, when it ran, never skips the runs test.
     if (check > 0) assert.match(run.calls[0], SETTLE_LAST, why);
     assert.equal(run.calls.length, check + 2, why);
   }
@@ -797,8 +694,6 @@ test("a PR-scoped run whose last report is refused as reruns-unmoved runs no fre
   assert.ok(moved.calls.some((c) => FRESH_CHECK.test(c)), "the fresh check ran");
 });
 
-// The code-changed refusal decided before the run cache and lane records are
-// read: the step's script, its check-code exit stubbed.
 const CODE_STEP = "Check whether the last sweep's report predates a code change";
 const codeCheck = ({ code = "0", files = true, exit = 1 } = {}) => {
   const arm = job("enable-auto-merge");
@@ -863,13 +758,9 @@ test("the fresh check answers the last check's completed attempts with no read",
   const run = keepReport({ settles: [1, 0], attempts: true });
   assert.equal(run.attempts, '{"attempts":[]}');
   assert.match(run.body, /\n {10}BABYSIT_POSTMERGE_ATTEMPTS: \$\{\{ runner\.temp \}\}\/post-merge-attempts\.json\n/);
-  // Kept beside the fresh report, where a sweep's artifact holds them, for
-  // the arm step's room.
   assert.equal(run.keptAttempts, '{"attempts":[]}');
 });
 
-// The room's recompute in the arm step answers completed attempts from the
-// file kept beside the report it reads, on a sweep and on a wake alike.
 test("the arm step hands the room's post-merge check the attempts kept beside its report", () => {
   const arm = job("enable-auto-merge");
   const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
@@ -889,9 +780,6 @@ test("enable-auto-merge reads the kept demotion recoveries, copied out before th
   assert.ok(!eam.includes("BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED"), "enable-auto-merge only reads");
 });
 
-// The merge job's own check, run when dispatch-post-merge-runs's report does not
-// stand: the step's script with settle refusing and the check stubbed to
-// record the attempts file it was handed.
 const mergeCheck = ({ attempts = true } = {}) => {
   const body = /- name: Check earlier lane merges\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("merge"))?.[1];
   assert.ok(body, "the merge job checks earlier lane merges");
@@ -935,7 +823,6 @@ test("the merge job's fresh check answers the kept report's completed attempts w
   assert.equal(run.output, "needs-dispatch=false\ncode=0\n");
   assert.equal(run.handed, '{"attempts":{}}', "the check was handed the attempts kept beside dispatch-post-merge-runs's report");
   assert.match(run.body, /\n {10}BABYSIT_POSTMERGE_ATTEMPTS: \$\{\{ runner\.temp \}\}\/post-merge-attempts\.json\n/);
-  // The same file enable-auto-merge's fresh check copies, from this run's report.
   const keep = /- name: Keep the last sweep's report only while nothing it read has moved\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("enable-auto-merge"))[1];
   const copy = /\[ ! -f "\$(?:last|kept)\/attempts\.json" \] \|\| cp "\$(?:last|kept)\/attempts\.json" "\$BABYSIT_POSTMERGE_ATTEMPTS"/;
   assert.match(keep, copy);
@@ -949,7 +836,6 @@ test("the merge job's fresh check runs with no attempts file when the kept repor
   assert.equal(run.handed, null);
 });
 
-// (b) Any refusal on the fresh path leaves no report, so nothing arms.
 test("a PR-scoped run whose fresh check or fresh settle refuses keeps no report", () => {
   for (const [why, options, settled, reason] of [
     ["the fresh check finds a failed lane merge", { settles: [1], fresh: 1 }, false, ""],
@@ -967,9 +853,6 @@ test("a PR-scoped run whose fresh check or fresh settle refuses keeps no report"
   }
 });
 
-// Exit 6 (--stop-uncovered): the check stopped at a merge no dispatch run
-// covers, a report idle_report_refusal refuses as needs-dispatch, so no
-// settle runs and nothing stands, with a notice of its own.
 test("a PR-scoped run whose fresh check stops at an uncovered merge keeps no report and runs no settle", () => {
   const run = keepReport({ settles: [1], fresh: 6 });
   assert.equal(run.status, 0);
@@ -981,11 +864,6 @@ test("a PR-scoped run whose fresh check stops at an uncovered merge keeps no rep
   assert.doesNotMatch(run.stdout, /check \(exit 6\) does not stand for this run/);
 });
 
-// The pre-check: before the last-report, carry, lane-records and fresh-check
-// reads, one listing read (babysit_postmerge.py --uncovered-at) of main's
-// newest full dispatch run, whose head_sha must contain the newest lane merge
-// on the checkout. Only its exit 6 ends the wake; any other answer runs
-// today's path.
 const PRECHECK_STEP = "Check whether a full run covers the newest lane merge";
 const LANE_SHA = "8930f4caa3e1792ddc4c4a693b0085c3d3c41e0d";
 const precheck = ({ exit = 0, lane = LANE_SHA } = {}) => {
@@ -1066,7 +944,6 @@ test("the pre-check comes first, and its uncovered answer skips every read and t
   assert.match(report, /\n {10}UNCOVERED: \$\{\{ steps\.precheck\.outputs\.uncovered \}\}\n/);
 });
 
-// The countable line's outcome when the arm step wrote none.
 const wakeOutcome = (env) => {
   const arm = job("enable-auto-merge");
   const body = /- name: Report the PR-scoped outcome\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
@@ -1079,8 +956,6 @@ const wakeOutcome = (env) => {
   return run.stdout.trim();
 };
 
-// (c) The kill switch skips the who step, so its proceed is empty too: the
-// line names the kill switch, not the who step.
 test("a PR-scoped run the kill switch stopped reports the kill switch", () => {
   assert.equal(
     wakeOutcome({ KILL: "false" }),
@@ -1107,7 +982,6 @@ test("a PR-scoped run's outcome names the fresh check's refusal and which report
   assert.match(wakeOutcome({ ...base, FRESH: "1" }), /report=fresh outcome=skipped: the fresh post-merge check exited 1$/);
   assert.match(wakeOutcome({ ...base, FRESH: "75" }), /report=fresh outcome=skipped: the fresh post-merge check stopped on a GitHub rate limit$/);
   assert.match(wakeOutcome({ ...base, FRESH: "6" }), /report=fresh outcome=skipped: the fresh post-merge check stopped at a lane merge no dispatch run covers \(needs-dispatch\)$/);
-  // The pre-check's stop: no report read, no fresh check run.
   assert.match(
     wakeOutcome({ KILL: "true", WHO: "true", UNCOVERED: "true" }),
     /report=none outcome=skipped: the pre-check found a lane merge no dispatch run covers \(needs-dispatch\)$/,
@@ -1119,15 +993,12 @@ test("a PR-scoped run's outcome names the fresh check's refusal and which report
   assert.match(wakeOutcome({ ...base, FRESH: "5" }), /refused the fresh post-merge report \(no reason read\)$/);
   assert.match(wakeOutcome({ ...base, STANDS: "true", FRESH: "0", OUTCOME: "armed" }), /report=fresh outcome=armed$/);
   assert.match(wakeOutcome({ ...base, STANDS: "true", OUTCOME: "armed" }), /report=last outcome=armed$/);
-  // A fresh check that timed out or was cancelled writes no stands or fresh output.
   assert.match(
     wakeOutcome({ KILL: "true", WHO: "true", FRESH_STARTED: "true" }),
     /report=fresh outcome=skipped: the fresh post-merge check did not finish \(timeout or cancel\)$/,
   );
 });
 
-// With no standing report a wake decides nothing: the arm step, which would
-// read the room unreadable and disarm an armed lane pull request, is skipped.
 test("a PR-scoped run with no standing report skips the arm step, so it disarms nothing", () => {
   const arm = job("enable-auto-merge");
   const step = /- name: Arm and disarm auto-merge\n {8}id: arm\n {8}if: (.*)\n/.exec(arm)?.[1];
@@ -1159,8 +1030,6 @@ for (const id of ["merge", "enable-auto-merge"]) {
   });
 }
 
-// The merge job's skip, run for enable-auto-merge's own group before the lane
-// token or any other read.
 test("enable-auto-merge skips its work when a waiting run's enable-auto-merge job does it", () => {
   const arm = job("enable-auto-merge");
   const step = /- name: Check for a newer run that does this work\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
@@ -1172,12 +1041,9 @@ test("enable-auto-merge skips its work when a waiting run's enable-auto-merge jo
   assert.equal(names.indexOf("Check for a newer run that does this work"), names.indexOf("Check who started the run") + 1);
   assert.ok(names.indexOf("Check for a newer run that does this work") < names.indexOf("Request the lane token"));
   assert.match(arm, /- name: Resolve the config\n {8}id: config\n {8}if: steps\.who\.outputs\.proceed == 'true' && steps\.superseded\.outputs\.superseded != 'true'\n/);
-  // The merge job asks for its own job, by default.
   assert.doesNotMatch(job("merge"), /SUPERSEDED_JOB/);
 });
 
-// Each job's readers of the files the last run kept share one file of GET
-// answers in that job's RUNNER_TEMP; the readers' tests count what it saves.
 test("the merge and enable-auto-merge jobs' kept-file readers share their reads", () => {
   for (const [id, scripts] of [
     ["merge", ["rotation.mjs", "head-ref-map.mjs read", "carry-run-cache.mjs read", "lane-records.mjs read"]],
@@ -1191,8 +1057,6 @@ test("the merge and enable-auto-merge jobs' kept-file readers share their reads"
   }
 });
 
-// The verdict reader reads the FAIL index by exact name, so no run saves an
-// artifact listing for the next: none is uploaded, looked for or named.
 test("no job keeps, fetches or names a carried artifact listing", () => {
   const text = read("pr-merge.yml");
   assert.doesNotMatch(text, /pr-merge-verify-listing/);
@@ -1204,7 +1068,6 @@ test("the last verifier read enable-auto-merge starts ends inside its step's tim
   const arm = job("enable-auto-merge");
   const step = /- name: Arm and disarm auto-merge\n {8}id: arm\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
   assert.ok(step, "the arm step names its timeout");
-  // The room read, then the verdict budget and the last read it starts.
   assert.ok(LANE_ROOM_TIMEOUT_MS + VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
 });
 
@@ -1216,7 +1079,6 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
   assert.match(block, /^ {8}id: budget-end\n {8}if: always\(\) && needs\.dispatch-post-merge-runs\.outputs\.rate-limited == ''\n/);
   assert.match(block, /\n {8}continue-on-error: true\n {8}timeout-minutes: 1\n/);
   assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
-  // The reader's gh calls read into both names.
   const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
   assert.match(step, /\n {10}API_BUDGET_TOKEN: lanes-app\n {10}API_BUDGET_OVERRIDE_TOKEN: github-token\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
@@ -1224,12 +1086,6 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
 });
 
-// The hub ranks GITHUB_TOKEN spend by each job's `api-calls` notice, so a
-// job that calls GitHub with the job token and logs nothing is spend no one
-// sees. Every such job carries the log-api-budget step, run whatever failed
-// or stopped before it, naming github-token: under `always()` alone, so a job
-// that ends before it mints a lane token still logs the job token's calls. A
-// token with no reading logs 0 (log-api-budget.test.mjs).
 test("every job that calls GitHub with the job token logs its api-calls", () => {
   const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
   const callers = ids.filter((id) => job(id).includes("${{ github.token }}"));
@@ -1248,12 +1104,6 @@ test("every job that calls GitHub with the job token logs its api-calls", () => 
   assert.deepEqual(unlogged, []);
 });
 
-// A node step whose only token is the job token and whose script builds a
-// createGitHub client keeps each answer's reading under github-token (the
-// client's rate guard writes it when API_BUDGET_TOKEN names the bucket), or
-// the job-end notice counts nothing; one that also holds the lane token names
-// lanes-app and the github-token override. A step whose script calls nothing
-// needs no bucket, so none is asked of it.
 test("every createGitHub step that calls GitHub with the job token names the bucket its calls go to", () => {
   const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
   const unnamed = [];
@@ -1269,9 +1119,6 @@ test("every createGitHub step that calls GitHub with the job token names the buc
       }
       const calls = readFileSync(new URL(`../../../${script}`, import.meta.url), "utf8").includes("createGitHub(");
       const bucket = /\n {10}API_BUDGET_TOKEN: ([a-z-]+)\n/.exec(step)?.[1];
-      // A step that also holds the lane token as its GH_TOKEN counts that
-      // token's calls under lanes-app and the job token's under the override
-      // (rate-guard.mjs budgetToken).
       if (step.includes("${{ steps.lane-token.outputs.token }}")) {
         const override = /\n {10}API_BUDGET_OVERRIDE_TOKEN: ([a-z-]+)\n/.exec(step)?.[1];
         if (calls && (bucket !== "lanes-app" || override !== "github-token")) {
@@ -1291,8 +1138,6 @@ test("every createGitHub step that calls GitHub with the job token names the buc
   assert.deepEqual(needless, []);
 });
 
-// The sweep-count step's one read, the run's start, goes through the wrapped
-// gh, so the job-end notice counts it; sweep-summary.mjs calls nothing.
 test("the merge job's sweep-count read leaves one github-token reading", () => {
   const step = /- name: Count the sweep's refusals\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("merge"))[1];
   const run = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/.exec(step)[1].replace(/^ {10}/gm, "");
@@ -1324,9 +1169,6 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '{"run_started_at":"2026-10
   }
 });
 
-// A run that stops at the superseded step, before the lane token, still
-// ends with the job token's calls: who's read, the pending-run listing and
-// the waiting run's jobs read, each through createGitHub.
 for (const jobId of ["merge", "enable-auto-merge"]) {
   test(`${jobId}: a run that stops as superseded still logs its github-token calls`, async () => {
     const body = job(jobId);
@@ -1337,7 +1179,6 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
     const answers = {
       "/repos/o/r/actions/runs/4242": { id: 4242, run_attempt: 2, actor: OWNER, triggering_actor: OWNER },
       "/repos/o/r/actions/workflows/pr-merge.yml/runs": { workflow_runs: [{ id: 5000, status: "pending", event: "schedule", head_branch: "main", run_attempt: 1 }] },
-      // The jobs API lists a job by its display name.
       "/repos/o/r/actions/runs/5000/jobs": { jobs: [{ name: /^ {4}name: (.+)$/m.exec(body)[1], status: "waiting" }] },
     };
     const server = createServer((req, res) => {
@@ -1382,9 +1223,6 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
         });
         assert.equal(status, 0, name);
       }
-      // enable-auto-merge names each step (API_BUDGET_SCRIPT), so its job
-      // total splits by step: who's one read, superseded's two. The merge job
-      // names none.
       assert.deepEqual(
         stdout.match(/^::notice title=api-calls::script=.*$/gm) ?? [],
         jobId === "enable-auto-merge"
@@ -1413,27 +1251,16 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
   });
 }
 
-// The lane's room (lane-room) reads this run's post-merge report, which
-// dispatch-post-merge-runs keeps, rather than running the check a third time per
-// scheduled run, and the rung cap as the merge job passes it: an unset cap
-// holds the lane off, so a step that drops it would disarm every lane pull
-// request.
 test("enable-auto-merge reads the lane's room from this run's dispatch-post-merge-runs report and the rung cap", () => {
   const dispatch = job("dispatch-post-merge-runs");
   const keep = /- name: Keep the post-merge report for enable-auto-merge\n([\s\S]*?)(?=\n {6}- name: |\n*$)/.exec(dispatch)?.[1];
   assert.ok(keep, "dispatch-post-merge-runs keeps its report");
   assert.match(keep, /uses: actions\/upload-artifact@v7\b/);
-  // The directory holds post-merge.json, so the download below finds it at
-  // post-merge/post-merge.json.
   assert.match(keep, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-report\/\n {10}retention-days: 1\n/);
   assert.match(dispatch, /\n {10}cp "\$RUNNER_TEMP\/post-merge\.json" "\$kept\/post-merge\.json"\n/);
   const arm = job("enable-auto-merge");
-  assert.match(arm, /^ {2}enable-auto-merge:\n {4}# [\s\S]*?\n {4}needs: \[dispatch-post-merge-runs\]\n/);
+  assert.match(arm, /^ {2}enable-auto-merge:\n {4}name: Enable Auto Merge\n {4}needs: \[dispatch-post-merge-runs\]\n/);
   assert.match(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /^ {6}!cancelled\(\)\n/);
-  // No check of its own on a sweep: the report comes from this run's job
-  // alone. Only a PR-scoped run, which has no dispatch-post-merge-runs job, runs
-  // the check, in the keep-report step that runs on such a run alone. The
-  // pre-check's --uncovered-at makes one listing read and no check.
   const checks = [...arm.matchAll(/python3 [^\n]*babysit_postmerge\.py(?! \\\n\s+--repo "\$REPO" --branch main --uncovered-at)/g)];
   assert.equal(checks.length, 1);
   const keepStep = /- name: Keep the last sweep's report only while nothing it read has moved\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm);
@@ -1443,12 +1270,10 @@ test("enable-auto-merge reads the lane's room from this run's dispatch-post-merg
   assert.ok(read, "a download of the report");
   assert.match(read, /uses: actions\/download-artifact@v8\b/);
   assert.match(read, /\n {10}name: pr-merge-post-merge-report\n/);
-  // Not 'success': a step after the kept report can fail the job.
   assert.match(read, /needs\.dispatch-post-merge-runs\.result != 'skipped'/);
   assert.doesNotMatch(read, /run-id|github-token|repository:/);
   const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
   assert.match(step, /\n {10}POSTMERGE_RESULT: \$\{\{ runner\.temp \}\}\/post-merge\/post-merge\.json\n/);
-  // The commit whose code ran it, kept beside it, for lane-room.
   assert.match(dispatch, /\n {10}git -C \.base rev-parse HEAD >"\$kept\/post-merge-code-sha" \|\| true\n/);
   assert.match(step, /\n {10}POSTMERGE_CODE_SHA=\$\(cat "\$RUNNER_TEMP\/post-merge\/post-merge-code-sha" 2>\/dev\/null \|\| true\)\n/);
   assert.match(step, /\n {10}export [^\n]*\bPOSTMERGE_CODE_SHA\n/);
@@ -1457,10 +1282,6 @@ test("enable-auto-merge reads the lane's room from this run's dispatch-post-merg
   assert.ok(names.indexOf("Read this run's post-merge report") < names.indexOf("Arm and disarm auto-merge"));
 });
 
-// A room that checks the post-merge answer again reads the lane records the
-// last run kept, as dispatch-post-merge-runs's check does, so the check answers
-// them with no artifact or run read each; without them the check can run
-// past the room's LANE_ROOM_TIMEOUT_MS.
 test("enable-auto-merge hands the room's post-merge check the lane records the last run kept", () => {
   const arm = job("enable-auto-merge");
   const records = /- name: Read the lane records the last run kept\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
@@ -1472,12 +1293,9 @@ test("enable-auto-merge hands the room's post-merge check the lane records the l
   assert.match(step, /\n {10}BABYSIT_POSTMERGE_LANE_RECORDS: \$\{\{ runner\.temp \}\}\/lane-records\.json\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf("Read the lane records the last run kept") < names.indexOf("Arm and disarm auto-merge"));
-  // Within the job's own permissions: the read needs actions: read alone.
   assert.match(arm, /\n {6}actions: read #/);
 });
 
-// Without history the post-merge check's containment test cannot decide, and
-// every lane record falls back to a compare API call.
 test("the default branch checkouts of the post-merge check, the merge and enable-auto-merge fetch full history", () => {
   for (const name of ["dispatch-post-merge-runs", "merge", "enable-auto-merge"]) {
     const checkout = /- name: Check out the default branch tip\n([\s\S]*?)(?=\n {6}- name: |\n*$)/.exec(job(name))?.[1];
@@ -1494,8 +1312,6 @@ test("enable-auto-merge's step timeouts fit inside its job's", () => {
   assert.ok(steps.reduce((sum, minutes) => sum + minutes, 0) < total, `${steps.join(" + ")} inside ${total}`);
 });
 
-// pr-unblock's report-conflict-status precedent: statuses: write only on a
-// job that holds no lane token and runs only main's script.
 test("the pr-merge/unarmed statuses are posted by a job of their own, with statuses: write and nothing it could run from a pull request", () => {
   const arm = job("enable-auto-merge");
   assert.match(arm, /\n {4}outputs:\n {6}unarmed-statuses: \$\{\{ steps\.arm\.outputs\.unarmed-statuses \}\}\n/);
@@ -1503,8 +1319,6 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
   const post = job("report-unarmed-status");
   assert.match(post, /^ {2}report-unarmed-status:\n {4}name: Report Unarmed Status\n {4}needs: \[merge, enable-auto-merge\]\n/);
-  // It runs whenever enable-auto-merge handed it statuses, after a failed
-  // step too, and only then.
   assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && \(needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \|\| needs\.merge\.outputs\.mended-heads != ''\) \}\}\n/);
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(post)[1];
   assert.deepEqual(
@@ -1513,7 +1327,6 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   );
   assert.doesNotMatch(post, /lane-token|request-lane-token|id-token/);
   assert.match(post, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
-  // The statuses reach the script through its environment, never the shell.
   assert.match(post, /\n {10}STATUSES: \$\{\{ needs\.enable-auto-merge\.outputs\.unarmed-statuses \}\}\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/post-unarmed-status\.mjs\n/);
   const gate = job("merge");
   assert.match(gate, /\n {6}mended-heads: \$\{\{ steps\.clear\.outputs\.mended-heads \}\}\n/);
@@ -1522,10 +1335,6 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(post, /HEAD_SHA=\$head bash \.base\/\.github\/scripts\/pr-unblock\/report-escalation\.sh clear\n/);
 });
 
-// The merge job's sizing comment: about two minutes before the loop, then the
-// longer of the gate budget (10) plus a candidate's read limit (4) and a
-// deferred candidate's ceiling (20), plus one read's own timeout (4); the
-// escalation clear's and the eval-hold release's own timeouts come on top.
 test("the merge job's ceiling covers the gate's sweep, the escalation clear and the eval-hold release", () => {
   const gate = job("merge");
   const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
@@ -1575,7 +1384,6 @@ test("the eval-hold release reuses the merge job's lane token, with no model", (
   assert.match(step, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
   assert.match(step, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/release-eval-hold\.mjs$/);
   assert.doesNotMatch(step, /claude|anthropic|request-lane-token|uses:|github\.event\.comment/i);
-  // No new trigger wakes it: the run's triggers stay as they were.
   const on = merge.slice(merge.indexOf("\non:\n"), merge.indexOf("\npermissions:"));
   assert.doesNotMatch(on, /\n {2}(?:issue_comment|workflow_run):/);
 });
@@ -1585,24 +1393,15 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   const steps = [...arm.matchAll(/\n {10}lane: (.*)\n {10}activity: (.*)\n/g)].map((m) => `${m[1]}/${m[2]}`);
   assert.deepEqual(steps, ["pr-merge/enable-auto-merge", "pr-merge/enable-auto-merge"]);
   assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/enable-auto-merge\.mjs/);
-  // A missing merge.report-only reaches the script as `null`, which it reads
-  // as report-only; the job must not turn it into `false`.
   assert.match(arm, /REPORT_ONLY=\$\(yq '\.merge\."report-only"' "\$config"\)\n/);
   assert.doesNotMatch(arm, /REPORT_ONLY=false/);
-  // The hold paths come from the config the job resolved.
   assert.match(arm, /output-path: \$\{\{ runner\.temp \}\}\/resolved-config\.json\n/);
   assert.match(arm, /\n {10}RESOLVED_CONFIG: \$\{\{ runner\.temp \}\}\/resolved-config\.json\n/);
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    // statuses: read for the head's pr-unblock statuses: GitHub lists that
-    // endpoint under the "Commit statuses" read permission, which the lanes
-    // App does not hold.
     ["contents: read", "actions: read", "pull-requests: read", "checks: read", "issues: read", "statuses: read", "id-token: write"],
   );
-  // The verifier evidence is read as the gate reads it: the job's
-  // GITHUB_TOKEN for the Actions reads, with the run's head-ref map and
-  // carried run cache.
   for (const line of [
     "EVENT_NAME: ${{ github.event_name }}",
     "BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}",
@@ -1612,26 +1411,13 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
     assert.ok(arm.includes(`\n          ${line}\n`), line);
   }
   assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/head-ref-map\.mjs read\n/);
-  // Only the runs that read the verdict (READER_EVENTS) read the map, and a
-  // PR-scoped one only when its report stands, so the arm step runs.
   assert.match(arm, new RegExp(`- name: Read the head refs the last gate run kept\\n${ARM_READ_IF}`));
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf(KEEP_STEP) < names.indexOf("Read the head refs the last gate run kept"));
   assert.ok(names.indexOf("Read the head refs the last gate run kept") < names.indexOf("Arm and disarm auto-merge"));
-  // The reader resolves the FAIL cap itself, from the base and main (--base-sha).
   assert.doesNotMatch(arm, /MAX_VERIFY_FAILS/);
 });
 
-// The dispatch POST's retry, run under bash against a stub gh that answers
-// each POST in turn from `answers` ({status, headers, body}, or {stderr} for
-// no response at all, with gh's error text), a stub sleep that logs its seconds and a stub date
-// whose `+%s` is NOW. The expected answers come from the owner outage rule
-// (at most three attempts, a capped full-jitter backoff) and the owner's
-// ban rule: a rate limit is never sent again, and the step fails red naming
-// the reset, the later of retry-after and x-ratelimit-reset while remaining
-// is 0, else a minute on, as GitHub documents the waits
-// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
-// Each expected reset below is `date -u -d @<seconds>` of the NOW sum.
 const NOW = 1792736000;
 const runBody = (block) =>
   /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
@@ -1722,13 +1508,11 @@ test("a dispatch answered at once records its run and waits for nothing", () => 
   assert.deepEqual(JSON.parse(r.record), { dispatcher_run_id: 77, run_id: 4242 });
 });
 
-// A rate limit stops the step red after its one POST, with no wait.
 const stopped = (r) => {
   assert.equal(r.status, 1, r.out);
   assert.equal(r.posts, 1);
   assert.deepEqual(r.slept, []);
   assert.doesNotMatch(r.output, /run-id=/);
-  // dispatch-post-merge-runs's re-run step reads it and sends nothing.
   assert.match(r.output, /^rate-limited=true$/m);
   assert.equal(r.record, "");
 };
@@ -1743,7 +1527,6 @@ test("a primary limit with no retry-after names its pool and the reset", () => {
   const r = runDispatch([limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 30}`, "X-Ratelimit-Resource": "core" }), ok(4244)]);
   stopped(r);
   assert.match(r.out, /::error title=GitHub rate limit::the core pool is exhausted .*before 2026-10-23T06:13:50Z/);
-  // The merge job reads this through dispatch-post-merge-runs's rate-limited output.
   assert.match(r.output, /^stop=the core pool until 2026-10-23T06:13:50Z$/m);
 });
 
@@ -1761,8 +1544,6 @@ test("a 429 is stopped like a 403", () => {
   stopped(r);
 });
 
-// Any 429 is a rate limit, and a limit no header times waits as
-// rate-guard.mjs classify decides: the minute for a secondary one, else the hour.
 const DISPATCH_URL = "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches";
 for (const [name, status, body] of [
   ["a bare 429 with no headers or message", 429, ""],
@@ -1831,8 +1612,6 @@ test("a refusal that is no rate limit, and a 5xx, are sent once", () => {
   }
 });
 
-// gh's errors for a request that never left (Go net/http wording, as gh
-// prints it): a DNS lookup, a refused connection, a failed TLS handshake.
 const unsent = [
   'Post "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches": dial tcp: lookup api.github.com on 127.0.0.53:53: no such host',
   'Post "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches": dial tcp 140.82.112.6:443: connect: connection refused',
@@ -1850,8 +1629,6 @@ test("a request that never left is sent again after a jittered wait inside its b
   assert.equal(runDispatch([unsent[2], ok(4247)]).posts, 2);
 });
 
-// Go's net/http error when the TLS handshake outlasts its timeout, before any
-// request byte is written, so a resend cannot start a second run.
 const handshakeTimeout = { stderr: `Post "${DISPATCH_URL}": net/http: TLS handshake timeout` };
 
 test("a TLS handshake timeout is sent again in both jobs", () => {
@@ -1865,8 +1642,6 @@ test("a TLS handshake timeout is sent again in both jobs", () => {
   }
 });
 
-// The resend never reaches past a rate limit: the attempt after the timeout
-// is answered with one, and nothing is sent after it.
 test("a rate limit after a TLS handshake timeout still stops red, with no further send", () => {
   for (const jobId of ["dispatch-full-run", "dispatch-post-merge-runs"]) {
     const r = runDispatch([handshakeTimeout, limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 30}`, "X-Ratelimit-Resource": "core" }), ok(1)], { jobId, event: "schedule" });
@@ -1878,7 +1653,6 @@ test("a rate limit after a TLS handshake timeout still stops red, with no furthe
   }
 });
 
-// dispatch-post-merge-runs's cover starts main's tip for any merge no run covers.
 test("the exhausted-retry warning names who starts the run next", () => {
   for (const jobId of ["dispatch-full-run", "dispatch-post-merge-runs"]) {
     const r = runDispatch([refused()], { jobId, event: "schedule" });
@@ -1886,8 +1660,6 @@ test("the exhausted-retry warning names who starts the run next", () => {
   }
 });
 
-// A reset or a timeout on an open connection may come after GitHub took the
-// request, so the run may exist: stop as on exhaustion.
 test("no response once the request may have been sent is not sent again", () => {
   for (const stderr of [
     'Post "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches": read tcp 10.1.0.4:51234->140.82.112.6:443: read: connection reset by peer',
@@ -1921,9 +1693,6 @@ test("a dispatch that failed skips the record", () => {
       record.startsWith(`        if: >-\n          (steps.dispatch.outputs.run-id != '') && steps.${scanId}.outputs.clean == 'true'\n`),
       id,
     );
-    // The credential scan just before it runs on the same condition and scans
-    // the file the record uploads; with no continue-on-error, a missing
-    // scanner fails the job as a failed upload of the record does.
     const scan = before.split("\n      - name: ").at(-1);
     assert.match(
       scan,
@@ -1966,14 +1735,6 @@ test("every credential scan has a timeout of at most 2 minutes, and the upload i
   assert.equal(scans, (merge.match(/- name: Scan the upload for credentials\n/g) ?? []).length, "every scan step is in a job above");
 });
 
-// Each job's "Check who started the run" step, run under bash from a directory
-// whose .base is this checkout, with the step's own env (its github context
-// filled from the run below) and an API that serves this run attempt's record,
-// or answers 404 when record is null. Expected values come from GitHub's
-// workflow run record: actor is who started the run and triggering_actor who
-// started this attempt, each with a permanent account id, while a login can be
-// released and registered by someone else. The listed human is
-// trusted-actors.json's entry 153232337.
 const OWNER = { id: 153232337, login: "kyle-sexton" };
 const BOT = { id: 41898282, login: "github-actions[bot]" };
 async function runWho(
@@ -2023,7 +1784,6 @@ async function runWho(
       GITHUB_RUN_ATTEMPT: attempt,
       GITHUB_EVENT_NAME: event,
       GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
-      // .base is a link here, a checkout in CI: keep the script's own path.
       NODE_OPTIONS: "--preserve-symlinks-main",
       ...extra,
     };
@@ -2076,14 +1836,11 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
     const malformed = await runWho(jobId, { actorId: "abc", rerunner: OWNER });
     assert.equal(malformed.proceed, "false");
     assert.deepEqual(malformed.reads, []);
-    // Number() reads this as the listed id; only the id's own shape refuses it.
     const padded = await runWho(jobId, { actorId: `0${OWNER.id}`, rerunner: OWNER });
     assert.equal(padded.proceed, "false");
     assert.deepEqual(padded.reads, []);
   });
 
-  // GitHub names as a scheduled run's actor whoever last changed the
-  // schedule, often a bot, and a re-run keeps the schedule event.
   test(`${jobId}: a scheduled run's first attempt proceeds without a read`, async () => {
     const { proceed, reads } = await runWho(jobId, { event: "schedule", attempt: "1", actor: BOT, record: null });
     assert.equal(proceed, "true");
@@ -2113,13 +1870,6 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
   });
 }
 
-// A job holding `id-token: write` (the token broker's proof) or a lanes App
-// token restores no Actions cache by a bare `restore-keys` prefix: any job in
-// the default branch's cache scope can write such an entry, and the pinned
-// restore extracts its archive with no entry filter, so a crafted entry could
-// replace a checked-out script before it runs (#9455). In pr-merge.yml no such
-// job restores a cache at all. Steps of a local composite action count as the
-// job's own.
 const root = new URL("../../../", import.meta.url);
 const workflowsDir = new URL(".github/workflows/", root);
 const stepsIn = (text) => text.split(/\n(?=\s*- (?:name|uses|id|if|run|env|with|shell|continue-on-error|timeout-minutes):)/).slice(1);
@@ -2127,9 +1877,6 @@ const restoresOf = (stepTexts, seen = new Set(), base = root) =>
   stepTexts.flatMap((s) => {
     const uses = /^\s*(?:- )?uses: *['"]?([^\s'"#]+)/m.exec(s)?.[1] ?? "";
     if (/^actions\/cache(?:\/restore)?@/.test(uses)) return [{ uses, prefix: /\n\s*restore-keys:/.test(s) }];
-    // setup-node restores a package cache unless told not to
-    // (package-manager-cache defaults to true); any setup action with a
-    // `cache:` input restores one.
     const setupNode = /^actions\/setup-node@/.test(uses) && !/\n\s*package-manager-cache: false\b/.test(s);
     if (setupNode || (/^actions\/setup-[a-z]+@/.test(uses) && /\n\s*cache: *\S/.test(s))) return [{ uses, prefix: false }];
     const local = /^\.\/(?:\.base\/)?(\.github\/actions\/[^@]+)$/.exec(uses)?.[1];
@@ -2138,14 +1885,12 @@ const restoresOf = (stepTexts, seen = new Set(), base = root) =>
     const action = ["action.yml", "action.yaml"].map((f) => new URL(`${local.replace(/\/$/, "")}/${f}`, base)).find((u) => existsSync(u));
     return action ? restoresOf(stepsIn(readFileSync(action, "utf8")), seen, base) : [];
   });
-// A grant of id-token: write, at any indentation and quoted or not, or write-all.
 const grantsIdToken = (text) =>
   /^[ \t]*id-token:[ \t]*['"]?write['"]?[ \t]*(?:#.*)?$/m.test(text) || /^[ \t]*permissions:[ \t]*['"]?write-all\b/m.test(text);
 function tokenJobRestores(text, base = root) {
   const at = text.search(/^jobs:[ \t]*$/m);
   const workflowGrant = grantsIdToken(text.slice(0, at));
   const body = text.slice(at).replace(/^jobs:.*\n/, "");
-  // Job ids sit at the first indentation under jobs:, whatever it is.
   const indent = /^([ \t]+)[A-Za-z0-9_-]+:/m.exec(body)?.[1] ?? "  ";
   return body
     .split(new RegExp(`\\n(?=${indent}[A-Za-z0-9_-]+:)`))
@@ -2164,11 +1909,8 @@ test("no job holding id-token or a lanes App token restores a cache by a bare pr
 
 test("no token-holding job in pr-merge.yml restores a cache", () => {
   assert.deepEqual(tokenJobRestores(merge), []);
-  // The check sees a restore a token-holding job adds, directly or through a
-  // local composite action, and ignores one in a job holding neither token.
   const withStep = (job, step) => merge.replace(new RegExp(`(\\n  ${job}:\\n[\\s\\S]*?\\n    steps:\\n)`), `$1${step}`);
   const exact = "      - name: Restore\n        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n        with:\n          key: k\n";
-  // No local action restores a cache today, so a fixture one stands in.
   const fixture = tempDir("pr-merge-composite-");
   mkdirSync(join(fixture, ".github/actions/restoring"), { recursive: true });
   writeFileSync(join(fixture, ".github/actions/restoring/action.yml"), `runs:\n  using: composite\n  steps:\n${exact.replace(/^ {6}/gm, "    ").replace("key: k\n", "key: k\n        restore-keys: k-\n")}`);
@@ -2187,23 +1929,16 @@ test("no token-holding job in pr-merge.yml restores a cache", () => {
 
 test("a token grant is found at any indentation", () => {
   const restore = (pad) => `${pad}- name: Restore\n${pad}  uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n${pad}  with:\n${pad}    key: k\n${pad}    restore-keys: k-\n`;
-  // Jobs at four spaces, their permissions at eight and ten.
   const wide = `on: push\njobs:\n    holder:\n        permissions:\n          id-token: write\n        steps:\n${restore("          ")}    other:\n        permissions:\n          contents: read\n        steps:\n${restore("          ")}`;
   assert.deepEqual(tokenJobRestores(wide).map((r) => [r.job, r.prefix]), [["holder", true]]);
-  // Jobs at two spaces, the grant at eight, quoted.
   const deep = `on: push\njobs:\n  holder:\n    permissions:\n        id-token: 'write'\n    steps:\n${restore("      ")}`;
   assert.deepEqual(tokenJobRestores(deep).map((r) => r.job), ["holder"]);
-  // A workflow-level grant, and write-all, cover every job.
   for (const grant of ["permissions:\n    id-token: write\n", "permissions: write-all\n"]) {
     const top = `on: push\n${grant}jobs:\n  plain:\n    steps:\n${restore("      ")}`;
     assert.deepEqual(tokenJobRestores(top).map((r) => r.job), ["plain"], grant);
   }
 });
 
-// The arm step's skip records (enable-auto-merge.mjs SKIPPABLE) cross runs
-// only as the artifact of a scheduled or hand-started run of main's
-// pr-merge.yml, read through rotation.mjs newestTrustedRun and onMain, never
-// actions/cache, which any job in main's cache scope can write.
 test("enable-auto-merge reads the skip records only from a trusted run and uploads them under their own name, always", () => {
   const arm = job("enable-auto-merge");
   const step = (name) => new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: |\\n*$)`).exec(arm)?.[1];
@@ -2218,41 +1953,28 @@ test("enable-auto-merge reads the skip records only from a trusted run and uploa
   assert.match(script, /export const ANSWERS_ARTIFACT = "pr-merge-verify-answers";/);
   const armStep = step("Arm and disarm auto-merge");
   assert.match(armStep, /\n {10}EAM_SKIP_IN: \$\{\{ runner\.temp \}\}\/eam-skip-in\.json\n {10}EAM_SKIP_OUT: \$\{\{ runner\.temp \}\}\/verify-answers\/eam-skip\.json\n/);
-  // The verifier-answers cache is gone: nothing hands the reader its files.
   assert.doesNotMatch(merge, /VERIFY_ANSWERS|VERIFY_CACHE|verify-cache|verify-answers\.json/);
   const upload = step("Upload the skip records for the next run");
   assert.ok(upload, "a skip records upload");
-  // A PR-scoped dispatch (inputs.pr) uploads none of a sweep's carried files.
   const predicate = "always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.pr";
   assert.ok(upload.startsWith(`        if: >-\n          (${predicate}) && steps.scan-upload.outputs.clean == 'true'\n`), upload);
-  // The credential scan just before it runs on the same condition over the
-  // same file.
   const scan = arm.split("\n      - name: Upload the skip records for the next run\n")[0].split("\n      - name: ").at(-1);
   assert.ok(scan.startsWith(`Scan the upload for credentials\n        id: scan-upload\n        if: >-\n          ${predicate}\n`), scan);
   assert.match(scan, new RegExp(`\\n {8}uses: ${CI_SCAN}\\n {8}with:\\n {10}gate-path: \\.base/lib/publish-gate\\.mjs\\n`), scan);
   for (const block of [scan, upload]) assert.ok(block.includes("\n        continue-on-error: true\n"), block);
   assert.ok(scan.includes("\n          path: ${{ runner.temp }}/verify-answers/eam-skip.json\n"), scan);
   assert.match(upload, /\n {8}uses: actions\/upload-artifact@v7\b/);
-  // Bounded, so the job's timeout stays above the sum of its steps'.
   assert.match(upload, /\n {8}timeout-minutes: [0-9]+\n/);
   assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \$\{\{ runner\.temp \}\}\/verify-answers\/eam-skip\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf(KEEP_STEP) < names.indexOf("Read the skip records the last run kept"));
   assert.ok(names.indexOf("Read the skip records the last run kept") < names.indexOf("Arm and disarm auto-merge"));
   assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Upload the skip records for the next run"));
-  // Its own name in the workflow, never downloaded by name, never cached.
   assert.equal([...merge.matchAll(/\n {10}name: pr-merge-verify-answers\n/g)].length, 1);
   assert.doesNotMatch(merge, /uses: actions\/cache[^\n]*\n(?:[^\n]*\n){0,6}[^\n]*verify-answers/);
   assert.doesNotMatch(merge, /uses: actions\/download-artifact[^\n]*\n(?:[^\n]*\n){0,3}[^\n]*verify-answers/);
 });
 
-// merge.full-run-cap-bypass (owner standing direction, relayed 2026-10-29:
-// runner minutes on this repository are not a cost, and the cap now limits
-// lane throughput). Inside the cap, dispatch-post-merge-runs starts one run of
-// main's tip when the post-merge report lists an unverified lane merge with no
-// dispatch under way and no listed run created at or after the merge on a
-// commit that contains it. The checkout is a real history: BEFORE, then the
-// merge MERGED, then TIP; LATER is a commit the checkout lacks.
 const LATER = "f".repeat(40);
 function runBypass({ merges, runs, bypass = true, mergedAt = "2026-10-29T01:00:00Z" }) {
   const dir = tempDir("pr-merge-bypass-");
@@ -2291,7 +2013,6 @@ function runBypass({ merges, runs, bypass = true, mergedAt = "2026-10-29T01:00:0
   rmSync(dir, { recursive: true, force: true });
   return { status: result.status, out: result.stdout + result.stderr, bypass: /^bypass=true$/m.test(output) };
 }
-// The run that started the window: before the merge, at the commit before it.
 const STARTED = { at: "BEFORE", created: "2026-10-29T00:50:00Z" };
 
 test("inside the cap, an unverified lane merge no started run covers starts one run", () => {
@@ -2309,15 +2030,10 @@ test("a run created after the merge on a commit that contains it covers the batc
   }
 });
 
-// A scheduled or hand-started run caps the window but verifies no lane merge
-// (the post-merge check credits only a lane dispatch), so the bypass still
-// starts one.
 test("a run that is not a lane dispatch, at the tip after the merge, covers no lane merge", () => {
   const r = runBypass({ merges: [{}], runs: [{ at: "TIP", created: "2026-10-29T01:05:00Z", lane: false }, STARTED] });
   assert.equal(r.status, 0, r.out);
   assert.equal(r.bypass, true);
-  // With no lane dispatch listed, nothing bounds the listing, and the merge
-  // is skipped as under an empty one.
   assert.equal(runBypass({ merges: [{}], runs: [{ at: "BEFORE", created: "2026-10-29T00:40:00Z", lane: false }] }).bypass, false);
 });
 
@@ -2327,7 +2043,6 @@ test("a run after the merge on a commit without it, or one before the merge at t
 });
 
 test("the second tick in the window finds the run the first tick started and starts none", () => {
-  // The first tick's dispatch, at main's tip, is in the next listing.
   const r = runBypass({ merges: [{}], runs: [{ at: "TIP", created: "2026-10-29T01:11:30Z" }, STARTED] });
   assert.equal(r.bypass, false, r.out);
 });
@@ -2360,9 +2075,6 @@ test("the bypass step runs only inside the cap after a check that judged, and th
   assert.doesNotMatch(job("dispatch-full-run"), /steps\.bypass/);
 });
 
-// Every enable-auto-merge step that counts its GitHub calls (API_BUDGET_TOKEN)
-// names itself (API_BUDGET_SCRIPT, rate-guard.mjs scriptCalls), each a name of
-// its own, so the job-end api-calls total splits by step.
 test("enable-auto-merge: every step that counts its calls names itself once", () => {
   const steps = job("enable-auto-merge").split(/\n {6}- name: /).filter((step) => /^ {10}API_BUDGET_TOKEN: /m.test(step));
   const names = steps.map((step) => /^ {10}API_BUDGET_SCRIPT: ([a-z][a-z0-9-]{0,39})$/m.exec(step)?.[1]);
@@ -2371,8 +2083,6 @@ test("enable-auto-merge: every step that counts its calls names itself once", ()
   assert.equal(new Set(names).size, names.length);
 });
 
-// refire-refused.mjs reads merge.refire-skip-branches from resolve-config's
-// output; with any other path it reads nothing and stops the step.
 test("the re-fire step reads the skip list from the file the merge job's config step writes", () => {
   const merge = job("merge");
   const config = /- name: Resolve the config\n {8}id: config\n[\s\S]*?\n {10}output-path: (.*)\n/.exec(merge)?.[1];
@@ -2381,9 +2091,6 @@ test("the re-fire step reads the skip list from the file the merge job's config 
   assert.match(refire, /\n {10}RESOLVED_CONFIG_PATH: \$\{\{ runner\.temp \}\}\/resolved-config\.json\n/);
 });
 
-// The fresh check's exit 75 is a server error hold when the job's cause file
-// says so (a 5xx whose only signal was Retry-After); with no cause it reads
-// as a rate limit, as above.
 test("a PR-scoped run's outcome names a fresh check stopped on a server error hold", () => {
   const dir = tempDir("pr-merge-wake-held-");
   try {

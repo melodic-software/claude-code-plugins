@@ -154,8 +154,6 @@ test("a new commit with a malformed SHA counts as unverified without echoing it"
   assert.match(github.writes.at(-1).body.body, /- `<invalid-sha>`/);
 });
 
-// A PR with more commits than the API lists: pull.commits above what the
-// commit list returned (it lists at most 250).
 function overCap(api) {
   api.pull.commits = 300;
   return api;
@@ -464,9 +462,6 @@ test("pr-run-activity-write.yml: no job runs claude-code-action or run-claude-cl
   assert.deepEqual([...workflowJobs("pr-run-activity-write.yml")].filter(([, job]) => job.model).map(([name]) => name), []);
 });
 
-// claude-code-action passes the job's GITHUB_TOKEN to the model, and a
-// run-claude-cli job's other steps hold it, so a job that runs either holds
-// contents and pull-requests read and no issues permission.
 for (const file of ["pr-run-activity-read.yml"]) {
   test(`${file}: no model job holds issues or a contents or pull-requests write`, () => {
     const jobs = [...workflowJobs(file)];
@@ -493,8 +488,6 @@ for (const file of ["pr-run-activity-write.yml", "pr-run-activity-read.yml"]) {
   });
 }
 
-// A called job holds no more than its caller grants, and a caller that grants
-// less fails the whole workflow at load, so every caller grants issues: write.
 test("every job calling a runner that runs this check grants issues: write", () => {
   const runners = new Set(["pr-run-activity-write.yml", "pr-run-activity-read.yml"]);
   const callers = [];

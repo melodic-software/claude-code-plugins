@@ -1,49 +1,4 @@
 #!/usr/bin/env node
-// The publish part of collect, decide, publish and read: once an hour,
-// work-unblock.yml's publish-lane-level job decides the issue lane's next
-// level L (lane-level.mjs decide) and publishes it as `<level>@<valid-until>`
-// in the one repository variable limits.lane-level.variable names, which
-// lane-level-value.mjs reads for pick-slot and label-unblocked.
-//
-//   collect   the label-unblocked job's lanes App readings
-//             (lane-level-readings.mjs), handed over as LANE_READINGS
-//   previous  the decision state ({ level, streak, holdUntil }) the newest
-//             scheduled run of main's work-unblock.yml kept as the
-//             lane-level-state artifact; with none, the published level; with
-//             neither, the default. Only that job's own steps upload it, and it
-//             never goes through actions/cache, which any job in main's cache
-//             scope can write.
-//   demand    work-resolve-issue runs in progress, one listing: those past the
-//             applied level wait for a slot
-//   publish   a strategy picked from the config: shadow (limits.lane-level.
-//             shadow, the default) logs what it would publish and writes
-//             nothing; live writes the variable through levelVariableWriter;
-//             live with no lane token writes nothing and says so.
-//
-// The lane token's Variables write covers every repository variable, the
-// lanes kill switches among them, so every write goes through
-// levelVariableWriter, which refuses any other name before a request.
-//
-// The guard covers this code only. snapshot and check read every repository
-// variable with the lane token before and after the publish and fail the job
-// on any change but the level variable (owner decisions Q113 (a) and Q115 (a)),
-// which checks what the token did rather than what the code says it does.
-//
-// CLI:
-//   mode       writes `shadow=true|false` to GITHUB_OUTPUT, so the job mints a
-//              lane token only to write
-//   run        decides, writes STATE_OUT, publishes, and ends green on any
-//              failure with a notice: a missed hour holds the last value until
-//              it expires, and an expired one reads as the default
-//   snapshot   lists every repository variable into VARIABLES_STATE; exits 1
-//              when the listing is incomplete, so the publish step is skipped
-//   check      lists again and exits 1 on any change but the level variable,
-//              or when either listing is missing or incomplete
-//
-// Environment: RESOLVED_CONFIG, LANE_READINGS, LANE_VARS (toJSON(vars)),
-// ACTIONS_TOKEN (the job token, actions: read), GH_TOKEN (the lane token, live
-// only), STATE_OUT, VARIABLES_STATE, GITHUB_REPOSITORY, GITHUB_RUN_ID,
-// RUNNER_TEMP, GITHUB_API_URL, GITHUB_OUTPUT.
 import { createHash } from "node:crypto";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -64,8 +19,6 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const notice = (text) => console.log(`::notice title=lane-level::${text}`);
 const reason = (error, max = 200) => String(error?.message ?? error).slice(0, max);
 
-// Guards the lane token's Variables write: the level variable, a well-formed
-// value, and nothing else. A refused name or value makes no request.
 export function levelVariableWriter({ github, repo, name }) {
   if (!LEVEL_VARIABLE.test(name ?? "") || !REPO.test(repo ?? "")) {
     throw new Error(`refusing to write variable ${JSON.stringify(name)}: only a *_LANE_LEVEL variable of this repository is the lane level`);
@@ -203,20 +156,14 @@ export async function run({ env = process.env, now = Date.now(), actions, github
   return decision;
 }
 
-// GET /repos/{repo}/actions/variables answers at most 30 a page, and 10 when
-// per_page is not sent.
+// List repository variables: per_page max 30, default 10: https://docs.github.com/en/rest/actions/variables#list-repository-variables
 const VARIABLES_PER_PAGE = 30;
 const digest = (value) => createHash("sha256").update(String(value ?? "")).digest("hex");
 const shownName = (name) => String(name).replace(/[^A-Za-z0-9_]/g, "?");
-// The failure annotations maintenance-monitor-signals keys signal 14 on.
 export const VARIABLES_CHANGED = "lane-variables-changed:";
 export const VARIABLES_UNREAD = "lane-variables-unread:";
 const failure = (text) => console.log(`::error title=lane-variables::${text}`);
 
-// Every repository variable as { name: { value: sha256, updated_at } }: the
-// state file and the logs never hold a value, as this repository is public.
-// Pages until the first page's total_count is reached, and throws on anything
-// short of a whole, consistent listing.
 export async function listVariables({ github, repo }) {
   const variables = new Map();
   let total;
@@ -243,9 +190,6 @@ export async function listVariables({ github, repo }) {
   return Object.fromEntries(variables);
 }
 
-// Each change between two listings but a create or change of `allowed`, as
-// { kind, name }. The publisher only PATCHes or POSTs the level variable, so
-// its removal is never the publisher's.
 export function variableChanges(before, after, allowed) {
   const changes = [];
   for (const name of new Set([...Object.keys(before), ...Object.keys(after)])) {
@@ -316,8 +260,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       notice(`no level was decided: ${reason(error, 300)}`);
     }
   } else if (command === "snapshot" || command === "check") {
-    // These two end red, unlike run: a change the token made outside the level
-    // variable, or a check that could not read, must reach a person.
     process.exitCode = (await (command === "snapshot" ? snapshot() : check())) ? 0 : 1;
   } else {
     console.error("usage: publish-lane-level.mjs mode|run|snapshot|check");

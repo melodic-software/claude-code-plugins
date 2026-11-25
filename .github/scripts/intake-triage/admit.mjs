@@ -1,143 +1,3 @@
-// admit.mjs: after apply-verdict set `status: ready`, adds `agent-ready` as
-// the lanes App when the issue meets #9212's admission criteria (owner
-// decision Q51), and the issue lane's caps have room. No model. The rules come
-// from the default branch's .github/actions/resolve-config/admission-rules.json.
-//
-// Criteria 1, 5 and 6 (exact intent, no very-high security risk, no charge)
-// are already in `status: ready`: apply-verdict withholds it on any flag, this
-// verdict's or an earlier one's (triage flags security only for a very-high
-// risk), or a hold label other than one this run's triage applied on a
-// flagless verdict, which it refuses, and the
-// cost rule adds needs-human; criterion 6 is checked here too, on the charge
-// words (chargePattern) in what the issue will do
-// (workCharges), and on an edit that moved one into code (revisionWraps),
-// whatever the verdict flagged.
-// Criterion 4 (no protected path named) is not read here: a run whose change
-// needs a path the issue lane cannot push stops with patch-protected-path,
-// which stop-routes.json routes to `host-run`. This checks the rest:
-//
-// - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
-//   parent issue a listed human filed that awaits no decision; a type in
-//   `types-parent-if-present` needs that parent only when it has one (Q83).
-//   A parent awaits a decision while it carries needs-human (unless it
-//   carries a `parent-container-labels` label: a spec container, which
-//   decompose marks human-gated by design), or needs-owner-decision with a decision open
-//   (parentDecisionOpen): the lanes App may not lift that label (a person
-//   set it, or its verdict holds for a flag other than intent), or the
-//   parent's newest refinement asks questions no later `**Decision
-//   recorded.**` answers;
-// - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
-//   `uncertainty`, and the issue is not untrusted-provenance work
-//   (UNTRUSTED_LABELS); no other work class gates admission (owner Q85, #9668);
-// - 7: a `task-list` line outside a code fence, the criteria the lane
-//   checks, in text pr-verify will read (resolve-pr.mjs linkedIssues): the
-//   body or a comment written,
-//   and last edited if ever, by a listed human; on an issue whose body a
-//   listed human wrote, refine.mjs's newest refinement comment while unedited
-//   (refinementSpec); the body of a sub-issue a size split filed, under
-//   the split-child trust rule (splitChildBody); on a trusted drift
-//   issue (driftIssue), the fixed trustedDriftSpec for its kind in place of
-//   its body; and
-//   on an own-agent filing, its body while no account but the identity that
-//   wrote it has edited it (ownAgentText). Nothing else the lanes App wrote
-//   counts, no comment by anyone but a listed human counts on an own-agent
-//   filing, and an issue with more comments than the
-//   100 pr-verify reads is refused, since pr-verify stops on it. On a triage
-//   verdict, when the criteria are all that is missing and intake's
-//   refinement of the body is due (refineDue), the issue waits at
-//   `status: ready` for it instead of being refused;
-// - attended (owner decision 2026-10-28): no manual external step. The
-//   counted refinement's External state line (externalState) reading
-//   `manual (...)` refuses, parks at status: confirmed and adds `attended`,
-//   until a listed human removes `attended` after that refinement; a newest
-//   `attended` removal by anyone else, the lanes App included, refuses as the
-//   label does (attendedHold). `iac (<repo>)` and `none` refuse nothing;
-// - 8: no `refuse-labels` label, every blocker a merged pull request in this
-//   repository or an issue closed, for any reason, by a listed human or (in
-//   this repository only) a merge or commit, read there when it is another
-//   repository's, and no open pull request in this repository is for
-//   the issue: one GitHub says closes it, or whose body has the issue lane's
-//   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
-// - 9: the author is a listed human, the lanes App on a trusted size-split
-//   sub-issue (splitChildBody), github-actions[bot] on a trusted drift
-//   issue (driftIssueId; owner decision on #14215), or an own-agent identity
-//   (the rules' `own-agents.identities`, by default the lanes App alone;
-//   never github-actions[bot], whose filings can quote outside text). An
-//   own-agent filing is admitted only with its body unedited by anyone else,
-//   exactly one `source: <producer>` label, and Size small or medium: a
-//   missing label, another editor, Size large or a patch over the scan cap
-//   holds it for a listed human, with no automatic split, and it waits while
-//   `own-agents.source-cap` or more older open issues carry its label, in any
-//   status (ADR 0111,
-//   https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md,
-//   which supersedes the owner decision on #10735 for such filings). Any
-//   other issue the App filed holds for a listed human to file as their
-//   own, and any other bot's for security;
-// - no body line opens with `Hold:` (BODY_HOLD), a person's hold;
-// - a `recurring` item's body has a `<!-- recurring-schedule id=<id> -->`
-//   line naming a row of the default branch's .github/recurring-schedule.json,
-//   and that row does not set requires_operator_confirmation
-//   (operatorConfirmation);
-// - the body was not edited after the lane comment the verdict came from;
-// - on the work-unblock sweep, which passes no verdict comment, a deferred
-//   issue carries neither do-not-merge nor needs-human, and neither gained
-//   `area: security` nor had its body edited since its newest
-//   admission-deferred add (deferralLapsed);
-// - lane-runnable done-when: no task-list item asks for what an unattended
-//   lane run cannot do (unrunnableCriteria below): a run on a named host or
-//   OS, a model eval run (trigger probes and before-and-after eval numbers
-//   included; one that names a billing account is a paid eval), a live
-//   Claude Code CLI run, a run repeated N times, a
-//   measurement over time, a comment on the issue instead of a file change,
-//   a page on a host outside resolve-issue's web-access domains, or a row of
-//   .github/actions/resolve-config/unrunnable-rules.json. It parks at
-//   status: confirmed, never with a person but for a paid eval: when some
-//   items are left for the lane and the issue lacks `host-run`, the refusal
-//   recommends splitting those items off, which refine.mjs records; when no
-//   item is left for the lane and nothing else refuses, waits or holds, it
-//   adds `host-run`, the host queue's label;
-// - not already done: no pull request merged in this repository names the
-//   issue on a `Refs:` line (refsNames) after its newest decision or
-//   refinement comment, or since it opened when it has neither
-//   (mergedRefsAfter). Such a pull request may have finished the work, so the
-//   refusal parks it at `status: confirmed` for an agent's done-check: close
-//   it, or post a `**Decision recorded.**` comment saying what is left, which
-//   moves the cutoff past that pull request. One GraphQL call reads every
-//   issue of an admission pass (mergedRefsPulls); a read that fails admits as
-//   though none merged, so a missed check costs one lane run, never a stall;
-// - 10: check-wip-cap's status: over the queued cap, with a queued count it
-//   could not read (fail-open), or with the lane paused over the WIP or held
-//   cap (from wip.pause-from), the issue gets
-//   `admission-deferred`, which work-unblock's hourly sweep admits once there
-//   is room. With room, an issue still waits behind an older open issue
-//   deferred for room alone (deferredAhead), so admission takes the oldest
-//   first (owner Q95); one deferred for an open pull request or a hold is not ahead.
-//   Runs for other issues read the same room in parallel, so a capped issue
-//   first claims its place with deferred and takes `agent-ready`
-//   only while fewer than the room entered admission ahead of it
-//   (admissionsSince); otherwise, or when that read fails, it stays deferred.
-//
-// A refusal a person must settle swaps `status: ready` for
-// `needs-owner-decision`; a blocker, an open pull request or an open
-// sub-issue (a size split's, owner Q93) keeps `status: ready`. Either way one App comment carrying ADMIT_MARKER says why;
-// a hold's also names its owner reason, security, cost or intent, as the
-// stop-reason marker and line (heldRefusalText).
-// An open pull request also adds `admission-deferred`: work-unblock's sweep
-// skips the issue while such a pull request is open and admits it once none
-// is. An issue that waits only on a blocker loses `admission-deferred`, and
-// work-unblock admits it when its blocker closes. A refused issue loses it
-// too. The sweep runs these rules itself only on an issue a listed human
-// marked (added admission-deferred to an issue with `status: ready`). An
-// issue whose trusted Work status is agent-ready is left alone, and so is one
-// whose legacy agent-ready label was removed until the lanes App or a listed
-// human adds `status: ready` after the newest removal. Issue text can only
-// refuse: it never satisfies a criterion the fields, labels or API decide.
-//
-// Each status named here is the issue's Work status field: admission reads
-// the label names as the field decides them (read-status.mjs) and writes only
-// the field, whose agent-ready write starts the lane run; `attended` and
-// `host-run` are the only labels it adds. The claim is a fresh change of the
-// field to deferred.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -159,84 +19,46 @@ import { appRefinement, bodyVersion, countedRefinement, driftIssue, driftShape, 
 export { actionsBotOnly, baseAdmissionRules, bodyVersion, countedRefinement, DRIFT_TITLE, driftIssue, driftLead, driftSpecText, EVAL_RUN, here, humanActor, issueUnrunnableRules, LANES_APP_IDENTITY, loadRules, names, OWN_AGENT_DEFAULTS, ownAgentText, ownedLines, PAID_EVAL, parentOf, personChecks, RECURRING, refinementSpec, repoOf, SPEC_COMMENTS, specOf, taskItems, taskLinesOf, trustedDriftSpec, trustedSpecTexts, trustedTaskLines, unrunnableCriteria, unrunnableRulesOf, vendoredDriftLead, vendoredDriftSpecText, vendoredRows, withoutItems } from "./issue-spec.mjs";
 export { ACTIONS_BOT_ID, ADMIT_MARKER, AGENT_READY, ATTENDED, HOST_RUN, NEEDS_DECISION, READY, REFINE_MARKER, refusalText };
 
-// The lane name intake's stop-reason markers carry (../lib/stop-reason.mjs).
 export const INTAKE_LANE = "intake-triage";
-// The owner reasons a hold may name, strongest first: a hold with several
-// names the first that applies, so it never reads below security (owner Q4).
 export const HOLD_ORDER = Object.freeze(["security", "cost", "intent", "design"]);
 if (HOLD_ORDER.toSorted().join() !== PERSON_REASONS.toSorted().join()) {
   throw new Error("HOLD_ORDER must order exactly the stop-reason person reasons");
 }
-// The strongest of `codes` (a Set) by HOLD_ORDER, or null for none.
 export const strongestReason = (codes) => HOLD_ORDER.find((code) => codes.has(code)) ?? null;
-// The admission comment's text for a refusal that holds for a person: the
-// refusal, then the visible reason line and the stop-reason marker, after it
-// so every reader of the refusal's opening line reads it unchanged.
 export function heldRefusalText(reasons, code) {
   const [marker, line] = personReasonLines(INTAKE_LANE, code);
   return `${refusalText(reasons)}\n\n${line}\n${marker}`;
 }
 
 export const DEFERRED = "admission-deferred";
-// The last line of each refinement refine.mjs renders: `questions` closes one
-// that is not exact, `retriage` and `confirm` an exact one.
 export const REFINE_FOOTERS = {
   questions: "<sub>Automated refinement by the lanes App. Answer with a comment whose first line is `**Decision recorded.**`.</sub>",
   retriage: "<sub>Automated refinement by the lanes App. Intake triages the issue again with it.</sub>",
   confirm:
     "<sub>Automated refinement by the lanes App. Admission counts only criteria a listed human wrote: to confirm these, post them as your own comment whose first line is `**Decision recorded.**`, which sends the issue back through intake.</sub>",
 };
-// Opens the lanes App's comment saying why apply-verdict's verdict holds the
-// issue.
 export const VERDICT_MARKER = "<!-- intake-triage verdict -->";
 export const VERDICT_CLEAR = "The latest triage verdict holds nothing: ";
 export const CLEAR_READY = "the issue is at `";
 export const CLEAR_ADMITTED = "admission moved the issue to `";
 const JUDGED = /^<!-- intake-triage judged title_sha256:([0-9a-f]{64}) body_sha256:([0-9a-f]{64}) -->$/;
 export const judgedLine = ({ title, body }) => `<!-- intake-triage judged title_sha256:${contentHash(title)} body_sha256:${contentHash(body)} -->`;
-// The flags a triage verdict may list that name an owner reason; the
-// untrusted entry (apply-verdict.mjs UNTRUSTED_FLAG) is read apart from them.
 export const VERDICT_FLAGS = new Set(["intent", "security", "cost"]);
-// Marks a flag carried over from an earlier verdict.
 export const EARLIER = "(an earlier verdict)";
-// The reason a hold stays when no App verdict comment says whether an earlier
-// verdict flagged; the comment carries it, so a later run reads it the same.
 export const UNRECORDED = "no lanes App verdict comment shows whether an earlier verdict was flagged";
-// The wait reason a Size Large issue gets until refine.mjs splits it into
-// sub-issues (owner Q93).
 export const SIZE_SPLIT_PENDING = "Size large: the split into sub-issues at intake is pending (owner Q93)";
-// The same wait for an issue at any Size whose run's patch was over the scan
-// job's cap (patchCapStopped): the cap is a fact about the patch, not a size
-// guess, so re-triage's Size, or a listed human's, does not decide it.
 export const PATCH_SPLIT_PENDING = "its last run's patch was over the scan job's size cap (scan-refused-patch): the split into sub-issues at intake is pending (owner Q93)";
-// The refusal of that stop on a trusted size-split sub-issue, which never
-// splits again. It parks at status: confirmed and, as the only refusal, adds
-// host-run.
 export const PATCH_SPLIT_CHILD = "its last run's patch was over the scan job's size cap (scan-refused-patch), and a size-split sub-issue never splits again (owner Q93), so a builder session takes it";
-// The same refusal on a trusted drift issue (driftIssueId), which is never
-// split.
 export const PATCH_DRIFT = "its last run's patch was over the scan job's size cap (scan-refused-patch), and a trusted upstream-drift issue is never split, so a builder session takes it";
-// Every wait reason refine.mjs splits on.
 export const SPLIT_PENDING = new Set([SIZE_SPLIT_PENDING, PATCH_SPLIT_PENDING]);
-// The refusal a Size Large issue gets once it has sub-issues and every one is
-// closed but the issue is still open: label-unblocked's closeSplitParent
-// closes a split parent whose sub-issues are done, so one it left open has
-// work no sub-issue covers, or a sub-issue whose close does not count.
 export const SIZE_SPLIT_DONE =
   "Size large: every sub-issue is closed, but it is still open, so an item no sub-issue covers or a sub-issue's close keeps it from closing as a finished split (owner Q93)";
-// The wait reason for each open sub-issue (decide).
 export const subIssueWait = (number) => `sub-issue #${number} is open`;
 export const CONFIRMED = "status: confirmed";
-// Opens the refinement line that records the work's external state
-// (refine.mjs externalLine).
 export const EXTERNAL_STATE = "External state: ";
 const PERSON_LABELS = new Set(["needs-owner-decision", "do-not-merge"]);
-// The provenance label that holds an issue for a person (owner Q85, #9668);
-// any of UNTRUSTED_LABELS on an issue holds it the same way.
 export const UNTRUSTED = UNTRUSTED_LABEL;
 const PARENT_HOLDS = new Set(["needs-human"]);
-// A body line opening with `Hold:`, as the merge gate reads one in a pull
-// request body a person wrote (pr-merge/merge-holds.mjs BODY_HOLD).
 export const BODY_HOLD = /^[^\S\r\n]*hold:/im;
 
 export const OWN_AGENT_SIZES = Object.freeze(["small", "medium"]);
@@ -255,8 +77,6 @@ export function ownAgentIds(rules, appId) {
 
 export const sourceLabels = (labels) => names(labels).filter((name) => /^source:/i.test(String(name ?? "")));
 
-// The recurring schedule as parsed, or null when it cannot be read or parsed.
-// By default it is the one beside this script, the default branch's checkout.
 export function readSchedule(path = fileURLToPath(new URL("../../recurring-schedule.json", import.meta.url))) {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
@@ -267,10 +87,6 @@ export function readSchedule(path = fileURLToPath(new URL("../../recurring-sched
 
 const scheduleIds = (body) => [...String(body ?? "").matchAll(SCHEDULE_MARKER)].map((match) => match[1]);
 
-// Why a `recurring` item needs a person, or null: its schedule row (the one
-// its body's marker names) sets requires_operator_confirmation, which
-// autonomous lanes must skip, or the schedule was not read, or no marker
-// names a row (a pre-marker item may be a confirming row's). Pure.
 export function operatorConfirmation({ schedule, labels, body }) {
   if (!labels.includes(RECURRING)) {
     return null;
@@ -287,21 +103,8 @@ export function operatorConfirmation({ schedule, labels, body }) {
   return row ? `its recurring schedule row ${row.id} needs an operator's confirmation (requires_operator_confirmation)` : null;
 }
 
-// The issues and pull requests GitHub lists as blocking the issue at `base`
-// (`/repos/<owner>/<repo>/issues/<n>`). Admission, work-unblock, the issue
-// lane's gate and the queued count all read blockers here, and judge them
-// with blockerDone or stillBlocking.
 export const blockersOf = (github, base) => paginate(github, `${base}/dependencies/blocked_by`);
 
-// An issue's open sub-issues: an umbrella's work is its sub-issues' (owner
-// Q93), so the issue lane waits while one is open. `issue` is a REST issue
-// read (one issue or a listing), whose `sub_issues_summary { total, completed }`
-// (https://docs.github.com/en/rest/issues/issues#get-an-issue) costs no call;
-// only an issue with `total > completed` lists its sub-issues
-// (https://docs.github.com/en/rest/issues/sub-issues#list-sub-issues), since
-// the docs do not say whether `completed` counts a close as not planned. A
-// read with no usable summary lists them too, so a missing field never lets
-// an umbrella run.
 export async function openSubIssues(github, base, issue) {
   const { total, completed } = issue?.sub_issues_summary ?? {};
   const none = Number.isSafeInteger(total) && Number.isSafeInteger(completed) && total <= completed;
@@ -312,22 +115,12 @@ const sameRepository = (nameWithOwner, repository) => String(nameWithOwner ?? ""
 
 const BLOCKER_NUMBER = /^[1-9][0-9]{0,9}$/;
 
-// The one definition of a blocker that no longer blocks: a pull request
-// merged in this repository, or an issue closed, for any reason, with a
-// trusted close (`trusted(blocker)`, sync). Anyone may close their own issue,
-// so the close must be a listed human's or, in this repository only, a merge
-// or commit; another repository's merge carries no trust check.
 export const blockerDone = (blocker, repository, trusted) =>
   blocker?.state === "closed" &&
   (blocker.pull_request
     ? here(blocker.repository_url, repository) && Boolean(blocker.pull_request.merged_at)
     : BLOCKER_NUMBER.test(String(blocker.number)) && Boolean(trusted(blocker)));
 
-// Those of `blockers` that still block by blockerDone. `isTrusted(number)`
-// (async) reads a close in this repository, `elsewhere(blocker)` (async, by
-// default false) one in another repository (trustedElsewhere); they are asked
-// only when every blocker is otherwise done, so a blocker that still blocks by
-// its state costs no read.
 export async function stillBlocking(blockers, repository, isTrusted, elsewhere = async () => false) {
   const pending = blockers.filter((blocker) => !blockerDone(blocker, repository, () => true));
   if (pending.length > 0) {
@@ -345,11 +138,6 @@ export async function stillBlocking(blockers, repository, isTrusted, elsewhere =
   return untrusted;
 }
 
-// Whether `body` has a `Refs:` line naming issue `number`: trimmed, the line
-// is `Refs: #<number>` (report-outcome.mjs's form), or a list of this
-// repository's issues holding it (`Refs: #<a>, #<number>`), with at most a
-// parenthesized note after. Any other text on the line, a passing mention or
-// another repository's issue, is not one. Pure.
 export function refsNames(body, number) {
   if (!Number.isSafeInteger(number) || number < 1) {
     return false;
@@ -360,9 +148,6 @@ export function refsNames(body, number) {
     .some((text) => line.test(text.trim()));
 }
 
-// The open pull requests in `repository` for issue `number`: those `closing`
-// (closedByPullRequestsReferences nodes) lists in this repository, and those
-// the timeline says reference it whose body names it by refsNames.
 export function openPullsNaming(timeline, repository, number, closing = []) {
   const linked = timeline
     .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
@@ -372,12 +157,6 @@ export function openPullsNaming(timeline, repository, number, closing = []) {
   return [...new Set([...closes, ...linked])];
 }
 
-// The pull requests that may already have done issue `node`'s work: merged
-// in `repository`, naming it by refsNames, after the newest of its decision
-// comments (a listed human's `**Decision recorded.**`, select-trusted-text's
-// isDecisionComment) and the lanes App's (`appId`) refinement comments
-// (REFINE_MARKER), or after it was opened when it has none. `node` is the
-// issue as DONE_QUERY reads it. Numbers, ascending. Pure.
 export function mergedRefsAfter(node, number, repository, humans, appId) {
   const at = (text) => {
     const time = Date.parse(text);
@@ -412,16 +191,9 @@ const DONE_FIELDS = `fragment done on Issue {
   timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], last: 100) { nodes { ... on CrossReferencedEvent { source { ... on PullRequest { number merged mergedAt body repository { nameWithOwner } } } } } }
 }
 fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { databaseId } }`;
-// Issues one DONE_QUERY reads: at 100 comments and 100 events each, 50
-// issues stay far inside GraphQL's node limit
-// (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#node-limit).
+// GraphQL caps a call at 500,000 nodes: https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#node-limit
 export const DONE_BATCH = 50;
 
-// mergedRefsAfter for each of `numbers` (issues in `repository`), in one
-// GraphQL call: a Map of each issue to its pull requests, holding only those
-// with one. A failed or unexpected read logs a warning and answers an empty
-// Map, so admission goes on as it would without the check: a missed done-check
-// costs one lane run, while a stalled admission costs every issue's.
 export async function mergedRefsPulls({ github, repository, numbers, humans, appId, log = console.log }) {
   const [owner, name] = repository.split("/");
   const wanted = [...new Set(numbers.map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
@@ -449,10 +221,6 @@ export async function mergedRefsPulls({ github, repository, numbers, humans, app
   return found;
 }
 
-// A reader of mergedRefsPulls for one admission pass over `numbers`, in their
-// order: asked for an issue, it reads the DONE_BATCH of `numbers` that holds
-// it once, or the issue alone when it is not among them, and answers its pull
-// requests ([] for none).
 export function mergedRefsReader({ github, repository, numbers = [], humans, appId, log }) {
   const order = numbers.map(Number);
   const reads = new Map();
@@ -467,11 +235,9 @@ export function mergedRefsReader({ github, repository, numbers = [], humans, app
   };
 }
 
-// The refusal reason for pull requests mergedRefsAfter found.
 export const doneReason = (pulls) =>
   `merged pull request ${pulls.map((n) => `#${n}`).join(", ")} names it with \`Refs:\` after its newest decision or refinement comment, so its work may already be done: close the issue if it is, or post a comment whose first line is \`**Decision recorded.**\` saying what is left, which sends it back through intake`;
 
-// The open pull requests for an issue, read fresh (openPullsNaming).
 export async function openPullsFor(github, repository, number) {
   const [owner, name] = repository.split("/");
   return openPullsNaming(
@@ -494,10 +260,6 @@ export async function humanPullsFor(github, repository, number, humans) {
 }
 
 let chargeWords;
-// The charge-word patterns, {code, cost, costPrivate}, and the headings
-// that say what an issue will do, {workHeadings}, read
-// once from their one definition in the default branch's checkout beside this
-// script.
 export function chargePattern() {
   if (chargeWords === undefined) {
     const words = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
@@ -517,7 +279,6 @@ const withoutCode = (text, code) => String(text ?? "").replace(code, (match) => 
 const chargeWordsIn = (prose, { cost, costPrivate }, isPublic) =>
   [...prose.matchAll(cost), ...(isPublic ? [] : prose.matchAll(costPrivate))].map((m) => m[0].toLowerCase());
 
-// The charge words `text` holds outside code, each once. Pure.
 export const chargeHits = (text, charges, isPublic = false) => [...new Set(chargeWordsIn(withoutCode(text, charges.code), charges, isPublic))];
 
 const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
@@ -579,11 +340,6 @@ const negatedOnly = (clause, charges, isPublic) => {
   );
 };
 
-// The charge words in what an issue will do, each once: its `title`, and its
-// `body`'s task items and work sections (workSections), or the whole body with
-// neither, each counted in every clause but a LOWERING one. Each is read alone, so a
-// fence one leaves open never closes in the other. Comments are not read.
-// Pure.
 export function workCharges({ title, body }, charges, isPublic, taskList) {
   const read = (text) => withoutCode(text, charges.code);
   const prose = read(body);
@@ -610,22 +366,17 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
 const tally = (words) => words.reduce((counts, word) => counts.set(word, (counts.get(word) ?? 0) + 1), new Map());
 const chargeCounts = (text, charges, isPublic) => [String(text ?? ""), withoutCode(text, charges.code)].map((part) => tally(chargeWordsIn(part, charges, isPublic)));
 
-// The charge words `text` holds in code. Pure.
 export const chargeWordsInCode = (text, charges, isPublic) => {
   const [all, prose] = chargeCounts(text, charges, isPublic);
   return [...all].filter(([word, count]) => count > (prose.get(word) ?? 0)).map(([word]) => word);
 };
 
-// The charge words `after` moved out of prose and kept in the text, so into
-// code. Pure.
 export const wrappedWords = (before, after, charges, isPublic) => {
   const [allBefore, proseBefore] = chargeCounts(before, charges, isPublic);
   const [allAfter, proseAfter] = chargeCounts(after, charges, isPublic);
   return [...proseBefore].filter(([word, count]) => (proseAfter.get(word) ?? 0) < count && (allAfter.get(word) ?? 0) >= allBefore.get(word)).map(([word]) => word);
 };
 
-// [{where, word, at}] for each `renamed` event in `events` that moved a charge
-// word of `title` into code. Pure.
 export const titleWraps = (title, events, charges, isPublic) => {
   const now = chargeWordsInCode(title, charges, isPublic);
   return (events ?? [])
@@ -633,12 +384,6 @@ export const titleWraps = (title, events, charges, isPublic) => {
     .flatMap(({ rename, created_at: at }) => wrappedWords(rename?.from, rename?.to, charges, isPublic).filter((word) => now.includes(word)).map((word) => ({ where: "the title", word, at })));
 };
 
-// What `node` (the issue in an EDITS_QUERY answer, whose `diff` is the whole
-// text of a revision, whatever the schema says) shows of the body `text`:
-// {where, word, at} for each edit that moved a charge word `text` holds in code
-// out of prose, or one {unreadable} when an edit could hide for good: a
-// deleted revision, or a history past one page. Revisions compare in editedAt
-// order, since no order is documented. A read this cannot compare throws. Pure.
 export function revisionWraps(text, node, charges, isPublic) {
   const edits = node?.userContentEdits;
   if (node?.includesCreatedEdit !== true || !Array.isArray(edits?.nodes) || edits.nodes.length === 0 || typeof edits.pageInfo?.hasNextPage !== "boolean") {
@@ -669,9 +414,6 @@ const EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) { includesCreatedEdit userContentEdits(first: 100) { pageInfo { hasNextPage } nodes { editedAt deletedAt diff } } } }
 }`;
 
-// What the body's edit history says of a charge word in code: revisionWraps'
-// rows, or {failed} when it does not read. [] with no such word on an edited
-// body, and no read then.
 export async function chargeEditsOf({ github, repository, number, spec, charges, public: isPublic }) {
   if (spec.lastEditedAt == null || chargeWordsInCode(spec.body, charges, isPublic).length === 0) {
     return [];
@@ -693,10 +435,6 @@ const chargeEditReason = ({ where, word, at, unreadable, failed }) => {
   return `a charge word in code could not be compared with its edit history (${failed ?? unreadable}), ${after}`;
 };
 
-// The refusal reason for unrunnableCriteria's result, with the split it
-// recommends, or null when every item is runnable. Host work, a model eval
-// run included, goes to the host queue (`host-run`); a paid eval, which names
-// a billing account and so can bill the owner, to the owner.
 export function unrunnableReason({ items, found }) {
   if (found.length === 0) {
     return null;
@@ -715,21 +453,11 @@ const removedByUntrusted = (events, label, trusted) => {
   return newest?.event === "unlabeled" && !trusted(newest.actor);
 };
 
-// Whether untrusted provenance holds the issue: one of UNTRUSTED_LABELS is on
-// it, or, for one of them, its newest add or removal is a removal by neither
-// a listed human (`humans`, ids) nor the lanes App (`isApp(actor)`). Each name
-// is judged on its own events, so a person's later change to one never lifts
-// a stranger's removal of the other. Admission and the issue lane's gate both
-// judge provenance here. Pure.
 export function untrustedHold({ labels, events, humans, isApp }) {
   const removedByOther = UNTRUSTED_LABELS.some((label) => removedByUntrusted(events, label, (actor) => humans.has(actor?.id) || isApp(actor)));
   return names(labels).some((name) => UNTRUSTED_LABELS.includes(name)) || removedByOther;
 }
 
-// Whether the issue's author (`issue.user`) is one intake admits: a listed
-// human (`humans`, ids) or the lanes App (`appId`, a number when set). An
-// issue with no author is neither. Admission, the issue lane's gate and
-// intake re-entry all judge the author here. Pure.
 export function authorAdmitted(issue, humans, appId) {
   const author = issue?.user?.id;
   return author !== undefined && (humans.has(author) || (Number.isInteger(appId) && author === appId));
@@ -737,16 +465,8 @@ export function authorAdmitted(issue, humans, appId) {
 
 export const driftIssueId = (item) => driftIssue(item)?.id ?? null;
 
-// Whether a REST issue has the drift shape apart from its edit history, which
-// REST does not return: a caller confirms it with driftIssueId on a GraphQL
-// read. Pure.
 export const driftShaped = (issue, rows) => issue?.user?.id === ACTIONS_BOT_ID && driftShape(issue.title, issue.body, rows) !== null;
 
-// Which author rule admits the REST issue `issue` in `repository`: "listed"
-// (authorAdmitted), "drift" (a trusted drift issue, confirmed by one specOf
-// read made only for a drift-shaped issue), or null. Every author gate on a
-// drift issue's way from intake to the issue lane asks here. A failed read
-// throws.
 export async function authorTrust(github, repository, issue, humans, appId) {
   if (authorAdmitted(issue, humans, appId)) {
     return "listed";
@@ -754,38 +474,22 @@ export async function authorTrust(github, repository, issue, humans, appId) {
   return driftShaped(issue) && driftIssueId(await specOf(github, repository, issue.number)) !== null ? "drift" : null;
 }
 
-// Whether status: confirmed is the issue's only status label and agent-ready is
-// off, whether admission parked it there or a person confirmed it. Pure.
 export const confirmedOnly = (labels) =>
   labels.includes(CONFIRMED) && !labels.some((label) => label === AGENT_READY || (isStatusLabel(label) && label !== CONFIRMED));
 
-// Whether admission parked the issue at status: confirmed, which is also
-// triage's verified status: no other status, no agent-ready, and the lanes
-// App's admission comment. `labels` are its label names, `comments` its
-// comments. Pure.
 export const admissionParked = (labels, comments, appId) =>
   confirmedOnly(labels) &&
   Number.isInteger(appId) &&
   comments.some((comment) => comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
 
-// Whether the newest add of `label` (a `labeled` event) is a listed human's
-// (`humans`, ids) or the lanes App's (`appId`), as attendedHold judges
-// `attended`. Pure.
 export function addedByTrusted(events, label, humans, appId) {
   const actor = (events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === label).at(-1)?.actor;
   return humans.has(actor?.id) || (appId !== undefined && actor?.id === appId);
 }
 
-// The stop report-outcome routes to intake when the scan job refused a run's
-// patch for its size (stop-routes.json).
 export const PATCH_CAP_STOP = "scan-refused-patch";
 const INTAKE_OUTCOME = /^<!-- work-resolve-issue outcome=intake(?: [a-z]+=\S+)* -->$/;
 
-// Whether the lanes App's report-outcome comment routed a PATCH_CAP_STOP to
-// intake after a listed human (`humans`, ids) last added agent-ready, the
-// reset report-outcome counts its retries from: the App's own adds do not
-// reset it, so its re-triage after that stop keeps it. `comments` and
-// `events` are the issue's REST comments and events. Pure.
 export function patchCapStopped(comments, events, humans, appId) {
   const reset = Math.max(
     Number.NEGATIVE_INFINITY,
@@ -798,18 +502,9 @@ export function patchCapStopped(comments, events, humans, appId) {
 }
 
 const DEFERRAL_HOLDS = ["do-not-merge", "needs-human"];
-// The security area: a deferral judged the issue without it when it was added later.
 export const SECURITY_AREA = "area: security";
 export const BODY_EDITED = "its body was edited after it was deferred, so the admission it was deferred from judged an older body";
 
-// Why a deferred issue (admission-deferred) may not be re-admitted on the
-// admission it was deferred from, each {reason, kind, hold}, in order:
-// `not-ready` when it lost status: ready; `held` when it carries do-not-merge
-// or needs-human, or untrustedHold holds it; `stale` when the security area
-// was added, or its body (`editedAt`, GraphQL lastEditedAt or null) edited,
-// after the newest add of admission-deferred in `events`, or with no such
-// add. `hold` marks a reason a person settles: a held one, or the security
-// area. The work-unblock sweep and decide both judge a deferral here. Pure.
 export function deferralLapsed({ labels, events, editedAt, humans, appId }) {
   const lower = names(labels).map((name) => String(name).toLowerCase());
   const newestAdd = (label) => (events ?? []).filter((event) => event?.event === "labeled" && String(event.label?.name).toLowerCase() === label).at(-1);
@@ -834,17 +529,10 @@ export function deferralLapsed({ labels, events, editedAt, humans, appId }) {
   return found;
 }
 
-// Whether `attended` still holds though the label is off: its newest label
-// event is a removal by anyone but a listed human (`humans`, ids), the lanes
-// App included. Only a listed human lifts it. Pure.
 export function attendedHold(events, humans) {
   return removedByUntrusted(events, ATTENDED, (actor) => humans.has(actor?.id));
 }
 
-// The External state the counted refinement on `spec` records: {state,
-// detail} from its first line opening with EXTERNAL_STATE, in the fixed form
-// refine.mjs externalLine writes, with the refinement's createdAt; null when
-// no counted refinement carries one. No other text is read for it. Pure.
 export function externalState(spec, humans, appId) {
   const refinement = countedRefinement(spec, humans, appId);
   const text = String(refinement?.body ?? "")
@@ -867,11 +555,6 @@ const before = (events, a, b) => {
 const isLabeling = (event, kind, names) => event?.event === kind && names.includes(String(event.label?.name).toLowerCase());
 const isReadyAdd = (event) => isLabeling(event, "labeled", [READY]);
 
-// Whether an agent-ready removal still stands: the newest event `isRemoval`
-// accepts has no re-mark after it (by default a `status: ready` add) that
-// `isMark` accepts (by default, any). A lane's escalation or a person's
-// removal keeps the issue out until triage or a person marks it ready again.
-// Pure.
 export function removalStands(events, isRemoval, isMark = () => true, isReMark = isReadyAdd) {
   const removals = events.flatMap((event, index) => (isRemoval(event, index) ? [index] : []));
   if (removals.length === 0) {
@@ -883,12 +566,6 @@ export function removalStands(events, isRemoval, isMark = () => true, isReMark =
 
 const STOP_HOLDS = ["needs-human", ...DECISION_LABELS];
 
-// Why admission leaves an issue alone whatever its verdict, or null: its
-// trusted Work status `state` (read-status.mjs statusReader's state) is
-// agent-ready, or, with the field unset or unread, it still carries a legacy
-// agent-ready label; or its agent-ready was removed and neither a
-// `status: ready` add nor a STOP_HOLDS removal that `isMark` accepts came
-// since (removalStands). Pure.
 export function admissionSettled(labels, events, isMark, state) {
   if (state === AGENT_READY || (state == null && labels.includes(AGENT_READY))) {
     return `already ${AGENT_READY}`;
@@ -900,34 +577,6 @@ export function admissionSettled(labels, events, isMark, state) {
   return null;
 }
 
-// {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
-// refusal that parks at needs-decision: an untrusted author or provenance, a
-// lanes App issue no size split filed, a person-held label, a body `Hold:`
-// line or a charge word (the owner's 2026-10-26 rule keeps a
-// person out of every other refusal), a paid-eval done-when item (one that
-// names a billing account; a model eval run alone goes to the host queue).
-// `hostRun: true` asks
-// admit() to add `host-run` on a refusal whose every reason is host work (no
-// item left for the lane, a capped split child), with no
-// hold, wait or pending split. `triage: true`, on a refusal whose one reason is
-// done-when items a lane run cannot perform beside items it can, on an issue
-// without a trusted `host-run` (addedByTrusted) and with no verdict written,
-// asks the caller to park it at needs-triage, not confirmed: refine.mjs
-// splitOf splits it only in an intake run.
-// `verdict.writtenAt` is when the lane comment the verdict came from was last
-// written; a body edited after it refuses, since the verdict judged an older
-// body. The sweep reads no lane comment and passes none. `public` (from
-// admissionFacts) skips the cost_private charge words; `chargeEdits`
-// (admissionFacts, chargeEditsOf) each refuse, and hold for a person unless
-// the read failed. Pure but for
-// `charges`, read from charge-words.json when not given, and
-// unrunnable-rules.json (unrunnableCriteria); a file that does not read, or a
-// malformed unrunnable-rules.json (unrunnableRulesOf), throws out of decide,
-// so no issue is admitted on a guess.
-// `holdLabels` (admissionFacts), and a parent's own, are the label names as
-// the Work status field decides them (read-status.mjs statusLabels), read in
-// place of the issue's own labels; `fieldState` (admissionFacts) is the
-// trusted Work status admissionSettled reads.
 /**
  * `reported` (admissionFacts) maps a blocker the lanes App closed
  * report-delivered to {at, url, reason} only when isTrustedClose does not count
@@ -945,8 +594,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   const isApp = appActor(appId);
   const trustedActor = (actor) => humans.has(actor?.id) || isApp(actor);
-  // Only the App's or a listed human's status: ready or hold lift lifts a
-  // removal: the App's agent-ready starts a credentialed run.
   const settled = admissionSettled(labels, events, (event) => trustedActor(event.actor), fieldState);
   if (settled) {
     return { verdict: "skip", reasons: [settled] };
@@ -1002,8 +649,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push(`${UNTRUSTED} work needs a person`);
     holdFor("security");
   }
-  // The outside-actor check (flag.mjs) can land after apply-verdict's last
-  // read; this fresh read holds the issue for the person who lifts it.
   if (labels.includes(OUTSIDE_ACTOR_LABEL)) {
     refuse.push(`it carries ${OUTSIDE_ACTOR_LABEL}, which a person lifts`);
     holdFor("security");
@@ -1035,10 +680,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
   const unset = ["size", "uncertainty"].filter((name) => verdict.dimensions?.[name] === "unset");
-  // pr-verify judges a lane PR only against text a listed human wrote and
-  // the refinement on their issue, so the criteria count only there, and it
-  // stops on an issue with more comments than it reads (resolve-pr.mjs
-  // linkedIssues).
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
@@ -1095,7 +736,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {
       refuse.push(`it carries ${label}`);
-      // A person's hold label names no reason of its own; intent fails closed.
       if (PERSON_LABELS.has(label)) holdFor("intent");
     }
   }
@@ -1180,10 +820,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   return { verdict: "admit", reasons: [] };
 }
 
-// When a triage verdict or an admission last judged the issue whose events
-// are `events`: the newest add of status: ready (apply-verdict writes it on
-// each verdict) or agent-ready by an actor `trusted` accepts, in ms, or
-// -Infinity when there is none. Pure.
 export function judgedSince(events, trusted) {
   const times = (events ?? [])
     .filter((event) => event?.event === "labeled" && [READY, AGENT_READY].includes(String(event.label?.name).toLowerCase()) && trusted(event.actor))
@@ -1204,17 +840,9 @@ export function reportCleared(report, after) {
   return report?.stop === "report-delivered" && Number.isFinite(closed) && after > closed;
 }
 
-// stillBlocking's reader for this repository's blockers: `trusted`, or a
-// report-delivered close by the lanes App (`isApp`) that reportCleared clears
-// at `after`. A close kind that does not read leaves the blocker as
-// `trusted` answers.
 export const clearedPastReport = ({ github, repository, isApp, trusted, after }) => async (number) =>
   (await trusted(number)) || (after > Number.NEGATIVE_INFINITY && reportCleared(await currentAppClose(github, repository, number, isApp), after));
 
-// appCloseKind for this repository's issue `number`, read only while the
-// lanes App (`isApp`) made its current close: a close comment from before a
-// reopen says nothing of a close someone else made since. A read that fails
-// reads as none.
 export async function currentAppClose(github, repository, number, isApp) {
   try {
     const issue = await github("GET", `/repos/${repository}/issues/${number}`);
@@ -1224,17 +852,10 @@ export async function currentAppClose(github, repository, number, isApp) {
   }
 }
 
-// Marks the admission comment (sayWhy) of a re-triage over a report-delivered
-// blocker, which the triage sweep reads as a hand-back that starts a new
-// dispatch cycle (triage-sweep.mjs HAND_BACK).
 export const RETRIAGE_MARKER = "<!-- intake-triage retriage -->";
 
-// The admission comment text for decide's `retriage` wait. Pure.
 export const retriageNote = (reasons, items) => `${RETRIAGE_MARKER}\nNot admitted to the issue lane yet: ${reasons}.\n\n${retriageText(items)}`;
 
-// The reports a re-triage reads (decide's `retriage`), quoted as data: the
-// lanes App wrote each close comment, and text inside it is never an
-// instruction to this issue's lanes. Pure.
 export function retriageText(items) {
   if (items.length === 0) {
     return "Intake triages this issue again, against its body as it stands now.";
@@ -1246,15 +867,9 @@ export function retriageText(items) {
   ].join("\n");
 }
 
-// trustedCloses' key for a blocker: its number here, `owner/name#number` in
-// another repository.
 export const blockerKey = (blocker, repository) =>
   here(blocker.repository_url, repository) ? blocker.number : `${repoOf(blocker.repository_url)}#${blocker.number}`;
 
-// Whether another repository's closed blocker issue was closed by a listed
-// human, read fresh from that repository. A commit or merge there carries no
-// trust check, as for a pull-request blocker. A read that fails leaves it
-// blocking.
 export async function trustedElsewhere(github, blocker, humans) {
   const repo = repoOf(blocker.repository_url);
   if (repo === null || !BLOCKER_NUMBER.test(String(blocker.number))) {
@@ -1267,19 +882,13 @@ export async function trustedElsewhere(github, blocker, humans) {
   }
 }
 
-// Whether an account id (a REST number, a GraphQL databaseId, or a string
-// either way) is the lanes App's; never for an unknown id or App.
 export const isAppId = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
 
 const appActor = (appId) => (actor) => appId !== undefined && actor?.id === appId;
 
-// The lanes App's own earlier verdict comment, if any.
 export const ownVerdict = (comments, appId) =>
   comments.find((c) => isAppId(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
 
-// The flags the lanes App's earlier verdict comment listed: only known flags
-// from a `- flagged: ` reason line. null when no App verdict comment exists
-// or it carries UNRECORDED: whether an earlier verdict flagged is unknown.
 export function earlierFlags(comments, appId) {
   const own = ownVerdict(comments, appId);
   const lines = String(own?.body ?? "").split("\n");
@@ -1297,14 +906,6 @@ export function earlierFlags(comments, appId) {
   ];
 }
 
-// Why the lanes App may not lift `needs-owner-decision` on the issue at
-// `base`, or null: someone else set it, or the App's verdict comment lists a
-// flag other than the intent a refinement resolves, or records that an
-// earlier flag is unknown (earlierFlags null). Once lifted, a re-triage sees
-// no hold and so carries no earlier flag. No such comment lifts: refine's own
-// question hold writes none. `events()` reads the issue's status history
-// (read-status.mjs statusEvents, where the field's needs-owner-decision reads
-// as a `needs-owner-decision` add); by default its REST events.
 export async function decisionStays(github, base, comments, appId, events = () => paginate(github, `${base}/events`)) {
   const setter = (await events()).filter((event) => event?.event === "labeled" && DECISION_LABELS.includes(event.label?.name)).at(-1)?.actor?.id;
   if (setter !== appId) {
@@ -1321,22 +922,11 @@ export async function decisionStays(github, base, comments, appId, events = () =
   return stops.length > 0 ? `its ${NEEDS_DECISION} stands for flagged: ${stops.join(", ")}` : null;
 }
 
-// Whether a refinement comment's body is exact: it ends in an exact footer.
-// Any other ending, the questions footer included, is not exact. Pure.
 export const refinementExact = (body) => {
   const last = String(body ?? "").trimEnd().split("\n").at(-1);
   return last === REFINE_FOOTERS.retriage || last === REFINE_FOOTERS.confirm;
 };
 
-// Whether `parent` (an issue at `needs-owner-decision`, as just read) still
-// awaits a decision: the lanes App (`appId`) may not lift the label
-// (decisionStays), or the App's newest refinement on it is not exact
-// (refinementExact), or it has no refinement but an App verdict flagging
-// intent, and no
-// decision comment of a listed human's (select-trusted-text's
-// isDecisionComment) is newer. A parent in another
-// repository, or any failed read, counts as open. `events()` is the parent's
-// status history (read-status.mjs statusEvents), by default its REST events.
 export async function parentDecisionOpen({ github, repository, parent, humans, appId, events }) {
   if (appId === undefined || !here(parent?.repository_url, repository) || !Number.isInteger(parent?.number)) {
     return true;
@@ -1362,18 +952,10 @@ export async function parentDecisionOpen({ github, repository, parent, humans, a
   }
 }
 
-// The lanes App's one admission comment (../lib/admission-comment.mjs).
 export const sayWhy = (github, repository, base, comments, text) => writeWhy(github, repository, base, comments, text, LANES_APP_LOGIN);
 
 const REFINE_TASK = "- [ ] ";
 
-// Whether intake's refinement run follows this triage of `spec` and its
-// refinement will count: refine.mjs refines a body with no REFINE_TASK line
-// (isThin) that the lanes App (`appId`) has not refined yet (bodyVersion),
-// admission counts it only on a body a listed human wrote
-// (countedRefinement), and refine asks triage again only while the comments,
-// admission's own and the refinement included, stay under SPEC_COMMENTS.
-// `taskList` must be refine's prefix. Pure.
 export function refineDue(spec, humans, appId, taskList) {
   if (!spec || taskList !== REFINE_TASK || appId === undefined || !writtenBy(humans)(spec) || !(spec.commentCount + 2 <= SPEC_COMMENTS)) {
     return false;
@@ -1389,20 +971,6 @@ export function refineDue(spec, humans, appId, taskList) {
 export const noTrustedSpec = (taskList) =>
   `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited`;
 
-// Whether pr-verify takes the body of `issue` (a GraphQL node: title, body,
-// author, labels {totalCount, nodes}, comments as an array of nodes, oldest
-// first) as spec because intake briefed it and no one vetoed it: the lanes
-// App (a Bot whose id is `appId`) filed it; its newest admission record
-// (lib/admission-record.mjs: by the App's account id, canonical, never
-// edited) or intake-triage's own verdict (triageBriefed) names the current
-// title and body by hash; its labels read whole hold no HOLD_STATES state and
-// none of UNTRUSTED_LABELS; and its body has no BODY_HOLD line. An App
-// admission record that is not one as written counts nothing, the verdict
-// included. Admission itself still refuses such a filing; this decides only
-// spec trust. The owner's standing rule and its triage-verdict reading:
-// https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L318,
-// https://github.com/melodic-software/architecture/pull/167.
-// babysit_verify_evidence.py briefed_issue is its twin. Pure.
 export function briefedIssue(issue, appId) {
   const labels = issue?.labels;
   if (appId === undefined || issue?.author?.__typename !== "Bot" || issue.author.databaseId !== appId || !Array.isArray(labels?.nodes) || labels.totalCount !== labels.nodes.length) {
@@ -1444,21 +1012,12 @@ export function triageBriefed(comments, appId, { title, body }) {
   );
 }
 
-// Whether a User among `humans` wrote `item` (a body or comment as specOf
-// reads it), and last edited it if ever. Pure.
 export const humanWritten = (item, humans) => writtenBy(humans)(item);
 
-// A split refinement's third line: the body's done-when items (1-based, as
-// taskItems numbers them) a person runs and the lane does not.
 export const splitItemsLine = (moved) => `<!-- split items=${[...moved].sort((a, b) => a - b).join(",")} -->`;
 
-// Whether a comment carries a split record (splitItemsLine) on its third line.
 export const carriesSplit = (body) => SPLIT_ITEMS.test(String(body ?? "").split("\n")[2] ?? "");
 
-// The issue lane's web hosts as a workflow passes them (ISSUE_LANE_WEB_HOSTS,
-// JSON: "any" or a list of host names; empty when web access is off), or
-// undefined when unset, which allows only GitHub and local hosts. Anything
-// else throws.
 export function webHostsFrom(text) {
   if (text === undefined || text === "") {
     return undefined;
@@ -1476,18 +1035,9 @@ const hasTaskLine = (text, taskList) => {
   return lines.some((line, index) => blocks[index] === 0 && line.replace(INVISIBLE, "").trimStart().startsWith(taskList));
 };
 
-// Whether that text holds a `taskList` line outside a code fence: criterion
-// 7. Pure.
 export const hasTrustedCriteria = (spec, humans, taskList, appId, ownIds) =>
   trustedSpecTexts(spec, humans, appId, taskList, ownIds).some((text) => hasTaskLine(text, taskList));
 
-// The numbers of the sub-issues of `issue` (as read, here) when it has any and
-// every one is closed as completed by a close `trusted(number)` accepts
-// (subIssueLeftOpen, the split parent's child rule), else null: a finished
-// parent, which the issue lane takes at any Size for one run that checks its
-// own done-when and closes it verified-done (#12456, class A). One sub-issue closed not_planned (class B, Q93) or open keeps it out.
-// The summary only skips the listing for an issue with no sub-issue; each
-// child's own state_reason decides. A failed read throws.
 export async function finishedParent({ github, repository, issue, trusted }) {
   if (!((issue?.sub_issues_summary?.total ?? 0) > 0)) {
     return null;
@@ -1512,14 +1062,6 @@ export const closedByTrusted = ({ github, repository, humans, appId }) => {
   return trusted;
 };
 
-// For an issue apply-verdict held without admission (a flag, an escalation or
-// a hold), the same split note a refusal posts, when a done-when item is one
-// the lane cannot perform, so the split survives a verdict that never reaches
-// decide(). It skips where decide() does (admissionSettled), and leaves an
-// unchanged note alone. `statusOf` (read-status.mjs statusReader), when given,
-// decides the label names and status history that judges; without it, the
-// issue's own labels and REST events. Returns {outcome: noted | none |
-// skipped, reasons}.
 export async function noteUnrunnable({ github, repository, issue, rules, webHosts, statusOf, log = console.log }) {
   const base = `/repos/${repository}/issues/${issue.number}`;
   const reason = unrunnableReason(unrunnableCriteria(issue.body, rules["task-list"], webHosts));
@@ -1542,23 +1084,11 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
   return { outcome: "noted", reasons: [reason] };
 }
 
-// How many times writtenLabels reads the issue's Work status again, and the
-// wait before the first of those reads, doubled before each next one.
 export const WRITTEN_STATUS_REREADS = 3;
 export const WRITTEN_STATUS_WAIT_MS = 5000;
 
-// The Work status field reads one admission takes (statusReader's limit):
-// the issue's and its parent's, and writtenLabels' rereads of the issue.
 export const ADMISSION_STATUS_READS = 2 + WRITTEN_STATUS_REREADS;
 
-// `statusOf(number, names)` (read-status.mjs statusReader), read again while
-// the field's trusted state is not `wrote`, the state this run just wrote.
-// GitHub can answer an issue's field events without the write it just took,
-// and a value no listed event set reads as unset. A read whose two halves
-// still disagree after the reader's own wait counts as one that missed the
-// write. Still missing it after WRITTEN_STATUS_REREADS rereads, it throws
-// StatusReadError naming what it read, so admission never decides on a read
-// the write had not reached. With no `wrote`, one read.
 export async function writtenLabels({ statusOf, number, names, wrote, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   if (wrote === undefined || wrote === null || !statusOf.state) {
     return statusOf(number, names);
@@ -1587,26 +1117,10 @@ export async function writtenLabels({ statusOf, number, names, wrote, sleep = (m
   }
 }
 
-// Every fact decide() reads but the verdict, the rules and the caller's own
-// (humans, appId, repository, webHosts), for `issue` as just read.
-// `isTrusted(number)` answers whether a closed blocker's close counts; by
-// default it reads the blocker fresh. `doneBy(number)` answers the merged
-// Refs pull requests (mergedRefsReader): a pass over many issues passes its
-// own, so it reads them in one call; by default the issue is read alone.
-// `statusOf(number, names)` (read-status.mjs statusReader), when given,
-// decides the label names decide() reads (`holdLabels`, and the parent's when
-// it is in this repository) and gives the events as statusEvents, the Work
-// status field's changes among them; without it, the labels and REST events
-// alone decide. `wrote`, the Work status this run wrote, has the issue's field
-// read until it shows that state (writtenLabels, which waits with `sleep`).
 export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId, doneBy, statusOf, wrote, sleep }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await blockersOf(github, base);
   const isApp = appActor(appId);
-  // Anyone may close their own issue, so a blocking issue counts only with a
-  // trusted close, read fresh from the issue; one closed as not planned or a
-  // duplicate counts too, since nothing is left to wait for. `isTrusted`
-  // answers for this repository's blockers only.
   const trusted = isTrusted ?? (async (blocker, options) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans, isApp, options));
   const trustedCloses = new Set();
   const reported = new Map();
@@ -1664,26 +1178,13 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   };
 }
 
-// How many of the oldest older deferred issues deferredAhead reads.
 export const DEFERRED_AHEAD_READS = 10;
 
-// Whether an older deferred issue waits only for room: it keeps status: ready
-// and carries no person's hold (DEFERRAL_HOLDS) or UNTRUSTED_LABELS, the
-// issues the sweep keeps deferred for something other than room or drops. Pure.
 export const roomDeferred = (labels) => {
   const lower = names(labels).map((name) => String(name).toLowerCase());
   return lower.includes(READY) && !UNTRUSTED_LABELS.some((name) => lower.includes(name)) && !DEFERRAL_HOLDS.some((name) => lower.includes(name));
 };
 
-// Whether an open issue created before `issue` is deferred for room alone: it
-// reads deferred (`listing.issues`, resolve-config.mjs issuesByStatus over
-// ["deferred"]), roomDeferred holds, and `pullsFor(number)` (openPullsFor)
-// names no open pull request for it, which the sweep waits on instead of
-// room. A deferred Work status is a ready issue waiting for room, so it
-// reads as status: ready; a legacy issue (no counted field value) is judged
-// by its labels. The oldest DEFERRED_AHEAD_READS are read; past them, an
-// older deferred issue counts as one. An unreadable answer counts as one,
-// since the sweep admits deferred issues oldest first anyway.
 export async function deferredAhead(github, repository, issue, listing, pullsFor = (number) => openPullsFor(github, repository, number)) {
   const created = Date.parse(issue.created_at);
   if (!Number.isFinite(created)) {
@@ -1709,24 +1210,8 @@ export async function deferredAhead(github, repository, issue, listing, pullsFor
   }
 }
 
-// How far before a status read admissionsSince reads back. A run that claimed
-// before check-wip-cap's queued read may add agent-ready after it, so the
-// window starts well before the read; an admission the read already counted
-// may count again, which only defers it to the hourly sweep.
 export const RACE_WINDOW_MS = 10 * 60_000;
 
-// The open issues that entered admission at or after `since` (ms since the
-// epoch), [{number, at}], earliest first. Each one's trusted Work status reads
-// deferred or agent-ready (`listing.issues`, issuesByStatus): admit() moves
-// the field from its deferred claim straight to agent-ready, so no admitted
-// issue drops out. `at`
-// is its newest change to deferred at or after `since` in its status history
-// (`listing.events(number)`, read-status.mjs statusEvents, where that change
-// reads as an admission-deferred add), the claim admit() makes, else its
-// first agent-ready add then (an admission that made no claim), or null when
-// its history shows no add of either at all yet; one whose adds all predate
-// `since` is left out, and one the listing holds mid-write reads at null. A
-// failed read throws.
 export async function admissionsSince(github, repository, since, listing) {
   const stamp = new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
   const listed = new Set();
@@ -1750,28 +1235,12 @@ export async function admissionsSince(github, repository, since, listing) {
   return entered.sort((a, b) => (a.at ?? Number.NEGATIVE_INFINITY) - (b.at ?? Number.NEGATIVE_INFINITY) || a.number - b.number);
 }
 
-// How many of `entered` (admissionsSince) count ahead of issue `number`: one
-// that entered no later than it, or whose add is not read yet; every other
-// one when its own add is not read. A tie counts ahead, since event times are
-// whole seconds and either run may have read before the other claimed. Pure.
 export function admissionsAhead(entered, number) {
   const own = entered.find((item) => item.number === Number(number));
   const others = entered.filter((item) => item.number !== Number(number));
   return own?.at == null ? others.length : others.filter((item) => item.at === null || item.at <= own.at).length;
 }
 
-// Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
-// status for the issue lane. `setStatus(number, state)` (write-status.mjs
-// statusWriter's `set`) writes the Work status each outcome leaves; a failed
-// write throws. No status label is added: the field carries the state, and
-// its agent-ready write starts the lane run, after the writer removes every
-// other status label the token broker would refuse the run for.
-// `statusOf` (admissionFacts) decides the label names and status history
-// decide() reads; `wrote`, the Work status apply-verdict just wrote, is read
-// until the field shows it (writtenLabels, waiting with `sleep`). `listing`
-// lists deferred issues and reads one issue's status history (deferredAhead,
-// admissionsSince). Returns {outcome, reasons}; outcome `held`, with
-// `status`, when a person's hold landed before a write.
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, setStatus, statusOf, wrote, sleep, listing, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -1781,9 +1250,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
   const { comments } = facts;
   const decision = decide({ ...facts, verdict, rules, humans, appId, repository, webHosts });
   const reasons = decision.reasons.join("; ");
-  // A state the issue already reads is not written again: a second write
-  // would name the lanes App as the setter of a person's hold, or read as a
-  // fresh status: ready that lifts an agent-ready removal (admissionSettled).
   const lower = names(facts.holdLabels ?? issue.labels);
   const move = (state) => setStatus(number, state, { keepHold: true });
   const write = (state, label) => (lower.includes(label) ? undefined : state === "needs-owner-decision" ? setStatus(number, state) : move(state));
@@ -1814,8 +1280,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "refused", reasons: decision.reasons, status: parked };
   }
   if (decision.verdict === "wait" && decision.retriage) {
-    // At needs-triage, the hourly triage sweep dispatches intake again; the
-    // report is cited as data the lanes App wrote, never as instructions.
     const stop = held(await write("needs-triage", "needs-triage"));
     if (stop) {
       return stop;
@@ -1833,13 +1297,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
   }
-  // The admission record names the title and body decide() read in this one
-  // read; the issue lane freezes its run there (write-issue.mjs). It goes up
-  // before any deferral for room too, since work-unblock's sweep later admits
-  // a deferred issue by the field alone. Each evaluation posts its own record,
-  // even over one naming the same text, so a re-admission anchors here and not
-  // at an earlier admission. A failed post throws, so nothing is admitted
-  // without it.
   const record = () => writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
   const checkedAt = Date.now();
   const s = await status();

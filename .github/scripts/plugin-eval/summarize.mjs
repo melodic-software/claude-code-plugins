@@ -1,37 +1,4 @@
 #!/usr/bin/env node
-// summarize.mjs: the job summary for one `claude plugin eval` JSON result.
-//
-//   summarize.mjs <results.json> [--plugin <name>] [--redact] [--annotation <file>]
-//
-// Prints Markdown: a with-versus-without table with one verdict per case,
-// then one health line per case. The verdict is read in the order
-// /evals:plugin-eval's reference/ci.md gives: a partial document, then any
-// run that skipped its paid graders or errored, then a two-arm case with no
-// delta, each NOT COMPARABLE, and only then the score against the run's
-// threshold, PASS or FAIL. A case whose case.yaml (<suite.root>/<dir>) sets
-// context.history_file and whose result records no without-arm key ran
-// single-arm by design and is scored alone, as run-validity.py reads it. A NOT
-// COMPARABLE case shows no score. The health
-// line reads each with-arm run's kept trace (--keep-temp): whether the
-// plugin's skills were loaded (the init message's skill list) and how many
-// runs called one of them through the Skill tool, called one of the plugin's
-// agents through the Agent tool, or had a skill slash-invoked by the case
-// prompt, which makes no Skill call. --plugin names the plugin;
-// without it, suite.root's last segment does.
-//
-// --redact, for a pull request run whose prompts the pull request supplies,
-// prints each case as `case <n>` and leaves out every error and partial
-// reason text, so no model output reaches the public job summary.
-//
-// --annotation writes, when the result is not PASS, one `::error` workflow
-// command naming each case that is not PASS with its verdict and reason, so
-// a red run says which cases failed; the caller prints it outside any
-// stop-commands block. Its title says "Plugin eval verdict", which tells an
-// eval result apart from a step that failed.
-//
-// The last line is `Result: PASS`, `Result: FAIL` or `Result: NOT COMPARABLE`.
-// Exit 0 when every case passes, 1 when any case fails, is not comparable,
-// or the result holds no case, 2 on a usage error or an unreadable result.
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import process from "node:process";
@@ -66,15 +33,8 @@ const readTrace = (path) => {
 
 const ownSkill = (plugin) => (name) => typeof name === "string" && (plugin ? name.startsWith(`${plugin}:`) : true);
 
-// The plugin skill a case prompt opens with as a slash command, such as
-// improvement:find, else null. A slash-invoked skill makes no Skill tool call.
 export const slashSkill = (prompt) => (typeof prompt === "string" ? (/^\s*\/([A-Za-z0-9][\w.-]*:[A-Za-z0-9][\w.-]*)/.exec(prompt)?.[1] ?? null) : null);
 
-// {kept, loaded, fired} over a case's with-arm runs: kept counts the traces
-// read, loaded is true, false, or null when no kept trace lists skills. A run
-// fires when it calls one of the plugin's skills through the Skill tool or
-// one of its agents through the Agent tool, or when the case prompt
-// slash-invokes one of its skills (`invoked`) that its init lists.
 export function health(runs, { plugin, base, invoked = null }) {
   const own = ownSkill(plugin);
   let kept = 0;
@@ -147,8 +107,6 @@ export function contextValue(text, key) {
   return null;
 }
 
-// A reader of <suite.root>/<dir>/case.yaml, a relative root read against base
-// (the result file's directory): the text, or null when it cannot be read.
 export const caseYamlReader = (result, base) => (dir) => {
   const root = result?.suite?.root;
   if (typeof root !== "string" || !root || typeof dir !== "string" || !dir || (!isAbsolute(root) && !base)) {
@@ -161,8 +119,6 @@ export const caseYamlReader = (result, base) => (dir) => {
   }
 };
 
-// [{name, verdict, reason, score, without, delta}] for each case. caseYaml
-// maps a case dir to its case.yaml text, or null.
 export function verdicts(result, { redact = false, caseYaml = () => null } = {}) {
   const said = (text) => (redact ? "(redacted)" : text);
   const twoArm = result.suite?.ablation !== "none";
@@ -241,8 +197,6 @@ export function summarize(result, { plugin, base, redact = false, caseYaml = cas
   return { text: lines.join("\n"), result: overall, annotation };
 }
 
-// Workflow-command escaping (GitHub's toolkit command.ts): data escapes %, CR
-// and LF; a property also escapes : and ,.
 const data = (text) => String(text).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
 const property = (text) => data(text).replace(/:/g, "%3A").replace(/,/g, "%2C");
 

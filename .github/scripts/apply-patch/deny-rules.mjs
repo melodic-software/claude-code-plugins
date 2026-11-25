@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// deny-rules.mjs: the Edit deny rules that keep a lane's model off the paths
-// apply-patch refuses, built from protected-paths.mjs's PATH_RULES for the refusals
-// one patch-rules.json row names. collect-base-activity passes them to the
-// issue lane's model, so a run whose change needs such a path is denied at
-// its first write and stops, where it would otherwise finish and be refused at
-// the push. apply-patch still refuses every path itself.
-//
-//   node deny-rules.mjs <base-dir> <row>
-//
-// prints one rule per line, read from <base-dir>'s patch-rules.json and its
-// top-level directories.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -18,13 +7,6 @@ import { pathToFileURL } from "node:url";
 import { RULES_PATH } from "./apply-patch.mjs";
 import { PATH_RULES, segments } from "./protected-paths.mjs";
 
-// Each path rule's Edit patterns, anchored at the checkout: a leading `/` in a
-// CLI rule anchors at the primary working directory
-// (https://code.claude.com/docs/en/permissions#where-a-pattern-anchors), and a
-// bare name matches at any depth. A pattern matches only paths its rule
-// refuses, so the model never loses an edit apply-patch would take; it may
-// match fewer, which apply-patch still refuses at the push. `dirs` are the
-// base's top-level directories.
 export const PATTERNS = {
   "github-workflows": () => ["/.github/workflows/**"],
   codeowners: () => ["/CODEOWNERS", "/.github/CODEOWNERS", "/docs/CODEOWNERS"],
@@ -32,13 +14,9 @@ export const PATTERNS = {
   settings: (dirs) =>
     ["", ...dirs].filter((dir) => PATH_RULES.settings(segments(`${dir}/settings.json`))).map((dir) => (dir ? `/${dir}/**/settings*.json` : "/settings*.json")),
   "lane-grants": () => ["/.github/actions/resolve-config/lane-grants.json", "/.github/standards/trusted-actors/trusted-actors.json"],
-  // None: Claude Code already denies these under the lane's dontAsk mode, and
-  // no pattern can keep .claude/'s writable exceptions.
   "claude-protected": () => [],
 };
 
-// The Edit rules for the path rules `refuse` names; its other refusals
-// (symlink, backslash and the like) are not paths a rule can name.
 export function denyRules(refuse, dirs) {
   return refuse
     .filter((name) => Object.hasOwn(PATH_RULES, name))

@@ -73,9 +73,6 @@ const run = (
   job: { id: id * 10, name: jobName, conclusion, steps },
   annotations: messages.map((message) => ({ annotation_level: "failure", message })),
 });
-// The failed check a dispatched run's report job posts on the PR's head, as
-// the API returns it (check run 122864732692 on #10583): details_url is the
-// check run's own page, and only external_id names the posting run.
 const linkedCheck = (id) => ({
   conclusion: "failure",
   details_url: `https://github.com/${REPO}/runs/${id + 5000}`,

@@ -1,8 +1,4 @@
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
-// pr-rate-merge-risk.yml's controls (#13657), pinned on the file's text:
-// the run-name the arm side matches, a read-only job token, no pull request
-// code, base-side scripts only, one credential per leg job (#13586), the
-// model's tool cage, and the names the arm side reads.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -67,15 +63,12 @@ test("each leg holds one credential, in its presence check and its rating step a
     const rate = step(id, "Rate the pull request");
     assert.deepEqual([...rate.matchAll(/secrets\.([A-Z_]+)/g)].map(([, name]) => name), [secret], id);
     assert.match(rate, new RegExp(`\\n {10}${input}: \\$\\{\\{ secrets\\.${secret} \\}\\}\\n`), id);
-    // Beyond its own, a job may only ask whether the fallback token is set.
     const others = [...job(id).matchAll(/secrets\.([A-Z_]+)( != '')?/g)].filter(([, name]) => name !== secret);
     assert.deepEqual(others.map(([whole]) => whole), leg === "subscription" ? ["secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != ''"] : [], id);
   }
   assert.match(step(LEGS.subscription, "Rate the pull request"), /\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/);
 });
 
-// credential-legs.test.mjs holds every start and credential decision to the
-// conditions before select-model-credential; this pins their shape.
 test("each leg starts only after the one before named it as the next leg, and a handoff is no failure", () => {
   assert.match(job(LEGS.subscription), /\n {4}needs: rate-merge-risk\n/);
   assert.match(job(LEGS.subscription), /&& needs\.rate-merge-risk\.result == 'success'\n {6}&& needs\.rate-merge-risk\.outputs\.next-leg == 'subscription'\n {4}runs-on:/);
@@ -85,10 +78,6 @@ test("each leg starts only after the one before named it as the next leg, and a 
   for (const id of Object.values(LEGS)) {
     assert.match(step(id, "Fail without a rating"), /if: always\(\) && steps\.checker\.outcome == 'success' && steps\.credential\.outputs\.present == 'true' && steps\.rating\.outcome != 'success' && steps\.rate\.outputs\.handoff != 'true'\n/, id);
   }
-  // The key leg reads its credit history in its own step, under
-  // continue-on-error and a 2-minute limit, so a read that fails or hangs runs
-  // the key; its credential call skips a key whose credit stop is recent, and
-  // the job marks a new one.
   const credit = step(LEGS.key, "Read the key's credit history");
   assert.match(credit, /\n {8}id: credit\n/);
   assert.match(credit, /\n {8}continue-on-error: true\n {8}timeout-minutes: 2\n/);
@@ -118,9 +107,6 @@ test("the subscription and fallback legs are what scripts/sync-credential-legs.m
   assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
-// A step runs only when every step its if: requires ran: a conjunction (no
-// `||`) of terms, where `steps.X.outcome == 'success'`, `steps.X.outputs.Y ==
-// '<value>'` and `steps.X.outputs.Y != ''` each need X to have run.
 const requires = (id) => {
   const ifs = new Map();
   for (const block of stepsOf(id).values()) {
@@ -190,7 +176,6 @@ test("the rating runs under dontAsk on the data directory and the review plugin'
       "WebSearch",
       "mcp__*",
     ]);
-    // None may name the workspace or the home whole: the workspace sits under it.
     assert.ok(!denied.some((rule) => ["Read(~/**)", "Read(./**)", "Read(//**)", "Read"].includes(rule)));
     assert.deepEqual(list(rate, "plugin-dirs"), [".lane/plugins/review"]);
     assert.match(rate, /CLAUDE_CODE_SUBAGENT_MODEL_FORCE: \$\{\{ steps\.checker\.outputs\.force \}\}/);
@@ -199,10 +184,7 @@ test("the rating runs under dontAsk on the data directory and the review plugin'
     assert.ok(order.indexOf("Isolate the runner") < order.indexOf("Rate the pull request"), id);
     assert.match(step(id, "Stage the review plugin"), /chmod -R a-w \.lane\/plugins\/review/);
   }
-  // merge-risk's frontmatter allowed-tools pre-approves bare Read once the
-  // skill runs, so these deny rules, not the allow list, bound what it reads.
   assert.match(readFileSync(new URL("../../../plugins/review/skills/merge-risk/SKILL.md", import.meta.url), "utf8"), /^allowed-tools: \[[^\]]*"Read"/m);
-  assert.match(text, /allow rules do not bound Read once the skill runs/);
 });
 
 test("the names the arm side reads match merge-risk-line.mjs", () => {

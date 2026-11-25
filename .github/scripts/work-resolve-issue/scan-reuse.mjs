@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-// The leak scan on a lane branch an earlier run left with commits and no
-// report. Its commits were scanned when their run made them, against that
-// day's patterns, or not at all when the branch predates issue-mode scanning,
-// so run-checks scans them again before report-outcome opens their PR: the
-// diff from the branch's merge base with the base tip, and every file that
-// diff makes, by name and bytes, through the read runner's own scan
-// (lib/publish-gate.mjs scanLeak).
-//
-//   scan-reuse.mjs <repository> <base-tip> <tip>
-// Prints one word: clean; found, for a credential format, an assignment
-// hidden by markup or escapes, or a plain password or secret assignment;
-// failed, when the scan did not finish. On stderr, the label, and for a
-// credential format the read runner's rotation line; never the match. Exit 0
-// unless the arguments are wrong.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -25,8 +11,6 @@ import { changedBytes, scanLeak } from "../../../lib/publish-gate.mjs";
 
 const SHA = /^[0-9a-f]{40}$/;
 
-// {result, label}: the first source that does not pass, else clean. `git`
-// runs plumbing in the branch's repository and returns stdout as a Buffer.
 export function scanBranch(git, base, tip) {
   const mergeBase = git(["merge-base", base, tip]).toString("latin1").trim();
   if (!SHA.test(mergeBase)) throw new Error("no merge base");
@@ -42,8 +26,6 @@ export function scanBranch(git, base, tip) {
   return { result: "clean", label: "" };
 }
 
-// git with no global or system config and no hooks, reading the repository's
-// objects only.
 export function plumbing(repository, scratch) {
   writeFileSync(join(scratch, "config"), "");
   const env = { PATH: "/usr/bin:/bin", HOME: scratch, XDG_CONFIG_HOME: scratch, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: join(scratch, "config"), GIT_NO_REPLACE_OBJECTS: "1" };

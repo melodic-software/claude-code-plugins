@@ -1,8 +1,3 @@
-// The Work status reader over the live models.issue-status: a field a trusted
-// account set replaces the issue's queue labels with its state's and keeps
-// hold labels; a field unset, set by an untrusted account, or unreadable
-// leaves the labels as they are. statusEvents merges the field's history into
-// the REST events as label events.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -89,9 +84,6 @@ test("a hold github-actions[bot] set is added to the labels; its agent-ready, an
   assert.deepEqual(await reader({ 7: { state: "needs-human", setter: 209825114 } }).labels(7, ["priority: high"]), ["priority: high"]);
 });
 
-// The value (REST) and its setter (GraphQL events) are two reads: when the
-// newest event left another option than the value names, the setter belongs to
-// another write, and the read fails rather than miss a hold.
 test("a value the newest field event does not name throws StatusReadError", async () => {
   await assert.rejects(
     () => reader({ 7: { state: "needs-human", named: "needs-triage" } }).labels(7, ["priority: high"]),

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Installs ffmpeg and ffprobe from BtbN's static GPL build (the Linux static
-# build ffmpeg.org links; GPL for libx264), a month-end tag BtbN keeps, checked
-# against its SHA-256, into <bin-dir> and onto PATH.
-# Usage: install-pinned-ffmpeg.sh <bin-dir> [cache-dir]
-# With a cache dir the archive is kept there and downloaded only when missing;
-# without one it goes to RUNNER_TEMP and is removed after extracting.
 # shellcheck disable=SC2154 # the runner sets RUNNER_TEMP and GITHUB_PATH
 set -e
 FFMPEG_RELEASE=autobuild-2026-09-30-13-08

@@ -1,44 +1,9 @@
-// Decides whether a hosted review run reviews its head now or leaves it to
-// the review a Refine push starts. Run by the wait-for-refine job of
-// pr-review-hosted.yml and pr-review-security-hosted.yml before the review
-// spends a model turn.
-//
-// It finds this head's pull_request_target runs of pr-unblock-dispatch.yml
-// (the newest five), waits for each, reads the
-// pr-unblock-target-dispatched-<commit>-<run id> records their refine jobs
-// upload, and waits for the newest pr-refine.yml run they name. Then it reads
-// the pull request: a head that moved (Refine pushed, or anyone else did) is
-// left to the newer head's own review (proceed=false); otherwise the review
-// runs (proceed=true). Every poll also reads the head, so a head that moves
-// mid-wait ends the wait at that poll rather than holding the newer head's
-// review in the per-PR queue. A poll reads the head from refs/pull/<n>/head,
-// which answers 304 while the head holds; the pull request itself never does,
-// since its body embeds the repository, whose pushed_at moves on every push.
-// A ref read that shows another head, or fails, falls back to reading the
-// pull request. The ref outlives a close or merge, so a pull request closed
-// before or during the wait is caught at the final read, once the wait ends;
-// a start read, made only when the event lacks the base ref or head
-// repository, catches one closed before. A head read there
-// as moved is read again after one poll before anything ends on it; a second
-// read that shows this head again resumes the wait. No dispatcher run, no record, a record naming
-// any other run, a wait past its cap, or any read that fails runs the review,
-// as it ran before this job existed.
-//
-// Reads PR_NUMBER, HEAD_SHA, PR_BASE_REF and PR_HEAD_REPO from env, and the
-// sender's and author's numeric ids from the event file; logs carry the PR
-// number, SHAs and run ids only. Writes proceed and reason to GITHUB_OUTPUT.
-// An event that an account in NO_REFINE_ACCOUNTS sent, on a pull request one
-// opened, has no refine run due: it is reviewed after the finish read alone
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#lanes).
-
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { budgetedFetch } from "../pr-unblock/request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({ appearSeconds: 300, capSeconds: 1800, pollSeconds: 60 });
-// A re-run or a later pull_request_target event adds a dispatcher run per
-// head; the record may sit on any of them.
 const DISPATCHER_RUNS = 5;
 export const DISPATCHER = ".github/workflows/pr-unblock-dispatch.yml";
 export const REFINE = ".github/workflows/pr-refine.yml";
@@ -210,9 +175,6 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
   }
 }
 
-// A REST reader over budgetedFetch: ETag reuse turns a repeat read of an
-// unchanged resource (the head's ref, a completed run) into a 304 off the
-// primary rate limit, and the rate guard records spend.
 export function createApi({ token, repository, apiUrl = "https://api.github.com", budget }) {
   return {
     async get(path) {

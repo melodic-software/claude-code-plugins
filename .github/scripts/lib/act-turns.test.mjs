@@ -49,6 +49,20 @@ test("the step writes both counts into act-turns.json and sets the turns output"
   assert.equal(recorded.turn_counts.subagent, 3);
 });
 
+test("the job summary escapes a denied call's model-written text as HTML", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "act-turns-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const denials = [{ tool_name: "Bash", tool_input: { command: "<img src=x onerror=1>&" } }];
+  writeFileSync(join(dir, "execution.json"), JSON.stringify([...BOTH.slice(0, -1), result({ permission_denials: denials })]));
+  const blocks = [];
+  const summary = { addHeading: () => summary, addCodeBlock: (block) => (blocks.push(block), summary), write: async () => {} };
+  const core = { info: () => {}, setOutput: () => {}, setFailed: () => {}, summary };
+  await runStep({ core, executionFile: join(dir, "execution.json"), replyDir: join(dir, "reply"), summary: true });
+  assert.equal(blocks.length, 1);
+  assert.ok(blocks[0].includes("&lt;img src=x onerror=1&gt;&amp;"), blocks[0]);
+  assert.ok(!blocks[0].includes("<img"), blocks[0]);
+});
+
 test("the counts survive the 32768-byte cap on a worst-case file", () => {
   const esc = (n) => "\x1b".repeat(n);
   const denials = Array.from({ length: 100 }, () => ({ tool_name: esc(1000), tool_input: { command: esc(1000) } }));

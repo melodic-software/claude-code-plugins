@@ -1,80 +1,18 @@
 name: Work Resolve Issue
 
-# Lane caller for work-resolve-issue: setting an issue's Work status field to
-# agent-ready (`field_added`, field 48484079, option 84879220,
-# models.issue-status in docs/conventions/pr-pipeline.yaml) starts one agent
-# run on it. Its file stem is the lane, so the lanes token broker
-# accepts its write activities. No App key; each run job's OIDC token is
-# exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
-# Job contract: docs/conventions/pr-pipeline/pr-run-activity.md, Issue mode.
-#
-# resolve-issue runs /work-items:work on the issue in pr-run-activity-read.yml,
-# with no write token, and leaves its change as a patch, or stops and says why.
-# It runs on run-claude-cli with the issue lane's API key; when that call hands
-# off (an empty key, a credit stop, or a 401 or 402), resolve-issue-handoff
-# reads so from this run's jobs and resolve-issue-subscription runs the
-# activity again on the OAuth token. When pick-slot's key-credit gate finds the
-# key's last credit stop inside its window, resolve-issue never starts and
-# resolve-issue-subscription is the first call. Every later job takes the call
-# that ran.
-# apply-issue-patch, a script in pr-run-activity-write.yml, commits that patch
-# to a new branch. report-outcome then opens a ready PR from that branch, or
-# comments on the issue and routes the stop by stop-routes.json (needs-human,
-# host-run, attended, a capped retry, intake, a park at Work status confirmed, or
-# a failed stop); an issue its dimensions skip gets the same from report-skip,
-# never needs-human. The field write alone admits the issue, from a listed
-# human or from the lanes App; the hold labels and the go-live time are in
-# docs/conventions/pr-pipeline.yaml. The App restarts a run the same way, as a
-# field write: it clears the field (`field_removed`, which starts nothing) and
-# sets agent-ready again. The text freeze anchors on the admission record
-# (write-issue.mjs), else on a listed human's set of the field, which the
-# runner hands on as TRIGGER_AT and TRIGGER_SENDER_ID. The token broker
-# mints on the issue's live field state. The kill switch, the trigger check
-# (a listed human, or the lanes App setting agent-ready) and the token broker
-# run inside each runner.
-
-# The morning brief's Lanes section groups runs by the issue number that ends
-# this title, so a retitled issue stays one item and two issues with one
-# title stay two. Quoted: unquoted, " #" would start a YAML comment.
 run-name: "${{ github.event.issue.title }} #${{ github.event.issue.number }}"
 
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it.
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
 on:
   issues:
     types: [field_added]
 
 permissions: {}
 
-# One agent-ready run per issue at a time. A newer agent-ready field write
-# replaces one still waiting; a running one finishes. Every other field write,
-# which starts no work, gets its own group, so it never replaces a waiting
-# agent-ready run.
 concurrency:
   group: work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.issue_field.id == 48484079 && github.event.issue_field_value.option.id == 84879220 }}
   cancel-in-progress: false
 
 jobs:
-  # The lane's admission gate, before any job that gets a credential: the
-  # account that set Work status to agent-ready, and any re-runner, must be a
-  # listed human, or the lanes App setting it itself (work-unblock's).
-  # Anyone else's field write, on an issue anyone can open, starts nothing
-  # past this job; a Bot other than the App never starts it. It runs
-  # check-trusted-trigger from the default branch tip with a read-only token
-  # and no secret; the read runner checks the trigger again.
-  # A trusted write proceeds no further (check-blockers.mjs, admission's rules)
-  # on an issue neither a listed human nor the lanes App wrote, or one
-  # untrusted provenance holds, both for good, or one a blocker still
-  # blocks, or whose labels, events or blockers cannot be read. On the first,
-  # report-skip removes agent-ready and comments that a listed human re-files
-  # the work; on the rest agent-ready stays, and work-unblock's sweep re-fires
-  # the last two once they clear. A blocker added while the run waits for its
-  # slot is caught inside it: resolve-issue's check-broker re-runs
-  # check-blockers.mjs (RECHECK) before the model job and stops the run the
-  # same way, at its `Stop on an open blocker` step.
   check-admission:
     name: Check Admission
     if: >-
@@ -179,8 +117,6 @@ jobs:
         timeout-minutes: 2
         uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
 
-      # The mark work-unblock's sweep reads: a run that stopped here is never
-      # re-fired.
       - name: Stop on untrusted provenance
         if: steps.blockers.outputs.untrusted == 'true'
         run: echo "an outside author or untrusted provenance holds this issue; a person decides it"
@@ -193,18 +129,12 @@ jobs:
         with:
           tokens: github-token
 
-  # Picks the concurrency slot resolve-issue waits on (a run-time cap, not a
-  # lane slot in pr-pipeline.yaml): the issue number modulo SLOTS. Workflow
-  # expressions have no arithmetic operator, so a job computes it. A burst of
-  # admissions then waits in SLOTS queues instead of spending the lanes App's
-  # hourly API quota at once.
   pick-slot:
     name: Pick Slot
     needs: check-admission
     if: needs.check-admission.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 7
-    # No step here uses a cache; read keeps an issues run from saving one.
     cache-mode: read
     permissions:
       actions: read
@@ -291,16 +221,6 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # A job's timeout is fixed before it starts, so the run job's comes from
-      # here: the issue's Size, Complexity and Uncertainty fields read through
-      # the base config (models.issue-dimensions). The run job takes the same
-      # dimensions for its turn cap rather than reading the fields again, so a
-      # field set while it waits in its slot cannot outgrow the timeout.
-      # Without issue-dimensions the timeout is 40 minutes, a 25-minute leg.
-      # A config that cannot be resolved, or an option it does not map, fails
-      # this job. A run held on an unknown pause skips this read, so it ends
-      # green; a paused run still reads it, since report-skip runs at the WIP
-      # cap too.
       - name: Resolve the issue dimensions' timeout
         id: dimensions
         if: steps.wip.outputs.held == 'false'
@@ -332,8 +252,6 @@ jobs:
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $SLOTS =~ ^[1-9][0-9]*$ ]] || exit 1
           echo "slot=$((ISSUE_NUMBER % SLOTS))" >> "$GITHUB_OUTPUT"
 
-      # Either WIP cap hold above, kept as the lane-hold-work-resolve-issue
-      # artifact for monitor signal 13 (lane-hold-marker.mjs).
       - name: Mark the lane hold
         id: hold-marker
         if: steps.kill.outputs.proceed != 'false' && (steps.wip.outputs.held == 'true' || (steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false'))
@@ -364,19 +282,9 @@ jobs:
     if: >-
       needs.check-admission.outputs.proceed == 'true'
       && needs.pick-slot.outputs.capped == 'false' && needs.pick-slot.outputs.skip-key != 'true'
-    # One run per slot at a time; the rest wait in line, holding no runner,
-    # and are never cancelled (`queue: max`). GitHub keeps at most 100 waiting
-    # per slot and cancels any more. report-outcome takes no slot, so it never
-    # waits behind another issue's whole run; it is short and follows one
-    # resolve-issue, so at most SLOTS of each run at once.
     concurrency:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
-    # The read runner's run job, which runs the model, holds contents and
-    # pull-requests read only; checks: write is its report job's (posting
-    # nothing in issue mode) and id-token: write its check-broker job's,
-    # which runs only default-branch-tip code. The first call holds the API
-    # key alone.
     permissions:
       actions: read
       contents: read
@@ -404,20 +312,6 @@ jobs:
       claude-api-key: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether resolve-issue handed off, read from this run's jobs through the
-  # Actions API by the default branch tip's handoff-evidence.sh, never from a
-  # resolve-issue output. A call handed off when its record-broker-allow job
-  # succeeded, its run job succeeded, and its scan job never ran: the read
-  # runner skips the scan job only on its run job's handed-off output (a run
-  # that stopped on stale workflow files, an earlier run's work or a reuse
-  # still runs it). Every one of those is a job conclusion, which the jobs
-  # listing returns as the job ends. That output comes from the key-presence
-  # step, which runs before any model turn, and run-claude-cli's handoff,
-  # which it sets after restoring the step files, but the run job runs the
-  # model's commands and could still forge it, so a forged handoff starts one
-  # subscription run at most. A failed read fails this job and starts no
-  # second call; report-outcome then reports the first call, which uploaded
-  # no outcome.
   resolve-issue-handoff:
     name: Resolve Issue Handoff
     needs: [check-admission, pick-slot, resolve-issue]
@@ -458,10 +352,6 @@ jobs:
           API_BUDGET_WAIT_SECONDS: "1200"
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
 
-      # Whether the third call can run, never the token.
-      # resolve-issue-subscription passes it on as fallback-ready, so with the
-      # token empty its subscription leg stays the last; a failed read leaves
-      # it empty, which hands nothing on.
       - name: Check the fallback token
         id: fallback
         env:
@@ -476,11 +366,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The key's credit-stop markers, read by the read runner's check-broker in
-  # later runs (each first call's key-credit-job). Each comes from a jobs-API
-  # read of the call's run job (handoff-evidence.sh credit-stop), never from a
-  # call's output. No job needs this one, so the read, which waits for the
-  # jobs listing's steps, delays no handoff.
   upload-key-credit-markers:
     name: Upload Key Credit Markers
     needs: [resolve-issue]
@@ -603,13 +488,6 @@ jobs:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether resolve-issue-subscription handed off to the fallback token,
-  # read from this run's jobs by handoff-evidence.sh, never from a
-  # resolve-issue-subscription output: its broker allowed it, its run job
-  # succeeded and its scan job never ran. It runs only when
-  # resolve-issue-handoff found the fallback token set, so with the token
-  # empty nothing starts that did not before. A failed read starts no third
-  # call.
   resolve-issue-subscription-handoff:
     name: Resolve Issue Subscription Handoff
     needs: [resolve-issue-handoff, resolve-issue-subscription]
@@ -656,10 +534,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The third call, on the central fallback subscription's token alone: it
-  # runs only on resolve-issue-subscription-handoff's read, after
-  # resolve-issue-subscription's leg handed off (a limit stop, a credit stop,
-  # or a 401 or 402). It is the last leg and never hands off.
   resolve-issue-fallback:
     name: Resolve Issue Fallback
     needs: [check-admission, pick-slot, resolve-issue, resolve-issue-handoff, resolve-issue-subscription, resolve-issue-subscription-handoff]
@@ -696,12 +570,6 @@ jobs:
       fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether a call stopped on stale workflow files (it waited in its slot past
-  # a change to this file or the write runner on main, so no model ran), read
-  # from this run's jobs by handoff-evidence.sh, never from a call's output.
-  # Only a run that started no skill and reused no branch is read. On true,
-  # report-outcome re-fires the issue at once on main's files instead of
-  # leaving it to work-unblock's hourly sweep. A failed read re-fires nothing.
   resolve-issue-stale:
     name: Resolve Issue Stale
     needs: [check-admission, resolve-issue, resolve-issue-subscription, resolve-issue-fallback]
@@ -751,17 +619,6 @@ jobs:
         with:
           tokens: github-token
 
-  # An issue its Size, Complexity and Uncertainty fields skip (pick-slot's
-  # resolve) takes no model turn, so the run leaves no outcome and every job
-  # below skips. This job reports it instead: report-outcome, with the
-  # lanes App token, routes the skip by stop-routes.json to no person, removes
-  # agent-ready and comments the next step: research-first and probe-first
-  # park at status: confirmed beside admission's comment naming the reason,
-  # and split-required goes back through intake, whose size split files its
-  # sub-issues. It needs no slot and runs at the WIP cap too.
-  # It also reports the check-admission job's outside-author stop (pick-slot skipped,
-  # hence !cancelled()): report-outcome removes agent-ready and comments that
-  # a listed human re-files the work as a new issue, adding no label.
   report-skip:
     name: Report Skip
     needs: [check-admission, pick-slot]
@@ -849,13 +706,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The commit job: a script with no model that runs nothing from the patch.
-  # It checks the patch against the model job's SHA-256, applies it to the
-  # commit the model worked on (checked out fresh, never the model job's
-  # workspace), refuses the paths patch-rules.json's `issue` row refuses,
-  # re-reads the issue's hold labels and agent-ready, and commits it to a new
-  # work-resolve-issue/issue-<n>-<run id>-<attempt> branch. One per issue at a
-  # time, the rest queued.
   apply-issue-patch:
     name: Apply Issue Patch
     needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, check-human-pull]
@@ -893,16 +743,6 @@ jobs:
       patch-resume-tip: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-resume-tip || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-resume-tip || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-resume-tip || '' }}
       reply-attempt: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reply-attempt || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reply-attempt || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reply-attempt || '' }}
 
-  # A stopped run's leftover lane branches (owner decision on #7948): the
-  # issue's lane branches whose run posted an outcome marker and whose commits
-  # are all the lanes App's, with no pull request in any state, which the read
-  # runner's earlier-work check named past the branch it reused, resumed or
-  # started fresh past. The run job that named them ran the model, so the list
-  # is a claim, held to the lane-branch shape by check-issue-fields: prune-branches.mjs,
-  # from the default branch tip, spares this run's own branches and the reuse
-  # and resume branches, reads every named branch in one GraphQL request, and
-  # deletes only one with no pull request, at the tip it read. Nothing here
-  # fails the run. The daily branch cleanup's rule is unchanged.
   prune-lane-branches:
     name: Prune Lane Branches
     needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback]
@@ -958,11 +798,6 @@ jobs:
         with:
           tokens: github-token
 
-  # One `pipeline/<activity>` commit status per lane step on the lane branch's
-  # head (post-statuses.mjs). No step is skipped on them; a failing one holds
-  # the merge gate like any failing check. This is the lane's only
-  # `statuses: write` grant, on the job's own GITHUB_TOKEN, and it runs only
-  # scripts from the default branch tip.
   report-statuses:
     name: Report Statuses
     needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, apply-issue-patch, run-checks, report-outcome]
@@ -970,11 +805,6 @@ jobs:
       ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
       || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
     runs-on: ubuntu-24.04
-    # 10 minutes of work plus the API_BUDGET_WAIT_SECONDS wait below
-    # (rate-guard.mjs's WAIT_BUDGET_SECONDS.workResolveIssue, which
-    # rate-guard.test.mjs pins every wait in this file to), which held every
-    # end-of-run stop of https://github.com/melodic-software/claude-code-plugins/issues/16642's
-    # 2026-11-18 runs (409-987 s from the reset); run-checks matches.
     timeout-minutes: 30
     permissions:
       contents: read
@@ -1035,18 +865,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The model's outcome file is its own word, so the runner runs the
-  # resolve-issue activity's `checks` itself, on a fresh runner no model ran
-  # on. Each check runs from the default branch tip's copy, in a checkout of
-  # the lane branch whose scripts/ is replaced by the base's, so every script
-  # the check runs is the base's. The branch's own data there (.txt, .json and
-  # .jsonl, such as scripts/fragment-plugins.txt) is restored from its commit,
-  # so the check reads the same lists the PR's CI does; a check reads list
-  # entries as data and never executes them. The results, with the
-  # tip they checked, are this job's `checks` output, never the outcome
-  # artifact, which code the model started can rewrite. report-outcome gets
-  # them only when this job succeeded, and stops a done run whose checks
-  # failed, did not run, or ran on another tip.
   run-checks:
     name: Run Checks
     needs: [check-admission, resolve-issue, resolve-issue-subscription, resolve-issue-fallback, apply-issue-patch]
@@ -1157,17 +975,9 @@ jobs:
         with:
           ref: ${{ steps.branch.outputs.branch }}
           path: .lane
-          # Full history, so the lane branch's merge base with the base tip resolves.
           fetch-depth: 0
           persist-credentials: false
 
-      # A reused branch's commits were scanned when their run made them,
-      # against that day's patterns, or never when the branch predates
-      # issue-mode scanning. Before any check runs, the read runner's leak
-      # scan (lib/publish-gate.mjs, from the base) reads everything the
-      # branch changes since its merge base with the base tip. Its word and
-      # the tip it scanned go into the checks record, and report-outcome holds
-      # the reuse PR on any word but clean.
       - name: Scan the reused branch for credentials
         id: reuse-scan
         if: steps.branch.outputs.reuse == 'true'
@@ -1192,8 +1002,6 @@ jobs:
           LANE: ${{ github.workspace }}/.lane
           BRANCH: ${{ steps.branch.outputs.branch }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          # Empty unless the branch is a reused one; a scan of another tip,
-          # or a step that set no word, counts as failed.
           REUSE: ${{ steps.branch.outputs.reuse }}
           SCAN: ${{ steps.reuse-scan.outputs.scan }}
           SCAN_TIP: ${{ steps.reuse-scan.outputs.tip }}
@@ -1263,25 +1071,6 @@ jobs:
   report-outcome:
     name: Report Outcome
     needs: [check-admission, resolve-issue, resolve-issue-subscription, resolve-issue-fallback, resolve-issue-stale, check-human-pull, apply-issue-patch, run-checks]
-    # issue-run-started is set only by the read runner's own steps, before
-    # any model turn, once the run chose to run the skill, and reaches this
-    # file through the read runner's check-issue-fields job, which checks it and
-    # every other issue output read here (the patch outputs come from its
-    # scan job); a run that failed after that still reports, with
-    # apply-issue-patch's branch when it made one.
-    # reuse-branch, also runner-computed, names a lane branch an earlier run
-    # left with commits and no report: the work was skipped, a read-only
-    # summary pass described the branch, and this opens the PR from it.
-    # Needing resolve-issue waits for every job of that call, the summary job
-    # included; !cancelled() runs this whether that job failed or skipped.
-    # A kill switch that stopped apply-issue-patch dropped this run's patch,
-    # so this skips and work-unblock re-fires the issue as a breaker trip.
-    # A call that stopped on stale workflow files (resolve-issue-stale) runs
-    # this with dimension-skip workflow-stale: it re-fires the issue at once.
-    # The broker mints for this report job though the run's files are stale
-    # while each main change to them is recent (pr-run-activity.md, Broker
-    # reasons); when it refuses, the run ends red and work-unblock's sweep
-    # re-fires the stale stop as before.
     if: >-
       ${{ !cancelled() && (((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
       || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '')

@@ -225,8 +225,6 @@ test("the command prints nothing for no match, and refuses a selected plugin who
   assert.match(unread.stderr, /plugins\/testing: its tree cannot be read/);
 });
 
-// A repository whose commits are built from the index, so a symlink (120000)
-// or gitlink (160000) entry needs no filesystem link.
 const linkRepo = () => {
   const repo = mkdtempSync(join(tmpdir(), "select-plugins-links-"));
   const git = (...args) => execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8" }).trim();

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Chooses the plugins an eval leg runs: the target input on a dispatch, else
-# the pull request head's diff through select-plugins.mjs. Reads EVENT, TARGET,
-# BASE_SHA and HEAD_SHA; writes go and list to GITHUB_OUTPUT.
 # shellcheck disable=SC2153,SC2154,SC2292 # the step's body verbatim; the step env sets EVENT, TARGET, BASE_SHA and HEAD_SHA, and the runner GITHUB_OUTPUT
 set -e
 if [ "$EVENT" = workflow_dispatch ]; then
