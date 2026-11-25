@@ -101,14 +101,17 @@ consumed() {
     fi
   fi
 
-  local seeder esc_stem stem_re
+  local seeder esc_stem stem_re fixture_path esc_path path_re
   local -a seeders=() scaffolds=() plugin_scaffolds=()
   plugin_root_of_to plugin "$fixture"
-  if [[ "$evals_dir" != "$plugin/evals" ]]; then
+  fixture_path="${fixture#"$fixtures_dir"/}"
+  if [[ "$evals_dir" != "$plugin/evals" && "$fixture_path" == */* ]]; then
     for seeder in "$plugin"/evals/*/scaffold.sh; do
       [[ -f "$seeder" ]] && plugin_scaffolds+=("$seeder")
     done
-    if ((${#plugin_scaffolds[@]} > 0)) && grep -qF -- "${fixture#"$fixtures_dir"/}" "${plugin_scaffolds[@]}"; then
+    ere_escape_to esc_path "$fixture_path"
+    path_re="(^|[^A-Za-z0-9._/-])${esc_path}([^A-Za-z0-9._/-]|$)"
+    if ((${#plugin_scaffolds[@]} > 0)) && grep -qE -- "$path_re" "${plugin_scaffolds[@]}"; then
       return 0
     fi
   fi

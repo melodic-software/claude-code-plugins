@@ -141,6 +141,18 @@ printf 'au_copy other/test_plugin_case.py test_plugin_case.py\n' >"$repo/plugins
 out="$(run_check_out "$repo")"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"test_plugin_case.py"* ]]; then ok "a plugin-level scaffold naming only the basename under another path does not consume a skill fixture"; else fail "basename-only plugin scaffold wrongly consumed: rc=$rc out='$out'"; fi
+printf 'au_copy xcfg/test_plugin_case.py test_plugin_case.py\n' >"$repo/plugins/p/evals/case-b/scaffold.sh"
+out="$(run_check_out "$repo")"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"test_plugin_case.py"* ]]; then ok "a plugin-level scaffold naming the path only inside a longer path does not consume a skill fixture"; else fail "substring path wrongly consumed: rc=$rc out='$out'"; fi
+rm -f "$repo/plugins/p/skills/s/evals/fixtures/cfg/test_plugin_case.py"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
+printf 'au_copy invalid.json x\nau_copy valid.json y\n' >"$repo/plugins/p/evals/case-b/scaffold.sh"
+out="$(run_check_out "$repo")"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"valid.json"* ]]; then ok "a flat skill fixture is not consumed by a plugin-level scaffold"; else fail "flat skill fixture wrongly consumed by a plugin scaffold: rc=$rc out='$out'"; fi
+rm -f "$repo/plugins/p/skills/s/evals/fixtures/valid.json"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/cfg/test_plugin_case.py"
 rm -f "$repo/plugins/p/evals/case-b/scaffold.sh"
 out="$(run_check_out "$repo")"
 rc=$?
