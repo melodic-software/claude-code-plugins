@@ -544,6 +544,7 @@ class TranscriptGrepTests(unittest.TestCase):
         holding = projects / "-tmp-cc-probe-b"
         (holding / "memory").mkdir(parents=True)
         (holding / "memory" / "MEMORY.md").write_text("kept\n")
+        (holding / "other-session").mkdir()
         (holding / "sid-3.jsonl").write_text(json.dumps(BOUNDARY) + "\n")
         other = projects / "-tmp-cc-probe-c"
         (other / "memory").mkdir(parents=True)
@@ -554,6 +555,9 @@ class TranscriptGrepTests(unittest.TestCase):
         self.assertFalse(emptied.exists(), "a folder left with only empty directories goes")
         self.assertEqual(
             (holding / "memory" / "MEMORY.md").read_text(), "kept\n", "a folder holding a file stays"
+        )
+        self.assertTrue(
+            (holding / "other-session").is_dir(), "a kept folder keeps its empty subfolders"
         )
         self.assertFalse((holding / "sid-3.jsonl").exists())
         self.assertTrue((other / "memory").is_dir(), "a folder without the session is untouched")

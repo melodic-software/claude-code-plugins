@@ -865,6 +865,8 @@ def collect_transcript(session: str, workdir: Path) -> str:
         lines += path.read_text(encoding="utf-8").splitlines()
         path.unlink()
         shutil.rmtree(path.with_suffix(""), ignore_errors=True)
+        if any(files for _, _, files in os.walk(path.parent)):
+            continue
         for folder, _, _ in os.walk(path.parent, topdown=False):
             try:
                 os.rmdir(folder)
