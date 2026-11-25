@@ -7,17 +7,17 @@ usage: comment_only.py <base-sha> <head-sha>   (run inside the repository)
 Reads candidate paths on stdin, one per line, and prints, one per line in
 input order, those that qualify. A path qualifies only when all hold:
 
-  - it is modified in place with one file mode on both sides, regular or
-    executable (`:100644 100644 ... M` or `:100755 100755 ... M` in
-    `git diff --raw --no-renames`);
+  - it is a regular, non-executable file modified in place (`:100644 100644
+    ... M` in `git diff --raw --no-renames`): an executable's shebang parses
+    as a comment, yet removing it changes how the script runs;
   - it is not one of the GATE files this helper runs or loads, so a change to
     the check itself is always reviewed;
   - code-tidying's change-shape.py `classify()` says COMMENT-ONLY or
     DOCSTRING-ONLY for its base and head blobs, through a tree-sitter grammar
     change-shape maps to its extension;
-  - every comment at head is also a comment at base, counted with repeats, so
-    the change can only remove comments: added or edited comment text is not
-    in git history and gets reviewed;
+  - every comment and every Python docstring at head is also one at base,
+    counted with repeats, so the change can only remove them: added or
+    edited text is not in git history and gets reviewed;
   - no removed or added line of its diff holds a directive (text that changes
     what a compiler, bundler, linter, scanner or license check does: code-
     tidying's comment-lint.py DIRECTIVE and COOKIE, SPDX and `@license`
@@ -83,7 +83,7 @@ SEMANTIC = (
     "@generated",
 )
 PROVEN = ("COMMENT-ONLY", "DOCSTRING-ONLY")
-FILE_MODES = ("100644", "100755")
+FILE_MODES = ("100644",)
 
 
 def load(name: str, path: Path):
