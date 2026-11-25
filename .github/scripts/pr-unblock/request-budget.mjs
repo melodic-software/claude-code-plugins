@@ -1,4 +1,4 @@
-import { graphqlQuery, retryServerErrors } from "../lib/github-client.mjs";
+import { conditionalReads, graphqlQuery, retryServerErrors } from "../lib/github-client.mjs";
 import { countsRequests, rateLimitLatch, refusedForLimit, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 
 // A 304 to a conditional request does not count against the primary limit; after a limit, wait for x-ratelimit-reset or retry-after.
@@ -12,7 +12,6 @@ export function budgetedFetch({
   latch = rateLimitLatch,
   floorGraceMs = 0,
 } = {}) {
-  const seen = new Map();
   const counts = { rest: 0, notModified: 0, graphql: 0 };
   const last = new Map();
 
@@ -38,20 +37,11 @@ export function budgetedFetch({
     }
     return response;
   }
-  const fetch = retryServerErrors(observed, { sleep, random, log, now, latch, resendLimited: true, floorGraceMs });
+  const fetch = conditionalReads(retryServerErrors(observed, { sleep, random, log, now, latch, resendLimited: true, floorGraceMs }));
 
   async function wrapped(url, init = {}) {
     const method = init.method ?? "GET";
-    const cached = method === "GET" ? seen.get(String(url)) : undefined;
-    const headers = cached ? { ...init.headers, "If-None-Match": cached.etag } : init.headers;
-    const response = await fetch(url, { ...init, headers });
-    if (cached && response.status === 304) {
-      return new Response(cached.body, { status: 200, headers: cached.headers });
-    }
-    const etag = response.headers?.get?.("etag");
-    if (method === "GET" && response.status === 200 && etag) {
-      seen.set(String(url), { etag, body: await response.clone().text(), headers: [...response.headers] });
-    }
+    const response = await fetch(url, init);
     const until = latch.until(url);
     if (until === null || !(await refusedForLimit(response))) {
       return response;
