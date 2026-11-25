@@ -1,54 +1,16 @@
 #!/usr/bin/env bash
-# Collect portfolio facts for one or more repositories, as JSON.
-#
-# WHY. The landscape and portfolio artifacts are only as trustworthy as the
-# facts under them, and a model reading manifests by hand guesses: it infers a
-# runtime from a directory name, an owner from a commit author, a framework
-# from a memory of the ecosystem. Every fact this script emits comes from a
-# named file in the repository, and anything no probe could derive is the
-# literal string "unknown" rather than a plausible value.
-#
-# Usage:
-#   portfolio-facts.sh <repo-path> [<repo-path>...]
-#   portfolio-facts.sh --help
-#
-# Output: JSON Lines on stdout, one object per repository, in argument order:
-#
-#   {"name":…,"path":…,"remote":…,"owner":…,"runtime":…,"tooling":…,
-#    "target_framework":…,"dependencies":[…],"dev_dependencies":[…],
-#    "last_touched":…,"evidence":{…}}
-#
-#   name              github.com origin repository name when origin resolves; else directory basename (#4554)
-#   path              absolute path, as the shell resolved it
-#   remote            `origin` URL with any credentials removed, or "unknown"
-#   owner             CODEOWNERS default rule, else the remote's owner segment,
-#                     else "unknown". Never a commit author.
-#   runtime           comma-joined list of every runtime-scope family, primary
-#                     first, or "unknown"
-#   tooling           comma-joined list of every family found ONLY at
-#                     development scope, or "unknown"
-#   target_framework  the primary RUNTIME's framework/version declaration, or
-#                     "unknown". A development-scope declaration never fills it:
-#                     an engine constraint for a linter is not what the
-#                     repository runs on.
-#   dependencies      runtime scope; sorted, de-duplicated, capped at 25
-#   dev_dependencies  development scope; same sort, de-duplication, and cap
-#   last_touched      `git log -1 --format=%cI` on the given checkout (local
-#                     HEAD; nothing here fetches), or "unknown"
-#   evidence          per fact, the repo-relative file that supplied it, or the
-#                     reason it is unknown
-#
-# Portability: bash plus POSIX awk/grep/sed. No jq, no `grep -P`, no python.
-#
-# Exit: 0 = every path produced a record; 1 = one or more paths were not
-# readable directories (a record is still emitted for the rest); 2 = usage.
 set -uo pipefail
 
 DEP_CAP=25
 PROBE_DEPTH=3
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Collect portfolio facts for one or more repositories, one JSON object per line.
+Usage: portfolio-facts.sh <repo-path> [<repo-path>...]
+Exit: 0 every path produced a record; 1 one or more paths were not readable directories
+(a record is still emitted for the rest); 2 usage.
+EOF
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then

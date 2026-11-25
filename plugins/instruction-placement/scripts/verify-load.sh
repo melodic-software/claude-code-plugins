@@ -1,42 +1,4 @@
 #!/usr/bin/env bash
-# verify-load.sh — prove a migrated instruction surface actually loads.
-#
-# WHY. Every other check in this plugin is static: the glob parses, it matches
-# tracked files, the index is in sync. None of them observes Claude Code
-# actually loading anything. That gap is where this plugin's own bugs lived —
-# a rule can pass every static gate and still never enter context, because
-# discovery missed it, because nothing imports the file, or because the trigger
-# is a read and nothing read a matching file.
-#
-# This closes the loop empirically. It runs the real CLI against the real
-# repository with an InstructionsLoaded hook attached, touches a file the
-# surface claims to cover, and reports which instruction files Claude Code
-# actually loaded and why.
-#
-# HOW IT STAYS SAFE. The probe never mutates the repository under test:
-#   * the hook is installed into a TEMPORARY settings file passed with
-#     --settings, never into the repository's own .claude/settings.json;
-#   * the probe prompt is read-only and the run is confined to --allowedTools Read;
-#   * the hook only appends to a log outside the repository.
-#
-# HOW IT STAYS HONEST. If the CLI is absent, unauthenticated, or times out, this
-# reports UNKNOWN and exits 3. It never reports a surface as verified because
-# the probe failed to run — an unverifiable result is not a passing one.
-#
-# Usage:
-#   verify-load.sh --trigger <path> [--expect <file>]... [options]
-#
-#   --trigger <path>   repo-relative file to read, which should fire the surface
-#   --expect <file>    an instruction file that MUST load (repeatable)
-#   --root <dir>       repository root (default: cwd)
-#   --claude <path>    CLI to use (default: `claude` on PATH)
-#   --timeout <secs>   probe timeout (default: 240)
-#
-# Output (TSV):
-#   LOADED    file  load_reason  trigger  globs
-#   EXPECTED  file  MET|MISSING
-#   VERDICT   PASS|FAIL|UNKNOWN  reason
-#
 # Exit: 0 every --expect met; 1 an expectation missing; 2 usage error;
 #       3 could not measure (no CLI, probe failed, timeout).
 
@@ -135,16 +97,6 @@ mkdir -p "$RECORDS" || unknown "cannot create the record directory"
 LOG="$WORK/loaded.log"
 SETTINGS="$WORK/settings.json"
 
-# The hook writes OUTSIDE the repository under test, so a probe never leaves a
-# trace in the tree it is measuring.
-#
-# One file per hook PROCESS, not one shared log. Claude Code fires this hook once per
-# instruction file and the invocations overlap, and an append from two concurrent
-# processes is not atomic on every host: on Windows they clobber each other, which both
-# LOSES records and leaves a half-written line that stops jq mid-file. A probe that
-# under-reports what loaded reports a surface MISSING that it watched load, so the
-# records are kept apart and concatenated below. `>>` inside one file because two
-# invocations that did share a PID would otherwise lose the first record.
 cat >"$SETTINGS" <<JSON
 {
   "hooks": {
@@ -187,23 +139,8 @@ jq -r '[
 
 MISSING=0
 if ((${#EXPECT[@]} > 0)); then
-  # `tr -d '\r'`: a Windows jq writes its output through a text-mode stdout, so every
-  # record it prints ends CRLF. Command substitution drops only the trailing one, which
-  # would leave every path but the last carrying a CR and matching nothing.
   loaded_files="$(jq -r '.file_path // empty' "$LOG" 2>/dev/null | tr -d '\r')"
   for want in "${EXPECT[@]}"; do
-    # Match the WHOLE path or a complete path-component suffix — never a bare
-    # substring. A plain `grep -F` marks `rules/rule.md` as MET when the only
-    # loaded path is `/repo/old-rules/rule.md`, which lets a verification tool
-    # report PASS for a surface that never loaded. For a tool whose entire job is
-    # not lying about what loaded, that is the worst possible defect.
-    #
-    # The boundary is a SEPARATOR, not a forward slash. Claude Code reports
-    # `file_path` in the host's own spelling, so on Windows every loaded path arrives
-    # backslash-separated and a `/`-anchored suffix matches nothing — the tool then
-    # reports a surface MISSING that it watched load. Fold both sides to `/` and the
-    # component boundary is preserved on either host: `old-rules/csharp.md` still
-    # fails to match a loaded `.../rules/csharp.md`.
     want_norm="${want#./}"
     want_norm="${want_norm//\\//}"
     state=MISSING

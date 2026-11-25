@@ -1,38 +1,15 @@
 #!/usr/bin/env bash
-# Render flow.json as a mermaid sequence diagram.
-#
-# WHY. The record is the fact. This script only draws hops the collector
-# cited. A reformatted record must not render as an empty sequence with exit 0.
-#
-# Usage:
-#   render-flow.sh --record <file> --out <dir>
-#   render-flow.sh --help
-#
-# No dialect key: the authoring-formats convention keys data diagrams and C4
-# system views only, and sequences stay unkeyed mermaid as in /planning:design.
-#
-# Writes, into <dir>:
-#   flow.md    mermaid sequenceDiagram. Asynchronous hops use -->> .
-#              Synchronous hops use ->> . A handoff names map-events.
-#
-# Consecutive hops with the same from-role, to-role, sync, resolution, mechanism, and
-# handoff collapse to one arrow. The artifact says how many were collapsed.
-#
-# Prints one summary line on stdout:
-#   flow: entry=<name> hops=<n> truncated=<yes|no> unresolved=<n> external=<n> di=<n> handoffs=<n>
-#
-# unresolved counts every unresolved hop. external counts the ones whose receiver
-# is outside the tree or of unknown type (mechanism external-call,
-# receiver-type-unknown, callee-not-in-tree). di counts interface and service-locator
-# hops (mechanism interface, dependency-injection). The rest are ambiguous-method,
-# reflection and broker hand-offs.
-#
-# Exit: 0 = written; 1 = unreadable, not schema_version 1, or not the
-# one-object-per-line layout (nothing is written); 2 = usage.
 set -uo pipefail
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Render flow.json as a mermaid sequence diagram.
+Usage: render-flow.sh --record <file> --out <dir>
+  --record <file>  flow.json from collect-flow.sh
+  --out <dir>      directory flow.md is written into
+Exit: 0 written; 1 unreadable, not schema_version 1, or not the one-object-per-line layout
+(nothing written); 2 usage.
+EOF
 }
 
 die() {

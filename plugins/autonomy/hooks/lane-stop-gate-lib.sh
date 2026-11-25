@@ -132,8 +132,6 @@ gate_managed_settings_files() {
   return 0
 }
 
-# The file is opened by bash (`< file`), not by jq: a native jq on Windows
-# cannot open an MSYS-style path, while a shell redirection always can.
 # A jq that writes stdout in text mode turns each LF into CRLF, so a trailing CR is removed with the trailing newlines.
 # shellcheck disable=SC2034 # result arrays are consumed by the sourcing hook
 gate_settings_options_to() {

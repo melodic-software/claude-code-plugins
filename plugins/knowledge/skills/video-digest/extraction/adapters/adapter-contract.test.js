@@ -214,8 +214,6 @@ describe("validateAdapter", () => {
     badAllowList.allowedExtractors = 42;
     expect(validateAdapter(badAllowList).some((v) => v.includes("allowedExtractors"))).toBe(true);
 
-    // An empty string is truthiness-skipped by the arg builders — for
-    // allowedExtractors that would silently drop the SSRF guard.
     const emptyAllowList = validSpec();
     emptyAllowList.allowedExtractors = "";
     expect(validateAdapter(emptyAllowList).some((v) => v.includes("allowedExtractors"))).toBe(true);

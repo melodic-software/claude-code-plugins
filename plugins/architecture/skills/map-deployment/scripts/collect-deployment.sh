@@ -1,48 +1,4 @@
 #!/usr/bin/env bash
-# Collect a per-environment deployment record from committed IaC.
-#
-# WHY. A deployment diagram is a fact only when every node is a declaration in
-# a named file. This script reads Docker Compose, Kubernetes manifests,
-# Terraform, Bicep, ARM, CloudFormation, and Pulumi YAML as text. It does not
-# call a cloud API,
-# even when --live is passed, and it never runs terraform, bicep, or az, or
-# reads state.
-#
-# Usage:
-#   collect-deployment.sh [--repo <path>] [--out <file>] [--generated-on <date>]
-#       [--live] [--containers <file>]
-#   collect-deployment.sh --help
-#
-# Tracked files only (`git ls-files`), CI directories (.github and the like)
-# excluded. Shipped readers: Compose, Kubernetes manifests, and Terraform (.tf,
-# .tf.json, .tfvars, .tfvars.json; see terraform-reader.awk), and Bicep and ARM
-# templates with their .bicepparam and deploymentParameters files (see
-# azure-reader.awk), CloudFormation YAML and JSON templates with their JSON
-# parameter files, and Pulumi projects of runtime yaml with their
-# Pulumi.<stack>.yaml files (see cloudformation-reader.awk, pulumi-reader.awk,
-# and the shared yaml-rows.awk). A Pulumi project of any other runtime, Helm (a
-# Chart.yaml, a Terraform helm_release, or a Pulumi kubernetes:helm.sh resource),
-# and Kustomize are recognized and then the record is refused, including when a
-# shipped reader also matches, so the diagram is never a partial read. A
-# resource a shipped reader parses and has no mapping for is listed in
-# `unmapped` (tool, resource type, file). When no container was placed and that
-# list is not empty, the record is refused as no-mapped-container and keeps the
-# list. A compose base file and its compose.override.yaml, or the files
-# a tracked .env COMPOSE_FILE lists, merge in Compose merge order into one
-# environment named for the directory: scalars are overridden, ports and
-# networks append without duplicates, environment merges by key. Any other
-# file beside them, an override with no base, or a !reset or !override tag
-# refuses the record as compose-not-mergeable:<file>.
-#
-# A placement names the compute node it runs on (`compute`): a Compose service,
-# or a Kubernetes workload shared by its containers. `relationships` holds the
-# Service selector and Ingress backend links from a network or ingress node to
-# a container.
-#
-# Output: deployment.json, schema_version 1, one object per line. Every value
-# written passes through plugins/architecture/lib/redact-connection.awk; a
-# value or key that carries a credential is dropped.
-#
 # Exit: 0 = a record was written (including a refusal); 1 = bad path; 2 = usage.
 set -uo pipefail
 
@@ -52,7 +8,17 @@ REDACT_AWK="$SCRIPT_DIR/../../../lib/redact-connection.awk"
 source "$SCRIPT_DIR/../../../lib/github-remote.sh"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Collect a per-environment deployment record from committed IaC.
+Usage: collect-deployment.sh [--repo <path>] [--out <file>] [--generated-on <date>] [--live] [--containers <file>]
+  --repo <path>          repository to read (tracked files only)
+  --out <file>           where deployment.json is written (default stdout)
+  --generated-on <date>  date recorded in the record
+  --live                 accepted; no cloud API is called
+  --containers <file>    containers.json to match placements against
+Writes deployment.json, schema_version 1, one object per line.
+Exit: 0 a record was written (including a refusal); 1 bad path; 2 usage.
+EOF
 }
 
 die() {
