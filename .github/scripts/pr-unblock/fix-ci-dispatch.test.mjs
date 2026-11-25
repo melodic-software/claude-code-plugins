@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
+import { COUNTED_PAGES, createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { emptyRecord, isHandled } from "./dispatch-record.mjs";
 import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
@@ -954,24 +954,32 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   }
 });
 
-test("the adapter reads a head's check runs as fix-ci-context does: every run, 100 a page, at most 3 pages", async () => {
-  const urls = [];
-  const api = createGitHubApi({
-    token: "t",
-    repository: "octo/repo",
-    apiUrl: "https://api.example",
-    graphqlUrl: "https://api.example/graphql",
-    fetch: async (url) => {
-      urls.push(url);
-      return new Response(JSON.stringify({ check_runs: Array.from({ length: 100 }, (_, index) => ({ id: urls.length * 100 + index })) }), { status: 200 });
-    },
-  });
-  const runs = await api.listCommitCheckRuns("a".repeat(40));
-  assert.equal(runs.length, 300);
-  assert.deepEqual(
-    urls,
-    [1, 2, 3].map((page) => `https://api.example/repos/octo/repo/commits/${"a".repeat(40)}/check-runs?filter=all&per_page=100&page=${page}`),
-  );
+test("the adapter reads every check run on a head, 100 a page, until total_count, and marks a listing past its page cap incomplete", async () => {
+  const listing = (total) => {
+    const urls = [];
+    const api = createGitHubApi({
+      token: "t",
+      repository: "octo/repo",
+      apiUrl: "https://api.example",
+      graphqlUrl: "https://api.example/graphql",
+      fetch: async (url) => {
+        urls.push(url);
+        const length = Math.min(100, total - (urls.length - 1) * 100);
+        return new Response(JSON.stringify({ total_count: total, check_runs: Array.from({ length }, (_, index) => ({ id: urls.length * 100 + index })) }), { status: 200 });
+      },
+    });
+    return { urls, read: () => api.listCommitCheckRuns("a".repeat(40)) };
+  };
+  const base = `https://api.example/repos/octo/repo/commits/${"a".repeat(40)}/check-runs?filter=all&per_page=100`;
+  const shards = listing(350);
+  const runs = await shards.read();
+  assert.equal(runs.length, 350);
+  assert.equal(runs.complete, true);
+  assert.deepEqual(shards.urls, [base, `${base}&page=2`, `${base}&page=3`, `${base}&page=4`]);
+  const huge = listing((COUNTED_PAGES + 1) * 100);
+  const capped = await huge.read();
+  assert.equal(capped.length, COUNTED_PAGES * 100);
+  assert.equal(capped.complete, false);
 });
 
 test("the adapter's listing keeps a lane's failure under a later skip of it", async () => {

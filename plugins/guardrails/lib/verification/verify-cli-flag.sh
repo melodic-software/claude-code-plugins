@@ -1,33 +1,10 @@
 #!/usr/bin/env bash
-# Verify whether a CLI flag exists by parsing `<bin> [<subcmd>...] --help`.
-# Deterministic primitive used by:
-#   - Agents (callable inline before editing scripts that reference CLI flags)
-#   - The cli-flag-verify PostToolUse hook (file-write detection)
-#
-# Usage:
-#   verify-cli-flag.sh [OPTIONS] <bin> [<subcmd>...] --<flag>
-#
-# Options (recognized only BEFORE <bin>; a target flag named --quiet or
-# --verbose is therefore never consumed as a verifier option):
-#   -h, --help        Print usage and exit 0
-#   --quiet           Suppress non-error output
-#   --verbose         Print the matching --help line on success
-#   --                End of verifier options
-#
-# Arguments:
-#   <bin>             Binary name on PATH (e.g. claude, gh, dotnet)
-#   <subcmd>...       Optional subcommand chain (e.g. gh pr create)
-#   --<flag>          The flag to verify (must start with `--`)
-#
 # Exit codes:
 #   0  Flag exists in `<bin> [<subcmd>...] --help` output, or in the help
 #      that lists the bin's global arguments (az: `az version --help`)
 #   1  Flag absent — likely hallucinated
 #   2  Binary missing on PATH OR `<bin> --help` failed (cannot verify)
 #   3  Argument validation error (caller bug)
-#
-# Cross-platform: Git Bash on Windows + Linux + macOS bash 5.x.
-# Caches `--help` output per-binary in $LOCALAPPDATA/guardrails or $XDG_CACHE_HOME/guardrails.
 
 set -uo pipefail
 
@@ -37,7 +14,23 @@ CFV_LIB_DIR="${BASH_SOURCE[0]%/*}"
 source "$CFV_LIB_DIR/cli-flag-cache.sh"
 
 usage() {
-  sed -n '2,/^$/{s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Verify whether a CLI flag exists by parsing `<bin> [<subcmd>...] --help`.
+
+Usage: verify-cli-flag.sh [OPTIONS] <bin> [<subcmd>...] --<flag>
+
+Options (recognized only before <bin>):
+  -h, --help        Print usage and exit 0
+  --quiet           Suppress non-error output
+  --verbose         Print the matching --help line on success
+  --                End of verifier options
+
+Exit codes:
+  0  Flag exists in the --help output (or the bin's global-arguments help)
+  1  Flag absent
+  2  Binary missing on PATH or `<bin> --help` failed (cannot verify)
+  3  Argument validation error
+EOF
 }
 
 QUIET=false
@@ -115,17 +108,10 @@ else
   command -v timeout >/dev/null 2>&1 && TIMEOUT_PREFIX=(timeout 5)
   HELP_OUTPUT=$("${TIMEOUT_PREFIX[@]}" "$BIN" "${SUBCMDS[@]}" --help 2>&1)
   HELP_RC=$?
-  # Some CLIs return non-zero on --help (e.g. busybox tools, malformed args).
-  # Tolerate non-zero as long as output is non-empty and it did not time out.
   if [[ -z "$HELP_OUTPUT" ]] || ((HELP_RC == 124)); then
     $QUIET || echo "verify-cli-flag: '$BIN ${SUBCMDS[*]} --help' failed (rc=$HELP_RC, empty/timeout)" >&2
     exit 2
   fi
-  # Persist to cache (best-effort), published by rename. Concurrent hooks race
-  # to refresh one key, and bash's printf to a file is many write(2) calls, not
-  # one, so a reader that passes the -s and mtime gates mid-rewrite would read
-  # a prefix and report a documented flag as unknown. `mv` is atomic within a
-  # filesystem: the reader sees the previous whole text or the new whole text.
   CACHE_TMP="$CACHE_FILE.$$.tmp"
   printf '%s' "$HELP_OUTPUT" >"$CACHE_TMP" 2>/dev/null && mv -f "$CACHE_TMP" "$CACHE_FILE" 2>/dev/null ||
     rm -f "$CACHE_TMP" 2>/dev/null || true

@@ -283,9 +283,9 @@ export const HOLD_LABELS = ARM_HOLDS;
 // 100 pull requests a page; more than this many open is a listing the run
 // holds on (ListingFull) rather than one it reads only part of.
 const MAX_PAGES = 10;
-// Changed files read per pull request, 100 a page; more is a head the run
-// does not arm on.
-const MAX_FILE_PAGES = 3;
+// The files listing stops at 3000, so a listing that fills every page may be cut short:
+// https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files
+const MAX_FILE_PAGES = 30;
 const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 const WHOLE_REVIEW_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py";
 
@@ -658,13 +658,10 @@ export function listedFiles(files) {
 
 async function changedFiles(github, slug, number) {
   const paths = [];
-  for (let page = 1; page <= MAX_FILE_PAGES + 1; page += 1) {
+  for (let page = 1; page <= MAX_FILE_PAGES; page += 1) {
     const rows = await github("GET", `/repos/${slug}/pulls/${number}/files?per_page=100&page=${page}`);
     if (!Array.isArray(rows)) {
       return { paths: null, capped: false };
-    }
-    if (page > MAX_FILE_PAGES) {
-      return rows.length === 0 ? { paths, capped: false } : { paths: null, capped: true };
     }
     for (const row of rows) {
       paths.push(String(row?.filename), ...(row?.previous_filename ? [String(row.previous_filename)] : []));
@@ -676,7 +673,7 @@ async function changedFiles(github, slug, number) {
   return { paths: null, capped: true };
 }
 
-export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
+export const FILES_CAPPED_REASON = `it lists ${MAX_FILE_PAGES * 100} changed files, GitHub's cap, so its hold and cost paths cannot all be checked`;
 export const EMPTY_DIFF_REASON = "its diff against main is empty, so its changes are already on main";
 export const EMPTY_DIFF_REOPENED_REASON = `${EMPTY_DIFF_REASON}, and it was reopened after the lane closed it at this head, so a person decides it`;
 export const emptyDiffNote = (head) =>

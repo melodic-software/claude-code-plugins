@@ -4279,6 +4279,7 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/work-items/skills/triage/schemas/**",
     "plugins/guardrails/git-hooks/reference-verify.sh",
     "plugins/bash-format/git-hooks/lint-full.sh",
+    "plugins/code-tidying/git-hooks/comment-lint-ci.sh",
 )
 
 

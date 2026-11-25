@@ -293,8 +293,8 @@ Never runs from bare `apply`.
 
 Writes `block-cross-domain`'s map, `${CLAUDE_PLUGIN_DATA}/identity-domains.json`, from the
 identity domains `/harness-ops:machine-profile` (if enabled) recorded. `<script>` is
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/identity-domains.sh"`; its header has the
-full rules. Never runs from bare `apply`.
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/identity-domains.sh"` (`--help` lists its
+flags). Never runs from bare `apply`.
 
 1. **Profile.** The stored profile is `machine-profile/profile.json` in the harness-ops
    plugin's data directory. A saved `/harness-ops:machine-profile` (if enabled) discover output works
@@ -302,8 +302,8 @@ full rules. Never runs from bare `apply`.
    `/harness-ops:machine-profile` (if enabled) and stop.
 2. **Preview.** Run `<script> --profile <file> --data-dir "${CLAUDE_PLUGIN_DATA}"`, which
    writes nothing and also says whether a map is already there. Each domain with an absolute tree and no
-   wildcard becomes one map domain, named after the tree's last segment: the tree is its
-   root, and a `gh` directory the profile records `set` is its `gh_config_dir`. Show the map
+   wildcard becomes one map domain, named after the tree's last segment (`-2`, `-3` added on a
+   clash): the tree is its root under the profile's own OS key, and a `gh` directory the profile records `set` is its `gh_config_dir`. Show the map
    and every `note:` line, since those name the skipped trees and the values left out.
 3. **Values the profile lacks.** Owners, identity markers, `az_config_dir` and shared
    exceptions are not discovered. In an attended run, ask for them once, by domain name, and
@@ -311,13 +311,15 @@ full rules. Never runs from bare `apply`.
    `--shared-exception FROM[,FROM...]:TO=PATH`. When the machine keeps repositories outside
    `~/src/github.com` and `~/worktrees/github.com`, also pass `--owner-root DIR`, repeatable,
    for each directory that holds one directory per owner, such as `"$(ghq root)/github.com"`,
-   or flat `<owner>-<repo>-<slug>` trees, such as `"$(git config worktreeroot.path)"`. A
+   or flat `<owner>-<repo>-<slug>` trees, such as `"$(git config worktreeroot.path)"`; given,
+   they replace those two defaults as the map's `owner_roots` for the profile's OS. A
    flat tree whose name does not start with its owner stays unguarded, and a name that does
    also names any other domain's root above it, so a session in either domain is denied it.
    A shared exception
    opens PATH, a directory of domain TO, to sessions in the FROM domains, one way; the script
    refuses a PATH that is
-   not TO's tree or below it or one of TO's owner directories, and a FROM that lists TO. A
+   not TO's tree or below it or one of TO's owner directories, or that sits below another
+   domain's path nested there, and a FROM that lists TO. A
    value nobody gives is left out of the map. A map that still holds a plain-path
    `shared_exceptions` entry from the earlier shape grants nothing for it: re-run this action
    with `--replace` to rewrite it.

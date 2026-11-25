@@ -1,52 +1,4 @@
 #!/usr/bin/env bash
-# assemble.sh — §7 assembly: the epoch-scoped append-only partial becomes
-# `findings.json`, and `findings.json` becomes the human-readable `report.md`.
-#
-# Assembly decides WHICH ROWS REACH THE REPORT, so it runs as code: a selection
-# rule performed differently on two runs is a P1 failure the gate cannot
-# attribute. `report.md` exists because `findings.json` is large, nested, and at
-# a path a remote session cannot open. It is a RENDERING and never a source: it
-# carries no fact the assembled document does not, nothing reads it back, and
-# `--resume` still reads the partial.
-#
-# THE SELECTION RULES, from §7:
-#   - read only the HIGHEST EPOCH partial present. A fenced writer appends to
-#     its own superseded file, so lower epochs are evidence of an adoption and
-#     are retained, never read.
-#   - per lane, take the HIGHEST-ORDINAL attempt that has a TERMINATING record,
-#     and discard every other attempt's rows outright, including any
-#     complete-looking prefix. An attempt with a start record and no terminator
-#     is abandoned by definition, whatever it managed to append.
-#   - completion is read from the terminator's STATE, not from its presence:
-#     `handed-back`, `declined`, and an ordinary completion mark the lane
-#     complete; `open` marks it INCOMPLETE so `--resume` re-runs it.
-#
-# EVERY SECTION IS RENDERED, INCLUDING THE EMPTY ONES. An absent `skipped`
-# section and an empty one look identical on the page and mean opposite things,
-# and the whole contract turns on keeping "clean" and "not read" apart. An empty
-# section renders its heading and the word `none`.
-#
-# SCOPE OF WRITES. `findings.json` and `report.md`, in the directory named by
-# `--out-dir`, which defaults to the run directory. Nothing else, and never
-# inside a target repository unless the caller points it there deliberately,
-# having already cleared the destination gate in §2.
-#
-# PORTABILITY. Needs `python3`. Where it is absent this exits 2 naming the
-# prerequisite, and the run performs the selection itself against the rules
-# above, which is why §7 still states them in full rather than deferring to this
-# file. A jq-only second implementation would be a second selection rule to keep
-# in agreement, which is the defect one level down.
-#
-# Usage:
-#   assemble.sh assemble  --run-dir <dir> [--out-dir <dir>] [--meta <json-file>]
-#   assemble.sh render    --findings <path> [--out <path>]
-#   assemble.sh epoch     --run-dir <dir>
-#
-# `--meta <json-file>` supplies the run-level fields the partial does not carry:
-# run id, target, both captures, the gate verdict, the comparability verdict, the
-# lane set, and whether the run was partial-scope. Absent, those render as
-# `unknown`, which is honest and visible rather than fabricated.
-#
 # Exit codes:
 #   0  the artifacts were written; their paths are on stdout
 #   2  usage error, rejected argument, or a missing prerequisite
@@ -100,8 +52,6 @@ require_run_dir() {
   [[ -d "$1" ]] || die "--run-dir is not a directory: $1"
 }
 
-# Sets EPOCH rather than printing it, so the `die` exits the script and not a
-# command substitution's subshell.
 require_epoch() {
   EPOCH="$(highest_epoch "$1")"
   [[ -n "$EPOCH" ]] || die "no findings.partial.<epoch>.jsonl under $1"

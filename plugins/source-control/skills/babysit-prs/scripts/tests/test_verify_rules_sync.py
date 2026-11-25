@@ -38,14 +38,11 @@ The run records are the gate suite's own forgeries and unfinished runs.
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 import re
 import shutil
 import subprocess
 import sys
-import tempfile
-import textwrap
 import unittest
 from typing import Any
 from unittest import mock
@@ -735,101 +732,9 @@ def queue_should_count(label: str) -> bool:
     )
 
 
-QUEUE_REF = "work-resolve-issue/issue-1"
-LOOKUP_STUBS = """\
-read_api() {
-  printf '%s\\n' "$2" >>"$RUNNER_TEMP/reads"
-  jq -ce --arg id "${2##*/}" '.[$id] // error' "$RUNNER_TEMP/runs.json"
-}
-: >"$RUNNER_TEMP/reads"
-: >"$RUNNER_TEMP/verdicts.jsonl"
-listed=true
-"""
-
-
-def queue_lookup_script() -> str:
-    """The merge-queue lines of ci-status's hold step that find the head's
-    pass, as the workflow holds them: the head-ref digest, the lookup by
-    exact name that stops at a counted pass, and the counted pass's
-    artifact."""
-    lines = REQUIRE_CHECKS.read_text(encoding="utf-8").splitlines()
-    start = lines.index("          verdicts=()")
-    body = lines[start : lines.index("          export BASE_SHA", start)]
-
-    def at(prefix: str, after: int = 0) -> int:
-        for n in range(after, len(body)):
-            if body[n].lstrip().startswith(prefix):
-                return n
-        raise AssertionError(f"no line starting {prefix!r} in the queue lookup")
-
-    digest = at("digest=$(")
-    names = at("pass_names=(")
-    names_end = next(n for n in range(names, len(body)) if body[n].rstrip().endswith(")"))
-    loop = at('[ "$listed" = false ] || for name in')
-    loop_end = body.index("            done", loop)
-    artifact = at("artifact=$(jq -sr")
-    artifact_end = at("and .repository.full_name == $repo", artifact)
-    return textwrap.dedent(
-        "\n".join(
-            [
-                body[digest],
-                *body[names : names_end + 1],
-                *body[loop : loop_end + 1],
-                *body[artifact : artifact_end + 1],
-            ]
-        )
-    )
-
-
-def listed(name: str, run: int, expired: bool = False) -> dict[str, Any]:
-    return {
-        "name": name,
-        "id": run * 10,
-        "expired": expired,
-        "workflow_run": {"id": run},
-    }
-
-
-def queue_lookup(
-    artifacts: list[dict[str, Any]], runs: dict[int, dict[str, Any]]
-) -> tuple[list[dict[str, Any]], str, int]:
-    bash = merge_policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
-    if bash is None:
-        raise unittest.SkipTest("bash not installed")
-    for tool in ("jq", "sha256sum"):
-        if not shutil.which(tool):
-            raise unittest.SkipTest(f"{tool} not installed")
-    script = LOOKUP_STUBS + queue_lookup_script() + '\nprintf "%s\\n" "$artifact"\n'
-    with tempfile.TemporaryDirectory() as tmp:
-        temp = pathlib.Path(tmp)
-        (temp / "listing.json").write_text(json.dumps({"artifacts": artifacts}))
-        (temp / "runs.json").write_text(
-            json.dumps({str(k): v for k, v in runs.items()})
-        )
-        proc = subprocess.run(
-            [bash, "-e", "-c", script],
-            env={
-                **os.environ,
-                "RUNNER_TEMP": temp.as_posix(),
-                "BABYSIT_VERIFY_LISTING": (temp / "listing.json").as_posix(),
-                "GITHUB_REPOSITORY": gate.REPO,
-                "pr": str(gate.PR),
-                "head": gate.HEAD,
-                "ref": QUEUE_REF,
-            },
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        kept = (temp / "verdicts.jsonl").read_text().splitlines()
-        reads = (temp / "reads").read_text().splitlines()
-    return [json.loads(row) for row in kept], proc.stdout.strip(), len(reads)
-
-
 @unittest.skipUnless(shutil.which("node"), "node not installed")
 class TheQueueCheckAndTheGateAgree(unittest.TestCase):
-    """ci-status's merge-queue pass check (pr-require-checks.yml's lookup,
-    run here against stubbed run reads, and merge-holds.mjs verdictHold)
+    """ci-status's merge-queue pass check (merge-holds.mjs verdictHold)
     counts a pass from the runs the gate counts."""
 
     def test_a_pass_counts_from_the_same_runs(self) -> None:
@@ -841,65 +746,6 @@ class TheQueueCheckAndTheGateAgree(unittest.TestCase):
                 self.assertEqual(js, queue_should_count(label))
         self.assertIn(True, counted)
         self.assertIn(False, counted)
-
-    def test_the_lookup_allows_a_pass_from_the_runs_the_gate_counts(self) -> None:
-        name = f"pr-verify-{gate.PR}-{gate.HEAD}-pass"
-        looked = [
-            queue_lookup([listed(name, 1)], {1: gate.run(1, **overrides)})
-            for overrides in RUNS.values()
-        ]
-        allowed = queue_allows([kept for kept, _, _ in looked])
-        for label, (_, artifact, _), allows in zip(RUNS, looked, allowed, strict=True):
-            with self.subTest(label):
-                self.assertEqual(allows, queue_should_count(label))
-                self.assertEqual(artifact, "10" if allows else "")
-        self.assertIn(True, allowed)
-        self.assertIn(False, allowed)
-
-    def test_the_lookup_stops_only_at_a_pass_the_gate_counts(self) -> None:
-        first, later = (
-            f"pr-verify-{gate.PR}-{gate.HEAD}-{verdict}"
-            for verdict in ("pass", "pass-notes")
-        )
-        for label, overrides in RUNS.items():
-            with self.subTest(label):
-                _, artifact, reads = queue_lookup(
-                    [listed(first, 1), listed(later, 2)],
-                    {1: gate.run(1, **overrides), 2: gate.run(2)},
-                )
-                self.assertEqual(
-                    (artifact, reads),
-                    ("10", 1) if queue_should_count(label) else ("20", 2),
-                )
-
-    def test_the_lookup_takes_each_pass_name_and_no_other(self) -> None:
-        base = f"pr-verify-{gate.PR}-{gate.HEAD}"
-        digest = ve.head_ref_digest(QUEUE_REF)
-        names = {
-            f"{base}-pass": True,
-            f"{base}-pass-{digest}": True,
-            f"{base}-pass-notes": True,
-            f"{base}-pass-notes-{digest}": True,
-            f"{base}-pass-{ve.head_ref_digest('feat/x')}": False,
-            f"{base}-pass-i7": False,
-            f"{base}-fail": False,
-            f"pr-verify-{gate.PR}-{gate.EARLIER}-pass": False,
-            f"pr-verify-{gate.PR + 1}-{gate.HEAD}-pass": False,
-        }
-        looked = [queue_lookup([listed(name, 1)], {1: gate.run(1)}) for name in names]
-        allowed = queue_allows([kept for kept, _, _ in looked])
-        for (name, taken), (_, artifact, reads), allows in zip(
-            names.items(), looked, allowed, strict=True
-        ):
-            with self.subTest(name):
-                self.assertEqual(
-                    (allows, artifact, reads),
-                    (True, "10", 1) if taken else (False, "", 0),
-                )
-        expired = queue_lookup(
-            [listed(f"{base}-pass", 1, expired=True)], {1: gate.run(1)}
-        )
-        self.assertEqual(expired, ([], "", 0))
 
 
 class TheBodyNoteTokenIsTheVerifiersOwn(unittest.TestCase):

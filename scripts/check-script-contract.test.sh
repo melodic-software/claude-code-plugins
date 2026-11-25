@@ -81,7 +81,6 @@ REGISTRY=(
   "check-changelog-fragments.sh|-|--check|changelog_fragments"
   "check-changelog-parity.sh|-|--check|changelog_parity"
   "check-comment-hygiene.sh|curl|HEAD|-"
-  "check-comment-lint.sh|-|-|-"
   "check-conformance-registry.sh|-|-|-"
   "check-convention-yaml.sh|CHECK_JSONSCHEMA_BIN=/nonexistent/check-jsonschema|--check|convention_yaml"
   "check-cross-plugin-source-drift.sh|-|-|-"

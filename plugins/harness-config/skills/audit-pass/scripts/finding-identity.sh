@@ -1,67 +1,4 @@
 #!/usr/bin/env bash
-# finding-identity.sh — §1's derivations, plus the emitter guard every record
-# passes before `run-state.sh partial append` writes it.
-#
-# `reference/finding-identity.md` pins `anchor/v1` normalization, the duplicate
-# discriminator, and `finding_id` in full. Performed by hand, a fully specified
-# derivation still yields a different anchor per RUN, so it runs as code.
-#
-# WHAT IT COMPUTES.
-#
-#   anchor/v1   e:<sha256(normalized excerpt) truncated to 12 hex>:<n>
-#               s:                                (whole-surface, content-free)
-#   <n>         sha256(normalized heading path) truncated to 8 hex, or the
-#               sentinel 0x00 where the surface has no heading above the excerpt
-#   finding_id  sha256(check 0x1F claim 0x1F surface 0x1F anchor [0x1F ...])
-#               truncated to 16 hex, sites in canonical sorted order
-#   group/v1    "g:" + sha256(check 0x1F claim) truncated to 16 hex
-#
-# `group` is derived from check and claim ALONE, never from the sites. That is
-# the property that makes it useful: it survives fixing, adding, or removing any
-# one site, so a report can keep one claim's split occurrences together across
-# runs without the grouping renaming itself on every partial fix.
-#
-# THE EMITTER GUARD refuses, rather than repairs:
-#   - a finding record with `identity` absent or null;
-#   - an empty `sites` array, or THREE OR MORE sites (past two there is no
-#     relation the pairwise exemption could be about, only independently
-#     correctable occurrences the lane was supposed to split);
-#   - two sites without a `pairwise: true` declaration on the claim;
-#   - an `s:` anchor in a two-site finding (assertion 1.6);
-#   - a `claim` that is free prose rather than a claim id;
-#   - a stored `finding_id/v1` that disagrees with its own constituents.
-# Splitting a multi-site return, binding a claim id, and choosing the
-# granularity are the lane's work. A guard that silently fixed them would hide
-# the delegate that needs the fix.
-#
-# THE GUARD IS ON THE APPEND PATH, not beside it. `guarded-append` runs
-# `validate-record` and only then hands the record to `run-state.sh partial
-# append`, and it is the form the skill prescribes: a guard the documented steps
-# can complete without invoking is a guard that does not exist, and the record
-# it would have refused is permanent in an append-only artifact. Its exit codes
-# are the union of both halves, so a FENCED append still reaches the caller as 3.
-#
-# SCOPE OF WRITES: none of its own. Every subcommand reads its arguments and
-# prints to stdout; `guarded-append` delegates the one write to `run-state.sh`,
-# which owns the partial artifact and every rule about writing to it.
-#
-# PORTABILITY. coreutils plus one of `sha256sum` / `shasum`. `validate-record`
-# additionally needs `python3` for a definitive JSON parse, and says so rather
-# than guessing with a regex: a record that a regex passed and a parser would
-# have rejected is permanent in an append-only artifact.
-#
-# Usage:
-#   finding-identity.sh normalize       --excerpt <text> [--in-fence]
-#   finding-identity.sh anchor          --excerpt <text> [--heading-path <text>]
-#                                       [--in-fence]
-#   finding-identity.sh anchor          --whole
-#   finding-identity.sh finding-id      --check <id> --claim <id>
-#                                       --site <surface>=<anchor> [--site ...]
-#   finding-identity.sh group-id        --check <id> --claim <id>
-#   finding-identity.sh validate-record --record <json-line>
-#   finding-identity.sh guarded-append  --run-dir <dir> --record <json-line>
-#                                       [--epoch <n>]
-#
 # Exit codes:
 #   0  the derivation is on stdout, or the record passed the guard and (for
 #      `guarded-append`) was appended
@@ -77,7 +14,6 @@ set -uo pipefail
 PROG="finding-identity.sh"
 EXIT_INVALID_RECORD=4
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The sibling, unless a test redirects it. Env-only: see `guarded-append`.
 APPENDER="${AUDIT_PASS_APPENDER:-$SCRIPT_DIR/run-state.sh}"
 
 US=$'\x1f'
@@ -120,16 +56,6 @@ require_sha256() {
   fi
 }
 
-# Normalization, v1. Case is PRESERVED, because these surfaces carry code and
-# identifiers.
-#
-#   1. strip trailing whitespace; collapse internal whitespace runs to one space
-#   2. strip surrounding markdown emphasis markers
-#   3. PRESERVE backticks and the text they delimit — stripping them would
-#      normalize `@README` to @README, so literal text quoted AS AN EXAMPLE of
-#      an import would hash identically to a real import
-#   4. strip block-level HTML comments OUTSIDE a fenced code block; inside a
-#      fence they are content and are kept, which is what --in-fence declares
 normalize_v1() {
   local text="$1" in_fence="$2"
 
@@ -143,11 +69,6 @@ normalize_v1() {
     done
   fi
 
-  # Collapse every whitespace run to one space, then trim the ends. The first
-  # `tr` set is the WHOLE class — tab, newline, vertical tab, form feed, and
-  # carriage return — not just tab and newline: a set missing `\r` leaves
-  # `a\r\nb` as `a\r b` where `a\nb` becomes `a b`, so two checkouts differing
-  # only in line-ending handling anchor differently and suppress differently.
   text="$(printf '%s' "$text" | tr '\t\n\v\f\r' '     ' | tr -s ' ')"
   text="${text#"${text%%[![:space:]]*}"}"
   text="${text%"${text##*[![:space:]]}"}"
@@ -235,11 +156,6 @@ cmd_anchor() {
   excerpt_hash="${excerpt_hash:0:12}"
 
   if [[ -z "$heading" ]]; then
-    # The fixed sentinel for a surface with no heading structure above the
-    # excerpt, or no heading concept at all (a prompt-type hook in JSON).
-    # Piped, never command-substituted: a shell drops a NUL byte out of `$( )`,
-    # which would silently turn the sentinel into the hash of an EMPTY string
-    # and collide with an excerpt under an empty heading path.
     disc="$(printf '\x00' | sha256_stdin)"
   else
     disc="$(sha256_string "$(normalize_v1 "$heading" 0)")"
@@ -249,10 +165,6 @@ cmd_anchor() {
   printf 'e:%s:%s\n' "$excerpt_hash" "$disc"
 }
 
-# `sites` is a SET, canonically sorted by the byte ordering of
-# `surface 0x1F anchor`, because an ordered pair hashes X-versus-Y differently
-# from Y-versus-X and the same conflict would then be reported twice.
-# The sites arrive already validated by cmd_finding_id.
 sorted_site_fields() {
   local site
   for site in "$@"; do
@@ -277,8 +189,6 @@ cmd_finding_id() {
   [[ ${#sites[@]} -ge 1 ]] || die "at least one --site is required"
   require_sha256
 
-  # Validated HERE, not in sorted_site_fields: that runs in a process
-  # substitution, where a `die` exits only the subshell.
   local site surface anchor
   for site in "${sites[@]}"; do
     surface="${site%%=*}"
@@ -338,9 +248,6 @@ cmd_validate_record() {
   require_sha256
 
   local out rc=0
-  # The record reaches python through the environment rather than through the
-  # command line, so a record containing a quote, a backtick, or a `$(` is data
-  # in both hops and never text a shell re-parses.
   out=$(
     FI_RECORD="$record" python3 - <<'PY'
 import hashlib
@@ -467,9 +374,6 @@ PY
   printf '%s\n' "$out"
 }
 
-# Guard-then-append, in one call, because two calls are one call a lane can skip.
-# Nothing is repaired here and nothing is appended on a refusal: `cmd_validate_record`
-# exits this process with 4 before the appender is reached.
 cmd_guarded_append() {
   local record="" have=0 forward=() arg
   while [[ $# -gt 0 ]]; do
@@ -487,28 +391,14 @@ cmd_guarded_append() {
       forward+=("$arg" "$2")
       shift 2
       ;;
-    # There is deliberately no `--appender` flag. The appender is a path this
-    # script hands to `bash`, and the arguments to this subcommand are composed
-    # by a model from lane output, so it does not belong on the public argument
-    # surface even though the guard runs first and an override cannot smuggle an
-    # invalid record past it. The one caller that needs to redirect the write is
-    # the test proving the guard refuses BEFORE the appender is reached, and it
-    # sets AUDIT_PASS_APPENDER in its own environment instead.
     *) die "unknown argument: $arg" ;;
     esac
   done
   [[ "$have" -eq 1 ]] || die "--record is required"
 
-  # The guard runs BEFORE the appender's own precondition, so that claim is
-  # literally true of every path and not merely of the write. Checked the other
-  # way round, an invalid record plus an unreadable appender exits 2 for the
-  # appender rather than 4 for the record, which reports the operator's
-  # environment where the lane's output is what is wrong.
   cmd_validate_record --record "$record" >/dev/null
   [[ -r "$APPENDER" ]] || die "the appender is not readable: $APPENDER"
 
-  # Its exit code is this command's: 0 appended, 2 refused by the appender,
-  # 3 FENCED. Collapsing 3 to 0 would let a superseded run keep dispatching.
   bash "$APPENDER" partial append "${forward[@]}"
 }
 

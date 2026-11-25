@@ -83,7 +83,7 @@ const linkedCheck = (id) => ({
 });
 const marker = (path, blob, head, { user = BOT, at = "2026-10-17T21:50:00Z" } = {}) => ({ user, created_at: at, body: refireComment(path, blob, head, LANE) });
 
-function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, refs = {}, mainTag = false, failOn } = {}) {
+function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, refs = {}, mainTag = false, failOn, mergeBase, workflows = {} } = {}) {
   const calls = [];
   const all = Object.values(runs).flat();
   const answer = (method, path, body) => {
@@ -127,12 +127,19 @@ function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN
       }
       return typeof tip === "string" ? { ref: `refs/heads/${match[1]}`, object: { sha: tip } } : { ref: `refs/heads/${match[1]}` };
     }
+    if (route === `/repos/${REPO}/contents/.github/workflows`) {
+      const listing = workflows[new URL(path, "https://x").searchParams.get("ref")];
+      if (listing === undefined) {
+        throw new GitHubError(404, `${method} ${path}`);
+      }
+      return structuredClone(listing);
+    }
     if ((match = /\/contents\/(.+)$/.exec(route))) {
       assert.equal(new URL(path, "https://x").searchParams.get("ref"), MAIN_TIP);
       return { sha: blobs[match[1]] };
     }
     if ((match = new RegExp(`/compare/${MAIN_TIP}\\.\\.\\.([0-9a-f]{40})$`).exec(route))) {
-      return { files: (changed[match[1]] ?? ["README.md"]).map((filename) => ({ filename })) };
+      return { files: (changed[match[1]] ?? ["README.md"]).map((filename) => ({ filename })), ...(mergeBase && { merge_base_commit: { sha: mergeBase } }) };
     }
     if (new RegExp(`/compare/[0-9a-f]{40}\\.\\.\\.${MAIN_TIP}$`).test(route)) {
       return { status: compare };
@@ -298,11 +305,25 @@ test("a head that changes a file the broker compares is not re-fired: the refusa
   }
 });
 
-test("a PR whose changed files cannot be listed in full is not re-fired", async () => {
+const LISTING = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8"));
+const relisted = (changes = {}) => LISTING.workflows.flatMap((entry) => (!(entry.name in changes) ? [entry] : changes[entry.name] === null ? [] : [{ ...entry, sha: changes[entry.name] }]));
+
+test("a PR past the compare API's 300-file list is judged by the broker's files at its merge base and head", async () => {
   const many = Array.from({ length: 300 }, (_, index) => `docs/${index}.md`);
-  const w = refusedWorld([pr(9)], { changed: { [sha(9)]: many } });
-  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
-  assert.deepEqual(pushes(w.calls), []);
+  const base = sha(3);
+  const same = refusedWorld([pr(9)], { changed: { [sha(9)]: many }, mergeBase: base, workflows: { [base]: relisted(), [sha(9)]: relisted({ "pr-merge.yml": NEW_BLOB }) } });
+  assert.equal(await main({ env, github: same.github, actions: same.actions, now: NOW }), 0);
+  assert.equal(pushes(same.calls).length, 1, "300 files that leave every broker file unchanged re-fire");
+  for (const [why, options] of Object.entries({
+    "a broker file changed": { mergeBase: base, workflows: { [base]: relisted(), [sha(9)]: relisted({ "pr-unblock.yml": NEW_BLOB }) } },
+    "a broker file removed": { mergeBase: base, workflows: { [base]: relisted(), [sha(9)]: relisted({ "pr-dispatch-feedback.yml": null }) } },
+    "no merge base": { workflows: { [base]: relisted(), [sha(9)]: relisted() } },
+    "an unreadable listing": { mergeBase: base, workflows: { [base]: relisted() } },
+  })) {
+    const w = refusedWorld([pr(9)], { changed: { [sha(9)]: many }, ...options });
+    await main({ env, github: w.github, actions: w.actions, now: NOW });
+    assert.deepEqual(pushes(w.calls), [], `${why}: nothing is re-fired`);
+  }
 });
 
 test("a tag named main stops the run before any run is read or anything pushed", async () => {

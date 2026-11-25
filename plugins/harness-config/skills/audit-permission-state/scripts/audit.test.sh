@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for audit.sh (self-contained — ships with the plugin).
-#
-# audit.sh composes the stage scripts; it owns no checks of its own. These tests
-# cover what composition can get wrong: running the inventory more than once,
-# widening the default past read-only, firing a priced lane nobody asked for, and
-# swallowing a stage's readability record on the way through.
-#
-# Stage behavior itself belongs to each stage's own suite. Nothing here asserts a
-# finding.
 # test-scope: .claude/settings.json
 set -uo pipefail
 

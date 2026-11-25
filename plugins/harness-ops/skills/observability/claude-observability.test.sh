@@ -2,8 +2,6 @@
 
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -348,7 +346,6 @@ printf '{"a":1}\n' >"$NEW_ROOT/sessions/live.jsonl"
 touch -t 202601010000 "$NEW_ROOT/sessions/stale.jsonl" "$NEW_ROOT/prune-pending/1000-old"
 
 root_dry=$(cd "$clean_test_dir" && env -u CC_OTEL_STORE bash "$CLEAN" --keep-days 30 --dry-run 2>&1)
-# clean.sh names the root under git's spelling of the repo (C:/... on Git Bash, not /tmp/...).
 assert_contains "clean --dry-run names the hook log root" "$root_dry" \
   "hook log root $(git -C "$clean_test_dir" rev-parse --show-toplevel | tr -d '\r')/.observability/claude"
 assert_contains "clean --dry-run counts stale session files" "$root_dry" "sessions/: 1 file(s) untouched for 30 days → would remove"

@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# instruction-load-stats.sh — how much instruction content actually loads at launch.
-# Counts each root WITH its `@path` imports expanded, via the same lib/imports.sh
-# parser the nested-AGENTS.md check uses, since imported files load at launch.
-# A project import outside the repository is listed as `external`, never expanded:
-# the loader gates it behind an approval dialog this script cannot see.
-# --lines, --bytes, and --tokens print one integer and exit 0 (missing file: 0),
-# because pre-compute lines inject stdout verbatim. A bad mode exits 2.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -68,8 +60,6 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 [[ -n "$repo_root" ]] || repo_root="$PWD"
 cd "$repo_root" || exit 2
 PROJECT_ROOT="$(il_realpath "$repo_root")"
-# External-import boundary of the walk in progress: the repository, or the config
-# dir for user-scope roots, whose imports load without the approval dialog.
 IL_ROOT="$PROJECT_ROOT"
 export IL_ROOT
 
@@ -109,8 +99,6 @@ scope_roots() {
     for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md; do
       [[ -f "$f" ]] && printf '%s\t%s\n' "$scope" "$f"
     done
-    # Only natively loaded AGENTS.md files: a shim already reaches one as an import,
-    # and a displacing CLAUDE.md that does not import it means it never loads.
     while IFS= read -r agents_file; do
       [[ -n "$agents_file" ]] && printf '%s\t%s\n' "$scope" "$agents_file"
     done < <(agents_md_native_files)

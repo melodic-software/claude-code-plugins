@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for plugins/guardrails/retirements.yaml: the hooks the retired
-# `apply install-commit-msg` and `apply install-pre-commit-content` actions wrote
-# into .git/hooks/ are detected by the plugin's check-retirements.sh copy and
-# cleaned one record at a time, while a user's own hook and the hooks
-# `apply install-git-hooks` installs in their place are left alone.
 # test-scope: plugins/guardrails/retirements.yaml plugins/guardrails/lib/check-retirements.sh plugins/guardrails/lib/git-hooks/install.mjs
 # test-scope: plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/hooks/*.sh plugins/guardrails/lib/verification/*.sh
 # test-scope: plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json
@@ -12,7 +7,6 @@
 # test-scope: plugins/guardrails/git-hooks/pre-commit-content.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PROJECT_DIR
-# Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
 unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,7 +29,6 @@ new_repo() {
   git init -q -b main "$REPO"
 }
 
-# detect -> "<rc>|<ids, space-separated>"
 detect() {
   local rows rc
   rows="$(bash "$HELPER" --manifest "$MANIFEST" --root "$REPO" 2>/dev/null)"
@@ -48,9 +41,6 @@ clean() { # <id> [--i-migrated] -> exit code
   echo $?
 }
 
-# The retired installs, as their recipes wrote them: each hook's second line is
-# its sentinel, the resolver is the plugin's resolve-convention-pattern.sh, and
-# the content hook's libraries sit in guardrails-content-lib/.
 old_installs() {
   local h="$REPO/.git/hooks"
   printf '#!/usr/bin/env bash\n# guardrails-commit-msg-convention v1\nexit 0\n' >"$h/commit-msg"
@@ -103,7 +93,16 @@ reference_verify_install() {
     printf '#!/bin/sh\n# guardrails reference-verify sha256:%064d\n' 0
     tail -n +2 "$PLUGIN/git-hooks/reference-verify.sh"
   } >"$d/guardrails/reference-verify.sh"
-  for a in $RV_ASSETS; do cp "$PLUGIN/$a" "$d/guardrails/"; done
+  for a in $RV_ASSETS; do
+    cp "$PLUGIN/$a" "$d/guardrails/"
+    printf '# %s\n' "$(retired_text "${a##*/}")" >>"$d/guardrails/${a##*/}"
+  done
+}
+
+retired_text() {
+  awk -v p=".git/hooks/guardrails/$1" '
+    $0 == "path: " p { hit = 1; next }
+    hit && /^content_match: / { sub(/^content_match: \047/, ""); sub(/\047$/, ""); gsub(/\\/, ""); print; exit }' "$MANIFEST"
 }
 
 clean_all() {

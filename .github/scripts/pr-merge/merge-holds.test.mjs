@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit, diffFiles, needsDiff, DIFF, wholeCompare } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit, diffFiles, needsDiff, DIFF, wholeCompare } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -79,6 +79,7 @@ function world({
   compares = {},
   base = "main",
   activity = pushesOf(runs),
+  listings = {},
 } = {}) {
   const reads = [];
   const answers = { ...Object.fromEntries(runs.map((run) => [run.sha, net(TF)])), ...compares };
@@ -98,6 +99,12 @@ function world({
       const rows = activity.slice((page - 1) * 100, page * 100);
       const link = activity.length > page * 100 ? `<https://api.github.com/repositories/1/activity?per_page=100&after=c${page + 1}>; rel="next"` : null;
       return Object.defineProperty(rows, Symbol.for("github.link"), { value: link });
+    }
+    const listed = /^\/repos\/owner\/repo\/contents\/\.github\/workflows\?ref=([0-9a-f]{40})$/.exec(path)?.[1];
+    if (listed !== undefined) {
+      reads.push(`listing ${listed}`);
+      if (!(listed in listings)) throw new Error(`GET ${path} failed with status 404`);
+      return structuredClone(listings[listed]);
     }
     if (path.startsWith("/repos/owner/repo/git/ref/heads/")) {
       reads.push("ref");
@@ -853,6 +860,48 @@ test("unranHead names the first head pushed after the decided head with no run o
   assert.match(unranHead([{ after: NEW, timestamp: "soon" }, ...moves], [[NEW], [NEW]], OLD, at), /unreadable/);
   assert.match(unranHead("nope", [[], []], OLD, at), /unreadable/);
   assert.equal(unranHead([push(OLD, "2026-10-22T11:30:00Z"), ...moves], [[OLD], [OLD]], OLD, at), null);
+});
+
+const LISTING = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8"));
+const relisted = (entries, changes = {}) => entries.flatMap((entry) => (!(entry.name in changes) ? [entry] : changes[entry.name] === null ? [] : [{ ...entry, sha: changes[entry.name] }]));
+const MANY = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+
+test("laneChangeIn reads a compare past its 300-file list as the review-lane workflows' blobs at the merge base and head", async () => {
+  const BASE = "3".repeat(40);
+  const AT = "4".repeat(40);
+  const many = { ...net(...MANY), merge_base_commit: { sha: BASE } };
+  const reader = (byRef) => {
+    const paths = [];
+    const read = async (method, path) => {
+      paths.push(path);
+      const ref = /^\/repos\/o\/r\/contents\/\.github\/workflows\?ref=([0-9a-f]{40})$/.exec(path)?.[1];
+      if (method !== "GET" || !(ref in byRef)) throw new Error(`GET ${path} failed with status 404`);
+      return structuredClone(byRef[ref]);
+    };
+    return { read, paths };
+  };
+  const same = reader({ [BASE]: LISTING.workflows, [AT]: relisted(LISTING.workflows, { "pr-merge.yml": "d".repeat(40) }) });
+  assert.equal(await laneChangeIn(same.read, "o/r", many, AT), null, "another workflow's change is not a lane change");
+  assert.equal(same.paths.length, 2, "one listing at each end");
+  const edited = reader({ [BASE]: LISTING.workflows, [AT]: relisted(LISTING.workflows, { "pr-review-security-hosted.yml": "e".repeat(40) }) });
+  assert.equal(await laneChangeIn(edited.read, "o/r", many, AT), "a review-lane workflow");
+  const added = reader({ [BASE]: relisted(LISTING.workflows, { "pr-review-hosted.yml": null }), [AT]: LISTING.workflows });
+  assert.equal(await laneChangeIn(added.read, "o/r", many, AT), "a review-lane workflow", "a lane workflow new since the merge base is a change");
+  assert.equal(await laneChangeIn(same.read, "o/r", { ...many, merge_base_commit: undefined }, AT), "too many files", "no merge base keeps the cap's answer");
+  await assert.rejects(laneChangeIn(reader({ [BASE]: LISTING.workflows }).read, "o/r", many, AT), /404/, "an unread listing decides nothing");
+  assert.equal(await laneChangeIn(same.read, "o/r", net(TF), AT), null);
+  assert.equal(same.paths.length, 2, "a listed compare reads no tree");
+});
+
+test("a cost decision carries to a lane run on a 300-file head whose review-lane workflows match at its merge base", async () => {
+  const BASE = "3".repeat(40);
+  const compares = { [HEAD]: { ...net(TF, ...MANY), merge_base_commit: { sha: BASE } } };
+  const unchanged = { [BASE]: LISTING.workflows, [HEAD]: relisted(LISTING.workflows, { "pr-merge.yml": "d".repeat(40) }) };
+  const carried = await decide(undefined, { compares, listings: unchanged });
+  assert.equal(carried.link, LINK, "the vetted head carries the decision");
+  assert.ok(carried.reads.includes(`listing ${BASE}`) && carried.reads.includes(`listing ${HEAD}`), carried.reads.join(", "));
+  const edited = { ...unchanged, [HEAD]: relisted(LISTING.workflows, { "pr-review-hosted.yml": "e".repeat(40) }) };
+  assert.equal((await decide(undefined, { compares, listings: edited })).link, null, "a changed lane workflow vets nothing");
 });
 
 test("laneChange, costNotices and decidedHead", () => {

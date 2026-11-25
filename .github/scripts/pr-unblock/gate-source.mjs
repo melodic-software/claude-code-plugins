@@ -263,7 +263,7 @@ export function sharedCopyGate(args) {
   return result("shared-copy-refusal", `pr-merge refused head ${head} as shared-copy-sources-changed`);
 }
 
-const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
+const REASON_LINE = /^- (?:Lane code|Reason): `([a-z][a-z-]*)`$/;
 
 export { escalationActivity, escalationRoute, ROUTES } from "./escalation-routes.mjs";
 
