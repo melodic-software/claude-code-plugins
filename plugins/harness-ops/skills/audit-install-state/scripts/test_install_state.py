@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/harness-ops/.claude-plugin/plugin.json
-"""Contract tests for the install-state engine.
-
-Every test builds its own synthetic tree. Nothing here reads the author's real
-`~/.claude`, so the suite is portable and its results do not depend on which
-machine it runs on.
-"""
 
 from __future__ import annotations
 
@@ -42,7 +36,6 @@ def _managed_paths(paths: list[Path]):
 
 
 def build_tree(root: Path) -> None:
-    """A miniature `~/.claude` carrying one instance of each trap."""
     (root / "sessions").mkdir(parents=True)
     (root / "sessions" / "5052.json").write_text("{}", encoding="utf-8")
 

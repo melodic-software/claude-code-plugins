@@ -38,11 +38,9 @@ const git = (cwd, ...args) =>
     { cwd, encoding: "utf8", env: fixtureEnv },
   ).trim();
 
-/** Real git, with file:// let back in so a hardened clone can reach a local fixture. */
 const allowFile = (command, args, options) =>
   spawn(command, args, { ...options, env: { ...options.env, GIT_ALLOW_PROTOCOL: "https:file" } });
 
-/** A local repository with two commits; returns its file URL and head commit. */
 function fixtureRepo() {
   const dir = sandbox();
   git(dir, "init", "-q");
@@ -107,7 +105,6 @@ describe("shallowCloneGitHubRepo", () => {
   });
 
   describe("with inheritGitEnvironment", () => {
-    /** Run `body` with HOME pointing at a home whose git config rewrites `alias` to `target`. */
     async function withAliasHome(alias, target, body) {
       const home = sandbox();
       fs.writeFileSync(path.join(home, ".gitconfig"), `[url "${target}"]\n\tinsteadOf = ${alias}\n`);
@@ -169,7 +166,6 @@ describe("shallowCloneGitHubRepo", () => {
   });
 
   describe("with git config passed through the environment", () => {
-    /** Run `body` with `vars` set in the parent environment, restoring it after. */
     async function withEnv(vars, body) {
       const saved = Object.fromEntries(Object.keys(vars).map((key) => [key, process.env[key]]));
       Object.assign(process.env, vars);
@@ -228,7 +224,6 @@ describe("shallowCloneGitHubRepo", () => {
   });
 
   describe("hardened transport and checkout", () => {
-    /** Run `body` with `name` set to `value` in the parent environment, restoring it after. */
     async function withVar(name, value, body) {
       const saved = process.env[name];
       process.env[name] = value;

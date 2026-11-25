@@ -115,8 +115,8 @@
 # `sudo`, `env`, `nice`, `timeout` or `xargs`, a child shell (`bash -c '...'`),
 # a gh alias, brace expansion (`{gh,} pr merge`), a glob (`g? pr merge`) or
 # `gh.cmd`; a GraphQL mutation read from a file (`--input`), whose name
-# never appears in the command; past 100 reviews or check runs the rest are
-# not read; past 2,000 review threads (https://github.com/melodic-software/claude-code-plugins/issues/18822) the merge runs unchecked; the backtick refusal keys on merge-shaped text, so
+# never appears in the command; past 2,000 review threads, reviews, check runs
+# or commit statuses (https://github.com/melodic-software/claude-code-plugins/issues/18822) the merge runs unchecked; the backtick refusal keys on merge-shaped text, so
 # an obfuscated spelling of `pr merge` itself (`pr mer"ge"`) with a backtick is
 # parsed as usual (#8657); a merge verb built from pieces (`V=mer; gh pr ${V}ge`);
 # a cancelled run `<name>` is cleared by a newer successful `<name> (...)` run

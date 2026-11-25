@@ -22,7 +22,7 @@
       "kind": "cli",
       "need": "required",
       "for": [
-        "hook:observer-arm.sh",
+        "hook:observer-catchup.sh",
         "skill:retro"
       ],
       "detect": {

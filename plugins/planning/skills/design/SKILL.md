@@ -402,6 +402,11 @@ and behave exactly as with no convention doc at all, reporting its provenance as
 for the fenced form, since the diagram goes into the typed artifact. Without
 it, emit the plainest correct form of the dialect. The typed artifact is produced either way.
 
+**Collaborative canvas mode.** When a thread's question is structural (module boundaries,
+topology, a data shape, a flow) and the person is present, offer once to work it out on a live
+canvas through `/visualization:visualize` (if enabled) in collaborative canvas mode. Offer it on no
+other question. When the canvas closes, ask for the fenced form: the typed artifact stays the record.
+
 ## Key behaviors
 
 - **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same

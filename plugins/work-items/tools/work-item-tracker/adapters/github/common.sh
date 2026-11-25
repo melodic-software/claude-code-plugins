@@ -36,8 +36,6 @@ source "$WIT_GH_ADAPTER_DIR/../../lib/verb-cli.sh"
 wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
 # shellcheck source=../../lib/lease.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
-# binding.sh supplies wit_project_root — the seam's single repo-root anchor; the
-# wrapper lookup below must share it, never re-derive its own copy.
 wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/binding.sh"
 # shellcheck source=../../lib/binding.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/binding.sh"
@@ -219,7 +217,7 @@ wit_read_assignees() {
 # _wit_edit_assignee <method> <writer> <owner> <repo> <number> <login>
 _wit_edit_assignee() {
   local method="$1" writer="$2"
-  [[ "$writer" == "write" ]] || wit_write_pause # session-identity write skips gh_write
+  [[ "$writer" == "write" ]] || wit_write_pause
   wit_run_gh "$writer" api --method "$method" "repos/$3/$4/issues/$5/assignees" \
     -f "assignees[]=$6" --jq '[.assignees[].login]'
 }
@@ -527,8 +525,6 @@ wit_hand_back_assignee() {
   _wit_list_at_clock "$owner" "$repo" "$number" || _wit_list_at_clock "$owner" "$repo" "$number" || return 0
   _wit_login_holds_other "$leases" "$login" "$own" "$now" || return 0
   wit_try_add_assignee "$owner" "$repo" "$number" "$login"
-  # The lease that earned the re-add may have ended meanwhile (a renew that revived it for a
-  # moment backs off and finds the login already gone), so the re-add must not outlive it.
   _wit_list_at_clock "$owner" "$repo" "$number" || _wit_list_at_clock "$owner" "$repo" "$number" || return 0
   _wit_login_holds_other "$leases" "$login" "$own" "$now" || wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
 }

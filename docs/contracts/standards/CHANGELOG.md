@@ -1,5 +1,16 @@
 # Changelog for the standards convention
 
+## 1.2.0 - 2026-11-24
+
+Additive. A fourth layer, the org layer: the team layer of the repository a consumer's
+`docs/conventions/source-control.yaml` names in `standards_repository`, read from its `main`
+(`STANDARDS_DIR` in CI, else a cached shallow clone) below the team layer, which adds to it or
+replaces an org file by name. The review criteria in effect are the org `REVIEW.md` with the
+repository's `REVIEW.md` appended, or the repository's alone when its first non-blank line is
+`<!-- review-base: replace -->`. Consuming plugins bundle `scripts/org-standards.sh`. A repository
+without `standards_repository` resolves exactly as before. An index at 1.1.6 is older than the
+bundled contract, so setup offers the guided migration, which changes nothing but the version.
+
 ## 1.1.6 - 2026-11-17
 
 Wording only. The index example drops its `csharp` row, the Surface column no longer lists

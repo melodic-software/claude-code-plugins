@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "`--bogus` is not an argument triage accepts. Accepted: `sweep`, `--config-ref <ref>`, a number, `--issue <n> --ci`. Stopped with no changes.",
+      "why": "stops and names the set"
+    },
+    {
+      "answer": "Unknown token --bogus.\n\nThe accepted set is:\n- sweep\n- --config-ref <ref>\n- an issue number\n- --issue <n> --ci",
+      "why": "the set as a list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Triaged #12: priority medium, status ready.",
+      "why": "ignored the unknown token"
+    },
+    {
+      "answer": "`--bogus` is not accepted, so I stopped.",
+      "why": "stops without naming the accepted set"
+    }
+  ]
+}

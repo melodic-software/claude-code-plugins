@@ -15,14 +15,15 @@ import { artifactName, buildChunkedVerdict, buildVerdict, LONG_LINE_BYTES, longe
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
 const TREE = "c".repeat(40);
+const STANDARDS = "d".repeat(40);
 const finding = (severity, extra = {}) => ({ severity, path: "a.yml", line: 3, title: "t", body: "b", ...extra });
-const args = (output, extra = {}) => ({ output, lane: "claude-security-review", pr: 42, headSha: HEAD, baseSha: BASE, tree: TREE, runId: 9, maxLineBytes: 80, ...extra });
+const args = (output, extra = {}) => ({ output, lane: "claude-security-review", pr: 42, headSha: HEAD, baseSha: BASE, tree: TREE, standardsSha: STANDARDS, runId: 9, maxLineBytes: 80, ...extra });
 
-test("counts every finding and the CRITICAL ones, with the job's own head, base and tree", () => {
+test("counts every finding and the CRITICAL ones, with the job's own head, base, tree and standards commit", () => {
   const verdict = buildVerdict(args({ findings: [finding("CRITICAL"), finding("SUGGESTION"), finding("IMPORTANT")], summary: "s" }));
   assert.deepEqual(
-    { schema: verdict.schema, lane: verdict.lane, pr: verdict.pr, head: verdict.head_sha, tree: verdict.tree, findings: verdict.findings, critical: verdict.critical },
-    { schema: 1, lane: "claude-security-review", pr: 42, head: HEAD, tree: TREE, findings: 3, critical: 1 },
+    { schema: verdict.schema, lane: verdict.lane, pr: verdict.pr, head: verdict.head_sha, tree: verdict.tree, standards: verdict.standards_sha, findings: verdict.findings, critical: verdict.critical },
+    { schema: 1, lane: "claude-security-review", pr: 42, head: HEAD, tree: TREE, standards: STANDARDS, findings: 3, critical: 1 },
   );
   const clean = buildVerdict(args({ findings: [], summary: "nothing" }));
   assert.equal(clean.findings, 0);
@@ -38,6 +39,8 @@ test("refuses output off the schema, a bad id or SHA, and a credential in model 
     ["negative line", args({ findings: [finding("CRITICAL", { line: -1 })], summary: "s" })],
     ["unknown lane", args({ findings: [], summary: "s" }, { lane: "other" })],
     ["bad tree", args({ findings: [], summary: "s" }, { tree: "x" })],
+    ["no standards commit", args({ findings: [], summary: "s" }, { standardsSha: undefined })],
+    ["bad standards commit", args({ findings: [], summary: "s" }, { standardsSha: "main" })],
     ["bad pr", args({ findings: [], summary: "s" }, { pr: "0" })],
     ["secret", args({ findings: [], summary: `key AKIA${"A".repeat(16)}` })],
     ["secret over a fold", args({ findings: [finding("IMPORTANT", { body: `quoted: AKIA${"A".repeat(8)}\n\\ continued: ${"A".repeat(8)}` })], summary: "s" })],
@@ -172,6 +175,7 @@ function chunkedRun(dir, chunks, { skip = [], result = () => ({ findings: [findi
     HEAD_SHA: HEAD,
     BASE_SHA: BASE,
     TREE_SHA: TREE,
+    STANDARDS_SHA: STANDARDS,
     GITHUB_RUN_ID: "9",
     VERDICT_DIR: path.join(dir, "verdict"),
     DIFF_DIR: diff,
@@ -187,7 +191,9 @@ test("main writes verdict.json and the name output", () => {
     const verdict = JSON.parse(readFileSync(path.join(dir, "verdict", "verdict.json"), "utf8"));
     assert.equal(verdict.findings, 1);
     assert.equal(verdict.critical, 1);
+    assert.equal(verdict.standards_sha, STANDARDS);
     assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), new RegExp(`^name=pr-review-main-claude-review-42-${TREE}$`, "m"));
+    assert.throws(() => main({ ...env, STANDARDS_SHA: "" }), /STANDARDS_SHA is not set/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -39,8 +39,6 @@ presence_row() {
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$script_dir/../../.." && pwd)}"
 # shellcheck source=../../../lib/managed-scope.sh
 source "$plugin_root/lib/managed-scope.sh"
-# The topic-file counting rule is shared with the sibling enumerate-all-projects.sh,
-# whose printed count is a contract of its own.
 # shellcheck source=../../../lib/topic-count.sh
 source "$plugin_root/lib/topic-count.sh"
 managed="$(mscope::base_file)"

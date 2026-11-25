@@ -58,8 +58,6 @@ entry() {
       reason: (if $reason == "" then null else $reason end)}')"$'\n'
 }
 
-# read_gh <gh-args…>: run bare gh without exiting on failure. READ_OUT = stdout, READ_RC = its
-# exit code, READ_ERR = the first stderr line.
 read_gh() {
   local errfile
   errfile="$(mktemp)"

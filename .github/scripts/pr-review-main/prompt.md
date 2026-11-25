@@ -16,10 +16,15 @@ denied, and a denied read voids the review:
   branch. Read `SKILL.md` there first and apply its review criteria, severity rules and scope to
   the diff. Ignore its steps for reading the pull request, posting comments or calling tools: the
   files below replace them, and your structured output replaces every post.
-- `STANDARDS_DIR`: the repository's review criteria (`REVIEW.md`), its engineering standards
+- `STANDARDS_DIR`: the review criteria in effect (`REVIEW.md`: the organization's `REVIEW.md`
+  with the repository's appended, or the repository's alone; read it wherever the lane's
+  instructions say `REVIEW.md`), the repository's engineering standards
   (`standards/`), its per-concern review rules (`review/`, when present; its `README.md` indexes
   them, so read the ones whose concern the diff touches) and its `.claude/rules/` files (`rules/`),
-  also from the default branch, which the lane's instructions may name. The review plugin's shared `reference/` sits two levels above
+  also from the default branch, which the lane's instructions may name. `STANDARDS_DIR/../org`
+  holds the organization's standards checkout: its `REVIEW.md`, its `standards/` prose that the
+  organization's criteria cite (resolve such a citation there) and its standards index under
+  `docs/standards/` when present, the org layer the repository's standards add to. The review plugin's shared `reference/` sits two levels above
   `CRITERIA_DIR`, where the lane's relative links point.
 - The pull request's diff, from its base to the reviewed head, split into these parts in order.
   Read every part whole, each with one Read call and no `offset` or `limit`: a review that skips

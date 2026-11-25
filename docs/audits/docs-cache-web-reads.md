@@ -52,7 +52,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | discovery | `agents/research-verifier.md:4` | WebFetch grant | kept | Read-only verifier with no Bash; reads the parent's snapshot from disk and uses WebFetch only for a cited page the snapshot lacks |
 | discovery | `agents/researcher.md:176` | curl download of artifacts too large to read in context | kept | Same as the `discipline.md:256` row: the artifact's bytes are kept as downloaded |
 | discovery | `agents/sweep-worker.md:4` | WebFetch grant | kept | No shell by design; docs pages reach it as slices (page sections) that the docs-fetcher agent read through the cache |
-| discovery | `workflows/research-sweep.js:235` | Workers WebFetch a page the slices do not cover | kept | The workers have no shell; every page the slices hold came through the cache |
+| discovery | `workflows/research-sweep.js:225` | Workers WebFetch a page the slices do not cover | kept | The workers have no shell; every page the slices hold came through the cache |
 | discovery | `skills/research/context/source-categories.md:12` | WebFetch the docs site when no docs MCP server is connected | moved | |
 | discovery | `skills/research/context/discipline.md:68` | WebFetch on a raw `CHANGELOG.md` URL for the recency gate | moved | |
 | discovery | `skills/research/context/discipline.md:256` | curl download of a PDF, spec or source file | kept | Not a page: the artifact's bytes are kept as downloaded, and the cache stores only markdown or converted HTML |
@@ -91,7 +91,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | knowledge | `skills/video-digest/extraction/harvesting/fetch-deck-attachments.js:256` | `node:https` download of deck attachments from harvested links | kept | File downloads, not pages |
 | knowledge | `skills/map-corpus/discovery/link-map-format.md:31` | WebFetch or curl of discovery snapshots | kept | Sitemaps and forge tree listings that a deterministic parser reads byte for byte; the pages themselves are read by the fetch route (line 35) |
 | machine-health | `skills/audit/scripts/windows/lib/Invoke-AllowlistedWeb.ps1:92` | `Invoke-WebRequest` behind a host allowlist | kept | Microsoft Update, winget and CISA KEV data endpoints, logged per call; not docs pages |
-| machine-health | `skills/audit/scripts/windows/lib/Get-CisaKevCache.ps1:141` | CISA KEV feed download | kept | JSON data feed with its own cache; not a page |
+| machine-health | `skills/audit/scripts/windows/lib/Get-CisaKevCache.ps1:138` | CISA KEV feed download | kept | JSON data feed with its own cache; not a page |
 | miro | `server/src/miro-client.ts:33` | Miro REST API through the `@mirohq/miro-api` SDK | kept | Authenticated API, not a page |
 | multi-agent | `agents/drift-checker.md:4` | WebFetch grant | kept | WebFetch-only judge by design, held to first-party docs hosts by a hook; pages reach it as slices read through the cache |
 | multi-agent | `workflows/drift-audit.js:300` | Checkers WebFetch a page the slices do not cover, also at line 302 | kept | The checkers have no shell; every page the slices hold came through the cache |

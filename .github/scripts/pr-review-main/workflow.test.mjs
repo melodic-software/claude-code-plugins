@@ -1067,7 +1067,8 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
   assert.equal(input(block, "PR_NUMBER"), "${{ steps.files.outputs.pr-number }}");
   assert.equal(input(block, "HEAD_SHA"), "${{ github.event.workflow_run.head_sha }}");
   assert.equal(input(block, "TREE_SHA"), "${{ github.event.workflow_run.head_commit.tree_id }}");
-  const run = /^ {8}run: \|\n((?: {10}.*\n|\n)+)/m.exec(`${block}\n`)[1].replace(/^ {10}/gm, "");
+  assert.equal(input(block, "STANDARDS_SHA"), "${{ steps.standards.outputs.sha }}");
+  const run =/^ {8}run: \|\n((?: {10}.*\n|\n)+)/m.exec(`${block}\n`)[1].replace(/^ {10}/gm, "");
   assert.doesNotMatch(run, /\$\{\{/);
   assert.match(run, /\{ \. \.base\/\.github\/actions\/log-api-budget\/api-budget\.bash 2>\/dev\/null && api_budget_wrap_gh github-token; \} \|\| true\n/);
   assert.match(run, /\{ \. \.base\/\.github\/scripts\/pr-merge\/rate-stop\.bash && \. \.base\/\.github\/scripts\/pr-merge\/retry-call\.bash; \} 2>\/dev\/null \|\| true\n/);
@@ -1132,7 +1133,8 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     const lanes = ["claude-review", "claude-security-review"];
     const RUN_AT = "2026-01-02T00:00:00Z";
     const retarget = (created_at) => ({ event: "base_ref_changed", ...(created_at === undefined ? {} : { created_at }) });
-    const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", event = "workflow_run", total = 1, main = TIP, workflow = ".github/workflows/pr-review-main.yml", events = [{ event: "labeled", created_at: "2026-01-03T00:00:00Z" }] } = {}) => {
+    const STANDARDS = "e".repeat(40);
+    const write = ({ missing = [], conclusion = "success", head = SHA_A, standards = STANDARDS, title = "findings=2 critical=0", branch = "main", event = "workflow_run", total = 1, main = TIP, workflow = ".github/workflows/pr-review-main.yml", events = [{ event: "labeled", created_at: "2026-01-03T00:00:00Z" }] } = {}) => {
       rmSync(fixtures, { recursive: true, force: true });
       mkdirSync(fixtures);
       const at = (url, body) => writeFileSync(path.join(fixtures, key(url)), typeof body === "string" ? body : JSON.stringify(body));
@@ -1145,7 +1147,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
         at(`repos/o/r/actions/artifacts?name=${name}&per_page=100`, { total_count: total, artifacts: [{ id: artifact, name, expired: false, workflow_run: { id: runId } }] });
         at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: workflow, event, head_branch: branch, head_sha: main, status: "completed", conclusion, created_at: RUN_AT, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
         const verdict = path.join(dir, "verdict.json");
-        writeFileSync(verdict, JSON.stringify({ schema: 1, lane, pr: PR, tree: TREE, head_sha: head, findings: 2, critical: 0, max_line_bytes: 80 }));
+        writeFileSync(verdict, JSON.stringify({ schema: 1, lane, pr: PR, tree: TREE, head_sha: head, ...(standards === null ? {} : { standards_sha: standards }), findings: 2, critical: 0, max_line_bytes: 80 }));
         const zipped = spawnSync("python3", ["-I", "-c", "import sys, zipfile; zipfile.ZipFile(sys.argv[1], 'w').write(sys.argv[2], 'verdict.json')", path.join(fixtures, key(`repos/o/r/actions/artifacts/${artifact}/zip`)), verdict], { encoding: "utf8" });
         assert.equal(zipped.status, 0, zipped.stderr);
         at(`repos/o/r/commits/${SHA_A}/check-runs?check_name=pr-review-main%3A%20${lane}&filter=all&per_page=100`, { total_count: 2, check_runs: [{ app: { slug: "github-actions" }, output: { title } }, { app: { slug: "someone" }, output: { title: "findings=2 critical=0" } }] });
@@ -1161,7 +1163,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
       const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], {
         cwd: dir,
         encoding: "utf8",
-        env: { ...gitEnv, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: path.join(dir, "tmp"), GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", GH_LOG: log, SLEEP_LOG: sleeps, GH_FIXTURES: fixtures, GH_FAIL_URL: "", GH_FAIL: "0", PR_NUMBER: String(PR), HEAD_SHA: SHA_A, TREE_SHA: TREE, DIR: path.join(dir, "work"), ...env },
+        env: { ...gitEnv, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: path.join(dir, "tmp"), GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", GH_LOG: log, SLEEP_LOG: sleeps, GH_FIXTURES: fixtures, GH_FAIL_URL: "", GH_FAIL: "0", PR_NUMBER: String(PR), HEAD_SHA: SHA_A, TREE_SHA: TREE, STANDARDS_SHA: STANDARDS, DIR: path.join(dir, "work"), ...env },
       });
       assert.equal(result.status, 0, result.stderr + result.stdout);
       const lines = (file) => readFileSync(file, "utf8").split("\n").filter(Boolean);
@@ -1222,6 +1224,22 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
       write(setup);
       assert.equal(runWith().out, "", why);
     }
+    for (const [why, standards] of [
+      ["another standards commit", SHA_B],
+      ["no standards commit", null],
+    ]) {
+      write({ standards });
+      const restale = runWith();
+      assert.equal(restale.out, "", why);
+      assert.ok(restale.stdout.includes("reviewed under another standards commit; its claude-review verdict does not count"), `${why}\n${restale.stdout}`);
+    }
+    write();
+    for (const env of [{ STANDARDS_SHA: SHA_B }, { STANDARDS_SHA: "" }]) {
+      const moved = runWith(env);
+      assert.equal(moved.out, "", JSON.stringify(env));
+    }
+    assert.equal(runWith({ STANDARDS_SHA: "" }).calls.length, 0);
+    assert.equal(runWith().out, "judged=true\n");
     write({ main: CHANGED });
     const older = runWith();
     assert.equal(older.out, "judged=true\n");
@@ -1277,21 +1295,23 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
   }
 });
 
-test("each leg copies the review criteria criteria.txt lists", () => {
+test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed over the org's", () => {
   const run = /^ {8}run: \|\n((?: {10}.*\n|\n)+)/m.exec(`${step("Copy the review criteria")}\n`)[1].replace(/^ {10}/gm, "");
   for (const job of LEGS) assert.equal(step("Copy the review criteria", job), step("Copy the review criteria"), job);
   assert.equal(input(step("Copy the review criteria"), "SKILL"), "${{ matrix.skill }}");
+  assert.equal(input(step("Copy the review criteria"), "ORG"), "${{ steps.standards.outputs.path }}");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-criteria-"));
   try {
     const files = {
       ".github/scripts/pr-review-main/criteria.txt": readFileSync(new URL("./criteria.txt", import.meta.url), "utf8"),
+      "lib/org-standards.sh": readFileSync(new URL("../../../lib/org-standards.sh", import.meta.url), "utf8"),
       "plugins/review/skills/code-review/SKILL.md": "skill",
       "plugins/review/skills/code-review/evals/case.md": "eval",
       "plugins/review/skills/security-review/SKILL.md": "other lane",
       "plugins/review/reference/ref.md": "ref",
       "plugins/review/skills/quality-gate/context/loosened-check.md": "criterion",
       "plugins/review/skills/quality-gate/context/code.md": "not copied",
-      "REVIEW.md": "review",
+      "REVIEW.md": "review\n",
       "docs/standards/s.md": "standard",
       ".claude/rules/r.md": "rule",
     };
@@ -1299,11 +1319,19 @@ test("each leg copies the review criteria criteria.txt lists", () => {
       mkdirSync(path.dirname(path.join(dir, ".base", file)), { recursive: true });
       writeFileSync(path.join(dir, ".base", file), body);
     }
+    const org = path.join(dir, "org-checkout");
+    for (const [file, body] of Object.entries({ "REVIEW.md": "org review\n", "standards/review/x.md": "cited", "docs/standards/README.md": "index", "other/y.md": "not copied" })) {
+      mkdirSync(path.dirname(path.join(org, file)), { recursive: true });
+      writeFileSync(path.join(org, file), body);
+    }
     const data = path.join(dir, "data");
-    const copy = () => spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env: { ...process.env, SKILL: "code-review", DATA: data } });
+    const copy = () => spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env: { ...process.env, SKILL: "code-review", DATA: data, ORG: org } });
     const result = copy();
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(readdirSync(data, { recursive: true }).filter((f) => f.endsWith(".md")).sort(), [
+      "org/REVIEW.md",
+      "org/docs/standards/README.md",
+      "org/standards/review/x.md",
       "review/reference/ref.md",
       "review/skills/code-review/SKILL.md",
       "review/skills/quality-gate/context/loosened-check.md",
@@ -1311,9 +1339,16 @@ test("each leg copies the review criteria criteria.txt lists", () => {
       "standards/rules/r.md",
       "standards/standards/s.md",
     ]);
+    const composed = () => readFileSync(path.join(data, "standards", "REVIEW.md"), "utf8");
+    assert.match(composed(), /^org review\n\n<!-- The repository REVIEW\.md follows[^\n]*-->\n\nreview\n$/, "extend: main's REVIEW.md follows the org's");
+    rmSync(data, { recursive: true, force: true });
+    writeFileSync(path.join(dir, ".base", "REVIEW.md"), "<!-- review-base: replace -->\nown\n");
+    assert.equal(copy().status, 0);
+    assert.equal(composed(), "<!-- review-base: replace -->\nown\n", "override: the marker keeps main's alone");
     rmSync(data, { recursive: true, force: true });
     rmSync(path.join(dir, ".base", "REVIEW.md"));
-    assert.notEqual(copy().status, 0, "a main with no REVIEW.md fails the copy");
+    assert.equal(copy().status, 0, "a main with no REVIEW.md still copies");
+    assert.equal(composed(), "org review\n", "default: the org's criteria alone");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

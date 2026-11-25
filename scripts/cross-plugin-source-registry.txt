@@ -100,6 +100,14 @@ lib/managed-scope.sh
 lib/managed-scope.sh -> plugins/*/lib/managed-scope.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/org-standards.sh.
+scripts/org-standards.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/org-standards.sh -> plugins/*/scripts/org-standards.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/state-key.sh.
 lib/state-key.sh
 

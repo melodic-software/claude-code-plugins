@@ -34,7 +34,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Required target — guarded after arg-parsing so usage errors still exit 2.
 REPO="${WIT_CONFORMANCE_GITHUB_REPO:?set WIT_CONFORMANCE_GITHUB_REPO to a throwaway sandbox repo (owner/name); never a coordination repo}"
 
 BINDING_TMP="$(mktemp)"

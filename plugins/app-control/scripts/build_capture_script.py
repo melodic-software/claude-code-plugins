@@ -155,7 +155,6 @@ def stat_fields(pid):
 
 
 def live(pid):
-    """The live parent pid, uid, start time and command line of pid."""
     try:
         ppid, start = stat_fields(pid)
         uids = []
@@ -254,7 +253,6 @@ def parse(argv):
 
 
 def bind(args):
-    """The checked processes, launched or attached first, and the label of each."""
     if args.attach_pid is not None:
         if not PID.fullmatch(args.attach_pid):
             raise NoMatch(f"attach pid {args.attach_pid!r} fails its format check")

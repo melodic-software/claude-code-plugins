@@ -213,7 +213,6 @@ def idf_table(bags: Iterable[Counter]) -> dict[str, float]:
 
 
 def _vector(bag: Counter, idf: dict[str, float]) -> tuple[dict[str, float], float]:
-    """A bag's TF-IDF vector and its norm (1.0 for an empty vector)."""
     vec = {t: (1 + math.log(w)) * idf.get(t, 1.0) for t, w in bag.items() if w > 0}
     return vec, math.sqrt(sum(v * v for v in vec.values())) or 1.0
 

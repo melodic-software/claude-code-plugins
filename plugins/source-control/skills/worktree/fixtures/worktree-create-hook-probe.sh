@@ -41,7 +41,6 @@ mkrepo() {
   printf '%s' "$repo"
 }
 
-# Write a hook script and the settings file that registers it.
 mkhook() {
   local name="$1" body="$2"
   printf '#!/usr/bin/env bash\n%s\n' "$body" >"$WORKDIR/$name.sh"

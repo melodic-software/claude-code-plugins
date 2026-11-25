@@ -13,7 +13,7 @@ and then marks it ready (the stop list below says when that needs the user).
 Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subject>`;
 `CI Status` fails any other title.
 
-Before opening a pull request or filing an issue, read [docs/standards/filing-prs-and-issues.md](docs/standards/filing-prs-and-issues.md) (synced from melodic-software/standards).
+Before opening a pull request or filing an issue, read [filing-prs-and-issues.md](https://github.com/melodic-software/standards/blob/main/standards/process/filing-prs-and-issues.md) in melodic-software/standards.
 
 When a pull request is superseded or must not merge, apply the `do-not-merge` label (for example
 `gh pr edit <n> --add-label do-not-merge`) before writing any explanation. A session holding a pull
@@ -153,9 +153,11 @@ Start one only when the machine is not already loaded.
 
 ## Team standards
 
-Team engineering standards sync from `melodic-software/standards` into `docs/standards/`;
-[`docs/standards/README.md`](docs/standards/README.md) lists when each file applies, and skills
-read the matching file on demand. These apply in every session:
+The organization's engineering standards are the org layer of the standards contract: skills
+read them from `melodic-software/standards` main (`standards_repository` in
+`docs/conventions/source-control.yaml`), and `docs/standards/` holds only this repository's
+additions. Its index lists when each file applies, and skills read the matching file on demand.
+These apply in every session:
 
 - Label the basis of each recommendation, number or default you present: a `file:line`, tool
   output, a URL read this session, or `judgment`.

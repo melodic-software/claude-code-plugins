@@ -1,7 +1,3 @@
-/**
- * yt-dlp CLI argument construction for media acquisition.
- */
-
 import { resolveEnvWithLegacy } from "../lib/env-compat.js";
 
 // `en-orig` (the original speech track) first: yt-dlp writes tracks in this
