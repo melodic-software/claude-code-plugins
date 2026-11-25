@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/fleet-manifest/schema.json",
+  "title": "Fleet manifest",
+  "description": "Schema for ~/.config/fleet/fleet.json: the hosts and Claude Code lanes the fleet plugin's peer list queries. Contract: docs/contracts/fleet-manifest/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "self", "hosts"],
+  "properties": {
+    "version": { "const": 1 },
+    "self": {
+      "$ref": "#/$defs/name",
+      "description": "Key of the host this file was rendered on."
+    },
+    "hosts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/host" }
+    }
+  },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "os", "role", "lanes"],
+      "properties": {
+        "key": { "$ref": "#/$defs/name" },
+        "os": { "enum": ["windows", "linux", "macos"] },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "client is never queried; any other role is."
+        },
+        "lanes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/lane" }
+        }
+      }
+    },
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "route", "claudePath"],
+      "properties": {
+        "kind": { "enum": ["wsl", "windows", "linux", "macos"] },
+        "route": { "enum": ["local", "interop", "wsl-exe", "ssh"] },
+        "alias": { "$ref": "#/$defs/name", "description": "ssh host alias." },
+        "distro": { "$ref": "#/$defs/name", "description": "WSL distribution name." },
+        "claudePath": {
+          "type": "string",
+          "description": "Absolute path of the claude binary on that lane.",
+          "pattern": "^(/|[A-Za-z]:\\\\)[A-Za-z0-9._/\\\\:-]*$"
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "route": { "const": "ssh" } } }, "then": { "required": ["alias"] } },
+        { "if": { "properties": { "route": { "const": "wsl-exe" } } }, "then": { "required": ["distro"] } },
+        {
+          "if": { "properties": { "kind": { "enum": ["linux", "macos"] } } },
+          "then": { "properties": { "route": { "enum": ["local", "ssh"] } } }
+        }
+      ]
+    }
+  }
+}
