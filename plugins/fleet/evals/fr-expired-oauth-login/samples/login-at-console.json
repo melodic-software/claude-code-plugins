@@ -1,10 +1,10 @@
 {
   "pass": [
     {
-      "answer": "The route worked: the hop reached the laptop's claude.exe, and that lane is signed out. Someone has to run `/login` at the laptop's console (RDP counts, since it is the console account). Nothing remote fixes it."
+      "answer": "The route worked: the hop reached the laptop's claude.exe, and that platform is signed out. Someone has to run `/login` at the laptop's console (RDP counts, since it is the console account). Nothing remote fixes it."
     },
     {
-      "answer": "I can't reach anything from here: ~/.config/fleet/FLEET.md is not on this machine, so I have no aliases to compose a hop with. From your description, though, the Windows lane is simply logged out, and the cure is a person physically at that machine typing /login.",
+      "answer": "I can't reach anything from here: ~/.config/fleet/FLEET.md is not on this machine, so I have no aliases to compose a hop with. From your description, though, the Windows platform is simply logged out, and the cure is a person physically at that machine typing /login.",
       "why": "unusual wording"
     },
     {
@@ -12,7 +12,7 @@
       "why": "sign in again, without the literal /login"
     },
     {
-      "answer": "The lane is signed out; log in again over RDP or at the keyboard.",
+      "answer": "The platform is signed out; log in again over RDP or at the keyboard.",
       "why": "log in again over RDP"
     }
   ],
