@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Fixture rows carry backticked spans that must reach the file unexpanded, so
-# single quotes are the correct spelling.
+# Fixture rows carry backticked spans that must reach the file unexpanded.
 # shellcheck disable=SC2016
 set -uo pipefail
 
