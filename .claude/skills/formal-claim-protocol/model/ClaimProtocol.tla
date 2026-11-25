@@ -88,7 +88,7 @@ ActiveIn(s) == LET open == {i \in DOMAIN s : ~s[i].sup}
                IN IF open = {} THEN 0 ELSE Max(open)
 ActiveNow == ActiveIn(Snapshot)
 
-\* adapters/github/common.sh:534-543 _wit_login_holds_other on the list in
+\* adapters/github/common.sh:530-539 _wit_login_holds_other on the list in
 \* snap[c], judged at the clock read before the list. The code also counts a
 \* lease live at a later read (:540), which differs only for a renewed_at
 \* ahead of the reader's clock; the model has one clock.
@@ -140,8 +140,8 @@ Init ==
 -----------------------------------------------------------------------------
 \* claim.sh
 
-\* :93 assign (REST may drop the login silently, common.sh:217-220); the
-\* rollback trap of :85-88 is armed.
+\* :92 assign (REST may drop the login silently, common.sh:215-218); the
+\* rollback trap of :84-87 is armed.
 Assign(c) ==
     /\ c \in DefaultClaims \cap Starters /\ pc[c] = "idle"
     /\ \E ok \in WriteOutcomes : AddLogin(c, ok)
@@ -185,8 +185,8 @@ PostLease(c) ==
     /\ UNCHANGED <<ctx, assignees, runDone, triageLogin, snap, live, cand,
                    win, bodyGen, renewed, nearSeen, after, backedOffDone>>
 
-\* Every checked read of the lease list (a failure exits: Die): claim.sh:154,
-\* renew-lease.sh:63, release.sh:94.
+\* Every checked read of the lease list (a failure exits: Die): claim.sh:150,
+\* renew-lease.sh:58, release.sh:92.
 ReadLeases(c) ==
     /\ Alive(c)
     /\ pc[c] \in {"posted", "renLeases", "relLeases"}
@@ -196,10 +196,10 @@ ReadLeases(c) ==
     /\ UNCHANGED <<ctx, leases, assignees, runDone, triageLogin, mine, live,
                    cand, win, bodyGen, renewed, nearSeen, after, backedOffDone>>
 
-\* What each script does with the winner. Claim, claim.sh:164-168: another
-\* winner backs off. Renew, renew-lease.sh:66-83: another winner refuses;
+\* What each script does with the winner. Claim, claim.sh:158-162: another
+\* winner backs off. Renew, renew-lease.sh:61-75: another winner refuses;
 \* inside the margin (as sampled with the winner's clock) the lease must also
-\* be the newest non-superseded one. Release, release.sh:113-125: another
+\* be the newest non-superseded one. Release, release.sh:106-118: another
 \* winner refuses with exit 7 after superseding its own lease (RelSup).
 Decide(c, w) ==
     /\ win' = [win EXCEPT ![c] = w]
@@ -228,14 +228,14 @@ Judge(c) ==
                /\ UNCHANGED win
           ELSE Decide(c, w0)
 
-\* claim.sh:155, renew-lease.sh:64-65.
+\* claim.sh:151, renew-lease.sh:59-60.
 ArbJudge(c) ==
     /\ Alive(c) /\ pc[c] = "arbJudge"
     /\ Judge(c)
     /\ UNCHANGED <<ctx, leases, assignees, runDone, triageLogin, mine, snap,
                    bodyGen, renewed, after, backedOffDone>>
 
-\* common.sh:478-492 wit_lease_released_by_run: the run-status read (:484). A
+\* common.sh:476-490 wit_lease_released_by_run: the run-status read (:482). A
 \* failed read keeps the lease winning (:484-487).
 ArbRunRead(c) ==
     /\ Alive(c) /\ pc[c] = "arbRunRead"
@@ -249,7 +249,7 @@ ArbRunRead(c) ==
     /\ UNCHANGED <<ctx, leases, assignees, runDone, triageLogin, mine, snap,
                    live, cand, bodyGen, renewed, after>>
 
-\* common.sh:489 the completed run's lease is superseded, best-effort; the
+\* common.sh:487 the completed run's lease is superseded, best-effort; the
 \* winner is the next live lease.
 ArbRunSup(c) ==
     /\ Alive(c) /\ pc[c] = "arbRunSup"
@@ -261,8 +261,8 @@ ArbRunSup(c) ==
     /\ UNCHANGED <<ctx, assignees, runDone, triageLogin, mine, snap, live,
                    cand, bodyGen, renewed, after, backedOffDone>>
 
-\* :167 exit 7 runs the abort trap (:141-144): supersede own lease
-\* (common.sh:465-470), then a default claim's hand-back (:85-87).
+\* :161 exit 7 runs the abort trap (:137-140): supersede own lease
+\* (common.sh:463-468), then a default claim's hand-back (:84-86).
 LossSup(c) ==
     /\ Alive(c) /\ pc[c] = "lossSup"
     /\ \E ok \in WriteOutcomes : SupersedeWrite(mine[c], 0, ok)
@@ -271,7 +271,7 @@ LossSup(c) ==
     /\ UNCHANGED <<ctx, assignees, runDone, triageLogin, mine, snap, live,
                    cand, win, bodyGen, renewed, nearSeen, backedOffDone>>
 
-\* common.sh:506-521 wit_hand_back_assignee, run by a claim's failure paths
+\* common.sh:504-519 wit_hand_back_assignee, run by a claim's failure paths
 \* and back-off, by release, and by renew's back-off. Each lease list retries
 \* once (one step here; a failed read means both attempts failed).
 \* :508-509 list (a failed list counts as empty); stop on another live lease
@@ -382,7 +382,7 @@ GRm3(c) ==
     /\ UNCHANGED <<ctx, leases, runDone, triageLogin, mine, snap, live, cand,
                    win, bodyGen, renewed, nearSeen, after, backedOffDone>>
 
-\* claim.sh:173-178 on a win, re-read the assignees and put the login back.
+\* claim.sh:164-169 on a win, re-read the assignees and put the login back.
 WinRead(c) ==
     /\ pc[c] = "winRead"
     /\ pc' = [pc EXCEPT ![c] =
@@ -398,7 +398,7 @@ WinAdd(c) ==
     /\ UNCHANGED <<ctx, leases, runDone, triageLogin, mine, snap, live, cand,
                    win, bodyGen, renewed, nearSeen, after, backedOffDone>>
 
-\* claim.sh:141-144 the abort trap after a failure: best-effort supersede,
+\* claim.sh:137-140 the abort trap after a failure: best-effort supersede,
 \* then a default claim's hand-back.
 TrapSup(c) ==
     /\ Alive(c) /\ pc[c] = "tSup"
@@ -537,8 +537,8 @@ RelSup(c) ==
 \* Failures and the environment
 
 \* A death (or a checked call's failure, which exits the same way through
-\* wit_run_gh, common.sh:164-170) runs the trap armed at that point: claim's
-\* rollback (claim.sh:85-88) or abort (:141-145). A death inside the
+\* wit_run_gh, common.sh:162-168) runs the trap armed at that point: claim's
+\* rollback (claim.sh:84-87) or abort (:137-141). A death inside the
 \* hand-back equals its remaining best-effort writes failing.
 Die(c) ==
     /\ MayDie /\ Alive(c)
@@ -665,7 +665,7 @@ TypeOK ==
     /\ backedOffDone \in [Claimants -> BOOLEAN]
 
 \* CONTRACT.md "Lease protocol" step 4: "If an earlier live lease exists that
-\* is not our own comment, the foreign lease wins"; claim.sh:160 "Earliest
+\* is not our own comment, the foreign lease wins"; claim.sh:156 "Earliest
 \* LIVE lease wins."
 OneHolder == Cardinality({c \in Claimants : Holding(c)}) <= 1
 
@@ -681,7 +681,7 @@ HolderAssigned ==
         \A c \in DefaultClaims :
             (pc[c] = "held" /\ Holding(c)) => LoginOf(c) \in assignees
 
-\* claim.sh:78-79: "any failure before a successful lease-comment write
+\* claim.sh:77-78: "any failure before a successful lease-comment write
 \* (step 3) would otherwise strand the issue assigned with no lease record".
 \* Every assigned login belongs to a default claimant whose claim, renew or
 \* release is still in flight, or that holds the item.
@@ -706,7 +706,7 @@ ReleaseFreesItem ==
     \A c \in Claimants : pc[c] = "released" => ~LiveNow(mine[c])
 
 \* With every claimant finished and no lease live, any assignee left is the
-\* holder of the active lease, which reclaim unassigns. claim.sh:80:
+\* holder of the active lease, which reclaim unassigns. claim.sh:79:
 \* "reclaim ignores items with no lease".
 EndStateReclaimable ==
     (AllFinished /\ \A i \in DOMAIN leases : ~LiveNow(i)) =>
