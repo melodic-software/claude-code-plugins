@@ -35,8 +35,8 @@ UserPromptSubmit as the raw prompt. Several writers need the same state: the pro
    changes nothing. It never prints, so it adds no context. The node launcher skips it unless the
    payload holds `/goal`, so an ordinary prompt costs one process.
 5. **`compact_focus_enabled` (default on) gates every write and every print**, per ADR 0131: the
-   user's own value wins, then `docs/conventions/session-flow.yaml`, then the default. The node
-   launcher stops a user `false` before bash starts.
+   user's own value wins, then `docs/conventions/session-flow.yaml`, then the default. The hook
+   runner stops a user `false` in bash before Python starts.
 6. **`set` sweeps files older than 14 days**, longer than the recurring-task expiry; `print` and
    the PreCompact hook never delete.
 

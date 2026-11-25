@@ -64,7 +64,7 @@ per-session focus file `<plugin data>/focus/<session>.md`; the hook writes a typ
 condition into it and prints it before every compaction, manual or automatic, as instructions
 for the summary. Off, the hook prints and writes nothing and `focus.py set` writes nothing. The
 script resolves the key itself on every fire: the user's own value (`CLAUDE_PLUGIN_OPTION_COMPACT_FOCUS_ENABLED`,
-or `--enabled` from a skill), when set, wins; otherwise the repository file decides, under the root
+or `--enabled` from a skill, where a rendered `true` counts as unset), when set, wins; otherwise the repository file decides, under the root
 rule below; otherwise `true`. An invalid value in either layer is named on stderr and dropped.
 
 `resume` keeps a worker across related units, as imperative 4 of the orchestration brief says.
