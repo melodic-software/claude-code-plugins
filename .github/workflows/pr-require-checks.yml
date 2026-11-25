@@ -7278,6 +7278,9 @@ jobs:
           PROOF_RESULT: ${{ needs.prove-formatting.result }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
+          # gh-read.sh wraps gh when it carries the library; named here so
+          # this step's own gh api calls read as wrapped (idempotent).
+          ! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token
           # dependabot[bot], melodic-release[bot] and
           # melodic-standards-sync[bot], as melodic-software/standards
           # components/trusted-actors/trusted-actors.json lists them.
