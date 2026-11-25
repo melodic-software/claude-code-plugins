@@ -4418,6 +4418,7 @@ CARRY_REFUSES: tuple[str, ...] = (
     _skill_scripts("code-metrics:audit"),
     "plugins/guardrails/git-hooks/reference-verify.sh",
     "plugins/bash-format/git-hooks/lint-full.sh",
+    "plugins/code-tidying/git-hooks/comment-lint-ci.sh",
 )
 
 
