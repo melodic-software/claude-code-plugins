@@ -70,7 +70,7 @@
     "observer_min_lines": {
       "type": "number",
       "title": "Observer minimum session size (lines)",
-      "description": "Transcript lines the observer must have seen before session end for the post-session analysis to run; default 300. A shorter session, such as an automated sweep, is skipped: the skip is recorded in the observer's status file and log, and no ledger is written. 0 analyzes every session.",
+      "description": "Transcript lines a session needs before its first post-session analysis; default 300. A shorter session, such as an automated sweep, is skipped and the skip recorded in the observer's status file. A follow-up to an analyzed session is always analyzed. 0 analyzes every session.",
       "default": 300,
       "min": 0
     },

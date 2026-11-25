@@ -312,6 +312,7 @@ class Observer:
         self.status_path = self.work_dir / f"status-{self.session_id}.json"
         self.lock_path = self.work_dir / f"observer-{self.session_id}.lock"
         self.log_path = self.work_dir / f"observer-{self.session_id}.log"
+        self.analysis_runs: list[dict] = self._prior_status().get("analysis_runs", [])
 
     def log(self, msg: str) -> None:
         try:
@@ -563,13 +564,17 @@ class Observer:
         )
         return state, offset
 
-    def _resume_offset(self) -> int:
+    def _prior_status(self) -> dict:
         try:
             prev = json.loads(self.status_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return 0
-        if prev.get("target_session") != self.session_id:
-            return 0
+            return {}
+        if not isinstance(prev, dict) or prev.get("target_session") != self.session_id:
+            return {}
+        return prev
+
+    def _resume_offset(self) -> int:
+        prev = self._prior_status()
         try:
             off = max(int(prev.get("byte_offset", 0)), 0)
         except (TypeError, ValueError):
@@ -621,6 +626,8 @@ class Observer:
                 base = json.loads(self.status_path.read_text(encoding="utf-8"))
                 base.update(status)
                 status = base
+            if self.analysis_runs:
+                status["analysis_runs"] = self.analysis_runs
             self.status_path.write_text(json.dumps(status, indent=2), encoding="utf-8")
         except (OSError, json.JSONDecodeError):
             pass
@@ -634,19 +641,25 @@ class Observer:
         observations were CONSUMED (a successful run, or nothing to keep), so the
         caller may delete them; False whenever they should be RETAINED (session
         below `min_lines`, analysis unavailable, or failed).
+
+        The size gate applies only to a session with no ledger yet: until a run
+        writes one, nothing deletes the observations, so their line count is
+        every line the session has had. A follow-up to an analyzed session is
+        always analyzed, however short.
         """
         if not self.obs_path.exists() or self.obs_path.stat().st_size == 0:
             self.log("no observations captured; skipping analysis")
             return True
-        with self.obs_path.open("rb") as f:
-            pending_lines = sum(1 for _ in f)
-        if pending_lines < self.min_lines:
-            reason = f"analysis skipped: {pending_lines} lines < min {self.min_lines}"
-            self.log(reason)
-            self._write_status(
-                {"analysis": {"skipped": reason, "lines": pending_lines}}, merge=True
-            )
-            return False
+        if self._find_session_ledger() is None:
+            with self.obs_path.open("rb") as f:
+                session_lines = sum(1 for _ in f)
+            if session_lines < self.min_lines:
+                reason = (
+                    f"analysis skipped: {session_lines} lines < min {self.min_lines}"
+                )
+                self.log(reason)
+                self._add_analysis_run({"skipped": reason, "lines": session_lines})
+                return False
         claude = _find_claude()
         if not claude:
             self.log(
@@ -784,8 +797,14 @@ class Observer:
                 record[key] = data[key]
         if not record:
             return
-        self._write_status({"analysis": record}, merge=True)
+        self._add_analysis_run(record)
         self.log(f"analysis usage: {json.dumps(record, separators=(',', ':'))}")
+
+    def _add_analysis_run(self, record: dict) -> None:
+        """Append one run or skip to `analysis_runs`, which every later status
+        write carries, so no run's record is lost to a poll or a resumed watch."""
+        self.analysis_runs.append({"at": now_iso(), **record})
+        self._write_status({"target_session": self.session_id}, merge=True)
 
     def _append_ledger(self, findings: str) -> bool:
         """Append the returned findings to this session's single ledger file.
