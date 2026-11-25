@@ -358,12 +358,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The lanes App setting Work status to agent-ready (work-unblock's, or
-  # report-outcome's re-fire of a run that stopped on stale workflow files)
-  # starts a run like a listed human's; the App's other field writes never
-  # start one. Only that re-fire sets agent-ready in this lane, at most
-  # limits.limit-stops-per-issue times since a person last set it or a run
-  # last reported.
   resolve-issue:
     name: Resolve Issue
     needs: [check-admission, pick-slot]
@@ -1113,9 +1107,6 @@ jobs:
           name: work-outcome-${{ github.event.issue.number }}
           path: ${{ runner.temp }}/work-outcome
 
-      # The branch report-outcome opens the PR from: the reuse branch, else
-      # the one lane.json names (apply-issue-patch writes it), which must be
-      # this run's own, else the branch a resumed run continued.
       - name: Pick the lane branch
         id: branch
         env:

@@ -188,8 +188,6 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      # true only for a conflicted merge; false on a skip, a clean merge or
-      # an escalation; empty when the job stopped before deciding.
       proceed: >-
         ${{ steps.prepare.outputs.merge-state == 'conflicted' && steps.superseded.outputs.superseded == 'false' && 'true'
         || (steps.head.outputs.default-base == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.behind.outputs.behind == 'false'
@@ -206,8 +204,6 @@ jobs:
         || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
         || steps.hold.outputs.held == 'true' && 'awaiting-human'
         || steps.behind.outputs.behind == 'false' && 'up-to-date' || '' }}
-      # true when another lane's escalation put the human-gated label on, so
-      # apply-conflict-patch pushes past it (lane-hold.mjs).
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
       standards-sha: ${{ steps.standards.outputs.sha }}
     env:
@@ -288,8 +284,6 @@ jobs:
             echo "default-base=false" >>"$GITHUB_OUTPUT"
           fi
 
-      # As the read runner resolves it: its applies-when decides on the head
-      # just read, before any merge.
       - name: Resolve the slot
         id: slot
         if: steps.head.outcome == 'success' && steps.head.outputs.default-base == 'true'
@@ -319,8 +313,6 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ACTIVITY: resolve-conflicts
-          # A rate limit past the guard's budget refuses the read with a
-          # notice, and the step holds.
           API_BUDGET_HOLD: "1"
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
@@ -870,10 +862,6 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      # true when the sync ran on the clean merge: it wrote a patch, or found
-      # the merge's copies current (empty), when the refused head still needs
-      # the merge alone pushed; false on a skip or a refusal; empty when the
-      # job stopped before deciding.
       proceed: >-
         ${{ (steps.sync.outputs.state == 'written' || steps.sync.outputs.state == 'empty') && 'true'
         || (steps.head.outputs.applicable == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.hold.outputs.lane-escalated == 'false' || steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean' || steps.sync.outputs.refused != '') && 'false' || '' }}
@@ -927,8 +915,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # As resolve-conflicts-select reads it, and the PR must be the lanes
-      # App's: the activity regenerates copies only on a lane's own branch.
       - name: Read the PR head
         id: head
         if: steps.kill.outputs.proceed == 'true'
@@ -1004,8 +990,6 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ACTIVITY: sync-shared-copies
-          # A rate limit past the guard's budget refuses the read with a
-          # notice, and the step holds.
           API_BUDGET_HOLD: "1"
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
@@ -1064,8 +1048,6 @@ jobs:
             ;;
           esac
 
-      # As resolve-conflicts-select merges it; only a clean merge goes on, and
-      # any other escalates as shared-copy-merge-conflicted.
       - name: Merge the base into the head
         id: prepare
         if: steps.behind.outputs.behind == 'true'
@@ -1552,29 +1534,17 @@ jobs:
       actions: read
       issues: read
     outputs:
-      # true once the context is uploaded; false on a skip or an escalation;
-      # empty when the job stopped before deciding.
       proceed: >-
         ${{ steps.upload.outcome == 'success' && steps.select.outputs.resolve-only != 'true' && 'true'
         || (steps.slot.outputs.applies == 'false' || steps.select.outputs.proceed == 'false') && 'false' || '' }}
-      # true for a pass-only round with stale fail-note threads uploaded: only
-      # the reply job runs, and proceed stays empty.
       resolve-only: ${{ steps.upload.outcome == 'success' && steps.select.outputs.resolve-only == 'true' && 'true' || '' }}
       head-sha: ${{ steps.head.outputs.sha }}
       escalation-reason: ${{ steps.select.outputs.escalation-reason }}
       skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || steps.select.outputs.skip-reason }}
       human-gate: ${{ steps.select.outputs.human-gate }}
-      # "1" for a same-head retry after the reply job stopped there
-      # (escalation-routes.mjs retryRung), else empty.
       model-rung: ${{ steps.select.outputs.model-rung }}
-      # `round <N> of max <M>` when the round cap stopped the PR, for the
-      # neutral checks' summary.
       not-run-detail: ${{ steps.select.outputs.not-run-detail }}
-      # true when no hold and no unresolved thread is left on the head, so
-      # report-stop-status clears a failing pr-unblock/address-feedback.
       stop-resolved: ${{ steps.select.outputs.stop-resolved }}
-      # true when a listed person opened the PR (resolve-threads.mjs
-      # ownerPull), for resolve-feedback-threads' gate.
       person-opened: ${{ steps.select.outputs.person-opened }}
       threads-sha256: ${{ steps.select.outputs.threads-sha256 }}
       run-sha256: ${{ steps.select.outputs.run-sha256 }}
@@ -1622,8 +1592,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
-          # The whole answer, which the select step takes instead of reading
-          # the PR again (address-feedback.mjs pullFromFile).
           PULL_FILE: ${{ runner.temp }}/pr-head.json
         run: |
           # Each `gh api` call keeps its rate-limit reading for the job-end
@@ -1649,8 +1617,6 @@ jobs:
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
 
-      # As the read runner resolves it: its applies-when decides on the head
-      # just read, before any thread is read.
       - name: Resolve the slot
         id: slot
         if: steps.head.outcome == 'success'
@@ -1680,12 +1646,8 @@ jobs:
           TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           TRACKER_CONFIG: .base/docs/conventions/work-items.yaml
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          # A pass-only round (address-feedback.mjs select), sent only by a
-          # dispatcher run, which the reply job's gate checks.
           VERIFY_PASS_HEAD: ${{ inputs.verify-pass-head }}
           VERIFY_SUPERSEDED_HEAD: ${{ inputs.verify-superseded-head }}
-          # A model round on the notes of the FAILs behind a verify:earlier-fail
-          # refusal, read from their verdict artifacts (earlier-fail-notes.mjs).
           VERIFY_EARLIER_FAIL_HEADS: ${{ inputs.verify-earlier-fail-heads }}
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
@@ -2047,11 +2009,6 @@ jobs:
   apply-feedback-patch:
     name: Apply Feedback Patch
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, adjudicate-feedback]
-    # One leg answers the round: the fallback call when it ran, else the
-    # subscription call when it ran, else the first, and every model-call
-    # input below is that leg's, so one leg's patch never pairs with another's
-    # replies and an empty field never falls through. A patch with no replies
-    # is not pushed.
     if: >-
       ${{ !cancelled()
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '') == 'written'
@@ -2093,13 +2050,6 @@ jobs:
       patch-human-gate: ${{ needs.address-feedback-select.outputs.human-gate }}
       reply-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
-  # Whether the adjudicator's key is still out of credit, and so which leg
-  # every slot starts on (ci-workflows select-model-credential, its start
-  # call: check-key-credit's one artifact-list call for the marker
-  # adjudicate-feedback uploads after a key leg's credit stop). A credit stop
-  # inside the window names the subscription leg, with no refused key attempt
-  # first. No secret, no model, no checkout; every failure runs the key
-  # (next-leg empty). Probing is off.
   check-adjudicator-key-credit:
     name: Check Adjudicator Key Credit
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback]
@@ -2236,9 +2186,6 @@ jobs:
           REPLIES_FILE: ${{ runner.temp }}/adjudicate-input/replies.jsonl
           REPLIES_SHA256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
           OUT_DIR: ${{ runner.temp }}/adjudicate
-          # The linked issues' trusted spec text, read as pr-verify reads it,
-          # staged as contract.json: a quote from it may settle an intent or
-          # design question.
           PR_NUMBER: ${{ inputs.pr-number }}
           TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
@@ -2299,7 +2246,6 @@ jobs:
         if: steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
 
-      # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
         if: steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
@@ -3055,10 +3001,6 @@ jobs:
           bash .base/.github/scripts/read-patch/check-permission-mode.sh
           cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
 
-      # Read by the next runs' credit gate (check-adjudicator-key-credit): the
-      # artifact its `marker` output names (check-key-credit gate.cjs
-      # markerName), uploaded only after a key leg's credit-stop handoff. The
-      # name is written out so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: always() && needs.check-adjudicator-key-credit.outputs.marker == 'key-credit-stop-PR_UNBLOCK_CLAUDE_API_KEY' && (steps.judge-0.outputs.handoff-reason == 'credit-stop' || steps.judge-1.outputs.handoff-reason == 'credit-stop' || steps.judge-2.outputs.handoff-reason == 'credit-stop')
@@ -3171,8 +3113,6 @@ jobs:
       review-replies-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
       review-replies-sha256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
       review-patch-state: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
-      # The adjudicator's verdicts on the disputed replies, and their SHA-256,
-      # set only once its upload succeeded.
       review-adjudication-attempt: ${{ needs.adjudicate-feedback.outputs.attempt }}
       review-adjudication-sha256: ${{ needs.adjudicate-feedback.outputs.sha256 }}
       # The push job moved the PR head off the reviewed one; the gate accepts
@@ -3230,8 +3170,6 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      # As publish-feedback: the gate accepts the review of the head the
-      # select job read while the PR is at it or at the push job's commit.
       expected-upstream-head: >-
         ${{ inputs.dispatcher-run-id != '' && needs.address-feedback-select.outputs.head-sha || '' }}
       pushed-commit: >-
@@ -3264,23 +3202,17 @@ jobs:
       checks: read
       issues: read
     outputs:
-      # true once the context is uploaded; false on a skip or an escalation;
-      # empty when the job stopped before deciding.
       proceed: >-
         ${{ steps.upload.outcome == 'success' && 'true'
         || (steps.slot.outputs.applies == 'false' || steps.select.outputs.proceed == 'false') && 'false' || '' }}
       head-sha: ${{ steps.head.outputs.sha }}
       escalation-reason: ${{ steps.select.outputs.escalation-reason }}
       skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || steps.select.outputs.skip-reason }}
-      # dependency.json's, which the model call checks, and context.json's,
-      # which the verdict job checks.
       context-sha256: ${{ steps.select.outputs.context-sha256 }}
       run-sha256: ${{ steps.select.outputs.run-sha256 }}
       # The artifact name's attempt, so a re-run of a later job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
-      # The install-script pin patch the select step wrote with no model turn,
-      # which apply-dependency-pin pushes: written once uploaded, else empty.
       pin-state: ${{ steps.upload-pin.outcome == 'success' && 'written' || '' }}
       pin-sha256: ${{ steps.upload-pin.outcome == 'success' && steps.select.outputs.pin-sha256 || '' }}
       pin-attempt: ${{ steps.upload-pin.outcome == 'success' && github.run_attempt || '' }}
@@ -3353,8 +3285,6 @@ jobs:
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
 
-      # As the read runner resolves it: its applies-when decides on the head
-      # just read, before the PR is classified.
       - name: Resolve the slot
         id: slot
         if: steps.head.outcome == 'success'
@@ -3380,9 +3310,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           DEPENDENCY_DIR: ${{ runner.temp }}/dependency-context
           TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
-          # The content rule's ecosystems and directories, read from the base.
           DEPENDABOT_CONFIG: .base/.github/dependabot.yml
-          # The review-only dependencies, read from the base.
           DEPENDABOT_POLICY: ${{ steps.standards.outputs.path }}/components/dependabot-policy/policy.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           PIN_PATCH_FILE: ${{ runner.temp }}/dependency-pin/patch.diff
@@ -3773,10 +3701,6 @@ jobs:
   apply-dependency-patch:
     name: Apply Dependency Patch
     needs: [review-dependency-select, review-dependency, review-dependency-subscription, review-dependency-fallback]
-    # One leg answers the round: the fallback call when it ran, else the
-    # subscription call when it ran, else the first, and every model-call
-    # input below is that leg's scan job's, so one leg's patch never pairs
-    # with another's verdict and an empty field never falls through.
     if: >-
       ${{ !cancelled()
       && (needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '') == 'written'
@@ -4232,20 +4156,10 @@ jobs:
       head-sha: ${{ steps.context.outputs.head-sha }}
       escalation-reason: ${{ steps.context.outputs.escalation-reason }}
       context-sha256: ${{ steps.context.outputs.context-sha256 }}
-      # awaiting-human when the human-gated label holds fix-ci, lane-stopped
-      # on the round cap, which fix-ci-not-run posts; lane-escalated when
-      # another lane's escalation put the label on, so apply-patch pushes past
-      # it.
       skip-reason: ${{ steps.context.outputs.skip-reason }}
       lane-escalated: ${{ steps.context.outputs.lane-escalated }}
-      # true when a whole, settled listing of the head's checks has none
-      # failing, so report-stop-status clears a failing pr-unblock/fix-ci.
       stop-resolved: ${{ steps.context.outputs.stop-resolved }}
-      # "1" for a same-head retry after the push job stopped there
-      # (escalation-routes.mjs retryRung), else empty.
       model-rung: ${{ steps.context.outputs.model-rung }}
-      # true on a head with no lane stop yet, so apply-patch gives a
-      # weaken-required stop one fresh fixer round (ci-fix-weaken-retry).
       weaken-retry: ${{ steps.context.outputs.weaken-retry }}
       # The artifact name's attempt, so a re-run of the model job alone still
       # finds it.
@@ -5081,8 +4995,6 @@ jobs:
       contents: read
       statuses: write
     outputs:
-      # `true` when status mode withheld the failing status for a refusal the
-      # feedback sweep sends again (report-escalation.sh retried_refusal).
       status-withheld: ${{ steps.post.outputs.status-withheld }}
     env:
       API_BUDGET_TOKEN: github-token
