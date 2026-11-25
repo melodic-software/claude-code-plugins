@@ -30,6 +30,7 @@ set -uo pipefail
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED:-false}" == "true" ]] || exit 0
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED:-true}" == "true" ]] || exit 0
 # shellcheck source=session-attended.sh
+unset -f hook::session_attended
 source "${BASH_SOURCE[0]%/*}/session-attended.sh" 2>/dev/null && hook::session_attended || exit 0
 [[ -z "${SESSION_FLOW_OBSERVER_ANALYSIS:-}" ]] || exit 0
 
