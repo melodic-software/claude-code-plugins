@@ -12,4 +12,5 @@
 # test-scope: .github/workflows/*.yml .github/actions/log-api-budget/rate-guard.mjs .github/actions/log-api-budget/rate-guard.vectors.json .github/actions/log-api-budget/rate-limits.json .github/actions/resolve-config/admission-rules.json .github/actions/resolve-config/dimensions.mjs .github/actions/resolve-config/issue-status.mjs .github/actions/resolve-config/package.json .github/actions/resolve-config/resolve.mjs
 # test-scope: .github/scripts/intake-triage/split-child.vectors.json .github/scripts/lib/lane-binding.mjs .github/scripts/maintenance-monitor-signals/issues.mjs .github/scripts/pr-unblock/verify-cap.mjs .github/standards/github-actions-conventions/vocabulary.json
 # test-scope: plugins/source-control/scripts/branch-update-method.sh .github/verify-legacy-fails.json scripts/check-silent-revert.sh scripts/lib/changed-files.sh scripts/lib/changelog-fragments.sh .github/scripts/post-merge-demotion-alert/demotion-record.vectors.json
+# test-scope: scripts/fixtures/verify-pass-out/*.json
 exec bash "$(dirname "${BASH_SOURCE[0]}")/engine-run.sh" d
