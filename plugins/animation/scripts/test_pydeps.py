@@ -87,7 +87,6 @@ class OnDemandInstall(unittest.TestCase):
     def test_second_session_is_a_no_op(self):
         self.assertEqual(self.pydeps('install', '--data-dir', str(self.data)).stdout.strip(), 'installed')
         before = self.installs()
-        # Aim pip at an empty folder: a second pip run could not find the wheel and would fail.
         empty = self.tmp / 'empty'
         empty.mkdir()
         r = self.pydeps('install', '--data-dir', str(self.data), env={**self.env, 'PIP_FIND_LINKS': str(empty)})

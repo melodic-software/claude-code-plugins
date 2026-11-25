@@ -10,8 +10,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
 
-# The local file stays beside the shared file on Windows; these cases are about
-# the repository-root anchor, so they pin a non-Windows platform through the seam.
 export PERMISSION_STATE_OSTYPE=linux-gnu
 
 if ! command -v jq >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
@@ -59,7 +57,6 @@ OUT="$(run_in "$ROOT/sub")"
 assert_contains "below the root: shared file in this directory" "$OUT" "project settings present $ROOT/sub/.claude/settings.json"
 assert_contains "below the root: its rule is read" "$OUT" "rule project settings allow Bash(sub-shared)"
 assert_contains "below the root: its deny rule is read" "$OUT" "rule project settings deny Bash(sub-deny)"
-# The root is matched by its tail: git spells it differently from the shell on Windows.
 assert_eq "below the root: the root's shared file is read too" 1 "$(count_matching "$OUT" '^project toplevel present .*/repo/\.claude/settings\.json$')"
 assert_contains "below the root: the root's deny rule is not omitted" "$OUT" "rule project toplevel deny Bash(root-deny)"
 assert_not_contains "below the root: the root's rule is not filed under this directory" "$OUT" "rule project settings allow Bash(root-shared)"

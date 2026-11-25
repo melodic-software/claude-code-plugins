@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# instructions-probe.sh <dir>: after hub-layout.sh <dir>, the instruction-file fixture.
-#   repos/github.com/acme/hub/CLAUDE.md       loads at session start, so the hook log
-#                                             is never empty when the hook fires
-#   repos/github.com/acme/hub/docs/CLAUDE.md  nested under the start directory
-#   repos/github.com/acme/hub/docs/guide.md   the file whose Read loads it
-#   repos/github.com/acme/target/CLAUDE.md    in the sibling repository
-#   instructions-log.py    the case's settings register it for InstructionsLoaded
-#                          (appends "loaded <file_path>") and PostToolUse on Read
-#                          (appends "read <file_path>", so only a Read that ran)
-#   instructions-check.py  <read suffix> <instruction file suffix>: prints one line,
-#                          instructions-hook=live|silent trigger=read|unread
-#                          <instruction file suffix>=loaded|absent
 set -euo pipefail
 d="${1:?usage: instructions-probe.sh <dir>}"
 hub="$d/repos/github.com/acme/hub"

@@ -88,6 +88,8 @@ and note that re-enabling restores the FAIL semantics.
    (`worker_continuation`: `resume`, the default, unless the team wants each new unit in a fresh
    worker; `wip_commit`: `false`, the default, unless the team wants a pause
    handoff to make one local `chore(wip):` commit, an unquoted `true` or `false`;
+   `implementation_route`: `local`, the default, unless the repository's unattended factory lanes
+   take published items from implement through ship, then `factory`;
    `transcript_scope`: leave it unset unless the team wants to narrow every member's
    `/session-flow:find-handoff` and `/session-flow:recall` scans to `worktree` or `repo`, since
    this key can only narrow a user's option, never widen it). Never invent a key the schema does not list.
@@ -177,6 +179,7 @@ before and after, the diff when one was shown, the written path, and whether the
 reads `retro_lenses`; `/session-flow:handoff`, which reads
 `wip_commit`; `/session-flow:find-handoff` and `/session-flow:recall`, which read `transcript_scope`;
 `/session-flow:recall`, which also reads `recall_report_kinds` and `recall_doc_paths`;
+`/session-flow:workflow`, which reads `implementation_route`;
 `/session-flow:step-away`, which reads the `away_*` keys.
 
 ## Gotchas
@@ -188,8 +191,8 @@ reads `retro_lenses`; `/session-flow:handoff`, which reads
   read by `/session-flow:orchestrate`, `retro_lenses`, read by `/session-flow:retro` session mode,
   `wip_commit`, read by `/session-flow:handoff`, and
   `transcript_scope`, read by `/session-flow:find-handoff` and `/session-flow:recall`, where the
-  narrower layer wins, and `recall_report_kinds` and `recall_doc_paths`, read by
-  `/session-flow:recall`.
+  narrower layer wins, `recall_report_kinds` and `recall_doc_paths`, read by
+  `/session-flow:recall`, and `implementation_route`, read by `/session-flow:workflow`.
 - **The repository file reaches the team only once committed.** `apply` leaves it uncommitted on
   purpose, and the tracked-file pair says so.
 - **`observer_analysis_bare` and auth.** Leave it off unless auth is an env-var API key (why: the

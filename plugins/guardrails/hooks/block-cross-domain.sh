@@ -1,253 +1,4 @@
 #!/usr/bin/env bash
-# PreToolUse hook: deny a Bash or PowerShell call, from a session in one of
-# this machine's identity domains, that names a path of another, and, from any
-# session, one that writes the machine's git identity.
-#
-# An identity domain is a set of trees one identity owns, with its own git
-# author, gh and az config directories and remote owners. THE MAP names each
-# domain's roots, owners and markers; this guard classifies the session cwd
-# into a domain or neutral, finds the domains a command names, and denies the
-# call when the cwd is in a domain and the command names another domain's path.
-#
-# THE MAP. ${CLAUDE_PLUGIN_DATA}/identity-domains.json, machine-local and never
-# tracked. Its keys follow docs/contracts/plugin-option-naming:
-#
-#   {
-#     "domains": {
-#       "<name>": {
-#         "roots": { "linux": ["<abs>"], "macos": ["<abs>"], "windows": ["<abs>"] },
-#         "owners": ["<owner>"],
-#         "identity_markers": ["<text>"],
-#         "gh_config_dir": "<dir>",
-#         "az_config_dir": "<dir>"
-#       }
-#     },
-#     "owner_roots": { "linux": ["<abs>"], "macos": ["<abs>"], "windows": ["<abs>"] },
-#     "identity_files": ["<path>"],
-#     "shared_exceptions": [{ "path": "<abs>", "from": ["<name>"], "to": "<name>" }],
-#     "messages": { "<key>": "<text>" }
-#   }
-#
-# `domains` and each domain's `roots` are required; every other key may be left
-# out. A domain name is letters, digits, `.`, `_` and `-`; every value is a
-# non-empty one-line string; a root is absolute and below a filesystem root
-# (`/x`, and on Windows also `C:/x`, `C:\x` or `/c/x`). A shared exception
-# needs all three keys, a `to` and a non-empty `from` that name domains of the
-# map, and no `to` among its `from`. An unknown key or any other shape makes the
-# map malformed. Only this host's roots (OSTYPE: msys, cygwin and win32 read
-# `windows`, darwin `macos`, every other host `linux`), the owners, the markers,
-# the gh and az config directories, the identity files and the shared
-# exceptions are used here; `messages` is validated and kept for the rules that
-# read it.
-#
-# SHARED EXCEPTIONS. One exception opens one directory of its `to` domain to
-# sessions in its `from` domains, one way. From a cwd in a `from` domain, a
-# command that names the path, or a path below it, is not denied for it, as long
-# as the command text, quotes and `\` dropped, holds no `..`. Every other foreign
-# path the command names still denies it, and the exception opens nothing to a
-# session in `to` or in a domain `from` does not list. Any character right
-# after the path but the text's end, `/`, whitespace or a word-ending operator
-# (`;&|<>()`) closes it for that mention: a glob, brace or expansion
-# (`shared*`, `shared{,-x}`, `shared$x`) can reach a sibling, and any other
-# character (`shared+x`, `shared~x`) names one. The path counts only when
-# it is a path of `to` on this host: the longest root or owner directory of any
-# domain that holds it, or equals it, is `to`'s, compared with runs of `\` and
-# `/` as one `/` and a drive spelled `C:`, `/cygdrive/c` or `/mnt/c` (and on
-# Windows `/c`) as one drive, in any case on Windows. An exception whose path is
-# not one, or an entry that is a plain string (the earlier shape), grants
-# nothing; it leaves the map well formed, and the user is told which entry once
-# per session.
-#
-# WHAT A CALL COSTS. Each step leaves at the first that settles the call:
-#   1. the kill switch, before any source;
-#   2. no map file: no domain and no step 3 or 4, so only the GIT IDENTITY
-#      WRITES rule below can deny, and a call its prefilter misses leaves at
-#      step 5, or before the jq gate when its raw input already misses, with
-#      no trace and no telemetry;
-#   3. the map, compiled by jq into CACHE (identity-domains.cache beside it)
-#      once per change of its bytes or of HOME and read back with builtins
-#      otherwise, so a steady call starts no process; a malformed map is
-#      reported to the user once per session and the call is allowed unchecked;
-#   4. the cwd, classified into the domain whose path holds it (the longest
-#      path wins), else neutral;
-#   5. the prefilter: the command text, lowercased with `\` read as `/` and
-#      its quotes dropped, is tested for each path and marker, and, from a cwd
-#      in a domain of a map with a gh or az config directory, for the word `gh`
-#      or `az`, and, from a cwd in a domain with a gh config directory, for
-#      the word `gh` or the text `gh_token`, and, from every cwd, for both
-#      `git` and `config` or the last
-#      name of an identity file the map lists. A command that names none
-#      leaves here, before it is parsed;
-#   6. the parse: on the Bash tool hook::bash_parse_segments, whose argv words
-#      and redirection targets are tested the same way; on PowerShell the text
-#      as a whole, parsed only for the identity positions and identity writes
-#      below;
-#   7. the decision: from a cwd in a domain, a path of another domain named in
-#      step 6 denies the call, a read as much as a write, as does a gh or az
-#      call that breaks the CONFIG DIRECTORIES rule below, and an account
-#      switch or GH_TOKEN removal the AUTH SWITCHES rule names. A marker never
-#      denies here. From every cwd, neutral included, an identity write denies
-#      the call; from a neutral cwd nothing else is denied.
-#
-# A domain's PATHS are its roots and, for each owner, the owner's directory
-# below each of this host's owner_roots, or below $HOME/src/github.com and
-# $HOME/worktrees/github.com when the map gives this host none. An owner root
-# holds a directory per owner or, flat, `<owner>-<repo>-<slug>` trees, or both,
-# so an owner's directory also covers every name that starts with it and a `-`.
-# A text NAMES a path or marker when it holds it with no letter, digit, `.`, `_`
-# or `-` right before or after it, except that a `-` may follow an owner's
-# directory: the root /x/work names neither /x/workshop nor /x/work-a nor
-# /y/x/work, and /x/owners/acme names /x/owners/acme-repo and not
-# /x/owners/acmex-repo. The name alone cannot say where an owner ends, so of two
-# listed owners the longest one that fits holds it, in a command as for a cwd:
-# with `acme` and `acme-labs` listed, `acme-labs-x` is acme-labs's even when it
-# is acme's repository `labs-x`, so that tree is open to an acme-labs session
-# and denied to an acme one. An owner no domain lists, such as `acme-labs` with
-# only `acme` listed, reads as acme's, a nested root's `acme-labs/` included.
-# A name only a `-` ties to an owner also leaves a shorter root above it named,
-# so a session in either domain is denied it. A cwd only a `-` ties to an owner
-# is that owner's domain only when no root or owner's directory holds it. So
-# against the exact test the `-` takes no name or cwd from a domain that held
-# it: it only adds names, and so denies.
-# `\` reads as `/` and a run of separators as one, so `C:\x`,
-# `C:\\x` and `C:/x` are one spelling. A path on a drive is also named in its
-# other drive forms (`C:/x`, `/c/x`, `/cygdrive/c/x`, `/mnt/c/x`, where a
-# Windows root `/c/x` and a `/cygdrive/c` or `/mnt/c` root on any host are on
-# drive C) and, below $HOME, after `~`, `$HOME`, `${HOME}`, `$env:HOME`,
-# `$env:USERPROFILE` or `%USERPROFILE%`. A path below two nested paths names
-# the domain of the inner one only; every other path and every marker a text
-# names counts. Text is compared in any case, so on Linux a path that differs
-# from a root only in case names it too.
-#
-# IDENTITY POSITIONS. From a cwd in a domain, a command whose prefilter named
-# another domain's marker is denied when a word in an identity position names
-# a marker of a domain other than the cwd's that the cwd's own domain does not
-# also list. The positions:
-#   - every word after `git remote add` or `git remote set-url` (not
-#     `set-url --delete`)
-#   - the value `git config` (old form or `set`, not a read or an unset) or
-#     `git -c` gives user.email,
-#     user.name, author.email, author.name, committer.email, committer.name,
-#     remote.<name>.url or remote.<name>.pushurl
-#   - `git commit --author <v>` and `--author=<v>`
-#   - the value of an assignment to GH_CONFIG_DIR, AZURE_CONFIG_DIR,
-#     GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME or
-#     GIT_COMMITTER_EMAIL: a leading `NAME=value` (after a compound keyword or
-#     `{` too), one after `export` or `env`, and PowerShell's `$env:NAME = value`
-#     in any case
-# PowerShell text goes through the same parse with each `\` read as `/`. The
-# same marker in any other word (a commit message, an `echo`) is allowed. The
-# deny is a PreToolUse permissionDecision document on stdout.
-#
-# CONFIG DIRECTORIES. From a cwd in a domain, a `gh` call runs with the
-# GH_CONFIG_DIR the command text gives it, else the one in the hook's own
-# environment, and an `az` call likewise with AZURE_CONFIG_DIR. When the cwd's
-# domain has a `gh_config_dir`, a gh call that does not run with it is denied;
-# when it has none, a gh call that runs with another domain's is denied. The
-# same holds for az and `az_config_dir`. `gh --version` and `az --version` are
-# exempt. The text gives a value by a `NAME=value` before the command or after
-# `env`, which holds for that command only, and by `export NAME=value`,
-# `unset NAME` or PowerShell's `$env:NAME = value`, which hold for every later
-# command; a bare `NAME=value` holds for later commands only when NAME is
-# already exported. `env -u NAME` and `env -i` remove it. Directories compare
-# in the prefilter's form, with `~`, `$HOME` and the other HOME spellings read
-# as HOME and, on Windows, a `/c/`, `/cygdrive/c/` or `/mnt/c/` prefix read as
-# `c:/`.
-#
-# AUTH SWITCHES. From a cwd in a domain that has a `gh_config_dir`, a call is
-# denied that switches gh's account or removes GH_TOKEN, whatever GH_CONFIG_DIR
-# it runs with: `gh auth switch`, `gh auth login` and `gh auth logout` (behind
-# the same wrappers CONFIG DIRECTORIES reads); `unset GH_TOKEN`, `export -n
-# GH_TOKEN`, and `env -u GH_TOKEN` in each spelling (`-uGH_TOKEN`, `--unset
-# GH_TOKEN`, `--unset=GH_TOKEN`); an assignment that empties it (`GH_TOKEN=`
-# before a command, alone, after `export` or `env`, and PowerShell's
-# `$env:GH_TOKEN = ''` or `= $null`); and, on PowerShell, `Remove-Item
-# Env:GH_TOKEN` and its aliases. A plain gh call, `gh auth status` and `gh auth
-# token` included, is left to CONFIG DIRECTORIES. From a domain with no
-# `gh_config_dir`, or a neutral cwd, the rule denies nothing.
-#
-# GIT IDENTITY WRITES. From every cwd, in a domain or neutral, and on a host
-# with no map, a call is denied that writes the machine's git identity:
-#   - `git config` with `--global`, `--system` or `--file <identity file>`
-#     (`-f`, `--file=`) that sets, adds, replaces or unsets user.email,
-#     user.signingkey, user.useConfigOnly, credential.helper (and its
-#     credential.<url>.helper form), core.sshCommand, core.hooksPath, include.path
-#     or an includeIf key, in the old form or after `set` or `unset`; one that
-#     renames or removes the user, core, credential, include or an includeIf section;
-#     and `--edit` or `edit`, which may touch every key;
-#   - a shell write to an identity file: an output redirection to it (the
-#     targets of `&>`, `&>>` and `>|`, which the parse splits at the `&` or
-#     `|`, are read from the folded text); an operand of tee, touch, truncate,
-#     rm, unlink, shred, mv or a PowerShell writer (Set-Content, Add-Content,
-#     Out-File, Clear-Content, Remove-Item, New-Item, Move-Item, Rename-Item,
-#     Tee-Object and their aliases); the destination of cp, install, ln,
-#     rsync, scp (not a `host:path` one) or Copy-Item; a file sed or perl
-#     edits in place; dd's `of=`.
-# An IDENTITY FILE is a `<name>.gitconfig` file anywhere, one directly in HOME
-# whose name starts with `.gitconfig`, and each of the map's
-# identity_files with every path below it, compared as CONFIG DIRECTORIES
-# compares a directory. Reads pass: `--get` and the other `--get-*` forms,
-# `-l`/`--list`, `config get`, `config list`, the old form with a key and no
-# value, and a command that only reads an identity file (`cat`, a cp source).
-#
-# Steps 4, 6 and 7 feed the telemetry envelope: `cwd` is domain or neutral,
-# `form` is prefilter-miss, not-named, own-domain (the cwd's domain alone is
-# named), other-domain, identity-deny, config-deny, auth-deny,
-# identity-write-deny, or map-malformed (whose cwd is always neutral), and
-# `status` is blocked for a denied call, else ok. The envelope
-# names no domain; `subject` is the command word, as in every guard's. The
-# path deny reason, on the model's channel, names the cwd's domain and the
-# others.
-#
-# DECLARED GAPS. The guard reads command text: a deterrent, not a sandbox.
-#   - a computed path: a variable, a substitution, or a path spelled in pieces
-#     the prefilter cannot join (`/x/wo\rk`); quoted pieces (`"/x/wo"rk`) are
-#     joined
-#   - a script run by name, whose own commands the guard never sees, and a
-#     heredoc body, which the parse skips even when a shell runs it
-#     (`bash <<'EOF'`)
-#   - a path relative to the cwd (`../other`), and a symlink into a root
-#   - a tree in a flat owner root whose name does not start with its owner
-#     (`cc-plugins-1`), and a shared exception inside a flat tree, which grants
-#     nothing because the path is not below an owner's directory
-#   - on macOS, a cwd spelled in another case than its root, which reads as
-#     neutral
-#   - an identity position inside a `bash -c` or `sh -c` operand, a git alias,
-#     or a variable set some other way (`declare -x`, `Set-Item env:`)
-#   - a gh or az call inside a `bash -c` operand, or behind a wrapper other
-#     than `env`, `command`, `exec`, `nohup` and `time` or after a wrapper
-#     option that takes a value (`exec -a <name>`, `env -S`)
-#   - an export inside a subshell or a pipeline, which counts for later
-#     commands, and `export NAME` with no value after a bare `NAME=value`,
-#     which does not
-#   - a GH_TOKEN removal by `env -i`, `declare` and its kin, `builtin unset`,
-#     a value that only expands to empty (`GH_TOKEN=$unset`), a name spelled
-#     with an escape (`GH\_TOKEN`), PowerShell's `Clear-Item`, a glob, list or
-#     pipeline into `Remove-Item`, or a .NET call; and an account switch
-#     through a gh alias
-#   - an identity write inside a `bash -c` or `sh -c` operand, through a git
-#     alias (`git -c alias.c=config c --global ...`), after a wrapper option
-#     that takes a value (`sudo -u <user> tee`), by a redirection with no
-#     command word (`> ~/.gitconfig` alone), by a copy into a directory that
-#     leaves the file's name out, across a PowerShell backtick line
-#     continuation, or to git's XDG global file (`~/.config/git/config`),
-#     which is no identity file here; and, the other way, an `&>` or `>|`
-#     with an identity file after it inside quoted text, which denies
-#   - a shared exception's `..` test reads the whole text, so a `..` anywhere
-#     (`git log a..b`) closes the exception for that command; and a path computed
-#     from inside the exception (`cd <exception> && ls "${PWD%/*}/x"`) is the
-#     computed-path gap above
-#   - a map that is malformed, or a missing jq, which turns the whole guard
-#     off, the identity-write rule included
-#
-# TEST HOOK. GUARDRAILS_CROSS_DOMAIN_TRACE=1 writes one stderr line per step a
-# call reaches (`block-cross-domain: trace <step>`).
-#
-# Kill switch: block_cross_domain_enabled userConfig option.
-#
-# Every exit is 0, an internal error included: a deny is the decision in the
-# stdout document, and an internal error allows the call.
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_CROSS_DOMAIN_ENABLED:-true}" == "true" ]] || exit 0
@@ -256,8 +7,6 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture: fail-open with a "guard did not run" notice. 0 is the
-# only chosen status: this guard never blocks by exit code.
 guard::abort_boundary block-cross-domain PreToolUse open 0
 
 BCD_MAP=""
@@ -270,16 +19,8 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 
 start=${EPOCHREALTIME:-}
 
-# Every stdin failure (empty, stalled, not JSON, cut short) allows the call.
 hook::buffer_stdin_to INPUT || exit 0
 
-# With no map only the identity-write rule can deny, and only a command whose
-# text holds both `git` and `config` reaches it (bcd::write_prefilter). That test
-# runs here first, on the raw input, so a call the rule would never read leaves
-# before the jq gate and a missing jq is not reported for it. Lowercased, with
-# its escaped backslashes, escaped CRs, `\`, `"` and `'` dropped, the raw input
-# holds every letter run the command text does; a `\u` escape can spell a
-# letter, so an input with one goes on to the gate.
 if [[ -z "$BCD_MAP" ]]; then
   BCD_RAW=${INPUT//\\\\/}
   if [[ "$BCD_RAW" != *\\u* ]]; then
@@ -343,8 +84,6 @@ BCD_CONF_RAW=()
 BCD_CONFIG_DENY=()
 BCD_AUTH=0
 BCD_AUTH_DENY=()
-# What the command text set GH_CONFIG_DIR and AZURE_CONFIG_DIR to for later
-# commands: _SET is 1 for set, 0 for removed, empty for untouched.
 BCD_GH_SET=""
 BCD_GH=""
 BCD_AZ_SET=""
@@ -354,15 +93,6 @@ BCD_IDFILES=()
 BCD_IDFILE_NAMES=()
 BCD_WRITE_DENY=()
 
-# The compiler: the map's raw text and HOME in, one line per record out:
-# `marker`, `gh` and `az` records, one `idfile` record per identity file with
-# an empty domain, a `legacy` or `outside` record for each shared exception that
-# grants nothing (its index as the value), then this host's `root` records, each
-# owner's `owner` directories and each `shared` record (its
-# domain `<to><TAB><from domains, space-separated>`), longest first
-# (`<kind><TAB><domain><TAB><value>`), or one `invalid<TAB><reason>` line for a
-# map it rejects. The whole map is validated before any record is written, so a
-# rejected map yields no partial set. The reason names keys, never values.
 # shellcheck disable=SC2016  # a jq program: its $names are jq variables
 BCD_COMPILE='
 def fail($m): error({bcd: $m});
@@ -486,22 +216,15 @@ bcd::malformed() {
   exit 0
 }
 
-# bcd::compile: run the compiler over BCD_MAP_RAW into BCD_RECORDS and store
-# them in CACHE, the key last, so a cache cut short ends in a partial key and is
-# compiled again. A jq that fails is not cached. Two processes: jq, then the mv
-# that puts the cache in place whole.
 bcd::compile() {
   local out rc=0 tmp
   bcd::trace map-compile
-  # On Windows the MSYS runtime would rewrite a POSIX HOME (`/home/<user>`)
-  # into a Windows path on its way to the native jq; HOME reaches it as written.
   out=$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' exec jq -r -R -s --arg os "$BCD_OS" --arg home "$BCD_HOME" \
     "$BCD_COMPILE" 2>/dev/null <<<"$BCD_MAP_RAW") || rc=$?
   if ((rc != 0)); then
     BCD_RECORDS=("invalid${BCD_TAB}jq exited $rc reading it")
     return 0
   fi
-  # The Windows jq build writes CRLF.
   out=${out//$'\r'/}
   BCD_RECORDS=()
   [[ -n "$out" ]] && mapfile -t BCD_RECORDS <<<"$out"
@@ -512,8 +235,6 @@ bcd::compile() {
   return 0
 }
 
-# bcd::load: BCD_RECORDS for the map as it is now, from CACHE when its key is
-# this map's bytes under this format, host and HOME, else from the compiler.
 bcd::load() {
   local -a cache=()
   BCD_MAP_RAW=""
@@ -536,9 +257,6 @@ bcd::load() {
   bcd::compile
 }
 
-# bcd::norm_to <var> <path>: the form a cwd and a root are compared in: the
-# library's normalizer (`\` as `/`; on Windows the drive folded to `C:` and the
-# rest lowercased), runs of `/` as one, no trailing `/`.
 bcd::norm_to() {
   local __bcd_p __bcd_s='/' __bcd_d='//'
   hook::normalize_path_to __bcd_p "$2"
@@ -547,8 +265,6 @@ bcd::norm_to() {
   printf -v "$1" '%s' "$__bcd_p"
 }
 
-# bcd::fold_to <var> <text>: the form the prefilter and the parse test in:
-# lowercased, `\` as `/`, runs of `/` as one, no trailing `/`.
 bcd::fold_to() {
   local __bcd_t="${2,,}" __bcd_s='/' __bcd_d='//'
   __bcd_t=${__bcd_t//\\//}
@@ -557,9 +273,6 @@ bcd::fold_to() {
   printf -v "$1" '%s' "$__bcd_t"
 }
 
-# bcd::dir_to <var> <config directory as written>: the form a gh or az config
-# directory is compared in: folded, a leading HOME spelling read as HOME, and on
-# Windows a drive prefix read as `<drive>:`.
 bcd::dir_to() {
   local __bcd_dt __bcd_p
   bcd::fold_to __bcd_dt "$2"
@@ -577,9 +290,6 @@ bcd::dir_to() {
   printf -v "$1" '%s' "$__bcd_dt"
 }
 
-# bcd::add_needle <domain> <folded text> <1 for a path, 2 for a shared
-# exception's path, 3 for an owner's directory, 0 for a marker> [<the
-# exception's from domains>]
 bcd::add_needle() {
   [[ -n "$2" ]] || return 0
   BCD_NEEDLE+=("$2")
@@ -588,10 +298,6 @@ bcd::add_needle() {
   BCD_NEEDLE_FROM+=("${4-}")
 }
 
-# bcd::add_root <domain> <root or owner directory as spelled> [<from domains>]
-# [<3 for an owner's directory>]: the path for the cwd and every spelling of it a
-# command can name; with from domains, a shared exception's path, which
-# classifies no cwd.
 bcd::add_root() {
   local c n rest drive="" p kind=${4:-1}
   bcd::norm_to c "$2"
@@ -627,20 +333,12 @@ bcd::add_root() {
   fi
 }
 
-# bcd::named <domain> <1 when a path names it>: add the domain to BCD_NAMED,
-# and to BCD_DENY when a path names it from a cwd in another domain.
 bcd::named() {
   [[ "$BCD_NAMED" == *" $1 "* ]] || BCD_NAMED+="$1 "
   (($2)) && [[ -n "$BCD_CWD_DOMAIN" && "$1" != "$BCD_CWD_DOMAIN" && " ${BCD_DENY[*]-} " != *" $1 "* ]] || return 0
   BCD_DENY+=("$1")
 }
 
-# bcd::names <folded text>: add to BCD_NAMED each domain whose marker or path
-# the text names. The needles come markers first, then paths longest first, and
-# a path that names its domain spends its text: an outer path that text holds
-# (a nested pair) is not named by it, while one named elsewhere in the text is.
-# A shared exception's path open to the cwd's domain goes to bcd::spend_open;
-# closed, it names its `to` domain as that domain's root would.
 bcd::names() {
   local t="$1" n i
   for ((i = 0; i < ${#BCD_NEEDLE[@]}; i++)); do
@@ -671,10 +369,6 @@ bcd::names() {
   return 0
 }
 
-# bcd::spend <needle> <its kind>: a named path, in bcd::names's text `t`. Each
-# occurrence that names it becomes a space; one inside a longer name is kept. One
-# only a `-` ties to an owner's directory stays for a shorter root to name as well,
-# with a newline before its last segment so a shorter owner no longer fits it.
 bcd::spend() {
   local rest=$t out="" pre before after
   while [[ "$rest" == *"$1"* ]]; do
@@ -696,14 +390,6 @@ bcd::spend() {
   t=$out$rest
 }
 
-# bcd::spend_open <needle> <its to domain>: an open shared exception's path, in
-# bcd::names's text `t`. Each occurrence that names it becomes a space, and one
-# that the text's end, `/`, whitespace or a word-ending operator (`;&|<>()`)
-# does not follow names its `to` domain: a glob, brace or expansion
-# (`shared*`, `shared{,-x}`, `shared$x`) can reach past it, and any other
-# character (`shared+x`, `shared~x`) continues a sibling's name. An occurrence
-# inside a longer name is kept, so a sibling (`shared-x`) still names `to`
-# through its root.
 bcd::spend_open() {
   local rest=$t out="" pre
   while [[ "$rest" == *"$1"* ]]; do
@@ -722,24 +408,18 @@ bcd::spend_open() {
   t=$out$rest
 }
 
-# bcd::deny_document <reason>: the PreToolUse deny document on stdout, with any
-# pending notice.
 bcd::deny_document() {
   local esc
   hook::json_escape_to esc "$1"
   hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$esc"'"}'"$BCD_NOTICE_JSON"'}'
 }
 
-# bcd::deny: the decision, as a PreToolUse document on stdout. The exit stays 0.
 bcd::deny() {
   local d others=""
   for d in "${BCD_DENY[@]}"; do others+="${others:+, }'$d'"; done
   bcd::deny_document "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', and the command names a path the domain map gives to another domain ($others). Reading a path there is denied too. Run the command from a session in that domain. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
 }
 
-# bcd::grants_nothing: the once-per-session notice naming each shared exception
-# that grants nothing, into BCD_NOTICE and, for a deny document,
-# BCD_NOTICE_JSON.
 # shellcheck disable=SC2154  # HOOK_NOTICE_TO_USER is set by hook::notice_once
 bcd::grants_nothing() {
   local e list="" esc
@@ -773,8 +453,6 @@ bcd::segment() {
   return 0
 }
 
-# bcd::foreign_marker <text>: whether the text names a marker of a domain other
-# than the cwd's that the cwd's own domain does not also list.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::foreign_marker() {
   local t n i
@@ -803,16 +481,12 @@ bcd::add_once() {
   __bcd_list+=("$2")
 }
 
-# bcd::check <position> <value>: record the position once when the value names
-# a foreign marker.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::check() {
   bcd::foreign_marker "$2" || return 0
   bcd::add_once BCD_IDENTITY_DENY "$1"
 }
 
-# bcd::env_name_to <var> <assigned name, or PowerShell's $env:<name> in any
-# case>: the variable's name.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::env_name_to() {
   local __bcd_u=$2
@@ -826,8 +500,6 @@ bcd::env_name_to() {
   printf -v "$1" '%s' "$__bcd_u"
 }
 
-# bcd::ps_assign <callback> <word> <next word> <word after it>: the callback on
-# the name and value of PowerShell's `$env:NAME = value`, in each spacing.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::ps_assign() {
   if [[ "$2" == *=?* ]]; then
@@ -865,8 +537,6 @@ bcd::git_key() { # <position> <config key> <value>
   esac
 }
 
-# bcd::git_config <index after the subcommand> <words...>: the key and value
-# of `git config [<options>] [set] <key> <value>`.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::git_config() {
   local j=$1 n w
@@ -893,8 +563,6 @@ bcd::git_config() {
   return 0
 }
 
-# bcd::identity <words...>: the identity positions of one segment, into
-# BCD_IDENTITY_DENY.
 # shellcheck disable=SC2329  # also invoked by hook::bash_parse_segments
 bcd::identity() {
   local -a w=("$@") g=()
@@ -955,8 +623,6 @@ bcd::identity() {
   return 0
 }
 
-# bcd::identity_deny: the PreToolUse deny naming each identity position, then
-# exit 0.
 bcd::identity_deny() {
   local p list=""
   for p in "${BCD_IDENTITY_DENY[@]}"; do list+="${list:+, }$p"; done
@@ -965,8 +631,6 @@ bcd::identity_deny() {
   exit 0
 }
 
-# bcd::config_var <assigned name, or PowerShell's $env:<name>> <value> [<1 to
-# set, 0 to remove>]: into the segment's view of the two config variables.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::config_var() {
   local u
@@ -984,9 +648,6 @@ bcd::config_var() {
   esac
 }
 
-# bcd::config_check <gh|az> <variable> <text state> <text value> <hook
-# environment value>: record a deny when the call does not run with the cwd
-# domain's directory, or, from a domain with none, runs with another domain's.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::config_check() {
   local dir="" cwd_dir="" dir_domain="" i msg
@@ -1014,8 +675,6 @@ bcd::config_check() {
   [[ " ${BCD_CONFIG_DENY[*]-} " == *" $msg "* ]] || BCD_CONFIG_DENY+=("$msg")
 }
 
-# bcd::tool_to <var> <command word>: its last path segment, lowercased, without
-# a `.exe` and then a `.cmd` suffix.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::tool_to() {
   local __bcd_c=${2##*/}
@@ -1024,9 +683,6 @@ bcd::tool_to() {
   printf -v "$1" '%s' "${__bcd_c%.cmd}"
 }
 
-# bcd::config <words...>: the config directories of one segment's gh or az
-# call, into BCD_CONFIG_DENY. A segment with no command carries what it sets to
-# later segments.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::config() {
   local -a w=("$@")
@@ -1063,7 +719,6 @@ bcd::config() {
       ((keep)) && break
       i=$((i + 1))
       ;;
-    # `command -v` and `-V` look a name up and run nothing.
     -v | -V)
       ((wrapped)) && return 0
       ((keep)) && break
@@ -1085,7 +740,6 @@ bcd::config() {
   if [[ -z "$cmd" ]]; then
     ((keep && !wrapped)) || return 0
     if ((exported == 0)); then
-      # A bare assignment reaches a later command only when the name is exported.
       [[ "$BCD_GH_SET" == 1 || ( -z "$BCD_GH_SET" && -n "${GH_CONFIG_DIR+x}" ) ]] || cf_gh_set=$BCD_GH_SET cf_gh=$BCD_GH
       [[ "$BCD_AZ_SET" == 1 || ( -z "$BCD_AZ_SET" && -n "${AZURE_CONFIG_DIR+x}" ) ]] || cf_az_set=$BCD_AZ_SET cf_az=$BCD_AZ
     fi
@@ -1102,8 +756,6 @@ bcd::config() {
   return 0
 }
 
-# bcd::config_deny: the PreToolUse deny naming each config directory a gh or
-# az call runs without or with, then exit 0.
 bcd::config_deny() {
   local m list=""
   for m in "${BCD_CONFIG_DENY[@]}"; do list+="${list:+; it }$m"; done
@@ -1117,8 +769,6 @@ bcd::auth_found() { # <what the command does, as written>
   bcd::add_once BCD_AUTH_DENY "$1"
 }
 
-# bcd::auth_token <assigned name, or PowerShell's $env:<name>> <value>: an
-# assignment that empties GH_TOKEN (an empty value, or `$null` in any case).
 # A value the parse cut off at a backtick or `(` arrives empty and is no removal.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::auth_token() {
@@ -1134,8 +784,6 @@ bcd::auth_token() {
   return 0
 }
 
-# bcd::auth <words...>: the gh account switches and GH_TOKEN removals of one
-# segment (AUTH SWITCHES), into BCD_AUTH_DENY.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::auth() {
   local -a w=("$@")
@@ -1158,7 +806,6 @@ bcd::auth() {
       ;;
     unset)
       for ((i++; i < n; i++)); do
-        # `unset -f` removes functions, not variables.
         [[ "${w[i]}" == -f ]] && return 0
         [[ "${w[i]}" == GH_TOKEN ]] && bcd::auth_found "unset GH_TOKEN"
       done
@@ -1183,8 +830,6 @@ bcd::auth() {
       ;;
     -*) ((keep && !wrapped)) && return 0 ;;
     \$[Ee][Nn][Vv]:* | \$\{[Ee][Nn][Vv]:*)
-      # A value the parse cut off (`= (gh auth token)`) is no word, where `''` is an empty one;
-      # an `''` joined to the word before it (`=''`) leaves that word's quoted flag set.
       [[ "$w1" == *= && -z "${w[i + 1]+x}" && "${HOOK_SEG_WORD_QUOTED[i]-0}" == 0 ]] && return 0
       [[ "$w1" != *=* && "${w[i + 1]-}" == = && -z "${w[i + 2]+x}" && "${HOOK_SEG_WORD_QUOTED[i + 1]-0}" == 0 ]] && return 0
       bcd::ps_assign bcd::auth_token "$w1" "${w[i + 1]-}" "${w[i + 2]-}"
@@ -1219,8 +864,6 @@ bcd::auth() {
   return 0
 }
 
-# bcd::auth_deny: the PreToolUse deny naming each account switch and GH_TOKEN
-# removal, then exit 0.
 bcd::auth_deny() {
   local m list=""
   for m in "${BCD_AUTH_DENY[@]}"; do list+="${list:+; }$m"; done
@@ -1229,8 +872,6 @@ bcd::auth_deny() {
   exit 0
 }
 
-# bcd::write_prefilter: whether the folded command text could hold an identity
-# write: both `git` and `config`, or the last name of a listed identity file.
 bcd::write_prefilter() {
   local n
   [[ "$BCD_SUBJECT" == *git* && "$BCD_SUBJECT" == *config* ]] && return 0
@@ -1240,8 +881,6 @@ bcd::write_prefilter() {
   return 1
 }
 
-# bcd::is_idfile <word>: whether the word names an identity file (GIT IDENTITY
-# WRITES).
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::is_idfile() {
   local p s
@@ -1287,9 +926,6 @@ bcd::identity_section() { # <config section>
   esac
 }
 
-# bcd::inplace_flag <sed|perl> <word>: whether the option word edits in place:
-# an `i` among its bundled letters before one that takes a value (`-pi.bak`,
-# `-Ei`; not `-Mstrict` or `-ne`).
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::inplace_flag() {
   local flag=$2 stop=efl k c
@@ -1304,8 +940,6 @@ bcd::inplace_flag() {
   return 1
 }
 
-# bcd::text_redirs: the targets of `&>`, `&>>` and `>|`, read from the folded
-# text, since the parse splits each of them at its `&` or `|`.
 bcd::text_redirs() {
   local t=$BCD_SUBJECT re='(&>>?|>[|])[[:space:]]*([^[:space:];&|<>()]+)(.*)$'
   while [[ "$t" =~ $re ]]; do
@@ -1314,8 +948,6 @@ bcd::text_redirs() {
   done
 }
 
-# bcd::git_config_write: the identity write of the segment's `git config`, from
-# hook::git_invocation's words.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::git_config_write() {
   local -a g=("${HOOK_GITINV_WORDS[@]}") pos=()
@@ -1360,7 +992,6 @@ bcd::git_config_write() {
     done
     return 0
     ;;
-  # The old form with a key and no value reads it.
   "") ((${#pos[@]} >= 2)) || return 0 ;;
   *) ;;
   esac
@@ -1369,8 +1000,6 @@ bcd::git_config_write() {
   return 0
 }
 
-# bcd::writes <words...>: the identity writes of one segment, into
-# BCD_WRITE_DENY.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::writes() {
   local -a w=("$@")
@@ -1406,11 +1035,6 @@ bcd::writes() {
     for ((k = i + 1; k < n; k++)); do bcd::write_word "$cmd" "${w[k]}"; done
     ;;
   cp | install | ln | rsync | scp | copy-item | cpi | copy)
-    # The last operand, unless an option names the destination: `-t` for cp,
-    # install and ln (rsync's `-t` is --times), and PowerShell's -Destination
-    # by any prefix it accepts, with a space or a colon. Only PowerShell's
-    # parameters are case-blind: `-T` of cp, install and ln is
-    # --no-target-directory.
     for ((k = i + 1; k < n; k++)); do
       t=${w[k]}
       case "$cmd" in
@@ -1436,7 +1060,6 @@ bcd::writes() {
       *) dest=${w[k]} ;;
       esac
     done
-    # A `host:path` destination of scp or rsync is another machine's file.
     [[ ("$cmd" == scp || "$cmd" == rsync) && "$dest" =~ ^[^/]{2,}: ]] && dest=""
     ((named)) || [[ -z "$dest" ]] || bcd::write_word "$cmd" "$dest"
     ;;
@@ -1460,7 +1083,6 @@ bcd::writes() {
   return 0
 }
 
-# bcd::write_deny: the PreToolUse deny naming each identity write, then exit 0.
 bcd::write_deny() {
   local p list=""
   for p in "${BCD_WRITE_DENY[@]}"; do list+="${list:+; }$p"; done

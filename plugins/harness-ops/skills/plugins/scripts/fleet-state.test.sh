@@ -2,8 +2,6 @@
 # test-scope: .claude/settings.json
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -40,10 +38,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# CASE_NUM must be incremented in the CALLER's shell before calling this,
-# never inside it: `case_dir=$(new_case_dir)` runs in a subshell, so a
-# `CASE_NUM=...` assignment made in here is discarded when the subshell
-# exits, silently leaving every case reuse case-1's directory.
 new_case_dir() {
   local case_dir="$TEST_TMPDIR/case-$CASE_NUM"
   mkdir -p "$case_dir/catalog"
@@ -181,14 +175,6 @@ out=$(run_state "$case_dir" "CLAUDE_PROJECT_DIR=$current_project_dir")
 missing_enabled=$(jq -c '.missing_from_enabled' <<<"$out" 2>/dev/null)
 assert_eq "missing-enabled: other repo's already-enabled project install excluded, not false-flagged" '[]' "$missing_enabled"
 
-# ============================================================================
-# Case: a marketplace-entry defaultEnabled:false install with no explicit
-# enabledPlugins entry is a deliberate publisher opt-in-required default, NOT
-# missing_from_enabled — auto-enabling it would override the publisher's
-# intent (per the plugin manifest reference's defaultEnabled section: the
-# marketplace entry's defaultEnabled overrides plugin.json's, so turning the
-# plugin on is the user's opt-in, not sync auto-enabling on their behalf)
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/installed_plugins.json" '{
@@ -250,9 +236,6 @@ rc=$?
 assert_exit "malformed known_marketplaces.json: exit 2" 2 "$rc"
 assert_contains "malformed known_marketplaces.json: error names the file" "$out" "known_marketplaces.json"
 
-# ============================================================================
-# Case: native-Windows projectPath vs Git Bash cwd — CRITICAL normalization
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 project_dir="$case_dir/project-root"
@@ -269,16 +252,6 @@ out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$project_dir")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "windows-path: native backslash projectPath matches Git Bash cwd" "true" "$current_flag"
 
-# ============================================================================
-# Case: case-sensitivity — a case-only path difference must NOT collapse two
-# different repos on a case-sensitive filesystem. Same fixture, run twice with
-# an EXPLICIT OSTYPE override each time (never "this host's ambient OSTYPE" —
-# this suite itself runs on both a case-insensitive dev host and a
-# case-sensitive CI runner, so asserting against the ambient value is not
-# deterministic across them): forcing linux-gnu must NOT match
-# (case-sensitive); forcing msys must still match (case-insensitive — no
-# regression to the existing behavior).
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 project_dir="$case_dir/case-test-root"
@@ -298,24 +271,11 @@ out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$project_dir" OSTYPE="msys")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "case-sensitivity: still matches under a forced case-insensitive OSTYPE — no regression" "true" "$current_flag"
 
-# ============================================================================
-# Case: CLAUDE_PROJECT_DIR unset falls back to the cwd's git toplevel —
-# the exact gap a live end-to-end run (a headless `-p` session) exposed:
-# CLAUDE_PROJECT_DIR wasn't exported, so currentProject stayed null on every
-# install record even while standing inside the actual project.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 project_dir="$case_dir/git-project-root"
 mkdir -p "$project_dir/nested/subdir"
 (cd "$project_dir" && git init -q && git -c user.email=t@t.test -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m init)
-# Derive the native-Windows form from `git rev-parse --show-toplevel` itself
-# (forward-slash-to-backslash only) rather than `cygpath -w`: on this
-# machine cygpath silently 8.3-shortens a profile segment (KyleSexton ->
-# KYLESE~1), which normalize_path cannot reconcile against the long form
-# git and real CC-written projectPath values both use — a test-fixture
-# artifact, not a real-world path shape, so the fixture should not
-# manufacture it either.
 git_toplevel=$(cd "$project_dir" && git rev-parse --show-toplevel)
 native_project_path="${git_toplevel//\//\\}"
 write "$case_dir/installed_plugins.json" "$(
@@ -345,22 +305,11 @@ out=$(cd "$nonrepo_dir" && run_state_no_project_dir "$case_dir")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "no-project-context: non-git cwd with CLAUDE_PROJECT_DIR unset manufactures no currentProject" "null" "$current_flag"
 
-# ============================================================================
-# Case: a non-git cwd WITH a .claude directory is project context. Claude Code
-# does not require a repo: a headless session anchored in a plain directory
-# has neither CLAUDE_PROJECT_DIR nor a git toplevel, but its .claude marker
-# corroborates the anchor, so its install records keep currentProject and its
-# .claude/settings*.json stays visible.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 nongit_proj="$case_dir/plain-project"
 mkdir -p "$nongit_proj/.claude"
 write "$nongit_proj/.claude/settings.json" '{"enabledPlugins":{"alpha@market1": true}}'
-# The native form a real CC-written projectPath carries: on Git Bash `pwd -W`
-# yields the long drive-letter form (no git toplevel exists here to derive it
-# from, and cygpath 8.3-shortens — see the git-fallback case's note); on POSIX
-# hosts plain pwd is already the native form.
 nongit_native=$(cd "$nongit_proj" && (pwd -W 2>/dev/null || pwd))
 native_nongit_path="${nongit_native//\//\\}"
 write "$case_dir/installed_plugins.json" "$(
@@ -376,17 +325,6 @@ assert_eq "non-git project: .claude marker preserves currentProject without CLAU
 effective_val=$(jq -r '.enabled."alpha@market1"' <<<"$out" 2>/dev/null)
 assert_eq "non-git project: .claude/settings.json read as the project scope" "true" "$effective_val"
 
-# ============================================================================
-# Case: $HOME is never project context, even though it carries .claude. That
-# directory is USER scope; reading $HOME/.claude/settings.json as the project
-# map would duplicate the user map.
-#
-# Load-bearing only where `mktemp -d` yields a path the shell and the OS spell
-# differently — Git Bash, whose `/tmp/…` mount alias has no drive letter for the
-# normalizer to reconcile against `pwd -W`'s `C:/…`. On a POSIX host both sides
-# already agree, so this case passes there whether or not the exclusion works: a
-# green run off Windows is not evidence about it.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 fake_home="$case_dir/fake-home"
@@ -404,16 +342,6 @@ out=$(cd "$fake_home" && run_state_no_project_dir "$case_dir" HOME="$fake_home")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "home exclusion: \$HOME with .claude is user scope, not project context" "null" "$current_flag"
 
-# ============================================================================
-# Case: an exported `cd` function cannot collapse a real project onto $HOME.
-# The exclusion spells $HOME by changing into it, so a hijacked `cd` that
-# returns success WITHOUT moving would make $HOME resolve to the cwd — and
-# every corroborated non-git project would then compare equal to $HOME and
-# lose both its project settings and its currentProject marker. The resolution
-# uses `builtin cd`/`builtin pwd`, so the shadow is never consulted. Unlike the
-# exclusion case above, this one is load-bearing on every platform: the failure
-# is the shadow being honored, not a path-spelling mismatch.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 proj_dir="$case_dir/real-project"
@@ -494,14 +422,6 @@ assert_exit "default marketplace: unresolvable root fails loud, doesn't guess" 1
 assert_contains "default marketplace: names the fallback" "$out" "--marketplace"
 assert_contains "default marketplace: error names the searched root" "$out" "nowhere-installed"
 
-# ============================================================================
-# Case: version skew — session's loaded version != installed version.
-# installPath is version-pinned; a mid-session autoUpdate (or sync's own Step-3
-# self-update) makes the running root's version segment differ, so the exact
-# installPath match misses. The version-agnostic parent-prefix fallback must
-# still resolve the marketplace so the bare (no --marketplace) default path
-# keeps working. Real dirs so realpath resolves both consistently.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 skew_parent="$case_dir/cache/market1/this-plugin"
@@ -613,31 +533,6 @@ assert_exit "unregistered manifest name: fails loud, doesn't guess" 1 "$rc"
 assert_contains "unregistered manifest name: names the fallback" "$out" "--marketplace"
 assert_contains "unregistered manifest name: error names the out-of-cache branch" "$out" "not under the cache"
 
-# ============================================================================
-# Case: jq missing — clear notice, not a bare command-not-found
-# ============================================================================
-# A directory-exclusion PATH filter (drop every PATH dir containing a jq
-# executable) is NOT safe in general: `command -v jq` only reports the first
-# match, and on this dev machine jq lives in its own directory separate from
-# bash/coreutils, so excluding it is harmless — but a GitHub Actions
-# ubuntu runner colocates jq with bash and coreutils in /usr/bin, so
-# excluding jq's directory there also removes bash, and the case fails with
-# "env: 'bash': No such file or directory" before it ever reaches the
-# script's own jq check. `command -v` also does not skip a shadowed
-# non-executable file and fall through to a later PATH entry (verified
-# empirically: a chmod-000 decoy at the front of PATH is skipped and the
-# real jq further down PATH is still found) — so shadowing can't hide jq
-# either.
-#
-# The only universally safe approach: build an isolated PATH containing
-# COPIES (never symlinks — those need elevation on Windows) of just the
-# specific tools fleet-state.sh invokes before its jq check (`dirname`) plus
-# bash itself to launch the interpreter, with jq deliberately excluded.
-# Copying a Linux ELF binary elsewhere is safe (glibc resolves shared libs
-# via the system loader, not the binary's own directory) — but bash.exe on
-# Windows/MSYS needs a colocated msys-2.0.dll, so any *.dll sitting next to
-# the real bash binary is copied alongside it too (a harmless no-op on
-# Linux, where no such files exist).
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
@@ -709,13 +604,6 @@ rc=$?
 assert_exit "non-array plugin entry: exit 2" 2 "$rc"
 assert_contains "non-array plugin entry: error names the file" "$out" "installed_plugins.json"
 
-# ============================================================================
-# Case: --marketplace with no following name must exit 2 immediately, NOT
-# infinite-loop. `shift 2` with one positional param left fails silently (no
-# set -e), leaving $1 unchanged so the arg loop re-reads --marketplace forever;
-# the in-branch guard exits before shift. timeout catches a regression (a hang
-# returns 124, failing the assertion) instead of hanging the whole suite.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
@@ -745,16 +633,6 @@ case "$out" in
 *) pass "hook-utils override ignored: caller-supplied path not sourced" ;;
 esac
 
-# ============================================================================
-# Case: an inherited, exported cd shell function cannot redirect hook-utils
-# resolution (security regression guard). Bash imports environment-exported
-# functions (BASH_FUNC_cd%%) before the script runs; a plain `cd` in the
-# script's root-resolution would then run the attacker's function and make
-# PLUGIN_ROOT_DEFAULT point at an attacker tree, sourcing an arbitrary file.
-# The script uses `builtin cd`, so the exported function is bypassed. If a
-# future refactor drops `builtin`, the hijacked cd redirects resolution to the
-# decoy root below and its marker surfaces in the output, failing this case.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
@@ -770,16 +648,6 @@ case "$out" in
 *) pass "exported cd shadow ignored: hook-utils resolved from real script location" ;;
 esac
 
-# ============================================================================
-# Case: an attacker-controlled PATH cannot redirect hook-utils resolution
-# through the directory resolver (security regression guard). The script
-# derives its own directory with parameter expansion, never an external
-# `dirname`, so a hostile `dirname` planted at the front of PATH is never
-# consulted and hook-utils.sh is still sourced from the real script location.
-# If a future refactor reintroduces `dirname` (or any PATH-resolved tool) on
-# the resolution path, the decoy below is sourced and its marker surfaces,
-# failing this case.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
@@ -804,17 +672,6 @@ case "$out" in
 *) pass "hostile PATH dirname ignored: hook-utils resolved without an external dirname" ;;
 esac
 
-# ============================================================================
-# Case: an inherited, exported `source` shell function cannot hijack the
-# hook-utils source (security regression guard). Bash imports environment-
-# exported functions (BASH_FUNC_source%%) before the script runs; a plain
-# `source` would then invoke the attacker's function, which receives the
-# correctly resolved real path but can ignore it and run arbitrary code —
-# making the whole trusted-path resolution moot. The script uses `builtin
-# source`, bypassing the exported function. If a future refactor drops
-# `builtin`, the decoy function below runs and its marker surfaces, failing
-# this case.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
@@ -826,21 +683,6 @@ case "$out" in
 *) pass "exported source shadow ignored: real hook-utils sourced via builtin" ;;
 esac
 
-# ============================================================================
-# Case: large-catalog marketplace does not crash with "Argument list too
-# long" (#1336). Guards the argv-length ceiling: catalog/installed/enabled
-# JSON payloads must travel via --slurpfile temp files, never as literal
-# `jq --argjson` command-line arguments, because a large enough marketplace
-# catalog (confirmed against a real 273-plugin catalog) pushes the serialized
-# JSON past the platform/shell's argv-length ceiling and jq crashes before
-# emitting anything. Uses a synthetic 500-plugin catalog — well past the
-# 273-plugin real-world repro — fully installed and enabled, so every array
-# in the composed report (catalog, installed, enabled, and all three
-# missing_from_* arrays) carries the full payload through the code path the
-# guard exists for. Asserts the run completes AND produces the same-shaped,
-# semantically-correct output a small catalog would (no silent truncation or
-# partial report), not merely that it exits 0.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 big_n=500
@@ -876,15 +718,6 @@ assert_eq "large catalog: every plugin enabled, so missing_from_enabled empty" "
 sample_enabled=$(jq -r '.enabled["large-catalog-synthetic-plugin-499@bigmarket"]' <<<"$out" 2>/dev/null)
 assert_eq "large catalog: a spot-checked entry has correct effective-enabled value, not a placeholder" "true" "$sample_enabled"
 
-# ============================================================================
-# Case: malformed user_settings.json must fail loud (#1336 fail-loud
-# parity). When a prior `jq -c '.enabledPlugins // {}'` read fails on
-# malformed source JSON and captures no stdout, --slurpfile would tolerate
-# the genuinely EMPTY file as "zero JSON values" (yielding null), turning a
-# loud crash into a silent `null`-degraded report. jq_slurp_tmpfile guards
-# this by writing a deliberately-invalid token for an empty value, forcing
-# jq's own parser to still error at the --slurpfile call site.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
@@ -900,29 +733,10 @@ else
   pass "malformed user_settings.json: fails loud, not silently degraded"
 fi
 
-# ============================================================================
-# Case: static guard: no `--argjson` call site regresses back into
-# fleet-state.sh (#1336). The runtime case above proves the CURRENT script
-# doesn't crash; this guards against a future edit silently reintroducing
-# `--argjson catalog|installed|missing*` (the exact pattern that crashed).
-# Every payload now travels as a `--slurpfile` of a validated source file or
-# on stdin, and the few fixed-size booleans ride as `--arg` strings, so the
-# script body (source lines only, comments excluded) carries no `--argjson`
-# at all.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 argjson_code_count=$(grep -v '^[[:space:]]*#' "$SCRIPT" | grep -c -- '--argjson' || true)
 assert_eq "static guard: no --argjson call site at all (payloads travel as --slurpfile or stdin)" "0" "$argjson_code_count"
 
-# ============================================================================
-# --ids: the id-projection mode `sync` Steps 2-5 loop, so no caller hand-writes
-# `jq -r ... | while read` (#2578).
-#
-# Fixture shared by the cases below: two plugins installed at user scope plus a
-# third catalog entry installed nowhere, so installed-user yields TWO ids (the
-# minimum that can exhibit the all-but-last CR signature) and
-# missing-user-install yields one.
-# ============================================================================
 seed_ids_case() {
   local case_dir="$1"
   write "$case_dir/installed_plugins.json" '{
@@ -967,22 +781,6 @@ ARGS=(--marketplace market1 --ids missing-user-install)
 out=$(run_ids "$case_dir")
 assert_eq "--ids missing-user-install: catalog entry installed nowhere" "gamma@market1" "$out"
 
-# ============================================================================
-# REGRESSION (#2578): --ids output must carry no CR even when jq writes stdout
-# in Windows text mode.
-#
-# Host-independent by construction: a PATH stub named `jq` normalizes every
-# emitted line to exactly ONE trailing CR, so the case exercises the same bytes
-# on a Linux runner (where real jq emits bare LF and the stub ADDS the CR) as on
-# Windows (where the native binary already emits CRLF and the stub is a no-op).
-# Without that normalization the case would be vacuous on Linux — green for the
-# wrong reason, which is the failure mode #2571 was landed to stop repeating.
-#
-# `command jq` resolves through PATH, so fleet-state.sh's own
-# `jq() { command jq "$@" | tr -d '\r'; }` wrapper calls the stub exactly as it
-# would call a native Windows jq. This case therefore goes red BOTH if --ids is
-# removed and if that wrapper is ever deleted.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 seed_ids_case "$case_dir"
@@ -990,11 +788,7 @@ mkdir -p "$case_dir/crlf-bin"
 REAL_JQ="$(command -v jq)"
 {
   printf '#!/usr/bin/env bash\n'
-  # pipefail so the stub reports JQ's status, not sed's. Without it every
-  # invocation exits 0 and a future failure-path case added under this stub
-  # would pass vacuously.
   printf 'set -o pipefail\n'
-  # s/\r*$/\r/ collapses "already CRLF" and "bare LF" to the same one-CR form.
   printf '"%s" "$@" | sed '"'"'s/\\r*$/\\r/'"'"'\n' "$REAL_JQ"
 } >"$case_dir/crlf-bin/jq"
 chmod +x "$case_dir/crlf-bin/jq"
@@ -1069,10 +863,6 @@ assert_exit "--ids on the default (zero-arg) path: exit 0" 0 "$rc"
 assert_eq "--ids on the default (zero-arg) path: emits the resolved marketplace's ids" \
   "this-plugin@market1" "$out"
 
-# A per-marketplace failure must NOT put its JSON error block on the --ids
-# stdout stream. `done < <(… --ids …)` cannot see the process's exit status, so
-# an error object left on stdout is read as an id and passed straight to
-# `claude plugin update`. Report mode still gets the block on stdout.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
@@ -1451,10 +1241,6 @@ ARGS=(--marketplace market1)
 out=$(run_state "$case_dir")
 assert_eq "projectPathPresent: true for a projectPath that exists" \
   "true" "$(jq -r '.installed[] | select(.id == "alpha@market1") | .projectPathPresent' <<<"$out" 2>/dev/null)"
-# The load-bearing one: jq's `//` treats FALSE as empty, so a lookup written
-# with the alternative operator would silently rewrite this false into null and
-# collapse "not present" into "not checked" — the exact distinction the field
-# carries.
 assert_eq "projectPathPresent: false for an absent projectPath, NOT rewritten to null" \
   "false" "$(jq -r '.installed[] | select(.id == "beta@market1") | .projectPathPresent' <<<"$out" 2>/dev/null)"
 assert_eq "projectPathPresent: null for a user-scope record (not applicable)" \
@@ -1542,11 +1328,6 @@ assert_eq "projectPathIsHome: carried on divergences[].scopes[] too" \
   "true" "$(jq -r '.divergences[0].scopes[] | select(.scope == "project") | .projectPathIsHome' <<<"$out" 2>/dev/null)"
 assert_eq "projectPathIsHome: a home path never removes the divergence row" \
   "1" "$(jq -r '.divergences | length' <<<"$out" 2>/dev/null)"
-
-# ============================================================================
-# linkedWorktree / label — a lagging record in a linked worktree is labeled,
-# stays counted, and a main checkout or a submodule is never mislabeled (#6713).
-# ============================================================================
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1647,13 +1428,6 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "orphan"}, {"name"
 write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
 ARGS=(--marketplace market1)
 out=$(run_state "$case_dir")
-# `join(",")` rather than `.[]`: the assertion-side `jq` here is the REAL jq,
-# not fleet-state.sh's CR-stripping wrapper, and on Windows it terminates every
-# line with CRLF. `$(…)` strips only the FINAL terminator as a unit, so a
-# multi-line extraction leaves a trailing CR on every line but the last and the
-# comparison fails against a byte-identical-looking literal. Collapsing to one
-# line keeps the capture in the safe single-line case — the same reason no
-# other case in this suite extracts multiple lines through a test-side jq.
 assert_eq "user_scope_orphans: names project-only and local-only ids" \
   "localorphan@market1,orphan@market1" "$(jq -r '.user_scope_orphans | join(",")' <<<"$out" 2>/dev/null)"
 assert_eq "user_scope_orphans: excludes an id that also holds a user-scope record" \
@@ -1782,15 +1556,6 @@ out=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
 assert_eq "production manifest_base: a backslash-spelled traversal is refused too" \
   "null" "$(jq -r '.catalog_versions["escape@market1"]' <<<"$out" 2>/dev/null)"
 
-# A SYMLINK inside the checkout pointing outside it reaches a foreign manifest
-# through an entirely ordinary `./name` source — no lexical check on the source
-# can see it. If that foreign manifest's version were read, it could positively
-# but falsely "prove" an installed id current and WITHHOLD its update, which is
-# this pre-filter's only unsafe direction. The physical containment check is
-# what closes it; this case is the proof.
-# Skipped where the platform cannot create a symlink (Windows without developer
-# mode / core.symlinks off) — a skip is honest there, since the vector needs a
-# real symlink to exist in the first place.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 mkdir -p "$case_dir/checkout/.claude-plugin"
@@ -1802,11 +1567,6 @@ write "$case_dir/known_marketplaces.json" "$(
 )"
 write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
 write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"evil@market1":[{"scope":"user","installPath":"a","version":"9.9.9"}]}}'
-# `MSYS=winsymlinks:nativestrict` is what makes Git Bash emit a REAL symlink
-# instead of silently deep-COPYING the target — the copy would put the manifest
-# genuinely inside the checkout and the case would then assert the opposite of
-# what it means to. The variable is inert on POSIX, where ln -s already links.
-# `[[ -L ]]` is the gate, not `ln`'s exit status: the copying form also succeeds.
 MSYS=winsymlinks:nativestrict ln -s "$case_dir/outside" "$case_dir/checkout/linkdir" 2>/dev/null
 if [[ -L "$case_dir/checkout/linkdir" ]] &&
   [[ -f "$case_dir/checkout/linkdir/.claude-plugin/plugin.json" ]]; then
@@ -1845,12 +1605,6 @@ out=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
 assert_eq "containment control: an in-checkout real directory still resolves its version" \
   "9.9.9" "$(jq -r '.catalog_versions["good@market1"]' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# --marketplaces — the name enumeration `sync`'s `all` mode loops. Without it
-# the only way to get the list is a hand-written `jq -r 'keys[]' | while read`
-# over known_marketplaces.json, which carries the identical trailing-CR hazard
-# that --ids exists to prevent.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{
@@ -1891,9 +1645,6 @@ out=$(run_state "$case_dir")
 rc=$?
 assert_exit "--marketplaces with --ids: exit 2" 2 "$rc"
 
-# CR regression, same stub mechanism as the --ids case above: the documented
-# consumer is a `while read` loop feeding --marketplace, so a surviving CR
-# would corrupt every name but the last into an unresolvable marketplace.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{
@@ -1958,19 +1709,6 @@ assert_contains "--ids help text names missing-user-install" "$out" "missing-use
 assert_contains "--ids help text names missing-enabled" "$out" "missing-enabled"
 assert_contains "--ids help text names user-scope-orphans" "$out" "user-scope-orphans"
 
-# ============================================================================
-# Process budget: one report costs a FIXED number of process creations, never
-# one per catalog entry. Each creation is a fork() emulation plus a
-# CreateProcess on Windows Git Bash (roughly 120 ms on a quiet host, seconds
-# on a contended one), and the pre-rewrite script paid one jq, one realpath
-# and their subshells for every catalog entry: 736 creations and 17 minutes
-# for a 74-plugin catalog on the authoring host. Counted the way the baseline
-# was: `bash -x` with PS4 carrying $BASHPID, so every subshell shows up as a
-# distinct pid, plus every external exec. Two fixtures that differ only in
-# catalog size must cost the same, and that cost must sit under the budget.
-# The equality half needs a batching `realpath` (hook::_physical_prime); a
-# host without one resolves per path and is reported, not failed.
-# ============================================================================
 count_creations() {
   local trace="$1" forks execs
   forks=$(grep -oE '^\++[0-9]+\+' "$trace" | sort -u | wc -l | tr -d ' ')
@@ -1981,11 +1719,6 @@ count_creations() {
 run_traced() {
   local case_dir="$1" trace="$2"
   mkdir -p "$case_dir/proj"
-  # PS4 travels through a BASH_ENV startup file, never the environment: bash
-  # 4.4 and later rebind an euid-0 shell's PS4 to '+ ' at startup, before any
-  # startup file runs (CVE-2016-7543), so an exported PS4 never reaches a root
-  # shell and the probe counts nothing. A BASH_ENV assignment lands after that
-  # rebind, and its own unstamped `+ PS4=` trace line matches no pid pattern.
   # shellcheck disable=SC2016  # PS4 must reach bash unexpanded: bash expands it per traced line
   write "$case_dir/ps4.env" 'PS4='\''+${BASHPID}+ '\'''
   env \
@@ -2147,12 +1880,6 @@ ARGS=(--ids current-project --from "$case_dir/project-downgrade-report.json")
 assert_eq "--from: current-project is unguarded and still names the whole set" \
   "$(printf 'alpha@market1\tproject\nbeta@market1\tlocal')" "$(run_state "$case_dir")"
 
-# ============================================================================
-# Case: every --from rejection is exit 2 with EMPTY stdout. The documented
-# consumer is `while read … done < <(… --ids …)`, which cannot see the exit
-# status, so anything left on stdout would be handed to `claude plugin update`
-# as an id. Captured WITHOUT 2>&1 for exactly that reason.
-# ============================================================================
 run_from_stdout_only() {
   local case_dir="$1"
   shift

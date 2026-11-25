@@ -324,7 +324,8 @@ function checkModels(models, activities) {
 const dimensionedBy = (activity, models) =>
   models?.["issue-dimensions"] !== undefined &&
   typeof activity.skill === "string" &&
-  (activity.inputs ?? []).includes("issue");
+  (activity.inputs ?? []).includes("issue") &&
+  activity["applied-by"]?.["triage-verdict"] === undefined;
 
 // Rejections 1, 2, 4-9 and 3 over the whole file, whichever lane the run asked for.
 export function loadConfig(files, { configPath }) {

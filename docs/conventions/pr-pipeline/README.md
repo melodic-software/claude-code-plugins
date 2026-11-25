@@ -168,7 +168,7 @@ a `timeout-minutes`, its own or its reusable workflow's input.
 | A push to a branch | Work in progress. |
 | A non-draft PR | The author is done. |
 | A `refine-pass` notice per pass in `pr-refine`'s `record-passes` job: `pass=<name> files=<n> outcome=<pushed\|none\|superseded\|failed> seconds=<n>` | What each pass did, and how long since the plan started. A failed pass also logs a `refine-failed` warning, which [signal 13](#the-monitoring-lane) counts as a `pr-refine` hold. |
-| Refine complete | The signal review starts on. Each hosted review run's `wait-for-refine` job (`.github/scripts/pr-review/wait-refine.mjs`) waits up to 30 minutes for the `pr-refine` run that this head's `pr-unblock-dispatch.yml` `refine` job dispatched, inside the review's own `pull_request` run, since ci-status reads only those. A head that moved meanwhile, by Refine's push or another, is not reviewed: that push starts the new head's review. Any other outcome reviews: no dispatch, a Refine that failed or ran past the cap, or a read that failed. |
+| Refine's push | A new head to review. The hosted review lanes do not wait for Refine: each reviews every ready head as it lands. Refine's push carries the lanes App token (`pr-run-activity-write.yml`), so it fires a `pull_request` `synchronize` run, which reviews only the files changed since the lane's last completed review. |
 
 ## Lanes
 
@@ -194,7 +194,7 @@ not a lane, such as `maintenance-measure-skill-edit-pass` (a `workflow_call` reu
 | Lane | Starts on |
 |---|---|
 | `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml`'s `refine` job, on the PR's own `pull_request_target` event (opened, reopened, ready for review or pushed), for each ready PR that changes Markdown, never had `fix-docs` and is not a `work-resolve-issue` PR tidied in its own run (within the tidy cutoffs), or a trusted human's dispatch; a push to the default branch or the dispatcher's half-hourly tick starts none, and `limits.fix-docs-per-run: 0` turns the dispatches off; on a listed human's event (never the lanes App's) the same job also dispatches each activity `refine-dispatch.activities` lists, from the allowlist in `refine-event-dispatch.mjs` (`fix-marker`), empty by default |
-| `pr-review-hosted`, `pr-review-security-hosted` | the PR's own `pull_request` run on a ready head, whose `wait-for-refine` job first waits for this head's `pr-refine` run |
+| `pr-review-hosted`, `pr-review-security-hosted` | the PR's own `pull_request` run on a ready head, including the head Refine's push makes |
 | `pr-verify` | `workflow_run` on the completion of a successful, or hold-only, `pr-require-checks` run of a same-repository, non-draft PR ([Verifier verdict](#verifier-verdict)) |
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread or a trusted person's top-level comment addressed to the lane, or a trusted human's dispatch |
@@ -2266,7 +2266,7 @@ label only for a cause a person must clear ([when work stops for the owner](../.
 kept): that hold
 line (owner decision Q-HOLDLINE), a configured denied path or a [path floor](#merge-authority) path,
 a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, a
-security finding, a trusted-actor widening or a listing past 300 files. It puts the label back while the comment stands
+security finding, a trusted-actor widening or a listing at GitHub's 3000-file cap. It puts the label back while the comment stands
 unless a person removed it since; a person's own hold text gets neither. Every other refusal, a
 listing read that failed included, is the lanes': later scheduled runs judge it again, and once a
 lanes' refusal has stood at the head for `merge.risk-escalation-minutes`, timed from the first one
@@ -2400,9 +2400,9 @@ change to `merge-holds.mjs` merges on the review lanes, and the lanes App's toke
 builds the group, and after a person lifts one with a later comment, `ci-status` needs a re-run.
 
 In the merge queue the same step also requires a verifier pass at the queued pull request's live
-head: an unexpired `pr-verify-<pr>-<head>-pass` or `-pass-notes` artifact, with or without the
-head-branch digest, taken by exact name and uploaded by a completed, successful
-`workflow_run` run of `pr-verify.yml` on main here (`verdictHold` in `merge-holds.mjs`). Whatever
+head: an unexpired `pr-verify-<pr>-<head>-pass` or `-pass-notes` artifact uploaded by a completed,
+successful `workflow_run` run of `pr-verify.yml` on main here (`verdictHold` in `merge-holds.mjs`),
+as the verdict reader below counted it and read its run (`--pass-out`). Whatever
 GitHub does with an armed request when the head moves, the queue's check on the head it merges
 holds a head pr-verify has not passed. The same trusted approval of the head lifts it, the path for a pull
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
@@ -2418,10 +2418,11 @@ at the head under any number, an earlier FAIL tied by number, commit or head bra
 record cannot be read), `verify:unreadable` and `verify:too-old`. A FAIL uploaded after
 `enable-auto-merge.mjs` read its run's one listing still holds. The refusals a pass decides
 (`verify:missing`, `verify:spec-changed`, `verify:untrusted-spec`) stay with `verdictHold` and
-`linkHold`. The same trusted approval of the head lifts it. A refusal the reader returns before
-it lists artifacts (an unread config or commit list) reaches `merge-holds.mjs`
-with no pass names, so it holds the same way and the same approval lifts it. Otherwise the pass
-names come from the reader's listing. The reader starts from pr-merge's head-ref map and carried
+`linkHold`. The same trusted approval of the head lifts it. Any refusal reaches `merge-holds.mjs`
+with no pass, so it holds the same way and the same approval lifts it. On an allow the reader's
+`--pass-out` file hands the step the counted passes with their runs, the first one's
+`verdict.json` and the closing issues it read, so the step reads none of them again; a file that
+does not read holds. The reader starts from pr-merge's head-ref map and carried
 run cache, the `pr-merge-run-cache` artifact of the newest scheduled or hand-started pr-merge run
 on main (`carry-run-cache.mjs read`; `ci-status` restores no Actions cache), so it reads only what
 landed since that run: about 73 requests for one pull request, where a cold reader makes about 860

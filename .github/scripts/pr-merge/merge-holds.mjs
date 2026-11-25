@@ -586,6 +586,49 @@ export function laneChange(compare) {
   return files.some((f) => lanes.includes(f?.filename)) ? "a review-lane workflow" : null;
 }
 
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+const COMPARE_FILES_CAP = 300;
+// https://docs.github.com/en/rest/repos/contents#get-repository-content
+const DIRECTORY_CAP = 1000;
+
+async function objectShas(read, repo, dir, ref) {
+  const entries = await read("GET", `/repos/${repo}/contents/${dir}?ref=${ref}`);
+  if (!Array.isArray(entries) || entries.length >= DIRECTORY_CAP) return null;
+  return new Map(entries.map((entry) => [String(entry?.name), String(entry?.sha)]));
+}
+
+export async function changedPaths(read, repo, compare, to, paths) {
+  const files = compare?.files;
+  if (!Array.isArray(files)) return null;
+  if (files.length < COMPARE_FILES_CAP) {
+    const names = files.flatMap((f) => [f?.filename, f?.previous_filename]).filter((name) => typeof name === "string");
+    return paths.flatMap((path) => names.filter((name) => name === path || name.startsWith(`${path}/`)).slice(0, 1));
+  }
+  const from = compare?.merge_base_commit?.sha;
+  if (!isSha(from) || !isSha(to)) return null;
+  const changed = [];
+  const listings = new Map();
+  for (const path of paths) {
+    const dir = posix.dirname(path);
+    if (!listings.has(dir)) {
+      const ends = [await objectShas(read, repo, dir, from), await objectShas(read, repo, dir, to)];
+      listings.set(dir, ends.includes(null) ? null : ends);
+    }
+    const ends = listings.get(dir);
+    if (ends === null) return null;
+    const name = posix.basename(path);
+    if (ends[0].get(name) !== ends[1].get(name)) changed.push(path);
+  }
+  return changed;
+}
+
+export async function laneChangeIn(read, repo, compare, head) {
+  const why = laneChange(compare);
+  if (why !== "too many files") return why;
+  const changed = await changedPaths(read, repo, compare, head, REVIEW_LANES.map(([file]) => `.github/workflows/${file}`));
+  return changed === null ? why : changed.length > 0 ? "a review-lane workflow" : null;
+}
+
 // The cost hold notices among one status job's `annotations`, as { sha, at }
 // with `at` the job's completion: only those naming `head`, the head its run
 // ran on, so a notice can speak for no other commit.
@@ -677,7 +720,7 @@ async function noticedHead(read, repo, branch, base, at) {
       }
       heads.push(head);
       if (!vetted.has(head)) {
-        if (laneChange(await read("GET", `/repos/${repo}/compare/${base}...${head}`)) !== null) {
+        if ((await laneChangeIn(read, repo, await read("GET", `/repos/${repo}/compare/${base}...${head}`), head)) !== null) {
           return null;
         }
         vetted.add(head);

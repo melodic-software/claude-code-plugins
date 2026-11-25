@@ -20,8 +20,10 @@ or force-pushes.
   the SHA its head branch ref points at, since `GET /pulls` can lag a push by minutes. When they never agree, the lane's commits
   cannot be checked: `all-verified` and `since-is-ancestor` are `false` and the escalation runs.
 - The lane's commits are the commits the comparison `since-sha...head` lists, when `since-sha` is
-  an ancestor of the head and the comparison lists every commit it counts. Their verification is
-  read from the comparison's commit objects. A comparison with no commits passes.
+  an ancestor of the head and the comparison lists every commit it counts. The comparison is read
+  100 commits a page until it has every commit it counts, up to 10,000; a larger or short count is
+  truncated. Their verification is read from the comparison's commit objects. A comparison with no
+  commits passes.
 - GitHub lists at most 250 commits for a PR. When the PR list holds the whole PR (its `commits`
   count is no higher than the number listed), comparison commits that are not PR commits, such as
   base commits a merge brought in, are dropped. When the list is capped or the count is missing,

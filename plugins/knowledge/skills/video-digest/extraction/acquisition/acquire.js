@@ -203,8 +203,6 @@ async function runAcquirePass(
     env,
     source,
   });
-  // Listed on failure too: yt-dlp stops at the first failed caption track,
-  // so tracks written before it are still usable.
   const files = await listFiles(workDir);
   return { spawnResult, detail: spawnResult.success ? "" : spawnFailureDetail(spawnResult), files };
 }
@@ -444,8 +442,6 @@ export async function acquireYouTubeMedia(
     return failVideo(`Invalid info JSON: ${message}`);
   }
 
-  // info.json `subtitles` lists the manual tracks; the filename cannot tell
-  // a manual `.en.vtt` from an auto one.
   const manualLanguages =
     info?.subtitles && typeof info.subtitles === "object"
       ? Object.keys(info.subtitles)

@@ -1831,12 +1831,6 @@ def _open_findings(
     spent: set[str] = set()
     for item in lane_runs:
         for attempt in _attempts(item).values():
-            # A draft-skipped, kill-switched or upstream-stopped run reviewed
-            # nothing, nor did a lost one that never reached its lane job, nor
-            # a successful one whose caller job was skipped: that job never
-            # ran, so the attempt has no record (Wait For Refine skips it when the
-            # head moved while it waited). At the pinned head such a run still
-            # unbinds (`_bound_record`).
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"

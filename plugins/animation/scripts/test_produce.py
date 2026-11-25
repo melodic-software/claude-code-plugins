@@ -152,7 +152,6 @@ class ProduceTest(unittest.TestCase):
                          ['render.json has 24 frames; the shot list through 10 s at 24 fps needs 240'])
         (short,) = produce.render_problems({**meta, 'duration': 1, 'frames': 24}, data)
         self.assertIn('does not cover the shot list through 10', short)
-        # 1.1875 s at 24 fps is 28.5 frames: capture.mjs's Math.round makes 29, so the check must round half up too
         half = {'fps': 24, 'size': [64, 48], 'shots': [{'t0': 0, 't1': 1.1875}]}
         self.assertEqual(produce.render_problems({**meta, 'duration': 1.1875, 'frames': 29}, half), [])
 
