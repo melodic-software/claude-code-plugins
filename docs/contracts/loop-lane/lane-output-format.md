@@ -13,7 +13,8 @@ Which lanes post, and what stops two runs from posting twice, is in
 ## Adoption
 
 A lane adopts this format the next time its posting code changes for any reason. No change
-rewrites every lane at once. A reviewer holds a changed posting path to this file, and leaves
+rewrites every lane at once. A reviewer holds a changed posting path to this file, by the review
+rule in [`docs/review/lane-output.md`](../../review/lane-output.md), and leaves
 untouched paths alone.
 
 ## The shared shape

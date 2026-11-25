@@ -16,3 +16,4 @@ concern a change touches; each line names a rule, and its link states the rule i
 | [`pull-requests.md`](pull-requests.md) | work on an open pull request |
 | [`linters.md`](linters.md) | a linter or formatter version, or its configuration |
 | [`tests.md`](tests.md) | a test whose fixture stands in for another program's output |
+| [`lane-output.md`](lane-output.md) | code a lane posts through: PR comments, check runs, step summaries, the live log |
