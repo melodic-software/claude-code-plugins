@@ -219,6 +219,19 @@ class Reach(unittest.TestCase):
         result = scan({".gitlab-ci.yml": "lint:\n  script:\n    - just ci\n", "justfile": justfile})
         self.assertNotIn("unreached-caller", kinds(result))
 
+    def test_a_commented_out_recipe_or_task_line_does_not_reach(self) -> None:
+        ci = "lint:\n  script:\n    - {} check\n"
+        lint = f"  lint-comments:\n    cmds:\n      - {CALL} \"$A\" \"$B\"\n"
+        cases = {
+            "make": ("Makefile", "check:\n\t# $(MAKE) comment-lint\n\t$(MAKE) test\n\n" + self.MAKEFILE),
+            "just": ("justfile", f"check:\n    # just comment-lint\n    just test\n\ncomment-lint:\n    {CALL} \"$A\" \"$B\"\n"),
+            "task": ("Taskfile.yml", f"version: '3'\ntasks:\n  check:\n    cmds:\n      - # task: lint-comments\n      - echo test\n{lint}"),
+        }
+        for runner, (file, text) in cases.items():
+            with self.subTest(runner=runner):
+                result = scan({".gitlab-ci.yml": ci.format(runner), file: text})
+                self.assertIn("unreached-caller", kinds(result))
+
     def test_a_local_target_beside_a_ci_caller_is_only_local(self) -> None:
         ci = f"lint:\n  script:\n    - {CALL} \"$A\" \"$B\"\n"
         result = scan({".gitlab-ci.yml": ci, "Makefile": self.MAKEFILE})

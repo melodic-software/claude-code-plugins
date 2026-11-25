@@ -166,7 +166,8 @@ def targets(runner: str, lines: list[str]) -> list[tuple[str, str]]:
         for nxt in lines[i + 1 :]:
             if nxt.strip() and not nxt.startswith(indent):
                 break
-            body.append(nxt)
+            if not COMMENT.match(nxt):
+                body.append(nxt)
         out.append((m.group(1), "\n".join(body)))
     return out
 
