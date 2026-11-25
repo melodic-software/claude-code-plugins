@@ -2,7 +2,7 @@
 
 The **lane output format** is the one shape for what a lane posts: a short part a person reads,
 plus the lane-outcome record where the surface carries it. The **lane-outcome record** is only the
-structured part, a JSON object after the `lane-outcome ` marker
+structured part, a JSON object after the `lane-outcome` marker and a space
 (`.github/scripts/lib/lane-outcome.mjs:8`), defined by ci-workflows `docs/lane-outcome.md` and
 adopted for every lane by
 [ADR 0087](../../adr/0087-keep-one-public-safe-lane-record-for-every-lane.md).
@@ -77,7 +77,7 @@ GitHub limits: [REST API, issue comments](https://docs.github.com/en/rest/issues
 - `output.text`: the records first, then a blank line, then any detail, as
   `.github/actions/report-check-run/report-check-run.mjs:117-120` writes it today.
 
-**Record**: the first line of `output.text`, after the `lane-outcome ` marker, written by
+**Record**: the first line of `output.text`, after the `lane-outcome` marker and a space, written by
 `report-check-run` (`.github/actions/report-check-run/action.yml:80-89`) and read by
 `.github/scripts/pr-unblock/limit-stop.mjs:28-34`. Readers read that line, not annotation text
 ([ADR 0087](../../adr/0087-keep-one-public-safe-lane-record-for-every-lane.md), Consequences).
