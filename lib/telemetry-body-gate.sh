@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 # shellcheck disable=SC2034 # TBG_* results are read by the sourcing script
 unset CDPATH
 

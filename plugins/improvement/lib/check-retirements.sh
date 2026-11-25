@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/check-retirements.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-
 set -uo pipefail
 
 usage() {

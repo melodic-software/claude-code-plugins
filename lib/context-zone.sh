@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 
 STALENESS_SECONDS=600 # 10 minutes — byte-matches the reader contract

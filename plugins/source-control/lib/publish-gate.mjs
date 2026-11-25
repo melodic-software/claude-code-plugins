@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // GENERATED from lib/publish-gate.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";

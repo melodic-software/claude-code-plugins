@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/context-zone.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-
 set -uo pipefail
 
 STALENESS_SECONDS=600 # 10 minutes — byte-matches the reader contract

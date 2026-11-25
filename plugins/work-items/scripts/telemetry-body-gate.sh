@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/telemetry-body-gate.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-
 # shellcheck disable=SC2034 # TBG_* results are read by the sourcing script
 unset CDPATH
 

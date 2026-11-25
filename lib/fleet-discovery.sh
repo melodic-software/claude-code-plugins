@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 FLEET_DEFAULT_SKIP_NAMES=(vendor node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2
   .nuget __pycache__ .tox)
 
