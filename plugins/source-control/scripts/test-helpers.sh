@@ -5,6 +5,7 @@ readonly _TESTS_LIB_LOADED=1
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
+# fixture-isolation-scope: reads the host worktreeroot.path once, on purpose, before isolating (https://github.com/melodic-software/claude-code-plugins/issues/4472)
 _REAL_WORKTREE_ROOT="$(git config --global --includes --type=path --get worktreeroot.path 2>/dev/null || true)"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 unset CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT
