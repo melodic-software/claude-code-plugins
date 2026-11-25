@@ -268,6 +268,41 @@ describe("write mode", { skip: !hasGit() && "git is not installed" }, () => {
       "# Agents\n\nRunning `terraform destroy -auto-approve` in this repository is\nnever allowed for agents.\n",
       "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:3)",
     ],
+    [
+      "a fenced block holding a # comment, below a forbidding lead-in",
+      "# Agents\n\nNever run this:\n\n```sh\n# wipes the state\nterraform destroy -auto-approve\n```\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:7)",
+    ],
+    [
+      "a fenced block holding a # comment, below a forbidding heading",
+      "# Agents\n\n## Forbidden commands\n\n```sh\n# wipes the state\nterraform destroy -auto-approve\n```\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:7)",
+    ],
+    [
+      "a tilde-fenced block holding a # comment, below a forbidding lead-in",
+      "# Agents\n\nNever run this:\n\n~~~sh\n# wipes the state\nterraform destroy -auto-approve\n~~~\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:7)",
+    ],
+    ["an underscore-emphasized not", "Do _not_ run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
+    ["a strong underscore never", "__Never__ run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
+    ["an emphasized don't", "_Don't_ run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
+    ["an emphasized only", "_only_ the owner runs `npm publish`.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
+    ["an asterisk-emphasized never", "**Never** run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
+    [
+      "a section whose later paragraph forbids it",
+      "# Release\n\n`npm publish`\n\nThe line above must never run unattended.\n",
+      "assumed: terraform.test-cmd=npm publish (AGENTS.md:3)",
+    ],
+    [
+      "a fenced block followed by prose that forbids it",
+      "# Agents\n\n```sh\nterraform destroy -auto-approve\n```\n\nDo not run the block above.\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:4)",
+    ],
+    [
+      "a loose list item whose continuation forbids it",
+      "# Agents\n\n- `terraform destroy -auto-approve`\n\n  Never run it unattended.\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:3)",
+    ],
     ["a line that says the command cannot run", "Agents cannot run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
     ["a typographic-apostrophe negation", "Don’t run `rm -rf dist` by hand.\n", "assumed: terraform.test-cmd=rm -rf dist (AGENTS.md:1)"],
   ]) {
@@ -722,6 +757,7 @@ describe("parsing", () => {
     const src = (tracked) => ({ name: "base", locate: (rel) => ({ rel }), read: () => BASE_FILES.Makefile, tracked });
     assert.deepEqual(checkSource(entry, src((paths) => paths.filter((p) => p === "Makefile"))), { reason: null, kind: "inferred" });
     assert.deepEqual(checkSource(entry, src(() => null)), { reason: "git could not list the makefiles", kind: "inferred" });
+    assert.deepEqual(checkSource(entry, src(() => [])), { reason: "the base tracks no GNUmakefile, makefile or Makefile", kind: "inferred" });
   });
 
   it("knows every command key the schema defines", () => {

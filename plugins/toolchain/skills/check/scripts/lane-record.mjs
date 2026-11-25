@@ -277,6 +277,7 @@ function makeTarget(entry, ctx) {
   const kept = ctx.src.tracked(["GNUmakefile", "makefile", "Makefile"]);
   if (!kept) return "git could not list the makefiles";
   const picked = kept[0];
+  if (!picked) return "the base tracks no GNUmakefile, makefile or Makefile";
   if (picked !== ctx.rel) return `make reads ${picked}, not ${ctx.rel}`;
   const m = ctx.text.match(/^([^\s:=#][^:=#]*?)\s*::?(?!:?=)/);
   const targets = m ? m[1].split(/\s+/).filter((t) => /^[A-Za-z0-9_][A-Za-z0-9_./-]*$/.test(t)) : [];
@@ -316,14 +317,28 @@ function isStatedFile(rel) {
 }
 
 const FORBID_WORDS = /\b(?:never|not|cannot|can\s+not|no|avoid|instead\s+of|forbid\w*|prohibit\w*|unless|without|only)\b|n['’]t\b/i;
-const isBlank = (line) => !line.trim();
-const isHeading = (line) => /^ {0,3}#{1,6}(?:\s|$)/.test(line);
+function headingLines(lines) {
+  let fence = null;
+  return lines.map((line) => {
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})/)?.[1];
+    if (fence) {
+      if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      return false;
+    }
+    if (marker) {
+      fence = marker;
+      return false;
+    }
+    return /^ {0,3}#{1,6}(?:\s|$)/.test(line);
+  });
+}
 
 function citedBlock(lines, index) {
+  const heading = headingLines(lines);
   let start = index;
-  while (start > 0 && !isHeading(lines[start])) start--;
+  while (start > 0 && !heading[start]) start--;
   let end = index;
-  while (end + 1 < lines.length && !isBlank(lines[end + 1]) && !isHeading(lines[end + 1])) end++;
+  while (end + 1 < lines.length && !heading[end + 1]) end++;
   return { start, block: lines.slice(start, end + 1) };
 }
 
@@ -334,7 +349,7 @@ function statedLine(entry, ctx) {
   }
   const index = entry.line - 1;
   const { start, block } = citedBlock(ctx.lines, index);
-  const prose = block.map((line) => line.replace(/`[^`]*`/g, " "));
+  const prose = block.map((line) => line.replace(/`[^`]*`/g, " ").replace(/[_*]/g, " "));
   if (ctx.text.trim() === entry.value) prose[index - start] = "";
   if (prose.some((line) => FORBID_WORDS.test(line))) return "the cited instructions block may forbid the command";
   return null;
