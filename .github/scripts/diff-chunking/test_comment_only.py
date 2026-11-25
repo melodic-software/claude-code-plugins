@@ -84,6 +84,27 @@ CASES = {
         "// eslint-disable-next-line no-console\n\nconsole.log(1);\n",
         False,
     ),
+    "block-next-line.js": (
+        "/* eslint-disable-next-line\n   no-console\n*/\nconsole.log(1);\n",
+        "/* eslint-disable-next-line\n   no-console\n*/\n\nconsole.log(1);\n",
+        False,
+    ),
+    "reference.ts": (
+        '/// <reference path="./globals.d.ts" />\nexport const x = 1;\n',
+        "export const x = 1;\n",
+        False,
+    ),
+    "pure.js": (
+        "export const x =\n  /* @__PURE__ */\n  make();\n",
+        "export const x =\n  make();\n",
+        False,
+    ),
+    "flow.js": ("// @flow\nexport const x = 1;\n", "export const x = 1;\n", False),
+    "spdx.js": (
+        "// SPDX-License-Identifier: MIT\nexport const x = 1;\n",
+        "export const x = 1;\n",
+        False,
+    ),
     "moved-comment.sh": (
         "#!/usr/bin/env bash\n# note\necho a\n",
         "#!/usr/bin/env bash\necho a\n# note\n",

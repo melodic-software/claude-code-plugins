@@ -13,12 +13,14 @@ input order, those that qualify. A path qualifies only when all hold:
   - code-tidying's change-shape.py `classify()` says COMMENT-ONLY or
     DOCSTRING-ONLY for its base and head blobs, through a tree-sitter grammar
     change-shape maps to its extension;
-  - no removed or added line of its diff holds a DIRECTIVES token, and no
+  - no removed or added line of its diff holds a DIRECTIVES token (text that
+    changes what a compiler, bundler, linter, scanner or license check does,
+    matched case-insensitively), and no
     line is both removed and added (trailing whitespace aside). change-shape
     keeps the code lines equal, so a diff that does not move one leaves every
     directive line where it was relative to the code;
-  - no hunk touches the line right after a directive line, where a next-line
-    directive would apply.
+  - no hunk touches the line right after a directive line, or after the end
+    of a comment holding one, where a next-line directive would apply.
 
 Exit 0 when the check ran, whether or not any path qualified; 2 usage. Any
 other failure prints nothing on stdout and exits 1, so a caller keeps every
@@ -69,6 +71,27 @@ DIRECTIVES = (
     "gitleaks:allow",
     "codeql",
     "suppressmessage",
+    "<reference",
+    "<amd-module",
+    "@__pure__",
+    "#__pure__",
+    "@__noinline__",
+    "@jsx",
+    "@flow",
+    "webpackchunkname",
+    "webpackignore",
+    "webpackprefetch",
+    "webpackpreload",
+    "@vite-ignore",
+    "@license",
+    "@preserve",
+    "spdx-license-identifier",
+    "@generated",
+    "go:",
+    "+build",
+    "frozen_string_literal",
+    "vim:",
+    "-*-",
 )
 PROVEN = ("COMMENT-ONLY", "DOCSTRING-ONLY")
 FILE_MODES = ("100644", "100755")
@@ -188,15 +211,26 @@ def holds_directive(line: bytes) -> bool:
     return any(token in text for token in DIRECTIVES)
 
 
-def touches_after_directive(blob: bytes, touched: set[int]) -> bool:
-    """Whether a hunk touches the line right after a directive, which a
-    next-line directive (`eslint-disable-next-line`, `@ts-expect-error`)
-    would then apply to differently. A first-line shebang has no such scope."""
-    return any(
-        n + 1 in touched
+def touches_after_directive(blob: bytes, touched: set[int], comments) -> bool:
+    """Whether a hunk touches the line right after a directive, or after the
+    last line of a comment holding one, which a next-line directive
+    (`eslint-disable-next-line`, `@ts-expect-error`) would then apply to
+    differently. `comments` is the blob's comment byte spans. A first-line
+    shebang has no such scope."""
+    shebang = blob.startswith(b"#!")
+    ends = [
+        n
         for n, line in enumerate(blob.split(b"\n"), 1)
-        if holds_directive(line) and not (n == 1 and line.startswith(b"#!"))
-    )
+        if holds_directive(line) and not (n == 1 and shebang)
+    ]
+    if not ends:
+        return False
+    ends += [
+        blob.count(b"\n", 0, max(start, end - 1)) + 1
+        for start, end in comments()
+        if holds_directive(blob[start:end]) and not (start == 0 and shebang)
+    ]
+    return any(n + 1 in touched for n in ends)
 
 
 def moves_a_line(lines: list[bytes]) -> bool:
@@ -232,9 +266,13 @@ def qualifying(base: str, head: str, candidates: list[str]) -> list[str]:
         if any(holds_directive(line[1:]) for line in diff.lines):
             continue
         before, after = blobs[pair[0]], blobs[pair[1]]
-        if touches_after_directive(before, diff.base_touched):
+        if touches_after_directive(
+            before, diff.base_touched, lambda: shape.leaves(before, lang)[3]
+        ):
             continue
-        if touches_after_directive(after, diff.head_touched):
+        if touches_after_directive(
+            after, diff.head_touched, lambda: shape.leaves(after, lang)[3]
+        ):
             continue
         python = entry[0] == "python"
         if shape.classify(before, after, lang, docstrings=python)[0] in PROVEN:
