@@ -156,8 +156,6 @@ mode="$GE_MODE"
 declare -A no_op_bump
 no_op_rows=()
 if [[ -f "$NO_OP_BUMPS" ]]; then
-  # `inline`: entries are literal names, never regexes (scripts/lib/read-list.sh
-  # owns the two comment families and why they must stay distinct).
   read_list::into no_op_rows "$NO_OP_BUMPS" --comments inline || exit 2
   for row in ${no_op_rows[@]+"${no_op_rows[@]}"}; do
     no_op_bump["$row"]=1
