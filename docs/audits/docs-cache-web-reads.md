@@ -117,7 +117,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | songwriting | `skills/suno/context/research-recipes.md:25` | WebFetch on canonical sources, also at line 157 | kept | Same as the SKILL.md row |
 | songwriting | `context/pat-pattison/scripts/datamuse.sh:48` | curl of the Datamuse API | kept | API, not a page |
 | source-control | `skills/pull-request/reference/dependency-ci.md:18` | WebFetch on upstream changelogs and release notes | kept | The reviewer runs with no shell, so it cannot run `fetch-docs.sh` |
-| source-control | `skills/babysit-prs/scripts/babysit_merge_policy.py:5732` | `urllib` read of the npm and PyPI registries | kept | Registry API, not a page |
+| source-control | `skills/babysit-prs/scripts/babysit_merge_policy.py:5683` | `urllib` read of the npm and PyPI registries | kept | Registry API, not a page |
 | speech | `reference/elevenlabs.md:58` | curl download of the ElevenLabs OpenAPI spec | kept | A JSON spec too large for a page read, not a page |
 | speech | `scripts/assets.py:76` | Model file download | kept | Binary download |
 | speech | `scripts/elevenlabs.py:183` | ElevenLabs API | kept | Authenticated API call, not a page |

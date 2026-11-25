@@ -1123,7 +1123,7 @@ def test_an_archive_with_no_hot_file_of_its_chain_left_is_kept(env):
         (repo / ".work" / "handoffs" / name).unlink()
     items = report(env, *links(env[0], STATE))
     assert items[archive.name]["kind"] == "archive"
-    assert items[archive.name]["reasons"] == ["no hot file of its chain is on disk"]
+    assert items[archive.name]["reasons"] == ["no handoff file of its chain is on disk"]
     assert clean(env, "--apply").returncode == 0
     assert archive.is_dir()
 

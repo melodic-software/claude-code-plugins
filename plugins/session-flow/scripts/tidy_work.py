@@ -528,14 +528,14 @@ def keep_finished(members: list[Item], tip: Item, root: str) -> None:
     if tip.shape not in save_point.HOP_FILE_SHAPES:
         return
     tip.reasons.append(
-        f"newest hot file of finished chain {root}: a shrink keeps it and every hop file"
+        f"newest handoff file of finished chain {root}: a shrink keeps it and every archive file"
     )
     for item in members:
         if item.shape in save_point.HOP_FILE_SHAPES:
             item.shrinks = True
         else:
             item.reasons.append(
-                f"shape-2 hop of finished chain {root}: no hop file holds its sections"
+                f"shape-2 hop of finished chain {root}: no archive file holds its sections"
             )
 
 
@@ -559,7 +559,7 @@ def mark_open_chains(items: list[Item]) -> None:
             ):
                 item.open_chain = (root, tip.path.name)
                 item.reasons.append(
-                    f"chain {root} is open: its newest hot file {tip.path.name} "
+                    f"chain {root} is open: its newest handoff file {tip.path.name} "
                     f"does not end '{save_point.NEXT_CLOSED}'"
                 )
 
@@ -624,7 +624,7 @@ def mark_in_flight(
             ]
             kept = [i.path.name for i in chain if i.keep]
             if not chain:
-                item.reasons.append("no hot file of its chain is on disk")
+                item.reasons.append("no handoff file of its chain is on disk")
             elif kept:
                 item.reasons.append(f"a kept handoff of its chain: {', '.join(kept)}")
 
@@ -993,7 +993,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
     )
     for (label, root, tip), count in sorted(open_chains.items()):
         print(
-            f"kept open chain: {label} {root} ({count} hot files; its newest, "
+            f"kept open chain: {label} {root} ({count} handoff files; its newest, "
             f"{tip}, does not end '{save_point.NEXT_CLOSED}')"
         )
     kept = len(items) - len(stale)

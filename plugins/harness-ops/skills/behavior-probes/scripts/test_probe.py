@@ -534,6 +534,34 @@ class TranscriptGrepTests(unittest.TestCase):
         self.assertEqual((workdir / probe.TRANSCRIPT_FILE).read_text(), text)
         self.assertFalse(project.exists())
 
+    def test_transcript_collect_removes_only_the_emptied_projects_folder(self):
+        tmp = Path(tempfile.mkdtemp(prefix="probe-grep-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        projects = tmp / "config" / "projects"
+        emptied = projects / "-tmp-cc-probe-a"
+        (emptied / "memory").mkdir(parents=True)
+        (emptied / "sid-3.jsonl").write_text(json.dumps(BOUNDARY) + "\n")
+        holding = projects / "-tmp-cc-probe-b"
+        (holding / "memory").mkdir(parents=True)
+        (holding / "memory" / "MEMORY.md").write_text("kept\n")
+        (holding / "other-session").mkdir()
+        (holding / "sid-3.jsonl").write_text(json.dumps(BOUNDARY) + "\n")
+        other = projects / "-tmp-cc-probe-c"
+        (other / "memory").mkdir(parents=True)
+        workdir = tmp / "work"
+        workdir.mkdir()
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(tmp / "config")}):
+            probe.collect_transcript("sid-3", workdir)
+        self.assertFalse(emptied.exists(), "a folder left with only empty directories goes")
+        self.assertEqual(
+            (holding / "memory" / "MEMORY.md").read_text(), "kept\n", "a folder holding a file stays"
+        )
+        self.assertTrue(
+            (holding / "other-session").is_dir(), "a kept folder keeps its empty subfolders"
+        )
+        self.assertFalse((holding / "sid-3.jsonl").exists())
+        self.assertTrue((other / "memory").is_dir(), "a folder without the session is untouched")
+
     def test_transcript_grep_rejudge_reads_the_saved_transcript(self):
         tmp = Path(tempfile.mkdtemp(prefix="probe-grep-"))
         self.addCleanup(shutil.rmtree, tmp, True)

@@ -1,4 +1,5 @@
-"""Contract tests for the `id_reuse` check (PLAN.md AC2): a hot file stamped
+# test-scope: plugins/session-flow/scripts/save_point.py plugins/session-flow/scripts/tests/fixtures/*
+"""Contract tests for the `id_reuse` check (PLAN.md AC2): a handoff file stamped
 `checks: 3` or higher that reuses an id retired anywhere earlier in its chain for a
 different entry fails `validate`. Expected values come from AC2's wording and the
 Design's check rules: same id with different text fails, same text does not, and an
