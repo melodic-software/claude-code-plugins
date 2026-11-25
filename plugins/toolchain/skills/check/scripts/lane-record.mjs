@@ -339,12 +339,38 @@ function gitToplevel(dir) {
   }
 }
 
-export function workingTree(repo) {
+function requireCommit(root, ref) {
+  if (ref.startsWith("-") || runGit(root, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]).status !== 0) {
+    throw new Error(`${ref} is not a commit in ${root}`);
+  }
+}
+
+function defaultBranchBase(root) {
+  const branch = runGit(root, ["branch", "--show-current"]).stdout.trim();
+  const tracked = branch ? runGit(root, ["config", `branch.${branch}.remote`]).stdout.trim() : "";
+  const remotes = runGit(root, ["remote"]).stdout.split("\n").filter(Boolean);
+  for (const remote of [...new Set([tracked, "origin", ...remotes])].filter((r) => remotes.includes(r))) {
+    const head = runGit(root, ["symbolic-ref", "--quiet", `refs/remotes/${remote}/HEAD`]).stdout.trim();
+    if (!head) continue;
+    const mergeBase = runGit(root, ["merge-base", head, "HEAD"]);
+    if (mergeBase.status === 0) return { ref: mergeBase.stdout.trim(), name: `the merge-base with ${head.replace(/^refs\/remotes\//, "")}` };
+  }
+  return null;
+}
+
+export function workingTree(repo, baseRef) {
   const root = realpathSync(repo);
   const inGit = gitToplevel(root) === root;
+  let base = null;
+  if (baseRef) {
+    requireCommit(root, baseRef);
+    base = { ref: baseRef, name: baseRef };
+  } else if (inGit) {
+    base = defaultBranchBase(root);
+    if (!base) throw new Error("cannot find the default branch to compare the cited files with; pass --base <ref>");
+  }
   return {
     root,
-    base: null,
     locate(file) {
       let real;
       try {
@@ -378,9 +404,9 @@ export function workingTree(repo) {
       return paths.filter((p) => set.has(p));
     },
     unchanged(rel) {
-      if (!inGit) return null;
+      if (!base) return null;
       if (runGit(root, ["ls-files", "--error-unmatch", "--", rel]).status !== 0) return "the cited file is not tracked";
-      if (runGit(root, ["diff", "--quiet", "HEAD", "--", rel]).status !== 0) return "the cited file differs from HEAD";
+      if (runGit(root, ["diff", "--quiet", base.ref, "--", rel]).status !== 0) return `the cited file differs from ${base.name}`;
       return null;
     },
   };
@@ -388,13 +414,10 @@ export function workingTree(repo) {
 
 export function baseRevision(repo, ref) {
   const root = realpathSync(repo);
-  if (ref.startsWith("-") || runGit(root, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]).status !== 0) {
-    throw new Error(`${ref} is not a commit in ${repo}`);
-  }
+  requireCommit(root, ref);
   const regularFile = (rel) => /^100(?:644|755) blob /.test(runGit(root, ["ls-tree", ref, "--", rel]).stdout ?? "");
   return {
     root,
-    base: ref,
     locate(file) {
       const rel = posix.normalize(file).replace(/^\.\//, "");
       if (rel === "." || rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return { reason: "cites a file outside the repository" };
@@ -524,13 +547,7 @@ export function verifyRecord(recordText, assumedText, { ecosystem, src }) {
       errors.push(`${ecosystem}.${key}=${value}: no assumed: line from this run logs it`);
       continue;
     }
-    const reasons = candidates.map((e) => {
-      const checked = checkSource(e, src);
-      if (!checked.reason && checked.kind === "recorded" && !src.base) {
-        return "a record line supports the record only when read from --base";
-      }
-      return checked.reason;
-    });
+    const reasons = candidates.map((e) => checkSource(e, src).reason);
     if (!reasons.includes(null)) errors.push(`${ecosystem}.${key}=${value}: ${reasons.join("; ")}`);
   }
   return errors;
@@ -584,9 +601,10 @@ function outRefusal(repo, out) {
 }
 
 const USAGE = `Usage:
-  node lane-record.mjs write --ecosystem <id> --glob <pattern> [--glob <pattern>...] --out <file> [--repo <dir>] [--lines <file>]
-  node lane-record.mjs verify --record <file> [--ecosystem <id>] [--base <ref>] [--repo <dir>] [--lines <file>]
-The assumed: lines come from --lines, else standard input. verify --base reads each cited file at <ref>.
+  node lane-record.mjs write --ecosystem <id> --glob <pattern> [--glob <pattern>...] --out <file> [--base <ref>] [--repo <dir>] [--lines <file>]
+  node lane-record.mjs verify --record <file> --base <ref> [--ecosystem <id>] [--repo <dir>] [--lines <file>]
+The assumed: lines come from --lines, else standard input. verify reads each cited file at --base <ref>.
+write refuses a cited file that differs from --base <ref>, else from the merge-base with the default branch.
 Exit 0: written or verified. Exit 1: refused, nothing written. Exit 2: usage or I/O error.
 `;
 
@@ -621,11 +639,12 @@ export async function main(args, stdinText) {
     return usage(error.message);
   }
   if (mode !== "write" && mode !== "verify") return usage("the mode is write or verify");
+  if (mode === "verify" && !opts.base) return usage("verify needs --base <ref>, the commit the cited lines must already hold");
   let repo;
   let src;
   try {
     repo = opts.repo ? realpathSync(opts.repo) : (gitToplevel(process.cwd()) ?? realpathSync(process.cwd()));
-    src = mode === "verify" && opts.base ? baseRevision(repo, opts.base) : workingTree(repo);
+    src = mode === "verify" ? baseRevision(repo, opts.base) : workingTree(repo, opts.base);
   } catch (error) {
     return usage(error.message);
   }
@@ -654,7 +673,6 @@ export async function main(args, stdinText) {
     process.stdout.write(`verified: every command in ${opts.record} comes from an assumed: line of this run\n`);
     return 0;
   }
-  if (opts.base) return usage("--base applies to verify only");
   if (!opts.ecosystem || !ECOSYSTEM_ID.test(opts.ecosystem) || !opts.out) return usage("write needs --ecosystem <id> and --out <file>");
   const outCheck = outRefusal(repo, opts.out);
   if (outCheck?.usage) return usage(outCheck.usage);

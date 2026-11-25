@@ -42,14 +42,23 @@ function gitIn(root) {
       encoding: "utf8",
     });
     assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
   };
 }
 
-function commitAll(root) {
+function commitAll(root, message = "base") {
   const git = gitIn(root);
-  git("init", "-q");
+  if (!existsSync(join(root, ".git"))) git("init", "-q");
   git("add", "-A");
-  git("commit", "-q", "--no-gpg-sign", "-m", "base");
+  git("commit", "-q", "--no-gpg-sign", "-m", message);
+  return git("rev-parse", "HEAD");
+}
+
+function markDefaultBranch(root) {
+  const git = gitIn(root);
+  git("remote", "add", "origin", "https://example.invalid/cart.git");
+  git("update-ref", "refs/remotes/origin/main", "HEAD");
+  git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
 }
 
 const PACKAGE_JSON = `{
@@ -273,6 +282,7 @@ describe("write mode", () => {
     }
     const root = fixture(BASE_FILES);
     commitAll(root);
+    markDefaultBranch(root);
     writeFileSync(join(root, "AGENTS.md"), "Run `node tools/lint.mjs` to lint.\n");
     const { status, out, stderr } = write(root, [
       "assumed: typescript.build-cmd=make build (Makefile:1)",
@@ -284,18 +294,73 @@ describe("write mode", () => {
     assert.doesNotMatch(stderr, /typescript\.build-cmd/);
   });
 
-  it("in a git repository, refuses a cited file the working tree changed from HEAD", (t) => {
+  it("in a git repository, refuses a cited file the working tree changed from the default branch", (t) => {
     if (!hasGit()) {
       t.skip("git is not installed");
       return;
     }
     const root = fixture(BASE_FILES);
     commitAll(root);
+    markDefaultBranch(root);
     writeFileSync(join(root, "Makefile"), "release:\n\tnode tools/build.mjs\n");
     const { status, out, stderr } = write(root, ["assumed: typescript.build-cmd=make release (Makefile:1)"]);
     assert.equal(status, 1);
     assert.equal(existsSync(out), false);
-    assert.match(stderr, /differs from HEAD/);
+    assert.match(stderr, /the cited file differs from the merge-base with origin\/main/);
+  });
+
+  it("in a git repository, refuses a CLAUDE.md line the branch committed after leaving the default branch", (t) => {
+    if (!hasGit()) {
+      t.skip("git is not installed");
+      return;
+    }
+    const root = fixture(BASE_FILES);
+    const base = commitAll(root);
+    markDefaultBranch(root);
+    writeFileSync(join(root, "CLAUDE.md"), `${BASE_FILES["CLAUDE.md"]}Test with \`node tools/x.mjs\`.\n`);
+    commitAll(root, "lane change");
+    const line = "assumed: typescript.test-cmd=node tools/x.mjs (CLAUDE.md:4)";
+    const detected = write(root, [line]);
+    assert.equal(detected.status, 1, detected.stderr);
+    assert.equal(existsSync(detected.out), false);
+    assert.match(detected.stderr, /\(CLAUDE\.md:4\): the cited file differs from the merge-base with origin\/main/);
+    rmSync(dirname(detected.out), { recursive: true, force: true });
+    const given = write(root, [line], ["--base", base]);
+    assert.equal(given.status, 1, given.stderr);
+    assert.equal(existsSync(given.out), false);
+    assert.match(given.stderr, new RegExp(`\\(CLAUDE\\.md:4\\): the cited file differs from ${base}`));
+  });
+
+  it("in a git repository, drafts from sources the branch left unchanged, against the default branch or --base", (t) => {
+    if (!hasGit()) {
+      t.skip("git is not installed");
+      return;
+    }
+    const root = fixture(BASE_FILES);
+    const base = commitAll(root);
+    markDefaultBranch(root);
+    writeFileSync(join(root, "README.md"), "# Cart\n");
+    commitAll(root, "unrelated lane change");
+    const detected = write(root, THREE);
+    assert.equal(detected.status, 0, detected.stderr);
+    assert.equal(Object.keys(parseRecord(readFileSync(detected.out, "utf8")).values).length, 3);
+    rmSync(dirname(detected.out), { recursive: true, force: true });
+    const given = write(root, THREE, ["--base", base]);
+    assert.equal(given.status, 0, given.stderr);
+    assert.equal(Object.keys(parseRecord(readFileSync(given.out, "utf8")).values).length, 3);
+  });
+
+  it("in a git repository with no default branch to compare with, exits with a usage error naming --base", (t) => {
+    if (!hasGit()) {
+      t.skip("git is not installed");
+      return;
+    }
+    const root = fixture(BASE_FILES);
+    commitAll(root);
+    const { status, out, stderr } = write(root, THREE);
+    assert.equal(status, 2);
+    assert.equal(existsSync(out), false);
+    assert.match(stderr, /pass --base/);
   });
 
   it("refuses an output path inside the ecosystem records folder", () => {
@@ -311,11 +376,12 @@ describe("write mode", () => {
   });
 });
 
-describe("verify mode", () => {
+describe("verify mode", { skip: !hasGit() && "git is not installed" }, () => {
   const verify = (root, recordText, lines) => {
+    const base = commitAll(root);
     const record = join(root, "typescript.yaml");
     writeFileSync(record, recordText);
-    return run(["verify", "--record", record, "--repo", root], `${lines.join("\n")}\n`);
+    return run(["verify", "--record", record, "--base", base, "--repo", root], `${lines.join("\n")}\n`);
   };
   const THREE_RECORD = 'globs:\n  - "**/*.ts"\nbuild-cmd: "make build"\ntest-cmd: "npm test"\ncheck-cmd: "node tools/lint.mjs"\n';
 
@@ -360,13 +426,49 @@ describe("verify mode", () => {
     assert.match(stderr, /malformed assumed: line: assumed: nonsense/);
   });
 
-  it("refuses a record line as support for the record unless it is read from --base", () => {
-    const root = fixture({ ...BASE_FILES, "docs/conventions/ecosystems/typescript.yaml": 'globs: ["**/*.ts"]\nbuild-cmd: "make build"\n' });
-    const { status, stderr } = verify(root, 'globs: ["**/*.ts"]\nbuild-cmd: "make build"\n', [
-      "assumed: typescript.build-cmd=make build (docs/conventions/ecosystems/typescript.yaml:2)",
-    ]);
-    assert.equal(status, 1);
-    assert.match(stderr, /only when read from --base/);
+  it("exits with a usage error naming --base when --base is missing, even for lines the working tree supports", () => {
+    const root = fixture(BASE_FILES);
+    commitAll(root);
+    const record = join(root, "typescript.yaml");
+    writeFileSync(record, THREE_RECORD);
+    const { status, stdout, stderr } = run(["verify", "--record", record, "--repo", root], `${THREE.join("\n")}\n`);
+    assert.equal(status, 2);
+    assert.match(stderr, /verify needs --base/);
+    assert.doesNotMatch(stdout, /verified/);
+  });
+
+  it("refuses a CLAUDE.md line the pull request adds, read at --base", () => {
+    const root = fixture(BASE_FILES);
+    const base = commitAll(root);
+    const recordPath = "docs/conventions/ecosystems/typescript.yaml";
+    writeFileSync(join(root, "CLAUDE.md"), `${BASE_FILES["CLAUDE.md"]}Test with \`node tools/x.mjs\`.\n`);
+    mkdirSync(join(root, dirname(recordPath)), { recursive: true });
+    writeFileSync(join(root, recordPath), 'globs: ["**/*.ts"]\ntest-cmd: "node tools/x.mjs"\n');
+    commitAll(root, "pull request");
+    const lines = "assumed: typescript.test-cmd=node tools/x.mjs (CLAUDE.md:4)\n";
+    const record = join(root, recordPath);
+    const withBase = run(["verify", "--record", record, "--base", base, "--repo", root], lines);
+    assert.equal(withBase.status, 1);
+    assert.match(withBase.stderr, /refused: typescript\.test-cmd=node tools\/x\.mjs: /);
+    const withoutBase = run(["verify", "--record", record, "--repo", root], lines);
+    assert.notEqual(withoutBase.status, 0, withoutBase.stdout);
+    assert.doesNotMatch(withoutBase.stdout, /verified/);
+  });
+
+  it("passes a record backed by pre-existing sources the pull request left unchanged", () => {
+    const root = fixture(BASE_FILES);
+    const base = commitAll(root);
+    const recordPath = "docs/conventions/ecosystems/typescript.yaml";
+    mkdirSync(join(root, dirname(recordPath)), { recursive: true });
+    writeFileSync(join(root, recordPath), THREE_RECORD);
+    writeFileSync(join(root, "README.md"), "# Cart\n");
+    commitAll(root, "pull request");
+    const { status, stdout, stderr } = run(
+      ["verify", "--record", join(root, recordPath), "--base", base, "--repo", root],
+      `${THREE.join("\n")}\n`,
+    );
+    assert.equal(status, 0, stderr);
+    assert.match(stdout, /verified/);
   });
 
   it("with --base, reads each cited line at the base revision, so a pull request cannot cite its own lines", (t) => {
