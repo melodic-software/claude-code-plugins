@@ -25,9 +25,11 @@ public and consumer-agnostic, so it may carry no one person's topology.
    lane.
 3. **Every value the hook puts in a command passes a safe set**: names match
    `^[A-Za-z0-9][A-Za-z0-9._-]*$`; `claudePath` is a `/` path with no backslash, or, for a Windows
-   lane run locally or over ssh, a drive-letter path; neither allows a space, `~`, `$`, a quote or
-   a leading `-`. Over ssh the remote shell parses the command line, so the safe sets keep each
-   value one word that shell leaves unchanged. A lane that fails is never run; any other broken
+   lane run locally, a drive-letter path; neither allows a space, `~`, `$`, a quote or a leading
+   `-`. Over ssh the remote shell parses the command line, so the safe sets keep each value one
+   word that shell leaves unchanged. Another machine's Windows lane is reached through that
+   machine's WSL lane, which runs `claude.exe` by its `/mnt/<drive>/` path: the Windows ssh account
+   is a local admin with no Claude sign-in, and this way every ssh hop lands in a POSIX shell. A lane that fails is never run; any other broken
    rule makes the hook ignore the file.
 4. **The file carries no secrets and no SSH host keys.** Host-key pinning stays in the ssh client's
    known-hosts configuration.

@@ -85,7 +85,7 @@
         },
         {
           "if": {
-            "properties": { "kind": { "const": "windows" }, "route": { "enum": ["local", "ssh"] } },
+            "properties": { "kind": { "const": "windows" }, "route": { "const": "local" } },
             "required": ["kind", "route"]
           },
           "then": { "properties": { "claudePath": { "pattern": "^[A-Za-z]:" } } },

@@ -30,7 +30,7 @@ The file as rendered on host-b's WSL lane:
       "os": "windows",
       "role": "server",
       "lanes": [
-        { "kind": "windows", "route": "ssh", "alias": "host-a", "claudePath": "C:\\Tools\\claude\\claude.exe" },
+        { "kind": "windows", "route": "ssh", "alias": "host-a-wsl", "claudePath": "/mnt/c/Tools/claude/claude.exe" },
         { "kind": "wsl", "route": "ssh", "alias": "host-a-wsl", "claudePath": "/opt/claude/bin/claude" }
       ]
     },
@@ -70,10 +70,10 @@ On host-b's Windows lane, host-b's entry instead reads:
 | `hosts[].os` | `windows` (lanes of kind `wsl` and `windows`), `linux` (kind `linux`) or `macos` (kind `macos`). |
 | `hosts[].role` | `client` is never queried; any other value is. |
 | `lanes[].kind` | `wsl`, `windows`, `linux` or `macos`. |
-| `lanes[].route` | How the reading lane reaches that lane: `local` (itself), `interop` (WSL to the same machine's Windows lane), `wsl-exe` (Windows to the same machine's WSL lane, with `distro`), `ssh` (another machine, with `alias`). |
+| `lanes[].route` | How the reading lane reaches that lane: `local` (itself), `interop` (WSL to the same machine's Windows lane), `wsl-exe` (Windows to the same machine's WSL lane, with `distro`), `ssh` (another machine, with `alias`). Another machine's Windows lane is reached over ssh to that machine's WSL lane, which runs `claude.exe` through interop: the account ssh reaches on the Windows side need not be the one signed into Claude. |
 | `lanes[].alias` | ssh host alias, resolved by the reading lane's ssh config. Required for `ssh`. |
 | `lanes[].distro` | WSL distribution name. Required for `wsl-exe`. |
-| `lanes[].claudePath` | Absolute path of the claude binary, as the program that runs it reads it: the reading lane for `local` and `interop` (a `/mnt/<drive>/...` path for `interop`), the target lane for `wsl-exe` (`wsl.exe --exec` runs it inside the distro) and `ssh` (the remote shell runs it). A drive-letter path for a `windows` lane on `local` or `ssh`; a `/` path everywhere else. |
+| `lanes[].claudePath` | Absolute path of the claude binary, as the program that runs it reads it: the reading lane for `local` and `interop` (a `/mnt/<drive>/...` path for `interop`), the target lane for `wsl-exe` (`wsl.exe --exec` runs it inside the distro) and `ssh` (the remote shell runs it; a `/mnt/<drive>/...` path for a `windows` lane). A drive-letter path for a `windows` lane on `local`; a `/` path everywhere else. |
 
 The schema also holds these, which it cannot express:
 
@@ -99,10 +99,10 @@ quoted:
   letter, `:\`, then only letters, digits and `. _ \ -`. Neither allows a space, `~`, `$`, a quote
   or a leading `-`.
 
-Over ssh the remote shell parses the command line: a POSIX shell on a WSL or Linux lane, and on a
-Windows lane whichever shell its OpenSSH server starts. A POSIX path holds no backslash, which
-those shells treat as an escape, and a Windows path holds nothing cmd.exe or PowerShell expands,
-so every value reaches the remote side as one unchanged word.
+Over ssh the remote shell, always a WSL lane's POSIX shell, parses the command line. A `/` path
+holds no backslash, which that shell treats as an escape, and nothing it expands, so every value
+reaches the remote side as one unchanged word. A drive-letter path is only ever run locally, with
+no shell.
 
 ## What the reader does with a bad file
 
