@@ -951,6 +951,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Hook precision (false-positive discipline) | [`docs/contracts/hook-precision/`](contracts/hook-precision/README.md) |
 | Hook input rewriting (deny-or-ask, never a silent `updatedInput`) | [`docs/contracts/hook-input-rewriting/`](contracts/hook-input-rewriting/README.md) |
 | Hook config delivery (userConfig→hook channel matrix) | [`docs/contracts/hook-config-delivery/`](contracts/hook-config-delivery/README.md) |
+| Hook enablement: an on/off setting for every hook | [`docs/contracts/hook-enablement/`](contracts/hook-enablement/README.md) |
 | Permission-rule hygiene | [`docs/contracts/permission-rule-hygiene/`](contracts/permission-rule-hygiene/README.md) |
 | Plugin-data report keying, retention, and overwrite | [`docs/contracts/plugin-data-report-keying/`](contracts/plugin-data-report-keying/README.md) |
 | On-demand dependencies (pinned lockfile, `npm ci` into the plugin data directory, no vendored bundles) | [`docs/contracts/on-demand-dependencies/`](contracts/on-demand-dependencies/README.md) |
