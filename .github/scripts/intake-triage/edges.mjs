@@ -188,7 +188,6 @@ async function addEdges({ github, repository, number, blockers, log }) {
   if (wanted.length === 0) {
     return { result, ids };
   }
-  // The blockers past the cap are skipped after the rest, in their order.
   const done = () => {
     wanted.slice(MAX_EDGES).forEach((blocker) => skip(blocker, `past the first ${MAX_EDGES}`));
     return { result, ids };

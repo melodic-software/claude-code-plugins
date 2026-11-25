@@ -79,9 +79,6 @@ run 'Run `/alpha:nonexistent`.'
 assert_absent "advisory carries no verdict trailer" "$OUT" "Detect-then-judge"
 assert_contains "advisory exempts a deliberate reference" "$OUT" "A reference kept on purpose"
 
-# A bare directory under skills/ is NOT a skill. Without a SKILL.md there is no
-# command, so the advisory must still fire — the old directory-only test
-# suppressed it.
 mkdir -p "$REPO/plugins/alpha/skills/ghost"
 run 'Run `/alpha:ghost`.'
 assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
@@ -89,16 +86,10 @@ assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
 assert_contains "a plugin declaring no paths still reads as plugins/<plugin>/skills/" "$OUT" \
   "(no such skill under plugins/alpha/skills/)"
 
-# A frontmatter name carrying a trailing YAML comment is a valid rename and must
-# resolve; the old end-of-line-anchored parser extracted nothing.
 mk_skill alpha commented-dir 'commented-name # public command'
 run 'Run `/alpha:commented-name`.'
 assert_silent "frontmatter name with trailing YAML comment → resolves" "$OUT"
 
-# The DIRECTORY name of a renamed skill is not an alias. `skills/legacy-dir/`
-# declaring `name: renamed-command` answers to /alpha:renamed-command only — the
-# stale pre-rename spelling must still fire, since suppressing it defeats the
-# guard's whole purpose.
 run 'Stale ref `/alpha:legacy-dir`.'
 assert_contains "renamed skill's directory name is NOT an alias → fires" "$OUT" \
   "  /alpha:legacy-dir"
@@ -474,14 +465,6 @@ printf 'Run `/alpha:setxx` and note the xx convention.\n' >"$SHORT2"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORT2" 'xx')" 2>&1)
 assert_silent "a short anchor occurring twice is still ambiguous" "$OUT"
 
-# A large multiline Edit must cost neither a subprocess NOR a rescan per hunk line.
-# Both are anchors times file size; removing only the subprocess left a thousand-line
-# hunk spending the hook's own 30 s timeout (hooks.json) and losing the advisory. The
-# hunk is located whole, so this is one scan. The ceiling is deliberately loose so
-# the case fails only on the defect, not on a slow host.
-# Every line here is span-free ON PURPOSE: a hunk whose lines carry code spans hits
-# the span cap and stops early, which would hide the per-line rescan rather than
-# measure it.
 BIGDOC="$REPO/big.md"
 BIGHUNK="$TEST_TMPDIR/bighunk.txt"
 : >"$BIGDOC"
@@ -631,10 +614,6 @@ RC=$?
 assert_exit "empty stdin → exit 0" 0 "$RC"
 assert_silent "empty stdin → no output" "$OUT"
 
-# Runtime jq-removal is not portably simulable through an isolated bin dir. Assert
-# the fail-open guard is present via the shared helper; hook::require's own
-# behavior is covered by lib/hook-utils.test.sh, and the plugin-wide notice
-# label by require-jq-notice-isolation.test.sh.
 HOOK_SRC=$(cat "$HOOK")
 assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
 # The directory comes from parameter expansion, not a `$(dirname …)` subshell:
@@ -646,16 +625,6 @@ assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DI
 assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
 assert_file_dir_seam "$HOOK"
 
-# =================== LAZY PLUGIN INDEX (spawn cost) =========================
-# The name -> directory index reads every plugin manifest, and a marketplace
-# carries dozens. Nothing below the reference scan reads it, so it must not be
-# built for a write that cites no skill at all, which is almost every write this
-# PostToolUse hook sees; and when it is built, ONE jq reads every manifest (the
-# per-manifest shape cost 296 processes on 74 manifests). Counted, not asserted
-# from the source: a `jq` shim ahead of the real one on PATH records every
-# manifest argument it is handed plus one INVOKE marker per invocation that
-# names any manifest, then delegates so the hook still behaves exactly as it
-# would.
 SHIM_DIR="$TEST_TMPDIR/jq-shim"
 mkdir -p "$SHIM_DIR"
 JQ_LOG="$TEST_TMPDIR/jq-manifest-calls"
@@ -831,14 +800,6 @@ parity "dispatched parity: unresolved reference" 'Run `/alpha:nonexistent`.' 0 \
 parity "dispatched parity: resolving reference" 'Run `/alpha:setup`.' 0 ""
 parity "dispatched parity: manifest name, not directory" 'Run `/beta:check`.' 0 ""
 
-# ============ A CACHE THAT ANOTHER FIRE IS REWRITING ==========================
-# Parallel sessions and subagents in one repo share the index file. A reader can
-# see it while a writer is still on it, and two writers that both truncate leave
-# a mix of their bytes. A header over a partial row list would pass as a whole
-# index and every plugin missing from it would stop being adjudicated, so the
-# file ends with `end <count>` and one that is not exactly that shape is a miss
-# that rebuilds through jq. A fresh fixture keeps this section's edits to the
-# index and the manifests off every case above.
 IDX_REPO="$TEST_TMPDIR/idx-market"
 mkdir -p "$IDX_REPO"
 git -C "$IDX_REPO" init -q

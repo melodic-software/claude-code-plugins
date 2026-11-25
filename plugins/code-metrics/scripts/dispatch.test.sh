@@ -35,9 +35,7 @@ fail() {
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
 }
-# jq-free JSON assertions: a Python expression over the parsed document `d`.
 assert_doc() {
-  # assert_doc <name> <json> <python-expression>
   if printf '%s' "$2" | "$PY" -c "import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if ($3) else 1)" 2>/dev/null; then
     pass "$1"
   else
@@ -47,29 +45,12 @@ assert_doc() {
 
 STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
-# Without CODE_METRICS_HOME the dispatcher reads the user-global layer from
-# $HOME/.claude, so a developer's own code-metrics.yaml or ecosystems/<lane>.yaml
-# would change lanes, thresholds and scope. Every case resolves against this
-# empty home unless it sets its own.
 TEST_HOME="$(mktemp -d)"
 export CODE_METRICS_HOME="$TEST_HOME"
-# HOME itself is a test-owned directory seeded with a user-global ecosystem file
-# that moves the python lane onto a glob no fixture matches. A dispatch call that
-# falls back to $HOME (CODE_METRICS_HOME dropped, or shadowed empty on a case's
-# command line) then moves cm_sample.py out of the python lane and fails a case,
-# instead of passing on every machine with an empty ~/.claude. It also keeps
-# persist-report.sh out of the real ~/.claude/plugins/data. The fixture name is
-# composed for the reason case 10 gives.
 GUARD_HOME="$(mktemp -d)"
 guard_lane=python
 mkdir -p "$GUARD_HOME/.claude/ecosystems"
 printf 'globs: ["*.cm-home-guard"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_lane.yaml"
-# A repository whose own team layer sets the python lane's globs (this one's
-# .claude/ecosystems does) outranks that user-global value, so the globs alone
-# would leave cm_sample.py in the python lane. `enabled`, which no team file
-# here sets, survives the merge and turns the python lane off. A guard lane the
-# user-global layer lists then claims the python fixture, keeping it measured
-# outside the python lane in any repository.
 printf 'enabled: false\n' >>"$GUARD_HOME/.claude/ecosystems/$guard_lane.yaml"
 guard_claim_lane=cm-home-guard
 printf 'lanes:\n  %s:\n    enabled: true\n' "$guard_claim_lane" >"$GUARD_HOME/.claude/code-metrics.yaml"
@@ -117,10 +98,6 @@ assert_doc "rows carry comment-agnostic label and non-blank counts" "$out" \
   'all("comment-agnostic" in r["labels"] and r["values"]["lines_non_blank"]>0 for r in d["measures"]) and d["summary"]["files"]==8'
 assert_doc "markdown fixture is measured in the other lane" "$out" \
   'any(r["file"].endswith("cm-notes.md") and r["lane"]=="other" for r in d["measures"]) and d["scope"]["unclassified"]==0'
-# The five language-lane fixtures by name (cm-sample.ts, cm_sample.py, cm-sample.sh,
-# cm-sample.go, CmSample.cs), the markdown fixture (cm-notes.md) in the other lane, plus the
-# two byte-identical bash copies of the duplication cluster fixture
-# (cluster/{alpha,beta}/shared/shared-utils.sh): the assertion is also what maps them to this suite.
 assert_doc "every fixture is measured exactly once" "$out" \
   'sorted(r["file"].rsplit("/",1)[1] for r in d["measures"])==["CmSample.cs","cm-notes.md","cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py","shared-utils.sh","shared-utils.sh"]'
 assert_doc "threshold carries the plugin-default provenance" "$out" \
@@ -161,8 +138,6 @@ rc=$?
 assert_eq "exit 0 with deferred and none rows" 0 "$rc"
 assert_doc "dotnet cyclomatic is deferred with the research tag" "$out" \
   'any(r["lane"]=="dotnet" and r["measure"]=="cyclomatic" and r["status"]=="deferred" and "probe:dotnet-metrics-linux" in r["reason"] for r in d["run"])'
-# The other lane carries a line count and nothing else, so every other measure
-# is not-applicable there, which never withholds a complete status.
 assert_doc "the other lane is not-applicable for every complexity measure" "$out" \
   'sorted((r["measure"], r["status"]) for r in d["run"] if r["lane"]=="other")==[("cognitive","not-applicable"),("cyclomatic","not-applicable")] and all(r["reason"] for r in d["run"] if r["lane"]=="other")'
 assert_doc "python cognitive is unavailable with the validated-date reason" "$out" \
@@ -259,9 +234,6 @@ rc=$?
 assert_eq "change scope from a subdirectory exits 0" 0 "$rc"
 assert_doc "change scope from a subdirectory keeps the whole change, paths relative to the repository root" "$out" \
   'sorted(r["file"] for r in d["measures"])==["changed.py","sub/inner.py","untracked.sh"]'
-# `--all` means the whole repository, from a subdirectory too: an unanchored
-# listing stops at the cwd, so the run would measure that subtree while its
-# scope block still called itself `all`.
 out="$(cd "$repo/sub" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
 rc=$?
 assert_eq "--all from a subdirectory exits 0" 0 "$rc"
@@ -283,7 +255,6 @@ files = lambda d: sorted(r["file"] for r in d["measures"])
 raise SystemExit(0 if files(a) == files(b) and a["root"] == b["root"] and a["scan_root"] != b["scan_root"] else 1)
 ' && echo same)"
 assert_eq "the same repository from the root and from a subdirectory gives identical files and root" "same" "$same_files"
-# Outside a git work tree the root is the working directory itself.
 plain="$(mktemp -d)"
 printf 'x = 1\n' >"$plain/a.py"
 out="$(cd "$plain" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
@@ -341,8 +312,6 @@ rc=$?
 assert_eq "an ignored directory exits 0" 0 "$rc"
 assert_doc "an ignored directory measures nothing rather than being walked" "$out" \
   'd["scope"]["files"]==0 and d["measures"]==[]'
-# A scope.exclude glob the matcher cannot use never stops the run: the team
-# file's list is dropped by name on stderr and the bundled list applies.
 (cd "$repo" && mkdir -p docs/conventions && printf 'scope:\n  exclude: ["[z-a]"]\n' >docs/conventions/code-metrics.yaml)
 err_file="$(mktemp)"
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
@@ -451,12 +420,6 @@ lanes:
   dotnet:
     enabled: false
 EOF
-# The ecosystem file's basename IS the lane name, and every lane name this
-# repository knows is also the basename of a committed convention example. A
-# literal `<lane>.yaml` here would make scripts/affected-tests.sh map that
-# unrelated example to this suite, so the fixture name is composed instead
-# (the same reason affected-tests.sh's own header declines to spell a
-# colliding basename).
 eco_lane=bash
 printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/$eco_lane.yaml"
 printf 'a = 1\nb = 2\nc = 3\nd = 4\ne = 5\nf = 6\n' >"$repo/a.py"
@@ -572,7 +535,6 @@ home="$(mktemp -d)"
   printf 'scope:\n  base: mark\n' >docs/conventions/code-metrics.yaml
 )
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
-# The untracked configuration file is part of the change too, in the other lane.
 assert_doc "a configured scope.base narrows the change to the commits after it" "$out" \
   'sorted(r["file"] for r in d["measures"])==["docs/conventions/code-metrics.yaml","third.py"]'
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base main)"
@@ -584,14 +546,9 @@ assert_doc "a configured scope.default of all widens the run to the tree" "$out"
   'd["scope"]["mode"]=="all" and d["scope"]["files"]==4'
 assert_doc "an empty collector list runs nothing for that lane and says so" "$out" \
   'any(r["lane"]=="python" and r["measure"]=="file_lines" and r["status"]=="unavailable" and "no collector" in r["reason"] for r in d["run"]) and not any(r["lane"]=="python" for r in d["measures"])'
-# An explicit --base asks for a diff, so it beats a configured `default: all`
-# the same way --all and a path do; widening to the tree would discard the ref.
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base mark)"
 assert_doc "an explicit --base beats a configured scope.default of all" "$out" \
   'd["scope"]["mode"]=="change" and d["scope"]["base"] and d["scope"]["files"] < 4'
-# A named base is measured from the merge-base, not the ref's tip. `main` edits
-# `base.py` after `feature` diverged; a two-dot diff against the tip would call
-# that edit part of this change, which is a file the branch never touched.
 (cd "$repo" && git checkout -q main && printf 'x = 1\nx = 2\n' >base.py &&
   git add base.py && git commit -q -m "main moves on" && git checkout -q feature)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base main --print-scope)"
@@ -666,9 +623,6 @@ assert_doc "the default exclusions drop dist and vendor and name each pattern's 
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
 assert_doc "a branch at its merge-base with a clean tree gets the merge-base reason and the --all hint" "$out" \
   'd["status"]=="empty" and "merge-base" in d["run"][0]["reason"] and "--all" in d["run"][0]["reason"] and d["scope"]["files"]==0'
-# A markdown-only change is measured through the catch-all `other` lane; with
-# that lane opted out through the team file the same change belongs to no lane
-# and the reason says so.
 (cd "$repo" && printf 'notes\n' >notes.md && git add -A && git commit -qm docs) >/dev/null 2>&1
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
 assert_doc "a change holding only a markdown file is measured in the other lane" "$out" \
@@ -777,8 +731,6 @@ assert_doc "a CRLF interpreter resolves the registry and collapses the copies" "
 assert_doc "no CR reaches a measured path" "$out" \
   'not any("\r" in r["file"] for r in d["measures"])'
 rm -rf "$team"
-# The derived configuration: a scope default, an exclusion, and ecosystem lane
-# globs all travel from Python to bash as lines.
 repo="$(mktemp -d)"
 home="$(mktemp -d)"
 mkdir -p "$repo/.claude/ecosystems" "$repo/docs/conventions" "$repo/gen"
@@ -796,11 +748,6 @@ assert_doc "a CRLF interpreter honors scope.default all, scope.exclude, and lane
   'd["scope"]["mode"]=="all" and d["scope"]["excluded"]==1 and not any(r["file"]=="gen/b.py" for r in d["measures"]) and any(r["file"]=="x.bats" and r["lane"]=="bash" for r in d["measures"]) and any(r["file"]=="a.py" and r["lane"]=="python" for r in d["measures"])'
 rm -rf "$repo" "$home" "$crlf"
 
-# A lane id the team file lists beside the bundled ones: `rust` has a record
-# and no shipped collector, `python` is a shipped lane listed with globs, and
-# an unlisted `markdown` record (this repository records one for linting) is
-# the control that creates no lane. Fixture names are composed for the reason
-# case 10 gives.
 repo="$(mktemp -d)"
 home="$(mktemp -d)"
 mkdir -p "$repo/.claude/ecosystems" "$repo/docs/conventions"

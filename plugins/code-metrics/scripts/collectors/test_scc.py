@@ -31,8 +31,6 @@ CAPTURE = TOOL_OUTPUT / "scc.json"
 def make_stub(
     directory: Path, capture: Path = CAPTURE, calls_log: Path | None = None
 ) -> None:
-    """A `scc` stub replaying `capture`; with `calls_log` it also appends the
-    number of arguments it received, one line per call."""
     log = f'printf \'%s\\n\' "$#" >>"{calls_log}"\n' if calls_log is not None else ""
     write_stub(
         directory / "scc",
