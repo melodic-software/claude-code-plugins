@@ -59,7 +59,6 @@ const shape = (fields, required = []) => (value) => {
 const calls = shape({ requests: count(), graphql: count(), notModified: count() }, ["requests", "graphql", "notModified"]);
 const window = shape({ utilization: (v) => typeof v === "number" && v >= 0 && v <= 1, resetsAt: matches(ISO), status: oneOf(STATUSES) }, ["status"]);
 const credentialShape = shape({ secret: matches(SECRET), kind: oneOf(new Set(["oauth-token", "api-key"])), role: matches(/^[A-Z][A-Z0-9_]{0,99}$/) }, ["secret", "kind"]);
-// The kind and role must agree with the secret name.
 const credential = (value) => {
   const kept = credentialShape(value);
   if (!kept) {
@@ -135,7 +134,6 @@ export function readRecord(text) {
     try {
       return validRecord(JSON.parse(rest.slice(0, end + 1)));
     } catch {
-      // Not yet a whole JSON value: try the next "}".
     }
   }
   return null;

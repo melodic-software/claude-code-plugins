@@ -43,8 +43,6 @@ def make_stub(
     exit_code: int = 0,
     argv_log: Path | None = None,
 ) -> None:
-    """A `type-coverage` stub replaying `capture`; with `argv_log` it also
-    records every argument it received, one per line."""
     log = f'printf \'%s\\n\' "$@" >"{argv_log}"\n' if argv_log is not None else ""
     write_stub(
         path,
@@ -58,8 +56,6 @@ def make_stub(
 def make_node_stub(
     path: Path, program: list[str] | None, exit_code: int = 0, stderr: str = ""
 ) -> None:
-    """A `node` stub standing in for the tsconfig-program listing: prints
-    `program` as JSON (`null` for no tsconfig), or fails with `stderr`."""
     listing = json.dumps(program) if program is not None else "null"
     write_stub(
         path,
@@ -72,7 +68,6 @@ def make_node_stub(
 def make_project(
     root: Path, with_typescript: bool = True, local_stub: bool = False
 ) -> None:
-    """A scratch cwd: optional node_modules/typescript and a local binary."""
     root.mkdir(parents=True, exist_ok=True)
     if with_typescript:
         package = root / "node_modules" / "typescript" / "package.json"

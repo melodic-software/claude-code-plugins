@@ -1,0 +1,5 @@
+captured 2026-11-24, each list read at a page size smaller than its length so it spans two pages:
+  gh api 'repos/melodic-software/claude-code-plugins/pulls/18835/reviews?per_page=4&page=<1|2>' --jq '[.[] | {id, user: {login: .user.login, type: .user.type}, state, submitted_at, commit_id}]' > reviews-page<1|2>.json
+  gh api 'repos/melodic-software/claude-code-plugins/commits/2e179c22e341c3c618504a8722f2a627e28ffdf4/check-runs?per_page=32&page=<1|2>' --jq '{total_count, check_runs: [.check_runs[] | {id, name, app: {id: .app.id, slug: .app.slug}, check_suite: {id: .check_suite.id}, status, conclusion, completed_at, details_url}]}' > check-runs-page<1|2>.json
+  gh api 'repos/kubernetes/kubernetes/commits/b9143f8b236f8449ac25ced658286055ed5104ef/status?per_page=7&page=<1|2>' --jq '{state, total_count, statuses: [.statuses[] | {id, context, state, updated_at}]}' > status-page<1|2>.json
+each projection keeps the fields merge-readiness.sh reads; the statuses come from a public repository whose pull request heads carry many commit statuses

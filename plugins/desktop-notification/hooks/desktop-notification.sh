@@ -91,9 +91,6 @@ strip_c0_to MESSAGE "$MESSAGE"
 [[ -n "$TYPE" ]] || TYPE="unknown"
 [[ -n "$MESSAGE" ]] || MESSAGE="Needs your attention"
 
-# Map notification type to (headline, default-message). Exit on non-actionable
-# types (no telemetry — same shape as a matcher miss). The default-message
-# override only applies when the system supplied the generic placeholder.
 case "$TYPE" in
 permission_prompt)
   HEADLINE="Permission Required"
@@ -114,12 +111,9 @@ esac
 
 [[ "$MESSAGE" == "Needs your attention" ]] && MESSAGE="$DEFAULT_MSG"
 
-# Consuming-repo root — used for the telemetry sink's relative-path resolution
-# and (below) the optional git branch context on the OS toast body.
 REPO_ROOT=""
 hook::repo_root_to REPO_ROOT "${CLAUDE_PROJECT_DIR:-.}"
 
-# Channels that actually fired, for the telemetry data payload.
 CHANNELS=()
 
 # Channels 1+2 — terminal-escape notification (race-free, cross-platform base).

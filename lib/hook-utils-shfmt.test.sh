@@ -429,7 +429,6 @@ hit_print() { printf '%s\n' "$*"; }
   form refused $'!(bash <<A\necho HIT >&2\nA\n)'
   form refused $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
   form refused $'!(x)#\'\ncat <<B\n$(echo HIT >&2)\nB\n\' ; cat <<C\nc\nC'
-  # case patterns.
   form handled 'echo $(case x in a|esac) :;; esac)#; echo HIT >&2'
   form handled 'echo $(case x in esac)#; echo HIT >&2'
   form handled 'echo $(case x in (a) :;; esac)#; echo HIT >&2'

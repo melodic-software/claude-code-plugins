@@ -25,7 +25,6 @@ CASE_NUM=0
 SKIPPED=0
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
-# skip LABEL REASON: a case this host cannot exercise; counted apart from CASE_NUM.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP: %s\n  reason: %s\n' "$1" "$2"
@@ -38,7 +37,6 @@ fi
 
 vs() { MSYS_NO_PATHCONV=1 python3 "$SCRIPT" "$@"; }
 
-# new_fixture NAME: create an empty git repo and print its path.
 new_fixture() {
   local fx="$TEST_TMPDIR/$1"
   mkdir -p "$fx"
@@ -46,7 +44,6 @@ new_fixture() {
   git -C "$fx" config core.autocrlf false
   printf '%s' "$fx"
 }
-# put FX RELPATH LINE...: write each LINE (verbatim, LF-terminated) to the file.
 put() {
   local fx="$1" rel="$2"
   shift 2
@@ -55,13 +52,9 @@ put() {
 }
 stage() { git -C "$1" add -A; }
 row_count() { if [[ -z "$1" ]]; then echo 0; else printf '%s\n' "$1" | wc -l | tr -d ' '; fi; }
-# site_rows OUT: find output without its skip rows; site_count counts them.
 site_rows() { printf '%s\n' "$1" | grep -v $'^skip\t' || true; }
 site_count() { row_count "$(site_rows "$1")"; }
-# anchor TEXT [PREV] [NEXT]: the anchor value-sites.py gives a line with this
-# text between these neighbors (empty for a first or last line).
 anchor() { printf '%s\n%s\n%s' "${2:-}" "$1" "${3:-}" | python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])'; }
-# sites OUT PATH:LINE...: the apply SITE of every find row on each listed line.
 sites() {
   local out="$1" pl
   shift
@@ -72,7 +65,6 @@ sites() {
 }
 # control_bytes FILE: count bytes below 0x20 other than tab, LF, CR.
 control_bytes() { LC_ALL=C tr -d '\t\n\r\040-\377' <"$1" | wc -c | tr -d ' '; }
-# untracked FX: untracked paths git sees (a temp file left behind shows here).
 untracked() { git -C "$1" status --porcelain --untracked-files=all | grep '^??' || true; }
 
 # --- forms -------------------------------------------------------------------
@@ -103,14 +95,12 @@ WSL_ROW=$(printf '%s\n' "$OUT" | grep -F $'\twsl.sh\t')
 assert_eq "row carries the line's anchor, then the line without its newline" \
   $'setup\twsl.sh\t1\t4\twsl\tdefault\t'"$(anchor 'cd /mnt/d/data/cfg')"$'\tcd /mnt/d/data/cfg' "$WSL_ROW"
 
-# find is read-only
 BEFORE=$(git -C "$FX" status --porcelain)
 vs find --old 'D:\data\cfg' --root "$ROOT" >/dev/null
 vs find --old 'D:\data\cfg' --root "$ROOT" --format summary >/dev/null
 AFTER=$(git -C "$FX" status --porcelain)
 assert_eq "find leaves the tree unchanged" "$BEFORE" "$AFTER"
 
-# PATH restriction
 OUT=$(vs find --old 'D:\data\cfg' --root "$ROOT" run.sh)
 assert_eq "a PATH argument restricts the file set" "1" "$(site_count "$OUT")"
 

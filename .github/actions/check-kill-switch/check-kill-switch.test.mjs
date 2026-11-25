@@ -14,7 +14,6 @@ import { WAIT_BUDGET_SECONDS } from "../log-api-budget/rate-guard.mjs";
 const SCRIPT = fileURLToPath(new URL("./check-kill-switch.mjs", import.meta.url));
 const WORKFLOWS = fileURLToPath(new URL("../../workflows/", import.meta.url));
 
-// 2026-11-11T12:00:00Z.
 const NOW_MS = Date.parse("2026-11-11T12:00:00Z");
 const NOW_S = NOW_MS / 1000;
 const RESET = NOW_S + 1200;
@@ -84,7 +83,6 @@ for (const [label, value] of NOT_FALSE) {
   });
 }
 
-// share 0.1 of a limit of 5000 is 500.
 test("the budget stops under the share of the limit while the reset is ahead", () => {
   const at = (remaining, reset = RESET) => budgetStops({ limit: 5000, remaining, reset }, 0.1, NOW_S);
   assert.equal(at(499), true, "499 left, under 500");
@@ -149,7 +147,6 @@ const REFUSED_READS = [
   ["a bare 429", () => rateLimitResponse({ status: 429 }), NOW_S + 60],
   ["a 200 with retry-after 120", () => rateLimitResponse({ headers: { "retry-after": "120" } }), NOW_S + 120],
   ["a 200 with remaining 0 and a reset already past", () => rateLimitResponse({ headers: headersOf(5000, 0, NOW_S - 5) }), NOW_S + 60],
-  // remaining 0 outranks the 5xx rule: the pool is spent whatever the status.
   ["a 500 with remaining 0", () => rateLimitResponse({ status: 500, headers: headersOf(5000, 0, RESET) }), RESET],
 ];
 
@@ -269,7 +266,6 @@ test("a start gate at the share proceeds", async () => {
 });
 
 test("the share is rate-limits.json's github-token start-gate", async () => {
-  // 0.5 of 5000 is 2500.
   const half = { "github-token": { "start-gate": 0.5 } };
   assert.equal((await runMain(START, rateLimitResponse({ headers: headersOf(5000, 2499, RESET) }), { rateLimits: half })).outputs.cause, "budget");
   assert.equal((await runMain(START, rateLimitResponse({ headers: headersOf(5000, 2500, RESET) }), { rateLimits: half })).outputs.cause, "ok");
@@ -473,10 +469,6 @@ test("a failed budget read proceeds", async () => {
   assert.ok(lines.some((line) => line.startsWith("::warning title=start-gate::the GITHUB_TOKEN budget was not read (socket hang up)")));
 });
 
-// Every check-kill-switch gate in the workflows, by workflow and job: `start`
-// gates begin new work and read the budget; `switch` gates finish or judge
-// existing work (reviews, merges, verdicts, post-model writes, model legs that
-// take over a handed-off turn) and check the switches only.
 const GATES = {
   "pr-run-plugin-evals.yml": { "run-eval": "switch", "run-eval-subscription": "switch", "compare-prepare": "switch", "compare-record": "switch" },
   "maintenance-measure-skill-edit-pass.yml": { "run-eval": "switch", "run-eval-subscription": "switch" },
@@ -514,8 +506,6 @@ const GATES = {
   "pr-review-hosted.yml": { "check-kill-switch": "defer" },
   "pr-review-main.yml": { "check-trigger": "switch", "collect-trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
   "pr-review-security-hosted.yml": { "check-kill-switch": "defer" },
-  // check-broker reads the budget only for a caller passing start-gate, and
-  // only on a call that is the first in its slot (FIRST_CALL).
   "pr-run-activity-read.yml": { "check-broker": "first-call", run: "switch" },
   "pr-run-activity-write.yml": { run: "switch" },
   "pr-unblock-dispatch.yml": { dispatch: "switch", refine: "switch" },
@@ -544,9 +534,6 @@ const GATES = {
     "push-branches": "switch",
     publish: "switch",
   },
-  // The issue lane's budget is read at check-broker's first call (START_CALLS),
-  // the one place label-unblocked reads a budget stop from; check-admission and pick-slot
-  // check the switches only.
   "work-resolve-issue.yml": { "check-admission": "switch", "pick-slot": "switch" },
   "work-unblock.yml": { "label-unblocked": "start", "publish-lane-level": "switch", "sync-status": "switch" },
 };
@@ -560,11 +547,6 @@ const DEFER_INPUTS = {
 const FIRST_CALL = /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m;
 const FIRST_CALL_PROJECT = /^ {10}project: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m;
 
-// The read-runner calls that pass start-gate, by workflow and job: the issue
-// lane's key leg and its subscription leg, which is the slot's first call
-// when the key leg was skipped (fallback credit-stop). pr-unblock and
-// pr-refine fix existing PRs and pass none, nor does the fallback leg, which
-// never makes a first call.
 const START_CALLS = {
   "work-resolve-issue.yml": ["resolve-issue", "resolve-issue-subscription"],
 };
@@ -587,7 +569,6 @@ test("only the issue lane's first-call read-runner calls pass start-gate", () =>
   assert.deepEqual(passing, START_CALLS);
 });
 
-// Each gate step in a workflow: its job and the step's text.
 function gatesIn(file) {
   const lines = readFileSync(path.join(WORKFLOWS, file), "utf8").split("\n");
   const jobsAt = lines.indexOf("jobs:");
@@ -597,7 +578,6 @@ function gatesIn(file) {
   lines.forEach((line, i) => {
     const id = i > jobsAt && /^ {2}([a-z][a-z0-9-]*):$/.exec(line);
     if (id) [job, index] = [id[1], 0];
-    // Any path to the action, at any ref.
     if (!/^\s*(?:-\s+)?uses:\s*["']?[^\s"'#]*actions\/check-kill-switch(?:@[^\s"'#]*)?["']?\s*(?:#.*)?$/.test(line)) return;
     const next = lines.findIndex((other, j) => j > i && /^ {6}- |^ {2}[a-z]/.test(other));
     found.push({ job, index, step: lines.slice(i, next < 0 ? undefined : next).join("\n") });
@@ -657,7 +637,6 @@ test("only defer gates defer, and no CI Status or pr-dispatch-feedback gate does
   }
 });
 
-// The steps of each job in a workflow, as text, by job id.
 function stepsByJob(file) {
   const lines = readFileSync(path.join(WORKFLOWS, file), "utf8").split("\n");
   const jobsAt = lines.indexOf("jobs:");
@@ -702,7 +681,6 @@ test("budget jobs are found", () => {
   }
 });
 
-// Split `text` on `separator` outside parentheses.
 function splitTop(text, separator) {
   const parts = [""];
   let depth = 0;
@@ -769,8 +747,6 @@ test("the budget-stop reading of a step condition", () => {
   assert.equal(falseOnBudget("inputs.a == '' && (inputs.b == '' || steps.kill.outputs.proceed == 'true')", skipped), false, "a parenthesized disjunction may hold");
 });
 
-// check-kill-switch reads the share from ../log-api-budget/rate-limits.json
-// beside it; a sparse checkout without that directory turns the read off.
 test("every budget job checks out log-api-budget beside the gate", () => {
   for (const { file, job, steps } of budgetJobs()) {
     const gate = steps.find((step) => KILL_STEP.test(step));

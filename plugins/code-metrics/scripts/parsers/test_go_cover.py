@@ -63,7 +63,6 @@ def parsed(*args: str) -> dict:
 
 
 def totals(document: dict, path: str) -> dict:
-    """A file's `total` and `hit`, read without the block table beside them."""
     statements = document[path]["statements"]
     return {"total": statements["total"], "hit": statements["hit"]}
 

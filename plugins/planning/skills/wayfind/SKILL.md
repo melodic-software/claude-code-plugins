@@ -312,6 +312,12 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    | `<prefix> prototype` | `<human-gated>` when the user judges it | `/prototype:pressure-test` (if enabled) (behaviour/feasibility; its vendor-fit mode when the item proves an outside vendor does something) or `/prototype:explore-directions` (if enabled) (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment. Falls back to `/planning:design` if not enabled: the resolution comment says no artifact was built, and the decision the item settles is recorded as provisional, naming this prototype item (step 6). This fallback route is itself provisional until a prototype item is first worked without the plugin and shows whether a discussion settles its question |
    | `<prefix> task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need. Work only a human can do (a vendor sign-up, credentials, a dashboard) routes to `/wizard:generate` (if enabled); its resolution records the names and locations of what was set up, never the values |
 
+   A structural item (a layout, flow, boundary or schema question) in an interactive session gets
+   one offer of collaborative canvas mode through `/visualization:visualize` (if enabled): from
+   `/planning:interview` or `/planning:design` when the item routes there, otherwise here before
+   routing. Offer it on no other item. The resolution comment carries the final text diagram, never
+   the canvas.
+
 6. **Graduate on every resolution.** Every edit to the map body, here or anywhere in this skill,
    applies its change to a copy of the body read right before the write, then reads the body back:
    if the change is missing (another session wrote in between), apply it to that copy and write

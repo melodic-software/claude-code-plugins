@@ -293,7 +293,6 @@ export async function main({ env = process.env, github, log = console.log, write
         scope = splitScope(spec.body);
       }
     }
-    // A finished parent's run verifies its own done-when and builds nothing.
     const finished = await finishedParent({ github: client, repository, issue: data, trusted: closedByTrusted({ github: client, repository, humans, appId: lanesAppId }) });
 
     const comments = [];

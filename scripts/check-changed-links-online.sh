@@ -10,10 +10,11 @@
 # then checks just those with the network on; lychee.toml's accept list keeps a
 # 429, a 5xx or a timeout from failing. --list prints the kept links and checks
 # nothing. LYCHEE names the binary (default lychee), LYCHEE_CONFIG the ruleset
-# (default lychee.toml). Exit status follows scripts/README.md, "The
+# (default: https://github.com/melodic-software/standards/blob/main/components/lychee/README.md#defaults-extensions-and-overrides). Exit status follows scripts/README.md, "The
 # check-script contract".
 set -euo pipefail
 me=check-changed-links-online
+parser=${BASH_SOURCE[0]%/*}/../lib/parse-concern-value.sh
 
 list=0
 if [[ ${1:-} == --list ]]; then
@@ -26,14 +27,35 @@ if [[ $# -ne 1 || -z $1 ]]; then
 fi
 base=$1
 lychee=${LYCHEE:-lychee}
-config=${LYCHEE_CONFIG:-lychee.toml}
-if [[ -z ${LYCHEE_CONFIG:-} && ! -f $config && -n ${STANDARDS_DIR:-} ]]; then
-  config=$STANDARDS_DIR/lychee.toml
-fi
 if ! command -v "$lychee" >/dev/null 2>&1; then
   echo "$me: lychee not found ($lychee)" >&2
   exit 2
 fi
+temporary=()
+trap 'rm -f "${temporary[@]}"' EXIT
+
+configs=()
+resolve_configs() {
+  if [[ -n ${LYCHEE_CONFIG:-} ]]; then
+    configs=(--config "$LYCHEE_CONFIG")
+    return
+  fi
+  local standards repository
+  if [[ -n ${STANDARDS_DIR:-} ]]; then
+    standards=$STANDARDS_DIR/lychee.toml
+    [[ -f $standards ]] || { echo "$me: the standards checkout $STANDARDS_DIR has no lychee.toml" >&2; exit 2; }
+  else
+    repository=$(bash "$parser" docs/conventions/source-control.yaml standards_repository)
+    [[ $repository =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] ||
+      { echo "$me: no standards checkout (STANDARDS_DIR) and no standards_repository in docs/conventions/source-control.yaml" >&2; exit 2; }
+    standards=$(mktemp --suffix=.toml)
+    temporary+=("$standards")
+    gh api -H 'Accept: application/vnd.github.raw' "repos/$repository/contents/lychee.toml" >"$standards" ||
+      { echo "$me: $repository lychee.toml could not be read" >&2; exit 2; }
+  fi
+  configs=(--config "$standards")
+  if [[ -f lychee.toml ]]; then configs+=(--config lychee.toml); fi
+}
 
 paths=(-- '*.md'
   ':(exclude)plugins/attribution/skills/audit/evals/fixtures/golden/**'
@@ -48,7 +70,8 @@ mapfile -t files < <(printf '%s' "$files_out")
 
 urls=()
 if ((${#files[@]})); then
-  if ! dump=$("$lychee" --dump --no-progress --config "$config" "${files[@]}" 2>/dev/null); then
+  resolve_configs
+  if ! dump=$("$lychee" --dump --no-progress "${configs[@]}" "${files[@]}" 2>/dev/null); then
     echo "$me: lychee could not extract the links of the changed files" >&2
     exit 2
   fi
@@ -83,10 +106,10 @@ if ((${#urls[@]} == 0)); then
 fi
 
 input=$(mktemp --suffix=.md)
-trap 'rm -f "$input"' EXIT
+temporary+=("$input")
 printf '<%s>\n' "${urls[@]}" >"$input"
 rc=0
-report=$("$lychee" --no-progress --config "$config" "$input" 2>&1) || rc=$?
+report=$("$lychee" --no-progress "${configs[@]}" "$input" 2>&1) || rc=$?
 case $rc in
   0) echo "$me: ${#urls[@]} added or changed external link(s) resolve" ;;
   2)

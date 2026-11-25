@@ -126,18 +126,15 @@ QUOTE_LABEL = r"(?: \((?:HIGH \(single source\)|HIGH|MEDIUM|LOW)\))?"
 
 
 def id_pattern(ids) -> re.Pattern:
-    """Match any of ids as a whole token, longest first."""
     alternatives = "|".join(map(re.escape, sorted(ids, key=len, reverse=True)))
     return re.compile(r"(?<![A-Za-z0-9_])(" + alternatives + r")(?![A-Za-z0-9_])")
 
 
 def quote_pattern(ids) -> re.Pattern:
-    """Match the opening of a quote, <id>[ (<label>)]: ", up to its first quote mark."""
     return re.compile(id_pattern(ids).pattern + QUOTE_LABEL + r': "')
 
 
 def header_value(csa, line: str) -> str:
-    """A front-matter line, its value unquoted when it is a quoted YAML scalar."""
     found = csa.KEY.match(line)
     if not found or not found.group(2) or found.group(2).strip()[:1] not in ("'", '"'):
         return line
@@ -157,7 +154,6 @@ def load_parser():
 
 
 def claims_block(csa, lines: list[str]) -> range:
-    """Front-matter indexes of the claims: block, by the parser's own stop rule."""
     found = csa.top_level(lines, "claims", "front matter")
     if found is None:
         return range(0)
@@ -177,7 +173,6 @@ def claims_block(csa, lines: list[str]) -> range:
 
 
 def body_start(lines: list[str]) -> int:
-    """Index of the first line after the front matter, or 0 when there is none."""
     if not lines or lines[0].rstrip() != "---":
         return 0
     for i in range(1, len(lines)):
@@ -187,7 +182,6 @@ def body_start(lines: list[str]) -> int:
 
 
 def sidecars_in(directory: Path) -> list[Path]:
-    """The RESEARCH-*.md sidecars directly in directory, sorted."""
     # fnmatchcase, not glob: pathlib's glob is case-insensitive on Windows and
     # would take the lowercase research-checklist.md ledger for a sidecar.
     return sorted(
@@ -198,7 +192,6 @@ def sidecars_in(directory: Path) -> list[Path]:
 
 
 def abstract_violations(csa, index: Path, sidecars, headers, declared, opener) -> list[str]:
-    """Each sidecar declaring an id'd claim quotes one in its abstract, mirrored verbatim."""
     lines = csa.read_text(index).splitlines()
     start = body_start(lines)
     body = list(enumerate(lines[start:], start=start + 1))
@@ -228,22 +221,6 @@ def abstract_violations(csa, index: Path, sidecars, headers, declared, opener) -
 
 
 def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[int, str]:
-    """Grade the slice's lines against the claims it and its sub-slices declare.
-
-    A sub-slice's sidecars declare claims only: their lines were graded in the
-    sub-slice's own run, so only the root's files are read for lines. A root claim
-    is keyed by its bare ID and a sub-slice claim by <sub-slice name>/<id>, so two
-    sub-slices may each declare X1. A root claim and a sub-slice claim sharing a
-    bare ID leave a root pointer unable to tell its own claim from the other, so
-    that is ungradeable.
-
-    A token on a line is a bare ID or a qualified one, and keys_of resolves it to
-    keys. A bare ID names every claim declaring it, so the line carries each one's
-    label, and its quote may match either claim; a qualified ID names its one
-    claim. A matching quote's words are the claim's own, so they are blanked
-    before IDs and sweep words are looked for, and ID tokens are blanked before
-    the sweep search so a sub-slice name such as all-hooks is no sweep word.
-    """
     sub_slices = sub_slices or []
     if not slice_dir.is_dir():
         raise csa.Ungradeable(f"slice directory not found: {slice_dir}")

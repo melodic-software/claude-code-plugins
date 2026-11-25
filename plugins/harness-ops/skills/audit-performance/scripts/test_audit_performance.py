@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Unit tests for the audit-performance engine, concentrated on the fan-out layer.
-
-Every test builds its own synthetic install tree. Nothing here reads the
-author's real `~/.claude`, and nothing here executes a discovered hook or
-statusline command.
-
-The suite's central obligation is stated once, here: asserting that the audit
-RUNS is not the same as asserting that it SEES the fan-out layer. Each fan-out
-probe therefore gets a fixture carrying a defect the old engine was structurally
-incapable of noticing, and the test asserts on the specific finding, not on the
-probe's mere presence.
-"""
 
 from __future__ import annotations
 

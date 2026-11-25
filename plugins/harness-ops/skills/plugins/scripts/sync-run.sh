@@ -243,10 +243,6 @@ else
   exit 2
 fi
 
-# fleet-state.sh resolves the DEFAULT marketplace by joining CLAUDE_PLUGIN_ROOT
-# against the install records, so a headless run that never had it set still gets a
-# target instead of an error. This script's own location is inside the plugin root
-# by construction (<root>/skills/plugins/scripts), so it is the honest default.
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
 # --- clock ---------------------------------------------------------------------
@@ -282,8 +278,6 @@ resolve_clock() {
     CLOCK_RESOLUTION="seconds"
   fi
 }
-# clock_into VAR: the current stamp, `.` radix, into VAR without a subshell on
-# the EPOCHREALTIME rung.
 clock_into() {
   local __var="$1"
   local t
@@ -571,7 +565,6 @@ move_row_to() {
   printf -v "$1" '{"id":%s,"scope":%s,%s"old":%s,"new":%s,"direction":%s}' \
     "$__mr_id" "$__mr_sc" "$__mr_k" "$__mr_o" "$__mr_n" "$__mr_d"
 }
-# downgrade_row_to VAR id scope old new [concurrent]
 downgrade_row_to() {
   local __dr_id __dr_sc __dr_o __dr_n
   json_string_to __dr_id "$2"
@@ -627,8 +620,6 @@ version_direction_to() {
   printf -v "$__vd_var" '%s' "$__vd_d"
 }
 
-# Testing only. "old<TAB>new" prints version_direction and exits before any
-# fleet read, so a leading-zero segment can be asserted without a catalog.
 if [[ -n "${SYNC_RUN_VERSION_DIRECTION:-}" ]]; then
   version_direction "${SYNC_RUN_VERSION_DIRECTION%%$'\t'*}" "${SYNC_RUN_VERSION_DIRECTION#*$'\t'}"
   exit 0
@@ -2276,15 +2267,6 @@ cache_content_block() {
     rc=$?
   fi
 
-  # `stale[]` carries the per-id row the report renders: the version the record
-  # names, and one file count. All three directions are summed, because the row
-  # says the cache DISAGREES with the recorded sha and a file only in the tree or
-  # only in the cache disagrees exactly as much as one whose bytes changed.
-  # `unreleased_changes` marks a plugin whose clone holds changelog fragments:
-  # its files changed with no version bump yet, which the next release fixes.
-  # `stale_ids` stays alongside it for readers that only need the ids. `scope`
-  # names which records the counts cover: project and local records are not
-  # compared.
   if ((rc == 0)) && jq -e 'has("checked")' "$report" >/dev/null 2>&1; then
     jq_to CACHE_JSON -c '{scope: (.scope // "user"), checked, match, stale_content, unverifiable,
       not_checked: (.not_checked // 0),

@@ -1061,7 +1061,6 @@ def real_setup_settings(settings: dict) -> dict:
 
 def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
     row = base_row(case)
-    # A dry run checks the case's wiring, which no platform rules out.
     reason = skip_reason(case) if live else None
     if reason:
         return with_verdict(row, "skipped", reason)
@@ -1175,7 +1174,6 @@ def run_suite(cases: list[dict], runner, args) -> list[dict]:
                 case.get("max_budget_usd", DEFAULT_BUDGET_USD),
                 args.max_cost_usd - spent,
             )
-            # The model the run uses, so a scaffold's PROBE_MODEL names the same one.
             model = case.get("model", getattr(args, "model", DEFAULT_MODEL))
             row = run_case(
                 {

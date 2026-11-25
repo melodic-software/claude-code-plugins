@@ -32,8 +32,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/dead-code-shapes.sh
 source "$SCRIPT_DIR/lib/dead-code-shapes.sh"
 
-# Where the caller invoked us. Explicit targets are relative to THIS, not to the
-# repo root we cd into below, so they are anchored here before the cd.
 INVOCATION_CWD="$PWD"
 TAB=$'\t'
 
@@ -141,8 +139,6 @@ if [[ -n "$ROOT_SEL" ]]; then
   cd -- "$INVOCATION_CWD" || exit 2
 fi
 
-# Anchor caller-supplied paths BEFORE the cd, or they resolve against the repo
-# root instead and silently miss.
 for target_idx in "${!TARGETS[@]}"; do
   TARGETS[target_idx]="$(dc_anchor_path "${TARGETS[target_idx]}")"
 done
@@ -223,7 +219,6 @@ dc_account_lane_files() {
   esac
 }
 
-# Account the files under the lane state, then write its Lane line with their count.
 lane_files() {
   local lane="$1" root="$2" state="$3" detail="$4"
   shift 4
@@ -231,8 +226,6 @@ lane_files() {
   lane_line "$lane" "$root" "$state" "$#" "$detail"
 }
 
-# Owned-file lists are root-relative. Coverage keys are repo-relative, the same
-# form git ls-files handed the classifier.
 dc_repo_owned() {
   local root="$1"
   shift
@@ -290,7 +283,6 @@ list_search_files_z() {
 list_scope_files() {
   local t f
   local -a scan_roots=('.')
-  # No target means the whole repository, which is the same walk rooted at `.`.
   [[ ${#TARGETS[@]} -eq 0 ]] || scan_roots=("${TARGETS[@]}")
   for t in "${scan_roots[@]}"; do
     if [[ "$GIT_OK" == '1' ]]; then
@@ -312,7 +304,6 @@ SOURCE_FILES=()
 # Filled by the grep lane. Declared here so `set -u` can see the array before
 # that lane runs.
 FILE_REF_FILES=()
-# The TS/JS files no package.json root owns; the grep lane's symbol pass takes them.
 STANDALONE_TS_FILES=()
 FILE_REF_EMITTED=0
 
@@ -354,7 +345,6 @@ done < <(list_scope_files | LC_ALL=C sort -u)
 # scan refuses to do. Ownership makes keeping it safe — a source-less root owns
 # nothing and reports `scanned-zero-files`, which is the honest state anyway.
 
-# The roots in ARR_NAME that lie strictly INSIDE root, written to DST_NAME.
 nested_roots() {
   local root="$1" arr_name="$2" dst_name="$3"
   local -n _dc_own_all="$arr_name"
@@ -392,9 +382,6 @@ in_ts_files() {
   [[ -n "${TS_IN_SCOPE[$1]:-}" ]]
 }
 
-# The owned files, root-relative — the form a detector invoked at that root
-# reads. A nested root's files are never handed to the outer root's run, and
-# the count of what came back is the root's own scanned-files number.
 files_owned() {
   local root="$1" nest_name="$2" arr_name="$3" dst_name="$4"
   local -n _dc_own_src="$arr_name"
@@ -462,8 +449,6 @@ lane_knip() {
     return 0
   fi
   for root_rel in "${roots[@]}"; do
-    # Ownership is computed BEFORE anything else, because it decides both what
-    # this root is scanning FOR and what it is allowed to report.
     nested_roots "$root_rel" roots root_nested
     files_owned "$root_rel" root_nested TS_FILES owned_ts
     repo_owned=()
@@ -561,8 +546,6 @@ lane_knip() {
 lane_vulture() {
   local bin rc=0 v_line row parsed=0 drift=0 unparsed=0
   local p_file p_line p_shape p_excerpt
-  # FP classes measured to matter, pre-applied. A consumer extends these through
-  # the native whitelist, not by editing this script.
   local ignore_decorators='@app.route,@*.route,@pytest.fixture,@property,@*.setter,@*.command,@*.task'
   if [[ ${#PY_FILES[@]} -eq 0 ]]; then
     lane_line vulture '.' scanned-zero-files 0 \
@@ -662,8 +645,6 @@ lane_gopls() {
     degraded=0
     foreign=0
     nested_roots "$root_rel" roots root_nested
-    # Only the files this module OWNS are handed to gopls; a nested go.mod's
-    # files belong to that module's own run.
     files_owned "$root_rel" root_nested GO_FILES mod_files
     repo_owned=()
     while IFS= read -r owned_rel; do
@@ -690,10 +671,6 @@ lane_gopls() {
     fi
     (cd "$root_abs" && "$bin" check -severity=hint -- "${mod_files[@]}") \
       >"$WORK/gopls.out" 2>"$WORK/gopls.err" || true
-    # Health is decided BEFORE a single record is made, the same order the knip
-    # and vulture lanes use. A gate inside the parse loop would let add_candidate
-    # append this module's rows first, so a lane line reading "emits no records"
-    # would ship alongside the records it claims to withhold.
     if [[ -s "$WORK/gopls.err" ]]; then
       degraded=1
     else
@@ -720,8 +697,6 @@ lane_gopls() {
       0)
         IFS="$TAB" read -r p_file p_line p_shape p_excerpt <<<"$row"
         g_path="$(repo_relative "$(rebase_path "$root_rel" "$p_file")")"
-        # A diagnostic about a file this module does not own belongs to the
-        # nested module that owns it, and only when that module's run is healthy.
         if ! owns_path "$root_rel" root_nested "$g_path"; then
           foreign=$((foreign + 1))
           continue
@@ -800,10 +775,6 @@ collect_file_ref_files() {
   done
 }
 
-# Repo-wide literal search on each file's basename and repo-relative path.
-# A hit in any other tracked file saves it, including CI workflows, settings,
-# manifests, and docs. A hit inside the file itself does not. A computed path
-# or a glob never spells those keys, so a miss is an uncertain candidate.
 emit_unreferenced_files() {
   local f base stem key pair
   local -A KEY_SEEN=()
@@ -936,9 +907,6 @@ lane_grep() {
       [[ -n "$d_name" ]] || continue
       defs="${DEFS["$d_name"]:-1}"
       hits="${HITS["$d_name"]:-0}"
-      # Only the definition sites themselves matched anywhere in the repository.
-      # The search spans every tracked file, so a C# member a Razor or cshtml
-      # view names, or a partial type's other file uses, is saved.
       if [[ "$hits" -le "$defs" ]]; then
         add_candidate "$f" "$d_line" "$d_shape" "$d_text"
         emitted=$((emitted + 1))
@@ -988,8 +956,6 @@ while IFS="$TAB" read -r c_file c_line c_shape c_excerpt; do
     if [[ "$GIT_OK" == '1' && -f "$c_file" ]]; then
       ts="$(git log -1 --format=%ct -- "$c_file" 2>/dev/null | tr -d '\r')"
     fi
-    # An untracked or unknown file has no commit recency; it sorts NEWEST so the
-    # cap keeps the oldest-untouched code, which is what this skill is hunting.
     [[ -n "$ts" ]] || ts="$NOW"
     FILE_TS["$c_file"]="$ts"
   fi

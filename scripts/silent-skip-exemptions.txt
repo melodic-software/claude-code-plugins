@@ -22,6 +22,6 @@ plugins/guardrails/hooks/block-root-delete-target.sh cygpath  cygpath is part of
 plugins/javascript-format/hooks/javascript-format.sh jq  the SessionStart prerequisites probe reports a missing jq; the batch row never speaks to the model
 plugins/markdown-format/hooks/markdown-format.sh jq  the SessionStart probe reports a missing jq (prerequisites.json)
 plugins/python-format/hooks/python-format.sh jq  the SessionStart prerequisites probe reports a missing jq; the batch row never speaks to the model
-plugins/session-flow/hooks/observer-arm.sh jq  opt-in arming hook: a missing prerequisite is a by-design no-op that preserves zero-config behavior; /session-flow:setup surfaces the absence on demand, and SessionStart output would fire this notice every start
+plugins/session-flow/hooks/observer-catchup.sh jq  opt-in catch-up hook: a missing prerequisite is a by-design no-op that preserves zero-config behavior; /session-flow:setup surfaces the absence on demand, and SessionStart output would fire this notice every start
 plugins/session-telemetry/hooks/hook-telemetry-sink.sh jq  fire-and-forget sink: the producer discards stdout and stderr, so no notice channel exists; the producer side owns prerequisite visibility
 plugins/spelling/hooks/spelling.sh typos  the SessionStart probe already told the user typos is missing (prerequisites.json, hook:spelling.sh), and the bundled checker reports it; blocking every turn end on a host problem would not help the model

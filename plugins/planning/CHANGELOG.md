@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.18.0] - 2026-11-25
+
+### Added
+
+- `/planning:design`, `/planning:interview` and `/planning:wayfind` offer collaborative canvas mode (`/visualization:visualize`) on a structural question, and only there.
+
+### Changed
+
+- `/planning:interview` lists `/session-flow:workflow` under `## Related` instead of `## Next`.
+
+## [5.17.0] - 2026-11-25
+
+### Added
+
+- Standards resolution reads the org layer of standards contract 1.2.0: the standards index of the repository `standards_repository` names, from its `main`, beneath the repository's own. `scripts/org-standards.sh` reads it.
+
 ## [5.16.0] - 2026-11-24
 
 ### Changed

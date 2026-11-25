@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.12.0] - 2026-11-25
+
+### Added
+
+- Review criteria compose the organization's `REVIEW.md` (the repository `standards_repository` names, read from its `main`) with the repository's appended; a repository `REVIEW.md` whose first non-blank line is `<!-- review-base: replace -->` replaces it. `scripts/org-standards.sh review` prints the result, and the CI lane reads the composed file a `REVIEW CRITERIA:` line names. Standards contract 1.2.0 adds the org layer beneath the team layer.
+
 ## [10.11.1] - 2026-11-24
 
 ### Changed

@@ -1,21 +1,4 @@
 #!/usr/bin/env python3
-"""Contract tests for the spawn-noise lib, beside its canonical copy.
-
-These deliberately do NOT restate the six `TestSpawnCostSummary` cases in
-`skills/audit-performance/scripts/test_audit_performance.py`. Those exercise the
-summary through the engine's re-export and prove the move was behavior-neutral;
-duplicating them here would be a second way to say the same thing.
-
-What this suite adds is what the engine's suite structurally cannot:
-
-1. the module imports and works with no engine on the path at all, which is the
-   whole point of promoting it, and
-2. the `bimodal-spawn-latency` predicate is genuinely TWO-part -- asserted by
-   showing the two arms produce DIFFERENT verdicts, not merely that each arm
-   produced its own expected string. A predicate test where both arms happen to
-   agree would pass while proving nothing, which is the exact failure mode this
-   lib exists to help callers avoid.
-"""
 
 from __future__ import annotations
 

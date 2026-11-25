@@ -1,5 +1,36 @@
 # Changelog: session-flow plugin
 
+## [10.0.0] - 2026-11-25
+
+### Added
+
+- The session observer is now a hooks module plus a catch-up. With `observer_enabled` on, a live check runs on every 6th model step of a long turn: a no-tools fork of the main conversation that reports at most one process fault tied to a written rule or owner decision. A finding goes to this session's running-retro ledger and to one row above the prompt (`1` Send to Claude, `2` Noted, `3` Dispute, `0` Dismiss); nothing reaches the conversation unless sent. Repeats across sessions and disputed findings are suppressed, ignored findings back off, and each check's token usage is recorded in a per-session file under the plugin data folder.
+- `observer_step_check` (default on) and `observer_turn_end_check` (default off until its cost is measured) choose the live triggers.
+- At each interactive session start, a SessionStart hook analyzes up to two ended sessions that got no live checks, such as headless lanes, with the existing headless analysis.
+- The plugin now declares `engines["claude-code"]` `>=2.1.331`.
+
+### Changed
+
+- If you already turned `observer_enabled` on, this update starts the live step checks in your interactive sessions, which use your session's model usage. Set `observer_step_check` off to keep only the catch-up.
+
+### Removed
+
+- The detached transcript tailer that polled each session for up to 24 hours, with `observer_poll_seconds` and `observer_max_seconds`. `observer_idle_seconds` now sets how long a transcript must be unchanged before the catch-up treats its session as ended.
+- The `/session-flow:running-retro arm` action: the observer needs no arming.
+
+## [9.25.1] - 2026-11-25
+
+### Changed
+
+- Handoff files write history, not the present: each claim about code or state carries the date it was true and, for code, the commit (`owner/repo@<sha>`), and a changed fact is superseded by a new dated claim instead of edited. `validate` warns on a bare "currently" or "now" in Observations with no date or commit.
+
+## [9.25.0] - 2026-11-25
+
+### Added
+
+- `observer_min_lines` (default 300) skips the observer's post-session analysis for a session with fewer transcript lines, such as an automated sweep, until it has a ledger. The skip goes to the observer's status file and log, and no ledger is written. A follow-up to an analyzed session is always analyzed. `0` analyzes every session.
+- The observer records each analysis run's reported token usage, plus `duration_ms` and `total_cost_usd` when present, as a timestamped entry in its status file's `analysis_runs` list and one log line, so observer spend can be measured per session.
+
 ## [9.24.2] - 2026-11-25
 
 ### Changed

@@ -115,8 +115,8 @@
 # `sudo`, `env`, `nice`, `timeout` or `xargs`, a child shell (`bash -c '...'`),
 # a gh alias, brace expansion (`{gh,} pr merge`), a glob (`g? pr merge`) or
 # `gh.cmd`; a GraphQL mutation read from a file (`--input`), whose name
-# never appears in the command; past 100 reviews or check runs the rest are
-# not read; past 2,000 review threads (https://github.com/melodic-software/claude-code-plugins/issues/18822) the merge runs unchecked; the backtick refusal keys on merge-shaped text, so
+# never appears in the command; past 2,000 review threads, reviews, check runs
+# or commit statuses (https://github.com/melodic-software/claude-code-plugins/issues/18822) the merge runs unchecked; the backtick refusal keys on merge-shaped text, so
 # an obfuscated spelling of `pr merge` itself (`pr mer"ge"`) with a backtick is
 # parsed as usual (#8657); a merge verb built from pieces (`V=mer; gh pr ${V}ge`);
 # a cancelled run `<name>` is cleared by a newer successful `<name> (...)` run
@@ -170,7 +170,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source (scripts/check-killswitch-hoist.sh).
 [[ "${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_ENABLED:-true}" == "false" ]] && exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
@@ -203,18 +202,18 @@ BUPM_CWD="${HOOK_JQ_FIELDS[2]}"
 BUPM_FORM=""  # gh-pr-merge | rest-merge | ccr-auto-merge | graphql | mcp | backtick
 BUPM_AUTO=0   # 1: the request waits for checks (auto-merge or merge queue)
 BUPM_REPO=""  # owner/repo, may hold gh's {owner}/{repo} placeholders
-BUPM_NUM=""   # PR number
+BUPM_NUM=""
 BUPM_SEL=""   # gh pr merge selector: number, URL or branch; empty = current branch
 BUPM_NODE=""  # GraphQL PullRequest node id
 # Why the merge target is not a literal value; set means refuse.
 BUPM_UNRESOLVED=""
-BUPM_MERGES=0 # merge paths found in the command
-BUPM_BT=0     # 1: the command holds a backtick
-BUPM_CONT=0   # 1: merge-shaped text continued with a backslash-newline
+BUPM_MERGES=0
+BUPM_BT=0
+BUPM_CONT=0
 BUPM_CD=0     # 1: a segment changes directory (cd, pushd, popd, Set-Location)
 BUPM_GHREPO=0 # 1: the command text names GH_REPO or GH_HOST
 BUPM_HOST=""  # a host other than github.com that qualified the repo
-BUPM_SHELL=0  # 1: a heredoc body may run as commands (_bupm_runs_shell)
+BUPM_SHELL=0
 BUPM_UNLABEL=0
 BUPM_UNLABEL_VAR=0
 BUPM_UNLABEL_IDS=""
@@ -378,7 +377,6 @@ _bupm_gh_pr_merge() {
       --disable-auto | --help | -h) return 1 ;;
       --auto) auto=1 && continue ;;
       -R | --repo)
-        # No value: nothing names the repository.
         (($#)) || why="the -R value is missing"
         repo="${1-}" && shift && continue
         ;;
@@ -600,7 +598,6 @@ if [[ "$TOOL_NAME" =~ ^mcp__.+__(merge_pull_request|enable_pr_auto_merge)$ ]]; t
   BUPM_NUM="${HOOK_JQ_FIELDS[2]%.0}"
 else
   [[ -n "$COMMAND" ]] || exit 0
-  # Past the row's shared ceiling the command is not parsed.
   ((${#COMMAND} > 16384)) && exit 0
   # Cheap pre-filter: every matched path names `merge` or `enqueue`. It reads a
   # copy with every backslash-newline joined, so `mer\<newline>ge` still matches;
@@ -637,8 +634,6 @@ else
       lead="${BASH_REMATCH[1]}"
       before="${text%%"$m"*}"
       text="${text#*"$m"}"
-      # An empty lead is `^`: the text's start (`pr` is the command word), or
-      # the end of the previous match, which the full text would not match.
       [[ -n "$lead" ]] || {
         seen+="$m"
         continue
@@ -740,17 +735,12 @@ else
     BUPM_BT=1
     BUPM_FORM=backtick
   elif [[ "$TOOL_NAME" != PowerShell && "$_bupm_text" == *$'\\\n'* && "$_bupm_joined" =~ $_bupm_cli_re ]]; then
-    # GraphQL keeps the PR in a quoted query the parser reads, and fails closed
-    # on anything but a literal node id, so only `pr merge` and the REST route
-    # are refused here.
     BUPM_CONT=1
     BUPM_FORM=continuation
   else
     [[ -n "$BUPM_FORM$BUPM_UNLABEL_IDS" ]] || ((BUPM_UNLABEL || BUPM_UNLABEL_VAR || BUPM_UNLABEL_GQL)) || exit 0
   fi
 fi
-
-# --- reading the PR's state ---------------------------------------------------
 
 # shellcheck source=merge-readiness.sh
 source "$_HOOK_SELF/merge-readiness.sh" || exit 70

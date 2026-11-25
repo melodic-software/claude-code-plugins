@@ -1,6 +1,6 @@
 ---
 description: "Post-use behavioral audit of a Claude Code plugin component, a skill, agent, hook, command, or config, after using or setting it up, ending in a work item emitted to the plugin's maintainers. Covers errors, improvements, and quality of life for each audited component. Use when vetting, reviewing, stress-testing, or hardening a plugin component, when the ask is 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin', 'is this plugin (or hook) well-designed', 'find bugs or gaps in this plugin', right after invoking a plugin skill/command and wanting to check whether it behaves correctly and is well-architected, after setting up a plugin and wanting to review it, or when producing a handoff/work item for plugin maintainers. Not for: static skill QA in isolation (skill-quality:check), general code review (review), or MCP-server audits (mcp-tools:audit, when installed)."
-argument-hint: "[<plugin>[:<component>]...|session|arm]"
+argument-hint: "[<plugin>[:<component>]...|session]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Behavioral audit of a plugin component ending in a maintainer work item
 ---
 
-**Arguments.** `[<plugin>[:<component>]...|session|arm]`. One or more plugins, or a phrase naming several (e.g. source-control:commit, or guardrails). `session` and `arm` are whole arguments, never combined with a target; see [Session mode and arm](#session-mode-and-arm-operator-invoked-only).
+**Arguments.** `[<plugin>[:<component>]...|session]`. One or more plugins, or a phrase naming several (e.g. source-control:commit, or guardrails). `session` is a whole argument, never combined with a target; see [Session mode](#session-mode-operator-invoked-only).
 
 # Plugin audit
 
@@ -160,15 +160,12 @@ sanitizes to a slug matching no directory the run ever created, so a post-compac
 re-derives the slug from the argument concludes the findings are missing from a run that wrote
 several packets.
 
-## Session mode and arm (operator-invoked only)
+## Session mode (operator-invoked only)
 
-Two more entries to this same audit, not new skills. No hook starts either and the model never
-selects one; a model that thinks a session earns the pass offers it in one line and waits. Read
-[`reference/session-mode.md`](reference/session-mode.md) before running either.
+One more entry to this same audit, not a new skill. No hook starts it and the model never
+selects it; a model that thinks a session earns the pass offers it in one line and waits. Read
+[`reference/session-mode.md`](reference/session-mode.md) before running it.
 
-- **`arm`**, at session start: invoke `/session-flow:running-retro arm` (if enabled) when session-flow is
-  enabled (absent: say the observer cannot be armed here and stop), then record the armed state
-  in this plugin's data directory. Nothing is audited.
 - **`session`**, at session end: read `plugin_usage` from the session's running-retro ledger,
   session-flow's documented artifact (no ledger or no key: tell the operator to run
   `/session-flow:running-retro` (if enabled) and re-run, never a second parser), show the discovered plugin and
@@ -459,7 +456,7 @@ the gate does not cover, because it produces no external effect; there is still 
 
 ## What this composes
 
-This audit calls, and replaces none of: `/session-flow:running-retro` (if enabled) (`arm`, and the ledger
+This audit calls, and replaces none of: `/session-flow:running-retro` (if enabled) (the ledger
 `session` reads), `/discovery:research` (if enabled) (the research gate), `skill-quality:check`,
 `review:fanout` / `review:quality-gate`, and the role-resolved seams of step 5. Each is used
 presence-gated with the fallback stated where it is invoked. Every one keeps its own owner and
@@ -490,7 +487,7 @@ record in [evidence-packet.md](reference/evidence-packet.md#layout-and-files).
 | `reference/evidence-packet.md` | Before step 1 writes the packet, and before any step reads it. |
 | `reference/categories.md` | Before step 2 writes findings, and before step 3 grades the ledger. |
 | `reference/recurring-concerns.md` | Every audit, walked before finalizing findings: the design-failure checklist (silent bypass surfaces, enforcement scope/tiers including a claimed property the producer can break, SSOT/drift, coupling, cross-platform, escape hatches, observability). |
-| `reference/session-mode.md` | Running `session` or `arm`, applying the evidence bar or research gate, or resolving step 5's role seams. |
+| `reference/session-mode.md` | Running `session`, applying the evidence bar or research gate, or resolving step 5's role seams. |
 | `reference/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
 | `reference/component-types/skill-component.md` | Auditing a skill (frontmatter, disclosure, triggering). |
 | `reference/component-types/agent.md` | Auditing an agent/subagent definition. |

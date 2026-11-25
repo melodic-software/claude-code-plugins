@@ -304,19 +304,18 @@ tracker filing is offered not automatic, the session is never scored, and it is 
 ```shell
 /session-flow:running-retro            # checkpoint: note → delegate → classify → append → offer routes
 /session-flow:running-retro phase-3    # same, naming the ledger topic slug
-/session-flow:running-retro arm        # arm the detached observer for this session (see below)
 ```
 
-**Detached observer process.** running-retro also owns an out-of-band observer that turns the
-checkpoint from PULL (invoked in-session) into a path that can also fire *after* the session ends, something a
-`/loop` structurally cannot do. The `arm` action launches a stdlib-Python tailer, detached from every
-session's process tree so it outlives the session. The tailer reads the transcript at zero context
-cost, detects end by mtime-idle, then runs the same checkpoint method headless (a cheap `claude -p`) and
-appends the redacted findings to this session's ledger. An **opt-in** SessionStart hook
-(`observer_enabled`, default off, installing the plugin changes nothing) automates the same launcher
-for every real session; the manual `arm` is primary. The mechanism, lifecycle, config, untrusted-data
-boundary, and the deferred native Observer-Agents alternative are documented in
-`reference/observer.md`; prerequisites are verified by `/session-flow:setup`.
+**Session observer.** With `observer_enabled` on, session-flow watches each session without being
+asked. Its hooks module runs a live check every 6th model step of a long turn (and, when
+`observer_turn_end_check` is on, at the end of each tool-using turn): a no-tools fork of the main
+conversation that reports at most one process fault tied to a written rule or owner decision. A
+finding goes to this session's running-retro ledger and to one row above the prompt, where `1` sends
+it to Claude, `2` notes it, `3` disputes it and `0` dismisses it. At each session start a SessionStart
+hook analyzes, with a headless `claude -p`, up to two ended sessions that got no live checks, such as
+headless lanes. The module needs Claude Code 2.1.331 or later and was tested with `claude plugin test`
+on 2.1.331; it runs no checks in `-p` sessions.
+Mechanism, cost and config: `reference/observer.md`; prerequisites: `/session-flow:setup`.
 
 ### orient
 
@@ -499,7 +498,7 @@ Opt-in only: nothing runs unless invoked.
 
 ### setup
 
-`check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the tailer, `jq` for
+`check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the catch-up, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;
 `observer_idle_seconds` below the machine's longest single turn). It also validates the repository's
@@ -537,7 +536,7 @@ The skills adapt to the consuming repo rather than imposing structure:
 ## Requirements
 
 - Node.js on PATH: every hook launches through `node hooks/exec-bash.mjs`, so without it the hooks do not run.
-- The observer process only: Python 3.10+, `jq`, and `claude` on PATH. `/session-flow:setup` checks each.
+- The observer's catch-up only: Python 3.10+, `jq`, and `claude` on PATH. `/session-flow:setup` checks each.
 - `/session-flow:find-handoff` uses Python 3.10+ when present to tell which transcript directories
   belong to this repository; without it, it lists only directories whose name matches a worktree
   exactly and says so.
@@ -546,7 +545,7 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ## Configuration
 
-`userConfig`. The **detached observer** has eight keys, all defaulting to zero-config behavior
+`userConfig`. The **session observer** has nine keys, all defaulting to zero-config behavior
 (see `reference/observer.md` for full semantics); **audit-sessions** has five `audit_sessions_*`
 keys (store retention, excerpt length, the short-turn word limit, and the two drift-check bounds);
 `cloud_route` and `retro_offer` set whether the workflow's continuation advice offers a cloud
@@ -557,23 +556,23 @@ night start, report-by times, days off, watched folders and orchestrator posture
 
 | Key | Default | Effect |
 |---|---|---|
-| `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = installing the plugin changes nothing; manual `arm` still works. |
-| `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: observations are distilled and retained under the plugin work dir for manual inspection; nothing is written to the ledger. |
-| `observer_analysis_model` | see options reference | Analysis model, chosen for faithful findings; with effort, the dominant cost lever. |
-| `observer_analysis_effort` | see options reference | Analysis effort, passed as `--effort` and pinned through `--settings` against a `CLAUDE_CODE_EFFORT_LEVEL` from a lower-ranked source; for which sources rank higher, see [env-vars: precedence](https://code.claude.com/docs/en/env-vars#precedence). |
+| `observer_enabled` | `false` | Turns on the live checks and the catch-up. Off = installing the plugin changes nothing. |
+| `observer_step_check` | `true` | Live check on every 6th model step of a turn. |
+| `observer_turn_end_check` | `false` | Live check at the end of each tool-using turn; off until its cost is measured. |
+| `observer_analysis_enabled` | `true` | Run the catch-up for ended sessions with no live checks. Off = no catch-up; live checks unaffected. |
+| `observer_analysis_model` | see options reference | Catch-up analysis model, chosen for faithful findings; with effort, the dominant cost lever. |
+| `observer_analysis_effort` | see options reference | Catch-up analysis effort, passed as `--effort` and pinned through `--settings` against a `CLAUDE_CODE_EFFORT_LEVEL` from a lower-ranked source; for which sources rank higher, see [env-vars: precedence](https://code.claude.com/docs/en/env-vars#precedence). |
 | `observer_analysis_bare` | `false` | Pass `--bare` to the analysis run (breaks OAuth-login auth; leave off unless auth is an env-var API key). |
-| `observer_min_lines` | `300` | Skip the analysis for a not-yet-analyzed session with fewer transcript lines, such as an automated sweep; the skip is recorded in the observer's status file. `0` analyzes every session. |
-| `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
-| `observer_poll_seconds` | `5` | How often the observer re-reads the transcript and re-checks the idle threshold. Minimum 1. |
-| `observer_max_seconds` | `86400` | Hard observer lifetime; reaching it exits without analysis. |
+| `observer_min_lines` | `300` | Skip the catch-up for a not-yet-analyzed session with fewer transcript lines, such as an automated sweep; the skip is recorded in the observer's status file. `0` analyzes every session. |
+| `observer_idle_seconds` | `900` | How long a transcript must be unchanged before the catch-up treats its session as ended; keep above the longest single turn. |
 
 State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}` directory (per-project
 files), never in the consumer's repo. The audit-sessions store and reports live under
 `${CLAUDE_PLUGIN_DATA}/audit-sessions/` (layout in `skills/audit-sessions/reference/store-layout.md`);
-uninstalling the plugin from its last scope deletes them unless you pass `--keep-data`. The observer's transient distilled observations live under
-`${CLAUDE_PLUGIN_DATA}/session-flow-observer/` and are deleted after each analysis run. Handoff
+uninstalling the plugin from its last scope deletes them unless you pass `--keep-data`. The observer's per-session live-check usage files and the catch-up's transient distilled
+observations live under `${CLAUDE_PLUGIN_DATA}/session-flow-observer/`; observations are deleted after each analysis run. Handoff
 save-points (`.work/handoffs/` by default) and running-retro ledgers (`.work/running-retros/` by
-default, shared by in-session checkpoints and the autonomous observer) are memory-tier working files
+default, shared by in-session checkpoints and the observer) are memory-tier working files
 in the consumer's project: machine-local, never committed.
 
 Network: `reanchor` queries live host state via `git`/`gh` to verify a session's referenced
@@ -585,10 +584,9 @@ optionally runs `gh pr list` (read-only) and, when a work-item tracker capabilit
 its open items, degrading to local git state alone when `gh` or the tracker is absent. `recall`
 scans local transcripts and git history, and optionally runs `gh pr list` (read-only) for closed
 unmerged pull requests and searches the tracker when one is installed, naming any source it could
-not reach. The observer's
-autonomous analysis leg reaches the network only when armed with `observer_analysis_enabled` on: it
-runs a headless `claude -p` (ordinary model API egress); collect-only mode and the in-session
-checkpoint are network-free. Every skill not named above is network-free
+not reach. With `observer_enabled` on, the observer's live checks are model
+calls on the session's own connection, and its catch-up runs a headless `claude -p` (ordinary model
+API egress) unless `observer_analysis_enabled` is off; the in-session checkpoint is network-free. Every skill not named above is network-free
 (retro, running-retro and audit-sessions read local `~/.claude/projects/` transcripts with stdlib-only
 Python 3.10+ scripts sharing one transcript reader; find-handoff scans those same local transcripts read-only, using
 that reader only to read the launch `cwd` that maps a scope to directories, and `reconcile` reads them read-only and mutates only the in-session task ledger);
@@ -598,14 +596,11 @@ from the pushed branch, but the skill itself performs no egress.
 
 ### Option details
 
-**`observer_analysis_enabled`.** Off, the observer does not analyze or write the ledger: no
-per-session Claude spend and no automatic in-session consumer. The end it waits for is mtime-idle.
+**`observer_analysis_enabled`.** Off, no catch-up runs, so ended sessions without live checks get
+no ledger and no catch-up spend.
 
 **`observer_analysis_bare`.** Turn it on only where auth is an env-var API key that survives
 `--bare`.
-
-**`observer_poll_seconds`.** Bounded below at 1: 0 spins the detached observer continuously, and a
-negative value raises at its sleep and kills it silently.
 
 **`worker_continuation`.** Read by `/session-flow:orchestrate` when it primes a session: `resume`
 (default) keeps a worker across related units, `respawn` starts each new unit in a fresh worker
@@ -654,15 +649,15 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `observer_enabled` | boolean | `false` | Arms the detached running-retro observer at SessionStart for every real interactive session. Off by default, so installing session-flow changes nothing until you turn it on. The manual /session-flow:running-retro arm action works either way. |
-| `observer_analysis_enabled` | boolean | `true` | When the armed observer sees the session end (transcript idle), runs a headless running-retro checkpoint and writes its findings to the running-retro ledger. On by default. Off, the observer only distills observations and keeps them under its plugin work dir for manual inspection. |
-| `observer_analysis_model` | string | `"claude-opus-5-5"` | Model ID for the headless post-session analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost. |
-| `observer_analysis_effort` | string | `"medium"` | Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md. |
+| `observer_enabled` | boolean | `false` | Watches interactive sessions for process mistakes: live checks write findings to the running-retro ledger and show them above the prompt, and each session start analyzes ended sessions that got none. Off by default. See reference/observer.md. |
+| `observer_step_check` | boolean | `true` | While the observer is on, runs a live check on every 6th model step of a long turn: a no-tools fork of the main conversation that reports at most one process fault. On by default. Each check bills the session's account; its usage is recorded. |
+| `observer_turn_end_check` | boolean | `false` | While the observer is on, also runs a live check at the end of each turn that ran tools, which is most turns of a working session. Off by default until its cost on a working session is measured; see reference/observer.md. |
+| `observer_analysis_enabled` | boolean | `true` | At session start, runs the headless running-retro analysis for ended sessions that got no live checks and writes its findings to their ledger. On by default. Off, no catch-up runs; the live checks are unaffected. |
+| `observer_analysis_model` | string | `"claude-opus-5-5"` | Model ID for the headless catch-up analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost. |
+| `observer_analysis_effort` | string | `"medium"` | Effort level passed as --effort to the headless catch-up analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md. |
 | `observer_analysis_bare` | boolean | `false` | Passes --bare to the analysis run, dropping auto-discovery as a further cost lever. Off by default because --bare fails on OAuth-login installs (the run reports Not logged in); turn it on only where auth is an env-var API key. See reference/observer.md. |
-| `observer_min_lines` | number<br>*min 0* | `300` | Transcript lines a session needs before its first post-session analysis; default 300. A shorter session, such as an automated sweep, is skipped and the skip recorded in the observer's status file. A follow-up to an analyzed session is always analyzed. 0 analyzes every session. |
-| `observer_idle_seconds` | number | `900` | How long the transcript must stop growing before the observer treats the session as ended; default 900. Keep it above the longest single turn (large fan-outs, long builds), or a mid-turn pause is misread as the end and analysis runs on a partial transcript. |
-| `observer_poll_seconds` | number<br>*min 1* | `5` | How often the observer re-reads the transcript to distill new observations and re-check the idle threshold; default 5, minimum 1. Lower detects the end sooner at the cost of more wakeups; raise it on a busy machine. The idle threshold, not this, decides when the session is over. |
-| `observer_max_seconds` | number | `86400` | Absolute cap on observer lifetime; default 86400 (24 hours). Reaching it exits without running analysis: it is a safety valve, not an end signal. The idle threshold is the intended terminator. |
+| `observer_min_lines` | number<br>*min 0* | `300` | Transcript lines an ended session needs before its first catch-up analysis; default 300. A shorter session, such as an automated sweep, is skipped and the skip recorded in the observer's status file. A follow-up to an analyzed session is always analyzed. 0 analyzes every session. |
+| `observer_idle_seconds` | number | `900` | How long a transcript must go unchanged before the catch-up treats its session as ended; default 900. Keep it above the longest single turn, or a session still mid-turn in another terminal is analyzed early. |
 | `audit_sessions_retention_days` | number<br>*min 0* | `180` | How long audit-sessions keeps a session's record in its local store after the session ended; default 180. 0 keeps every record. Collect drops older records and never ingests a session already past the window. |
 | `audit_sessions_excerpt_chars` | number<br>*min 0, max 600* | `240` | Longest redacted excerpt of a short typed turn that audit-sessions stores; default 240, maximum 600. 0 stores no excerpt text at all. Redaction always runs first and cannot be turned off. |
 | `audit_sessions_excerpt_words` | number<br>*min 1, max 200* | `60` | A typed turn of this many words or fewer, right after a Claude reply, is flagged and excerpted by audit-sessions; default 60. These are the turns most likely to be corrections. |
