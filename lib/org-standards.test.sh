@@ -239,7 +239,7 @@ standards_repositories:
   - repo: stranger/guide
     ref: abc123
   - repo: acme/handbook
-    colour: blue
+    refs: main
   - {repo: acme/handbook}
   - repo: stranger/guide
     ref: $GUIDE
@@ -249,7 +249,7 @@ malformed=$(errs subscriptions --root "$t")
 assert_eq "a short ref is reported as malformed with its file and line" "1" \
   "$(grep -c "^org-standards: $USER_INDEX:6: malformed subscription (ref is not a full commit SHA); entry skipped" <<<"$malformed")"
 assert_eq "an unknown key is reported as malformed with its file and line" "1" \
-  "$(grep -c "^org-standards: $USER_INDEX:8: malformed subscription (unknown key colour)" <<<"$malformed")"
+  "$(grep -c "^org-standards: $USER_INDEX:8: malformed subscription (unknown key refs)" <<<"$malformed")"
 assert_eq "a flow-style entry is reported as malformed with its file and line" "1" \
   "$(grep -c "^org-standards: $USER_INDEX:10: malformed subscription (flow mapping" <<<"$malformed")"
 
