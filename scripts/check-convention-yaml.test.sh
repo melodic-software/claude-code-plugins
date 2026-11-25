@@ -170,10 +170,6 @@ else
   fail "$label: $(state) pwned=$pwned"
 fi
 
-# 10. YAML the schema validator accepts but the runtime parser rejects (an
-#     anchor and alias, a tag, a block scalar: lib/yaml-subset.awk's header
-#     names all three outside its subset) is a finding, the validator is not
-#     run for it, and the summary counts the files checked.
 names=(anchor tag 'block scalar')
 bodies=($'a: &x 1\nb: *x' 'a: !!str 1' $'a: |\n  text')
 for i in "${!names[@]}"; do
