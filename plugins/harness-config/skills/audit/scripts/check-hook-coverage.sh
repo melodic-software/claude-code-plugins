@@ -1,66 +1,10 @@
 #!/usr/bin/env bash
-# Hook inventory for the audit skill (Categories B and D).
-#
-# WHY THIS EXISTS. Category D writes rules for hooks that use
-# ${CLAUDE_PLUGIN_ROOT} / ${CLAUDE_PLUGIN_DATA}, and those placeholders only
-# ever appear in a PLUGIN-provided hook. Category B's third baseline narrowing
-# demotes a missing deny pattern to `info` when a LIVE PreToolUse hook already
-# blocks the family. Both need to know what hooks are installed.
-#
-# WHAT IT ENUMERATES.
-#   1. Settings-declared hooks: project settings.json, project
-#      settings.local.json, and the user-scope settings.json.
-#   2. Plugin-declared hooks: for every plugin enabled in any of those scopes,
-#      the plugin's own hook config, read from the directory the session
-#      actually loads. A plugin that comes from a `directory` marketplace is
-#      read from that marketplace's checkout; any other plugin is resolved
-#      through the installed-plugin registry, so no version-directory guessing
-#      is involved either way.
-#   3. The suppression levers that can switch hooks off wholesale, because a
-#      hook that cannot run is not coverage.
-#   4. Cache-versus-loaded divergence: when a plugin resolves through both a
-#      marketplace directory and a registry installPath and the two differ, the
-#      pair is reported as an info note. It never changes the exit code.
-#
-# WHERE A PLUGIN'S HOOKS LIVE. Two steps: which directory, then which file.
-#
-# Which directory. A marketplace registered as
-# `{"source": {"source": "directory", "path": "<dir>"}}` (in a settings scope's
-# `extraKnownMarketplaces`, or in the user dir's plugins/known_marketplaces.json
-# as `installLocation`) is loaded from <dir> itself: each plugin runs from
-# `<dir>/<marketplace.json entry .source>`, not from the registry's versioned
-# cache snapshot. That snapshot is taken at install time and can lag the
-# checkout, so the marketplace directory is tried first and the registry's
-# installPath is the fallback for everything else. A relative marketplace path
-# resolves against the project root for the project and local scopes and
-# against the directory that contains the user config dir for the user scope,
-# mirroring where each settings file sits.
-#
-# Which file. plugins-reference says "Location: `hooks/hooks.json` in plugin
-# root, or inline in plugin.json", and the manifest's `hooks` key is
-# `string|array|object`: a path, several paths, or an inline config. All four
-# shapes are read here; a plugin whose shape this script cannot parse is
-# reported UNREADABLE, never silently as "no hooks".
-#
-# WHAT IT DOES NOT DO. It does not decide whether a hook covers a permission
-# family. That judgment is the audit's, and required-permissions.md "Narrowing
-# the baseline" carries the three preconditions it has to apply. This script
-# answers only "what is installed".
-#
-# Read-only: opens JSON and prints, writing only its own temp file. Never
-# executes a hook command.
-#
 # Exit codes:
 #   0  inventory COMPLETE — every enabled plugin resolved to a real directory
 #   1  inventory PARTIAL  — at least one enabled plugin could not be resolved or
 #      read. The audit keeps the conditional-finding posture for the families
 #      those plugins might cover. Not an error; a stated limit.
 #   2  fatal — jq missing, or no settings scope readable at all
-#
-# Env overrides (the test seam):
-#   HOOK_COVERAGE_FIXTURE_DIR    project root to scan instead of the git toplevel
-#   HOOK_COVERAGE_INSTALLED_JSON path to installed_plugins.json
-#   HOOK_COVERAGE_USER_DIR       user config dir (else CLAUDE_CONFIG_DIR, else $HOME/.claude)
 
 set -uo pipefail
 
@@ -146,7 +90,6 @@ fi
 # shellcheck disable=SC1091
 source "$RESOLVE_SCOPES_LIB"
 
-# Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
 PROJECT_ROOT=""
 scopes::project_root_to PROJECT_ROOT "${HOOK_COVERAGE_FIXTURE_DIR:-}"
 USER_DIR=""
@@ -203,13 +146,6 @@ if [[ ${#SCOPES[@]} -eq 0 ]]; then
 fi
 
 
-# One jq program, used for every hook source. Input is the object that holds a
-# `hooks` map (a settings file, or a plugin hook config). Output is one
-# tab-separated row per command: event, matcher, command, and a JSON object of
-# the entry's remaining fields (timeout, type, if, shell, args). The first three
-# are never empty and the fourth is compact JSON, so no field is blank and none
-# carries a tab, which keeps a tab-split `read` from collapsing columns. Tabs and
-# line breaks inside a value become spaces; backslashes pass through verbatim.
 # shellcheck disable=SC2016  # a jq program: $h/$event/$matcher are jq variables and must reach jq unexpanded
 HOOK_ROWS_JQ='
   def flat: tostring | gsub("[\t\r\n]"; " ");
@@ -235,9 +171,6 @@ HOOK_ROWS_JQ='
   | .[] | join("\t")
 '
 
-# Plugin hook configs are documented as `{"hooks": {...}}`. A file that carries
-# the event map at the top level with no `hooks` key is read that way instead,
-# and the fallback is visible here rather than being a silent guess.
 PLUGIN_HOOK_NORMALIZE_JQ='if has("hooks") then . else {hooks: .} end'
 
 ROWS=()
@@ -271,11 +204,6 @@ done
 
 LEVERS=()
 for i in "${!SCOPES[@]}"; do
-  # One jq per scope. Compact JSON, not tostring: true stays a boolean and an
-  # array stays an array, and tojson leaves no raw tab or line break to split on.
-  # strictPluginOnlyCustomization is true or a per-surface array ("skills",
-  # "agents", "hooks", "mcp"). Stringifying the array made every value look like
-  # a hook lock.
   # shellcheck disable=SC2016  # a jq program; $s and $k are jq variables
   while IFS=$'\t' read -r key val; do
     [[ -n "$val" ]] && LEVERS+=("${SCOPE_LABELS[$i]}	$key	$val")
@@ -325,10 +253,6 @@ done
 PLUGIN_STATUS=()
 
 
-# nul_fields <base64>: decode a base64 text of NUL-terminated fields into the
-# array NUL_FIELDS, one element per field, byte for byte. `-d` is GNU, macOS
-# 13+ and BusyBox; `--decode` and `-D` cover older BSD builds. Returns 1, with
-# NUL_FIELDS empty, when no form decodes the text.
 NUL_FIELDS=()
 nul_fields() {
   local x opt
@@ -376,9 +300,6 @@ if [[ -f "$INSTALLED_JSON" && ${#ENABLED[@]} -gt 0 ]]; then
 fi
 
 norm_path_to() {
-  # norm_path_to <var> <path>: forward slashes only, no trailing slash. Git
-  # Bash reports Windows paths with backslashes; the existence tests below
-  # need POSIX form.
   local _np="${2//\\//}"
   while [[ "$_np" == */ && ${#_np} -gt 1 ]]; do _np="${_np%/}"; done
   while [[ "$_np" == *$'\n' ]]; do _np="${_np%$'\n'}"; done
@@ -587,9 +508,7 @@ if [[ $REGISTRY_FALLBACKS -gt 0 && ! -f "$INSTALLED_JSON" ]]; then
 fi
 
 
-# Every single-quoted string in this block is a jq program and every $name in one
-# is a jq binding, not a shell variable. shellcheck special-cases a literal `jq`
-# command word and stays quiet; it cannot see through the jqn wrapper.
+# Each single-quoted string below is a jq program run through jqn; its $names are jq bindings.
 # shellcheck disable=SC2016
 if [[ $EMIT_JSON -eq 1 ]]; then
   {

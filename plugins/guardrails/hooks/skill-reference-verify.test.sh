@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016
-# Every fixture below is markdown fed to the hook as literal data, and backticks
-# are the code-span delimiters the hook scans for — single quotes are required so
-# nothing expands. Disabled file-wide rather than on ~20 individual lines.
 
 set -uo pipefail
 
@@ -197,14 +194,6 @@ assert_contains "reconstruction reports the edited reference" "$OUT" \
 assert_absent "reconstruction does NOT report an untouched neighbor" "$OUT" \
   "untouched-ghost"
 
-# Diff-scope again, against the harder shape from #1453: the hunk is unrelated
-# prose that merely SHARES A WORD TOKEN with an untouched broken reference
-# elsewhere in the same file. Anchoring on the token alone (the pre-fix behavior)
-# pulls that reference in — `legacy` occurs in both `ghost-legacy` and the prose —
-# so the anchor has to be the hunk's own line, which occurs verbatim in exactly
-# the line the edit landed in. Verified to fail against the pre-fix guard (which
-# fired `  /alpha:ghost-legacy`), the same shape #1432 proved for
-# stale-path-verify's sibling defect.
 SEGSHARE="$REPO/segshare.md"
 printf 'Stale `/alpha:ghost-legacy` here.\nThe legacy naming convention was updated today.\n' \
   >"$SEGSHARE"
@@ -219,11 +208,6 @@ RC=$?
 assert_exit "bare-token hunk matching several lines → exit 0" 0 "$RC"
 assert_silent "ambiguous anchor is dropped, not unioned" "$OUT"
 
-# Same defect one level finer: both occurrences of the anchor are on ONE physical
-# line, so `grep` reports a single matching line and a line-count uniqueness check
-# sees nothing wrong. Inserting `legacy` into a line that already carried an
-# untouched reference must not report that reference — this call never wrote it.
-# The gate therefore counts OCCURRENCES, which subsumes counting lines.
 SAMELINE="$REPO/sameline.md"
 printf 'Run `/alpha:ghost-sameline` and note the sameline convention.\n' >"$SAMELINE"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SAMELINE" 'sameline')" 2>&1)
@@ -241,23 +225,6 @@ assert_contains "replace_all → first edited reference reported" "$OUT" \
 assert_contains "replace_all → second edited reference reported" "$OUT" \
   "  /alpha:ghost-two"
 
-# ...but `replace_all` suspends the uniqueness gate, and with it the only thing
-# separating an occurrence this call WROTE from one that merely reads the same.
-# A pre-existing `/alpha:ghost-old` matches the `ghost` anchor and was reported as
-# though the edit had produced it. `tool_input` genuinely cannot tell them apart;
-# `tool_response.structuredPatch` can, marking the written lines with `+`.
-#
-# The payloads below carry it. Note the FIRST fixture above deliberately does not:
-# absent `tool_response` the filter is inert, which is what keeps that case — and
-# every consumer on a payload without one — behaving exactly as before.
-#
-# replall_patch_json <file> <new_string> <patch-line>... — each patch line keeps
-# its unified-diff prefix (`+` written, `-` removed, ` ` untouched context).
-#
-# The lines reach jq on STDIN, not as `--args` positionals: every one of them
-# starts with `-`, `+` or a space, and jq parses a leading `-` as an option
-# (`-Run …` died on "Unknown option -u"), which yields an empty payload and a
-# silent hook — a green `assert_absent` for entirely the wrong reason.
 replall_patch_json() {
   local fp="$1" s="$2" lines_json
   shift 2
@@ -301,12 +268,6 @@ assert_contains "replace_all + patch → first genuinely written ref survives" "
 assert_contains "replace_all + patch → second genuinely written ref survives" "$OUT" \
   "  /alpha:ghost-two"
 
-# Review finding on #2153: Gate 3 must not undo the reformatting tolerance the
-# per-line fallback exists to provide. An earlier-ordered PostToolUse hook that
-# reflows whitespace leaves the anchor locatable — a literal substring search does
-# not care what surrounds it — while changing the physical line, so comparing raw
-# text dropped a genuinely written reference. The target below carries the extra
-# internal spacing a formatter would leave; the patch keeps the original spacing.
 REFLOW="$REPO/replall-reflow.md"
 printf 'Run  `/alpha:ghost`  now.\nLegacy `/alpha:ghost-old` stays.\n' >"$REFLOW"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$REFLOW")" 2>&1)
@@ -375,18 +336,6 @@ assert_exit "two-character Edit hunk → exit 0" 0 "$RC"
 assert_contains "two-character Edit hunk → containing reference recovered" "$OUT" \
   "  /alpha:setxx"
 
-# MULTIBYTE CONTENT AROUND THE ANCHOR. reconstruct_partial_edit pins LC_ALL=C so
-# its scans are not charged the multibyte matcher's ~6.5x, which makes every offset
-# it computes a BYTE offset. That is safe only if a slice never splits a character,
-# so multibyte text goes on the line BEFORE the anchor (moving the anchor's
-# absolute offset off a character boundary) and on both sides of it within its own
-# line (moving the span's boundaries off one). The skill name itself stays ASCII
-# because the command grammar is `[a-z0-9-]` — a non-ASCII name is unreportable by
-# design, so putting one here would test the grammar, not the offsets.
-#
-# A byte/character confusion mangles the span, and a mangled span cannot parse as a
-# command — so this case fails by going SILENT, the direction that would otherwise
-# hide.
 UTF8="$REPO/utf8.md"
 printf 'Préambule des conventions — rien à voir ici.\nExécutez `/alpha:ghost-cafe` après le déploiement — voilà.\n' \
   >"$UTF8"
@@ -396,42 +345,9 @@ assert_exit "multibyte content around the anchor → exit 0" 0 "$RC"
 assert_contains "a reference reconstructed out of multibyte content is intact" "$OUT" \
   "  /alpha:ghost-cafe"
 
-# THE PIN MUST NOT REACH THE CHILD PROCESSES. The case above passes with the pin,
-# without it, and with an EXPORTED pin — both locales are internally consistent, so
-# it cannot tell the three apart. This one can, and it is the reason the pin is
-# written `local +x` rather than `local`.
-#
-# `local LC_ALL=C` inherits the export attribute when the CONSUMER exported LC_ALL,
-# so the pin reaches emit_refs' grep/sed. Those tools classify some non-ASCII spaces
-# as `[[:space:]]` under a UTF-8 locale but never under C, so an exported pin makes
-# the hook silently drop a reference whose argument separator is one of them — a
-# detection loss that buys nothing, since the whole cost the pin removes is bash's
-# own matcher and the children measured identical in both locales.
-#
-# WHICH separator has that property is a property of the host's C library, not of
-# this hook, and it is NOT portable. glibc removed U+00A0 and U+202F from `space`
-# in 2.26 (a no-break space is deliberately not a separator); Cygwin/MSYS still
-# classifies them. Hardcoding U+00A0 in this case passes on Windows and fails on
-# Linux CI, asserting a libc's classification table as if it were this hook's
-# behavior.
-#
-# So the separator is DISCOVERED rather than assumed: take the first candidate this
-# host actually classifies differently between the two locales, probed through the
-# very sed stage the assertion depends on. That cannot go vacuous (a candidate that
-# does not discriminate is never selected) and cannot go platform-brittle (no
-# codepoint is baked in). Every candidate is escape-built, never a literal byte, so
-# an editor or transfer that normalizes whitespace cannot quietly turn it into an
-# ASCII space — which is exactly what happened while this case was first written.
-# MIRRORS skill-reference-verify.sh — emit_refs' reference-extraction sed,
-# byte for byte. Nothing enforces that, so if you change the grammar there, change
-# it here too. A drift cannot pass silently: the end-to-end assertion below still
-# runs the REAL hook, so a separator discovered against a stale copy would fail
-# `assert_contains` rather than quietly select the wrong codepoint.
 SEP_SED='s|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 SEP='' SEP_NAME=''
-# shellcheck disable=SC2059  # the candidate IS the format string: its \nnn octal
-# escapes are the point, and passing them as %s data would emit the backslashes
-# literally instead of the UTF-8 bytes this case needs.
+# shellcheck disable=SC2059  # the candidate IS the format string: its \nnn octal escapes must print as UTF-8 bytes
 for _cand in 'U+3000 IDEOGRAPHIC SPACE:\343\200\200' \
   'U+2000 EN QUAD:\342\200\200' \
   'U+2028 LINE SEPARATOR:\342\200\250' \
@@ -593,9 +509,6 @@ run 'Run `/epsilon:missing`.'
 assert_contains "single-skill plugin still fires for a command it does not have" "$OUT" \
   "  /epsilon:missing"
 
-# The auto-load applies only under its documented conditions. A root SKILL.md
-# BESIDE a populated `skills/` is not loaded, so it must not resolve — accepting it
-# would suppress the advisory for a command Claude Code does not offer.
 mk_plugin zeta zeta
 mk_skill zeta real
 printf -- '---\nname: zeta-root\ndescription: x\n---\n' >"$REPO/plugins/zeta/SKILL.md"
@@ -616,10 +529,6 @@ assert_silent "empty stdin → no output" "$OUT"
 
 HOOK_SRC=$(cat "$HOOK")
 assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
-# The directory comes from parameter expansion, not a `$(dirname …)` subshell:
-# this hook runs on every Write and Edit, and a command substitution is a fork
-# per call on Windows Git Bash. The anchor is still the FILE's directory, which
-# is what this case exists to hold.
 assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root_to REPO_ROOT "$FILE_DIR"'
 assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DIR="${FILE%/*}"'
 assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
@@ -676,14 +585,6 @@ assert_contains "index cache: a repeat reference still reports" "$OUT" "/alpha:n
 assert_eq "index cache: a repeat at the same manifests starts no jq" \
   0 "$(grep -c 'INVOKE' "$JQ_LOG" || true)"
 
-# On Windows Git Bash a native jq is handed the MSYS-converted argument, so
-# `input_filename` echoes `C:\...\plugin.json` rather than the string the hook
-# globbed. The index must key on the plugin directory it can rebuild itself,
-# not on the echo: keyed on the echo, no manifest is ever "seen" and every one
-# is re-read through the per-manifest fallback (two more invocations each).
-# Simulated here by a second shim that rewrites the echoed field of every batch
-# row into that converted form before handing it back; the manifest arguments
-# and the parse are the real jq's.
 CONV_SHIM_DIR="$TEST_TMPDIR/jq-shim-conv"
 mkdir -p "$CONV_SHIM_DIR"
 export SRV_TEST_REAL_JQ="$REAL_JQ" SRV_TEST_JQ_LOG="$JQ_LOG"
@@ -749,9 +650,6 @@ run 'Use `/gamma:hidden`.'
 assert_contains "declared paths: an undeclared directory is not a skill root" "$OUT" \
   "  /gamma:hidden"
 
-# A manifest with NO name but a skills key: the empty field must stay in place
-# (a whitespace separator collapses it, and the paths land in the name slot),
-# so the plugin indexes under its directory name with its declared path intact.
 mkdir -p "$REPO/plugins/noname/.claude-plugin" "$REPO/plugins/noname/extra/inner"
 MSYS_NO_PATHCONV=1 jq -n '{version:"0.1.0",skills:["./extra"]}' \
   >"$REPO/plugins/noname/.claude-plugin/plugin.json"
@@ -762,8 +660,6 @@ run 'Use `/noname:absent`.'
 assert_contains "nameless manifest: an absent skill still reports under plugins/noname/" "$OUT" \
   "plugins/noname/"
 
-# A declared path carrying a backslash must arrive byte-identical (@tsv would
-# double it); the directory literally named `.\extra` holds the skill.
 mkdir -p "$REPO/plugins/bslash/.claude-plugin" "$REPO/plugins/bslash/.\\extra/held"
 MSYS_NO_PATHCONV=1 jq -n '{name:"bslash",version:"0.1.0",skills:".\\extra"}' \
   >"$REPO/plugins/bslash/.claude-plugin/plugin.json"

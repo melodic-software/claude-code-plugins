@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
-# Regression tests for permission-plane-lint.sh (self-contained — ships with the plugin).
-#
-# Every case feeds hand-written reader records on stdin, so no test reads or
-# writes the operator's real ~/.claude. The one end-to-end case drives the real
-# reader over a fully fixtured tree with HOME redirected and CLAUDE_CONFIG_DIR
-# unset.
-#
-# portability-scope: one fixture spells a Windows UNC network path in a heredoc
-# body. The backslash run the gate reads as a regex escape is that path, and the
-# doubled prefix is what MAKES it a UNC path -- rewriting it would delete the
-# case rather than fix anything.
+# portability-scope: one fixture spells a Windows UNC network path in a heredoc body, not a regex escape
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,10 +12,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
 
-# The end-to-end cases expect the local file at the fixture's repository root.
-# On Windows the reader anchors it on the start directory instead, so the suite
-# pins a non-Windows platform through the reader's seam; permission-state.test.sh
-# covers the Windows branch itself.
 export PERMISSION_STATE_OSTYPE=linux-gnu
 
 lint() { printf '%s\n' "$1" | bash "$SCRIPT"; }
@@ -250,8 +236,6 @@ EOF
 OUT=$(lint "$WINSHAPE")
 assert_eq "a backslash escape in a shell rule is not a Windows path" 0 "$(count_matching "$OUT" '\[C6-winPath\]')"
 
-# A quoted heredoc, not printf: a printf FORMAT string interprets backslash
-# escapes, which turned this rule's \a into a BEL byte and warned on stderr.
 WINREAL=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'

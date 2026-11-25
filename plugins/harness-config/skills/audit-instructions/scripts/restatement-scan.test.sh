@@ -4,16 +4,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/restatement-scan.py"
 
-# Two host differences separate the path this suite passes in from the one the
-# scanner prints back. Git Bash rewrites a POSIX argument to the host's native
-# spelling before a native Python sees it (`/d/worktrees/...` arrives as
-# `D:/worktrees/...`), and the scanner then prints that path through `pathlib`,
-# which re-spells it with the interpreter's own separator (`D:\worktrees\...`).
-# emit-findings.sh documents and re-anchors that second shape downstream, so it
-# is the scanner's contract, not a defect. `host_path` settles the first
-# difference up front; `slashes` settles the second at the comparison, leaving
-# the row's file, line and check id fully pinned. Both are the identity on a
-# host that needs neither rewrite.
 host_path() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
 slashes() { printf '%s' "${1//\\//}"; }
 FIXTURES="$(host_path "$(cd "$SCRIPT_DIR/../evals/fixtures" && pwd)")"

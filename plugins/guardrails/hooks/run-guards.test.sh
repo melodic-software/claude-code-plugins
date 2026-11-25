@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for hooks/run-guards.sh, the one-process dispatcher that runs
-# several guards for one hook event. The guards' own decisions are covered by
-# their own *.test.sh; this file covers what the dispatcher owns: stdin read
-# once and re-served with the same rc, jq answered from one cache with a
-# byte-identical fallback, every guard run to completion, exit aggregation,
-# and the merge of several stdout documents into one.
-#
-# Stub guards isolate each of those mechanics, but a mechanic asserted only
-# against a stub is asserted against a stand-in for the thing it serves, so the
-# merge, the no-jq arbitration and the exit aggregation are each also driven
-# with SHIPPED guards, whose documents this file does not write. The guards'
-# own decisions stay covered by their own *.test.sh, which now assert those
-# decisions on both paths (`expect_both` in guardrails-test-helpers.sh).
-#
-# The stub guard bodies below are single-quoted on purpose: they are written
-# verbatim into stub scripts, so their `$` must not expand here.
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/hooks/hooks.json plugins/guardrails/prerequisites.json
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -53,8 +37,7 @@ stub() {
   chmod +x "$TEST_TMPDIR/$name"
 }
 SEEN="$TEST_TMPDIR/seen"
-# The stub bodies are written verbatim into the stub scripts, so the `$` in them
-# must NOT expand here.
+# The stub bodies are written verbatim into stub scripts, so their `$` must not expand here.
 # shellcheck disable=SC2016
 stub allow.sh 'hook::buffer_stdin_to INPUT || { rc=$?; ((rc == 2)) && exit 2; exit 0; }
 hook::jq_fields "$INPUT" ".tool_input.command" ".tool_name" || exit 0
@@ -350,10 +333,6 @@ assert_absent "benign Bash dispatcher never sources ps-command.sh" \
   "$DISPATCH_XTRACE" "ps-command.sh"
 assert_eq "benign Bash dispatcher forks only the shared parse (five BASHPIDs in the xtrace)" \
   "5" "$(grep -o 'PID=[0-9]*' <<<"$DISPATCH_XTRACE" | sort -u | wc -l | tr -d ' ')"
-# --- a parse seeded by exec-bash.mjs --bps-seed --------------------------------
-# The pair is trusted only under --bps-seeded, which only the hooks.json row
-# passes. A forged pair that gives a refused command the list of a benign one is
-# ignored without the flag, and a seeded call runs no shfmt or jq in bash.
 # shellcheck disable=SC2016  # the child shell expands these
 seed_list() { bash -c 'source "$1/hook-utils.sh"; hook::_bps_shfmt_to l "$2" && printf %s "$l"' -- "$HOOK_DIR" "$1"; }
 LS_LIST=$(seed_list 'ls')
@@ -392,8 +371,6 @@ if [[ -x "$SHIM/jq" ]]; then
     "$SPAWN_LOG" "$(type -P realpath)" >"$SHIM/realpath"
   printf '#!/usr/bin/env bash\nprintf "git %%s\\n" "$*" >>%q\nexec %q "$@"\n' \
     "$SPAWN_LOG" "$(type -P git)" >"$SHIM/git"
-  # Git Bash resolves `git` to `git.exe` via PATHEXT. A shim named only `git`
-  # is skipped and the rev-parse count stays 0 (#4527).
   cp "$SHIM/git" "$SHIM/git.exe"
   chmod +x "$SHIM/realpath" "$SHIM/git" "$SHIM/git.exe"
   : >"$SPAWN_LOG"
@@ -562,13 +539,6 @@ assert_contains "hard error, closed posture: the fail-closed line is on stderr" 
 assert_silent "hard error, closed posture: no stdout document" "$OUT"
 assert_eq "hard error, closed posture: the next guard still ran" $'hardc\ngit status --short\nBash' "$(cat "$SEEN")"
 
-# A guard's `exit` once ran the next guard from inside its own call, so a guard
-# that exited deep left its frames under every guard after it. Git Bash has a
-# 2 MB stack: an attended alias walk that exited about 140 frames down, then a
-# second walk, overflowed it, and bash died with exit 0 and no output, an
-# allow. Now `exit` unwinds the guard, and after a deep exit the rest runs in a
-# forked process; its documents and status still count. The depth a later
-# guard sees is the structural pin; it holds on every platform.
 deep_stub() {
   stub "$1" 'd() { if (($1)); then d $(($1 - 1)); else exit '"$2"'; fi; }
 d 100'
@@ -1154,9 +1124,6 @@ assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem r
 cap_run "$(tool_payload Bash "bash <<'EOF'${NL}$(rep '$(: rm) ' 300)rm -rf /${NL}EOF")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: bash <<'EOF' with 300 substitutions then a root delete is refused" 2 "$RC"
 assert_contains "cap row: that one is refused by the count" "$ERR" "$CAP_MSG"
-# bash runs each substitution in an unquoted heredoc body, so every guard on
-# the row judges it as it judges the same text at top level; a quoted body is
-# data (docs/contracts/hook-precision/README.md).
 hd_row() {
   cap_run "$(tool_payload Bash "$3")" "${BASH_ROW_ARGS[@]}"
   assert_exit "heredoc row: $1" "$2" "$RC"
@@ -1171,10 +1138,6 @@ assert_contains "heredoc row: the root-delete guard refused the \${...} one" "$E
 hd_row "a body holding \$(date) is allowed" 0 "cat <<EOF${NL}today: \$(date)${NL}EOF"
 hd_row "a body holding \$HOME is allowed" 0 "cat <<EOF${NL}home: \$HOME${NL}EOF"
 hd_row "a quoted body holding \$(rm -rf /) is allowed" 0 "cat <<'EOF'${NL}\$(rm -rf /)${NL}EOF"
-# No guard reads `${x@P}` or `$[1 + 2]`, so those rows hold whether or not the
-# body is scanned; the rows whose top-level verdict is a refusal are the ones
-# that can fail. `${ echo }; rm -rf /; }` pins the `${ ` command-substitution
-# frame: a `${` frame that ended at the first `}` would let the delete through.
 # shellcheck disable=SC2016  # literal shell text under test
 for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]' '${x:-$(rm -rf /)}' '${ echo }; rm -rf /; }'; do
   cap_run "$(tool_payload Bash "$hd_expr")" "${BASH_ROW_ARGS[@]}"

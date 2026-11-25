@@ -36,6 +36,18 @@
         "Writes lane files to the consumer's tracked .claude/tidy-lanes/ directory",
         "Does not write configuration into the plugin directory or plugin data directory"
       ]
+    },
+    {
+      "id": 4,
+      "name": "install-ci-discovers-before-proposing",
+      "prompt": "/code-tidying:setup apply install-ci",
+      "expected_output": "Runs the CI scan and reads the repository's own CI configuration before asking anything, proposes the comment-lint step in the format of the CI system the repository uses (not GitHub Actions by default), matching its existing jobs' conventions, and writes the step only after the user says yes.",
+      "files": [],
+      "expectations": [
+        "Discovers the CI system and how its jobs get python3, pygments and the change's commits before asking",
+        "Proposes the step in the repository's own CI system format rather than a default vendor template",
+        "Writes nothing until the user approves the proposed step"
+      ]
     }
   ]
 }

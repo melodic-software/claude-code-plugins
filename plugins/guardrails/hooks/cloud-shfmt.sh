@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# SessionStart, cloud sessions only (CLAUDE_CODE_REMOTE=true): install the pinned
-# shfmt the guards read every Bash command through (hook-utils.sh,
-# hook::bash_parse_segments) into ~/.local/bin when no shfmt resolves, so a fresh
-# cloud VM does not refuse every Bash call. The reader looks in ~/.local/bin when
-# PATH lacks shfmt. A local machine is never touched.
-#
-# Never blocks the session: every path exits 0. When the install fails it writes
-# the reason to ~/.local/state/claude-guardrails/shfmt-install-failed, and the
-# reader's refusal message quotes it (hook::_bps_install_note); a later success
-# removes it.
-#
-# The pin and hash match .claude/cloud-bootstrap.sh and the CI workflows in this
-# repository (cloud-shfmt.test.sh checks they agree). v3.14.1 publishes no
-# checksums file; the hash is sha256sum of the linux_amd64 asset.
 set -uo pipefail
 
 [[ "${BASH_SOURCE[0]}" != "$0" || "${CLAUDE_CODE_REMOTE:-}" == true ]] || exit 0
@@ -30,9 +16,6 @@ CLOUD_SHFMT_SHA="76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7b
 CLOUD_SHFMT_URL="https://github.com/mvdan/sh/releases/download/${CLOUD_SHFMT_PIN}/shfmt_${CLOUD_SHFMT_PIN}_linux_amd64"
 CLOUD_SHFMT_NOTE="$HOME/.local/state/claude-guardrails/shfmt-install-failed"
 
-# cloud_shfmt::install <url> <sha256> <dest>: download, check, install. Prints
-# the reason and returns 1 on any failure; <dest> is written only after the
-# hash matches.
 cloud_shfmt::install() {
   local url=$1 sha=$2 dest=$3 tmp rc got
   tmp=$(mktemp) || {

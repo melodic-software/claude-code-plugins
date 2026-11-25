@@ -67,7 +67,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "printf x > ../platform-docs/docs/adr/0003-cache.md",
+            "command": "printf x > ../platform-docs/docs/adr/0003-order-events.md",
             "description": "run"
           }
         }
