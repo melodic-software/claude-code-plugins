@@ -51,7 +51,7 @@ type_debt:
 suppressions:
   correctness_rules: []    # rule ids audit-suppressions marks when a line suppresses one
 
-lanes:
+languages:
   typescript:
     enabled: true
   python:
@@ -63,4 +63,4 @@ lanes:
   dotnet:
     enabled: true          # detected; complexity deferred in this version
   other:
-    enabled: true          # every text file outside the language lanes; line count only
+    enabled: true

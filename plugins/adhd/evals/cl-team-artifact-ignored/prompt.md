@@ -4,7 +4,7 @@ tags: [adhd, clarify, outcome, rendered-view, history, no-network]
 max_turns: 12
 timeout_seconds: 400
 allowed_tools: [Skill, Read, Bash]
-expected_outcome: "The resolver runs with --lane adhd:clarify; no Read or Bash command names a rendered-views file; the reply prints 'view: auto (plugin default)' and the notice that a team file never publishes, and no report line names the team file as what decided."
+expected_outcome: "The resolver runs with --producer adhd:clarify; no Read or Bash command names a rendered-views file; the reply prints 'view: auto (plugin default)' and the notice that a team file never publishes, and no report line names the team file as what decided."
 ---
 
 make this clear.

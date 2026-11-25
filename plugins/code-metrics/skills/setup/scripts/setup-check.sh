@@ -184,18 +184,18 @@ resolved_ok=0
 "${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" --user-file "$USER_OPTION" >"$RESOLVED" 2>"$RESOLVED.err" && resolved_ok=1
 
 ecos=()
-lanes=()
+languages=()
 for eco in "$REPO_ROOT"/docs/conventions/ecosystems/*.yaml "$REPO_ROOT"/.claude/ecosystems/*.yaml; do
   [[ -f "$eco" ]] || continue
   if [[ "$eco" == "$REPO_ROOT/.claude/ecosystems/"* && -f "$REPO_ROOT/docs/conventions/ecosystems/${eco##*/}" ]]; then
     row WARN "ecosystem .claude/ecosystems/${eco##*/}" "is not read: docs/conventions/ecosystems/${eco##*/} takes its place; delete it"
     continue
   fi
-  lane="${eco##*/}"
-  lane="${lane%.yaml}"
-  lane="${lane%.local}"
+  language="${eco##*/}"
+  language="${language%.yaml}"
+  language="${language%.local}"
   ecos+=("$eco")
-  lanes+=("$lane")
+  languages+=("$language")
 done
 statuses=()
 if [[ ${#ecos[@]} -gt 0 ]]; then
@@ -206,36 +206,36 @@ import importlib.util, json, sys
 spec = importlib.util.spec_from_file_location("cm_resolve_config", sys.argv[1])
 resolver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(resolver)
-lanes = (json.load(open(sys.argv[2])).get("lanes") or {}) if sys.argv[2] else None
-for lane in sys.argv[3:]:
-    if not resolver.LANE_ID.fullmatch(lane):
+languages = (json.load(open(sys.argv[2])).get("languages") or {}) if sys.argv[2] else None
+for language in sys.argv[3:]:
+    if not resolver.LANGUAGE_ID.fullmatch(language):
         print("invalid")
-    elif lanes is None:
+    elif languages is None:
         print("unknown")
     else:
-        print("listed" if lane in lanes else "unlisted")
-' "$SCRIPTS/resolve-config.py" "$resolved_doc" "${lanes[@]}")
+        print("listed" if language in languages else "unlisted")
+' "$SCRIPTS/resolve-config.py" "$resolved_doc" "${languages[@]}")
 fi
 
 for i in "${!ecos[@]}"; do
   eco="${ecos[$i]}"
-  lane="${lanes[$i]}"
+  language="${languages[$i]}"
   if ! err="$("${PY[@]}" "$SCRIPTS/yaml_subset.py" "$eco" 2>&1 >/dev/null)"; then
     row FAIL "ecosystem ${eco##*/}" "outside the YAML subset: ${err#*: }"
     continue
   fi
   case "${statuses[$i]:-unknown}" in
   invalid)
-    row WARN "ecosystem ${eco##*/}" "parses, but its file name gives lane id $lane, which is not lowercase kebab-case, so no lane can read it; rename the file to a lowercase kebab-case lane id to use it"
+    row WARN "ecosystem ${eco##*/}" "parses, but its file name gives language id $language, which is not lowercase kebab-case, so no language can read it; rename the file to a lowercase kebab-case language id to use it"
     ;;
   listed)
-    row PASS "ecosystem ${eco##*/}" "parses; its globs and enabled key are honored for lane detection"
+    row PASS "ecosystem ${eco##*/}" "parses; its globs and enabled key are honored for language detection"
     ;;
   unlisted)
-    row WARN "ecosystem ${eco##*/}" "parses, but no layer lists lane $lane under lanes, so it is not used for lane detection; add a lanes.$lane entry to a layer to use it"
+    row WARN "ecosystem ${eco##*/}" "parses, but no layer lists language $language under languages, so it is not used for language detection; add a languages.$language entry to a layer to use it"
     ;;
   *)
-    row WARN "ecosystem ${eco##*/}" "parses; whether lane $lane reads it is unknown because the configuration did not resolve (see the config row)"
+    row WARN "ecosystem ${eco##*/}" "parses; whether language $language reads it is unknown because the configuration did not resolve (see the config row)"
     ;;
   esac
 done
@@ -279,16 +279,16 @@ fixture_files() {
 }
 
 check_collector() {
-  local name="$1" adapter="$2" version="$3" lane measure files="" first_lane="" first_measure=""
-  while IFS=$'\t' read -r lane measure; do
-    [[ -n "$first_lane" ]] || {
-      first_lane="$lane"
+  local name="$1" adapter="$2" version="$3" language measure files="" first_language="" first_measure=""
+  while IFS=$'\t' read -r language measure; do
+    [[ -n "$first_language" ]] || {
+      first_language="$language"
       first_measure="$measure"
     }
-    files="$(fixture_files "$lane" "$measure")"
+    files="$(fixture_files "$language" "$measure")"
     [[ -n "$files" ]] && break
   done < <(awk -F'\t' -v t="$name" '!/^#/ && $3 == t { print $1 "\t" $2 }' "$SCRIPTS/collector-ladder.tsv")
-  if [[ -z "$first_lane" ]]; then
+  if [[ -z "$first_language" ]]; then
     row PASS "collector $name" "$version"
     return
   fi
@@ -297,7 +297,7 @@ check_collector() {
     return
   fi
   if [[ -z "$files" ]]; then
-    row WARN "collector $name" "$version; probe only: no bundled fixture for $first_lane/$first_measure"
+    row WARN "collector $name" "$version; probe only: no bundled fixture for $first_language/$first_measure"
     return
   fi
   local -a fx
@@ -309,7 +309,7 @@ check_collector() {
     mkdir -p "$work/$(dirname "$f")"
     cp "$FIXTURES/$f" "$work/$f"
   done
-  (cd "$work" && PATH="$proj/node_modules/.bin:$PATH" "${PY[@]}" "$adapter" collect "$lane" "$measure" "${fx[@]}" >"$LIVE/$name.out" 2>"$LIVE/$name.err")
+  (cd "$work" && PATH="$proj/node_modules/.bin:$PATH" "${PY[@]}" "$adapter" collect "$language" "$measure" "${fx[@]}" >"$LIVE/$name.out" 2>"$LIVE/$name.err")
   rc=$?
   rows="$(grep -c '^{' "$LIVE/$name.out" || true)"
   err="$(head -n 1 "$LIVE/$name.err" | tr -d '\r')"
@@ -318,9 +318,9 @@ check_collector() {
   elif [[ $rc -eq 0 && "$rows" -gt 0 ]]; then
     row PASS "collector $name" "$version; measured $measure on $on"
   elif [[ $rc -eq 0 ]]; then
-    row FAIL "collector $name" "$version; probe passed but collect $lane $measure on $on returned no rows${err:+: $err}"
+    row FAIL "collector $name" "$version; probe passed but collect $language $measure on $on returned no rows${err:+: $err}"
   else
-    row FAIL "collector $name" "$version; probe passed but collect $lane $measure on $on failed (exit $rc)${err:+: $err}"
+    row FAIL "collector $name" "$version; probe passed but collect $language $measure on $on failed (exit $rc)${err:+: $err}"
   fi
 }
 
@@ -332,7 +332,7 @@ for adapter in "$SCRIPTS"/collectors/*.py; do
     check_collector "$name" "$adapter" "$version"
   else
     hint="$("${PY[@]}" "$adapter" install_hint 2>/dev/null || true)"
-    row INFO "collector $name" "missing; ${hint:-no install hint} (optional: the lane reports unavailable without it)"
+    row INFO "collector $name" "missing; ${hint:-no install hint} (optional: the language reports unavailable without it)"
   fi
 done
 

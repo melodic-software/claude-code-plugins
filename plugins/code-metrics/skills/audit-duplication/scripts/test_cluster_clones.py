@@ -26,7 +26,7 @@ def pair(
     return {
         "file": None,
         "function": None,
-        "lane": "bash",
+        "language": "bash",
         "instances": [instance(*first), instance(*second)],
         "values": {"lines": lines, "tokens": 110},
         "collector": collector,
@@ -158,7 +158,7 @@ class ClusterClonesTests(unittest.TestCase):
         file_row = {
             "file": "a.sh",
             "function": None,
-            "lane": "bash",
+            "language": "bash",
             "values": {"lines": 3},
             "collector": "scc",
         }

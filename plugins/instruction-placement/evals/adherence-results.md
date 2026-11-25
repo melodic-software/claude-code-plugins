@@ -78,13 +78,13 @@ The plugin's justification now rests on the three things that **are** demonstrab
 
 1. **Context economy**: always-loaded lines released are directly measurable, and the trade is
    stated per proposal rather than assumed.
-2. **The promote lane**: conventions Claude currently loads *never* have no presence to lose, so
+2. **The promote direction**: conventions Claude currently loads *never* have no presence to lose, so
    any working destination is a strict improvement. No adherence claim is needed for this to hold.
 3. **Discoverability**: no deferred surface announces that it exists, and the generated index names
    every one of them so an ordinary `Read` can fetch it, which is a measured mechanic, not an
    inference.
 
-Anyone weighing whether to run a migration should weigh it on context cost and on the promote lane,
+Anyone weighing whether to run a migration should weigh it on context cost and on the promote direction,
 not on an expectation that their instructions will be followed better.
 
 ## Re-running

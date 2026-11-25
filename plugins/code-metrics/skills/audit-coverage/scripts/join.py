@@ -47,16 +47,16 @@ What comes out:
     CRAP are `null` there while cyclomatic from the complexity row is kept,
     and the row carries a `coverage-ambiguous` label, because a missing
     coverage number an operator can see beats a wrong number they cannot.
-  * one `<lane>/coverage` and one `<lane>/crap` run row per lane. A lane whose
+  * one `<language>/coverage` and one `<language>/crap` run row per language. A language whose
     files are missing from every artifact is `unavailable` and says which
-    paths were searched; a lane matched in part is `partial` and carries
+    paths were searched; a language matched in part is `partial` and carries
     `partial, N of M scope files present in the artifacts`, so a total miss
     never reads as "no executable lines" and a document whose own row says
-    `N of M` cannot settle as `complete`. A lane holding an ambiguous function
-    row is `partial` as well, and names the functions it left unjoined. A lane
+    `N of M` cannot settle as `complete`. A language holding an ambiguous function
+    row is `partial` as well, and names the functions it left unjoined. A language
     whose cyclomatic collector reports no function end lines (Bash in V1) gets
     a `not-applicable` CRAP row rather than a null that would hide the whole
-    lane.
+    language.
 
 Path normalization runs on both sides before the join: forward slashes, `./`
 removed, then the repository root and each `coverage.path_prefix_strip`
@@ -462,7 +462,7 @@ def _function_row(
         "function": row["function"],
         "start_line": start,
         "end_line": end,
-        "lane": row.get("lane"),
+        "language": row.get("language"),
     }
     tail = _tail(row.get("function"))
     rival = sum(1 for other in siblings if _tail(other.get("function")) == tail) > 1
@@ -535,20 +535,20 @@ def join(
     root: str = "",
     prefixes: list[str] | None = None,
     searched: list[str] | None = None,
-    scope_lanes: dict[str, str] | None = None,
+    scope_languages: dict[str, str] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """The whole join: coverage rows plus the run rows that explain them."""
     prefixes = prefixes or []
     scope = [normalize(path) for path in scope]
     merged = merge_artifacts(artifacts, scope, root, prefixes)
     cyclomatic = _cyclomatic_rows(complexity)
-    lane_of: dict[str, str] = dict(scope_lanes or {})
+    language_of: dict[str, str] = dict(scope_languages or {})
     for row in complexity.get("measures") or []:
         if row.get("file"):
-            lane_of.setdefault(normalize(row["file"]), row.get("lane") or "*")
-    lanes: dict[str, list[str]] = {}
+            language_of.setdefault(normalize(row["file"]), row.get("language") or "*")
+    languages: dict[str, list[str]] = {}
     for path in scope:
-        lanes.setdefault(lane_of.get(path, "*"), []).append(path)
+        languages.setdefault(language_of.get(path, "*"), []).append(path)
 
     measures: list[dict[str, Any]] = []
     unjoined: dict[str, list[dict[str, Any]]] = {}
@@ -565,7 +565,7 @@ def join(
                 "function": None,
                 "start_line": None,
                 "end_line": None,
-                "lane": lane_of.get(path, "*"),
+                "language": language_of.get(path, "*"),
                 "values": {
                     "coverage_pct": percent,
                     "lines_executable": executable,
@@ -586,24 +586,24 @@ def join(
             joined["file"] = path
             function_row = _function_row(joined, entry, siblings)
             if "coverage-ambiguous" in (function_row.get("labels") or []):
-                unjoined.setdefault(lane_of.get(path, "*"), []).append(function_row)
+                unjoined.setdefault(language_of.get(path, "*"), []).append(function_row)
             measures.append(function_row)
 
     formats = list(dict.fromkeys(a.get("format") or "unknown" for a in artifacts))
     where = ", ".join(searched or []) or "nothing"
     run: list[dict[str, Any]] = []
-    for lane in sorted(lanes):
-        files = lanes[lane]
-        if lane == "other":
+    for language in sorted(languages):
+        files = languages[language]
+        if language == "other":
             for measure in ("coverage", "crap"):
                 run.append(
                     {
-                        "lane": lane,
+                        "language": language,
                         "measure": measure,
                         "collector": None,
                         "status": "not-applicable",
                         "reason": (
-                            "files outside every language lane; no coverage "
+                            "files outside every language; no coverage "
                             "artifact format measures them"
                         ),
                     }
@@ -634,7 +634,7 @@ def join(
             )
         else:
             status, reason = "ok", None
-        ambiguous = unjoined.get(lane) or []
+        ambiguous = unjoined.get(language) or []
         if ambiguous:
             detail = sorted(
                 {f"{item['function']}: {item['reason']}" for item in ambiguous}
@@ -653,7 +653,7 @@ def join(
             or None
         )
         coverage_row: dict[str, Any] = {
-            "lane": lane,
+            "language": language,
             "measure": "coverage",
             "collector": collector,
             "status": status,
@@ -662,24 +662,24 @@ def join(
         if artifacts and missing:
             coverage_row["missing"] = missing
         run.append(coverage_row)
-        lane_cyclomatic = [
-            row for row in cyclomatic if (row.get("lane") or "*") == lane
+        language_cyclomatic = [
+            row for row in cyclomatic if (row.get("language") or "*") == language
         ]
         comp_row = next(
             (
                 row
                 for row in complexity.get("run") or []
-                if row.get("lane") == lane and row.get("measure") == "cyclomatic"
+                if row.get("language") == language and row.get("measure") == "cyclomatic"
             ),
             None,
         )
         collector_failed = (
-            not lane_cyclomatic
+            not language_cyclomatic
             and comp_row is not None
             and comp_row.get("status") != "ok"
         )
-        if lane_cyclomatic and all(
-            row.get("end_line") is None for row in lane_cyclomatic
+        if language_cyclomatic and all(
+            row.get("end_line") is None for row in language_cyclomatic
         ):
             crap_status, crap_reason = "not-applicable", NO_END_LINES
         elif collector_failed:
@@ -693,14 +693,14 @@ def join(
                 crap_reason = f"{crap_reason}; coverage {status}: {reason}"
         elif status != "ok":
             crap_status, crap_reason = status, reason
-        elif not lane_cyclomatic:
+        elif not language_cyclomatic:
             crap_status = "not-applicable"
-            crap_reason = "no function-level cyclomatic rows in scope for this lane"
+            crap_reason = "no function-level cyclomatic rows in scope for this language"
         else:
             crap_status, crap_reason = "ok", reason
         run.append(
             {
-                "lane": lane,
+                "language": language,
                 "measure": "crap",
                 "collector": collector if crap_status in ("ok", "partial") else None,
                 "status": crap_status,
@@ -711,7 +711,7 @@ def join(
         for measure in ("coverage", "crap"):
             run.append(
                 {
-                    "lane": "*",
+                    "language": "*",
                     "measure": measure,
                     "collector": None,
                     "status": "unavailable",
@@ -765,7 +765,7 @@ def _outer(artifact: dict[str, Any], lines: dict[int, int]) -> dict[str, Any]:
         ]
     }
     for row in complexity["measures"]:
-        row.update({"file": "src/a.py", "lane": "python"})
+        row.update({"file": "src/a.py", "language": "python"})
     artifact["files"]["src/a.py"]["lines"] = lines
     result = join(complexity, [artifact], ["src/a.py"])
     return [r for r in result["measures"] if r.get("function") == "outer"][0]
@@ -828,21 +828,21 @@ def main(argv: list[str]) -> int:
         )
         return 2
     scope: list[str] = []
-    scope_lanes: dict[str, str] = {}
+    scope_languages: dict[str, str] = {}
     with open(args.scope, encoding="utf-8") as handle:
         for line in handle:
             line = line.rstrip("\n")
             if not line.strip():
                 continue
-            lane, tab, path = line.partition("\t")
+            language, tab, path = line.partition("\t")
             if not tab:
-                lane, path = "", line
+                language, path = "", line
             path = normalize(path.strip())
             if not path:
                 continue
             scope.append(path)
-            if lane.strip():
-                scope_lanes.setdefault(path, lane.strip())
+            if language.strip():
+                scope_languages.setdefault(path, language.strip())
     result = join(
         _read_json(args.complexity),
         [_read_artifact(spec) for spec in args.artifacts],
@@ -850,7 +850,7 @@ def main(argv: list[str]) -> int:
         normalize(args.root).rstrip("/"),
         args.prefix_strip,
         args.searched,
-        scope_lanes,
+        scope_languages,
     )
     _write_jsonl(args.measures_out, result["measures"])
     _write_jsonl(args.run_out, result["run"])

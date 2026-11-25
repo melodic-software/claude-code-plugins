@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
-# /code-metrics:audit-suppressions entry point: every lint and type-checker
-# suppression in scope, with its rule ids, its reason, and whether it names a
-# rule listed in `suppressions.correctness_rules`.
-#
-#   audit-suppressions.sh [--json | --findings [--memory-dir <dir>]] [--all] [--base <ref>]
-#                         [--config <resolved.json>] [<path>...]
-#
-# The scope is the dispatcher's (scope.exclude and lane opt-outs apply).
-# With no path and no --all, the change: only the lines the commits since
-# the merge-base with the default branch (or --base) add. --all and paths scan
-# whole files. Prints the markdown report; --json prints the document
-# instead. --findings also writes a review-findings file to
-# <memory-dir>/reviews/<branch-slug>/ (memory dir `.work` under the repository
-# root unless named) and prints its path; with no current branch it writes
-# nothing and exits 2. Exit 0 report produced, 2 usage error or a scan that failed.
+CM_USAGE=$(cat <<'EOF'
+/code-metrics:audit-suppressions entry point: every lint and type-checker
+suppression in scope, with its rule ids, its reason, and whether it names a
+rule listed in `suppressions.correctness_rules`.
+
+  audit-suppressions.sh [--json | --findings [--memory-dir <dir>]] [--all] [--base <ref>]
+                        [--config <resolved.json>] [<path>...]
+
+The scope is the dispatcher's (scope.exclude and language opt-outs apply).
+With no path and no --all, the change: only the lines the commits since
+the merge-base with the default branch (or --base) add. --all and paths scan
+whole files. Prints the markdown report; --json prints the document
+instead. --findings also writes a review-findings file to
+<memory-dir>/reviews/<branch-slug>/ (memory dir `.work` under the repository
+root unless named) and prints its path; with no current branch it writes
+nothing and exits 2. Exit 0 report produced, 2 usage error or a scan that failed.
+EOF
+)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
@@ -52,7 +55,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --help | -h)
-      cm_usage_banner "${BASH_SOURCE[0]}" 16
+      cm_usage_banner --usage "$CM_USAGE"
       exit 0
       ;;
     *)
@@ -118,8 +121,8 @@ if [[ "$MODE" == change && "$BASE_SET" -eq 0 && "$CFG_DEFAULT" == all ]]; then M
 [[ "$BASE_SET" -eq 1 ]] || BASE="$CFG_BASE"
 
 bash "$DISPATCH" audit-suppressions --measures file_lines --print-scope --config "$CM_CONFIG" \
-  "${CM_PASS_ARGS[@]}" >"$WORK/lanes" || exit 2
-cut -f2- "$WORK/lanes" >"$WORK/scope"
+  "${CM_PASS_ARGS[@]}" >"$WORK/languages" || exit 2
+cut -f2- "$WORK/languages" >"$WORK/scope"
 
 BASE_SHA=""
 SCAN_ARGS=(--paths-from "$WORK/scope")

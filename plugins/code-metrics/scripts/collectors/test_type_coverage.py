@@ -134,7 +134,7 @@ class TypeCoverageCollectTests(unittest.TestCase):
             path_prefix=stubs,
         )
 
-    def test_collect_translates_the_capture_into_a_file_row_and_the_lane_row(
+    def test_collect_translates_the_capture_into_a_file_row_and_the_language_row(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -142,7 +142,7 @@ class TypeCoverageCollectTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual(len(rows), 2)
-            lane_row, file_row = rows
+            language_row, file_row = rows
             self.assertEqual(result.stderr, "")
             self.assertEqual(
                 (file_row["file"], file_row["function"], file_row["labels"]),
@@ -159,12 +159,12 @@ class TypeCoverageCollectTests(unittest.TestCase):
                     "any_count": 4,
                 },
             )
-            self.assertEqual((lane_row["file"], lane_row["function"]), (None, None))
-            self.assertEqual(lane_row["lane"], "typescript")
-            self.assertEqual(lane_row["collector"], "type-coverage")
-            self.assertEqual(lane_row["labels"], ["lane-total"])
+            self.assertEqual((language_row["file"], language_row["function"]), (None, None))
+            self.assertEqual(language_row["language"], "typescript")
+            self.assertEqual(language_row["collector"], "type-coverage")
+            self.assertEqual(language_row["labels"], ["language-total"])
             self.assertEqual(
-                lane_row["values"],
+                language_row["values"],
                 {
                     "type_coverage_pct": 55.55,
                     "typed_identifiers": 5,
@@ -198,7 +198,7 @@ class TypeCoverageCollectTests(unittest.TestCase):
                 ],
             )
             self.assertEqual(rows[0]["values"]["type_coverage_pct"], 57.14)
-            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(rows[0]["labels"], ["language-total"])
             self.assertEqual(
                 result.stderr.strip(),
                 "1 scope file(s) are outside the tsconfig program and were not "

@@ -17,10 +17,10 @@ Two collectors, tried in order:
 `scc` is used for line counting only; its complexity figure is never read, because it is a
 substring count rather than cyclomatic complexity.
 
-Every text file in scope is measured. The language lanes (TypeScript/JavaScript, Python, Bash,
+Every text file in scope is measured. The languages (TypeScript/JavaScript, Python, Bash,
 Go, C#) are detected by extension, and everything else that is not binary (markdown, JSON, YAML,
-PowerShell, a `Makefile`) lands in the catch-all `other` lane, which this measure serves and no
-other does; `lanes.other.enabled: false` opts it out.
+PowerShell, a `Makefile`) lands in the catch-all `other` language, which this measure serves and no
+other does; `languages.other.enabled: false` opts it out.
 
 ## Run it
 
@@ -52,7 +52,7 @@ One reference, no stages: nothing here marks a second, higher length as "must re
 A limit a tool defines but the repository has not turned on is not the repository's limit.
 
 Present the markdown report to the user as printed. It opens with the scope and a "Coverage of
-this run" table (lane, collector, status, reason), then the reference with its provenance and
+this run" table (language, collector, status, reason), then the reference with its provenance and
 layer, then one row per file, longest first by `lines_non_blank`, with its values and whether it
 is at or above the reference. Keep
 the `--json` document when the numbers feed a comparison: `/verification:measure metrics` consumes
@@ -68,7 +68,7 @@ side as INCONCLUSIVE); otherwise keep the JSON beside your notes and compare by 
   selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative.
 - A `null` value means the collector did not produce it (the bundled counter has no comment
   count); it is never zero.
-- `status` is `complete` when every lane in scope was measured, `partial` when one was not, and
+- `status` is `complete` when every language in scope was measured, `partial` when one was not, and
   `empty` when nothing was; the "Coverage of this run" table says why for every non-`ok` row.
 - Exit 0 whenever a report was produced, including an `empty` one; exit 2 for a usage error such
   as an explicitly named path that does not exist; exit 3 when `scc` resolved but produced nothing
@@ -127,7 +127,7 @@ with a comment giving the reason, in the team file.
   names (pre-commit's `pass_filenames: false`): explicit paths, like `--all`, have no base.
 
 Exit 0 when nothing fails, 1 when a file fails, 2 when the check cannot decide: no change scope,
-an invalid `size.check`, a null `size.file_lines`, an unreadable file, a lane whose `file_lines`
+an invalid `size.check`, a null `size.file_lines`, an unreadable file, a language whose `file_lines`
 was not measured, or a collector that failed (under `report`, a failed collector keeps exit 3). A crossing this change causes is this change's to fix, so splitting the file
 here is in scope, unlike the long file met in passing under "Acting on a long file".
 
@@ -139,7 +139,7 @@ Everything tunable resolves through the code-metrics layers (team
 `function_lines` measure comparing each function's non-empty lines against
 `size.function_lines_pct` of the file's, from a collector that reports function ranges such as
 `lizard` or `radon`; Bash has none and its row says so), scope exclusions (`scope.exclude`), and
-per-lane collector order. `--file-lines <n>` replaces the reference for one run and writes no
+per-language collector order. `--file-lines <n>` replaces the reference for one run and writes no
 layer. The report names the layer that supplied any value a personal layer
 changed. `/code-metrics:setup` writes the team file and probes the collectors.
 

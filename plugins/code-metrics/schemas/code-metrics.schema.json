@@ -14,17 +14,17 @@
       "type": ["array", "null"],
       "items": { "type": "string" }
     },
-    "lane": {
+    "language": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "false opts the lane out, even under --all."
+          "description": "false opts the language out, even under --all."
         },
         "collectors": {
           "type": "object",
-          "description": "Measure name to an ordered collector list that replaces the bundled ladder for this lane; names are checked against scripts/collector-ladder.tsv. An empty list runs no collector.",
+          "description": "Measure name to an ordered collector list that replaces the bundled ladder for this language; names are checked against scripts/collector-ladder.tsv. An empty list runs no collector.",
           "additionalProperties": {
             "type": "array",
             "items": { "type": "string" }
@@ -145,19 +145,19 @@
         }
       }
     },
-    "lanes": {
+    "languages": {
       "type": "object",
-      "description": "The bundled lanes, plus any extra lane id listed here: an extra id takes its files from the globs of the consumer's docs/conventions/ecosystems/<id>.yaml record, and each measure with no shipped collector for it reads unavailable while file_lines still counts its files. A record whose id is not listed here creates no lane.",
+      "description": "The bundled languages, plus any extra language id listed here: an extra id takes its files from the globs of the consumer's docs/conventions/ecosystems/<id>.yaml record, and each measure with no shipped collector for it reads unavailable while file_lines still counts its files. A record whose id is not listed here creates no language.",
       "propertyNames": { "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
       "properties": {
-        "typescript": { "$ref": "#/$defs/lane" },
-        "python": { "$ref": "#/$defs/lane" },
-        "bash": { "$ref": "#/$defs/lane" },
-        "go": { "$ref": "#/$defs/lane" },
-        "dotnet": { "$ref": "#/$defs/lane" },
-        "other": { "$ref": "#/$defs/lane" }
+        "typescript": { "$ref": "#/$defs/language" },
+        "python": { "$ref": "#/$defs/language" },
+        "bash": { "$ref": "#/$defs/language" },
+        "go": { "$ref": "#/$defs/language" },
+        "dotnet": { "$ref": "#/$defs/language" },
+        "other": { "$ref": "#/$defs/language" }
       },
-      "additionalProperties": { "$ref": "#/$defs/lane" }
+      "additionalProperties": { "$ref": "#/$defs/language" }
     }
   }
 }

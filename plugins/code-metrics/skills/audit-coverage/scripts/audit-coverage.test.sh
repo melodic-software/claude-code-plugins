@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/parsers/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/scripts/yaml_subset.py
-# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
+# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its languages
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -63,8 +63,8 @@ out="$(cd "$SCRATCH" && PATH="$STUBS:$EMPTY_PATH" HOME="$SCRATCH" CODE_METRICS_H
   bash "$SCRIPT" --json --all "$REPO_ROOT/$SOURCES" 2>/dev/null)"
 rc=$?
 assert_eq "no artifact anywhere still exits 0" 0 "$rc"
-assert_doc "every language-lane run row is unavailable and names the paths searched" "$out" \
-  'd["run"] and all(r["status"]=="unavailable" and "searched" in (r["reason"] or "") for r in d["run"] if r["lane"]!="other") and all(r["status"]=="not-applicable" for r in d["run"] if r["lane"]=="other")'
+assert_doc "every language run row is unavailable and names the paths searched" "$out" \
+  'd["run"] and all(r["status"]=="unavailable" and "searched" in (r["reason"] or "") for r in d["run"] if r["language"]!="other") and all(r["status"]=="not-applicable" for r in d["run"] if r["language"]=="other")'
 assert_doc "the document reports that it measured nothing" "$out" 'd["status"]=="empty"'
 assert_contains "the reason lists a well-known artifact name" "$out" "coverage/lcov.info"
 
@@ -86,12 +86,12 @@ assert_doc "the file row still reports the lines the artifact hit" "$out" \
 assert_doc "a line-range join is labeled as one" "$out" \
   'any(r["function"]=="classify" and r["cov_source"]=="line-range" for r in d["measures"])'
 assert_doc "bash CRAP is a visible not-applicable row, not a null" "$out" \
-  'any(r["lane"]=="bash" and r["measure"]=="crap" and r["status"]=="not-applicable" for r in d["run"])'
+  'any(r["language"]=="bash" and r["measure"]=="crap" and r["status"]=="not-applicable" for r in d["run"])'
 assert_matches "the bash CRAP row says why" "$out" 'no function end lines'
 
 out="$(run_json coverage-py.json)"
 assert_doc "python function rows come from the artifact regions" "$out" \
-  'len([r for r in d["measures"] if r["function"] and r["lane"]=="python"])==2 and all(r["cov_source"]=="artifact-region" for r in d["measures"] if r["function"] and r["lane"]=="python")'
+  'len([r for r in d["measures"] if r["function"] and r["language"]=="python"])==2 and all(r["cov_source"]=="artifact-region" for r in d["measures"] if r["function"] and r["language"]=="python")'
 assert_doc "the nested function is reported on its own" "$out" \
   'any(r["function"]=="classify.inner" and r["values"]["coverage_pct"]==100 for r in d["measures"])'
 assert_doc "the outer function reports the CRAP of its own coverage" "$out" \
@@ -101,9 +101,9 @@ out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --json --all "$SOURCES" --artifacts "$C
 rc=$?
 assert_eq "no complexity collector still exits 0" 0 "$rc"
 assert_doc "the python file row survives without any complexity row" "$out" \
-  'any(r["function"] is None and r["lane"]=="python" and r["values"]["coverage_pct"] is not None for r in d["measures"])'
+  'any(r["function"] is None and r["language"]=="python" and r["values"]["coverage_pct"] is not None for r in d["measures"])'
 assert_doc "CRAP is unavailable and names the missing collector" "$out" \
-  'any(r["lane"]=="python" and r["measure"]=="crap" and r["status"]=="unavailable" and "cyclomatic collector" in r["reason"] for r in d["run"])'
+  'any(r["language"]=="python" and r["measure"]=="crap" and r["status"]=="unavailable" and "cyclomatic collector" in r["reason"] for r in d["run"])'
 
 out="$(run_json lcov-2.2.info)"
 assert_doc "the go function joins from the artifact region" "$out" \
@@ -120,26 +120,26 @@ assert_doc "the go file row names the statement ratio as its basis" "$out" \
   'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["cov_source"]=="statement-ratio" for r in d["measures"])'
 assert_doc "a go function measured only by a profile reports null, not 0, lines" "$out" \
   'any(r["function"]=="Classify" and r["values"]["lines_executable"] is None and r["values"]["lines_hit"] is None and r["values"]["coverage_pct"] is None and r["values"]["crap"] is None for r in d["measures"])'
-assert_doc "both lanes name the format they read" "$out" \
-  'sorted(r["collector"] for r in d["run"] if r["measure"]=="coverage" and r["lane"] in ("bash","go"))==["cobertura","go_cover"]'
-assert_doc "the fully matched lane is ok and the half-matched one is partial" "$out" \
-  'next(r["status"] for r in d["run"] if r["measure"]=="coverage" and r["lane"]=="go")=="ok" and next(r["status"] for r in d["run"] if r["measure"]=="coverage" and r["lane"]=="bash")=="partial"'
-assert_doc "a lane measured in part keeps the document off complete" "$out" \
+assert_doc "both languages name the format they read" "$out" \
+  'sorted(r["collector"] for r in d["run"] if r["measure"]=="coverage" and r["language"] in ("bash","go"))==["cobertura","go_cover"]'
+assert_doc "the fully matched language is ok and the half-matched one is partial" "$out" \
+  'next(r["status"] for r in d["run"] if r["measure"]=="coverage" and r["language"]=="go")=="ok" and next(r["status"] for r in d["run"] if r["measure"]=="coverage" and r["language"]=="bash")=="partial"'
+assert_doc "a language measured in part keeps the document off complete" "$out" \
   'd["status"]=="partial"'
 
 out="$(run_json lcov-1x.info lcov-2.2.info cobertura.xml coverage-py.json go-cover.out)"
 assert_doc "--json is one code-metrics/v2 document for audit-coverage" "$out" \
   'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-coverage"'
-assert_doc "the four measurable lanes are all covered" "$out" \
-  'sorted({r["lane"] for r in d["run"] if r["measure"]=="coverage" and r["status"] in ("ok","partial")})==["bash","go","python","typescript"]'
-assert_doc "only the lane matched in part is partial" "$out" \
-  '{r["lane"] for r in d["run"] if r["measure"]=="coverage" and r["status"]=="partial"}=={"bash"}'
+assert_doc "the four measurable languages are all covered" "$out" \
+  'sorted({r["language"] for r in d["run"] if r["measure"]=="coverage" and r["status"] in ("ok","partial")})==["bash","go","python","typescript"]'
+assert_doc "only the language matched in part is partial" "$out" \
+  '{r["language"] for r in d["run"] if r["measure"]=="coverage" and r["status"]=="partial"}=={"bash"}'
 assert_doc "no threshold produced a finding or a severity" "$out" \
   'all(t["reference"] is None for t in d["thresholds"]) and all(not r["over_reference"] for r in d["measures"])'
 assert_doc "a go profile outranks a line artifact for the same file" "$out" \
   'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["values"]["coverage_pct"]==80.0 and r["cov_source"]=="statement-ratio" and r["values"]["lines_executable"] is None and r["values"]["lines_hit"] is None for r in d["measures"])'
-assert_doc "both formats are still named as read for the go lane" "$out" \
-  'all(f in next(r["collector"] for r in d["run"] if r["measure"]=="coverage" and r["lane"]=="go") for f in ("go_cover","lcov"))'
+assert_doc "both formats are still named as read for the go language" "$out" \
+  'all(f in next(r["collector"] for r in d["run"] if r["measure"]=="coverage" and r["language"]=="go") for f in ("go_cover","lcov"))'
 sub_out="$(cd "$COVERAGE/.." && CM_TEST_SUBDIR="plugins/code-metrics/scripts/fixtures/" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all sources \
   --artifacts "$COVERAGE/lcov-1x.info" --artifacts "$COVERAGE/lcov-2.2.info" --artifacts "$COVERAGE/cobertura.xml" \
   --artifacts "$COVERAGE/coverage-py.json" --artifacts "$COVERAGE/go-cover.out" 2>/dev/null)"
@@ -148,8 +148,8 @@ same="$(printf '%s\n\x1e%s' "$out" "$sub_out" | "$PY" -c '
 import json, sys
 a, b = (json.loads(part) for part in sys.stdin.read().split("\x1e"))
 files = lambda d: sorted(r["file"] for r in d["measures"] if r["file"])
-missing = lambda d: sorted((r["lane"], r["measure"], tuple(r.get("missing", []))) for r in d["run"])
-reasons = lambda d: sorted((r["lane"], r["measure"], r["reason"] or "") for r in d["run"])
+missing = lambda d: sorted((r["language"], r["measure"], tuple(r.get("missing", []))) for r in d["run"])
+reasons = lambda d: sorted((r["language"], r["measure"], r["reason"] or "") for r in d["run"])
 ok = (files(a) == files(b) and files(a) and missing(a) == missing(b) and reasons(a) == reasons(b)
       and a["root"] == b["root"] and a["scan_root"] == "." and b["scan_root"] == "plugins/code-metrics/scripts/fixtures"
       and a["summary"] == b["summary"])

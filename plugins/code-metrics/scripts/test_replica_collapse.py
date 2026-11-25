@@ -29,7 +29,7 @@ def row(file: str, function: str = "greet", **fields) -> dict:
         "function": function,
         "start_line": 8,
         "end_line": None,
-        "lane": "bash",
+        "language": "bash",
         "values": {"cyclomatic": 22},
         "collector": "shellmetrics",
         "labels": ["start-line-only"],
@@ -151,7 +151,7 @@ class ReplicaCollapseTests(unittest.TestCase):
         clone = {
             "file": None,
             "function": None,
-            "lane": "bash",
+            "language": "bash",
             "instances": [
                 {
                     "file": "plugins/a/hooks/hook-utils.sh",

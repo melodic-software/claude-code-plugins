@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Adapter for `shellmetrics` (shellspec/shellmetrics), the Bash lane.
+"""Adapter for `shellmetrics` (shellspec/shellmetrics), the Bash language.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 `shellmetrics --csv <files>` prints a header and then one record per shell
 function in the column order
@@ -15,7 +15,7 @@ end line, so rows carry `end_line: null` and the label `start-line-only`,
 which is why Bash has no CRAP in this version (design T7, and the ladder's
 `bash function_lines none` rung).
 
-`lizard` does not parse shell, so this is the Bash lane's first rung;
+`lizard` does not parse shell, so this is the Bash language's first rung;
 `multimetric` is the fallback and is labeled an approximation because it
 under-counts (its Python cyclomatic read 1 where radon read 3 for the same
 function, probed 2026-09-05).
@@ -42,7 +42,7 @@ from adapter_paths import (
 )
 
 NAME = "shellmetrics"
-LANE = "bash"
+LANGUAGE = "bash"
 MEASURE = "cyclomatic"
 PSEUDO = ("<begin>", "<main>", "<end>")
 
@@ -51,7 +51,7 @@ def probe() -> int:
     return path_probe(NAME)
 
 
-def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
+def translate(raw: str, language: str, wanted: list[str]) -> list[dict]:
     """Rows for the requested files. Raises ValueError when no record parsed."""
     wanted_norm = {normalize(p): p for p in wanted}
     rows: list[dict] = []
@@ -77,7 +77,7 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
                 "function": record[1],
                 "start_line": start,
                 "end_line": None,
-                "lane": lane,
+                "language": language,
                 "values": {MEASURE: complexity},
                 "collector": NAME,
                 "labels": ["start-line-only"],
@@ -88,9 +88,9 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     return rows
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
-    if lane != LANE or measure != MEASURE:
-        print(f"{NAME}.py: cannot collect {lane}/{measure}", file=sys.stderr)
+def collect(language: str, measure: str, files: list[str]) -> int:
+    if language != LANGUAGE or measure != MEASURE:
+        print(f"{NAME}.py: cannot collect {language}/{measure}", file=sys.stderr)
         return 2
     exe = shutil.which(NAME)
     if not exe:
@@ -100,7 +100,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         [exe, "--csv", *files], capture_output=True, text=True, check=False
     )
     try:
-        rows = translate(result.stdout, lane, files)
+        rows = translate(result.stdout, language, files)
     except ValueError as exc:
         print(
             f"{NAME}.py: no parseable {NAME} output ({exc}); "
@@ -114,7 +114,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    print(f"{LANE}/{MEASURE}")
+    print(f"{LANGUAGE}/{MEASURE}")
 
 
 INSTALL_HINT = "shellmetrics: https://github.com/shellspec/shellmetrics (one POSIX shell script; place it on PATH)"

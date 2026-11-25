@@ -208,7 +208,7 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
     if (refused.length) return local(1, "a K2 deck carries more than text in the slide format", refused);
   }
   const { argument = null, option = null, home, project = findRoot(), dataDir = process.env.CLAUDE_PLUGIN_DATA || null } = layers;
-  const resolution = resolveMedium({ lane: "visualization:present", argument, userConfig: option, projectRoot: project }, { ...(home ? { userHome: home } : {}), dataDir });
+  const resolution = resolveMedium({ producer: "visualization:present", argument, userConfig: option, projectRoot: project }, { ...(home ? { userHome: home } : {}), dataDir });
   const { medium, preferred, decidedBy } = resolution;
   if (!mediumOf(medium)?.publishes) {
     return { exit: 0, result: { medium, publishes: false, class: cls, reason: `${decidedBy} sets medium: ${medium}`, report: reportLines(resolution) } };

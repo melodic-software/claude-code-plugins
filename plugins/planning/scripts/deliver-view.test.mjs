@@ -207,12 +207,12 @@ describe("render", () => {
     assert.equal(dataOf(render("planning", "plan", "## Plan\n\n### Phase 1: Fix [TODO]\n")).title, "Plan");
   });
 
-  test("refuses a kind the lane does not register", () => {
+  test("refuses a kind the producer does not register", () => {
     assert.throws(() => render("review:explain-change", "plan", PLAN_RECORD), /does not register/);
   });
 
-  test("refuses an unknown lane", () => {
-    assert.throws(() => render("nope", "plan", PLAN_RECORD), /unknown lane/);
+  test("refuses an unknown producer", () => {
+    assert.throws(() => render("nope", "plan", PLAN_RECORD), /unknown producer/);
   });
 });
 
@@ -277,10 +277,10 @@ describe("deliverView", () => {
   });
 });
 
-describe("the planning lane", () => {
+describe("the planning producer", () => {
   test("ships a private Artifact as its default when no scope decides", () => {
     const home = tempDir();
-    const got = resolveMedium({ lane: "planning", userConfig: "auto" }, { userHome: home, dataDir: null });
+    const got = resolveMedium({ producer: "planning", userConfig: "auto" }, { userHome: home, dataDir: null });
     assert.deepEqual([got.preferred, got.medium, got.decidedBy], ["artifact", "artifact", "plugin default"]);
   });
 });

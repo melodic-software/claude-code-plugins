@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/education/lib/view-settings.mjs\" resolve --lane education:illustrate --option \"\""}}],
+      "answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/education/lib/view-settings.mjs\" resolve --producer education:illustrate --option \"\""}}],
       "why": "resolver only"
     },
     {

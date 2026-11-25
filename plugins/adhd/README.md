@@ -45,7 +45,7 @@ original text. For big or decision-dense content it renders an HTML decision
 table (item, recommendation, alternative, and what you're deciding, with rows
 numbered so a terminal answer maps back), honoring the Artifact tool contract and
 degrading to a local HTML file, then structured terminal markdown, where the
-Artifact surface is unavailable. The shared medium resolver, which every view lane
+Artifact surface is unavailable. The shared medium resolver, which every view producer
 uses, decides where the table goes from a `--medium` argument, the plugin's `medium`
 option, the repository's `docs/conventions/rendered-views.yaml` team file, and its
 untracked `.local.yaml` personal override. A team file can keep the table local but

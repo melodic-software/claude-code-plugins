@@ -461,7 +461,7 @@
         "It checks the batch against the repo's own build, test and lint gates."
       ],
       "related": [
-        "Route-lane candidate needs boundary design: /architecture:improve",
+        "Route-step candidate needs boundary design: /architecture:improve",
         "Pure markdown prose dedup: /docs-hygiene:extract-ssot",
         "Identifier rename rather than value change: /docs-hygiene:rename-references",
         "Duplicate-writer ownership rule to codify: /corrections:codify",

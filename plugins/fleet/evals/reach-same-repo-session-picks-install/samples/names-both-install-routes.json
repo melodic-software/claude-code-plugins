@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Which install is the other session in? If it is in this WSL install, use the built-in ListAgents and SendMessage peer tools: no SSH, no relay. If it runs in native Windows on this laptop, that is the other install, so use row R1: run claude.exe from WSL and have that turn SendMessage it, because each install lists only its own sessions."},
+    {"answer": "Same install (WSL): SendMessage directly. Windows install: hop with R1 via powershell.exe, since ListAgents only sees this install.", "why": "terse both branches"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Run `ssh lap-01 'claude -p \"SendMessage to other: hi\"'`.", "why": "ssh only, no install"},
+    {"answer": "Use SendMessage to message it.", "why": "peer tools only, no install check"},
+    {"answer": "The fleet manifest lists desk-01 and lap-01.", "why": "different answer"}
+  ]
+}

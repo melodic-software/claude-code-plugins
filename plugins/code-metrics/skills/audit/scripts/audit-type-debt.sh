@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# /code-metrics:audit type-debt entry point: how much of the code is typed,
-# per file and per lane, as a percentage from `type-coverage` (TypeScript) and
-# from mypy's `--any-exprs-report` (Python).
-#
-#   audit-type-debt.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
-#
-# Prints the markdown report; `--json` prints the `code-metrics/v2` document
-# instead. Scope, lanes, and the collector ladder are the dispatcher's
-# (scripts/dispatch.sh in the plugin root); this script owns its own options.
-# Bash, Go, and C# report `not-applicable`: no tool produces a comparable
-# percentage for them. Exit codes are the dispatcher's: 0 report produced
-# (including a run that measured nothing), 2 usage error, 3 a collector ran
-# and produced nothing parseable.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"

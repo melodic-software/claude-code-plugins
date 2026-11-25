@@ -71,7 +71,7 @@ class CpdAdapterTests(unittest.TestCase):
             row = rows[0]
             self.assertIsNone(row["file"])
             self.assertIsNone(row["function"])
-            self.assertEqual(row["lane"], "go")
+            self.assertEqual(row["language"], "go")
             self.assertEqual(row["collector"], "cpd")
             self.assertEqual([i["file"] for i in row["instances"]], [ALPHA, BETA])
             self.assertEqual(
@@ -114,14 +114,14 @@ class CpdAdapterTests(unittest.TestCase):
             self.assertIn("--language go", argv)
             self.assertIn("--file-list", argv)
 
-    def test_a_lane_cpd_cannot_lex_is_exit_3_with_the_reason(self) -> None:
+    def test_a_language_cpd_cannot_lex_is_exit_3_with_the_reason(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
             result = run(
                 "collect", "bash", "duplication", "a.sh", path_prefix=Path(tmp)
             )
             self.assertEqual(result.returncode, 3)
-            self.assertIn("no CPD-capable language for the bash lane", result.stderr)
+            self.assertIn("no CPD-capable language for bash", result.stderr)
 
     def test_unparsable_xml_is_exit_3_with_the_tool_stderr(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

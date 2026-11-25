@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/opt/eval/plugins/visualization/lib/view-settings.mjs\" resolve --lane visualization:visualize --option \"\"",
+            "command": "node \"/opt/eval/plugins/visualization/lib/view-settings.mjs\" resolve --producer visualization:visualize --option \"\"",
             "description": "Run command"
           }
         }
@@ -16,7 +16,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cd /opt/eval/ws && node /opt/eval/p/lib/view-settings.mjs resolve --lane visualization:visualize --option auto",
+            "command": "cd /opt/eval/ws && node /opt/eval/p/lib/view-settings.mjs resolve --producer visualization:visualize --option auto",
             "description": "Run command"
           }
         }
@@ -30,12 +30,12 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /opt/eval/p/lib/view-settings.mjs resolve --lane adhd:clarify --option \"\"",
+            "command": "node /opt/eval/p/lib/view-settings.mjs resolve --producer adhd:clarify --option \"\"",
             "description": "Run command"
           }
         }
       ],
-      "why": "another lane"
+      "why": "another producer"
     },
     {
       "answer": [
@@ -54,7 +54,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "echo node view-settings.mjs resolve --lane visualization:visualize",
+            "command": "echo node view-settings.mjs resolve --producer visualization:visualize",
             "description": "Run command"
           }
         }

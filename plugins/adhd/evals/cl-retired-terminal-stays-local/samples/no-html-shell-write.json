@@ -17,7 +17,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /opt/eval/plugin/lib/view-settings.mjs resolve --lane adhd:clarify --option auto 2>/dev/null; cat /opt/eval/plugin/reference/html-chrome.html",
+            "command": "node /opt/eval/plugin/lib/view-settings.mjs resolve --producer adhd:clarify --option auto 2>/dev/null; cat /opt/eval/plugin/reference/html-chrome.html",
             "description": "Run command"
           }
         }

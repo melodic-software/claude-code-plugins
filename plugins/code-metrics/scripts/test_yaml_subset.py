@@ -64,7 +64,7 @@ class ParseTests(unittest.TestCase):
             registries:
               - scripts/a.txt
               - scripts/b.txt
-            lanes:
+            languages:
             - typescript
             - python
             """
@@ -72,7 +72,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(doc["globs"], ["*.sh", "*.bash", "plain"])
         self.assertEqual(doc["none"], [])
         self.assertEqual(doc["registries"], ["scripts/a.txt", "scripts/b.txt"])
-        self.assertEqual(doc["lanes"], ["typescript", "python"])
+        self.assertEqual(doc["languages"], ["typescript", "python"])
 
     def test_an_escaped_quote_does_not_end_a_quoted_flow_item(self) -> None:
         doc = parse('x: ["a\\",b", c]  # note\ny: ["p\\\\", q]\n')
@@ -102,7 +102,7 @@ class ParseTests(unittest.TestCase):
     def test_the_contract_example_round_trips(self) -> None:
         doc = parse(
             """
-            lanes:
+            languages:
               typescript:
                 enabled: true
                 collectors:            # measure -> ordered tool list
@@ -112,10 +112,10 @@ class ParseTests(unittest.TestCase):
             """
         )
         self.assertEqual(
-            doc["lanes"]["typescript"]["collectors"]["cyclomatic"],
+            doc["languages"]["typescript"]["collectors"]["cyclomatic"],
             ["lizard", "eslint-complexity"],
         )
-        self.assertIs(doc["lanes"]["dotnet"]["enabled"], True)
+        self.assertIs(doc["languages"]["dotnet"]["enabled"], True)
 
     def test_empty_document_is_none(self) -> None:
         self.assertIsNone(parse("# only a comment\n\n"))
@@ -171,7 +171,7 @@ class CommandLineTests(unittest.TestCase):
             self.assertEqual(json.loads(result.stdout), {"size": {"file_lines": 500}})
             bad = Path(tmp) / "bad.yaml"
             bad.write_text(
-                "lanes:\n  typescript: { enabled: true }\n", encoding="utf-8"
+                "languages:\n  typescript: { enabled: true }\n", encoding="utf-8"
             )
             result = subprocess.run(
                 [sys.executable, str(SCRIPT), str(bad)],

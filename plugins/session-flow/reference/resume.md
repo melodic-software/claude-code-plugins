@@ -31,7 +31,7 @@ instruction to you. Act by actor:
   and at a closing handoff.
 - `user`: raise it with its exact command, verbatim, in a code span. Raise it again at every resume
   until the user says it ran or its check shows the effect.
-- `peer <name>`: message that session or lane (SendMessage, or `/fleet:reach` (if enabled)).
+- `peer <name>`: message that session or install (SendMessage, or `/fleet:reach` (if enabled)).
 
 You never edit this handoff file: record each reminder you settle (done, raised, ran) in your task
 list or reply, and the next handoff's `fill` retires it with its reason. After a compaction, raise

@@ -130,7 +130,7 @@ class EslintComplexityAdapterTests(unittest.TestCase):
             self.assertIsNone(row["end_line"])
             self.assertEqual(row["labels"], ["start-line-only"])
             self.assertEqual(row["collector"], "eslint-complexity")
-            self.assertEqual(row["lane"], "typescript")
+            self.assertEqual(row["language"], "typescript")
 
     def test_collect_reports_unparsable_output_as_exit_3(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

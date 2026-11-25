@@ -81,12 +81,12 @@ const runtime = loadRuntime();
   const kinds = {
     triage: { id: "triage", parse: (record) => JSON.parse(record), template: "view-builder-sample/template.html", tier: "client-interactive" },
   };
-  const lanes = { "fixture:lane": { laneId: "fixture:lane", kinds: ["triage"] }, "fixture:other": { laneId: "fixture:other", kinds: [] } };
-  const opts = { kinds, lanes, root: `${root}/lib` };
-  const rendered = render("fixture:lane", "triage", JSON.stringify(sample), opts);
+  const producers = { "fixture:producer": { producerId: "fixture:producer", kinds: ["triage"] }, "fixture:other": { producerId: "fixture:other", kinds: [] } };
+  const opts = { kinds, producers, root: `${root}/lib` };
+  const rendered = render("fixture:producer", "triage", JSON.stringify(sample), opts);
   check("render builds a registered kind through its entry and the page passes", validateView(rendered).ok, validateView(rendered).failures);
-  check("render refuses a kind its lane does not register", failuresOf(() => render("fixture:other", "triage", "{}", opts))?.[0]?.includes("does not register"));
-  check("render refuses an unknown lane", failuresOf(() => render("fixture:none", "triage", "{}", opts))?.[0]?.includes("unknown lane"));
+  check("render refuses a kind its producer does not register", failuresOf(() => render("fixture:other", "triage", "{}", opts))?.[0]?.includes("does not register"));
+  check("render refuses an unknown producer", failuresOf(() => render("fixture:none", "triage", "{}", opts))?.[0]?.includes("unknown producer"));
   const copies = readFileSync(`${root}/scripts/shared-copies.txt`, "utf8").match(/^lib\/view-builder\.mjs \S+$/gm).map((line) => line.split(" ")[1]); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   const failedImports = [];
   for (const copy of copies) {

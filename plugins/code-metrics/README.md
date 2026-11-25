@@ -14,21 +14,21 @@ value to count against, not a bar.
 |---|---|
 | `/code-metrics:audit complexity` | Per-function cyclomatic and cognitive complexity and Halstead difficulty from whichever collector resolves (`lizard`, `radon`, ESLint rules, `gocyclo`, `gocognit`, `shellmetrics`, `multimetric`), beside the ISO/IEC 5055 §8.2.117 reference of 20 with 10 and 15 selectable; cognitive and Halstead carry no standard threshold. |
 | `/code-metrics:audit size` | Lines per file (total, blank, comment, code through `scc`; total and non-blank from a bundled counter otherwise) beside a cited reference; `size.mode: iso-8.2.115` adds the ISO function-percentage form; `--check` with `size.check` set (off by default) fails a changed file that crossed the reference. |
-| `/code-metrics:audit-duplication` | Clone classes (the detector's pairs merged; duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, rolled up per lane and per directory, minus the replication the repository declares in a sanctioned-replication registry (a path-within-plugin, or a `canonical -> copies` cluster line), which is an exclusion, not a suppression. A file over the size cap is reported as skipped, never silently dropped. |
+| `/code-metrics:audit-duplication` | Clone classes (the detector's pairs merged; duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, rolled up per language and per directory, minus the replication the repository declares in a sanctioned-replication registry (a path-within-plugin, or a `canonical -> copies` cluster line), which is an exclusion, not a suppression. A file over the size cap is reported as skipped, never silently dropped. |
 | `/code-metrics:audit-coverage` | Line coverage per file and per function read from the artifacts a build already produced (lcov 1.x and 2.2, Cobertura, coverage.py JSON, Go cover profile), plus CRAP per function from the complexity rows; it never runs a test, a missing artifact is a visible warning, and a function with no executable lines reports `null`, never zero. |
-| `/code-metrics:audit type-debt` | The typed-code percentage per file and per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
+| `/code-metrics:audit type-debt` | The typed-code percentage per file and per language: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
 | `/code-metrics:audit-suppressions` | Every lint and type-checker suppression (ESLint, TypeScript, `noqa`, mypy, pylint, Pyright, Ruff, ShellCheck, C# pragmas and attributes, `nolint`, PowerShell attributes, markdownlint, RuboCop, Java `@SuppressWarnings`) in the change's added lines, a path, or the tree, each with its rule ids and reason and whether it is justified (a reason, plus a rule id where the tool can name one); rule ids listed in `suppressions.correctness_rules` are marked. The bundled scanner's `--count` prints the counts for a CI ceiling. |
 | `/code-metrics:principles` | Metric literacy: what each measure can and cannot tell you, where every reference value came from, CRAP's corrected provenance, the cross-metric caveats (carried once, here), and gated pointers to the plugins that own mutation score, tautological tests, dead code, coupling, and lint. |
 | `/code-metrics:setup` | `check` probes the interpreter and every configuration layer, and runs one measure per collector on a bundled fixture; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
 
 ## Works in any repo
 
-Lanes are detected from file extensions (TypeScript/JavaScript, Python, Bash, Go, and C#, whose
-complexity lane is deferred and reported as such). Every other text file, markdown, JSON, YAML,
-PowerShell, a `Makefile`, lands in the catch-all `other` lane, which carries a line count and
+Languages are detected from file extensions (TypeScript/JavaScript, Python, Bash, Go, and C#, whose
+complexity language is deferred and reported as such). Every other text file, markdown, JSON, YAML,
+PowerShell, a `Makefile`, lands in the catch-all `other` language, which carries a line count and
 nothing else: `audit size` measures it, and every other measure reports it as not applicable.
-When the consuming repository tracks `docs/conventions/ecosystems/<lane>.yaml` files, their `globs`
-override the bundled map for that lane. Two scopes are first-class: the default is the change,
+When the consuming repository tracks `docs/conventions/ecosystems/<language>.yaml` files, their `globs`
+override the bundled map for that language. Two scopes are first-class: the default is the change,
 files that differ from the merge-base with the default branch plus uncommitted and untracked
 files, and `--all` is the whole tree (every tracked or untracked-but-not-ignored file); explicit
 paths narrow either. Nothing depends on a framework, a build system, or the publisher.
@@ -41,22 +41,22 @@ paths narrow either. Nothing depends on a framework, a build system, or the publ
   Python is required for correctness: every entry point stops with a remediation message when it
   is absent. `/code-metrics:audit-suppressions` needs Python 3.11 or later and exits 2 with a
   one-line message below it.
-- **Collectors, all optional.** A lane whose collector is absent reports `unavailable` with the
+- **Collectors, all optional.** A language whose collector is absent reports `unavailable` with the
   install hint and the run continues; nothing is installed on your behalf.
 
 | Collector | Used for | Install |
 |---|---|---|
-| `scc` | comment-aware line counts, every lane | `go install github.com/boyter/scc/v4@latest`, `brew install scc`, or a release binary |
+| `scc` | comment-aware line counts, every language | `go install github.com/boyter/scc/v4@latest`, `brew install scc`, or a release binary |
 | `lizard` | cyclomatic complexity and function ranges for TypeScript/JavaScript, Python, Go | `pip install lizard` or `pipx install lizard` |
 | `radon` | Python cyclomatic complexity, Halstead, function ranges | `pip install radon` |
 | `eslint` with the core `complexity` rule | TypeScript/JavaScript cyclomatic complexity when ESLint is wired | `npm install --save-dev eslint` |
 | `eslint-plugin-sonarjs` | TypeScript/JavaScript cognitive complexity | `npm install --save-dev eslint eslint-plugin-sonarjs` |
 | `gocyclo`, `gocognit` | Go cyclomatic and cognitive complexity | `go install github.com/fzipp/gocyclo/cmd/gocyclo@latest`, `go install github.com/uudashr/gocognit/cmd/gocognit@latest` |
 | `shellmetrics` | Bash cyclomatic complexity | one POSIX shell script from github.com/shellspec/shellmetrics, placed on `PATH` |
-| `multimetric` | Halstead difficulty in every lane; Bash cyclomatic as a labeled approximation | `pip install multimetric` |
-| `jscpd` | duplication in every lane | `npm install -g jscpd`, or a devDependency |
+| `multimetric` | Halstead difficulty in every language; Bash cyclomatic as a labeled approximation | `pip install multimetric` |
+| `jscpd` | duplication in every language | `npm install -g jscpd`, or a devDependency |
 | `dupl` | Go duplication | `go install github.com/mibk/dupl@latest` |
-| PMD CPD | duplication for the non-shell lanes when `jscpd` is absent | the PMD 7 distribution or `brew install pmd` (needs a JVM) |
+| PMD CPD | duplication for the non-shell languages when `jscpd` is absent | the PMD 7 distribution or `brew install pmd` (needs a JVM) |
 | `type-coverage` | TypeScript type coverage; needs a resolvable `typescript` in the project | `npm install --save-dev type-coverage typescript` |
 | `mypy` | Python `Any`-expression report | `pip install mypy`, `pipx install mypy`, or `uv tool install mypy` |
 
@@ -84,7 +84,7 @@ their new locations. Every key has a bundled default
 opinionated default is `scope.exclude`, which drops `node_modules`, `vendor`, `dist`, and `build`
 directories at any depth and reports what it dropped, and a team file that sets the key replaces
 the list whole. The consumer's
-`docs/conventions/ecosystems/<lane>.yaml` files, when tracked, override lane detection with their `globs`
+`docs/conventions/ecosystems/<language>.yaml` files, when tracked, override language detection with their `globs`
 and `enabled`. References ship with their provenance: cyclomatic 20 cites ISO/IEC 5055:2021
 §8.2.117; the 1000-line file default is the plugin's own number and says so. Files are written in
 a documented YAML subset (block style, flow sequences of scalars, no flow mappings). Every key:
@@ -95,7 +95,7 @@ plugins: [config locations](reference/config-locations.md).
 ## The report
 
 Every audit prints one `code-metrics/v2` JSON document (`--json`) or its markdown rendering. The
-document opens with a "Coverage of this run" table naming, per lane and measure, the collector
+document opens with a "Coverage of this run" table naming, per language and measure, the collector
 used or the reason none did, and a `status` of `complete`, `partial`, or `empty`, so a run that
 measured nothing can never read as green. The markdown table shows each function once with every
 collector's values on that line, rows over a reference first, and stops at 200 rows; every
@@ -116,15 +116,15 @@ Measured paths are relative to the document's `root`. Field reference:
 ## Getting a first artifact
 
 `audit-coverage` reads what a test run already wrote and never runs one. When it finds no
-artifact, every lane is `unavailable`, the report lists the paths searched, and its last line
-points at this table. One command per lane produces an artifact the next run can read. Each row
+artifact, every language is `unavailable`, the report lists the paths searched, and its last line
+points at this table. One command per language produces an artifact the next run can read. Each row
 restates a producer's documented default, verified against the page in its Basis column on
 2026-09-12; the producer's page wins over the row. Recheck trigger: a release note or changelog
 entry of that producer naming the flag or the output path in its row, or a read-time fetch of the
 Basis page that no longer states what the row does; either re-derives the row from the page and
 refreshes the date.
 
-| Lane | Producer | Command shape | Writes | Basis |
+| Language | Producer | Command shape | Writes | Basis |
 |---|---|---|---|---|
 | TypeScript/JavaScript | vitest | `npx vitest run --coverage --coverage.reporter=lcov` | lcov `.info` at `coverage/lcov.info`, auto-discovered | [Vitest coverage guide](https://vitest.dev/guide/coverage.html), `coverage.reporter` |
 | TypeScript/JavaScript | jest | `npx jest --coverage` | lcov `.info` at `coverage/lcov.info`, auto-discovered; the default `coverageReporters` list carries `lcov` | [Jest CLI](https://jestjs.io/docs/cli), `--coverage`; [Jest configuration](https://jestjs.io/docs/configuration), `coverageReporters` default `["clover", "json", "lcov", "text"]` |
@@ -133,7 +133,7 @@ refreshes the date.
 | Python | pytest-cov | `pytest --cov=<package> --cov-report=json` | coverage.py JSON at `coverage.json`, coverage.py's default name for the `json` report, auto-discovered; `--cov-report=json:<path>` moves it | [pytest-cov reporting](https://pytest-cov.readthedocs.io/en/latest/reporting.html), `--cov-report`; the default file name is coverage.py's, per its [`json`](https://coverage.readthedocs.io/en/latest/commands/cmd_json.html) page |
 | Bash | kcov | `kcov <outdir> bash <test script>` | Cobertura-compatible XML under `<outdir>`; pass the `cobertura.xml` it writes with `--artifacts` | [kcov README](https://github.com/SimonKagstrom/kcov#readme), "Kcov will also write cobertura-compatible XML output" |
 | Go | `go test` | `go test ./... -coverprofile=coverage.out` | Go cover profile at the path `-coverprofile` names; `coverage.out` and `cover.out` are auto-discovered; file rows carry the statement ratio, function rows need a line artifact too | [`go` command, testing flags](https://pkg.go.dev/cmd/go#hdr-Testing_flags), `-coverprofile` |
-| C# | coverlet, as the `dotnet test` collector | `dotnet test --collect:"XPlat Code Coverage"` | Cobertura XML at `TestResults/<run id>/coverage.cobertura.xml`; pass it with `--artifacts`. The C# complexity lane is deferred, so the lane reports file rows and no CRAP | [coverlet VSTest integration](https://github.com/coverlet-coverage/coverlet/blob/master/Documentation/VSTestIntegration.md), `--collect:"XPlat Code Coverage"` |
+| C# | coverlet, as the `dotnet test` collector | `dotnet test --collect:"XPlat Code Coverage"` | Cobertura XML at `TestResults/<run id>/coverage.cobertura.xml`; pass it with `--artifacts`. The C# complexity language is deferred, so the language reports file rows and no CRAP | [coverlet VSTest integration](https://github.com/coverlet-coverage/coverlet/blob/master/Documentation/VSTestIntegration.md), `--collect:"XPlat Code Coverage"` |
 
 Auto-discovered means the output lands on one of the well-known names the run looks for with no
 `--artifacts` (`coverage/lcov.info`, `lcov.info`, `coverage.xml`, `cobertura.xml`, `coverage.json`,
@@ -183,7 +183,7 @@ figure for a live session.
 
 - Bash has no collector for cognitive complexity or function ranges, and Python none for cognitive
   complexity; those rows report `unavailable` with the validation date rather than a number.
-- C# is counted and its duplication measured, but its complexity lane is deferred to a native
+- C# is counted and its duplication measured, but its complexity language is deferred to a native
   collector and its type debt is reported as not applicable.
 - The sentences that restate the `coverage.*` defaults, the duplication defaults (in
   `audit-duplication` and the `principles` measures reference), `type_debt.reference`, the

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Adapter for `radon` (rubik/radon), the Python lane's native collector.
+"""Adapter for `radon` (rubik/radon), the Python language's native collector.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 Two subcommands are read (probed 2026-09-05 against radon 6.0.1; the captures
 in fixtures/tool-output/radon-cc.json and radon-hal.json are the reference
@@ -37,7 +37,7 @@ from adapter_paths import (
 )
 
 NAME = "radon"
-LANE = "python"
+LANGUAGE = "python"
 MEASURES = ("cyclomatic", "halstead", "function_lines")
 
 
@@ -88,7 +88,7 @@ def _row(
         "function": function,
         "start_line": start,
         "end_line": end,
-        "lane": LANE,
+        "language": LANGUAGE,
         "values": values,
         "collector": NAME,
         "labels": labels,
@@ -142,9 +142,9 @@ def translate_hal(raw: str, wanted: list[str]) -> list[dict]:
     return rows
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
-    if lane != LANE or measure not in MEASURES:
-        print(f"{NAME}.py: cannot collect {lane}/{measure}", file=sys.stderr)
+def collect(language: str, measure: str, files: list[str]) -> int:
+    if language != LANGUAGE or measure not in MEASURES:
+        print(f"{NAME}.py: cannot collect {language}/{measure}", file=sys.stderr)
         return 2
     exe = shutil.which(NAME)
     if not exe:
@@ -173,7 +173,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 def measures() -> None:
     for measure in MEASURES:
-        print(f"{LANE}/{measure}")
+        print(f"{LANGUAGE}/{measure}")
 
 
 INSTALL_HINT = "radon: https://github.com/rubik/radon (pip install radon)"

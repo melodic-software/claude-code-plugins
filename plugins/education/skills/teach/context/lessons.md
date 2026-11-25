@@ -61,7 +61,7 @@ The format decision, made once per lesson:
 0. **Resolve `medium` first (`topic` mode).** Run the shared medium resolver. When SKILL.md "Action Router" kept a `--medium` value, add `--argument <value>`:
 
    ```bash
-   node "<plugin-root>/lib/view-settings.mjs" resolve --lane education:teach --option "<medium option>"
+   node "<plugin-root>/lib/view-settings.mjs" resolve --producer education:teach --option "<medium option>"
    ```
 
    It prints one JSON line, then the report line naming the medium and the fact that decided it, then one line per notice; print the report line and each notice line with the lesson as they stand. The resolver weighs the argument, this plugin's `medium` option and the repository's rendered-views convention files: leave reading and weighing those files to it. When it exits non-zero, the value named no medium it knows: print its stderr and run it again without `--argument`. When `node` is missing, say the resolver did not run and take the JSON's `medium` as `null`. Act on the JSON line, since this lane never publishes on its own and the lesson file stays the source of truth:

@@ -102,7 +102,7 @@ moves in lockstep with the first. The coupling remains, plus a layer.
 
 - **Give the value one writer**: for a duplicate writer (the model's common-coupling entry),
   name one owner for the key, path or table; every other writer either calls the owner or
-  becomes a reader. This is route lane by definition: choosing the owner is a design decision,
+  becomes a reader. This is route step by definition: choosing the owner is a design decision,
   and moving a write changes behavior when the writers disagree today.
   *Not when:* the writers are the same owner split across layers (a migration that seeds a table
   the owning service then writes), or the value is append-only by design (a log both sides add
@@ -135,7 +135,7 @@ A second list is a hand-kept file whose entries each name a file or folder the t
 a plugin registry, a route table, a list of copied files. Every new entry edits it, so parallel
 changes collide on it, and an entry can outlive the file it names. `derivable-list.py` flags one
 among the ranked hotspots (SKILL.md phase B). It is report-only: a second list goes to the route
-lane, never into the apply batch, and the consumer picks the remedy.
+step, never into the apply batch, and the consumer picks the remedy.
 
 Report each confirmed second list as a Design-It-Twice comparison: the three designs below, each
 judged for this list on the same three questions, then one recommendation the human may reject.

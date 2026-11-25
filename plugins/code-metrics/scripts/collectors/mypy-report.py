@@ -2,16 +2,16 @@
 """Adapter for `mypy --any-exprs-report`, the Python type-debt collector.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 mypy writes `any-exprs.txt` into the directory given to `--any-exprs-report`:
 a fixed-width table with the columns Name, Anys, Exprs, Coverage, one row per
 module it was given, and a `Total` row. This adapter prints one row per scope
-file whose module mypy listed (`file` set, `function` null) and one lane row
-(`file` null, label `lane-total`) whose values are the sum of those file rows,
-so a change-scoped run reports the scope's own coverage. The lane row also
+file whose module mypy listed (`file` set, `function` null) and one language row
+(`file` null, label `language-total`) whose values are the sum of those file rows,
+so a change-scoped run reports the scope's own coverage. The language row also
 carries `partial` when files were held out (see below), so its labels read
-`lane-total, partial` and, when mypy exited non-zero, `lane-total, partial,
+`language-total, partial` and, when mypy exited non-zero, `language-total, partial,
 mypy-reported-errors`. File rows are unlabeled. The report directory
 is a temporary one, created and removed here, because mypy overwrites the
 whole directory.
@@ -32,7 +32,7 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   is the bare `x`. `module_name` re-derives that rule; checked against a
   real 186-file run of this repository (182 of 182 listed names matched);
 - mypy exits 1 on any type error and still writes the report (design T1), so
-  exit 1 with a readable report is exit 0 here, with the lane row labeled
+  exit 1 with a readable report is exit 0 here, with the language row labeled
   `mypy-reported-errors` and a note on stderr (which the dispatcher relays as
   the run row's reason) counting the errors and the missing-stub ones, the
   codes `import-untyped` and `import-not-found`. Error lines go to stdout as
@@ -67,7 +67,7 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   groups the scope by derived name, the first file of each group (scope order,
   the one mypy itself keeps) is measured, and the rest are named in the
   partial reason, which makes the run row `partial` rather than
-  `unavailable` and adds `partial` to the lane row's labels. A duplicate the
+  `unavailable` and adds `partial` to the language row's labels. A duplicate the
   derivation did not predict (mypy's `__init__.py` naming mode below) is held
   out from mypy's own message and the run repeats, once per held-out file at
   most. mypy accepts the flag only while namespace packages are on (its
@@ -84,7 +84,7 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   cache against 8.2s with a warm one).
 
 The percentage is mypy's own Coverage figure over expressions, which is not the
-`type-coverage` identifier ratio the TypeScript lane reports. The two are never
+`type-coverage` identifier ratio the TypeScript language reports. The two are never
 compared with each other.
 """
 
@@ -109,7 +109,7 @@ from adapter_paths import (
 NAME = "mypy-report"
 TOOL = "mypy"
 MEASURE = "type_coverage"
-LANE = "python"
+LANGUAGE = "python"
 # mypy's exit for a blocking error (duplicate module, usage or config error):
 # it stops before analyzing anything and its report carries no measurement.
 FATAL_EXIT = 2
@@ -231,12 +231,12 @@ def error_note(stdout: str) -> str:
     )
 
 
-def _row(lane: str, file: str | None, counts: Counts, labels: list[str]) -> dict:
+def _row(language: str, file: str | None, counts: Counts, labels: list[str]) -> dict:
     anys, exprs, coverage = counts
     return {
         "file": file,
         "function": None,
-        "lane": lane,
+        "language": language,
         "values": {
             "any_expressions": anys,
             "expressions_total": exprs,
@@ -250,12 +250,10 @@ def _row(lane: str, file: str | None, counts: Counts, labels: list[str]) -> dict
 def _summed(rows: list[Counts]) -> Counts:
     anys = sum(r[0] for r in rows)
     exprs = sum(r[1] for r in rows)
-    # mypy's own formatting of the percentage, so a lane row over every
-    # listed module reads exactly as mypy's Total row does.
     return anys, exprs, float(f"{(exprs - anys) / exprs * 100:.2f}") if exprs else None
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
+def collect(language: str, measure: str, files: list[str]) -> int:
     if measure != MEASURE:
         print(f"{NAME}.py: cannot collect {measure}", file=sys.stderr)
         return 2
@@ -330,31 +328,31 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     if result.returncode != 0:
         notes.append(error_note(result.stdout))
     labels = [
-        "lane-total",
+        "language-total",
         *(["partial"] if held_out else []),
         *(["mypy-reported-errors"] if result.returncode else []),
     ]
     by_path = {path: name for name, path in matched.items()}
-    file_rows = [_row(lane, p, modules[by_path[p]], []) for p in scope if p in by_path]
+    file_rows = [_row(language, p, modules[by_path[p]], []) for p in scope if p in by_path]
     if file_rows:
-        lane_counts = _summed([modules[name] for name in matched])
+        language_counts = _summed([modules[name] for name in matched])
         left_out = len(modules) - len(matched)
         if left_out:
             notes.append(
                 f"{left_out} listed module(s) matched no scope file and are not "
-                "counted in the lane row"
+                "counted in the language row"
             )
     else:
-        lane_counts = total
+        language_counts = total
         if modules:
             notes.append(
                 f"none of the {len(modules)} listed module(s) matched a scope "
-                "file; the lane row is mypy's own Total and no file rows are emitted"
+                "file; the language row is mypy's own Total and no file rows are emitted"
             )
     unlisted = len(scope) - len(matched)
     if unlisted and modules:
         notes.append(f"{unlisted} scope file(s) mypy did not list")
-    for row in [_row(lane, None, lane_counts, labels), *file_rows]:
+    for row in [_row(language, None, language_counts, labels), *file_rows]:
         print(json.dumps(row))
     if held_out:
         _report_partial("; ".join([collision_reason(held_out, len(files)), *notes]))
@@ -469,7 +467,7 @@ def match_modules(modules: dict[str, Counts], files: list[str]) -> dict[str, str
 
 
 def measures() -> None:
-    print(f"{LANE}/{MEASURE}")
+    print(f"{LANGUAGE}/{MEASURE}")
 
 
 INSTALL_HINT = "mypy: https://mypy.readthedocs.io (pip install mypy, pipx install mypy, or uv tool install mypy)"

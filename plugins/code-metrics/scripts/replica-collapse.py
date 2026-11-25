@@ -18,7 +18,7 @@ made root-relative through `--prefix` (the `git rev-parse --show-prefix` of
 the directory the audit ran from) and written with forward slashes, is that
 line or ends with `/` plus that line. Rows collapse together when they share
 the registry line, the function name, the start and end line, the collector,
-the lane, and every measured value, and sit under distinct carrying prefixes;
+the language, and every measured value, and sit under distinct carrying prefixes;
 two rows whose numbers differ are two different files whatever the registry
 says, and both stay. Clone-group rows (`instances[]`) are never touched; they
 belong to `registry-filter.py`.
@@ -122,7 +122,7 @@ def collapse(
             row.get("start_line"),
             row.get("end_line"),
             row.get("collector"),
-            row.get("lane"),
+            row.get("language"),
             json.dumps(row.get("values") or {}, sort_keys=True),
         )
         first_index.setdefault(key, index)

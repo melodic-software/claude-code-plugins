@@ -13,8 +13,8 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, describe, test } from "node:test";
-import { laneDir, listings, main, readRegistry } from "./check-view-medium-lists.mjs";
-import { LANES, MEDIUMS } from "../lib/view-registry.mjs";
+import { producerDir, listings, main, readRegistry } from "./check-view-medium-lists.mjs";
+import { PRODUCERS, MEDIUMS } from "../lib/view-registry.mjs";
 import { tempDir } from "../lib/test-tmp.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -23,14 +23,14 @@ const hits = (rel, text) => listings(rel, text, IDS).map((h) => `${h.line}:${h.i
 
 describe("readRegistry", () => {
   test("reads the ids lib/view-registry.mjs exports, without importing it", () => {
-    const { mediums, lanes } = readRegistry(readFileSync(path.join(REPO, "lib/view-registry.mjs"), "utf8"));
+    const { mediums, producers } = readRegistry(readFileSync(path.join(REPO, "lib/view-registry.mjs"), "utf8"));
     assert.deepEqual(mediums, Object.keys(MEDIUMS));
-    assert.deepEqual(lanes, Object.keys(LANES));
+    assert.deepEqual(producers, Object.keys(PRODUCERS));
   });
 
-  test("maps a plugin:skill lane to its skill and a bare id to its plugin", () => {
-    assert.equal(laneDir("alpha:show"), "plugins/alpha/skills/show");
-    assert.equal(laneDir("beta"), "plugins/beta");
+  test("maps a plugin:skill producer to its skill and a bare id to its plugin", () => {
+    assert.equal(producerDir("alpha:show"), "plugins/alpha/skills/show");
+    assert.equal(producerDir("beta"), "plugins/beta");
   });
 });
 
@@ -66,8 +66,8 @@ const REGISTRY = [
   '  terminal: entry("terminal", false),',
   '  file: entry("file", false),',
   "});",
-  "const lane = (laneId) => laneId;",
-  'export const LANES = [lane("alpha:show"), lane("beta")];',
+  "const producer = (producerId) => producerId;",
+  'export const PRODUCERS = [producer("alpha:show"), producer("beta")];',
   "",
 ].join("\n");
 
@@ -95,16 +95,16 @@ const LIST = "Choose `terminal` or `file`.\n";
 const SETUP = '{"evals": [{"prompt": "render it (Fixture: the medium option is set to `file`.)"}]}\n';
 
 describe("main", () => {
-  test("fails a lane's skill markdown that lists two medium ids", () => {
+  test("fails a producer's skill markdown that lists two medium ids", () => {
     const r = gate(repo({ files: { "plugins/alpha/skills/show/context/x.md": LIST } }));
     assert.equal(r.code, 1);
-    assert.match(r.err, /plugins\/alpha\/skills\/show\/context\/x\.md:1: `terminal`, `file` \(lane alpha:show/);
+    assert.match(r.err, /plugins\/alpha\/skills\/show\/context\/x\.md:1: `terminal`, `file` \(producer alpha:show/);
   });
 
-  test("fails a list in a bare lane's plugin, outside its skills", () => {
+  test("fails a list in a bare producer's plugin, outside its skills", () => {
     const r = gate(repo({ files: { "plugins/beta/reference/a.md": LIST } }));
     assert.equal(r.code, 1);
-    assert.match(r.err, /lane beta lists media/);
+    assert.match(r.err, /producer beta lists media/);
   });
 
   test("passes a fixture prompt that names one medium as setup", () => {
@@ -128,22 +128,22 @@ describe("main", () => {
     assert.equal(r.code, 0, r.err);
   });
 
-  test("passes an exempt lane that still lists media", () => {
+  test("passes an exempt producer that still lists media", () => {
     const r = gate(repo({ files: { "plugins/beta/a.md": LIST }, exemptions: ["beta  # #12 beta slice"] }));
     assert.equal(r.code, 0, r.err);
-    assert.match(r.out, /1 lane\(s\) exempt/);
+    assert.match(r.out, /1 producer\(s\) exempt/);
   });
 
-  test("fails an exemption row for a clean lane", () => {
+  test("fails an exemption row for a clean producer", () => {
     const r = gate(repo({ files: { "plugins/beta/a.md": "Set `file`.\n" }, exemptions: ["beta  # #12"] }));
     assert.equal(r.code, 1);
     assert.match(r.err, /"beta" lists no media any more; delete the row/);
   });
 
-  test("fails an exemption row for a lane the registry does not hold", () => {
+  test("fails an exemption row for a producer the registry does not hold", () => {
     const r = gate(repo({ exemptions: ["gamma  # #12"] }));
     assert.equal(r.code, 1);
-    assert.match(r.err, /"gamma" is not a lane/);
+    assert.match(r.err, /"gamma" is not a producer/);
   });
 
   test("fails an exemption row that cites no issue", () => {
@@ -154,7 +154,7 @@ describe("main", () => {
 
   test("exits 2 when the registry yields no medium ids", () => {
     const root = repo({});
-    writeFileSync(path.join(root, "lib/view-registry.mjs"), "export const LANES = {};\n");
+    writeFileSync(path.join(root, "lib/view-registry.mjs"), "export const PRODUCERS = {};\n");
     assert.equal(gate(root).code, 2);
   });
 

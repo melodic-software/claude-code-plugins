@@ -19,7 +19,7 @@ now, and `crossing-or-growth` also fails a file already at or above it that
 grew. It needs the change scope, so it takes no `--all` and no paths.
 
 Prints the markdown report; `--json` prints the `code-metrics/v2` document
-instead. Scope, lanes, and the collector ladder are the dispatcher's
+instead. Scope, languages, and the collector ladder are the dispatcher's
 (scripts/dispatch.sh in the plugin root); this script owns its own options
 and the size mode: `size.mode: file-lines` (default) measures `file_lines`;
 `size.mode: iso-8.2.115` adds `function_lines`, the ISO/IEC 5055 §8.2.115

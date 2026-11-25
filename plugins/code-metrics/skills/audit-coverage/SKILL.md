@@ -27,7 +27,7 @@ complexity from the `audit` skill's `audit-complexity.sh` script, run over the s
 | Format | Written by | What the join gets from it |
 |---|---|---|
 | lcov `.info` | most JavaScript and C/C++ toolchains, `coverage lcov` | line hits; function records in either lcov record shape, which is where a function end line can come from at all |
-| Cobertura XML | gcovr, coverlet, kcov (which is how a Bash lane gets an artifact) | line hits, `<sources>` prefixes, and `<method>` regions with their hit flag |
+| Cobertura XML | gcovr, coverlet, kcov (which is how a Bash language gets an artifact) | line hits, `<sources>` prefixes, and `<method>` regions with their hit flag |
 | coverage.py JSON | `coverage json` | executed and missing lines, and per-function regions |
 | Go cover profile | `go test -coverprofile` | statement counts over line ranges, which is not a line table: the profile never says which lines carry the statements, so a Go file reports the statement ratio `go tool cover -func` prints, labels it `cov_source: statement-ratio`, and reports `lines_executable` and `lines_hit` as null. The format names no functions either, so a Go function reports `coverage_pct` and `crap` as null, and its line counts as null unless a line-measuring artifact also covered the file |
 
@@ -70,7 +70,7 @@ otherwise keep the JSON beside your notes and compare by hand.
 
 ## Getting a first artifact
 
-A run that finds no artifact reports every lane `unavailable`, lists the paths it searched, and
+A run that finds no artifact reports every language `unavailable`, lists the paths it searched, and
 ends its markdown with a line saying so, because the remedy is the project's to apply: this skill
 runs no test and installs nothing. The project's own test run writes the artifact, in one of the
 formats above. Pass its path with `--artifacts`, or list it under `coverage.artifacts`, when it
@@ -104,7 +104,7 @@ does not land on one of the well-known names.
   line or because two of them fall inside the same range, the join is refused rather than guessed:
   the row reads `cov_source: ambiguous`; coverage, line counts, hit, and CRAP are null because
   those numbers would be a guess, while cyclomatic from the complexity row is kept because that
-  collector already measured it; it carries a `coverage-ambiguous` label, and the lane's run row
+  collector already measured it; it carries a `coverage-ambiguous` label, and the language's run row
   turns `partial` and names the functions it left unjoined. A missing coverage number an operator
   can see beats a wrong number they cannot.
 - `hit` is the artifact's function-hit flag. When it says the function was never entered,
@@ -118,20 +118,20 @@ does not land on one of the well-known names.
   already have, not a validated predictor of change risk, and no standard sets a threshold for it.
   `/code-metrics:principles` carries the provenance, the rename history, and the caveats; read it
   before you quote a CRAP number at anyone.
-- A lane whose resolved complexity collector reports no function end lines gets a `<lane>/crap`
-  row with `status: not-applicable` and that reason. Bash is that lane in this version: no
+- A language whose resolved complexity collector reports no function end lines gets a `<language>/crap`
+  row with `status: not-applicable` and that reason. Bash is that language in this version: no
   maintained Bash collector reports an end line, so Bash CRAP is a stated gap, not a null.
-- A lane whose cyclomatic collector did not resolve, or ran and produced nothing parseable, gets a
-  `<lane>/crap` row with `status: unavailable` naming that collector and its reason, whatever the
-  lane's coverage row says. CRAP needs both numbers, and the missing one is the cause worth
+- A language whose cyclomatic collector did not resolve, or ran and produced nothing parseable, gets a
+  `<language>/crap` row with `status: unavailable` naming that collector and its reason, whatever the
+  language's coverage row says. CRAP needs both numbers, and the missing one is the cause worth
   reading; when the coverage row is not `ok` either, its reason follows the collector's on the
   same row, so a partial count or a no-artifact search never hides a collector failure and the
   collector never hides them. `Functions: 0` in the summary reads with that row.
-- A lane matched by fewer than all of its scope files carries `status: partial` and the reason
+- A language matched by fewer than all of its scope files carries `status: partial` and the reason
   `partial, N of M scope files present in the artifacts`, so a total miss never reads as "no
-  executable lines" and the document cannot settle as `complete` while a row says `N of M`. A lane
+  executable lines" and the document cannot settle as `complete` while a row says `N of M`. A language
   no artifact covers is `unavailable` with that count; when no artifact was found at all, the
-  reason lists every path searched. A lane that left a function unjoined is `partial` for that
+  reason lists every path searched. A language that left a function unjoined is `partial` for that
   reason too.
 - A row carrying that `N of M` count also says which files: its reason names the first five scope
   files no artifact mentions (`; missing: a, b, c, d, e, +N more in the JSON`) and the JSON row's
@@ -143,8 +143,8 @@ does not land on one of the well-known names.
   without it, say that the coverage number is an execution count and stop there.
 - Exit 0 whenever a report was produced, including an empty one; exit 2 for a usage error, which
   includes a named artifact or scope path that does not exist; exit 3 when a complexity collector
-  ran and produced nothing parseable. On exit 3 the collector's stderr is on the `<lane>/crap`
-  row, and the summary carries an `Exit 3:` line naming the lane and collector, so the markdown
+  ran and produced nothing parseable. On exit 3 the collector's stderr is on the `<language>/crap`
+  row, and the summary carries an `Exit 3:` line naming the language and collector, so the markdown
   alone says why the run has no function rows.
 
 ## Configuration
@@ -184,7 +184,7 @@ Everything tunable resolves through the code-metrics layers (layers and keys in
 ## Gotchas
 
 - The complexity collector decides which functions can carry CRAP at all. With no collector
-  resolving for a lane, that lane has no function rows and its `<lane>/crap` row is `unavailable`
+  resolving for a language, that language has no function rows and its `<language>/crap` row is `unavailable`
   naming the collector's own reason. File-level coverage is unaffected: the scope the join keys on
   is the one the audits measure, not the files a complexity collector emitted rows for, so a file
   with no functions still reports its lines.
@@ -210,7 +210,7 @@ Everything tunable resolves through the code-metrics layers (layers and keys in
 - A Go profile and a line artifact naming the same `.go` file do not average or overwrite each
   other: the profile's statement ratio is that file's exact native measure and wins the
   percentage, the row says `statement-ratio`, and the line counts stay null rather than reading as
-  the counts behind a number they did not produce. The lane's `collector` still names both formats
+  the counts behind a number they did not produce. The language's `collector` still names both formats
   read. Function rows are line-based, so a Go function does take its region from a line artifact
   when one covers it.
 - A Cobertura report with several `<source>` roots is read against all of them: a relative class

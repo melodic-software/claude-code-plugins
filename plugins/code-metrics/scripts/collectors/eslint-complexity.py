@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Adapter for ESLint's core `complexity` rule, the TypeScript/JavaScript lane.
+"""Adapter for ESLint's core `complexity` rule, the TypeScript/JavaScript language.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 `probe` resolves `eslint` on PATH first, then `node_modules/.bin/eslint`
 under the current working directory, and never installs anything (design
@@ -25,7 +25,7 @@ environment, and each target file's directory; ESLint itself decides.
 
 The rule reports the line a function starts on and no end line, so rows carry
 `end_line: null` and the label `start-line-only`; `audit-coverage` reads that
-label and reports `crap: not-applicable` for the lane rather than a null
+label and reports `crap: not-applicable` for the language rather than a null
 (design T7). The consumer's own ESLint configuration still applies, so
 messages from other rules appear in the same document and are ignored here.
 
@@ -54,7 +54,7 @@ from adapter_paths import (
 )
 
 NAME = "eslint-complexity"
-LANE = "typescript"
+LANGUAGE = "typescript"
 MEASURE = "cyclomatic"
 RULE = "complexity"
 COMPLEXITY_MESSAGE = re.compile(r"^(?P<what>.+?) has a complexity of (?P<value>\d+)")
@@ -102,7 +102,7 @@ def no_configuration(result: subprocess.CompletedProcess) -> bool:
     )
 
 
-def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
+def translate(raw: str, language: str, wanted: list[str]) -> list[dict]:
     wanted_norm = {normalize(p): p for p in wanted}
     document = json.loads(raw)
     if not isinstance(document, list):
@@ -128,7 +128,7 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
                     "function": named.group(1) if named else what,
                     "start_line": message.get("line"),
                     "end_line": None,
-                    "lane": lane,
+                    "language": language,
                     "values": {MEASURE: int(match.group("value"))},
                     "collector": NAME,
                     "labels": ["start-line-only"],
@@ -137,9 +137,9 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     return rows
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
-    if lane != LANE or measure != MEASURE:
-        print(f"{NAME}.py: cannot collect {lane}/{measure}", file=sys.stderr)
+def collect(language: str, measure: str, files: list[str]) -> int:
+    if language != LANGUAGE or measure != MEASURE:
+        print(f"{NAME}.py: cannot collect {language}/{measure}", file=sys.stderr)
         return 2
     exe = resolve_eslint()
     if not exe:
@@ -174,7 +174,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         )
         return 4
     try:
-        rows = translate(result.stdout, lane, files)
+        rows = translate(result.stdout, language, files)
     except (ValueError, TypeError) as exc:
         print(
             f"{NAME}.py: no parseable eslint output ({exc}); "
@@ -188,7 +188,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    print(f"{LANE}/{MEASURE}")
+    print(f"{LANGUAGE}/{MEASURE}")
 
 
 INSTALL_HINT = "eslint: https://eslint.org (npm install --save-dev eslint; the core complexity rule needs no plugin)"

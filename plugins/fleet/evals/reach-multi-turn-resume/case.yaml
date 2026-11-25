@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'expected-output'
     type: 'llm'
-    criteria: 'Recognizes this needs more than one turn. First call either chooses the id with claude -p --session-id <uuid> or reads session_id from claude -p --output-format json; the follow-up uses claude -p --resume <id> over the same host and lane. States that the id belongs to that machine and account and does not travel.'
+    criteria: 'Recognizes this needs more than one turn. First call either chooses the id with claude -p --session-id <uuid> or reads session_id from claude -p --output-format json; the follow-up uses claude -p --resume <id> over the same host and install. States that the id belongs to that machine and account and does not travel.'
     focus: 'trace'
   - name: 'skill-fired'
     type: 'tool_used'

@@ -1,58 +1,4 @@
 #!/usr/bin/env bash
-# detect.sh — deterministic fact emitter for the audit skill.
-#
-# WHY. The audit's judgment layer decides WHERE content belongs. It should not
-# also be responsible for enumerating the corpus, finding section boundaries, or
-# counting normative markers — those are mechanical, and doing them by reading
-# makes findings irreproducible in two ways that matter:
-#
-#   * `realign` excises content by the line range the audit cited. A range that
-#     came from a model reading a file is a guess; a range that came from here is
-#     a fact, and the difference is whether an apply removes the right text.
-#   * Two audit runs over an unchanged repository should produce the same
-#     candidate set. Only a deterministic segmentation gets that.
-#
-# This script emits FACTS ONLY and adjudicates nothing. It does not know what a
-# safety rail is, whether content is derivable, or which destination fits — all
-# of that is the skill's, and stays there.
-#
-# Output is deterministic TSV on stdout: sorted, no timestamps, no absolute
-# paths, one record per line, record type in field 1.
-#
-#   FILE     path  tier  total_lines
-#   SECTION  path  start  end  level  heading
-#   SIGNAL   path  start  normative_hits  markers
-#   HINT     path  start  kind  value        (kind: ext | dir | lang)
-#   RULE     path  scope  globs             (scope: scoped | unscoped)
-#   SKIP     path  reason
-#   SUMMARY  files_swept  files_skipped  sections  rules
-#
-# The `identity` subcommand emits one record for one section, using the same
-# per-file pass as the sweep:
-#
-#   IDENTITY  path  start  check  claim  anchor/v1  finding_id  heading_path
-#
-# check is instruction-placement/audit/<lane>; claim is narrower-scope:<rung>
-# for demote and unloaded-convention:<rung> for promote. anchor/v1 is the first
-# 8 hex of sha256 over the section's heading path (each enclosing heading, then
-# its own) joined by 0x1F. finding_id is the first 16 hex of sha256 over
-# check 0x1F claim 0x1F path 0x1F anchor. heading_path joins the same elements
-# with ' > ' for display. The formula is a local copy: plugins do not import
-# sibling-plugin files.
-#
-# Frontmatter and fenced code blocks are excluded from signal and hint counting:
-# a convention stated inside an example block is illustrating, not instructing.
-#
-# Usage:
-#   detect.sh [--root <dir>] [--tier core|expanded] [--] [<path>...]
-#   detect.sh identity [--root <dir>] --file <path> --start <n>
-#                      --lane demote|promote --destination <rung>
-#
-#   no paths   sweep the corpus (core tier, plus expanded unless --tier core)
-#   <path>...  emit facts for exactly these files
-#
-# Exit: 0 on a successful emission (including zero findings); 2 on usage error
-# (for `identity`, also when no section starts at --start).
 
 set -uo pipefail
 
@@ -67,7 +13,7 @@ detect.sh — deterministic fact emitter for instruction-placement's audit.
 Usage:
   detect.sh [--root <dir>] [--tier core|expanded] [--] [<path>...]
   detect.sh identity [--root <dir>] --file <path> --start <n>
-                     --lane demote|promote --destination <rung>
+                     --direction demote|promote --destination <rung>
 
   --root <dir>       repository root (default: cwd)
   --tier core        instruction surfaces only; skip ordinary documentation
@@ -102,7 +48,7 @@ ROOT="$PWD"
 TIER="expanded"
 declare -a EXPLICIT=()
 IDENTITY=0
-ID_FILE="" ID_START="" ID_LANE="" ID_RUNG=""
+ID_FILE="" ID_START="" ID_DIRECTION="" ID_RUNG=""
 
 id_die() {
   printf 'ERROR: %s\n' "$1" >&2
@@ -119,7 +65,7 @@ if [[ "${1:-}" == "identity" ]]; then
     --root) ROOT="$2" ;;
     --file) ID_FILE="$2" ;;
     --start) ID_START="$2" ;;
-    --lane) ID_LANE="$2" ;;
+    --direction) ID_DIRECTION="$2" ;;
     --destination) ID_RUNG="$2" ;;
     *) id_die "unknown argument: $1" ;;
     esac
@@ -128,9 +74,9 @@ if [[ "${1:-}" == "identity" ]]; then
   [[ -n "$ID_FILE" ]] || id_die "--file is required"
   [[ "$ID_FILE" != /* ]] || id_die "--file must be a path relative to --root: $ID_FILE"
   [[ "$ID_START" =~ ^[0-9]+$ ]] || id_die "--start must be an integer"
-  case "$ID_LANE" in
+  case "$ID_DIRECTION" in
   demote | promote) ;;
-  *) id_die "--lane must be demote or promote" ;;
+  *) id_die "--direction must be demote or promote" ;;
   esac
   case "$ID_RUNG" in
   path-scoped-rule | nested-agents-md | skill | linter | deletion) ;;
@@ -465,8 +411,8 @@ emit_identity() {
     joined+="${joined:+$us}$e"
     display+="${display:+ > }$e"
   done
-  local check="instruction-placement/audit/$ID_LANE"
-  if [[ "$ID_LANE" == demote ]]; then
+  local check="instruction-placement/audit/$ID_DIRECTION"
+  if [[ "$ID_DIRECTION" == demote ]]; then
     claim="narrower-scope:$ID_RUNG"
   else
     claim="unloaded-convention:$ID_RUNG"

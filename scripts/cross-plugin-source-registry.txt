@@ -339,7 +339,7 @@ lib/config-cascade.mjs -> plugins/*/scripts/lib/config-cascade.mjs plugins/*/lib
 lib/config-cascade.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/view-settings.mjs, the medium resolver every view lane calls.
+# lib/view-settings.mjs, the medium resolver every view producer calls.
 lib/view-settings.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
@@ -664,7 +664,7 @@ reference/docs-lookup-procedure.md
 lib/docs-lookup-procedure.md -> plugins/*/reference/docs-lookup-procedure.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/rendered-view.md, the rendered-view procedure every view lane follows,
+# lib/rendered-view.md, the rendered-view procedure every view producer follows,
 # carried by planning, architecture, discovery and debugging.
 reference/rendered-view.md
 

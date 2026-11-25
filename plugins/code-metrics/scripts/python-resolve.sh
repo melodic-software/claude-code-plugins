@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# cm_resolve_python reads MIN_PYTHON from report.py beside this file, tries
-# python3, python, then `py -3`, skips the Windows Store App Execution Alias
-# stub (a zero-length file under a WindowsApps path), and returns 1 when
-# nothing at or above the floor runs. CM_PYTHON_FLOOR is exported for
-# messages; CM_PY_NATIVE holds the interpreter itself, for messages that
-# name it.
-#
-# Native Windows Python writes text-mode stdout with CRLF line endings, and
-# `mapfile -t` and `read -r` strip only the LF, so every path, glob, and
-# registry value bash reads back would keep a trailing CR: a file `a.sh`
-# would arrive as `a.sh<CR>`, match no lane, and the audit would report
-# measuring nothing with exit 0 (#6794). The floor probe prints one line, and
-# when that line comes back CR-terminated PY becomes `cm_py_lf`, which runs
-# the same interpreter and drops the CR before each LF. Every handoff is
-# covered in this one place, including ones written later; an interpreter
-# that writes LF runs unwrapped.
 # shellcheck shell=bash
 
 # cm_py_lf runs the resolved interpreter with its stdout line endings

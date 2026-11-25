@@ -15,7 +15,7 @@
     {
       "use": "token_argument"
     },
-    "--lane(?:\\s|=)+(?:\\\\\"|')?adhd:clarify\\b"
+    "--producer(?:\\s|=)+(?:\\\\\"|')?adhd:clarify\\b"
   ],
   "no-convention-shell-read": [
     {

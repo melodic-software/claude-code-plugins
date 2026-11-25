@@ -80,24 +80,24 @@ rm -rf "$r"
 fixture_tree::build r --sut "$SCRIPT" --sut "$SELF_DIR/check-view-medium-lists.mjs" --git
 mkdir -p "$r/lib" "$r/plugins/p1/skills/view"
 printf '%s\n' 'export const MEDIUMS = Object.freeze({' '  terminal: entry("terminal"),' '  file: entry("file"),' '});' \
-  'const lane = (laneId) => laneId;' 'export const LANES = [lane("p1:view")];' >"$r/lib/view-registry.mjs"
+  'const producer = (producerId) => producerId;' 'export const PRODUCERS = [producer("p1:view")];' >"$r/lib/view-registry.mjs"
 printf '%s\n' "Set \`file\`." >"$r/plugins/p1/skills/view/SKILL.md"
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 printf 'unrelated\n' >"$r/README.md"
 if out="$(run "$r" "$b" 2>&1)" && grep -q "nothing to gate" <<<"$out"; then
-  ok "a view lane naming one medium passes"
+  ok "a view producer naming one medium passes"
 else
-  fail "a view lane naming one medium should pass, got: $out"
+  fail "a view producer naming one medium should pass, got: $out"
 fi
 printf '%s\n' "Choose \`terminal\` or \`file\`." >"$r/plugins/p1/skills/view/context.md"
 commit_all "$r" "list media" >/dev/null
 rc=0
 out="$(run "$r" "$(base_sha "$r")" 2>&1)" || rc=$?
 if ((rc == 1)) && grep -qF "plugins/p1/skills/view/context.md:1: \`terminal\`, \`file\`" <<<"$out"; then
-  ok "a view lane listing media fails the gate though no skill changed"
+  ok "a view producer listing media fails the gate though no skill changed"
 else
-  fail "a view lane listing media should exit 1 with no changed skill (rc=$rc): $out"
+  fail "a view producer listing media should exit 1 with no changed skill (rc=$rc): $out"
 fi
 rm -rf "$r"
 

@@ -71,34 +71,34 @@ cp -R "$SOURCES" "$PROJECT/$SCOPE"
 
 for fixture in cm-sample.ts cm_sample.py cm-sample.sh cm-sample.go CmSample.cs; do
   [[ -f "$SOURCES/$fixture" ]] ||
-    fail "the lane fixture $fixture exists" "a file at $SOURCES/$fixture" "missing"
+    fail "the language fixture $fixture exists" "a file at $SOURCES/$fixture" "missing"
 done
-pass "the five lane fixtures are present"
+pass "the five language fixtures are present"
 
 out="$(cd "$PROJECT" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SCOPE")"
 rc=$?
 assert_eq "--json exits 0 with both collectors stubbed" 0 "$rc"
 assert_doc "the document is code-metrics/v2 for audit-type-debt" "$out" \
   'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-type-debt"'
-assert_doc "the typescript lane row carries type_coverage_pct from type-coverage.json" "$out" \
-  'next(r for r in d["measures"] if r["lane"]=="typescript" and r["file"] is None)["values"]["type_coverage_pct"]==55.55'
-assert_doc "each lane has one file row per scope file plus one lane-total row" "$out" \
-  'sorted(r["file"].rsplit("/",1)[-1] for r in d["measures"] if r["file"])==["cm-sample.ts","cm_sample.py"] and sorted(r["lane"] for r in d["measures"] if r["file"] is None and "lane-total" in r["labels"])==["python","typescript"] and all(r["function"] is None for r in d["measures"])'
+assert_doc "the typescript language row carries type_coverage_pct from type-coverage.json" "$out" \
+  'next(r for r in d["measures"] if r["language"]=="typescript" and r["file"] is None)["values"]["type_coverage_pct"]==55.55'
+assert_doc "each language has one file row per scope file plus one language-total row" "$out" \
+  'sorted(r["file"].rsplit("/",1)[-1] for r in d["measures"] if r["file"])==["cm-sample.ts","cm_sample.py"] and sorted(r["language"] for r in d["measures"] if r["file"] is None and "language-total" in r["labels"])==["python","typescript"] and all(r["function"] is None for r in d["measures"])'
 assert_doc "the typescript file row carries the occurrences listed for that file and nothing else" "$out" \
-  'next(r for r in d["measures"] if r["lane"]=="typescript" and r["file"])["values"]=={"type_coverage_pct":None,"typed_identifiers":None,"total_identifiers":None,"any_count":4}'
+  'next(r for r in d["measures"] if r["language"]=="typescript" and r["file"])["values"]=={"type_coverage_pct":None,"typed_identifiers":None,"total_identifiers":None,"any_count":4}'
 assert_doc "the summary counts the file rows" "$out" 'd["summary"]["files"]==2'
 assert_doc "the python file row carries any_expressions from mypy-any-exprs.txt" "$out" \
-  'next(r for r in d["measures"] if r["lane"]=="python" and r["file"])["values"]["any_expressions"]==0'
-assert_doc "the python lane row also carries mypy's own coverage percentage" "$out" \
-  'next(r for r in d["measures"] if r["lane"]=="python" and r["file"] is None)["values"]["type_coverage_pct"]==100.0'
+  'next(r for r in d["measures"] if r["language"]=="python" and r["file"])["values"]["any_expressions"]==0'
+assert_doc "the python language row also carries mypy's own coverage percentage" "$out" \
+  'next(r for r in d["measures"] if r["language"]=="python" and r["file"] is None)["values"]["type_coverage_pct"]==100.0'
 assert_doc "a silent success leaves the ok row's reason null" "$out" \
   'all(r["reason"] is None for r in d["run"] if r["status"]=="ok")'
 assert_doc "the dotnet row is not-applicable with the C# sentence" "$out" \
-  'next(r for r in d["run"] if r["lane"]=="dotnet" and r["measure"]=="type_coverage")["status"]=="not-applicable"'
+  'next(r for r in d["run"] if r["language"]=="dotnet" and r["measure"]=="type_coverage")["status"]=="not-applicable"'
 assert_doc "the dotnet reason says a count is not comparable to a ratio" "$out" \
-  '"not comparable to a ratio" in next(r for r in d["run"] if r["lane"]=="dotnet")["reason"]'
+  '"not comparable to a ratio" in next(r for r in d["run"] if r["language"]=="dotnet")["reason"]'
 assert_doc "bash and go are not-applicable with a reason" "$out" \
-  'all(next(r for r in d["run"] if r["lane"]==l)["status"]=="not-applicable" and next(r for r in d["run"] if r["lane"]==l)["reason"] for l in ("bash","go"))'
+  'all(next(r for r in d["run"] if r["language"]==l)["status"]=="not-applicable" and next(r for r in d["run"] if r["language"]==l)["reason"] for l in ("bash","go"))'
 assert_doc "the type_coverage reference is null by design" "$out" \
   'next(t for t in d["thresholds"] if t["measure"]=="type_coverage")["reference"] is None'
 assert_doc "no row is counted over a reference" "$out" \
@@ -111,18 +111,18 @@ assert_contains "markdown carries the run table" "$out" "## Coverage of this run
 assert_contains "markdown names the type-coverage collector" "$out" "type-coverage 2.30.1"
 assert_contains "markdown prints the null reference" "$out" "| type_coverage | null |"
 assert_contains "markdown lists the python file row" "$out" "cm_sample.py |"
-assert_contains "markdown marks the lane row" "$out" "| lane-total |"
+assert_contains "markdown marks the language row" "$out" "| language-total |"
 assert_contains "markdown counts the files measured" "$out" "Files: 2."
 
 out="$(cd "$BARE" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 when the typescript probe fails" 0 "$rc"
 assert_doc "the typescript row is unavailable, not ok" "$out" \
-  'next(r for r in d["run"] if r["lane"]=="typescript")["status"]=="unavailable"'
+  'next(r for r in d["run"] if r["language"]=="typescript")["status"]=="unavailable"'
 assert_doc "its reason states that type-coverage needs a resolvable typescript" "$out" \
-  '"needs a resolvable typescript" in next(r for r in d["run"] if r["lane"]=="typescript")["reason"]'
-assert_doc "the python lane still reports while typescript cannot" "$out" \
-  'any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
+  '"needs a resolvable typescript" in next(r for r in d["run"] if r["language"]=="typescript")["reason"]'
+assert_doc "the python language still reports while typescript cannot" "$out" \
+  'any(r["language"]=="python" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
 
 ABORT_STUBS="$WORK/abort-stubs"
 mkdir -p "$ABORT_STUBS"
@@ -139,11 +139,11 @@ out="$(cd "$PROJECT" && PATH="$ABORT_STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME
 rc=$?
 assert_eq "exit 0 when mypy aborts before analysis" 0 "$rc"
 assert_doc "the python row is unavailable and no python measure is emitted" "$out" \
-  'next(r for r in d["run"] if r["lane"]=="python")["status"]=="unavailable" and not any(r["lane"]=="python" for r in d["measures"])'
+  'next(r for r in d["run"] if r["language"]=="python")["status"]=="unavailable" and not any(r["language"]=="python" for r in d["measures"])'
 assert_doc "its reason carries mypy's own duplicate-module message" "$out" \
-  '"Duplicate module named" in next(r for r in d["run"] if r["lane"]=="python")["reason"]'
-assert_doc "the typescript lane still reports while mypy cannot" "$out" \
-  'any(r["lane"]=="typescript" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
+  '"Duplicate module named" in next(r for r in d["run"] if r["language"]=="python")["reason"]'
+assert_doc "the typescript language still reports while mypy cannot" "$out" \
+  'any(r["language"]=="typescript" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
 
 ERROR_STUBS="$WORK/error-stubs"
 mkdir -p "$ERROR_STUBS"
@@ -160,19 +160,19 @@ out="$(cd "$PROJECT" && PATH="$ERROR_STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME
 rc=$?
 assert_eq "exit 0 when mypy reports type errors" 0 "$rc"
 assert_doc "the python run row is ok and its reason counts the errors and missing stubs" "$out" \
-  'next(r for r in d["run"] if r["lane"]=="python")["status"]=="ok" and next(r for r in d["run"] if r["lane"]=="python")["reason"]=="mypy reported 2 errors (1 missing stub)"'
-assert_doc "the python lane row is labeled and the file row is not" "$out" \
-  'next(r for r in d["measures"] if r["lane"]=="python" and r["file"] is None)["labels"]==["lane-total","mypy-reported-errors"] and next(r for r in d["measures"] if r["lane"]=="python" and r["file"])["labels"]==[]'
+  'next(r for r in d["run"] if r["language"]=="python")["status"]=="ok" and next(r for r in d["run"] if r["language"]=="python")["reason"]=="mypy reported 2 errors (1 missing stub)"'
+assert_doc "the python language row is labeled and the file row is not" "$out" \
+  'next(r for r in d["measures"] if r["language"]=="python" and r["file"] is None)["labels"]==["language-total","mypy-reported-errors"] and next(r for r in d["measures"] if r["language"]=="python" and r["file"])["labels"]==[]'
 
 out="$(cd "$BARE" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 when no collector resolves" 0 "$rc"
 assert_doc "status empty and no measures" "$out" 'd["status"]=="empty" and d["measures"]==[]'
 assert_doc "the typescript reason names the install hint" "$out" \
-  '"npm install --save-dev type-coverage" in next(r for r in d["run"] if r["lane"]=="typescript")["reason"]'
+  '"npm install --save-dev type-coverage" in next(r for r in d["run"] if r["language"]=="typescript")["reason"]'
 assert_doc "the python reason names the mypy install hint" "$out" \
-  '"pip install mypy" in next(r for r in d["run"] if r["lane"]=="python")["reason"]'
-assert_doc "unavailable lists both typed lanes" "$out" \
+  '"pip install mypy" in next(r for r in d["run"] if r["language"]=="python")["reason"]'
+assert_doc "unavailable lists both typed languages" "$out" \
   'sorted(d["unavailable"])==["python/type_coverage","typescript/type_coverage"]'
 
 (cd "$BARE" && PATH="$EMPTY_PATH" bash "$SCRIPT" "$SOURCES/does-not-exist.ts" >/dev/null 2>&1)

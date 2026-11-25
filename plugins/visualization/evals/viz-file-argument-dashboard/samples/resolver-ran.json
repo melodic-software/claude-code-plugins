@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/opt/eval/plugins/visualization/lib/view-settings.mjs\" resolve --lane visualization:visualize --option \"\" --argument file",
+            "command": "node \"/opt/eval/plugins/visualization/lib/view-settings.mjs\" resolve --producer visualization:visualize --option \"\" --argument file",
             "description": "Run command"
           }
         }
@@ -16,7 +16,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cd /opt/eval/ws && node /opt/eval/p/lib/view-settings.mjs resolve --lane visualization:visualize --option auto --argument file",
+            "command": "cd /opt/eval/ws && node /opt/eval/p/lib/view-settings.mjs resolve --producer visualization:visualize --option auto --argument file",
             "description": "Run command"
           }
         }
@@ -30,7 +30,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /opt/eval/p/lib/view-settings.mjs resolve --lane visualization:visualize --option \"\"",
+            "command": "node /opt/eval/p/lib/view-settings.mjs resolve --producer visualization:visualize --option \"\"",
             "description": "Run command"
           }
         }
@@ -42,7 +42,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /opt/eval/p/lib/view-settings.mjs resolve --lane visualization:visualize --option \"\" --argument artifact",
+            "command": "node /opt/eval/p/lib/view-settings.mjs resolve --producer visualization:visualize --option \"\" --argument artifact",
             "description": "Run command"
           }
         }

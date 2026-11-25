@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /opt/eval/p/lib/view-settings.mjs resolve --lane visualization:visualize --option \"\"",
+            "command": "node /opt/eval/p/lib/view-settings.mjs resolve --producer visualization:visualize --option \"\"",
             "description": "Run command"
           }
         }

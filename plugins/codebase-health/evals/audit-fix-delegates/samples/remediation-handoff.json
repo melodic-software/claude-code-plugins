@@ -17,7 +17,7 @@
       "why": "not-installed form"
     },
     {
-      "answer": "**Handoff:** the implementation and verification lanes aren't available in this session; remediate manually from the table.",
+      "answer": "**Handoff:** the implementation and verification skills aren't available in this session; remediate manually from the table.",
       "why": "aren't available form"
     },
     {
@@ -36,7 +36,7 @@
     },
     {
       "answer": "Run `/implementation:implement` to fix it.",
-      "why": "only one lane"
+      "why": "only one skill"
     },
     {
       "answer": "First /verification:confirm, then /implementation:implement.",
@@ -48,7 +48,7 @@
     },
     {
       "answer": "I fixed README.md:9 and verified it.",
-      "why": "no lanes named"
+      "why": "no skills named"
     }
   ]
 }

@@ -28,7 +28,7 @@ graders:
     target: 'last_message'
   - name: 'agent-stays-in-wsl'
     type: 'llm'
-    criteria: 'Runs the agent in the laptop''s WSL lane, where the repos and toolchain live, not in native Windows'
+    criteria: 'Runs the agent in the laptop''s WSL install, where the repos and toolchain live, not in native Windows'
     focus: 'trace'
   - name: 'skill-fired'
     type: 'tool_used'

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
-# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
+# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its languages
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -106,7 +106,7 @@ assert_contains "markdown says which files the summary leaves out, and why" "$ou
 
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER")"
 assert_eq "an all-collectors-absent run exits 0" 0 "$?"
-assert_doc "an all-collectors-absent run is status empty with the lane unavailable" "$out" \
+assert_doc "an all-collectors-absent run is status empty with the language unavailable" "$out" \
   'd["status"] == "empty" and d["unavailable"] == ["bash/duplication"]'
 assert_contains "the unavailable row carries the install hint" "$out" "npm install -g jscpd"
 

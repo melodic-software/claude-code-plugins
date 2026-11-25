@@ -30,7 +30,7 @@ repositories" below
 
 ## Purpose
 
-A full audit is worth running rarely and reading carefully. This is the lane for the other times: it
+A full audit is worth running rarely and reading carefully. This is the skill for the other times: it
 answers **what moved**, so a repeat run costs attention proportional to actual change.
 
 The failure it prevents is specific. An audit re-run that re-presents the same forty findings the
@@ -68,7 +68,7 @@ never reaches another worktree. Read it, honor every entry it merges to, and
 **never write it**: `realign` owns that write, behind its per-item gate.
 
 A decline in the baseline would be a per-checkout fact, and the operator gets asked again from the
-next worktree. That is the bug this lane exists downstream of.
+next worktree. That is the bug this skill exists downstream of.
 
 ## Over several repositories
 
@@ -168,7 +168,7 @@ Each step names what "done" looks like, so a partial run is visible rather than 
 5. Check index sync and reachability. *Done when:* both verdicts are recorded, since they are
    independent questions.
 6. Derive each surviving finding's `anchor/v1` and `finding_id` with `detect.sh identity`:
-   `"${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh" identity --file <path> --start <n> --lane <lane> --destination <rung>`,
+   `"${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh" identity --file <path> --start <n> --direction <direction> --destination <rung>`,
    never by hand, and suppress every one the merged surface carries;
    also suppress what this branch's artifact records as `declined` or `applied`.
    *Done when:* no suppressed id appears in the report under any shape, and every entry that did
@@ -238,7 +238,7 @@ Never pad a quiet run by re-listing standing findings to look useful.
 ## Gotchas
 
 - **A quiet run is the expected outcome, not a failed one.** The pull toward finding *something* to
-  justify the run is what makes a cadence lane useless. A short answer that states the
+  justify the run is what makes a cadence run useless. A short answer that states the
   window and the suppressed count is the whole report.
 - **"Nothing touched the rules folder" does not make glob re-validation unnecessary.** Globs break
   from refactors elsewhere. Skipping validation on that reasoning misses the single shape that most
@@ -249,9 +249,9 @@ Never pad a quiet run by re-listing standing findings to look useful.
   A decline on the tracked surface is still in force in that worktree, because git carried the file.
   Reporting a suppressed finding as new because the baseline was absent is the failure this split
   exists to prevent.
-- **A capture at the wrong moment is a silently useless lane.** Capture at the end, after the
+- **A capture at the wrong moment is a silently useless run.** Capture at the end, after the
   comparison. Capturing first compares this run against itself and reports nothing forever, with no
   error to show for it.
 - **A `changed` finding's stale line range is the dangerous part.** `realign` excises by that range,
-  so reporting `changed` without re-deriving the range hands the apply lane a number that points at
+  so reporting `changed` without re-deriving the range hands realign a number that points at
   the wrong text.

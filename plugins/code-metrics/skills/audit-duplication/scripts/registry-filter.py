@@ -168,7 +168,7 @@ def floor_summary(document: dict[str, Any]) -> dict[str, Any]:
         summary = document.setdefault("summary", {})
         summary.setdefault("duplicated_lines", 0)
         summary.setdefault("clone_groups", 0)
-        summary.setdefault("by_lane", {})
+        summary.setdefault("by_language", {})
         summary.setdefault("by_directory", {})
     return document
 

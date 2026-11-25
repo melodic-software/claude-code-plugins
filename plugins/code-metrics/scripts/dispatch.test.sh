@@ -6,7 +6,7 @@
 # line-counter.py) and report.py are exercised through the dispatcher.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
-# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
+# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its languages
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -48,13 +48,13 @@ EMPTY_PATH="$(mktemp -d)"
 TEST_HOME="$(mktemp -d)"
 export CODE_METRICS_HOME="$TEST_HOME"
 GUARD_HOME="$(mktemp -d)"
-guard_lane=python
+guard_language=python
 mkdir -p "$GUARD_HOME/.claude/ecosystems"
-printf 'globs: ["*.cm-home-guard"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_lane.yaml"
-printf 'enabled: false\n' >>"$GUARD_HOME/.claude/ecosystems/$guard_lane.yaml"
-guard_claim_lane=cm-home-guard
-printf 'lanes:\n  %s:\n    enabled: true\n' "$guard_claim_lane" >"$GUARD_HOME/.claude/code-metrics.yaml"
-printf 'globs: ["*.py"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_claim_lane.yaml"
+printf 'globs: ["*.cm-home-guard"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_language.yaml"
+printf 'enabled: false\n' >>"$GUARD_HOME/.claude/ecosystems/$guard_language.yaml"
+guard_claim_language=cm-home-guard
+printf 'languages:\n  %s:\n    enabled: true\n' "$guard_claim_language" >"$GUARD_HOME/.claude/code-metrics.yaml"
+printf 'globs: ["*.py"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_claim_language.yaml"
 export HOME="$GUARD_HOME"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$TEST_HOME" "$GUARD_HOME"' EXIT
 cat >"$STUBS/scc" <<EOF
@@ -79,12 +79,9 @@ else
 fi
 unset CODE_METRICS_DISABLE_BUNDLED
 
-# 0. The HOME guard bites: with CODE_METRICS_HOME empty the dispatcher falls
-#    back to $HOME, and the seeded ecosystem file moves the python fixture out of
-#    its lane. Were the guard inert, a case that lost its isolation would pass.
 out="$(PATH="$EMPTY_PATH" CODE_METRICS_HOME='' bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
-assert_doc "a fallback to the guarded HOME moves cm_sample.py out of the python lane" "$out" \
-  'any(r["file"].endswith("cm_sample.py") for r in d["measures"]) and not any(r["file"].endswith("cm_sample.py") and r["lane"]=="python" for r in d["measures"])'
+assert_doc "a fallback to the guarded HOME moves cm_sample.py out of the python language" "$out" \
+  'any(r["file"].endswith("cm_sample.py") for r in d["measures"]) and not any(r["file"].endswith("cm_sample.py") and r["language"]=="python" for r in d["measures"])'
 
 # 1. scc absent: the bundled counter is used and the run row names it.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
@@ -92,12 +89,12 @@ rc=$?
 assert_eq "exit 0 with the bundled counter" 0 "$rc"
 assert_doc "schema, skill, and status complete" "$out" \
   'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-size" and d["status"]=="complete"'
-assert_doc "every lane row is ok on line-counter" "$out" \
+assert_doc "every language row is ok on line-counter" "$out" \
   'all(r["status"]=="ok" and r["collector"].startswith("line-counter") for r in d["run"]) and len(d["run"])==6'
 assert_doc "rows carry comment-agnostic label and non-blank counts" "$out" \
   'all("comment-agnostic" in r["labels"] and r["values"]["lines_non_blank"]>0 for r in d["measures"]) and d["summary"]["files"]==8'
-assert_doc "markdown fixture is measured in the other lane" "$out" \
-  'any(r["file"].endswith("cm-notes.md") and r["lane"]=="other" for r in d["measures"]) and d["scope"]["unclassified"]==0'
+assert_doc "markdown fixture is measured in the other language" "$out" \
+  'any(r["file"].endswith("cm-notes.md") and r["language"]=="other" for r in d["measures"]) and d["scope"]["unclassified"]==0'
 assert_doc "every fixture is measured exactly once" "$out" \
   'sorted(r["file"].rsplit("/",1)[1] for r in d["measures"])==["CmSample.cs","cm-notes.md","cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py","shared-utils.sh","shared-utils.sh"]'
 assert_doc "threshold carries the plugin-default provenance" "$out" \
@@ -109,11 +106,10 @@ assert_doc "a collector that said nothing leaves its ok row's reason null" "$out
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 with the scc stub" 0 "$rc"
-assert_doc "every lane row names scc 3.7.0" "$out" 'all(r["collector"]=="scc 3.7.0" for r in d["run"])'
+assert_doc "every language row names scc 3.7.0" "$out" 'all(r["collector"]=="scc 3.7.0" for r in d["run"])'
 assert_doc "python row has scc comment and code counts" "$out" \
   'next(r for r in d["measures"] if r["file"].endswith("cm_sample.py"))["values"]=={"lines_total":20,"lines_blank":4,"lines_comment":8,"lines_code":8,"lines_non_blank":16}'
 
-# 3. All lanes unavailable: exit 0, status empty, every run row non-ok with a reason.
 out="$(PATH="$EMPTY_PATH" CODE_METRICS_DISABLE_BUNDLED=1 bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 when nothing could be measured" 0 "$rc"
@@ -132,18 +128,17 @@ assert_doc "adapter not shipped is the reason" "$out" \
   'd["run"][0]["status"]=="unavailable" and d["run"][0]["reason"]=="not-a-tool: adapter not shipped"'
 rm -f "$ladder"
 
-# 5. A measure with a `*` deferred row and a lane with an explicit `none` row.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-complexity --measures cyclomatic,cognitive --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 with deferred and none rows" 0 "$rc"
 assert_doc "dotnet cyclomatic is deferred with the research tag" "$out" \
-  'any(r["lane"]=="dotnet" and r["measure"]=="cyclomatic" and r["status"]=="deferred" and "probe:dotnet-metrics-linux" in r["reason"] for r in d["run"])'
-assert_doc "the other lane is not-applicable for every complexity measure" "$out" \
-  'sorted((r["measure"], r["status"]) for r in d["run"] if r["lane"]=="other")==[("cognitive","not-applicable"),("cyclomatic","not-applicable")] and all(r["reason"] for r in d["run"] if r["lane"]=="other")'
+  'any(r["language"]=="dotnet" and r["measure"]=="cyclomatic" and r["status"]=="deferred" and "probe:dotnet-metrics-linux" in r["reason"] for r in d["run"])'
+assert_doc "the other language is not-applicable for every complexity measure" "$out" \
+  'sorted((r["measure"], r["status"]) for r in d["run"] if r["language"]=="other")==[("cognitive","not-applicable"),("cyclomatic","not-applicable")] and all(r["reason"] for r in d["run"] if r["language"]=="other")'
 assert_doc "python cognitive is unavailable with the validated-date reason" "$out" \
-  'any(r["lane"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" and "2026-09-04" in r["reason"] for r in d["run"])'
+  'any(r["language"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" and "2026-09-04" in r["reason"] for r in d["run"])'
 assert_doc "typescript cyclomatic lists both rungs with their probe reasons and hints" "$out" \
-  'any(r["lane"]=="typescript" and r["measure"]=="cyclomatic" and r["status"]=="unavailable" and r["reason"].startswith("lizard: ") and "; eslint-complexity: " in r["reason"] and r["reason"].count("(")>=2 for r in d["run"])'
+  'any(r["language"]=="typescript" and r["measure"]=="cyclomatic" and r["status"]=="unavailable" and r["reason"].startswith("lizard: ") and "; eslint-complexity: " in r["reason"] and r["reason"].count("(")>=2 for r in d["run"])'
 
 # 6. Explicit missing path is a usage error.
 PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines "$SOURCES/missing.py" >/dev/null 2>&1
@@ -155,7 +150,7 @@ assert_eq "missing skill name exits 2" 2 "$?"
 empty_dir="$(mktemp -d)"
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$empty_dir")"
 assert_doc "empty scope yields one not-applicable row" "$out" \
-  'd["status"]=="empty" and d["scope"]["files"]==0 and d["run"]==[{"lane":"*","measure":"*","collector":None,"status":"not-applicable","reason":"no measurable files in scope","hint":None}]'
+  'd["status"]=="empty" and d["scope"]["files"]==0 and d["run"]==[{"language":"*","measure":"*","collector":None,"status":"not-applicable","reason":"no measurable files in scope","hint":None}]'
 rmdir "$empty_dir"
 
 # 8. A collector that probes but fails in collect: exit 3, row unavailable.
@@ -198,7 +193,7 @@ out="$(PATH="$noisy:$EMPTY_PATH" bash "$SCRIPT" audit-type-debt --measures type_
 rc=$?
 assert_eq "a noisy success exits 0" 0 "$rc"
 assert_doc "the ok row's reason is what the adapter said on stderr" "$out" \
-  'any(r["lane"]=="python" and r["status"]=="ok" and r["reason"]=="mypy reported 1 error (0 missing stubs)" for r in d["run"])'
+  'any(r["language"]=="python" and r["status"]=="ok" and r["reason"]=="mypy reported 1 error (0 missing stubs)" for r in d["run"])'
 rm -rf "$noisy"
 
 # 9. Change scope resolves in a throwaway repository.
@@ -273,26 +268,22 @@ rc=$?
 assert_eq "an empty change exits 0" 0 "$rc"
 assert_doc "an empty change names the base and says how to widen the scope" "$out" \
   'd["status"]=="empty" and d["scope"]["mode"]=="change" and d["scope"]["files"]==0 and len(d["run"])==1 and d["run"][0]["status"]=="not-applicable" and d["scope"]["base"] in d["run"][0]["reason"] and "--all" in d["run"][0]["reason"] and "paths" in d["run"][0]["reason"]'
-# 9d. A file in the other lane that cannot be read: the scope filter drops it
-#     so one locked file does not turn the lane unavailable, names it on
-#     stderr so it does not vanish unsaid, and the rest of the change is
-#     measured. Root reads everything, so the case is skipped there.
 (cd "$repo" && git checkout -q feature && printf '# notes\n' >locked.md && chmod 000 locked.md)
 if [[ -r "$repo/locked.md" ]]; then
-  pass "an unreadable other-lane file (skipped: this user can read a mode-000 file)"
+  pass "an unreadable other-language file (skipped: this user can read a mode-000 file)"
   pass "the unreadable file is named on stderr (skipped)"
   pass "the unreadable file leaves the rest of the change measured (skipped)"
 else
   err_file="$(mktemp)"
   out="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines 2>"$err_file")"
   rc=$?
-  assert_eq "an unreadable other-lane file still exits 0" 0 "$rc"
+  assert_eq "an unreadable other-language file still exits 0" 0 "$rc"
   case "$(cat "$err_file")" in
   *"cannot read: locked.md"*) pass "the unreadable file is named on stderr" ;;
   *) fail "the unreadable file is named on stderr" "mentions locked.md" "$(head -c 300 "$err_file")" ;;
   esac
   assert_doc "the unreadable file leaves the rest of the change measured" "$out" \
-    'd["status"]=="complete" and not any("locked.md" in r["file"] for r in d["measures"]) and any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"])'
+    'd["status"]=="complete" and not any("locked.md" in r["file"] for r in d["measures"]) and any(r["language"]=="python" and r["status"]=="ok" for r in d["run"])'
   rm -f "$err_file"
 fi
 (cd "$repo" && chmod 644 locked.md && rm -f locked.md)
@@ -404,10 +395,6 @@ from_sibling="$(cd "$repo/src/keep" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$re
 assert_eq "the exclusion applies to an explicitly scoped sibling path" "python	keep.py" "$from_sibling"
 rm -rf "$repo"
 
-# 10. The config cascade: a team file sets the reference, an exclusion, and a
-#     lane opt-out; an ecosystem file redefines the bash lane by globs. The
-#     resolver reads them from the repo root and a home directory with no
-#     user-global layer (CODE_METRICS_HOME).
 repo="$(mktemp -d)"
 home="$(mktemp -d)"
 mkdir -p "$repo/.claude/ecosystems" "$repo/docs/conventions" "$repo/gen"
@@ -416,12 +403,12 @@ size:
   file_lines: 5
 scope:
   exclude: ["gen/**"]
-lanes:
+languages:
   dotnet:
     enabled: false
 EOF
-eco_lane=bash
-printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/$eco_lane.yaml"
+eco_language=bash
+printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/$eco_language.yaml"
 printf 'a = 1\nb = 2\nc = 3\nd = 4\ne = 5\nf = 6\n' >"$repo/a.py"
 printf 'g = 1\n' >"$repo/gen/b.py"
 printf 'run() { :; }\n' >"$repo/x.bats"
@@ -435,10 +422,10 @@ assert_doc "team reference 5 with layer team; a.py is over it" "$out" \
   'next(t for t in d["thresholds"] if t["measure"]=="file_lines")["reference"]==5 and next(t for t in d["thresholds"] if t["measure"]=="file_lines")["layer"]=="team" and next(r for r in d["measures"] if r["file"]=="a.py")["over_reference"]==["file_lines"]'
 assert_doc "scope.exclude drops gen/b.py and counts it" "$out" \
   'd["scope"]["excluded"]==1 and not any(r["file"]=="gen/b.py" for r in d["measures"])'
-assert_doc "ecosystem globs redefine the bash lane" "$out" \
-  'any(r["file"]=="x.bats" and r["lane"]=="bash" for r in d["measures"]) and not any(r["file"]=="plain.sh" for r in d["measures"])'
-assert_doc "lanes.dotnet.enabled false opts the lane out" "$out" \
-  'not any(r["lane"]=="dotnet" for r in d["run"]) and not any(r["file"]=="C.cs" for r in d["measures"])'
+assert_doc "ecosystem globs redefine the bash language" "$out" \
+  'any(r["file"]=="x.bats" and r["language"]=="bash" for r in d["measures"]) and not any(r["file"]=="plain.sh" for r in d["measures"])'
+assert_doc "languages.dotnet.enabled false opts the language out" "$out" \
+  'not any(r["language"]=="dotnet" for r in d["run"]) and not any(r["file"]=="C.cs" for r in d["measures"])'
 
 # 10b. The personal layer: docs/conventions/code-metrics.local.yaml beats the
 #      team file; the old .claude/code-metrics.local.yaml applies only while it
@@ -507,15 +494,11 @@ resolved="$(mktemp)"
 "$PY" "$SCRIPT_DIR/resolve-config.py" "$SCRIPT_DIR/fixtures/config/user.yaml" "$SCRIPT_DIR/fixtures/config/team.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$resolved"
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-complexity --measures cyclomatic --config "$resolved" "$SOURCES/cm-sample.ts")"
 assert_doc "ladder override lists lizard only for typescript cyclomatic" "$out" \
-  'd["run"][0]["lane"]=="typescript" and d["run"][0]["reason"].startswith("lizard: ") and "eslint-complexity" not in d["run"][0]["reason"]'
+  'd["run"][0]["language"]=="typescript" and d["run"][0]["reason"].startswith("lizard: ") and "eslint-complexity" not in d["run"][0]["reason"]'
 assert_doc "pre-resolved thresholds carry their layer" "$out" \
   'next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["reference"]==15 and next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["layer"]=="team"'
 rm -f "$resolved"
 
-# 12. Configured scope: `scope.base` and `scope.default` apply when the command
-#     line names no --base, --all, or path; an explicit --base still wins; an
-#     explicitly empty collector list runs nothing for that lane and measure;
-#     and --print-scope prints the resolved lane/path rows and stops.
 repo="$(mktemp -d)"
 home="$(mktemp -d)"
 (
@@ -540,12 +523,12 @@ assert_doc "a configured scope.base narrows the change to the commits after it" 
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base main)"
 assert_doc "an explicit --base wins over the configured one" "$out" \
   'sorted(r["file"] for r in d["measures"])==["changed.py","docs/conventions/code-metrics.yaml","third.py"]'
-(cd "$repo" && printf 'scope:\n  default: all\nlanes:\n  python:\n    collectors:\n      file_lines: []\n' >docs/conventions/code-metrics.yaml)
+(cd "$repo" && printf 'scope:\n  default: all\nlanguages:\n  python:\n    collectors:\n      file_lines: []\n' >docs/conventions/code-metrics.yaml)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
 assert_doc "a configured scope.default of all widens the run to the tree" "$out" \
   'd["scope"]["mode"]=="all" and d["scope"]["files"]==4'
-assert_doc "an empty collector list runs nothing for that lane and says so" "$out" \
-  'any(r["lane"]=="python" and r["measure"]=="file_lines" and r["status"]=="unavailable" and "no collector" in r["reason"] for r in d["run"]) and not any(r["lane"]=="python" for r in d["measures"])'
+assert_doc "an empty collector list runs nothing for that language and says so" "$out" \
+  'any(r["language"]=="python" and r["measure"]=="file_lines" and r["status"]=="unavailable" and "no collector" in r["reason"] for r in d["run"]) and not any(r["language"]=="python" for r in d["measures"])'
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base mark)"
 assert_doc "an explicit --base beats a configured scope.default of all" "$out" \
   'd["scope"]["mode"]=="change" and d["scope"]["base"] and d["scope"]["files"] < 4'
@@ -556,21 +539,18 @@ assert_eq "a base branch's own later edit is not part of the change" "other	docs
 python	changed.py
 python	third.py" "$(printf '%s\n' "$out" | sort)"
 listing="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --print-scope)"
-assert_eq "--print-scope prints each measurable file with its lane" "other	docs/conventions/code-metrics.yaml
+assert_eq "--print-scope prints each measurable file with its language" "other	docs/conventions/code-metrics.yaml
 python	base.py
 python	changed.py
 python	third.py" "$(printf '%s\n' "$listing" | sort)"
-assert_eq "--print-scope lists a file no language lane claims under other" "other	docs/conventions/code-metrics.yaml" \
+assert_eq "--print-scope lists a file no language claims under other" "other	docs/conventions/code-metrics.yaml" \
   "$(printf '%s\n' "$listing" | grep 'code-metrics.yaml')"
-# A value the resolver refuses never stops the run and never reaches the
-# dispatcher: the line break that would smuggle in `--disable-lane python` is
-# named on stderr and dropped, so the python lane is still measured.
-(cd "$repo" && printf 'scope:\n  exclude: ["gen/**\\n--disable-lane python"]\n' >docs/conventions/code-metrics.yaml)
+(cd "$repo" && printf 'scope:\n  exclude: ["gen/**\\n--disable-language python"]\n' >docs/conventions/code-metrics.yaml)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
 rc=$?
 assert_eq "a refused config value does not stop the run" 0 "$rc"
-assert_doc "the smuggled directive did not disable the python lane" "$out" \
-  'any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"])'
+assert_doc "the smuggled directive did not disable the python language" "$out" \
+  'any(r["language"]=="python" and r["status"]=="ok" for r in d["run"])'
 err="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>&1 >/dev/null)"
 case "$err" in
 *"scope.exclude"*) pass "the refusal names the offending key" ;;
@@ -578,11 +558,6 @@ case "$err" in
 esac
 rm -rf "$repo" "$home"
 
-# 25. A collector that leaves inputs out reports the lane as partial with its
-#     reason, through the partial-reason file the dispatcher hands every
-#     collect. The jscpd adapter skips both cluster copies under a 100-byte
-#     cap, so the fake `jscpd` (probe only; never reached for collect) has
-#     nothing to replay.
 skipper="$(mktemp -d)"
 cat >"$skipper/jscpd" <<'EOF'
 #!/usr/bin/env bash
@@ -594,8 +569,8 @@ chmod +x "$skipper/jscpd"
 out="$(PATH="$skipper:$EMPTY_PATH" CODE_METRICS_DUP_MAX_SIZE=100 bash "$SCRIPT" audit-duplication --measures duplication --all "$SOURCES/cluster")"
 rc=$?
 assert_eq "a run whose inputs were all skipped exits 0" 0 "$rc"
-assert_doc "a skipped input makes the lane row partial with the reason" "$out" \
-  'any(r["lane"]=="bash" and r["measure"]=="duplication" and r["status"]=="partial" and r["reason"].startswith("2 of 2 files skipped by duplication.max_size 100") for r in d["run"])'
+assert_doc "a skipped input makes the language row partial with the reason" "$out" \
+  'any(r["language"]=="bash" and r["measure"]=="duplication" and r["status"]=="partial" and r["reason"].startswith("2 of 2 files skipped by duplication.max_size 100") for r in d["run"])'
 assert_doc "a skipped input leaves the row's hint null" "$out" \
   'all(r.get("hint") is None for r in d["run"])'
 rm -rf "$skipper"
@@ -625,12 +600,12 @@ assert_doc "a branch at its merge-base with a clean tree gets the merge-base rea
   'd["status"]=="empty" and "merge-base" in d["run"][0]["reason"] and "--all" in d["run"][0]["reason"] and d["scope"]["files"]==0'
 (cd "$repo" && printf 'notes\n' >notes.md && git add -A && git commit -qm docs) >/dev/null 2>&1
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
-assert_doc "a change holding only a markdown file is measured in the other lane" "$out" \
-  'd["status"]=="complete" and [(r["file"], r["lane"]) for r in d["measures"]]==[("notes.md","other")] and d["scope"]["unclassified"]==0'
-(cd "$repo" && mkdir -p docs/conventions && printf 'lanes:\n  other:\n    enabled: false\n' >docs/conventions/code-metrics.yaml && git add -A && git commit -qm config) >/dev/null 2>&1
+assert_doc "a change holding only a markdown file is measured in the other language" "$out" \
+  'd["status"]=="complete" and [(r["file"], r["language"]) for r in d["measures"]]==[("notes.md","other")] and d["scope"]["unclassified"]==0'
+(cd "$repo" && mkdir -p docs/conventions && printf 'languages:\n  other:\n    enabled: false\n' >docs/conventions/code-metrics.yaml && git add -A && git commit -qm config) >/dev/null 2>&1
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
-assert_doc "with lanes.other.enabled false, a change holding only files in no lane says so" "$out" \
-  'd["status"]=="empty" and "belong to no lane" in d["run"][0]["reason"] and d["scope"]["files"]==2 and d["scope"]["unclassified"]==2'
+assert_doc "with languages.other.enabled false, a change holding only files in no language says so" "$out" \
+  'd["status"]=="empty" and "belong to no language" in d["run"][0]["reason"] and d["scope"]["files"]==2 and d["scope"]["unclassified"]==2'
 rm -rf "$repo"
 
 # 22. A sanctioned-replication registry collapses the copies of a shared file
@@ -662,12 +637,12 @@ if printf '%s\n\x1e%s' "$out1" "$out2" | "$PY" -c '
 import json, sys
 a, b = (json.loads(part) for part in sys.stdin.read().split("\x1e"))
 same = a["run"] == b["run"] and a["measures"] == b["measures"] and a["summary"] == b["summary"]
-lanes = [(r["lane"], r["measure"]) for r in a["run"]]
-raise SystemExit(0 if same and lanes == sorted(lanes) else 1)
+languages = [(r["language"], r["measure"]) for r in a["run"]]
+raise SystemExit(0 if same and languages == sorted(languages) else 1)
 '; then
-  pass "the run table and rows are identical and lane-ordered at any concurrency"
+  pass "the run table and rows are identical and language-ordered at any concurrency"
 else
-  fail "the run table and rows are identical and lane-ordered at any concurrency" "identical documents" "$(printf '%s' "$out1" | head -c 300)"
+  fail "the run table and rows are identical and language-ordered at any concurrency" "identical documents" "$(printf '%s' "$out1" | head -c 300)"
 fi
 err="$(PATH="$EMPTY_PATH" CODE_METRICS_PROGRESS=1 bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES" 2>&1 >/dev/null)"
 case "$err" in
@@ -700,14 +675,6 @@ assert_doc "the row is unavailable with the tool's own reason and no 'collect fa
   'd["status"]=="empty" and d["run"][0]["status"]=="unavailable" and d["run"][0]["collector"]=="eslint-complexity 10.1.0" and "no configuration" in d["run"][0]["reason"] and "eslint.config" in d["run"][0]["reason"] and "collect failed" not in d["run"][0]["reason"] and d["measures"]==[]'
 rm -rf "$noconf" "$ladder"
 
-# 26. An interpreter that writes CRLF, as native Windows Python does (#6794).
-# A stub `python3` ahead of the real one ends every stdout line with exactly
-# one CR (also when the real one already writes CRLF), so
-# a Linux runner sees what Git Bash sees: every path, lane glob, exclusion,
-# scope default, and registry bash reads back from Python would carry a
-# trailing CR. Unhandled, `a.sh<CR>` matches no lane (every file lands in
-# `other` and the run exits 0 having measured nothing) and a configured
-# registry is "not found".
 crlf="$(mktemp -d)"
 real_py="$(command -v python3 || command -v python)"
 for name in python3 python; do
@@ -724,8 +691,8 @@ printf 'scope:\n  registries: [plugins/code-metrics/scripts/fixtures/registry/cl
 out="$(PATH="$crlf:$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/resolved.json" --all "$SOURCES")"
 rc=$?
 assert_eq "a CRLF interpreter with a configured registry exits 0" 0 "$rc"
-assert_doc "a CRLF interpreter still sorts every fixture into its lane" "$out" \
-  'd["status"]=="complete" and len(d["run"])==6 and all(r["status"]=="ok" for r in d["run"]) and d["summary"]["files"]==8 and d["scope"]["unclassified"]==0 and any(r["file"].endswith("cm-sample.sh") and r["lane"]=="bash" for r in d["measures"])'
+assert_doc "a CRLF interpreter still sorts every fixture into its language" "$out" \
+  'd["status"]=="complete" and len(d["run"])==6 and all(r["status"]=="ok" for r in d["run"]) and d["summary"]["files"]==8 and d["scope"]["unclassified"]==0 and any(r["file"].endswith("cm-sample.sh") and r["language"]=="bash" for r in d["measures"])'
 assert_doc "a CRLF interpreter resolves the registry and collapses the copies" "$out" \
   'len([r for r in d["measures"] if r["file"].endswith("shared-utils.sh")])==1 and next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["replicas"]["count"]==2'
 assert_doc "no CR reaches a measured path" "$out" \
@@ -735,8 +702,8 @@ repo="$(mktemp -d)"
 home="$(mktemp -d)"
 mkdir -p "$repo/.claude/ecosystems" "$repo/docs/conventions" "$repo/gen"
 printf 'scope:\n  default: all\n  exclude: ["gen/**"]\n' >"$repo/docs/conventions/code-metrics.yaml"
-eco_lane=bash
-printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/$eco_lane.yaml"
+eco_language=bash
+printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/$eco_language.yaml"
 printf 'a = 1\n' >"$repo/a.py"
 printf 'g = 1\n' >"$repo/gen/b.py"
 printf 'run() { :; }\n' >"$repo/x.bats"
@@ -744,33 +711,33 @@ printf 'run() { :; }\n' >"$repo/x.bats"
 out="$(cd "$repo" && PATH="$crlf:$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
 rc=$?
 assert_eq "a CRLF interpreter with a team configuration exits 0" 0 "$rc"
-assert_doc "a CRLF interpreter honors scope.default all, scope.exclude, and lane globs" "$out" \
-  'd["scope"]["mode"]=="all" and d["scope"]["excluded"]==1 and not any(r["file"]=="gen/b.py" for r in d["measures"]) and any(r["file"]=="x.bats" and r["lane"]=="bash" for r in d["measures"]) and any(r["file"]=="a.py" and r["lane"]=="python" for r in d["measures"])'
+assert_doc "a CRLF interpreter honors scope.default all, scope.exclude, and language globs" "$out" \
+  'd["scope"]["mode"]=="all" and d["scope"]["excluded"]==1 and not any(r["file"]=="gen/b.py" for r in d["measures"]) and any(r["file"]=="x.bats" and r["language"]=="bash" for r in d["measures"]) and any(r["file"]=="a.py" and r["language"]=="python" for r in d["measures"])'
 rm -rf "$repo" "$home" "$crlf"
 
 repo="$(mktemp -d)"
 home="$(mktemp -d)"
 mkdir -p "$repo/.claude/ecosystems" "$repo/docs/conventions"
-printf 'lanes:\n  rust:\n    enabled: true\n  python:\n    enabled: true\n' >"$repo/docs/conventions/code-metrics.yaml"
-extra_lane=rust shipped_lane=python unlisted_lane=markdown
-printf 'globs: ["*.rs"]\n' >"$repo/.claude/ecosystems/$extra_lane.yaml"
-printf 'globs: ["*.py"]\n' >"$repo/.claude/ecosystems/$shipped_lane.yaml"
-printf 'globs: ["**/*.md"]\n' >"$repo/.claude/ecosystems/$unlisted_lane.yaml"
+printf 'languages:\n  rust:\n    enabled: true\n  python:\n    enabled: true\n' >"$repo/docs/conventions/code-metrics.yaml"
+extra_language=rust shipped_language=python unlisted_language=markdown
+printf 'globs: ["*.rs"]\n' >"$repo/.claude/ecosystems/$extra_language.yaml"
+printf 'globs: ["*.py"]\n' >"$repo/.claude/ecosystems/$shipped_language.yaml"
+printf 'globs: ["**/*.md"]\n' >"$repo/.claude/ecosystems/$unlisted_language.yaml"
 printf 'fn main() {\n}\n' >"$repo/main.rs"
 printf 'a = 1\n' >"$repo/a.py"
 printf '# notes\n' >"$repo/notes.md"
 (cd "$repo" && git init -q -b main && git config user.email t@example.com && git config user.name t && git add -A && git commit -q -m fixture)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-complexity --measures cyclomatic,file_lines --all)"
 rc=$?
-assert_eq "a listed lane with no shipped collector exits 0" 0 "$rc"
-assert_doc "a listed lane with no shipped collector reports each measure unavailable by name" "$out" \
-  'next(r for r in d["run"] if r["lane"]=="rust" and r["measure"]=="cyclomatic")["status"]=="unavailable" and next(r for r in d["run"] if r["lane"]=="rust" and r["measure"]=="cyclomatic")["reason"]=="no shipped collector for the rust lane"'
-assert_doc "the listed lane keeps its file_lines count through the other lane's ladder" "$out" \
-  'next(r for r in d["run"] if r["lane"]=="rust" and r["measure"]=="file_lines")["status"]=="ok" and any(r["file"]=="main.rs" and r["lane"]=="rust" and r["values"]["lines_non_blank"]==2 for r in d["measures"])'
-assert_doc "a listed id matching a shipped lane still walks its collectors" "$out" \
-  '"lizard: " in next(r for r in d["run"] if r["lane"]=="python" and r["measure"]=="cyclomatic")["reason"] and any(r["file"]=="a.py" and r["lane"]=="python" for r in d["measures"])'
-assert_doc "an unlisted record creates no lane" "$out" \
-  'not any(r["lane"]=="markdown" for r in d["run"]) and any(r["file"]=="notes.md" and r["lane"]=="other" for r in d["measures"])'
+assert_eq "a listed language with no shipped collector exits 0" 0 "$rc"
+assert_doc "a listed language with no shipped collector reports each measure unavailable by name" "$out" \
+  'next(r for r in d["run"] if r["language"]=="rust" and r["measure"]=="cyclomatic")["status"]=="unavailable" and next(r for r in d["run"] if r["language"]=="rust" and r["measure"]=="cyclomatic")["reason"]=="no shipped collector for the rust language"'
+assert_doc "the listed language keeps its file_lines count through the other language's ladder" "$out" \
+  'next(r for r in d["run"] if r["language"]=="rust" and r["measure"]=="file_lines")["status"]=="ok" and any(r["file"]=="main.rs" and r["language"]=="rust" and r["values"]["lines_non_blank"]==2 for r in d["measures"])'
+assert_doc "a listed id matching a shipped language still walks its collectors" "$out" \
+  '"lizard: " in next(r for r in d["run"] if r["language"]=="python" and r["measure"]=="cyclomatic")["reason"] and any(r["file"]=="a.py" and r["language"]=="python" for r in d["measures"])'
+assert_doc "an unlisted record creates no language" "$out" \
+  'not any(r["language"]=="markdown" for r in d["run"]) and any(r["file"]=="notes.md" and r["language"]=="other" for r in d["measures"])'
 rm -rf "$repo" "$home"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"

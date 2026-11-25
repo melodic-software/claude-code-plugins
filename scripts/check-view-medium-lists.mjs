@@ -1,28 +1,4 @@
 #!/usr/bin/env node
-// Gate: a view lane's skill text names no list of media.
-//
-//   node scripts/check-view-medium-lists.mjs [--root <repo>]
-//
-// The rendered-view medium ids belong to lib/view-registry.mjs, which skills
-// reach through the shared resolver. A view lane's `*.md` or `evals.json` that
-// names two or more distinct medium ids, each as a backticked code span, on one
-// line (or, in `evals.json`, in one JSON string) restates that registry and goes
-// stale when it changes. One id on a line, such as a fixture prompt's setup,
-// passes.
-//
-// The medium ids are the keys of `MEDIUMS` and the lanes the `lane(...)` entries,
-// both read from the registry as text, never imported, so a run over a tree it
-// must not execute stays a read. A `plugin:skill` lane covers
-// plugins/<plugin>/skills/<skill>/ and a bare lane id plugins/<id>/. CHANGELOG.md,
-// README.md and every copy scripts/shared-copies.txt lists for
-// lib/rendered-view.md, which names the ids on purpose, are skipped.
-//
-// scripts/view-medium-list-exemptions.txt names the lanes still waiting on their
-// slice, one lane id per row with a `# #<issue>` citation. A row whose lane has
-// no flagged line, or names no registered lane, fails too, so the list only
-// shrinks.
-//
-// Exit 0 clean, 1 findings, 2 usage or an unreadable input.
 import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -35,16 +11,15 @@ const SHARED_SOURCE = "lib/rendered-view.md";
 const SKIP_FILES = new Set(["CHANGELOG.md", "README.md"]);
 const SKIP_DIRS = new Set([".git", "node_modules"]);
 
-// readRegistry(text) -> { mediums: string[], lanes: string[] }
 export function readRegistry(text) {
   const block = /^export const MEDIUMS = Object\.freeze\(\{\r?\n([\s\S]*?)^\}\);/m.exec(text);
   const mediums = block ? [...block[1].matchAll(/^\s*([A-Za-z_$][\w$]*)\s*:/gm)].map((m) => m[1]) : [];
-  const lanes = [...text.matchAll(/\blane\(\s*"([^"]+)"/g)].map((m) => m[1]);
-  return { mediums, lanes };
+  const producers = [...text.matchAll(/\bproducer\(\s*"([^"]+)"/g)].map((m) => m[1]);
+  return { mediums, producers };
 }
 
-export const laneDir = (laneId) => {
-  const [plugin, skill] = laneId.split(":");
+export const producerDir = (producerId) => {
+  const [plugin, skill] = producerId.split(":");
   return skill ? `plugins/${plugin}/skills/${skill}` : `plugins/${plugin}`;
 };
 
@@ -99,10 +74,9 @@ const listRows = (file) =>
         .filter((l) => l && !l.startsWith("#"))
     : [];
 
-// collect(root) -> { flagged: Map<laneId, string[]>, lanes: string[] }
 export function collect(root) {
-  const { mediums, lanes } = readRegistry(readFileSync(path.join(root, REGISTRY), "utf8"));
-  if (!mediums.length || !lanes.length) throw new Error(`${REGISTRY}: found no MEDIUMS keys or no lane(...) entries`);
+  const { mediums, producers } = readRegistry(readFileSync(path.join(root, REGISTRY), "utf8"));
+  if (!mediums.length || !producers.length) throw new Error(`${REGISTRY}: found no MEDIUMS keys or no producer(...) entries`);
   const skip = new Set(
     listRows(path.join(root, SHARED))
       .map((l) => l.split(/\s+/))
@@ -111,23 +85,23 @@ export function collect(root) {
   );
   const ids = new Set(mediums);
   const flagged = new Map();
-  for (const laneId of lanes) {
-    const dir = laneDir(laneId);
+  for (const producerId of producers) {
+    const dir = producerDir(producerId);
     if (!existsSync(path.join(root, dir))) continue;
     for (const rel of walk(root, dir, skip).sort()) {
       for (const { line, ids: hit } of listings(rel, readFileSync(path.join(root, rel), "utf8"), ids)) {
-        if (!flagged.has(laneId)) flagged.set(laneId, []);
-        flagged.get(laneId).push(`${rel}:${line}: ${hit.map((id) => `\`${id}\``).join(", ")}`);
+        if (!flagged.has(producerId)) flagged.set(producerId, []);
+        flagged.get(producerId).push(`${rel}:${line}: ${hit.map((id) => `\`${id}\``).join(", ")}`);
       }
     }
   }
-  return { flagged, lanes };
+  return { flagged, producers };
 }
 
 function exemptions(root) {
   return listRows(path.join(root, EXEMPTIONS)).map((row) => {
     const hash = row.indexOf("#");
-    return { laneId: (hash < 0 ? row : row.slice(0, hash)).trim(), cites: hash >= 0 && /#\d+/.test(row.slice(hash + 1)) };
+    return { producerId: (hash < 0 ? row : row.slice(0, hash)).trim(), cites: hash >= 0 && /#\d+/.test(row.slice(hash + 1)) };
   });
 }
 
@@ -149,26 +123,26 @@ export function main(argv, out = { log: console.log, error: console.error }) {
     out.error(`check-view-medium-lists: ${err.message}`);
     return 2;
   }
-  const { flagged, lanes } = result;
+  const { flagged, producers } = result;
   const findings = [];
   const exempt = new Set();
-  for (const { laneId, cites } of rows) {
-    if (!lanes.includes(laneId)) findings.push(`${EXEMPTIONS}: "${laneId}" is not a lane in ${REGISTRY}; delete the row`);
-    else if (!flagged.has(laneId)) findings.push(`${EXEMPTIONS}: "${laneId}" lists no media any more; delete the row`);
-    else if (exempt.has(laneId)) findings.push(`${EXEMPTIONS}: "${laneId}" is listed twice`);
-    else if (!cites) findings.push(`${EXEMPTIONS}: "${laneId}" cites no issue; add "# #<issue>" naming its open slice`);
-    exempt.add(laneId);
+  for (const { producerId, cites } of rows) {
+    if (!producers.includes(producerId)) findings.push(`${EXEMPTIONS}: "${producerId}" is not a producer in ${REGISTRY}; delete the row`);
+    else if (!flagged.has(producerId)) findings.push(`${EXEMPTIONS}: "${producerId}" lists no media any more; delete the row`);
+    else if (exempt.has(producerId)) findings.push(`${EXEMPTIONS}: "${producerId}" is listed twice`);
+    else if (!cites) findings.push(`${EXEMPTIONS}: "${producerId}" cites no issue; add "# #<issue>" naming its open slice`);
+    exempt.add(producerId);
   }
-  for (const [laneId, hits] of flagged) {
-    if (exempt.has(laneId)) continue;
-    for (const hit of hits) findings.push(`${hit} (lane ${laneId} lists media; leave the ids to ${REGISTRY})`);
+  for (const [producerId, hits] of flagged) {
+    if (exempt.has(producerId)) continue;
+    for (const hit of hits) findings.push(`${hit} (producer ${producerId} lists media; leave the ids to ${REGISTRY})`);
   }
   if (findings.length) {
     for (const f of findings) out.error(f);
-    out.error(`${findings.length} finding(s). A view lane names at most one medium id per line.`);
+    out.error(`${findings.length} finding(s). A view producer names at most one medium id per line.`);
     return 1;
   }
-  out.log(`view-medium-lists: no view lane lists media (${exempt.size} lane(s) exempt).`);
+  out.log(`view-medium-lists: no view producer lists media (${exempt.size} producer(s) exempt).`);
   return 0;
 }
 

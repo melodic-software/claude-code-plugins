@@ -9,7 +9,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "CLAUDE_PLUGIN_DATA=\"/opt/eval/data\" node \"/opt/eval/plugin/lib/view-settings.mjs\" resolve --lane ai-briefing:generate --option \"\""
+            "command": "CLAUDE_PLUGIN_DATA=\"/opt/eval/data\" node \"/opt/eval/plugin/lib/view-settings.mjs\" resolve --producer ai-briefing:generate --option \"\""
           }
         }
       ],

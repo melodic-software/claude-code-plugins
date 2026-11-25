@@ -7,7 +7,7 @@ allowed_tools: [Skill, Read]
 expected_outcome: "The reply says the publickey denial is not a key problem: Git Bash's MSYS ssh reaches no agent, and the hop should use the Windows OpenSSH client (ssh.exe) instead. It does not tell the user to regenerate or re-copy keys."
 ---
 
-/fleet:reach I'm in a native Windows Claude session on the desktop and tried to reach the laptop's WSL lane with my Bash tool:
+/fleet:reach I'm in a native Windows Claude session on the desktop and tried to reach the laptop's WSL install with my Bash tool:
 
 ```console
 $ printf '%s\n' 'echo ok' | ssh laptop-wsl claude -p

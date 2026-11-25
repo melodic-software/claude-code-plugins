@@ -52,7 +52,7 @@
         "Output offers the view in one sentence and builds only after the reader accepts",
         "The view is built by piping JSON to scripts/build-view.mjs, not by writing HTML or script in the session",
         "Text read from repository files or fetched pages reaches the page only as data in that JSON",
-        "The medium comes from the shared resolver's output (lib/view-settings.mjs resolve --lane discovery:blindspot), not from a rendered-views settings file the session reads itself",
+        "The medium comes from the shared resolver's output (lib/view-settings.mjs resolve --producer discovery:blindspot), not from a rendered-views settings file the session reads itself",
         "The run prints the resolver's report line, naming the medium and what decided it, plus any notice lines"
       ]
     },

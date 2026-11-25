@@ -27,9 +27,9 @@ multi-repository run adds.
 
 | Argument | Measures | Script | Full process |
 |---|---|---|---|
-| `size` | Lines per file, every text file in every lane | `${CLAUDE_SKILL_DIR}/scripts/audit-size.sh` | `actions/size.md` |
+| `size` | Lines per file, every text file in every language | `${CLAUDE_SKILL_DIR}/scripts/audit-size.sh` | `actions/size.md` |
 | `complexity` | Per-function cyclomatic and cognitive complexity and Halstead difficulty | `${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh` | `actions/complexity.md` |
-| `type-debt` | Typed-code percentage per file and per lane (TypeScript, Python) | `${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh` | `actions/type-debt.md` |
+| `type-debt` | Typed-code percentage per file and per language (TypeScript, Python) | `${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh` | `actions/type-debt.md` |
 
 With no action word, take the action from the request: file length or lines is `size`,
 complexity is `complexity`, typing or `any` is `type-debt`. When the request names none of them,

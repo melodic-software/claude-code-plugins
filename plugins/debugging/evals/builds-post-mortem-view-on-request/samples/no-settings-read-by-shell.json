@@ -9,7 +9,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /opt/eval/plugins/debugging/lib/view-settings.mjs resolve --lane debugging:debug --option auto",
+            "command": "node /opt/eval/plugins/debugging/lib/view-settings.mjs resolve --producer debugging:debug --option auto",
             "description": "Resolve the medium"
           }
         }
@@ -33,7 +33,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /opt/eval/plugins/debugging/lib/view-settings.mjs resolve --lane debugging:debug --option auto",
+            "command": "node /opt/eval/plugins/debugging/lib/view-settings.mjs resolve --producer debugging:debug --option auto",
             "description": "Resolve the medium without reading rendered-views.md myself"
           }
         }

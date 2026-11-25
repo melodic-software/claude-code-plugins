@@ -57,10 +57,10 @@ class PositionalLayerTests(unittest.TestCase):
         )
         self.assertEqual(d["_layers"]["complexity.cyclomatic.reference"], "team")
         self.assertEqual(
-            d["lanes"]["typescript"]["collectors"]["cyclomatic"], ["lizard"]
+            d["languages"]["typescript"]["collectors"]["cyclomatic"], ["lizard"]
         )
-        self.assertIs(d["lanes"]["dotnet"]["enabled"], False)
-        self.assertIs(d["lanes"]["python"]["enabled"], True)
+        self.assertIs(d["languages"]["dotnet"]["enabled"], False)
+        self.assertIs(d["languages"]["python"]["enabled"], True)
         self.assertEqual(
             d["_files"], [USER.replace("\\", "/"), TEAM.replace("\\", "/")]
         )
@@ -76,13 +76,13 @@ class PositionalLayerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
-                "lanes:\n  python:\n    collectors:\n      cyclomatic: [radon, nonsense]\n",
+                "languages:\n  python:\n    collectors:\n      cyclomatic: [radon, nonsense]\n",
                 encoding="utf-8",
             )
             result = run(str(team), "--ladder", str(LADDER))
             d = json.loads(result.stdout)
             self.assertEqual(
-                d["lanes"]["python"]["collectors"]["cyclomatic"], ["radon"]
+                d["languages"]["python"]["collectors"]["cyclomatic"], ["radon"]
             )
             self.assertIn("'nonsense' is not in the ladder", result.stderr)
 
@@ -93,7 +93,7 @@ class PositionalLayerTests(unittest.TestCase):
             team = Path(tmp) / "team.yaml"
             team.write_text(
                 "scope:\n  default: all\n  base: mark\n"
-                "lanes:\n  python:\n    collectors:\n      cyclomatic: []\n",
+                "languages:\n  python:\n    collectors:\n      cyclomatic: []\n",
                 encoding="utf-8",
             )
             args = run(
@@ -112,15 +112,10 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_value_carrying_a_line_break_cannot_inject_a_second_directive(
         self,
     ) -> None:
-        # The output formats are line oriented and the dispatcher reads them
-        # with `mapfile`, so a scalar holding a newline would arrive as two
-        # directives: one naming a base, one quietly disabling a lane. The
-        # YAML subset's double-quoted scalars carry a real \n, so the layer
-        # below is writable by hand.
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
-                'scope:\n  base: "auto\\n--disable-lane python"\n', encoding="utf-8"
+                'scope:\n  base: "auto\\n--disable-language python"\n', encoding="utf-8"
             )
             result = run(str(team), "--format", "dispatch-args")
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -131,19 +126,19 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertNotIn("Traceback", result.stderr)
             resolved = Path(tmp) / "resolved.json"
             resolved.write_text(
-                json.dumps({"scope": {"base": "auto\n--disable-lane python"}}),
+                json.dumps({"scope": {"base": "auto\n--disable-language python"}}),
                 encoding="utf-8",
             )
             through = run("--from-json", str(resolved), "--format", "dispatch-args")
             self.assertEqual(through.returncode, 2, through.stdout)
-            self.assertNotIn("--disable-lane", through.stdout)
+            self.assertNotIn("--disable-language", through.stdout)
 
     def test_a_tab_in_a_ladder_field_cannot_shift_a_column(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             resolved = Path(tmp) / "resolved.json"
             resolved.write_text(
                 json.dumps(
-                    {"lanes": {"python": {"collectors": {"cyclomatic\tx": ["radon"]}}}}
+                    {"languages": {"python": {"collectors": {"cyclomatic\tx": ["radon"]}}}}
                 ),
                 encoding="utf-8",
             )
@@ -295,7 +290,7 @@ class PositionalLayerTests(unittest.TestCase):
         out = run(USER, TEAM, "--format", "ladder-overrides").stdout.splitlines()
         self.assertEqual(out, ["typescript\tcyclomatic\tlizard"])
         out = run(USER, TEAM, "--format", "dispatch-args").stdout.splitlines()
-        self.assertEqual(out, ["--disable-lane dotnet"])
+        self.assertEqual(out, ["--disable-language dotnet"])
         out = run(USER, TEAM, LOCAL, "--format", "excludes").stdout.splitlines()
         self.assertEqual(out, ["vendor/**"])
 
@@ -319,7 +314,7 @@ class PositionalLayerTests(unittest.TestCase):
                 run(
                     "--from-json", str(resolved), "--format", "dispatch-args"
                 ).stdout.splitlines(),
-                ["--disable-lane dotnet"],
+                ["--disable-language dotnet"],
             )
             self.assertEqual(
                 json.loads(run("--from-json", str(resolved)).stdout)["_layers"][
@@ -356,12 +351,12 @@ class SchemaTests(unittest.TestCase):
 
         defaults = json.loads(DEFAULTS.read_text(encoding="utf-8"))
         defaults.pop("thresholds")
-        lanes = defaults.pop("lanes")
+        languages = defaults.pop("languages")
         declared: set[str] = set()
         schema_keys(
             {
                 "properties": {
-                    k: v for k, v in schema["properties"].items() if k != "lanes"
+                    k: v for k, v in schema["properties"].items() if k != "languages"
                 }
             },
             "",
@@ -370,15 +365,15 @@ class SchemaTests(unittest.TestCase):
         bundled: set[str] = set()
         default_keys(defaults, "", bundled)
         self.assertEqual(declared, bundled)
-        lanes_schema = schema["properties"]["lanes"]
-        self.assertEqual(sorted(lanes_schema["properties"]), sorted(lanes))
-        pattern = re.compile(lanes_schema["propertyNames"]["pattern"])
-        for lane in [*lanes, "rust", "cross-cutting"]:
-            self.assertRegex(lane, pattern)
+        languages_schema = schema["properties"]["languages"]
+        self.assertEqual(sorted(languages_schema["properties"]), sorted(languages))
+        pattern = re.compile(languages_schema["propertyNames"]["pattern"])
+        for language in [*languages, "rust", "cross-cutting"]:
+            self.assertRegex(language, pattern)
         for bad in ["Rust", "../x", "a/b", "-x"]:
             self.assertNotRegex(bad, pattern)
         self.assertEqual(
-            lanes_schema["additionalProperties"], {"$ref": "#/$defs/lane"}
+            languages_schema["additionalProperties"], {"$ref": "#/$defs/language"}
         )
 
 
@@ -431,7 +426,7 @@ class DiscoveredLayerTests(unittest.TestCase):
                 "dispatch-args",
             ).stdout.splitlines()
             self.assertEqual(
-                args, ["--lane-globs bash=*.sh,*.bats", "--disable-lane go"]
+                args, ["--language-globs bash=*.sh,*.bats", "--disable-language go"]
             )
 
     def test_reads_ecosystem_records_from_the_convention_home_first(self) -> None:
@@ -474,14 +469,14 @@ class DiscoveredLayerTests(unittest.TestCase):
                 d["_warnings"],
             )
 
-    def test_only_a_listed_lane_id_reads_its_ecosystem_record(self) -> None:
+    def test_only_a_listed_language_id_reads_its_ecosystem_record(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             ecosystems = root / ".claude" / "ecosystems"
             ecosystems.mkdir(parents=True)
             (root / "docs" / "conventions").mkdir(parents=True)
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
-                "lanes:\n  rust:\n    enabled: true\n  python:\n    enabled: true\n",
+                "languages:\n  rust:\n    enabled: true\n  python:\n    enabled: true\n",
                 encoding="utf-8",
             )
             extra, shipped, unlisted = "rust", "python", "cross-cutting"
@@ -504,16 +499,16 @@ class DiscoveredLayerTests(unittest.TestCase):
                 "--home", tmp, "--repo-root", str(root), "--format", "dispatch-args"
             ).stdout.splitlines()
             self.assertEqual(
-                args, ["--lane-globs python=**/*.py", "--lane-globs rust=**/*.rs"]
+                args, ["--language-globs python=**/*.py", "--language-globs rust=**/*.rs"]
             )
 
-    def test_a_lane_id_outside_kebab_case_is_dropped_by_name(self) -> None:
+    def test_a_language_id_outside_kebab_case_is_dropped_by_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             (root / ".claude" / "ecosystems").mkdir(parents=True)
             (root / "docs" / "conventions").mkdir(parents=True)
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
-                "lanes:\n  Rust:\n    enabled: true\n", encoding="utf-8"
+                "languages:\n  Rust:\n    enabled: true\n", encoding="utf-8"
             )
             (root / ".claude" / "ecosystems" / "Rust.yaml").write_text(
                 'globs: ["**/*.rs"]\n', encoding="utf-8"
@@ -522,24 +517,24 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             d = json.loads(result.stdout)
             self.assertTrue(
-                any("lanes.Rust.enabled" in w and "kebab-case" in w for w in d["_warnings"]),
+                any("languages.Rust.enabled" in w and "kebab-case" in w for w in d["_warnings"]),
                 d["_warnings"],
             )
             self.assertEqual(d["_ecosystems"], {})
 
-    def test_a_scalar_listed_lane_is_dropped_not_read_as_a_mapping(self) -> None:
+    def test_a_scalar_listed_language_is_dropped_not_read_as_a_mapping(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             (root / "docs" / "conventions").mkdir(parents=True)
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
-                "lanes:\n  rust: true\n  zig:\n    collectors: true\n", encoding="utf-8"
+                "languages:\n  rust: true\n  zig:\n    collectors: true\n", encoding="utf-8"
             )
             result = run(
                 "--home", tmp, "--repo-root", str(root), "--ladder", str(LADDER)
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             d = json.loads(result.stdout)
-            for key in ("lanes.rust", "lanes.zig.collectors"):
+            for key in ("languages.rust", "languages.zig.collectors"):
                 self.assertTrue(
                     any(f"{key} = True: must be a mapping" in w for w in d["_warnings"]),
                     d["_warnings"],

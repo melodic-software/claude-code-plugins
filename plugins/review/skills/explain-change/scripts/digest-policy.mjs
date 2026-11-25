@@ -37,7 +37,7 @@ export { DEFAULTS, CONFIG_PATHS, MAX_RISK_PATHS, MAX_GLOB_LENGTH, parseYamlLayer
 export function resolveMedium(option, baseOid) {
   const teamRef = isSha(baseOid) ? baseOid : "";
   const resolution = resolveViewMedium(
-    { lane: "review:explain-change", userConfig: option, projectRoot: findRoot(), teamRef },
+    { producer: "review:explain-change", userConfig: option, projectRoot: findRoot(), teamRef },
     { dataDir: process.env.CLAUDE_PLUGIN_DATA || null },
   );
   const entry = mediumOf(resolution.medium);

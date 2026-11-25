@@ -527,3 +527,9 @@ Each maps to the term or doctrine that owns the concept.
 | approval *(for admission)* | **admission** above; implies a judge, and admission runs no model |
 | commitment point | **admission** above; Kanban's name for the point, which collides with a git commit |
 | map / territory | the source author's metaphor, cited where it appears in [`finding-your-unknowns.md`](finding-your-unknowns.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |
+| lane *(one Claude Code install with its own sign-in)* | install, the word `fleet:reach` uses; bare **lane** means a stage worker |
+| lane *(a skill or plugin registered with the shared view resolver)* | producer, the word the resolver (`--producer`) and its registry use |
+| lane *(instruction-placement's promote or demote pass)* | direction, the word `instruction-placement` uses (`--direction`) |
+| lane *(the files of one language that code-metrics measures)* | language, the word `code-metrics` uses (the `languages` config key) |
+| lane *(coupling's apply or route path for a finding)* | step, the word `coupling:reduce` uses |
+| lane *(the skill that owns a job)* | that skill's name, or skill |

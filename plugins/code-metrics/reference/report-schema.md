@@ -13,14 +13,14 @@ shape is stable within the `v2` schema string.
 | `root` | object | `kind` (`repository` or `directory`) and `path`: the directory every measured path is relative to, see "Path relativity" |
 | `scan_root` | string | Where the run started, relative to `root.path` (`.` when equal); never affects paths |
 | `generated_at` | string | UTC timestamp, `YYYY-MM-DDTHH:MM:SSZ` |
-| `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable`, `deferred`, or `partial` row; a lane that skipped every file is `partial` even with no measure row, because its run row states the skip), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
-| `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no lane, so `files` minus `unclassified` is the measured count; with the catch-all `other` lane enabled this is a disabled lane's files, and otherwise 0), `excluded` (count dropped by scope exclusions), `exclusions` (one `{pattern, files}` per `scope.exclude` glob that matched at least one file; a file two globs match counts under both) |
-| `run` | array | The "Coverage of this run" table, one row per lane and measure the scope implied |
+| `status` | string | `complete` (every implied language and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable`, `deferred`, or `partial` row; a language that skipped every file is `partial` even with no measure row, because its run row states the skip), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
+| `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no language, so `files` minus `unclassified` is the measured count; with the catch-all `other` language enabled this is a disabled language's files, and otherwise 0), `excluded` (count dropped by scope exclusions), `exclusions` (one `{pattern, files}` per `scope.exclude` glob that matched at least one file; a file two globs match counts under both) |
+| `run` | array | The "Coverage of this run" table, one row per language and measure the scope implied |
 | `thresholds` | array | The references in force: `measure`, `value_key` (the `values` key the reference is applied to), `direction` (`at_or_above`, or `below` for coverage and type coverage), `reference` (number or `null`), `provenance`, `layer` (which config layer supplied it, or `bundled default`). The markdown Measures table lists rows over a reference first, furthest past it at the top, then the rest by the first entry whose `value_key` the rows carry, largest first (smallest first under `below`), and its 200-row cap names that key |
 | `measures` | array | The rows, see below |
-| `summary` | object | `files`, `functions`, `over_reference` (measure name to count); when clone-group rows are present, `duplicated_lines` (sum of each group's `values.lines`, one group counted once, after registry exclusions), `clone_groups`, `by_lane`, and `by_directory` (see below) |
+| `summary` | object | `files`, `functions`, `over_reference` (measure name to count); when clone-group rows are present, `duplicated_lines` (sum of each group's `values.lines`, one group counted once, after registry exclusions), `clone_groups`, `by_language`, and `by_directory` (see below) |
 | `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry (intentional clones the repository declares about itself), each naming the registry path and line |
-| `unavailable` | array | `lane/measure` strings for every `run` row whose status is `unavailable` |
+| `unavailable` | array | `language/measure` strings for every `run` row whose status is `unavailable` |
 | `file_commits` | object | Size only, and only under `--commits-since`: `since` (the date as passed), `excludes` (the author-name mark left out, `[bot]`), and `rows`, one per file at or above the `file_lines` reference with `file`, `lines_non_blank` and `commits`, most commits first |
 | `size_check` | object | Size only, and only under `--check`: `rule` and `layer` (the resolved `size.check` and the layer that set it), `reference` and `reference_layer` (`size.file_lines`), `base`, `failed` (how many rows fail), and `rows`, one per changed file the rule lists, with `file`, `base_file` (its name at the base), `base_lines` and `head_lines` (both by the bundled counter's non-blank rule), `kind` (`crossed` or `grew`), `fails`, and `canonical` on a generated copy (a registry cluster line and `size.copies_manifest` both name it), which never fails |
 | `trend` | object | Duplication only, and only when an earlier document qualifies: see "Clone trend" |
@@ -60,12 +60,12 @@ These fields are relative to `root.path`: `measures[].file`, `measures[].instanc
 
 ## Duplication rollups
 
-`summary.by_lane` maps each lane to `{"groups", "duplicated_lines"}` over the surviving clone
+`summary.by_language` maps each language to `{"groups", "duplicated_lines"}` over the surviving clone
 groups, and `summary.by_directory` maps `.` and every ancestor directory of each group's first
 instance (instances are sorted by path, so that is the lowest path; paths are relative to
 `root.path`) to the same shape. A group counts once under every ancestor, so a parent includes
 its children and directory rows cannot be summed; two identities hold instead:
-`by_directory["."].duplicated_lines == summary.duplicated_lines` and the `by_lane` values sum to
+`by_directory["."].duplicated_lines == summary.duplicated_lines` and the `by_language` values sum to
 it. A duplication run that found or kept no group carries both as empty maps, beside its
 `duplicated_lines: 0`; a document without clone-group rows and without a duplication collector run
 carries neither. The markdown `## Rollup` section lists directories to `duplication.rollup_depth`
@@ -142,7 +142,7 @@ mode, so read its delta with the scope line beside it.
 
 When the resolved `scope.registries` names a registry (one path-within-plugin per line), the
 per-file and per-function rows for every copy of a listed file that carry the same function, line
-range, collector, lane, and values collapse into one row: the first by path, with the label
+range, collector, language, and values collapse into one row: the first by path, with the label
 `replicated` and a `replicas` object (`count`, the files the row stands for including itself;
 `registry`; `line`; `path`, the registry line's text; `files`). Rows whose values differ are
 different files whatever the registry says, and all of them stay. Clone-group rows are
@@ -150,7 +150,7 @@ different files whatever the registry says, and all of them stay. Clone-group ro
 
 ## `run[]` rows
 
-`lane`, `measure`, `collector` (the tool and version that produced the rows, or `null`), `status`
+`language`, `measure`, `collector` (the tool and version that produced the rows, or `null`), `status`
 (`ok`, `partial`, `unavailable`, `not-applicable`, `deferred`), `reason` (`null` only when `ok` and
 the collector said nothing; an `ok` row whose collector wrote to stderr while succeeding carries
 that text, such as mypy's `mypy reported 386 errors (349 missing stubs)`), `hint` (the first
@@ -159,11 +159,11 @@ reason so a renderer can print it once without parsing it back out). A run whose
 measurable file carries one row `*/*` with status `not-applicable` and a reason that opens with
 `no measurable files in scope` and, under `change`, says why: the branch is at its merge-base with
 a clean working tree (naming the ref and the `--all` alternative), or the
-changed files belong to no lane. The lane `other` (every text file outside the language lanes)
+changed files belong to no language. The language `other` (every text file outside the languages)
 has `file_lines` rows only; each other measure carries a `not-applicable` row for it.
 
 `partial` means the row produced measurements for some of what it implied and not the rest, which
-`audit-coverage` emits when an artifact covers only some of a lane's scope files, and again when it
+`audit-coverage` emits when an artifact covers only some of a language's scope files, and again when it
 left a function unjoined, naming those functions in the reason, and which `audit-duplication` emits
 when a `duplication.max_size` or `duplication.max_lines` cap left files out of the clone scan,
 naming the count and the largest skipped file in the reason. It counts as having produced rows, so
@@ -171,17 +171,17 @@ such a run is `partial` rather than `empty`, and it withholds `complete`, so a d
 read as complete while one of its own rows says `N of M`.
 
 A coverage row whose reason carries that `N of M scope files` count also carries `missing`, an
-additive key holding every scope file of the lane that no artifact mentions, relative to `root.path` and
+additive key holding every scope file of the language that no artifact mentions, relative to `root.path` and
 sorted; the reason names the first five and counts the rest (`; missing: a, b, c, d, e, +N more in
 the JSON`). The key is absent on an `ok` row, on a row that found no artifact at all (its reason
-lists the paths searched instead), and on the lane's `crap` row, which repeats the coverage reason
+lists the paths searched instead), and on the language's `crap` row, which repeats the coverage reason
 verbatim when coverage is what it lacks.
 
 ## `measures[]` rows
 
-Common fields: `file`, `function` (`null` for a per-file row), `lane`, `values` (measure name to
+Common fields: `file`, `function` (`null` for a per-file row), `language`, `values` (measure name to
 number or `null`), `collector`, `labels` (strings such as `comment-agnostic`, `start-line-only`,
-`file-level`, `replicated`, `lane-total`, `partial`), `over_reference` (the measures whose
+`file-level`, `replicated`, `language-total`, `partial`), `over_reference` (the measures whose
 reference the row is at or beyond), and `replicas` on a collapsed row only (see "Sanctioned
 replication"). Granularity by skill:
 
@@ -191,7 +191,7 @@ replication"). Granularity by skill:
 | `audit-complexity` | function (`start_line`, `end_line` when the collector reports them) | none |
 | `audit-coverage` | function | `cov_source` (`artifact-region`, `line-range`, `statement-ratio`, or `ambiguous`), `hit` (the artifact's function-hit flag or `null`), `reason` (why the join was refused; present only on an `ambiguous` row) |
 | `audit-duplication` | clone group | `instances[]` (`file`, `start_line`, `end_line`) replaces `file` and `function` |
-| `audit-type-debt` | file | one row per scope file the tool listed (`function` is `null`) plus one lane row per lane with `file` `null` and the label `lane-total`. The Python lane row sums its file rows, so a change-scoped run reports the scope's own coverage, and it also carries `partial` (beside the run row's `partial` status) when the lane held files out; when no listed module matched a scope file it is mypy's own Total and no file row is emitted. A TypeScript file row carries `any_count` alone (the occurrences `type-coverage --detail` listed for that file; the CLI gives no per-file denominator) with the other three values `null`, and the lane row carries all four |
+| `audit-type-debt` | file | one row per scope file the tool listed (`function` is `null`) plus one language row per language with `file` `null` and the label `language-total`. The Python language row sums its file rows, so a change-scoped run reports the scope's own coverage, and it also carries `partial` (beside the run row's `partial` status) when the language held files out; when no listed module matched a scope file it is mypy's own Total and no file row is emitted. A TypeScript file row carries `any_count` alone (the occurrences `type-coverage --detail` listed for that file; the CLI gives no per-file denominator) with the other three values `null`, and the language row carries all four |
 
 A value the collector did not produce is `null`, never `0`.
 
@@ -205,7 +205,7 @@ That ratio is the file's exact native measure, so it outranks a line table for t
 lcov or Cobertura artifact naming a `.go` file the profile also covers does not take
 `coverage_pct` from it, and the line counts stay `null` there too, because a line ratio printed
 beside a statement percentage reads as the two counts behind it and is a different measure. Both
-formats still appear in the lane's `collector`, so nothing about the merge is hidden. A file no
+formats still appear in the language's `collector`, so nothing about the merge is hidden. A file no
 statement-weighted artifact covers reports `cov_source: artifact-region` and its own line counts.
 
 A Go function row reports `coverage_pct` and `crap` as `null`, because the profile names no
@@ -225,7 +225,7 @@ function's range.
 
 An adapter's own `collect` exits 4 when its tool resolved but cannot run in this repository at
 all (ESLint reporting that it found no configuration for the files). That is not a run failure:
-the entry script exits 0, and the lane's run row reads `unavailable` with the tool's own reason.
+the entry script exits 0, and the language's run row reads `unavailable` with the tool's own reason.
 
 ## The reference semantics
 

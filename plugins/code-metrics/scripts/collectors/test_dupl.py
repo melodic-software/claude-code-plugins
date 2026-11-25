@@ -68,7 +68,7 @@ class DuplAdapterTests(unittest.TestCase):
             row = rows[0]
             self.assertIsNone(row["file"])
             self.assertIsNone(row["function"])
-            self.assertEqual(row["lane"], "go")
+            self.assertEqual(row["language"], "go")
             self.assertEqual(row["collector"], "dupl")
             self.assertEqual([i["file"] for i in row["instances"]], [ALPHA, BETA])
             self.assertEqual(
@@ -108,7 +108,7 @@ class DuplAdapterTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn(f"-t 77 {ALPHA}", log.read_text(encoding="utf-8"))
 
-    def test_a_lane_dupl_cannot_parse_is_exit_3_with_the_reason(self) -> None:
+    def test_a_language_dupl_cannot_parse_is_exit_3_with_the_reason(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
             result = run(

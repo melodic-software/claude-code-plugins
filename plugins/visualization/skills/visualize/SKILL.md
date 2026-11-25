@@ -126,7 +126,7 @@ layers, first hit wins:
    shell command.
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane visualization:visualize --option "<option>" [--argument <medium>]
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer visualization:visualize --option "<option>" [--argument <medium>]
    ```
 
    It prints one JSON line, then the report line naming the medium and what decided it, then any
@@ -258,7 +258,7 @@ it in this order:
 **Code-shape sketches take these same layers** (under auto they build no page, per
 layer 3; an argument or resolved medium is honored for them as for any form), with
 one exception: a pull-request diff, fetched content, or another repository's files
-are never rendered to HTML until this lane is wired through the rendered-views escape helper, and
+are never rendered to HTML until this skill is wired through the rendered-views escape helper, and
 never written to a diagram file. That exception overrides layer 1, the preference and
 `diagram_target`; when a page or file was asked for, say in one line why it was not produced.
 
@@ -493,7 +493,7 @@ chart wherever the mod is absent. It never switches the mod on or off.
 - **Does not restate rendering-surface facts**. They live once in the catalog spoke.
 - **Does not digest or re-explain dense text**. That is a comprehension concern, not a form concern.
 - **Does not explain a topic from scratch**. A one-idea-per-diagram picture explainer of a concept or codebase topic, ELI5 included, is `education:illustrate` (if enabled). This skill picks a form for what is already in the conversation.
-- **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this lane is wired through the rendered-views escape helper. Those stay terminal fences.
+- **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this skill is wired through the rendered-views escape helper. Those stay terminal fences.
 - **Does not publish an Artifact when that surface is absent or the resolved medium does not publish**. It steps down the fallback chain.
 - **Does not ship or install a canvas server**. It uses one the person connected, under Step 3's canvas rule.
 - **Does not stage or commit a diagram file**. The `excalidraw-file` target leaves the file untracked for the person to review.

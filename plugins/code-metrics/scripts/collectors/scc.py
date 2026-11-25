@@ -2,7 +2,7 @@
 """Adapter for `scc` (boyter/scc), used for comment-aware line counting only.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 scc's `Complexity` figure is a per-file substring count and is never surfaced
 by this plugin (Brief: "scc is not a cyclomatic collector"). Only the line
@@ -35,11 +35,6 @@ def probe() -> int:
     return path_probe(NAME)
 
 
-# Argument-vector budget for one scc invocation, in characters. Git Bash under
-# Windows caps a native process's command line near 32,000 characters, so a
-# lane of thousands of paths is fed to scc in chunks that stay under it.
-# CODE_METRICS_ARGV_BUDGET overrides the figure (the suite uses it to force
-# several chunks over a small fixture).
 ARGV_BUDGET = 24000
 
 
@@ -67,8 +62,8 @@ def _count_lines(path: str) -> dict[str, int | None]:
     """The bundled counter's figures for a file scc produced no row for.
 
     scc lists only the files whose language it recognizes, so a lockfile or
-    an extensionless text file in the catch-all lane comes back with no
-    `Files[]` entry; dropping it would report the lane as measured with the
+    an extensionless text file in the catch-all language comes back with no
+    `Files[]` entry; dropping it would report the language as measured with the
     file missing. Its total and blank lines are counted here, comment-agnostic
     like the bundled counter, and the row says so through its label."""
     total = blank = 0
@@ -87,24 +82,24 @@ def _count_lines(path: str) -> dict[str, int | None]:
 
 
 def _row(
-    lane: str, path: str, values: dict[str, int | None], labels: list[str]
+    language: str, path: str, values: dict[str, int | None], labels: list[str]
 ) -> dict:
     return {
         "file": path.replace("\\", "/"),
         "function": None,
-        "lane": lane,
+        "language": language,
         "values": values,
         "collector": NAME,
         "labels": labels,
     }
 
 
-def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
+def translate(raw: str, language: str, wanted: list[str]) -> list[dict]:
     """Rows for `wanted`, in scc's output order, from one scc document."""
     wanted_norm = {normalize(p): p for p in wanted}
     rows: list[dict] = []
-    for language in json.loads(raw):
-        for entry in language.get("Files", []):
+    for group in json.loads(raw):
+        for entry in group.get("Files", []):
             location = normalize(entry.get("Location", ""))
             if location not in wanted_norm:
                 continue
@@ -112,7 +107,7 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
             blank = int(entry.get("Blank", 0))
             rows.append(
                 _row(
-                    lane,
+                    language,
                     wanted_norm[location],
                     {
                         "lines_total": lines,
@@ -127,9 +122,9 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     return rows
 
 
-def fill_missing(rows: list[dict], lane: str, wanted: list[str]) -> list[dict]:
+def fill_missing(rows: list[dict], language: str, wanted: list[str]) -> list[dict]:
     """Append a comment-agnostic row for every requested file scc omitted, so
-    the lane never reads as measured while a file in it was not."""
+    the language never reads as measured while a file in it was not."""
     seen = {normalize(row["file"]) for row in rows}
     filled = list(rows)
     for path in wanted:
@@ -137,11 +132,11 @@ def fill_missing(rows: list[dict], lane: str, wanted: list[str]) -> list[dict]:
         if key in seen:
             continue
         seen.add(key)
-        filled.append(_row(lane, path, _count_lines(path), ["comment-agnostic"]))
+        filled.append(_row(language, path, _count_lines(path), ["comment-agnostic"]))
     return filled
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
+def collect(language: str, measure: str, files: list[str]) -> int:
     if measure != "file_lines":
         print(f"{NAME}.py: cannot collect {measure}", file=sys.stderr)
         return 2
@@ -158,7 +153,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
             check=False,
         )
         try:
-            rows.extend(translate(result.stdout, lane, chunk))
+            rows.extend(translate(result.stdout, language, chunk))
         except (ValueError, TypeError) as exc:
             print(
                 f"{NAME}.py: unparsable {NAME} output ({exc}); stderr: {result.stderr.strip()}",
@@ -166,7 +161,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
             )
             return 3
     try:
-        rows = fill_missing(rows, lane, files)
+        rows = fill_missing(rows, language, files)
     except OSError as exc:
         print(f"{NAME}.py: {exc}", file=sys.stderr)
         return 3

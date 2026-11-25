@@ -2,7 +2,7 @@
 """Adapter for the `eslint-plugin-sonarjs` cognitive-complexity rule (TS/JS).
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 `probe` needs both halves and never installs either (design T14):
 
@@ -52,7 +52,7 @@ from adapter_paths import (
 )
 
 NAME = "sonarjs"
-LANE = "typescript"
+LANGUAGE = "typescript"
 MEASURE = "cognitive"
 RULE = "sonarjs/cognitive-complexity"
 PLUGIN = "eslint-plugin-sonarjs"
@@ -100,7 +100,7 @@ def probe() -> int:
     return 0
 
 
-def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
+def translate(raw: str, language: str, wanted: list[str]) -> list[dict]:
     wanted_norm = {normalize(p): p for p in wanted}
     document = json.loads(raw)
     if not isinstance(document, list):
@@ -124,7 +124,7 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
                     "function": function_name(result, message),
                     "start_line": message.get("line"),
                     "end_line": None,
-                    "lane": lane,
+                    "language": language,
                     "values": {MEASURE: int(match.group("value"))},
                     "collector": NAME,
                     "labels": ["start-line-only"],
@@ -149,9 +149,9 @@ def function_name(result: dict, message: dict) -> str | None:
     return declared.group(1) if declared else None
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
-    if lane != LANE or measure != MEASURE:
-        print(f"{NAME}.py: cannot collect {lane}/{measure}", file=sys.stderr)
+def collect(language: str, measure: str, files: list[str]) -> int:
+    if language != LANGUAGE or measure != MEASURE:
+        print(f"{NAME}.py: cannot collect {language}/{measure}", file=sys.stderr)
         return 2
     exe = resolve_eslint()
     if not exe or not resolve_plugin():
@@ -173,7 +173,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         check=False,
     )
     try:
-        rows = translate(result.stdout, lane, files)
+        rows = translate(result.stdout, language, files)
     except (ValueError, TypeError) as exc:
         print(
             f"{NAME}.py: no parseable eslint output ({exc}); "
@@ -187,7 +187,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    print(f"{LANE}/{MEASURE}")
+    print(f"{LANGUAGE}/{MEASURE}")
 
 
 INSTALL_HINT = (

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Adapter for `jscpd`, the clone detector behind every duplication lane.
+"""Adapter for `jscpd`, the clone detector behind every duplication language.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 jscpd only writes its report to a file, so `collect` runs it with
 `--reporters json --output <tmpdir>`, reads `<tmpdir>/jscpd-report.json`,
@@ -19,14 +19,14 @@ common ancestor of its inputs, which collapses two vendored copies that share
 a basename into one indistinguishable name; the absolute paths are made
 relative to the working directory here.
 
-The file list never goes on jscpd's command line. A lane's scope can be
-thousands of paths, past the Windows command-line limit. On Windows a lane
+The file list never goes on jscpd's command line. A language's scope can be
+thousands of paths, past the Windows command-line limit. On Windows a language
 of 400 or more files given on the command line got no report and nothing on
 stderr; a length limit in the launch chain (a bun `.EXE` shim, then the
 binary) is the likely cause, not a proven one. The adapter writes the absolute paths to
 the `path` array of a config file in the temporary directory and passes
 `--config <that file>`, so the argument vector has the same length for one
-file or ten thousand, and the lane is still one jscpd run, so a clone whose
+file or ten thousand, and the language is still one jscpd run, so a clone whose
 copies sit far apart in the list is still found. Both majors read `path`
 from a config file the way they read positional paths (verified 2026-10-11
 against jscpd 4.3.0 over 150 shell files and 5.4.1 over 1,590: each gave
@@ -278,7 +278,7 @@ def _instance(entry: dict) -> dict:
     }
 
 
-def translate(raw: str, lane: str) -> list[dict]:
+def translate(raw: str, language: str) -> list[dict]:
     document = json.loads(raw)
     rows: list[dict] = []
     for duplicate in document.get("duplicates", []):
@@ -293,7 +293,7 @@ def translate(raw: str, lane: str) -> list[dict]:
             {
                 "file": None,
                 "function": None,
-                "lane": lane,
+                "language": language,
                 "instances": instances,
                 "values": {
                     "lines": duplicate.get("lines"),
@@ -352,7 +352,7 @@ def _command(
     return command
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
+def collect(language: str, measure: str, files: list[str]) -> int:
     if measure != "duplication":
         print(f"jscpd.py: cannot collect {measure}", file=sys.stderr)
         return 2
@@ -385,7 +385,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         report = os.path.join(output, REPORT_BASENAME)
         try:
             with open(report, encoding="utf-8") as handle:
-                rows = translate(handle.read(), lane)
+                rows = translate(handle.read(), language)
         except (OSError, ValueError, TypeError) as exc:
             print(
                 f"jscpd.py: no parseable {REPORT_BASENAME} ({exc}); "

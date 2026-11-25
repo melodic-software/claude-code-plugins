@@ -13,9 +13,9 @@ Four subcommands, all standard library:
                      [--excluded <excluded.jsonl>] [--root <dir>]
       Print the report document: `run[]` is the coverage-of-this-run table,
       `measures[]` gains `over_reference`, `summary` counts, `unavailable[]`
-      lists every non-ok lane/measure, and `status` is complete, partial, or
+      lists every non-ok language/measure, and `status` is complete, partial, or
       empty. A value that was not measured is `null`, never zero. A `partial`
-      run row counts as measured, so a lane that skipped every file is
+      run row counts as measured, so a language that skipped every file is
       `partial`, not `empty`.
 
   report.py render [--document <path>] [--rollup-depth <n>] [< report.json]
@@ -26,7 +26,7 @@ Four subcommands, all standard library:
       `--document` names the file the caller persisted the whole document to,
       so the cap line and the summary can point at it. A duplication document
       (clone-group rows, or `skill` audit-duplication) lists groups largest
-      first, adds a `## Rollup` section with per-lane and per-directory tables
+      first, adds a `## Rollup` section with per-language and per-directory tables
       (directories to `--rollup-depth`, default 2), and summarizes as
       `Files with clones`; every other document renders as it always has.
 
@@ -43,7 +43,7 @@ Four subcommands, all standard library:
       Recompute `summary` from `measures[]` and print the document; for a
       skill that drops rows after assembly (a duplication registry moving
       clone groups into `excluded[]`). Clone-group rows (`instances[]`) add
-      `summary.duplicated_lines`, `summary.clone_groups`, `summary.by_lane`,
+      `summary.duplicated_lines`, `summary.clone_groups`, `summary.by_language`,
       and `summary.by_directory` (paths made relative to `--root`).
 
 Exit 0 on success, 2 on a usage error or unreadable input.
@@ -90,8 +90,8 @@ def _read_jsonl(path: str | None) -> list[dict[str, Any]]:
     return rows
 
 
-def _lane_measure(row: dict[str, Any]) -> str:
-    return f"{row.get('lane', '*')}/{row.get('measure', '*')}"
+def _language_measure(row: dict[str, Any]) -> str:
+    return f"{row.get('language', '*')}/{row.get('measure', '*')}"
 
 
 def _dig(config: dict[str, Any], dotted: str) -> Any:
@@ -151,14 +151,14 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
     `duplicated_lines` (sum of `values.lines`, each group counted once) and
     `clone_groups`, and their instance files count toward `files`.
 
-    Clone-group rows also add `by_lane` (lane to `{groups, duplicated_lines}`)
+    Clone-group rows also add `by_language` (language to `{groups, duplicated_lines}`)
     and `by_directory` (the same shape for `.` and every ancestor directory of
     each group's first instance, made relative to `root`). A group counts once
     per ancestor, so a parent includes its children and the rows cannot be
-    summed, while `by_directory["."]` and the per-lane sum both restate the
+    summed, while `by_directory["."]` and the per-language sum both restate the
     totals."""
     files: set[str] = set()
-    by_lane: dict[str, dict[str, int]] = {}
+    by_language: dict[str, dict[str, int]] = {}
     by_directory: dict[str, dict[str, int]] = {}
     functions: dict[tuple[str, str], set[int]] = {}
     over_counts: dict[str, int] = {}
@@ -192,7 +192,7 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
             for instance in instances:
                 if instance.get("file"):
                     files.add(instance["file"])
-            _tally(by_lane, str(row.get("lane") or "*"), counted)
+            _tally(by_language, str(row.get("language") or "*"), counted)
             first = root_relative(str(instances[0].get("file") or ""), root)
             for directory in _ancestors(first):
                 _tally(by_directory, directory, counted)
@@ -204,7 +204,7 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
     if clone_groups:
         summary["duplicated_lines"] = duplicated_lines
         summary["clone_groups"] = clone_groups
-        summary["by_lane"] = by_lane
+        summary["by_language"] = by_language
         summary["by_directory"] = by_directory
     return summary
 
@@ -323,7 +323,7 @@ def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]
     previous = doc.get("summary") or {}
     measures = doc.get("measures") or []
     summary = _summary(measures, doc.get("excluded") or [])
-    for key in ("duplicated_lines", "clone_groups", "by_lane", "by_directory"):
+    for key in ("duplicated_lines", "clone_groups", "by_language", "by_directory"):
         if key in previous and key not in summary:
             summary[key] = previous[key]
     doc["summary"] = summary
@@ -351,13 +351,6 @@ def assemble(
             for threshold in threshold_entries
             if _over(threshold, values.get(threshold["value_key"]))
         ]
-    # A `not-applicable` row implies nothing to run (the measure does not
-    # exist for that lane), so it never withholds `complete`; `unavailable`,
-    # `deferred` and `partial` rows do, because something implied was not
-    # measured. `partial` still counts as having produced rows, so a run that
-    # measured part of a lane reads as `partial` rather than as `empty`, even
-    # when it skipped every file and has no row to show: the skip is stated in
-    # the run row, and "Measured nothing" would contradict it.
     ok_rows = [row for row in run if row.get("status") in ("ok", "partial")]
     partial_rows = [row for row in run if row.get("status") == "partial"]
     settled = [row for row in run if row.get("status") in ("ok", "not-applicable")]
@@ -381,7 +374,7 @@ def assemble(
         "summary": _summary(measures, excluded, root),
         "excluded": excluded,
         "unavailable": [
-            _lane_measure(row) for row in run if row.get("status") == "unavailable"
+            _language_measure(row) for row in run if row.get("status") == "unavailable"
         ],
     }
 
@@ -530,7 +523,7 @@ def join_rows(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if function and not _is_line(start):
             known = starts.get((file, function), set())
             start = next(iter(known)) if len(known) == 1 else None
-        key = (file, function, start, row.get("lane"))
+        key = (file, function, start, row.get("language"))
         candidates = by_key.setdefault(key, [])
         for candidate in candidates:
             if _merge_into(candidate, row):
@@ -582,7 +575,7 @@ def render(
     ):
         hint = next((row.get("hint") for row in detector_rows if row.get("hint")), "")
         lines.append(
-            "No clone detector ran in any lane"
+            "No clone detector ran in any language"
             + (f": {hint}" if hint else "")
             + ". Run `/code-metrics:setup` to install one."
         )
@@ -591,7 +584,7 @@ def render(
         f"{headline}. Scope: {scope.get('mode', '?')}"
         + (f" against `{scope['base']}`" if scope.get("base") else "")
         + f", {scope.get('files', 0)} file(s)"
-        + (f", {scope['unclassified']} in no lane" if scope.get("unclassified") else "")
+        + (f", {scope['unclassified']} in no language" if scope.get("unclassified") else "")
         + (f", {scope['excluded']} excluded" if scope.get("excluded") else "")
         + "."
         + (
@@ -610,11 +603,11 @@ def render(
     lines.append("")
     lines.append("## Coverage of this run")
     lines.append("")
-    lines.append("| Lane | Measure | Collector | Status | Reason |")
+    lines.append("| Language | Measure | Collector | Status | Reason |")
     lines.append("|---|---|---|---|---|")
     for row in doc.get("run", []):
         lines.append(
-            f"| {row.get('lane', '*')} | {row.get('measure', '*')} | "
+            f"| {row.get('language', '*')} | {row.get('measure', '*')} | "
             f"{row.get('collector') or ''} | {row.get('status')} | {row.get('reason') or ''} |"
         )
     thresholds_ = doc.get("thresholds", [])
@@ -647,7 +640,7 @@ def render(
         lines.append("## Measures")
         lines.append("")
         header = (
-            "| File | Function | Lane | Labels | "
+            "| File | Function | Language | Labels | "
             + " | ".join(keys)
             + " | Over reference |"
         )
@@ -660,7 +653,7 @@ def render(
             ordered = sorted(
                 measures,
                 key=lambda r: (
-                    0 if "lane-total" in (r.get("labels") or []) else 1,
+                    0 if "language-total" in (r.get("labels") or []) else 1,
                     -len(r.get("over_reference", [])),
                     -_over_distance(r, references),
                     _coverage_rank(r),
@@ -700,7 +693,7 @@ def render(
                 if key.startswith("halstead") and values.get(key) == 0:
                     halstead_zero = True
             lines.append(
-                f"| {where} | {row.get('function') or ''} | {row.get('lane', '')} | "
+                f"| {where} | {row.get('function') or ''} | {row.get('language', '')} | "
                 f"{', '.join(row.get('labels') or [])} | "
                 + " | ".join(_fmt(values.get(k)) for k in keys)
                 + f" | {', '.join(row.get('over_reference', []))} |"
@@ -712,17 +705,17 @@ def render(
                 "found no operators or operands in that function."
             )
     summary = doc.get("summary", {})
-    by_lane = summary.get("by_lane") or {}
+    by_language = summary.get("by_language") or {}
     by_directory = summary.get("by_directory") or {}
-    if duplication and (by_lane or by_directory):
+    if duplication and (by_language or by_directory):
         lines.append("")
         lines.append("## Rollup")
         lines.append("")
-        lines.append("| Lane | Clone groups | Duplicated lines |")
+        lines.append("| Language | Clone groups | Duplicated lines |")
         lines.append("|---|---|---|")
-        for lane, bucket in sorted(by_lane.items()):
+        for language, bucket in sorted(by_language.items()):
             lines.append(
-                f"| {lane} | {bucket.get('groups', 0)} | {bucket.get('duplicated_lines', 0)} |"
+                f"| {language} | {bucket.get('groups', 0)} | {bucket.get('duplicated_lines', 0)} |"
             )
         lines.append("")
         lines.append(
@@ -816,14 +809,14 @@ def render(
         for row in failed:
             reason = row.get("reason") or ""
             label = row.get("collector") or reason.split(":", 1)[0]
-            named.append(f"{_lane_measure(row)} ({label})")
+            named.append(f"{_language_measure(row)} ({label})")
         lines.append(
             "Exit 3: a collector ran and produced nothing parseable: "
             + "; ".join(named)
             + ". The run table carries its output."
         )
     partial = [
-        _lane_measure(row)
+        _language_measure(row)
         for row in doc.get("run", [])
         if row.get("status") == "partial"
     ]
@@ -835,7 +828,7 @@ def render(
         lines.append(
             "No coverage artifact was found, so no line was measured. The "
             '"Getting a first artifact" table in the code-metrics plugin README '
-            "names, per lane, the producer that writes one and the command shape; "
+            "names, per language, the producer that writes one and the command shape; "
             "this skill runs none of them."
         )
     return "\n".join(lines) + "\n"

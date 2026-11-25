@@ -35,14 +35,14 @@ def run(*args: str) -> subprocess.CompletedProcess:
 
 
 def complexity_row(
-    file: str, function: str, start: int, end: int | None, lane: str, comp: int
+    file: str, function: str, start: int, end: int | None, language: str, comp: int
 ) -> dict:
     return {
         "file": file,
         "function": function,
         "start_line": start,
         "end_line": end,
-        "lane": lane,
+        "language": language,
         "values": {"cyclomatic": comp},
     }
 
@@ -774,7 +774,7 @@ class PathNormalizationTests(unittest.TestCase):
 
 
 class RunRowTests(unittest.TestCase):
-    def test_a_lane_matched_in_part_carries_the_partial_reason(self) -> None:
+    def test_a_language_matched_in_part_carries_the_partial_reason(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             case = JoinCase(tmp).complexity(
                 [
@@ -836,7 +836,7 @@ class RunRowTests(unittest.TestCase):
             row = [r for r in document["run"] if r["measure"] == "coverage"][0]
             self.assertNotIn("missing", row)
 
-    def test_a_lane_matched_by_nothing_is_unavailable_with_its_count(self) -> None:
+    def test_a_language_matched_by_nothing_is_unavailable_with_its_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             document = (
                 JoinCase(tmp)
@@ -854,7 +854,7 @@ class RunRowTests(unittest.TestCase):
             "partial, 0 of 1 scope files present in the artifacts", row["reason"]
         )
 
-    def test_the_other_lane_is_not_applicable_rather_than_unmatched(self) -> None:
+    def test_the_other_language_is_not_applicable_rather_than_unmatched(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             case = JoinCase(tmp).complexity(
                 [complexity_row("src/a.ts", "classify", 1, 3, "typescript", 2)]
@@ -866,13 +866,13 @@ class RunRowTests(unittest.TestCase):
             document = case.artifact(
                 "lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}}
             ).join()
-        other = [r for r in document["run"] if r["lane"] == "other"]
+        other = [r for r in document["run"] if r["language"] == "other"]
         self.assertEqual(
             sorted((r["measure"], r["status"]) for r in other),
             [("coverage", "not-applicable"), ("crap", "not-applicable")],
         )
         self.assertTrue(all(r["reason"] for r in other))
-        typescript = [r for r in document["run"] if r["lane"] == "typescript"]
+        typescript = [r for r in document["run"] if r["language"] == "typescript"]
         self.assertEqual(typescript[0]["status"], "ok")
         self.assertFalse(
             any(r["file"].startswith("docs/") for r in document["measures"])
@@ -892,7 +892,7 @@ class RunRowTests(unittest.TestCase):
         self.assertIn("coverage/lcov.info, coverage.xml", row["reason"])
         self.assertEqual(document["measures"], [])
 
-    def test_a_lane_without_function_end_lines_reports_crap_not_applicable(
+    def test_a_language_without_function_end_lines_reports_crap_not_applicable(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -906,7 +906,7 @@ class RunRowTests(unittest.TestCase):
                 )
                 .join()
             )
-        rows = {row["measure"]: row for row in document["run"] if row["lane"] == "bash"}
+        rows = {row["measure"]: row for row in document["run"] if row["language"] == "bash"}
         self.assertEqual(rows["coverage"]["status"], "ok")
         self.assertEqual(rows["crap"]["status"], "not-applicable")
         self.assertIn("no function end lines", rows["crap"]["reason"])
@@ -916,7 +916,7 @@ class RunRowTests(unittest.TestCase):
         self,
     ) -> None:
         failed = {
-            "lane": "typescript",
+            "language": "typescript",
             "measure": "cyclomatic",
             "collector": "eslint-complexity 10.1.0",
             "status": "unavailable",
@@ -942,7 +942,7 @@ class RunRowTests(unittest.TestCase):
                 rows = {
                     row["measure"]: row
                     for row in document["run"]
-                    if row["lane"] == "typescript"
+                    if row["language"] == "typescript"
                 }
                 self.assertIn(rows["coverage"]["status"], ("partial", "unavailable"))
                 self.assertIn("scope files present", rows["coverage"]["reason"])
@@ -975,7 +975,7 @@ class RunRowTests(unittest.TestCase):
         rows = {
             row["measure"]: row
             for row in document["run"]
-            if row["lane"] == "typescript"
+            if row["language"] == "typescript"
         }
         self.assertEqual(rows["crap"]["status"], "partial")
         self.assertIn("partial, 1 of 2 scope files", rows["crap"]["reason"])
@@ -1211,12 +1211,12 @@ class ShortNameJoinTests(unittest.TestCase):
         self.assertEqual(rows["Beta.run"]["cov_source"], "line-range")
         self.assertEqual(rows["Beta.run"]["values"]["coverage_pct"], 0.0)
 
-    def test_the_lane_run_row_reports_the_functions_it_left_unjoined(self) -> None:
+    def test_the_language_run_row_reports_the_functions_it_left_unjoined(self) -> None:
         document = self._document()
         row = next(
             entry
             for entry in document["run"]
-            if entry["lane"] == "python" and entry["measure"] == "coverage"
+            if entry["language"] == "python" and entry["measure"] == "coverage"
         )
         self.assertEqual(row["status"], "partial")
         self.assertIn("3 function(s) left unjoined", row["reason"])

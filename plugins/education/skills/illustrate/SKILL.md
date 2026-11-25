@@ -129,7 +129,7 @@ Run the shared medium resolver. When the reader named a medium in the request, a
 each option value from this text; never put a `${user_config.*}` string in a shell command.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane education:illustrate --option "<option>"
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer education:illustrate --option "<option>"
 ```
 
 It prints one JSON line, then the report line naming the medium and the fact that decided it, then

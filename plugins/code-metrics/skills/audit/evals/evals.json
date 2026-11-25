@@ -54,7 +54,7 @@
       "id": 8,
       "name": "type-debt-csharp-is-not-applicable-rather-than-a-count",
       "prompt": "/code-metrics:audit type-debt src/ (this repository is mostly C# with one TypeScript front end)",
-      "expected_output": "The run table shows the dotnet lane as not-applicable with the sentence that no tool produces a comparable percentage for C# and that a dynamic or object occurrence count is not comparable to a ratio, while the TypeScript lane still reports its percentage.",
+      "expected_output": "The run table shows the dotnet language as not-applicable with the sentence that no tool produces a comparable percentage for C# and that a dynamic or object occurrence count is not comparable to a ratio, while the TypeScript language still reports its percentage.",
       "files": [],
       "expectations": [
         "The dotnet row is reported as not-applicable with its stated reason",
@@ -66,11 +66,11 @@
       "id": 9,
       "name": "type-debt-absent-type-coverage-is-visible-not-silent",
       "prompt": "/code-metrics:audit type-debt --json --all so I can compare it after the typing sweep (type-coverage is not installed here)",
-      "expected_output": "Produces the code-metrics/v2 JSON document, reports the typescript lane as unavailable with its install hint and the requirement that typescript also resolves, installs nothing, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explaining the manual comparison.",
+      "expected_output": "Produces the code-metrics/v2 JSON document, reports the typescript language as unavailable with its install hint and the requirement that typescript also resolves, installs nothing, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explaining the manual comparison.",
       "files": [],
       "expectations": [
         "Runs audit-type-debt.sh with --json and keeps the document for the later comparison",
-        "Says the typescript lane is unavailable and offers the install hint without installing anything",
+        "Says the typescript language is unavailable and offers the install hint without installing anything",
         "Notes that type-coverage needs a resolvable typescript in the project",
         "Mentions /verification:measure only behind an if-installed gate with a stated fallback",
         "States that a report with status empty on either side makes the comparison inconclusive"

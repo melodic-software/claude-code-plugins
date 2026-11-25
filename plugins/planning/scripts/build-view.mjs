@@ -1,23 +1,4 @@
 #!/usr/bin/env node
-// Build a planning view (a kind the planning lane registers in lib/view-registry.mjs) from its
-// record through render(laneId, kind, record) in the shared view builder. The record is a file
-// (--record) or stdin: a PLAN.md for plan and design (design reads its `## Design` section), JSON
-// for brainstorm.
-// A page goes to one deterministic path under the OS temp directory, never beside the record.
-//
-//   node build-view.mjs <kind> [--record <file>]
-//     builds the page and prints its path
-//   node build-view.mjs <kind> --option <medium option> [--argument <medium>] [--visibility <V>] [--record <file>]
-//     resolves the medium (lib/view-settings.mjs), runs the publish gate (lib/publish-gate.mjs) over a
-//     publishing medium, builds the page unless the medium builds none, and hands it to the medium's
-//     registry entry. Prints one JSON line, the delivery plus `page` when a page was built, then the
-//     report line and one line per notice. <V> is the repository's visibility
-//     (PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE); left out, the shipped default never publishes.
-//   node build-view.mjs <kind> --connect http://127.0.0.1:<port> --out <data_dir>/page.html [--record <file>]
-//     the Claude-interactive page that view-bridge (../view-bridge/) serves; <data_dir> must be
-//     a private view-bridge data dir outside any working tree, or the build is refused (exit 2)
-//
-// Exit 0 built or delivered, 1 the record or the page fails its checks, 2 usage or environment.
 
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,10 +6,10 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { publishGate } from "../lib/publish-gate.mjs";
 import { render, ViewBuildError } from "../lib/view-builder.mjs";
-import { laneOf, MEDIUMS, mediumOf, NO_PAGE, NO_PREFERENCE, reportLines } from "../lib/view-registry.mjs";
+import { producerOf, MEDIUMS, mediumOf, NO_PAGE, NO_PREFERENCE, reportLines } from "../lib/view-registry.mjs";
 import { findRoot, gateExplicit, resolveMedium } from "../lib/view-settings.mjs";
 
-export const LANE = "planning";
+export const PRODUCER = "planning";
 
 const insideWorkingTree = (dir) => {
   for (let at = dir; ; at = dirname(at)) {
@@ -98,7 +79,7 @@ export function deliverView({ kind, record, resolution, visibility = "UNKNOWN", 
       shown = { ...resolution, medium: gate.medium, decidedBy: `publish gate: ${gate.reason}`, notices };
     }
   }
-  const path = entry.id === NO_PAGE ? null : write(render(LANE, kind, record), kind);
+  const path = entry.id === NO_PAGE ? null : write(render(PRODUCER, kind, record), kind);
   const delivery = entry.deliver({ kind, path }, context);
   return { delivery: path ? { ...delivery, page: path } : delivery, report: reportLines(shown) };
 }
@@ -121,7 +102,7 @@ function main(argv, env = process.env) {
     !(has("--option") && has("--connect")) &&
     (has("--option") || !(has("--argument") || has("--visibility"))) &&
     (!has("--argument") || flags["--argument"] === NO_PREFERENCE || Boolean(mediumOf(flags["--argument"])));
-  if (!laneOf(LANE).kinds.includes(kind) || !flagsOk) {
+  if (!producerOf(PRODUCER).kinds.includes(kind) || !flagsOk) {
     process.stderr.write(USAGE);
     return 2;
   }
@@ -138,7 +119,7 @@ function main(argv, env = process.env) {
       const argument = flags["--argument"] === NO_PREFERENCE ? null : (flags["--argument"] ?? null);
       const interactive = !env.CI || env.CI === "false";
       const resolution = resolveMedium(
-        { lane: LANE, argument, userConfig: flags["--option"], projectRoot: findRoot() },
+        { producer: PRODUCER, argument, userConfig: flags["--option"], projectRoot: findRoot() },
         { dataDir: env.CLAUDE_PLUGIN_DATA || null, interactive },
       );
       const visibility = (flags["--visibility"] ?? "UNKNOWN").toUpperCase();
@@ -146,7 +127,7 @@ function main(argv, env = process.env) {
       process.stdout.write(`${JSON.stringify(delivery)}\n${report.join("\n")}\n`);
       return 0;
     }
-    const page = render(LANE, kind, record, { connect: flags["--connect"] ?? null });
+    const page = render(PRODUCER, kind, record, { connect: flags["--connect"] ?? null });
     const out = flags["--out"];
     if (!out) {
       console.log(writePrivate(page, kind));

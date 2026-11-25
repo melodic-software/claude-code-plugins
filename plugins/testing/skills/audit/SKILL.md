@@ -31,7 +31,7 @@ Boundaries, each an incumbent this skill does not duplicate:
   `bash-harness` findings are advisory (never gating `--check` without `--strict`).
 - The **repair queue** is out of scope: findings propose an assertion (repair, not pruning:
   deleting a useless test removes the false claim and the coverage together); applying repairs
-  belongs to the remediation lanes.
+  belongs to the remediation skills.
 
 ## Rules
 

@@ -22,15 +22,15 @@ zero debt. This skill reports the clone groups a detector found, then subtracts 
 target repository has already declared about itself, and stops there: no pass or fail, no
 severity, no finding. What to do about a surviving clone is the reader's call.
 
-Collectors, tried in ladder order per lane:
+Collectors, tried in ladder order per language:
 
-| Collector | Lanes | Values per clone group | When |
+| Collector | Languages | Values per clone group | When |
 |---|---|---|---|
-| `jscpd` | every lane | `lines`, `tokens` | `jscpd` resolves on `PATH` or in `./node_modules/.bin` |
+| `jscpd` | every language | `lines`, `tokens` | `jscpd` resolves on `PATH` or in `./node_modules/.bin` |
 | `dupl` | Go only | `lines`, `tokens` null | `jscpd` did not resolve and `dupl` did |
 | `cpd` (PMD) | TypeScript/JavaScript, Python, Go, C# | `lines`, `tokens` | `jscpd` did not resolve and `pmd` did (never for Bash: CPD has no shell language) |
 
-No collector resolves means the lane's row says so with the tool's install hint and the run
+No collector resolves means the language's row says so with the tool's install hint and the run
 continues. This plugin never installs, downloads, or `npx`-fetches a detector.
 
 ## Run it
@@ -55,15 +55,15 @@ each registry path, named or configured, resolves against that repository's root
 measures it.
 
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run"
-table (lane, collector, status, reason), then one row per clone group, largest first, listing
-every instance as `file:start-end`, then a rollup per lane and per directory, then the summary
+table (language, collector, status, reason), then one row per clone group, largest first, listing
+every instance as `file:start-end`, then a rollup per language and per directory, then the summary
 lines: files with clones, the duplicated-line total, how many groups a registry excluded, and
-which lanes were partial. Files with clones leaves out any file holding nothing but excluded
+which languages were partial. Files with clones leaves out any file holding nothing but excluded
 groups; the scope's count keeps it. When an earlier report of this project with the same scope
 mode was kept, the last line is the clone trend: this run's class count, the previous run's, and
 the signed delta, then how many classes are new since that run and how many gained copies
 (`trend` in the JSON); the first run in a project prints none. When the report opens with `No clone detector ran in any
-lane`, offer the user the install command that headline carries (`npm install -g jscpd`, or a
+language`, offer the user the install command that headline carries (`npm install -g jscpd`, or a
 devDependency) and run it only when they confirm; never install silently and never `npx`-fetch it.
 Keep the `--json` document when the numbers feed a comparison:
 `/verification:measure metrics` (if enabled) consumes it (treat a
@@ -83,15 +83,15 @@ your notes and compare by hand.
 - `summary.duplicated_lines` counts each class once, using the length of the class, not the sum
   over its instances: three copies of a 41-line block are 41 duplicated lines, not 82 or 123. The
   count is what survived the registries.
-- `summary.by_lane` and `summary.by_directory` roll the surviving classes up: each maps to
+- `summary.by_language` and `summary.by_directory` roll the surviving classes up: each maps to
   `{groups, duplicated_lines}`, the directory map for `.` and every ancestor of each class's first
   instance. A class counts once under every ancestor, so a parent includes its children and the
-  directory rows cannot be summed; `by_directory["."]` and the per-lane sum both restate the
+  directory rows cannot be summed; `by_directory["."]` and the per-language sum both restate the
   totals. The markdown lists directories to `duplication.rollup_depth`; the JSON carries all.
 - A file larger than `duplication.max_size` (or longer than `duplication.max_lines`, when set) is
-  left out of the scan and never silently dropped: the lane's run row is `partial` with how many
+  left out of the scan and never silently dropped: the language's run row is `partial` with how many
   files were skipped and the largest one, the document is `partial`, and the summary carries a
-  `Partial:` line naming the lane.
+  `Partial:` line naming the language.
 - The registry is an **exclusion**, not a suppression: it is derived from the target repository's
   own declaration that those copies are deliberate, so no suppression record is involved and the
   excluded groups stay in the document under `excluded[]` with the registry path, the 1-based line
@@ -108,10 +108,10 @@ your notes and compare by hand.
   `${CLAUDE_PLUGIN_ROOT}/reference/report-schema.md` ("Clone trend").
 - A value the detector did not produce is `null`, never `0`: `dupl` reports no token count, so
   its rows carry `tokens: null`.
-- `status` is `complete` when every lane in scope was measured, `partial` when one was not or
+- `status` is `complete` when every language in scope was measured, `partial` when one was not or
   when a cap left files out of one, and `empty` when nothing was; a run that measured nothing
   prints "Measured nothing" and states no duplication figure at all, which is not the same as zero
-  duplication. A lane that skipped every file is still `partial`: its row says what was skipped.
+  duplication. A language that skipped every file is still `partial`: its row says what was skipped.
 - Exit 0 whenever a report was produced, including an `empty` one; exit 2 for a usage error such
   as a named registry or scope path that does not exist; exit 3 when a detector resolved but
   produced nothing parseable, with its stderr in the run table. A detector's own non-zero exit is
@@ -151,8 +151,8 @@ duplication rows of `${CLAUDE_PLUGIN_ROOT}/reference/collectors.md` carry each c
 basis, verification date and recheck trigger.
 
 `cpd` (PMD) sits after `jscpd` on `${CLAUDE_PLUGIN_ROOT}/scripts/collector-ladder.tsv` for every
-lane but Bash, so it runs only when `jscpd` does not resolve and `pmd` does. A repository that
-already runs PMD puts it first with `lanes.<lane>.collectors.duplication: [cpd, jscpd]`; collector
+language but Bash, so it runs only when `jscpd` does not resolve and `pmd` does. A repository that
+already runs PMD puts it first with `languages.<language>.collectors.duplication: [cpd, jscpd]`; collector
 overrides are validated against the ladder file and an unknown name is dropped with a warning.
 
 ## What this skill does not do

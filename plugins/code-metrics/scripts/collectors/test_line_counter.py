@@ -56,7 +56,7 @@ class LineCounterTests(unittest.TestCase):
                 "lines_non_blank": expected_total - expected_blank,
             },
         )
-        self.assertEqual(row["lane"], "bash")
+        self.assertEqual(row["language"], "bash")
         self.assertIsNone(row["function"])
         self.assertEqual(row["labels"], ["comment-agnostic"])
         self.assertEqual(row["collector"], "line-counter")

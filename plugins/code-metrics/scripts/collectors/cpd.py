@@ -2,13 +2,13 @@
 """Adapter for PMD CPD, an alternative clone detector for the JVM-shaped setup.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 CPD sits after `jscpd` on `scripts/collector-ladder.tsv` for the TypeScript,
-Python, Go, and C# lanes (never Bash: CPD has no shell language), so it runs
+Python, Go, and C# languages (never Bash: CPD has no shell language), so it runs
 only when `jscpd` does not resolve and `pmd` does. A repository that already
 runs PMD and wants its numbers first puts it ahead through the configuration
-override `lanes.<lane>.collectors.duplication: [cpd, jscpd]`, which is
+override `languages.<language>.collectors.duplication: [cpd, jscpd]`, which is
 validated against the ladder file.
 
 Assumed CLI form, from the PMD 7 documentation read 2026-09-05 and unverified
@@ -37,7 +37,7 @@ resolved configuration:
                                capability and are reported as unused here
 
 CPD covers no Bash or shell language (PMD's CPD-capable language list read
-2026-09-05), so the bash lane exits 3 with that reason rather than guessing.
+2026-09-05), so the bash language exits 3 with that reason rather than guessing.
 """
 
 from __future__ import annotations
@@ -62,8 +62,7 @@ from adapter_paths import (
 NAME = "cpd"
 DEFAULT_MIN_TOKENS = "50"
 DEFAULT_MIN_LINES = "5"
-# lane -> the CPD language id (`--language`, whose default is java).
-LANGUAGES = {
+CPD_LANGUAGES = {
     "typescript": "ecmascript",
     "python": "python",
     "go": "go",
@@ -87,7 +86,7 @@ def probe() -> int:
     return 0
 
 
-def translate(raw: str, lane: str, min_lines: int) -> list[dict]:
+def translate(raw: str, language: str, min_lines: int) -> list[dict]:
     root = ElementTree.fromstring(raw)
     rows: list[dict] = []
     for element in root:
@@ -111,7 +110,7 @@ def translate(raw: str, lane: str, min_lines: int) -> list[dict]:
             {
                 "file": None,
                 "function": None,
-                "lane": lane,
+                "language": language,
                 "instances": instances,
                 "values": {
                     "lines": lines,
@@ -124,14 +123,14 @@ def translate(raw: str, lane: str, min_lines: int) -> list[dict]:
     return rows
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
+def collect(language: str, measure: str, files: list[str]) -> int:
     if measure != "duplication":
         print(f"cpd.py: cannot collect {measure}", file=sys.stderr)
         return 2
-    language = LANGUAGES.get(lane)
-    if not language:
+    cpd_language = CPD_LANGUAGES.get(language)
+    if not cpd_language:
         print(
-            f"cpd.py: PMD CPD has no CPD-capable language for the {lane} lane",
+            f"cpd.py: PMD CPD has no CPD-capable language for {language}",
             file=sys.stderr,
         )
         return 3
@@ -156,7 +155,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
                 "--format",
                 "xml",
                 "--language",
-                language,
+                cpd_language,
                 "--file-list",
                 listing,
             ],
@@ -167,7 +166,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     finally:
         shutil.rmtree(work, ignore_errors=True)
     try:
-        rows = translate(result.stdout, lane, min_lines)
+        rows = translate(result.stdout, language, min_lines)
     except (ElementTree.ParseError, ValueError, TypeError) as exc:
         print(
             f"cpd.py: unparsable CPD XML ({exc}); stderr: {result.stderr.strip()}",
@@ -180,8 +179,8 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    for lane in sorted(LANGUAGES):
-        print(f"{lane}/duplication")
+    for language in sorted(CPD_LANGUAGES):
+        print(f"{language}/duplication")
 
 
 INSTALL_HINT = "PMD CPD: https://pmd.github.io (download the PMD 7 distribution or `brew install pmd`; it needs a JVM); this plugin never installs it"

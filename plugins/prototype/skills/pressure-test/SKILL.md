@@ -83,7 +83,7 @@ swaps. Route by audience:
   `--medium`, with the value they gave:
 
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane prototype:pressure-test --option "" [--argument <the --medium value>]
+  node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer prototype:pressure-test --option "" [--argument <the --medium value>]
   ```
 
   It prints one JSON line, then the report line naming the medium and what decided it, then one

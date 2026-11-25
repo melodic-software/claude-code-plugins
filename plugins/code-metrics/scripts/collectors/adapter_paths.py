@@ -7,12 +7,12 @@ ladder live here once and the per-adapter wording stays in the adapter.
 
 The file-list transport is
 
-    collect <lane> <measure> [--paths-from <file>] [<file>...]
+    collect <language> <measure> [--paths-from <file>] [<file>...]
 
 A whole repository's scope is thousands of paths, which does not fit in one
 argument vector on every platform this plugin runs on (Git Bash under Windows
 caps a native process's command line far below Linux). The dispatcher writes
-the lane's file list to a file and passes `--paths-from`; positional paths
+the language's file list to a file and passes `--paths-from`; positional paths
 still work, for a hand invocation or a test, and the two combine in order.
 
 The listing is read with `surrogateescape`, as the dispatcher's scope filter
@@ -54,7 +54,7 @@ def files_from(args: list[str]) -> list[str]:
 
     Exits 2 with a message when the option has no value or the file cannot be
     read: an adapter that measured nothing because its list was missing must
-    not report an empty lane as measured.
+    not report an empty language as measured.
     """
     files: list[str] = []
     remaining = iter(args)
@@ -180,7 +180,7 @@ def dispatch(
     script = f"{name}.py"
     if not argv:
         print(
-            f"usage: {script} probe|measures|collect <lane> <measure> <file>...|install_hint",
+            f"usage: {script} probe|measures|collect <language> <measure> <file>...|install_hint",
             file=sys.stderr,
         )
         return 2
@@ -196,7 +196,7 @@ def dispatch(
     if verb == "collect":
         if len(rest) < collect_min:
             print(
-                f"usage: {script} collect <lane> <measure> <file>...", file=sys.stderr
+                f"usage: {script} collect <language> <measure> <file>...", file=sys.stderr
             )
             return 2
         return collect(rest[0], rest[1], files_from(rest[2:]))

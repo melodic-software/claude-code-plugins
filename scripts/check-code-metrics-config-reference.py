@@ -28,7 +28,7 @@ WHAT IS PINNED, exactly:
     rows fails, because then it is unclear which row states its default.
   * Every table row documents at least one defaults leaf, unless its default
     cell is the bare word `absent`, which is how the document marks a key that
-    has no bundled default (`lanes.<lane>.collectors.<measure>`). A row that
+    has no bundled default (`languages.<language>.collectors.<measure>`). A row that
     stops matching any leaf -- the shape of a key REMOVED from the defaults --
     fails and names the key.
   * Each row's default cell equals the canonical rendering of the value, which

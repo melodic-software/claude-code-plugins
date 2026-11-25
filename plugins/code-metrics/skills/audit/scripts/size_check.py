@@ -19,7 +19,7 @@ non-whitespace byte), whichever collector filled the report: the head count on
 the working-tree file, the base count on the file as the base commit holds it,
 under its earlier name when git sees a rename, and 0 when the base has no such
 file. Every copy a replica row stands for is checked on its own. A `file_lines`
-run row that did not measure its lane leaves the check undecided.
+run row that did not measure its language leaves the check undecided.
 
 A file is a generated copy measured at its canonical only when both sources
 agree: a registry's cluster line `<canonical> -> <member>...` names it as a
@@ -106,7 +106,7 @@ def head_count(root: str, path: str) -> int:
 
 def _unmeasured(document: dict) -> list[str]:
     return [
-        f"{row.get('lane')} ({row.get('status')}: {row.get('reason')})"
+        f"{row.get('language')} ({row.get('status')}: {row.get('reason')})"
         for row in document.get("run") or []
         if row.get("measure") == "file_lines"
         and row.get("status") not in ("ok", "not-applicable")

@@ -86,9 +86,9 @@ came from, not by who wrote it down.
   of a diff.
 - **A record outside the repository carries its class.** A record kept in a memory-tier
   or plugin data directory is not K1, so without a marker it is K2. It keeps K0 or K1
-  only when the lane that wrote it put a provenance line in it,
+  only when the producer that wrote it put a provenance line in it,
   `<!-- content-class: K0 -->` or `<!-- content-class: K1 -->`, which states that the
-  writing context held no K2 text. A lane that cannot state that writes no marker. A
+  writing context held no K2 text. A producer that cannot state that writes no marker. A
   marker is the writer's claim, not proof: a record that quotes a K2 surface is K2
   whatever its marker says.
 - **Operator-installed configuration is K1.** The user's CLAUDE.md, AGENTS.md, and
@@ -109,7 +109,7 @@ came from, not by who wrote it down.
   (see K2 is builder-only).
 - **The class rules bind every emitter**, including the minimum content security policy
   on a K0 or K1 page (see Wave-1 adoption and grandfathered surfaces for each emitter's
-  `medium` handling). A lane whose authoring context holds K2 text emits the markdown record or terminal
+  `medium` handling). A producer whose authoring context holds K2 text emits the markdown record or terminal
   output, or a page built by the shared builder (`lib/view-builder.mjs`, report or
   interactive profile) or by `lib/html-escape.mjs`, never a page with model-written
   markup or script.
@@ -362,7 +362,7 @@ reader needs.
   without any view.
 - **A page** when the reader has to explore, compare, or answer: filter a long list,
   set options side by side, walk a risk map, answer a quiz, or pick and send a choice
-  back. The genre rubric below still decides whether the deliverable gets a page lane.
+  back. The genre rubric below still decides whether the deliverable gets a rendered view.
 - **A video or narrated audio** when the meaning is in time-ordered motion the reader
   will watch rather than scan: an algorithm stepping through its state, a flow of
   requests over time. It is the costliest form and always a view: the record carries the
@@ -375,7 +375,7 @@ Accessibility is a standing reason to step back to a cheaper form; see Accessibi
 Reachability constrains the choice and preference selects within it. Every fall is visible and names its cause. There is
 one fallback chain, owned by the medium registry (`lib/view-registry.mjs`): **published artifact,
 then local file, then terminal**. A view that cannot be served on its preferred medium steps down
-that chain to the first reachable one. `hosted` is read as `artifact` except in a lane registered
+that chain to the first reachable one. `hosted` is read as `artifact` except in a producer registered
 as hosted-capable (only `/review:explain-change` today); there, a page that cannot reach the host
 steps to `artifact` first. Each medium's entry in the registry owns its own reachability check, so
 no skill lists conditions in its prose.
@@ -386,7 +386,7 @@ no skill lists conditions in its prose.
 | Remote or web session | published artifact, a file sent to the user, terminal |
 | CI or non-interactive run | terminal or the record only, no view emitted |
 
-Every view lane prints one report line, `view: <medium> (<what decided it>)`, then one line per
+Every view producer prints one report line, `view: <medium> (<what decided it>)`, then one line per
 notice. What decided it is `argument`, `userConfig`, `team`, `personal override`, `plugin
 default`, or `fell back: <medium> unreachable: <reason>`, so a skill never prints a dead file path
 without saying why.
@@ -399,17 +399,17 @@ then terminal**, exactly as those surfaces and their evals ship today; the other
 emitters keep the local default each one ships.
 Two sentences reconcile this with the local-first residence decision:
 
-1. Local-first governs new rendered-view lanes and any operator's personal environment:
+1. Local-first governs new rendered-view producers and any operator's personal environment:
    the native Artifact disable switches (Pointer:
    [Disable artifacts](https://code.claude.com/docs/en/artifacts#disable-artifacts))
    are the sanctioned day-one flip that makes the local file the first
-   reachable medium for every lane, with zero plugin changes.
+   reachable medium for every producer, with zero plugin changes.
 2. An existing publishing surface starts at the published artifact only by default: each one
    reads `medium` from the argument and the cascade first (see Wave-1 adoption and
    grandfathered surfaces).
 
-One new lane is an exception to sentence 1, recorded here: the pull-request digest
-lane (`/review:explain-change`) ships `medium: artifact` as its default. Its page is
+One new producer is an exception to sentence 1, recorded here: the pull-request digest
+producer (`/review:explain-change`) ships `medium: artifact` as its default. Its page is
 built only by the shared builder from a checked-in template, and the artifact stays
 private to the reader until they share it. The default publishes only a public
 repository's diff with no credential-shaped hunk; any other diff falls back to `file`
@@ -417,13 +417,13 @@ and the reader is told to set the review plugin's `medium` option to `artifact` 
 anyway. An operator who wants the digest local sets that option to `file`, or `medium: file` in a
 personal override; the resolver below decides it like any other value.
 
-The deck lane (`/visualization:present`) is the second exception: a deck exists only as an
+The deck producer (`/visualization:present`) is the second exception: a deck exists only as an
 Artifact made from the account's Slides type, so it publishes behind the same gate (see
 Artifact types), and anything the gate keeps local stays the markdown outline.
 
 The planning views are the third exception: the brainstorm, design and plan views
 (`/planning:brainstorm`, `/planning:design`, `/planning:plan`) ship `medium: artifact` as the
-planning lane's default. Each page is built only by the shared builder from a checked-in template
+planning producer's default. Each page is built only by the shared builder from a checked-in template
 (`plugins/planning/scripts/build-view.mjs`), and it publishes behind the same gate as the digest:
 the default publishes only a public repository's record with nothing credential-shaped in it, and
 any other record falls back to `file` with the reader told how to publish it anyway. The planning
@@ -432,7 +432,7 @@ plugin's PRD and interview views are not part of this exception and stay local f
 Rendered views are untracked by default; publishing anywhere else is optional and
 configured, never the default, except for the digest's, the deck's and the planning views'
 `artifact` default. A
-shared page host is one such configured place: `medium: hosted`, honored only by the digest lane
+shared page host is one such configured place: `medium: hosted`, honored only by the digest producer
 (see The `hosted` medium).
 
 A plan that depends on sharing or editing a rendered view across accounts or subscriptions
@@ -481,10 +481,10 @@ Producers on a type: `/visualization:present` (Slides).
 `pages-publish` command, so a page can be opened from any account or machine. The operator installs
 `pages-publish` and its configuration; the plugins hold no host name, token, or vendor detail.
 
-- **One lane publishes hosted.** `/review:explain-change` is the only lane that calls the gate and
+- **One producer publishes hosted.** `/review:explain-change` is the only producer that calls the gate and
   `pages-publish` for `hosted`. Every other reader of the `medium` key, `/visualization:present` and
-  every lane that does not call the gate included, treats `hosted` as `artifact`, so one personal
-  value serves every lane.
+  every producer that does not call the gate included, treats `hosted` as `artifact`, so one personal
+  value serves every producer.
 - **Only scopes a checked-out branch cannot write select it**: the argument, the plugin's `medium`
   option, or an untracked, gitignored personal override. A team `docs/conventions/rendered-views.yaml`
   that says `hosted` is reported and ignored.
@@ -512,16 +512,16 @@ Producers on a type: `/visualization:present` (Slides).
 - **The page id lives in the plugin's data directory**, in
   `hosted/<owner>__<repo>__<pr>.json` holding `pages-publish`'s JSON line, so a rebuild of the same
   pull request's page replaces it. When the returned id differs from the sidecar's, the
-  lane writes the new sidecar with the old id listed under `stale`, then deletes it from the old
+  producer writes the new sidecar with the old id listed under `stale`, then deletes it from the old
   host; an id whose delete fails stays under `stale` and is retried on the next publish. A replace
-  that fails (exit 6, as when the page was deleted outside the lane) is retried once without
+  that fails (exit 6, as when the page was deleted outside the producer) is retried once without
   `--id`, and the new id is handled like any other changed id.
 - **The save button stays on a top-level https page**, because the host's policy allows downloads.
   A framed page, such as an Artifact, still loses it (Security baseline, rule 7).
 
 ### The `pages-publish` command
 
-The contract every `pages-publish` implementation meets. The lane runs it with an argument vector,
+The contract every `pages-publish` implementation meets. The producer runs it with an argument vector,
 never through a shell string.
 
 ```text
@@ -548,7 +548,7 @@ pages-publish --delete <id> --visibility public|private
 
 ## Genre rubric and stopping rule
 
-A skill's deliverable is in scope for an HTML-view lane only when it falls in one of the
+A skill's deliverable is in scope for an HTML-view producer only when it falls in one of the
 corpus genres:
 
 exploration grids and option spreads; plans presented for approval; code-review
@@ -556,11 +556,11 @@ explainers; reports, status, and post-mortems; research and concept explainers; 
 custom throwaway editors; unknowns-lifecycle artifacts (blindspot passes, interviews,
 comprehension quizzes).
 
-The stopping rule: a lane is added per skill, by a change that names the genre the
+The stopping rule: a producer is added per skill, by a change that names the genre the
 deliverable belongs to and applies the dual-audience test above. A deliverable that fits
-no genre gets no lane, and a genre argument is settled by this list, amended here first.
-The instruction-size budget: an HTML-view lane (medium selection, chrome citation, escaping note)
-adds at most 40 lines to a SKILL.md; the cascade wiring adds at most 30. A lane that
+no genre gets no producer, and a genre argument is settled by this list, amended here first.
+The instruction-size budget: an HTML-view producer (medium selection, chrome citation, escaping note)
+adds at most 40 lines to a SKILL.md; the cascade wiring adds at most 30. A producer that
 cannot fit the budget is a design smell, not a reason to raise the budget silently.
 
 ## Corpus distillate
@@ -589,7 +589,7 @@ The nine cross-cutting pattern families verified across all 31 corpus demos:
 7. A JS-necessity spectrum from zero-script reports to simulation-grade editors.
 8. Accessibility explicitly deferred in the corpus's prototypes (why this repo ships a
    floor instead).
-9. The unknowns lifecycle maps one-to-one onto this marketplace's existing skill lanes.
+9. The unknowns lifecycle maps one-to-one onto this marketplace's existing skills.
 
 Named costs the corpus itself records: more tokens, two to four times the generation
 time, and noisy diffs under version control; the offer-not-emit rule and untracked
@@ -604,7 +604,7 @@ Emitters that resolve `medium` through the shared resolver (see The `rendered-vi
 keeping their shipped default only when no scope sets it: `adhd:clarify`. Its output prints the
 resolver's report line and notices.
 
-`architecture:improve` resolves `medium` through the shared resolver (lane `architecture`, see
+`architecture:improve` resolves `medium` through the shared resolver (producer `architecture`, see
 "The `rendered-views` settings") and publishes nothing: `terminal` skips the HTML report and leaves
 the candidate artifact; every other value writes the local report.
 
@@ -652,7 +652,7 @@ set and defaults to a local `file`, then `terminal`, publishing an artifact only
 a layer asks for one; `planning:brainstorm`, offering its view from a checked-in template plus the
 session's JSON as data, and `planning:plan` and `planning:design`, offering views of PLAN.md and of its
 `## Design` section, each kind an entry in the
-builder's view-kind registry rendered through `render(laneId, kind, record)`
+builder's view-kind registry rendered through `render(producerId, kind, record)`
 (`plugins/planning/scripts/build-view.mjs`); `debugging:debug` (post-mortem) and `discovery:blindspot`, built
 the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the
 `architecture` `map-*` skills, each offering a view of its JSON record from one checked-in template
@@ -664,7 +664,7 @@ its orchestrator builds for each run from `latest.json`
 (`plugins/work-items/skills/morning-brief/scripts/build-brief-view.mjs`) and resolves `medium` from
 the cascade, defaulting to a local `file`; `artifact` or `hosted` from the team layer keeps the page local.
 
-Assessed under the genre rubric and given no lane:
+Assessed under the genre rubric and given no producer:
 
 - `education:explain`: a concept explainer, but its answer is short text the reader uses where they
   read, the cheapest form. Its page and video views already exist as `education:illustrate` and
@@ -696,13 +696,13 @@ Assessed under the genre rubric and given no lane:
 Emitters through an Artifact type (see Artifact types): `/visualization:present`, a deck made from
 the account's Slides type, gated by `plugins/visualization/skills/present/scripts/check-deck.mjs`.
 
-Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
+Retrofit list (existing producers rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
-`architecture:improve`. Each HTML lane repeats the
+`architecture:improve`. Each HTML producer repeats the
 baseline's rules in its own instruction text (a skill runs where this file is not on
 disk) and keeps only additions specific to that surface. `architecture:improve` also
 carries the third bullet's exception: the escape helper has shipped
-(`lib/html-escape.mjs`), and wiring that lane through it remains the retrofit, so
+(`lib/html-escape.mjs`), and wiring that producer through it remains the retrofit, so
 another repository's files are still not rendered to HTML. `visualization:visualize`
 keeps the same carve-out. The first two bullets are registered as the `rendered-views-security-baseline` clause in
 `scripts/contract-clause-registry.json`, so `scripts/check-contract-clause-coverage.py`
@@ -710,8 +710,8 @@ holds each inline copy to every one of them.
 
 ## Security baseline (wave-1 skeleton)
 
-Instruction-level discipline for a lane that is not on the helper: markup linting
-validates syntax, not escaping. A lane that renders attacker-controlled input uses
+Instruction-level discipline for a producer that is not on the helper: markup linting
+validates syntax, not escaping. A producer that renders attacker-controlled input uses
 the checked-in helper in the third bullet instead of this skeleton alone.
 
 - Everything interpolated into a rendered view is untrusted data: escape `&`, `<`, `>`, <!-- contract-restatement-begin: rendered-views-security-baseline -->
@@ -725,13 +725,13 @@ the checked-in helper in the third bullet instead of this skeleton alone.
   the page still shows its content, as a table, the diagram's source, or plain text. A view
   destined for a published claude.ai Artifact stays self-contained, assets inline, and so does a page the shared builder or the escape helper
   emits, which stays under its validator profile (see The interactive validator profile). <!-- contract-restatement-end: rendered-views-security-baseline -->
-- A lane that renders attacker-controlled input (a PR diff, fetched web content, another
+- A producer that renders attacker-controlled input (a PR diff, fetched web content, another
   repo's files) must not ship on this skeleton alone. It routes every interpolated
   string through `lib/html-escape.mjs` (the same path inside each adopting plugin,
   generated and drift-gated by `scripts/sync-shared-copies.sh`). The page carries the generator marker
   `validateRenderedPage` checks, so a page assembled without the helper is detectable.
   `/education:quiz-me` is on that gate, and `/review:explain-change` builds through the
-  shared builder. Such a lane is K2 (see Content classes); the shared builder carries the
+  shared builder. Such a producer is K2 (see Content classes); the shared builder carries the
   same helper and adds the interactive profile.
 - Escaping reaches text and quoted-attribute positions and nothing else. A value that
   lands in URL position (`href`, `src`, `action`, `formaction`, SVG `xlink:href`) is
@@ -790,7 +790,7 @@ payload for the same reason. A view that only presents owes neither.
 **Where the family belongs.** Editors, explorations and option spreads, and
 unknowns-lifecycle pages. It is excluded from the writeup and report genre by design,
 which is a decision the corpus already made, not an omission: a report is read, not
-answered, and a lane that bolts a resonate token onto a post-mortem is contradicting the
+answered, and a producer that bolts a resonate token onto a post-mortem is contradicting the
 genre rather than improving it. A dual-audience report whose markdown record is the
 deliverable stays on that record.
 
@@ -849,9 +849,9 @@ one plugin carries it). It holds the four shared helpers every pattern is built 
 including the clipboard boilerplate each interactive page otherwise duplicates, and one
 runnable demo per payload shape.
 
-It is reference material, not a skill: it owns no page shape, and each adopting lane
-keeps its own layout, vocabulary, and genre. Adopting it is a per-lane change, and this
-convention's instruction-size budget applies to the lines a lane adds for it.
+It is reference material, not a skill: it owns no page shape, and each adopting producer
+keeps its own layout, vocabulary, and genre. Adopting it is a per-producer change, and this
+convention's instruction-size budget applies to the lines a producer adds for it.
 
 ## The shared chrome reference
 
@@ -872,7 +872,7 @@ with the plugin's copy of the chrome.
 The chrome's ivory page background (`--ivory`) is the sanctioned default background for a
 view built on it, so no skill's "styles to leave out" list names a cream or off-white
 background. Those lists name layout habits (italic accent words in headings, numbered
-section labels, pill-shaped buttons, a hero banner). A lane that departs from the
+section labels, pill-shaped buttons, a hero banner). A producer that departs from the
 chrome's palette declares its own background instead of banning this one.
 
 ## The `rendered-views` settings
@@ -880,9 +880,9 @@ chrome's palette declares its own background instead of banning this one.
 The cross-plugin `medium` preference rides the
 [config-cascade convention](../config-cascade/README.md) on the ADR 0075 scopes; this section is
 the concern's owner declaration. One resolver, `lib/view-settings.mjs`, applies it for every view
-lane. A skill runs its `resolve` command and never reads the files itself.
+producer. A skill runs its `resolve` command and never reads the files itself.
 
-- **Scopes**: the argument, the lane plugin's `medium` userConfig option, the team file
+- **Scopes**: the argument, the producer plugin's `medium` userConfig option, the team file
   `docs/conventions/rendered-views.yaml`, and the personal override
   `docs/conventions/rendered-views.local.yaml`, both in the repository's convention home. The
   resolver reads each scope's own value with the cascade's file reader and schema check
@@ -900,14 +900,14 @@ lane. A skill runs its `resolve` command and never reads the files itself.
      personal override, only while it is untracked and gitignored with no symlink, submodule or
      tracked entry on its path, then userConfig. A team file never publishes, because a checked-out
      branch can write it.
-  4. With no scope deciding, the lane's own default applies. It ships with the installed plugin,
+  4. With no scope deciding, the producer's own default applies. It ships with the installed plugin,
      which a checked-out branch cannot write, so a publishing default counts; it never counts as a
      scope in step 2. The publish gate still checks content under a default: only steps 1 and 3
      make a choice the gate takes as explicit.
 
   An invalid value is reported and ignored without dropping another scope's value. This is not
   plain ADR 0075 precedence: under it a personal `artifact` would override a team `file`.
-- **Team file from a git ref.** A lane that must not let a checked-out branch configure it
+- **Team file from a git ref.** A producer that must not let a checked-out branch configure it
   (`/review:explain-change`) reads the team file from a named commit (`--team-ref`), never the
   working tree. A ref that names no commit reads no team file and says so.
 - **Retired files.** `~/.claude/rendered-views.md`, `.claude/rendered-views.md`,
@@ -916,16 +916,16 @@ lane. A skill runs its `resolve` command and never reads the files itself.
   or `file` value keeps the view local only when no scope sets one, naming that file; when several
   retired files set one, `.claude/rendered-views.local.md`, then `.claude/rendered-views.md`, then
   the fenced block, then `~/.claude/rendered-views.md` names the one used. Each gives one notice
-  per lane plugin per project, naming its value and where to set it instead: the team file or the
+  per producer plugin per project, naming its value and where to set it instead: the team file or the
   personal override, and for the user file the personal override, else the plugin's `medium`
   option. A notice repeats only when the file changes. The shown-once
   state lives in each plugin's data directory, keyed by project identity
   ([plugin-data report keying](../plugin-data-report-keying/README.md), rule 1), and is written
   atomically.
-- **Resolution**: `view-settings.mjs resolve --lane <id> --option <user_config.medium>
+- **Resolution**: `view-settings.mjs resolve --producer <id> --option <user_config.medium>
   [--argument <medium>] [--team-ref <ref>]` prints the resolution as one JSON line (`preferred`,
   `medium`, `decidedBy`, `notices`), then the report line (see Reachability and the fallback
-  chain). Each lane registers once in the medium registry with its view kinds, whether it is
+  chain). Each producer registers once in the medium registry with its view kinds, whether it is
   hosted-capable, and its default.
 
   A plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../config-cascade/locations.md) says.
@@ -938,7 +938,7 @@ lane. A skill runs its `resolve` command and never reads the files itself.
 Per-genre page-shape is served by pointers to the public gallery, not by copies in
 this tree.
 
-A future lane that must vendor a single page states which source it took and
+A future producer that must vendor a single page states which source it took and
 carries the matching notice:
 
 | Source | License signal |
@@ -960,7 +960,7 @@ which is another cost of copying.
   gallery uses fictional Acme data; wave-1 already carries derived tokens).
   Public gallery: <https://thariqs.github.io/html-effectiveness>. Official
   templates: <https://github.com/anthropics/html-effectiveness>.
-- **Recheck:** a lane that cannot cite a public page-shape and must ship a
+- **Recheck:** a producer that cannot cite a public page-shape and must ship a
   checked-in HTML page of its own, or a license change on either source.
 
 ## What this convention does not do

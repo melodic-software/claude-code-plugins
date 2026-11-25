@@ -27,7 +27,7 @@ def document(*instance_sets: list[str]) -> dict:
             {
                 "file": None,
                 "function": None,
-                "lane": "bash",
+                "language": "bash",
                 "instances": [
                     {"file": path, "start_line": 1, "end_line": 41} for path in paths
                 ],
@@ -242,7 +242,7 @@ class RegistryFilterTests(unittest.TestCase):
 
     def test_the_zero_floor_states_zero_once_a_collector_ran(self) -> None:
         doc = document()
-        doc["run"] = [{"lane": "bash", "measure": "duplication", "status": "ok"}]
+        doc["run"] = [{"language": "bash", "measure": "duplication", "status": "ok"}]
         doc["summary"] = {"files": 0, "functions": 0, "over_reference": {}}
         result = run(doc, "--root", ".", "--zero-floor")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -251,17 +251,17 @@ class RegistryFilterTests(unittest.TestCase):
 
     def test_the_zero_floor_states_empty_rollup_maps(self) -> None:
         doc = document()
-        doc["run"] = [{"lane": "bash", "measure": "duplication", "status": "ok"}]
+        doc["run"] = [{"language": "bash", "measure": "duplication", "status": "ok"}]
         doc["summary"] = {"files": 0, "functions": 0, "over_reference": {}}
         result = run(doc, "--root", ".", "--zero-floor")
         summary = json.loads(result.stdout)["summary"]
-        self.assertEqual((summary["by_lane"], summary["by_directory"]), ({}, {}))
+        self.assertEqual((summary["by_language"], summary["by_directory"]), ({}, {}))
 
-    def test_the_zero_floor_counts_a_partial_lane_as_measured(self) -> None:
+    def test_the_zero_floor_counts_a_partial_language_as_measured(self) -> None:
         doc = document()
         doc["run"] = [
             {
-                "lane": "bash",
+                "language": "bash",
                 "measure": "duplication",
                 "status": "partial",
                 "reason": "1 of 3 files skipped by duplication.max_size 1mb / max_lines none",
@@ -277,7 +277,7 @@ class RegistryFilterTests(unittest.TestCase):
         doc = document()
         doc["run"] = [
             {
-                "lane": "bash",
+                "language": "bash",
                 "measure": "duplication",
                 "status": "unavailable",
                 "reason": "jscpd: not found",

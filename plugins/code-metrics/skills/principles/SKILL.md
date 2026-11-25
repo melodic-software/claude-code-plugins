@@ -24,7 +24,7 @@ common questions without a load.
 
 | Query about... | Load |
 |---|---|
-| What a measure is, its formula, per-lane collector behavior, coverage artifact formats | [measures.md](reference/measures.md) |
+| What a measure is, its formula, per-language collector behavior, coverage artifact formats | [measures.md](reference/measures.md) |
 | Where a reference value came from, which popular numbers have no source, how to set your own | [thresholds.md](reference/thresholds.md) |
 | The CRAP formula, its two authorial names, the coverage join, what it does not predict | [crap.md](reference/crap.md) |
 | Who published what, what a paper claims and does not claim, confidence per source | [literature.md](reference/literature.md) |

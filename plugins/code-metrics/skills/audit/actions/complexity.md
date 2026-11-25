@@ -5,11 +5,11 @@ folklore around it. This action reports the numbers, per function where the coll
 function, beside references whose provenance is printed with them, and stops there: no pass or
 fail, no severity, no finding. Whether a complexity of 23 is worth changing is the reader's call.
 
-Collectors are tried in order per lane and the first that resolves is used. Nothing is installed,
-downloaded, or fetched at run time; a lane with no resolvable collector reports that in the run
-table and the other lanes still run.
+Collectors are tried in order per language and the first that resolves is used. Nothing is installed,
+downloaded, or fetched at run time; a language with no resolvable collector reports that in the run
+table and the other languages still run.
 
-| Lane | Cyclomatic | Cognitive | Halstead difficulty |
+| Language | Cyclomatic | Cognitive | Halstead difficulty |
 |---|---|---|---|
 | TypeScript/JavaScript | `lizard`, then ESLint's core `complexity` rule | `eslint-plugin-sonarjs` | `multimetric`, per file |
 | Python | `lizard`, then `radon cc -j` | no maintained collector found; the row says so | `radon hal -j`, per function, then `multimetric` |
@@ -33,7 +33,7 @@ carry `function: null`, and are labeled `file-level`. Its Bash cyclomatic figure
 ```
 
 Present the markdown report to the user as printed. It opens with the scope and a "Coverage of
-this run" table (lane, measure, collector, status, reason), then the references with their
+this run" table (language, measure, collector, status, reason), then the references with their
 provenance and layer, then one row per function or file: every collector's numbers for a function
 sit on that one line, a Labels column carries `start-line-only`, `file-level`, and
 `multimetric-approximation` where they apply, and rows over a reference come first, the furthest
@@ -65,8 +65,8 @@ INCONCLUSIVE; otherwise keep it beside your notes and compare by hand.
   path; the copies were measured, the function is shown once, and the over-reference count
   counts it once.
 - An empty change scope is reported with its cause: the branch sits at its merge-base with a
-  clean tree, or the changed files belong to no lane. Explicit paths or `--all` measure the tree.
-- `status` is `complete` when every lane and measure in scope ran, `partial` when one did not, and
+  clean tree, or the changed files belong to no language. Explicit paths or `--all` measure the tree.
+- `status` is `complete` when every language and measure in scope ran, `partial` when one did not, and
   `empty` when nothing was measured; the run table says why for every non-`ok` row.
 - Exit 0 whenever a report was produced, including an `empty` one; exit 2 for a usage error such
   as an explicitly named path that does not exist; exit 3 when a collector resolved but produced
@@ -83,12 +83,12 @@ Everything tunable resolves through the code-metrics layers (team
 references above, scope exclusions (`scope.exclude`, which by default drops `node_modules`,
 `vendor`, `dist`, and `build` directories at any depth and reports each pattern's count),
 sanctioned-replication registries (`scope.registries`), the base ref (`scope.base`), and the
-per-lane collector order (`lanes.<lane>.collectors.<measure>`, validated against
+per-language collector order (`languages.<language>.collectors.<measure>`, validated against
 `<plugin-root>/scripts/collector-ladder.tsv`). The report names the layer that supplied
 any value a personal layer changed. `/code-metrics:setup` writes the team file and probes the
 collectors.
 
-A whole-tree run launches one collector process per lane and measure in parallel, capped at the
+A whole-tree run launches one collector process per language and measure in parallel, capped at the
 CPU count or `CODE_METRICS_JOBS`, and prints a progress line per collector on stderr once the
 scope passes a few hundred files (`CODE_METRICS_PROGRESS=1` forces it, `=0` silences it). Its
 wall clock is the slowest collector's own, which the plugin does not control.
@@ -122,9 +122,9 @@ wall clock is the slowest collector's own, which the plugin does not control.
   as-of date and recheck trigger are recorded in
   [`<plugin-root>/reference/collectors.md`](../../../reference/collectors.md).
 - Halstead outside Python is per file, so a file's difficulty is not a function's. Python is the
-  only lane with per-function Halstead, and even there the rows carry no line range.
+  only language with per-function Halstead, and even there the rows carry no line range.
 - A collector that reports only a start line cannot bound a function's lines, so `audit-coverage`
-  reports `crap: not-applicable` for that lane rather than a null. In this version Bash has no
+  reports `crap: not-applicable` for that language rather than a null. In this version Bash has no
   collector with end lines at all.
 - Change scope needs a merge-base with the default branch; outside a git repository, or on a
   branch with no default-branch ancestor, pass paths or `--all` (the usage error says which).

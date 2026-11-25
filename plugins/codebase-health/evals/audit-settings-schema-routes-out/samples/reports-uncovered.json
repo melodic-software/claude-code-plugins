@@ -4,7 +4,7 @@
       "answer": "Schema drift in settings.json and .mcp.json is out of scope for this audit; run /harness-config:audit."
     },
     {
-      "answer": "That question belongs to another lane: /harness-config:audit."
+      "answer": "That question belongs to another skill: /harness-config:audit."
     },
     {
       "answer": "Hooks and permissions are uncovered here."

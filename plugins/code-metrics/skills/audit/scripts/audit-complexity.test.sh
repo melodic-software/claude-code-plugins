@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/scripts/yaml_subset.py
-# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
+# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its languages
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -66,19 +66,19 @@ assert_doc "cyclomatic cites ISO/IEC 5055 8.2.117 at a reference of 20" "$out" \
 assert_doc "cognitive and halstead_difficulty have no reference" "$out" \
   'all(t["reference"] is None for t in d["thresholds"] if t["measure"] in ("cognitive","halstead_difficulty")) and len([t for t in d["thresholds"] if t["measure"] in ("cognitive","halstead_difficulty")])==2'
 assert_doc "python cognitive is unavailable, not silent" "$out" \
-  'any(r["lane"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" and r["reason"] for r in d["run"])'
+  'any(r["language"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" and r["reason"] for r in d["run"])'
 assert_doc "bash cognitive is unavailable, not silent" "$out" \
-  'any(r["lane"]=="bash" and r["measure"]=="cognitive" and r["status"]=="unavailable" and r["reason"] for r in d["run"])'
+  'any(r["language"]=="bash" and r["measure"]=="cognitive" and r["status"]=="unavailable" and r["reason"] for r in d["run"])'
 assert_doc "the python fixture carries function ranges for the CRAP join" "$out" \
   'any(r["file"].endswith("cm_sample.py") and r["start_line"]==9 and r["end_line"]==20 for r in d["measures"])'
-assert_doc "the go lane reports cognitive complexity from gocognit" "$out" \
-  'any(r["lane"]=="go" and r["values"].get("cognitive")==2 for r in d["measures"])'
-assert_doc "the bash lane reports cyclomatic complexity from shellmetrics" "$out" \
-  'any(r["lane"]=="bash" and r["values"].get("cyclomatic")==3 for r in d["measures"])'
+assert_doc "the go language reports cognitive complexity from gocognit" "$out" \
+  'any(r["language"]=="go" and r["values"].get("cognitive")==2 for r in d["measures"])'
+assert_doc "the bash language reports cyclomatic complexity from shellmetrics" "$out" \
+  'any(r["language"]=="bash" and r["values"].get("cyclomatic")==3 for r in d["measures"])'
 assert_doc "halstead difficulty is reported and never fabricated as zero" "$out" \
   'all(r["values"]["halstead_difficulty"] for r in d["measures"] if "halstead_difficulty" in r["values"])'
 assert_doc "the four measurable fixtures are measured and CmSample.cs is deferred" "$out" \
-  'sorted({r["file"].rsplit("/",1)[1] for r in d["measures"]})==["cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py"] and any(r["lane"]=="dotnet" and r["status"]=="deferred" for r in d["run"])'
+  'sorted({r["file"].rsplit("/",1)[1] for r in d["measures"]})==["cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py"] and any(r["language"]=="dotnet" and r["status"]=="deferred" for r in d["run"])'
 
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$SOURCES")"
 rc=$?
@@ -86,7 +86,7 @@ assert_eq "markdown exits 0" 0 "$rc"
 assert_contains "markdown carries the run table" "$out" "Coverage of this run"
 assert_contains "markdown carries the cited cyclomatic reference" "$out" "8.2.117"
 assert_contains "markdown states that a reference is not a bar" "$out" "never a bar"
-assert_contains "markdown carries the Labels column" "$out" "| File | Function | Lane | Labels |"
+assert_contains "markdown carries the Labels column" "$out" "| File | Function | Language | Labels |"
 assert_contains "markdown names the persisted document" "$out" "Full document: $CODE_METRICS_REPORT_DIR/audit-complexity-"
 doc_path="$(printf '%s\n' "$out" | sed -n 's/^Full document: //p')"
 "$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); raise SystemExit(0 if d["schema"]=="code-metrics/v2" and d["skill"]=="audit-complexity" else 1)' "$doc_path"

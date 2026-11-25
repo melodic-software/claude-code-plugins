@@ -2,7 +2,7 @@
 """Adapter for `lizard` (terryyin/lizard), per-function cyclomatic complexity.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 `lizard --csv <files>` prints one record per function with no header, in the
 column order `NLOC, CCN, token, PARAM, length, "name@start-end@file", file,
@@ -11,7 +11,7 @@ capture in fixtures/tool-output/lizard.csv is the reference shape). Start and
 end lines are both present, which is what lets the CRAP join in
 `audit-coverage` bound a function's lines.
 
-Two measures are served for the TypeScript, Python, and Go lanes:
+Two measures are served for the TypeScript, Python, and Go languages:
 
   cyclomatic       values {"cyclomatic": CCN}
   function_lines   values {"function_lines", "function_lines_pct"}, the
@@ -40,7 +40,7 @@ from adapter_paths import (
 )
 
 NAME = "lizard"
-LANES = ("typescript", "python", "go")
+LANGUAGES = ("typescript", "python", "go")
 MEASURES = ("cyclomatic", "function_lines")
 
 
@@ -58,7 +58,7 @@ def _source_lines(path: str, cache: dict[str, list[str]]) -> list[str]:
     return cache[path]
 
 
-def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict]:
+def translate(raw: str, language: str, measure: str, wanted: list[str]) -> list[dict]:
     """Rows for the requested files. Raises ValueError when no record parsed."""
     wanted_norm = {normalize(p): p for p in wanted}
     cache: dict[str, list[str]] = {}
@@ -93,7 +93,7 @@ def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict
                 "function": record[7],
                 "start_line": start,
                 "end_line": end,
-                "lane": lane,
+                "language": language,
                 "values": values,
                 "collector": NAME,
                 "labels": [],
@@ -104,9 +104,9 @@ def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict
     return rows
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
-    if lane not in LANES or measure not in MEASURES:
-        print(f"{NAME}.py: cannot collect {lane}/{measure}", file=sys.stderr)
+def collect(language: str, measure: str, files: list[str]) -> int:
+    if language not in LANGUAGES or measure not in MEASURES:
+        print(f"{NAME}.py: cannot collect {language}/{measure}", file=sys.stderr)
         return 2
     exe = shutil.which(NAME)
     if not exe:
@@ -116,7 +116,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         [exe, "--csv", *files], capture_output=True, text=True, check=False
     )
     try:
-        rows = translate(result.stdout, lane, measure, files)
+        rows = translate(result.stdout, language, measure, files)
     except ValueError as exc:
         print(
             f"{NAME}.py: no parseable {NAME} output ({exc}); "
@@ -130,9 +130,9 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    for lane in LANES:
+    for language in LANGUAGES:
         for measure in MEASURES:
-            print(f"{lane}/{measure}")
+            print(f"{language}/{measure}")
 
 
 INSTALL_HINT = "lizard: https://github.com/terryyin/lizard (pip install lizard, or pipx install lizard)"

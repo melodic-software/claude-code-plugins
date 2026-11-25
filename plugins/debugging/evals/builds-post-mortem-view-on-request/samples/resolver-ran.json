@@ -5,24 +5,24 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/opt/eval/plugins/debugging/lib/view-settings.mjs\" resolve --lane debugging:debug --option \"auto\"",
+            "command": "node \"/opt/eval/plugins/debugging/lib/view-settings.mjs\" resolve --producer debugging:debug --option \"auto\"",
             "description": "Resolve the view medium"
           }
         }
       ],
-      "why": "the resolver for the debugging:debug lane"
+      "why": "the resolver for the debugging:debug producer"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "node /opt/eval/plugins/debugging/lib/view-settings.mjs resolve --lane=\"debugging:debug\" --option auto",
+            "command": "node /opt/eval/plugins/debugging/lib/view-settings.mjs resolve --producer=\"debugging:debug\" --option auto",
             "description": "Resolve the view medium"
           }
         }
       ],
-      "why": "--lane= with a quoted value"
+      "why": "--producer= with a quoted value"
     }
   ],
   "fail": [
@@ -35,19 +35,19 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /opt/eval/plugins/debugging/lib/view-settings.mjs resolve --lane planning --option auto",
-            "description": "Resolve with the wrong lane"
+            "command": "node /opt/eval/plugins/debugging/lib/view-settings.mjs resolve --producer planning --option auto",
+            "description": "Resolve with the wrong producer"
           }
         }
       ],
-      "why": "another lane"
+      "why": "another producer"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "grep -n 'resolve --lane debugging:debug' /opt/eval/plugins/debugging/reference/rendered-view.md; cat /opt/eval/plugins/debugging/lib/view-settings.mjs | head",
+            "command": "grep -n 'resolve --producer debugging:debug' /opt/eval/plugins/debugging/reference/rendered-view.md; cat /opt/eval/plugins/debugging/lib/view-settings.mjs | head",
             "description": "Read about the resolver"
           }
         }

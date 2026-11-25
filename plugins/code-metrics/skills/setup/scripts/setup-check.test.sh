@@ -156,7 +156,7 @@ assert_row "a relative option supplies no layer" "$out" "reference cyclomatic +2
 rm -rf "$home/cfg"
 
 mkdir -p "$home/.claude"
-printf 'lanes:\n  typescript: { enabled: true }\n' >"$home/.claude/code-metrics.yaml"
+printf 'languages:\n  typescript: { enabled: true }\n' >"$home/.claude/code-metrics.yaml"
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 rc=$?
 assert_eq "bad layer exits 1" 1 "$rc"
@@ -208,25 +208,25 @@ printf 'globs:\n  - "**/*.rs"\n' >"$eco_repo/.claude/ecosystems/rust.yaml"
 out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
 rc=$?
 assert_eq "an unlisted ecosystem record does not fail the run" 0 "$rc"
-assert_row "a listed lane's record is honored" "$out" "PASS  ecosystem python.yaml +parses; its globs and enabled key are honored for lane detection"
-assert_row "an unlisted lane's record is not used" "$out" "WARN  ecosystem rust.yaml +parses, but no layer lists lane rust under lanes, so it is not used for lane detection; add a lanes.rust entry"
+assert_row "a listed language's record is honored" "$out" "PASS  ecosystem python.yaml +parses; its globs and enabled key are honored for language detection"
+assert_row "an unlisted language's record is not used" "$out" "WARN  ecosystem rust.yaml +parses, but no layer lists language rust under languages, so it is not used for language detection; add a languages.rust entry"
 mkdir -p "$eco_repo/docs/conventions"
-printf 'lanes:\n  rust:\n    enabled: true\n' >"$eco_repo/docs/conventions/code-metrics.yaml"
+printf 'languages:\n  rust:\n    enabled: true\n' >"$eco_repo/docs/conventions/code-metrics.yaml"
 out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
-assert_row "a lane a layer lists honors its record" "$out" "PASS  ecosystem rust.yaml +parses; its globs and enabled key are honored for lane detection"
+assert_row "a language a layer lists honors its record" "$out" "PASS  ecosystem rust.yaml +parses; its globs and enabled key are honored for language detection"
 printf 'globs:\n  - "**/*.zig"\n' >"$eco_repo/.claude/ecosystems/Zig.yaml"
 out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
-assert_row "an invalid lane id asks for a rename" "$out" "WARN  ecosystem Zig.yaml +parses, but its file name gives lane id Zig, which is not lowercase kebab-case, so no lane can read it; rename the file"
-if grep -q "lanes.Zig" <<<"$out"; then
-  fail "an invalid lane id gets no lanes entry advice" "no lanes.Zig" "$(printf '%s' "$out" | head -c 600)"
+assert_row "an invalid language id asks for a rename" "$out" "WARN  ecosystem Zig.yaml +parses, but its file name gives language id Zig, which is not lowercase kebab-case, so no language can read it; rename the file"
+if grep -q "languages.Zig" <<<"$out"; then
+  fail "an invalid language id gets no languages entry advice" "no languages.Zig" "$(printf '%s' "$out" | head -c 600)"
 else
-  pass "an invalid lane id gets no lanes entry advice"
+  pass "an invalid language id gets no languages entry advice"
 fi
 rm "$eco_repo/.claude/ecosystems/Zig.yaml"
 mkdir -p "$eco_repo/docs/conventions/ecosystems"
 printf 'globs:\n  - "**/*.rs"\n' >"$eco_repo/docs/conventions/ecosystems/rust.yaml"
 out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
-assert_row "a record at the convention home is honored" "$out" "PASS  ecosystem rust.yaml +parses; its globs and enabled key are honored for lane detection"
+assert_row "a record at the convention home is honored" "$out" "PASS  ecosystem rust.yaml +parses; its globs and enabled key are honored for language detection"
 assert_row "a legacy record the convention home shadows asks for its removal" "$out" "WARN  ecosystem .claude/ecosystems/rust.yaml +is not read: docs/conventions/ecosystems/rust.yaml takes its place; delete it"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"

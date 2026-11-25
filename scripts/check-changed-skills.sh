@@ -1,59 +1,4 @@
 #!/usr/bin/env bash
-# Deterministic skill-regression gate for the skills a PR changes.
-#
-#   scripts/check-changed-skills.sh <base-ref>
-#
-# For every skill under plugins/*/skills/** touched vs <base-ref>, run the
-# skill-quality static contract gate (plugins/skill-quality/scripts/check-skill.sh
-# — trigger-keyword preservation vs the base ref, frontmatter, listing-budget
-# and line caps, broken internal refs, evals presence, committed artifacts).
-# When a changed skill's SKILL.md is new or modified vs <base-ref>, the checker
-# is invoked with --require-evals so a missing evals/evals.json FAILs for any
-# shape, unless that skill has a recorded skip in
-# scripts/evals-warrant-exemptions.txt (the warrant policy's explicit skip
-# classes — #3135). Untouched legacy skills and non-SKILL.md-only touches keep
-# the legacy WARN-only posture.
-# Any FAIL fails this gate.
-#
-# Every run, whatever changed, also runs scripts/check-view-medium-lists.mjs
-# over every view lane in lib/view-registry.mjs: a lane's skill text that lists
-# two or more medium ids fails the gate.
-#
-# <base-ref> (e.g. origin/main) is resolved to `git merge-base <base-ref> HEAD`
-# (#7014), and that merge base is BOTH the changed-file diff base and
-# CHECK_SKILL_BASE_REF. A branch behind <base-ref> is thereby judged on what it
-# changed, not on what <base-ref> changed after the branch point (a two-dot diff
-# against the tip would flag every skill only main touched). The checker's
-# git-backed checks compare the PR head against the same base a reviewer would —
-# a rewrite that silently drops a `description` trigger phrase is caught here,
-# not at merge. When no merge base resolves (shallow clone, unrelated history)
-# the ref is used as given, with a warning: the stricter superset, never a skip.
-#
-# markdownlint (check 6) is skipped here (CHECK_SKILL_SKIP_MARKDOWNLINT=1):
-# SKILL.md markdown is already gated by the hygiene lane's markdown check, and
-# `npx --no-install markdownlint-cli2` would only WARN-skip on a hosted runner
-# without the package. Eval-schema validation (validate-evals) is a separate CI
-# step — the check-jsonschema composite action over every evals.json.
-#
-# Exit 0 = every changed skill passes (or none changed) and no view lane lists
-# media; 1 = one or more failed, or a view lane lists media;
-# 2 = usage / environment error (fail closed — never a silent skip), or no failure
-# but PLUGIN_TEST_DEADLINE, which scripts/check-affected.sh --tests sets and the
-# checker reads, left a skill's script tests unrun, each named on a `SKIP` line.
-#
-# CHECK_SKILL_BIN overrides the checker path (test injection).
-#   scripts/check-changed-skills.sh --merge-base
-#
-# The lane form, for a run that checks a tree it must not execute: the base is
-# origin's default branch (changed_files::resolve_base), else, in a shallow
-# checkout only, HEAD with a warning, since a shallow checkout of one commit
-# holds no remote ref and its HEAD is the base the work started from; a full
-# checkout with no base ref fails. The checked tree is CHECK_DATA_ROOT
-# (default: the tree holding this script), read only as data; the checker is
-# always this tree's copy, CHECK_SKILL_BIN is ignored, untracked files count as
-# changed, each skill's scripts/*.test.sh is skipped
-# (CHECK_SKILL_SKIP_SCRIPT_TESTS=1), and the checked tree's settings-token
-# baseline is named so the checker judges it as CI does.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -111,10 +56,6 @@ if [[ ! -f "$CHECKER" ]]; then
   exit 2
 fi
 
-# Every run scans every view lane, changed or not, since a stale exemption row
-# shows only over the whole tree. A tree with no view registry has no lanes.
-# The check reads the registry as text, so the lane form executes nothing of
-# the checked tree.
 medium_lists=0
 if [[ -f lib/view-registry.mjs ]]; then
   [[ -f "$SCRIPT_DIR/check-view-medium-lists.mjs" ]] || {

@@ -36,13 +36,13 @@ surface what is not, and record everything in a durable ledger so the next invoc
 instead of restarting. Coupling goes down monotonically across runs; no single run tries to
 finish the job.
 
-Two lanes, split by the nature of the finding, never by convenience:
+Two steps, split by the nature of the finding, never by convenience:
 
-- **Apply lane.** Mechanical, contained, behavior-preserving reductions (weaken a
+- **Apply step.** Mechanical, contained, behavior-preserving reductions (weaken a
   connascence form, de-duplicate a stated fact into a pointer, inject a hard-wired volatile
   collaborator, name a magic value). Applied this run, verified, shipped as one
   structure-only change set.
-- **Route lane.** Cross-file remediation and architectural judgment (move a boundary,
+- **Route step.** Cross-file remediation and architectural judgment (move a boundary,
   introduce a seam, split a shared database, merge two repos' duplicated logic). Coupling
   findings of this shape exist to inform a human: they are surfaced, ranked, and routed,
   never auto-applied.
@@ -54,7 +54,7 @@ pass. See "What this skill does not do".
 
 | Argument | Action |
 |----------|--------|
-| *(empty)* | Full pass over an inferred scope: scan → verify → apply lane → route lane → ledger |
+| *(empty)* | Full pass over an inferred scope: scan → verify → apply step → route step → ledger |
 | `<scope>` | Same pass narrowed to a path, module, or altitude keyword (`docs`, `code`, `app`, `repo`) |
 | `dry-run [<scope>]` | Scan, verify, rank, and ledger only. Do not edit, branch, push, or file tracker items |
 | `change <old> <new> [<scope>]` | Change mode, read-only: find every site that states `<old>`, classify each, and propose what happens to it. No edits |
@@ -155,17 +155,17 @@ list carries while ruling out a list whose entries mostly hold data the tree doe
 entries a list matches paths by chance and costs little to keep by hand. Verify each candidate in
 phase C (a list a generator already writes is already derived), then report it with the
 Design-It-Twice comparison in [`reference/remediations.md`](reference/remediations.md) "Second
-lists". A second list is always a route-lane ledger entry, report-only, never part of the apply
+lists". A second list is always a route-step ledger entry, report-only, never part of the apply
 batch.
 
 Over two or more repositories, also list what they copy from each other, per
 [`reference/cross-repo-copies.md`](reference/cross-repo-copies.md), whose measuring step is
 `python3 "${CLAUDE_SKILL_DIR}/scripts/cross-repo-dups.py" --managed <file> <root>...`. Each copy
-it finds is a phase C candidate and, once confirmed, a route-lane entry.
+it finds is a phase C candidate and, once confirmed, a route-step entry.
 
 Brief the scan agents to list duplicate writers too: one durable key, path or table that more
 than one owner writes (the model's common-coupling entry). Use `value-sites.py find` for a literal
-key. A confirmed duplicate writer always goes to the route lane as a structural ledger entry and
+key. A confirmed duplicate writer always goes to the route step as a structural ledger entry and
 never into the apply batch; phase H hands off its ownership rule per the remediation catalog's
 "Duplicate writers" section.
 
@@ -175,13 +175,13 @@ edge exists, the mechanism is what the scan claims, and the depended-on side act
 (volatility from history, not vibes). Drop or downgrade what does not reproduce, and record
 that the ledger reflects verified state, not raw scan output.
 
-**D. Partition and rank.** Every verified finding gets a lane. Apply lane requires all of:
+**D. Partition and rank.** Every verified finding gets a step. Apply step requires all of:
 mechanical, contained in scope, behavior-preserving, and reversible by revert. Anything
-cross-file in remediation or architectural in judgment is route lane, and so is any finding not shown to meet all four.
+cross-file in remediation or architectural in judgment is route step, and so is any finding not shown to meet all four.
 Rank by `strength × degree × distance × volatility`, on one scale across every repository in scope; a weak-but-everywhere coupling on a hot
 path outranks a strong-but-local one in cold code. Write the full ranked set to the ledger.
 
-**E. Apply (apply lane only, scope-budgeted).** Over several repositories, apply, verify and ship
+**E. Apply (apply step only, scope-budgeted).** Over several repositories, apply, verify and ship
 each repository's batch on its own, in a worktree of that repository made by its convention, as
 `target-scope.md` "Writes stay per repository" says; the budget and every rule below hold per
 repository. Work on a short-lived branch created from
@@ -198,12 +198,12 @@ exception (see the Apply sequence in [`reference/change-mode.md`](reference/chan
 reduction; stage listed paths only and inspect the staged diff before each commit. Never
 touch CI workflow files, hook or settings files, lint configs, database migrations, or
 any published contract surface (API shapes, message schemas, tool schemas). Those are route
-lane by definition.
+step by definition.
 
 **F. Verify the batch.** Invoke `/toolchain:check` (if enabled) via the Skill tool for the affected
 ecosystems; otherwise run the consuming project's
 own build, test, and lint commands (its CLAUDE.md or rules may name them). A reduction that
-breaks a test was secretly behavioral: revert that reduction, reclassify it as route lane,
+breaks a test was secretly behavioral: revert that reduction, reclassify it as route step,
 and continue. Never ship red.
 
 **G. Ship.** Present the verified diff, or when the session should open a pull request,
@@ -214,7 +214,7 @@ never auto-merges.
 
 **H. Ledger update and report.** Update statuses (`applied`, `deferred`, `routed`,
 `rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). A cross-repository finding
-goes in the ledger, and is filed in the tracker, of the repository that owns the source. For route-lane
+goes in the ledger, and is filed in the tracker, of the repository that owns the source. For route-step
 candidates: hand the top one to `/architecture:improve` (if enabled), invoked via the Skill tool, for
 design exploration, and file the rest by invoking `/work-items:track add` (if enabled) via the Skill tool, else the repo's own tracker, else present the list to the user. For each confirmed
 duplicate writer, write the ownership-rule findings file under `<memory_dir>/coupling/<branch-slug>/`
@@ -257,7 +257,7 @@ skill is ever extended to judge work its own session produced outside those gate
 
 - **Does not review a diff.** Pre-merge review is a review tool's job; this hunts standing
   coupling in existing artifacts.
-- **Does not deep-design one boundary.** A route-lane candidate needing interface
+- **Does not deep-design one boundary.** A route-step candidate needing interface
   exploration goes to `/architecture:improve` (if enabled) or a design session.
 - **Does not apply general tidyings.** Rename/inline/extract without a coupling edge is
   `/code-tidying:tidy` (if enabled) territory.
@@ -274,8 +274,8 @@ is invoked via the Skill tool.
 
 | When | Then |
 |------|------|
-| Route-lane candidate needs design exploration | `/architecture:improve` (if enabled); else summarize the candidate for a design session |
-| Deferred or route-lane items need tracking | `/work-items:track add` (if enabled); else the repo's own tracker; else present the list |
+| Route-step candidate needs design exploration | `/architecture:improve` (if enabled); else summarize the candidate for a design session |
+| Deferred or route-step items need tracking | `/work-items:track add` (if enabled); else the repo's own tracker; else present the list |
 | Batch needs build/test verification | `/toolchain:check` (if enabled); else the project's own commands |
 | Shipping a PR | `/source-control:pull-request create` (if enabled); else the repo's own PR convention |
 | A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` (if enabled) owns the extraction; else apply per the remediation catalog |
@@ -289,7 +289,7 @@ It checks the batch against the repo's own build, test and lint gates.
 
 ## Related
 
-- Route-lane candidate needs boundary design: /architecture:improve.
+- Route-step candidate needs boundary design: /architecture:improve.
 - Pure markdown prose dedup: /docs-hygiene:extract-ssot.
 - Identifier rename rather than value change: /docs-hygiene:rename-references.
 - Duplicate-writer ownership rule to codify: /corrections:codify.

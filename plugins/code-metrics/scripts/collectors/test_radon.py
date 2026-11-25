@@ -65,7 +65,7 @@ class RadonAdapterTests(unittest.TestCase):
             result = run("probe", path_prefix=Path(tmp))
             self.assertEqual((result.returncode, result.stdout.strip()), (0, "6.0.1"))
 
-    def test_measures_lists_every_lane_and_measure_pair(self) -> None:
+    def test_measures_lists_every_language_and_measure_pair(self) -> None:
         self.assertEqual(
             sorted(run("measures").stdout.split()),
             ["python/cyclomatic", "python/function_lines", "python/halstead"],

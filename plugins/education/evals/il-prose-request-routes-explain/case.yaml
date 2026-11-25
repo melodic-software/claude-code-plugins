@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: il-prose-request-routes-explain
-description: "Boundary: a request for plainer words about the previous message is education:explain's lane, not a picture, so the session explains it in prose through explain and illustrate builds no record, page or diagram"
+description: "Boundary: a request for plainer words about the previous message is education:explain's job, not a picture, so the session explains it in prose through explain and illustrate builds no record, page or diagram"
 tags: [education, illustrate, boundary, history]
 expected_outcome: "education:explain runs and the reply puts the replica-lag explanation in plain prose with no mermaid diagram, record or page."
 context:
