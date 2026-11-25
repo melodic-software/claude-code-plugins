@@ -34,6 +34,24 @@ function fixture(files) {
   return root;
 }
 
+const hasGit = () => spawnSync("git", ["--version"]).status === 0;
+
+function gitIn(root) {
+  return (...args) => {
+    const result = spawnSync("git", ["-C", root, "-c", "user.name=t", "-c", "user.email=t@example.invalid", ...args], {
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+  };
+}
+
+function commitAll(root) {
+  const git = gitIn(root);
+  git("init", "-q");
+  git("add", "-A");
+  git("commit", "-q", "--no-gpg-sign", "-m", "base");
+}
+
 const PACKAGE_JSON = `{
   "name": "cart",
   "scripts": {
@@ -248,6 +266,38 @@ describe("write mode", () => {
     assert.match(stderr, /no assumed: line for typescript/);
   });
 
+  it("in a git repository, refuses a cited file that is not tracked and keeps tracked, unchanged sources", (t) => {
+    if (!hasGit()) {
+      t.skip("git is not installed");
+      return;
+    }
+    const root = fixture(BASE_FILES);
+    commitAll(root);
+    writeFileSync(join(root, "AGENTS.md"), "Run `node tools/lint.mjs` to lint.\n");
+    const { status, out, stderr } = write(root, [
+      "assumed: typescript.build-cmd=make build (Makefile:1)",
+      "assumed: typescript.check-cmd=node tools/lint.mjs (AGENTS.md:1)",
+    ]);
+    assert.equal(status, 1);
+    assert.equal(existsSync(out), false);
+    assert.match(stderr, /typescript\.check-cmd=node tools\/lint\.mjs \(AGENTS\.md:1\): the cited file is not tracked/);
+    assert.doesNotMatch(stderr, /typescript\.build-cmd/);
+  });
+
+  it("in a git repository, refuses a cited file the working tree changed from HEAD", (t) => {
+    if (!hasGit()) {
+      t.skip("git is not installed");
+      return;
+    }
+    const root = fixture(BASE_FILES);
+    commitAll(root);
+    writeFileSync(join(root, "Makefile"), "release:\n\tnode tools/build.mjs\n");
+    const { status, out, stderr } = write(root, ["assumed: typescript.build-cmd=make release (Makefile:1)"]);
+    assert.equal(status, 1);
+    assert.equal(existsSync(out), false);
+    assert.match(stderr, /differs from HEAD/);
+  });
+
   it("refuses an output path inside the ecosystem records folder", () => {
     const root = fixture({ ...BASE_FILES, "docs/conventions/ecosystems/.keep": "" });
     const out = join(root, "docs", "conventions", "ecosystems", "typescript.yaml");
@@ -320,21 +370,13 @@ describe("verify mode", () => {
   });
 
   it("with --base, reads each cited line at the base revision, so a pull request cannot cite its own lines", (t) => {
-    if (spawnSync("git", ["--version"]).status !== 0) {
+    if (!hasGit()) {
       t.skip("git is not installed");
       return;
     }
     const recordPath = "docs/conventions/ecosystems/typescript.yaml";
     const root = fixture({ ...BASE_FILES, [recordPath]: 'globs: ["**/*.ts"]\nbuild-cmd: "make build"\n' });
-    const git = (...args) => {
-      const result = spawnSync("git", ["-C", root, "-c", "user.name=t", "-c", "user.email=t@example.invalid", ...args], {
-        encoding: "utf8",
-      });
-      assert.equal(result.status, 0, result.stderr);
-    };
-    git("init", "-q");
-    git("add", "-A");
-    git("commit", "-q", "--no-gpg-sign", "-m", "base");
+    commitAll(root);
     writeFileSync(join(root, recordPath), 'globs: ["**/*.ts"]\nbuild-cmd: "make build"\ntest-cmd: "node evil.mjs"\n');
     const record = join(root, recordPath);
     const lines = [
