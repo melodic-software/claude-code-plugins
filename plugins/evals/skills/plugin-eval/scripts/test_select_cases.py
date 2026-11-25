@@ -808,6 +808,52 @@ class SelectCasesTest(unittest.TestCase):
             "the hunk also changes limit, so it is a cut",
         )
 
+    def test_whitespace_change_in_scaffold_still_runs(self):
+        self._write_glossary()
+        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
+        scaffold.write_text(
+            scaffold.read_text(encoding="utf-8") + 'printf "a b" # lane\n', encoding="utf-8"
+        )
+        _commit_all(self.repo, "add printf")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(
+            scaffold, 'printf "a b" # lane\n', 'printf "a  b" # focus area\n'
+        )
+        self.assertEqual(
+            "one-basic", block.get("cases"), "a whitespace change beside a swap is not swap-only"
+        )
+
+    def test_block_comment_with_trailing_code_still_runs(self):
+        _write(
+            self.repo,
+            "plugins/alpha/evals/one-basic/seed.js",
+            '/* setup */ console.log("seed");\n// plain comment\n',
+        )
+        _commit_all(self.repo, "add seed.js")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        seed = self.repo / "plugins/alpha/evals/one-basic/seed.js"
+        block = self._edit_and_select(seed, '/* setup */ console.log("seed");\n', "")
+        self.assertEqual(
+            "one-basic",
+            block.get("cases"),
+            "a line with code after its comment is not a whole-line comment",
+        )
+
+    def test_js_comment_lines_and_closed_block_deletion_is_no_run(self):
+        _write(
+            self.repo,
+            "plugins/alpha/evals/one-basic/seed.js",
+            '/* one-line */\n/*\n * block\n */\n// plain\nconsole.log("seed");\n',
+        )
+        _commit_all(self.repo, "add seed.js")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        seed = self.repo / "plugins/alpha/evals/one-basic/seed.js"
+        block = self._edit_and_select(
+            seed, '/* one-line */\n/*\n * block\n */\n// plain\n', ""
+        )
+        self.assertNotIn("cases", block, "deleting only JS comment lines runs nothing")
+        self.assertEqual("one-basic", block.get("affected-no-run"))
+
     def test_exempt_skill_is_listed_in_json(self):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
         path.write_text(

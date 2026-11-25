@@ -16,9 +16,10 @@ position, What this skill does not do) to another of those names or to Next or R
 A decided-term swap or a comment-line deletion runs nothing anywhere: a hunk, frontmatter value,
 eval case file or renamed path whose only difference swaps a term for the word the repository
 glossary's "Rejected terms" table decided (`docs/glossary.md`, else `GLOSSARY.md`), or that word's
-last word (`--lane` to `--area` for `focus area`), singular or plural, or deletes whole comment
-lines in a code, YAML or shell file (`#`, `//`, `/* */`; never markdown, whose HTML comments a
-model can read). A hunk with any other change keeps the rules above.
+last word (`--lane` to `--area` for `focus area`), singular or plural, leaving old and new
+byte-identical once each swap is replaced, or deletes lines a comment fills in a code, YAML or
+shell file (`#`, `//`, `/* */`, with no code before or after it; never markdown, whose HTML
+comments a model can read). A hunk with any other change keeps the rules above.
 
 A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three
 removals: each routing clause (a `Not for`, `Skip` or `prefer` clause that names a `plugin:skill`),

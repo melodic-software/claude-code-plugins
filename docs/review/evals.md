@@ -42,9 +42,10 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - A decided-term swap or a comment-line deletion runs nothing, wherever `select` looks. A hunk is
   not a cut when it only swaps a term for the word [`docs/glossary.md`](../glossary.md) "Rejected
   terms" decided (or that word's last word, so `--lane` becomes `--area` for **focus area**), in
-  either number, or only deletes whole comment lines in a code, YAML or shell file (`#` for YAML,
-  shell and Python, `//` and `/* */` for JS and TS; a trailing comment on a code line does not
-  count, and markdown is excluded because an HTML comment can carry instructions a model reads).
+  either number, so that old and new are byte-identical once each swap is replaced, or only
+  deletes lines a comment fills in a code, YAML or shell file (`#` for YAML, shell and Python,
+  `//` and `/* */` for JS and TS; code before or after the comment disqualifies the line, and
+  markdown is excluded because an HTML comment can carry instructions a model reads).
   That holds for a skill body, reference or agent hunk, a frontmatter value such as
   `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
   fixture or sample, and a renamed file whose path and content differ only by such changes. A

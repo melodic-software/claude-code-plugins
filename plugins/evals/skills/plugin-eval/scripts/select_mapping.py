@@ -92,7 +92,7 @@ HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*$")
 SKILL_TOKEN_RE = re.compile(r"(?<![\w/:.-])/?[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*(?![\w-])")
 ROUTING_CLAUSE_RE = re.compile(r"^(?:not for|skip)\b|\bprefer\b", re.IGNORECASE)
 CLAUSE_SPLIT_RE = re.compile(r"(?<=[.;])\s+")
-SWAP_TOKEN_RE = re.compile(r"[A-Za-z]+|[0-9]+|[^\sA-Za-z0-9]")
+SWAP_TOKEN_RE = re.compile(r"[A-Za-z]+|[0-9]+|\s+|\\.|[^\sA-Za-z0-9]")
 GLOSSARY_PATHS = ("docs/glossary.md", "GLOSSARY.md")
 HASH_COMMENT_EXTS = frozenset(
     [".yaml", ".yml", ".sh", ".bash", ".zsh", ".py", ".toml", ".rb", ".pl", ".ps1", ".psm1"]
@@ -100,8 +100,7 @@ HASH_COMMENT_EXTS = frozenset(
 SLASH_COMMENT_EXTS = frozenset(
     [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsonc", ".go", ".cs"]
 )
-HASH_COMMENT_LINE_RE = re.compile(r"^\s*(?:#(?!!).*)?$")
-SLASH_COMMENT_LINE_RE = re.compile(r"^\s*(?:(?://|/\*|\*).*)?$")
+SWAP_CONTEXT = 6
 MAX_DECIDED_TERM_WORDS = 3
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -240,13 +239,13 @@ def _diff_has_cut_hunks(
     skip_old_ranges=(),
     allow_heading_renames=False,
     pairs=(),
-    comment_re=None,
+    comment_style=None,
 ):
     """A hunk that edits an existing line is a cut unless every old word survives, in order, in
     its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion. A hunk
     whose old lines all sit inside one of `skip_old_ranges` (inclusive line pairs) is not a cut,
     nor one that only swaps glossary-decided terms (`pairs`) or only deletes whole comment lines
-    (`comment_re`), nor, with `allow_heading_renames`, one that only renames routing headings."""
+    (`comment_style`), nor, with `allow_heading_renames`, one that only renames routing headings."""
     hunks = []
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
@@ -269,7 +268,7 @@ def _diff_has_cut_hunks(
     for hunk in hunks:
         if hunk[0] and (
             (allow_heading_renames and _is_routing_heading_rename(hunk[3], hunk[4]))
-            or _hunk_is_no_run(hunk[3], hunk[4], pairs, comment_re)
+            or _hunk_is_no_run(hunk[3], hunk[4], pairs, comment_style)
         ):
             hunk[0] = False
 
@@ -320,7 +319,7 @@ def diff_has_cut(
         skip_old_ranges=skip_old_ranges,
         allow_heading_renames=allow_heading_renames,
         pairs=decided_term_pairs(repo_root),
-        comment_re=comment_line_re(rel_path),
+        comment_style=comment_style(rel_path),
     )
 
 
@@ -336,7 +335,7 @@ def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
     if done.returncode != 0:
         return True
     return _diff_has_cut_hunks(
-        done.stdout, pairs=decided_term_pairs(repo_root), comment_re=comment_line_re(new_path)
+        done.stdout, pairs=decided_term_pairs(repo_root), comment_style=comment_style(new_path)
     )
 
 
@@ -431,7 +430,11 @@ def _is_subsequence(old_tokens, new_tokens):
 
 
 def _term_words(text):
-    return tuple(word.lower() for word in SWAP_TOKEN_RE.findall(re.sub(r"[`*\"']", "", text)))
+    """A term's tokens, lowercased, each whitespace run between words one space."""
+    return tuple(
+        " " if token.isspace() else token.lower()
+        for token in SWAP_TOKEN_RE.findall(re.sub(r"[`*\"']", "", text).strip())
+    )
 
 
 def _parse_rejected_terms(text):
@@ -456,7 +459,7 @@ def _parse_rejected_terms(text):
             continue
         bold = re.match(r"\*\*([^*]+)\*\*", cells[1])
         decided = _term_words(bold.group(1) if bold else re.split(r"[,;(]", cells[1])[0])
-        if not decided or len(decided) > MAX_DECIDED_TERM_WORDS:
+        if not decided or sum(not t.isspace() for t in decided) > MAX_DECIDED_TERM_WORDS:
             continue
         for rejected in re.sub(r"\*\([^)]*\)\*", "", cells[0]).split("/"):
             words = _term_words(rejected)
@@ -484,7 +487,7 @@ def _routing_free_tokens(text):
         for clause in CLAUSE_SPLIT_RE.split(text.strip())
         if not (SKILL_TOKEN_RE.search(clause) and ROUTING_CLAUSE_RE.search(clause))
     ]
-    return _swap_tokens(SKILL_TOKEN_RE.sub(" SKILLTOKEN ", " ".join(kept)))
+    return SWAP_TOKEN_RE.findall(SKILL_TOKEN_RE.sub(" SKILLTOKEN ", " ".join(kept)))
 
 
 def _plural(words):
@@ -492,73 +495,62 @@ def _plural(words):
 
 
 def _swap_forms(rejected, decided):
-    """Old and new word forms one swap may take: the decided term, or its last word alone (as a
-    `--lane` flag becomes `--area` for `focus area`), either side singular or plural."""
+    """(old, new) token forms one swap may take: the decided term, or its last word alone (as a
+    `--lane` flag becomes `--area` for `focus area`), either side singular or plural, and the
+    rejected term dropped after the decided one (`concern lane` to `concern`)."""
     news = [decided] + ([decided[-1:]] if len(decided) > 1 else [])
     for old in (rejected, _plural(rejected)):
         for new in news:
             yield old, new
             yield old, _plural(new)
+        yield decided + (" ",) + old, decided
+        yield decided + (" ",) + old, _plural(decided)
 
 
-def _is_term_swap(old_chunk, new_chunk, new_tokens, at, pairs):
-    """The old words are a rejected term and the new ones its decided term, or the rejected term
-    was dropped beside the decided one already there (`concern lane` to `concern`). A hyphen
-    joining the term to a neighbor may go with it (`named-lane` to `named focus area`)."""
-    old_words = tuple(word.lower() for word in old_chunk if word != "-")
-    new_words = tuple(word.lower() for word in new_chunk if word != "-")
-    if new_words:
-        return _is_swap_run(old_words, new_words, pairs)
-    lowered = [word.lower() for word in new_tokens]
-    for rejected, decided in pairs:
-        for old_form, new_form in _swap_forms(rejected, decided):
-            if old_words == old_form and new_form in (
-                tuple(lowered[max(0, at - len(new_form)) : at]),
-                tuple(lowered[at : at + len(new_form)]),
-            ):
-                return True
-    return False
-
-
-def _is_swap_run(old_words, new_words, pairs):
-    """The old words become the new ones by one or more swaps in a row, words shared by both
-    sides kept (the diff joins adjacent swaps into one change)."""
-    if not old_words or not new_words:
-        return not old_words and not new_words
-    if old_words[0] == new_words[0] and _is_swap_run(old_words[1:], new_words[1:], pairs):
+def _is_swap_run(old_tokens, new_tokens, pairs):
+    """The old tokens become the new ones by swaps alone, every other token identical; a term
+    matches case-insensitively, whitespace and punctuation byte for byte."""
+    if not old_tokens or not new_tokens:
+        return not old_tokens and not new_tokens
+    if old_tokens[0] == new_tokens[0] and _is_swap_run(old_tokens[1:], new_tokens[1:], pairs):
         return True
     for rejected, decided in pairs:
         for old_form, new_form in _swap_forms(rejected, decided):
             if (
-                old_words[: len(old_form)] == old_form
-                and new_words[: len(new_form)] == new_form
-                and _is_swap_run(old_words[len(old_form) :], new_words[len(new_form) :], pairs)
+                tuple(t.lower() for t in old_tokens[: len(old_form)]) == old_form
+                and tuple(t.lower() for t in new_tokens[: len(new_form)]) == new_form
+                and _is_swap_run(old_tokens[len(old_form) :], new_tokens[len(new_form) :], pairs)
             ):
                 return True
     return False
 
 
 def _differs_only_by_swaps(old_tokens, new_tokens, pairs):
+    """Each change the diff finds, widened by up to SWAP_CONTEXT identical tokens on each side
+    so a swap the diff split (`concern lane` to `concern`) is seen whole, is a run of swaps."""
     matcher = difflib.SequenceMatcher(None, old_tokens, new_tokens, autojunk=False)
-    return all(
-        tag == "equal"
-        or _is_term_swap(old_tokens[i1:i2], new_tokens[j1:j2], new_tokens, j1, pairs)
-        for tag, i1, i2, j1, j2 in matcher.get_opcodes()
-    )
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        if not any(
+            _is_swap_run(
+                tuple(old_tokens[max(0, i1 - before) : i2 + after]),
+                tuple(new_tokens[max(0, j1 - before) : j2 + after]),
+                pairs,
+            )
+            for before in range(min(i1, j1, SWAP_CONTEXT) + 1)
+            for after in range(SWAP_CONTEXT + 1)
+        ):
+            return False
+    return True
 
 
 def is_term_swap_only(old, new, pairs):
-    """True when the texts differ and every difference swaps a glossary-rejected term for its
-    decided one."""
+    """True when the texts differ and are byte-identical once each decided-term swap is
+    replaced."""
     return bool(pairs) and old != new and _differs_only_by_swaps(
-        _swap_tokens(old), _swap_tokens(new), pairs
+        SWAP_TOKEN_RE.findall(old), SWAP_TOKEN_RE.findall(new), pairs
     )
-
-
-def _swap_tokens(text):
-    """Words and punctuation, with JSON string escapes (`\\n`, `\\"`) read as separators so the
-    word after one stays whole."""
-    return SWAP_TOKEN_RE.findall(re.sub(r'\\[ntr"]', " ", text))
 
 
 def swap_rename_pairs(repo_root, merge_base, deleted, added):
@@ -580,22 +572,50 @@ def is_routing_only_change(old, new, pairs):
     return _differs_only_by_swaps(_routing_free_tokens(old), _routing_free_tokens(new), pairs)
 
 
-def comment_line_re(path):
-    """The whole-line comment pattern for a code, YAML or shell file, None for markdown and any
-    other type, whose comments a model may read as instructions."""
+def comment_style(path):
+    """`hash` or `slash` for a code, YAML or shell file; None for markdown and any other type,
+    whose comments a model may read as instructions."""
     ext = os.path.splitext(path)[1].lower()
     if ext in HASH_COMMENT_EXTS:
-        return HASH_COMMENT_LINE_RE
+        return "hash"
     if ext in SLASH_COMMENT_EXTS:
-        return SLASH_COMMENT_LINE_RE
+        return "slash"
     return None
 
 
-def _hunk_is_no_run(old_lines, new_lines, pairs, comment_re):
+def _comment_line_mask(lines, style):
+    """Per line, whether a comment (or nothing) fills it. A `/*` line that does not close opens a
+    block whose lines count until one ends with `*/`; code after a comment never counts."""
+    mask = []
+    in_block = False
+    for line in lines:
+        stripped = line.strip()
+        if style == "hash":
+            mask.append(not stripped or (stripped.startswith("#") and not stripped.startswith("#!")))
+        elif in_block:
+            closes = "*/" in stripped
+            mask.append(not closes or stripped.endswith("*/") and stripped.count("*/") == 1)
+            in_block = not closes
+        elif not stripped or stripped.startswith("//"):
+            mask.append(True)
+        elif stripped.startswith("/*"):
+            rest = stripped[2:]
+            if "*/" not in rest:
+                mask.append(True)
+                in_block = True
+            else:
+                mask.append(rest.endswith("*/") and rest.count("*/") == 1)
+        else:
+            mask.append(False)
+    return mask
+
+
+def _hunk_is_no_run(old_lines, new_lines, pairs, style):
     """The hunk only deletes whole comment lines and swaps decided terms in the rest."""
-    if comment_re is not None:
-        kept = [line for line in old_lines if not comment_re.match(line)]
-        if len(kept) < len(old_lines) and (kept == new_lines or not (kept or new_lines)):
+    if style is not None:
+        mask = _comment_line_mask(old_lines, style)
+        kept = [line for line, comment in zip(old_lines, mask) if not comment]
+        if len(kept) < len(old_lines) and kept == new_lines:
             return True
         old_lines = kept
     return is_term_swap_only("\n".join(old_lines), "\n".join(new_lines), pairs)
@@ -627,9 +647,9 @@ def is_no_run_file_change(repo_root, merge_base, old_path, new_path):
     if done.returncode != 0:
         return False
     hunks = _raw_hunks(done.stdout)
-    comment_re = comment_line_re(new_path)
+    style = comment_style(new_path)
     return hunks is not None and all(
-        _hunk_is_no_run(old, new, pairs, comment_re) for old, new in hunks
+        _hunk_is_no_run(old, new, pairs, style) for old, new in hunks
     )
 
 
