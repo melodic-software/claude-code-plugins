@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { checkVerdict, LANE_MARKER, verdictLines } from "./check-ci-verdict.mjs";
+import { checkVerdict, FLAGS, LANE_MARKER, SCHEMA, verdictLines } from "./check-ci-verdict.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./check-ci-verdict.mjs", import.meta.url));
 
@@ -83,6 +83,40 @@ describe("checkVerdict", () => {
   it("refuses something other than an object", () => {
     assert.deepEqual(checkVerdict([]), ["the verdict is not a JSON object"]);
   });
+
+  it("takes an optional Issue Type name and refuses an empty one", () => {
+    assert.deepEqual(checkVerdict({ ...verdict(), type: "Bug" }), []);
+    assert.deepEqual(checkVerdict({ ...verdict(), type: "" }), ["type is not one Issue Type name"]);
+  });
+
+  it("holds the dimensions and the type to a runner's enums", () => {
+    const narrowed = structuredClone(SCHEMA);
+    narrowed.properties.size = { type: "string", enum: ["small", "medium"] };
+    narrowed.properties.type = { type: "string", enum: ["Bug", "Task"] };
+    assert.deepEqual(checkVerdict({ ...verdict(), type: "Task" }, narrowed), []);
+    assert.deepEqual(checkVerdict({ ...verdict({ size: "large" }), type: "Epic" }, narrowed), [
+      "size is not one option key",
+      "type is not one Issue Type name",
+    ]);
+  });
+
+  it("reports a type the schema leaves out as an unknown field", () => {
+    const untyped = structuredClone(SCHEMA);
+    delete untyped.properties.type;
+    assert.deepEqual(checkVerdict({ ...verdict(), type: "Task" }, untyped), ["unknown fields: type"]);
+  });
+
+  it("caps the comment at the schema's length", () => {
+    const long = verdict();
+    const comment = `${long.comment}\n${"x".repeat(SCHEMA.properties.comment.maxLength)}`;
+    assert.deepEqual(checkVerdict({ ...long, comment }), [`comment is over ${SCHEMA.properties.comment.maxLength} characters`]);
+  });
+
+  it("reads its closed sets from the shipped schema", () => {
+    assert.deepEqual(FLAGS, SCHEMA.properties.flags.items.enum);
+    assert.deepEqual(SCHEMA.required, ["labels", "comment", "needs_human", "size", "complexity", "uncertainty", "flags", "blocked_by"]);
+    assert.equal(SCHEMA.additionalProperties, false);
+  });
 });
 
 describe("check-ci-verdict.mjs", () => {
@@ -109,6 +143,12 @@ describe("check-ci-verdict.mjs", () => {
       assert.equal(failed.code, 1);
       assert.equal(JSON.parse(failed.out).ok, false);
       assert.equal(run([]).code, 2);
+      assert.equal(run(["--verdict", good, "--verdict", good]).code, 2);
+      const narrowed = join(dir, "schema.json");
+      writeFileSync(narrowed, JSON.stringify({ ...SCHEMA, properties: { ...SCHEMA.properties, size: { enum: ["large"] } } }));
+      const refused = run(["--verdict", good, "--schema", narrowed]);
+      assert.equal(refused.code, 1);
+      assert.deepEqual(JSON.parse(refused.out).problems, ["size is not one option key"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
