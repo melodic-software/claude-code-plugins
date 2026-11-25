@@ -30,7 +30,6 @@ bad() {
   echo "FAIL: $1"
   fail=$((fail + 1))
 }
-# verdict <status> <ok message> <failure message>: the status of the check just before it.
 verdict() { if [[ $1 == 0 ]]; then ok "$2"; else bad "$3"; fi; }
 py=$(command -v python3 || command -v python)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/shared-live.XXXXXX")

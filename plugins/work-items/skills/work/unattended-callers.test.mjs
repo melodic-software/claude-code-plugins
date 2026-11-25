@@ -30,7 +30,6 @@ const takesUnattended = (skill) => {
   return /^argument-hint:.*--unattended/m.test(frontmatter);
 };
 
-// Every inline-code span that calls a skill with arguments.
 const calls = (text) =>
   [...text.matchAll(/`\/([a-z0-9-]+:[a-z0-9-]+)\s+([^`]*)`/g)].map(([span, skill, args]) => ({
     span: span.replace(/\s+/g, " "),
@@ -38,8 +37,6 @@ const calls = (text) =>
     args: args.trim().split(/\s+/),
   }));
 
-// The text from the line starting with `start` up to the next line starting
-// with `end` (or the end of the file).
 const between = (path, start, end) => {
   const lines = read(path).split("\n");
   const from = lines.findIndex((line) => line.startsWith(start));
@@ -48,9 +45,6 @@ const between = (path, start, end) => {
   return lines.slice(from, rest === -1 ? undefined : from + 1 + rest).join("\n");
 };
 
-// Every call of a skill that takes --unattended passes it, and each skill in
-// `expected` is called at least once, so dropping the flag from a call (which
-// turns it into a bare name) fails here too.
 const assertUnattended = (where, text, expected, { exempt = [] } = {}) => {
   const called = new Set();
   for (const { span, skill, args } of calls(text)) {
@@ -64,9 +58,6 @@ const assertUnattended = (where, text, expected, { exempt = [] } = {}) => {
 };
 
 test("work --ci: the CI-mode prompt passes --unattended to each skill it calls that takes it", () => {
-  // The section names /source-control:pull-request's prep and review-venue as
-  // procedures to follow and a file the runner writes: the lane loads only
-  // this plugin, so neither is a call.
   assertUnattended(
     CI_MODE,
     between(CI_MODE, "# CI mode", "## "),

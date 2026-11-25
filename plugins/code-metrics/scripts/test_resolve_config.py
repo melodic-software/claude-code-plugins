@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/code-metrics/scripts/pathglob.py plugins/code-metrics/scripts/yaml_subset.py
-"""Output-based tests for resolve-config.py at its command line."""
 
 from __future__ import annotations
 
@@ -155,11 +154,6 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_quoted_reference_is_dropped_by_name_and_never_falls_to_a_lower_layer(
         self,
     ) -> None:
-        # `reference: "20"` is a string scalar the assembler cannot compare.
-        # The run goes on: the team value is named and dropped, and the key
-        # takes the bundled default 20 (reference/config.md), not the user
-        # layer's 10, because a lower layer's value never stands in for an
-        # invalid higher one.
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
@@ -192,9 +186,6 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_scalar_exclude_is_dropped_not_read_as_a_glob_per_character(
         self,
     ) -> None:
-        # `scope.exclude` is a closed list. Iterating a scalar would emit `v`,
-        # `e`, `n`, ... as globs; instead the team value is dropped and the
-        # bundled four (reference/config.md) apply, not the user layer's list.
         with tempfile.TemporaryDirectory() as tmp:
             user = Path(tmp) / "user.yaml"
             user.write_text('scope:\n  exclude: ["docs/**"]\n', encoding="utf-8")
@@ -288,8 +279,6 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertIn("scope.exclude", result.stderr)
 
     def test_a_layer_outside_the_subset_is_named_and_ignored(self) -> None:
-        # A file the parser rejects reads as absent, the shared reader's rule
-        # (lib/parse-concern-value.sh): the run continues on the other layers.
         result = run(USER, FLOW)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("flow mapping", result.stderr)
@@ -345,8 +334,6 @@ class PositionalLayerTests(unittest.TestCase):
 
 class SchemaTests(unittest.TestCase):
     def test_the_schema_declares_every_bundled_key_and_no_other(self) -> None:
-        # The schema validates a consumer's team file in CI; a key the
-        # resolver reads but the schema lacks would fail a valid file there.
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
         defs = schema["$defs"]
 
@@ -412,11 +399,6 @@ class DiscoveredLayerTests(unittest.TestCase):
             (root / ".claude" / "code-metrics.local.yaml").write_text(
                 "size:\n  file_lines: 650\n", encoding="utf-8"
             )
-            # An ecosystem file's stem IS the lane name, and every lane name
-            # this repository knows is also the basename of a committed
-            # convention example. A literal `<lane>.yaml` here would make
-            # scripts/affected-tests.sh map that unrelated example to this
-            # suite, so the fixture names are composed from the lane instead.
             ecosystems = root / ".claude" / "ecosystems"
             shell, golang = "bash", "go"
             (ecosystems / (shell + ".yaml")).write_text(

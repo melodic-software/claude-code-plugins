@@ -2,11 +2,6 @@
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/*
 # test-scope: plugins/work-items/tools/work-item-tracker/seeds/gitea/adapter-spec.json plugins/work-items/tools/work-item-tracker/seeds/gitea/capabilities.json plugins/work-items/tools/work-item-tracker/seeds/jira/capabilities.json plugins/work-items/tools/work-item-tracker/seeds/linear/adapter-spec.json plugins/work-items/tools/work-item-tracker/seeds/linear/capabilities.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
-# Contract tests for generate-adapter.sh — the deterministic half of
-# /work-items:onboard-adapter.
-#
-# Spec-validation cases are the bulk: a refusal that silently stopped working would
-# be invisible in the generated output, which would look fine and be wrong.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,8 +17,6 @@ trap 'rm -rf "$FIX"' EXIT
 OUT="$FIX/out"
 mkdir -p "$OUT"
 
-# A minimal spec every case starts from. Self-hosted shape (no vendor host suffix),
-# consume-plus-create verb set, coherent by construction.
 BASE_SPEC='{
   "spec_version": "1.0",
   "provider": "acmetracker",
@@ -66,10 +59,8 @@ gen() {
   printf '%s' "$?"
 }
 
-# last_root — the out-root the most recent gen call generated into.
 last_root() { cat "$FIX/last_root"; }
 
-# gen_err <spec-json> — the same, echoing stderr for message assertions.
 gen_err() {
   printf '%s' "$1" >"$FIX/spec.json"
   local root
@@ -78,10 +69,8 @@ gen_err() {
   { bash "$S" --spec "$FIX/spec.json" --out-root "$root" >/dev/null; } 2>&1
 }
 
-# with <jq-filter> — BASE_SPEC transformed.
 with() { jq -c "$1" <<<"$BASE_SPEC"; }
 
-# assert_file <label> <path> scores one case per file the generator must have written.
 assert_file() {
   if [[ -f "$2" ]]; then
     pass "$1"
@@ -89,8 +78,6 @@ assert_file() {
     fail "$1" "present" "missing"
   fi
 }
-
-# --- argument handling ---
 
 bash "$S" --help >/dev/null 2>&1
 assert_eq "--help → exit 0" "0" "$?"
@@ -105,8 +92,6 @@ assert_eq "missing spec file → usage exit 2" "2" "$?"
 bash "$S" --spec "$S" --nope >/dev/null 2>&1
 assert_eq "unknown argument → usage exit 2" "2" "$?"
 
-# An EMPTY --out-root must be refused, not treated as "not given", or a caller whose
-# variable failed to expand generates into the current repository.
 bash "$S" --spec "$S" --out-root "" >/dev/null 2>&1
 assert_eq "empty --out-root → usage exit 2" "2" "$?"
 bash "$S" --spec "" --out-root "$OUT" >/dev/null 2>&1
@@ -115,8 +100,6 @@ assert_eq "empty --spec → usage exit 2" "2" "$?"
 printf 'not json' >"$FIX/bad.json"
 bash "$S" --spec "$FIX/bad.json" --out-root "$OUT" >/dev/null 2>&1
 assert_eq "spec that is not JSON → exit 3" "3" "$?"
-
-# --- the happy path ---
 
 assert_eq "a coherent spec generates" "0" "$(gen "$BASE_SPEC")"
 HAPPY_ROOT="$(last_root)"
@@ -131,9 +114,6 @@ done
 # it the generated adapter cannot be conformance-verified at all.
 assert_file "generated the conformance binding" "$B/acmetracker.sh"
 
-# Declared-false verbs get NO script: the core capability gate answers them with
-# exit 6 before any script would run, and shipping an inert file invites someone to
-# fill it in without flipping the manifest.
 for f in claim.sh renew-lease.sh release.sh reclaim.sh link-blocks.sh add-sub-item.sh list-sub-items.sh; do
   if [[ -e "$A/$f" ]]; then
     fail "declared-false verb $f not generated" "absent" "present"
@@ -142,8 +122,6 @@ for f in claim.sh renew-lease.sh release.sh reclaim.sh link-blocks.sh add-sub-it
   fi
 done
 
-# NO generated file may still contain a placeholder: render() walks its keys once, so an
-# @@…@@ token inside a value leaks verbatim. Checked per value, across both host postures.
 assert_unrendered() {
   local label="$1" dir="$2" binding="$3" leaked=""
   local f
@@ -165,25 +143,19 @@ SELF_ROOT="$(last_root)"
 assert_unrendered "no placeholder survives rendering (self-hosted)" \
   "$SELF_ROOT/tools/work-item-tracker/adapters/acmetracker" \
   "$SELF_ROOT/tools/work-item-tracker/conformance/bindings/acmetracker.sh"
-# The self-hosted README must say the pin is absent, in the provider's own name.
 assert_contains "self-hosted README names the provider in the pin posture" \
   "$(cat "$SELF_ROOT/tools/work-item-tracker/adapters/acmetracker/README.md")" \
   "Acme Tracker is self-hosted"
 
-# The manifest carries exactly the spec's declarations, plus the seam's version.
 assert_eq "manifest provider" "acmetracker" "$(jq -r '.provider' "$A/capabilities.json")"
 assert_eq "manifest keeps a declared-true verb" "true" "$(jq -r '.verbs["get-item"]' "$A/capabilities.json")"
 assert_eq "manifest keeps a declared-false verb" "false" "$(jq -r '.verbs.claim' "$A/capabilities.json")"
 assert_eq "manifest carries limits" "1000" "$(jq -r '.limits.list_items_max' "$A/capabilities.json")"
 assert_eq "manifest carries the branch grammar" "^[a-z]+/([0-9]+)-" "$(jq -r '.change_link.branch_pattern' "$A/capabilities.json")"
 
-# The global/env spelling of the provider name is UPPER-cased. A skipped fold stays
-# self-consistent across generated files, so nothing else here would notice it.
 assert_contains "generated globals carry the upper-cased provider" \
   "$(cat "$A/common.sh")" "WIT_ACMETRACKER_"
 
-# The version is the SEAM's, read from lib/json.sh, never the spec's; proven against a
-# stand-in seam declaring 9.9.
 SEAM_VERSION="$(bash -c 'source "$1/lib/json.sh"; printf "%s" "$WIT_SCHEMA_VERSION"' _ "$SEAM")"
 assert_eq "manifest stamps the seam's contract version" "$SEAM_VERSION" \
   "$(jq -r '.schema_version' "$A/capabilities.json")"
@@ -198,8 +170,6 @@ printf '%s' "$BASE_SPEC" >"$FIX/spec.json"
 WIT_SEAM_DIR="$FAKE_SEAM" bash "$S" --spec "$FIX/spec.json" --out-root "$FAKE_ROOT" >/dev/null 2>&1
 assert_eq "manifest follows the seam it was generated against" "9.9" \
   "$(jq -r '.schema_version' "$FAKE_ROOT/tools/work-item-tracker/adapters/acmetracker/capabilities.json")"
-
-# --- no-clobber, --force, --dry-run ---
 
 printf 'EDITED BY THE CONSUMER\n' >"$A/common.sh"
 printf '%s' "$BASE_SPEC" >"$FIX/spec.json"
@@ -225,8 +195,6 @@ else
   pass "--dry-run writes nothing"
 fi
 
-# --- spec validation: identity and shape ---
-
 assert_eq "wrong spec_version → exit 3" "3" "$(gen "$(with '.spec_version = "2.0"')")"
 assert_eq "missing display_name → exit 3" "3" "$(gen "$(with 'del(.display_name)')")"
 
@@ -245,7 +213,6 @@ assert_eq "display_name with a newline → exit 3" "3" \
 # payload under test and must arrive at the generator as literal text.
 assert_eq "display_name with a backtick → exit 3" "3" \
   "$(gen "$(with '.display_name = "Acme `id`"')")"
-# Real names still pass — the guard must not be so tight it rejects the shipped ones.
 assert_eq "a slashed display_name still generates" "0" \
   "$(gen "$(with '.display_name = "Gitea/Forgejo"')")"
 
@@ -282,8 +249,6 @@ else
   pass "a refused spec writes no adapter tree"
 fi
 
-# The generated fixtures must satisfy the generated guards, or the adapter would fail
-# its own tests the moment it was created.
 assert_eq "sample_scope violating its own pattern → exit 3" "3" \
   "$(gen "$(with '.api.sample_scope = "no-slash-here"')")"
 
@@ -305,8 +270,6 @@ assert_eq "sample_scope with a backtick → exit 3" "3" \
   "$(gen "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/`id`" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
 assert_eq "sample_scope with a single quote → exit 3" "3" \
   "$(gen "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/web'\''x" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
-# …and the guard must not be tighter than the shapes the bundled providers actually
-# use: gitea/github `owner/repo`, linear `<workspace>/<TEAMKEY>`, jira bare project key.
 assert_eq "an owner/repo sample_scope still generates" "0" \
   "$(gen "$(with '.api.sample_scope = "acme/webapp"')")"
 assert_eq "a linear-shaped sample_scope still generates" "0" \
@@ -325,18 +288,13 @@ assert_eq "sample_host outside host_suffix → exit 3" "3" \
 assert_eq "auth_env_example that is not an env name → exit 3" "3" \
   "$(gen "$(with '.api.auth_env_example = "not-a-name"')")"
 
-# sample_id must satisfy the seam's OWN id grammar (two path segments), which a
-# host+scope composition does not always yield.
 assert_eq "malformed sample_id → exit 3" "3" "$(gen "$(with '.api.sample_id = "acmetracker:acme#1"')")"
 assert_eq "sample_id naming another provider → exit 3" "3" \
   "$(gen "$(with '.api.sample_id = "github:acme/webapp#1"')")"
 assert_eq "explicit well-formed sample_id accepted" "0" \
   "$(gen "$(with '.api.sample_id = "acmetracker:acme/webapp#7"')")"
 
-# The placeholder delimiter in a spec value would substitute into rendered output.
 assert_eq "spec containing @@ → exit 3" "3" "$(gen "$(with '.display_name = "Acme @@PROVIDER@@"')")"
-
-# --- spec validation: the verb/feature/limit surface ---
 
 assert_eq "missing verb key → exit 3" "3" "$(gen "$(with 'del(.verbs["get-item"])')")"
 assert_eq "non-boolean verb → exit 3" "3" "$(gen "$(with '.verbs["get-item"] = "yes"')")"
@@ -351,8 +309,6 @@ assert_eq "negative limit → exit 3" "3" "$(gen "$(with '.limits.list_items_max
 assert_eq "fractional limit → exit 3" "3" "$(gen "$(with '.limits.list_items_max = 1.5')")"
 assert_eq "non-numeric limit → exit 3" "3" "$(gen "$(with '.limits.list_items_max = "lots"')")"
 
-# `null` is a THIRD limit value, distinct from 0: supported with no provider ceiling,
-# so a ceiling-free provider need not invent a number.
 assert_eq "null limit on a supported capability is accepted" "0" \
   "$(gen "$(with '.verbs["link-blocks"] = true | .limits.dependencies_per_type = null')")"
 assert_eq "null limit survives into the manifest" "null" \
@@ -363,8 +319,6 @@ assert_eq "a ceiling on an unsupported capability is refused" "3" \
   "$(gen "$(with '.verbs["link-blocks"] = false | .limits.dependencies_per_type = null')")"
 assert_eq "deferrals not an array of strings → exit 3" "3" "$(gen "$(with '.deferrals = [1,2]')")"
 
-# --- coherence: the manifest is a promise the core routes on ---
-
 assert_eq "claim=true with leases=false → exit 3" "3" "$(gen "$(with '.verbs.claim = true')")"
 assert_eq "leases=true without the three lease verbs → exit 3" "3" \
   "$(gen "$(with '.features.leases = true')")"
@@ -373,8 +327,6 @@ assert_eq "the full lease set is coherent" "0" \
 lease_err="$(gen_err "$(with '.verbs.claim = true')")"
 assert_contains "lease incoherence explains itself" "$lease_err" "features.leases"
 
-# `release` is optional relative to leases (CONTRACT.md "Release"): declaring it needs
-# leases, and leases do not need it. The full lease set above omits it and is coherent.
 LEASES_NO_RELEASE='.features.leases = true | .verbs.claim = true | .verbs["renew-lease"] = true | .verbs.reclaim = true'
 assert_eq "release=true with leases=false → exit 3" "3" "$(gen "$(with '.verbs.release = true')")"
 release_err="$(gen_err "$(with '.verbs.release = true')")"
@@ -410,9 +362,6 @@ assert_eq "consume-only (no list-items, zero ceiling) is coherent" "0" \
 assert_eq "link-blocks=true with zero dependency ceiling → exit 3" "3" \
   "$(gen "$(with '.verbs["link-blocks"] = true')")"
 
-# --- the generated security skeleton actually passes its own tests ---
-# The guards are generated, so their proof is generated with them and runs here.
-
 # gen_adapter <label> <spec>: generate <spec> and set GEN_ADAPTER to the generated
 # adapter directory, or record a generation FAIL and clear GEN_ADAPTER. Written into a
 # variable rather than echoed so `fail` stays in the caller's shell, where FAILED lives.
@@ -435,9 +384,6 @@ run_generated_suite() {
   assert_eq "$1" "0" "$?"
 }
 
-# The generated capabilities suite proves the manifest agrees with the FILESYSTEM — a
-# verb declared true with no script behind it, or a script left behind for a verb since
-# set to false, shows up in no other test.
 run_capabilities_suite() {
   gen_adapter "$1" "$2"
   [[ -n "$GEN_ADAPTER" ]] || return
@@ -446,8 +392,6 @@ run_capabilities_suite() {
 }
 run_capabilities_suite "generated capabilities suite passes" "$BASE_SPEC"
 
-# And it CATCHES the disagreement it exists for: flipping a verb to false in the
-# manifest while its script is still on disk must fail the suite.
 rc="$(gen "$BASE_SPEC")"
 DRIFT_A="$(last_root)/tools/work-item-tracker/adapters/acmetracker"
 jq -c '.verbs["get-item"] = false' "$DRIFT_A/capabilities.json" >"$DRIFT_A/capabilities.json.tmp"
@@ -461,17 +405,11 @@ run_generated_suite "generated guards pass (token, self-hosted)" \
 run_generated_suite "generated guards pass (basic auth)" \
   "$(with '.api.auth_scheme = "basic"')"
 
-# Basic auth adds a required identity key; its absence must be a config error, not a
-# request sent with a half-built credential.
 rc="$(gen "$(with '.api.auth_scheme = "basic"')")"
 assert_eq "basic-auth spec generates" "0" "$rc"
 BASIC_A="$(last_root)/tools/work-item-tracker/adapters/acmetracker"
 assert_contains "basic auth requires an identity key" "$(cat "$BASIC_A/common.sh")" "auth_user"
 assert_contains "basic auth documents the identity key" "$(cat "$BASIC_A/README.md")" "auth_user"
-
-# --- generated shell is lint-clean and correctly formatted ---
-# Generated code lands in a consumer's repo and goes through their CI; emitting code
-# that trips the linters would make the generator a source of busywork.
 
 rc="$(gen "$(with '.features.leases = true | .verbs.claim = true | .verbs["renew-lease"] = true | .verbs.release = true | .verbs.reclaim = true | .features.sub_items = true | .verbs["list-sub-items"] = true | .verbs["add-sub-item"] = true | .limits.sub_items_per_parent = 100 | .limits.sub_item_depth = 8 | .verbs["link-blocks"] = true | .limits.dependencies_per_type = 50')")"
 assert_eq "full-surface spec generates" "0" "$rc"
@@ -479,7 +417,6 @@ FULL_ROOT="$(last_root)"
 FULL_A="$FULL_ROOT/tools/work-item-tracker/adapters/acmetracker"
 FULL_B="$FULL_ROOT/tools/work-item-tracker/conformance/bindings/acmetracker.sh"
 
-# Every verb of the adapter surface is emitted when all are declared.
 for v in create-item get-item claim renew-lease release reclaim link-blocks add-sub-item list-items list-sub-items; do
   assert_file "full surface emits $v.sh" "$FULL_A/$v.sh"
 done
@@ -537,11 +474,6 @@ bash "$FULL_A/get-item.sh" "acmetracker:acme/webapp#1" >/dev/null 2>&1
 assert_eq "no seam lib reachable → config exit 3" "3" "$?"
 seam_err="$(bash "$FULL_A/get-item.sh" "acmetracker:acme/webapp#1" 2>&1 >/dev/null)"
 assert_contains "missing seam lib names the remedy" "$seam_err" "WIT_SEAM_LIB_DIR"
-
-# --- the verb set cannot drift from the seam ---
-# ADAPTER_VERBS is a hand-kept copy of the dispatcher's public verb list. A verb the
-# dispatcher gains but the generator lacks yields adapters whose spec cannot declare it
-# and whose manifest the seam then reads as false.
 
 ADAPTER_VERB_LIST="$(sed -n '/^readonly ADAPTER_VERBS=(/,/^)/p' "$S" | sed '1d;$d' | tr -s ' ' '\n' | sed '/^$/d' | sort)"
 # The dispatcher's first `case "$verb" in` arm is the public verb set minus list-frontier

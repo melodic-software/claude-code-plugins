@@ -113,17 +113,12 @@ check_wrapper_refusal "merge wrapper rejects --allow-unpinned=1 (=value prefix s
   "owner/repo#1" --merge --allow-unpinned=1
 check_wrapper_refusal "merge wrapper rejects --allow-unpinned-hea=1 (=value prefix spelling)" \
   "owner/repo#1" --merge --allow-unpinned-hea=1
-# No over-refusal: sibling flags that share the --allow prefix, including with
-# an =value tail, still reach the fail-closed CLI rather than the wrapper.
-# --allowed-owners deliberately names an owner NOT in scope, so the owner-scope
-# refusal fires and the assertion holds without any network call.
 check_exit "merge wrapper does not over-refuse --allow-dependency" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners someone-else --allow-dependency
 check_exit "merge wrapper does not over-refuse --allow-unprotected" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners someone-else --allow-unprotected
 check_exit "merge wrapper does not over-refuse --allowed-owners=owner" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners=someone-else
-# The wrapper reaches the fail-closed CLI when no allowlist is supplied.
 check_exit "merge wrapper reaches fail-closed CLI (no allowlist)" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1"
 check_exit "resolve wrapper reaches fail-closed CLI (no allowlist)" 3 \

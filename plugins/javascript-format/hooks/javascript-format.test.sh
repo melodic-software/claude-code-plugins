@@ -34,7 +34,7 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
@@ -118,8 +118,6 @@ fi
 expect "prerequisites.json: session_probe is gated on javascript_format_enabled" "JAVASCRIPT_FORMAT_ENABLED" \
   "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
 
-# Resolve a real Biome binary. node_modules/.bin/biome shims in each fixture
-# forward to this. Skip the rest of the suite when none is available.
 if [[ -n "${BIOME_TEST_BIN:-}" && -x "${BIOME_TEST_BIN}" ]]; then
   REAL_BIOME="${BIOME_TEST_BIN}"
 elif command -v biome >/dev/null 2>&1; then
@@ -135,11 +133,8 @@ WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$WORK" "$UNRELATED"' EXIT
 
-# The row's args from hooks.json, with the plugin root substituted.
 mapfile -t ROW_ARGS < <(jq -r '.hooks.PostToolBatch[0].hooks[0].args[]' "$HOOKS_JSON" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN_ROOT#g")
 
-# new_biome_repo <dir> [config_body] -> init a git repo with a node_modules biome
-# shim and (unless config_body is the literal NO_CONFIG) a biome.json.
 new_biome_repo() {
   local r="$1" cfg="${2:-}"
   mkdir -p "$r/node_modules/.bin"
@@ -178,7 +173,6 @@ fire() {
   )
 }
 
-# run_edit <file>: Edit one file in a batch; prints the row's whole output.
 run_edit() { fire "$(payload Edit "$1")"; }
 
 # --- Opt-in gate OFF (no biome.json) -> file left untouched -------------------
@@ -213,7 +207,6 @@ printf 'export const x = 1;\n' >"$REPO/clean.ts"
 OUT=$(run_edit "$REPO/clean.ts")
 expect "a clean file: silent exit 0 and unchanged" "0||export const x = 1;" "$?|$OUT|$(cat "$REPO/clean.ts")"
 
-# Findings never reach the model: an unused variable is neither fixed nor reported.
 printf 'const unusedVar=1\n' >"$REPO/lib/lint.ts"
 OUT=$(run_edit "$REPO/lib/lint.ts")
 expect "a lint finding is not reported (no additionalContext, no systemMessage)" "0|" "$?|$OUT"
@@ -279,7 +272,6 @@ expect "batch: an Edit'd .mjs is rewritten" "export const b = 1;" "$(cat "$REPO/
 expect "batch: a Read'd .ts is never rewritten" "export const c=1" "$(cat "$REPO/b3.ts")"
 expect "batch: a non-Biome file is untouched" "q=1" "$(cat "$REPO/notes.txt")"
 
-# A file that does not parse does not stop its neighbors from being rewritten.
 printf 'const = ;\n' >"$REPO/bad.ts"
 printf 'export const z=1\n' >"$REPO/good.ts"
 fire "$(payload Edit "$REPO/bad.ts" "$REPO/good.ts")" >/dev/null
@@ -289,7 +281,6 @@ printf 'export const m=1\n' >"$REPO/multi.cts"
 fire "$(payload MultiEdit "$REPO/multi.cts")" >/dev/null
 expect "a MultiEdit'd file is rewritten" "export const m = 1;" "$(cat "$REPO/multi.cts")"
 
-# Every extension in the set is rewritten.
 for ext in tsx js jsx cjs mts jsonc; do
   case "$ext" in
   jsonc) printf '{"e":1}\n' >"$REPO/ext.$ext" ;;
@@ -320,12 +311,10 @@ printf 'export const z=1\n' >"$REPO_IGN/generated/gen.ts"
 OUT=$(run_edit "$REPO_IGN/generated/gen.ts")
 expect "an ignored file is left untouched and silent" "0|export const z=1" "$?|$OUT$(cat "$REPO_IGN/generated/gen.ts")"
 
-# The kill switch.
 printf 'export const k=1\n' >"$REPO/kill.ts"
 OUT=$(fire "$(payload Edit "$REPO/kill.ts")" CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_ENABLED=false)
 expect "kill switch off: silent and the file untouched" "0|export const k=1" "$?|$OUT$(cat "$REPO/kill.ts")"
 
-# No node_modules shim -> PATH resolves Biome.
 REPO_PATH="$WORK/path-fallback"
 mkdir -p "$REPO_PATH"
 git -C "$REPO_PATH" init -q
@@ -349,7 +338,6 @@ done
 OUT=$(fire "$(payload Edit "$REPO_NB/app.ts")" PATH="$FAKEBIN")
 expect "biome absent: silent exit 0 and the file untouched" "0|export const a=1" "$?|$OUT$(cat "$REPO_NB/app.ts")"
 
-# Gitignored path: neither rewritten by default, unless javascript_format_lint_gitignored is set.
 REPO_GI="$WORK/gitignored"
 new_biome_repo "$REPO_GI"
 git -C "$REPO_GI" config core.excludesFile /dev/null
@@ -361,7 +349,6 @@ expect "gitignored: file not rewritten" "export const x=1" "$(cat "$REPO_GI/.wor
 fire "$(payload Edit "$REPO_GI/.work/scratch.ts")" CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_LINT_GITIGNORED=true >/dev/null
 expect "gitignored + javascript_format_lint_gitignored=true: file formatted" "export const x = 1;" "$(cat "$REPO_GI/.work/scratch.ts")"
 
-# Symlinked repo root: the file reached through a symlinked directory is still rewritten.
 if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   REPO_SL="$WORK/symlink-real"
   new_biome_repo "$REPO_SL"
