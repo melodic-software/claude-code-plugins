@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# memory-dir-stats.sh — single-integer auto-memory statistics for the audit skill's
-# `## Pre-computed context` block.
-# Every stat mode prints exactly one integer and exits 0, failures included: the
-# output is injected verbatim into the skill body. Only a bad mode exits non-zero.
-# Keep this a script, not an inline pre-compute line: the worktree-isolation Bash
-# guard refuses a pre-compute command carrying a `$` expansion, so inlining it breaks
-# skill loading from an isolated agent.
 
 set -uo pipefail
 
@@ -45,7 +38,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 memory_dir=$(bash "$SCRIPT_DIR/resolve-memory-dir.sh" 2>/dev/null)
 
-# An empty resolution would make the glob below expand against the filesystem root.
 if [[ -z "$memory_dir" ]]; then
   echo "0"
   exit 0
@@ -65,15 +57,6 @@ if [[ ! -f "$index" ]]; then
   exit 0
 fi
 
-# Emits only the MEMORY.md content that loads (criteria.md M1 records the reading):
-# YAML frontmatter and block-level HTML comments are stripped, fenced comments kept.
-# A `---` or `<!--` that never closes is content, flushed at EOF: counting 0 would
-# disarm M1's size gate. Frontmatter mode ends at the first line that is not blank or
-# `key:` (a `#` line is a markdown heading), after `fmcap` lines, or after `fmbytecap`
-# bytes, re-emitting what it held; every bound fails toward over-counting.
-# A comment ends at the FIRST `-->` after its opener and the line is re-scanned, so
-# text beside a comment survives; awk's ERE has no lazy match, hence index/substr.
-# tr strips Git Bash CRLF; the caller's $((n)) strips BSD wc padding.
 strip_unloaded() {
   tr -d '\r' <"$index" | LC_ALL=C awk '
     BEGIN { fmcap = 20; fmbytecap = 1024 }

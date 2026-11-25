@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -86,7 +84,6 @@ fi
 
 BROKEN_SEG="$TEST_TMPDIR/broken-seg.sh"
 # shellcheck disable=SC2016  # single quotes are required: `$id` here is the
-# literal source text being matched inside run-state.sh, not a variable to expand.
 sed 's|^  if \[\[ ! "\$id" =~ .*$|  if false; then|' "$SCRIPT" >"$BROKEN_SEG"
 if grep -q 'if false; then' "$BROKEN_SEG"; then
   rc=0
@@ -172,7 +169,6 @@ assert_eq "a heartbeat within the skew grace still classifies live" \
 
 BROKEN_SKEW="$TEST_TMPDIR/broken-skew.sh"
 # shellcheck disable=SC2016  # single quotes are required: the $((...)) here is the
-# literal source text being matched in run-state.sh, not an expression to evaluate.
 sed '/-lt \$((-skew_grace))/s/.*/  if false; then/' "$SCRIPT" >"$BROKEN_SKEW"
 if grep -q 'if false; then' "$BROKEN_SKEW"; then
   {

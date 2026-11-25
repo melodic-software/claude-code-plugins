@@ -1,97 +1,4 @@
 #!/usr/bin/env bash
-# Apply plugin drift fixes to .claude/settings.json based on
-# check-plugin-drift.sh findings.
-#
-# Fix policy (audit Category E):
-#
-#   ORPHAN, enabled=false  ->  REMOVE from enabledPlugins, unless a
-#                              lower-precedence scope file holds `true` for
-#                              the key (see below). The entry references a
-#                              plugin its marketplace no longer lists.
-#
-#   ORPHAN, enabled=true   ->  REPORT ONLY (manual review required)
-#                              (user explicitly enabled a plugin that is now
-#                              gone upstream; auto-removing silently breaks
-#                              their intent. Surface and let them decide)
-#
-#   ORPHAN, any other value ->  REPORT ONLY (manual review required). Only an
-#                              exact `false` is ever removed.
-#
-#   NEW upstream            ->  REPORT ONLY. Nothing is added: an absent entry
-#                              and an explicit `false` are separate states, and
-#                              the choice between them belongs to a person.
-#
-#   RENAME                  ->  REPORT ONLY. A catalog renames-map pair and a
-#                              heuristic pair are both left for a person. This
-#                              script writes nothing for either. A removed row
-#                              is never turned into a rename to null.
-#
-#   REMOVED                 ->  REPORT ONLY. A null entry in the catalog
-#                              renames map. Not an orphan, so it is not removed.
-#
-# Modes:
-#   --dry-run  (default)   print plan, no writes
-#   --yes      / -y        apply the removals
-#   --input <path>         consume existing JSON from check-plugin-drift.sh
-#                          (otherwise re-runs the check internally)
-#   --help                 print usage
-#
-# Env overrides:
-#   CLAUDE_SETTINGS_FILE    path to project settings.json
-#   SETTINGS_AUDIT_FIXTURE_DIR forwarded to check-plugin-drift.sh
-#   CLAUDE_CONFIG_DIR, HOME locate the user settings file for the guard below
-#
-# Apply behavior:
-#   A check that fails is fatal. The run never reports an audit it did not
-#   complete. Findings with no audited marketplace, because none is declared or
-#   every one was skipped, say so instead of reporting no drift, and every
-#   skipped marketplace is listed with its reason.
-#   Findings that are not exactly one array of marketplace blocks, or a list jq
-#   cannot read from them, are fatal. Keys travel as JSON arrays from the
-#   findings through the filter to the edit, so a key holding a carriage return
-#   or any other character is removed exactly. Displayed entries print control
-#   characters as `?`.
-#   Removals are filtered against one snapshot of the settings file before the
-#   plan is rendered: a removal whose key is absent is dropped, and one whose
-#   key no longer holds exactly false moves to manual review. When a removal is pending, a
-#   settings file that is not valid JSON or whose enabledPlugins is not an
-#   object is fatal, on a dry run too.
-#   Lower-precedence guard, on a dry run too: removing a `false` lets a lower
-#   scope's value take effect. The lower-precedence files are the user settings
-#   file (CLAUDE_CONFIG_DIR, else HOME/.claude) and, when the audited file is
-#   settings.local.json, its sibling settings.json. A `true` for the key in
-#   any of them moves the removal to manual review. One that exists but cannot
-#   be read, is not valid JSON, or whose enabledPlugins is not an object sends
-#   every removal to manual review, as does an unresolvable user directory.
-#   Other developers' user scopes and managed settings are not checked, and a
-#   plan with a pending removal says so.
-#   The edit, the line-ending measurement and the backup all come from that
-#   snapshot. An apply is refused when the settings file no longer matches it
-#   just before the replace, because another writer changed it after the plan
-#   was computed; the backup this run just wrote is removed when it is still a
-#   regular file. The window between that compare and the replace is not
-#   closed.
-#   The settings file is copied to a new file named
-#   <settings>.bak.<UTC stamp>.<random>. The name comes from mktemp -u, is
-#   refused when anything already exists there, and is written on one exclusive
-#   open (bash noclobber, O_CREAT|O_EXCL) under umask 077, so 0600 wherever the
-#   platform honors mode bits (MSYS does not). Nothing is written until the
-#   open descriptor is a regular file that is the one at the name, so no link
-#   planted there, before or after the check, is written through. Nothing is
-#   replaced unless that copy is a regular non-symlink file equal to the
-#   snapshot.
-#   The file's own line-ending style survives the jq round trip.
-#   An apply is refused when the project-root ladder resolved the path to the
-#   user settings file. Set CLAUDE_SETTINGS_FILE to write that file on purpose.
-#   An apply is refused when the settings path is a symlink, because the
-#   replacement is a rename and would replace the link itself.
-#   A read-only settings file is still applied, and comes back read-only on
-#   platforms that honor mode bits.
-#   A staged replacement identical to the snapshot is refused. The filter
-#   leaves only entries that change the file, so this refusal is defensive.
-#   "Applied" is printed only after the settings file is read back and found to
-#   hold the edit. Any failure before that is fatal, and an interrupting signal
-#   ends the run rather than letting it continue with its temporaries deleted.
 
 # The jq programs below are single-quoted on purpose: $name is a jq variable.
 # shellcheck disable=SC2016
@@ -122,8 +29,21 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    # Two expressions, not GNU's `\?`: BSD sed has no optional-quantifier escape.
-    sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed -e 's/^# //' -e 's/^#//'
+    cat <<'EOF'
+Apply plugin drift fixes to .claude/settings.json from check-plugin-drift.sh findings:
+remove ORPHAN entries set to exactly false; report everything else for a person.
+
+  --dry-run  (default)   print the plan, write nothing
+  --yes      / -y        apply the removals
+  --input <path>         read check-plugin-drift.sh JSON instead of re-running the check
+  --help                 print this usage
+
+Env: CLAUDE_SETTINGS_FILE (project settings.json), SETTINGS_AUDIT_FIXTURE_DIR
+(forwarded to check-plugin-drift.sh), CLAUDE_CONFIG_DIR and HOME (user settings).
+
+Exit: 0 plan printed or applied; non-zero on any failed check, refused apply or
+failed read-back.
+EOF
     exit 0
     ;;
   *)
@@ -147,7 +67,6 @@ if [[ -n "${CLAUDE_SETTINGS_FILE:-}" ]]; then
   SETTINGS="$CLAUDE_SETTINGS_FILE"
   SETTINGS_FROM_LADDER=0
 else
-  # Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
   PROJECT_ROOT=""
   scopes::project_root_to PROJECT_ROOT
   SETTINGS="$PROJECT_ROOT/.claude/settings.json"
@@ -165,8 +84,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-# Initialized here so ShellCheck SC2154 sees the assignment. Read by the
-# lower-precedence guard and by the user-settings guard.
 USER_DIR=""
 scopes::user_dir_to USER_DIR
 
@@ -201,13 +118,6 @@ TMP_EOL=""
 SNAPSHOT=""
 LOWER_JSON=""
 
-# One cleanup, installed once, for every temp this run can create. `rm -f ""` is
-# a silent no-op, so an unset path costs nothing.
-#
-# The signal traps EXIT the script; they do not merely delete. A trap that only
-# removed files let an interrupted run CONTINUE with its temps gone, and every
-# step after that worked on a stage still holding the original bytes, so the run
-# printed "Applied" and changed nothing.
 # shellcheck disable=SC2329  # invoked by the traps installed immediately below
 cleanup_temps() {
   rm -f "${TMP_JSON:-}" "${TMP_SETTINGS:-}" "${TMP_EOL:-}" "${SNAPSHOT:-}" "${LOWER_JSON:-}"
@@ -222,7 +132,6 @@ if [[ -z "$INPUT_JSON" ]]; then
   check_status=0
   SETTINGS_AUDIT_OUTPUT_JSON="$TMP_JSON" CLAUDE_SETTINGS_FILE="$SETTINGS" \
     bash "$SCRIPT_DIR/check-plugin-drift.sh" >/dev/null || check_status=$?
-  # 0 is "no orphan", 1 is "orphan found" (advisory). Anything else is fatal.
   if [[ "$check_status" -gt 1 ]]; then
     echo "ERROR: check-plugin-drift.sh failed with status $check_status, so no findings were produced" >&2
     exit 2
@@ -246,11 +155,6 @@ if [[ ! -f "$INPUT_JSON" ]]; then
   exit 2
 fi
 
-# Exactly one document, an array of marketplace blocks, each an object. `-s`
-# gathers every document, because `jq -e` alone judges only the last one and a
-# file holding an object followed by `[]` would pass; a zero-byte file slurps to
-# an empty list. The element test is phrased as `!=` so no jq call before the
-# post-edit validation carries that validation's text.
 if ! jq -s -e 'length == 1 and (.[0] | type == "array" and (any(.[]; type != "object") | not))' \
   "$INPUT_JSON" >/dev/null 2>&1; then
   echo "ERROR: findings JSON is not an array of marketplace blocks: $INPUT_JSON" >&2
@@ -269,8 +173,6 @@ findings_failed() {
   exit 2
 }
 
-# count <json-array> - its length. -j appends no terminator, so there is no
-# carriage return to strip on a native-Windows jq.
 count() {
   jq -j 'length' <<<"$1"
 }
@@ -395,8 +297,6 @@ if [[ "$remove_count" -gt 0 ]]; then
     echo "ERROR: cannot create a working file under ${TMPDIR:-/tmp}, settings unchanged" >&2
     exit 2
   fi
-  # One array of enabledPlugins maps, in the order the files were found. With
-  # no file, `-n` without inputs so jq never waits on stdin.
   lower_ok=1
   if [[ "${#LOWER_FILES[@]}" -gt 0 ]]; then
     jq -n '[inputs | .enabledPlugins // {}]' "${LOWER_FILES[@]}" >"$LOWER_JSON" || lower_ok=0
@@ -543,10 +443,6 @@ if [[ -z "$TMP_SETTINGS" ]]; then
   exit 2
 fi
 
-# The replacement is staged beside the settings file, not under $TMPDIR: /tmp is
-# commonly a separate mount, where the final `mv` degrades to a copy plus an
-# unlink and an interruption leaves the settings file truncated. A
-# same-directory temp makes the last step a rename, which is atomic.
 TMP_EOL=$(mktemp "$(dirname "$SETTINGS")/.settings-json-XXXXXX")
 if [[ -z "$TMP_EOL" ]]; then
   echo "ERROR: cannot stage a replacement beside $SETTINGS_SHOW, settings unchanged" >&2
@@ -560,17 +456,11 @@ if ! jq --slurpfile s "$SNAPSHOT" '
   exit 2
 fi
 
-# `jq empty` exits 0 on a zero-byte file, so it cannot tell valid JSON from
-# nothing written at all. A settings file is always an object, so the stronger
-# predicate costs nothing and catches a truncated write.
 if ! jq -e 'type == "object"' "$TMP_SETTINGS" >/dev/null 2>&1; then
   echo "ERROR: post-edit JSON invalid, settings unchanged" >&2
   exit 2
 fi
 
-# Copy the original onto the stage so the replacement inherits its mode and not
-# mktemp's 0600. The content that lands here is overwritten below; only the mode
-# survives, which is the point.
 if ! cp -p "$SETTINGS" "$TMP_EOL"; then
   echo "ERROR: cannot stage the replacement beside $SETTINGS_SHOW, settings unchanged" >&2
   exit 2
@@ -591,8 +481,6 @@ if [[ -z "$cr" || -z "$lf" ]]; then
 fi
 
 if [[ "$cr" -gt 0 && "$cr" -ge "$lf" ]]; then
-  # A read loop, not `sed 's/$/\r/'`: BSD sed reads \r as a literal r. The
-  # `|| [[ -n "$line" ]]` arm keeps a final line that carries no terminator.
   if ! {
     while IFS= read -r line || [[ -n "$line" ]]; do
       printf '%s\r\n' "${line%$'\r'}"
@@ -641,8 +529,6 @@ if [[ -e "$BACKUP" || -L "$BACKUP" ]]; then
   echo "ERROR: something already exists at the backup name, settings unchanged: $BACKUP_SHOW" >&2
   exit 2
 fi
-# Status 4 is the only one after this run created the file; any other failure
-# leaves what is at the name alone, because it is not this run's.
 write_rc=0
 (
   set -C

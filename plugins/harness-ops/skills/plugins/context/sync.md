@@ -266,7 +266,7 @@ Every `sync` run keeps its own directory on disk, so Step 6 reads what happened 
 reconstructing it from conversation. Nothing in the report then depends on the transcript surviving
 a compaction, and `converge` or a later audit gets a real before-state.
 
-`fleet-state.sh` does not write it. It stays the read-only inspector its own header advertises.
+`fleet-state.sh` does not write it. It stays a read-only inspector.
 The journal is agent-executed shell around the calls the algorithm already makes.
 
 **The journal is durable across `sync` runs and session restarts, but not across the removal of its
@@ -690,7 +690,14 @@ forward renders under `Updated in other paths:`. One left behind in a linked wor
 renders under `Not moved in other paths:` with its label; the worktree keeps its divergence class and
 the home stays in the `User-home project records` row. Any other record left behind, a failed call,
 and a stopped path go under `Action needed`. With the flag, audit runs no call and lists `Would update
-in other paths:`. The digest field is `other_paths`; its shape is in `sync-run.sh`'s header.
+in other paths:`. The digest field is `other_paths`:
+`{updated, failed, not_moved, would_update, skipped, catalog_moved}`. `updated[]` is
+`{id, scope, path, old, new}`, `would_update[]` (audit) is `{id, scope, path, old, catalog}`,
+`not_moved[]` is `{id, scope, path, version, catalog, label}`, and `failed[]` is
+`{id, scope, path, reason, stopped}`, `stopped` true for the call after which the path's
+`.claude/` settings changed. Without the flag, `skipped` is `{records, paths}` and no call is
+made. `catalog_moved` counts the plugins whose catalog version changed between the pre and post
+reads.
 `Catalog moved during this run:` names a catalog that changed between the pre and post reads, since a
 long run can leave records on different versions. Each CLI call's duration is in the journal.
 

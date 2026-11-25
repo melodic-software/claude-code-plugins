@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# imports.sh — the `@path` import graph of a memory file, as Claude Code reads it.
-# One parser so every caller agrees on what an import is. Paths resolve against the
-# importing file, the walk stops at four hops, and fences and code spans are skipped.
-# A backslash keeps a space inside the path, a bare space ends it, and a path wrapped
-# in quotes is no import. Those are this walker's firing values, set to match the docs.
-#   Pointer: https://code.claude.com/docs/en/memory#import-additional-files
-#   As of: 2026-11-04.
-#   Recheck trigger: that section changes path resolution, the recursion depth, what
-#     import parsing skips, or how spaces or quotes in a path are read; update the depth
-#     here and in il_reaches together.
 
 il_imports_of() {
   local file="$1" dir
@@ -42,8 +32,6 @@ il_imports_of() {
   done
 }
 
-# Symlinks followed by hand with a hop bound so a cycle cannot spin. A path that
-# does not exist is printed unchanged so a caller can still report it as missing.
 il_realpath() {
   local p="${1:-}" dir base target hops=0
   [[ -n "$p" ]] || return 0
@@ -73,8 +61,6 @@ il_realpath() {
   printf '%s/%s' "$dir" "$base"
 }
 
-# 0 when <from> is <want> (a symlinked CLAUDE.md counts) or reaches it within four
-# hops: a file at hop four may BE the target, but its imports are never loaded.
 il_reaches() {
   local from="$1" want="$2" depth="${3:-0}" imported real
   [[ -f "$from" ]] || return 1
@@ -91,17 +77,6 @@ il_reaches() {
   return 1
 }
 
-# Walk the import graph from <file>. One `<status>\t<physical path>` row per
-# node, the root first. Statuses:
-#   root      the starting file
-#   import    an imported file that loads (inside IL_ROOT when it is set)
-#   external  an import resolving outside IL_ROOT: listed, never expanded, since
-#             the doc gates those behind an approval dialog the audit cannot see
-#   missing   an import whose target does not exist
-#   depth     an import past the fourth hop, which the loader does not follow
-#   seen      a file already reached on this walk, by a back-edge (a cycle) or a
-#             second path (a diamond); it is counted once, on its first row
-# IL_SEEN is walk-global, not per branch, so a diamond's shared node counts once.
 il_walk() {
   local file="$1" depth="${2:-0}" real imported ireal
   real="$(il_realpath "$file")"

@@ -1,44 +1,4 @@
 #!/usr/bin/env bash
-# draft-automode-block.sh — compose an `autoMode` block from interview answers,
-# print it to stdout, and stop. The human reads it and pastes it.
-#
-# It writes nothing, anywhere, under any flag. That is not caution: a skill that
-# edited a consumer's settings file would be making a permission decision on
-# their behalf, which is the one thing this whole plugin exists NOT to do.
-#
-# Input: answer records on stdin, one per line, in the shape
-#
-#   section <environment|allow|soft_deny|hard_deny>
-#   label   <short subject, the part before the colon>
-#   covered <what IS covered — repeatable>
-#   not     <what is NOT covered — repeatable>
-#   why     <one line of rationale>
-#
-# A blank line, or the next `section` record, closes the current entry. The
-# record shape mirrors what the interview asks, so the skill never has to
-# transform answers into some other vocabulary on the way here.
-#
-# Why this shape, rather than free prose: `claude auto-mode critique` on a real
-# 66 KB hand-authored block found that the classifier is "an LLM doing a single
-# pass under a 'default is ALLOW' instruction", so "buried conditions in
-# paragraph position 40 will be missed at a materially higher rate than
-# conditions in a bullet list", and recommended exactly this — bulleted COVERED /
-# NOT COVERED plus a one-line rationale, with provenance stripped. The entry
-# template here IS that recommendation, applied at authoring time instead of
-# reported after the fact.
-#
-# Output: a JSON object carrying only the sections that received entries, each
-# opening with "$defaults" so the built-in rules are kept. Strict-parseable by
-# construction — we author it, so `jq -e .` must accept it. (The non-strict
-# allowance elsewhere in this plugin exists for the CLI's malformed emission,
-# not for anything written here.)
-#
-# Prerequisites: jq (required for correctness — it does the JSON escaping, which
-# is the one part of this that must not be hand-rolled).
-#
-# Usage:
-#   draft-automode-block.sh < answers
-#   draft-automode-block.sh [--help]
 
 set -uo pipefail
 

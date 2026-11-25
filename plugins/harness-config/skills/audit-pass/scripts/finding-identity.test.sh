@@ -32,8 +32,6 @@ three  ')"
 assert_eq "case is preserved" "MixedCase Identifier" \
   "$(run normalize --excerpt 'MixedCase Identifier')"
 
-# 1.8: backticks and the text they delimit are preserved, so literal text quoted
-# AS AN EXAMPLE of an import cannot hash identically to a real import.
 # shellcheck disable=SC2016  # the backticks are literal excerpt content, not a substitution
 BACKTICKED=$(run anchor --excerpt '`@README`')
 BARE=$(run anchor --excerpt '@README')
@@ -286,6 +284,22 @@ else
   assert_contains "and names what was wrong" "$OUT" "identity was absent or null"
   assert_eq "and the appender was never reached" "0" \
     "$(if [[ -f "$STUB_LOG" ]]; then wc -l <"$STUB_LOG" | tr -d ' '; else printf '0'; fi)"
+
+  rc=0
+  OUT=$(run guarded-append --run-dir "$GA_RUN" --record "$VALID_ONE" --epoch 2 \
+    --appender "$STUB" 2>&1) || rc=$?
+  assert_exit "there is no --appender flag: a model-composed argument cannot pick the appender" 2 "$rc"
+  assert_contains "and the flag is named as unknown" "$OUT" "unknown argument: --appender"
+  assert_eq "and the named appender never ran" "0" \
+    "$(if [[ -f "$STUB_LOG" ]]; then wc -l <"$STUB_LOG" | tr -d ' '; else printf '0'; fi)"
+
+  PWN_DIR="$TEST_TMPDIR/pwn"
+  mkdir -p "$PWN_DIR"
+  PWN_RECORD='{"record":"finding","identity":null,"lane":"x$(touch PWNED_SUB)`touch PWNED_TICK`'"'"'\""}'
+  rc=0
+  OUT=$(cd "$PWN_DIR" && bash "$SCRIPT" validate-record --record "$PWN_RECORD" 2>&1) || rc=$?
+  assert_exit "a record carrying shell metacharacters gets the record verdict, not a shell error" 4 "$rc"
+  assert_eq "and no command inside the record ran" "" "$(ls "$PWN_DIR")"
 
   GA_PARTIAL="$GA_RUN/findings.partial.2.jsonl"
   rc=0

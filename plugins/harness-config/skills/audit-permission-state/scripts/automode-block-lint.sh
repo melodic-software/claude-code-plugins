@@ -1,60 +1,4 @@
 #!/usr/bin/env bash
-# automode-block-lint.sh — findings over the `autoMode` block: what a customized
-# section discards, what contradicts itself, and what can never fire.
-#
-# This lane is about the CLASSIFIER's rule lists, not the permission-rule plane.
-# Its four sections (environment, allow, soft_deny, hard_deny) are natural-language
-# entries an LLM reads, so the checks here are the mechanical ones only: what a
-# section omits, what two entries say about the same subject, and what an earlier
-# hard_deny already forecloses. `claude auto-mode critique` owns the semantic
-# judgment and is surfaced by --critique rather than reimplemented.
-#
-# Reading the CLI is where this gets hard, and every defect below was measured on
-# 2.1.225 rather than guessed at. As of: 2026-08-12. Recheck trigger: a release
-# note changes `claude auto-mode config`, `defaults` or `critique` output or exit
-# status:
-#
-#   1. `claude auto-mode config` emits raw control characters inside JSON string
-#      values. jq and Python json.loads both reject it; exit status is still 0.
-#      The offending byte is a raw line feed inside a string, so no line-oriented
-#      POSIX filter can tell it from the pretty-printer's structural newlines --
-#      that is why this lane needs a non-strict parser and why pure POSIX was
-#      tested and rejected.
-#   2. `defaults --label <x>` OMITS a non-matching key entirely rather than
-#      returning an empty list. A reader that expects an empty array sees a
-#      KeyError, not a clean "no entries".
-#   3. Entry labels carry a bracketed annotation BEFORE the colon
-#      (`Git Destructive [named+specifics ...]: ...`), so a label split at the
-#      first `:` truncates. Split at the first `[` when one precedes the colon.
-#   4. Exit status is never trustworthy: `critique` returned 0 on a run that
-#      produced no output at all. A run that produced nothing usable says so and
-#      never reports success.
-#
-# Prerequisites:
-#   python3  REQUIRED FOR AN OPTIONAL FEATURE -- this lane only. Absent: warn
-#            visibly, skip the lane, exit 0. Every other stage of the skill is
-#            unaffected. Node is an equally capable host and is deliberately not
-#            adopted: a second optional runtime doubles the declaration surface
-#            for one feature.
-#   claude   the same, for reading the live config.
-#
-# Test seams (no test may invoke the real CLI or read the operator's config):
-#   AUTOMODE_CONFIG_FIXTURE    parse this file instead of `claude auto-mode config`
-#   AUTOMODE_DEFAULTS_FIXTURE  parse this file instead of `claude auto-mode defaults`
-#   AUTOMODE_CRITIQUE_FIXTURE  read this file instead of running `critique`
-#
-# Output:
-#   finding <severity> [<check>] <section> <detail>
-#   BLOCK-NOTE: <text>
-#   automode summary findings=<n> sections=<n>
-#
-#   C4-defaults      a customized section that omits "$defaults"
-#   C2b-contradiction  the same subject allowed and denied
-#   C3-shadowed      an entry an earlier hard_deny already forecloses
-#   C5-provenance    a date or issue reference in an operator-written entry
-#
-# Usage:
-#   automode-block-lint.sh [--critique] [--help]
 
 set -uo pipefail
 
@@ -120,8 +64,6 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/automode-lint.XXXXXX")" || {
 }
 trap 'rm -rf "$tmp"' EXIT
 
-# Exit status is never trusted (measured: critique returned 0 producing nothing),
-# so each capture is judged by whether it yielded usable content.
 capture() {
   local out="$1" fixture="$2" sub="$3"
   if [[ -n "$fixture" ]]; then
@@ -381,12 +323,6 @@ PYEOF
 
 [[ "$critique" == 1 ]] || exit 0
 
-# --- critique: surfaced, wrapped, never replaced ------------------------------
-#
-# It owns the semantic judgment (clarity, completeness, conflicts, actionability)
-# and this skill does not attempt it. What is added is honesty about the wrapper:
-# measured across three consecutive runs on one unchanged config, the output was
-# truncated mid-sentence twice and empty once, exiting 0 every time.
 crit="$tmp/critique.txt"
 if [[ -z "${AUTOMODE_CRITIQUE_FIXTURE:-}" ]]; then
   cat >&2 <<'EOF'
@@ -405,8 +341,6 @@ echo "--- claude auto-mode critique ---"
 cat "$crit"
 echo "--- end critique ---"
 
-# Truncation cannot be detected from exit status, so it is detected from the
-# text: a complete critique ends on sentence-final punctuation.
 last_char="$(tr -d '[:space:]' <"$crit" | tail -c 1)"
 case "$last_char" in
 . | '!' | '?' | ')' | ']' | '`') ;;

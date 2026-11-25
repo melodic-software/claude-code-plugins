@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Machine-path fixtures are assembled at runtime from separator + segment
-# fragments so no contiguous machine-path literal appears in this file's source
-# bytes — the repo's own machine-specific-path scanner sees a clean test file.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -22,9 +19,6 @@ fi
 
 ISOLATED_HOME="$TEST_TMPDIR/empty-home"
 mkdir -p "$ISOLATED_HOME"
-# PERMISSION_HYGIENE_SCAN_ROOT is unset in every helper: it outranks the alias
-# these cases pass, so an outer session exporting it would silently redirect the
-# whole suite at another tree.
 run_with_home() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
 run() { run_with_home "$1" "$ISOLATED_HOME" "${2:-}"; }
 run_with_config_dir() { env -u PERMISSION_HYGIENE_SCAN_ROOT CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
@@ -476,13 +470,9 @@ assert_not_contains "no candidate escaped a bucket" "$OUT" "DENOMINATOR BUG"
 
 BROKEN="$TEST_TMPDIR/broken-check.sh"
 # shellcheck disable=SC2016  # single quotes are required: the $((...)) here is the
-# literal source text being matched in the script, not an expression to evaluate.
 sed 's/^    fm_no_block=$((fm_no_block + 1))$/    : # bucket increment deliberately removed/' \
   "$SCRIPT" >"$BROKEN"
 if grep -q 'bucket increment deliberately removed' "$BROKEN"; then
-  # CLAUDE_PLUGIN_ROOT must be passed explicitly: the copy lives outside the
-  # plugin tree, so its BASH_SOURCE fallback would resolve the shared pattern
-  # library to a bogus path and exit 2 before ever reaching the reconciliation.
   broken_out=$(env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" \
     CLAUDE_PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)" \
     PERMISSION_HYGIENE_FIXTURE_DIR="$D10BC" bash "$BROKEN" 2>&1)
@@ -713,12 +703,6 @@ finding_for() {
 }
 
 remedy_frontmatter() {
-  # remedy_frontmatter <file> <name> — one frontmatter file carrying one rule per
-  # emit site, so a single run produces every finding class in this scope.
-  # The machine path is interpolated from runtime-assembled fragments (see the
-  # top of this file) so no contiguous machine-path literal appears here; the
-  # single-quoted formats keep `%USERPROFILE%` and `${CLAUDE_PLUGIN_ROOT}`
-  # literal, which is the whole point of the fixture.
   # shellcheck disable=SC2016  # tokens are deliberately unexpanded fixture text
   {
     printf -- '---\nname: %s\nallowed-tools:\n' "$2"

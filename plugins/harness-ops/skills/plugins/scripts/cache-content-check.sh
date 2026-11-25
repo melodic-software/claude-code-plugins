@@ -1,205 +1,4 @@
 #!/usr/bin/env bash
-# Read-only cache-CONTENT audit for the `plugins` skill.
-#
-# `fleet-state.sh` answers "does the recorded version/sha look right". This
-# script answers the question that check cannot: "do the FILES in the cache
-# directory actually match the commit the install record claims". The two are
-# not the same, and the gap between them is a real observed failure — see the
-# mechanism note below. Writes nothing but one private temporary file it removes
-# on exit: no state file, no cache directory, no `git fetch`, no `claude plugin`
-# call.
-#
-# Usage:
-#   cache-content-check.sh --marketplace <name> [--scope user|project|all] [--json]
-#   cache-content-check.sh --all [--scope user|project|all] [--json]
-#   cache-content-check.sh --marketplace <name> [--scope …] --ids
-#
-# The mechanism this exists to catch (observed on Claude Code 2.1.259, not
-# re-run since). `claude plugin update -y <plugin>@<marketplace>`
-# re-points a record's `gitCommitSha` in `installed_plugins.json` without
-# rewriting the cache directory when the manifest version number is unchanged.
-# The version directory keeps the older build while the metadata claims the new
-# commit, so a version-and-sha check passes while the files on disk are a
-# different build, and any measurement or behavior test against that cache is
-# a test of the wrong thing. Six plugins were found in that state on one
-# machine, twelve stale files in the worst case.
-#
-# How the compare works, and why the process count is a property of the
-# MARKETPLACE rather than of the number of installs in it. Every external call
-# is batched fleet-wide: a marketplace with 77 installs costs the same handful
-# of processes as one with 3. Each process creation on Windows Git Bash is a
-# fork() emulation plus a CreateProcess, so no call is made per install. The
-# comparison is shell-local set arithmetic, and its loops over every tree and
-# cache path are what a batched run spends most of its time on, so each loop
-# does its ancestor walk once per directory rather than once per file.
-#   1. one `jq` over installed_plugins.json — every install record, every
-#      marketplace, read once;
-#   2. one `git rev-parse HEAD` in the marketplace clone — only a record whose
-#      recorded sha IS that commit is compared, and every other record is
-#      `not-at-head`, counted `not_checked` (see the verdict below for why);
-#   3. per distinct sha, one `git show <sha>:.claude-plugin/marketplace.json`
-#      plus one `jq` — the plugin→source-directory map AT THAT COMMIT. After
-#      step 2 the only sha left is HEAD, so this and step 4 run once; they stay
-#      keyed by sha so that gate can change without the join changing;
-#   4. per distinct sha, ONE `git ls-tree -r -z <sha> -- <every source dir at
-#      that sha>` — every blob id the commit says those plugins' files should
-#      have. A multi-pathspec ls-tree reports a pathspec that matched nothing
-#      by simply not emitting it, so the per-install "matched nothing" signal
-#      is recovered in the join: an install whose source directory contributed
-#      zero blobs is `no-source-at-sha`, never `match` and never
-#      `stale-content`;
-#   5. ONE `find` over every install root (`-print0`, one `sort -z`);
-#   6. ONE `git hash-object --stdin-paths` over the CACHE∩TREE intersection —
-#      the blob id each comparable file on disk actually has. A cache-only file
-#      is never hashed: its hash is not part of any answer, only its existence
-#      is, and it is settled by the ignore pass instead;
-#   7. ONE `git check-ignore -z --no-index --stdin` over every cache-only file
-#      in the whole marketplace, and no process at all when there are none.
-# Set difference on the relative paths then yields files present at the sha but
-# missing from the cache and files in the cache but absent at the sha; hash
-# inequality on the intersection yields changed files.
-#
-# The source directory is read from the marketplace.json AT THE RECORDED SHA
-# (`git show <sha>:.claude-plugin/marketplace.json`), never from the clone's
-# current checkout, and there is deliberately no fallback to the checked-out
-# copy. A plugin whose source directory was renamed or moved after the recorded
-# commit would otherwise be looked up under its CURRENT path against an OLDER
-# tree, and `git ls-tree` treats a pathspec that matches nothing as success with
-# empty output rather than an error — so every cache file becomes an extra and a
-# perfectly matching cache reports `stale-content`. Reading both the source path
-# and the expected tree from the same revision removes the mismatch; a pathspec
-# that still matches nothing at that sha gets its own `no-source-at-sha`
-# verdict, counted unverifiable, never reported as stale content. Because only a
-# record at the clone's HEAD is compared, a record older than a rename is
-# `not-at-head` before it reaches this lookup; reading the commit rather than
-# the checkout still keeps an edited or dirty work tree out of the answer.
-#
-# Path transport is NUL-separated end to end (`ls-tree -z`, `find -print0`,
-# `check-ignore -z`). Without `-z`, git QUOTES a pathname carrying non-ASCII,
-# a tab, a newline, or a backslash — an accented filename comes back wrapped in
-# double quotes with its bytes octal-escaped — and a line-oriented
-# parser then compares that quoted spelling against the raw path `find` reports,
-# so an unchanged file is reported as both missing-from-cache and extra-in-cache.
-# The one transport that cannot carry NUL is `git hash-object --stdin-paths`,
-# which has no `-z` switch at all: newline is therefore the only character that
-# still breaks the batch, so a cache path containing one is hashed by its own
-# `git hash-object` process instead of being fed to the batch. Every other
-# character rides a raw line intact.
-#
-# Symlinks are compared MODE-AWARE rather than skipped. A tracked symlink is an
-# ordinary blob in the tree whose content is the link target text, but
-# `find -type f` excludes it and `hash-object` on the path would hash the file
-# it points AT, so either omission reports every tracked symlink as permanently
-# missing-from-cache. The cache walk therefore enumerates `-type f -o -type l`,
-# and a link is hashed by feeding its `readlink` output to `git hash-object
-# --stdin` — which is what git itself stores. On a Windows checkout with
-# `core.symlinks=false` the link is materialized as a regular file holding that
-# same target text, so the ordinary raw batch already produces the matching
-# hash and no special case is reached.
-#
-# Line endings. A raw `hash-object` applies no clean filter, so a path that
-# `.gitattributes` checks out CRLF (a marketplace pinning `*.cmd text eol=crlf`
-# is the observed case) would hash differently from its blob even when the
-# content is identical. Rather than pay a per-file `--path` hash for the whole
-# fleet, the raw batch runs first and only the MISMATCHES are re-hashed with
-# `git hash-object --path <repo-relative-path>`, which does apply that path's
-# attributes. A clean fleet therefore costs the batch alone; a dirty one pays
-# one extra process per differing file, which is the population the operator is
-# about to read one by one anyway.
-#
-# Excluded from the cache side, by name, never by guesswork: `.git` (a cache
-# directory is a checkout, not a clone, but exclude it if one ever appears) and
-# `.in_use` (Claude Code's own per-process refcount files, present in every
-# cache version directory and never in any commit — folding them in would
-# report the entire fleet as stale on their existence alone).
-#
-# Also excluded, and this one is load-bearing rather than cosmetic: a cache-only
-# file that the marketplace repo's own `.gitignore` would ignore. A cache
-# directory is a LIVE plugin root, so Python leaves `__pycache__` beside the
-# scripts it runs and a plugin that vendors dependencies has a `node_modules`
-# tree — generated state that was never in any commit. Without this filter the
-# authoring machine reported three installs as stale purely on that state, one
-# of them on 6,141 files, with zero genuinely differing bytes. The filter is one
-# batched `git check-ignore` for the whole marketplace, and no process at all
-# when nothing in it has a cache-only file. The answer is keyed by the path the
-# clone would see (`<source dir>/<relative path>`), so two records sharing a
-# source directory read the same answer rather than asking twice.
-#
-# Verdicts, one per install record:
-#   match                 every tree file present in the cache with the same
-#                         blob id, and no extra file in the cache
-#   stale-content         at least one file differs, is missing from the cache,
-#                         or is in the cache and not at the sha. This is the
-#                         finding; the record's paths[] lists up to
-#                         MAX_REPORTED_PATHS of them
-#   not-at-head           the recorded `gitCommitSha` is not the commit at the
-#                         installLocation clone's HEAD, so the record is not
-#                         compared. NOT an error, NOT unverifiable, and NEVER
-#                         fetched: a fetch is a network mutation this audit
-#                         does not perform, and some hosts refuse a fetch by
-#                         sha. Counted in `not_checked`, apart from both
-#                         `match` and `unverifiable`. This is the ORDINARY
-#                         case, not an edge one — the marketplace clone is
-#                         observed to be shallow and Claude Code re-clones it
-#                         on update, so an older recorded commit is usually
-#                         not in the clone at all. Pointer (the page states
-#                         the re-clone, not a depth):
-#                         https://code.claude.com/docs/en/plugins/host-marketplace.md
-#                         Even an older commit a deeper clone does hold is not
-#                         compared, so the answer does not depend on how deep
-#                         the clone happens to be
-#   no-clone-head         the installLocation is a git work tree whose HEAD
-#                         names no commit (an unborn branch), so there is no
-#                         commit any record could be compared against
-#   no-git-commit-sha     the record carries no `gitCommitSha` to compare against
-#   no-install-location   the marketplace has no `installLocation`, or it is not
-#                         a directory on this machine
-#   not-a-git-worktree    the installLocation exists but is not a git work tree
-#   no-source             the plugin id is absent from the marketplace.json AT
-#                         THE RECORDED SHA, or its `source` is not a plain path
-#                         string (a remote-source entry has no local tree here),
-#                         or that commit carries no marketplace.json at all
-#   no-source-at-sha      the plugin's recorded source directory names no path
-#                         at that sha — `git ls-tree` matched nothing, which it
-#                         reports as success with empty output. Distinct from
-#                         stale-content on purpose: an empty expected tree makes
-#                         every cache file an extra, and calling that stale
-#                         would accuse a healthy cache of a defect it does not
-#                         have
-#   install-path-missing  the record's `installPath` is not a directory
-#   hash-batch-misaligned `git hash-object --stdin-paths` returned fewer hashes
-#                         than it was given paths, so the two sides can no
-#                         longer be lined up. Contract-breaking and not expected;
-#                         reported rather than compared, because a shifted table
-#                         reports healthy files as differing
-#
-# Output (stdout), default and with --json: one JSON object.
-#   {marketplace, scope, checked, match, stale_content, unverifiable,
-#    not_checked, skipped_absent_project_paths, installs:[…]}
-#   `not_checked` counts every `not-at-head` install: recorded at a commit
-#   other than the clone's HEAD, so not compared. `unverifiable` counts every
-#   other install whose verdict is neither `match` nor `stale-content` — the
-#   audit looked and could not decide. Both are reported as their own numbers
-#   rather than folded into either side, and `checked` is the sum of all four.
-#   `installs[].unreleased_changes` is true when the clone's work tree holds
-#   `.changes/<plugin>/`: changelog fragments for changes that ship without a
-#   version bump until the marketplace's next release.
-#   `skipped_absent_project_paths` counts project/local records whose
-#   `projectPath` is not a directory on this machine. Those records are not
-#   checked and not counted in `checked`. Absent is not dead: an unmounted
-#   volume, an offline share, and a removed worktree are indistinguishable to a
-#   directory test (see context/gotchas.md) — hence a count, never a verdict.
-#   --all: {marketplaces: {"<name>": <single-marketplace shape>, …}}, and a
-#   per-marketplace failure appears as {"<name>": {error: …}} inline rather
-#   than aborting the sweep.
-#
-# Output (stdout) with --ids: NOT JSON — the fully-qualified
-#   `<name>@<marketplace>` id of every `stale-content` install, one per line,
-#   CR-free, and nothing else. Same contract as `fleet-state.sh --ids`: zero
-#   matches is success with empty output (exit 0), and a rejected invocation
-#   leaves stdout EMPTY so a `< <(…)` consumer can never read an error as an
-#   id. `--ids` with `--all` is refused: there is no single block to project.
-#
 # Exit codes:
 #   0  ran to completion (per-install verdicts, including every unverifiable
 #      one, are reported in the body — a verdict is not an error)
@@ -207,30 +6,9 @@
 #      marketplace that is not in known_marketplaces.json, or an internal state
 #      file that is present but does not match its expected shape (fail loud on
 #      schema drift)
-#
-#   Deliberate divergence from fleet-state.sh's vocabulary, stated so it does
-#   not read as drift: fleet-state.sh exits 1 when a single marketplace cannot
-#   be resolved. Here an unknown marketplace is exit 2, because the name came
-#   from the caller's own argument and is a usage error, not a state-read
-#   failure.
-#
-# Env overrides (testing only; production uses the real paths). Same names as
-# fleet-state.sh, so a fixture built for one runs against the other:
-#   CACHE_CONTENT_INSTALLED_JSON / FLEET_STATE_INSTALLED_JSON
-#                                  — path to installed_plugins.json
-#   CACHE_CONTENT_MARKETPLACES_JSON / FLEET_STATE_MARKETPLACES_JSON
-#                                  — path to known_marketplaces.json
-#   There is deliberately no catalog-directory override: this check needs a real
-#   git clone at the marketplace's installLocation, so a fixture points
-#   known_marketplaces.json at a throwaway repo instead of faking the catalog.
 
 set -uo pipefail
 
-# jq-capture.sh is this script's own fixed sibling, carrying the `jq_to` capture
-# and the `json_string_to` encoder that fleet-state.sh and sync-run.sh share.
-# Resolved from this script's own location with parameter expansion and no
-# external process, never from a caller-supplied env var, so a stray
-# CACHE_CONTENT_* override cannot redirect `source` at an arbitrary file.
 script_src="${BASH_SOURCE[0]}"
 case "$script_src" in
 */*) script_src_dir="${script_src%/*}" ;;
@@ -245,8 +23,6 @@ else
   exit 2
 fi
 
-# git output gets the same CR strip as `jq_to`'s, for the same reason: a Windows
-# git build writing CRLF would put a CR inside a path or a blob id.
 git_to() {
   local __g_var="$1"
   shift
@@ -256,17 +32,10 @@ git_to() {
   return "$__g_rc"
 }
 
-# Native Windows paths (`C:\Users\<user>\…`) come out of installed_plugins.json and
-# known_marketplaces.json verbatim. Backslash is an escape character in the
-# shell, so every such value is folded to forward slashes before any `-d` test
-# or `git -C`; Git Bash accepts the `C:/…` spelling for both.
 to_slashes_to() {
   printf -v "$1" '%s' "${2//\\//}"
 }
 
-# Splits $2 on newlines into the array named $1, with globbing off, and drops
-# empty lines. Word splitting a string already in memory reads nothing, where a
-# `while read` over a here-string reads it back one byte per call on Git Bash.
 split_lines_to() {
   local -n __sl_out="$1"
   local -
@@ -276,19 +45,8 @@ split_lines_to() {
   __sl_out=($2)
 }
 
-# Reads the NUL-separated records in $SPOOL into the array named $1, dropping
-# empty records. A Cygwin or MSYS2 bash, Git Bash included, has `mapfile` and
-# `read` take one byte per read call from any descriptor, while command
-# substitution reads its pipe in blocks: one 2.3 MB `ls-tree -z` stream took
-# about 2.5 s through `mapfile -d ''` and under 0.1 s through `$(tr …)`.
-# Command substitution cannot hold a NUL, so `tr` turns each NUL into a newline
-# and each newline into SOH (0x01). A path can hold either of those bytes, so
-# when SOH shows up in the capture, which happens only for a path carrying a
-# newline or an SOH, the records are read with `mapfile -d ''` instead. The
-# test file's space/tab/glob and newline/SOH path cases cover one branch each.
 spool_records_to() {
   local __sr_text
-  # Byte-wise: a BSD `tr` in a UTF-8 locale stops at an invalid byte sequence.
   local -x LC_ALL=C
   __sr_text=$(tr '\n\0' '\001\n' <"$SPOOL")
   if [[ "$__sr_text" == *$'\x01'* ]]; then
@@ -303,9 +61,6 @@ MARKETPLACES_JSON="${CACHE_CONTENT_MARKETPLACES_JSON:-${FLEET_STATE_MARKETPLACES
 
 MAX_REPORTED_PATHS=10
 
-# A shape rejection has to be distinguishable from a legitimate jq result, and
-# every legitimate result here is a path, a name, or a blob id. SOH (0x01)
-# cannot appear in any of them.
 SENTINEL_SHAPE=$'\x01shape'
 SENTINEL_UNKNOWN=$'\x01unknown'
 
@@ -329,8 +84,8 @@ Exit: 0 ran to completion (a per-install verdict is not an error); 2 usage
 error, jq or git missing, an unknown marketplace, or a state file that does not
 match its expected shape.
 
-The verdicts and the test-only environment overrides are in the header comment
-of this script.
+The verdicts are in the plugins skill's context/script-contracts.md and
+context/stale-records-cache-content.md.
 EOF
   printf '%s\n' "$text"
 }
@@ -344,9 +99,6 @@ while [[ $# -gt 0 ]]; do
   --marketplace)
     MODE="single"
     TARGET="${2:-}"
-    # Guard BEFORE `shift 2`: with no following arg only one positional param
-    # remains, `shift 2` fails (no set -e), $1 stays "--marketplace", and the
-    # loop spins forever. Same reasoning as fleet-state.sh.
     if [[ -z "$TARGET" ]]; then
       echo "ERROR: --marketplace requires a name" >&2
       exit 2
@@ -411,10 +163,6 @@ if ! command -v git >/dev/null 2>&1; then
   exit 2
 fi
 
-# Every NUL-separated git and find stream is written here and read back by
-# `spool_records_to`, which keeps the producer's exit status apart from the read
-# and lets a record holding a newline be read again with `mapfile -d ''`. One
-# file, reused by each step in turn, removed on exit.
 SPOOL=$(mktemp 2>/dev/null) || {
   echo "ERROR: could not create a temporary file (mktemp)" >&2
   exit 2
@@ -499,8 +247,6 @@ check_marketplace() {
     ' <<<"$raw" 2>/dev/null || parsed=""
     split_lines_to entries "$parsed"
     for entry in ${entries+"${entries[@]}"}; do
-      # A line with no US is the tail of a name or source that held a newline:
-      # the whole line is a name with an empty source, so it reads `no-source`.
       [[ "$entry" == *$'\x1f'* ]] || entry+=$'\x1f'
       entry_key="$s"$'\x1f'"${entry%%$'\x1f'*}"
       [[ -n "${source_by_sha_name[$entry_key]+set}" ]] ||
@@ -508,15 +254,6 @@ check_marketplace() {
     done
   }
 
-  # --- Pass 0: this marketplace's records, and the verdicts that need no git --
-  #
-  # US (0x1f), not tab, and the reason is not cosmetic. Bash treats tab as IFS
-  # WHITESPACE, so consecutive tabs collapse into one separator and an EMPTY
-  # middle field disappears: a record with no `gitCommitSha` would shift its
-  # installPath left into `sha`, producing an `install-path-missing` verdict
-  # carrying a fabricated sha instead of the honest `no-git-commit-sha`. A
-  # non-whitespace separator preserves every empty column. Same choice, and the
-  # same character, as fleet-state.sh's internal record format.
   local -a i_id=() i_scope=() i_version=() i_sha=() i_ipath=() i_root=()
   local -a i_verdict=() i_srcdir=()
   local id scope version sha install_path project_path
@@ -557,18 +294,6 @@ check_marketplace() {
   local n=${#i_id[@]}
   local k
 
-  # --- Pass 1: only a record at the clone's HEAD is compared -----------------
-  #
-  # One `rev-parse` for the whole marketplace, and only when a record is still
-  # undecided. The clone is observed shallow and is re-cloned on update, so a
-  # record at any other commit usually has no object here to compare against;
-  # comparing only at HEAD makes the answer the same however deep the clone is.
-  # Never `git fetch` here. Fetching is a network mutation the audit does not
-  # perform, some hosts refuse a fetch by sha, and it would also silently
-  # repair the very condition the verdict exists to report. This test comes
-  # BEFORE the source lookup, and must: the source path is read out of the
-  # commit itself, so there is nothing to read until the commit is known to be
-  # present locally. A sha that equals HEAD is.
   local head_read="" clone_head=""
   for ((k = 0; k < n; k++)); do
     [[ -z "${i_verdict[k]}" ]] || continue
@@ -584,20 +309,12 @@ check_marketplace() {
     fi
   done
 
-  # --- Pass 2: the source directory each record's own commit names ------------
-  #
-  # Source directory as the RECORDED COMMIT spelled it, never as the current
-  # checkout spells it. A plugin renamed or moved after that commit would
-  # otherwise be looked up under a path the older tree does not contain, and a
-  # pathspec matching nothing is success-with-empty-output, not an error.
   local name_key src_dir
   for ((k = 0; k < n; k++)); do
     [[ -z "${i_verdict[k]}" ]] || continue
     load_source_map "${i_sha[k]}"
     name_key="${i_sha[k]}"$'\x1f'"${i_id[k]%@*}"
     src_dir="${source_by_sha_name[$name_key]-}"
-    # marketplace.json spells a local source relative to the clone root and
-    # commonly with a leading `./`, which ls-tree's pathspec does not want.
     src_dir="${src_dir#./}"
     src_dir="${src_dir%/}"
     if [[ -z "$src_dir" ]]; then
@@ -623,11 +340,6 @@ check_marketplace() {
     }
   done
 
-  # Flat, in ls-tree order; owner_idx["<sha><US><source dir>"] is the ordered
-  # index list of the entries that belong to one install's source directory.
-  # `ls-tree -r` walks the tree in sorted order regardless of pathspec order,
-  # so filtering that one stream per source directory preserves the order a
-  # single-pathspec call would have produced.
   local -a tree_rel=() tree_blob=()
   local -A tree_hash=() owner_idx=() tree_rc_bad=()
   local s rec meta path_rel blob owner walk rel idx tree_rc dir last_dir
@@ -639,10 +351,6 @@ check_marketplace() {
       [[ "${g_sha[gi]}" == "$s" ]] || continue
       specs+=("${g_dir[gi]}")
     done
-    # One pathspec per distinct source directory at this sha, in one
-    # argv. A marketplace would need thousands of DISTINCT source directories
-    # sharing a single commit to approach the argv ceiling; chunk here if one
-    # ever does.
     local -a tree_recs=()
     tree_rc=0
     git -C "$install_loc_native" ls-tree -r -z "$s" -- "${specs[@]}" >"$SPOOL" 2>/dev/null || tree_rc=$?
@@ -656,24 +364,10 @@ check_marketplace() {
       meta="${rec%%$'\t'*}"
       path_rel="${rec#*$'\t'}"
       blob="${meta##* }"
-      # Keep only blobs; a submodule (commit) entry has no file on disk to
-      # compare and is not a stale-content signal. Mode 120000 is a blob
-      # too — a symlink — and is kept, because the cache walk below hashes
-      # links the same way git stores them.
       case "$meta" in
       *" blob "*) ;;
       *) continue ;;
       esac
-      # Which source directories this entry belongs to. Attach it to EVERY
-      # matching source, not only the longest: two marketplace entries can nest
-      # (`plugins/alpha` and `plugins/alpha/nested`), and the blob belongs in
-      # both expected trees, as a per-source `ls-tree` would list it. The path
-      # itself is tried first so a `source` naming a single file still resolves
-      # the way a single-pathspec call resolved it.
-      #
-      # The ancestor walk is the per-entry cost here, not the git call, and
-      # `ls-tree -r` lists a directory's files together, so the owning sources
-      # of the entry's directory are worked out once per directory and reused.
       owners=()
       gkey="$s"$'\x1f'"$path_rel"
       [[ -z "${g_seen[$gkey]+set}" ]] || owners+=("$path_rel")
@@ -706,9 +400,6 @@ check_marketplace() {
       done
     done
   done
-  # A multi-pathspec ls-tree cannot report "this one pathspec matched nothing",
-  # so the signal is recovered here: an install whose source directory
-  # contributed no blob at its sha is `no-source-at-sha`, never `match`.
   for ((k = 0; k < n; k++)); do
     [[ -z "${i_verdict[k]}" ]] || continue
     if [[ -n "${tree_rc_bad[${i_sha[k]}]+set}" ]]; then
@@ -719,17 +410,6 @@ check_marketplace() {
     [[ -n "${owner_idx[$gkey]+set}" ]] || i_verdict[k]="no-source-at-sha"
   done
 
-  # --- Pass 4: one find over every install root -------------------------------
-  #
-  # `.in_use` is Claude Code's own refcount directory and `.git` would be a
-  # checkout artifact; both are excluded by name. `-print0` because a pathname
-  # may carry any byte but NUL, and the enumeration must not be the place a
-  # name gets mangled. Symlinks are enumerated alongside regular files;
-  # `-type f` alone would report every tracked link as missing forever.
-  # `sort -z` keeps the reported paths[] sample stable across runs on the same
-  # fixture, which a report read by a human is entitled to — and sorting the
-  # whole fleet's paths at once preserves, within each install, the order
-  # sorting that install alone would have produced.
   local -a roots=()
   local -A root_seen=() root_files=()
   local rt
@@ -745,9 +425,6 @@ check_marketplace() {
   local -a cache_full=()
   if [[ ${#roots[@]} -gt 0 ]]; then
     {
-      # Chunked on a byte budget: an argv over the OS limit would make find
-      # fail, and with its stderr discarded that reads as an empty cache —
-      # every install in the fleet reported wholly missing-from-cache.
       chunk=()
       chunk_len=0
       for rt in "${roots[@]}"; do
@@ -818,9 +495,6 @@ check_marketplace() {
         continue
       fi
       if [[ -L "$f" ]]; then
-        # git stores a symlink as a blob holding the TARGET TEXT, so that is
-        # what gets hashed. Feeding the link path to `hash-object` would hash
-        # the file it points at and call every link stale.
         link_target=$(readlink "$f" 2>/dev/null)
         if git_to one_hash -C "$install_loc_native" hash-object --stdin < <(printf '%s' "$link_target"); then
           cache_hash["$k"$'\x1f'"$rel"]="$one_hash"
@@ -828,10 +502,6 @@ check_marketplace() {
         continue
       fi
       if [[ "$f" == *$'\n'* ]]; then
-        # `git hash-object --stdin-paths` has no `-z` switch, so its input is
-        # newline-terminated and a name containing a newline cannot ride it.
-        # That one character, and only that one, falls back to a process of its
-        # own; tabs, backslashes and non-ASCII all survive the batch.
         if git_to one_hash -C "$install_loc_native" hash-object -- "$f"; then
           cache_hash["$k"$'\x1f'"$rel"]="$one_hash"
         fi
@@ -844,18 +514,6 @@ check_marketplace() {
     ins_batch_end[k]=${#b_full[@]}
   done
 
-  # The batch's output is positional: line N is the hash of input path N. If it
-  # ever comes back short, every entry after the gap is filed under the WRONG
-  # path and the run reports files as differing that are fine. `hash-object` is
-  # one line per input by contract, so this is a guard against a broken
-  # contract rather than an expected branch — and the answer to a broken
-  # contract is to say so, not to compare a table that may be shifted.
-  #
-  # One batch for the whole marketplace, so a truncation lands on the
-  # install that owns the gap AND on every install after it, where a per-install
-  # batch would have confined it to one. Both are the same unexpected
-  # contract break, and the reported verdict is still "refused to compare";
-  # split the batch per install if that blast radius ever needs narrowing.
   local hi=0
   if [[ ${#b_full[@]} -gt 0 ]]; then
     local batch_in="" hash_out="" line
@@ -877,27 +535,9 @@ check_marketplace() {
     done
   fi
 
-  # --- Pass 6: one check-ignore over every cache-only file --------------------
-  #
-  # Filtered through the marketplace's OWN .gitignore, and that filter is not an
-  # optimization — without it the check is wrong. A cache directory is a live
-  # plugin root: Python writes `__pycache__` beside the scripts it runs and a
-  # plugin that vendors dependencies has a `node_modules` tree, none of which
-  # was ever in any commit. On the authoring machine those alone reported three
-  # installs as stale, one of them on 6,141 files, with zero genuinely differing
-  # bytes. A path the marketplace repo itself declines to track is generated
-  # state, not a stale build. `--no-index` so the answer is the ignore rules'
-  # answer rather than "tracked, therefore not ignored"; the paths are rewritten
-  # under the plugin's source directory so a source-scoped rule matches the same
-  # way it would in the clone, and the answer is keyed by that same spelling so
-  # two records sharing a source directory read one answer.
   local -A ignored=()
   if [[ ${#extra_probe[@]} -gt 0 ]]; then
     local -a ignored_recs=()
-    # `-z` on both sides, and read as NUL records, for the same reason ls-tree
-    # is: a quoted pathname would not match the raw path it came from.
-    # check-ignore exits 1 when NOTHING matched, which is a valid answer, so its
-    # status is deliberately not read as a failure.
     printf '%s\0' "${extra_probe[@]}" |
       git -C "$install_loc_native" check-ignore -z --no-index --stdin >"$SPOOL" 2>/dev/null
     spool_records_to ignored_recs
@@ -931,10 +571,6 @@ check_marketplace() {
           continue
         fi
         [[ "${cache_hash[$src_key]}" != "${tree_blob[ti]}" ]] || continue
-        # Raw hashes disagree. Re-hash THIS file with the repo-relative path so
-        # `.gitattributes` (an `eol=crlf` pin, a clean filter) applies, and only
-        # report a difference the filtered hash also sees. This is the per-file
-        # process the batch above exists to avoid paying fleet-wide.
         filtered=""
         if git_to filtered -C "$install_loc_native" hash-object \
           --path "$src_dir/$rel" -- "$rt/$rel" 2>/dev/null &&
@@ -1018,9 +654,6 @@ j_name=""
 j_err=""
 
 if [[ "$MODE" == "single" ]]; then
-  # One jq answers all three questions the single-marketplace path asks of this
-  # file: is it shaped like a map, does it name the requested marketplace, and
-  # where is that marketplace's clone.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to mp_loc -r --arg mp "$TARGET" '
     if type != "object" then "\u0001shape"
@@ -1044,8 +677,6 @@ if [[ "$MODE" == "single" ]]; then
   exit 0
 fi
 
-# `keys[]` order, so the envelope's key order is the sorted one the
-# single-marketplace path's callers already see from `--all`.
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 jq_to mp_pairs -r '
   if type != "object" then "\u0001shape"

@@ -1,119 +1,4 @@
 #!/usr/bin/env bash
-# prune-otel-store.sh — age-based, per-class retention for the local Claude Code OTEL store.
-#
-# Bounds the persistent store (.claude/observability/otel/{cc-logs,cc-metrics,cc-traces}.json)
-# retention windows, coordinating safely with the machine-singleton Collector. The store files
-# are newline-delimited OTLP-JSON (one ExportXServiceRequest batch per line); a line's age is
-# its FIRST timeUnixNano (the earliest record in the batch).
-#
-# Per-class retention (record-granular): content-bearing body events
-# (api_request_body/api_response_body) age out at CC_OTEL_BODY_RETENTION_DAYS (default 2);
-# everything else at CC_OTEL_RETENTION_DAYS (default 7). 97% of body-bearing batch lines also
-# carry structure events, so the body window cannot drop whole lines — lines past the body
-# window but inside the structure window get jq SURGERY: api_*_body logRecords are stripped,
-# sibling structure records survive (re-serialized by jq, re-appended after the kept lines —
-# NDJSON order is not load-bearing, views sort by event_time). Lines past the structure
-# window drop whole, compacting to cold first.
-#
-# Lock-safe cycle (only runs when records actually need dropping — see dry-check below):
-#   1. acquire an mkdir-atomic sentinel (.prune-in-progress) in the store dir. The mkdir is the
-#      mutual-exclusion lock: a second prune fails to create it and exits without mutation.
-#      Its owner token records the holder's pid and start time. A sentinel whose holder is gone
-#      (or, with no token, older than an hour) is stale: the run logs it and takes it over. A
-#      live holder past the hour fails the run (action=error-lock-held, exit 1).
-#   2. stop the provisioning-owned otelcol-contrib Windows service; poll Get-Service until it is
-#      Stopped so its file exporter has released the store handles.
-#   3. per store file: awk-route each line to a kept temp / dropped temp / surgery temp in the
-#      SAME dir, COMPACT the dropped (aged-out) lines to a cold Parquet file under
-#      <store>/cold/ (see compact_dropped in prune-compact.sh — content-scrubbed for logs,
-#      verbatim for metrics), SURGERY the body-aged lines (see surgery_file — jq strips
-#      api_*_body records, survivors re-append to the kept temp), VERIFY the kept temp parses
-#      via `duckdb read_json_auto`, then atomic `mv` over the original. Compact-before-trim +
-#      verify-before-replace: the original is only ever replaced after its aged records are
-#      safely in cold AND by a verified-good temp, so a failure at any point leaves the hot
-#      store intact — no backup/rollback needed.
-#   4. start the service + release the sentinel last. Done in the EXIT trap, so every trim exit path
-#      attempts recovery; a failed restart makes an otherwise successful prune fail visibly.
-#      A hard kill skips the trap, so the no-op paths and --scrub-cold also start a Stopped
-#      Collector whenever no live prune holds the sentinel.
-#
-# Comparison is at SECOND granularity: a 19-digit nano (~1.78e18) exceeds awk's exact-integer
-# range (IEEE-754 double, exact only to 2^53 ≈ 9.0e15), so a raw-nano awk compare silently
-# loses precision. Stripping the last 9 digits yields seconds (~1.78e9, well under 2^53, exact).
-# The match regex is case-sensitive + leading-quote-anchored ("timeUnixNano":"...) so it never
-# matches the sibling observedTimeUnixNano (logs) / startTimeUnixNano (metrics) fields.
-#
-# Size cap: a hot file larger than CC_OTEL_HOT_MAX_MB (default 1024, 0 = off) is pruned even
-# when every line is inside the age windows. The structure cutoff for THAT file is raised to
-# the second after the newest line that no longer fits, so the kept lines total at most the
-# cap (lines sharing the boundary second all drop). The extra drops take the same
-# compact-to-cold-before-trim path as age drops. Sizes are measured before body surgery,
-# which only shrinks lines.
-#
-# Total cap: when the hot files together exceed CC_OTEL_HOT_TOTAL_MAX_MB (default 1024, 0 = off),
-# one cutoff across all of them is raised the same way, oldest lines first whichever file holds
-# them, so the kept lines of every file total at most the cap. Each file uses the latest of its
-# age cutoff, its per-file cap cutoff and the total cap cutoff.
-#
-# --dry-run reports the cutoffs, the caps, the files that would be size-pruned and per-file
-# per-class counts (kept / dropped / surgery / body_dropped / would_compact), and never stops
-# the Collector or mutates a file. A real run also short-circuits (no stop/trim/restart) when
-# nothing is below either cutoff and neither cap is exceeded, avoiding needless Collector churn.
-#
-# Usage:
-#   bash prune-otel-store.sh             # prune if needed (stop/trim/restart)
-#   bash prune-otel-store.sh --dry-run   # report only, never mutate
-#   bash prune-otel-store.sh --scrub-cold [--dry-run]
-#                                        # rewrite cold files that still hold prompt content
-#   bash prune-otel-store.sh --help
-#
-# --scrub-cold re-applies the compaction's prompt scrub to existing cold logs/spans Parquet
-# (files compacted before a key joined the scrub, or with the keep knob on): per dirty file it
-# COPYs to a temp in cold/, verifies the row count is unchanged and no prompt content remains,
-# then mv's over the original. Clean files are untouched. It holds the prune sentinel but does
-# not stop the Collector, which never writes cold/. A normal run prints a one-line notice when
-# a cold file still holds prompt content; once a scan under the sentinel finds none, it writes
-# cold/.prompt-scrub-clean and later runs skip the scan until a keep-on compaction removes it.
-# With CC_OTEL_COLD_KEEP_CONTENT=0 it also scrubs the content-class columns of cold logs, spans
-# and metrics. It is a no-op when both switches keep: CC_OTEL_COLD_KEEP_USER_PROMPTS=1 and
-# CC_OTEL_COLD_KEEP_CONTENT unset or 1.
-#
-# Env overrides:
-#   CC_OTEL_RETENTION_DAYS keep structure records newer than N days (default: 7).
-#                          RETENTION_DAYS alone is rejected with exit 2.
-#   CC_OTEL_BODY_RETENTION_DAYS
-#                          keep api_*_body records newer than N days (default: 2); must not
-#                          exceed CC_OTEL_RETENTION_DAYS (body records cannot outlive their
-#                          lines)
-#   CC_OTEL_HOT_MAX_MB     size cap per hot file in MiB (default: 1024; 0 disables). A file over
-#                          the cap drops its oldest lines until it fits, even inside the age windows.
-#   CC_OTEL_HOT_TOTAL_MAX_MB
-#                          size cap across all hot files together in MiB (default: 1024; 0
-#                          disables). Over it, the oldest lines across the files drop until they fit.
-#   CC_OTEL_STORE          absolute store dir (default: <repo-root>/.claude/observability/otel)
-#   CC_OTEL_COLD_KEEP_USER_PROMPTS
-#                          =1 keeps user_prompt bodies + the `prompt`/`prompt_text` attributes
-#                          in the cold tier un-scrubbed (default: off — body NULLed, prompt
-#                          attributes scrubbed)
-#   CC_OTEL_COLD_KEEP_CONTENT
-#                          =0 NULLs the other content-class columns (response, tool payloads,
-#                          commands, error text, configuration text, user_email, absolute paths;
-#                          the list is cc-otel.sql's cold content boundary) and scrubs their
-#                          attributes in the cold tier (default: unset = 1, kept)
-#   CC_OTEL_START_CMD      command that starts the Collector service — hermetic test seam
-#   CC_OTEL_STOP_CMD       command that stops the Collector service — hermetic test seam
-#   CC_OTEL_RUNNING_CMD    service query command: exit 0 = running/not Stopped, 1 = Stopped,
-#                          2+ = query error — hermetic test seam
-#   CC_OTEL_VERIFY_CMD     command (receives temp path as $1) exiting 0 iff the temp parses
-#                          (default: duckdb read_json_auto) — test seam
-#   CC_OTEL_COMPACT_CMD    command (receives <dropped-temp> <cold-temp>) replacing the duckdb
-#                          cold COPY+verify; must create <cold-temp> on success — test seam
-#                          (failure injection ONLY; real compaction is always duckdb)
-#   CC_OTEL_SENTINEL_MAX_AGE_MINUTES
-#                          age past which a sentinel with no owner token is stale and a live
-#                          holder fails the run (default: 60; a positive integer)
-#   CC_OTEL_TEST_ROOT      the test suites' temp dir: a store outside it is refused (exit 2), so
-#                          a test can never reach a real store
 
 set -euo pipefail
 
@@ -175,16 +60,12 @@ Env:
 EOF
 }
 
-# Resolve the consumer project root so prune + duckdb queries resolve the same fallback store:
-# CLAUDE_PROJECT_DIR when the harness sets it, else the git worktree containing the CWD, else CWD.
 resolve_repo_root() {
   local root="${CLAUDE_PROJECT_DIR:-}"
   [[ -n "$root" ]] || root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r' || true)"
   printf '%s\n' "${root:-$(pwd)}"
 }
 
-# Print the timestamp field a store file's batches date from: startTimeUnixNano for traces,
-# timeUnixNano for logs and metrics.
 time_field() {
   if [[ "${1##*/}" == cc-traces.json ]]; then
     printf 'startTimeUnixNano\n'
@@ -193,8 +74,6 @@ time_field() {
   fi
 }
 
-# Route one store file's lines 3 ways by the batch's first timestamp field (single awk pass).
-# See prune-filter.awk for routing rules and count format.
 filter_file() {
   local src="$1" dst="$2" cutoff_seconds="$3" dropped_dst="${4:-}"
   local body_cutoff_seconds="${5:-0}" surgery_dst="${6:-}"
@@ -209,7 +88,6 @@ file_bytes() {
   printf '%s\n' "${size//[[:space:]]/}"
 }
 
-# Print "<epoch seconds> <bytes>" per timestamped line of one store file (bytes include the newline).
 line_sizes() {
   LC_ALL=C awk -v tf="$(time_field "$1")" '
     match($0, "\"" tf "\":\"[0-9]+\"") {
@@ -219,9 +97,6 @@ line_sizes() {
     }' "$1"
 }
 
-# Read line_sizes rows and print the second after the newest line that no longer fits in
-# cap_bytes, newest first, so the lines at or after it total at most cap_bytes. Prints nothing
-# when every line fits. awk reads to the end: exiting early would SIGPIPE sort under pipefail.
 size_cut() {
   sort -rn | awk -v cap="$1" '!cut { acc += $2; if (acc > cap) { print $1 + 1; cut = 1 } }'
 }
@@ -255,9 +130,6 @@ effective_cutoff() {
   printf '%s\n' "$best"
 }
 
-# Read "kept=.. dropped=.. total=.. surgery=.." into the named-by-convention globals
-# KEPT/DROPPED/TOTAL/SURGERY. (#*dropped= strips the SHORTEST prefix, so it lands on the
-# first occurrence — never the body_dropped= field later in the line.)
 parse_counts() {
   local line="$1"
   KEPT="${line#*kept=}"
@@ -270,8 +142,6 @@ parse_counts() {
   SURGERY="${SURGERY%% *}"
 }
 
-# Print a path with its deepest existing directory resolved (symlinks, and on Windows one long-name
-# drive form for MSYS, short 8.3 and C:\ spellings) and the missing tail appended.
 real_path() {
   local p="$1" tail=""
   while [[ ! -d "$p" && "$p" == */* ]]; do
@@ -291,8 +161,6 @@ under_root() {
   [[ "${path%/}/" == "${root%/}/"* ]]
 }
 
-# Take the sentinel, recovering a stale one, or report why not: 1 = a live prune holds it
-# (action=noop-locked), 3 = it has held it past the bound (action=error-lock-held).
 take_lock_or_report() {
   local rc=0
   # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
@@ -358,7 +226,6 @@ main() {
     err "CC_OTEL_SENTINEL_MAX_AGE_MINUTES must be a positive integer (got: $SENTINEL_MAX_AGE_MINUTES)"
     return 2
   fi
-  # Base 10, so a leading zero (08) is not read as octal.
   hot_max_mb=$((10#$hot_max_mb))
   hot_total_max_mb=$((10#$hot_total_max_mb))
   if ((body_retention_days > retention_days)); then
@@ -369,9 +236,6 @@ main() {
   local repo_root store_dir cutoff_seconds body_cutoff_seconds
   repo_root="$(resolve_repo_root)"
   store_dir="${CC_OTEL_STORE:-$repo_root/.claude/observability/otel}"
-  # Windows env values (CC_OTEL_STORE at Machine scope, CLAUDE_PROJECT_DIR) arrive as C:\...;
-  # awk -v treats each backslash as an escape and strips it. Forward slashes work for bash,
-  # awk and duckdb alike.
   [[ "$OS_KIND" == windows ]] && store_dir="${store_dir//\\//}"
   # shellcheck disable=SC2310  # a predicate: its status IS the branch
   if [[ -n "${CC_OTEL_TEST_ROOT:-}" ]] && ! under_root "$store_dir" "$CC_OTEL_TEST_ROOT"; then
@@ -438,8 +302,6 @@ main() {
     printf 'hot_total: size_prune cutoff_epoch_seconds=%s\n' "$total_cut"
   fi
 
-  # Per-file per-class counts (dry-check decides whether a real run needs the
-  # stop/trim/restart at all). The awk output line IS the report format.
   local counts file_cutoff age_dropped total_dropped=0 total_surgery=0 size_pruned=0
   local -A file_cutoffs=()
   for f in "${present_files[@]}"; do
@@ -492,7 +354,6 @@ main() {
 
   rm -f "$store_dir/cold/"*.tmp 2>/dev/null || true
 
-  # Stop the Collector service, then wait for its Stopped state (and released file handles).
   stop_collector
   STOPPED=true
   local wait_rc
@@ -523,10 +384,6 @@ main() {
     surgery_tmp="$src.surgery.tmp"
     file_cutoffs["$f"]="$(effective_cutoff "$src" "$cutoff_seconds" "$hot_max_bytes" "$total_cut")"
     counts="$(filter_file "$src" "$temp" "${file_cutoffs[$f]}" "$dropped" "$body_cutoff_seconds" "$surgery_tmp")"
-    # awk only opens dst when it prints a kept line, so a file with ZERO kept records (every
-    # record older than the cutoff — the case retention exists for) leaves the temp absent.
-    # Create it empty: an empty store is the correct all-aged-out end-state (append:true refills
-    # on restart), and this keeps surgery_file + verify_temp + mv operating on a real path.
     [[ -f "$temp" ]] || : >"$temp"
     parse_counts "$counts"
     if [[ -s "$dropped" ]]; then

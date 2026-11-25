@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for item-rollup.sh against tiny OTLP/JSON fixture stores
-# (CC_OTEL_STORE points at a temp dir; the real store is never read). The cases that need the
-# real duckdb query gate on `command -v duckdb`.
 
 set -uo pipefail
 
@@ -40,8 +37,6 @@ metric() {
   printf '{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"name":"%s","unit":"x","sum":{"dataPoints":[%s],"aggregationTemporality":%s,"isMonotonic":true}}]}]}]}\n' \
     "$name" "$*" "$temporality"
 }
-# Log event: <session> <item|-> <ccr|-> <event name> [extra attribute fragment]. cc_logs_from
-# binds intValue on event.sequence, so the record carries it, as a real one does.
 event() {
   printf '{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"timeUnixNano":"%s000000000","body":{"stringValue":"claude_code.%s"},"attributes":[%s,{"key":"event.name","value":{"stringValue":"%s"}},{"key":"event.sequence","value":{"intValue":"1"}}%s],"traceId":"","spanId":""}]}]}]}\n' \
     "$EPOCHSECONDS" "$4" "$(attrs "$1" "$2" "$3")" "$4" "${5:+,$5}"
@@ -55,7 +50,6 @@ run() {
   flat="$(tr -s ' ' <<<"$out")"
 }
 
-# Usage errors need no store and no duckdb.
 out="$(bash "$SCRIPT" --help)"
 assert_contains "--help prints usage" "$out" "--session-map"
 run "$TMP" --bogus
@@ -70,6 +64,10 @@ printf 'cse_1\t%s/\n' "$ITEM_B" >"$TMP/slash.tsv"
 run "$TMP" --session-map "$TMP/slash.tsv"
 assert_eq "a map URL with a trailing slash exits 2" 2 "$rc"
 assert_contains "the trailing-slash line is named" "$out" "session map line 1"
+printf "cse_1'); DROP TABLE x; --\t%s\n" "$ITEM_B" >"$TMP/ccr-quote.tsv"
+run "$TMP" --session-map "$TMP/ccr-quote.tsv"
+assert_eq "a map session id with a quote exits 2" 2 "$rc"
+assert_contains "the bad session id line is named" "$out" "session map line 1"
 run "$TMP/missing"
 assert_eq "a missing store exits 2" 2 "$rc"
 assert_contains "the missing store names the metrics file" "$out" "cc-metrics.json"

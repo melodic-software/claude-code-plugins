@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# nested-agents-check.sh — does every nested AGENTS.md actually load?
-#
-#   Claim: Claude Code attaches a subdirectory's AGENTS.md lazily, on the
-#     triggers the source-conflict record below points to, when neither that
-#     directory nor any directory above it carries a CLAUDE.md,
-#     .claude/CLAUDE.md or CLAUDE.local.md; otherwise it reads the CLAUDE.md
-#     files instead. This check tests only that blocking
-#     condition, so it holds whatever the trigger list is. Open: whether a Bash
-#     single-file read attaches AGENTS.md (unprobed).
-#   Pointer: https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
-#   Probe: the canary runs on Claude Code 2.1.278 cited in the description of
-#     pull request #4291 (melodic-software/claude-code-plugins).
-#   As of: 2026-10-11.
-#   Recheck trigger: that section changes which file names count for the check,
-#     or a release note names AGENTS.md or instruction-file loading.
-#
-#   Source conflict: the changelog v2.1.290 entry and
-#     memory#when-claude-code-reads-agents-md disagree on what attaches a
-#     subdirectory's AGENTS.md.
-#   Pointer: when a finding depends on what attaches it, fetch
-#     code.claude.com/docs/en/memory#when-claude-code-reads-agents-md and
-#     code.claude.com/docs/en/changelog (v2.1.290) live.
-#   As of: 2026-10-10.
-#   Recheck trigger: that subsection changes its list of what attaches a
-#     subdirectory's AGENTS.md.
-#
-# AGENTS.md discovery is tracked files only, but the blocking and wiring checks
-# read the filesystem, so a gitignored CLAUDE.local.md shim counts.
 
 set -uo pipefail
 
@@ -91,17 +63,6 @@ nested_agents() {
   ' | LC_ALL=C sort
 }
 
-# 0 when the file is blocked and not wired, one walk up its path deciding both.
-# Blocked = one of the three names sits on the file's own path. A CLAUDE.md
-# above the repository root is invisible here; that case is the operator's to know.
-# Wired = any of the three names in its own or any ancestor directory reaches the
-# file, since each of those loads and carries its imports in.
-#
-# All three names count at EVERY level, the root's `.claude/CLAUDE.md` included
-# but not alone, both in the directories above and in the subdirectory itself.
-#   Pointer: https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
-#   As of: 2026-10-11.
-#   Recheck trigger: that section changes which file names count, or at which levels.
 is_unwired() {
   local agents="$1" dir want entry blocked=1
   dir="$(dirname "$agents")"

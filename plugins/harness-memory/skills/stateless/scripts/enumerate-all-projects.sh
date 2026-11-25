@@ -36,8 +36,6 @@ shopt -s nullglob
 for mem in "$projects_root"/*/memory; do
   [[ -d "$mem" ]] || continue
   found=$((found + 1))
-  # No -f pre-check: a file deleted mid-read (concurrent purge) must degrade to "absent".
-  # 2>/dev/null precedes the input redirect so a missing file's shell error is silenced.
   lines=$(wc -l 2>/dev/null <"$mem/MEMORY.md" | tr -d ' \r') || true
   lines="${lines:-absent}"
   topics=$(mtopics::count "$mem")

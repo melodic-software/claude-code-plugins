@@ -201,10 +201,6 @@ refuse "blocked without a guard is refused" '{"key":"k","value":"v","verdict":"b
 refuse "set without supplied_by is refused" '{"key":"k","value":"v","verdict":"set","observed_by":"ls","mode":"observed"}'
 refuse "a credential value is refused" '{"key":"k","value":"ghp_abcdefghijklmnopqrstuvwxyz0123","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a new-format GitHub App token value is refused" '{"key":"k","value":"ghs'"_1234567_eyJFAKE.FAKEpayload.FAKEsignature"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
-# A stateless installation token is ghs_ then a JWT of about 520 characters, with no
-# app id. The RS256 header encodes to exactly 36 alphanumerics; the kid header carries
-# a '-' 16 characters in, before any alphanumeric minimum is met. Payload and signature
-# are fake, and every token is built at run time.
 b64url() { printf '%s' "$1" | base64 | tr -d '\n=' | tr '+/' '-_'; }
 jwt_tail=".$(b64url '{"sub":"FAKE-not-a-real-token","iat":0}').$(b64url "$(printf 'FAKE signature, not a real token?>%.0s' {1..10})")"
 for header in "$(b64url '{"alg":"RS256","typ":"JWT"}')" "$(b64url '{"kid":"k?~>","alg":"RS256","typ":"JWT"}')"; do
@@ -216,11 +212,8 @@ done
 for placeholder in ghs_job ghs_lane 3e7fef0587433cfb07332dbeabf0d79fc0baadf3 highs_and_lows_of_the_market_over_the_year laughs_out_loud_at_the_whole_long_meeting_today; do
   accept "the placeholder $placeholder is accepted" '{"key":"k","value":"'"$placeholder"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 done
-# A JWS whose header carries a certificate chain (x5c) runs to many hundreds of characters.
 long_jwt="eyJ$(printf 'A%.0s' {1..900}).FAKEpayload.FAKEsignature"
 refuse "a JWT with a 900-character header is refused" '{"key":"k","value":"'"$long_jwt"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
-# Values that once kept jq's backtracking regex busy for 10-60 s. `timeout 10` is
-# the backstop: a slow validation reads as rc 124, a finished one as 0 or 1.
 for shape in 'ghs_1_-:50000' 'ghs_1_eyJ:30000' 'ghs_1_eyJa.:30000' 'ghs_1_eyJ-:30000'; do
   unit="${shape%:*}" count="${shape##*:}"
   printf -v value '%*s' "$count" ''

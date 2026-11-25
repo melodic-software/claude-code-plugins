@@ -14,11 +14,6 @@ assert_contains() {
   esac
 }
 
-# CLAUDE_CONFIG_DIR is pinned to an empty fixture so the host's config never leaks in;
-# the user-scope case sets its own.
-#
-# HOME is NOT pinned: on Windows the temp tree sits inside the real profile, and a fake
-# HOME would make the real `~/.claude/CLAUDE.md` an ancestor displacer on dev machines.
 mkdir -p "$TEST_TMPDIR/conf"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/conf"
 
@@ -149,7 +144,6 @@ make_repo "$USR"
 printf '# Project\n' >"$USR/CLAUDE.md"
 UCFG="$TEST_TMPDIR/cfg"
 mkdir -p "$UCFG/rules/deep" "$UCFG/notes"
-# The script reports physical paths; a Windows TMPDIR is D:/ form where pwd -P is /d/ form.
 UCFG=$(cd "$UCFG" && pwd -P)
 printf '# User\n@notes/prefs.md\n' >"$UCFG/CLAUDE.md"
 printf 'prefs body\n' >"$UCFG/notes/prefs.md"
@@ -228,11 +222,6 @@ assert_contains "both AGENTS.md names are counted: root" "$OUT" "project	root	1	
 assert_contains "both AGENTS.md names are counted: .claude" "$OUT" "project	root	1	23	.claude/AGENTS.md"
 OUT=$(cd "$DOTAG" && bash "$SCRIPT" --tokens)
 assert_eq "--tokens sums both AGENTS.md files (20 + 23)" "10" "$OUT"
-
-# --- Case: a path-scoped rule is recognized however large its frontmatter ----
-# `grep -q` exits at the first match; a frontmatter larger than the pipe buffer, piped into
-# it under pipefail, turns the writer's broken pipe into "the rule declares no paths", so a
-# scoped rule is counted as always loaded. Small frontmatter hits the same race only some runs.
 
 source "$SCRIPT_DIR/lib/rule-scope.sh"
 BIGFM="$TEST_TMPDIR/bigfm.md"

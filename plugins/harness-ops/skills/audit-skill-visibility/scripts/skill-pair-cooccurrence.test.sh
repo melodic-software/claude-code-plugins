@@ -1,38 +1,6 @@
 #!/usr/bin/env bash
-# Regression tests for skill-pair-cooccurrence.sh.
-#
-# The defect this script exists to prevent is a proxy reported as a measurement,
-# so the cases that matter are the ones where a number WOULD be available and is
-# withheld anyway, and the ones where the caveat must survive into the output.
-#
-# Coverage:
-#   - a store over both floors yields a rate, with the ordering split
-#   - an EMPTY denominator withholds rather than reporting 0% (the specific
-#     inversion: "caller never ran" is not "callee never followed caller")
-#   - a span under the exposure floor withholds even with a full denominator
-#   - a denominator under the group floor withholds even with a long span
-#   - the proxy caveat appears in BOTH renderers (prose and --json), because a
-#     machine consumer stripping it is the same defect as a human not seeing it
-#   - grouping is (project_id, branch): the same branch name under two projects
-#     does not merge, and one project across two branches does not merge
-#   - a malformed row is skipped, not fatal
-#   - a record with no project_id/branch still groups instead of vanishing
-#   - argument validation exits 3; an absent store exits 2 and says so
-#   - without --store the reader opens the file the hooks WROTE, for each of
-#     the three skill_usage_scope values, driven through the shared resolver
-#     (the real writer hook runs, then the reader is pointed at the same
-#     options); an unrendered ${user_config.*} placeholder reads as the
-#     default; an unknown scope falls back to repo exactly as the writer does;
-#     an unresolvable destination exits 2 and a missing store names its scope;
-#     an inherited CLAUDE_PLUGIN_DATA never stands in for --data-root
-#
-# Every case runs in THIS shell, never a `( … )` subshell: an assertion inside a
-# subshell increments a copy of the failure counter, and the run would report
-# green with a failing case in it.
 
 set -uo pipefail
-# An inherited absolute GIT_DIR outranks -C and would write the fixture's git
-# identity into the caller's clone; clear it before any fixture is built.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -225,15 +193,6 @@ assert_status "an absent store exits 2" "$?" 2
 assert_contains "…and says nothing was observed rather than implying a zero" "$err" "Nothing has been observed"
 assert_contains "…and names the explicit override as where it looked" "$err" "(explicit --store)"
 
-# --- the default store is the writer's store, in every scope -----------------
-# The writer (the skill-usage-audit hook) selects its destination through
-# harness_ops::resolve_skill_usage_dir; the reader must open that same file for
-# each scope, not a restated copy of one branch. Each case runs the REAL writer
-# with the hook-environment option mirrors, then the reader with the rendered
-# option values the skill body passes, and asserts the two meet: the reader's
-# --print-store answer is the resolver's answer, and the reader sees the row.
-# HOME, CLAUDE_PROJECT_DIR and CLAUDE_PLUGIN_DATA are all isolated under $TMP,
-# so a store on this machine cannot stand in for the one the case wrote.
 # shellcheck source=../../../hooks/hook-utils.sh
 . "$PLUGIN_ROOT/hooks/hook-utils.sh"
 # shellcheck source=../../../hooks/harness-ops-paths.sh
@@ -253,8 +212,6 @@ run_writer() {
     bash "$WRITER" <<<"$WRITE_INPUT" >/dev/null 2>&1
 }
 
-# run_reader <args...>: the reader in the skill-subprocess shape (no
-# CLAUDE_PLUGIN_OPTION_* mirrors, no CLAUDE_PLUGIN_DATA), options by flag.
 run_reader() {
   env -u CLAUDE_PLUGIN_DATA -u CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE -u CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR \
     HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$PROJECT" \

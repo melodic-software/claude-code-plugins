@@ -46,10 +46,6 @@ _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-# Re-exported, not merely used: `registrations_of` is part of this extractor's
-# surface (its own tests read it from here), and `lib/registrations.py` is
-# shared with the sibling overlap consumer so the registration-shape rule the
-# extractor writes and the consumer reads has exactly one home.
 from registrations import registrations_of  # noqa: E402  (path set above; plugin-bundled module)
 
 if str(Path(__file__).resolve().parent) not in sys.path:
@@ -60,21 +56,10 @@ from docs_crosscheck import build_crosscheck  # noqa: E402  (sibling module)
 
 MIN_PYTHON = (3, 11)
 
-# The CLI release this extractor was last verified against by a human running
-# the skill's evals. Drift from it is not an error - the extraction is designed
-# to survive ordinary releases - but it downgrades every count from "verified"
-# to "believed", which the report has to say out loud.
 VALIDATED_AGAINST = "2.1.318"
 
-# Commands that have shipped in every build observed. Their absence means the
-# extraction broke, not that Anthropic deleted /help. This is the cheapest
-# guard against the failure mode that matters: a layout change that yields a
-# clean-looking but badly incomplete list instead of an error.
 CANARY_COMMANDS = ("help", "clear", "config", "resume", "status")
 
-# Registrar-shaped exports known to funnel into registerBundledSkill. A new
-# name here is the signal that a fourth registration path appeared and this
-# script may now be under-reporting silently.
 KNOWN_REGISTRAR_EXPORTS = frozenset(
     {
         "registerBundledSkill",
@@ -94,84 +79,38 @@ KNOWN_REGISTRAR_EXPORTS = frozenset(
     }
 )
 
-# Below this ratio of extracted commands to `type:"local…"` tokens present, the
-# brace reader is failing to resolve enclosing objects and the list is partial.
 MIN_COMMAND_YIELD = 0.40
 
-# Plugin-backed built-ins that have shipped in every build observed. Absence
-# means the `pluginName` scan broke, not that the product dropped the command.
 PLUGIN_BACKED_CANARY = ("security-review",)
 
-# The bundle is minified JS. These markers sit at the top of the embedded CLI
-# chunk and are stable across the releases observed so far; each is tried in
-# turn so one rename does not break discovery.
 BUNDLE_MARKERS = (b"// @bun @bytecode @bun-cjs", b"// @bun @bun-cjs", b"// @bun")
 
-# Region rule. A bytecode-fragmented bundle scatters its readable JavaScript
-# across thousands of printable runs, some only a few kilobytes, with
-# registrations in the small ones. From the first bundle marker to end of file,
-# every printable run of at least this many bytes is taken and the runs are
-# joined with newlines. The floor is what keeps the single regex pass cheap;
-# below it the regex costs minutes and above it registrations go missing.
 MIN_RUN_BYTES = 256
 RUN_RE = re.compile(rb"[\t\n\r\x20-\x7e]{%d,}" % MIN_RUN_BYTES)
-# A whole module below the floor is still taken: a printable run that opens
-# with the module header. A module holding one exported constant
-# (`var Vf="WebSearch";export{Vf};` under the header) fits under the floor.
 MODULE_RUN_RE = re.compile(rb"(?<![\t\n\r\x20-\x7e])// @bun[\t\n\r\x20-\x7e]*")
-# Every registration literal, of any registrar, opens with `({name:`. Counting
-# it in the raw region against the joined source is how a registration that
-# sits in a run below the floor is counted rather than silently lost. Minified
-# source puts the value flush against the colon; `({name: "` with a space is
-# prose in a message string (the bytecode string table holds several), not code.
 REGISTRATION_TOKEN_RE = re.compile(rb"\(\{name:(?=[\"`A-Za-z_$])")
 
-# A single-character identifier is a function-local minifier name reused
-# everywhere, so its nearest preceding string binding is only trusted when it
-# lies within this many bytes of the registration; a longer identifier is a
-# module-level constant and its nearest preceding binding is trusted at any
-# distance (the constants are hoisted megabytes ahead of the registrations in
-# the bytecode layout).
 SHORT_IDENT_LOCALITY_BYTES = 65_536
 
-# Extraction lanes, in the order the self-check prints them. Each lane carries
-# its own status so one broken lane never silently voids the others' counts.
 LANES = ("builtin_commands", "bundled_skills", "plugin_backed")
 WORKFLOW_LANE = "bundled_workflows"
 
-# A bundled workflow that has shipped in every build since workflows gained a
-# bundled roster. Absence means the workflow scan broke.
 WORKFLOW_CANARY = ("deep-research",)
 
 AGENT_LANE = "builtin_agents"
 TOOL_LANE = "builtin_tools"
 
-# Built-in subagents and tools that have shipped in every build observed and
-# that the docs name (sub-agents.md, tools-reference.md). Absence means the
-# scan broke, not that the product dropped them.
 AGENT_CANARY = ("general-purpose", "Explore", "Plan", "statusline-setup")
 TOOL_CANARY = ("Bash", "Read", "Edit", "Write", "WebFetch")
 
-# Built-in plugins (`cc-plugin-*@builtin`), optional in `check_integrity` like
-# the lanes above. The canaries are the loader's unconditional plugins in every
-# build observed (2.1.285 through 2.1.287); absence means the scan broke.
 PLUGIN_LANE = "builtin_plugins"
 PLUGIN_CANARY = ("cc-plugin-sec-default", "cc-plugin-agents-md")
 
-# Value shapes a name constant may hold. A subagent type is PascalCase or
-# kebab-case (`Explore`, `claude-code-guide`); a tool is PascalCase, or
-# snake_case for a few remote and memory tools.
 AGENT_NAME_RE = r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*"
 TOOL_NAME_RE = r"[A-Z][A-Za-z0-9]*|[a-z][a-z0-9]*(?:_[a-z0-9]+)+"
 
-# A description or argument hint held in a single-character identifier is
-# trusted only when its binding lies this close to the registration: such names
-# are function-local, and a farther binding belongs to another function.
 SHORT_VALUE_LOCALITY_BYTES = 4_096
 
-# Component types a plugin may ship, from the plugin manifest schema and the
-# standard plugin layout. Directory is the default location; the manifest may
-# redirect most of them, which is why the manifest is read before the tree.
 PLUGIN_COMPONENTS: dict[str, dict[str, str]] = {
     "skills": {"dir": "skills", "manifest": "skills", "kind": "dir-of-dirs"},
     "commands": {"dir": "commands", "manifest": "commands", "kind": "dir-of-files"},
@@ -213,8 +152,6 @@ PLUGIN_COMPONENTS: dict[str, dict[str, str]] = {
 def candidate_binaries() -> list[Path]:
     out: list[Path] = []
 
-    # Inside a session, the CLI that runs it: a lane can install it outside
-    # PATH and the install roots below.
     pid = os.environ.get("CLAUDE_PID", "")
     if pid.isdigit():
         try:
@@ -276,7 +213,6 @@ def pick_binary(explicit: str | None) -> tuple[Path | None, str]:
             continue
         if size > 20_000_000:
             return p, "auto-detected native build"
-        # Keep looking; a shim may precede the real binary on PATH.
     for p in candidates:
         try:
             if p.is_file():
@@ -452,11 +388,6 @@ def _select_longest_run(
             begin -= 1
         return begin, end
 
-    # Anchor on the export name the extraction needs rather than on the chunk
-    # header. The header appears several times (small helper chunks carry it
-    # too), so the first hit is routinely a few hundred bytes of the wrong
-    # chunk; the export name occurs only in the CLI bundle. Markers stay as a
-    # fallback for a build that renames the export.
     anchors: list[bytes] = [b"registerBundledSkill", *BUNDLE_MARKERS]
 
     best: tuple[int, int] | None = None
@@ -559,10 +490,6 @@ def build_brace_map(s: str) -> BraceMap:
 
 def _brace_pairs(s: str, lo: int, n: int, pairs: dict[int, int]) -> None:
     stack: list[int] = []
-    # Brace depth at which each open template `${` substitution began. The
-    # substitution is ordinary code (it can hold regex literals, nested
-    # templates, and object literals), so the main loop tokenizes it; the `}`
-    # that returns to that depth resumes the template's literal text.
     templates: list[int] = []
     i = lo
     prev_sig = "\n"
@@ -613,7 +540,6 @@ def _brace_pairs(s: str, lo: int, n: int, pairs: dict[int, int]) -> None:
             prev_sig, prev_word = "/", ""
             continue
         if s.startswith("...", i):
-            # A spread operand can be a regex literal: `[...a, .../x/.test(y)]`.
             prev_sig, prev_word = "(", ""
             i += 3
             continue
@@ -621,8 +547,6 @@ def _brace_pairs(s: str, lo: int, n: int, pairs: dict[int, int]) -> None:
             j = i
             while j < n and s[j] in _ID_CHARS:
                 j += 1
-            # `of` is a keyword only after a `for` binding (`x of`, `] of`);
-            # elsewhere it is a minified name, as in `${of/1000}`.
             word = s[i:j]
             of_ident = word == "of" and not (
                 prev_sig in ("]", "}") or (prev_word and prev_word not in _REGEX_KEYWORDS)
@@ -804,7 +728,6 @@ def _primitive_text(text: str, *, joined: bool) -> str | None:
         return "" if joined else ("null" if text == "null" else "undefined")
     if text in ("true", "false"):
         return text
-    # 15 digits stay below 2**53, where a JS double renders them exactly.
     if re.fullmatch(r"-?(?:0|[1-9]\d{0,14})", text):
         return str(int(text))
     return None
@@ -1082,7 +1005,6 @@ def _scan(
                 block
                 and depth == 0
                 and (prev == ")" or prev_word in ("else", "try", "finally"))
-                # A nested function declaration is not a branch of this body.
                 and not _opens_function(src, braces, i)
             ):
                 _scan(
@@ -1100,7 +1022,6 @@ def _scan(
                     | _for_params(src, braces, i),
                     deferred=deferred,
                 )
-                # A statement block ends the unbraced loop body holding it.
                 ends = not re.match(
                     r"\s*(?:else|catch|finally)(?![\w$])", src[close + 1 : close + 17]
                 )
@@ -1117,7 +1038,6 @@ def _scan(
                 break
             depth -= 1
             if depth == 0 and c == ")" and block:
-                # An unbraced loop body is no block, so its head binds here.
                 nxt = _skip_ws(src, i + 1, n)
                 if not src.startswith("{", nxt):
                     loop = loop | _for_head_names(src, braces, i)
@@ -1129,9 +1049,6 @@ def _scan(
                 active = False
         elif depth == 0 and (c == "?" or src.startswith("||", i)):
             if src.startswith(("??", "||"), i):
-                # A fallback: its right side is what shows when the left is
-                # empty, unless it is an empty string itself (`x??""`), which
-                # says nothing.
                 i = _skip_ws(src, i + 2, n)
                 after = _skip_ws(src, i + 2, n)
                 empty = src[i : i + 2] in ('""', "''", "``") and (
@@ -1253,8 +1170,6 @@ def _operand(
             return _arrow_body(src, braces, k + 2, n, acc, **{**kw, "shadow": params})
     start = i
     parts: list[Any] = []
-    # A call or a group can also yield a non-string (`void 0`, `null`) this
-    # reader does not record, so its values never settle a fallback.
     computed = False
     quoted = True
     while True:
@@ -1335,8 +1250,6 @@ def _operand(
         p = parts[0]
         values = p if isinstance(p, list) else [p] if isinstance(p, str) else None
         if p is _NONSTRING:
-            # A non-string (`void 0`, `null`, a number): nothing to record,
-            # but the expression is not a string for certain.
             values = []
             acc.unresolved += 1
     elif len(parts) > 1 and any(isinstance(p, (str, list)) and p for p in parts):
@@ -1349,11 +1262,6 @@ def _operand(
             ]
         )
     if fallback:
-        # `a||b`: when every value `a` can take is a non-empty string, `b`
-        # never shows, so it is skipped; otherwise `b` is read as a value
-        # after the values of `a` that are non-empty strings.
-        # `a??b` tests only null and undefined, so any string `a` keeps it.
-        # A non-string literal settles it by its own truthiness.
         literal = src[start:i].strip() if parts == [_NONSTRING] else None
         or_op = src.startswith("||", i)
         kept = (not or_op and quoted and bool(parts)) or (
@@ -1620,9 +1528,6 @@ def _chunk_span(src: str, at: int) -> tuple[int, int]:
     return starts[k], starts[k + 1] if k + 1 < len(starts) else len(src)
 
 
-# A module's statements that link it to others: its header comment lines, its
-# leading imports, and its closing export list. Only these positions count,
-# so `import{x}` quoted in a string or comment elsewhere links nothing.
 _HEADER_LINE_RE = re.compile(r"[ \t]*(?://[^\n]*)?\n")
 _IMPORT_STMT_RE = re.compile(r'\s*import\s*(?:\{([^{}]*)\}\s*from\s*)?"[^"\n]*"\s*;?')
 _EXPORT_TAIL_RE = re.compile(r"export\s*\{([^{}]*)\}\s*;?\s*\Z")
@@ -1783,8 +1688,6 @@ def _visible(braces: BraceMap, pos: int, at: int, src: str | None = None) -> boo
     return scope is not None and scope[0] < at <= scope[1]
 
 
-# The parser that answers binding lookups, or None for the regex reader.
-# `use_reader` sets it; every lookup below reads it.
 _PARSER: parser_reader.ParserReader | None = None
 
 
@@ -1891,8 +1794,6 @@ def _declaration(
         return top[0] if len(top) == 1 else None
     pattern = pattern_for(ident)
     if pattern_for is _function_pattern:
-        # A function declaration is hoisted through its whole block, so the
-        # innermost visible one wins wherever it sits, then the nearest.
         visible = [
             m for m in pattern.finditer(src, lo, hi) if _visible(braces, m.start(), at)
         ]
@@ -1909,10 +1810,6 @@ def _declaration(
         if _visible(braces, m.start(), at, src):
             found = m
     if found is not None:
-        # A declaration later in a scope nearer the reader shadows `found`
-        # and is not yet initialized when read: the value is not static.
-        # A `var` hoists to its function, so one anywhere in the reader's
-        # function counts, however deeply it is nested there.
         outer = braces.enclosing(found.start())
         outer_open = outer[0] if outer else -1
         reader = _function_block(src, braces, at)
@@ -1967,9 +1864,6 @@ def _write_pattern(ident: str) -> re.Pattern[str]:
 
 
 def _binding_pattern(ident: str) -> re.Pattern[str]:
-    # The identifier leads and the boundary check trails it: a pattern that
-    # opens with a lookbehind loses the regex engine's literal-prefix scan and
-    # runs about thirty times slower over a 45 MB source.
     name = re.escape(ident)
     return re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
 
@@ -2484,9 +2378,6 @@ def _resolve_chain(
         return None
     at = anchor if anchor is not None else pos
     sub = _Values()
-    # A bare identifier naming a function declaration is a function-valued
-    # field, which the registrars read through a getter: resolve it as a call
-    # when the declaration is nearer than any `ident=` binding.
     single = len(chain) == 1
     v = _binding_value(src, braces, ident, at, deferred=deferred) if single else None
     fn = _function_body(src, braces, ident, at) if single else None
@@ -2724,11 +2615,6 @@ def extract_builtin_commands(src: str, braces: BraceMap) -> dict[str, dict[str, 
             continue
         literals.append((m, open_i, src[open_i : close_i + 1]))
 
-    # A name held in a hoisted constant (`name:EMr` where `EMr="commit-push-pr"`)
-    # resolves by the same nearest-preceding rule as a bundled skill. A
-    # single-character identifier here is a factory's parameter
-    # (`function t1t(e,...){return{type:...,name:e}}`), not one command, so it
-    # is never resolved.
     idents = {
         c.group(1)
         for _, _, body in literals
@@ -2826,9 +2712,6 @@ def _read_aliases(body: str) -> list[str]:
 
 
 _IDENT = r"[A-Za-z_$][A-Za-z0-9_$]*"
-# The canary registration: `doctor` has shipped in every build observed and its
-# alias makes the literal unambiguous. The callee immediately before it is the
-# registrar when no export map names one.
 _CANARY_REGISTRATION = r'\(\{name:"doctor",aliases:\["checkup"\]'
 
 
@@ -2888,8 +2771,6 @@ def build_const_index(
     if idents is not None:
         if not idents:
             return {}
-        # `(?<![\w$])`, not `\b`: minified names may start with `$`, before
-        # which `\b` needs a word character and so never matches a real start.
         pattern = re.compile(
             r"(?<![\w$])("
             + "|".join(re.escape(i) for i in sorted(idents, key=len, reverse=True))
@@ -3172,10 +3053,6 @@ def extract_bundled_skills(
         notes["error"] = "registerBundledSkill export not found - build layout changed"
         return {}, notes
 
-    # First pass: bound every call and read its name expression. A call whose
-    # object carries no `name:` is another module's function that happens to
-    # share the minified identifier, not a registration, so it is counted
-    # apart and never inflates the resolved-versus-seen gap.
     calls: list[tuple[int, int, str, re.Match[str]]] = []
     unbounded = 0
     same_ident_calls = 0
@@ -3779,9 +3656,6 @@ def extract_builtin_agents(
         if enc is None or enc[0] in opens:
             continue
         fields = _object_fields(src, braces, enc[0], methods=True)
-        # A definition carries its prompt or its routing text; a runtime
-        # context object that merely copies `agentType` and `source` from a
-        # definition carries neither.
         if "agentType" not in fields or not {"whenToUse", "getSystemPrompt"} & set(
             fields
         ):
@@ -3853,9 +3727,6 @@ def extract_builtin_agents(
         status = roster.get(name, "absent")
         rec["roster"] = status
         rec["gated"] = status != "default"
-        # Users reach a registered subagent by @-mention or --agent, the model
-        # by the Agent tool's subagent_type; one outside the default roster is
-        # registered only when a runtime feature adds it.
         who: bool | None = None if status == "absent" else True
         rec["user_invocable"] = who
         rec["model_invocable"] = who
@@ -3989,10 +3860,6 @@ def extract_builtin_tools(
     return out, notes
 
 
-# A built-in plugin is registered by a function whose body stores the plugin
-# object in the `builtinPlugins` map under its own name; a loader whose body
-# sets the `builtinPluginsInitialized` latch requires each plugin's module.
-# Both are found by those property names, never by the minified callee.
 _PLUGIN_REGISTRAR_RE = re.compile(
     r"function\s+("
     + _IDENT
@@ -4593,7 +4460,6 @@ def _frontmatter(text: str) -> dict[str, str]:
             if text_:
                 out[kv.group(1)] = text_
         elif value and not value.startswith(("{", "[", "&", "*", "!")):
-            # A plain scalar continues on indented lines, folded with spaces.
             more: list[str] = []
             while (
                 i < len(lines) and lines[i].startswith((" ", "\t")) and lines[i].strip()
@@ -4797,9 +4663,6 @@ def extract_builtin_plugins(
         )
         return {}, notes
 
-    # The id is built where the registry is walked: a `${name}@${M}` template
-    # inside a function of the registrar's module that reads `.builtinPlugins`.
-    # Any other `@${...}` (a version string) is not it; no single value, no id.
     walkers: set[tuple[int, int]] = set()
     for _, home in registrars:
         end = _chunk_span(src, home)[1]
@@ -4817,9 +4680,6 @@ def extract_builtin_plugins(
         defaults.update(re.findall(r"\.defaultEnabled\?\?(!0|!1|[\w$]+)", src[lo_:hi_]))
     marketplace = found.pop() if len(found) == 1 else None
     notes["marketplace"] = marketplace
-    # The consumer's default, `enabled = setting ?? plugin.defaultEnabled ?? true`,
-    # read only where the registry is walked; missing or ambiguous there, a
-    # plugin without its own `defaultEnabled` has no known default.
     default_rule = defaults == {"!0"}
     notes["default_enabled_rule_found"] = default_rule
 
@@ -4876,8 +4736,6 @@ def extract_builtin_plugins(
         load = loader.get(name)
         rec["load"] = load["load"] if load else None
         rec["load_guards"] = load["load_guards"] if load else None
-        # False: the loader was read and never requires this plugin, so the
-        # registration is not proven live. None: no loader was found.
         rec["in_loader"] = (load is not None) if callees else None
         if rec["in_loader"] and rec["load"] is None:
             partial.append("load")
@@ -4974,8 +4832,6 @@ def extract_builtin_plugins(
                     partial.append("commands")
         if rec["hook_events"] is None:
             partial.append("hook_events")
-        # An unresolved spread may hold any key the merge did not see: there an
-        # absent key is unknown (None, named in `partial`), not absent.
         rec["hooks_module"] = hooks_module or (False if complete else None)
         rec["user_config"] = "userConfig" in fields or (False if complete else None)
         classic = fields.get("hooks")
@@ -4996,9 +4852,6 @@ def extract_builtin_plugins(
         rec["commands"] = commands
         rec["partial"] = sorted(set(partial))
         if name in out:
-            # The registrar is a `Map.set`, so whichever call runs last wins,
-            # and run order is not read: the kept record may not be the live
-            # one. Name it partial as a whole and degrade the lane.
             notes.setdefault("duplicate_registrations", []).append(name)
             out[name]["partial"] = sorted({*out[name]["partial"], "registration"})
             continue
@@ -5006,9 +4859,6 @@ def extract_builtin_plugins(
 
     notes["registrations_seen"] = len(calls)
     notes["resolved"] = len(out)
-    # Lists that are floors by construction, never totals: `aliases` holds the
-    # short-name pairs the bundle spells as literals, and `gate_flags` only the
-    # flag checks in a gate whose other terms are runtime state.
     notes["floors"] = ["aliases", "gate_flags"]
     if factories:
         notes["factory_registrations"] = factories
@@ -5113,9 +4963,6 @@ def check_integrity(
         )
 
     bundled = lanes["bundled_skills"]
-    # Both export shapes: the CJS getter and the ESM export list. A
-    # registrar-shaped name in either that this script does not know is the
-    # signal of a registration path it is not reading.
     found_registrars = set(re.findall(r"\b(register[A-Za-z]*)\s*:\(\)=>", src))
     found_registrars |= set(
         re.findall(
@@ -5285,7 +5132,6 @@ def check_integrity(
             )
         advisories.extend(f"{lane}: {a}" for a in entry["advisories"])
 
-    # `problems` is filled only when every lane is broken.
     return {
         "status": _lane_status(problems, advisories),
         "lanes": lanes,
@@ -5361,7 +5207,6 @@ def scan_installed(root: Path) -> dict[str, Any]:
     for marketplace in sorted(p for p in cache.iterdir() if p.is_dir()):
         plugins: dict[str, Any] = {}
         for entry in sorted(p for p in marketplace.iterdir() if p.is_dir()):
-            # Installs may nest one version directory below the plugin name.
             candidate = entry
             if (
                 not (entry / ".claude-plugin").is_dir()
@@ -5480,9 +5325,6 @@ def scan_config_scope(root: Path) -> dict[str, Any]:
     return out
 
 
-# Instruction files, per https://code.claude.com/docs/en/memory (file table and
-# "When Claude Code reads AGENTS.md"). The managed-policy CLAUDE.md is shown
-# under a symbolic prefix, since its directory is a fixed per-OS system path.
 _INSTRUCTION_GLOBS = (
     ":(glob)**/CLAUDE.md",
     ":(glob)**/CLAUDE.local.md",
@@ -5539,7 +5381,6 @@ def _repo_instruction_paths(root: Path) -> list[str]:
         if rules.is_dir():
             found += [p.relative_to(root).as_posix() for p in rules.rglob("*.md")]
         return sorted(p for p in found if (root / p).is_file())
-    # A name that is not UTF-8 is skipped on its own; the rest still count.
     paths = set()
     for raw in out.split(b"\0"):
         try:
@@ -5578,7 +5419,6 @@ def _classify(rel: str, present: set[str]) -> tuple[str, str, str] | None:
         return "local", "claude-local-md", "launch" if root else "on-demand"
     if name == "CLAUDE.md":
         return "project", "claude-md", "launch" if root else "on-demand"
-    # A CLAUDE.md-family file in this folder or any folder above it counts.
     parts = folder.split("/") if folder else []
     prefixes = ["/".join(parts[:i]) + "/" if i else "" for i in range(len(parts) + 1)]
     if any(pre + p in present for pre in prefixes for p in _CLAUDE_MD_SET):
@@ -5653,7 +5493,6 @@ def instruction_files(
     return sorted(found, key=lambda e: (_SCOPE_ORDER[e["scope"]], e["path"]))
 
 
-# The remote rollout flag that lets installed plugins load hooks modules (mods).
 MODS_ROLLOUT_FLAG = "tengu_plugin_hooks_modules"
 BUILTIN_STATE_CAVEATS = (
     "`cached` is this account's flag value as last fetched into the global config; "
@@ -5688,8 +5527,6 @@ def _enabled_plugin_maps(
         data = _load_json(path)
         found = data.get("enabledPlugins") if isinstance(data, dict) else None
         found = found if isinstance(found, dict) else {}
-        # Claude Code drops every enabledPlugins entry of a file holding one
-        # non-Boolean value, so that scope decides nothing.
         bad = sorted(k for k, v in found.items() if not isinstance(v, bool))
         if bad:
             rejected[scope] = bad
@@ -5743,7 +5580,6 @@ def builtin_plugin_state(
         "global_config": str(gcfg_path) if gcfg is not None else None,
         "flag_cache_read": cache_read,
         "settings_read": sorted(s for s, p in scopes.items() if p.is_file()),
-        # Scope -> its non-Boolean keys: Claude Code ignores that whole map.
         "enabled_plugins_rejected": rejected,
         "mods_flag": {
             "flag": MODS_ROLLOUT_FLAG,
@@ -5859,8 +5695,6 @@ def _plugin_records(
         if enabled is None
         else _plugin_state(pid, enabled, entry, manifest)
     )
-    # A root SKILL.md takes the plugin's name: plugin.json's, else the id's,
-    # which is the `cache/<marketplace>/<plugin>/` directory above the version.
     declared_name = manifest.get("name")
     plugin_name = (
         declared_name
@@ -5932,7 +5766,6 @@ def skills_index(root: Path, project_root: Path) -> list[dict[str, Any]]:
                     }
                 )
 
-    # A cached plugin whose marketplace is no longer known still loads.
     if cache.is_dir():
         for market_dir in sorted(p for p in cache.iterdir() if p.is_dir()):
             for plugin_dir in sorted(p for p in market_dir.iterdir() if p.is_dir()):

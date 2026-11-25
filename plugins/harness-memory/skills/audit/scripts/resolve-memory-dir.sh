@@ -1,17 +1,7 @@
 #!/usr/bin/env bash
-# Resolve the absolute path to the Claude Code auto-memory dir for the CURRENT project
-# (a git repo, or the current directory outside one).
-# The naive glob `~/.claude/projects/*/memory/` resolves alphabetical-first to the
-# wrong repo on a multi-project machine; siblings call this instead of inlining it.
 
-# No `set -e`: an optional git sub-command failing must not crash mid-resolve.
 set -uo pipefail
 
-# A pinned project directory name replaces the derived slug. These are this resolver's
-# firing values, set to match the docs and the same check in session-flow's transcript_dirs.sh.
-#   Pointer: https://code.claude.com/docs/en/sessions#name-the-project-directory-yourself
-#   As of: 2026-11-04.
-#   Recheck trigger: that section changes which values are accepted or when the variable applies.
 pinned_memory_dir() {
   local pinned="${CLAUDE_CODE_PROJECT_DIR_NAME:-}"
   [[ -n "${CLAUDE_CONFIG_DIR:-}" && "$pinned" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || return 1
@@ -40,14 +30,10 @@ fi
 
 pinned_memory_dir && exit 0
 
-# cygpath -w yields the Windows form Claude Code names project dirs with, falling back
-# to the raw path where cygpath does not exist.
 windows_path() { cygpath -w "$1" 2>/dev/null || printf '%s' "$1"; }
 
-# sed (not tr) for path-char replacement — tr mishandles backslashes on Git Bash.
 slug() { printf '%s' "$1" | sed 's/[:\\/.]/-/g'; }
 
-# tr -d '\r' strips Git Bash CRLF from piped git output.
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 
 in_repo=1
@@ -61,8 +47,6 @@ fi
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 session_data_dir="$config_root/projects/$(slug "$repo_root")"
 
-# A bare-clone-hub worktree shares auto-memory at the hub (git-common-dir): pick the
-# candidate that actually holds MEMORY.md rather than guessing the slug algorithm.
 memory_dir=""
 if [[ "$in_repo" -eq 1 ]]; then
   git_common=$(cd "$(git rev-parse --git-common-dir 2>/dev/null | tr -d '\r')" 2>/dev/null && pwd)
