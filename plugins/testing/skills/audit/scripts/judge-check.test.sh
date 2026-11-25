@@ -64,8 +64,6 @@ same "a range past the end of the file has no key" "$(bash "$CHECK" shape sonnet
 cs_test "$TMP/norepo/CalcTests.cs" Adds_one
 same "a file in no repository has no key" "$(bash "$CHECK" shape sonnet medium "$TMP/norepo/CalcTests.cs" 1 4-7 Adds_one)" ""
 
-# --- comment-only ------------------------------------------------------------
-# diff_of <file> <changed copy>: a unified diff with a/ and b/ labels.
 diff_of() { diff -u --label "a/${1#"$REPO"/}" --label "b/${1#"$REPO"/}" "$1" "$2" >"$TMP/d.diff"; }
 F="$REPO/a/CalcTests.cs"
 awk 'NR == 6 { print "        // the expected value is from the spec" } { print }' "$F" >"$TMP/mod"

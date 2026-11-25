@@ -6535,7 +6535,6 @@ test("report job: fix-ci-dispatch reads the neutral not-assessed post as the hea
 });
 
 test("leak scan: the split-line pass leaves out the OpenAI pattern, so an sk- word ending a line stays clean, and a split Anthropic key still blocks", async (t) => {
-  // The test-scan.test.sh:503-504 shape: an identifier that ends a line, then a word.
   const shape = 'run Write "$DEF_TMP/def.test.ts" stskip "" sk-def-control\nassert_contains "control: a /tmp copy records" "$(rec stskip sk-def-control)" sk-def-control\n';
   for (const plant of [inReply(Buffer.from(shape)), inPatch(Buffer.from(shape))]) {
     const { clean, failed, outputs } = await scanWith(t, plant);

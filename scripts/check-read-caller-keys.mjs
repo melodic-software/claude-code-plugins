@@ -161,8 +161,6 @@ if (!files.has(READ_WORKFLOW)) {
     `${READ_WORKFLOW}: missing; the read-caller key check has nothing to anchor on`,
   );
 } else {
-  // Up to every workflow whose run reaches the read workflow, then down
-  // through every reusable workflow those runs call.
   callers = walk(READ_WORKFLOW, callersOf);
   callers.delete(READ_WORKFLOW);
   for (const file of callers) {
@@ -254,7 +252,6 @@ function checkJobOf(file, doc) {
 
 const pairsOf = (node) => (yaml.isMap(node) ? node.items : []);
 
-// The pairs of a map node whose key and value are exactly these scalars.
 const exactPairs = (map, key, value) =>
   pairsOf(map).filter(
     (pair) =>
@@ -428,7 +425,6 @@ function check(file) {
     offenders.push(
       `${file}:${line}: ${what} in a run that reaches ${READ_WORKFLOW}`,
     );
-  // A pair whose value is a scalar reading `word`, any case, outer space trimmed.
   const valueIs = (pair, word) =>
     yaml.isScalar(pair.value) &&
     String(pair.value.value).trim().toLowerCase() === word;

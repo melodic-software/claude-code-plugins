@@ -286,10 +286,6 @@ is_scannable() {
 
 baseline_entries=()
 if [[ -f "$BASELINE" ]]; then
-  # `inline`: baseline entries are repo-relative paths, never regexes, so a `#`
-  # anywhere on the line is a comment. This gate's OTHER list — the token file —
-  # takes `leading` instead, because its entries are EREs that may contain a
-  # `#`.
   read_list::into baseline_entries "$BASELINE" --comments inline || exit 2
 fi
 
