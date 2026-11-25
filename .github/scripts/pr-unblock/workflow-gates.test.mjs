@@ -960,20 +960,42 @@ function cronMinutes(file) {
 
 const DISPATCHER = "pr-unblock-dispatch.yml";
 
-for (const [file, jobs] of [["pr-unblock.yml", ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"]]]) {
-  test(`${file}: a dispatcher on an older copy of its file starts no first job`, () => {
-    const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
-    assert.match(text, /\n {2}check-dispatcher-current:\n(?: {4}.*\n| {6}.*\n|\n)*? {8}run: bash \.base\/\.github\/scripts\/pr-unblock\/dispatcher-current\.sh\n/);
-    const blocks = text.slice(text.indexOf("\njobs:\n")).split(/\n {2}(?=[a-z-]+:\n)/).slice(1);
-    const starts = blocks.filter((block) => !/^ {4}needs:/m.test(block)).map((block) => block.split(":")[0]);
-    assert.deepEqual(starts, ["check-dispatcher-current"], "every other job waits on a job");
-    for (const job of jobs) {
-      const block = new RegExp(`\\n  ${job}:\\n(?: {4}name: .*\\n)?    needs: (?:check-dispatcher-current|\\[check-dispatcher-current(?:, [a-z-]+)*\\])\\n    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
-      assert.ok(block, `${job} needs check-dispatcher-current`);
-      assert.match(block[1], /needs\.check-dispatcher-current\.outputs\.stale != 'true'/, job);
+const ACTIVITY_FIRST_JOBS = [
+  "resolve-conflicts-select",
+  "sync-shared-copies-select",
+  "fix-test-scope-select",
+  "address-feedback-select",
+  "review-dependency-select",
+  "fix-ci-context",
+];
+
+test("pr-unblock.yml: a dispatcher on an older copy of its file reads no PR in any activity's first job", () => {
+  const text = read(UNBLOCK);
+  const blocks = text.slice(text.indexOf("\njobs:\n")).split(/\n {2}(?=[a-z-]+:\n)/).slice(1);
+  const starts = blocks.filter((block) => !/^ {4}needs:/m.test(block)).map((block) => block.split(":")[0]);
+  assert.deepEqual(starts, ACTIVITY_FIRST_JOBS, "every other job waits on an activity's first job");
+  const wf = workflowText(text);
+  for (const job of ACTIVITY_FIRST_JOBS) {
+    const steps = wf.steps(job);
+    const names = steps.map((s) => s.name);
+    const compare = names.indexOf("Compare the dispatcher file with the tip's");
+    const kill = names.indexOf("Check the kill switch");
+    assert.ok(compare !== -1 && kill > compare, `${job}: the compare runs before the kill switch`);
+    assert.match(steps[compare].text, /^ {8}run: bash \.base\/\.github\/scripts\/pr-unblock\/dispatcher-current\.sh$/m, job);
+    const compareIf = ifOf(steps[compare].text, 8);
+    assert.equal(evaluate(compareIf, { "inputs.dispatcher-run-id": "" }), false, `${job}: a hand dispatch skips the compare`);
+    assert.equal(evaluate(compareIf, { "inputs.dispatcher-run-id": "123" }), true, `${job}: a dispatched run compares`);
+    const killIf = ifOf(steps[kill].text, 8);
+    assert.equal(evaluate(killIf, { "steps.current.outputs.stale": "true" }), false, `${job}: a stale dispatcher stops at the kill switch`);
+    assert.equal(evaluate(killIf, { "steps.current.outputs.stale": "" }), true, `${job}: a current or skipped compare reads the kill switch`);
+    for (const later of steps.slice(kill + 1).filter((s) => s.name !== "Log the API budget at the end")) {
+      const gate = ifOf(later.text, 8);
+      assert.match(gate, /steps\./, `${job}: ${later.name} runs only on an earlier step's output`);
+      assert.doesNotMatch(gate, /always\(\)|cancelled\(\)/, `${job}: ${later.name} does not run past a stopped step`);
     }
-  });
-}
+    assert.doesNotMatch(wf.job(job), /check-dispatcher-current/, `${job} reads no separate dispatcher job`);
+  }
+});
 
 test("pr-refine.yml: a dispatcher on an older copy of its file starts no plan step and no later job", () => {
   const file = "pr-refine.yml";

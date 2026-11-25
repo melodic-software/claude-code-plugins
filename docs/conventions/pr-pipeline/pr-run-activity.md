@@ -2592,8 +2592,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   run ran differs from the tip's, which the broker would refuse as `workflow-modified`. That commit
   is the run's head, or for a `pull_request_target` run the one its
   `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
-  The caller's `check-dispatcher-current` job (`dispatcher-current.sh`; in `pr-refine.yml`, a step of
-  `select-passes`) compares the two before any select job or step, so nothing runs and the run ends green with no check and no stop, and the next
+  A step of the caller's first job (`dispatcher-current.sh`: in `pr-unblock.yml`, each activity's
+  select job or `fix-ci-context`; in `pr-refine.yml`, `select-passes`) compares the two before the
+  job reads the PR, so nothing runs and the run ends green with no check and no stop, and the next
   dispatcher finds the head unhandled. When that commit is the tip itself, the file is the tip's
   and no contents read is made. A read it cannot make, or a record not yet uploaded, leaves the
   run to the broker.
