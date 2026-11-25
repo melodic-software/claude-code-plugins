@@ -1,4 +1,5 @@
 #!/bin/sh
+# guardrails-commit-msg-convention v2
 # shellcheck shell=sh
 set -u
 

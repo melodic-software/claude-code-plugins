@@ -93,7 +93,16 @@ reference_verify_install() {
     printf '#!/bin/sh\n# guardrails reference-verify sha256:%064d\n' 0
     tail -n +2 "$PLUGIN/git-hooks/reference-verify.sh"
   } >"$d/guardrails/reference-verify.sh"
-  for a in $RV_ASSETS; do cp "$PLUGIN/$a" "$d/guardrails/"; done
+  for a in $RV_ASSETS; do
+    cp "$PLUGIN/$a" "$d/guardrails/"
+    printf '# %s\n' "$(retired_text "${a##*/}")" >>"$d/guardrails/${a##*/}"
+  done
+}
+
+retired_text() {
+  awk -v p=".git/hooks/guardrails/$1" '
+    $0 == "path: " p { hit = 1; next }
+    hit && /^content_match: / { sub(/^content_match: \047/, ""); sub(/\047$/, ""); gsub(/\\/, ""); print; exit }' "$MANIFEST"
 }
 
 clean_all() {

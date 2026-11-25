@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/guardrails/hooks/*.test.sh plugins/guardrails/hooks/workflow-resilience-check.sh
+# test-scope: plugins/guardrails/hooks/block-root-delete-target-fixtures.sh plugins/guardrails/hooks/cloud-shfmt.sh plugins/guardrails/hooks/merge-guard-fixtures.sh
 
 set -uo pipefail
 
