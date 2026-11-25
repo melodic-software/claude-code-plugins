@@ -985,6 +985,17 @@ CARRIES = {
         "compares": {HEAD: _many_at(MAIN)},
         "workflows": {MAIN: LISTING, HEAD: _relisted({"pr-review-hosted.yml": "e" * 40})},
     },
+    "a notice at a 300-file head whose own lane workflows cannot be listed": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {MAIN: [e for e in LISTING if not e["name"].startswith("pr-review-")]},
+    },
+    "a notice at a 300-file head whose lane workflows listing is at the 1000-entry cap": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {
+            MAIN: LISTING,
+            HEAD: [*LISTING, *({"name": f"w{i}.yml", "sha": "c" * 40} for i in range(1000 - len(LISTING)))],
+        },
+    },
     "a notice at a 300-file head with no merge base": {
         "compares": {HEAD: {"files": _many_at(MAIN)["files"]}},
         "workflows": {MAIN: LISTING, HEAD: LISTING},
