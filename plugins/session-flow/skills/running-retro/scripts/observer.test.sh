@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the stdlib Python test suite covering
-# observer.py and its detached launcher, arm_observer.py.
-#
-# Without this wrapper, scripts/run-plugin-tests.sh (which discovers only
-# plugins/**/*.test.sh) never runs test_observer.py, so its assertions --
-# including the ArmLauncher regression coverage for arm_observer.py's spawn
-# call -- never gate CI. SKIPs (exit 0) when Python 3.10+ is unavailable,
-# matching the floor this skill's other launchers (observer-arm.sh, SKILL.md)
-# already enforce.
 # test-scope: plugins/session-flow/skills/running-retro/scripts/arm_observer.py
+# test-scope: plugins/session-flow/hooks/observer-catchup.sh
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json
 set -euo pipefail
 

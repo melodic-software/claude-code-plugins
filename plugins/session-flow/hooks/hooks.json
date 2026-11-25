@@ -1,14 +1,17 @@
 {
-  "description": "Arms the session observer at session start, and while a /session-flow:step-away absence is active refuses permission prompts and declines MCP questions, recording each in the away report, holds the turn's end while the away work is unfinished, and notes the absence on each prompt.",
+  "description": "Runs the session observer: the module's live checks write process faults to the running-retro ledger and show them above the prompt, and a session-start hook analyzes ended sessions that got no live checks. While a /session-flow:step-away absence is active, refuses permission prompts and declines MCP questions, recording each in the away report, holds the turn's end while the away work is unfinished, and notes the absence on each prompt.",
+  "modules": [
+    "./register.tsx"
+  ],
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" \"${CLAUDE_PLUGIN_ROOT}/hooks/observer-arm.sh\"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1\" \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" \"${CLAUDE_PLUGIN_ROOT}/hooks/observer-arm.sh\"",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" \"${CLAUDE_PLUGIN_ROOT}/hooks/observer-catchup.sh\"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1\" \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" \"${CLAUDE_PLUGIN_ROOT}/hooks/observer-catchup.sh\"",
             "timeout": 30,
-            "statusMessage": "Arming session observer..."
+            "statusMessage": "Checking for sessions the observer missed..."
           }
         ]
       }
