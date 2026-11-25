@@ -13,6 +13,8 @@
 # (default: https://github.com/melodic-software/standards/blob/main/components/lychee/README.md#defaults-extensions-and-overrides). Exit status follows scripts/README.md, "The
 # check-script contract".
 set -euo pipefail
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 me=check-changed-links-online
 parser=${BASH_SOURCE[0]%/*}/../lib/parse-concern-value.sh
 
