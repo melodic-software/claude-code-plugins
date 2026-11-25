@@ -471,6 +471,30 @@ The one order of media a view steps down when its preferred medium is unreachabl
 medium registry ([rendered views](contracts/rendered-views/README.md#reachability-and-the-fallback-chain)).
 The word it replaced is retired in [`vocabulary-senses.json`](../scripts/vocabulary-senses.json).
 
+### Standards
+
+**team standards**
+
+The standards a repository commits for everyone who works in it, `docs/standards/` by default; on
+a direct conflict they win over personal standards
+([standards contract](contracts/standards/README.md#layers-and-precedence)).
+
+**personal standards**
+
+The standards one person keeps for themselves: `~/.claude/standards/` for every project, and
+gitignored `*.local.md` files for one repository. They may add to or tighten team standards, never
+override them ([standards contract](contracts/standards/README.md#layers-and-precedence)).
+
+Avoid: your additions
+
+**subscribed standards repo**
+
+A standards repository read live from its `main` branch instead of copied, such as the one a
+repository names as its org layer
+([standards contract](contracts/standards/README.md#org-layer)).
+
+Avoid: preference pack, taste pack
+
 ### Planning
 
 **Brief**
