@@ -17,7 +17,7 @@ activities:
     inputs: [issue]
 lanes:
   work-resolve-issue:
-    stage: work
+    stage: build
     slots:
       - activity: resolve-issue
       - activity: apply-issue-patch

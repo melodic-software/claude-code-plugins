@@ -22,8 +22,9 @@ block), comment_lint_allow (extended regular expressions a comment may match),
 comment_lint_exclude (path globs of files the lint skips, each skip named on stderr:
 * and ? stay within one path segment, ** spans segments) and comment_adr_dir (the
 decision-record folder, default docs/adr).
-comment_posture comes from the team file and the personal override; a userConfig
-posture never reaches a git hook. explanatory (and strict, balanced, conservative)
+comment_posture and class_c_max_lines (the most lines a linked comment paragraph may
+run, default 2) come from the team file and the personal override; a userConfig value
+never reaches a git hook. explanatory (and strict, balanced, conservative)
 runs nothing; auto and aggressive read as necessary.
 
 Judges the files whose extension code-extensions.txt lists, except one whose first 10
@@ -180,9 +181,13 @@ while IFS= read -r -d '' f; do
   mkdir -p "$records/${f%/*}" && : >"$records/$f"
 done < <(adr_records)
 
+budget=()
+max_lines="$(setting class_c_max_lines)"
+[[ "$max_lines" =~ ^[0-9]+$ ]] && budget=(--class-c-max-lines "$max_lines")
+
 checks_changed_lines --skip-reindent
 checks_bash_run "$settings" --list comment_lint_allow . >"$CHECKS_TMP/allow"
-python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
+python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" ${budget[@]+"${budget[@]}"} --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
   <"$CHECKS_TMP/paths" >"$CHECKS_TMP/findings" 2>"$CHECKS_TMP/judge.err"
 rc=$?
 ((rc == 3)) && pygments_missing

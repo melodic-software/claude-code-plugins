@@ -79,14 +79,16 @@ state has silent hooks: prompts would wait all night and no report would exist.
    `away.py status` in a separate call: any status other than `"active"` means the state did not
    persist where the hooks read it (a Bash sandbox can do this), which is the same failure.
 
-   Then record the task file in the session's focus file, so every compaction during the absence
-   keeps it in the summary:
+   Then record the task file and the posture in the session's focus file, so every compaction
+   during the absence keeps them in the summary, `<posture>` being the `posture=` value `start`
+   printed:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/focus.py" set --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --task-file <task file> --enabled '${user_config.compact_focus_enabled}'
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/focus.py" set --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --task-file <task file> --posture <posture> --enabled '${user_config.compact_focus_enabled}'
    ```
 
-   A non-zero exit does not stop the launch; quote its error in step 4.
+   A non-zero exit does not stop the launch; quote its error in step 4. `focus=skipped` is no
+   failure: the absence runs the same without the focus file.
 4. **End the launch turn with one message to the person**, doing no work in scope this turn: the
    Stop hook blocks the turn's end while task items are open and brings the run straight back to
    work, so this message is the last thing they read before leaving. It holds: the report path; the report-by time, or "until you are
@@ -137,7 +139,7 @@ state has silent hooks: prompts would wait all night and no report would exist.
 
 When a message reads as the person being back, run `away.py end`, show the report once leading
 with Needs you, then run `away.py deliver`, then
-`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/focus.py" clear --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --task-file`.
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/focus.py" clear --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --task-file --posture`.
 Who counts as the person is in rules.md "Coming back".
 `deliver` removes the absence's state and prints `report=<path>`, where the report stays: a report
 kept beside the state moves to the plugin data's `away-reports/` folder, so give the person that

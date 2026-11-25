@@ -1,9 +1,10 @@
-# test-scope: plugins/code-tidying/git-hooks/fixtures/*.sh.txt
+# test-scope: plugins/code-tidying/git-hooks/fixtures/*.sh.txt plugins/code-tidying/.claude-plugin/plugin.json
 from __future__ import annotations
 
 import contextlib
 import importlib.util
 import io
+import json
 import os
 import subprocess
 import sys
@@ -229,6 +230,58 @@ class Shape8LinkOrRfc(unittest.TestCase):
     def test_unlinked_note_passes_with_ignore_marker(self):
         text = "# The gateway closes idle sockets at 60s remove-comments-ignore\nx=45\n"
         self.assertEqual(flagged("a.sh", text), [])
+
+    def test_link_passes_only_its_own_paragraph_of_a_header(self):
+        text = (
+            "#!/bin/sh\n# Usage: a.sh <dir>\n# Runs the suites.\n#\n"
+            "# Timeouts follow https://example.com/docs/idle\n#\n# More narrative.\nx=1\n"
+        )
+        self.assertEqual(flagged("a.sh", text), [2, 3, 7])
+
+    def test_two_line_link_paragraph_below_narrative_passes(self):
+        text = (
+            "# narrative\n#\n# The gateway closes idle sockets at 60s,\n"
+            "# https://example.com/docs/idle\nx=45\n"
+        )
+        self.assertEqual(flagged("a.sh", text), [1])
+
+    def test_link_paragraph_over_the_line_budget_fails_whole(self):
+        text = "# a\n# b\n# c\n# d\n# https://example.com/docs/idle\nx=45\n"
+        self.assertEqual(flagged("a.sh", text), [1, 2, 3, 4, 5])
+
+    def test_line_budget_is_the_class_c_max_lines_value(self):
+        five = "# a\n# b\n# c\n# d\n# https://example.com/docs/idle\nx=45\n"
+        two = "# The gateway closes idle sockets at 60s,\n# https://example.com/docs/idle\nx=45\n"
+        for text, budget, want in ((five, 5, []), (two, 1, [1, 2])):
+            with self.subTest(budget=budget):
+                got = lint.findings("a.sh", text, [(1, 6)], "necessary", [], max_lines=budget)
+                self.assertEqual([int(f.split(":")[1]) for f in got], want)
+
+    def test_punctuation_line_below_a_linked_paragraph_fails(self):
+        cases = [
+            ("a.js", "// The gateway closes idle sockets at 60s,\n// https://example.com/docs/idle\n//\n// ----\nconst x = 45;\n", [4]),
+            ("a.lua", "-- The gateway closes idle sockets at 60s,\n-- https://example.com/docs/idle\n-- ====\nlocal x = 45\n", [3]),
+            ("a.js", "// https://example.com/docs/idle\n// +--+--+\nconst x = 45;\n", [2]),
+        ]
+        for path, text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged(path, text), want)
+
+    def test_lines_passing_by_their_own_shape_take_no_line_budget(self):
+        linked = "# Header order is fixed by RFC 9110 section 5.3,\n# so the proxy writes Host first.\n"
+        cases = [
+            ("a.sh", "#!/bin/sh\n" + linked + "x=1\n"),
+            ("a.py", "#!/usr/bin/env python3\n" + linked + "x = 1\n"),
+            ("a.py", "# -*- coding: utf-8 -*-\n" + linked + "x = 1\n"),
+            ("a.sh", "x=1\n# shellcheck disable=SC2086\n" + linked + "y=1\n"),
+        ]
+        for path, text in cases:
+            with self.subTest(path=path, text=text):
+                self.assertEqual(flagged(path, text), [])
+
+    def test_default_line_budget_is_the_userconfig_default(self):
+        manifest = json.loads((HERE.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(lint.CLASS_C_MAX_LINES, manifest["userConfig"]["class_c_max_lines"]["default"])
 
 
 class AdrPointer(unittest.TestCase):

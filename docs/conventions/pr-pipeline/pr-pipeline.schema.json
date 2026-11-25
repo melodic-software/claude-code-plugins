@@ -637,15 +637,17 @@
     "stage": {
       "enum": [
         "intake",
-        "work",
-        "pre-ready",
+        "admit",
+        "build",
         "refine",
+        "review",
+        "fix",
         "verify",
-        "unblock",
+        "hold",
         "merge",
         "post-merge",
-        "maintenance",
-        "upstream"
+        "upstream",
+        "maintenance"
       ],
       "description": "Pipeline stage. Order and meaning: README.md, Stages."
     },
