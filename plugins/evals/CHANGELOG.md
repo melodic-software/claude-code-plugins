@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.27.0] - 2026-11-25
+
+### Changed
+
+- `/evals:plugin-eval select` treats an edit inside a SKILL.md `## Next` section as no-run: it names successors for the person and changes no tool call.
+
 ## [0.26.2] - 2026-11-25
 
 ### Fixed

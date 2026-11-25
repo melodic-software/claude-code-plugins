@@ -45,7 +45,6 @@ export { ATTENDED_LABEL, HOST_RUN_LABEL };
 
 const ROUTE_NAMES = new Set(["hold", "host-run", "attended", "retry", "wait", "intake", "park", "close", "fail"]);
 const COUNTED_ROUTES = new Set(["retry", "wait", "intake"]);
-// The owner's reasons for a person (owner direction 2026-10-27).
 export const HOLD_CLASSES = new Set(["intent-change", "design-change", "security-risk", "cost-risk"]);
 
 export const STOP_ROUTES = Object.freeze(JSON.parse(readFileSync(new URL("./stop-routes.json", import.meta.url), "utf8")));

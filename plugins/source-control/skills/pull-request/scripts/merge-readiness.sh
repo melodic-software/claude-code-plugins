@@ -33,6 +33,8 @@
 #   - where pr-verify judges the PR, no PASS or PASS-NOTES verdict at its head,
 #     until 30 minutes after its last check finished: past that the merge goes
 #     ahead with a NOTICE that no verdict was read.
+# Every list is read to its last page; a list longer than MG_MAX_PAGES pages
+# is a failed read.
 # `--admin` changes none of this.
 # A READ THAT FAILS calls _mg_unchecked, and each caller decides: the guard
 # lets the merge run with a notice, so a GitHub outage or a missing login never
@@ -122,6 +124,32 @@ _mg_api() {
   return "$rc"
 }
 
+# Every page of a list is read, MG_PER_PAGE items at a time, until a page comes
+# back short (https://docs.github.com/rest/using-the-rest-api/using-pagination-in-the-rest-api);
+# a page past MG_MAX_PAGES is a failed read. The test suite shrinks
+# MG_PER_PAGE in a rewritten copy, so keep both assignments on one line each.
+MG_PER_PAGE=100
+MG_MAX_PAGES=20
+_mg_api_pages() {
+  local sep='?' n=0 all='[]' len
+  [[ "$1" == *\?* ]] && sep='&'
+  while :; do
+    ((++n <= MG_MAX_PAGES)) || {
+      MG_ERR="more than $((MG_MAX_PAGES * MG_PER_PAGE)) items at ${1%%\?*}"
+      return 1
+    }
+    _mg_api "$1${sep}per_page=$MG_PER_PAGE&page=$n" \
+      --jq "$2 | if type == \"array\" then tojson else error(\"unexpected list response\") end" || return 1
+    if ! len="$(jq length <<<"$MG_OUT" 2>/dev/null)" ||
+      ! all="$(printf '%s\n%s\n' "$all" "$MG_OUT" | jq -cs '.[0] + .[1]' 2>/dev/null)"; then
+      MG_ERR="page $n of ${1%%\?*} could not be read"
+      return 1
+    fi
+    ((len < MG_PER_PAGE)) && break
+  done
+  MG_OUT="$all"
+}
+
 _mg_urlencode() {
   local s="$2" out="" c code i LC_ALL=C
   for ((i = 0; i < ${#s}; i++)); do
@@ -194,9 +222,8 @@ _mg_run_loads_base() {
 _mg_exempt() {
   local f p hit=0 base req files id ok='[]' reads=0
   [[ -n "$_mg_base" && "$_mg_base" != null ]] || return 1
-  _mg_api "repos/$MG_REPO/pulls/$MG_NUM/files?per_page=100" \
-    --jq '.[] | .filename, (.previous_filename // empty)' || return 1
-  files="$MG_OUT"
+  _mg_api_pages "repos/$MG_REPO/pulls/$MG_NUM/files" . || return 1
+  files="$(jq -r '.[] | .filename, (.previous_filename // empty)' <<<"$MG_OUT")" || return 1
   while IFS= read -r f; do
     for p in "${MG_WORKFLOW_PREFIXES[@]}"; do
       [[ "$f" == "$p"* ]] && hit=1
@@ -205,10 +232,9 @@ _mg_exempt() {
   ((hit)) || return 1
   files="$(jq -Rn '[inputs | select(length > 0)]' <<<"$files")" || return 1
   _mg_urlencode base "$_mg_base"
-  _mg_api "repos/$MG_REPO/rules/branches/$base?per_page=100" \
-    --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context] | unique' ||
-    return 1
-  req="$MG_OUT"
+  _mg_api_pages "repos/$MG_REPO/rules/branches/$base" . || return 1
+  req="$(jq -c '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context] | unique' \
+    <<<"$MG_OUT")" || return 1
   jq -e 'type == "array" and length > 0' <<<"$req" >/dev/null 2>&1 || return 1
   # The Actions runs behind the failed checks the rules do not require.
   # shellcheck disable=SC2016
@@ -235,16 +261,15 @@ _mg_exempt() {
 
 # Every page of `reviewThreads` is read
 # (https://docs.github.com/graphql/reference/objects#pullrequest); a page past
-# MG_THREAD_PAGES is a failed read.
-MG_THREAD_PAGES=20
+# MG_MAX_PAGES is a failed read.
 _mg_threads_graphql() {
   local cursor="" all="" line pages=0 next
   local -a page
   # shellcheck disable=SC2016  # GraphQL variables, not shell
   local q='query($o:String!,$r:String!,$n:Int!,$c:String){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{isResolved path line originalLine comments(first:1){nodes{body url}}}}}}}'
   while :; do
-    ((++pages <= MG_THREAD_PAGES)) || {
-      MG_ERR="more than $((MG_THREAD_PAGES * 100)) review threads"
+    ((++pages <= MG_MAX_PAGES)) || {
+      MG_ERR="more than $((MG_MAX_PAGES * 100)) review threads"
       return 1
     }
     page=(-F o="${MG_REPO%%/*}" -F r="${MG_REPO#*/}" -F n="$MG_NUM")
@@ -357,9 +382,10 @@ _mg_verify() {
     _mg_unchecked "jq could not quote the branch name" "its pr-verify verdict"
   fi
   for suffix in pass "pass-$digest" pass-notes "pass-notes-$digest"; do
-    _mg_api "repos/$MG_REPO/actions/artifacts?name=pr-verify-$MG_NUM-$_mg_sha-$suffix&per_page=100" \
-      --jq "[.artifacts[] | select(.expired == false and .workflow_run.head_branch == $def) | .workflow_run.id] | unique | .[]" ||
+    _mg_api_pages "repos/$MG_REPO/actions/artifacts?name=pr-verify-$MG_NUM-$_mg_sha-$suffix" .artifacts ||
       _mg_unchecked "$MG_ERR" "its pr-verify verdict"
+    MG_OUT="$(jq -r "[.[] | select(.expired == false and .workflow_run.head_branch == $def) | .workflow_run.id] | unique | .[]" \
+      <<<"$MG_OUT")" || _mg_unchecked "the pr-verify artifacts could not be read" "its pr-verify verdict"
     for run in $MG_OUT; do
       [[ "$run" =~ ^[0-9]+$ ]] || continue
       _mg_api "repos/$MG_REPO/actions/runs/$run" || _mg_unchecked "$MG_ERR" "its pr-verify verdict"
@@ -414,13 +440,13 @@ merge_readiness::check() {
       "BLOCKED: ${MG_REPO}#${MG_NUM} carries a hold label, so this merge is refused (--admin and --auto included)." \
       "Hold labels: $_mg_holds. Merge once the hold ends and the label is removed."
 
+  _mg_api_pages "repos/$MG_REPO/pulls/$MG_NUM/reviews" . || _mg_unchecked "$MG_ERR"
   # shellcheck disable=SC2016
-  _mg_api "repos/$MG_REPO/pulls/$MG_NUM/reviews?per_page=100" --jq '
+  _mg_changes="$(jq -r '
     reduce .[] as $r ({}; if ($r.state | IN("APPROVED","CHANGES_REQUESTED","DISMISSED"))
       then .[$r.user.login // "unknown"] = $r.state else . end)
-    | to_entries | map(select(.value == "CHANGES_REQUESTED") | .key) | join(", ")' ||
-    _mg_unchecked "$MG_ERR"
-  _mg_changes="$MG_OUT"
+    | to_entries | map(select(.value == "CHANGES_REQUESTED") | .key) | join(", ")' <<<"$MG_OUT")" ||
+    _mg_unchecked "the reviews could not be judged"
 
   # Check runs on the head commit. The endpoint can return several runs of one
   # check (a draft run and the run after the ready flip, https://github.com/melodic-software/claude-code-plugins/issues/7473), so only the
@@ -438,12 +464,12 @@ merge_readiness::check() {
   # the array is a safe jq literal.
   _mg_ignored="$(jq -cn --arg s "${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS-github-actions:Merge,github-actions:merge}" \
     '$s | split(",") | map(gsub("^ +| +$"; "") | select(length > 0))')" || _mg_ignored='[]'
+  _mg_api_pages "repos/$MG_REPO/commits/$_mg_sha/check-runs" .check_runs || _mg_unchecked "$MG_ERR"
   # shellcheck disable=SC2016
-  _mg_api "repos/$MG_REPO/commits/$_mg_sha/check-runs?per_page=100" --jq "$_mg_ignored"' as $ign
-    | [.check_runs[] | select(("\(.app.slug // ""):\(.name)") | IN($ign[]) | not)
-      | {id, name, app: {id: .app.id, slug: .app.slug}, check_suite: {id: .check_suite.id}, status, conclusion, completed_at, details_url}]' ||
-    _mg_unchecked "$MG_ERR"
-  _mg_all="$MG_OUT"
+  _mg_all="$(jq -c "$_mg_ignored"' as $ign
+    | [.[] | select(("\(.app.slug // ""):\(.name)") | IN($ign[]) | not)
+      | {id, name, app: {id: .app.id, slug: .app.slug}, check_suite: {id: .check_suite.id}, status, conclusion, completed_at, details_url}]' \
+    <<<"$MG_OUT")" || _mg_unchecked "the check runs could not be read"
   # shellcheck disable=SC2016
   _mg_runs="$(jq -c '. as $all
     | [$all | group_by([.name, (.app.id // 0)])[]
@@ -471,14 +497,15 @@ merge_readiness::check() {
   _mg_sup='{}'
   while IFS= read -r _mg_id; do
     [[ "$_mg_id" =~ ^[0-9]+$ ]] || continue
+    _mg_api_pages "repos/$MG_REPO/check-runs/$_mg_id/annotations" . || continue
     # shellcheck disable=SC2016
-    _mg_api "repos/$MG_REPO/check-runs/$_mg_id/annotations?per_page=100" --jq '
+    MG_OUT="$(jq -r '
       [.[] | select(.annotation_level == "failure") | .message // ""] as $m
       | if all($m[]; test("^superseded by full run https://[^ ]+/actions/runs/[0-9]+ in flight on [0-9a-f]+[:. ]")
           or test("^Process completed with exit code [0-9]+\\.$"))
         then [$m[] | capture("^superseded by full run https://[^ ]+/actions/runs/(?<run>[0-9]+) in flight on (?<sha>[0-9a-f]+)[:. ]")
           | "\(.run) \(.sha)"] | first // empty
-        else empty end' || continue
+        else empty end' <<<"$MG_OUT")" || continue
     read -r _mg_frun _mg_fsha <<<"$MG_OUT"
     [[ -n "$_mg_frun" && "$_mg_fsha" == "$_mg_sha" ]] || continue
     _mg_sup="$(jq -c --arg k "$_mg_id" --arg v "$_mg_frun" '.[$k] = $v' <<<"$_mg_sup")" || _mg_sup='{}'
@@ -513,12 +540,13 @@ merge_readiness::check() {
   IFS=$'\x1f' read -r _mg_failed _mg_pending _mg_failed_json _mg_failed_runs <<<"$MG_OUT"
 
   # https://docs.github.com/rest/commits/statuses#get-the-combined-status-for-a-specific-reference
+  _mg_api_pages "repos/$MG_REPO/commits/$_mg_sha/status" .statuses || _mg_unchecked "$MG_ERR"
   # shellcheck disable=SC2016
-  _mg_api "repos/$MG_REPO/commits/$_mg_sha/status?per_page=100" --jq '
-    [.statuses[] | select(.state | IN("failure","error")) | .context] as $f
-    | [.statuses[] | select(.state == "pending") | .context] as $p
-    | "\($f | join(", "))\u001f\($p | join(", "))\u001f\($f | tojson)"' ||
-    _mg_unchecked "$MG_ERR"
+  MG_OUT="$(jq -r '
+    [.[] | select(.state | IN("failure","error")) | .context] as $f
+    | [.[] | select(.state == "pending") | .context] as $p
+    | "\($f | join(", "))\u001f\($p | join(", "))\u001f\($f | tojson)"' <<<"$MG_OUT")" ||
+    _mg_unchecked "the commit statuses could not be read"
   IFS=$'\x1f' read -r _mg_sfailed _mg_spending _mg_sfailed_json <<<"$MG_OUT"
   [[ -n "$_mg_sfailed" ]] && _mg_failed="${_mg_failed:+$_mg_failed, }$_mg_sfailed"
   [[ -n "$_mg_spending" ]] && _mg_pending="${_mg_pending:+$_mg_pending, }$_mg_spending"
