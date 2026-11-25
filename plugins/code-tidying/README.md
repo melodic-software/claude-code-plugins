@@ -238,7 +238,10 @@ below` is judged. Under
 6. A line carrying `remove-comments-ignore`.
 7. A structured doc comment: a docstring, `///`, `/** */`, PowerShell comment-based help, a Go
    comment directly above an exported declaration. A script's opening `#` header is not one.
-8. A comment run holding a URL or an RFC number.
+8. A comment paragraph holding a URL or an RFC number, when it runs at most `class_c_max_lines`
+   lines (team file or personal override, default 2), and the blank or delimiter lines of the same
+   comment. A paragraph is the consecutive comment lines holding a word character; the other
+   paragraphs of that comment are judged on their own.
 9. The line after a `remove-comments-ignore` or `dissolve-comments-ignore` marker, the
    `dissolve-comments-ignore` line itself, `FIXME(#issue)`, PowerShell `#Requires` and the
    signature block, and a suppression's reason on the waiver's line or the line before it.
