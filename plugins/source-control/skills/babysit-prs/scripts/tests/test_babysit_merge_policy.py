@@ -11648,6 +11648,45 @@ class FileContents(unittest.TestCase):
         self.assertIn("502", out[0].contents_error)
 
 
+class HistoryReads(unittest.TestCase):
+    def git(self, root: pathlib.Path, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()  # fmt: skip
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.src = pathlib.Path(tmp.name) / "src"
+        self.git(pathlib.Path(tmp.name), "init", "-q", "-b", "main", str(self.src))
+        self.git(self.src, "config", "uploadpack.allowFilter", "true")
+        (self.src / "f").write_text("one\n", encoding="utf-8")
+        self.git(self.src, "add", "f")
+        self.git(self.src, "commit", "-q", "-m", "one")
+        self.first = self.git(self.src, "rev-parse", "HEAD")
+        (self.src / "f").write_text("two\n", encoding="utf-8")
+        self.git(self.src, "commit", "-q", "-am", "two")
+        self.head = self.git(self.src, "rev-parse", "HEAD")
+        self.partial = pathlib.Path(tmp.name) / "partial"
+        self.git(
+            pathlib.Path(tmp.name), "clone", "-q", "--no-local", "--no-checkout",
+            "--filter=blob:none", self.src.as_uri(), str(self.partial),
+        )  # fmt: skip
+
+    def test_a_graft_file_does_not_cut_the_history(self) -> None:
+        (self.src / ".git" / "info").mkdir(exist_ok=True)
+        (self.src / ".git" / "info" / "grafts").write_text(self.head + "\n", encoding="utf-8")
+        self.assertEqual(policy._git(self.src, "rev-list", "--count", "HEAD"), "2\n")
+
+    def test_a_missing_blob_is_not_lazily_fetched(self) -> None:
+        self.assertIsNone(policy._git(self.partial, "cat-file", "blob", f"{self.first}:f"))
+
+    def test_a_partial_clone_has_no_full_history_root(self) -> None:
+        self.assertIsNone(policy._full_history_root(self.partial))
+        self.assertEqual(policy._full_history_root(self.src), self.src.resolve())
+
+
 class LaneIdentity(unittest.TestCase):
     """`lane_identity` names the lane only when the base and the default branch
     head agree, and never reads the pull request's head (#10763)."""

@@ -3928,16 +3928,6 @@ jobs:
           path: /tmp/ci-workflows-at-pin
           key: ${{ steps.pin_cache.outputs.cache-primary-key }}
 
-  # THE SUITES A CHANGE ADDS OR CHANGES, TRACED. Each runs under strace
-  # (scripts/selection-audit.sh trace), and a tracked file it read whose
-  # one-file diff would not select it is a gap: a later change to that file
-  # could break the suite while its pull request's lanes never start it. A gap
-  # fails this job, which names the suite and the file; the author declares the
-  # read (`# test-scope:` in the suite, scripts/affected-tests.sh R8). The
-  # daily audit (maintenance-audit-test-selection.yml) stays the backstop for
-  # reads that change through files no suite change touches
-  # (https://github.com/melodic-software/claude-code-plugins/issues/17522).
-  #
   # It needs only `select-tests`, so it runs beside the test lanes, and skips
   # on its `run_selection` row when the change adds or changes no suite, an
   # ordered skip `ci-status` checks
@@ -4040,7 +4030,7 @@ jobs:
               END {
                 for (i = 1; i <= n; i++) {
                   s = order[i]
-                  printf "::error file=%s,title=Undeclared suite reads::%s reads %d file(s) whose change does not select it: %s. Declare each in a test-scope line of the suite (scripts/affected-tests.sh R8).\n", s, s, count[s], reads[s]
+                  printf "::error file=%s,title=Undeclared suite reads::%s reads %d file(s) whose change does not select it: %s. Declare each in a test-scope line of the suite (rule R8, docs/ci-runner-routing.md#selection-rules).\n", s, s, count[s], reads[s]
                 }
               }' "$RUNNER_TEMP/selection-audit/gaps.tsv"
             awk -F'\t' '$2 == "not-traced" { printf "::error file=%s,title=Suite not traced::%s was not traced inside the budget, so it is not checked.\n", $1, $1 }' \

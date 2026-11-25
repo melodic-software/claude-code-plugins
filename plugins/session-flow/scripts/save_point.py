@@ -356,9 +356,6 @@ UUID_RE = re.compile(
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
-# Keeps a save-point within one Read call at about 70 tokens a line; the per-call cap
-# pointer is in reference/structure.md#cumulative-sections-and-provenance-tags ("Size").
-# As of 2026-10-11. Recheck when that "Size" entry changes its pointer or threshold.
 MAX_READABLE_LINES = 300
 UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):\s*")
 UNVERIFIED_RE = re.compile(r"\bUNVERIFIED\b")
@@ -441,40 +438,24 @@ FIRST_HOP_PRIOR = "None (first hop)."
 PRIOR_HEADER = "| date | session id | transcript | did/left | file |"
 PRIOR_SEPARATOR = "|---|---|---|---|---|"
 
-# Secret-SHAPE patterns for the WARN-only scan, copied from the running-retro
-# observer's ledger-write redaction hop (skills/running-retro/scripts/observer.py,
-# `_REDACTIONS`), minus its email pattern: a bare ssh account (`git@github.com`)
-# in every `Handoff origin:` line matches it, and this scan is for secrets, not
-# PII. Same plugin, so a copy rather than an import: the observer is a script
-# with module-level side effects, not a library.
 SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----"), "private key"),
     (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "API key"),
     (
         # GitHub prefixes from
         # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-        # and the ghs_ regex GitHub recommends for current and stateless installation tokens from
-        # https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-        # (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
-        # Alternation takes the first branch that matches, so ghs_ comes first:
-        # otherwise a JWT loses only its header. One greedy run of one class with
-        # nothing after it matches or fails within 36 characters, so it stays linear.
         re.compile(r"\b(?:ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_[A-Za-z0-9]{20,})"),
         "GitHub token",
     ),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "Slack token"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS key id"),
     (
-        # The bounded JWT header and URL scheme keep each start position's
-        # scan short; unbounded, a long run with no `.` or `://` is quadratic.
         re.compile(
             r"\beyJ[A-Za-z0-9_-]{10,512}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
         ),
         "JWT",
     ),
     (
-        # A header past the bound: the whole run, dots included, in one match.
-        # After the JWT rule, since a long payload segment also starts `eyJ`.
         re.compile(r"\beyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
         "JWT",
     ),
@@ -1174,10 +1155,6 @@ def validate_doc(
             )
         else:
             pred_path = doc.path.parent / previous
-            # Belt to the regex's braces, and the check `cmd_new` already makes
-            # for `--previous`: resolve the real path and hold it to the
-            # directory this file lives in, so no pointer (nor a symlink
-            # standing in for one) reaches a file outside it to be parsed.
             here = os.path.normcase(os.path.realpath(doc.path.parent))
             there = os.path.normcase(os.path.dirname(os.path.realpath(pred_path)))
             if there != here:
@@ -3493,7 +3470,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
         for match in matches:
             rebuilt += content[cursor : match.start()]
             # `\n` only, never `str.splitlines()`, which also breaks on a lone
-            # `\r`, a form feed, and U+2028 / U+2029 that a JSON string carries.
+            # `\r`, a form feed, and U+2028 / U+2029 that a JSON string carries: https://docs.python.org/3/library/stdtypes.html#str.splitlines
             rebuilt += values.get(match.group(1), "").replace("\r\n", "\n")
             cursor = match.end()
         rebuilt += content[cursor:]
@@ -3687,7 +3664,7 @@ def _not_tip(path: Path, successor: Path, payload: str) -> int:
 
 
 def _value_lines(value: str) -> list[str]:
-    # `\n` only, as in `cmd_fill`: `str.splitlines()` also breaks on a lone `\r`.
+    # `\n` only, as in `cmd_fill`: `str.splitlines()` also breaks on a lone `\r`: https://docs.python.org/3/library/stdtypes.html#str.splitlines
     return value.replace("\r\n", "\n").split("\n")
 
 

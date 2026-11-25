@@ -1,254 +1,4 @@
 #!/usr/bin/env bash
-# Gate: a skill's eval suite and its detector must agree on the check-id set,
-# in BOTH directions.
-#
-#   scripts/check-detector-eval-coverage.sh          discover: per registered
-#                                                     pair, print the emitted
-#                                                     ids, the eval-named ids,
-#                                                     and each id's status
-#   scripts/check-detector-eval-coverage.sh --check  fail if an emitted id is
-#                                                     covered by no eval case, or
-#                                                     an eval case names an id
-#                                                     the detector cannot emit
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): 0 clean, 1 findings, 2 environment or usage, findings on stderr.
-#
-# WHY. claude-code-plugins#4149 found harness-config:audit-permission-grants
-# emitting five check ids while its eval suite exercised three, and one case
-# (`scope-boundary-routes-out`) asserting in prose that the owned scope IS the
-# stale three. So the suite did not merely under-cover the detector: it graded a
-# model for ignoring a check that fires. Backfilling the missing cases closes
-# that instance; nothing stopped the NEXT added check from reopening it, which
-# is what this gate is.
-#
-# The reverse direction is the half that would have caught the stale case, and
-# it is the half a coverage-only check omits. An eval naming an id the detector
-# cannot emit is either a check that was renamed out from under its suite or a
-# scope claim that was never true. Both read as coverage until something asks
-# the detector.
-#
-# WHAT COUNTS AS COVERAGE, and why it is not "the string appears in the file".
-# An earlier revision read every string anywhere in evals.json through
-# `.. | strings`. That verifies MENTION, not coverage, and four shapes passed it
-# while covering nothing: an id named only inside a NEGATIVE assertion ("does
-# NOT exercise P4"), an id that is only an incidental path token in `files`
-# (`~/w/P4/settings.json`), a suite with ZERO cases whose id appears only in
-# top-level `skill_name`, and a file that is a bare JSON string -- `jq -e .`
-# accepts one, so parseability was the only shape check there was.
-#
-# So the shape is asserted first: the suite must be a JSON OBJECT carrying a
-# NON-EMPTY `evals` ARRAY whose every entry is an OBJECT. Anything else is exit
-# 2 (a suite this gate cannot read), never a pass. A mention outside `evals[]`
-# -- `skill_name` included -- counts for nothing.
-#
-# Within an entry, the coverage-bearing fields are `expected_output` and
-# `expectations`, and only those. Read the real suite
-# (plugins/harness-config/skills/audit-permission-grants/evals/evals.json): an
-# entry carries `id`, `name`, `prompt`, `files`, `expected_output`,
-# `expectations`. Of those, `expected_output` and `expectations` are the two the
-# runner GRADES a response against, so naming a check id there is the suite
-# asserting that check is exercised. The rest cannot carry that force: `prompt`
-# is the operator's INPUT (naming an id there feeds it to the model, it does not
-# grade it), `name` is a label, `files` is fixture paths (the incidental-token
-# shape above), and `id` is an ordinal.
-#
-# NEGATIVE ASSERTIONS: an ADVISORY, never a failure. A graded expectation can
-# name an id in order to assert it is NOT exercised, and that is the opposite of
-# coverage. An earlier revision screened for that automatically and let the
-# screen FAIL the gate: an id stopped counting as covered whenever a negation
-# cue appeared anywhere in the 80 characters before it, back to the previous
-# `.`, `;` or `:`. Ordinary covering prose carries those cues -- "Reports P1. A
-# rule without a scope suffix must be flagged as P4.", "a rule that does not
-# name an interpreter is reported as P4" -- so a genuinely covering expectation
-# was read as a disclaimer and the gate exited 1 on a correct suite. That is the
-# worst failure available to a gate: a false FAILURE with no remedy except
-# editing this script.
-#
-# So the screen no longer decides pass or fail. Two changes:
-#
-#   1. The cue must attach to the ID'S OWN PREDICATE. The window is the two
-#      words immediately before the id, back to the previous clause break, and
-#      `,` is a break now alongside `.`, `;` and `:`. "does not exercise P4"
-#      still reads as a disclaimer; "flagged as P4" and "reported as P4" do not,
-#      whatever some earlier clause said.
-#   2. A disclaimed-only id is reported as a DISCLAIMED advisory (stdout, exit
-#      0), not as a finding. Only an id named in NO graded field at all is an
-#      UNCOVERED finding.
-#
-# Why that trade rather than a tighter screen alone. Deciding merge/no-merge
-# from a heuristic reading of English is what produced the false failure, and
-# narrowing does not remove that class -- it only makes the next sentence that
-# trips it rarer and more surprising. Meanwhile the half of this gate that
-# caught claude-code-plugins#4149, the REVERSE direction, is untouched: a
-# disclaimed id is still NAMED, so it must still be emittable, and a case
-# asserting "P4 is out of scope" beside a detector that cannot emit P4 still
-# fails. The screen stays purely one-directional and is now purely advisory.
-#
-# RESIDUE, in BOTH directions, because the revision before this one enumerated
-# only the first:
-#   - FALSE PASS (widened by this trade): a suite whose only mention of an
-#     emitted id is a blunt disclaimer ("deliberately does NOT exercise P4") now
-#     PASSES, with a DISCLAIMED advisory beside it. Nothing exercises P4 and
-#     this gate will not stop that; the advisories are the thing to read.
-#   - FALSE PASS (unchanged): a negation phrased outside the cue set, placed
-#     after the id ("P4 is never exercised"), or more than two words before it
-#     ("does not cover the P4 check") reads as ordinary coverage and prints no
-#     advisory at all.
-#   - FALSE FAILURE: not reachable THROUGH THE SCREEN any more, because the
-#     screen cannot fail the gate. What remains is the plainer kind: a case that
-#     exercises a check without naming its id in a graded field -- describing it
-#     in prose, or naming it only in `prompt`, `name` or `files` -- is an
-#     UNCOVERED finding, correct by this gate's definition of coverage and wrong
-#     by a human's. Its remedy is cheap (name the id in `expected_output` or
-#     `expectations`); the screen-driven false failure had none, which is why
-#     the screen no longer fails anything.
-#   - FALSE ADVISORY: a covering sentence that does put a cue in the two words
-#     before the id ("flags a grant with no P4 suffix") prints a DISCLAIMED
-#     advisory it does not deserve. That costs one line of stdout and no exit
-#     code, which is the whole point of moving the screen off the exit path.
-#
-# ACCOUNTING FOR EVERY EMIT CALL SITE, and why a partial loss is exit 2. The
-# emitted-id set comes from `emit <severity> <id>` call sites. An earlier
-# revision extracted them with a line-based awk walk. A partial loss -- a
-# literal call that produced neither an ID nor an UNRESOLVED line -- passed
-# silently, and each round of extra line-state rules introduced the next loss.
-# claude-code-plugins#4222 replaces that walk with shfmt's typed syntax tree
-# (`shfmt --to-json`, the utility the shfmt man page documents). Dialect is
-# `--language-dialect bash`: the man page default `auto` can fall through to
-# posix for a file whose name does not say which shell it is.
-#
-# Pin: mvdan/sh v3.14.1 (SHA-256 in .claude/cloud-bootstrap.sh and the
-# check-skills install step). v3.12.0, the previous pin, parses `$(printf a)#tag; emit ...`
-# as one statement and drops the call, which is the silent loss this gate
-# exists to stop. v3.13.0 is the first release that keeps both calls. shfmt
-# missing, or a non-zero parse, is exit 2. A file this gate cannot read is
-# not a pass. Discovery is the exception already stated in the stopping-rule
-# residue: a stranger's unreadable script contributes no id and does not fail
-# the run.
-#
-# A call site is a CallExpr whose command word is `emit` or `emit<suffix>`,
-# a suffix with no whitespace (`emit_finding`, `emit-finding`,
-# `emit::finding`). That includes a quoted command word (`"emit" error P1`,
-# `'emit' error P1`) and a call nested in a command substitution, including
-# one inside double quotes (`x="$(emit error P1)"`, the round-6 shape).
-# `time` and `coproc` wrap the real command; the walk follows the inner
-# statement. `command`, `builtin`, `exec`, `nohup`, and bare `eval` are
-# ordinary words in front of the real command, so the walk shifts them when
-# the next word is the emitter. An assignment prefix (`FOO=1 emit`,
-# `x+=1 emit`) and a leading redirection stay on the statement and do not hide
-# the call.
-#
-# A call with no arguments is not a site. A forwarder (`emit error "$@"`,
-# `$*`, `$@`, or the `${@}` / `${*}` spellings) as the last argument, standing
-# in the severity or the id, is not a site: the ids enter at the wrapper's own
-# calls. A word after it (`emit error "$@" P1`) makes the call a site again,
-# and an unresolved one. A site whose severity or id is not one static
-# literal, whose severity is not a plain word, or whose id does not match the
-# row pattern, is UNRESOLVED. The candidate count is compared with the ids
-# actually resolved. Any mismatch is exit 2, and the unparsed sites are named.
-# The row pattern is applied as a full-string match. jq uses Oniguruma; a row
-# pattern must stay within the subset awk ERE and Oniguruma read identically.
-#
-# What the tree does not re-parse, on purpose: the text of a quoted string or
-# a heredoc body, `trap '...'`, or `eval '...'`. That text is data until
-# runtime; a `$(...)` inside a double-quoted string or an unquoted heredoc body
-# is a node of the tree and is seen. An `emit error P9` in help text is not a
-# call. The list of what the walk misses is known, not exhaustive. An emitter
-# that exists only inside `eval '...'` or `trap '...'`, or inside any other
-# string bash evaluates later, is invisible, the same class as an emitter
-# renamed so it does not begin with `emit`, reached through a variable
-# (`$emitter error P1`), or named by expansion, escape or pieces (`e"mit"`,
-# `\emit`, `$'\x65mit'`, `$(printf emit)`).
-# Computed ids (`emit "$sev" P4`, `emit error ${id}`) stay unresolved, which is
-# the safe side.
-#
-# Wrapper prefixes the walk does not follow: `command -p emit error P1`,
-# `env FOO=1 emit error P1`, `xargs emit error P1`. The walk shifts only the
-# word directly after `command`, `builtin`, `exec`, `nohup` or `eval`. A call
-# where a later word of one of those, or of `env` or `xargs`, is an emit name
-# is counted as a candidate and reported UNRESOLVED (exit 2, site named), not
-# dropped. The exclusions above still hold: `command -v emit` (or `-pv`) is a
-# lookup, and a call with no arguments or a trailing forwarder is not a site.
-# Any later word that is an emit name counts, even as an argument
-# (`env -u emit printf ok`), which reads UNRESOLVED: the safe side.
-#
-# The self-test keeps arm-and-close: a call after a heredoc terminator must
-# still be seen. "The body's own emit is hidden" is also true of a skip that
-# runs to EOF, so that assertion alone passed while the gate was most broken.
-#
-# Adjacent and DIFFERENT: scripts/check-detector-findings-crosswalk.sh checks
-# that each severity-crosswalk row in docs/contracts/detector-findings/ argues
-# its disposition from a stated test. That is a judgment about a markdown table
-# and says nothing about eval coverage.
-# scripts/check-fleet-finding-test-coverage.sh is the same SHAPE one surface
-# over (emitted kinds vs unit-test assertions) for one named collector; it does
-# not read any evals.json.
-#
-# WHY A REGISTRY RATHER THAN DISCOVERY, AND WHY DISCOVERY ANYWAY. Globbing
-# plugins/*/skills/*/ for a detector plus an evals.json finds the pair, but not
-# the third fact the comparison needs: the shape of that detector's check ids.
-# They are a per-skill vocabulary (`P1`/`P2b` here, something else next time),
-# and a gate that guessed the shape would go quietly empty on the first detector
-# that spelled them differently. A registry row carries the id pattern
-# explicitly.
-#
-# But a registry with no stopping rule leaves the first NEW detector-plus-evals
-# skill silently unenforced, which is the same false-green one level up.
-# scripts/check-script-contract.test.sh already answers this for its own family
-# ("THE REGISTRY IS THE STOPPING RULE": a new member fails as UNREGISTERED
-# rather than being quietly uncovered), so this follows that precedent. Every
-# run walks plugins/*/skills/*/ for a QUALIFYING pair -- a skill with an
-# evals/evals.json and a non-test script carrying at least two distinct
-# `emit <word> <ID>` call sites whose ID is check-id shaped
-# (/[A-Z][A-Za-z]*[0-9]+[A-Za-z0-9]*/) -- and an unregistered one is a FINDING
-# (exit 1), not an environment answer: the tree is in a real state with a real
-# remedy, which is to add the row. Two distinct ids is what separates a check-id
-# vocabulary from an `emit <scope> <kind>` printer; the other emitters in this
-# repo (permission-state.sh, discover-instruction-surfaces.sh,
-# file-provenance.sh) pass none and are correctly not candidates.
-#
-# Discovery finds those call sites with THE SAME scanner the verdict path uses,
-# widened only in the id pattern. It used to have a greedy sed of its own, which
-# kept one id per line and so missed a detector spelling two emits as
-# `emit warning Q1 ...; emit error Q2 ...` -- the stopping rule defeated by
-# ordinary shell that the verdict scanner beside it read correctly. A fix
-# applied at one call site and missed at its sibling is the defect class this
-# whole gate is about, so the two extractors are now one.
-#
-# RESIDUE of the stopping rule, both directions:
-#   - MISSED (false pass): the shapes the scanner reports UNRESOLVED contribute
-#     no id here. A candidate whose ids are computed or quoted-with-expansion
-#     (`emit "$sev" Q1`, a lookup table) can sit below the two-distinct-ids bar
-#     and never be reported as unregistered. The verdict path answers that shape
-#     with exit 2; discovery cannot, because a stranger's unreadable shell is
-#     not this run's environment, so it under-counts instead. The same is true
-#     of the scanner's own misses: an emitter renamed to something not beginning
-#     with `emit`, or reached through a variable, is invisible to both halves.
-#   - MISSED (narrowed by this change, deliberately): a candidate whose only
-#     check-id-shaped tokens sit inside a quoted string or a heredoc -- help
-#     text, a usage block -- used to qualify, because the old sed grepped prose.
-#     It no longer does. That is the verdict scanner's reading, and a pair whose
-#     detector emits nothing real is not a pair worth a registry row.
-#   - SPURIOUS (false failure, exit 1): a script that really does pass two
-#     distinct check-id-shaped tokens through an `emit`-prefixed command while
-#     being something other than a detector is reported as unregistered. The
-#     remedy is the registry-row conversation the rule exists to force.
-#
-# Registry row: <detector script>|<evals.json>|<check-id ERE>
-#
-# The ERE matches WHOLE word tokens on both sides: the detector's resolved
-# `emit <severity> <id>` call sites, and the coverage-bearing strings of each
-# eval entry. So `P1` in `PLAN1` and `P4` in `xP4` name nothing, while `P2` in
-# `(P1/P2/P3)` names P2. The row's pattern must therefore describe an id made of
-# [A-Za-z0-9_]; an id family spelled with punctuation needs this splitting rule
-# revisited rather than a wider pattern.
-#
-# The boundaries are spelled out rather than written as \b, which is a GNU
-# extension scripts/check-shell-portability.sh rejects.
-#
-# DETECTOR_EVAL_COVERAGE_PAIRS overrides the rows (newline-separated), for the
-# self-test and for historical proofs.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -266,17 +16,10 @@ if [[ "$#" -gt 1 || ("$mode" != discover && "$mode" != --check) ]]; then
   exit 2
 fi
 
-# Read the eval suite through a JSON parser, not a grep: a suite that no longer
-# parses must be an environment answer, never a pass. jq is the prerequisite and
-# its absence is exit 2 before anything reaches stdout.
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-detector-eval-coverage: jq not found; cannot read any eval suite" >&2
   exit 2
 fi
-# Same pin as .claude/cloud-bootstrap.sh and the check-skills install step.
-# shfmt --to-json is how emit call sites are read; without it the gate cannot
-# see its input. Older than v3.13.0 drops a call after `#` following a
-# command substitution or a backtick, and that drop is a silent pass.
 if ! command -v shfmt >/dev/null 2>&1; then
   echo "check-detector-eval-coverage: shfmt not found; cannot read emit call sites (pin mvdan/sh v3.14.1, shfmt --to-json --language-dialect bash)" >&2
   exit 2
@@ -289,9 +32,6 @@ if [[ -z "${shfmt_maj:-}" || -z "${shfmt_min:-}" ]] || ((shfmt_maj < 3 || (shfmt
   exit 2
 fi
 
-# --- the emit-call-site scanner ----------------------------------------------
-# shfmt --to-json, then a walk of CallExpr nodes. Writes `ID <id>` lines,
-# `UNRESOLVED <site>` lines, and a final `CANDIDATES <n>`.
 EMIT_SCAN_JQ=""
 read -r -d '' EMIT_SCAN_JQ <<'JQ'
 def static:
@@ -418,11 +158,6 @@ scan_emits() {
     jq -r --arg idre "$idre" "$EMIT_SCAN_JQ" >"$outfile"
 }
 
-# --- the coverage-bearing-string reader --------------------------------------
-# Reads one JSON-encoded string per line and prints, per whole-token id
-# occurrence, `NAMED <id>` always, then either `COVERING <id>` or -- when a
-# negation cue sits in the id's own predicate -- `DISCLAIMED <id>`. DISCLAIMED
-# is an advisory the caller reports and never fails on; see the header.
 COVERAGE_AWK=""
 read -r -d '' COVERAGE_AWK <<'AWK'
 BEGIN {
@@ -489,10 +224,6 @@ covering_tmp="$tmp_dir/covering"
 disclaimed_tmp="$tmp_dir/disclaimed"
 scan_tmp="$tmp_dir/scan"
 strings_tmp="$tmp_dir/strings"
-# Discover-mode stdout is BUFFERED, not streamed: a per-row exit 2 must not
-# leave a partial report on stdout with no denominator trailer under it, and the
-# check-script contract says a run that inspected nothing says nothing there.
-# Advisories are BUFFERED for the same reason.
 report_tmp="$tmp_dir/report"
 advisory_tmp="$tmp_dir/advisory"
 : >"$report_tmp"
