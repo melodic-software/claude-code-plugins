@@ -159,8 +159,8 @@ over the 3 s push budget. `/source-control:pull-request` runs it in the pre-PR c
 head, and this marketplace's CI runs it in its Lint Repo job, both as `reference-verify.sh --base <default branch>`,
 as `scripts/check-affected.sh` does. It runs `cli-flag-verify`, `skill-reference-verify`
 and `stale-path-verify` on the lines the branch adds from its merge-base with that ref, pushed
-commits included, through `hooks/run-guards.sh`. It skips files in a `samples/` folder below an
-`evals/` folder, which hold recorded model output. A cli-flag or skill-reference finding fails the
+commits included, through one `hooks/run-guards.sh --batch` process per range. It skips files in
+a `samples/` folder below an `evals/` folder, which hold recorded model output. A cli-flag or skill-reference finding fails the
 check; a stale-path finding is printed and the check passes. A file whose verifier input it cannot
 build or whose verifier run fails, or a branch tip it cannot check out, is reported as a finding and
 fails the check, since it went unchecked. Needs `jq`; the scanned binaries follow
