@@ -863,10 +863,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED:-true}" == "true" ]] || exit 0
 
 # The hook's own directory, by parameter expansion rather than `dirname`: GNU
@@ -926,9 +922,6 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 PAYLOAD_CWD=""
 RDT_CWD_NUL=0
 
-# Bash and PowerShell only. Exiting on every other tool keeps this guard off
-# the classifier's load path. The PowerShell lane uses a dedicated tokenizer
-# below and does not call the shared classifier.
 [[ "$TOOL_NAME" == "Bash" || "$TOOL_NAME" == "PowerShell" ]] || exit 0
 
 # hook::jq_fields drops every CR from a field, but PowerShell ends a statement
@@ -2230,9 +2223,6 @@ rdt_add_origin() {
     rdt_cd_unknown=1
     return 0
   fi
-  # A quoted target is literal, unless it carries a `$` or a backtick: the
-  # tokenizer's provenance cannot tell "$d" from '$d', so that one is still
-  # read as an expansion and left alone.
   if ((q == 2)) && [[ "$1" != *'$'* && "$1" != *'`'* ]]; then q=3; fi
   rdt_place_to t "$1" "$q" || rc=$?
   if ((rc == 2)); then
@@ -5670,11 +5660,6 @@ rdt_parse() {
 # command's first heredoc opener.
 # shellcheck disable=SC2329  # invoked as the hook::bash_parse_segments callback
 rdt_segment() {
-  # The reader keeps a substitution inside its word (`eval $(…)`, `~/$(whoami)`,
-  # `bash <(…)`) and hands its commands over as segments of their own. This
-  # guard's rules read a word cut where the substitution starts: the text before
-  # it then `$`, the text before a backtick, and no word for a process
-  # substitution. A word every character of which was quoted stays whole.
   local -a rdt_sw=() rdt_sq=()
   local rdt_si rdt_sx rdt_sqv
   for ((rdt_si = 1; rdt_si <= $#; rdt_si++)); do

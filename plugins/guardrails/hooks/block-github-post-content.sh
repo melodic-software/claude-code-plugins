@@ -69,7 +69,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source (scripts/check-killswitch-hoist.sh).
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_GITHUB_POST_CONTENT_ENABLED:-true}" == "true" ]] || exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"

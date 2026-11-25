@@ -76,11 +76,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED:-true}" == "true" ]] || exit 0
 
 # The hook's own directory is derived with parameter expansion rather than
@@ -648,18 +643,6 @@ persisted_alias_expansions() {
   [[ -n "$plain" ]] && HOOK_PERSISTED_ALIAS_EXPS+=("$plain")
   [[ -n "$cmd" ]] && HOOK_PERSISTED_ALIAS_EXPS+=("$cmd")
 }
-
-# Identity is a BEST-AVAILABLE answer, not a gate. When git cannot resolve a work
-# tree the walk continues with the literal composed directory instead of refusing
-# the command, which is main's behavior on this path.
-#
-# Failing CLOSED here would protect nothing (if a commit could not succeed there
-# anyway, refusing it guards against nothing) while refusing VALID canonical
-# commits reached through a repository the OUTER probe cannot see
-# (`--git-dir`/`--work-tree` on the invocation, then `-C` inside the body). The
-# class stays open regardless: the persisted-alias lookup drops the locating
-# globals on both this guard and main; closing it means deferring resolution to
-# the nested invocation, not failing closed here.
 
 # Alias re-expansion is this guard's only recursive path, and it BRANCHES: every
 # hop re-checks both alias spellings (`alias.<sub>` and `alias.<sub>.command`)

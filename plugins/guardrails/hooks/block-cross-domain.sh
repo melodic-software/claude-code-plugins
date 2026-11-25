@@ -250,8 +250,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off (scripts/check-killswitch-hoist.sh).
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_CROSS_DOMAIN_ENABLED:-true}" == "true" ]] || exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
@@ -292,8 +290,6 @@ if [[ -z "$BCD_MAP" ]]; then
   fi
 fi
 
-# The map is compiled by jq, and the call's fields are read through it. Without
-# it: one notice per session, then allow.
 hook::require jq PreToolUse guardrails "$INPUT"
 
 jq_rc=0
@@ -310,8 +306,6 @@ darwin*) BCD_OS=macos ;;
 *) BCD_OS=linux ;;
 esac
 
-# What the compiler below writes. A change to the jq program or to how the
-# records are read changes it, so a cache an older guard wrote is compiled again.
 BCD_FORMAT=7
 BCD_CACHE="${BCD_MAP%.json}.cache"
 BCD_TAB=$'\t'
@@ -757,7 +751,6 @@ bcd::grants_nothing() {
   BCD_NOTICE_JSON=',"systemMessage":"'"$esc"'"'
 }
 
-# bcd::allow: the call is allowed; a pending notice goes out alone, then exit 0.
 bcd::allow() {
   [[ -z "$BCD_NOTICE" ]] || hook::emit_channels PreToolUse "" "$BCD_NOTICE"
   exit 0

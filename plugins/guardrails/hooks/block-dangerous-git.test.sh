@@ -470,7 +470,7 @@ run_in "$NOT_A_REPO" "not a repository under the temp directory (probe fails, bl
 # /var/tmp persists across reboots, so a repository there is no scratch, unless
 # the environment's own temp directory is there too.
 case "${TMPDIR:-}|${TMP:-}|${TEMP:-}" in
-*/var/tmp*) ;; # the environment's temp directory is under /var/tmp
+*/var/tmp*) ;;
 *)
   if [[ -d /var/tmp && -w /var/tmp ]] && VAR_TMP_REPO="$(mktemp -d /var/tmp/block-dangerous-git-test.XXXXXX)"; then
     if git init -q "$VAR_TMP_REPO"; then
@@ -2032,10 +2032,6 @@ run_pwsh "PS hs: an apostrophe inside a double-quoted string does not erase the 
   "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "git push --force" "\"@\"")" 2
 run_pwsh "PS hs: the minimal apostrophe-straddle spelling of the same erasure (blocked)" \
   "$(printf '%s\n%s\n%s' "echo \"'\" # ' \" @\"" "git push --force" "\"@\"")" 2
-# ACCEPTED OVER-BLOCKS. Both open a real here-string in PowerShell and carry no
-# comment at all; refusing by shape is the price of taking no position on where
-# the `#` sits. Pinned so a later narrowing flips a case instead of passing
-# silently.
 run_pwsh "PS hs: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
 run_pwsh "PS hs: a # glued into a bareword before a real opener (blocked, accepted over-block)" \
