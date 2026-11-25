@@ -25,9 +25,13 @@ HEADING_RENAME_TARGETS = ROUTING_HEADINGS | frozenset(["next", "related"])
 HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*$")
 
 HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
-SKILL_TOKEN_RE = re.compile(r"(?<![\w/:.-])/?[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*(?![\w-])")
+SKILL_TOKEN = r"(?<![\w/:.-])/?[a-z][a-z0-9-]*:[a-z][a-z0-9-]*(?![\w-])"
+SKILL_TOKEN_RE = re.compile(SKILL_TOKEN)
 ROUTING_SEGMENT_RE = re.compile(
-    r"(?:^|,\s*)(?:(?:and|or|but)\s+)?(?:not for|skip|prefer)\b[^,]*", re.IGNORECASE
+    r"(?:^|,\s*)(?:(?:and|or|but)\s+)?(?:not for|skip|prefer)\b[^,]*?"
+    + SKILL_TOKEN
+    + r"[\s.;:)]*(?=,|$)",
+    re.IGNORECASE,
 )
 DIRECTIVE_RE = re.compile(
     r"^(?://\s*(?:go:|@ts-|eslint|prettier|istanbul|c8|biome|#region|#endregion)"
@@ -102,13 +106,11 @@ def _parse_rejected_terms(text):
 
 def _routing_free_tokens(text):
     """Description tokens with each routing segment (`Not for ...`, `Skip ...` or `prefer ...` at a
-    clause start or after a comma, up to the next comma, naming a `plugin:skill`) cut, the
+    clause start or after a comma, ending with a `plugin:skill` before the next comma) cut, the
     clause-ending `.` or `;` dropped, and every skill token, slash or not, made one placeholder."""
     kept = []
     for clause in CLAUSE_SPLIT_RE.split(text.strip()):
-        clause = ROUTING_SEGMENT_RE.sub(
-            lambda m: "" if SKILL_TOKEN_RE.search(m.group()) else m.group(), clause.rstrip(".;")
-        ).strip()
+        clause = ROUTING_SEGMENT_RE.sub("", clause.rstrip(".;")).strip()
         if clause:
             kept.append(clause)
     return SWAP_TOKEN_RE.findall(SKILL_TOKEN_RE.sub(" SKILLTOKEN ", " ".join(kept)))

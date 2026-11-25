@@ -184,15 +184,30 @@ class SelectCasesNoRunTest(unittest.TestCase):
 
     def test_removed_prefer_clause_is_exempt(self):
         path = self._set_base_description(
-            "Run alpha one checks; prefer /beta:runner for sweeps. Use when checking alpha items."
+            "Run alpha one checks; prefer /beta:runner. Use when checking alpha items."
         )
         self._assert_exempt(
             self._edit_and_select(
                 path,
-                "Run alpha one checks; prefer /beta:runner for sweeps.",
+                "Run alpha one checks; prefer /beta:runner.",
                 "Run alpha one checks.",
             )
         )
+
+    def test_trigger_words_after_a_routed_skill_are_cut(self):
+        path = self._set_base_description(
+            "Run alpha one checks."
+            " Prefer this skill over /beta:runner when the user asks for deploys."
+        )
+        block = self._edit_and_select(path, "asks for deploys", "asks for rollbacks")
+        self.assertNotIn("no-run-exempt", block, "deploys is trigger wording after the skill")
+
+    def test_numeric_colon_value_change_is_cut(self):
+        path = self._set_base_description(
+            "Run alpha one checks at 10:30. Use when checking alpha items."
+        )
+        block = self._edit_and_select(path, "at 10:30", "at 11:45")
+        self.assertNotIn("no-run-exempt", block, "10:30 is a time, not a skill token")
 
     def test_skill_token_form_and_rename_are_exempt(self):
         path = self._set_base_description(
